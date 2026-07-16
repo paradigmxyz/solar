@@ -81,6 +81,7 @@ fn display_terminator<'a>(
             EvmIrTerminatorKind::Fallthrough(target) => {
                 write!(f, "fallthrough {}", display_block_id(module, *target))?;
             }
+            EvmIrTerminatorKind::FallthroughNext => write!(f, "fallthrough_next")?,
             EvmIrTerminatorKind::Jump(target) => {
                 write!(f, "jump {}", display_block_id(module, *target))?;
             }
@@ -136,7 +137,11 @@ fn display_terminator<'a>(
                 write!(f, "selfdestruct {}", display_operand(module, recipient))?;
             }
             EvmIrTerminatorKind::RawOpcode(opcode) => {
-                write!(f, "terminal 0x{opcode:02x}")?;
+                if let Some(mnemonic) = super::super::assembler::op::mnemonic(*opcode) {
+                    write!(f, "terminal {mnemonic}")?;
+                } else {
+                    write!(f, "terminal 0x{opcode:02x}")?;
+                }
             }
         }
         write!(

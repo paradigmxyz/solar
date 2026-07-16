@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen --emit=bin --pretty-json
+//@compile-flags: -Zcodegen --emit=evm-ir --pretty-json
 // solc 0.8.30 without --via-ir reports `Stack too deep` for this contract.
 pragma solidity ^0.8.0;
 

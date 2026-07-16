@@ -5,7 +5,7 @@
 //! - Two-pass assembly for resolving jump targets
 //! - Variable-width PUSH sizing based on offset magnitudes
 
-use crate::mir::IMMUTABLE_WORD_SIZE;
+use crate::{backend::evm::EvmIrModule, mir::IMMUTABLE_WORD_SIZE};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
@@ -65,6 +65,8 @@ pub struct AssembledCode {
     pub label_offsets: FxHashMap<Label, usize>,
     /// All immutable placeholders, in emission order.
     pub immutable_refs: Vec<ImmutableRef>,
+    /// Final EVM IR captured immediately before byte emission.
+    pub evm_ir: Option<EvmIrModule>,
 }
 
 /// Configuration for EVM bytecode assembly.
@@ -84,6 +86,8 @@ pub struct AssemblerConfig {
     /// Kept separate from `evm_ir_stack_schedule` so the experimental scheduler
     /// flag remains bytecode-neutral.
     pub evm_ir_layout_passes: bool,
+    /// Capture the final EVM IR without running additional passes.
+    pub capture_evm_ir: bool,
 }
 
 /// Two-pass assembler for EVM bytecode.
@@ -801,6 +805,8 @@ impl Assembler {
         }
         self.hoist_hot_terminal_spans(&mut program.instructions);
 
+        let evm_ir = self.config.capture_evm_ir.then(|| program.to_evm_ir_module(self)).flatten();
+
         // Label-free constructor and deployment snippets need neither offset
         // discovery nor push-width relaxation.
         if !program
@@ -808,7 +814,9 @@ impl Assembler {
             .iter()
             .any(|inst| matches!(inst.kind(), AsmInstKind::Label(_) | AsmInstKind::PushLabel(_)))
         {
-            let result = self.emit_bytecode(&program, FxHashMap::default(), &FxHashMap::default());
+            let mut result =
+                self.emit_bytecode(&program, FxHashMap::default(), &FxHashMap::default());
+            result.evm_ir = evm_ir;
             self.clear();
             return result;
         }
@@ -837,7 +845,8 @@ impl Assembler {
 
             if !changed {
                 // Stable - emit final bytecode
-                let result = self.emit_bytecode(&program, label_offsets, &push_widths);
+                let mut result = self.emit_bytecode(&program, label_offsets, &push_widths);
+                result.evm_ir = evm_ir;
                 self.clear();
                 return result;
             }
@@ -849,7 +858,8 @@ impl Assembler {
 
         // Fallback - just emit with current widths
         let (label_offsets, _) = self.compute_offsets(&program, &push_widths);
-        let result = self.emit_bytecode(&program, label_offsets, &push_widths);
+        let mut result = self.emit_bytecode(&program, label_offsets, &push_widths);
+        result.evm_ir = evm_ir;
         self.clear();
         result
     }
@@ -1410,6 +1420,7 @@ impl BytecodeAssembler {
             bytecode: self.bytecode,
             label_offsets,
             immutable_refs: self.immutable_refs,
+            evm_ir: None,
         }
     }
 }
@@ -1430,186 +1441,242 @@ enum CompactPush {
 
 /// Common EVM op.
 pub mod op {
-    pub const STOP: u8 = 0x00;
-    pub const ADD: u8 = 0x01;
-    pub const MUL: u8 = 0x02;
-    pub const SUB: u8 = 0x03;
-    pub const DIV: u8 = 0x04;
-    pub const SDIV: u8 = 0x05;
-    pub const MOD: u8 = 0x06;
-    pub const SMOD: u8 = 0x07;
-    pub const ADDMOD: u8 = 0x08;
-    pub const MULMOD: u8 = 0x09;
-    pub const EXP: u8 = 0x0a;
-    pub const SIGNEXTEND: u8 = 0x0b;
+    macro_rules! opcode_mnemonic {
+        (r#return) => {
+            "return"
+        };
+        ($mnemonic:ident) => {
+            stringify!($mnemonic)
+        };
+    }
 
-    pub const LT: u8 = 0x10;
-    pub const GT: u8 = 0x11;
-    pub const SLT: u8 = 0x12;
-    pub const SGT: u8 = 0x13;
-    pub const EQ: u8 = 0x14;
-    pub const ISZERO: u8 = 0x15;
-    pub const AND: u8 = 0x16;
-    pub const OR: u8 = 0x17;
-    pub const XOR: u8 = 0x18;
-    pub const NOT: u8 = 0x19;
-    pub const BYTE: u8 = 0x1a;
-    pub const SHL: u8 = 0x1b;
-    pub const SHR: u8 = 0x1c;
-    pub const SAR: u8 = 0x1d;
-    pub const CLZ: u8 = 0x1e;
+    macro_rules! opcode_stack_io {
+        (_,_) => {
+            None
+        };
+        ($inputs:literal, $outputs:literal) => {
+            Some(($inputs, $outputs))
+        };
+    }
 
-    pub const KECCAK256: u8 = 0x20;
+    macro_rules! opcodes {
+        ($($opcode:literal => $constant:ident => $mnemonic:ident => stack_io($inputs:tt, $outputs:tt);)*) => {
+            $(
+                #[doc = concat!("Opcode byte for `", stringify!($constant), "`.")]
+                pub const $constant: u8 = $opcode;
+            )*
 
-    pub const ADDRESS: u8 = 0x30;
-    pub const BALANCE: u8 = 0x31;
-    pub const ORIGIN: u8 = 0x32;
-    pub const CALLER: u8 = 0x33;
-    pub const CALLVALUE: u8 = 0x34;
-    pub const CALLDATALOAD: u8 = 0x35;
-    pub const CALLDATASIZE: u8 = 0x36;
-    pub const CALLDATACOPY: u8 = 0x37;
-    pub const CODESIZE: u8 = 0x38;
-    pub const CODECOPY: u8 = 0x39;
-    pub const GASPRICE: u8 = 0x3a;
-    pub const EXTCODESIZE: u8 = 0x3b;
-    pub const EXTCODECOPY: u8 = 0x3c;
-    pub const RETURNDATASIZE: u8 = 0x3d;
-    pub const RETURNDATACOPY: u8 = 0x3e;
-    pub const EXTCODEHASH: u8 = 0x3f;
+            /// Maps each opcode byte to its canonical mnemonic.
+            static OPCODE_MNEMONICS: [Option<&str>; 256] = {
+                let mut map = [None; 256];
+                let mut prev = 0;
+                $(
+                    let opcode: u8 = $opcode;
+                    assert!(opcode == 0 || opcode > prev, "opcodes must be sorted in ascending order");
+                    prev = opcode;
+                    map[opcode as usize] = Some(opcode_mnemonic!($mnemonic));
+                )*
+                let _ = prev;
+                map
+            };
 
-    pub const BLOCKHASH: u8 = 0x40;
-    pub const COINBASE: u8 = 0x41;
-    pub const TIMESTAMP: u8 = 0x42;
-    pub const NUMBER: u8 = 0x43;
-    pub const PREVRANDAO: u8 = 0x44;
-    pub const GASLIMIT: u8 = 0x45;
-    pub const CHAINID: u8 = 0x46;
-    pub const SELFBALANCE: u8 = 0x47;
-    pub const BASEFEE: u8 = 0x48;
-    pub const BLOBHASH: u8 = 0x49;
-    pub const BLOBBASEFEE: u8 = 0x4a;
+            /// Returns the canonical mnemonic for an opcode.
+            #[must_use]
+            pub const fn mnemonic(opcode: u8) -> Option<&'static str> {
+                OPCODE_MNEMONICS[opcode as usize]
+            }
 
-    pub const POP: u8 = 0x50;
-    pub const MLOAD: u8 = 0x51;
-    pub const MSTORE: u8 = 0x52;
-    pub const MSTORE8: u8 = 0x53;
-    pub const SLOAD: u8 = 0x54;
-    pub const SSTORE: u8 = 0x55;
-    pub const JUMP: u8 = 0x56;
-    pub const JUMPI: u8 = 0x57;
-    pub const PC: u8 = 0x58;
-    pub const MSIZE: u8 = 0x59;
-    pub const GAS: u8 = 0x5a;
-    pub const JUMPDEST: u8 = 0x5b;
-    pub const TLOAD: u8 = 0x5c;
-    pub const TSTORE: u8 = 0x5d;
-    pub const MCOPY: u8 = 0x5e;
-    pub const PUSH0: u8 = 0x5f;
-    pub const PUSH1: u8 = 0x60;
-    pub const PUSH2: u8 = 0x61;
-    pub const PUSH3: u8 = 0x62;
-    pub const PUSH4: u8 = 0x63;
-    pub const PUSH5: u8 = 0x64;
-    pub const PUSH6: u8 = 0x65;
-    pub const PUSH7: u8 = 0x66;
-    pub const PUSH8: u8 = 0x67;
-    pub const PUSH9: u8 = 0x68;
-    pub const PUSH10: u8 = 0x69;
-    pub const PUSH11: u8 = 0x6a;
-    pub const PUSH12: u8 = 0x6b;
-    pub const PUSH13: u8 = 0x6c;
-    pub const PUSH14: u8 = 0x6d;
-    pub const PUSH15: u8 = 0x6e;
-    pub const PUSH16: u8 = 0x6f;
-    pub const PUSH17: u8 = 0x70;
-    pub const PUSH18: u8 = 0x71;
-    pub const PUSH19: u8 = 0x72;
-    pub const PUSH20: u8 = 0x73;
-    pub const PUSH21: u8 = 0x74;
-    pub const PUSH22: u8 = 0x75;
-    pub const PUSH23: u8 = 0x76;
-    pub const PUSH24: u8 = 0x77;
-    pub const PUSH25: u8 = 0x78;
-    pub const PUSH26: u8 = 0x79;
-    pub const PUSH27: u8 = 0x7a;
-    pub const PUSH28: u8 = 0x7b;
-    pub const PUSH29: u8 = 0x7c;
-    pub const PUSH30: u8 = 0x7d;
-    pub const PUSH31: u8 = 0x7e;
-    pub const PUSH32: u8 = 0x7f;
+            /// Returns the opcode for a canonical mnemonic.
+            #[must_use]
+            pub fn from_mnemonic(mnemonic: &str) -> Option<u8> {
+                match mnemonic {
+                    $(opcode_mnemonic!($mnemonic) => Some($opcode),)*
+                    _ => None,
+                }
+            }
 
-    pub const DUP1: u8 = 0x80;
-    pub const DUP2: u8 = 0x81;
-    pub const DUP3: u8 = 0x82;
-    pub const DUP4: u8 = 0x83;
-    pub const DUP5: u8 = 0x84;
-    pub const DUP6: u8 = 0x85;
-    pub const DUP7: u8 = 0x86;
-    pub const DUP8: u8 = 0x87;
-    pub const DUP9: u8 = 0x88;
-    pub const DUP10: u8 = 0x89;
-    pub const DUP11: u8 = 0x8a;
-    pub const DUP12: u8 = 0x8b;
-    pub const DUP13: u8 = 0x8c;
-    pub const DUP14: u8 = 0x8d;
-    pub const DUP15: u8 = 0x8e;
-    pub const DUP16: u8 = 0x8f;
+            /// Returns the number of stack items consumed and produced by an opcode.
+            #[must_use]
+            pub const fn stack_io(opcode: u8) -> Option<(u16, u16)> {
+                match opcode {
+                    $($opcode => opcode_stack_io!($inputs, $outputs),)*
+                    _ => None,
+                }
+            }
+        };
+    }
 
-    pub const SWAP1: u8 = 0x90;
-    pub const SWAP2: u8 = 0x91;
-    pub const SWAP3: u8 = 0x92;
-    pub const SWAP4: u8 = 0x93;
-    pub const SWAP5: u8 = 0x94;
-    pub const SWAP6: u8 = 0x95;
-    pub const SWAP7: u8 = 0x96;
-    pub const SWAP8: u8 = 0x97;
-    pub const SWAP9: u8 = 0x98;
-    pub const SWAP10: u8 = 0x99;
-    pub const SWAP11: u8 = 0x9a;
-    pub const SWAP12: u8 = 0x9b;
-    pub const SWAP13: u8 = 0x9c;
-    pub const SWAP14: u8 = 0x9d;
-    pub const SWAP15: u8 = 0x9e;
-    pub const SWAP16: u8 = 0x9f;
-
-    pub const LOG0: u8 = 0xa0;
-    pub const LOG1: u8 = 0xa1;
-    pub const LOG2: u8 = 0xa2;
-    pub const LOG3: u8 = 0xa3;
-    pub const LOG4: u8 = 0xa4;
-
-    pub const DATALOAD: u8 = 0xd0;
-    pub const DATALOADN: u8 = 0xd1;
-    pub const DATASIZE: u8 = 0xd2;
-    pub const DATACOPY: u8 = 0xd3;
-
-    pub const RJUMP: u8 = 0xe0;
-    pub const RJUMPI: u8 = 0xe1;
-    pub const RJUMPV: u8 = 0xe2;
-    pub const CALLF: u8 = 0xe3;
-    pub const RETF: u8 = 0xe4;
-    pub const JUMPF: u8 = 0xe5;
-    pub const DUPN: u8 = 0xe6;
-    pub const SWAPN: u8 = 0xe7;
-    pub const EXCHANGE: u8 = 0xe8;
-    pub const EOFCREATE: u8 = 0xec;
-    pub const RETURNCONTRACT: u8 = 0xee;
-
-    pub const CREATE: u8 = 0xf0;
-    pub const CALL: u8 = 0xf1;
-    pub const CALLCODE: u8 = 0xf2;
-    pub const RETURN: u8 = 0xf3;
-    pub const DELEGATECALL: u8 = 0xf4;
-    pub const CREATE2: u8 = 0xf5;
-    pub const RETURNDATALOAD: u8 = 0xf7;
-    pub const EXTCALL: u8 = 0xf8;
-    pub const EXTDELEGATECALL: u8 = 0xf9;
-    pub const STATICCALL: u8 = 0xfa;
-    pub const EXTSTATICCALL: u8 = 0xfb;
-    pub const REVERT: u8 = 0xfd;
-    pub const INVALID: u8 = 0xfe;
-    pub const SELFDESTRUCT: u8 = 0xff;
+    opcodes! {
+        0x00 => STOP => stop => stack_io(0, 0);
+        0x01 => ADD => add => stack_io(2, 1);
+        0x02 => MUL => mul => stack_io(2, 1);
+        0x03 => SUB => sub => stack_io(2, 1);
+        0x04 => DIV => div => stack_io(2, 1);
+        0x05 => SDIV => sdiv => stack_io(2, 1);
+        0x06 => MOD => mod => stack_io(2, 1);
+        0x07 => SMOD => smod => stack_io(2, 1);
+        0x08 => ADDMOD => addmod => stack_io(3, 1);
+        0x09 => MULMOD => mulmod => stack_io(3, 1);
+        0x0a => EXP => exp => stack_io(2, 1);
+        0x0b => SIGNEXTEND => signextend => stack_io(2, 1);
+        0x10 => LT => lt => stack_io(2, 1);
+        0x11 => GT => gt => stack_io(2, 1);
+        0x12 => SLT => slt => stack_io(2, 1);
+        0x13 => SGT => sgt => stack_io(2, 1);
+        0x14 => EQ => eq => stack_io(2, 1);
+        0x15 => ISZERO => iszero => stack_io(1, 1);
+        0x16 => AND => and => stack_io(2, 1);
+        0x17 => OR => or => stack_io(2, 1);
+        0x18 => XOR => xor => stack_io(2, 1);
+        0x19 => NOT => not => stack_io(1, 1);
+        0x1a => BYTE => byte => stack_io(2, 1);
+        0x1b => SHL => shl => stack_io(2, 1);
+        0x1c => SHR => shr => stack_io(2, 1);
+        0x1d => SAR => sar => stack_io(2, 1);
+        0x1e => CLZ => clz => stack_io(1, 1);
+        0x20 => KECCAK256 => keccak256 => stack_io(2, 1);
+        0x30 => ADDRESS => address => stack_io(0, 1);
+        0x31 => BALANCE => balance => stack_io(1, 1);
+        0x32 => ORIGIN => origin => stack_io(0, 1);
+        0x33 => CALLER => caller => stack_io(0, 1);
+        0x34 => CALLVALUE => callvalue => stack_io(0, 1);
+        0x35 => CALLDATALOAD => calldataload => stack_io(1, 1);
+        0x36 => CALLDATASIZE => calldatasize => stack_io(0, 1);
+        0x37 => CALLDATACOPY => calldatacopy => stack_io(3, 0);
+        0x38 => CODESIZE => codesize => stack_io(0, 1);
+        0x39 => CODECOPY => codecopy => stack_io(3, 0);
+        0x3a => GASPRICE => gasprice => stack_io(0, 1);
+        0x3b => EXTCODESIZE => extcodesize => stack_io(1, 1);
+        0x3c => EXTCODECOPY => extcodecopy => stack_io(4, 0);
+        0x3d => RETURNDATASIZE => returndatasize => stack_io(0, 1);
+        0x3e => RETURNDATACOPY => returndatacopy => stack_io(3, 0);
+        0x3f => EXTCODEHASH => extcodehash => stack_io(1, 1);
+        0x40 => BLOCKHASH => blockhash => stack_io(1, 1);
+        0x41 => COINBASE => coinbase => stack_io(0, 1);
+        0x42 => TIMESTAMP => timestamp => stack_io(0, 1);
+        0x43 => NUMBER => number => stack_io(0, 1);
+        0x44 => PREVRANDAO => prevrandao => stack_io(0, 1);
+        0x45 => GASLIMIT => gaslimit => stack_io(0, 1);
+        0x46 => CHAINID => chainid => stack_io(0, 1);
+        0x47 => SELFBALANCE => selfbalance => stack_io(0, 1);
+        0x48 => BASEFEE => basefee => stack_io(0, 1);
+        0x49 => BLOBHASH => blobhash => stack_io(1, 1);
+        0x4a => BLOBBASEFEE => blobbasefee => stack_io(0, 1);
+        0x50 => POP => pop => stack_io(1, 0);
+        0x51 => MLOAD => mload => stack_io(1, 1);
+        0x52 => MSTORE => mstore => stack_io(2, 0);
+        0x53 => MSTORE8 => mstore8 => stack_io(2, 0);
+        0x54 => SLOAD => sload => stack_io(1, 1);
+        0x55 => SSTORE => sstore => stack_io(2, 0);
+        0x56 => JUMP => jump => stack_io(1, 0);
+        0x57 => JUMPI => jumpi => stack_io(2, 0);
+        0x58 => PC => pc => stack_io(0, 1);
+        0x59 => MSIZE => msize => stack_io(0, 1);
+        0x5a => GAS => gas => stack_io(0, 1);
+        0x5b => JUMPDEST => jumpdest => stack_io(0, 0);
+        0x5c => TLOAD => tload => stack_io(1, 1);
+        0x5d => TSTORE => tstore => stack_io(2, 0);
+        0x5e => MCOPY => mcopy => stack_io(3, 0);
+        0x5f => PUSH0 => push0 => stack_io(0, 1);
+        0x60 => PUSH1 => push1 => stack_io(0, 1);
+        0x61 => PUSH2 => push2 => stack_io(0, 1);
+        0x62 => PUSH3 => push3 => stack_io(0, 1);
+        0x63 => PUSH4 => push4 => stack_io(0, 1);
+        0x64 => PUSH5 => push5 => stack_io(0, 1);
+        0x65 => PUSH6 => push6 => stack_io(0, 1);
+        0x66 => PUSH7 => push7 => stack_io(0, 1);
+        0x67 => PUSH8 => push8 => stack_io(0, 1);
+        0x68 => PUSH9 => push9 => stack_io(0, 1);
+        0x69 => PUSH10 => push10 => stack_io(0, 1);
+        0x6a => PUSH11 => push11 => stack_io(0, 1);
+        0x6b => PUSH12 => push12 => stack_io(0, 1);
+        0x6c => PUSH13 => push13 => stack_io(0, 1);
+        0x6d => PUSH14 => push14 => stack_io(0, 1);
+        0x6e => PUSH15 => push15 => stack_io(0, 1);
+        0x6f => PUSH16 => push16 => stack_io(0, 1);
+        0x70 => PUSH17 => push17 => stack_io(0, 1);
+        0x71 => PUSH18 => push18 => stack_io(0, 1);
+        0x72 => PUSH19 => push19 => stack_io(0, 1);
+        0x73 => PUSH20 => push20 => stack_io(0, 1);
+        0x74 => PUSH21 => push21 => stack_io(0, 1);
+        0x75 => PUSH22 => push22 => stack_io(0, 1);
+        0x76 => PUSH23 => push23 => stack_io(0, 1);
+        0x77 => PUSH24 => push24 => stack_io(0, 1);
+        0x78 => PUSH25 => push25 => stack_io(0, 1);
+        0x79 => PUSH26 => push26 => stack_io(0, 1);
+        0x7a => PUSH27 => push27 => stack_io(0, 1);
+        0x7b => PUSH28 => push28 => stack_io(0, 1);
+        0x7c => PUSH29 => push29 => stack_io(0, 1);
+        0x7d => PUSH30 => push30 => stack_io(0, 1);
+        0x7e => PUSH31 => push31 => stack_io(0, 1);
+        0x7f => PUSH32 => push32 => stack_io(0, 1);
+        0x80 => DUP1 => dup1 => stack_io(1, 2);
+        0x81 => DUP2 => dup2 => stack_io(2, 3);
+        0x82 => DUP3 => dup3 => stack_io(3, 4);
+        0x83 => DUP4 => dup4 => stack_io(4, 5);
+        0x84 => DUP5 => dup5 => stack_io(5, 6);
+        0x85 => DUP6 => dup6 => stack_io(6, 7);
+        0x86 => DUP7 => dup7 => stack_io(7, 8);
+        0x87 => DUP8 => dup8 => stack_io(8, 9);
+        0x88 => DUP9 => dup9 => stack_io(9, 10);
+        0x89 => DUP10 => dup10 => stack_io(10, 11);
+        0x8a => DUP11 => dup11 => stack_io(11, 12);
+        0x8b => DUP12 => dup12 => stack_io(12, 13);
+        0x8c => DUP13 => dup13 => stack_io(13, 14);
+        0x8d => DUP14 => dup14 => stack_io(14, 15);
+        0x8e => DUP15 => dup15 => stack_io(15, 16);
+        0x8f => DUP16 => dup16 => stack_io(16, 17);
+        0x90 => SWAP1 => swap1 => stack_io(2, 2);
+        0x91 => SWAP2 => swap2 => stack_io(3, 3);
+        0x92 => SWAP3 => swap3 => stack_io(4, 4);
+        0x93 => SWAP4 => swap4 => stack_io(5, 5);
+        0x94 => SWAP5 => swap5 => stack_io(6, 6);
+        0x95 => SWAP6 => swap6 => stack_io(7, 7);
+        0x96 => SWAP7 => swap7 => stack_io(8, 8);
+        0x97 => SWAP8 => swap8 => stack_io(9, 9);
+        0x98 => SWAP9 => swap9 => stack_io(10, 10);
+        0x99 => SWAP10 => swap10 => stack_io(11, 11);
+        0x9a => SWAP11 => swap11 => stack_io(12, 12);
+        0x9b => SWAP12 => swap12 => stack_io(13, 13);
+        0x9c => SWAP13 => swap13 => stack_io(14, 14);
+        0x9d => SWAP14 => swap14 => stack_io(15, 15);
+        0x9e => SWAP15 => swap15 => stack_io(16, 16);
+        0x9f => SWAP16 => swap16 => stack_io(17, 17);
+        0xa0 => LOG0 => log0 => stack_io(2, 0);
+        0xa1 => LOG1 => log1 => stack_io(3, 0);
+        0xa2 => LOG2 => log2 => stack_io(4, 0);
+        0xa3 => LOG3 => log3 => stack_io(5, 0);
+        0xa4 => LOG4 => log4 => stack_io(6, 0);
+        0xd0 => DATALOAD => dataload => stack_io(1, 1);
+        0xd1 => DATALOADN => dataloadn => stack_io(0, 1);
+        0xd2 => DATASIZE => datasize => stack_io(0, 1);
+        0xd3 => DATACOPY => datacopy => stack_io(3, 0);
+        0xe0 => RJUMP => rjump => stack_io(0, 0);
+        0xe1 => RJUMPI => rjumpi => stack_io(1, 0);
+        0xe2 => RJUMPV => rjumpv => stack_io(1, 0);
+        0xe3 => CALLF => callf => stack_io(_, _);
+        0xe4 => RETF => retf => stack_io(_, _);
+        0xe5 => JUMPF => jumpf => stack_io(_, _);
+        0xe6 => DUPN => dupn => stack_io(0, 1);
+        0xe7 => SWAPN => swapn => stack_io(0, 0);
+        0xe8 => EXCHANGE => exchange => stack_io(0, 0);
+        0xec => EOFCREATE => eofcreate => stack_io(4, 1);
+        0xee => RETURNCONTRACT => returncontract => stack_io(2, 0);
+        0xf0 => CREATE => create => stack_io(3, 1);
+        0xf1 => CALL => call => stack_io(7, 1);
+        0xf2 => CALLCODE => callcode => stack_io(7, 1);
+        0xf3 => RETURN => r#return => stack_io(2, 0);
+        0xf4 => DELEGATECALL => delegatecall => stack_io(6, 1);
+        0xf5 => CREATE2 => create2 => stack_io(4, 1);
+        0xf7 => RETURNDATALOAD => returndataload => stack_io(1, 1);
+        0xf8 => EXTCALL => extcall => stack_io(4, 1);
+        0xf9 => EXTDELEGATECALL => extdelegatecall => stack_io(3, 1);
+        0xfa => STATICCALL => staticcall => stack_io(6, 1);
+        0xfb => EXTSTATICCALL => extstaticcall => stack_io(3, 1);
+        0xfd => REVERT => revert => stack_io(2, 0);
+        0xfe => INVALID => invalid => stack_io(0, 0);
+        0xff => SELFDESTRUCT => selfdestruct => stack_io(1, 0);
+    }
 
     /// Returns the PUSH opcode for the given width (1-32).
     #[must_use]
@@ -1649,6 +1716,19 @@ mod tests {
             optimization: OptimizationMode::Size,
             ..AssemblerConfig::default()
         })
+    }
+
+    #[test]
+    fn opcode_mnemonics_round_trip() {
+        for opcode in 0..=u8::MAX {
+            if let Some(mnemonic) = op::mnemonic(opcode) {
+                assert_eq!(op::from_mnemonic(mnemonic), Some(opcode));
+            }
+        }
+        assert_eq!(op::stack_io(op::ADD), Some((2, 1)));
+        assert_eq!(op::stack_io(op::MSTORE), Some((2, 0)));
+        assert_eq!(op::stack_io(op::CALLVALUE), Some((0, 1)));
+        assert_eq!(op::stack_io(op::CALLF), None);
     }
 
     #[test]

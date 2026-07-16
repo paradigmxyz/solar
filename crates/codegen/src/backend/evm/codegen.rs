@@ -7,6 +7,7 @@
 //! - Two-pass assembly for label resolution
 
 use super::{
+    EvmIrModule, EvmIrTerminatorKind,
     assembler::{Assembler, AssemblerConfig, DeferredConst, ImmutableRef, Label, op},
     stack::{
         MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
@@ -44,6 +45,12 @@ const GLOBAL_STACK_MIN_BLOCKS: usize = 8;
 const GLOBAL_STACK_MIN_ARG_USES: usize = 6;
 const GLOBAL_STACK_DENSE_AMORTIZATION_BLOCKS: usize = 16;
 
+#[derive(Default)]
+struct GeneratedCode {
+    bytecode: Vec<u8>,
+    evm_ir: Option<EvmIrModule>,
+}
+
 /// Configuration for the EVM backend.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EvmCodegenConfig {
@@ -64,6 +71,8 @@ pub struct EvmCodegenConfig {
     pub evm_ir_stack_schedule: bool,
     /// Run EVM IR layout/code-size passes in the assembler bridge.
     pub evm_ir_layout_passes: bool,
+    /// Capture final EVM IR immediately before assembly.
+    pub capture_evm_ir: bool,
 }
 
 impl EvmCodegenConfig {
@@ -79,6 +88,7 @@ impl EvmCodegenConfig {
             // compilation path so produced bytecode is unchanged.
             evm_ir_stack_schedule: false,
             evm_ir_layout_passes: false,
+            capture_evm_ir: false,
         }
     }
 
@@ -88,6 +98,7 @@ impl EvmCodegenConfig {
             optimization: self.optimization,
             evm_ir_stack_schedule: self.evm_ir_stack_schedule,
             evm_ir_layout_passes: self.evm_ir_layout_passes,
+            capture_evm_ir: self.capture_evm_ir,
         }
     }
 }
@@ -756,7 +767,7 @@ impl EvmCodegen {
         self.run_optimization_passes(module);
         // Immutable reads are `PUSH32` zero placeholders here; only a
         // constructor run patches them with actual values.
-        self.generate_runtime_code(module)
+        self.generate_runtime_code(module).bytecode
     }
 
     /// Generates deployment bytecode for a module.
@@ -765,13 +776,21 @@ impl EvmCodegen {
     ///
     /// This runs optimization passes (including DCE) on the module before codegen unless disabled.
     pub fn generate_deployment_bytecode(&mut self, module: &mut Module) -> (Vec<u8>, Vec<u8>) {
+        let artifact = self.generate_deployment_artifact(module);
+        (artifact.deployment, artifact.runtime)
+    }
+
+    fn generate_deployment_artifact(&mut self, module: &mut Module) -> EvmArtifact {
         if module.is_interface {
-            return (Vec::new(), Vec::new());
+            return EvmArtifact::default();
         }
         self.run_optimization_passes(module);
         // First generate the runtime code
-        let runtime_code = self.generate_runtime_code(module);
-        let runtime_len = runtime_code.len();
+        let mut runtime_code = self.generate_runtime_code(module);
+        if let Some(evm_ir) = &mut runtime_code.evm_ir {
+            evm_ir.name = "runtime".to_string();
+        }
+        let runtime_len = runtime_code.bytecode.len();
         let immutable_refs = std::mem::take(&mut self.runtime_immutable_refs);
 
         // The constructor copies the runtime code to memory and patches the
@@ -798,7 +817,7 @@ impl EvmCodegen {
                 copy_base,
                 &immutable_refs,
             );
-            let next_deploy_code_len = constructor_code.len() + postlude.len();
+            let next_deploy_code_len = constructor_code.bytecode.len() + postlude.bytecode.len();
             let next_arg_offset = next_deploy_code_len + runtime_len;
             if next_deploy_code_len == deploy_code_len && next_arg_offset == constructor_arg_offset
             {
@@ -819,26 +838,48 @@ impl EvmCodegen {
         // [immutable patches]   ; patch staged words into the PUSH32 placeholders
         // PUSH<n> copy_base     ; memory offset
         // RETURN                ; return the runtime code
-        let postlude = self.build_deployment_postlude(
+        let mut postlude = self.build_deployment_postlude(
             deploy_code_len,
             runtime_len,
             copy_base,
             &immutable_refs,
         );
+        if let Some(evm_ir) = &mut constructor_code.evm_ir {
+            evm_ir.name = "constructor".to_string();
+        }
+        if let Some(evm_ir) = &mut postlude.evm_ir {
+            evm_ir.name = "deployment".to_string();
+        }
 
         // Build the deployment bytecode
         let mut deploy_bytecode = Vec::new();
 
         // Add constructor code first
-        deploy_bytecode.extend_from_slice(&constructor_code);
-        deploy_bytecode.extend_from_slice(&postlude);
+        deploy_bytecode.extend_from_slice(&constructor_code.bytecode);
+        deploy_bytecode.extend_from_slice(&postlude.bytecode);
 
         // Append runtime code
-        deploy_bytecode.extend_from_slice(&runtime_code);
+        deploy_bytecode.extend_from_slice(&runtime_code.bytecode);
+
+        let mut deployment_evm_ir = Vec::new();
+        if let Some(evm_ir) = constructor_code.evm_ir {
+            deployment_evm_ir.push(evm_ir);
+        }
+        if let Some(evm_ir) = postlude.evm_ir {
+            deployment_evm_ir.push(evm_ir);
+        }
+        if let Some(evm_ir) = runtime_code.evm_ir.clone() {
+            deployment_evm_ir.push(evm_ir);
+        }
 
         // The returned runtime artifact keeps the zero placeholders, like
         // solc's `deployedBytecode` for contracts with immutables.
-        (deploy_bytecode, runtime_code)
+        EvmArtifact {
+            deployment: deploy_bytecode,
+            runtime: runtime_code.bytecode,
+            deployment_evm_ir,
+            runtime_evm_ir: runtime_code.evm_ir,
+        }
     }
 
     fn build_deployment_postlude(
@@ -847,7 +888,7 @@ impl EvmCodegen {
         runtime_len: usize,
         copy_base: u64,
         immutable_refs: &[ImmutableRef],
-    ) -> Vec<u8> {
+    ) -> GeneratedCode {
         self.asm.clear();
 
         // Copy runtime code from creation code to memory at `copy_base`.
@@ -869,7 +910,8 @@ impl EvmCodegen {
         // Return the patched runtime code; the DUP'd length is still on the stack.
         self.asm.emit_push(U256::from(copy_base));
         self.asm.emit_op(op::RETURN);
-        self.asm.assemble().bytecode
+        let result = self.asm.assemble();
+        GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir }
     }
 
     /// Generates constructor code that runs during deployment.
@@ -881,7 +923,7 @@ impl EvmCodegen {
         &mut self,
         module: &Module,
         constructor_arg_offset: Option<usize>,
-    ) -> Vec<u8> {
+    ) -> GeneratedCode {
         // Find constructor function if it exists
         let constructor =
             module.functions.iter_enumerated().find(|(_, f)| f.attributes.is_constructor);
@@ -986,16 +1028,26 @@ impl EvmCodegen {
             self.in_constructor = false;
             self.constructor_param_count = 0;
 
-            let mut bytecode = self.asm.assemble().bytecode;
+            let result = self.asm.assemble();
+            let mut bytecode = result.bytecode;
+            let mut evm_ir = result.evm_ir;
 
             // Remove trailing STOP (0x00) if present - we want to fall through to CODECOPY/RETURN
             if bytecode.last() == Some(&op::STOP) {
                 bytecode.pop();
+                if let Some(terminator) = evm_ir
+                    .as_mut()
+                    .and_then(|ir| ir.blocks.last_mut())
+                    .and_then(|block| block.terminator.as_mut())
+                    && matches!(&terminator.kind, EvmIrTerminatorKind::RawOpcode(op::STOP))
+                {
+                    terminator.kind = EvmIrTerminatorKind::FallthroughNext;
+                }
             }
 
-            bytecode
+            GeneratedCode { bytecode, evm_ir }
         } else {
-            Vec::new()
+            GeneratedCode::default()
         }
     }
 
@@ -1029,7 +1081,7 @@ impl EvmCodegen {
     }
 
     /// Generates runtime bytecode for a module.
-    fn generate_runtime_code(&mut self, module: &Module) -> Vec<u8> {
+    fn generate_runtime_code(&mut self, module: &Module) -> GeneratedCode {
         self.asm.clear();
         self.block_labels.clear();
         self.function_labels.clear();
@@ -1066,7 +1118,7 @@ impl EvmCodegen {
         let result = self.asm.assemble();
         self.asm.set_structural_outlining(false);
         self.runtime_immutable_refs = result.immutable_refs;
-        result.bytecode
+        GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir }
     }
 
     /// Generates the runtime from a `dispatch`-phase module: the MIR `entry`
@@ -4926,13 +4978,17 @@ impl Default for EvmCodegen {
     }
 }
 
-/// The artifact produced by the EVM backend: deployment and runtime bytecode.
+/// The artifact produced by the EVM backend.
 #[derive(Clone, Debug, Default)]
 pub struct EvmArtifact {
     /// Deployment (init) bytecode that, when run, returns the runtime code.
     pub deployment: Vec<u8>,
     /// Runtime bytecode, i.e. the code stored on-chain.
     pub runtime: Vec<u8>,
+    /// Final creation-code EVM IR segments in bytecode order.
+    pub deployment_evm_ir: Vec<EvmIrModule>,
+    /// Final runtime EVM IR immediately before byte emission.
+    pub runtime_evm_ir: Option<EvmIrModule>,
 }
 
 impl crate::backend::Backend for EvmCodegen {
@@ -4943,8 +4999,7 @@ impl crate::backend::Backend for EvmCodegen {
     }
 
     fn lower_module(&mut self, module: &mut Module) -> EvmArtifact {
-        let (deployment, runtime) = self.generate_deployment_bytecode(module);
-        EvmArtifact { deployment, runtime }
+        self.generate_deployment_artifact(module)
     }
 }
 

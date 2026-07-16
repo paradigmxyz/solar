@@ -3,7 +3,7 @@ bb0 (entry):
   %a = push 1
   dup1
   dup1
-  %b = add !meta(stack=2->1)
+  %b = add
   swap1
-  %c = mul !meta(stack=2->1)
+  %c = mul
   stop

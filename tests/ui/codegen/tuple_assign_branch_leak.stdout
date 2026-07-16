@@ -1,1 +1,259 @@
-{"contracts":{"ROOT/tests/ui/codegen/tuple_assign_branch_leak.sol:TupleAssignBranchLeak":{"bin-runtime":"6104206040523460215736156021575f3560e01c806302143aa9146025576021565b5f80fd5b36600490036040901260243590602157600435806102e05215156102e051146004359015602157610153576060565b60805160805260206080f35b60078101806101e052819010610180576008810180610240526101e051806101e0529010610180576009810180610200526101e051806101e05290106101805761020051806102005260205261020051806102005261024051018061022052610240518061024052901061018057610220510180610260526102205180610220529010602435906101805761026051806102605b52608052506054565b60243560010160243560020101806102c060f4565b602435600201806102a052602052506102a051806102a052602435600101806102805201806102c0526102805180610280529010602435901560fd57610180565b6001810180610280528190106101805760028101806102a052818110915050602435901561011257610180565b634e487b7160e01b5f52601160045260245ffd"}},"version":"VERSION"}
+// === ROOT/tests/ui/codegen/tuple_assign_branch_leak.sol:TupleAssignBranchLeak (runtime) ===
+bb0 (entry):
+  push 0x420
+  push 64
+  mstore
+  callvalue
+  push bb1
+  jumpi
+  calldatasize
+  iszero
+  push bb1
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x2143aa9
+  eq
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  push 0
+  dup1
+  terminal revert
+bb2:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 64
+  swap1
+  slt
+  push 36
+  calldataload
+  swap1
+  push bb1
+  jumpi
+  push 4
+  calldataload
+  dup1
+  push 736
+  mstore
+  iszero
+  iszero
+  push 736
+  mload
+  eq
+  push 4
+  calldataload
+  swap1
+  iszero
+  push bb1
+  jumpi
+  push bb8
+  jumpi
+  jump bb4
+bb3:
+  push 128
+  mload
+  push 128
+  mstore
+  push 32
+  push 128
+  terminal return
+bb4:
+  push 7
+  dup2
+  add
+  dup1
+  push 480
+  mstore
+  dup2
+  swap1
+  lt
+  push bb9
+  jumpi
+  push 8
+  dup2
+  add
+  dup1
+  push 576
+  mstore
+  push 480
+  mload
+  dup1
+  push 480
+  mstore
+  swap1
+  lt
+  push bb9
+  jumpi
+  push 9
+  dup2
+  add
+  dup1
+  push 512
+  mstore
+  push 480
+  mload
+  dup1
+  push 480
+  mstore
+  swap1
+  lt
+  push bb9
+  jumpi
+  push 512
+  mload
+  dup1
+  push 512
+  mstore
+  push 32
+  mstore
+  push 512
+  mload
+  dup1
+  push 512
+  mstore
+  push 576
+  mload
+  add
+  dup1
+  push 544
+  mstore
+  push 576
+  mload
+  dup1
+  push 576
+  mstore
+  swap1
+  lt
+  push bb9
+  jumpi
+  push 544
+  mload
+  add
+  dup1
+  push 608
+  mstore
+  push 544
+  mload
+  dup1
+  push 544
+  mstore
+  swap1
+  lt
+  push 36
+  calldataload
+  swap1
+  push bb9
+  jumpi
+  push 608
+  mload
+  dup1
+  push 608
+  fallthrough bb5
+bb5:
+  mstore
+  push 128
+  mstore
+  pop
+  jump bb3
+bb6:
+  push 36
+  calldataload
+  push 1
+  add
+  push 36
+  calldataload
+  push 2
+  add
+  add
+  dup1
+  push 704
+  jump bb5
+bb7:
+  push 36
+  calldataload
+  push 2
+  add
+  dup1
+  push 672
+  mstore
+  push 32
+  mstore
+  pop
+  push 672
+  mload
+  dup1
+  push 672
+  mstore
+  push 36
+  calldataload
+  push 1
+  add
+  dup1
+  push 640
+  mstore
+  add
+  dup1
+  push 704
+  mstore
+  push 640
+  mload
+  dup1
+  push 640
+  mstore
+  swap1
+  lt
+  push 36
+  calldataload
+  swap1
+  iszero
+  push bb6
+  jumpi
+  jump bb9
+bb8:
+  push 1
+  dup2
+  add
+  dup1
+  push 640
+  mstore
+  dup2
+  swap1
+  lt
+  push bb9
+  jumpi
+  push 2
+  dup2
+  add
+  dup1
+  push 672
+  mstore
+  dup2
+  dup2
+  lt
+  swap2
+  pop
+  pop
+  push 36
+  calldataload
+  swap1
+  iszero
+  push bb7
+  jumpi
+  jump bb9
+bb9:
+  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  terminal revert

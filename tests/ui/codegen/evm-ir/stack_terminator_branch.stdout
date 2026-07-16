@@ -3,7 +3,7 @@ bb0 (entry):
   %a = push 1
   %b = push 0
   swap1
-  %cond = eq !meta(stack=2->1)
+  %cond = eq
   %junk = push 7
   swap1
   br %cond, bb1, bb2

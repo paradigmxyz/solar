@@ -80,23 +80,12 @@ fn process_evmir(args: &EvmOptArgs) -> Result<(), String> {
         .load_file(Path::new(&args.input))
         .map_err(|e| format!("failed to read {}: {e}", args.input))?;
     let text = source.src.as_str();
-    let mut result: Result<(), String> = Ok(());
     sess.enter(|| {
-        let mut module = match parse_evm_ir_module(text) {
-            Ok(m) => m,
-            Err(e) => {
-                result = Err(format!("{e}"));
-                return;
-            }
-        };
-        if let Err(e) = verify_evm_ir_module(&module) {
-            result = Err(format!("{e}"));
-            return;
-        }
-        let name = Ident::with_dummy_span(Symbol::intern(&args.input)).to_string();
-        result = run_pipeline(&mut module, &name, args);
-    });
-    result
+        let input_name = Ident::with_dummy_span(Symbol::intern(&args.input)).to_string();
+        let mut module = parse_evm_ir_module(text).map_err(|err| format!("{err}"))?;
+        verify_evm_ir_module(&module).map_err(|err| format!("{err}"))?;
+        run_pipeline(&mut module, &input_name, args)
+    })
 }
 
 pub(crate) fn run(args: EvmOptArgs) -> ExitCode {

@@ -1,1 +1,1489 @@
-{"contracts":{"ROOT/tests/ui/codegen/static_frames.sol:SF":{"bin-runtime":"61068060405234602b573615602b575f3560e01c8063313ae54114609157806386b714e214608557602b565b5f80fd5b60405160a051816020015290565b60a05160405260a0516020015160a052565b61038a605d565b610622605d565b60a05160a0015f81525060a0516040015190565b60a05161018001518060a051610180015290565b5f545b60805260206080f35b366004900360209012602b575f6080526003600435028060e0526003810460043590149050156108bf57600160043501806101005260043590106108bf57610100516102a0526004356102c05260e5610267565b6102e051806101805261010051806101005260011b806101205260011c61010051806101005290149050156108bf576101805180610180526101205101806101a05261012051806101205290106108bf57600760043506610143602f565b81816040015260043581606001528060a0526102400160405250610164604f565b60a05160800151806101c052610177603d565b806101c052600560043506610189602f565b81816040015260043581606001528060a0526102200160405250506101ab6056565b60a05160800151806101e0526101be603d565b806101e0525f5460e0518060e052818061024052018061020052818061024052811091508191505090506108bf576102005180610200525f556101a051806101a05260e05101806101405260e0518060e05290106108bf576101c051806101c0526101405101806101605261014051806101405290106108bf576101e051806101e0526101605101806102205261016051806101605290106108bf576102205180610220526088565b6102c0516102a05118806103a0525f546001818061046052018061048052818061046052811091508191505090506108bf576104805180610480525f5560036103a05104600181806104a05201806104c05281806104a05281109150819150506108bf5760056103a05106600281018061050052905080610500526020525f546104c051806104c05281806103c05201806103e05281806103c05281109150819150506108bf576103e051806103e0525f556104c051806104c05260011b806104005260011c6104c051806104c05290036108bf576104005180610400526103a0510180610420526103a051806103a05290106108bf576105005180610500526104205101806104405261042051806104205290106108bf57610440516102e052565b60a05160600151018060a05160c001528060a05160c0015260a0516060015190106108bf5760a05160c001518060a05160c0015260011b8060a05160e001528060a05160e001528060a05160e0015260011c60a05160c001518060a05160c0015290036108bf57600160a05160e00151018060a05161010001528060a051610100015260a05160e001518060a05160e0015290106108bf575f5460a05161010001518060a051610100015290185f556103e860a0516101000151068060a05161012001528060a051610120015260a05160400151905061047b57610469565b60a0516101205b015160a05160800152565b600160a05160400151038060a05161014001528060a0516101400152600160a05160600151018060a05161016001528060a051610160015260a05160600151901090506108bf576104c9602f565b60a0516101400151816040015260a051610160015181606001528060a052610240016040526104f5604f565b60a051608001518060a051610180015261050c603d565b8060a05161018001528060a051610180015260a0516101200151018060a0516101a001528060a0516101a0015260a05161012001518060a051610120015290106108bf576105576071565b60011b8060a0516101c001528060a0516101c001528060a0516101c0015260011c61057f6071565b90036108bf57600160a0516101c00151018060a0516101e001528060a0516101e0015260a0516101c001518060a0516101c0015290106108bf575f5460a0516101e001518060a0516101e0015290185f556103e860a0516101e00151068060a051610200015260a0516101a00151018060a05161022001528060a051610220015260a0516101a001518060a0516101a0015290106108bf5760a051610220610470565b61069457600360a05160600151065f54818060a05160c00152818060a05160e00152018060a051610100015291508160a05161010001528060a05160e0015290106108bf5760a05161010001518060a05161010001525f55606160a0516060015106600790015b8060a0516080015250565b600360a05160600151065f54818060a0516101200152818060a0516101400152018060a051610160015291508160a05161016001528060a051610140015290106108bf5760a05161016001518060a05161016001525f55606160a05160600151068060a05161018001528060a0516101800152600160a05160400151038060a0516101a001528060a0516101a00152600360a05160600151018060a0516101c001528060a0516101c0015260a0516060015190109150506108bf57610756602f565b60a0516101a00151816040015260a0516101c0015181606001528060a052610140016040526107836107df565b60a051608001518060a0516101e0015261079a603d565b8060a0516101e001528060a0516101e0015260a0516101800151018060a05161020001528060a05161020001526107ce6071565b90106108bf5760a051610200610470565b6107e6605d565b156108b057600160a05160400151038060a05160c001528060a05160c00152600560a05160600151018060a05160e001528060a05160e0015260a05160600151901090506108bf57610835602f565b60a05160c00151816040015260a05160e0015181606001528060a0526102200160405261085f6056565b60a051608001518060a0516101000152610876603d565b8060a0516101000152600181018060a05161012001528060a0516101200152818060a051610100015281109150819150506108bf57610469565b600d60a0516060015106610689565b634e487b7160e01b5f52601160045260245ffd"}},"version":"VERSION"}
+// === ROOT/tests/ui/codegen/static_frames.sol:SF (runtime) ===
+bb0 (entry):
+  push 0x680
+  push 64
+  mstore
+  callvalue
+  push bb1
+  jumpi
+  calldatasize
+  iszero
+  push bb1
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x313ae541
+  eq
+  push bb10
+  jumpi
+  dup1
+  push 0x86b714e2
+  eq
+  push bb8
+  jumpi
+  jump bb1
+bb1:
+  push 0
+  dup1
+  terminal revert
+bb2:
+  push 64
+  mload
+  push 160
+  mload
+  dup2
+  push 32
+  add
+  mstore
+  swap1
+  terminal jump
+bb3:
+  push 160
+  mload
+  push 64
+  mstore
+  push 160
+  mload
+  push 32
+  add
+  mload
+  push 160
+  mstore
+  terminal jump
+bb4:
+  push bb19
+  jump bb6
+bb5:
+  push bb28
+  jump bb6
+bb6:
+  push 160
+  mload
+  push 160
+  add
+  push 0
+  dup2
+  mstore
+  pop
+  push 160
+  mload
+  push 64
+  add
+  mload
+  swap1
+  terminal jump
+bb7:
+  push 160
+  mload
+  push 384
+  add
+  mload
+  dup1
+  push 160
+  mload
+  push 384
+  add
+  mstore
+  swap1
+  terminal jump
+bb8:
+  push 0
+  sload
+  fallthrough bb9
+bb9:
+  push 128
+  mstore
+  push 32
+  push 128
+  terminal return
+bb10:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  push bb1
+  jumpi
+  push 0
+  push 128
+  mstore
+  push 3
+  push 4
+  calldataload
+  mul
+  dup1
+  push 224
+  mstore
+  push 3
+  dup2
+  div
+  push 4
+  calldataload
+  swap1
+  eq
+  swap1
+  pop
+  iszero
+  push bb41
+  jumpi
+  push 1
+  push 4
+  calldataload
+  add
+  dup1
+  push 256
+  mstore
+  push 4
+  calldataload
+  swap1
+  lt
+  push bb41
+  jumpi
+  push 256
+  mload
+  push 672
+  mstore
+  push 4
+  calldataload
+  push 704
+  mstore
+  push bb11
+  jump bb18
+bb11:
+  push 736
+  mload
+  dup1
+  push 384
+  mstore
+  push 256
+  mload
+  dup1
+  push 256
+  mstore
+  push 1
+  shl
+  dup1
+  push 288
+  mstore
+  push 1
+  shr
+  push 256
+  mload
+  dup1
+  push 256
+  mstore
+  swap1
+  eq
+  swap1
+  pop
+  iszero
+  push bb41
+  jumpi
+  push 384
+  mload
+  dup1
+  push 384
+  mstore
+  push 288
+  mload
+  add
+  dup1
+  push 416
+  mstore
+  push 288
+  mload
+  dup1
+  push 288
+  mstore
+  swap1
+  lt
+  push bb41
+  jumpi
+  push 7
+  push 4
+  calldataload
+  mod
+  push bb12
+  jump bb2
+bb12:
+  dup2
+  dup2
+  push 64
+  add
+  mstore
+  push 4
+  calldataload
+  dup2
+  push 96
+  add
+  mstore
+  dup1
+  push 160
+  mstore
+  push 576
+  add
+  push 64
+  mstore
+  pop
+  push bb13
+  jump bb4
+bb13:
+  push 160
+  mload
+  push 128
+  add
+  mload
+  dup1
+  push 448
+  mstore
+  push bb14
+  jump bb3
+bb14:
+  dup1
+  push 448
+  mstore
+  push 5
+  push 4
+  calldataload
+  mod
+  push bb15
+  jump bb2
+bb15:
+  dup2
+  dup2
+  push 64
+  add
+  mstore
+  push 4
+  calldataload
+  dup2
+  push 96
+  add
+  mstore
+  dup1
+  push 160
+  mstore
+  push 544
+  add
+  push 64
+  mstore
+  pop
+  pop
+  push bb16
+  jump bb5
+bb16:
+  push 160
+  mload
+  push 128
+  add
+  mload
+  dup1
+  push 480
+  mstore
+  push bb17
+  jump bb3
+bb17:
+  dup1
+  push 480
+  mstore
+  push 0
+  sload
+  push 224
+  mload
+  dup1
+  push 224
+  mstore
+  dup2
+  dup1
+  push 576
+  mstore
+  add
+  dup1
+  push 512
+  mstore
+  dup2
+  dup1
+  push 576
+  mstore
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap2
+  pop
+  pop
+  swap1
+  pop
+  push bb41
+  jumpi
+  push 512
+  mload
+  dup1
+  push 512
+  mstore
+  push 0
+  sstore
+  push 416
+  mload
+  dup1
+  push 416
+  mstore
+  push 224
+  mload
+  add
+  dup1
+  push 320
+  mstore
+  push 224
+  mload
+  dup1
+  push 224
+  mstore
+  swap1
+  lt
+  push bb41
+  jumpi
+  push 448
+  mload
+  dup1
+  push 448
+  mstore
+  push 320
+  mload
+  add
+  dup1
+  push 352
+  mstore
+  push 320
+  mload
+  dup1
+  push 320
+  mstore
+  swap1
+  lt
+  push bb41
+  jumpi
+  push 480
+  mload
+  dup1
+  push 480
+  mstore
+  push 352
+  mload
+  add
+  dup1
+  push 544
+  mstore
+  push 352
+  mload
+  dup1
+  push 352
+  mstore
+  swap1
+  lt
+  push bb41
+  jumpi
+  push 544
+  mload
+  dup1
+  push 544
+  mstore
+  jump bb9
+bb18:
+  push 704
+  mload
+  push 672
+  mload
+  xor
+  dup1
+  push 928
+  mstore
+  push 0
+  sload
+  push 1
+  dup2
+  dup1
+  push 0x460
+  mstore
+  add
+  dup1
+  push 0x480
+  mstore
+  dup2
+  dup1
+  push 0x460
+  mstore
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap2
+  pop
+  pop
+  swap1
+  pop
+  push bb41
+  jumpi
+  push 0x480
+  mload
+  dup1
+  push 0x480
+  mstore
+  push 0
+  sstore
+  push 3
+  push 928
+  mload
+  div
+  push 1
+  dup2
+  dup1
+  push 0x4a0
+  mstore
+  add
+  dup1
+  push 0x4c0
+  mstore
+  dup2
+  dup1
+  push 0x4a0
+  mstore
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap2
+  pop
+  pop
+  push bb41
+  jumpi
+  push 5
+  push 928
+  mload
+  mod
+  push 2
+  dup2
+  add
+  dup1
+  push 0x500
+  mstore
+  swap1
+  pop
+  dup1
+  push 0x500
+  mstore
+  push 32
+  mstore
+  push 0
+  sload
+  push 0x4c0
+  mload
+  dup1
+  push 0x4c0
+  mstore
+  dup2
+  dup1
+  push 960
+  mstore
+  add
+  dup1
+  push 992
+  mstore
+  dup2
+  dup1
+  push 960
+  mstore
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap2
+  pop
+  pop
+  push bb41
+  jumpi
+  push 992
+  mload
+  dup1
+  push 992
+  mstore
+  push 0
+  sstore
+  push 0x4c0
+  mload
+  dup1
+  push 0x4c0
+  mstore
+  push 1
+  shl
+  dup1
+  push 0x400
+  mstore
+  push 1
+  shr
+  push 0x4c0
+  mload
+  dup1
+  push 0x4c0
+  mstore
+  swap1
+  sub
+  push bb41
+  jumpi
+  push 0x400
+  mload
+  dup1
+  push 0x400
+  mstore
+  push 928
+  mload
+  add
+  dup1
+  push 0x420
+  mstore
+  push 928
+  mload
+  dup1
+  push 928
+  mstore
+  swap1
+  lt
+  push bb41
+  jumpi
+  push 0x500
+  mload
+  dup1
+  push 0x500
+  mstore
+  push 0x420
+  mload
+  add
+  dup1
+  push 0x440
+  mstore
+  push 0x420
+  mload
+  dup1
+  push 0x420
+  mstore
+  swap1
+  lt
+  push bb41
+  jumpi
+  push 0x440
+  mload
+  push 736
+  mstore
+  terminal jump
+bb19:
+  push 160
+  mload
+  push 96
+  add
+  mload
+  add
+  dup1
+  push 160
+  mload
+  push 192
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 192
+  add
+  mstore
+  push 160
+  mload
+  push 96
+  add
+  mload
+  swap1
+  lt
+  push bb41
+  jumpi
+  push 160
+  mload
+  push 192
+  add
+  mload
+  dup1
+  push 160
+  mload
+  push 192
+  add
+  mstore
+  push 1
+  shl
+  dup1
+  push 160
+  mload
+  push 224
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 224
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 224
+  add
+  mstore
+  push 1
+  shr
+  push 160
+  mload
+  push 192
+  add
+  mload
+  dup1
+  push 160
+  mload
+  push 192
+  add
+  mstore
+  swap1
+  sub
+  push bb41
+  jumpi
+  push 1
+  push 160
+  mload
+  push 224
+  add
+  mload
+  add
+  dup1
+  push 160
+  mload
+  push 256
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 256
+  add
+  mstore
+  push 160
+  mload
+  push 224
+  add
+  mload
+  dup1
+  push 160
+  mload
+  push 224
+  add
+  mstore
+  swap1
+  lt
+  push bb41
+  jumpi
+  push 0
+  sload
+  push 160
+  mload
+  push 256
+  add
+  mload
+  dup1
+  push 160
+  mload
+  push 256
+  add
+  mstore
+  swap1
+  xor
+  push 0
+  sstore
+  push 0x3e8
+  push 160
+  mload
+  push 256
+  add
+  mload
+  mod
+  dup1
+  push 160
+  mload
+  push 288
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 288
+  add
+  mstore
+  push 160
+  mload
+  push 64
+  add
+  mload
+  swap1
+  pop
+  push bb22
+  jumpi
+  jump bb20
+bb20:
+  push 160
+  mload
+  push 288
+  fallthrough bb21
+bb21:
+  add
+  mload
+  push 160
+  mload
+  push 128
+  add
+  mstore
+  terminal jump
+bb22:
+  push 1
+  push 160
+  mload
+  push 64
+  add
+  mload
+  sub
+  dup1
+  push 160
+  mload
+  push 320
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 320
+  add
+  mstore
+  push 1
+  push 160
+  mload
+  push 96
+  add
+  mload
+  add
+  dup1
+  push 160
+  mload
+  push 352
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 352
+  add
+  mstore
+  push 160
+  mload
+  push 96
+  add
+  mload
+  swap1
+  lt
+  swap1
+  pop
+  push bb41
+  jumpi
+  push bb23
+  jump bb2
+bb23:
+  push 160
+  mload
+  push 320
+  add
+  mload
+  dup2
+  push 64
+  add
+  mstore
+  push 160
+  mload
+  push 352
+  add
+  mload
+  dup2
+  push 96
+  add
+  mstore
+  dup1
+  push 160
+  mstore
+  push 576
+  add
+  push 64
+  mstore
+  push bb24
+  jump bb4
+bb24:
+  push 160
+  mload
+  push 128
+  add
+  mload
+  dup1
+  push 160
+  mload
+  push 384
+  add
+  mstore
+  push bb25
+  jump bb3
+bb25:
+  dup1
+  push 160
+  mload
+  push 384
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 384
+  add
+  mstore
+  push 160
+  mload
+  push 288
+  add
+  mload
+  add
+  dup1
+  push 160
+  mload
+  push 416
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 416
+  add
+  mstore
+  push 160
+  mload
+  push 288
+  add
+  mload
+  dup1
+  push 160
+  mload
+  push 288
+  add
+  mstore
+  swap1
+  lt
+  push bb41
+  jumpi
+  push bb26
+  jump bb7
+bb26:
+  push 1
+  shl
+  dup1
+  push 160
+  mload
+  push 448
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 448
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 448
+  add
+  mstore
+  push 1
+  shr
+  push bb27
+  jump bb7
+bb27:
+  swap1
+  sub
+  push bb41
+  jumpi
+  push 1
+  push 160
+  mload
+  push 448
+  add
+  mload
+  add
+  dup1
+  push 160
+  mload
+  push 480
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 480
+  add
+  mstore
+  push 160
+  mload
+  push 448
+  add
+  mload
+  dup1
+  push 160
+  mload
+  push 448
+  add
+  mstore
+  swap1
+  lt
+  push bb41
+  jumpi
+  push 0
+  sload
+  push 160
+  mload
+  push 480
+  add
+  mload
+  dup1
+  push 160
+  mload
+  push 480
+  add
+  mstore
+  swap1
+  xor
+  push 0
+  sstore
+  push 0x3e8
+  push 160
+  mload
+  push 480
+  add
+  mload
+  mod
+  dup1
+  push 160
+  mload
+  push 512
+  add
+  mstore
+  push 160
+  mload
+  push 416
+  add
+  mload
+  add
+  dup1
+  push 160
+  mload
+  push 544
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 544
+  add
+  mstore
+  push 160
+  mload
+  push 416
+  add
+  mload
+  dup1
+  push 160
+  mload
+  push 416
+  add
+  mstore
+  swap1
+  lt
+  push bb41
+  jumpi
+  push 160
+  mload
+  push 544
+  jump bb21
+bb28:
+  push bb30
+  jumpi
+  push 3
+  push 160
+  mload
+  push 96
+  add
+  mload
+  mod
+  push 0
+  sload
+  dup2
+  dup1
+  push 160
+  mload
+  push 192
+  add
+  mstore
+  dup2
+  dup1
+  push 160
+  mload
+  push 224
+  add
+  mstore
+  add
+  dup1
+  push 160
+  mload
+  push 256
+  add
+  mstore
+  swap2
+  pop
+  dup2
+  push 160
+  mload
+  push 256
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 224
+  add
+  mstore
+  swap1
+  lt
+  push bb41
+  jumpi
+  push 160
+  mload
+  push 256
+  add
+  mload
+  dup1
+  push 160
+  mload
+  push 256
+  add
+  mstore
+  push 0
+  sstore
+  push 97
+  push 160
+  mload
+  push 96
+  add
+  mload
+  mod
+  push 7
+  swap1
+  add
+  fallthrough bb29
+bb29:
+  dup1
+  push 160
+  mload
+  push 128
+  add
+  mstore
+  pop
+  terminal jump
+bb30:
+  push 3
+  push 160
+  mload
+  push 96
+  add
+  mload
+  mod
+  push 0
+  sload
+  dup2
+  dup1
+  push 160
+  mload
+  push 288
+  add
+  mstore
+  dup2
+  dup1
+  push 160
+  mload
+  push 320
+  add
+  mstore
+  add
+  dup1
+  push 160
+  mload
+  push 352
+  add
+  mstore
+  swap2
+  pop
+  dup2
+  push 160
+  mload
+  push 352
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 320
+  add
+  mstore
+  swap1
+  lt
+  push bb41
+  jumpi
+  push 160
+  mload
+  push 352
+  add
+  mload
+  dup1
+  push 160
+  mload
+  push 352
+  add
+  mstore
+  push 0
+  sstore
+  push 97
+  push 160
+  mload
+  push 96
+  add
+  mload
+  mod
+  dup1
+  push 160
+  mload
+  push 384
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 384
+  add
+  mstore
+  push 1
+  push 160
+  mload
+  push 64
+  add
+  mload
+  sub
+  dup1
+  push 160
+  mload
+  push 416
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 416
+  add
+  mstore
+  push 3
+  push 160
+  mload
+  push 96
+  add
+  mload
+  add
+  dup1
+  push 160
+  mload
+  push 448
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 448
+  add
+  mstore
+  push 160
+  mload
+  push 96
+  add
+  mload
+  swap1
+  lt
+  swap2
+  pop
+  pop
+  push bb41
+  jumpi
+  push bb31
+  jump bb2
+bb31:
+  push 160
+  mload
+  push 416
+  add
+  mload
+  dup2
+  push 64
+  add
+  mstore
+  push 160
+  mload
+  push 448
+  add
+  mload
+  dup2
+  push 96
+  add
+  mstore
+  dup1
+  push 160
+  mstore
+  push 320
+  add
+  push 64
+  mstore
+  push bb32
+  jump bb35
+bb32:
+  push 160
+  mload
+  push 128
+  add
+  mload
+  dup1
+  push 160
+  mload
+  push 480
+  add
+  mstore
+  push bb33
+  jump bb3
+bb33:
+  dup1
+  push 160
+  mload
+  push 480
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 480
+  add
+  mstore
+  push 160
+  mload
+  push 384
+  add
+  mload
+  add
+  dup1
+  push 160
+  mload
+  push 512
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 512
+  add
+  mstore
+  push bb34
+  jump bb7
+bb34:
+  swap1
+  lt
+  push bb41
+  jumpi
+  push 160
+  mload
+  push 512
+  jump bb21
+bb35:
+  push bb36
+  jump bb6
+bb36:
+  iszero
+  push bb40
+  jumpi
+  push 1
+  push 160
+  mload
+  push 64
+  add
+  mload
+  sub
+  dup1
+  push 160
+  mload
+  push 192
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 192
+  add
+  mstore
+  push 5
+  push 160
+  mload
+  push 96
+  add
+  mload
+  add
+  dup1
+  push 160
+  mload
+  push 224
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 224
+  add
+  mstore
+  push 160
+  mload
+  push 96
+  add
+  mload
+  swap1
+  lt
+  swap1
+  pop
+  push bb41
+  jumpi
+  push bb37
+  jump bb2
+bb37:
+  push 160
+  mload
+  push 192
+  add
+  mload
+  dup2
+  push 64
+  add
+  mstore
+  push 160
+  mload
+  push 224
+  add
+  mload
+  dup2
+  push 96
+  add
+  mstore
+  dup1
+  push 160
+  mstore
+  push 544
+  add
+  push 64
+  mstore
+  push bb38
+  jump bb5
+bb38:
+  push 160
+  mload
+  push 128
+  add
+  mload
+  dup1
+  push 160
+  mload
+  push 256
+  add
+  mstore
+  push bb39
+  jump bb3
+bb39:
+  dup1
+  push 160
+  mload
+  push 256
+  add
+  mstore
+  push 1
+  dup2
+  add
+  dup1
+  push 160
+  mload
+  push 288
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 288
+  add
+  mstore
+  dup2
+  dup1
+  push 160
+  mload
+  push 256
+  add
+  mstore
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap2
+  pop
+  pop
+  push bb41
+  jumpi
+  jump bb20
+bb40:
+  push 13
+  push 160
+  mload
+  push 96
+  add
+  mload
+  mod
+  jump bb29
+bb41:
+  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  terminal revert

@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen --emit=bin --pretty-json
+//@compile-flags: -Zcodegen --emit=evm-ir --pretty-json
 
 contract ConstructorInternalCallBin {
     uint256 public value;

@@ -1,8 +1,153 @@
-{
-  "contracts": {
-    "ROOT/tests/ui/codegen/cold_call_hot_fallthrough.sol:ColdCallHotFallthrough": {
-      "bin-runtime": "6101c06040523460315736156031575f3560e01c8063161e40291460355780634b692dff146063575f5ffd5bfe5b5f80fd5b5f5ffd5b366004900360209012602d575f608052600435156059575b60043560805260206080f35b5b604d6004356080565b366004900360209012602d575f608052606460043510605a57604d565b6101205261012051609b57602b6004637a65726f60e01b60de565b6001610120510360b457602b6003626f6e6560e81b60de565b6002610120510360cd57602b60036274776f60e81b60de565b602b6005646f7468657260d81b60de565b6101a052610180526308c379a060e01b5f526020600452610180516024526101a05160445260645ffd"
-    }
-  },
-  "version": "VERSION"
-}
+// === ROOT/tests/ui/codegen/cold_call_hot_fallthrough.sol:ColdCallHotFallthrough (runtime) ===
+bb0 (entry):
+  push 448
+  push 64
+  mstore
+  callvalue
+  push bb3
+  jumpi
+  calldatasize
+  iszero
+  push bb3
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x161e4029
+  eq
+  push bb4
+  jumpi
+  dup1
+  push 0x4b692dff
+  eq
+  push bb8
+  jumpi
+  push 0
+  push 0
+  terminal revert
+bb1:
+  terminal invalid
+bb2:
+  push 0
+  dup1
+  terminal revert
+bb3:
+  push 0
+  push 0
+  terminal revert
+bb4:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  push bb2
+  jumpi
+  push 0
+  push 128
+  mstore
+  push 4
+  calldataload
+  iszero
+  push bb6
+  jumpi
+  fallthrough bb5
+bb5:
+  push 4
+  calldataload
+  push 128
+  mstore
+  push 32
+  push 128
+  terminal return
+bb6:
+  fallthrough bb7
+bb7:
+  push bb5
+  push 4
+  calldataload
+  jump bb9
+bb8:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  push bb2
+  jumpi
+  push 0
+  push 128
+  mstore
+  push 100
+  push 4
+  calldataload
+  lt
+  push bb7
+  jumpi
+  jump bb5
+bb9:
+  push 288
+  mstore
+  push 288
+  mload
+  push bb10
+  jumpi
+  push bb1
+  push 4
+  push 0x7a65726f00000000000000000000000000000000000000000000000000000000
+  jump bb13
+bb10:
+  push 1
+  push 288
+  mload
+  sub
+  push bb11
+  jumpi
+  push bb1
+  push 3
+  push 0x6f6e650000000000000000000000000000000000000000000000000000000000
+  jump bb13
+bb11:
+  push 2
+  push 288
+  mload
+  sub
+  push bb12
+  jumpi
+  push bb1
+  push 3
+  push 0x74776f0000000000000000000000000000000000000000000000000000000000
+  jump bb13
+bb12:
+  push bb1
+  push 5
+  push 0x6f74686572000000000000000000000000000000000000000000000000000000
+  jump bb13
+bb13:
+  push 416
+  mstore
+  push 384
+  mstore
+  push 0x8c379a000000000000000000000000000000000000000000000000000000000
+  push 0
+  mstore
+  push 32
+  push 4
+  mstore
+  push 384
+  mload
+  push 36
+  mstore
+  push 416
+  mload
+  push 68
+  mstore
+  push 100
+  push 0
+  terminal revert

@@ -1,8 +1,294 @@
-{
-  "contracts": {
-    "ROOT/tests/ui/codegen/internal_call_frame_dealloc.sol:InternalCallFrameDealloc": {
-      "bin-runtime": "6101606040523460215736156021575f3560e01c8063b3de648b146056576021565b5f80fd5b60a05160405260a0516020015160a052565b60a0516080015f81525060a05160400151610117575f60a05160600152565b3660049003602090126021575f60805260405160a051816020015260043581604001528060a05260e00160405260896037565b60a051606001518060e052609a6025565b8060e05260016004350180610120526004359010905061019a5760405160a05181602001526101205181604001528060a05260e00160405260d86037565b60a05160600151806101405260ea6025565b806101405260e05101806101005260e0518060e052901061019a5761010051806101005260805260206080f35b600160a051604001510360405160a05181602001528181604001528060a05260e001604052506101446037565b60a051606001518060a05160a0015261015a6025565b8060a05160a001528060a05160a0015260a05160400151018060a05160c001528060a05160c0015260a05160400151811061019a578060a0516060015250565b634e487b7160e01b5f52601160045260245ffd"
-    }
-  },
-  "version": "VERSION"
-}
+// === ROOT/tests/ui/codegen/internal_call_frame_dealloc.sol:InternalCallFrameDealloc (runtime) ===
+bb0 (entry):
+  push 352
+  push 64
+  mstore
+  callvalue
+  push bb1
+  jumpi
+  calldatasize
+  iszero
+  push bb1
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0xb3de648b
+  eq
+  push bb4
+  jumpi
+  jump bb1
+bb1:
+  push 0
+  dup1
+  terminal revert
+bb2:
+  push 160
+  mload
+  push 64
+  mstore
+  push 160
+  mload
+  push 32
+  add
+  mload
+  push 160
+  mstore
+  terminal jump
+bb3:
+  push 160
+  mload
+  push 128
+  add
+  push 0
+  dup2
+  mstore
+  pop
+  push 160
+  mload
+  push 64
+  add
+  mload
+  push bb9
+  jumpi
+  push 0
+  push 160
+  mload
+  push 96
+  add
+  mstore
+  terminal jump
+bb4:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  push bb1
+  jumpi
+  push 0
+  push 128
+  mstore
+  push 64
+  mload
+  push 160
+  mload
+  dup2
+  push 32
+  add
+  mstore
+  push 4
+  calldataload
+  dup2
+  push 64
+  add
+  mstore
+  dup1
+  push 160
+  mstore
+  push 224
+  add
+  push 64
+  mstore
+  push bb5
+  jump bb3
+bb5:
+  push 160
+  mload
+  push 96
+  add
+  mload
+  dup1
+  push 224
+  mstore
+  push bb6
+  jump bb2
+bb6:
+  dup1
+  push 224
+  mstore
+  push 1
+  push 4
+  calldataload
+  add
+  dup1
+  push 288
+  mstore
+  push 4
+  calldataload
+  swap1
+  lt
+  swap1
+  pop
+  push bb12
+  jumpi
+  push 64
+  mload
+  push 160
+  mload
+  dup2
+  push 32
+  add
+  mstore
+  push 288
+  mload
+  dup2
+  push 64
+  add
+  mstore
+  dup1
+  push 160
+  mstore
+  push 224
+  add
+  push 64
+  mstore
+  push bb7
+  jump bb3
+bb7:
+  push 160
+  mload
+  push 96
+  add
+  mload
+  dup1
+  push 320
+  mstore
+  push bb8
+  jump bb2
+bb8:
+  dup1
+  push 320
+  mstore
+  push 224
+  mload
+  add
+  dup1
+  push 256
+  mstore
+  push 224
+  mload
+  dup1
+  push 224
+  mstore
+  swap1
+  lt
+  push bb12
+  jumpi
+  push 256
+  mload
+  dup1
+  push 256
+  mstore
+  push 128
+  mstore
+  push 32
+  push 128
+  terminal return
+bb9:
+  push 1
+  push 160
+  mload
+  push 64
+  add
+  mload
+  sub
+  push 64
+  mload
+  push 160
+  mload
+  dup2
+  push 32
+  add
+  mstore
+  dup2
+  dup2
+  push 64
+  add
+  mstore
+  dup1
+  push 160
+  mstore
+  push 224
+  add
+  push 64
+  mstore
+  pop
+  push bb10
+  jump bb3
+bb10:
+  push 160
+  mload
+  push 96
+  add
+  mload
+  dup1
+  push 160
+  mload
+  push 160
+  add
+  mstore
+  push bb11
+  jump bb2
+bb11:
+  dup1
+  push 160
+  mload
+  push 160
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 160
+  add
+  mstore
+  push 160
+  mload
+  push 64
+  add
+  mload
+  add
+  dup1
+  push 160
+  mload
+  push 192
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 192
+  add
+  mstore
+  push 160
+  mload
+  push 64
+  add
+  mload
+  dup2
+  lt
+  push bb12
+  jumpi
+  dup1
+  push 160
+  mload
+  push 96
+  add
+  mstore
+  pop
+  terminal jump
+bb12:
+  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  terminal revert
