@@ -558,6 +558,7 @@ impl FrameSlotPromoter {
             | InstKind::Create(_, _, _)
             | InstKind::Create2(_, _, _, _)
             | InstKind::MappingSlotMemory(_, _)
+            | InstKind::AbiEncode { .. }
             | InstKind::MSize => true,
             _ => false,
         }

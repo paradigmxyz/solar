@@ -25,5 +25,5 @@ contract CalldataSliceEncode {
 // SLICE: calldatacopy
 // SLICE-LABEL: fn @forward
 // SLICE: make_calldata_slice
-// SLICE: calldatacopy
+// SLICE: abi_encode [calldata_bytes]
 // SLICE: call

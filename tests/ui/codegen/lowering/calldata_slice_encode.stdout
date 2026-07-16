@@ -101,50 +101,23 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
     v9 = sub v7, arg1
     v10 = add v6, arg1
     v11 = make_calldata_slice v10, v9
-    v12 = fmp
-    mstore v12, 0xd18d0bac00000000000000000000000000000000000000000000000000000000
-    v13 = add v12, 4
-    v14 = add v13, 32
-    v15 = sub v14, v13
-    mstore v13, v15
-    v16 = slice_len v11
-    mstore v14, v16
-    v17 = not 31
-    v18 = add v16, 31
-    v19 = and v18, v17
-    v20 = add v14, 32
-    v21 = iszero v19
-    br v21, bb8, bb7
-  bb7:
-    v22 = sub v19, 32
-    v23 = add v20, v22
-    mstore v23, 0
-    jump bb8
-  bb8:
-    v24 = slice_ptr v11
-    v25 = add v20, v19
-    calldatacopy v20, v24, v16
-    v26 = sub v25, v13
-    v27 = add v26, 4
-    v28 = add v27, 31
-    v29 = not 31
-    v30 = and v28, v29
-    v31 = add v12, v30
-    set_fmp v31
+    v12 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v11
+    v13 = slice_ptr v12
+    v14 = slice_len v12
     mstore 0, arg2 !metadata(memory=scratch)
-    mstore 32, v12 !metadata(memory=scratch)
-    v32 = mload 0 !metadata(memory=scratch)
-    v33 = gas
-    v34 = mload 32 !metadata(memory=scratch)
-    v35 = call v33, v32, 0, v34, v27, 0, 32
-    v36 = iszero v35
-    br v36, bb9, bb10
-  bb9:
-    v37 = returndatasize
-    returndatacopy 0, 0, v37 !metadata(memory=scratch)
-    revert 0, v37
-  bb10:
-    v38 = mload 0 !metadata(memory=scratch)
+    mstore 32, v13 !metadata(memory=scratch)
+    v15 = mload 0 !metadata(memory=scratch)
+    v16 = gas
+    v17 = mload 32 !metadata(memory=scratch)
+    v18 = call v16, v15, 0, v17, v14, 0, 32
+    v19 = iszero v18
+    br v19, bb7, bb8
+  bb7:
+    v20 = returndatasize
+    returndatacopy 0, 0, v20 !metadata(memory=scratch)
+    revert 0, v20
+  bb8:
+    v21 = mload 0 !metadata(memory=scratch)
     stop
 }
 

@@ -1046,6 +1046,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         if !self.gcx.sess.opts.unstable.no_mir_dispatch {
             run_pass(self.gcx, module, &crate::pass::LOWER_ABI_PASS);
         }
+        let lowered_abi_encode = run_pass(self.gcx, module, &crate::pass::LOWER_ABI_ENCODE_PASS);
+        if lowered_abi_encode && self.gcx.sess.opts.optimization != OptimizationMode::None {
+            run_pass(self.gcx, module, &crate::pass::INST_SIMPLIFY_PASS);
+            run_pass(self.gcx, module, &crate::pass::CFG_SIMPLIFY_PASS);
+            run_pass(self.gcx, module, &crate::pass::DCE_PASS);
+        }
         run_pass(self.gcx, module, &crate::pass::LOWER_SLICES_PASS);
         if !self.gcx.sess.opts.unstable.no_mir_dispatch {
             run_pass(self.gcx, module, &crate::pass::LOWER_DISPATCH_PASS);
@@ -3315,6 +3321,10 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => {
                 unreachable!("slice instructions must be lowered before EVM codegen")
+            }
+
+            InstKind::AbiEncode { .. } => {
+                unreachable!("ABI encoding must be lowered before EVM codegen")
             }
         }
 

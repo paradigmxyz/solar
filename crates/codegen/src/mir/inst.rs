@@ -1,6 +1,6 @@
 //! MIR instructions.
 
-use super::{BlockId, Function, FunctionId, MirType, SliceLocation, Value, ValueId};
+use super::{AbiLayoutRef, BlockId, Function, FunctionId, MirType, SliceLocation, Value, ValueId};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_interface::Span;
@@ -458,6 +458,15 @@ pub(crate) enum InstKind {
     SetFmp(ValueId),
     /// Reserve `size` bytes and return the previous free-memory pointer.
     Alloc(ValueId),
+    /// ABI-encode values into a freshly allocated memory slice.
+    AbiEncode {
+        /// Optional left-aligned four-byte selector prefix.
+        selector: Option<ValueId>,
+        /// Values corresponding to the tuple layout.
+        args: Box<[ValueId]>,
+        /// Interned semantic ABI layout.
+        layout: AbiLayoutRef,
+    },
     /// Copy memory: `mcopy(dest, src, len)`
     MCopy(ValueId, ValueId, ValueId),
 
@@ -681,6 +690,11 @@ impl InstKind {
                 out.push(*len);
             }
 
+            Self::AbiEncode { selector, args, .. } => {
+                out.extend(selector.iter().copied());
+                out.extend(args.iter().copied());
+            }
+
             // Unary operations
             Self::Not(a)
             | Self::IsZero(a)
@@ -855,6 +869,15 @@ impl InstKind {
                 f(len);
             }
 
+            Self::AbiEncode { selector, args, .. } => {
+                if let Some(selector) = selector {
+                    f(selector);
+                }
+                for arg in args {
+                    f(arg);
+                }
+            }
+
             Self::Not(a)
             | Self::IsZero(a)
             | Self::MLoad(a)
@@ -1001,6 +1024,7 @@ impl InstKind {
                 | Self::MStore8(_, _)
                 | Self::SetFmp(_)
                 | Self::Alloc(_)
+                | Self::AbiEncode { .. }
                 | Self::MCopy(_, _, _)
                 | Self::CalldataCopy(_, _, _)
                 | Self::CodeCopy(_, _, _)
@@ -1050,6 +1074,7 @@ impl InstKind {
             Self::Fmp => "fmp",
             Self::SetFmp(_) => "set_fmp",
             Self::Alloc(_) => "alloc",
+            Self::AbiEncode { .. } => "abi_encode",
             Self::MCopy(_, _, _) => "mcopy",
             Self::SLoad(_) => "sload",
             Self::SStore(_, _) => "sstore",
@@ -1124,6 +1149,7 @@ impl InstKind {
             | Self::MStore8(_, _)
             | Self::SetFmp(_)
             | Self::Alloc(_)
+            | Self::AbiEncode { .. }
             | Self::MCopy(_, _, _)
             // External calls
             | Self::Call { .. }
@@ -1155,6 +1181,7 @@ impl InstKind {
             | Self::MStore8(_, _)
             | Self::SetFmp(_)
             | Self::Alloc(_)
+            | Self::AbiEncode { .. }
             | Self::MCopy(_, _, _)
             | Self::CalldataCopy(_, _, _)
             | Self::CodeCopy(_, _, _)

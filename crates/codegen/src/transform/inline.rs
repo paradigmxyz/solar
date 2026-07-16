@@ -465,6 +465,10 @@ fn estimate_inst_cost(kind: &InstKind) -> MirCost {
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
         InstKind::Fmp | InstKind::SetFmp(_) => (3, 1),
         InstKind::Alloc(_) => (9, 3),
+        InstKind::AbiEncode { args, layout, .. } => {
+            let words = layout.head_size() / 32;
+            (30 + words * 12, 8 + args.len() * 3)
+        }
         InstKind::Add(..)
         | InstKind::Sub(..)
         | InstKind::Lt(..)
@@ -821,6 +825,18 @@ impl<'a> InlineCloner<'a> {
             InstKind::Fmp => InstKind::Fmp,
             InstKind::SetFmp(ptr) => InstKind::SetFmp(self.clone_value(ptr)?),
             InstKind::Alloc(size) => InstKind::Alloc(self.clone_value(size)?),
+            InstKind::AbiEncode { selector, args, layout } => InstKind::AbiEncode {
+                selector: match selector {
+                    Some(selector) => Some(self.clone_value(selector)?),
+                    None => None,
+                },
+                args: args
+                    .iter()
+                    .map(|&arg| self.clone_value(arg))
+                    .collect::<Option<Vec<_>>>()?
+                    .into(),
+                layout,
+            },
             InstKind::MCopy(a, b, c) => {
                 InstKind::MCopy(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
             }

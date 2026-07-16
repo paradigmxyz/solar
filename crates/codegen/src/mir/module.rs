@@ -1,11 +1,12 @@
 //! MIR module (top-level container).
 
-use super::{Function, FunctionId};
+use super::{AbiLayout, AbiLayoutRef, Function, FunctionId};
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
 };
 use solar_interface::{Ident, Symbol, sym};
+use std::sync::Arc;
 
 /// Current immutable staging and placeholder width.
 ///
@@ -89,6 +90,8 @@ pub struct Module {
     pub(crate) name: Ident,
     /// All functions in this module.
     pub(crate) functions: IndexVec<FunctionId, Function>,
+    /// Canonical ABI layouts referenced by semantic encoding operations.
+    pub(crate) abi_layouts: Vec<AbiLayoutRef>,
     /// Size of the constructor scratch area used to stage immutables.
     immutable_data_len: usize,
     /// Whether this is an interface (no bytecode generation).
@@ -112,6 +115,7 @@ impl Module {
         Self {
             name,
             functions: IndexVec::new(),
+            abi_layouts: Vec::new(),
             immutable_data_len: 0,
             is_interface: false,
             phase: MirPhase::Built,
@@ -146,6 +150,18 @@ impl Module {
     /// Returns a mutable reference to the function.
     pub(crate) fn function_mut(&mut self, id: FunctionId) -> &mut Function {
         &mut self.functions[id]
+    }
+
+    /// Interns an ABI layout and returns its canonical shared reference.
+    pub(crate) fn intern_abi_layout(&mut self, layout: AbiLayout) -> AbiLayoutRef {
+        if let Some(existing) =
+            self.abi_layouts.iter().find(|existing| existing.as_ref() == &layout)
+        {
+            return Arc::clone(existing);
+        }
+        let layout = Arc::new(layout);
+        self.abi_layouts.push(Arc::clone(&layout));
+        layout
     }
 
     /// Reserves one word in the constructor's immutable staging area.

@@ -7,6 +7,9 @@ use solar_data_structures::newtype_index;
 mod types;
 pub(crate) use types::{MirType, SliceLocation};
 
+mod abi;
+pub use abi::{AbiLayout, AbiLayoutRef, AbiType};
+
 mod value;
 pub(crate) use value::{Immediate, Value};
 

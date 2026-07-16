@@ -22,8 +22,8 @@ use crate::{
     transform::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
         FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
-        JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, LowerAbiPass,
-        LowerAllocPass, LowerDispatchPass, LowerEvmShapedPass, LowerMappingSlotsPass,
+        JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, LowerAbiEncodePass,
+        LowerAbiPass, LowerAllocPass, LowerDispatchPass, LowerEvmShapedPass, LowerMappingSlotsPass,
         LowerSlicesPass, MemoryDsePass, OutlineRevertsPass, PrePass, PureEvalPass,
         SccpTransformPass, StaticAllocPass, StorageDsePass, StorageLoadCsePass,
         StorageScalarPromotionPass,
@@ -177,6 +177,9 @@ declare_passes! {
     /// Lower mapping-slot hash builtins to memory operations.
     pub(crate) const LOWER_MAPPING_SLOTS_PASS -> "lower-mapping-slots" = LowerMappingSlotsPass;
 
+    /// Lower semantic ABI encoding to memory and slice operations.
+    pub const LOWER_ABI_ENCODE_PASS -> "lower-abi-encode" = LowerAbiEncodePass;
+
     /// Lower logical slices to their pointer and length words.
     pub(crate) const LOWER_SLICES_PASS -> "lower-slices" = LowerSlicesPass::default();
 
@@ -229,6 +232,7 @@ pub const PASS_REGISTRY: &[PassInfo] = &[
     LOWER_EVM_SHAPED_PASS,
     OUTLINE_REVERTS_PASS,
     LOWER_MAPPING_SLOTS_PASS,
+    LOWER_ABI_ENCODE_PASS,
     LOWER_SLICES_PASS,
     LOWER_ALLOC_PASS,
 ];

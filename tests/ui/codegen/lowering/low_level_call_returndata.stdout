@@ -23,60 +23,51 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) {
   bb5:
     revert 0, 0
   bb6:
-    v9 = fmp
-    mstore v9, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v10 = add v9, 4
-    mstore v10, arg1
-    v11 = add v10, 32
-    mstore v11, arg2
-    v12 = add 64, 4
-    v13 = add v12, 31
-    v14 = not 31
-    v15 = and v13, v14
-    v16 = add v9, v15
-    set_fmp v16
-    v17 = gas
-    v18 = call v17, arg0, 0, v9, v12, 0, 0
-    mstore 128, v18
-    v19 = returndatasize
-    v20 = add v19, 31
-    v21 = not 31
-    v22 = and v20, v21
-    v23 = add v22, 32
-    v24 = alloc v23
-    mstore v24, v19
-    v25 = add v24, 32
-    returndatacopy v25, 0, v19
-    mstore 160, v24
-    v26 = mload 128
-    br v26, bb7, bb8
+    v9 = abi_encode [word, word], selector 0xa9059cbb00000000000000000000000000000000000000000000000000000000, args arg1, arg2
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = gas
+    v13 = call v12, arg0, 0, v10, v11, 0, 0
+    mstore 128, v13
+    v14 = returndatasize
+    v15 = add v14, 31
+    v16 = not 31
+    v17 = and v15, v16
+    v18 = add v17, 32
+    v19 = alloc v18
+    mstore v19, v14
+    v20 = add v19, 32
+    returndatacopy v20, 0, v14
+    mstore 160, v19
+    v21 = mload 128
+    br v21, bb7, bb8
   bb7:
-    v27 = mload 160
-    v28 = mload v27
-    v29 = eq v28, 0
-    br v29, bb10, bb9
+    v22 = mload 160
+    v23 = mload v22
+    v24 = eq v23, 0
+    br v24, bb10, bb9
   bb8:
-    v40 = phi [bb6: 0], [bb10: v39]
-    v41 = iszero v40
-    br v41, bb15, bb16
+    v35 = phi [bb6: 0], [bb10: v34]
+    v36 = iszero v35
+    br v36, bb15, bb16
   bb9:
-    v30 = mload 160
-    v31 = mload v30
-    v32 = lt v31, 32
-    br v32, bb11, bb12
+    v25 = mload 160
+    v26 = mload v25
+    v27 = lt v26, 32
+    br v27, bb11, bb12
   bb10:
-    v39 = phi [bb7: 1], [bb14: v36]
+    v34 = phi [bb7: 1], [bb14: v31]
     jump bb8
   bb11:
     revert 0, 0
   bb12:
-    v33 = add v30, 32
-    v34 = mload v33
-    v35 = iszero v34
-    v36 = iszero v35
-    v37 = eq v34, v36
-    v38 = iszero v37
-    br v38, bb13, bb14
+    v28 = add v25, 32
+    v29 = mload v28
+    v30 = iszero v29
+    v31 = iszero v30
+    v32 = eq v29, v31
+    v33 = iszero v32
+    br v33, bb13, bb14
   bb13:
     revert 0, 0
   bb14:
@@ -116,45 +107,38 @@ fn @balanceOf(arg0: address) {
     mstore 128, 0
     v6 = address
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v8 = fmp
-    mstore v8, 0x70a0823100000000000000000000000000000000000000000000000000000000
-    v9 = add v8, 4
-    mstore v9, v7
-    v10 = add 32, 4
-    v11 = add v10, 31
-    v12 = not 31
-    v13 = and v11, v12
-    v14 = add v8, v13
-    set_fmp v14
-    v15 = gas
-    v16 = staticcall v15, arg0, v8, v10, 0, 0
-    mstore 160, v16
-    v17 = returndatasize
-    v18 = add v17, 31
-    v19 = not 31
-    v20 = and v18, v19
-    v21 = add v20, 32
-    v22 = alloc v21
-    mstore v22, v17
-    v23 = add v22, 32
-    returndatacopy v23, 0, v17
-    mstore 192, v22
-    v24 = mload 160
-    v25 = iszero v24
-    br v25, bb5, bb6
+    v8 = abi_encode [word], selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v7
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = gas
+    v12 = staticcall v11, arg0, v9, v10, 0, 0
+    mstore 160, v12
+    v13 = returndatasize
+    v14 = add v13, 31
+    v15 = not 31
+    v16 = and v14, v15
+    v17 = add v16, 32
+    v18 = alloc v17
+    mstore v18, v13
+    v19 = add v18, 32
+    returndatacopy v19, 0, v13
+    mstore 192, v18
+    v20 = mload 160
+    v21 = iszero v20
+    br v21, bb5, bb6
   bb5:
     revert 0, 0
   bb6:
-    v26 = mload 192
-    v27 = mload v26
-    v28 = lt v27, 32
-    br v28, bb7, bb8
+    v22 = mload 192
+    v23 = mload v22
+    v24 = lt v23, 32
+    br v24, bb7, bb8
   bb7:
     revert 0, 0
   bb8:
-    v29 = add v26, 32
-    v30 = mload v29
-    mstore 128, v30
+    v25 = add v22, 32
+    v26 = mload v25
+    mstore 128, v26
     returndata 128, 32
 }
 

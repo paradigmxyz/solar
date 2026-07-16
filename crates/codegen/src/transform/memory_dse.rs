@@ -520,7 +520,9 @@ impl MemoryStoreEliminator {
                 | InstKind::CodeCopy(_, _, _)
                 | InstKind::ReturnDataCopy(_, _, _)
                 | InstKind::ExtCodeCopy(_, _, _, _) => memory_writes += 1,
-                InstKind::SetFmp(_) | InstKind::Alloc(_) => memory_writes += 1,
+                InstKind::SetFmp(_) | InstKind::Alloc(_) | InstKind::AbiEncode { .. } => {
+                    memory_writes += 1
+                }
                 InstKind::MLoad(_) => has_load = true,
                 InstKind::Keccak256(_, _) => has_keccak = true,
                 _ => {}
@@ -1267,6 +1269,7 @@ impl MemoryStoreEliminator {
                 | InstKind::ExtCodeCopy(_, _, _, _)
                 | InstKind::Keccak256(_, _)
                 | InstKind::MappingSlotMemory(_, _)
+                | InstKind::AbiEncode { .. }
                 | InstKind::Call { .. }
                 | InstKind::StaticCall { .. }
                 | InstKind::DelegateCall { .. }
@@ -1403,6 +1406,7 @@ impl MemoryStoreEliminator {
             InstKind::MStore8(_, _)
                 | InstKind::SetFmp(_)
                 | InstKind::Alloc(_)
+                | InstKind::AbiEncode { .. }
                 | InstKind::MCopy(_, _, _)
                 | InstKind::CalldataCopy(_, _, _)
                 | InstKind::CodeCopy(_, _, _)
@@ -1418,7 +1422,11 @@ impl MemoryStoreEliminator {
     fn cross_block_memory_barrier(kind: &InstKind) -> bool {
         matches!(
             kind,
-            InstKind::MLoad(_) | InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc(_)
+            InstKind::MLoad(_)
+                | InstKind::Fmp
+                | InstKind::SetFmp(_)
+                | InstKind::Alloc(_)
+                | InstKind::AbiEncode { .. }
         ) || Self::is_memory_or_gas_observer(kind)
     }
 }

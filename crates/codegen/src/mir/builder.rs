@@ -346,6 +346,19 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::Alloc(size), Some(MirType::MemPtr))
     }
 
+    /// ABI-encodes `args` into a freshly allocated memory slice.
+    pub fn abi_encode(
+        &mut self,
+        layout: crate::mir::AbiLayoutRef,
+        selector: Option<ValueId>,
+        args: impl Into<Box<[ValueId]>>,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::AbiEncode { selector, args: args.into(), layout },
+            Some(MirType::Slice(SliceLocation::Memory)),
+        )
+    }
+
     /// Emits an mcopy instruction.
     pub(crate) fn mcopy(&mut self, dest: ValueId, src: ValueId, len: ValueId) {
         self.emit_void_inst(InstKind::MCopy(dest, src, len))

@@ -2,8 +2,8 @@
 //@filecheck: --check-prefix=SLICE
 
 // Rebinding calldata bytes keeps a lazy `(ptr, len)` slice. A later external
-// call copies the selected range directly from calldata without interpreting
-// the original ABI head offset as a memory pointer.
+// call carries that slice into semantic ABI encoding without interpreting the
+// original ABI head offset as a memory pointer. Late lowering emits the copy.
 interface SliceSink {
     function consume(bytes calldata data) external;
 }
@@ -18,5 +18,5 @@ contract CalldataSliceRebind {
 // SLICE-LABEL: fn @forward
 // SLICE: make_calldata_slice
 // SLICE-NOT: mcopy
-// SLICE: calldatacopy
+// SLICE: abi_encode [calldata_bytes]
 // SLICE: call

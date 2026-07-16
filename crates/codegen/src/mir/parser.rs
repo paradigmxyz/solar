@@ -29,8 +29,9 @@
 //! - Phi nodes are represented only as phi *instructions* (`InstKind::Phi`).
 
 use super::{
-    BlockId, EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
-    InstructionMetadata, MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
+    AbiLayout, AbiLayoutRef, AbiType, BlockId, EffectKind, Function, FunctionBuilder, FunctionId,
+    InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion, Module, StorageAlias,
+    Terminator, Value, ValueId,
 };
 use crate::mir::{MirType, SliceLocation};
 use alloy_primitives::U256;
@@ -100,6 +101,8 @@ struct Parser<'sess, 'ast> {
     block_labels: FxHashMap<u32, BlockLabel>,
     block_order: Vec<BlockId>,
     value_labels: FxHashMap<u32, ValueId>,
+    /// ABI layouts interned while parsing instructions.
+    abi_layouts: Vec<AbiLayoutRef>,
 }
 
 struct PendingFunctionRef {
@@ -130,6 +133,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             block_labels: FxHashMap::default(),
             block_order: Vec::new(),
             value_labels: FxHashMap::default(),
+            abi_layouts: Vec::new(),
         }
     }
 
@@ -201,6 +205,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 .extend(self.function_refs.drain(..).map(|reference| (function, reference)));
         }
         self.resolve_function_refs(&mut module, function_refs)?;
+
+        module.abi_layouts = std::mem::take(&mut self.abi_layouts);
 
         Ok(module)
     }
@@ -597,6 +603,75 @@ kw::Bool => MirType::Bool,
         self.block_labels
             .insert(idx, BlockLabel { id: block, defined: false, reference_span: Some(span) });
         Ok(block)
+    }
+
+    /// Parses an ABI layout: `[type, type, ...]`. Structurally identical
+    /// layouts are interned so repeated encodes share one allocation.
+    fn parse_abi_layout(&mut self) -> PResult<'sess, AbiLayoutRef> {
+        self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
+        let mut types = Vec::new();
+        if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
+            loop {
+                types.push(self.parse_abi_type()?);
+                if self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
+                    break;
+                }
+                self.parser.expect(TokenKind::Comma)?;
+            }
+        }
+        let layout = AbiLayout::new(types);
+        if let Some(existing) = self.abi_layouts.iter().find(|item| item.as_ref() == &layout) {
+            return Ok(std::sync::Arc::clone(existing));
+        }
+        let layout = std::sync::Arc::new(layout);
+        self.abi_layouts.push(std::sync::Arc::clone(&layout));
+        Ok(layout)
+    }
+
+    fn parse_abi_type(&mut self) -> PResult<'sess, AbiType> {
+        let name = self.parser.parse_ident()?;
+        Ok(match name {
+            sym::word => AbiType::Word,
+            sym::memory_bytes => AbiType::Bytes(SliceLocation::Memory),
+            sym::calldata_bytes => AbiType::Bytes(SliceLocation::Calldata),
+            sym::memory_array | sym::calldata_array => {
+                self.parser.expect(TokenKind::Lt)?;
+                let element = Box::new(self.parse_abi_type()?);
+                self.parser.expect(TokenKind::Gt)?;
+                let location = if name == sym::memory_array {
+                    SliceLocation::Memory
+                } else {
+                    SliceLocation::Calldata
+                };
+                AbiType::DynamicArray { element, location }
+            }
+            sym::array => {
+                self.parser.expect(TokenKind::Lt)?;
+                let len = self.parser.parse_uint()?;
+                let len = len
+                    .try_into()
+                    .map_err(|_| self.parser.error("ABI fixed-array length does not fit in u64"))?;
+                self.parser.expect(TokenKind::Comma)?;
+                let element = Box::new(self.parse_abi_type()?);
+                self.parser.expect(TokenKind::Gt)?;
+                AbiType::FixedArray { element, len }
+            }
+            sym::tuple => {
+                self.parser.expect(TokenKind::Lt)?;
+                let mut fields = Vec::new();
+                if !self.parser.eat(TokenKind::Gt) {
+                    loop {
+                        fields.push(self.parse_abi_type()?);
+                        if self.parser.eat(TokenKind::Gt) {
+                            break;
+                        }
+                        self.parser.expect(TokenKind::Comma)?;
+                    }
+                }
+                AbiType::Tuple(fields.into())
+            }
+            _ => return Err(self.parser.error(format!("unknown ABI type `{name}`"))),
+        })
     }
 
     fn parse_function_id(&mut self) -> PResult<'sess, FunctionId> {
@@ -1013,6 +1088,44 @@ kw::Bool => MirType::Bool,
             sym::fmp => unit!(Fmp => MirType::MemPtr),
             sym::set_fmp => inst!(SetFmp(a)),
             sym::alloc => inst!(Alloc(a) => MirType::MemPtr),
+
+            // Semantic ABI encoding.
+            sym::abi_encode => {
+                let layout = self.parse_abi_layout()?;
+                let mut selector = None;
+                let mut args = Vec::new();
+                while self.parser.eat(TokenKind::Comma) {
+                    let group = self.parser.parse_ident()?;
+                    match group {
+                        sym::selector if selector.is_none() => {
+                            selector = Some(self.parse_value(builder)?)
+                        }
+                        sym::args if args.is_empty() => {
+                            args.push(self.parse_value(builder)?);
+                            while self.parser.eat(TokenKind::Comma) {
+                                args.push(self.parse_value(builder)?);
+                            }
+                            break;
+                        }
+                        _ => {
+                            return Err(self
+                                .parser
+                                .error(format!("unexpected ABI encode operand group `{group}`")));
+                        }
+                    }
+                }
+                if args.len() != layout.types.len() {
+                    return Err(self.parser.error(format!(
+                        "ABI encode layout has {} types but {} arguments",
+                        layout.types.len(),
+                        args.len()
+                    )));
+                }
+                (
+                    InstKind::AbiEncode { selector, args: args.into(), layout },
+                    Some(MirType::Slice(SliceLocation::Memory)),
+                )
+            }
 
             // Calldata, code, and return data.
             kw::Calldataload => inst!(CalldataLoad(a) => MirType::uint256()),
