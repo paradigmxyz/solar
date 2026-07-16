@@ -62,7 +62,11 @@ impl StructuredAsmProgram {
     pub(in crate::backend::evm) fn define_label(&mut self, label: Label) {
         let block = StructuredAsmBlock {
             label: Some(label),
-            cold: self.cold_labels.contains(label),
+            hotness: if self.cold_labels.contains(label) {
+                ir::Hotness::Cold
+            } else {
+                ir::Hotness::Hot
+            },
             instructions: Vec::new(),
         };
         self.blocks.push(block);
@@ -73,7 +77,7 @@ impl StructuredAsmProgram {
     pub(in crate::backend::evm) fn mark_cold(&mut self, label: Label) {
         self.cold_labels.insert(label);
         if let Some(block) = self.blocks.iter_mut().find(|block| block.label == Some(label)) {
-            block.cold = true;
+            block.hotness = ir::Hotness::Cold;
         }
     }
 
@@ -209,9 +213,7 @@ impl StructuredAsmProgram {
         let mut module = ir::Module::new("asm");
         for (index, block) in self.blocks.iter().enumerate() {
             let mut ir_block = ir::Block::new(format!("bb{index}"));
-            if block.cold {
-                ir_block.metadata.hotness = ir::BlockHotness::Cold;
-            }
+            ir_block.metadata.hotness = block.hotness;
             module.add_block(ir_block);
         }
 
@@ -327,13 +329,13 @@ impl StructuredAsmProgram {
             let label = original.and_then(|index| labels.get(index).copied().flatten());
             if let Some(label) = label {
                 program.define_label(label);
-                if block.metadata.hotness == ir::BlockHotness::Cold {
+                if block.metadata.hotness.is_cold() {
                     program.mark_cold(label);
                 }
             } else {
                 program.blocks.push(StructuredAsmBlock {
                     label: None,
-                    cold: block.metadata.hotness == ir::BlockHotness::Cold,
+                    hotness: block.metadata.hotness,
                     instructions: Vec::new(),
                 });
                 program.current = Some(program.blocks.len() - 1);
@@ -528,7 +530,7 @@ where
 #[derive(Clone, Debug, Default)]
 struct StructuredAsmBlock {
     label: Option<Label>,
-    cold: bool,
+    hotness: ir::Hotness,
     instructions: Vec<AsmInst>,
 }
 

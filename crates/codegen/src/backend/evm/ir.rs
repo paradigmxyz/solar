@@ -131,12 +131,12 @@ impl Block {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BlockMetadata {
     /// Estimated block hotness for future layout and scheduling decisions.
-    pub hotness: BlockHotness,
+    pub hotness: Hotness,
 }
 
 /// Block hotness metadata.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum BlockHotness {
+pub enum Hotness {
     /// The block is expected to be frequently executed.
     #[default]
     Hot,
@@ -144,7 +144,13 @@ pub enum BlockHotness {
     Cold,
 }
 
-impl BlockHotness {
+impl Hotness {
+    /// Returns whether this is cold code.
+    #[must_use]
+    pub const fn is_cold(self) -> bool {
+        matches!(self, Self::Cold)
+    }
+
     fn parse(value: &str) -> Option<Self> {
         Some(match value {
             "hot" => Self::Hot,

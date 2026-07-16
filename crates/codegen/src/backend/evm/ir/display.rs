@@ -25,7 +25,7 @@ fn display_block<'a>(
 ) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| {
         let entry = if module.entry_block == Some(block_id) { " (entry)" } else { "" };
-        let cold = if block.metadata.hotness == BlockHotness::Cold { " [cold]" } else { "" };
+        let cold = if block.metadata.hotness.is_cold() { " [cold]" } else { "" };
         write!(f, "{}{}{}", block.label, entry, cold)?;
         if !block.entry_stack.is_empty() {
             write!(f, " (in ")?;

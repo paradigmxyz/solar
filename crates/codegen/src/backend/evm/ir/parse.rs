@@ -40,7 +40,7 @@ impl std::error::Error for ParseError {}
 struct ParsedBlockHeader {
     label: String,
     entry: bool,
-    hotness: BlockHotness,
+    hotness: Hotness,
     /// Incoming stack-word names from an `(in %a, %b)` signature, top first.
     entry_stack: Vec<String>,
 }
@@ -362,18 +362,18 @@ impl<'a> Parser<'a> {
             entry = true;
         }
 
-        let mut hotness = BlockHotness::Hot;
+        let mut hotness = Hotness::Hot;
         self.skip_inline_whitespace();
         if self.try_punct('[') {
             let key = self.parse_ident()?;
             if key == "cold" {
-                hotness = BlockHotness::Cold;
+                hotness = Hotness::Cold;
             } else if key == "hot" {
-                hotness = BlockHotness::Hot;
+                hotness = Hotness::Hot;
             } else if key == "hotness" {
                 self.expect_punct('=')?;
                 let value = self.parse_ident()?;
-                hotness = BlockHotness::parse(value)
+                hotness = Hotness::parse(value)
                     .ok_or_else(|| self.error(format!("unknown block hotness `{value}`")))?;
             } else {
                 return Err(self.error(format!("unknown block metadata `{key}`")));

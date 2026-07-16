@@ -95,7 +95,7 @@ fn is_movable_cold_terminal_block(module: &Module, block_id: BlockId, block: &Bl
     let Some(term) = &block.terminator else {
         return false;
     };
-    if block.metadata.hotness != BlockHotness::Cold || !is_evm_terminal(&term.kind) {
+    if !block.metadata.hotness.is_cold() || !is_evm_terminal(&term.kind) {
         return false;
     }
     let previous = BlockId::from_usize(block_id.index() - 1);
