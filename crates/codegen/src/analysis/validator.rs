@@ -536,10 +536,12 @@ pub fn validate_module(dcx: &DiagCtxt, module: &Module) {
 mod tests {
     use super::*;
     use crate::mir::{BasicBlock, Function, FunctionBuilder, MirType, Terminator};
+    use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, Ident, Session};
 
     fn with_session<F: FnOnce(&Session) + Send>(f: F) {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.dcx.set_flags(|flags| flags.track_diagnostics = false);
         sess.enter(|| f(&sess));
     }
 
@@ -575,7 +577,14 @@ mod tests {
             }
             validate_function(&sess.dcx, &func);
             assert!(sess.dcx.has_errors().is_err());
-            assert!(sess.emitted_diagnostics().unwrap().to_string().contains("no terminator"));
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [bb0] block has no terminator
+
+
+"#]]
+            );
         });
     }
 
@@ -593,7 +602,14 @@ mod tests {
             func.blocks[func.entry_block].terminator = Some(Terminator::Jump(bad_block));
             validate_function(&sess.dcx, &func);
             assert!(sess.dcx.has_errors().is_err());
-            assert!(sess.emitted_diagnostics().unwrap().to_string().contains("nonexistent block"));
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [bb0] terminator references nonexistent block bb99
+
+
+"#]]
+            );
         });
     }
 
@@ -615,11 +631,13 @@ mod tests {
             func.blocks[target].predecessors.clear();
             validate_function(&sess.dcx, &func);
             assert!(sess.dcx.has_errors().is_err());
-            assert!(
-                sess.emitted_diagnostics()
-                    .unwrap()
-                    .to_string()
-                    .contains("does not list bb0 as a predecessor")
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [bb0] successor bb1 does not list bb0 as a predecessor
+
+
+"#]]
             );
         });
     }
@@ -638,11 +656,15 @@ mod tests {
             func.blocks[func.entry_block].predecessors.push(func.entry_block);
             validate_function(&sess.dcx, &func);
             assert!(sess.dcx.has_errors().is_err());
-            assert!(
-                sess.emitted_diagnostics()
-                    .unwrap()
-                    .to_string()
-                    .contains("entry block must have no predecessors")
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [bb0] stored predecessor bb0 does not branch to bb0
+
+error: [bb0] entry block must have no predecessors
+
+
+"#]]
             );
         });
     }
