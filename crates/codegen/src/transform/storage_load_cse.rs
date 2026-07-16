@@ -8,13 +8,29 @@ use crate::{
     mir::{BlockId, Function, InstId, InstKind, StorageAlias, ValueId, utils as mir_utils},
     pass::{AnalysisManager, FunctionPass, LivenessAnalysis},
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Local storage load CSE pass.
 #[derive(Debug, Default)]
 pub struct StorageLoadCse {
     /// Number of storage loads eliminated.
     pub eliminated_count: usize,
+}
+
+struct RunState {
+    replacements: FxHashMap<ValueId, ValueId>,
+    dead: DenseBitSet<InstId>,
+    cached_loads: FxHashMap<StorageAlias, ValueId>,
+}
+
+impl RunState {
+    fn new(func: &Function) -> Self {
+        Self {
+            replacements: FxHashMap::default(),
+            dead: DenseBitSet::new_empty(func.instructions.len()),
+            cached_loads: FxHashMap::default(),
+        }
+    }
 }
 
 /// Function pass for straight-line storage-load CSE.
@@ -38,33 +54,31 @@ impl StorageLoadCse {
 
     /// Runs storage-load CSE on a function.
     pub fn run(&mut self, func: &mut Function) -> usize {
+        let mut state = RunState::new(func);
+        self.run_with_state(func, &mut state)
+    }
+
+    fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
         self.eliminated_count = 0;
         func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
 
         let mut analyses = AnalysisManager::new();
         let liveness = analyses.get_or_compute(&LivenessAnalysis, func);
         let inst_results = func.inst_results();
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
-        let mut replacements = FxHashMap::default();
-        let mut dead = FxHashSet::default();
+        state.replacements.clear();
+        state.dead.clear();
 
-        for block_id in block_ids {
-            self.process_block(
-                func,
-                block_id,
-                liveness,
-                &inst_results,
-                &mut replacements,
-                &mut dead,
-            );
+        for block_id in func.blocks.indices() {
+            state.cached_loads.clear();
+            self.process_block(func, block_id, liveness, &inst_results, state);
         }
 
-        if !replacements.is_empty() {
-            Self::replace_uses(func, &replacements);
+        if !state.replacements.is_empty() {
+            Self::replace_uses(func, &state.replacements);
         }
-        if !dead.is_empty() {
+        if !state.dead.is_empty() {
             for block in func.blocks.iter_mut() {
-                block.instructions.retain(|id| !dead.contains(id));
+                block.instructions.retain(|&id| !state.dead.contains(id));
             }
         }
 
@@ -74,8 +88,9 @@ impl StorageLoadCse {
     /// Runs storage-load CSE to a fixed point.
     pub fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
+        let mut state = RunState::new(func);
         loop {
-            let eliminated = self.run(func);
+            let eliminated = self.run_with_state(func, &mut state);
             if eliminated == 0 {
                 break;
             }
@@ -90,40 +105,34 @@ impl StorageLoadCse {
         block_id: BlockId,
         liveness: &Liveness,
         inst_results: &FxHashMap<InstId, ValueId>,
-        replacements: &mut FxHashMap<ValueId, ValueId>,
-        dead: &mut FxHashSet<InstId>,
+        state: &mut RunState,
     ) {
-        let mut cached_loads: FxHashMap<StorageAlias, ValueId> = FxHashMap::default();
-        let inst_ids = func.blocks[block_id].instructions.clone();
-
-        for (inst_idx, inst_id) in inst_ids.into_iter().enumerate() {
+        for (inst_idx, &inst_id) in func.blocks[block_id].instructions.iter().enumerate() {
             match &func.instructions[inst_id].kind {
                 InstKind::SLoad(slot) => {
-                    let alias = func.storage_alias_after_replacements(inst_id, *slot, replacements);
+                    let alias =
+                        func.storage_alias_after_replacements(inst_id, *slot, &state.replacements);
                     let Some(&result) = inst_results.get(&inst_id) else {
                         continue;
                     };
-                    if let Some(&cached) = cached_loads.get(&alias) {
-                        if !liveness
-                            .live_at_inst(func, block_id, inst_idx)
-                            .live_before
-                            .contains(cached)
-                        {
-                            cached_loads.insert(alias, result);
+                    if let Some(&cached) = state.cached_loads.get(&alias) {
+                        if !liveness.is_used_at_or_after(cached, block_id, inst_idx) {
+                            state.cached_loads.insert(alias, result);
                             continue;
                         }
-                        replacements.insert(result, cached);
-                        dead.insert(inst_id);
+                        state.replacements.insert(result, cached);
+                        state.dead.insert(inst_id);
                         self.eliminated_count += 1;
                     } else {
-                        cached_loads.insert(alias, result);
+                        state.cached_loads.insert(alias, result);
                     }
                 }
                 InstKind::SStore(slot, _) => {
-                    let alias = func.storage_alias_after_replacements(inst_id, *slot, replacements);
-                    cached_loads.retain(|cached_alias, _| !cached_alias.may_alias(alias));
+                    let alias =
+                        func.storage_alias_after_replacements(inst_id, *slot, &state.replacements);
+                    state.cached_loads.retain(|cached_alias, _| !cached_alias.may_alias(alias));
                 }
-                kind if kind.may_mutate_storage() => cached_loads.clear(),
+                kind if kind.may_mutate_storage() => state.cached_loads.clear(),
                 _ => {}
             }
         }

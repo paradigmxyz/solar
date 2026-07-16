@@ -47,7 +47,7 @@ bb2:
   calldataload
   dup2
   dup1
-  push 320
+  push 288
   mstore
   add
   dup1
@@ -55,7 +55,7 @@ bb2:
   mstore
   dup2
   dup1
-  push 320
+  push 288
   mstore
   dup2
   lt
@@ -85,11 +85,11 @@ bb2:
   calldataload
   sload
   dup1
-  push 384
+  push 352
   mstore
   dup2
   dup1
-  push 288
+  push 320
   mstore
   add
   dup1
@@ -97,7 +97,7 @@ bb2:
   mstore
   dup2
   dup1
-  push 288
+  push 320
   mstore
   dup2
   lt
@@ -115,7 +115,7 @@ bb2:
   add
   sload
   dup1
-  push 352
+  push 384
   mstore
   push 192
   mload

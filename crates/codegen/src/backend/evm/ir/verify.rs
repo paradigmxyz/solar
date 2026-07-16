@@ -1,7 +1,11 @@
 //! EVM IR verifier.
 
 use super::*;
-use solar_data_structures::{index::IndexVec, map::FxHashSet};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    index::IndexVec,
+    map::FxHashSet,
+};
 use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
 
 /// Stateful EVM IR verifier.
@@ -70,7 +74,7 @@ impl<'a> EvmIrVerifier<'a> {
             }
         }
 
-        let mut defined_values = FxHashSet::default();
+        let mut defined_values = DenseBitSet::new_empty(module.values.len());
         for (block_id, block) in module.blocks.iter_enumerated() {
             for inst in &block.instructions {
                 self.verify_instruction_shape(block_id, inst);
@@ -122,7 +126,7 @@ impl<'a> EvmIrVerifier<'a> {
                         block_id,
                         format!("entry stack value `{}` is out of range", value.index()),
                     );
-                } else if !defined_values.contains(&value) {
+                } else if !defined_values.contains(value) {
                     self.error_in_block(
                         block_id,
                         format!(
@@ -457,7 +461,7 @@ impl EvmIrVerifier<'_> {
         kind: &EvmIrTerminatorKind,
         stack: &mut ModelStack,
     ) -> Result<(), ErrorGuaranteed> {
-        let mut consumed = FxHashSet::default();
+        let mut consumed = GrowableBitSet::new_empty();
         visit_terminator_operands(kind, |operand| {
             if let EvmIrOperand::Value(value) = operand
                 && consumed.insert(*value)
@@ -684,11 +688,11 @@ impl EvmIrVerifier<'_> {
         block_id: EvmIrBlockId,
         module: &EvmIrModule,
         operand: &EvmIrOperand,
-        defined_values: &FxHashSet<EvmIrValueId>,
+        defined_values: &DenseBitSet<EvmIrValueId>,
     ) {
         if let EvmIrOperand::Value(value) = operand
             && self.value_exists(module, *value)
-            && !defined_values.contains(value)
+            && !defined_values.contains(*value)
         {
             self.error_in_block(
                 block_id,

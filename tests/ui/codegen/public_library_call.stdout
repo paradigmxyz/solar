@@ -224,14 +224,14 @@ bb4:
   push 0
   keccak256
   dup1
-  push 608
+  push 640
   mstore
   sload
   push 384
   mload
   dup2
   dup1
-  push 576
+  push 480
   mstore
   add
   dup1
@@ -239,7 +239,7 @@ bb4:
   mstore
   dup2
   dup1
-  push 576
+  push 480
   mstore
   dup2
   lt
@@ -256,13 +256,13 @@ bb4:
   dup1
   push 512
   mstore
-  push 608
+  push 640
   mload
   sstore
-  push 608
+  push 640
   mload
   dup1
-  push 608
+  push 640
   mstore
   sload
   caller
@@ -270,15 +270,15 @@ bb4:
   and
   dup2
   dup1
-  push 480
+  push 544
   mstore
   add
   dup1
-  push 544
+  push 608
   mstore
   dup2
   dup1
-  push 480
+  push 544
   mstore
   dup2
   lt
@@ -290,7 +290,7 @@ bb4:
   pop
   push bb5
   jumpi
-  push 544
+  push 608
   mload
   push 416
   mstore

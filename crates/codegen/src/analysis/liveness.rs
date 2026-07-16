@@ -12,7 +12,10 @@
 
 use crate::mir::{BlockId, Function, InstId, Terminator, Value, ValueId};
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    map::FxHashMap,
+};
 use std::collections::VecDeque;
 
 /// A dense bitset for tracking live values.
@@ -122,13 +125,17 @@ impl Liveness {
         //
         // live_out(B) = union over S in succ(B) of live_in(S)
         // live_in(B) = block_uses(B) | (live_out(B) - block_defs(B))
-        let mut worklist: VecDeque<BlockId> = func.blocks.indices().collect();
+        let mut worklist: VecDeque<BlockId> = func.blocks.indices().rev().collect();
+        let mut queued = DenseBitSet::new_filled(num_blocks);
+        let mut new_live_out = LiveSet::with_capacity(num_values);
+        let mut new_live_in = LiveSet::with_capacity(num_values);
 
         while let Some(block_id) = worklist.pop_front() {
+            queued.remove(block_id);
             let bidx = block_id.index();
             let block = &func.blocks[block_id];
 
-            let mut new_live_out = LiveSet::with_capacity(num_values);
+            new_live_out.clear();
             let successors =
                 block.terminator.as_ref().map(Terminator::successors).unwrap_or_default();
             for succ in successors {
@@ -136,22 +143,21 @@ impl Liveness {
             }
 
             // live_in = use ∪ (live_out - def)
-            let mut new_live_in = block_uses[bidx].clone();
-            for val in new_live_out.iter() {
-                if !block_defs[bidx].contains(val) {
-                    new_live_in.insert(val);
-                }
-            }
+            new_live_in.clone_from(&new_live_out);
+            new_live_in.subtract(&block_defs[bidx]);
+            new_live_in.union(&block_uses[bidx]);
 
             if new_live_out != block_liveness[bidx].live_out
                 || new_live_in != block_liveness[bidx].live_in
             {
-                block_liveness[bidx].live_out = new_live_out;
-                block_liveness[bidx].live_in = new_live_in;
+                std::mem::swap(&mut block_liveness[bidx].live_out, &mut new_live_out);
+                std::mem::swap(&mut block_liveness[bidx].live_in, &mut new_live_in);
 
                 // Add predecessors to worklist
                 for &pred in &block.predecessors {
-                    worklist.push_back(pred);
+                    if queued.insert(pred) {
+                        worklist.push_back(pred);
+                    }
                 }
             }
         }
@@ -336,6 +342,25 @@ impl Liveness {
     #[must_use]
     pub fn last_use_in_block(&self, val: ValueId, block: BlockId) -> Option<Option<usize>> {
         self.last_use_in_block.get(&(val, block)).copied()
+    }
+
+    /// Returns whether a value defined before `inst_idx` is used at or after that instruction.
+    #[must_use]
+    pub(crate) fn is_used_at_or_after(
+        &self,
+        val: ValueId,
+        block: BlockId,
+        inst_idx: usize,
+    ) -> bool {
+        if self.block_liveness[block.index()].live_out.contains(val) {
+            return true;
+        }
+
+        match self.last_use_in_block.get(&(val, block)) {
+            Some(Some(last_idx)) => *last_idx >= inst_idx,
+            Some(None) => true,
+            None => false,
+        }
     }
 
     /// Returns true if the value is dead after the given instruction in the given block.

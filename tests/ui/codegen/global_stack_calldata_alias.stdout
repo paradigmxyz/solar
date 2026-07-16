@@ -57,12 +57,12 @@ bb3:
   dup3
   add
   dup1
-  push 288
+  push 160
   mstore
   swap1
   pop
   dup1
-  push 288
+  push 160
   mstore
   dup2
   dup2
@@ -75,10 +75,10 @@ bb3:
   pop
   push bb7
   jumpi
-  push 288
+  push 160
   mload
   dup1
-  push 288
+  push 160
   fallthrough bb4
 bb4:
   mstore
@@ -111,12 +111,12 @@ bb8:
   dup3
   add
   dup1
-  push 224
+  push 192
   mstore
   swap1
   pop
   dup1
-  push 224
+  push 192
   mstore
   dup2
   dup2
@@ -129,10 +129,10 @@ bb8:
   pop
   push bb7
   jumpi
-  push 224
+  push 192
   mload
   dup1
-  push 224
+  push 192
   jump bb4
 bb9:
   push 3
@@ -144,12 +144,12 @@ bb9:
   dup3
   add
   dup1
-  push 160
+  push 224
   mstore
   swap1
   pop
   dup1
-  push 160
+  push 224
   mstore
   dup2
   dup2
@@ -162,10 +162,10 @@ bb9:
   pop
   push bb7
   jumpi
-  push 160
+  push 224
   mload
   dup1
-  push 160
+  push 224
   jump bb4
 bb10:
   push 4
@@ -210,7 +210,7 @@ bb11:
   dup2
   add
   dup1
-  push 192
+  push 288
   mstore
   dup2
   dup2
@@ -223,8 +223,8 @@ bb11:
   pop
   push bb7
   jumpi
-  push 192
+  push 288
   mload
   dup1
-  push 192
+  push 288
   jump bb4

@@ -1,5 +1,4 @@
 use crate::{
-    eval::ConstantEvaluator,
     hir,
     ty::{Gcx, Ty, TyKind},
 };
@@ -94,8 +93,8 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
         let contract = self.gcx.hir.contract(self.contract_id);
         let base_slot = match self.location {
             DataLocation::Storage => contract.layout.map_or(U256::ZERO, |layout| {
-                ConstantEvaluator::new(self.gcx)
-                    .eval(layout)
+                self.gcx
+                    .eval_const(layout)
                     .ok()
                     .and_then(|value| value.as_u256())
                     .unwrap_or_default()

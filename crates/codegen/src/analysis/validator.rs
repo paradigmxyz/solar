@@ -35,7 +35,7 @@ use crate::{
     analysis::CfgInfo,
     mir::{BlockId, Function, InstId, InstKind, Module, Value, ValueId},
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::{diagnostics::DiagCtxt, sym};
 
 /// Stateful MIR verifier.
@@ -308,13 +308,13 @@ impl<'a> Validator<'a> {
                 }
             }
         }
-        let mut reach_cache: FxHashMap<BlockId, FxHashSet<BlockId>> = FxHashMap::default();
+        let mut reach_cache: FxHashMap<BlockId, DenseBitSet<BlockId>> = FxHashMap::default();
         let mut reaches = |from: BlockId, to: BlockId| {
             if from == to {
                 return true;
             }
             let set = reach_cache.entry(from).or_insert_with(|| {
-                let mut seen = FxHashSet::default();
+                let mut seen = DenseBitSet::new_empty(func.blocks.len());
                 let mut stack = vec![from];
                 while let Some(current) = stack.pop() {
                     if let Some(term) = func.blocks[current].terminator.as_ref() {
@@ -327,7 +327,7 @@ impl<'a> Validator<'a> {
                 }
                 seen
             });
-            set.contains(&to)
+            set.contains(to)
         };
         for (block_id, block) in func.blocks.iter_enumerated() {
             if !cfg.is_reachable(block_id) {

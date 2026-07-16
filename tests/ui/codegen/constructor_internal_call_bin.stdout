@@ -47,13 +47,13 @@ bb3:
   dup1
   push 160
   mload
-  push 192
+  push 160
   add
   mstore
   dup1
   push 160
   mload
-  push 192
+  push 160
   add
   mstore
   push 11
@@ -110,7 +110,7 @@ bb4:
   dup1
   push 160
   mload
-  push 224
+  push 192
   add
   mstore
   push 160
@@ -127,6 +127,24 @@ bb4:
   dup1
   push 160
   mload
+  push 192
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 192
+  add
+  mstore
+  push 160
+  mload
+  push 160
+  add
+  mload
+  add
+  dup1
+  push 160
+  mload
   push 224
   add
   mstore
@@ -138,31 +156,13 @@ bb4:
   mstore
   push 160
   mload
-  push 192
-  add
-  mload
-  add
-  dup1
   push 160
-  mload
-  push 160
-  add
-  mstore
-  dup1
-  push 160
-  mload
-  push 160
-  add
-  mstore
-  push 160
-  mload
-  push 192
   add
   mload
   dup1
   push 160
   mload
-  push 192
+  push 160
   add
   mstore
   swap1
@@ -171,7 +171,7 @@ bb4:
   jumpi
   push 160
   mload
-  push 160
+  push 224
   add
   mload
   jump bb2

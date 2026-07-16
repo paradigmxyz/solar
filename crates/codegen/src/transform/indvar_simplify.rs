@@ -115,11 +115,10 @@ impl IndVarSimplifier {
         let inst_results = func.inst_results();
         let mut candidates: FxHashMap<AddressKey, Vec<ValueId>> = FxHashMap::default();
 
-        let mut blocks: Vec<_> = loop_data.blocks.iter().copied().collect();
+        let mut blocks: Vec<_> = loop_data.blocks.iter().collect();
         blocks.sort_by_key(|block| block.index());
         for block in blocks {
-            let insts = func.blocks[block].instructions.clone();
-            for inst_id in insts {
+            for &inst_id in &func.blocks[block].instructions {
                 let Some(&value) = inst_results.get(&inst_id) else { continue };
                 if !self.is_reducible_result(func, inst_id) {
                     continue;
@@ -301,7 +300,7 @@ impl IndVarSimplifier {
     }
 
     fn has_non_address_loop_use(&self, func: &Function, loop_data: &Loop, value: ValueId) -> bool {
-        for &block in &loop_data.blocks {
+        for block in &loop_data.blocks {
             for &inst_id in &func.blocks[block].instructions {
                 let kind = &func.instructions[inst_id].kind;
                 if kind.operands().contains(&value) && !Self::is_address_builder(kind) {
@@ -333,9 +332,10 @@ impl IndVarSimplifier {
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> usize {
         let mut replaced = 0;
-        for &block in &loop_data.blocks {
-            let insts = func.blocks[block].instructions.clone();
-            for inst_id in insts {
+        for block in &loop_data.blocks {
+            let instruction_count = func.blocks[block].instructions.len();
+            for index in 0..instruction_count {
+                let inst_id = func.blocks[block].instructions[index];
                 replaced += mir_utils::replace_inst_uses(
                     &mut func.instructions[inst_id].kind,
                     replacements,

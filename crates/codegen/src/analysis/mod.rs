@@ -6,7 +6,7 @@
 //! - Loop analysis for detecting and analyzing natural loops
 
 mod cfg;
-pub use cfg::{CfgInfo, DominatorTree, reachable_blocks};
+pub use cfg::{CfgInfo, DominatorTree};
 
 mod call_graph;
 pub use call_graph::CallGraphInfo;

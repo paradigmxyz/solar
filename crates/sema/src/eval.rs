@@ -24,21 +24,67 @@ pub fn erc7201_slot(namespace_id: &[u8]) -> B256 {
 
 /// Evaluates the given array size expression, emitting an error diagnostic if it fails.
 pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
-    match ConstantEvaluator::new(gcx).eval(size) {
-        Ok(int) => {
-            let Some(int) = int.as_u256() else {
-                let msg = "array length cannot be negative";
-                return Err(gcx.dcx().emit_err(size.span, msg));
-            };
-            if int.is_zero() {
-                let msg = "array length must be greater than zero";
-                Err(gcx.dcx().emit_err(size.span, msg))
-            } else {
-                Ok(int)
+    let int = gcx.eval_const(size)?;
+    let Some(int) = int.as_u256() else {
+        let msg = "array length cannot be negative";
+        return Err(gcx.dcx().emit_err(size.span, msg));
+    };
+    if int.is_zero() {
+        let msg = "array length must be greater than zero";
+        Err(gcx.dcx().emit_err(size.span, msg))
+    } else {
+        Ok(int)
+    }
+}
+
+impl<'gcx> Gcx<'gcx> {
+    /// Evaluates the given expression as an integer constant, emitting an error diagnostic if it
+    /// fails.
+    pub fn eval_const(self, expr: &hir::Expr<'_>) -> Result<&'gcx IntScalar, ErrorGuaranteed> {
+        self.try_eval_const(expr).map_err(|err| self.emit_const_eval_error(expr, err))
+    }
+
+    /// Evaluates the given expression as an integer constant without emitting diagnostics.
+    pub fn try_eval_const(self, expr: &hir::Expr<'_>) -> Result<&'gcx IntScalar, EvalError> {
+        match self.try_eval_const_value(expr)? {
+            ConstValue::Integer(value) => Ok(value),
+            ConstValue::Bool(_) => Err(EE::UnsupportedExpr.into()),
+            ConstValue::String(_) => Err(EE::UnsupportedLiteral.into()),
+        }
+    }
+
+    /// Evaluates the given expression to a typed constant value, emitting an error diagnostic if
+    /// it fails.
+    pub fn eval_const_value(
+        self,
+        expr: &hir::Expr<'_>,
+    ) -> Result<&'gcx ConstValue, ErrorGuaranteed> {
+        self.try_eval_const_value(expr).map_err(|err| self.emit_const_eval_error(expr, err))
+    }
+
+    /// Evaluates the given expression to a typed constant value without emitting diagnostics.
+    pub fn try_eval_const_value(self, expr: &hir::Expr<'_>) -> Result<&'gcx ConstValue, EvalError> {
+        match self.eval_const_value_result(expr) {
+            Ok(value) => Ok(value),
+            Err(err) => Err(err.clone()),
+        }
+    }
+
+    /// Emits a diagnostic for the given constant evaluation error.
+    pub fn emit_const_eval_error(self, expr: &hir::Expr<'_>, err: EvalError) -> ErrorGuaranteed {
+        match err.kind {
+            EE::AlreadyEmitted(guar) => guar,
+            _ => {
+                let msg = format!("failed to evaluate constant: {}", err.kind.msg());
+                let label = "evaluation of constant value failed here";
+                self.dcx().emit_err_label(expr.span, msg, err.span, label)
             }
         }
-        Err(guar) => Err(guar),
     }
+}
+
+pub(crate) fn eval_const(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> EvalResult {
+    ConstantEvaluator::new(gcx).try_eval_value(expr)
 }
 
 /// Evaluates Solidity constant expressions.
@@ -46,38 +92,19 @@ pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorG
 /// This supports the source-level constants needed by semantic analysis and
 /// codegen's HIR lowering pre-folds. It does not evaluate runtime-dependent
 /// expressions such as function calls or memory allocation.
-pub struct ConstantEvaluator<'gcx> {
-    pub gcx: Gcx<'gcx>,
+struct ConstantEvaluator<'gcx> {
+    gcx: Gcx<'gcx>,
     depth: usize,
 }
 
-type EvalResult = Result<ConstValue, EvalError>;
+pub(crate) type EvalResult = Result<ConstValue, EvalError>;
 
 impl<'gcx> ConstantEvaluator<'gcx> {
-    /// Creates a new constant evaluator.
-    pub fn new(gcx: Gcx<'gcx>) -> Self {
+    fn new(gcx: Gcx<'gcx>) -> Self {
         Self { gcx, depth: 0 }
     }
 
-    /// Evaluates the given expression, emitting an error diagnostic if it fails.
-    pub fn eval(&mut self, expr: &hir::Expr<'_>) -> Result<IntScalar, ErrorGuaranteed> {
-        self.try_eval(expr).map_err(|err| self.emit_eval_error(expr, err))
-    }
-
-    /// Evaluates the given expression, returning an error if it fails.
-    pub fn try_eval(&mut self, expr: &hir::Expr<'_>) -> Result<IntScalar, EvalError> {
-        self.try_eval_value(expr).and_then(ConstValue::into_integer)
-    }
-
-    /// Evaluates the given expression to a typed constant value, emitting an
-    /// error diagnostic if it fails.
-    pub fn eval_value(&mut self, expr: &hir::Expr<'_>) -> Result<ConstValue, ErrorGuaranteed> {
-        self.try_eval_value(expr).map_err(|err| self.emit_eval_error(expr, err))
-    }
-
-    /// Evaluates the given expression to a typed constant value, returning an
-    /// error if it fails.
-    pub fn try_eval_value(&mut self, expr: &hir::Expr<'_>) -> EvalResult {
+    fn try_eval_value(&mut self, expr: &hir::Expr<'_>) -> EvalResult {
         self.depth += 1;
         if self.depth > RECURSION_LIMIT {
             return Err(EE::RecursionLimitReached.spanned(expr.span));
@@ -90,18 +117,6 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         }
         self.depth = self.depth.checked_sub(1).unwrap();
         res
-    }
-
-    /// Emits a diagnostic for the given evaluation error.
-    pub fn emit_eval_error(&self, expr: &hir::Expr<'_>, err: EvalError) -> ErrorGuaranteed {
-        match err.kind {
-            EE::AlreadyEmitted(guar) => guar,
-            _ => {
-                let msg = format!("failed to evaluate constant: {}", err.kind.msg());
-                let label = "evaluation of constant value failed here";
-                self.gcx.dcx().emit_err_label(expr.span, msg, err.span, label)
-            }
-        }
     }
 
     fn eval_expr(&mut self, expr: &hir::Expr<'_>) -> EvalResult {
@@ -467,7 +482,7 @@ impl IntScalar {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum EvalErrorKind {
     RecursionLimitReached,
     ArithmeticOverflow,
@@ -486,7 +501,7 @@ impl EvalErrorKind {
         EvalError { kind: self, span }
     }
 
-    fn msg(&self) -> &'static str {
+    pub(crate) fn msg(&self) -> &'static str {
         match self {
             Self::RecursionLimitReached => "recursion limit reached",
             Self::ArithmeticOverflow => "arithmetic overflow",
@@ -501,7 +516,7 @@ impl EvalErrorKind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct EvalError {
     pub span: Span,
     pub kind: EvalErrorKind,

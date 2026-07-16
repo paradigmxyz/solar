@@ -1,6 +1,6 @@
 use crate::{
     builtins::{Builtin, members},
-    eval::{ConstValue, ConstantEvaluator, EvalErrorKind},
+    eval::{ConstValue, EvalErrorKind},
     hir::{self, Visit},
     ty::{
         CallableParamSource, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
@@ -11,7 +11,7 @@ use alloy_primitives::U256;
 use solar_ast::{
     DataLocation, ElementaryType, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
-use solar_data_structures::{Never, pluralize, smallvec::SmallVec};
+use solar_data_structures::{Never, bit_set::DenseBitSet, pluralize, smallvec::SmallVec};
 use solar_interface::{
     Ident, Symbol,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
@@ -84,8 +84,7 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn check_storage_layout_base_slot(&mut self, slot: &'gcx hir::Expr<'gcx>) {
-        let mut evaluator = ConstantEvaluator::new(self.gcx);
-        match evaluator.try_eval_value(slot) {
+        match self.gcx.try_eval_const_value(slot) {
             Ok(ConstValue::Integer(value)) => {
                 if let Some(base_slot) = value.as_u256() {
                     let Some(contract_id) = self.contract else {
@@ -112,10 +111,10 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             Ok(ConstValue::String(_)) => {
                 let err = EvalErrorKind::UnsupportedLiteral.spanned(slot.span);
-                evaluator.emit_eval_error(slot, err);
+                self.gcx.emit_const_eval_error(slot, err);
             }
             Err(err) => {
-                evaluator.emit_eval_error(slot, err);
+                self.gcx.emit_const_eval_error(slot, err);
             }
         }
     }
@@ -806,8 +805,7 @@ impl<'gcx> TypeChecker<'gcx> {
     /// Returns the resulting IntLiteral type if successful, or None if evaluation fails.
     /// This is used to preserve literal type through literal expressions.
     fn try_eval_int_literal_expr(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
-        let mut evaluator = ConstantEvaluator::new(self.gcx);
-        let result = evaluator.try_eval(expr).ok()?;
+        let result = self.gcx.try_eval_const(expr).ok()?;
         let compatible_fixed_bytes = result.is_zero().then_some(TypeSize::ZERO);
         self.gcx.mk_ty_int_literal_with_fixed_bytes(
             result.is_negative(),
@@ -1773,16 +1771,15 @@ impl<'gcx> TypeChecker<'gcx> {
                 if named_args.len() != param_tys.len() {
                     return false;
                 }
-                let mut seen = vec![false; param_tys.len()];
+                let mut seen = DenseBitSet::new_empty(param_tys.len());
                 for arg in named_args {
                     let Some(index) = names.iter().position(|&name| name == Some(arg.name.name))
                     else {
                         return false;
                     };
-                    if seen[index] {
+                    if !seen.insert(index) {
                         return false;
                     }
-                    seen[index] = true;
                     if !self.arg_matches(&arg.value, param_tys[index]) {
                         return false;
                     }
