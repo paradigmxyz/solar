@@ -8,7 +8,7 @@ fn @s() {
     invalid
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memptr {
+fn @__load_storage_bytes(arg0: u256) -> memorybytes {
   bb0 (entry):
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
@@ -23,8 +23,8 @@ fn @__load_storage_bytes(arg0: u256) -> memptr {
     v10 = iszero v9
     v11 = select v10, 32, v9
     v12 = add 32, v11
-    v13 = alloc 32
-    v14 = alloc v12
+    v13 = alloc raw, exact, uninitialized, infallible, 32
+    v14 = alloc raw, exact, uninitialized, infallible, v12
     mstore v14, v6
     v15 = add v14, 32
     br v2, bb2, bb1
@@ -54,7 +54,7 @@ fn @__load_storage_bytes(arg0: u256) -> memptr {
     jump bb4
 }
 
-fn @__ret_bytes(arg0: memptr) {
+fn @__ret_bytes(arg0: memorybytes) {
   bb0 (entry):
     v0 = fmp
     mstore v0, 32

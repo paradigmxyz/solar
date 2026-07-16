@@ -43,7 +43,7 @@ fn @decode(arg0: calldataslice) {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v18 = alloc v16
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v16
     mstore v18, v9
     v19 = add v18, 32
     v20 = sub v15, 32

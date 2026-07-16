@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/event_dynamic_data.sol:EventDynamicData ===
-@module EventDynamicData
-fn @text(arg0: memptr) {
+// === ROOT/tests/ui/codegen/event_dynamic_data.sol:EventDynamicData ===
+; module @EventDynamicData
+fn @text(arg0: memorybytes) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4
@@ -15,7 +15,7 @@ fn @text(arg0: memptr) {
     v6 = not 31
     v7 = and v5, v6
     v8 = add v7, 32
-    v9 = alloc v8
+    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
     mstore v9, v4
     v10 = add v9, 32
     v11 = add v3, 32
@@ -55,7 +55,7 @@ fn @text(arg0: memptr) {
 
 fn @literal() {
   bb0 (entry):
-    v0 = alloc 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     mstore v0, 5
     v1 = add v0, 32
     v2 = add v1, 0
@@ -93,7 +93,7 @@ fn @literal() {
     stop
 }
 
-fn @blob(arg0: memptr) {
+fn @blob(arg0: memorybytes) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4
@@ -108,7 +108,7 @@ fn @blob(arg0: memptr) {
     v6 = not 31
     v7 = and v5, v6
     v8 = add v7, 32
-    v9 = alloc v8
+    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
     mstore v9, v4
     v10 = add v9, 32
     v11 = add v3, 32

@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/using_for_struct.sol:L ===
-@module L
-fn @hashLib(arg0: memptr) -> bytes32 {
+// === ROOT/tests/ui/codegen/using_for_struct.sol:L ===
+; module @L
+fn @hashLib(arg0: memorystruct) -> bytes32 {
   bb0 (entry):
     v0 = internal_frame_addr 128
     mstore v0, 0 !metadata(memory=internal_frame)
@@ -26,8 +26,8 @@ fn @hashLib(arg0: memptr) -> bytes32 {
     ret v14
 }
 
-// === ROOT/tests/ui/codegen/lowering/using_for_struct.sol:C ===
-@module C
+// === ROOT/tests/ui/codegen/using_for_struct.sol:C ===
+; module @C
 fn @viaMethod(arg0: bytes32, arg1: bytes32) {
   bb0 (entry):
     v0 = calldatasize
@@ -38,7 +38,7 @@ fn @viaMethod(arg0: bytes32, arg1: bytes32) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v3 = alloc 128
+    v3 = alloc memorystruct, exact, uninitialized, infallible, 128
     mstore v3, arg0
     v4 = add v3, 32
     mstore v4, 0

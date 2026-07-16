@@ -5,7 +5,7 @@
 use solar_data_structures::newtype_index;
 
 mod types;
-pub(crate) use types::{MirType, SliceLocation};
+pub(crate) use types::{MemoryObjectKind, MirType, SliceLocation};
 
 mod abi;
 pub use abi::{AbiLayout, AbiLayoutRef, AbiType};
@@ -18,7 +18,9 @@ pub(crate) use value::{Immediate, Value};
 
 mod inst;
 pub(crate) use inst::{
-    EffectKind, InstKind, Instruction, InstructionMetadata, MemoryRegion, StorageAlias,
+    AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationKind,
+    AllocationSemantics, EffectKind, InstKind, Instruction, InstructionMetadata, MemoryRegion,
+    StorageAlias,
 };
 
 mod block;

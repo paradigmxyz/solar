@@ -11,6 +11,34 @@ pub enum SliceLocation {
     Calldata,
 }
 
+/// The semantic shape carried by a one-word memory-object reference.
+///
+/// The physical representation is selected by the memory model during late
+/// lowering. Keeping the shape in MIR prevents Solidity-compatible headers
+/// and field layouts from being inferred from an untyped pointer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum MemoryObjectKind {
+    /// Dynamically sized bytes or string data.
+    Bytes,
+    /// A dynamically sized array.
+    DynamicArray,
+    /// A statically sized array.
+    FixedArray,
+    /// A struct value.
+    Struct,
+}
+
+impl fmt::Display for MemoryObjectKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Bytes => write!(f, "memorybytes"),
+            Self::DynamicArray => write!(f, "memoryarray"),
+            Self::FixedArray => write!(f, "memoryfixedarray"),
+            Self::Struct => write!(f, "memorystruct"),
+        }
+    }
+}
+
 impl fmt::Display for SliceLocation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -35,6 +63,8 @@ pub(crate) enum MirType {
     FixedBytes(u8),
     /// Memory pointer.
     MemPtr,
+    /// Reference to a semantically shaped memory object.
+    MemoryObject(MemoryObjectKind),
     /// Storage pointer.
     StoragePtr,
     /// Calldata pointer.
@@ -48,6 +78,12 @@ pub(crate) enum MirType {
 }
 
 impl MirType {
+    /// Returns whether this is a raw address or a semantic memory-object reference.
+    #[must_use]
+    pub const fn is_memory_reference(self) -> bool {
+        matches!(self, Self::MemPtr | Self::MemoryObject(_))
+    }
+
     /// Returns the uint256 type.
     #[must_use]
     pub(crate) const fn uint256() -> Self {
@@ -76,6 +112,7 @@ impl fmt::Display for MirType {
             Self::Address => write!(f, "address"),
             Self::FixedBytes(n) => write!(f, "bytes{n}"),
             Self::MemPtr => write!(f, "memptr"),
+            Self::MemoryObject(kind) => write!(f, "{kind}"),
             Self::StoragePtr => write!(f, "storageptr"),
             Self::CalldataPtr => write!(f, "calldataptr"),
             Self::Slice(location) => write!(f, "{location}slice"),

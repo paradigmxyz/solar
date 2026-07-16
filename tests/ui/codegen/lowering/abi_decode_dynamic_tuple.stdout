@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/abi_decode_dynamic_tuple.sol:AbiDecodeDynamicTuple ===
-@module AbiDecodeDynamicTuple
-fn @decode(arg0: memptr) {
+// === ROOT/tests/ui/codegen/abi_decode_dynamic_tuple.sol:AbiDecodeDynamicTuple ===
+; module @AbiDecodeDynamicTuple
+fn @decode(arg0: memorybytes) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4
@@ -15,7 +15,7 @@ fn @decode(arg0: memptr) {
     v6 = not 31
     v7 = and v5, v6
     v8 = add v7, 32
-    v9 = alloc v8
+    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
     mstore v9, v4
     v10 = add v9, 32
     v11 = add v3, 32
@@ -80,7 +80,7 @@ fn @decode(arg0: memptr) {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb18:
-    v35 = alloc v33
+    v35 = alloc memorybytes, exact, uninitialized, infallible, v33
     mstore v35, v23
     v36 = add v35, 32
     v37 = sub v32, 32
@@ -137,7 +137,7 @@ fn @decode(arg0: memptr) {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb32:
-    v59 = alloc v57
+    v59 = alloc memorybytes, exact, uninitialized, infallible, v57
     mstore v59, v47
     v60 = add v59, 32
     v61 = sub v56, 32
@@ -156,7 +156,7 @@ fn @decode(arg0: memptr) {
     v69 = mload v68
     v70 = add v67, 64
     v71 = mload v70
-    v72 = alloc 96
+    v72 = alloc raw, exact, uninitialized, infallible, 96
     v73 = add v72, 96
     mstore v72, v15
     v74 = add v72, 32
@@ -203,7 +203,7 @@ fn @decode(arg0: memptr) {
     returndata v72, v98
 }
 
-fn @roundtrip(arg0: u256, arg1: memptr, arg2: memptr) {
+fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4
@@ -218,7 +218,7 @@ fn @roundtrip(arg0: u256, arg1: memptr, arg2: memptr) {
     v6 = not 31
     v7 = and v5, v6
     v8 = add v7, 32
-    v9 = alloc v8
+    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
     mstore v9, v4
     v10 = add v9, 32
     v11 = add v3, 32
@@ -229,7 +229,7 @@ fn @roundtrip(arg0: u256, arg1: memptr, arg2: memptr) {
     v15 = not 31
     v16 = and v14, v15
     v17 = add v16, 32
-    v18 = alloc v17
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
     mstore v18, v13
     v19 = add v18, 32
     v20 = add v12, 32
@@ -343,7 +343,7 @@ fn @roundtrip(arg0: u256, arg1: memptr, arg2: memptr) {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb22:
-    v74 = alloc v72
+    v74 = alloc memorybytes, exact, uninitialized, infallible, v72
     mstore v74, v62
     v75 = add v74, 32
     v76 = sub v71, 32
@@ -400,7 +400,7 @@ fn @roundtrip(arg0: u256, arg1: memptr, arg2: memptr) {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb36:
-    v98 = alloc v96
+    v98 = alloc memorybytes, exact, uninitialized, infallible, v96
     mstore v98, v86
     v99 = add v98, 32
     v100 = sub v95, 32
@@ -419,7 +419,7 @@ fn @roundtrip(arg0: u256, arg1: memptr, arg2: memptr) {
     v108 = mload v107
     v109 = add v106, 64
     v110 = mload v109
-    v111 = alloc 96
+    v111 = alloc raw, exact, uninitialized, infallible, 96
     v112 = add v111, 96
     mstore v111, v54
     v113 = add v111, 32
@@ -466,7 +466,7 @@ fn @roundtrip(arg0: u256, arg1: memptr, arg2: memptr) {
     returndata v111, v137
 }
 
-fn @decodeBytes(arg0: memptr) {
+fn @decodeBytes(arg0: memorybytes) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4
@@ -481,7 +481,7 @@ fn @decodeBytes(arg0: memptr) {
     v6 = not 31
     v7 = and v5, v6
     v8 = add v7, 32
-    v9 = alloc v8
+    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
     mstore v9, v4
     v10 = add v9, 32
     v11 = add v3, 32
@@ -542,7 +542,7 @@ fn @decodeBytes(arg0: memptr) {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb18:
-    v33 = alloc v31
+    v33 = alloc memorybytes, exact, uninitialized, infallible, v31
     mstore v33, v21
     v34 = add v33, 32
     v35 = sub v30, 32
@@ -554,7 +554,7 @@ fn @decodeBytes(arg0: memptr) {
     invalid
 }
 
-fn @__ret_bytes(arg0: memptr) {
+fn @__ret_bytes(arg0: memorybytes) {
   bb0 (entry):
     v0 = fmp
     mstore v0, 32

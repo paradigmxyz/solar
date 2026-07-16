@@ -6,7 +6,7 @@ fn @storage_to_memory(arg0: u256, arg1: memptr) {
     mstore arg1, v0
     v1 = add arg0, 1
     v2 = add arg1, 32
-    v3 = alloc 64
+    v3 = alloc memorystruct, exact, uninitialized, infallible, 64
     v4 = sload v1 !metadata(storage=offset(arg0, 1))
     mstore v3, v4
     v5 = add v1, 1
@@ -16,7 +16,7 @@ fn @storage_to_memory(arg0: u256, arg1: memptr) {
     mstore v2, v3
     v8 = add arg0, 3
     v9 = add arg1, 64
-    v10 = alloc 64
+    v10 = alloc memoryfixedarray, exact, uninitialized, infallible, 64
     v11 = sload v8 !metadata(storage=offset(arg0, 3))
     mstore v10, v11
     v12 = add v8, 1

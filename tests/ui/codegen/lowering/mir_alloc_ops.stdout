@@ -10,7 +10,7 @@ fn @fixedArray(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v3 = alloc 64
+    v3 = alloc memoryfixedarray, exact, uninitialized, infallible, 64
     mstore v3, 0
     v4 = add v3, 32
     mstore v4, 0
@@ -55,7 +55,7 @@ fn @dynamic(arg0: calldataslice) {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v12 = alloc v10
+    v12 = alloc memorybytes, exact, uninitialized, infallible, v10
     mstore v12, v3
     v13 = add v12, 32
     v14 = sub v9, 32
@@ -67,7 +67,7 @@ fn @dynamic(arg0: calldataslice) {
     invalid
 }
 
-fn @__ret_bytes(arg0: memptr) {
+fn @__ret_bytes(arg0: memorybytes) {
   bb0 (entry):
     v0 = fmp
     mstore v0, 32

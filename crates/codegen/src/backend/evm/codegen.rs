@@ -18,11 +18,11 @@ use super::{
     },
 };
 use crate::{
-    IMMUTABLE_SCRATCH_BASE, MULTI_RETURN_BUFFER_PTR_SLOT,
     analysis::{
         CallGraphInfo, CfgInfo, CopyDest, CopySource, Liveness, Loop, LoopAnalyzer, ParallelCopy,
         PhiEliminator,
     },
+    memory::EvmMemoryLayout,
     mir::{BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Terminator, ValueId},
     pass::{run_default_pipeline, run_pass},
     transform::{eligible_static_allocations, lower_alloc_except},
@@ -36,13 +36,6 @@ use solar_data_structures::{
 use solar_interface::sym;
 use solar_sema::{Gcx, hir::StateMutability};
 
-// 0x00..0x7f follows Solidity's scratch/free-pointer/zero-slot convention, and
-// 0x80 is used as the static ABI return buffer. Keep the internal-call frame
-// pointer in a dedicated low word so frame loads use PUSH1 instead of PUSH2.
-const INTERNAL_FRAME_PTR_SLOT: u64 = 0xa0;
-const LOW_MEMORY_START: u64 = 0x80;
-const CONSTRUCTOR_FREE_MEMORY_START: u64 = 0x4000;
-const CONSTRUCTOR_SPILL_BASE: u64 = 0x1000;
 const LINEAR_SELECTOR_DISPATCH_THRESHOLD: usize = 64;
 const STACK_PHI_LAYOUT_LIMIT: usize = 8;
 const GLOBAL_STACK_LAYOUT_LIMIT: usize = 8;
@@ -764,9 +757,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         // immutable placeholders with the staged scratch words before
         // returning. Copy to offset 0 unless that would overwrite the scratch
         // words before the patch loop reads them.
-        let copy_base = if !immutable_refs.is_empty() && runtime_len as u64 > IMMUTABLE_SCRATCH_BASE
+        let copy_base = if !immutable_refs.is_empty()
+            && runtime_len as u64 > EvmMemoryLayout::IMMUTABLE_SCRATCH_BASE
         {
-            IMMUTABLE_SCRATCH_BASE + module.immutable_data_len() as u64
+            EvmMemoryLayout::IMMUTABLE_SCRATCH_BASE + module.immutable_data_len() as u64
         } else {
             0
         };
@@ -853,7 +847,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Patch each `PUSH32` placeholder with its staged immutable word.
         // The placeholder data starts one byte after the PUSH32 opcode.
         for r in immutable_refs {
-            self.asm.emit_push(U256::from(IMMUTABLE_SCRATCH_BASE + u64::from(r.id)));
+            self.asm
+                .emit_push(U256::from(EvmMemoryLayout::IMMUTABLE_SCRATCH_BASE + u64::from(r.id)));
             self.asm.emit_op(op::MLOAD);
             self.asm.emit_push(U256::from(copy_base + r.code_offset as u64 + 1));
             self.asm.emit_op(op::MSTORE);
@@ -912,8 +907,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             for (func_id, func) in module.functions.iter_enumerated() {
                 self.function_static_frame_sizes.insert(func_id, func.internal_frame_size);
-                if !func.params.iter().chain(&func.returns).any(|ty| matches!(ty, MirType::MemPtr))
-                {
+                if !func.params.iter().chain(&func.returns).any(|ty| ty.is_memory_reference()) {
                     self.restorable_internal_frames.insert(func_id);
                 }
             }
@@ -933,7 +927,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let constructor_arg_offset =
                 (!ctor.params.is_empty()).then(|| self.asm.new_deferred_const());
             self.asm.emit_push_deferred(constructor_free_memory_start);
-            self.asm.emit_push(U256::from(0x40));
+            self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
             self.asm.emit_op(op::MSTORE);
 
             // Set constructor context for LoadArg handling
@@ -948,7 +942,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::CODESIZE);
                 self.asm.emit_op(op::SUB); // size = CODESIZE - arg_offset
                 self.asm.emit_push_deferred(arg_offset); // code offset
-                self.asm.emit_push(U256::from(0x80)); // destOffset in memory
+                self.asm.emit_push(U256::from(EvmMemoryLayout::HEAP_START)); // destOffset in memory
                 self.asm.emit_op(op::CODECOPY);
             }
 
@@ -1132,7 +1126,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         for (func_id, func) in module.functions.iter_enumerated() {
             self.function_static_frame_sizes.insert(func_id, func.internal_frame_size);
-            if !func.params.iter().chain(&func.returns).any(|ty| matches!(ty, MirType::MemPtr)) {
+            if !func.params.iter().chain(&func.returns).any(|ty| ty.is_memory_reference()) {
                 self.restorable_internal_frames.insert(func_id);
             }
             // Non-recursive internal functions get compile-time-fixed frames.
@@ -1234,7 +1228,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         for (func_id, func) in module.functions.iter_enumerated() {
             self.function_static_frame_sizes.insert(func_id, func.internal_frame_size);
-            if !func.params.iter().chain(&func.returns).any(|ty| matches!(ty, MirType::MemPtr)) {
+            if !func.params.iter().chain(&func.returns).any(|ty| ty.is_memory_reference()) {
                 self.restorable_internal_frames.insert(func_id);
             }
             // Non-recursive internal functions get compile-time-fixed frames.
@@ -2835,7 +2829,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::MSIZE);
                 self.scheduler.instruction_executed(0, result_value);
             }
-            InstKind::Alloc(_) => {
+            InstKind::Alloc { .. } => {
                 let size = self.static_alloc_candidates[&(func_id, inst_id)];
                 let alloc = self.asm.emit_deferred_alloc();
                 self.pending_static_allocs.entry(func_id).or_default().push((alloc, size));
@@ -3024,7 +3018,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if self.in_constructor {
                     // The running constructor's own placeholders are never
                     // patched; read the staged scratch word instead.
-                    self.asm.emit_push(U256::from(IMMUTABLE_SCRATCH_BASE + u64::from(*offset)));
+                    self.asm.emit_push(U256::from(
+                        EvmMemoryLayout::IMMUTABLE_SCRATCH_BASE + u64::from(*offset),
+                    ));
                     self.asm.emit_op(op::MLOAD);
                 } else {
                     self.asm.emit_push_immutable(*offset);
@@ -3370,7 +3366,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_new_internal_frame_base_tracked(&mut self) {
-        self.asm.emit_push(U256::from(0x40));
+        self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
         self.asm.emit_op(op::MLOAD);
         self.scheduler.stack.push_unknown();
     }
@@ -3392,7 +3388,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     fn emit_store_frame_base_to_current_frame_slot(&mut self) {
         self.emit_stack_op(StackOp::Dup(1));
-        self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
+        self.asm.emit_push(U256::from(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT));
         self.scheduler.stack.push_unknown();
         self.asm.emit_op(op::MSTORE);
         self.scheduler.instruction_executed(2, None);
@@ -3402,7 +3398,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_push_deferred(frame_size);
         self.scheduler.stack.push_unknown();
         self.emit_op_with_effect(op::ADD, StackEffect { pops: 2, pushes: 1 }, StackPush::Unknown);
-        self.asm.emit_push(U256::from(0x40));
+        self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
         self.scheduler.stack.push_unknown();
         self.asm.emit_op(op::MSTORE);
         self.scheduler.instruction_executed(2, None);
@@ -3415,7 +3411,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// CURRENT function's own frame, use [`Self::emit_own_frame_addr`], which
     /// resolves to an absolute address when the function has a static frame.
     fn emit_current_internal_frame_addr(&mut self, offset: u64) {
-        self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
+        self.asm.emit_push(U256::from(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT));
         self.asm.emit_op(op::MLOAD);
         if offset != 0 {
             self.asm.emit_push(U256::from(offset));
@@ -3434,8 +3430,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_push_deferred(addr);
             return;
         }
-        if !self.in_internal_function {
-            self.asm.emit_push(U256::from(LOW_MEMORY_START + offset));
+        if !self.in_internal_function && !self.in_constructor {
+            self.asm.emit_push(U256::from(EvmMemoryLayout::HEAP_START + offset));
             return;
         }
         self.emit_current_internal_frame_addr(offset);
@@ -3597,7 +3593,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let func_id = self
                         .current_internal_function
                         .expect("internal caller has a current function");
-                    let addr = self.static_frame_addr(func_id, 64 + u64::from(*index) * 32);
+                    let addr = self.static_frame_addr(
+                        func_id,
+                        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                            + u64::from(*index) * EvmMemoryLayout::WORD_SIZE,
+                    );
                     self.asm.emit_push_deferred(addr);
                     self.asm.emit_op(op::MLOAD);
                 } else {
@@ -3632,7 +3632,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         for i in (0..mask.domain_size()).rev() {
             if mask.contains(i) {
-                let addr = self.static_frame_addr(func_id, 64 + i as u64 * 32);
+                let addr = self.static_frame_addr(
+                    func_id,
+                    EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                        + i as u64 * EvmMemoryLayout::WORD_SIZE,
+                );
                 self.asm.emit_push_deferred(addr);
                 self.asm.emit_op(op::MSTORE);
             }
@@ -3791,7 +3795,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             .get(&func_id)
             .copied()
             .unwrap_or_else(|| Self::conservative_spill_frame_size(func));
-        64 + ((func.params.len() + func.returns.len()) as u64) * 32
+        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+            + ((func.params.len() + func.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE
             + func.internal_frame_size
             + spill
     }
@@ -3886,7 +3891,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             if placed.is_empty() {
                 (max_entry_end, max_entry_end)
             } else {
-                let start = max_entry_end.max(INTERNAL_FRAME_PTR_SLOT + 32);
+                let start = max_entry_end
+                    .max(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE);
                 (start, start + static_span)
             }
         };
@@ -4008,15 +4014,15 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     fn external_spill_base(func: &Function) -> u64 {
         let low_memory_start = if Self::uses_internal_frame_slot(func) {
-            INTERNAL_FRAME_PTR_SLOT + 32
+            EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE
         } else {
-            LOW_MEMORY_START
+            EvmMemoryLayout::HEAP_START
         };
         low_memory_start + func.internal_frame_size.max(func.external_static_return_size)
     }
 
     fn constructor_free_memory_start(spill_size: u64) -> u64 {
-        CONSTRUCTOR_FREE_MEMORY_START.max(CONSTRUCTOR_SPILL_BASE + spill_size)
+        EvmMemoryLayout::CONSTRUCTOR_HEAP_FLOOR.max(EvmMemoryLayout::SPILL_BASE + spill_size)
     }
 
     fn uses_internal_frame_slot(func: &Function) -> bool {
@@ -4026,15 +4032,16 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn emit_external_free_memory_start(&mut self) -> DeferredConst {
         let id = self.asm.new_deferred_const();
         self.asm.emit_push_deferred(id);
-        self.asm.emit_push(U256::from(0x40));
+        self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
         self.asm.emit_op(op::MSTORE);
         id
     }
 
     fn emit_spill_slot_addr(&mut self, func: &Function, slot: SpillSlot) {
         if self.in_internal_function {
-            let spill_base =
-                64 + (func.params.len() as u64) * 32 + (func.returns.len() as u64) * 32;
+            let spill_base = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                + (func.params.len() as u64) * EvmMemoryLayout::WORD_SIZE
+                + (func.returns.len() as u64) * EvmMemoryLayout::WORD_SIZE;
             self.emit_own_frame_addr(
                 spill_base + func.internal_frame_size + u64::from(slot.offset) * 32,
             );
@@ -4074,7 +4081,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_internal_arg_load(&mut self, index: u32) {
-        self.emit_own_frame_addr(64 + u64::from(index) * 32);
+        self.emit_own_frame_addr(
+            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                + u64::from(index) * EvmMemoryLayout::WORD_SIZE,
+        );
         self.asm.emit_op(op::MLOAD);
     }
 
@@ -4120,7 +4130,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         // The first slot is reserved (the return address used to live there;
         // it now travels on the EVM stack) so downstream offsets stay stable.
         // The spill suffix is only known after the callee body has emitted.
-        let static_frame_size = 64 + ((args.len() + returns) as u64) * 32 + static_local_frame_size;
+        let static_frame_size = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+            + ((args.len() + returns) as u64) * EvmMemoryLayout::WORD_SIZE
+            + static_local_frame_size;
         let frame_size = self.asm.new_deferred_const();
         self.pending_frame_size_consts.push((frame_size, callee, static_frame_size));
 
@@ -4134,14 +4146,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_new_internal_frame_base_tracked();
 
         // frame[32] = previous frame pointer
-        self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
+        self.asm.emit_push(U256::from(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT));
         self.asm.emit_op(op::MLOAD);
         self.scheduler.stack.push_unknown();
         self.emit_internal_frame_store_from_top_preserving_base(32);
 
         for (i, &arg) in args.iter().enumerate() {
             self.emit_operand(func, arg);
-            self.emit_internal_frame_store_from_top_preserving_base(64 + (i as u64) * 32);
+            self.emit_internal_frame_store_from_top_preserving_base(
+                EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                    + (i as u64) * EvmMemoryLayout::WORD_SIZE,
+            );
         }
 
         // current_frame = frame
@@ -4171,7 +4186,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         if let Some(result) = result
             && returns > 0
         {
-            self.emit_current_internal_frame_addr(64 + (args.len() as u64) * 32);
+            self.emit_current_internal_frame_addr(
+                EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                    + (args.len() as u64) * EvmMemoryLayout::WORD_SIZE,
+            );
             self.asm.emit_op(op::MLOAD);
             self.scheduler.stack.push(result);
             // Store the result to its reserved slot now, while it is on top.
@@ -4187,16 +4205,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         // stack. This happens before restoring the frame pointer while the
         // callee frame remains addressable.
         if returns > 1 {
-            self.asm.emit_push(U256::from(0x40));
+            self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
             self.asm.emit_op(op::MLOAD);
-            self.asm.emit_push(U256::from(MULTI_RETURN_BUFFER_PTR_SLOT));
+            self.asm.emit_push(U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT));
             self.asm.emit_op(op::MSTORE);
             for i in 1..returns {
                 self.emit_current_internal_frame_addr(
-                    64 + (args.len() as u64) * 32 + (i as u64) * 32,
+                    EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                        + (args.len() as u64) * EvmMemoryLayout::WORD_SIZE
+                        + (i as u64) * EvmMemoryLayout::WORD_SIZE,
                 );
                 self.asm.emit_op(op::MLOAD);
-                self.asm.emit_push(U256::from(MULTI_RETURN_BUFFER_PTR_SLOT));
+                self.asm.emit_push(U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT));
                 self.asm.emit_op(op::MLOAD);
                 self.asm.emit_push(U256::from((i as u64) * 32));
                 self.asm.emit_op(op::ADD);
@@ -4207,7 +4227,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Deallocate the callee frame in strict LIFO order by restoring the
         // free memory pointer to the callee frame base. This must happen before
         // restoring the caller frame pointer because `emit_current_internal_frame_addr`
-        // reads `INTERNAL_FRAME_PTR_SLOT`. Do this only when the callee's declared
+        // reads the internal-frame pointer slot. Do this only when the callee's declared
         // params/returns contain no memory pointer: memory pointer returns may
         // reference the callee's frame/heap region, and a memory pointer param lets
         // the callee install a fresh pointer into caller-visible memory. Solidity
@@ -4215,14 +4235,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         // frame bytes need not be wiped.
         if self.restorable_internal_frames.contains(callee) {
             self.emit_current_internal_frame_addr(0);
-            self.asm.emit_push(U256::from(0x40));
+            self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
             self.asm.emit_op(op::MSTORE);
         }
 
         // Restore the caller frame pointer. If a result is on the stack, this leaves it there.
         self.emit_current_internal_frame_addr(32);
         self.asm.emit_op(op::MLOAD);
-        self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
+        self.asm.emit_push(U256::from(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT));
         self.asm.emit_op(op::MSTORE);
     }
 
@@ -4257,7 +4277,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 continue;
             }
             self.emit_operand(func, arg);
-            let addr = self.static_frame_addr(callee, 64 + (i as u64) * 32);
+            let addr = self.static_frame_addr(
+                callee,
+                EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                    + (i as u64) * EvmMemoryLayout::WORD_SIZE,
+            );
             self.asm.emit_push_deferred(addr);
             self.scheduler.stack.push_unknown();
             self.asm.emit_op(op::MSTORE);
@@ -4327,7 +4351,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         if let Some(result) = result
             && returns > 0
         {
-            let addr = self.static_frame_addr(callee, 64 + (args.len() as u64) * 32);
+            let addr = self.static_frame_addr(
+                callee,
+                EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                    + (args.len() as u64) * EvmMemoryLayout::WORD_SIZE,
+            );
             self.asm.emit_push_deferred(addr);
             self.asm.emit_op(op::MLOAD);
             self.scheduler.stack.push(result);
@@ -4337,15 +4365,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Copy return values 2..N into the same ephemeral buffer as the
         // dynamic-frame path.
         if returns > 1 {
-            self.asm.emit_push(U256::from(0x40));
+            self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
             self.asm.emit_op(op::MLOAD);
-            self.asm.emit_push(U256::from(MULTI_RETURN_BUFFER_PTR_SLOT));
+            self.asm.emit_push(U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT));
             self.asm.emit_op(op::MSTORE);
             for i in 1..returns {
-                let addr = self.static_frame_addr(callee, 64 + ((args.len() + i) as u64) * 32);
+                let addr = self.static_frame_addr(
+                    callee,
+                    EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                        + ((args.len() + i) as u64) * EvmMemoryLayout::WORD_SIZE,
+                );
                 self.asm.emit_push_deferred(addr);
                 self.asm.emit_op(op::MLOAD);
-                self.asm.emit_push(U256::from(MULTI_RETURN_BUFFER_PTR_SLOT));
+                self.asm.emit_push(U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT));
                 self.asm.emit_op(op::MLOAD);
                 self.asm.emit_push(U256::from((i as u64) * 32));
                 self.asm.emit_op(op::ADD);
@@ -4426,7 +4458,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                     } else if self.in_constructor {
                         // Constructor args were copied to memory at 0x80
                         // Load from memory: 0x80 + index * 32
-                        let offset = 0x80 + (index as u64) * 32;
+                        let offset = EvmMemoryLayout::HEAP_START
+                            + (index as u64) * EvmMemoryLayout::WORD_SIZE;
                         self.asm.emit_push(U256::from(offset));
                         self.asm.emit_op(op::MLOAD);
                     } else {
@@ -4457,7 +4490,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if self.in_internal_function {
                     self.emit_internal_arg_load(*index);
                 } else if self.in_constructor {
-                    let offset = 0x80 + (*index as u64) * 32;
+                    let offset =
+                        EvmMemoryLayout::HEAP_START + (*index as u64) * EvmMemoryLayout::WORD_SIZE;
                     self.asm.emit_push(U256::from(offset));
                     self.asm.emit_op(op::MLOAD);
                 } else {
@@ -4493,7 +4527,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                             // inside the running constructor.
                             if self.in_constructor {
                                 self.asm.emit_push(U256::from(
-                                    IMMUTABLE_SCRATCH_BASE + u64::from(*offset),
+                                    EvmMemoryLayout::IMMUTABLE_SCRATCH_BASE + u64::from(*offset),
                                 ));
                                 self.asm.emit_op(op::MLOAD);
                             } else {
@@ -5063,7 +5097,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_internal_return(&mut self, func: &Function, values: &[ValueId]) {
-        let return_base = 64 + (func.params.len() as u64) * 32;
+        let return_base = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+            + (func.params.len() as u64) * EvmMemoryLayout::WORD_SIZE;
         for (i, &value) in values.iter().enumerate() {
             self.emit_operand(func, value);
             self.emit_own_frame_addr(return_base + (i as u64) * 32);
@@ -5112,7 +5147,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                     );
                     for (i, &arg) in args.iter().enumerate() {
                         self.emit_operand(func, arg);
-                        let addr = self.static_frame_addr(*function, 64 + (i as u64) * 32);
+                        let addr = self.static_frame_addr(
+                            *function,
+                            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                                + (i as u64) * EvmMemoryLayout::WORD_SIZE,
+                        );
                         self.asm.emit_push_deferred(addr);
                         self.scheduler.stack.push_unknown();
                         self.asm.emit_op(op::MSTORE);

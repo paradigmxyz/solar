@@ -122,7 +122,7 @@ fn lower_encode(
         let total_size = selector_size + layout.head_size();
         let aligned_size = total_size.next_multiple_of(32);
         let allocation_size = builder.imm_u64(aligned_size);
-        let buf = builder.alloc(allocation_size);
+        let buf = builder.alloc(allocation_size, crate::mir::AllocationSemantics::INTERNAL);
         if let Some(selector) = selector {
             builder.mstore(buf, selector);
         }
@@ -137,7 +137,7 @@ fn lower_encode(
         None
     } else {
         let size = builder.imm_u64(scratch_words * 32);
-        Some(builder.alloc(size))
+        Some(builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL))
     };
 
     let buf = builder.fmp();
@@ -158,7 +158,7 @@ fn lower_encode(
     let rounded = builder.add(total, thirty_one);
     let mask = builder.not(thirty_one);
     let aligned = builder.and(rounded, mask);
-    let allocated = builder.alloc(aligned);
+    let allocated = builder.alloc(aligned, crate::mir::AllocationSemantics::INTERNAL);
     builder.make_slice(allocated, total, SliceLocation::Memory)
 }
 

@@ -11,6 +11,7 @@ use crate::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, MemoryAddress,
         MemoryLocation,
     },
+    memory::EvmMemoryLayout,
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Terminator, Value, ValueId,
         utils as mir_utils,
@@ -314,8 +315,8 @@ impl MemoryStoreEliminator {
                     Some(slot) => live.add_addr(slot),
                     None => live = MemLive::All,
                 },
-                InstKind::Fmp | InstKind::Alloc(_) => live.add_addr(0x40),
-                InstKind::SetFmp(_) => live.kill(0x40),
+                InstKind::Fmp | InstKind::Alloc { .. } => live.add_addr(EvmMemoryLayout::FMP_SLOT),
+                InstKind::SetFmp(_) => live.kill(EvmMemoryLayout::FMP_SLOT),
                 InstKind::Keccak256(offset, size) | InstKind::Log0(offset, size) => {
                     Self::mark_read(func, &mut live, *offset, *size);
                 }
@@ -528,7 +529,7 @@ impl MemoryStoreEliminator {
                 | InstKind::CodeCopy(_, _, _)
                 | InstKind::ReturnDataCopy(_, _, _)
                 | InstKind::ExtCodeCopy(_, _, _, _) => memory_writes += 1,
-                InstKind::SetFmp(_) | InstKind::Alloc(_) | InstKind::AbiEncode { .. } => {
+                InstKind::SetFmp(_) | InstKind::Alloc { .. } | InstKind::AbiEncode { .. } => {
                     memory_writes += 1
                 }
                 InstKind::MLoad(_) => has_load = true,
@@ -579,7 +580,7 @@ impl MemoryStoreEliminator {
                         scratch.overwritten.clear();
                     }
                 }
-                InstKind::Fmp | InstKind::Alloc(_) => {
+                InstKind::Fmp | InstKind::Alloc { .. } => {
                     Self::remove_overlapping_set(
                         &mut scratch.overwritten,
                         MemAddrKey(AliasAnalysis::fmp_location().address),

@@ -1,10 +1,10 @@
 //! Lower semantic memory/storage aggregate operations to word operations.
 
 use crate::{
-use solar_sema::Gcx;
     mir::{Function, FunctionBuilder, InstKind, Module, StorageField, StorageLayout, ValueId},
     pass::ModulePass,
 };
+use solar_sema::Gcx;
 use std::sync::Arc;
 
 /// Lowers aggregate copies and clears after the main optimization pipeline.
@@ -140,7 +140,12 @@ fn lower_storage_field_to_memory(
         }
         StorageField::Aggregate(layout) => {
             let size = builder.imm_u64(layout.memory_words() * 32);
-            let nested = builder.alloc(size);
+            let kind = match layout.as_ref() {
+                StorageLayout::Struct(_) => crate::mir::MemoryObjectKind::Struct,
+                StorageLayout::Array { .. } => crate::mir::MemoryObjectKind::FixedArray,
+            };
+            let nested =
+                builder.alloc_object(size, kind, crate::mir::AllocationSemantics::INTERNAL);
             lower_storage_to_memory(builder, layout, slot, nested);
             builder.mstore(dest, nested);
         }

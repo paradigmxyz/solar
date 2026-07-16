@@ -1,8 +1,8 @@
 //! MIR instructions.
 
 use super::{
-    AbiLayoutRef, BlockId, Function, FunctionId, MirType, SliceLocation, StorageLayoutRef, Value,
-    ValueId,
+    AbiLayoutRef, BlockId, Function, FunctionId, MemoryObjectKind, MirType, SliceLocation,
+    StorageLayoutRef, Value, ValueId,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -366,6 +366,83 @@ impl EffectKind {
     }
 }
 
+/// Alignment applied to an abstract heap allocation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum AllocationAlignment {
+    /// Reserve exactly the requested byte count.
+    Exact,
+    /// Round the reservation up to an EVM word.
+    Word,
+}
+
+/// Initialization performed for a newly reserved range.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum AllocationInitialization {
+    /// Preserve the range's existing bytes until explicitly overwritten.
+    Uninitialized,
+    /// Initialize every reserved byte to zero.
+    Zeroed,
+}
+
+/// Failure behavior attached to an allocation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum AllocationFailure {
+    /// The producer has already proved the bump valid.
+    Infallible,
+    /// Revert with the memory-allocation panic when the bump overflows.
+    Panic,
+}
+
+/// Semantic shape produced by an allocation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum AllocationKind {
+    /// Untyped compiler scratch or ABI staging memory.
+    Raw,
+    /// A Solidity memory object whose layout is owned by the memory model.
+    Object(MemoryObjectKind),
+}
+
+impl AllocationKind {
+    /// Returns the MIR result type of this allocation.
+    #[must_use]
+    pub const fn result_type(self) -> MirType {
+        match self {
+            Self::Raw => MirType::MemPtr,
+            Self::Object(kind) => MirType::MemoryObject(kind),
+        }
+    }
+}
+
+/// Semantic allocation policy carried by [`InstKind::Alloc`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct AllocationSemantics {
+    /// Requested alignment.
+    pub alignment: AllocationAlignment,
+    /// Requested initialization.
+    pub initialization: AllocationInitialization,
+    /// Requested failure behavior.
+    pub failure: AllocationFailure,
+}
+
+impl AllocationSemantics {
+    /// Exact-size, uninitialized allocation whose validity is already proven.
+    pub const INTERNAL: Self = Self {
+        alignment: AllocationAlignment::Exact,
+        initialization: AllocationInitialization::Uninitialized,
+        failure: AllocationFailure::Infallible,
+    };
+
+    /// Checked and zero-initialized Solidity object allocation.
+    ///
+    /// Object lowering includes the header and padding in `size`, so the
+    /// allocation must preserve that already-aligned extent exactly.
+    pub const SOLIDITY_ZEROED: Self = Self {
+        alignment: AllocationAlignment::Exact,
+        initialization: AllocationInitialization::Zeroed,
+        failure: AllocationFailure::Panic,
+    };
+}
+
 /// An instruction in the MIR.
 #[derive(Clone, Debug)]
 pub(crate) struct Instruction {
@@ -465,8 +542,15 @@ pub(crate) enum InstKind {
     Fmp,
     /// Set the free-memory pointer.
     SetFmp(ValueId),
-    /// Reserve `size` bytes and return the previous free-memory pointer.
-    Alloc(ValueId),
+    /// Reserve memory and return the previous free-memory pointer.
+    Alloc {
+        /// Requested byte count.
+        size: ValueId,
+        /// Semantic shape of the returned reference.
+        kind: AllocationKind,
+        /// Alignment, initialization, and failure behavior.
+        semantics: AllocationSemantics,
+    },
     /// ABI-encode values into a freshly allocated memory slice.
     AbiEncode {
         /// Optional left-aligned four-byte selector prefix.
@@ -740,7 +824,6 @@ impl InstKind {
             | Self::IsZero(a)
             | Self::MLoad(a)
             | Self::SetFmp(a)
-            | Self::Alloc(a)
             | Self::SLoad(a)
             | Self::TLoad(a)
             | Self::CalldataLoad(a)
@@ -751,6 +834,8 @@ impl InstKind {
             | Self::BlobHash(a) => {
                 out.push(*a);
             }
+
+            Self::Alloc { size, .. } => out.push(*size),
 
             Self::ClearStorage { storage, .. } => out.push(*storage),
 
@@ -930,7 +1015,6 @@ impl InstKind {
             | Self::IsZero(a)
             | Self::MLoad(a)
             | Self::SetFmp(a)
-            | Self::Alloc(a)
             | Self::SLoad(a)
             | Self::TLoad(a)
             | Self::CalldataLoad(a)
@@ -941,6 +1025,8 @@ impl InstKind {
             | Self::BlobHash(a)
             | Self::SlicePtr(a)
             | Self::SliceLen(a) => f(a),
+
+            Self::Alloc { size, .. } => f(size),
 
             Self::ClearStorage { storage, .. } => f(storage),
 
@@ -1075,7 +1161,7 @@ impl InstKind {
             Self::MStore(_, _)
                 | Self::MStore8(_, _)
                 | Self::SetFmp(_)
-                | Self::Alloc(_)
+                | Self::Alloc { .. }
                 | Self::AbiEncode { .. }
                 | Self::StorageToMemory { .. }
                 | Self::MCopy(_, _, _)
@@ -1126,7 +1212,7 @@ impl InstKind {
             Self::MSize => "msize",
             Self::Fmp => "fmp",
             Self::SetFmp(_) => "set_fmp",
-            Self::Alloc(_) => "alloc",
+            Self::Alloc { .. } => "alloc",
             Self::AbiEncode { .. } => "abi_encode",
             Self::StorageToMemory { .. } => "storage_to_memory",
             Self::MemoryToStorage { .. } => "memory_to_storage",
@@ -1206,7 +1292,7 @@ impl InstKind {
             | Self::MStore(_, _)
             | Self::MStore8(_, _)
             | Self::SetFmp(_)
-            | Self::Alloc(_)
+            | Self::Alloc { .. }
             | Self::AbiEncode { .. }
             | Self::StorageToMemory { .. }
             | Self::MCopy(_, _, _)
@@ -1239,7 +1325,7 @@ impl InstKind {
             Self::MStore(_, _)
             | Self::MStore8(_, _)
             | Self::SetFmp(_)
-            | Self::Alloc(_)
+            | Self::Alloc { .. }
             | Self::AbiEncode { .. }
             | Self::StorageToMemory { .. }
             | Self::MCopy(_, _, _)

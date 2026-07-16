@@ -432,7 +432,11 @@ impl<'gcx> Lowerer<'gcx> {
                             .emit();
                         0
                     });
-                let ptr = self.allocate_memory(builder, alloc_size);
+                let ptr = self.allocate_memory_object(
+                    builder,
+                    alloc_size,
+                    crate::mir::MemoryObjectKind::FixedArray,
+                );
                 for (i, elem) in elements.iter().enumerate() {
                     let elem_val = self.lower_expr(builder, elem);
                     let offset_const = builder.imm_u64(i as u64 * 32);
@@ -637,7 +641,11 @@ impl<'gcx> Lowerer<'gcx> {
                             let total_words = self
                                 .calculate_memory_words_for_ty(self.gcx.type_of_hir_ty(&var.ty));
                             let struct_size = total_words * 32;
-                            let struct_ptr = self.allocate_memory(builder, struct_size);
+                            let struct_ptr = self.allocate_memory_object(
+                                builder,
+                                struct_size,
+                                crate::mir::MemoryObjectKind::Struct,
+                            );
 
                             // Recursively copy all fields (handles nested structs)
                             self.copy_storage_to_memory(builder, *struct_id, slot, struct_ptr, 0);
@@ -1078,7 +1086,11 @@ impl<'gcx> Lowerer<'gcx> {
         //
         let aligned_data_len = bytecode_len.div_ceil(32) * 32;
         let total_size = 32 + aligned_data_len;
-        let ptr = self.allocate_memory(builder, total_size as u64);
+        let ptr = self.allocate_memory_object(
+            builder,
+            total_size as u64,
+            crate::mir::MemoryObjectKind::Bytes,
+        );
 
         // Store length at ptr
         let len_val = builder.imm_u64(bytecode_len as u64);
@@ -1707,7 +1719,8 @@ impl<'gcx> Lowerer<'gcx> {
         // Memory struct fields are one word each. Reference-typed fields,
         // including nested structs, store pointers to separate allocations.
         let struct_size = (num_fields as u64) * 32;
-        let struct_ptr = self.allocate_memory(builder, struct_size);
+        let struct_ptr =
+            self.allocate_memory_object(builder, struct_size, crate::mir::MemoryObjectKind::Struct);
         let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
 
         // Store each argument into the corresponding field
@@ -1740,7 +1753,18 @@ impl<'gcx> Lowerer<'gcx> {
         size: u64,
     ) -> ValueId {
         let size_val = builder.imm_u64(size);
-        builder.alloc(size_val)
+        builder.alloc(size_val, crate::mir::AllocationSemantics::INTERNAL)
+    }
+
+    /// Allocates a shaped Solidity memory object with a constant byte size.
+    pub(super) fn allocate_memory_object(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        size: u64,
+        kind: crate::mir::MemoryObjectKind,
+    ) -> ValueId {
+        let size = builder.imm_u64(size);
+        builder.alloc_object(size, kind, crate::mir::AllocationSemantics::INTERNAL)
     }
 
     /// Lowers `abi.decode(data, (T...))` for elementary values from memory
@@ -1879,7 +1903,11 @@ impl<'gcx> Lowerer<'gcx> {
         let total_size = builder.add(word, data_size);
         let total_overflow = builder.lt(total_size, data_size);
         self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
-        let ptr = self.allocate_memory_dynamic(builder, total_size);
+        let ptr = self.allocate_memory_object_dynamic(
+            builder,
+            total_size,
+            crate::mir::MemoryObjectKind::Bytes,
+        );
         builder.mstore(ptr, tail_len);
 
         let data_ptr = builder.add(ptr, word);

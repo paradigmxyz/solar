@@ -1,9 +1,10 @@
 //! MIR function builder.
 
 use super::{
-    BlockId, Function, FunctionId, Immediate, InstId, InstKind, Instruction, MemoryRegion, MirType,
-    SliceLocation, StorageAlias, Terminator, Value, ValueId,
+    AllocationSemantics, BlockId, Function, FunctionId, Immediate, InstId, InstKind, Instruction,
+    MemoryRegion, MirType, SliceLocation, StorageAlias, Terminator, Value, ValueId,
 };
+use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 
@@ -136,7 +137,9 @@ impl<'a> FunctionBuilder<'a> {
     fn memory_region_for_addr(&self, addr: ValueId) -> MemoryRegion {
         match self.func.value(addr) {
             Value::Immediate(imm)
-                if imm.as_u256().is_some_and(|value| value < U256::from(0x80)) =>
+                if imm
+                    .as_u256()
+                    .is_some_and(|value| value < U256::from(EvmMemoryLayout::HEAP_START)) =>
             {
                 MemoryRegion::Scratch
             }
@@ -341,9 +344,28 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::SetFmp(ptr))
     }
 
-    /// Reserves `size` bytes and returns the previous free-memory pointer.
-    pub fn alloc(&mut self, size: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Alloc(size), Some(MirType::MemPtr))
+    /// Reserves memory under an explicit semantic policy.
+    pub fn alloc(&mut self, size: ValueId, semantics: AllocationSemantics) -> ValueId {
+        self.alloc_kind(size, crate::mir::AllocationKind::Raw, semantics)
+    }
+
+    /// Reserves memory for a semantically shaped object.
+    pub fn alloc_object(
+        &mut self,
+        size: ValueId,
+        kind: crate::mir::MemoryObjectKind,
+        semantics: AllocationSemantics,
+    ) -> ValueId {
+        self.alloc_kind(size, crate::mir::AllocationKind::Object(kind), semantics)
+    }
+
+    fn alloc_kind(
+        &mut self,
+        size: ValueId,
+        kind: crate::mir::AllocationKind,
+        semantics: AllocationSemantics,
+    ) -> ValueId {
+        self.emit_inst(InstKind::Alloc { size, kind, semantics }, Some(kind.result_type()))
     }
 
     /// ABI-encodes `args` into a freshly allocated memory slice.

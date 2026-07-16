@@ -2,7 +2,7 @@
 
 use super::{LoopContext, Lowerer};
 use crate::{
-    MULTI_RETURN_BUFFER_PTR_SLOT,
+    memory::EvmMemoryLayout,
     mir::{FunctionBuilder, ValueId},
 };
 use alloy_primitives::U256;
@@ -227,7 +227,11 @@ impl<'gcx> Lowerer<'gcx> {
         } else if is_struct_type {
             // Struct without initializer: allocate memory and zero-initialize
             let struct_size = self.memory_struct_size(&var.ty);
-            let struct_ptr = self.allocate_memory(builder, struct_size);
+            let struct_ptr = self.allocate_memory_object(
+                builder,
+                struct_size,
+                crate::mir::MemoryObjectKind::Struct,
+            );
             self.zero_initialize_memory_value(builder, &var.ty, struct_ptr);
             struct_ptr
         } else if self.is_fixed_memory_array_type(&var.ty, var.data_location) {
@@ -314,7 +318,11 @@ impl<'gcx> Lowerer<'gcx> {
                 .emit();
             0
         });
-        let ptr = self.allocate_memory(builder, alloc_size);
+        let ptr = self.allocate_memory_object(
+            builder,
+            alloc_size,
+            crate::mir::MemoryObjectKind::FixedArray,
+        );
         for i in 0..len {
             let value = self.zero_memory_field_value_ty(builder, elem_ty, ty.span);
             if i == 0 {
@@ -351,7 +359,11 @@ impl<'gcx> Lowerer<'gcx> {
                         .emit();
                     0
                 });
-                let ptr = self.allocate_memory(builder, alloc_size);
+                let ptr = self.allocate_memory_object(
+                    builder,
+                    alloc_size,
+                    crate::mir::MemoryObjectKind::FixedArray,
+                );
                 for i in 0..len {
                     let value = self.zero_memory_field_value_ty(builder, elem_ty, span);
                     if i == 0 {
@@ -365,14 +377,21 @@ impl<'gcx> Lowerer<'gcx> {
                 ptr
             }
             TyKind::DynArray(_) => {
-                let ptr = self.allocate_memory(builder, 32);
+                let ptr = self.allocate_memory_object(
+                    builder,
+                    32,
+                    crate::mir::MemoryObjectKind::DynamicArray,
+                );
                 let zero = builder.imm_u256(U256::ZERO);
                 builder.mstore(ptr, zero);
                 ptr
             }
             TyKind::Struct(_) => {
-                let ptr =
-                    self.allocate_memory(builder, self.calculate_memory_words_for_ty(ty) * 32);
+                let ptr = self.allocate_memory_object(
+                    builder,
+                    self.calculate_memory_words_for_ty(ty) * 32,
+                    crate::mir::MemoryObjectKind::Struct,
+                );
                 self.zero_initialize_memory_ty(builder, ty, ptr, span);
                 ptr
             }
@@ -436,7 +455,7 @@ impl<'gcx> Lowerer<'gcx> {
         // the unbumped return buffer independent of subsequent memory writes.
         let first_val = self.lower_expr(builder, init);
         let tail_base = var_ids.iter().skip(1).any(Option::is_some).then(|| {
-            let ptr_slot = builder.imm_u64(MULTI_RETURN_BUFFER_PTR_SLOT);
+            let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
             builder.mload(ptr_slot)
         });
         let vals: Vec<Option<ValueId>> = var_ids
@@ -508,7 +527,7 @@ impl<'gcx> Lowerer<'gcx> {
         // their destination and must not corrupt later tuple elements.
         let first_val = self.lower_expr(builder, rhs);
         let tail_base = elements.iter().skip(1).any(Option::is_some).then(|| {
-            let ptr_slot = builder.imm_u64(MULTI_RETURN_BUFFER_PTR_SLOT);
+            let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
             builder.mload(ptr_slot)
         });
         let vals: Vec<Option<ValueId>> = elements
@@ -533,7 +552,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Stages return values 2..N at the unbumped free-memory pointer and
-    /// publishes the buffer base through [`MULTI_RETURN_BUFFER_PTR_SLOT`].
+    /// publishes the buffer base through the memory policy's scratch slot.
     pub(super) fn stage_multi_return_tail(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -567,7 +586,7 @@ impl<'gcx> Lowerer<'gcx> {
             let addr = builder.add(base, offset);
             builder.mstore(addr, value);
         }
-        let ptr_slot = builder.imm_u64(MULTI_RETURN_BUFFER_PTR_SLOT);
+        let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
         builder.mstore(ptr_slot, base);
     }
 
@@ -576,7 +595,7 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
     ) -> ValueId {
-        let ptr_slot = builder.imm_u64(MULTI_RETURN_BUFFER_PTR_SLOT);
+        let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
         builder.mload(ptr_slot)
     }
 

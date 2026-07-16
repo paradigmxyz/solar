@@ -16,6 +16,7 @@
 
 use crate::{
     analysis::{AliasAnalysis, Location, Loop, LoopAnalyzer},
+    memory::EvmMemoryLayout,
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, StorageAlias,
         Terminator, Value, ValueId, utils as mir_utils,
@@ -24,8 +25,6 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
-
-const LOW_MEMORY_START: u64 = 0x80;
 
 /// Statistics from storage scalar promotion.
 #[derive(Clone, Debug, Default)]
@@ -826,7 +825,7 @@ impl StorageScalarPromoter {
 
     fn allocate_temp_addr(&self, func: &mut Function) -> ValueId {
         let frame_offset = func.internal_frame_size.max(func.external_static_return_size);
-        let temp_addr = LOW_MEMORY_START + frame_offset;
+        let temp_addr = EvmMemoryLayout::HEAP_START + frame_offset;
         func.internal_frame_size = func.internal_frame_size.max(frame_offset + 32);
         func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(temp_addr))))
     }

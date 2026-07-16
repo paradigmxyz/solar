@@ -14,6 +14,7 @@
 
 use crate::{
     analysis::{AliasAnalysis, CfgInfo, LocationSize, MemoryAddress, MemoryLocation},
+    memory::EvmMemoryLayout,
     mir::{
         BlockId, Function, InstId, InstKind, Instruction, MirType, Terminator, Value, ValueId,
         utils::{self as mir_utils, repair_reachability_phis},
@@ -24,8 +25,6 @@ use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::FxHashMap,
 };
-
-const LOW_MEMORY_START: u64 = 0x80;
 
 /// Statistics for one frame promotion run.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -299,10 +298,10 @@ impl FrameSlotPromoter {
     }
 
     fn external_local_addr_in_range(func: &Function, addr: u64) -> Option<u64> {
-        let local_end = LOW_MEMORY_START.checked_add(func.internal_frame_size)?;
-        (addr >= LOW_MEMORY_START
+        let local_end = EvmMemoryLayout::HEAP_START.checked_add(func.internal_frame_size)?;
+        (addr >= EvmMemoryLayout::HEAP_START
             && addr < local_end
-            && (addr - LOW_MEMORY_START).is_multiple_of(32))
+            && (addr - EvmMemoryLayout::HEAP_START).is_multiple_of(EvmMemoryLayout::WORD_SIZE))
         .then_some(addr)
     }
 
@@ -325,7 +324,7 @@ impl FrameSlotPromoter {
             .memory_alias(
                 MemoryLocation::new(MemoryAddress::absolute(slot_addr), LocationSize::Const(32)),
                 MemoryLocation::new(
-                    MemoryAddress::absolute(LOW_MEMORY_START),
+                    MemoryAddress::absolute(EvmMemoryLayout::HEAP_START),
                     LocationSize::Const(func.external_static_return_size),
                 ),
             )

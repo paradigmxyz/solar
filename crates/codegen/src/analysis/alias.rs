@@ -1,18 +1,22 @@
 //! Shared MIR alias and ModRef analysis.
 //!
-//! This is deliberately a value-local basic alias analysis rather than a
-//! flow-sensitive points-to analysis. It canonicalizes addresses as a base plus
-//! constant offset, keeps compiler-owned memory regions disjoint, and exposes
-//! the memory, storage, and transient-storage effects of each instruction.
-//! Transformations can therefore share one conservative answer without
-//! attaching pass-specific facts to MIR values.
+//! Pointer provenance follows SSA definitions through address arithmetic,
+//! slices, selects, and control-flow joins. Fresh allocations retain unique
+//! identities, while incompatible incoming paths conservatively join to a
+//! symbolic pointer. The analysis also keeps compiler-owned regions disjoint
+//! and exposes the memory, storage, and transient-storage effects of each
+//! instruction.
 
-use crate::mir::{
-    AbiType, Function, InstId, InstKind, MemoryRegion, SliceLocation, StorageAlias, Terminator,
-    Value, ValueId,
+use crate::{
+    memory::EvmMemoryLayout,
+    mir::{
+        AbiType, BlockId, Function, InstId, InstKind, MemoryRegion, SliceLocation, StorageAlias,
+        Terminator, Value, ValueId,
+    },
 };
 use smallvec::SmallVec;
 use solar_data_structures::map::FxHashMap;
+use std::collections::VecDeque;
 
 /// An address space tracked by ModRef analysis.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -32,6 +36,10 @@ pub enum MemoryBase {
     Absolute,
     /// The current function's internal-call frame.
     InternalFrame,
+    /// One fresh abstract heap allocation.
+    Allocation(InstId),
+    /// An allocation instruction with multiple dynamic loop instances.
+    DynamicAllocation(InstId),
     /// A symbolic MIR value.
     Value(ValueId),
 }
@@ -51,7 +59,11 @@ impl MemoryAddress {
     /// Creates an absolute memory address.
     #[must_use]
     pub const fn absolute(offset: u64) -> Self {
-        let region = if offset < 0x80 { MemoryRegion::Scratch } else { MemoryRegion::Unknown };
+        let region = if EvmMemoryLayout::is_reserved(offset) {
+            MemoryRegion::Scratch
+        } else {
+            MemoryRegion::Unknown
+        };
         Self { region, base: MemoryBase::Absolute, offset }
     }
 
@@ -72,7 +84,10 @@ impl MemoryAddress {
     pub const fn as_absolute(self) -> Option<u64> {
         match self.base {
             MemoryBase::Absolute => Some(self.offset),
-            MemoryBase::InternalFrame | MemoryBase::Value(_) => None,
+            MemoryBase::InternalFrame
+            | MemoryBase::Allocation(_)
+            | MemoryBase::DynamicAllocation(_)
+            | MemoryBase::Value(_) => None,
         }
     }
 
@@ -81,7 +96,10 @@ impl MemoryAddress {
     pub const fn as_internal_frame_offset(self) -> Option<u64> {
         match self.base {
             MemoryBase::InternalFrame => Some(self.offset),
-            MemoryBase::Absolute | MemoryBase::Value(_) => None,
+            MemoryBase::Absolute
+            | MemoryBase::Allocation(_)
+            | MemoryBase::DynamicAllocation(_)
+            | MemoryBase::Value(_) => None,
         }
     }
 
@@ -300,21 +318,21 @@ fn add_storage_range(effects: &mut ModRef, base: StorageAlias, slots: u64, write
     }
 }
 
-/// Shared value-local basic alias and ModRef analysis.
+/// Shared control-flow-aware provenance, alias, and ModRef analysis.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AliasAnalysis;
 
 impl AliasAnalysis {
     /// Canonicalizes a MIR value used as a memory address.
     #[must_use]
-    pub fn memory_address(self, func: &Function, value: ValueId) -> Option<MemoryAddress> {
+    pub fn memory_address(&self, func: &Function, value: ValueId) -> Option<MemoryAddress> {
         self.memory_address_with_depth(func, value, 0)
     }
 
     /// Creates a memory location, using instruction metadata to refine its region.
     #[must_use]
     pub fn memory_location(
-        self,
+        &self,
         func: &Function,
         inst_id: InstId,
         address: ValueId,
@@ -332,7 +350,7 @@ impl AliasAnalysis {
     /// Creates a memory location without instruction metadata.
     #[must_use]
     pub fn bare_memory_location(
-        self,
+        &self,
         func: &Function,
         address: ValueId,
         size: LocationSize,
@@ -342,26 +360,26 @@ impl AliasAnalysis {
 
     /// Converts a MIR size operand to a canonical location size.
     #[must_use]
-    pub fn location_size(self, func: &Function, value: ValueId) -> LocationSize {
+    pub fn location_size(&self, func: &Function, value: ValueId) -> LocationSize {
         func.value_u64(value).map_or(LocationSize::Dynamic(value), LocationSize::Const)
     }
 
     /// Returns the canonical storage alias for an instruction operand.
     #[must_use]
-    pub fn storage_alias(self, func: &Function, inst_id: InstId, slot: ValueId) -> StorageAlias {
+    pub fn storage_alias(&self, func: &Function, inst_id: InstId, slot: ValueId) -> StorageAlias {
         func.storage_alias(inst_id, slot)
     }
 
     /// Canonicalizes a value used as a storage slot without instruction metadata.
     #[must_use]
-    pub fn storage_alias_for_value(self, func: &Function, slot: ValueId) -> StorageAlias {
+    pub fn storage_alias_for_value(&self, func: &Function, slot: ValueId) -> StorageAlias {
         StorageAlias::for_value(func, slot)
     }
 
     /// Returns the canonical storage alias after value replacements.
     #[must_use]
     pub fn storage_alias_after_replacements(
-        self,
+        &self,
         func: &Function,
         inst_id: InstId,
         slot: ValueId,
@@ -372,7 +390,7 @@ impl AliasAnalysis {
 
     /// Computes the alias relationship between two locations.
     #[must_use]
-    pub fn alias(self, first: Location, second: Location) -> AliasResult {
+    pub fn alias(&self, first: Location, second: Location) -> AliasResult {
         match (first, second) {
             (Location::Memory(first), Location::Memory(second)) => self.memory_alias(first, second),
             (Location::Storage(first), Location::Storage(second))
@@ -391,14 +409,14 @@ impl AliasAnalysis {
 
     /// Computes the ModRef effects of one instruction.
     #[must_use]
-    pub fn instruction_mod_ref(self, func: &Function, inst_id: InstId) -> ModRef {
+    pub fn instruction_mod_ref(&self, func: &Function, inst_id: InstId) -> ModRef {
         self.instruction_mod_ref_with_replacements(func, inst_id, &FxHashMap::default())
     }
 
     /// Computes instruction ModRef effects after applying value replacements.
     #[must_use]
     pub fn instruction_mod_ref_with_replacements(
-        self,
+        &self,
         func: &Function,
         inst_id: InstId,
         replacements: &FxHashMap<ValueId, ValueId>,
@@ -447,10 +465,22 @@ impl AliasAnalysis {
             InstKind::SetFmp(_) => {
                 effects.write(Access::Location(Location::Memory(Self::fmp_location())));
             }
-            InstKind::Alloc(_) => {
+            InstKind::Alloc { size, semantics, .. } => {
                 let fmp = Access::Location(Location::Memory(Self::fmp_location()));
                 effects.read(fmp);
                 effects.write(fmp);
+                if semantics.initialization == crate::mir::AllocationInitialization::Zeroed
+                    && let Some(ptr) = func.inst_result_value(inst_id)
+                {
+                    let size = match semantics.alignment {
+                        crate::mir::AllocationAlignment::Exact => SizeOperand::Value(size),
+                        crate::mir::AllocationAlignment::Word => func
+                            .value_u64(size)
+                            .and_then(EvmMemoryLayout::align_word)
+                            .map_or(SizeOperand::Unknown, SizeOperand::Const),
+                    };
+                    write_memory(&mut effects, ptr, size);
+                }
             }
             InstKind::AbiEncode { .. } => {
                 let InstKind::AbiEncode { args, layout, .. } = kind else { unreachable!() };
@@ -571,7 +601,7 @@ impl AliasAnalysis {
 
     /// Computes ModRef effects of one terminator.
     #[must_use]
-    pub fn terminator_mod_ref(self, func: &Function, terminator: &Terminator) -> ModRef {
+    pub fn terminator_mod_ref(&self, func: &Function, terminator: &Terminator) -> ModRef {
         let mut effects = ModRef::default();
         match *terminator {
             Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
@@ -602,13 +632,13 @@ impl AliasAnalysis {
             MemoryAddress {
                 region: MemoryRegion::Scratch,
                 base: MemoryBase::Absolute,
-                offset: 0x40,
+                offset: EvmMemoryLayout::FMP_SLOT,
             },
             LocationSize::Const(32),
         )
     }
 
-    fn access_may_alias(self, access: Access, location: Location) -> bool {
+    fn access_may_alias(&self, access: Access, location: Location) -> bool {
         match access {
             Access::Any(space) => space == location.address_space(),
             Access::Location(other) => self.alias(other, location).may_alias(),
@@ -617,7 +647,7 @@ impl AliasAnalysis {
 
     /// Computes the alias relationship between two memory ranges.
     #[must_use]
-    pub fn memory_alias(self, first: MemoryLocation, second: MemoryLocation) -> AliasResult {
+    pub fn memory_alias(&self, first: MemoryLocation, second: MemoryLocation) -> AliasResult {
         if matches!(first.size, LocationSize::Const(0))
             || matches!(second.size, LocationSize::Const(0))
         {
@@ -631,7 +661,17 @@ impl AliasAnalysis {
         {
             return AliasResult::NoAlias;
         }
+        if matches!(first.address.base, MemoryBase::DynamicAllocation(_))
+            || matches!(second.address.base, MemoryBase::DynamicAllocation(_))
+        {
+            return AliasResult::MayAlias;
+        }
         if first.address.base != second.address.base {
+            if matches!(first.address.base, MemoryBase::Allocation(_))
+                && matches!(second.address.base, MemoryBase::Allocation(_))
+            {
+                return AliasResult::NoAlias;
+            }
             return AliasResult::MayAlias;
         }
         match (first.size, second.size) {
@@ -661,7 +701,7 @@ impl AliasAnalysis {
     }
 
     fn memory_address_with_depth(
-        self,
+        &self,
         func: &Function,
         value: ValueId,
         depth: usize,
@@ -673,10 +713,32 @@ impl AliasAnalysis {
             Value::Immediate(immediate) => {
                 Some(MemoryAddress::absolute(immediate.as_u256()?.try_into().ok()?))
             }
-            Value::Arg { .. } => Some(MemoryAddress::symbolic(value, MemoryRegion::Unknown)),
+            Value::Arg { ty, .. } => Some(MemoryAddress::symbolic(
+                value,
+                if matches!(ty, crate::mir::MirType::MemoryObject(_)) {
+                    MemoryRegion::Heap
+                } else {
+                    MemoryRegion::Unknown
+                },
+            )),
             Value::Undef(_) | Value::Error(_) => None,
             Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
                 InstKind::InternalFrameAddr(offset) => Some(MemoryAddress::internal_frame(offset)),
+                InstKind::Alloc { .. } => Some(if self.allocation_is_dynamic(func, *inst_id) {
+                    MemoryAddress {
+                        region: MemoryRegion::Heap,
+                        base: MemoryBase::DynamicAllocation(*inst_id),
+                        offset: 0,
+                    }
+                } else if self.allocation_has_unique_provenance(func, *inst_id) {
+                    MemoryAddress {
+                        region: MemoryRegion::Heap,
+                        base: MemoryBase::Allocation(*inst_id),
+                        offset: 0,
+                    }
+                } else {
+                    MemoryAddress::symbolic(value, MemoryRegion::Heap)
+                }),
                 InstKind::Add(first, second) => self
                     .address_add(func, first, second, depth)
                     .or_else(|| self.address_add(func, second, first, depth))
@@ -689,13 +751,22 @@ impl AliasAnalysis {
                     })
                 }
                 InstKind::SlicePtr(slice) => self.slice_pointer_address(func, slice, depth),
+                InstKind::Phi(ref incoming) => self.join_pointer_paths(
+                    func,
+                    value,
+                    incoming.iter().map(|(_, value)| *value),
+                    depth,
+                ),
+                InstKind::Select(_, first, second) => {
+                    self.join_pointer_paths(func, value, [first, second], depth)
+                }
                 _ => Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0))),
             },
         }
     }
 
     fn address_add(
-        self,
+        &self,
         func: &Function,
         base: ValueId,
         offset: ValueId,
@@ -705,7 +776,7 @@ impl AliasAnalysis {
     }
 
     fn address_sub(
-        self,
+        &self,
         func: &Function,
         base: ValueId,
         offset: ValueId,
@@ -717,7 +788,7 @@ impl AliasAnalysis {
     }
 
     fn slice_pointer_address(
-        self,
+        &self,
         func: &Function,
         slice: ValueId,
         depth: usize,
@@ -730,22 +801,66 @@ impl AliasAnalysis {
                 SliceLocation::Memory => self.memory_address_with_depth(func, *ptr, depth + 1),
                 SliceLocation::Calldata => None,
             },
-            InstKind::AbiEncode { .. } => Some(MemoryAddress::symbolic(slice, MemoryRegion::Heap)),
+            InstKind::AbiEncode { .. } => Some(if self.allocation_is_dynamic(func, *inst_id) {
+                MemoryAddress {
+                    region: MemoryRegion::Heap,
+                    base: MemoryBase::DynamicAllocation(*inst_id),
+                    offset: 0,
+                }
+            } else if self.allocation_has_unique_provenance(func, *inst_id) {
+                MemoryAddress {
+                    region: MemoryRegion::Heap,
+                    base: MemoryBase::Allocation(*inst_id),
+                    offset: 0,
+                }
+            } else {
+                MemoryAddress::symbolic(slice, MemoryRegion::Heap)
+            }),
             _ => Some(MemoryAddress::symbolic(slice, MemoryRegion::Unknown)),
         }
     }
 
-    fn pointer_region(self, func: &Function, value: ValueId, depth: usize) -> MemoryRegion {
+    fn join_pointer_paths(
+        &self,
+        func: &Function,
+        result: ValueId,
+        incoming: impl IntoIterator<Item = ValueId>,
+        depth: usize,
+    ) -> Option<MemoryAddress> {
+        let mut incoming = incoming.into_iter();
+        let first = self.memory_address_with_depth(func, incoming.next()?, depth + 1)?;
+        let mut region = first.region;
+        let mut all_same = true;
+        for value in incoming {
+            let Some(address) = self.memory_address_with_depth(func, value, depth + 1) else {
+                return Some(MemoryAddress::symbolic(result, MemoryRegion::Unknown));
+            };
+            all_same &= address == first;
+            if address.region != region {
+                region = MemoryRegion::Unknown;
+            }
+        }
+        if all_same { Some(first) } else { Some(MemoryAddress::symbolic(result, region)) }
+    }
+
+    fn pointer_region(&self, func: &Function, value: ValueId, depth: usize) -> MemoryRegion {
         if depth > 8 {
             return MemoryRegion::Unknown;
         }
         let Value::Inst(inst_id) = func.value(value) else {
-            return MemoryRegion::Unknown;
+            return match func.value(value) {
+                Value::Arg { ty: crate::mir::MirType::MemoryObject(_), .. } => MemoryRegion::Heap,
+                _ => MemoryRegion::Unknown,
+            };
         };
         match func.instructions[*inst_id].kind {
             InstKind::InternalFrameAddr(_) => MemoryRegion::InternalFrame,
-            InstKind::Fmp | InstKind::Alloc(_) => MemoryRegion::Heap,
-            InstKind::MLoad(address) if func.value_u64(address) == Some(0x40) => MemoryRegion::Heap,
+            InstKind::Fmp | InstKind::Alloc { .. } => MemoryRegion::Heap,
+            InstKind::MLoad(address)
+                if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+            {
+                MemoryRegion::Heap
+            }
             InstKind::Add(first, second) => {
                 let first = self.pointer_region(func, first, depth + 1);
                 if first != MemoryRegion::Unknown {
@@ -755,6 +870,12 @@ impl AliasAnalysis {
                 }
             }
             InstKind::Sub(base, _) => self.pointer_region(func, base, depth + 1),
+            InstKind::Phi(ref incoming) => {
+                self.join_pointer_regions(func, incoming.iter().map(|(_, value)| *value), depth)
+            }
+            InstKind::Select(_, first, second) => {
+                self.join_pointer_regions(func, [first, second], depth)
+            }
             InstKind::SlicePtr(slice) => {
                 let Value::Inst(slice_inst) = func.value(slice) else {
                     return MemoryRegion::Unknown;
@@ -769,8 +890,197 @@ impl AliasAnalysis {
         }
     }
 
+    fn join_pointer_regions(
+        &self,
+        func: &Function,
+        incoming: impl IntoIterator<Item = ValueId>,
+        depth: usize,
+    ) -> MemoryRegion {
+        let mut incoming = incoming.into_iter();
+        let Some(first) = incoming.next() else { return MemoryRegion::Unknown };
+        let first = self.pointer_region(func, first, depth + 1);
+        if first == MemoryRegion::Unknown {
+            return first;
+        }
+        if incoming.all(|value| self.pointer_region(func, value, depth + 1) == first) {
+            first
+        } else {
+            MemoryRegion::Unknown
+        }
+    }
+
+    /// Proves that an allocation executes once with an unmodified FMP on
+    /// every path reaching it. A loop allocation has multiple dynamic
+    /// instances, and an opaque FMP write can recycle an earlier range, so
+    /// neither may receive a globally unique provenance base.
+    fn allocation_has_unique_provenance(&self, func: &Function, target: InstId) -> bool {
+        let Some((target_block, target_index)) =
+            func.blocks.iter_enumerated().find_map(|(block, data)| {
+                data.instructions
+                    .iter()
+                    .position(|&inst| inst == target)
+                    .map(|index| (block, index))
+            })
+        else {
+            return false;
+        };
+        if self.block_is_cyclic(func, target_block) {
+            return false;
+        }
+
+        let mut reachable = vec![false; func.blocks.len()];
+        let mut poisoned = vec![false; func.blocks.len()];
+        let mut worklist = VecDeque::from([func.entry_block]);
+        reachable[func.entry_block.index()] = true;
+        while let Some(block) = worklist.pop_front() {
+            let out = poisoned[block.index()]
+                || func.blocks[block]
+                    .instructions
+                    .iter()
+                    .any(|&inst| self.instruction_may_reset_fmp(func, inst));
+            let Some(terminator) = &func.blocks[block].terminator else { continue };
+            for successor in terminator.successors() {
+                let successor_index = successor.index();
+                let changed = !reachable[successor_index] || (out && !poisoned[successor_index]);
+                reachable[successor_index] = true;
+                poisoned[successor_index] |= out;
+                if changed {
+                    worklist.push_back(successor);
+                }
+            }
+        }
+        if !reachable[target_block.index()] || poisoned[target_block.index()] {
+            return false;
+        }
+        !func.blocks[target_block].instructions[..target_index]
+            .iter()
+            .any(|&inst| self.instruction_may_reset_fmp(func, inst))
+    }
+
+    fn allocation_is_dynamic(&self, func: &Function, target: InstId) -> bool {
+        func.blocks
+            .iter_enumerated()
+            .find(|(_, block)| block.instructions.contains(&target))
+            .is_some_and(|(block, _)| self.block_is_cyclic(func, block))
+    }
+
+    fn block_is_cyclic(&self, func: &Function, target: BlockId) -> bool {
+        let Some(terminator) = &func.blocks[target].terminator else { return false };
+        let mut worklist: Vec<_> = terminator.successors().into_iter().collect();
+        let mut visited = vec![false; func.blocks.len()];
+        while let Some(block) = worklist.pop() {
+            if block == target {
+                return true;
+            }
+            if std::mem::replace(&mut visited[block.index()], true) {
+                continue;
+            }
+            if let Some(terminator) = &func.blocks[block].terminator {
+                worklist.extend(terminator.successors());
+            }
+        }
+        false
+    }
+
+    fn instruction_may_reset_fmp(&self, func: &Function, inst: InstId) -> bool {
+        match func.instructions[inst].kind {
+            InstKind::SetFmp(_) | InstKind::InternalCall { .. } => true,
+            InstKind::MStore(address, _) => self.range_may_overlap_fmp(func, address, Some(32)),
+            InstKind::MStore8(address, _) => self.range_may_overlap_fmp(func, address, Some(1)),
+            InstKind::MCopy(dest, _, size)
+            | InstKind::CalldataCopy(dest, _, size)
+            | InstKind::CodeCopy(dest, _, size)
+            | InstKind::ReturnDataCopy(dest, _, size) => {
+                self.range_may_overlap_fmp(func, dest, func.value_u64(size))
+            }
+            InstKind::ExtCodeCopy(_, dest, _, size) => {
+                self.range_may_overlap_fmp(func, dest, func.value_u64(size))
+            }
+            InstKind::Call { ret_offset, ret_size, .. }
+            | InstKind::StaticCall { ret_offset, ret_size, .. }
+            | InstKind::DelegateCall { ret_offset, ret_size, .. } => {
+                self.range_may_overlap_fmp(func, ret_offset, func.value_u64(ret_size))
+            }
+            _ => false,
+        }
+    }
+
+    fn range_may_overlap_fmp(&self, func: &Function, address: ValueId, size: Option<u64>) -> bool {
+        if size == Some(0) {
+            return false;
+        }
+        if let Some(address) = func.value_u64(address) {
+            let Some(size) = size else { return true };
+            let Some(end) = address.checked_add(size) else { return true };
+            let fmp_end = EvmMemoryLayout::FMP_SLOT + EvmMemoryLayout::WORD_SIZE;
+            return address < fmp_end && end > EvmMemoryLayout::FMP_SLOT;
+        }
+        self.pointer_lower_bound(func, address, 0)
+            .is_none_or(|address| address < EvmMemoryLayout::HEAP_START)
+    }
+
+    /// Returns a conservative lower bound for a compiler-owned pointer.
+    ///
+    /// This deliberately does not trust a coarse `Heap` region: inline MIR can
+    /// subtract from a pointer, and a typed argument may still originate in
+    /// opaque code. Only monotonic derivations from compiler-owned bases prove
+    /// that a write cannot reach reserved low memory.
+    fn pointer_lower_bound(&self, func: &Function, value: ValueId, depth: usize) -> Option<u64> {
+        if depth > 8 {
+            return None;
+        }
+        if let Some(value) = func.value_u64(value) {
+            return Some(value);
+        }
+        let Value::Inst(inst) = func.value(value) else { return None };
+        match &func.instructions[*inst].kind {
+            InstKind::Fmp | InstKind::Alloc { .. } | InstKind::AbiEncode { .. } => {
+                Some(EvmMemoryLayout::HEAP_START)
+            }
+            InstKind::MLoad(address)
+                if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+            {
+                Some(EvmMemoryLayout::HEAP_START)
+            }
+            InstKind::InternalFrameAddr(offset) => EvmMemoryLayout::HEAP_START.checked_add(*offset),
+            InstKind::Add(first, second) => self
+                .pointer_lower_bound(func, *first, depth + 1)
+                .and_then(|base| base.checked_add(func.value_u64(*second)?))
+                .or_else(|| {
+                    self.pointer_lower_bound(func, *second, depth + 1)
+                        .and_then(|base| base.checked_add(func.value_u64(*first)?))
+                }),
+            InstKind::Sub(base, offset) => self
+                .pointer_lower_bound(func, *base, depth + 1)
+                .and_then(|base| base.checked_sub(func.value_u64(*offset)?)),
+            InstKind::SlicePtr(slice) => {
+                let Value::Inst(slice) = func.value(*slice) else { return None };
+                match &func.instructions[*slice].kind {
+                    InstKind::MakeSlice { ptr, location: SliceLocation::Memory, .. } => {
+                        self.pointer_lower_bound(func, *ptr, depth + 1)
+                    }
+                    InstKind::AbiEncode { .. } => Some(EvmMemoryLayout::HEAP_START),
+                    _ => None,
+                }
+            }
+            InstKind::Phi(incoming) => incoming
+                .iter()
+                .map(|(_, value)| self.pointer_lower_bound(func, *value, depth + 1))
+                .collect::<Option<Vec<_>>>()?
+                .into_iter()
+                .min(),
+            InstKind::Select(_, first, second) => {
+                Some(
+                    self.pointer_lower_bound(func, *first, depth + 1)?
+                        .min(self.pointer_lower_bound(func, *second, depth + 1)?),
+                )
+            }
+            _ => None,
+        }
+    }
+
     fn resolved_location_size(
-        self,
+        &self,
         func: &Function,
         size: SizeOperand,
         replacements: &FxHashMap<ValueId, ValueId>,
@@ -863,6 +1173,76 @@ mod tests {
 
         let scratch = Location::Memory(AliasAnalysis::fmp_location());
         assert_eq!(aa.alias(scratch, location(0, 32)), AliasResult::NoAlias);
+    }
+
+    #[test]
+    fn tracks_fresh_allocations_through_control_flow_values() {
+        let mut func = function();
+        let (first, second, same_path, joined_path) = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let size = builder.imm_u64(32);
+            let first = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
+            let second = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
+            let condition = builder.add_param(MirType::Bool);
+            let same_path = builder.select(condition, first, first);
+            let joined_path = builder.select(condition, first, second);
+            (first, second, same_path, joined_path)
+        };
+        let aa = AliasAnalysis;
+        let location = |value| {
+            MemoryLocation::new(aa.memory_address(&func, value).unwrap(), LocationSize::Const(32))
+        };
+
+        assert_eq!(aa.memory_alias(location(first), location(second)), AliasResult::NoAlias);
+        assert_eq!(aa.memory_address(&func, same_path), aa.memory_address(&func, first));
+        assert_eq!(aa.memory_address(&func, joined_path).unwrap().region, MemoryRegion::Heap);
+        assert_eq!(aa.memory_alias(location(joined_path), location(first)), AliasResult::MayAlias);
+    }
+
+    #[test]
+    fn forgets_freshness_after_an_fmp_reset() {
+        let mut func = function();
+        let (first, second) = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let size = builder.imm_u64(32);
+            let first = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
+            builder.set_fmp(first);
+            let second = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
+            (first, second)
+        };
+        let aa = AliasAnalysis;
+        let location = |value| {
+            MemoryLocation::new(aa.memory_address(&func, value).unwrap(), LocationSize::Const(32))
+        };
+
+        assert!(matches!(location(first).address.base, MemoryBase::Allocation(_)));
+        assert!(matches!(location(second).address.base, MemoryBase::Value(_)));
+        assert_eq!(aa.memory_alias(location(first), location(second)), AliasResult::MayAlias);
+    }
+
+    #[test]
+    fn does_not_globalize_loop_allocation_identity() {
+        let mut func = function();
+        let allocation = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let condition = builder.add_param(MirType::Bool);
+            let header = builder.create_block();
+            let exit = builder.create_block();
+            builder.jump(header);
+            builder.switch_to_block(header);
+            let size = builder.imm_u64(32);
+            let allocation = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
+            builder.branch(condition, header, exit);
+            builder.switch_to_block(exit);
+            builder.stop();
+            allocation
+        };
+
+        let aa = AliasAnalysis;
+        let address = aa.memory_address(&func, allocation).unwrap();
+        assert!(matches!(address.base, MemoryBase::DynamicAllocation(_)));
+        let location = MemoryLocation::new(address, LocationSize::Const(32));
+        assert_eq!(aa.memory_alias(location, location), AliasResult::MayAlias);
     }
 
     #[test]

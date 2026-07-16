@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/abi_decode_static_tuple.sol:AbiDecodeStaticTuple ===
-@module AbiDecodeStaticTuple
-fn @decode(arg0: memptr) {
+// === ROOT/tests/ui/codegen/abi_decode_static_tuple.sol:AbiDecodeStaticTuple ===
+; module @AbiDecodeStaticTuple
+fn @decode(arg0: memorybytes) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4
@@ -15,7 +15,7 @@ fn @decode(arg0: memptr) {
     v6 = not 31
     v7 = and v5, v6
     v8 = add v7, 32
-    v9 = alloc v8
+    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
     mstore v9, v4
     v10 = add v9, 32
     v11 = add v3, 32

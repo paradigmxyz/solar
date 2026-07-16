@@ -17,6 +17,7 @@
 
 use crate::{
     analysis::CfgInfo,
+    memory::EvmMemoryLayout,
     mir::{BlockId, Function, Immediate, InstId, InstKind, Module, Terminator, Value, ValueId},
     pass::ModulePass,
 };
@@ -36,9 +37,12 @@ impl ModulePass for StaticAllocPass {
             .functions
             .iter()
             .filter(|func| is_entry(func))
-            .map(|func| 0x80 + func.internal_frame_size.max(func.external_static_return_size))
+            .map(|func| {
+                EvmMemoryLayout::HEAP_START
+                    + func.internal_frame_size.max(func.external_static_return_size)
+            })
             .max()
-            .unwrap_or(0x80);
+            .unwrap_or(EvmMemoryLayout::HEAP_START);
 
         let mut changed = false;
         for func in module.functions.iter_mut() {
@@ -87,7 +91,12 @@ pub(crate) fn eligible_static_allocations(func: &Function) -> Vec<StaticAllocCan
     let mut candidates = Vec::new();
     for block in func.blocks.indices() {
         for &alloc in &func.blocks[block].instructions {
-            let InstKind::Alloc(size) = func.instructions[alloc].kind else { continue };
+            let InstKind::Alloc { size, semantics, .. } = func.instructions[alloc].kind else {
+                continue;
+            };
+            if semantics != crate::mir::AllocationSemantics::INTERNAL {
+                continue;
+            }
             let Some(size) = func.value_u64(size) else { continue };
             if size == 0
                 || size > 0x1000
@@ -250,11 +259,12 @@ fn apply_candidate(func: &mut Function, cand: &StaticAllocCandidate, shadow: u64
     // it pushes the shared static-frame region and can widen every helper
     // and spill push behind it — and must not drag this entry's own spill
     // base across the one-byte address boundary.
-    let base = 0x80 + func.internal_frame_size.max(func.external_static_return_size);
+    let base = EvmMemoryLayout::HEAP_START
+        + func.internal_frame_size.max(func.external_static_return_size);
     if base + cand.size > shadow || (base < 0x100 && base + cand.size > 0x100) {
         return false;
     }
-    func.internal_frame_size = (base - 0x80) + cand.size;
+    func.internal_frame_size = (base - EvmMemoryLayout::HEAP_START) + cand.size;
     let replacement = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(base))));
     let mut replacements = FxHashMap::default();
     replacements.insert(cand.ptr, replacement);

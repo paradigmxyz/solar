@@ -4,8 +4,8 @@
 //! protocol and expose further optimization opportunities.
 
 use crate::{
-    MULTI_RETURN_BUFFER_PTR_SLOT,
     analysis::LoopAnalyzer,
+    memory::EvmMemoryLayout,
     mir::{
         BlockId, Function, FunctionId as MirFunctionId, Immediate, InstKind, Instruction, MirType,
         Module, Terminator, Value, ValueId,
@@ -464,7 +464,7 @@ fn estimate_inst_cost(kind: &InstKind) -> MirCost {
     let (runtime_gas, code_size) = match kind {
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
         InstKind::Fmp | InstKind::SetFmp(_) => (3, 1),
-        InstKind::Alloc(_) => (9, 3),
+        InstKind::Alloc { .. } => (9, 3),
         InstKind::AbiEncode { args, layout, .. } => {
             let words = layout.head_size() / 32;
             (30 + words * 12, 8 + args.len() * 3)
@@ -575,8 +575,9 @@ fn estimate_terminator_cost(term: &Terminator) -> MirCost {
 }
 
 fn estimated_internal_call_savings(site: CallSite, summary: MirInlineSummary) -> u64 {
-    let frame_words =
-        (summary.internal_frame_size / 32) + 2 + (site.args_len + site.returns) as u64;
+    let frame_words = (summary.internal_frame_size / EvmMemoryLayout::WORD_SIZE)
+        + (EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE)
+        + (site.args_len + site.returns) as u64;
     let protocol = 90 + ((site.args_len + site.returns) as u64) * 24 + frame_words * 6;
     let return_protocol = 24 + (summary.param_count as u64 + site.returns as u64) * 8;
     let loop_multiplier = (site.loop_depth as u64).saturating_add(1);
@@ -671,10 +672,12 @@ fn inline_call_impl(
     let caller_frame_prefix = if caller_is_external {
         0
     } else {
-        64 + ((caller.params.len() + caller.returns.len()) as u64) * 32
+        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+            + ((caller.params.len() + caller.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE
     };
     let frame_base = caller_frame_prefix + caller.internal_frame_size;
-    let callee_frame_prefix = 64 + ((callee.params.len() + callee.returns.len()) as u64) * 32;
+    let callee_frame_prefix = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+        + ((callee.params.len() + callee.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE;
     caller.internal_frame_size += callee.internal_frame_size;
 
     let mut cloner = InlineCloner::new(caller, callee, frame_base, callee_frame_prefix, &args);
@@ -845,7 +848,9 @@ impl<'a> InlineCloner<'a> {
             InstKind::MSize => InstKind::MSize,
             InstKind::Fmp => InstKind::Fmp,
             InstKind::SetFmp(ptr) => InstKind::SetFmp(self.clone_value(ptr)?),
-            InstKind::Alloc(size) => InstKind::Alloc(self.clone_value(size)?),
+            InstKind::Alloc { size, kind, semantics } => {
+                InstKind::Alloc { size: self.clone_value(size)?, kind, semantics }
+            }
             InstKind::AbiEncode { selector, args, layout } => InstKind::AbiEncode {
                 selector: match selector {
                     Some(selector) => Some(self.clone_value(selector)?),
@@ -1110,7 +1115,7 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
     }
 
     let ptr_slot = caller.alloc_value(Value::Immediate(Immediate::uint256(U256::from(
-        MULTI_RETURN_BUFFER_PTR_SLOT,
+        EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT,
     ))));
     let publish = caller.alloc_inst(Instruction::new(InstKind::MStore(ptr_slot, base), None));
     caller.blocks[continuation].instructions.insert(insert_at, publish);

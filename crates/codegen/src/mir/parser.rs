@@ -29,9 +29,11 @@
 //! - Phi nodes are represented only as phi *instructions* (`InstKind::Phi`).
 
 use super::{
-    AbiLayout, AbiLayoutRef, AbiType, BlockId, EffectKind, Function, FunctionBuilder, FunctionId,
-    InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion, Module, StorageAlias,
-    StorageField, StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
+    AbiLayout, AbiLayoutRef, AbiType, AllocationAlignment, AllocationFailure,
+    AllocationInitialization, AllocationKind, AllocationSemantics, BlockId, EffectKind, Function,
+    FunctionBuilder, FunctionId, InstId, InstKind, Instruction, InstructionMetadata,
+    MemoryObjectKind, MemoryRegion, Module, StorageAlias, StorageField, StorageLayout,
+    StorageLayoutRef, Terminator, Value, ValueId,
 };
 use crate::mir::{MirType, SliceLocation};
 use alloy_primitives::U256;
@@ -468,6 +470,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 kw::Bool => MirType::Bool,
                 kw::Address => MirType::Address,
                 sym::memptr => MirType::MemPtr,
+                sym::memorybytes => MirType::MemoryObject(MemoryObjectKind::Bytes),
+                sym::memoryarray => MirType::MemoryObject(MemoryObjectKind::DynamicArray),
+                sym::memoryfixedarray => MirType::MemoryObject(MemoryObjectKind::FixedArray),
+                sym::memorystruct => MirType::MemoryObject(MemoryObjectKind::Struct),
                 sym::storageptr => MirType::StoragePtr,
                 sym::calldataptr => MirType::CalldataPtr,
                 sym::memoryslice => MirType::Slice(SliceLocation::Memory),
@@ -1138,7 +1144,52 @@ kw::Bool => MirType::Bool,
             // Free-memory pointer and allocation.
             sym::fmp => unit!(Fmp => MirType::MemPtr),
             sym::set_fmp => inst!(SetFmp(a)),
-            sym::alloc => inst!(Alloc(a) => MirType::MemPtr),
+            sym::alloc => {
+                let kind = match self.parser.parse_ident()? {
+                    sym::raw => AllocationKind::Raw,
+                    sym::memorybytes => AllocationKind::Object(MemoryObjectKind::Bytes),
+                    sym::memoryarray => AllocationKind::Object(MemoryObjectKind::DynamicArray),
+                    sym::memoryfixedarray => AllocationKind::Object(MemoryObjectKind::FixedArray),
+                    sym::memorystruct => AllocationKind::Object(MemoryObjectKind::Struct),
+                    other => {
+                        return Err(self.parser.error(format!("unknown allocation kind `{other}`")));
+                    }
+                };
+                self.parser.expect(TokenKind::Comma)?;
+                let alignment = match self.parser.parse_ident()? {
+                    sym::exact => AllocationAlignment::Exact,
+                    sym::word => AllocationAlignment::Word,
+                    other => {
+                        return Err(self
+                            .parser
+                            .error(format!("unknown allocation alignment `{other}`")));
+                    }
+                };
+                self.parser.expect(TokenKind::Comma)?;
+                let initialization = match self.parser.parse_ident()? {
+                    sym::uninitialized => AllocationInitialization::Uninitialized,
+                    sym::zeroed => AllocationInitialization::Zeroed,
+                    other => {
+                        return Err(self
+                            .parser
+                            .error(format!("unknown allocation initialization `{other}`")));
+                    }
+                };
+                self.parser.expect(TokenKind::Comma)?;
+                let failure = match self.parser.parse_ident()? {
+                    sym::infallible => AllocationFailure::Infallible,
+                    sym::panic => AllocationFailure::Panic,
+                    other => {
+                        return Err(self
+                            .parser
+                            .error(format!("unknown allocation failure `{other}`")));
+                    }
+                };
+                self.parser.expect(TokenKind::Comma)?;
+                let size = self.parse_value(builder)?;
+                let semantics = AllocationSemantics { alignment, initialization, failure };
+                (InstKind::Alloc { size, kind, semantics }, Some(kind.result_type()))
+            }
 
             // Semantic ABI encoding.
             sym::abi_encode => {

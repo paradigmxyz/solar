@@ -1,7 +1,10 @@
 //! Call and member-call lowering.
 
 use super::{Lowerer, checked_arith::PanicCode};
-use crate::mir::{FunctionBuilder, ValueId};
+use crate::{
+    memory::EvmMemoryLayout,
+    mir::{FunctionBuilder, ValueId},
+};
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{LitKind, Span};
 use solar_data_structures::bit_set::GrowableBitSet;
@@ -225,10 +228,7 @@ impl<'gcx> Lowerer<'gcx> {
             .map(|arg| self.lower_expr(builder, arg))
             .unwrap_or_else(|| builder.imm_u64(0));
 
-        let ptr = builder.fmp();
-        builder.mstore(ptr, len);
-
-        let word_size = builder.imm_u64(32);
+        let word_size = builder.imm_u64(EvmMemoryLayout::DYNAMIC_HEADER_SIZE);
         let data_size = if matches!(
             &ty.kind,
             hir::TypeKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
@@ -252,22 +252,20 @@ impl<'gcx> Lowerer<'gcx> {
         let total_size = builder.add(data_size, word_size);
         let total_overflow = builder.lt(total_size, data_size);
         self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
-        let new_free_ptr = builder.add(ptr, total_size);
-        let bump_overflow = builder.lt(new_free_ptr, ptr);
-        self.emit_panic_if(builder, bump_overflow, PanicCode::MemoryAllocationOverflow);
-        // Solidity caps memory at 2^64 bytes: an allocation past that limit
-        // panics (0x41) rather than running the VM out of gas on a huge size.
-        let mem_limit = builder.imm_u64(0xffff_ffff_ffff_ffff);
-        let over_limit = builder.gt(new_free_ptr, mem_limit);
-        self.emit_panic_if(builder, over_limit, PanicCode::MemoryAllocationOverflow);
-        builder.set_fmp(new_free_ptr);
-
-        // Zero-initialize the data area: memory past the free pointer can be
-        // dirty (keccak staging fast paths write there without bumping it).
-        // `calldatacopy` from the end of calldata writes zeroes.
-        let data_ptr = builder.add(ptr, word_size);
-        let cds = builder.calldatasize();
-        builder.calldatacopy(data_ptr, cds, data_size);
+        let object_kind = if matches!(
+            &ty.kind,
+            hir::TypeKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+        ) {
+            crate::mir::MemoryObjectKind::Bytes
+        } else {
+            crate::mir::MemoryObjectKind::DynamicArray
+        };
+        let ptr = builder.alloc_object(
+            total_size,
+            object_kind,
+            crate::mir::AllocationSemantics::SOLIDITY_ZEROED,
+        );
+        builder.mstore(ptr, len);
 
         ptr
     }
@@ -1195,7 +1193,11 @@ impl<'gcx> Lowerer<'gcx> {
                 // For struct returns, reserve a separate output allocation.
                 let struct_size = (field_count as u64) * 32;
                 let struct_size_val = builder.imm_u64(struct_size);
-                let struct_ptr = builder.alloc(struct_size_val);
+                let struct_ptr = builder.alloc_object(
+                    struct_size_val,
+                    crate::mir::MemoryObjectKind::Struct,
+                    crate::mir::AllocationSemantics::INTERNAL,
+                );
 
                 let ret_size = builder.imm_u64(struct_size);
                 (struct_ptr, ret_size, Some(struct_ptr))

@@ -1,7 +1,7 @@
 //! Bytes and string lowering helpers.
 
 use super::{Lowerer, checked_arith::PanicCode};
-use crate::mir::{FunctionBuilder, ValueId};
+use crate::mir::{FunctionBuilder, MemoryObjectKind, ValueId};
 use alloy_primitives::{U256, keccak256};
 use solar_ast::LitKind;
 use solar_interface::{Symbol, kw, sym};
@@ -32,7 +32,8 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> ValueId {
         let len = bytes.len();
         let aligned = len.div_ceil(32) * 32;
-        let ptr = self.allocate_memory(builder, (32 + aligned) as u64);
+        let ptr =
+            self.allocate_memory_object(builder, (32 + aligned) as u64, MemoryObjectKind::Bytes);
         let len_val = builder.imm_u64(len as u64);
         builder.mstore(ptr, len_val);
 
@@ -89,7 +90,7 @@ impl<'gcx> Lowerer<'gcx> {
         let total_overflow = builder.lt(total_size, data_size);
         self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
 
-        let ptr = self.allocate_memory_dynamic(builder, total_size);
+        let ptr = self.allocate_memory_object_dynamic(builder, total_size, MemoryObjectKind::Bytes);
         builder.mstore(ptr, len);
 
         let data_ptr = builder.add(ptr, word_size);
@@ -176,7 +177,7 @@ impl<'gcx> Lowerer<'gcx> {
         let total_overflow = builder.lt(total_size, data_size);
         self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
 
-        let ptr = self.allocate_memory_dynamic(builder, total_size);
+        let ptr = self.allocate_memory_object_dynamic(builder, total_size, MemoryObjectKind::Bytes);
         builder.mstore(ptr, len);
 
         let data_ptr = builder.add(ptr, word_size);
@@ -283,7 +284,11 @@ impl<'gcx> Lowerer<'gcx> {
         let byte_len = builder.mul(len, word_size);
         let total_size = builder.add(word_size, byte_len);
 
-        let ptr = self.allocate_memory_dynamic(builder, total_size);
+        let ptr = self.allocate_memory_object_dynamic(
+            builder,
+            total_size,
+            MemoryObjectKind::DynamicArray,
+        );
         builder.mstore(ptr, len);
         let data_ptr = builder.add(ptr, word_size);
         builder.calldatacopy(data_ptr, data_pos, byte_len);
@@ -627,7 +632,7 @@ impl<'gcx> Lowerer<'gcx> {
         let is_empty = builder.iszero(padded);
         let data_size = builder.select(is_empty, word, padded);
         let total = builder.add(word, data_size);
-        let ptr = self.allocate_memory_dynamic(builder, total);
+        let ptr = self.allocate_memory_object_dynamic(builder, total, MemoryObjectKind::Bytes);
         builder.mstore(ptr, new_len);
 
         let data = builder.add(ptr, word);
@@ -717,7 +722,7 @@ impl<'gcx> Lowerer<'gcx> {
         let padded = builder.and(rounded, mask);
         let word = builder.imm_u64(32);
         let total = builder.add(padded, word);
-        let ptr = self.allocate_memory_dynamic(builder, total);
+        let ptr = self.allocate_memory_object_dynamic(builder, total, MemoryObjectKind::Bytes);
         builder.mstore(ptr, size);
         let data_ptr = builder.add(ptr, word);
         let zero = builder.imm_u64(0);

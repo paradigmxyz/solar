@@ -10,7 +10,7 @@ fn @guardedFix(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v3 = alloc 96
+    v3 = alloc memoryfixedarray, exact, uninitialized, infallible, 96
     mstore v3, 0
     v4 = add v3, 32
     mstore v4, 0
@@ -40,8 +40,8 @@ fn @structArr(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v3 = alloc 32
-    v4 = alloc 96
+    v3 = alloc memorystruct, exact, uninitialized, infallible, 32
+    v4 = alloc memoryfixedarray, exact, uninitialized, infallible, 96
     mstore v4, 0
     v5 = add v4, 32
     mstore v5, 0
@@ -73,19 +73,19 @@ fn @nested(arg0: u256, arg1: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v3 = alloc 96
-    v4 = alloc 64
+    v3 = alloc memoryfixedarray, exact, uninitialized, infallible, 96
+    v4 = alloc memoryfixedarray, exact, uninitialized, infallible, 64
     mstore v4, 0
     v5 = add v4, 32
     mstore v5, 0
     mstore v3, v4
-    v6 = alloc 64
+    v6 = alloc memoryfixedarray, exact, uninitialized, infallible, 64
     mstore v6, 0
     v7 = add v6, 32
     mstore v7, 0
     v8 = add v3, 32
     mstore v8, v6
-    v9 = alloc 64
+    v9 = alloc memoryfixedarray, exact, uninitialized, infallible, 64
     mstore v9, 0
     v10 = add v9, 32
     mstore v10, 0
@@ -125,7 +125,7 @@ fn @fmpIntegrity() {
   bb0 (entry):
     mstore 128, 0
     mstore 160, 0
-    v0 = alloc 96
+    v0 = alloc memoryfixedarray, exact, uninitialized, infallible, 96
     mstore v0, 0
     v1 = add v0, 32
     mstore v1, 0
@@ -134,81 +134,62 @@ fn @fmpIntegrity() {
     v3 = mul 2, 32
     v4 = add v0, v3
     mstore v4, 7
-    v5 = fmp
-    mstore v5, 1
-    v6 = mul 1, 32
-    v7 = div v6, 32
-    v8 = eq v7, 1
-    br v8, bb2, bb1
+    v5 = mul 1, 32
+    v6 = div v5, 32
+    v7 = eq v6, 1
+    br v7, bb2, bb1
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v9 = add v6, 32
-    v10 = lt v9, v6
-    br v10, bb3, bb4
+    v8 = add v5, 32
+    v9 = lt v8, v5
+    br v9, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v11 = add v5, v9
-    v12 = lt v11, v5
-    br v12, bb5, bb6
+    v10 = alloc memoryarray, exact, zeroed, panic, v8
+    mstore v10, 1
+    v11 = mul 0, 32
+    v12 = mload v10
+    v13 = lt 0, v12
+    br v13, bb6, bb5
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v13 = gt v11, 0xffffffffffffffff
-    br v13, bb7, bb8
+    v14 = add v10, 32
+    v15 = add v14, v11
+    mstore v15, 9
+    v16 = mul 2, 32
+    v17 = add v0, v16
+    v18 = mload v17
+    v19 = mul 0, 32
+    v20 = mload v10
+    v21 = lt 0, v20
+    br v21, bb8, bb7
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    set_fmp v11
-    v14 = add v5, 32
-    v15 = calldatasize
-    calldatacopy v14, v15, v6
-    v16 = mul 0, 32
-    v17 = mload v5
-    v18 = lt 0, v17
-    br v18, bb10, bb9
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    v19 = add v5, 32
-    v20 = add v19, v16
-    mstore v20, 9
-    v21 = mul 2, 32
-    v22 = add v0, v21
-    v23 = mload v22
-    v24 = mul 0, 32
-    v25 = mload v5
-    v26 = lt 0, v25
-    br v26, bb12, bb11
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    v27 = add v5, 32
-    v28 = add v27, v24
-    v29 = mload v28
-    mstore 128, v23
-    v30 = add 128, 32
-    mstore v30, v29
+    v22 = add v10, 32
+    v23 = add v22, v19
+    v24 = mload v23
+    mstore 128, v18
+    v25 = add 128, 32
+    mstore v25, v24
     returndata 128, 64
 }
 
 fn @literal() {
   bb0 (entry):
     mstore 128, 0
-    v0 = alloc 96
+    v0 = alloc memoryfixedarray, exact, uninitialized, infallible, 96
     v1 = add v0, 0
     mstore v1, 1
     v2 = add v0, 32
@@ -226,7 +207,7 @@ fn @literal() {
 @module NamedReturnAndDelete
 fn @namedReturn() {
   bb0 (entry):
-    v0 = alloc 96
+    v0 = alloc memoryfixedarray, exact, uninitialized, infallible, 96
     mstore v0, 0
     v1 = add v0, 32
     mstore v1, 0
@@ -242,86 +223,67 @@ fn @namedReturn() {
     v7 = mul 2, 32
     v8 = add v6, v7
     mstore v8, 3
-    v9 = fmp
-    mstore v9, 32
-    v10 = add 32, 31
-    v11 = lt v10, 32
-    br v11, bb1, bb2
+    v9 = add 32, 31
+    v10 = lt v9, 32
+    br v10, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = add v13, 32
-    v15 = lt v14, v13
-    br v15, bb3, bb4
+    v11 = not 31
+    v12 = and v9, v11
+    v13 = add v12, 32
+    v14 = lt v13, v12
+    br v14, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v16 = add v9, v14
-    v17 = lt v16, v9
-    br v17, bb5, bb6
+    v15 = alloc memorybytes, exact, zeroed, panic, v13
+    mstore v15, 32
+    v16 = mload v15
+    v17 = lt 0, v16
+    br v17, bb6, bb5
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v18 = gt v16, 0xffffffffffffffff
-    br v18, bb7, bb8
+    v18 = add v15, 32
+    v19 = add v18, 0
+    mstore8 v19, 238
+    v20 = mload v15
+    v21 = lt 0, v20
+    br v21, bb8, bb7
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    set_fmp v16
-    v19 = add v9, 32
-    v20 = calldatasize
-    calldatacopy v19, v20, v13
-    v21 = mload v9
-    v22 = lt 0, v21
-    br v22, bb10, bb9
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    v23 = add v9, 32
-    v24 = add v23, 0
-    mstore8 v24, 238
-    v25 = mload v9
-    v26 = lt 0, v25
-    br v26, bb12, bb11
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    v27 = add v9, 32
-    v28 = add v27, 0
-    v29 = mload v28
-    v30 = and v29, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v31 = shr 248, v30
-    v32 = and v31, 255
-    mstore 160, v32
-    v33 = mload 128
-    v34 = mload 160
-    v35 = mload v33
-    mstore 128, v35
-    v36 = add 128, 32
-    v37 = add v33, 32
-    v38 = mload v37
-    mstore v36, v38
-    v39 = add v36, 32
-    v40 = add v33, 64
-    v41 = mload v40
-    mstore v39, v41
-    v42 = add v39, 32
-    v43 = add 128, 96
-    mstore v43, v34
+    v22 = add v15, 32
+    v23 = add v22, 0
+    v24 = mload v23
+    v25 = and v24, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v26 = shr 248, v25
+    v27 = and v26, 255
+    mstore 160, v27
+    v28 = mload 128
+    v29 = mload 160
+    v30 = mload v28
+    mstore 128, v30
+    v31 = add 128, 32
+    v32 = add v28, 32
+    v33 = mload v32
+    mstore v31, v33
+    v34 = add v31, 32
+    v35 = add v28, 64
+    v36 = mload v35
+    mstore v34, v36
+    v37 = add v34, 32
+    v38 = add 128, 96
+    mstore v38, v29
     returndata 128, 128
 }
 
@@ -329,7 +291,7 @@ fn @deleteInPlace() {
   bb0 (entry):
     mstore 128, 0
     mstore 160, 0
-    v0 = alloc 96
+    v0 = alloc memoryfixedarray, exact, uninitialized, infallible, 96
     mstore v0, 0
     v1 = add v0, 32
     mstore v1, 0

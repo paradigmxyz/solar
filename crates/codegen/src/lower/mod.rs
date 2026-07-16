@@ -14,10 +14,10 @@ mod storage;
 mod type_query;
 
 use crate::{
-    IMMUTABLE_SCRATCH_BASE,
+    memory::EvmMemoryLayout,
     mir::{
         BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, IMMUTABLE_WORD_SIZE,
-        MirType, Module, SliceLocation, StorageLayoutRef, ValueId,
+        MemoryObjectKind, MirType, Module, SliceLocation, StorageLayoutRef, ValueId,
     },
 };
 use alloy_primitives::U256;
@@ -170,7 +170,7 @@ impl<'gcx> Lowerer<'gcx> {
             next_immutable_offset: 0,
             locals: FxHashMap::default(),
             local_memory_slots: FxHashMap::default(),
-            next_local_memory_offset: 0x80, // Start after Solidity's scratch space
+            next_local_memory_offset: EvmMemoryLayout::HEAP_START,
             contract_bytecodes: FxHashMap::default(),
             loop_stack: Vec::new(),
             assigned_vars: GrowableBitSet::new_empty(),
@@ -214,7 +214,6 @@ impl<'gcx> Lowerer<'gcx> {
     /// Maximum inline depth to prevent excessive recursion.
     const MAX_INLINE_DEPTH: usize = 32;
     /// Historical base used by local memory slots in external function bodies.
-    const LOCAL_MEMORY_BASE: u64 = 0x80;
     /// Attempts to enter inlining for a function. Returns false if a cycle is detected
     /// or the max inline depth is exceeded.
     fn try_enter_inline(&mut self, func_id: HirFunctionId) -> bool {
@@ -259,7 +258,7 @@ impl<'gcx> Lowerer<'gcx> {
             let header_size = 64;
             let arg_size = (builder.func().params.len() as u64) * 32;
             let return_size = (builder.func().returns.len() as u64) * 32;
-            let local_offset = offset.saturating_sub(Self::LOCAL_MEMORY_BASE);
+            let local_offset = offset.saturating_sub(EvmMemoryLayout::HEAP_START);
             builder.internal_frame_addr(header_size + arg_size + return_size + local_offset)
         } else {
             builder.imm_u64(offset)
@@ -268,7 +267,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Returns the constructor scratch address for an immutable word.
     pub(crate) fn immutable_scratch_addr(offset: u32) -> u64 {
-        IMMUTABLE_SCRATCH_BASE + u64::from(offset)
+        EvmMemoryLayout::IMMUTABLE_SCRATCH_BASE + u64::from(offset)
     }
 
     /// Stages an immutable word in constructor memory.
@@ -637,7 +636,7 @@ impl<'gcx> Lowerer<'gcx> {
         func.attributes.no_inline = true;
         {
             let mut builder = FunctionBuilder::new(&mut func);
-            let ptr = builder.add_param(MirType::MemPtr);
+            let ptr = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
 
             // This helper terminates externally, so its return buffer need not
             // advance the free-memory pointer. Encode `(offset, length, data)`
@@ -690,7 +689,7 @@ impl<'gcx> Lowerer<'gcx> {
         {
             let mut builder = FunctionBuilder::new(&mut func);
             let slot = builder.add_param(MirType::uint256());
-            builder.add_return(MirType::MemPtr);
+            builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
             self.synthesizing_helper = true;
             let ptr = self.materialize_storage_bytes_inline(&mut builder, slot);
             self.synthesizing_helper = false;
@@ -783,7 +782,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.locals.clear();
         self.local_memory_slots.clear();
         self.memory_backed_calldata_bytes.clear();
-        self.next_local_memory_offset = 0x80;
+        self.next_local_memory_offset = EvmMemoryLayout::HEAP_START;
         self.assigned_vars.clear();
         self.lowering_constructor = hir_func.kind == hir::FunctionKind::Constructor;
         self.lowering_internal_function = uses_internal_frame;
@@ -852,7 +851,11 @@ impl<'gcx> Lowerer<'gcx> {
 
                     // Allocate memory for the struct
                     let struct_size = (num_fields as u64) * 32;
-                    let struct_ptr = self.allocate_memory(&mut builder, struct_size);
+                    let struct_ptr = self.allocate_memory_object(
+                        &mut builder,
+                        struct_size,
+                        MemoryObjectKind::Struct,
+                    );
 
                     // Add MIR params for each struct field (they come from calldata)
                     for (field_idx, &field_id) in field_ids.iter().enumerate() {
@@ -892,7 +895,16 @@ impl<'gcx> Lowerer<'gcx> {
                                         builder.mul(len, word)
                                     };
                                     let alloc = builder.add(word, byte_len);
-                                    let ptr = builder.alloc(alloc);
+                                    let object_kind = if kind == call::LinkedFieldKind::DynBytes {
+                                        MemoryObjectKind::Bytes
+                                    } else {
+                                        MemoryObjectKind::DynamicArray
+                                    };
+                                    let ptr = builder.alloc_object(
+                                        alloc,
+                                        object_kind,
+                                        crate::mir::AllocationSemantics::INTERNAL,
+                                    );
                                     builder.mstore(ptr, len);
                                     let dst = builder.add(ptr, word);
                                     let src = builder.add(pos, word);
@@ -922,7 +934,11 @@ impl<'gcx> Lowerer<'gcx> {
                     // Fixed-size array of word elements (memory or calldata):
                     // the ABI head is `len` inline words. Add one MIR param per
                     // element and copy them to memory, like struct params.
-                    let array_ptr = self.allocate_memory(&mut builder, len * 32);
+                    let array_ptr = self.allocate_memory_object(
+                        &mut builder,
+                        len * 32,
+                        MemoryObjectKind::FixedArray,
+                    );
                     let elem_hir_ty = match &param.ty.kind {
                         hir::TypeKind::Array(array) => &array.element,
                         _ => &param.ty,
@@ -952,8 +968,11 @@ impl<'gcx> Lowerer<'gcx> {
                     // selector; constructors read it from the copied argument
                     // blob at memory 0x80.
                     let head = builder.add_param(ty);
-                    let abi_base =
-                        builder.imm_u64(if self.lowering_constructor { 0x80 } else { 4 });
+                    let abi_base = builder.imm_u64(if self.lowering_constructor {
+                        EvmMemoryLayout::HEAP_START
+                    } else {
+                        4
+                    });
                     let len_pos = builder.add(abi_base, head);
                     let len = if self.lowering_constructor {
                         builder.mload(len_pos)
@@ -963,7 +982,11 @@ impl<'gcx> Lowerer<'gcx> {
                     let word = builder.imm_u64(32);
                     let data_bytes = builder.mul(len, word);
                     let total_bytes = builder.add(data_bytes, word);
-                    let array_ptr = builder.alloc(total_bytes);
+                    let array_ptr = builder.alloc_object(
+                        total_bytes,
+                        MemoryObjectKind::DynamicArray,
+                        crate::mir::AllocationSemantics::INTERNAL,
+                    );
                     builder.mstore(array_ptr, len);
                     let dst = builder.add(array_ptr, word);
                     let src = builder.add(len_pos, word);
@@ -986,8 +1009,11 @@ impl<'gcx> Lowerer<'gcx> {
                     // selector; constructors read it from the copied argument
                     // blob at memory 0x80.
                     let head = builder.add_param(ty);
-                    let abi_base =
-                        builder.imm_u64(if self.lowering_constructor { 0x80 } else { 4 });
+                    let abi_base = builder.imm_u64(if self.lowering_constructor {
+                        EvmMemoryLayout::HEAP_START
+                    } else {
+                        4
+                    });
                     let len_pos = builder.add(abi_base, head);
                     let len = if self.lowering_constructor {
                         builder.mload(len_pos)
@@ -1000,7 +1026,11 @@ impl<'gcx> Lowerer<'gcx> {
                     let padded = builder.and(rounded, mask);
                     let word = builder.imm_u64(32);
                     let total = builder.add(padded, word);
-                    let ptr = self.allocate_memory_dynamic(&mut builder, total);
+                    let ptr = self.allocate_memory_object_dynamic(
+                        &mut builder,
+                        total,
+                        MemoryObjectKind::Bytes,
+                    );
                     builder.mstore(ptr, len);
                     let data_ptr = builder.add(ptr, word);
                     let src = builder.add(len_pos, word);
@@ -1062,7 +1092,11 @@ impl<'gcx> Lowerer<'gcx> {
                 let offset_val = self.local_memory_addr(&mut builder, offset);
                 if matches!(ret_ty.peel_refs().kind, TyKind::Struct(_)) {
                     let struct_size = self.calculate_memory_words_for_ty(ret_ty) * 32;
-                    let struct_ptr = self.allocate_memory(&mut builder, struct_size);
+                    let struct_ptr = self.allocate_memory_object(
+                        &mut builder,
+                        struct_size,
+                        MemoryObjectKind::Struct,
+                    );
                     builder.mstore(offset_val, struct_ptr);
                 } else if self.is_fixed_memory_array_type(&ret_var.ty, ret_var.data_location)
                     && let Some(array_ptr) =
@@ -1113,7 +1147,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.lowering_constructor = false;
         self.lowering_internal_function = false;
         mir_func.internal_frame_size =
-            self.next_local_memory_offset.saturating_sub(Self::LOCAL_MEMORY_BASE);
+            self.next_local_memory_offset.saturating_sub(EvmMemoryLayout::HEAP_START);
         if uses_external_abi && !self.current_return_tys.iter().any(|&ty| self.abi_is_dynamic(ty)) {
             mir_func.external_static_return_size =
                 self.current_return_tys.iter().map(|&ty| self.abi_head_size(ty)).sum();
@@ -1224,7 +1258,8 @@ impl<'gcx> Lowerer<'gcx> {
             }
             AbiParamSource::ConstructorMemory => {
                 // Constructor ABI arguments are copied to memory at 0x80 by the backend.
-                let offset = builder.imm_u64(0x80 + arg_index * 32);
+                let offset = builder
+                    .imm_u64(EvmMemoryLayout::HEAP_START + arg_index * EvmMemoryLayout::WORD_SIZE);
                 builder.mload(offset)
             }
         };
@@ -1365,12 +1400,17 @@ impl<'gcx> Lowerer<'gcx> {
                 ElementaryType::Fixed(_, _) => MirType::Int(256),
                 ElementaryType::UFixed(_, _) => MirType::UInt(256),
                 ElementaryType::FixedBytes(n) => MirType::FixedBytes(n.bytes()),
-                ElementaryType::String | ElementaryType::Bytes => MirType::MemPtr,
+                ElementaryType::String | ElementaryType::Bytes => {
+                    MirType::MemoryObject(MemoryObjectKind::Bytes)
+                }
             },
             TyKind::Mapping(_, _) => MirType::StoragePtr,
-            TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Slice(_) => MirType::MemPtr,
+            TyKind::DynArray(_) | TyKind::Slice(_) => {
+                MirType::MemoryObject(MemoryObjectKind::DynamicArray)
+            }
+            TyKind::Array(_, _) => MirType::MemoryObject(MemoryObjectKind::FixedArray),
             TyKind::Fn(_) => MirType::Function,
-            TyKind::Struct(_) => MirType::MemPtr,
+            TyKind::Struct(_) => MirType::MemoryObject(MemoryObjectKind::Struct),
             TyKind::Enum(_) => MirType::UInt(8),
             TyKind::Contract(_) | TyKind::Super(_) => MirType::Address,
             TyKind::StringLiteral(_, _)

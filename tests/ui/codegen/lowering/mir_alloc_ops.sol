@@ -29,9 +29,9 @@ contract MirAllocOps {
 }
 
 // ALLOC-LABEL: fn @fixedArray
-// ALLOC: = alloc 64
+// ALLOC: = alloc memoryfixedarray, exact, uninitialized, infallible, 64
 // ALLOC-LABEL: fn @dynamic
-// ALLOC: = alloc
+// ALLOC: = alloc memorybytes, exact, uninitialized, infallible,
 // ALLOC-LABEL: fn @rawAssembly
 // ALLOC: = mload 64
 // ALLOC: mstore 64,

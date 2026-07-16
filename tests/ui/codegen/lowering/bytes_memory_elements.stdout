@@ -3,78 +3,59 @@
 fn @alloc() {
   bb0 (entry):
     mstore 128, 0
-    v0 = fmp
-    mstore v0, 96
-    v1 = add 96, 31
-    v2 = lt v1, 96
-    br v2, bb1, bb2
+    v0 = add 96, 31
+    v1 = lt v0, 96
+    br v1, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = not 31
-    v4 = and v1, v3
-    v5 = add v4, 32
-    v6 = lt v5, v4
-    br v6, bb3, bb4
+    v2 = not 31
+    v3 = and v0, v2
+    v4 = add v3, 32
+    v5 = lt v4, v3
+    br v5, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v7 = add v0, v5
-    v8 = lt v7, v0
-    br v8, bb5, bb6
+    v6 = alloc memorybytes, exact, zeroed, panic, v4
+    mstore v6, 96
+    v7 = mload v6
+    v8 = lt 5, v7
+    br v8, bb6, bb5
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v9 = gt v7, 0xffffffffffffffff
-    br v9, bb7, bb8
+    v9 = add v6, 32
+    v10 = add v9, 5
+    mstore8 v10, 170
+    v11 = mload v6
+    v12 = lt 95, v11
+    br v12, bb8, bb7
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    set_fmp v7
-    v10 = add v0, 32
-    v11 = calldatasize
-    calldatacopy v10, v11, v4
-    v12 = mload v0
-    v13 = lt 5, v12
-    br v13, bb10, bb9
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    v14 = add v0, 32
-    v15 = add v14, 5
-    mstore8 v15, 170
-    v16 = mload v0
-    v17 = lt 95, v16
-    br v17, bb12, bb11
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    v18 = add v0, 32
-    v19 = add v18, 95
-    mstore8 v19, 255
-    v20 = mload v0
-    v21 = add v0, 32
-    v22 = keccak256 v21, v20
-    mstore 128, v22
+    v13 = add v6, 32
+    v14 = add v13, 95
+    mstore8 v14, 255
+    v15 = mload v6
+    v16 = add v6, 32
+    v17 = keccak256 v16, v15
+    mstore 128, v17
     returndata 128, 32
 }
 
 fn @literal() {
   bb0 (entry):
     mstore 128, 0
-    v0 = alloc 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     mstore v0, 10
     v1 = add v0, 32
     v2 = add v1, 0
@@ -107,51 +88,32 @@ fn @allocDynamic(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v3 = fmp
-    mstore v3, arg0
-    v4 = add arg0, 31
-    v5 = lt v4, arg0
-    br v5, bb3, bb4
+    v3 = add arg0, 31
+    v4 = lt v3, arg0
+    br v4, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v6 = not 31
-    v7 = and v4, v6
-    v8 = add v7, 32
-    v9 = lt v8, v7
-    br v9, bb5, bb6
+    v5 = not 31
+    v6 = and v3, v5
+    v7 = add v6, 32
+    v8 = lt v7, v6
+    br v8, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v10 = add v3, v8
-    v11 = lt v10, v3
-    br v11, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v12 = gt v10, 0xffffffffffffffff
-    br v12, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    set_fmp v10
-    v13 = add v3, 32
-    v14 = calldatasize
-    calldatacopy v13, v14, v7
-    v15 = mload v3
-    mstore 128, v15
+    v9 = alloc memorybytes, exact, zeroed, panic, v7
+    mstore v9, arg0
+    v10 = mload v9
+    mstore 128, v10
     returndata 128, 32
 }
 
-fn @readWrite(arg0: memptr, arg1: u256, arg2: bytes1) {
+fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4
@@ -166,7 +128,7 @@ fn @readWrite(arg0: memptr, arg1: u256, arg2: bytes1) {
     v6 = not 31
     v7 = and v5, v6
     v8 = add v7, 32
-    v9 = alloc v8
+    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
     mstore v9, v4
     v10 = add v9, 32
     v11 = add v3, 32

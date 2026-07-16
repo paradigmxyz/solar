@@ -46,7 +46,7 @@ fn @encode3(arg0: u256, arg1: u256, arg2: u256) {
     invalid
 }
 
-fn @__ret_bytes(arg0: memptr) {
+fn @__ret_bytes(arg0: memorybytes) {
   bb0 (entry):
     v0 = fmp
     mstore v0, 32
@@ -66,7 +66,7 @@ fn @__ret_bytes(arg0: memptr) {
     returndata v0, v10
 }
 
-fn @encodeDynamic(arg0: u256, arg1: memptr) {
+fn @encodeDynamic(arg0: u256, arg1: memorybytes) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4
@@ -81,7 +81,7 @@ fn @encodeDynamic(arg0: u256, arg1: memptr) {
     v6 = not 31
     v7 = and v5, v6
     v8 = add v7, 32
-    v9 = alloc v8
+    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
     mstore v9, v4
     v10 = add v9, 32
     v11 = add v3, 32
@@ -120,7 +120,7 @@ fn @encodeDynamic(arg0: u256, arg1: memptr) {
     invalid
 }
 
-fn @hashDynamic(arg0: u256, arg1: memptr) {
+fn @hashDynamic(arg0: u256, arg1: memorybytes) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4
@@ -135,7 +135,7 @@ fn @hashDynamic(arg0: u256, arg1: memptr) {
     v6 = not 31
     v7 = and v5, v6
     v8 = add v7, 32
-    v9 = alloc v8
+    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
     mstore v9, v4
     v10 = add v9, 32
     v11 = add v3, 32

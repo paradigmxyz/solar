@@ -311,6 +311,34 @@ fn display_inst_kind<'a>(
 
     fmt::from_fn(move |f| match kind {
         InstKind::LoadImmutable(offset) => write!(f, "loadimmutable {offset}"),
+        InstKind::Alloc { size, kind, semantics } => {
+            let kind = match kind {
+                crate::mir::AllocationKind::Raw => "raw",
+                crate::mir::AllocationKind::Object(kind) => match kind {
+                    crate::mir::MemoryObjectKind::Bytes => "memorybytes",
+                    crate::mir::MemoryObjectKind::DynamicArray => "memoryarray",
+                    crate::mir::MemoryObjectKind::FixedArray => "memoryfixedarray",
+                    crate::mir::MemoryObjectKind::Struct => "memorystruct",
+                },
+            };
+            let alignment = match semantics.alignment {
+                crate::mir::AllocationAlignment::Exact => "exact",
+                crate::mir::AllocationAlignment::Word => "word",
+            };
+            let initialization = match semantics.initialization {
+                crate::mir::AllocationInitialization::Uninitialized => "uninitialized",
+                crate::mir::AllocationInitialization::Zeroed => "zeroed",
+            };
+            let failure = match semantics.failure {
+                crate::mir::AllocationFailure::Infallible => "infallible",
+                crate::mir::AllocationFailure::Panic => "panic",
+            };
+            write!(
+                f,
+                "alloc {kind}, {alignment}, {initialization}, {failure}, {}",
+                display_val(*size, func)
+            )
+        }
         InstKind::AbiEncode { selector, args, layout } => {
             write!(f, "abi_encode {layout}")?;
             if let Some(selector) = selector {

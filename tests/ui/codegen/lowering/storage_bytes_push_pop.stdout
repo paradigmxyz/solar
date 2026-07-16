@@ -18,7 +18,7 @@ fn @_anonymous() {
     v7 = iszero v6
     v8 = select v7, 32, v6
     v9 = add 32, v8
-    v10 = alloc v9
+    v10 = alloc memorybytes, exact, uninitialized, infallible, v9
     mstore v10, v2
     v11 = add v10, 32
     v12 = sub v8, 32
@@ -48,7 +48,7 @@ fn @_anonymous() {
     v33 = div v32, 32
     v34 = gt v17, 31
     v35 = select v34, v33, 0
-    v36 = alloc 32
+    v36 = alloc raw, exact, uninitialized, infallible, 32
     mstore v36, 0
     v37 = keccak256 v36, 32
     br v34, bb4, bb3
@@ -113,7 +113,7 @@ fn @_anonymous() {
     v67 = iszero v66
     v68 = select v67, 32, v66
     v69 = add 32, v68
-    v70 = alloc v69
+    v70 = alloc memorybytes, exact, uninitialized, infallible, v69
     mstore v70, v62
     v71 = add v70, 32
     v72 = sub v68, 32
@@ -143,7 +143,7 @@ fn @_anonymous() {
     v93 = div v92, 32
     v94 = gt v77, 31
     v95 = select v94, v93, 0
-    v96 = alloc 32
+    v96 = alloc raw, exact, uninitialized, infallible, 32
     mstore v96, 0
     v97 = keccak256 v96, 32
     br v94, bb14, bb13
@@ -195,7 +195,7 @@ fn @_anonymous() {
     stop
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memptr {
+fn @__load_storage_bytes(arg0: u256) -> memorybytes {
   bb0 (entry):
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
@@ -210,8 +210,8 @@ fn @__load_storage_bytes(arg0: u256) -> memptr {
     v10 = iszero v9
     v11 = select v10, 32, v9
     v12 = add 32, v11
-    v13 = alloc 32
-    v14 = alloc v12
+    v13 = alloc raw, exact, uninitialized, infallible, 32
+    v14 = alloc raw, exact, uninitialized, infallible, v12
     mstore v14, v6
     v15 = add v14, 32
     br v2, bb2, bb1
@@ -273,7 +273,7 @@ fn @pushValue(arg0: bytes1) {
     v13 = iszero v12
     v14 = select v13, 32, v12
     v15 = add 32, v14
-    v16 = alloc v15
+    v16 = alloc memorybytes, exact, uninitialized, infallible, v15
     mstore v16, v8
     v17 = add v16, 32
     v18 = sub v14, 32
@@ -304,7 +304,7 @@ fn @pushValue(arg0: bytes1) {
     v40 = div v39, 32
     v41 = gt v24, 31
     v42 = select v41, v40, 0
-    v43 = alloc 32
+    v43 = alloc raw, exact, uninitialized, infallible, 32
     mstore v43, 0
     v44 = keccak256 v43, 32
     br v41, bb8, bb7
@@ -374,7 +374,7 @@ fn @pushZero() {
     v7 = iszero v6
     v8 = select v7, 32, v6
     v9 = add 32, v8
-    v10 = alloc v9
+    v10 = alloc memorybytes, exact, uninitialized, infallible, v9
     mstore v10, v2
     v11 = add v10, 32
     v12 = sub v8, 32
@@ -404,7 +404,7 @@ fn @pushZero() {
     v33 = div v32, 32
     v34 = gt v17, 31
     v35 = select v34, v33, 0
-    v36 = alloc 32
+    v36 = alloc raw, exact, uninitialized, infallible, 32
     mstore v36, 0
     v37 = keccak256 v36, 32
     br v34, bb4, bb3
@@ -473,7 +473,7 @@ fn @popValue() {
     v6 = iszero v5
     v7 = select v6, 32, v5
     v8 = add 32, v7
-    v9 = alloc v8
+    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
     mstore v9, v2
     v10 = add v9, 32
     v11 = sub v7, 32
@@ -500,7 +500,7 @@ fn @popValue() {
     v30 = div v29, 32
     v31 = gt v14, 31
     v32 = select v31, v30, 0
-    v33 = alloc 32
+    v33 = alloc raw, exact, uninitialized, infallible, 32
     mstore v33, 0
     v34 = keccak256 v33, 32
     br v31, bb4, bb3
@@ -560,7 +560,7 @@ fn @get() {
     invalid
 }
 
-fn @__ret_bytes(arg0: memptr) {
+fn @__ret_bytes(arg0: memorybytes) {
   bb0 (entry):
     v0 = fmp
     mstore v0, 32

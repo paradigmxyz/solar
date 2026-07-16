@@ -4,6 +4,7 @@ use super::{
     BasicBlock, BlockId, InstId, InstKind, Instruction, MemoryRegion, MirType, StorageAlias, Value,
     ValueId,
 };
+use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -99,7 +100,9 @@ impl Function {
     pub(crate) fn memory_region_for_addr(&self, addr: ValueId) -> MemoryRegion {
         match self.value(addr) {
             Value::Immediate(imm)
-                if imm.as_u256().is_some_and(|value| value < U256::from(0x80)) =>
+                if imm
+                    .as_u256()
+                    .is_some_and(|value| value < U256::from(EvmMemoryLayout::HEAP_START)) =>
             {
                 MemoryRegion::Scratch
             }

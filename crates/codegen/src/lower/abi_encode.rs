@@ -8,6 +8,7 @@
 
 use super::Lowerer;
 use crate::{
+    memory::EvmMemoryLayout,
     mir::{AbiLayout, AbiType, FunctionBuilder, MirType, SliceLocation, Value, ValueId},
     transform::lower_abi_encode::{AbiScratch, encode_tuple},
 };
@@ -15,8 +16,6 @@ use alloy_primitives::U256;
 use solar_ast::ElementaryType;
 use solar_data_structures::map::FxHashSet;
 use solar_sema::ty::{Ty, TyKind};
-
-const STATIC_RETURN_BUFFER: u64 = 0x80;
 
 struct LoweredAbiItems<'gcx> {
     items: Vec<(ValueId, Ty<'gcx>)>,
@@ -230,7 +229,7 @@ impl<'gcx> Lowerer<'gcx> {
         let has_dynamic = items.iter().any(|&(_, ty)| self.abi_is_dynamic(ty));
         let calldata_slices = FxHashSet::default();
         if !has_dynamic {
-            let buf = builder.imm_u64(STATIC_RETURN_BUFFER);
+            let buf = builder.imm_u64(EvmMemoryLayout::HEAP_START);
             let size = self.abi_encode_tuple(
                 builder,
                 items,
@@ -279,7 +278,17 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         size: ValueId,
     ) -> ValueId {
-        builder.alloc(size)
+        builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL)
+    }
+
+    /// Allocates a shaped Solidity memory object with a dynamic byte size.
+    pub(super) fn allocate_memory_object_dynamic(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        size: ValueId,
+        kind: crate::mir::MemoryObjectKind,
+    ) -> ValueId {
+        builder.alloc_object(size, kind, crate::mir::AllocationSemantics::INTERNAL)
     }
 
     /// Resolves each argument's ABI type and lowers it to a `(value, type)`
@@ -512,7 +521,12 @@ impl<'gcx> Lowerer<'gcx> {
             return self.materialize_storage_bytes_inline(builder, slot);
         }
         let helper = self.ensure_load_storage_bytes_helper();
-        builder.internal_call(helper, vec![slot], MirType::MemPtr, 1)
+        builder.internal_call(
+            helper,
+            vec![slot],
+            MirType::MemoryObject(crate::mir::MemoryObjectKind::Bytes),
+            1,
+        )
     }
 
     /// The out-of-line body of [`Self::materialize_storage_bytes`].

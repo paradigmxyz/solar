@@ -1,0 +1,5 @@
+error: invalid MIR input:
+  [bb0, inst0] [fn0] slice instruction `make_memory_slice` survives the `evm-shaped` phase boundary
+  [bb0, inst1] [fn0] slice instruction `slice_len` survives the `evm-shaped` phase boundary
+  [bb0, inst0] [fn1] ABI encoding instruction `abi_encode` survives the `evm-shaped` phase boundary
+  [bb0, inst0] [fn2] aggregate instruction `storage_to_memory` survives the `evm-shaped` phase boundary

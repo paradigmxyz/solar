@@ -24,7 +24,11 @@ impl<'gcx> Lowerer<'gcx> {
                 && let TyKind::Struct(struct_id) = ty.peel_refs().kind
             {
                 let struct_size = self.calculate_memory_words_for_ty(ty) * 32;
-                let struct_ptr = self.allocate_memory(builder, struct_size);
+                let struct_ptr = self.allocate_memory_object(
+                    builder,
+                    struct_size,
+                    crate::mir::MemoryObjectKind::Struct,
+                );
                 self.copy_storage_to_memory_at(builder, struct_id, mapping.slot, struct_ptr, 0);
                 return struct_ptr;
             }

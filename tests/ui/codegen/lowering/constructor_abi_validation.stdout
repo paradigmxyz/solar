@@ -29,7 +29,7 @@ fn @_anonymous(arg0: bool, arg1: u256, arg2: u256) {
   bb1:
     revert 0, 0
   bb2:
-    v4 = alloc 64
+    v4 = alloc memoryfixedarray, exact, uninitialized, infallible, 64
     v5 = mload 160
     v6 = iszero v5
     v7 = iszero v6

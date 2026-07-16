@@ -53,7 +53,7 @@ fn @encode(arg0: calldataslice, arg1: u256) {
     invalid
 }
 
-fn @__ret_bytes(arg0: memptr) {
+fn @__ret_bytes(arg0: memorybytes) {
   bb0 (entry):
     v0 = fmp
     mstore v0, 32

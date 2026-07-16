@@ -11,6 +11,7 @@ use crate::{
         ir::{self, assembly},
         op,
     },
+    memory::EvmMemoryLayout,
     mir::IMMUTABLE_WORD_SIZE,
 };
 use alloy_primitives::U256;
@@ -308,12 +309,12 @@ impl<'gcx> Assembler<'gcx> {
             let replacement = match resolution {
                 DeferredAllocResolution::Static(address) => vec![push(address)],
                 DeferredAllocResolution::Dynamic(size) => vec![
-                    push(U256::from(0x40)),
+                    push(U256::from(EvmMemoryLayout::FMP_SLOT)),
                     ir::Instruction::opcode(op::MLOAD),
                     ir::Instruction::opcode(op::DUP1),
                     push(size),
                     ir::Instruction::opcode(op::ADD),
-                    push(U256::from(0x40)),
+                    push(U256::from(EvmMemoryLayout::FMP_SLOT)),
                     ir::Instruction::opcode(op::MSTORE),
                 ],
             };

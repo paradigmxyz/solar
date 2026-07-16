@@ -9,9 +9,9 @@ fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = alloc 96
+    v3 = alloc memorystruct, exact, uninitialized, infallible, 96
     mstore v3, arg1
-    v4 = alloc 64
+    v4 = alloc memorystruct, exact, uninitialized, infallible, 64
     mstore v4, arg2
     v5 = add v4, 32
     mstore v5, arg3
@@ -38,7 +38,7 @@ fn @get(arg0: u256) {
     mstore 192, 0
     mstore 224, 0
     v3 = mapping_slot arg0, 0
-    v4 = alloc 96
+    v4 = alloc memorystruct, exact, uninitialized, infallible, 96
     storage_to_memory struct<word, struct<word, word>, word>, v3, v4
     v5 = mload v4
     v6 = add v4, 32

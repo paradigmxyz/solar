@@ -519,6 +519,37 @@ impl<'a> Validator<'a> {
                 module.phase.name()
             ));
         }
+        // EVM-shaped MIR is the semantic boundary consumed by the word-based
+        // backend. High-level memory operations must have been expanded by
+        // their named lowering passes before the module enters this phase.
+        if module.phase >= crate::mir::MirPhase::EvmShaped {
+            for (block_id, block) in func.blocks.iter_enumerated() {
+                for &inst_id in &block.instructions {
+                    let kind = &func.instructions[inst_id].kind;
+                    let semantic_op = match kind {
+                        InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => {
+                            Some("slice")
+                        }
+                        InstKind::AbiEncode { .. } => Some("ABI encoding"),
+                        InstKind::StorageToMemory { .. }
+                        | InstKind::MemoryToStorage { .. }
+                        | InstKind::ClearStorage { .. } => Some("aggregate"),
+                        _ => None,
+                    };
+                    if let Some(semantic_op) = semantic_op {
+                        self.emit_at_inst(
+                            format_args!(
+                                "{semantic_op} instruction `{}` survives the `{}` phase boundary",
+                                kind.mnemonic(),
+                                module.phase.name()
+                            ),
+                            block_id,
+                            inst_id,
+                        );
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -534,10 +565,12 @@ pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
 mod tests {
     use super::*;
     use crate::mir::{
-        BasicBlock, Function, FunctionBuilder, FunctionId, MirType, Module, Terminator,
+        AbiLayout, AbiType, BasicBlock, Function, FunctionBuilder, FunctionId, MirPhase, MirType,
+        Module, SliceLocation, StorageField, StorageLayout, Terminator,
     };
     use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, Ident, Session};
+    use std::sync::Arc;
 
     fn with_session<F: FnOnce(&Session) + Send>(f: F) {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
@@ -666,6 +699,47 @@ error: [bb0] entry block must have no predecessors
 
 "#]]
             );
+        });
+    }
+
+    #[test]
+    fn validator_as_analysis_pass() {
+        use crate::pass::AnalysisManager;
+        with_session(|| {
+            let mut func = make_func();
+            {
+                let mut b = FunctionBuilder::new(&mut func);
+                let x = b.add_param(MirType::uint256());
+                b.ret([x]);
+            }
+            let mut am = AnalysisManager::new();
+            let errors = am.get_or_compute(&ValidatorAnalysis, &func);
+            assert!(errors.is_empty());
+        });
+    }
+
+    #[test]
+    fn evm_shaped_rejects_semantic_memory_operations() {
+        with_session(|| {
+            let mut module = Module::new(Ident::DUMMY);
+            module.phase = MirPhase::EvmShaped;
+            let mut func = make_func();
+            {
+                let mut builder = FunctionBuilder::new(&mut func);
+                let zero = builder.imm_u64(0);
+                let slice = builder.make_slice(zero, zero, SliceLocation::Memory);
+                let layout = Arc::new(AbiLayout::new([AbiType::Bytes(SliceLocation::Memory)]));
+                builder.abi_encode(layout, None, [slice]);
+                let aggregate = Arc::new(StorageLayout::Struct([StorageField::Word].into()));
+                builder.storage_to_memory(aggregate, zero, zero);
+                builder.stop();
+            }
+            module.add_function(func);
+
+            let errors = Validator::validate_module(&module);
+            assert!(errors.iter().any(|error| error.message.contains("slice instruction")));
+            assert!(errors.iter().any(|error| error.message.contains("ABI encoding instruction")));
+            assert!(errors.iter().any(|error| error.message.contains("aggregate instruction")));
         });
     }
 

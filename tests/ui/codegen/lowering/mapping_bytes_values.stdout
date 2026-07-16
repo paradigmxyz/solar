@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/mapping_bytes_values.sol:MappingBytesValues ===
-@module MappingBytesValues
-fn @set(arg0: u256, arg1: memptr) {
+// === ROOT/tests/ui/codegen/mapping_bytes_values.sol:MappingBytesValues ===
+; module @MappingBytesValues
+fn @set(arg0: u256, arg1: memorybytes) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4
@@ -15,7 +15,7 @@ fn @set(arg0: u256, arg1: memptr) {
     v6 = not 31
     v7 = and v5, v6
     v8 = add v7, 32
-    v9 = alloc v8
+    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
     mstore v9, v4
     v10 = add v9, 32
     v11 = add v3, 32
@@ -40,7 +40,7 @@ fn @set(arg0: u256, arg1: memptr) {
     v29 = div v28, 32
     v30 = gt v13, 31
     v31 = select v30, v29, 0
-    v32 = alloc 32
+    v32 = alloc raw, exact, uninitialized, infallible, 32
     mstore v32, v12
     v33 = keccak256 v32, 32
     br v30, bb4, bb3
@@ -92,7 +92,7 @@ fn @set(arg0: u256, arg1: memptr) {
     stop
 }
 
-fn @setNested(arg0: u256, arg1: u256, arg2: memptr) {
+fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4
@@ -107,7 +107,7 @@ fn @setNested(arg0: u256, arg1: u256, arg2: memptr) {
     v6 = not 31
     v7 = and v5, v6
     v8 = add v7, 32
-    v9 = alloc v8
+    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
     mstore v9, v4
     v10 = add v9, 32
     v11 = add v3, 32
@@ -133,7 +133,7 @@ fn @setNested(arg0: u256, arg1: u256, arg2: memptr) {
     v30 = div v29, 32
     v31 = gt v14, 31
     v32 = select v31, v30, 0
-    v33 = alloc 32
+    v33 = alloc raw, exact, uninitialized, infallible, 32
     mstore v33, v13
     v34 = keccak256 v33, 32
     br v31, bb4, bb3
@@ -201,7 +201,7 @@ fn @get(arg0: u256) {
     invalid
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memptr {
+fn @__load_storage_bytes(arg0: u256) -> memorybytes {
   bb0 (entry):
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
@@ -216,8 +216,8 @@ fn @__load_storage_bytes(arg0: u256) -> memptr {
     v10 = iszero v9
     v11 = select v10, 32, v9
     v12 = add 32, v11
-    v13 = alloc 32
-    v14 = alloc v12
+    v13 = alloc raw, exact, uninitialized, infallible, 32
+    v14 = alloc raw, exact, uninitialized, infallible, v12
     mstore v14, v6
     v15 = add v14, 32
     br v2, bb2, bb1
@@ -247,7 +247,7 @@ fn @__load_storage_bytes(arg0: u256) -> memptr {
     jump bb4
 }
 
-fn @__ret_bytes(arg0: memptr) {
+fn @__ret_bytes(arg0: memorybytes) {
   bb0 (entry):
     v0 = fmp
     mstore v0, 32
