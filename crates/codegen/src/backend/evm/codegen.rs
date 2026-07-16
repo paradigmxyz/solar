@@ -1036,19 +1036,11 @@ impl EvmCodegen {
 
             let result = self.asm.assemble();
             let mut bytecode = result.bytecode;
-            let mut evm_ir = result.evm_ir;
+            let evm_ir = result.evm_ir;
 
             // Remove trailing STOP (0x00) if present - we want to fall through to CODECOPY/RETURN
             if bytecode.last() == Some(&op::STOP) {
                 bytecode.pop();
-                if let Some(terminator) = evm_ir
-                    .as_mut()
-                    .and_then(|ir| ir.blocks.last_mut())
-                    .and_then(|block| block.terminator.as_mut())
-                    && matches!(&terminator.kind, ir::TerminatorKind::RawOpcode(op::STOP))
-                {
-                    terminator.kind = ir::TerminatorKind::Continue;
-                }
             }
 
             GeneratedCode { bytecode, evm_ir }

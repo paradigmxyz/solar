@@ -311,8 +311,6 @@ impl Terminator {
 /// Control-flow terminators in EVM IR.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TerminatorKind {
-    /// Continue into the next separately captured program segment.
-    Continue,
     /// Unconditional jump.
     Jump(BlockId),
     /// Conditional branch.
@@ -450,10 +448,9 @@ fn default_terminator_stack_effect(kind: &TerminatorKind) -> StackEffect {
         TerminatorKind::Switch { .. } => StackEffect::new(1, 0),
         TerminatorKind::Return { .. } | TerminatorKind::Revert { .. } => StackEffect::new(2, 0),
         TerminatorKind::SelfDestruct { .. } => StackEffect::new(1, 0),
-        TerminatorKind::Continue
-        | TerminatorKind::Jump(_)
-        | TerminatorKind::Stop
-        | TerminatorKind::Invalid => StackEffect::new(0, 0),
+        TerminatorKind::Jump(_) | TerminatorKind::Stop | TerminatorKind::Invalid => {
+            StackEffect::new(0, 0)
+        }
         TerminatorKind::RawOpcode(opcode) => super::assembler::op::stack_io(*opcode)
             .map(|(inputs, outputs)| StackEffect::new(inputs, outputs))
             .unwrap_or_else(|| StackEffect::new(0, 0)),

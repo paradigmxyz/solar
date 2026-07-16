@@ -873,7 +873,6 @@ fn block_successors(block: &ir::Block) -> Vec<ir::BlockId> {
         }
         ir::TerminatorKind::Return { .. }
         | ir::TerminatorKind::Revert { .. }
-        | ir::TerminatorKind::Continue
         | ir::TerminatorKind::Stop
         | ir::TerminatorKind::Invalid
         | ir::TerminatorKind::SelfDestruct { .. }
@@ -922,7 +921,7 @@ fn instruction_keeps_encoded_operands(inst: &ir::Instruction) -> bool {
 ///
 /// Switch case immediates stay encoded and are not arranged, so only the
 /// discriminant is returned for a `switch`. Operand-less terminators (`jump`,
-/// `continue`, `stop`, `invalid`, raw opcodes) return an empty list.
+/// `stop`, `invalid`, raw opcodes) return an empty list.
 fn terminator_arrange_operands(kind: &ir::TerminatorKind) -> Vec<ir::ValueId> {
     let mut operands = Vec::new();
     let mut push = |operand: &ir::Operand| {
@@ -939,8 +938,7 @@ fn terminator_arrange_operands(kind: &ir::TerminatorKind) -> Vec<ir::ValueId> {
             push(size);
         }
         ir::TerminatorKind::SelfDestruct { recipient } => push(recipient),
-        ir::TerminatorKind::Continue
-        | ir::TerminatorKind::Jump(_)
+        ir::TerminatorKind::Jump(_)
         | ir::TerminatorKind::Stop
         | ir::TerminatorKind::Invalid
         | ir::TerminatorKind::RawOpcode(_) => {}
@@ -967,8 +965,7 @@ fn visit_terminator_value_operands(
             visit(size);
         }
         ir::TerminatorKind::SelfDestruct { recipient } => visit(recipient),
-        ir::TerminatorKind::Continue
-        | ir::TerminatorKind::Jump(_)
+        ir::TerminatorKind::Jump(_)
         | ir::TerminatorKind::Stop
         | ir::TerminatorKind::Invalid
         | ir::TerminatorKind::RawOpcode(_) => {}

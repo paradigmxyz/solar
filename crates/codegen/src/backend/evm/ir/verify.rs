@@ -521,7 +521,6 @@ impl Verifier<'_> {
 
     fn terminator_name(&self, kind: &TerminatorKind) -> &'static str {
         match kind {
-            TerminatorKind::Continue => "continue",
             TerminatorKind::Jump(_) => "jump",
             TerminatorKind::Branch { .. } => "br",
             TerminatorKind::Switch { .. } => "switch",
@@ -667,8 +666,7 @@ impl Verifier<'_> {
             TerminatorKind::SelfDestruct { recipient } => {
                 self.verify_stack_value_operand(block_id, recipient, "selfdestruct recipient")
             }
-            TerminatorKind::Continue
-            | TerminatorKind::Jump(_)
+            TerminatorKind::Jump(_)
             | TerminatorKind::Stop
             | TerminatorKind::Invalid
             | TerminatorKind::RawOpcode(_) => {}
@@ -742,8 +740,7 @@ fn visit_terminator_operands<E>(
     mut visit: impl FnMut(&Operand) -> Result<(), E>,
 ) -> Result<(), E> {
     match kind {
-        TerminatorKind::Continue
-        | TerminatorKind::Jump(_)
+        TerminatorKind::Jump(_)
         | TerminatorKind::Stop
         | TerminatorKind::Invalid
         | TerminatorKind::RawOpcode(_) => {}
@@ -781,7 +778,6 @@ fn visit_terminator_targets<E>(
         }
         TerminatorKind::Return { .. }
         | TerminatorKind::Revert { .. }
-        | TerminatorKind::Continue
         | TerminatorKind::Stop
         | TerminatorKind::Invalid
         | TerminatorKind::SelfDestruct { .. }

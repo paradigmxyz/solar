@@ -237,10 +237,9 @@ fn estimated_terminator_size(kind: &TerminatorKind) -> usize {
         }
         TerminatorKind::SelfDestruct { recipient } => operand_pushes(&[recipient]),
         TerminatorKind::Stop | TerminatorKind::Invalid | TerminatorKind::RawOpcode(_) => 1,
-        TerminatorKind::Continue
-        | TerminatorKind::Jump(_)
-        | TerminatorKind::Branch { .. }
-        | TerminatorKind::Switch { .. } => 0,
+        TerminatorKind::Jump(_) | TerminatorKind::Branch { .. } | TerminatorKind::Switch { .. } => {
+            0
+        }
     }
 }
 
@@ -307,7 +306,6 @@ fn terminal_terminator_key(
     locals: &FxHashMap<ValueId, usize>,
 ) -> TerminalTerminatorKey {
     match kind {
-        TerminatorKind::Continue => TerminalTerminatorKey::Continue,
         TerminatorKind::Jump(target) => TerminalTerminatorKey::Jump(*target),
         TerminatorKind::Branch { condition, then_block, else_block } => {
             TerminalTerminatorKey::Branch {
@@ -356,7 +354,6 @@ struct TerminalInstructionKey {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum TerminalTerminatorKey {
-    Continue,
     Jump(BlockId),
     Branch {
         condition: TerminalOperandKey,
@@ -446,7 +443,6 @@ fn visit_terminator_targets_mut(kind: &mut TerminatorKind, mut visit: impl FnMut
         }
         TerminatorKind::Return { .. }
         | TerminatorKind::Revert { .. }
-        | TerminatorKind::Continue
         | TerminatorKind::Stop
         | TerminatorKind::Invalid
         | TerminatorKind::SelfDestruct { .. }

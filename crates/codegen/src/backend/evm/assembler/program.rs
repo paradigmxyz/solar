@@ -421,7 +421,6 @@ impl StructuredAsmProgram {
                 program.push(AsmInst::op(op::JUMP));
             }
             ir::TerminatorKind::RawOpcode(opcode) => program.push(AsmInst::op(*opcode)),
-            ir::TerminatorKind::Continue => {}
             ir::TerminatorKind::Stop => program.push(AsmInst::op(op::STOP)),
             ir::TerminatorKind::Invalid => program.push(AsmInst::op(op::INVALID)),
             ir::TerminatorKind::Return { .. }

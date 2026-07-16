@@ -47,7 +47,7 @@ bb0 (entry):
   mload
   push 0
   sstore
-  continue
+  stop
 
 // === deployment ===
 bb0 (entry):

@@ -73,7 +73,6 @@ fn display_instruction<'a>(module: &'a Module, inst: &'a Instruction) -> impl fm
 fn display_terminator<'a>(module: &'a Module, term: &'a Terminator) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| {
         match &term.kind {
-            TerminatorKind::Continue => write!(f, "continue")?,
             TerminatorKind::Jump(target) => {
                 write!(f, "jump {}", display_block_id(module, *target))?;
             }
