@@ -1,3 +1,4 @@
+use alloy_primitives::Bytes;
 use solar_codegen::{Backend, EvmCodegen, EvmCodegenConfig, EvmIrModule, lower};
 use solar_config::CompilerOutput;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -37,10 +38,14 @@ struct CodegenCombinedJson {
 struct CodegenCombinedJsonContract {
     #[serde(skip_serializing_if = "Option::is_none")]
     abi: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    bin: Option<String>,
-    #[serde(rename = "bin-runtime", skip_serializing_if = "Option::is_none")]
-    bin_runtime: Option<String>,
+    #[serde(serialize_with = "serialize_hex_bytes", skip_serializing_if = "Option::is_none")]
+    bin: Option<Bytes>,
+    #[serde(
+        rename = "bin-runtime",
+        serialize_with = "serialize_hex_bytes",
+        skip_serializing_if = "Option::is_none"
+    )]
+    bin_runtime: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
     hashes: Option<Hashes>,
 }
@@ -220,10 +225,9 @@ fn emit_evm_ir(gcx: Gcx<'_>) -> Result {
     Ok(())
 }
 
-#[derive(Clone)]
 struct GeneratedBytecodes {
-    deployment: String,
-    runtime: String,
+    deployment: Bytes,
+    runtime: Bytes,
     deployment_evm_ir: Option<String>,
     runtime_evm_ir: Option<String>,
 }
@@ -256,8 +260,8 @@ fn generate_contract_bytecodes(
         bytecodes.insert(
             id,
             GeneratedBytecodes {
-                deployment: alloy_primitives::hex::encode(artifact.deployment),
-                runtime: alloy_primitives::hex::encode(artifact.runtime),
+                deployment: artifact.deployment.into(),
+                runtime: artifact.runtime.into(),
                 deployment_evm_ir: capture_evm_ir
                     .then(|| format_deployment_evm_ir(&artifact.deployment_evm_ir)),
                 runtime_evm_ir: artifact.runtime_evm_ir.map(|ir| ir.to_text().to_string()),
@@ -266,6 +270,14 @@ fn generate_contract_bytecodes(
     }
 
     Ok(bytecodes)
+}
+
+fn serialize_hex_bytes<S>(bytes: &Option<Bytes>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let Some(bytes) = bytes else { return serializer.serialize_none() };
+    serializer.serialize_str(&alloy_primitives::hex::encode(bytes))
 }
 
 pub(crate) fn format_deployment_evm_ir(modules: &[EvmIrModule]) -> String {
