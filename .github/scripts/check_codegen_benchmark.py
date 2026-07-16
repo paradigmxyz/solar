@@ -187,6 +187,19 @@ def fmt_pct_improvement(current: int | None, baseline: int | None) -> str:
     return fmt_pct(delta)
 
 
+def pct_change(current: int | None, baseline: int | None) -> float | None:
+    if current is None or baseline in (None, 0):
+        return None
+    return (current - baseline) / baseline * 100
+
+
+def fmt_pct_change_lower_is_better(current: int | None, baseline: int | None) -> str:
+    delta = pct_change(current, baseline)
+    if delta is None:
+        return "n/a"
+    return fmt_pct(delta, positive_is_good=False)
+
+
 def pct_vs_current(current: int | None, comparison: int | None) -> float | None:
     if current in (None, 0) or comparison is None:
         return None
@@ -200,11 +213,11 @@ def fmt_pct_vs_current(current: int | None, comparison: int | None) -> str:
     return fmt_pct(delta)
 
 
-def fmt_pct(delta: float) -> str:
+def fmt_pct(delta: float, positive_is_good: bool = True) -> str:
     rounded = round(delta, 2)
     if rounded == 0:
         return "~0%"
-    emoji = "✅" if rounded > 0 else "❌"
+    emoji = "✅" if (rounded > 0) == positive_is_good else "❌"
     return f"{emoji} {rounded:+.2f}%"
 
 
@@ -226,6 +239,12 @@ def fmt_value_with_delta(
     value: int | None, current: int | None, baseline: int | None, suffix: str = ""
 ) -> str:
     return f"{fmt_int(value, suffix)} ({fmt_pct_improvement(current, baseline)})"
+
+
+def fmt_value_with_size_delta(
+    value: int | None, current: int | None, baseline: int | None, suffix: str = ""
+) -> str:
+    return f"{fmt_int(value, suffix)} ({fmt_pct_change_lower_is_better(current, baseline)})"
 
 
 def fmt_value_with_delta_vs_current(
@@ -255,7 +274,7 @@ def benchmark_rows(
                     markdown_cell(test_id),
                     fmt_value_with_delta(solar_gas, solar_gas, base_solar_gas),
                     fmt_value_with_delta_vs_current(solc_gas, solar_gas, solc_gas),
-                    fmt_value_with_delta(solar_size, solar_size, base_solar_size, "B"),
+                    fmt_value_with_size_delta(solar_size, solar_size, base_solar_size, "B"),
                     fmt_value_with_delta_vs_current(solc_size, solar_size, solc_size, "B"),
                 ]
             )
