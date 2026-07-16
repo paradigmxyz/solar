@@ -3,6 +3,7 @@ import {
   LanguageClient,
   LanguageClientOptions,
   ServerOptions,
+  State,
   TransportKind,
 } from "vscode-languageclient/node";
 import { spawn } from "child_process";
@@ -28,11 +29,21 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      await vscode.commands.executeCommand("editor.action.formatDocument");
+      if (serverSupportsDocumentFormatting()) {
+        await vscode.commands.executeCommand("editor.action.formatDocument");
+        return;
+      }
+
+      const edit = await formatDocumentWithForge(editor.document);
+      if (edit) {
+        await editor.edit((builder) => {
+          builder.replace(edit.range, edit.newText);
+        });
+      }
     },
   );
 
-  // Preserve the legacy setting without duplicating VS Code's standard format-on-save.
+  // Preserve the legacy setting, deferring to VS Code when the server supports formatting.
   const formatOnSave = vscode.workspace.onWillSaveTextDocument((event) => {
     const currentConfig = vscode.workspace.getConfiguration("solarLsp");
     const editorFormatOnSave = vscode.workspace
@@ -40,7 +51,7 @@ export function activate(context: vscode.ExtensionContext) {
       .get<boolean>("formatOnSave", false);
     if (
       currentConfig.get("formatOnSave") &&
-      !editorFormatOnSave &&
+      (!editorFormatOnSave || !serverSupportsDocumentFormatting()) &&
       event.document.languageId === "solidity"
     ) {
       event.waitUntil(formatDocument(event.document));
@@ -151,6 +162,11 @@ async function startLanguageServer(context: vscode.ExtensionContext) {
 async function formatDocument(
   document: vscode.TextDocument,
 ): Promise<vscode.TextEdit[]> {
+  if (!serverSupportsDocumentFormatting()) {
+    const edit = await formatDocumentWithForge(document);
+    return edit ? [edit] : [];
+  }
+
   const editorConfig = vscode.workspace.getConfiguration("editor", document.uri);
   const options: vscode.FormattingOptions = {
     tabSize: editorConfig.get<number>("tabSize", 4),
@@ -162,6 +178,67 @@ async function formatDocument(
     options,
   );
   return edits ?? [];
+}
+
+function serverSupportsDocumentFormatting(): boolean {
+  return (
+    client?.state === State.Running &&
+    Boolean(client.initializeResult?.capabilities.documentFormattingProvider)
+  );
+}
+
+async function formatDocumentWithForge(
+  document: vscode.TextDocument,
+): Promise<vscode.TextEdit | undefined> {
+  const config = vscode.workspace.getConfiguration("solarLsp");
+  const forgePath = config.get<string>("forgePath", "forge");
+
+  return new Promise((resolve) => {
+    const forgeProcess = spawn(forgePath, ["fmt", "--raw", "-"], {
+      stdio: ["pipe", "pipe", "pipe"],
+      shell: process.platform === "win32",
+      windowsHide: true,
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    forgeProcess.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+
+    forgeProcess.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    forgeProcess.on("close", (code) => {
+      if (code === 0) {
+        const firstLine = document.lineAt(0);
+        const lastLine = document.lineAt(document.lineCount - 1);
+        const textRange = new vscode.Range(
+          firstLine.range.start,
+          lastLine.range.end,
+        );
+
+        resolve(new vscode.TextEdit(textRange, stdout));
+      } else {
+        console.error(`forge fmt failed with code ${code}: ${stderr}`);
+        vscode.window.showErrorMessage(`Formatting failed: ${stderr}`);
+        resolve(undefined);
+      }
+    });
+
+    forgeProcess.on("error", (error) => {
+      console.error("Failed to run forge fmt:", error);
+      vscode.window.showErrorMessage(
+        `Failed to run forge fmt: ${error.message}`,
+      );
+      resolve(undefined);
+    });
+
+    forgeProcess.stdin.write(document.getText());
+    forgeProcess.stdin.end();
+  });
 }
 
 export function deactivate(): Thenable<void> | undefined {
