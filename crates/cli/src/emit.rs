@@ -35,16 +35,13 @@ struct CodegenCombinedJson {
 }
 
 #[derive(Default, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
 struct CodegenCombinedJsonContract {
     #[serde(skip_serializing_if = "Option::is_none")]
     abi: Option<serde_json::Value>,
     #[serde(serialize_with = "serialize_hex_bytes", skip_serializing_if = "Option::is_none")]
     bin: Option<Bytes>,
-    #[serde(
-        rename = "bin-runtime",
-        serialize_with = "serialize_hex_bytes",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(serialize_with = "serialize_hex_bytes", skip_serializing_if = "Option::is_none")]
     bin_runtime: Option<Bytes>,
     #[serde(skip_serializing_if = "Option::is_none")]
     hashes: Option<Hashes>,
