@@ -82,21 +82,55 @@ fn process_evmir(args: &EvmOptArgs) -> Result<(), String> {
     let text = source.src.as_str();
     let mut result: Result<(), String> = Ok(());
     sess.enter(|| {
-        let mut module = match parse_evm_ir_module(text) {
-            Ok(m) => m,
-            Err(e) => {
-                result = Err(format!("{e}"));
+        let input_name = Ident::with_dummy_span(Symbol::intern(&args.input)).to_string();
+        for (name, section) in evm_ir_sections(text, &input_name) {
+            let mut module = match parse_evm_ir_module(section) {
+                Ok(module) => module,
+                Err(err) => {
+                    result = Err(format!("{err}"));
+                    return;
+                }
+            };
+            if let Err(err) = verify_evm_ir_module(&module) {
+                result = Err(format!("{err}"));
                 return;
             }
-        };
-        if let Err(e) = verify_evm_ir_module(&module) {
-            result = Err(format!("{e}"));
-            return;
+            if let Err(err) = run_pipeline(&mut module, name, args) {
+                result = Err(err);
+                return;
+            }
         }
-        let name = Ident::with_dummy_span(Symbol::intern(&args.input)).to_string();
-        result = run_pipeline(&mut module, &name, args);
     });
     result
+}
+
+fn evm_ir_sections<'a>(input: &'a str, input_name: &'a str) -> Vec<(&'a str, &'a str)> {
+    let mut sections = Vec::new();
+    let mut name = input_name;
+    let mut offset = 0;
+    let mut section_start = 0;
+    for line in input.split_inclusive('\n') {
+        let end = offset + line.len();
+        if let Some(next_name) =
+            line.trim().strip_prefix("// === ").and_then(|line| line.strip_suffix(" ==="))
+        {
+            let section = &input[section_start..offset];
+            if section.lines().any(|line| line.trim_start().starts_with("bb")) {
+                sections.push((name, section));
+            }
+            name = next_name;
+            section_start = end;
+        }
+        offset = end;
+    }
+    let section = &input[section_start..];
+    if section.lines().any(|line| line.trim_start().starts_with("bb")) {
+        sections.push((name, section));
+    }
+    if sections.is_empty() {
+        sections.push((input_name, input));
+    }
+    sections
 }
 
 pub(crate) fn run(args: EvmOptArgs) -> ExitCode {
@@ -111,6 +145,26 @@ pub(crate) fn run(args: EvmOptArgs) -> ExitCode {
         Err(e) => {
             eprintln!("error: {e}");
             ExitCode::FAILURE
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn emitted_evm_ir_sections_parse_and_verify() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join("tests/ui/codegen/emit_abi_bin.evmir.stdout");
+        #[allow(clippy::disallowed_methods)]
+        let input = std::fs::read_to_string(path).unwrap();
+        let sections = evm_ir_sections(&input, "emit_abi_bin");
+        assert_eq!(sections.len(), 4);
+        for (_, section) in sections {
+            let module = parse_evm_ir_module(section).unwrap();
+            verify_evm_ir_module(&module).unwrap();
         }
     }
 }

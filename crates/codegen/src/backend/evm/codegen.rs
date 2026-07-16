@@ -1024,13 +1024,13 @@ impl EvmCodegen {
             // Remove trailing STOP (0x00) if present - we want to fall through to CODECOPY/RETURN
             if bytecode.last() == Some(&op::STOP) {
                 bytecode.pop();
-                if let Some(last_block) = evm_ir.as_mut().and_then(|ir| ir.blocks.last_mut())
-                    && matches!(
-                        last_block.terminator.as_ref().map(|term| &term.kind),
-                        Some(EvmIrTerminatorKind::RawOpcode(op::STOP))
-                    )
+                if let Some(terminator) = evm_ir
+                    .as_mut()
+                    .and_then(|ir| ir.blocks.last_mut())
+                    .and_then(|block| block.terminator.as_mut())
+                    && matches!(&terminator.kind, EvmIrTerminatorKind::RawOpcode(op::STOP))
                 {
-                    last_block.terminator = None;
+                    terminator.kind = EvmIrTerminatorKind::FallthroughNext;
                 }
             }
 

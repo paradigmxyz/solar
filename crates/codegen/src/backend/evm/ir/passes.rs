@@ -164,6 +164,7 @@ fn estimated_terminator_size(kind: &EvmIrTerminatorKind) -> usize {
         | EvmIrTerminatorKind::Invalid
         | EvmIrTerminatorKind::RawOpcode(_) => 1,
         EvmIrTerminatorKind::Fallthrough(_)
+        | EvmIrTerminatorKind::FallthroughNext
         | EvmIrTerminatorKind::Jump(_)
         | EvmIrTerminatorKind::Branch { .. }
         | EvmIrTerminatorKind::Switch { .. } => 0,
@@ -234,6 +235,7 @@ fn terminal_terminator_key(
 ) -> TerminalTerminatorKey {
     match kind {
         EvmIrTerminatorKind::Fallthrough(target) => TerminalTerminatorKey::Fallthrough(*target),
+        EvmIrTerminatorKind::FallthroughNext => TerminalTerminatorKey::FallthroughNext,
         EvmIrTerminatorKind::Jump(target) => TerminalTerminatorKey::Jump(*target),
         EvmIrTerminatorKind::Branch { condition, then_block, else_block } => {
             TerminalTerminatorKey::Branch {
@@ -283,6 +285,7 @@ struct TerminalInstructionKey {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum TerminalTerminatorKey {
     Fallthrough(EvmIrBlockId),
+    FallthroughNext,
     Jump(EvmIrBlockId),
     Branch {
         condition: TerminalOperandKey,
@@ -377,6 +380,7 @@ fn visit_terminator_targets_mut(
         }
         EvmIrTerminatorKind::Return { .. }
         | EvmIrTerminatorKind::Revert { .. }
+        | EvmIrTerminatorKind::FallthroughNext
         | EvmIrTerminatorKind::Stop
         | EvmIrTerminatorKind::Invalid
         | EvmIrTerminatorKind::SelfDestruct { .. }

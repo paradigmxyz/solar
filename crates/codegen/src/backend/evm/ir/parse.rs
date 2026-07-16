@@ -552,6 +552,7 @@ impl<'a> Parser<'a> {
     ) -> Result<Option<EvmIrTerminatorKind>, EvmIrParseError> {
         let kind = match mnemonic {
             "fallthrough" => EvmIrTerminatorKind::Fallthrough(self.parse_block_ref(block_labels)?),
+            "fallthrough_next" => EvmIrTerminatorKind::FallthroughNext,
             "jump" => EvmIrTerminatorKind::Jump(self.parse_block_ref(block_labels)?),
             "br" => {
                 let condition =

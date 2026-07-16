@@ -882,6 +882,7 @@ fn block_successors(block: &EvmIrBlock) -> Vec<EvmIrBlockId> {
         }
         EvmIrTerminatorKind::Return { .. }
         | EvmIrTerminatorKind::Revert { .. }
+        | EvmIrTerminatorKind::FallthroughNext
         | EvmIrTerminatorKind::Stop
         | EvmIrTerminatorKind::Invalid
         | EvmIrTerminatorKind::SelfDestruct { .. }
@@ -948,6 +949,7 @@ fn terminator_arrange_operands(kind: &EvmIrTerminatorKind) -> Vec<EvmIrValueId> 
         }
         EvmIrTerminatorKind::SelfDestruct { recipient } => push(recipient),
         EvmIrTerminatorKind::Fallthrough(_)
+        | EvmIrTerminatorKind::FallthroughNext
         | EvmIrTerminatorKind::Jump(_)
         | EvmIrTerminatorKind::Stop
         | EvmIrTerminatorKind::Invalid
@@ -976,6 +978,7 @@ fn visit_terminator_value_operands(
         }
         EvmIrTerminatorKind::SelfDestruct { recipient } => visit(recipient),
         EvmIrTerminatorKind::Fallthrough(_)
+        | EvmIrTerminatorKind::FallthroughNext
         | EvmIrTerminatorKind::Jump(_)
         | EvmIrTerminatorKind::Stop
         | EvmIrTerminatorKind::Invalid

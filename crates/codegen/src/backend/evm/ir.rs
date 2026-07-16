@@ -301,6 +301,8 @@ impl EvmIrTerminator {
 pub enum EvmIrTerminatorKind {
     /// Physical fallthrough into the next laid-out block.
     Fallthrough(EvmIrBlockId),
+    /// Physical fallthrough into the next separately captured program segment.
+    FallthroughNext,
     /// Unconditional jump.
     Jump(EvmIrBlockId),
     /// Conditional branch.
@@ -429,6 +431,7 @@ fn default_terminator_stack_effect(kind: &EvmIrTerminatorKind) -> EvmIrStackEffe
         }
         EvmIrTerminatorKind::SelfDestruct { .. } => EvmIrStackEffect::new(1, 0),
         EvmIrTerminatorKind::Fallthrough(_)
+        | EvmIrTerminatorKind::FallthroughNext
         | EvmIrTerminatorKind::Jump(_)
         | EvmIrTerminatorKind::Stop
         | EvmIrTerminatorKind::Invalid

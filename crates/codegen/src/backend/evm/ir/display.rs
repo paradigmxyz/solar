@@ -64,11 +64,15 @@ fn display_instruction<'a>(
                 inst.operands.iter().map(|operand| display_operand(module, operand)).format(", ")
             )?;
         }
-        write!(
-            f,
-            "{}",
-            display_metadata(&inst.metadata, Some(default_instruction_stack_effect(inst)))
-        )
+        let default_stack = match &inst.kind {
+            EvmIrInstructionKind::Operation(_)
+                if inst.operands.is_empty() && inst.result.is_none() =>
+            {
+                None
+            }
+            _ => Some(default_instruction_stack_effect(inst)),
+        };
+        write!(f, "{}", display_metadata(&inst.metadata, default_stack))
     })
 }
 
@@ -81,6 +85,7 @@ fn display_terminator<'a>(
             EvmIrTerminatorKind::Fallthrough(target) => {
                 write!(f, "fallthrough {}", display_block_id(module, *target))?;
             }
+            EvmIrTerminatorKind::FallthroughNext => write!(f, "fallthrough_next")?,
             EvmIrTerminatorKind::Jump(target) => {
                 write!(f, "jump {}", display_block_id(module, *target))?;
             }

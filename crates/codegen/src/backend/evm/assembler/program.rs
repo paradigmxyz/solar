@@ -423,6 +423,7 @@ impl StructuredAsmProgram {
                 program.push(AsmInst::op(op::JUMP));
             }
             EvmIrTerminatorKind::RawOpcode(opcode) => program.push(AsmInst::op(*opcode)),
+            EvmIrTerminatorKind::FallthroughNext => {}
             EvmIrTerminatorKind::Stop => program.push(AsmInst::op(op::STOP)),
             EvmIrTerminatorKind::Invalid => program.push(AsmInst::op(op::INVALID)),
             EvmIrTerminatorKind::Return { .. }

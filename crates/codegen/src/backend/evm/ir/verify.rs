@@ -510,6 +510,7 @@ fn consume_stack_value(
 fn terminator_name(kind: &EvmIrTerminatorKind) -> &'static str {
     match kind {
         EvmIrTerminatorKind::Fallthrough(_) => "fallthrough",
+        EvmIrTerminatorKind::FallthroughNext => "fallthrough_next",
         EvmIrTerminatorKind::Jump(_) => "jump",
         EvmIrTerminatorKind::Branch { .. } => "br",
         EvmIrTerminatorKind::Switch { .. } => "switch",
@@ -679,6 +680,7 @@ fn verify_terminator_shape(
             verify_stack_value_operand(block_id, recipient, "selfdestruct recipient")?
         }
         EvmIrTerminatorKind::Fallthrough(_)
+        | EvmIrTerminatorKind::FallthroughNext
         | EvmIrTerminatorKind::Jump(_)
         | EvmIrTerminatorKind::Stop
         | EvmIrTerminatorKind::Invalid
@@ -766,6 +768,7 @@ fn visit_terminator_operands<E>(
 ) -> Result<(), E> {
     match kind {
         EvmIrTerminatorKind::Fallthrough(_)
+        | EvmIrTerminatorKind::FallthroughNext
         | EvmIrTerminatorKind::Jump(_)
         | EvmIrTerminatorKind::Stop
         | EvmIrTerminatorKind::Invalid
@@ -807,6 +810,7 @@ fn visit_terminator_targets<E>(
         }
         EvmIrTerminatorKind::Return { .. }
         | EvmIrTerminatorKind::Revert { .. }
+        | EvmIrTerminatorKind::FallthroughNext
         | EvmIrTerminatorKind::Stop
         | EvmIrTerminatorKind::Invalid
         | EvmIrTerminatorKind::SelfDestruct { .. }
