@@ -553,6 +553,11 @@ impl<'gcx> Gcx<'gcx> {
         self.symbol_resolver.source_path_resolutions(segments, source, contract)
     }
 
+    /// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
+    pub fn natspec_contract(self, name: Symbol, source: hir::SourceId) -> Option<hir::ContractId> {
+        self.natspec_contract_in_source((name, source))
+    }
+
     /// Returns the selected builtin target for a non-call member access expression, if available.
     #[inline]
     pub fn builtin_member(self, id: hir::ExprId) -> Option<Builtin> {
@@ -1785,13 +1790,6 @@ fn is_value_ns(id: hir::ItemId) -> bool {
             | hir::ItemId::Error(_)
             | hir::ItemId::Event(_)
     )
-}
-
-impl Gcx<'_> {
-    /// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
-    pub fn natspec_contract(self, name: Symbol, source: hir::SourceId) -> Option<hir::ContractId> {
-        self.natspec_contract_in_source((name, source))
-    }
 }
 
 /// `OnceMap::insert` but with `Copy` keys and values.
