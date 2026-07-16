@@ -550,6 +550,12 @@ pub struct EvmCodegen {
     block_labels: FxHashMap<BlockId, Label>,
     /// Function labels for direct internal calls.
     function_labels: FxHashMap<FunctionId, Label>,
+    /// Functions whose reachable exits all abort. Calls to these functions
+    /// make their containing block cold as well.
+    cold_functions: FxHashSet<FunctionId>,
+    /// Cold blocks in the function currently being emitted, including blocks
+    /// that only forward control to other cold blocks.
+    cold_blocks: FxHashSet<BlockId>,
     /// Per-function static local frame sizes for direct internal calls.
     ///
     /// Spill slots are allocated lazily during body emission, so the spill part
@@ -634,6 +640,8 @@ impl EvmCodegen {
             scheduler: StackScheduler::new(),
             block_labels: FxHashMap::default(),
             function_labels: FxHashMap::default(),
+            cold_functions: FxHashSet::default(),
+            cold_blocks: FxHashSet::default(),
             function_static_frame_sizes: FxHashMap::default(),
             function_spill_sizes: FxHashMap::default(),
             pending_frame_size_consts: Vec::new(),
@@ -875,6 +883,11 @@ impl EvmCodegen {
             self.block_labels.clear();
             self.block_copies.clear();
             self.function_labels.clear();
+            self.cold_functions = if matches!(self.optimization, OptimizationMode::None) {
+                FxHashSet::default()
+            } else {
+                Self::collect_cold_functions(module)
+            };
             self.function_static_frame_sizes.clear();
             self.function_spill_sizes.clear();
             self.pending_frame_size_consts.clear();
@@ -1009,6 +1022,11 @@ impl EvmCodegen {
         self.asm.clear();
         self.block_labels.clear();
         self.function_labels.clear();
+        self.cold_functions = if matches!(self.optimization, OptimizationMode::None) {
+            FxHashSet::default()
+        } else {
+            Self::collect_cold_functions(module)
+        };
         self.function_static_frame_sizes.clear();
         self.function_spill_sizes.clear();
         self.pending_frame_size_consts.clear();
@@ -1490,18 +1508,20 @@ impl EvmCodegen {
 
         self.preallocate_cross_block_spills(func, liveness);
 
+        self.cold_blocks = self.collect_cold_blocks(func);
+
         // Create labels for each block
         self.block_labels.clear();
         for block_id in func.blocks.indices() {
             let label = self.asm.new_label();
-            if Self::block_is_cold(func, block_id) {
+            if self.block_is_cold(block_id) {
                 self.asm.mark_label_cold(label);
             }
             self.block_labels.insert(block_id, label);
         }
 
         // Generate each block.
-        let block_order = Self::block_layout_order(func);
+        let block_order = self.block_layout_order(func);
         let block_pos: FxHashMap<BlockId, usize> =
             block_order.iter().enumerate().map(|(pos, &b)| (b, pos)).collect();
         // Stack layout a block must start with when it is reached by a stack-
@@ -1738,16 +1758,126 @@ impl EvmCodegen {
         targets.into()
     }
 
-    /// Returns true when a block is statically cold: it only aborts execution
-    /// (revert or invalid), as panic and revert-string blocks do.
-    fn block_is_cold(func: &Function, block_id: BlockId) -> bool {
-        matches!(
-            func.blocks[block_id].terminator,
-            Some(Terminator::Revert { .. } | Terminator::Invalid)
-        )
+    /// Finds functions whose reachable exits all abort, including chains of
+    /// calls to other cold functions.
+    fn collect_cold_functions(module: &Module) -> FxHashSet<FunctionId> {
+        let mut cold = FxHashSet::default();
+        loop {
+            let mut changed = false;
+            for (function_id, func) in module.functions.iter_enumerated() {
+                if cold.contains(&function_id) || func.blocks.is_empty() {
+                    continue;
+                }
+                let mut worklist = vec![func.entry_block];
+                let mut visited = FxHashSet::default();
+                let mut saw_exit = false;
+                let mut all_exits_cold = true;
+                while let Some(block_id) = worklist.pop()
+                    && all_exits_cold
+                {
+                    if !visited.insert(block_id) {
+                        continue;
+                    }
+                    let block = &func.blocks[block_id];
+                    if block.instructions.iter().any(|&inst_id| {
+                        matches!(
+                            func.instructions[inst_id].kind,
+                            InstKind::InternalCall { function, .. } if cold.contains(&function)
+                        )
+                    }) {
+                        saw_exit = true;
+                        continue;
+                    }
+                    let Some(term) = block.terminator.as_ref() else {
+                        all_exits_cold = false;
+                        continue;
+                    };
+                    match term {
+                        Terminator::Revert { .. } | Terminator::Invalid => {
+                            saw_exit = true;
+                        }
+                        Terminator::TailCall { function, .. } if cold.contains(function) => {
+                            saw_exit = true;
+                        }
+                        _ => {
+                            let successors = term.successors();
+                            if successors.is_empty() {
+                                all_exits_cold = false;
+                            } else {
+                                worklist.extend(successors);
+                            }
+                        }
+                    }
+                }
+                if saw_exit && all_exits_cold {
+                    cold.insert(function_id);
+                    changed = true;
+                }
+            }
+            if !changed {
+                return cold;
+            }
+        }
     }
 
-    fn block_layout_order(func: &Function) -> Vec<BlockId> {
+    /// Finds blocks that abort directly or can only reach other cold blocks.
+    fn collect_cold_blocks(&self, func: &Function) -> FxHashSet<BlockId> {
+        let mut cold = FxHashSet::default();
+        let mut worklist = Vec::new();
+        for block_id in func.blocks.indices() {
+            if self.block_aborts(func, block_id) {
+                cold.insert(block_id);
+                worklist.push(block_id);
+            }
+        }
+        if matches!(self.optimization, OptimizationMode::None) {
+            return cold;
+        }
+
+        while let Some(block_id) = worklist.pop() {
+            for &predecessor in &func.blocks[block_id].predecessors {
+                if cold.contains(&predecessor) {
+                    continue;
+                }
+                let Some(term) = func.blocks[predecessor].terminator.as_ref() else {
+                    continue;
+                };
+                let successors = term.successors();
+                if !successors.is_empty()
+                    && successors.iter().all(|successor| cold.contains(successor))
+                {
+                    cold.insert(predecessor);
+                    worklist.push(predecessor);
+                }
+            }
+        }
+        cold
+    }
+
+    /// Returns true when a block aborts directly or calls a function whose
+    /// reachable exits all abort.
+    fn block_aborts(&self, func: &Function, block_id: BlockId) -> bool {
+        let block = &func.blocks[block_id];
+        matches!(block.terminator, Some(Terminator::Revert { .. } | Terminator::Invalid))
+            || matches!(
+                block.terminator,
+                Some(Terminator::TailCall { function, .. })
+                    if self.cold_functions.contains(&function)
+            )
+            || block.instructions.iter().any(|&inst_id| {
+                matches!(
+                    func.instructions[inst_id].kind,
+                    InstKind::InternalCall { function, .. }
+                        if self.cold_functions.contains(&function)
+                )
+            })
+    }
+
+    fn block_is_cold(&self, block_id: BlockId) -> bool {
+        self.cold_blocks.contains(&block_id)
+    }
+
+    fn block_layout_order(&self, func: &Function) -> Vec<BlockId> {
         // Layout only needs reachability. Building `CfgInfo` here also
         // computes reverse postorder and a dominator tree that code emission
         // never queries.
@@ -1755,10 +1885,10 @@ impl EvmCodegen {
         let mut order = Vec::with_capacity(func.blocks.len());
         let mut placed = FxHashSet::default();
 
-        Self::append_layout_chain(func, func.entry_block, &reachable, &mut placed, &mut order);
+        self.append_layout_chain(func, func.entry_block, &reachable, &mut placed, &mut order);
         for block_id in func.blocks.indices() {
             if reachable.contains(&block_id) {
-                Self::append_layout_chain(func, block_id, &reachable, &mut placed, &mut order);
+                self.append_layout_chain(func, block_id, &reachable, &mut placed, &mut order);
             }
         }
 
@@ -1766,6 +1896,7 @@ impl EvmCodegen {
     }
 
     fn append_layout_chain(
+        &self,
         func: &Function,
         mut block_id: BlockId,
         reachable: &FxHashSet<BlockId>,
@@ -1778,15 +1909,28 @@ impl EvmCodegen {
             }
             order.push(block_id);
 
-            let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator.as_ref() else {
-                return;
+            let target = match func.blocks[block_id].terminator.as_ref() {
+                Some(Terminator::Jump(target))
+                    if func.blocks[*target].predecessors.as_slice() == [block_id] =>
+                {
+                    *target
+                }
+                Some(Terminator::Branch { then_block, else_block, .. })
+                    if !matches!(self.optimization, OptimizationMode::None) =>
+                {
+                    match (self.block_is_cold(*then_block), self.block_is_cold(*else_block)) {
+                        (true, false) => *else_block,
+                        (false, true) => *then_block,
+                        _ => return,
+                    }
+                }
+                _ => return,
             };
-            if placed.contains(target) || func.blocks[*target].predecessors.as_slice() != [block_id]
-            {
+            if placed.contains(&target) {
                 return;
             }
 
-            block_id = *target;
+            block_id = target;
         }
     }
 
@@ -4634,9 +4778,7 @@ impl EvmCodegen {
                         // revert path on the trailing unconditional jump,
                         // instead of paying JUMPI + JUMP (24 gas) on the hot
                         // path.
-                        if Self::block_is_cold(func, *then_block)
-                            && !Self::block_is_cold(func, *else_block)
-                        {
+                        if self.block_is_cold(*then_block) && !self.block_is_cold(*else_block) {
                             self.asm.emit_op(op::ISZERO);
                             self.scheduler.instruction_executed_untracked(1);
                             self.asm.emit_push_label(self.block_labels[else_block]);
@@ -4788,11 +4930,75 @@ impl crate::backend::Backend for EvmCodegen {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lower;
+    use crate::{lower, mir::FunctionBuilder};
     use solar_config::{CompileOpts, UnstableOpts};
-    use solar_interface::{Session, sym};
+    use solar_interface::{Ident, Session, sym};
     use solar_sema::Compiler;
     use std::{ops::ControlFlow, path::PathBuf};
+
+    #[test]
+    fn cold_forwarder_selects_hot_fallthrough() {
+        let mut module = Module::new(Ident::with_dummy_span(sym::Test));
+
+        let mut cold_func = Function::new(Ident::with_dummy_span(sym::__revert_error));
+        {
+            let mut builder = FunctionBuilder::new(&mut cold_func);
+            let zero = builder.imm_u64(0);
+            builder.revert(zero, zero);
+        }
+        let cold_func = module.add_function(cold_func);
+
+        let mut cold_wrapper = Function::new(Ident::with_dummy_span(sym::Test));
+        {
+            let mut builder = FunctionBuilder::new(&mut cold_wrapper);
+            builder.internal_call_void(cold_func, Vec::new(), 0);
+            builder.ret(Vec::new());
+        }
+        let cold_wrapper = module.add_function(cold_wrapper);
+
+        let mut caller = Function::new(Ident::with_dummy_span(sym::Test));
+        let entry = caller.entry_block;
+        let (cold_forwarder, cold_block, hot_block);
+        {
+            let mut builder = FunctionBuilder::new(&mut caller);
+            let condition = builder.add_param(MirType::Bool);
+            cold_forwarder = builder.create_block();
+            cold_block = builder.create_block();
+            hot_block = builder.create_block();
+            builder.branch(condition, cold_forwarder, hot_block);
+
+            builder.switch_to_block(cold_forwarder);
+            builder.jump(cold_block);
+
+            builder.switch_to_block(cold_block);
+            builder.tail_call(cold_wrapper, Vec::new());
+
+            builder.switch_to_block(hot_block);
+            builder.ret(Vec::new());
+        }
+        let caller = module.add_function(caller);
+
+        let mut codegen = EvmCodegen::new(EvmCodegenConfig::default());
+        codegen.cold_functions = EvmCodegen::collect_cold_functions(&module);
+        let caller = &module.functions[caller];
+        codegen.cold_blocks = codegen.collect_cold_blocks(caller);
+
+        assert!(codegen.cold_functions.contains(&cold_func));
+        assert!(codegen.cold_functions.contains(&cold_wrapper));
+        assert!(codegen.block_aborts(caller, cold_block));
+        assert!(!codegen.block_aborts(caller, cold_forwarder));
+        assert!(codegen.block_is_cold(cold_forwarder));
+        assert_eq!(
+            codegen.block_layout_order(caller),
+            [entry, hot_block, cold_forwarder, cold_block]
+        );
+
+        codegen.optimization = OptimizationMode::None;
+        assert_eq!(
+            codegen.block_layout_order(caller),
+            [entry, cold_forwarder, cold_block, hot_block]
+        );
+    }
 
     /// Helper to compile Solidity source to bytecode, returning Result.
     fn compile_source(source: &str) -> Result<Vec<u8>, String> {
