@@ -75,7 +75,7 @@ use super::{
     stack::SpillSlot,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Maximum stack depth reachable by `DUP<N>`/`SWAP<N>`.
 const MAX_STACK_REACH: usize = 16;
@@ -184,17 +184,16 @@ impl<'a> EvmIrStackScheduler<'a> {
     /// across back-edges (loops), which the scheduler detects and bails on.
     fn reverse_postorder(&self) -> Vec<EvmIrBlockId> {
         let mut postorder = Vec::with_capacity(self.module.blocks.len());
-        let mut visited = vec![false; self.module.blocks.len()];
+        let mut visited = DenseBitSet::new_empty(self.module.blocks.len());
         if let Some(entry) = self.module.entry_block {
             // Iterative DFS recording postorder. Each frame remembers the
             // successors still to descend into.
             let mut work: Vec<(EvmIrBlockId, Vec<EvmIrBlockId>)> = Vec::new();
-            visited[entry.index()] = true;
+            visited.insert(entry);
             work.push((entry, block_successors(&self.module.blocks[entry])));
             while let Some((block_id, succs)) = work.last_mut() {
                 if let Some(succ) = succs.pop() {
-                    if !visited[succ.index()] {
-                        visited[succ.index()] = true;
+                    if visited.insert(succ) {
                         let succs = block_successors(&self.module.blocks[succ]);
                         work.push((succ, succs));
                     }
@@ -208,7 +207,7 @@ impl<'a> EvmIrStackScheduler<'a> {
         // Append unreachable blocks so they are still visited (and left verbatim
         // unless they happen to schedule from a clean stack).
         for block_id in self.module.blocks.indices() {
-            if !visited[block_id.index()] {
+            if !visited.contains(block_id) {
                 postorder.push(block_id);
             }
         }

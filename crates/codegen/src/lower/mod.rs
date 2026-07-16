@@ -23,6 +23,7 @@ use crate::{
 use alloy_primitives::U256;
 use solar_data_structures::{
     Never,
+    bit_set::GrowableBitSet,
     map::{FxHashMap, FxHashSet},
 };
 use solar_interface::{Ident, Span, diagnostics::DiagMsg, kw, sym};
@@ -84,12 +85,12 @@ pub struct Lowerer<'gcx> {
     loop_stack: Vec<LoopContext>,
     /// Variables that are assigned after declaration (need memory storage).
     /// Variables not in this set can be kept as SSA values.
-    assigned_vars: FxHashSet<VariableId>,
+    assigned_vars: GrowableBitSet<VariableId>,
     /// Local variables that are storage references (pointers). Their value in
     /// `locals` is a storage *slot*, so `r.field` reads `sload(slot + offset)`
     /// and `r.field = v` writes `sstore(slot + offset, v)`, rather than treating
     /// the value as a memory pointer.
-    storage_ref_locals: FxHashSet<VariableId>,
+    storage_ref_locals: GrowableBitSet<VariableId>,
     /// Stack of function IDs currently being inlined (for cycle detection).
     inline_stack: Vec<HirFunctionId>,
     /// HIR functions already lowered into this MIR module.
@@ -100,7 +101,7 @@ pub struct Lowerer<'gcx> {
     /// Cache of whether a function is (directly) self-recursive.
     recursive_functions: FxHashMap<HirFunctionId, bool>,
     /// Functions currently being lowered on demand.
-    lowering_functions: FxHashSet<HirFunctionId>,
+    lowering_functions: GrowableBitSet<HirFunctionId>,
     /// Whether the current function body is constructor code.
     lowering_constructor: bool,
     /// Whether local memory slots should be addressed through the internal-call frame.
@@ -167,13 +168,13 @@ impl<'gcx> Lowerer<'gcx> {
             next_local_memory_offset: 0x80, // Start after Solidity's scratch space
             contract_bytecodes: FxHashMap::default(),
             loop_stack: Vec::new(),
-            assigned_vars: FxHashSet::default(),
-            storage_ref_locals: FxHashSet::default(),
+            assigned_vars: GrowableBitSet::new_empty(),
+            storage_ref_locals: GrowableBitSet::new_empty(),
             inline_stack: Vec::new(),
             hir_to_mir_functions: FxHashMap::default(),
             hir_to_internal_mir_functions: FxHashMap::default(),
             recursive_functions: FxHashMap::default(),
-            lowering_functions: FxHashSet::default(),
+            lowering_functions: GrowableBitSet::new_empty(),
             lowering_constructor: false,
             lowering_internal_function: false,
             revert_error_helper: None,
@@ -546,7 +547,7 @@ impl<'gcx> Lowerer<'gcx> {
             return mir_id;
         }
 
-        if self.lowering_functions.contains(&func_id) {
+        if self.lowering_functions.contains(func_id) {
             return self
                 .module
                 .add_function(Function::new(Ident::new(sym::_recursive_internal, Span::DUMMY)));
@@ -566,7 +567,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.current_contract_id = self.gcx.hir.function(func_id).contract;
         self.in_unchecked_block = false;
         let mir_id = self.lower_function(func_id, false);
-        self.lowering_functions.remove(&func_id);
+        self.lowering_functions.remove(func_id);
 
         self.locals = saved_locals;
         self.local_memory_slots = saved_local_memory_slots;
@@ -1509,7 +1510,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Returns true if a variable is assigned after declaration.
     pub fn is_var_assigned(&self, var_id: &VariableId) -> bool {
-        self.assigned_vars.contains(var_id)
+        self.assigned_vars.contains(*var_id)
     }
 
     /// Checks if an expression contains an external call.
@@ -1599,16 +1600,16 @@ pub fn lower_contract(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
 pub fn contract_bytecode_dependencies(
     gcx: Gcx<'_>,
     contract_id: ContractId,
-) -> FxHashSet<ContractId> {
-    let mut deps = FxHashSet::default();
+) -> GrowableBitSet<ContractId> {
+    let mut deps = GrowableBitSet::new_empty();
     BytecodeDependencyCollector { gcx, deps: &mut deps }.collect_contract(contract_id);
-    deps.remove(&contract_id);
+    deps.remove(contract_id);
     deps
 }
 
 struct BytecodeDependencyCollector<'a, 'gcx> {
     gcx: Gcx<'gcx>,
-    deps: &'a mut FxHashSet<ContractId>,
+    deps: &'a mut GrowableBitSet<ContractId>,
 }
 
 impl<'a, 'gcx> BytecodeDependencyCollector<'a, 'gcx> {

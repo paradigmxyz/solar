@@ -103,7 +103,7 @@ bb7:
   push 0
   mload
   dup1
-  push 256
+  push 224
   mstore
   pop
   push 0
@@ -112,7 +112,7 @@ bb7:
   fallthrough bb8
 bb8:
   dup1
-  push 320
+  push 352
   mstore
   push 4
   calldataload
@@ -135,16 +135,16 @@ bb9:
   terminal return
 bb10:
   push 1
-  push 320
+  push 352
   mload
   add
   push 288
   mload
-  push 320
+  push 352
   mload
   push 3
   mul
-  push 256
+  push 224
   mload
   add
   add
@@ -155,14 +155,14 @@ bb11:
   dup2
   mul
   dup1
-  push 224
+  push 256
   mstore
   push 3
   dup2
   div
   dup3
   dup1
-  push 320
+  push 352
   mstore
   swap1
   eq
@@ -174,30 +174,30 @@ bb11:
   iszero
   push bb23
   jumpi
-  push 256
+  push 224
   mload
   dup1
-  push 256
-  mstore
   push 224
+  mstore
+  push 256
   mload
   add
   dup1
-  push 352
+  push 320
   mstore
-  push 224
+  push 256
   mload
   dup1
-  push 224
+  push 256
   mstore
   swap1
   lt
   push bb23
   jumpi
-  push 352
+  push 320
   mload
   dup1
-  push 352
+  push 320
   mstore
   push 288
   mload
@@ -230,7 +230,7 @@ bb12:
   push 448
   mstore
   push 0
-  push 256
+  push 320
   mstore
   jump bb13
 bb13:
@@ -249,16 +249,16 @@ bb13:
   dup1
   push 384
   mstore
-  push 256
+  push 320
   mload
   add
   dup1
   push 480
   mstore
-  push 256
+  push 320
   mload
   dup1
-  push 256
+  push 320
   mstore
   dup2
   lt
@@ -267,7 +267,7 @@ bb13:
   push 448
   mstore
   dup2
-  push 256
+  push 320
   mstore
   swap1
   pop
@@ -277,7 +277,7 @@ bb13:
   jump bb23
 bb14:
   push 0
-  push 256
+  push 320
   mload
   swap1
   jump bb2
@@ -304,7 +304,7 @@ bb16:
   push 1
   shl
   dup1
-  push 320
+  push 256
   mstore
   push 1
   shr
@@ -321,16 +321,16 @@ bb16:
   push bb23
   jumpi
   push 3
-  push 320
+  push 256
   mload
   add
   dup1
   push 416
   mstore
-  push 320
+  push 256
   mload
   dup1
-  push 320
+  push 256
   mstore
   swap1
   lt

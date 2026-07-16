@@ -23,9 +23,7 @@ pub use verify::{EvmIrVerifyError, verify_evm_ir_module};
 newtype_index! {
     /// A unique identifier for a basic block in EVM IR.
     pub struct EvmIrBlockId;
-}
 
-newtype_index! {
     /// A unique identifier for an untyped stack word in EVM IR.
     pub struct EvmIrValueId;
 }

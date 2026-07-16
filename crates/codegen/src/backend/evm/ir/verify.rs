@@ -1,7 +1,11 @@
 //! EVM IR verifier.
 
 use super::*;
-use solar_data_structures::{index::IndexVec, map::FxHashSet};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    index::IndexVec,
+    map::FxHashSet,
+};
 use std::fmt as std_fmt;
 
 /// An error produced while validating EVM IR.
@@ -81,7 +85,7 @@ pub fn verify_evm_ir_module(module: &EvmIrModule) -> Result<(), EvmIrVerifyError
         }
     }
 
-    let mut defined_values = FxHashSet::default();
+    let mut defined_values = DenseBitSet::new_empty(module.values.len());
     for (block_id, block) in module.blocks.iter_enumerated() {
         for inst in &block.instructions {
             verify_instruction_shape(block_id, inst)?;
@@ -130,7 +134,7 @@ pub fn verify_evm_ir_module(module: &EvmIrModule) -> Result<(), EvmIrVerifyError
                     format!("entry stack value `{}` is out of range", value.index()),
                 ));
             }
-            if !defined_values.contains(&value) {
+            if !defined_values.contains(value) {
                 return Err(EvmIrVerifyError::in_block(
                     block_id,
                     format!("entry stack value `%{}` is never defined", module.value(value).name),
@@ -454,7 +458,7 @@ fn apply_terminator_effect(
     kind: &EvmIrTerminatorKind,
     stack: &mut ModelStack,
 ) -> Result<(), EvmIrVerifyError> {
-    let mut consumed = FxHashSet::default();
+    let mut consumed = GrowableBitSet::new_empty();
     visit_terminator_operands(kind, |operand| {
         if let EvmIrOperand::Value(value) = operand
             && consumed.insert(*value)
@@ -705,10 +709,10 @@ fn verify_value_defined(
     block_id: EvmIrBlockId,
     module: &EvmIrModule,
     operand: &EvmIrOperand,
-    defined_values: &FxHashSet<EvmIrValueId>,
+    defined_values: &DenseBitSet<EvmIrValueId>,
 ) -> Result<(), EvmIrVerifyError> {
     if let EvmIrOperand::Value(value) = operand
-        && !defined_values.contains(value)
+        && !defined_values.contains(*value)
     {
         return Err(EvmIrVerifyError::in_block(
             block_id,

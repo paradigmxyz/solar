@@ -478,7 +478,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // place; nulling the pointer would alias scratch memory on the
                 // next access. Storage targets keep the assignment path.
                 if let Some(var_id) = self.ident_variable(target)
-                    && !self.storage_ref_locals.contains(&var_id)
+                    && !self.storage_ref_locals.contains(var_id)
                     && !self.storage_slots.contains_key(&var_id)
                 {
                     let var = self.gcx.hir.variable(var_id);
@@ -1573,7 +1573,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(&slot) = self.storage_slots.get(var_id) {
             return Some((builder.imm_u64(slot), fixed_len, elem_slots));
         }
-        if self.storage_ref_locals.contains(var_id) {
+        if self.storage_ref_locals.contains(*var_id) {
             let slot_val = self.locals.get(var_id).copied()?;
             return Some((slot_val, fixed_len, elem_slots));
         }
@@ -1993,7 +1993,7 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> Option<(hir::VariableId, hir::StructId, usize)> {
         if let ExprKind::Ident(res_slice) = &base.kind
             && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-            && self.storage_ref_locals.contains(var_id)
+            && self.storage_ref_locals.contains(*var_id)
             && let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) =
                 &self.gcx.hir.variable(*var_id).ty.kind
         {
@@ -2131,7 +2131,7 @@ impl<'gcx> Lowerer<'gcx> {
             ExprKind::Ident(res_slice) => {
                 if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() {
                     // Another storage reference: its value is already the slot.
-                    if self.storage_ref_locals.contains(var_id) {
+                    if self.storage_ref_locals.contains(*var_id) {
                         return self.locals.get(var_id).copied();
                     }
                     // A state variable: its base slot is known at compile time.
@@ -2870,7 +2870,7 @@ impl<'gcx> Lowerer<'gcx> {
     fn is_storage_ref_bytes_local(&self, expr: &hir::Expr<'_>) -> bool {
         if let ExprKind::Ident(res_slice) = &expr.kind
             && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-            && self.storage_ref_locals.contains(var_id)
+            && self.storage_ref_locals.contains(*var_id)
         {
             let var = self.gcx.hir.variable(*var_id);
             return Self::is_dynamic_mapping_key(&var.ty.kind);

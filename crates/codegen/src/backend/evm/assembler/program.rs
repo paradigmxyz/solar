@@ -7,7 +7,7 @@ use crate::backend::evm::ir::{
     verify_evm_ir_module,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashSet;
+use solar_data_structures::bit_set::GrowableBitSet;
 
 const OP_PREFIX: &str = "op_";
 const PUSH_MNEMONIC: &str = "push";
@@ -40,7 +40,7 @@ pub(in crate::backend::evm) trait StructuredAsmContext {
 pub(in crate::backend::evm) struct StructuredAsmProgram {
     blocks: Vec<StructuredAsmBlock>,
     current: Option<usize>,
-    cold_labels: FxHashSet<Label>,
+    cold_labels: GrowableBitSet<Label>,
 }
 
 impl StructuredAsmProgram {
@@ -61,7 +61,7 @@ impl StructuredAsmProgram {
     pub(in crate::backend::evm) fn define_label(&mut self, label: Label) {
         let block = StructuredAsmBlock {
             label: Some(label),
-            cold: self.cold_labels.contains(&label),
+            cold: self.cold_labels.contains(label),
             instructions: Vec::new(),
         };
         self.blocks.push(block);

@@ -17,12 +17,12 @@ bb0 (entry):
   dup1
   push 0xd07523
   eq
-  push bb2
+  push bb3
   jumpi
   dup1
   push 0x2a5dea89
   eq
-  push bb4
+  push bb7
   jumpi
   jump bb1
 bb1:
@@ -30,6 +30,27 @@ bb1:
   dup1
   terminal revert
 bb2:
+  push 64
+  mload
+  push 256
+  mload
+  dup1
+  push 256
+  mstore
+  dup2
+  add
+  push 64
+  mstore
+  push 160
+  mload
+  dup1
+  push 160
+  mstore
+  dup2
+  mstore
+  swap1
+  terminal jump
+bb3:
   calldatasize
   push 4
   swap1
@@ -59,12 +80,12 @@ bb2:
   dup3
   add
   dup1
-  push 224
+  push 192
   mstore
   swap2
   pop
   dup2
-  push 224
+  push 192
   mstore
   push 31
   dup2
@@ -81,74 +102,21 @@ bb2:
   swap2
   pop
   pop
-  push bb5
+  push bb10
   jumpi
-  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-  push 288
-  mload
-  and
-  dup1
-  push 320
-  mstore
-  iszero
-  push 320
-  mload
-  push 32
-  dup3
-  dup3
-  dup3
-  sub
-  mul
-  swap1
-  pop
-  add
-  dup1
-  push 192
-  mstore
-  swap1
-  pop
-  dup1
-  push 192
-  mstore
-  push 32
-  dup2
-  add
-  dup1
-  push 256
-  mstore
-  dup2
-  dup1
-  push 192
-  mstore
-  swap1
-  lt
-  swap1
-  pop
-  push bb5
+  push bb4
+  jump bb11
+bb4:
+  push bb10
   jumpi
-  push 64
-  mload
-  push 256
-  mload
-  dup1
-  push 256
-  mstore
-  dup2
-  add
-  push 64
-  mstore
-  push 160
-  mload
-  dup1
-  push 160
-  mstore
-  dup2
-  mstore
+  push bb5
+  jump bb2
+bb5:
   push 32
   dup2
   add
   push 32
-  push 192
+  push 224
   mload
   sub
   dup2
@@ -162,10 +130,10 @@ bb2:
   dup1
   push 160
   mstore
-  push 224
+  push 192
   mload
   dup1
-  push 224
+  push 192
   mstore
   dup3
   calldatacopy
@@ -193,15 +161,15 @@ bb2:
   sub
   push 352
   mload
-  fallthrough bb3
-bb3:
+  fallthrough bb6
+bb6:
   keccak256
   push 128
   mstore
   push 32
   push 128
   terminal return
-bb4:
+bb7:
   calldatasize
   push 4
   swap1
@@ -257,74 +225,21 @@ bb4:
   swap2
   pop
   pop
-  push bb5
+  push bb10
   jumpi
-  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-  push 288
-  mload
-  and
-  dup1
-  push 320
-  mstore
-  iszero
-  push 320
-  mload
-  push 32
-  dup3
-  dup3
-  dup3
-  sub
-  mul
-  swap1
-  pop
-  add
-  dup1
-  push 256
-  mstore
-  swap1
-  pop
-  dup1
-  push 256
-  mstore
-  push 32
-  dup2
-  add
-  dup1
-  push 224
-  mstore
-  dup2
-  dup1
-  push 256
-  mstore
-  swap1
-  lt
-  swap1
-  pop
-  push bb5
+  push bb8
+  jump bb11
+bb8:
+  push bb10
   jumpi
-  push 64
-  mload
-  push 224
-  mload
-  dup1
-  push 224
-  mstore
-  dup2
-  add
-  push 64
-  mstore
-  push 160
-  mload
-  dup1
-  push 160
-  mstore
-  dup2
-  mstore
+  push bb9
+  jump bb2
+bb9:
   push 32
   dup2
   add
   push 32
-  push 256
+  push 224
   mload
   sub
   dup2
@@ -380,8 +295,8 @@ bb4:
   swap1
   sub
   swap1
-  jump bb3
-bb5:
+  jump bb6
+bb10:
   push 0x4e487b7100000000000000000000000000000000000000000000000000000000
   push 0
   mstore
@@ -391,3 +306,47 @@ bb5:
   push 36
   push 0
   terminal revert
+bb11:
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+  push 288
+  mload
+  and
+  dup1
+  push 320
+  mstore
+  iszero
+  push 320
+  mload
+  push 32
+  dup3
+  dup3
+  dup3
+  sub
+  mul
+  swap1
+  pop
+  add
+  dup1
+  push 224
+  mstore
+  swap1
+  pop
+  dup1
+  push 224
+  mstore
+  push 32
+  dup2
+  add
+  dup1
+  push 256
+  mstore
+  dup2
+  dup1
+  push 224
+  mstore
+  swap1
+  lt
+  swap1
+  pop
+  swap1
+  terminal jump
