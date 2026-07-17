@@ -34,6 +34,7 @@ use super::{
 };
 use crate::mir::{Immediate, MirType};
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_ast::{
     Arena,
     token::{BinOpToken, Delimiter, TokenKind},
@@ -61,24 +62,26 @@ pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
 
 #[cfg(test)]
 pub(super) fn parse_module(sess: &Session, input: &str) -> Result<Module> {
-    use solar_interface::source_map::FileName;
-
     let id = input.bytes().fold(0u64, |hash, byte| hash.wrapping_mul(31).wrapping_add(byte.into()));
     let file = sess
         .source_map()
-        .new_source_file(FileName::Custom(format!("mir-test-{id}")), input)
+        .new_source_file(
+            solar_interface::source_map::FileName::Custom(format!("mir-test-{id}")),
+            input,
+        )
         .unwrap();
     Module::parse(sess, &file)
 }
 
 #[cfg(test)]
 fn parse_function(sess: &Session, input: &str) -> Result<Function> {
-    use solar_interface::source_map::FileName;
-
     let id = input.bytes().fold(0u64, |hash, byte| hash.wrapping_mul(31).wrapping_add(byte.into()));
     let source = sess
         .source_map()
-        .new_source_file(FileName::Custom(format!("mir-function-test-{id}")), input)
+        .new_source_file(
+            solar_interface::source_map::FileName::Custom(format!("mir-function-test-{id}")),
+            input,
+        )
         .unwrap();
     let errors = sess.dcx.err_count();
     let arena = Arena::new();
@@ -112,16 +115,14 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         let mut function_names = Vec::new();
         while !parser.is_eof() {
             if parser.eat_keyword(sym::fn_) && parser.eat(TokenKind::At) {
-                let mut name =
-                    parser.parse_ident().map(|symbol| symbol.to_string()).unwrap_or_default();
+                let Some(symbol) = parser.parse_ident_opt() else { continue };
+                let mut name = symbol.to_string();
                 while parser.eat(TokenKind::Dot) {
-                    let Ok(segment) = parser.parse_ident() else { break };
+                    let Some(segment) = parser.parse_ident_opt() else { break };
                     name.push('.');
                     name.push_str(segment.as_str());
                 }
-                if !name.is_empty() {
-                    function_names.push(name);
-                }
+                function_names.push(name);
             } else {
                 parser.bump();
             }
@@ -348,7 +349,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
 
     fn try_parse_block_header(&mut self) -> PResult<'sess, Option<u32>> {
         let checkpoint = self.parser.checkpoint();
-        let Ok(label) = self.parse_ident() else {
+        let Some(label) = self.parser.parse_ident_opt() else {
             self.parser.restore(checkpoint);
             return Ok(None);
         };
@@ -581,7 +582,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     ) -> PResult<'sess, ()> {
         // Optional result: `vN = ...`
         let checkpoint = self.parser.checkpoint();
-        let result_label = if let Ok(label) = self.parse_ident()
+        let result_label = if let Some(label) = self.parser.parse_ident_opt()
             && let Some(index) = label.as_str().strip_prefix('v').and_then(|s| s.parse().ok())
             && self.parser.eat(TokenKind::Eq)
         {
@@ -642,7 +643,6 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                 return Ok(());
             }
             sym::ret => {
-                use smallvec::SmallVec;
                 let mut values: SmallVec<[ValueId; 2]> = SmallVec::new();
                 // Empty ret?
                 if !self.parser.at_newline() && !self.is_eof() {
@@ -1434,7 +1434,7 @@ const _BLOCK_TYPE_REFERENCE: Option<BasicBlock> = None;
 mod tests {
     use super::*;
     use snapbox::{assert_data_eq, str};
-    use solar_interface::{ColorChoice, Session};
+    use solar_interface::{ColorChoice, Session, source_map::FileName};
 
     fn with_session<F: FnOnce(&Session) + Send>(f: F) {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
@@ -1445,12 +1445,23 @@ mod tests {
     #[test]
     fn parse_module_phase_header() {
         with_session(|sess| {
-            let src = "@module Phased\n@phase optimized\nfn @f() {\n  bb0 (entry):\n    stop\n}\n";
+            let src = "/// module docs\n@module Phased\n@phase optimized\nfn @f() {\n  bb0 (entry):\n    stop\n}\n";
             let module = parse_module(sess, src).unwrap();
             assert_eq!(module.phase, crate::mir::MirPhase::Optimized);
             // Round-trips through the printer.
             let printed = module.to_text().to_string();
-            assert!(printed.starts_with("@module Phased\n@phase optimized"), "{printed}");
+            assert_data_eq!(
+                &printed,
+                str![[r#"
+@module Phased
+@phase optimized
+fn @f() {
+  bb0 (entry):
+    stop
+}
+
+"#]]
+            );
             let reparsed = parse_module(sess, &printed).unwrap();
             assert_eq!(reparsed.phase, crate::mir::MirPhase::Optimized);
 
@@ -1458,7 +1469,17 @@ mod tests {
             let src = "@module Fresh\nfn @f() {\n  bb0 (entry):\n    stop\n}\n";
             let module = parse_module(sess, src).unwrap();
             assert_eq!(module.phase, crate::mir::MirPhase::Built);
-            assert!(module.to_text().to_string().starts_with("@module Fresh\n"));
+            assert_data_eq!(
+                module.to_text().to_string(),
+                str![[r#"
+@module Fresh
+fn @f() {
+  bb0 (entry):
+    stop
+}
+
+"#]]
+            );
 
             // Every phase name round-trips through parse and print.
             for phase in [
@@ -1658,6 +1679,51 @@ error: unknown instruction `bogus`
   │
 3 │     v1 = bogus arg0
   ╰╴         ━━━━━
+
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
+    fn malformed_tentative_parses_emit_diagnostics() {
+        with_session(|sess| {
+            let input = "@module m\nfn @ {\n";
+            let source = sess
+                .source_map()
+                .new_source_file(FileName::Custom("malformed-function.mir".into()), input)
+                .unwrap();
+            assert!(Module::parse(sess, &source).is_err());
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: expected identifier
+  ╭▸ <malformed-function.mir>:2:6
+  │
+2 │ fn @ {
+  ╰╴     ━
+
+
+"#]]
+            );
+        });
+
+        with_session(|sess| {
+            let input = "@module m\nfn @f() {\n  bb0 (entry):\n    %bad\n}\n";
+            let source = sess
+                .source_map()
+                .new_source_file(FileName::Custom("malformed-result.mir".into()), input)
+                .unwrap();
+            assert!(Module::parse(sess, &source).is_err());
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: expected identifier
+  ╭▸ <malformed-result.mir>:4:5
+  │
+4 │     %bad
+  ╰╴    ━
 
 
 "#]]

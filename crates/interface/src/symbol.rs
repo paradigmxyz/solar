@@ -1049,7 +1049,6 @@ symbols! {
         send,
         sender,
         sha256,
-        shaped,
         sig,
         slot,
         solidity,

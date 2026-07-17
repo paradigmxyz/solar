@@ -24,7 +24,8 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         Self { source, parser }
     }
 
-    pub(crate) fn checkpoint(&self) -> Checkpoint {
+    pub(crate) fn checkpoint(&mut self) -> Checkpoint {
+        let _ = self.parser.parse_doc_comments();
         Checkpoint { parser: self.parser.checkpoint(), lo: self.token().span.lo() }
     }
 
@@ -82,11 +83,13 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     }
 
     pub(crate) fn parse_ident(&mut self) -> Result<Symbol, PErr<'sess>> {
-        let TokenKind::Ident(symbol) = self.token().kind else {
-            return Err(self.error("expected identifier"));
-        };
+        self.parse_ident_opt().ok_or_else(|| self.error("expected identifier"))
+    }
+
+    pub(crate) fn parse_ident_opt(&mut self) -> Option<Symbol> {
+        let TokenKind::Ident(symbol) = self.token().kind else { return None };
         self.bump();
-        Ok(symbol)
+        Some(symbol)
     }
 
     pub(crate) fn parse_uint(&mut self) -> Result<U256, PErr<'sess>> {
@@ -117,7 +120,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
 
     pub(crate) fn span_from(&self, checkpoint: Checkpoint) -> Span {
         let lo = checkpoint.lo;
-        let hi = self.prev_token().span.hi();
+        let hi = self.prev_token().span.hi().max(lo);
         Span::new(lo, hi)
     }
 

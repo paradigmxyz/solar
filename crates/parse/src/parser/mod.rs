@@ -245,6 +245,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     /// Saves the current parser state for later restoration.
+    ///
+    /// # Panics
+    ///
+    /// Panics if doc comments are pending.
     pub fn checkpoint(&self) -> ParserCheckpoint {
         assert!(self.docs.is_empty(), "cannot checkpoint while doc comments are pending");
         ParserCheckpoint {

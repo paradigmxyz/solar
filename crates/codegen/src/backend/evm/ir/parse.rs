@@ -682,6 +682,36 @@ error: instruction after terminator in block `bb0`
         );
     }
 
+    #[test]
+    fn parser_handles_doc_comments_and_empty_metadata_values() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.dcx.set_flags(|flags| flags.track_diagnostics = false);
+        let input = "\
+/// module docs
+@module m
+
+bb0 (entry):
+  %0 = add 1 !meta(foo= )
+";
+        let source = sess
+            .source_map()
+            .new_source_file(FileName::Custom("empty-metadata.evmir".into()), input)
+            .unwrap();
+        sess.enter(|| assert!(Module::parse(&sess, &source).is_err()));
+        assert_data_eq!(
+            sess.emitted_diagnostics().unwrap().to_string(),
+            str![[r#"
+error: expected metadata value
+  ╭▸ <empty-metadata.evmir>:5:25
+  │
+5 │   %0 = add 1 !meta(foo= )
+  ╰╴                        ━
+
+
+"#]]
+        );
+    }
+
     fn round_trip_fixture(path: &Path) -> Result<(), String> {
         #[allow(clippy::disallowed_methods)]
         let input = std::fs::read_to_string(path).map_err(|err| err.to_string())?;
