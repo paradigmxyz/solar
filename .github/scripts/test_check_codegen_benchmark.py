@@ -18,8 +18,8 @@ SCHEMA = json.loads(
 DEFAULT_TIMING = object()
 
 
-def result(**compiler):
-    return {"test_id": "test", "compilers": {"solar": compiler}}
+def result(test_id="test", **compiler):
+    return {"test_id": test_id, "compilers": {"solar": compiler}}
 
 
 class ReportFormattingTests(unittest.TestCase):
@@ -43,6 +43,45 @@ class ReportFormattingTests(unittest.TestCase):
         self.assertEqual(
             benchmark.fmt_value_with_size_delta(105, 105, 100, "B"),
             "105B (❌ +5.00%)",
+        )
+
+    def test_peak_rss_report_is_collapsed(self):
+        report = benchmark.memory_report(
+            [result(status="ok", peak_rss_bytes=1024 * 1024)]
+        )
+        self.assertEqual(
+            report,
+            [
+                "<details>",
+                "<summary>Peak RSS</summary>",
+                "",
+                "| compiler | benches | average peak RSS | maximum peak RSS | maximum bench |",
+                "| -------- | ------- | ---------------- | ---------------- | ------------- |",
+                "| solar | 1 | 1.0 MiB | 1.0 MiB | test |",
+                "",
+                "#### Per-benchmark peak RSS",
+                "",
+                "| bench | solar peak |",
+                "| --- | --- |",
+                "| test | 1.0 MiB |",
+                "",
+                "</details>",
+                "",
+            ],
+        )
+
+    def test_codegen_report_combines_all_benches(self):
+        micro = result("micro", status="ok", total_gas=10, runtime_size=20)
+        repo = result("repository", status="ok", total_gas=30, runtime_size=40)
+        report = benchmark.codegen_report([micro], [repo], [micro], [repo])
+        self.assertEqual(
+            report,
+            "## Codegen benchmark\n"
+            "\n"
+            "| bench | gas (vs main) | solc | size (vs main) | solc |\n"
+            "| ----- | ------------- | ---- | -------------- | ---- |\n"
+            "| micro | 10 (~0%) | n/a (n/a) | 20B (~0%) | n/a (n/a) |\n"
+            "| repository | 30 (~0%) | n/a (n/a) | 40B (~0%) | n/a (n/a) |\n",
         )
 
 
