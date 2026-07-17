@@ -10,7 +10,7 @@
         "storageLayout": {
           "storage": [
             {
-              "astId": 1,
+              "astId": 3,
               "contract": "types.sol:LayoutTypes",
               "label": "raw",
               "offset": 0,
@@ -18,7 +18,7 @@
               "type": "t_bytes_storage"
             },
             {
-              "astId": 2,
+              "astId": 4,
               "contract": "types.sol:LayoutTypes",
               "label": "text",
               "offset": 0,
@@ -26,7 +26,7 @@
               "type": "t_string_storage"
             },
             {
-              "astId": 3,
+              "astId": 5,
               "contract": "types.sol:LayoutTypes",
               "label": "nestedDynamic",
               "offset": 0,
@@ -34,7 +34,7 @@
               "type": "t_array(t_array(t_uint8)dyn_storage)2_storage"
             },
             {
-              "astId": 4,
+              "astId": 6,
               "contract": "types.sol:LayoutTypes",
               "label": "unevenArray",
               "offset": 0,
@@ -42,7 +42,7 @@
               "type": "t_array(t_bytes17)3_storage"
             },
             {
-              "astId": 5,
+              "astId": 7,
               "contract": "types.sol:LayoutTypes",
               "label": "oddWidthArray",
               "offset": 0,
@@ -50,23 +50,23 @@
               "type": "t_array(t_uint24)21_storage"
             },
             {
-              "astId": 6,
+              "astId": 8,
               "contract": "types.sol:LayoutTypes",
               "label": "packed",
               "offset": 0,
               "slot": "10",
-              "type": "t_struct(Packed)22_storage"
+              "type": "t_struct(Packed)24_storage"
             },
             {
-              "astId": 7,
+              "astId": 9,
               "contract": "types.sol:LayoutTypes",
               "label": "records",
               "offset": 0,
               "slot": "15",
-              "type": "t_mapping(t_address,t_struct(Packed)22_storage)"
+              "type": "t_mapping(t_address,t_struct(Packed)24_storage)"
             },
             {
-              "astId": 8,
+              "astId": 10,
               "contract": "types.sol:LayoutTypes",
               "label": "dynamicRecords",
               "offset": 0,
@@ -74,23 +74,23 @@
               "type": "t_mapping(t_address,t_array(t_uint8)dyn_storage)"
             },
             {
-              "astId": 9,
+              "astId": 11,
               "contract": "types.sol:LayoutTypes",
               "label": "choice",
               "offset": 0,
               "slot": "17",
-              "type": "t_enum(Choice)23"
+              "type": "t_enum(Choice)25"
             },
             {
-              "astId": 10,
+              "astId": 12,
               "contract": "types.sol:LayoutTypes",
               "label": "small",
               "offset": 1,
               "slot": "17",
-              "type": "t_userDefinedValueType(Small)24"
+              "type": "t_userDefinedValueType(Small)26"
             },
             {
-              "astId": 11,
+              "astId": 13,
               "contract": "types.sol:LayoutTypes",
               "label": "externalFn",
               "offset": 4,
@@ -98,7 +98,7 @@
               "type": "t_function_external_view(t_array(t_array(t_uint8)dyn_calldata_ptr)2_calldata_ptr,t_array(t_bytes_memory_ptr)dyn_memory_ptr)returns(t_array(t_string_memory_ptr)dyn_memory_ptr)"
             },
             {
-              "astId": 12,
+              "astId": 14,
               "contract": "types.sol:LayoutTypes",
               "label": "internalFn",
               "offset": 0,
@@ -106,7 +106,7 @@
               "type": "t_function_internal_pure(t_uint256)returns(t_bool)"
             },
             {
-              "astId": 13,
+              "astId": 15,
               "contract": "types.sol:LayoutTypes",
               "label": "recipient",
               "offset": 8,
@@ -164,13 +164,13 @@
               "label": "uint24",
               "numberOfBytes": "3"
             },
-            "t_struct(Packed)22_storage": {
+            "t_struct(Packed)24_storage": {
               "encoding": "inplace",
               "label": "struct LayoutTypes.Packed",
               "numberOfBytes": "160",
               "members": [
                 {
-                  "astId": 14,
+                  "astId": 16,
                   "contract": "types.sol:LayoutTypes",
                   "label": "head",
                   "offset": 0,
@@ -178,7 +178,7 @@
                   "type": "t_uint8"
                 },
                 {
-                  "astId": 15,
+                  "astId": 17,
                   "contract": "types.sol:LayoutTypes",
                   "label": "values",
                   "offset": 0,
@@ -186,7 +186,7 @@
                   "type": "t_array(t_bytes17)3_storage"
                 },
                 {
-                  "astId": 16,
+                  "astId": 18,
                   "contract": "types.sol:LayoutTypes",
                   "label": "tail",
                   "offset": 0,
@@ -195,12 +195,12 @@
                 }
               ]
             },
-            "t_mapping(t_address,t_struct(Packed)22_storage)": {
+            "t_mapping(t_address,t_struct(Packed)24_storage)": {
               "encoding": "mapping",
               "label": "mapping(address => struct LayoutTypes.Packed)",
               "numberOfBytes": "32",
               "key": "t_address",
-              "value": "t_struct(Packed)22_storage"
+              "value": "t_struct(Packed)24_storage"
             },
             "t_address": {
               "encoding": "inplace",
@@ -214,12 +214,12 @@
               "key": "t_address",
               "value": "t_array(t_uint8)dyn_storage"
             },
-            "t_enum(Choice)23": {
+            "t_enum(Choice)25": {
               "encoding": "inplace",
               "label": "enum LayoutTypes.Choice",
               "numberOfBytes": "1"
             },
-            "t_userDefinedValueType(Small)24": {
+            "t_userDefinedValueType(Small)26": {
               "encoding": "inplace",
               "label": "LayoutTypes.Small",
               "numberOfBytes": "3"

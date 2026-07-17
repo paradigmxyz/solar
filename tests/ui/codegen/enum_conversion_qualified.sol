@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=bin-runtime
+//@compile-flags: -Zcodegen --emit=evm-ir-runtime
 
 // An explicit enum conversion written through its container, `Container.Enum(x)`
 // (the callee is a member access resolving to an enum), is the identity on the

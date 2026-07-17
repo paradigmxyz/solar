@@ -22,6 +22,30 @@ def result(**compiler):
     return {"test_id": "test", "compilers": {"solar": compiler}}
 
 
+class ReportFormattingTests(unittest.TestCase):
+    def test_unchanged_report_has_note(self):
+        report = benchmark.format_report("## Results", False)
+        self.assertEqual(
+            report,
+            "> [!NOTE]\n"
+            "> Codegen benchmark output is unchanged from `main`.\n\n"
+            "## Results",
+        )
+
+    def test_changed_report_has_no_note(self):
+        self.assertEqual(benchmark.format_report("## Results", True), "## Results")
+
+    def test_size_delta_uses_conventional_sign(self):
+        self.assertEqual(
+            benchmark.fmt_value_with_size_delta(95, 95, 100, "B"),
+            "95B (✅ -5.00%)",
+        )
+        self.assertEqual(
+            benchmark.fmt_value_with_size_delta(105, 105, 100, "B"),
+            "105B (❌ +5.00%)",
+        )
+
+
 class CommonBenchmarkResultTests(unittest.TestCase):
     def write_result(self, micro, repo=None, micro_timing=DEFAULT_TIMING, repo_timing=None):
         if repo is None:

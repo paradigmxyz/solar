@@ -7,17 +7,48 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      benchmark:
+        description: Benchmark family to run
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - codegen-runtime
+          - codspeed
+          - gungraun
+      comparison_ref:
+        description: Git ref to use as the Gungraun baseline
+        required: true
+        default: main
+        type: string
+      solc_version:
+        description: solc release used by the codegen runtime benchmark
+        required: true
+        default: 0.8.36
+        type: string
+      benchmark_ref:
+        description: solidity-compiler-benchmarks Git ref
+        required: true
+        default: 759b27b596ca6632717465832859863eccbe41a2
+        type: string
 
 env:
   CARGO_TERM_COLOR: always
-  SOLC_VERSION: 0.8.36
+  SOLC_VERSION: ${{ inputs.solc_version || '0.8.36' }}
   BENCHMARK_REPOSITORY: walnuthq/solidity-compiler-benchmarks
-  BENCHMARK_REF: 759b27b596ca6632717465832859863eccbe41a2
+  DEFAULT_BENCHMARK_REF: 759b27b596ca6632717465832859863eccbe41a2
+  BENCHMARK_REF: ${{ inputs.benchmark_ref || '759b27b596ca6632717465832859863eccbe41a2' }}
   BENCHMARK_PATH: solidity-compiler-benchmarks
 
 jobs:
   codegen-runtime:
     name: codegen runtime benchmark
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      inputs.benchmark == 'all' ||
+      inputs.benchmark == 'codegen-runtime'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -72,6 +103,7 @@ jobs:
 
       - name: Download baseline (main branch)
         id: baseline
+        if: inputs.benchmark_ref == '' || inputs.benchmark_ref == env.DEFAULT_BENCHMARK_REF
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -82,6 +114,7 @@ jobs:
             gh run list \
               --workflow bench.yml \
               --branch main \
+              --event push \
               --status success \
               --limit 1 \
               --json databaseId \
@@ -174,32 +207,15 @@ jobs:
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
-      - name: Find existing runtime benchmark comment
-        id: runtime-comment
-        if: >-
-          github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          set -euo pipefail
-          exists="$(
-            gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments?per_page=100" \
-              --jq 'any(.[].body; contains("codegen-runtime-bench"))'
-          )"
-          echo "exists=${exists}" >> "$GITHUB_OUTPUT"
-
       - name: Comment on PR
         if: >-
           github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository &&
-          (steps.runtime-report.outputs.should_comment == 'true' ||
-          steps.runtime-comment.outputs.exists == 'true')
+          github.event.pull_request.head.repo.full_name == github.repository
         uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
         with:
           header: codegen-runtime-bench
           message: ${{ steps.runtime-report.outputs.report }}
+          only_update: ${{ steps.runtime-report.outputs.should_comment != 'true' }}
 
       - name: Upload results as artifact
         if: always()
@@ -211,7 +227,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Save baseline (main only)
-        if: github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: codegen-runtime-baseline
@@ -222,6 +238,10 @@ jobs:
           if-no-files-found: ignore
 
   codspeed:
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      inputs.benchmark == 'all' ||
+      inputs.benchmark == 'codspeed'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -251,11 +271,16 @@ jobs:
           token: ${{ secrets.CODSPEED_TOKEN }}
 
   gungraun:
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      inputs.benchmark == 'all' ||
+      inputs.benchmark == 'gungraun'
     runs-on: ubuntu-latest
     permissions:
       contents: read
     env:
       BASELINE: base
+      COMPARISON_REF: ${{ inputs.comparison_ref || github.base_ref || 'main' }}
       IAI_CALLGRIND_RUNNER: iai-callgrind-runner
       GUNGRAUN_RUNNER: gungraun-runner
     steps:
@@ -276,11 +301,15 @@ jobs:
       - name: Checkout base
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.base_ref || 'main' }}
+          ref: ${{ env.COMPARISON_REF }}
           fetch-depth: 2
       - name: Checkout HEAD^
-        if: ${{ !github.base_ref }}
+        if: github.event_name == 'push'
         run: git checkout HEAD^
+      - name: Checkout base submodules
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive --checkout
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           cache-on-failure: true
@@ -298,18 +327,22 @@ jobs:
       - name: Save baseline
         run: |
           bench_target=$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name == "solar-bench").targets[] | select(any(.kind[]; . == "bench") and (.name == "gungraun" or .name == "iai")).name' | head -n1)
-          cargo bench -p solar-bench --bench "$bench_target" --features ci -- --save-baseline=$BASELINE
+          cargo bench -p solar-bench --bench "$bench_target" --features ci -- --save-baseline="$BASELINE"
           if [ "$bench_target" = "iai" ] && [ -d target/iai ] && [ ! -e target/gungraun ]; then
             mv target/iai target/gungraun
           fi
-      - name: Checkout PR
+      - name: Checkout candidate
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           clean: false
+      - name: Checkout candidate submodules
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive --checkout
       - name: Install benchmark runner
         run: |
           version=$(cargo metadata --format-version=1 | jq -r '.packages[] | select(.name == "gungraun").version')
           cargo binstall gungraun-runner --version "$version" --no-confirm --no-symlinks --force
           which gungraun-runner
-      - name: Compare PR benchmarks
-        run: cargo bench -p solar-bench --bench gungraun --features ci -- --baseline=$BASELINE
+      - name: Compare candidate benchmarks
+        run: cargo bench -p solar-bench --bench gungraun --features ci -- --baseline="$BASELINE"

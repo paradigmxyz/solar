@@ -3,12 +3,14 @@ use crate::{
     ast_lowering::SymbolResolver,
     builtins::{Builtin, members},
     hir::{self, Hir, SourceId},
+    typeck::override_checker::OverrideProxy,
 };
 use alloy_primitives::{B256, Selector, U256, keccak256};
 use either::Either;
 use solar_ast::{DataLocation, StateMutability, TypeSize, UserDefinableOperator, Visibility};
 use solar_data_structures::{
     BumpExt,
+    bit_set::{DenseBitSet, GrowableBitSet},
     fmt::{from_fn, or_list},
     map::{FxBuildHasher, FxHashMap, FxHashSet},
     smallvec::SmallVec,
@@ -78,7 +80,7 @@ pub struct TypeckResults<'gcx> {
     pub(crate) expr_types: FxHashMap<hir::ExprId, Ty<'gcx>>,
     pub(crate) resolved_callees: FxHashMap<hir::ExprId, ResolvedCallee>,
     pub(crate) resolved_members: FxHashMap<hir::ExprId, hir::Res>,
-    pub(crate) unsupported_udvt_operators: FxHashSet<hir::ExprId>,
+    pub(crate) unsupported_udvt_operators: GrowableBitSet<hir::ExprId>,
 }
 
 /// The target selected for a call callee expression.
@@ -170,7 +172,7 @@ impl<'gcx> TypeckResults<'gcx> {
     /// Returns whether codegen cannot lower the user-defined operator used by this expression.
     #[inline]
     pub fn unsupported_udvt_operator(&self, id: hir::ExprId) -> bool {
-        self.unsupported_udvt_operators.contains(&id)
+        self.unsupported_udvt_operators.contains(id)
     }
 }
 
@@ -526,6 +528,21 @@ impl<'gcx> Gcx<'gcx> {
     #[inline]
     pub fn resolved_member(self, id: hir::ExprId) -> Option<hir::Res> {
         self.typeck_results.get()?.resolved_member(id)
+    }
+
+    /// Resolves every segment of a source path in its source and contract scopes.
+    pub fn source_path_resolutions(
+        self,
+        segments: &[Ident],
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+    ) -> Option<Vec<Vec<hir::Res>>> {
+        self.symbol_resolver.source_path_resolutions(segments, source, contract)
+    }
+
+    /// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
+    pub fn natspec_contract(self, name: Symbol, source: hir::SourceId) -> Option<hir::ContractId> {
+        self.natspec_contract_in_source((name, source))
     }
 
     /// Returns the selected builtin target for a non-call member access expression, if available.
@@ -1048,7 +1065,7 @@ impl<'gcx> Gcx<'gcx> {
             return;
         };
         let ty = self.type_of_item(user_ty.into());
-        let mut seen = FxHashSet::default();
+        let mut seen = DenseBitSet::new_empty(self.hir.function_ids().len());
         self.for_each_using_directive_for_type(ty, source, contract, &mut |using| {
             for entry in using.entries {
                 if entry.operator == Some(op)
@@ -1226,12 +1243,30 @@ fn fn_state_mutability(kind: TyFnKind, state_mutability: StateMutability) -> Sta
     }
 }
 
+macro_rules! cached_key_type {
+    ($key_type:ty) => {
+        $key_type
+    };
+    ($key_type:ty, $cache_key_type:ty) => {
+        $cache_key_type
+    };
+}
+
+macro_rules! cached_key_expr {
+    ($key:expr) => {
+        $key
+    };
+    ($key:expr, $cache_key:expr) => {
+        $cache_key
+    };
+}
+
 macro_rules! cached {
-    ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : $key_type:ty) -> $value:ty $imp:block)*) => {
+    ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : $key_type:ty) $(cached_by($cache_key_type:ty, $cache_key:expr))? -> $value:ty $imp:block)*) => {
         #[derive(Default)]
         struct Cache<'gcx> {
             $(
-                $name: FxOnceMap<$key_type, $value>,
+                $name: FxOnceMap<cached_key_type!($key_type $(, $cache_key_type)?), $value>,
             )*
         }
 
@@ -1239,11 +1274,12 @@ macro_rules! cached {
             $(
                 $(#[$attr])*
                 $vis fn $name(self, $key: $key_type) -> $value {
+                    let cache_key = cached_key_expr!($key $(, $cache_key)?);
                     #[cfg(false)]
-                    let _guard = log_cache_query(stringify!($name), &$key);
+                    let _guard = log_cache_query(stringify!($name), &cache_key);
                     #[cfg(false)]
                     let mut hit = true;
-                    let r = cache_insert(&self.cache.$name, $key, |&$key| {
+                    let r = cache_insert(&self.cache.$name, cache_key, |_| {
                         #[cfg(false)]
                         {
                             hit = false;
@@ -1372,6 +1408,21 @@ pub(crate) fn base_override_functions(
     proxy: crate::typeck::override_checker::OverrideProxy
 ) -> &'gcx [crate::typeck::override_checker::OverrideProxy] {
     crate::typeck::override_checker::base_override_functions(gcx, proxy)
+}
+
+/// Returns the base declarations overridden by a function, modifier, or public variable.
+pub fn base_override_items(gcx: _, item: hir::ItemId) -> &'gcx [hir::ItemId] {
+    let proxy = match item {
+        hir::ItemId::Function(id) => OverrideProxy::Function(id),
+        hir::ItemId::Variable(id) if gcx.hir.variable(id).getter.is_some() => {
+            OverrideProxy::Variable(id)
+        }
+        _ => return &[],
+    };
+    gcx.bump().alloc_from_iter(gcx.base_override_functions(proxy).iter().map(|base| match base {
+        OverrideProxy::Function(id) => hir::ItemId::Function(*id),
+        OverrideProxy::Variable(id) => hir::ItemId::Variable(*id),
+    }))
 }
 
 /// Returns the resolved NatSpec doc comments for the given doc ID.
@@ -1539,7 +1590,14 @@ fn internal_function_members_in_context(
     let (id, current_contract) = key;
     gcx.bump().alloc_vec(members::internal_function_members_in_context(gcx, id, current_contract))
 }
+
+pub(crate) fn eval_const_value_result(gcx: _, expr: &hir::Expr<'_>)
+    cached_by(hir::ExprId, expr.id) -> &'gcx crate::eval::EvalResult
+{
+    gcx.alloc(crate::eval::eval_const(gcx, expr))
 }
+
+} // cached!
 
 fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) -> Ty<'gcx> {
     use hir::DataLocation::*;

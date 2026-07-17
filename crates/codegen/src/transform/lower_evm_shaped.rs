@@ -23,6 +23,7 @@ use crate::{
     mir::{Function, InstKind, MirPhase, Module, Terminator},
     pass::ModulePass,
 };
+use solar_data_structures::bit_set::DenseBitSet;
 
 /// Statistics from EVM-shape lowering.
 #[derive(Clone, Debug, Default)]
@@ -64,17 +65,17 @@ impl LowerEvmShapedPass {
         }
 
         let call_graph = CallGraphInfo::new(module);
-        let tail_callable: Vec<bool> = module
-            .functions
-            .iter_enumerated()
-            .map(|(func_id, func)| {
-                function_cannot_return(func)
-                    && func.selector.is_none()
-                    && !func.attributes.is_receive
-                    && !func.attributes.is_fallback
-                    && !call_graph.is_recursive(func_id)
-            })
-            .collect();
+        let mut tail_callable = DenseBitSet::new_empty(module.functions.len());
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if function_cannot_return(func)
+                && func.selector.is_none()
+                && !func.attributes.is_receive
+                && !func.attributes.is_fallback
+                && !call_graph.is_recursive(func_id)
+            {
+                tail_callable.insert(func_id);
+            }
+        }
 
         for func in module.functions.iter_mut() {
             for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
@@ -85,7 +86,7 @@ impl LowerEvmShapedPass {
                         && matches!(
                             &inst.kind,
                             InstKind::InternalCall { function, .. }
-                                if tail_callable[function.index()]
+                                if tail_callable.contains(*function)
                         )
                 }) else {
                     continue;

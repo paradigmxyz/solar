@@ -30,26 +30,20 @@ pub use builder::FunctionBuilder;
 mod display;
 
 mod parser;
-pub use parser::{ParseError, parse_function, parse_module};
+pub use parser::ParseError;
 
 pub(crate) mod utils;
 
 newtype_index! {
     /// A unique identifier for a value in the MIR.
     pub struct ValueId;
-}
 
-newtype_index! {
     /// A unique identifier for an instruction in the MIR.
     pub struct InstId;
-}
 
-newtype_index! {
     /// A unique identifier for a basic block in the MIR.
     pub struct BlockId;
-}
 
-newtype_index! {
     /// A unique identifier for a function in the MIR.
     pub struct FunctionId;
 }
@@ -70,14 +64,18 @@ newtype_index! {
 /// indices. A *second* round-trip must be stable.
 #[cfg(test)]
 mod round_trip {
-    use super::{Module, parse_module};
-    use crate::{analysis::validate_module, lower};
+    use super::Module;
+    use crate::{analysis::Validator, lower};
     use solar_interface::{ColorChoice, Session};
     use solar_sema::Compiler;
     use std::{
         ops::ControlFlow,
         path::{Path, PathBuf},
     };
+
+    fn parse_module(input: &str) -> Result<Module, super::ParseError> {
+        Module::parse(input)
+    }
 
     /// Path to `tests/ui/codegen/` (the workspace's UI test directory).
     fn ui_codegen_dir() -> PathBuf {
@@ -179,13 +177,13 @@ mod round_trip {
                     continue;
                 }
                 let module = lower::lower_contract(gcx, id);
-                let errors = validate_module(&module);
-                if !errors.is_empty() {
+                let errors_before = gcx.dcx().err_count();
+                Validator::new(gcx.dcx()).validate_module(&module);
+                if gcx.dcx().err_count() != errors_before {
                     result = Err(format!(
-                        "contract `{}` has {} validation error(s):\n    {}",
+                        "contract `{}` has invalid MIR:\n{}",
                         contract.name,
-                        errors.len(),
-                        errors.iter().map(|e| e.to_string()).collect::<Vec<_>>().join("\n    ")
+                        gcx.dcx().emitted_diagnostics().unwrap()
                     ));
                     return Ok(());
                 }

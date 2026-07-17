@@ -19,13 +19,13 @@ bb0 (entry):
   %v16 = push 16
   swap15
   push 0x1000
-  mstore !meta(stack=2->0)
+  mstore
   swap15
   swap1
   swap14
   swap1
-  %r = add !meta(stack=2->1)
+  %r = add
   push 0x1000
-  mload !meta(stack=1->1)
-  %s = mul !meta(stack=2->1)
+  mload
+  %s = mul
   stop

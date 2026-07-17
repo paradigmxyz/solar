@@ -1,12 +1,12 @@
 use super::super::{AnalysisBatch, AnalysisResult, GlobalState, analyze};
 use crate::test_support::MarkedProject;
-use async_lsp::ClientSocket;
+use async_lsp::{ClientSocket, ErrorCode};
 use lsp_types::{
     CompletionItem, CompletionParams, CompletionResponse, Documentation, GotoDefinitionParams,
     GotoDefinitionResponse, InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams, Location,
-    ParameterLabel, PartialResultParams, Position, Range, ReferenceContext, ReferenceParams,
-    SignatureHelp, SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams, Url,
-    WorkDoneProgressParams,
+    ParameterLabel, PartialResultParams, Position, PrepareRenameResponse, Range, ReferenceContext,
+    ReferenceParams, RenameParams, SignatureHelp, SignatureHelpParams, TextDocumentIdentifier,
+    TextDocumentPositionParams, Url, WorkDoneProgressParams, WorkspaceEdit,
 };
 use snapbox::{IntoData, assert_data_eq};
 use solar_config::CompileOpts;
@@ -44,8 +44,61 @@ impl RequestFixture {
         Self { marked, result }
     }
 
+    pub(super) fn new_in_batches(fixture: &str, paths: &[&str]) -> Self {
+        let marked = MarkedProject::from_fixture(fixture);
+        Self::analyze_batches(marked, paths, None)
+    }
+
+    pub(super) fn new_in_batches_with_stale_disk(
+        fixture: &str,
+        open_path: &str,
+        disk_contents: &str,
+        paths: &[&str],
+    ) -> Self {
+        let marked = MarkedProject::from_fixture(fixture);
+        let open_contents = marked.project().read_file(open_path);
+        marked.project().write_file(open_path, disk_contents);
+        Self::analyze_batches(marked, paths, Some((open_path, open_contents)))
+    }
+
+    fn analyze_batches(
+        marked: MarkedProject,
+        paths: &[&str],
+        open_file: Option<(&str, String)>,
+    ) -> Self {
+        let mut result =
+            AnalysisResult { diagnostics: Default::default(), symbol_tables: Default::default() };
+        for path in paths {
+            let contents = open_file
+                .as_ref()
+                .filter(|(open_path, _)| open_path == path)
+                .map_or_else(|| marked.project().read_file(path), |(_, contents)| contents.clone());
+            let path = marked.project().path(path);
+            let batch = analyze(AnalysisBatch {
+                opts: CompileOpts::default(),
+                files: vec![(path, contents)],
+                seen_paths: FxHashSet::default(),
+            });
+            result.symbol_tables.extend(batch.symbol_tables);
+            for (uri, mut diagnostics) in batch.diagnostics {
+                result.diagnostics.entry(uri).or_default().append(&mut diagnostics);
+            }
+        }
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+        Self { marked, result }
+    }
+
     pub(super) fn project_contents(&self, path: &str) -> String {
         self.marked.project().read_file(path)
+    }
+
+    pub(super) fn rename_state_and_params(
+        &self,
+        marker: &str,
+        new_name: &str,
+    ) -> (GlobalState, RenameParams) {
+        let (uri, position) = self.marker_location(marker);
+        (self.state(), rename_params(uri, position, new_name))
     }
 
     pub(super) fn check_completion(&self, marker: &str, expected: impl IntoData) {
@@ -93,6 +146,43 @@ impl RequestFixture {
         ))
         .unwrap();
         assert_data_eq!(self.locations_output(response), expected);
+    }
+
+    pub(super) fn check_prepare_rename(&self, marker: &str, expected: impl IntoData) {
+        let mut state = self.state();
+        let (uri, position) = self.marker_location(marker);
+        let response = expect_ready(crate::handlers::prepare_rename(
+            &mut state,
+            text_document_position(uri, position),
+        ))
+        .unwrap();
+        assert_data_eq!(prepare_rename_output(response), expected);
+    }
+
+    pub(super) fn check_rename(&self, marker: &str, new_name: &str, expected: impl IntoData) {
+        let mut state = self.state();
+        let (uri, position) = self.marker_location(marker);
+        let response =
+            block_on(crate::handlers::rename(&mut state, rename_params(uri, position, new_name)))
+                .unwrap();
+        assert_data_eq!(self.rename_output(response), expected);
+    }
+
+    pub(super) fn check_rename_error(&self, marker: &str, new_name: &str, expected: ErrorCode) {
+        let mut state = self.state();
+        let (uri, position) = self.marker_location(marker);
+        let error =
+            block_on(crate::handlers::rename(&mut state, rename_params(uri, position, new_name)))
+                .expect_err("rename should fail");
+        assert_eq!(error.code, expected);
+    }
+
+    pub(super) fn write_file(&self, path: &str, contents: &str) {
+        self.marked.project().write_file(path, contents);
+    }
+
+    pub(super) fn set_open_file_contents(&mut self, path: &str, contents: &str) {
+        self.marked.project_mut().open_file(path, contents);
     }
 
     pub(super) fn check_inlay_hints(&self, path: &str, expected: impl IntoData) {
@@ -255,6 +345,37 @@ impl RequestFixture {
             line.trim()
         )
     }
+
+    fn rename_output(&self, response: Option<WorkspaceEdit>) -> String {
+        let Some(edit) = response else { return "<none>\n".to_string() };
+        assert!(edit.document_changes.is_none());
+        assert!(edit.change_annotations.is_none());
+
+        let mut changes = edit.changes.unwrap_or_default().into_iter().collect::<Vec<_>>();
+        changes.sort_by(|(a, _), (b, _)| a.as_str().cmp(b.as_str()));
+
+        let mut output = String::new();
+        for (uri, mut edits) in changes {
+            edits.sort_by_key(|edit| {
+                (edit.range.start.line, edit.range.start.character, edit.range.end)
+            });
+            let path = uri.to_file_path().unwrap();
+            let display_path = display_path(self.marked.project().root(), &path);
+            for edit in edits {
+                writeln!(
+                    output,
+                    "{display_path}:{}:{}-{}:{} -> {}",
+                    edit.range.start.line,
+                    edit.range.start.character,
+                    edit.range.end.line,
+                    edit.range.end.character,
+                    edit.new_text,
+                )
+                .unwrap();
+            }
+        }
+        output
+    }
 }
 
 fn expect_ready<F: Future>(future: F) -> F::Output {
@@ -265,6 +386,10 @@ fn expect_ready<F: Future>(future: F) -> F::Output {
         Poll::Ready(output) => output,
         Poll::Pending => panic!("request handler future should complete immediately"),
     }
+}
+
+fn block_on<F: Future>(future: F) -> F::Output {
+    tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(future)
 }
 
 fn read_file(path: &Path) -> Option<String> {
@@ -289,6 +414,19 @@ fn inlay_hint_output(hints: &[InlayHint]) -> String {
             .unwrap();
     }
     output
+}
+
+fn prepare_rename_output(response: Option<PrepareRenameResponse>) -> String {
+    let Some(response) = response else { return "<none>\n".to_string() };
+    let range = match response {
+        PrepareRenameResponse::Range(range) => range,
+        PrepareRenameResponse::RangeWithPlaceholder { range, .. } => range,
+        PrepareRenameResponse::DefaultBehavior { .. } => return "<default>\n".to_string(),
+    };
+    format!(
+        "{}:{}-{}:{}\n",
+        range.start.line, range.start.character, range.end.line, range.end.character
+    )
 }
 
 fn signature_help_output(help: Option<SignatureHelp>) -> String {
@@ -379,6 +517,14 @@ fn reference_params(uri: Url, position: Position, include_declaration: bool) -> 
         work_done_progress_params: WorkDoneProgressParams::default(),
         partial_result_params: PartialResultParams::default(),
         context: ReferenceContext { include_declaration },
+    }
+}
+
+fn rename_params(uri: Url, position: Position, new_name: &str) -> RenameParams {
+    RenameParams {
+        text_document_position: text_document_position(uri, position),
+        new_name: new_name.into(),
+        work_done_progress_params: WorkDoneProgressParams::default(),
     }
 }
 

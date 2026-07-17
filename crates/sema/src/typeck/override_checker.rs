@@ -21,6 +21,7 @@ use crate::{
 use solar_ast::{FunctionKind, StateMutability, Visibility};
 use solar_data_structures::{
     BumpExt,
+    bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet, FxIndexMap},
 };
 use solar_interface::{
@@ -192,7 +193,7 @@ pub(crate) struct OverrideSignature<'gcx> {
 struct OverrideGraph<'gcx> {
     nodes: FxHashMap<OverrideProxy, usize>,
     node_inv: FxHashMap<usize, OverrideProxy>,
-    edges: FxHashMap<usize, FxHashSet<usize>>,
+    edges: FxHashMap<usize, GrowableBitSet<usize>>,
     num_nodes: usize,
     gcx: Gcx<'gcx>,
 }
@@ -253,7 +254,7 @@ impl<'gcx> OverrideGraph<'gcx> {
 /// Reference: <https://en.wikipedia.org/wiki/Biconnected_component#Pseudocode>
 struct CutVertexFinder<'a, 'gcx> {
     graph: &'a OverrideGraph<'gcx>,
-    visited: Vec<bool>,
+    visited: DenseBitSet<usize>,
     depths: Vec<i32>,
     low: Vec<i32>,
     parent: Vec<i32>,
@@ -264,7 +265,7 @@ impl<'a, 'gcx> CutVertexFinder<'a, 'gcx> {
     fn find(graph: &'a OverrideGraph<'gcx>) -> FxHashSet<OverrideProxy> {
         let mut finder = Self {
             graph,
-            visited: vec![false; graph.num_nodes],
+            visited: DenseBitSet::new_empty(graph.num_nodes),
             depths: vec![-1; graph.num_nodes],
             low: vec![-1; graph.num_nodes],
             parent: vec![-1; graph.num_nodes],
@@ -275,15 +276,15 @@ impl<'a, 'gcx> CutVertexFinder<'a, 'gcx> {
     }
 
     fn run(&mut self, u: usize, depth: i32) {
-        self.visited[u] = true;
+        self.visited.insert(u);
         self.depths[u] = depth;
         self.low[u] = depth;
 
         let neighbors: Vec<usize> =
-            self.graph.edges.get(&u).map(|s| s.iter().copied().collect()).unwrap_or_default();
+            self.graph.edges.get(&u).map(|s| s.into_iter().collect()).unwrap_or_default();
 
         for v in neighbors {
-            if !self.visited[v] {
+            if !self.visited.contains(v) {
                 self.parent[v] = u as i32;
                 self.run(v, depth + 1);
 
@@ -431,10 +432,12 @@ impl<'gcx> OverrideChecker<'gcx> {
     }
 
     fn check_override_list(&self, overriding: OverrideProxy, bases: &[OverrideProxy]) {
-        let specified_contracts: FxHashSet<ContractId> =
-            overriding.overrides(self.gcx).iter().copied().collect();
+        let mut specified_contracts = DenseBitSet::new_empty(self.gcx.hir.contract_ids().len());
+        for &contract in overriding.overrides(self.gcx) {
+            specified_contracts.insert(contract);
+        }
 
-        if overriding.overrides(self.gcx).len() != specified_contracts.len() {
+        if overriding.overrides(self.gcx).len() != specified_contracts.count() {
             self.dcx()
                 .err(format!(
                     "duplicate contract found in override list of `{}`",
@@ -457,7 +460,7 @@ impl<'gcx> OverrideChecker<'gcx> {
         if expected_contracts.len() > 1 {
             let missing: Vec<_> = expected_contracts
                 .iter()
-                .filter(|c| !specified_contracts.contains(*c))
+                .filter(|c| !specified_contracts.contains(**c))
                 .copied()
                 .collect();
 
@@ -478,11 +481,8 @@ impl<'gcx> OverrideChecker<'gcx> {
             }
         }
 
-        let surplus: Vec<_> = specified_contracts
-            .iter()
-            .filter(|c| !expected_contracts.contains(*c))
-            .copied()
-            .collect();
+        let surplus: Vec<_> =
+            specified_contracts.iter().filter(|c| !expected_contracts.contains(c)).collect();
 
         if !surplus.is_empty() {
             let surplus_names: Vec<_> = surplus
@@ -936,10 +936,9 @@ impl<'gcx> OverrideChecker<'gcx> {
         let mut seen_sigs: FxHashSet<OverrideSignature<'gcx>> = FxHashSet::default();
         for (proxy, base_id) in unimplemented {
             let sig = self.signature(proxy);
-            if seen_sigs.contains(&sig) {
+            if !seen_sigs.insert(sig) {
                 continue;
             }
-            seen_sigs.insert(sig);
 
             let base_name = self.gcx.hir.contract(base_id).name.as_str();
             let mut diag = self

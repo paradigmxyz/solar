@@ -14,8 +14,8 @@ pub(crate) fn run(args: Args) -> ExitCode {
     match commands {
         #[cfg(feature = "lsp")]
         Some(Subcommands::Lsp(args)) => lsp::run(args),
-        Some(Subcommands::MirOpt(args)) => mir_opt::run(args),
-        Some(Subcommands::EvmOpt(args)) => evm_opt::run(args),
+        Some(Subcommands::MirOpt(args)) => mir_opt::run(args, compile),
+        Some(Subcommands::EvmOpt(args)) => evm_opt::run(args, compile),
         None => compile::run(compile),
     }
 }

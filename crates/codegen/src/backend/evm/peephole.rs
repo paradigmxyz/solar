@@ -379,6 +379,8 @@ impl Peephole {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::backend::evm::test_utils::disassemble;
+    use snapbox::{assert_data_eq, str};
 
     #[test]
     fn removes_push_zero_add() {
@@ -391,7 +393,14 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 42, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x2a
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -405,7 +414,7 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert!(result.bytecode.is_empty());
+        assert_data_eq!(disassemble(&result.bytecode), str![""]);
     }
 
     #[test]
@@ -423,7 +432,16 @@ mod tests {
         let result = asm.assemble();
 
         assert_eq!(result.label_offsets[&label], 2);
-        assert_eq!(result.bytecode, vec![0x60, 42, op::JUMPDEST, 0x60, 2, op::JUMP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x2a
+JUMPDEST
+PUSH1 0x02
+JUMP
+
+"#]]
+        );
     }
 
     #[test]
@@ -441,7 +459,17 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 42, op::DUP1, 0x60, 0x80, op::MSTORE, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x2a
+DUP1
+PUSH1 0x80
+MSTORE
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -459,7 +487,17 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 42, op::DUP1, 0x60, 0x80, op::MSTORE, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x2a
+DUP1
+PUSH1 0x80
+MSTORE
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -482,24 +520,21 @@ mod tests {
 
         // The label between the stores is a jump target: the second store is
         // reachable without the first and must stay.
-        assert_eq!(
-            result.bytecode,
-            vec![
-                0x60,
-                42,
-                op::DUP1,
-                0x60,
-                0x80,
-                op::MSTORE,
-                op::JUMPDEST,
-                op::DUP1,
-                0x60,
-                0x80,
-                op::MSTORE,
-                0x60,
-                6,
-                op::JUMP
-            ]
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x2a
+DUP1
+PUSH1 0x80
+MSTORE
+JUMPDEST
+DUP1
+PUSH1 0x80
+MSTORE
+PUSH1 0x06
+JUMP
+
+"#]]
         );
     }
 
@@ -514,7 +549,14 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![op::PUSH0, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH0
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -528,7 +570,16 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 42, op::PUSH0, op::SUB, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x2a
+PUSH0
+SUB
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -542,7 +593,15 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 42, op::ISZERO, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x2a
+ISZERO
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -554,7 +613,14 @@ mod tests {
         asm.emit_op(op::SWAP1);
         asm.emit_op(op::POP);
         asm.emit_op(op::STOP);
-        assert_eq!(asm.assemble().bytecode, vec![op::ADD, op::STOP]);
+        assert_data_eq!(
+            disassemble(&asm.assemble().bytecode),
+            str![[r#"
+ADD
+STOP
+
+"#]]
+        );
 
         // Non-commutative: `DUP2 SUB SWAP1 POP -> SWAP1 SUB`.
         let mut asm = Assembler::new();
@@ -563,7 +629,15 @@ mod tests {
         asm.emit_op(op::SWAP1);
         asm.emit_op(op::POP);
         asm.emit_op(op::STOP);
-        assert_eq!(asm.assemble().bytecode, vec![op::SWAP1, op::SUB, op::STOP]);
+        assert_data_eq!(
+            disassemble(&asm.assemble().bytecode),
+            str![[r#"
+SWAP1
+SUB
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -574,7 +648,16 @@ mod tests {
             asm.emit_op(op::POP);
         }
         asm.emit_op(op::STOP);
-        assert_eq!(asm.assemble().bytecode, vec![op::SWAP1 + 1, op::POP, op::POP, op::STOP]);
+        assert_data_eq!(
+            disassemble(&asm.assemble().bytecode),
+            str![[r#"
+SWAP2
+POP
+POP
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -587,7 +670,16 @@ mod tests {
         asm.emit_push_label(label);
         asm.emit_op(op::JUMPI);
         let bytecode = asm.assemble().bytecode;
-        assert_eq!(bytecode, vec![op::JUMPDEST, op::SUB, op::PUSH0, op::JUMPI]);
+        assert_data_eq!(
+            disassemble(&bytecode),
+            str![[r#"
+JUMPDEST
+SUB
+PUSH0
+JUMPI
+
+"#]]
+        );
     }
 
     #[test]
@@ -602,7 +694,17 @@ mod tests {
         asm.emit_push_label(live);
         asm.emit_op(op::JUMP);
         let result = asm.assemble();
-        assert_eq!(result.bytecode, vec![op::CALLER, op::POP, op::JUMPDEST, 0x60, 2, op::JUMP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+CALLER
+POP
+JUMPDEST
+PUSH1 0x02
+JUMP
+
+"#]]
+        );
     }
 
     #[test]
@@ -616,6 +718,15 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 42, 0x60, 1, op::DIV, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x2a
+PUSH1 0x01
+DIV
+STOP
+
+"#]]
+        );
     }
 }

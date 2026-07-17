@@ -6,7 +6,7 @@
 //! - Loop analysis for detecting and analyzing natural loops
 
 mod cfg;
-pub use cfg::{CfgInfo, DominatorTree, reachable_blocks};
+pub use cfg::{CfgInfo, DominatorTree};
 
 mod call_graph;
 pub use call_graph::CallGraphInfo;
@@ -27,6 +27,4 @@ mod scalar_evolution;
 pub use scalar_evolution::{AffineExpr, AffineTerm, ScalarEvolution};
 
 mod validator;
-pub use validator::{
-    ValidationError, Validator, ValidatorAnalysis, validate_function, validate_module,
-};
+pub use validator::Validator;

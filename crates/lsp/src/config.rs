@@ -4,7 +4,7 @@ use crate::{
     workspace::{Workspace, WorkspacePathIndex, manifest::ProjectManifest},
 };
 use lsp_types::{
-    CompletionOptions, DeclarationCapability, InitializeParams, OneOf, SaveOptions,
+    CompletionOptions, DeclarationCapability, InitializeParams, OneOf, RenameOptions, SaveOptions,
     ServerCapabilities, SignatureHelpOptions, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions, TextDocumentSyncSaveOptions, WorkDoneProgressOptions,
 };
@@ -27,6 +27,7 @@ pub(crate) struct Config {
     flycheck_options: FlycheckInitializationOptions,
     flychecks: Vec<FlycheckConfig>,
     watched_file_dynamic_registration: bool,
+    workspace_edit_document_changes: bool,
     hierarchical_document_symbol_support: bool,
     signature_help: SignatureHelpClientOptions,
 }
@@ -41,6 +42,10 @@ pub(crate) struct SignatureHelpClientOptions {
 impl Config {
     pub(crate) fn supports_watched_file_dynamic_registration(&self) -> bool {
         self.watched_file_dynamic_registration
+    }
+
+    pub(crate) fn supports_workspace_edit_document_changes(&self) -> bool {
+        self.workspace_edit_document_changes
     }
 
     pub(crate) fn supports_hierarchical_document_symbols(&self) -> bool {
@@ -58,6 +63,23 @@ impl Config {
 
     pub(crate) fn workspaces(&self) -> &[Workspace] {
         &self.workspaces
+    }
+
+    pub(crate) fn forge_path(&self) -> PathBuf {
+        self.flycheck_options.forge_path()
+    }
+
+    pub(crate) fn formatter_root_for_path(&self, path: &Path) -> Option<PathBuf> {
+        ProjectManifest::discover_in_parents(path)
+            .and_then(|manifest| match manifest {
+                ProjectManifest::Foundry(path) => path.parent().map(Path::to_path_buf),
+            })
+            .or_else(|| {
+                WorkspacePathIndex::new(&self.workspaces)
+                    .workspace_idx_containing_path(path)
+                    .and_then(|idx| self.workspaces[idx].compile_opts().base_path.clone())
+            })
+            .or_else(|| path.parent().map(Path::to_path_buf))
     }
 
     pub(crate) fn flychecks_for_path(&self, path: &Path) -> Vec<FlycheckConfig> {
@@ -170,8 +192,15 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
     // `root_uri`.
     let watched_file_dynamic_registration = capabilities
         .workspace
-        .and_then(|workspace| workspace.did_change_watched_files)
+        .as_ref()
+        .and_then(|workspace| workspace.did_change_watched_files.as_ref())
         .and_then(|capabilities| capabilities.dynamic_registration)
+        .unwrap_or(false);
+    let workspace_edit_document_changes = capabilities
+        .workspace
+        .as_ref()
+        .and_then(|workspace| workspace.workspace_edit.as_ref())
+        .and_then(|capabilities| capabilities.document_changes)
         .unwrap_or(false);
     let hierarchical_document_symbol_support = capabilities
         .text_document
@@ -219,9 +248,14 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             }),
             declaration_provider: Some(DeclarationCapability::Simple(true)),
             definition_provider: Some(OneOf::Left(true)),
+            document_formatting_provider: Some(OneOf::Left(true)),
             document_symbol_provider: Some(OneOf::Left(true)),
             inlay_hint_provider: Some(OneOf::Left(true)),
             references_provider: Some(OneOf::Left(true)),
+            rename_provider: Some(OneOf::Right(RenameOptions {
+                prepare_provider: Some(true),
+                work_done_progress_options: Default::default(),
+            })),
             signature_help_provider: Some(SignatureHelpOptions {
                 trigger_characters: Some(vec!["(".into(), ",".into()]),
                 retrigger_characters: Some(vec![",".into()]),
@@ -244,6 +278,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             workspace_roots,
             flycheck_options,
             watched_file_dynamic_registration,
+            workspace_edit_document_changes,
             hierarchical_document_symbol_support,
             signature_help,
             ..Default::default()
@@ -257,11 +292,10 @@ mod tests {
     use crate::{test_support::TestProject, workspace::WorkspaceKind};
     use lsp_types::{
         DidChangeWatchedFilesClientCapabilities, DocumentSymbolClientCapabilities, MarkupKind,
-        OneOf, ParameterInformationSettings, SignatureHelpClientCapabilities,
+        OneOf, ParameterInformationSettings, RenameOptions, SignatureHelpClientCapabilities,
         SignatureInformationSettings, TextDocumentClientCapabilities, TextDocumentSyncCapability,
-        TextDocumentSyncSaveOptions, WorkspaceClientCapabilities,
+        TextDocumentSyncSaveOptions, WorkspaceClientCapabilities, WorkspaceEditClientCapabilities,
     };
-
     #[test]
     fn negotiate_capabilities_records_watched_file_dynamic_registration_support() {
         let (_, config) = negotiate_capabilities(InitializeParams::default());
@@ -282,6 +316,25 @@ mod tests {
     }
 
     #[test]
+    fn negotiate_capabilities_records_document_changes_support() {
+        let (_, config) = negotiate_capabilities(InitializeParams::default());
+        assert!(!config.supports_workspace_edit_document_changes());
+
+        let mut params = InitializeParams::default();
+        params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+            workspace_edit: Some(WorkspaceEditClientCapabilities {
+                document_changes: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let (_, config) = negotiate_capabilities(params);
+
+        assert!(config.supports_workspace_edit_document_changes());
+    }
+
+    #[test]
     fn negotiate_capabilities_advertises_symbol_providers() {
         let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
 
@@ -289,9 +342,17 @@ mod tests {
         assert_eq!(completion_provider.trigger_characters, Some(vec![".".to_string()]));
         assert_eq!(capabilities.declaration_provider, Some(DeclarationCapability::Simple(true)));
         assert_eq!(capabilities.definition_provider, Some(OneOf::Left(true)));
+        assert_eq!(capabilities.document_formatting_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.document_symbol_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.inlay_hint_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.references_provider, Some(OneOf::Left(true)));
+        assert_eq!(
+            capabilities.rename_provider,
+            Some(OneOf::Right(RenameOptions {
+                prepare_provider: Some(true),
+                work_done_progress_options: Default::default(),
+            }))
+        );
         let signature_help_provider = capabilities.signature_help_provider.unwrap();
         assert_eq!(
             signature_help_provider.trigger_characters,
@@ -407,6 +468,91 @@ mod tests {
         assert_eq!(flychecks[0].command, PathBuf::from("custom-lint"));
         assert_eq!(flychecks[0].args, ["--json"]);
         assert_eq!(flychecks[0].cwd, project.root());
+    }
+
+    #[test]
+    fn negotiate_capabilities_records_configured_forge_path() {
+        let (_, default_config) = negotiate_capabilities(InitializeParams::default());
+        assert_eq!(default_config.forge_path(), PathBuf::from("forge"));
+
+        let params = InitializeParams {
+            initialization_options: Some(serde_json::json!({
+                "forgePath": "/tools/forge"
+            })),
+            ..Default::default()
+        };
+
+        let (_, config) = negotiate_capabilities(params);
+
+        assert_eq!(config.forge_path(), PathBuf::from("/tools/forge"));
+    }
+
+    #[test]
+    fn formatter_root_uses_nearest_foundry_project_workspace_or_file_parent() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /workspace/A.sol
+            contract A {}
+
+            //- /workspace/nested/B.sol
+            contract B {}
+
+            //- /outside/foundry.toml
+
+            //- /outside/src/C.sol
+            contract C {}
+
+            //- /standalone/D.sol
+            contract D {}
+            "#,
+        );
+        let config = project.config_with_roots(&["/workspace", "/workspace/nested"]);
+
+        assert_eq!(
+            config.formatter_root_for_path(&project.path("/workspace/nested/B.sol")),
+            Some(project.path("/workspace/nested"))
+        );
+        assert_eq!(
+            config.formatter_root_for_path(&project.path("/workspace/A.sol")),
+            Some(project.path("/workspace"))
+        );
+        assert_eq!(
+            config.formatter_root_for_path(&project.path("/outside/src/C.sol")),
+            Some(project.path("/outside"))
+        );
+        assert_eq!(
+            config.formatter_root_for_path(&project.path("/standalone/D.sol")),
+            Some(project.path("/standalone"))
+        );
+    }
+
+    #[test]
+    fn rediscover_workspaces_loads_nested_discovered_project() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+
+            //- /packages/token/foundry.toml
+            [profile.default]
+            src = "contracts"
+            "#,
+        );
+
+        let config = project.config();
+        let nested = config
+            .workspaces()
+            .iter()
+            .find(|workspace| {
+                workspace.compile_opts().base_path.as_deref()
+                    == Some(project.path("/packages/token").as_path())
+            })
+            .unwrap();
+
+        assert_eq!(config.workspaces().len(), 2);
+        assert!(
+            config.workspaces().iter().all(|workspace| workspace.kind() == WorkspaceKind::Foundry)
+        );
+        assert_eq!(nested.source_roots(), &[project.path("/packages/token/contracts")]);
     }
 
     #[test]

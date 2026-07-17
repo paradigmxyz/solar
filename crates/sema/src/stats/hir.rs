@@ -1,14 +1,14 @@
 use super::{EnumVariantSize, Stats};
 use crate::hir::{self, Visit as HirVisit};
-use solar_data_structures::{Never, map::FxHashSet};
+use solar_data_structures::{Never, bit_set::DenseBitSet};
 use std::ops::ControlFlow;
 
 /// HIR stat collector.
 struct HirStatCollector<'hir> {
     hir: &'hir hir::Hir<'hir>,
     stats: Stats,
-    seen_items: FxHashSet<hir::ItemId>,
-    seen_vars: FxHashSet<hir::VariableId>,
+    seen_items: DenseBitSet<usize>,
+    seen_vars: DenseBitSet<hir::VariableId>,
 }
 
 impl EnumVariantSize for hir::StmtKind<'_> {
@@ -84,8 +84,8 @@ pub fn print_hir_stats<'hir>(hir: &'hir hir::Hir<'hir>, title: &str) {
     let mut collector = HirStatCollector {
         hir,
         stats: Stats::new(),
-        seen_items: FxHashSet::default(),
-        seen_vars: FxHashSet::default(),
+        seen_items: DenseBitSet::new_empty(hir.item_count()),
+        seen_vars: DenseBitSet::new_empty(hir.variable_ids().len()),
     };
     collector.collect();
     collector.print(title);
@@ -241,7 +241,7 @@ impl<'hir> HirVisit<'hir> for HirStatCollector<'hir> {
     }
 
     fn visit_nested_item(&mut self, id: hir::ItemId) -> ControlFlow<Self::BreakValue> {
-        if !self.seen_items.insert(id) {
+        if !self.seen_items.insert(self.hir.global_item_id(id)) {
             return ControlFlow::Continue(());
         }
         self.visit_item(self.hir.item(id))

@@ -22,6 +22,7 @@
 use crate::{
     analysis::Validator,
     mir::{Function, MirPhase, Module},
+    timing::PassTimer,
     transform::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
         FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
@@ -32,6 +33,7 @@ use crate::{
     },
 };
 use solar_data_structures::map::FxHashMap;
+use solar_interface::diagnostics::DiagCtxt;
 use std::any::{Any, TypeId};
 
 type PassRunner = fn(&mut Module) -> bool;
@@ -292,22 +294,24 @@ const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
 pub struct PipelineOptions {
     /// Print the full module after every pass in the pipeline.
     pub print_after_each: bool,
+    /// Print the time spent in each pass.
+    pub time_passes: bool,
     /// Validate MIR after every pass.
     pub validate_after_each: bool,
 }
 
 impl Default for PipelineOptions {
     fn default() -> Self {
-        Self { print_after_each: false, validate_after_each: cfg!(debug_assertions) }
+        Self {
+            print_after_each: false,
+            time_passes: false,
+            validate_after_each: cfg!(debug_assertions),
+        }
     }
 }
 
 /// Runs a named MIR pass over a module.
-pub fn run_pass(module: &mut Module, pass: &PassInfo) -> bool {
-    run_pass_with_options(module, pass, PipelineOptions::default())
-}
-
-fn run_pass_with_options(module: &mut Module, pass: &PassInfo, options: PipelineOptions) -> bool {
+pub fn run_pass(module: &mut Module, pass: &PassInfo, options: PipelineOptions) -> bool {
     // Passes declare which phases they operate on; the manager enforces it so a
     // pipeline entry cannot silently corrupt a module in the wrong phase.
     if !pass.admits(module) {
@@ -316,7 +320,9 @@ fn run_pass_with_options(module: &mut Module, pass: &PassInfo, options: Pipeline
     if options.validate_after_each {
         validate_module_after_pass(module, "input");
     }
+    let timer = PassTimer::new(options.time_passes);
     let changed = (pass.run_pass)(module);
+    timer.finish("MIR", module.name, pass.name, changed);
     if options.validate_after_each {
         validate_module_after_pass(module, pass.name);
     }
@@ -324,23 +330,10 @@ fn run_pass_with_options(module: &mut Module, pass: &PassInfo, options: Pipeline
 }
 
 /// Runs a named MIR pass pipeline over a module.
-pub fn run_pipeline(module: &mut Module, passes: &[PassInfo]) -> bool {
+pub fn run_pipeline(module: &mut Module, passes: &[PassInfo], options: PipelineOptions) -> bool {
     let mut changed = false;
     for pass in passes {
-        changed |= run_pass(module, pass);
-    }
-    changed
-}
-
-/// Runs a named MIR pass pipeline over a module with observer options.
-pub fn run_pipeline_with_options(
-    module: &mut Module,
-    passes: &[PassInfo],
-    options: PipelineOptions,
-) -> bool {
-    let mut changed = false;
-    for pass in passes {
-        changed |= run_pass_with_options(module, pass, options);
+        changed |= run_pass(module, pass, options);
         if options.print_after_each {
             println!("// === {} (after {}) ===", module.name, pass.name);
             print!("{}", module.to_text());
@@ -350,17 +343,12 @@ pub fn run_pipeline_with_options(
 }
 
 /// Runs the canonical MIR optimization pipeline used by EVM codegen.
-pub fn run_default_pipeline(module: &mut Module) -> bool {
-    run_default_pipeline_with_options(module, PipelineOptions::default())
-}
-
-/// Runs the canonical MIR optimization pipeline used by EVM codegen with options.
 ///
 /// This is a phase transition: the module comes out in [`MirPhase::Optimized`].
 /// Ad-hoc pass lists run through [`run_pipeline`], such as `solar mir-opt`
 /// invocations, deliberately do not advance the phase.
-pub fn run_default_pipeline_with_options(module: &mut Module, options: PipelineOptions) -> bool {
-    let mut changed = run_pipeline_with_options(module, DEFAULT_PIPELINE, options);
+pub fn run_default_pipeline(module: &mut Module, options: PipelineOptions) -> bool {
+    let mut changed = run_pipeline(module, DEFAULT_PIPELINE, options);
     changed |=
         run_cleanup_pipeline_to_fixpoint(module, DEFAULT_CLEANUP_PIPELINE, options, "cleanup");
     module.advance_phase(crate::mir::MirPhase::Optimized);
@@ -377,7 +365,7 @@ fn run_cleanup_pipeline_to_fixpoint(
     for round in 1..=DEFAULT_CLEANUP_MAX_ROUNDS {
         let mut round_changed = false;
         for pass in passes {
-            let pass_changed = run_pass_with_options(module, pass, options);
+            let pass_changed = run_pass(module, pass, options);
             round_changed |= pass_changed;
             if options.print_after_each {
                 println!("// === {} (after {label}-{round}:{}) ===", module.name, pass.name);
@@ -558,17 +546,11 @@ impl PassManager {
 }
 
 fn validate_module_after_pass(module: &Module, pass_name: &str) {
-    let errors = Validator::validate_module(module);
-    if errors.is_empty() {
-        return;
+    let dcx = DiagCtxt::new_early();
+    Validator::new(&dcx).validate_module(module);
+    if dcx.has_errors().is_err() {
+        panic!("MIR validation failed after `{pass_name}`");
     }
-
-    let mut message = format!("MIR validation failed after `{pass_name}`");
-    for error in errors {
-        message.push_str("\n  ");
-        message.push_str(&error.to_string());
-    }
-    panic!("{message}");
 }
 
 /// Liveness analysis pass.

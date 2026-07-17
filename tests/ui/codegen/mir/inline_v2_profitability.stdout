@@ -67,7 +67,10 @@ fn @multi_return_caller(arg0: u256) -> u256 {
   bb1:
     v5 = phi [bb2: v3]
     v6 = phi [bb2: v4]
-    mstore 32, v6
+    v7 = mload 64
+    v8 = add v7, 32
+    mstore v8, v6
+    mstore 32, v7
     v1 = mload 32
     v2 = add v5, v1
     ret v2

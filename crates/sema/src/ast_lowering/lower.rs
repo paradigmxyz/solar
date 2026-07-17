@@ -2,6 +2,7 @@ use crate::hir::{self, ContractId, SourceId};
 use solar_ast as ast;
 use solar_ast::visit::Visit;
 use solar_data_structures::{BumpExt, Never, smallvec::SmallVec};
+use solar_interface::Span;
 use std::ops::ControlFlow;
 
 impl<'gcx> super::LoweringContext<'gcx> {
@@ -318,10 +319,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
             let mut variable = hir::Variable::new(
                 self.current_source_id,
                 hir::DocId::EMPTY,
-                hir::Type {
-                    span: variant.span,
-                    kind: hir::TypeKind::Custom(hir::ItemId::Enum(id)),
-                },
+                hir::Type { span: Span::DUMMY, kind: hir::TypeKind::Custom(hir::ItemId::Enum(id)) },
                 Some(variant),
                 hir::VarKind::Enum,
             );

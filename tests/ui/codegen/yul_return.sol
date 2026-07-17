@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=bin-runtime
+//@compile-flags: -Zcodegen --emit=evm-ir-runtime
 
 // The Yul `return(offset, size)` builtin halts execution and returns `size`
 // bytes of memory (the `RETURN` opcode), like the `ret_data` terminator. It is

@@ -80,15 +80,17 @@ fn @multi(arg0: u256) {
     mstore 160, 0
     v3 = internal_call @pair, 2, arg0
     v4 = mload 32 !metadata(memory=scratch)
+    v5 = add v4, 32
+    v6 = mload v5
     mstore 128, v3
-    v5 = add 128, 32
-    mstore v5, v4
+    v7 = add 128, 32
+    mstore v7, v6
     returndata 128, 64
 }
 
 fn @pair(arg0: u256) -> (u256, u256) {
   bb0 (entry):
-    v0 = internal_frame_addr 128
+    v0 = internal_frame_addr 160
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = internal_frame_addr 192
     mstore v1, 0 !metadata(memory=internal_frame)

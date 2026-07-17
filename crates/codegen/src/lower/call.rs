@@ -4,7 +4,7 @@ use super::{Lowerer, checked_arith::PanicCode};
 use crate::mir::{FunctionBuilder, ValueId};
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{LitKind, Span};
-use solar_data_structures::map::FxHashSet;
+use solar_data_structures::bit_set::GrowableBitSet;
 use solar_interface::{Ident, Symbol, kw, sym};
 use solar_sema::{
     builtins::Builtin,
@@ -1162,24 +1162,20 @@ impl<'gcx> Lowerer<'gcx> {
             )
         };
 
-        // Collect argument info: for structs we need the field count, for scalars just 1 slot
-        let arg_infos: Vec<_> = args
-            .exprs()
-            .map(|arg| {
-                let struct_info = self.get_expr_struct_info(arg);
-                (arg, struct_info)
-            })
-            .collect();
-
-        // Calculate calldata size: 4 bytes selector + sum of all argument slots
-        let total_arg_slots: usize =
-            arg_infos.iter().map(|(_, info)| info.map(|(_, n)| n).unwrap_or(1)).sum();
-        let calldata_size_bytes = 4 + total_arg_slots * 32;
-
-        // IMPORTANT: Evaluate all arguments FIRST before writing to memory.
-        // For structs, lower_expr returns the memory pointer.
-        let arg_vals: Vec<ValueId> =
-            arg_infos.iter().map(|(arg, _)| self.lower_expr(builder, arg)).collect();
+        // Use the recursive ABI encoder for every high-level call. The former
+        // shallow struct loop copied nested memory pointers as calldata words
+        // and treated dynamic bytes pointers as their encoded value.
+        let arg_exprs: Vec<_> = args.exprs().collect();
+        let selector_word = builder.imm_u256(U256::from(selector) << 224);
+        let Some((calldata_start, calldata_size)) =
+            self.abi_encode_call_payload(builder, Some(selector_word), &arg_exprs)
+        else {
+            return self.err_value(
+                builder,
+                callee.span,
+                "codegen cannot determine external call argument types",
+            );
+        };
 
         // Evaluate the address and spill it to scratch memory at 0x00.
         // This ensures it survives all the MSTORE operations for calldata setup.
@@ -1187,12 +1183,6 @@ impl<'gcx> Lowerer<'gcx> {
         let addr_expr = self.lower_expr(builder, base);
         let scratch_addr = builder.imm_u64(0x00);
         builder.mstore(scratch_addr, addr_expr);
-
-        // Allocate calldata from the free memory pointer (like solc does).
-        // This avoids clobbering the free memory pointer at 0x40 when encoding
-        // calldata with 2+ arguments (which would span 0x04-0x43+).
-        let free_ptr_addr = builder.imm_u64(0x40);
-        let calldata_start = builder.mload(free_ptr_addr);
 
         // Store calldata_start to scratch memory at 0x20.
         // We need to reload it right before the CALL because:
@@ -1202,52 +1192,13 @@ impl<'gcx> Lowerer<'gcx> {
         let scratch_calldata = builder.imm_u64(0x20);
         builder.mstore(scratch_calldata, calldata_start);
 
-        // Write the selector at calldata_start (left-aligned in 32-byte word)
-        let selector_word = U256::from(selector) << 224;
-        let selector_val = builder.imm_u256(selector_word);
-        builder.mstore(calldata_start, selector_val);
-
-        // Write arguments after selector
-        // For struct arguments, we need to load each field from memory and write them
-        let mut arg_offset = 4u64;
-        for (i, arg_val) in arg_vals.iter().enumerate() {
-            let struct_info = &arg_infos[i].1;
-
-            if let Some((_, field_count)) = struct_info {
-                // Struct argument: load each field from memory and write to calldata
-                for field_idx in 0..*field_count {
-                    let field_mem_offset = (field_idx as u64) * 32;
-                    let field_val = if field_mem_offset == 0 {
-                        builder.mload(*arg_val)
-                    } else {
-                        let field_offset_val = builder.imm_u64(field_mem_offset);
-                        let field_addr = builder.add(*arg_val, field_offset_val);
-                        builder.mload(field_addr)
-                    };
-
-                    let offset_val = builder.imm_u64(arg_offset);
-                    let write_addr = builder.add(calldata_start, offset_val);
-                    builder.mstore(write_addr, field_val);
-                    arg_offset += 32;
-                }
-            } else {
-                // Scalar argument: write directly
-                let offset_val = builder.imm_u64(arg_offset);
-                let write_addr = builder.add(calldata_start, offset_val);
-                builder.mstore(write_addr, *arg_val);
-                arg_offset += 32;
-            }
-        }
-
         // Determine where to store return data and whether it's a struct
         let (ret_offset, ret_size, struct_ptr_opt) =
             if let Some((_struct_id, field_count)) = struct_return_info {
-                // For struct returns: allocate space after calldata for the return value
+                // For struct returns, reserve a separate output allocation.
                 let struct_size = (field_count as u64) * 32;
-                let calldata_end_offset = builder.imm_u64(calldata_size_bytes as u64);
-                let struct_ptr = builder.add(calldata_start, calldata_end_offset);
-
-                // Update free memory pointer past the struct
+                let free_ptr_addr = builder.imm_u64(0x40);
+                let struct_ptr = builder.mload(free_ptr_addr);
                 let struct_size_val = builder.imm_u64(struct_size);
                 let new_free_ptr = builder.add(struct_ptr, struct_size_val);
                 builder.mstore(free_ptr_addr, new_free_ptr);
@@ -1255,15 +1206,13 @@ impl<'gcx> Lowerer<'gcx> {
                 let ret_size = builder.imm_u64(struct_size);
                 (struct_ptr, ret_size, Some(struct_ptr))
             } else {
-                // For non-struct returns: use scratch space at offset 0
-                // (safe because we're done with calldata after the CALL)
-                let ret_offset = builder.imm_u64(0);
+                // Reuse the unbumped calldata allocation for return data. CALL
+                // has consumed the input before writing output, and the base
+                // remains published in the multi-return pointer scratch word.
+                let ret_offset = if num_returns > 1 { calldata_start } else { builder.imm_u64(0) };
                 let ret_size = builder.imm_u64((num_returns * 32) as u64);
                 (ret_offset, ret_size, None)
             };
-
-        // Total calldata size = 4 (selector) + 32 * num_args
-        let calldata_size = builder.imm_u64(calldata_size_bytes as u64);
 
         // Value: extract from call options {value: X} or default to 0
         let value = self.extract_call_value(builder, call_opts);
@@ -1282,7 +1231,7 @@ impl<'gcx> Lowerer<'gcx> {
         let calldata_start_reload = builder.mload(scratch_calldata_reload);
 
         // Emit the CALL instruction
-        let _success = builder.call(
+        let success = builder.call(
             gas,
             addr,
             value,
@@ -1292,6 +1241,18 @@ impl<'gcx> Lowerer<'gcx> {
             ret_size,
         );
 
+        // High-level calls bubble the callee's revert data.
+        let failed = builder.iszero(success);
+        let fail_block = builder.create_block();
+        let continue_block = builder.create_block();
+        builder.branch(failed, fail_block, continue_block);
+        builder.switch_to_block(fail_block);
+        let zero = builder.imm_u64(0);
+        let size = builder.returndatasize();
+        builder.returndatacopy(zero, zero, size);
+        builder.revert(zero, size);
+        builder.switch_to_block(continue_block);
+
         // For struct returns, the data is already in the right place (at struct_ptr).
         // Just return the pointer.
         if let Some(struct_ptr) = struct_ptr_opt {
@@ -1299,8 +1260,8 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         // Load first return value from memory
-        // Note: for multi-return calls, lower_multi_var_decl will read additional values
-        // from memory at offsets 32, 64, etc.
+        // Multi-return consumers snapshot additional words from the ephemeral
+        // buffer at `ret_offset` before lowering any lvalues.
         builder.mload(ret_offset)
     }
 
@@ -1964,7 +1925,8 @@ impl<'gcx> Lowerer<'gcx> {
         let four = builder.imm_u64(4);
         let total_size = builder.add(four, tail_off);
 
-        // Return area: scratch words at 0, or an allocation for struct returns.
+        // Return area: reuse the unbumped calldata allocation for value-type
+        // returns, or append an allocation for struct returns.
         let (ret_offset, ret_size, struct_ptr_opt) =
             if let Some((_struct_id, field_count)) = struct_return_info {
                 let struct_size = field_count as u64 * 32;
@@ -1974,7 +1936,8 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.mstore(free_ptr_addr, new_free_ptr);
                 (struct_ptr, builder.imm_u64(struct_size), Some(struct_ptr))
             } else {
-                (builder.imm_u64(0), builder.imm_u64(num_returns as u64 * 32), None)
+                let ret_offset = if num_returns > 1 { calldata_start } else { builder.imm_u64(0) };
+                (ret_offset, builder.imm_u64(num_returns as u64 * 32), None)
             };
 
         let calldata_size = total_size;
@@ -1999,8 +1962,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(struct_ptr) = struct_ptr_opt {
             return struct_ptr;
         }
-        let ret_base = builder.imm_u64(0);
-        builder.mload(ret_base)
+        builder.mload(ret_offset)
     }
 
     /// Lowers an internal library function call by inlining it.
@@ -2164,7 +2126,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(&cached) = self.recursive_functions.get(&func_id) {
             return cached;
         }
-        let mut visiting = FxHashSet::default();
+        let mut visiting = GrowableBitSet::new_empty();
         let result = self.function_reaches(func_id, func_id, &mut visiting);
         self.recursive_functions.insert(func_id, result);
         result
@@ -2174,7 +2136,7 @@ impl<'gcx> Lowerer<'gcx> {
         &self,
         current: hir::FunctionId,
         target: hir::FunctionId,
-        visiting: &mut FxHashSet<hir::FunctionId>,
+        visiting: &mut GrowableBitSet<hir::FunctionId>,
     ) -> bool {
         if !visiting.insert(current) {
             return false;
@@ -2334,19 +2296,11 @@ impl<'gcx> Lowerer<'gcx> {
         let result = if let Some(value) = self.lower_library_block_return(builder, body) {
             value
         } else {
-            // Implicit named returns: the body assigned the named return variables
-            // (e.g. `success = ...; result = ...;` with no explicit `return`). Write
-            // returns 1..N to scratch memory at offset `i * 32` so the caller's
-            // `lower_multi_var_decl` (which reads `mload(i * 32)`) recovers them; the
-            // first return flows back as the MIR value below.
-            if func.returns.len() > 1 {
-                for (i, &return_id) in func.returns.iter().enumerate().skip(1) {
-                    if let Some(&value) = self.locals.get(&return_id) {
-                        let offset = builder.imm_u64((i * 32) as u64);
-                        builder.mstore(offset, value);
-                    }
-                }
-            }
+            // Implicit named returns: stage returns 2..N in the ephemeral
+            // multi-return buffer; the first return flows back as MIR value.
+            let return_values: Vec<_> =
+                func.returns.iter().filter_map(|id| self.locals.get(id).copied()).collect();
+            self.stage_multi_return_tail(builder, &return_values);
 
             if let Some(&return_id) = func.returns.first()
                 && let Some(&value) = self.locals.get(&return_id)
@@ -2381,7 +2335,19 @@ impl<'gcx> Lowerer<'gcx> {
         stmt: &hir::Stmt<'_>,
     ) -> Option<ValueId> {
         match &stmt.kind {
-            hir::StmtKind::Return(Some(expr)) => Some(self.lower_expr(builder, expr)),
+            hir::StmtKind::Return(Some(expr)) => {
+                if let hir::ExprKind::Tuple(elements) = &expr.kind {
+                    let values: Vec<_> = elements
+                        .iter()
+                        .flatten()
+                        .map(|element| self.lower_expr(builder, element))
+                        .collect();
+                    self.stage_multi_return_tail(builder, &values);
+                    values.first().copied()
+                } else {
+                    Some(self.lower_expr(builder, expr))
+                }
+            }
             hir::StmtKind::Return(None) => Some(builder.imm_u64(0)),
             hir::StmtKind::DeclSingle(var_id) => {
                 let var = self.gcx.hir.variable(*var_id);
