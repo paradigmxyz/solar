@@ -321,7 +321,9 @@ def memory_benchmark_rows(results: list[dict[str, Any]]) -> list[str]:
             *(fmt_bytes(values[compiler_id]) for compiler_id in ids),
         ]
         if "solar" in values and "solc" in values:
-            cells.append(fmt_pct_improvement(values["solar"], values["solc"]))
+            cells.append(
+                fmt_pct_change_lower_is_better(values["solar"], values["solc"])
+            )
         rows.append("| " + " | ".join(cells) + " |")
     return rows
 

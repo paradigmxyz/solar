@@ -62,7 +62,15 @@ class ReportFormattingTests(unittest.TestCase):
 
     def test_peak_rss_report_is_collapsed(self):
         report = benchmark.memory_report(
-            [result(status="ok", peak_rss_bytes=1024 * 1024)]
+            [
+                {
+                    "test_id": "test",
+                    "compilers": {
+                        "solar": {"status": "ok", "peak_rss_bytes": 1024 * 1024},
+                        "solc": {"status": "ok", "peak_rss_bytes": 2 * 1024 * 1024},
+                    },
+                }
+            ]
         )
         self.assertEqual(
             report,
@@ -73,12 +81,13 @@ class ReportFormattingTests(unittest.TestCase):
                 "| compiler | benches | average peak RSS | maximum peak RSS | maximum bench |",
                 "| -------- | ------- | ---------------- | ---------------- | ------------- |",
                 "| solar | 1 | 1.0 MiB | 1.0 MiB | test |",
+                "| solc | 1 | 2.0 MiB | 2.0 MiB | test |",
                 "",
                 "#### Per-benchmark peak RSS",
                 "",
-                "| bench | solar peak |",
-                "| --- | --- |",
-                "| test | 1.0 MiB |",
+                "| bench | solar peak | solc peak | Solar vs solc |",
+                "| --- | --- | --- | --- |",
+                "| test | 1.0 MiB | 2.0 MiB | ✅ -50.00% |",
                 "",
                 "</details>",
                 "",
