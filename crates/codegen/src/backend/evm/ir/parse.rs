@@ -330,7 +330,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
             sym::push_deferred => (op::PUSH32, Instruction::ENCODED_PUSH | Instruction::DEFERRED),
             sym::push_immutable => (op::PUSH32, Instruction::ENCODED_PUSH | Instruction::IMMUTABLE),
             _ => (
-                op::from_ir_mnemonic(mnemonic.as_str()).ok_or_else(|| {
+                op::from_ir_symbol(mnemonic).ok_or_else(|| {
                     self.error(format!("unknown instruction opcode `{mnemonic}`"))
                 })?,
                 0,
@@ -462,7 +462,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                     opcode
                 } else {
                     let mnemonic = self.parse_symbol()?;
-                    let Some(opcode) = op::from_ir_mnemonic(mnemonic.as_str()) else {
+                    let Some(opcode) = op::from_ir_symbol(mnemonic) else {
                         return Err(self.error(format!("unknown terminal opcode `{mnemonic}`")));
                     };
                     opcode

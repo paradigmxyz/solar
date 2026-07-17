@@ -1594,6 +1594,8 @@ enum CompactPush {
 
 /// Common EVM op.
 pub mod op {
+    use solar_interface::Symbol;
+
     const UNKNOWN_PREFIX: &str = "op_";
 
     macro_rules! opcode_mnemonic {
@@ -1666,6 +1668,12 @@ pub mod op {
                     let value = mnemonic.strip_prefix(UNKNOWN_PREFIX)?;
                     u8::from_str_radix(value, 16).ok()
                 })
+            }
+
+            /// Parses an interned canonical mnemonic or `op_<hex>` into an opcode.
+            #[must_use]
+            pub fn from_ir_symbol(mnemonic: Symbol) -> Option<u8> {
+                from_ir_mnemonic(mnemonic.as_str())
             }
 
             /// Returns the number of stack items consumed and produced by an opcode.
@@ -1904,6 +1912,9 @@ mod tests {
         assert_eq!(op::stack_io(op::MSTORE), Some((2, 0)));
         assert_eq!(op::stack_io(op::CALLVALUE), Some((0, 1)));
         assert_eq!(op::stack_io(op::CALLF), None);
+        solar_interface::enter(|| {
+            assert_eq!(op::from_ir_symbol(solar_interface::kw::Add), Some(op::ADD));
+        });
     }
 
     #[test]
