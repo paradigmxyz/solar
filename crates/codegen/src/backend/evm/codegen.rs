@@ -7,8 +7,8 @@
 //! - Two-pass assembly for label resolution
 
 use super::{
-    EvmIrModule, EvmIrTerminatorKind,
     assembler::{Assembler, AssemblerConfig, DeferredConst, ImmutableRef, Label, op},
+    ir,
     stack::{
         MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
     },
@@ -48,7 +48,7 @@ const GLOBAL_STACK_DENSE_AMORTIZATION_BLOCKS: usize = 16;
 #[derive(Default)]
 struct GeneratedCode {
     bytecode: Vec<u8>,
-    evm_ir: Option<EvmIrModule>,
+    evm_ir: Option<ir::Module>,
 }
 
 /// Configuration for the EVM backend.
@@ -67,7 +67,7 @@ pub struct EvmCodegenConfig {
     /// Run the experimental EVM IR `StackSchedule` pass in the assembler bridge.
     ///
     /// Off by default: the default bytecode path must stay byte-for-byte
-    /// unchanged. When enabled the bridge runs `EvmIrPass::StackSchedule` on the
+    /// unchanged. When enabled the bridge runs [`ir::STACK_SCHEDULE_PASS`] on the
     /// operand-cleared block IR. On that already-stack-scheduled input the pass
     /// is a verified near no-op in `StructuredAsmProgram::optimize_with_evm_ir`.
     pub evm_ir_stack_schedule: bool,
@@ -1036,19 +1036,11 @@ impl EvmCodegen {
 
             let result = self.asm.assemble();
             let mut bytecode = result.bytecode;
-            let mut evm_ir = result.evm_ir;
+            let evm_ir = result.evm_ir;
 
             // Remove trailing STOP (0x00) if present - we want to fall through to CODECOPY/RETURN
             if bytecode.last() == Some(&op::STOP) {
                 bytecode.pop();
-                if let Some(terminator) = evm_ir
-                    .as_mut()
-                    .and_then(|ir| ir.blocks.last_mut())
-                    .and_then(|block| block.terminator.as_mut())
-                    && matches!(&terminator.kind, EvmIrTerminatorKind::RawOpcode(op::STOP))
-                {
-                    terminator.kind = EvmIrTerminatorKind::FallthroughNext;
-                }
             }
 
             GeneratedCode { bytecode, evm_ir }
@@ -4991,9 +4983,9 @@ pub struct EvmArtifact {
     /// Runtime bytecode, i.e. the code stored on-chain.
     pub runtime: Vec<u8>,
     /// Final creation-code EVM IR segments in bytecode order.
-    pub deployment_evm_ir: Vec<EvmIrModule>,
+    pub deployment_evm_ir: Vec<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.
-    pub runtime_evm_ir: Option<EvmIrModule>,
+    pub runtime_evm_ir: Option<ir::Module>,
 }
 
 impl crate::backend::Backend for EvmCodegen {

@@ -33,6 +33,7 @@ use crate::{
     },
 };
 use solar_data_structures::map::FxHashMap;
+use solar_interface::diagnostics::DiagCtxt;
 use std::any::{Any, TypeId};
 
 type PassRunner = fn(&mut Module) -> bool;
@@ -545,17 +546,11 @@ impl PassManager {
 }
 
 fn validate_module_after_pass(module: &Module, pass_name: &str) {
-    let errors = Validator::validate_module(module);
-    if errors.is_empty() {
-        return;
+    let dcx = DiagCtxt::new_early();
+    Validator::new(&dcx).validate_module(module);
+    if dcx.has_errors().is_err() {
+        panic!("MIR validation failed after `{pass_name}`");
     }
-
-    let mut message = format!("MIR validation failed after `{pass_name}`");
-    for error in errors {
-        message.push_str("\n  ");
-        message.push_str(&error.to_string());
-    }
-    panic!("{message}");
 }
 
 /// Liveness analysis pass.

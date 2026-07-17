@@ -596,6 +596,13 @@ pub struct Doc<'hir> {
     pub(crate) ast_comments: ast::DocComments<'hir>,
 }
 
+impl<'hir> Doc<'hir> {
+    /// Returns the raw AST documentation comments.
+    pub fn ast_comments(&self) -> &ast::DocComments<'hir> {
+        &self.ast_comments
+    }
+}
+
 #[derive(Clone, Copy, Debug, EnumIs)]
 pub enum Item<'a, 'hir> {
     Contract(&'a Contract<'hir>),

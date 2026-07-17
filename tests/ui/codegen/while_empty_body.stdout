@@ -7,7 +7,7 @@ bb0 (entry):
   push 0
   codecopy
   push 0
-  terminal return
+  return
 
 // === runtime ===
 bb0 (entry):
@@ -34,7 +34,7 @@ bb0 (entry):
 bb1:
   push 0
   dup1
-  terminal revert
+  revert
 bb2:
   calldatasize
   push 4
@@ -45,7 +45,7 @@ bb2:
   slt
   push bb1
   jumpi
-  fallthrough bb3
+  jump bb3
 bb3:
   push 4
   calldataload
@@ -53,4 +53,4 @@ bb3:
   jumpi
   jump bb4
 bb4:
-  terminal stop
+  stop

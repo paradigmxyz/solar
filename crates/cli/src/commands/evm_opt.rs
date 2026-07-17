@@ -5,11 +5,9 @@
 //! EVM IR files (`.evmir`) and prints the canonical parser/printer output.
 
 use clap::ValueHint;
-use solar_codegen::backend::evm::{
-    EVM_IR_PASSES, EvmIrModule, EvmIrPass, EvmIrPassOptions, parse_evm_ir_module,
-    verify_evm_ir_module,
-};
-use solar_interface::{Ident, Session, Symbol};
+use solar_codegen::backend::evm::ir;
+use solar_config::CompileOpts;
+use solar_interface::Session;
 use std::{path::Path, process::ExitCode};
 
 #[derive(clap::Args)]
@@ -24,87 +22,96 @@ pub(crate) struct EvmOptArgs {
         value_parser = parse_pass,
         default_value = "none"
     )]
-    passes: Vec<EvmIrPass>,
+    passes: Vec<Option<&'static ir::PassInfo>>,
     /// If true, print EVM IR after every pass; otherwise only after the last.
     #[arg(long)]
     print_after_each: bool,
     /// Path to input file. Extension determines whether it's .evmir.
     #[arg(value_hint = ValueHint::FilePath)]
     input: String,
-    #[arg(skip)]
-    time_passes: bool,
 }
 
-fn parse_pass(name: &str) -> Result<EvmIrPass, String> {
-    EvmIrPass::by_name(name).ok_or_else(|| format!("unknown EVM IR pass: {name}"))
+fn parse_pass(name: &str) -> Result<Option<&'static ir::PassInfo>, String> {
+    match name {
+        "none" => Ok(None),
+        other => {
+            ir::lookup_pass(other).map(Some).ok_or_else(|| format!("unknown EVM IR pass: {other}"))
+        }
+    }
 }
 
 fn after_help() -> String {
     format!(
-        "Passes:\n  {}\n\nInput formats:\n  *.evmir  EVM IR",
-        EVM_IR_PASSES.iter().map(|pass| pass.name()).collect::<Vec<_>>().join("\n  ")
+        "Passes:\n  {}\n  {:<20} No transform; validate and print the module\n\nInput formats:\n  *.evmir  EVM IR",
+        ir::PASS_REGISTRY
+            .iter()
+            .map(|pass| format!("{:<20} {}", pass.name, pass.description))
+            .collect::<Vec<_>>()
+            .join("\n  "),
+        "none",
     )
 }
 
-fn selected_pass_list_label(passes: &[EvmIrPass], separator: &str) -> String {
-    passes.iter().map(|pass| pass.name()).collect::<Vec<_>>().join(separator)
+fn pass_label(pass: Option<&ir::PassInfo>) -> &'static str {
+    match pass {
+        Some(pass) => pass.name,
+        None => "none",
+    }
+}
+
+fn selected_pass_list_label(passes: &[Option<&ir::PassInfo>], separator: &str) -> String {
+    passes.iter().copied().map(pass_label).collect::<Vec<_>>().join(separator)
 }
 
 /// Prints a module with a header indicating which pass(es) produced it.
-fn print_module(module: &EvmIrModule, name: &str, after: &str) {
+fn print_module(module: &ir::Module, name: &str, after: &str) {
     println!("// === {name} (after {after}) ===");
     print!("{}", module.to_text());
 }
 
-fn run_pipeline(module: &mut EvmIrModule, name: &str, args: &EvmOptArgs) -> Result<(), String> {
-    let options = EvmIrPassOptions { time_passes: args.time_passes };
-    if args.print_after_each {
-        for &pass in &args.passes {
-            pass.run(module, options);
-            verify_evm_ir_module(module)
-                .map_err(|e| format!("EVM IR pass `{}` produced invalid IR: {e}", pass.name()))?;
-            print_module(module, name, pass.name());
+fn run_pipeline(sess: &Session, module: &mut ir::Module, name: &str, args: &EvmOptArgs) {
+    let dcx = &sess.dcx;
+    let options = ir::PassOptions { time_passes: sess.opts.unstable.time_passes };
+    let pipeline_label = selected_pass_list_label(&args.passes, ",");
+    for (index, &pass) in args.passes.iter().enumerate() {
+        if let Some(pass) = pass {
+            ir::run_pass(module, pass, options);
         }
-    } else {
-        for &pass in &args.passes {
-            pass.run(module, options);
+        if args.print_after_each || index + 1 == args.passes.len() {
+            ir::Verifier::new(dcx).verify_module(module);
+            if dcx.has_errors().is_err() {
+                break;
+            }
+            let label = if args.print_after_each { pass_label(pass) } else { &pipeline_label };
+            print_module(module, name, label);
         }
-        verify_evm_ir_module(module)
-            .map_err(|e| format!("EVM IR pipeline produced invalid IR: {e}"))?;
-        let label = selected_pass_list_label(&args.passes, ",");
-        print_module(module, name, &label);
+    }
+}
+
+fn process_evmir(sess: &Session, args: &EvmOptArgs) -> solar_interface::Result {
+    let source = sess
+        .source_map()
+        .load_file(Path::new(&args.input))
+        .map_err(|e| sess.dcx.err(format!("failed to read {}: {e}", args.input)).emit())?;
+    let mut module = ir::Module::parse(source.src.as_str())
+        .map_err(|err| sess.dcx.err(format!("{err}")).emit())?;
+    ir::Verifier::new(&sess.dcx).verify_module(&module);
+    if sess.dcx.has_errors().is_ok() {
+        run_pipeline(sess, &mut module, &args.input, args);
     }
     Ok(())
 }
 
-fn process_evmir(args: &EvmOptArgs) -> Result<(), String> {
-    let sess = Session::builder().with_stderr_emitter().build();
-    let source = sess
-        .source_map()
-        .load_file(Path::new(&args.input))
-        .map_err(|e| format!("failed to read {}: {e}", args.input))?;
-    let text = source.src.as_str();
-    sess.enter(|| {
-        let input_name = Ident::with_dummy_span(Symbol::intern(&args.input)).to_string();
-        let mut module = parse_evm_ir_module(text).map_err(|err| format!("{err}"))?;
-        verify_evm_ir_module(&module).map_err(|err| format!("{err}"))?;
-        run_pipeline(&mut module, &input_name, args)
-    })
-}
-
-pub(crate) fn run(mut args: EvmOptArgs, time_passes: bool) -> ExitCode {
-    args.time_passes = time_passes;
+pub(crate) fn run(args: EvmOptArgs, mut opts: CompileOpts) -> ExitCode {
+    opts.input.push(args.input.clone());
     let ext = Path::new(&args.input).extension().and_then(|s| s.to_str()).unwrap_or("");
-    let result = match ext {
-        "evmir" => process_evmir(&args),
-        _ => Err(format!("unsupported input file extension `.{ext}` (expected .evmir)")),
-    };
+    let result = super::compile::run_session_with(opts, |sess| match ext {
+        "evmir" => process_evmir(sess, &args),
+        _ => Err(sess
+            .dcx
+            .err(format!("unsupported input file extension `.{ext}` (expected .evmir)"))
+            .emit()),
+    });
 
-    match result {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(e) => {
-            eprintln!("error: {e}");
-            ExitCode::FAILURE
-        }
-    }
+    if result.is_ok() { ExitCode::SUCCESS } else { ExitCode::FAILURE }
 }

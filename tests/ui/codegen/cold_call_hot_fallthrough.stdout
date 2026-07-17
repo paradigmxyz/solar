@@ -26,17 +26,17 @@ bb0 (entry):
   jumpi
   push 0
   push 0
-  terminal revert
+  revert
 bb1:
-  terminal invalid
+  invalid
 bb2:
   push 0
   dup1
-  terminal revert
+  revert
 bb3:
   push 0
   push 0
-  terminal revert
+  revert
 bb4:
   calldatasize
   push 4
@@ -55,7 +55,7 @@ bb4:
   iszero
   push bb6
   jumpi
-  fallthrough bb5
+  jump bb5
 bb5:
   push 4
   calldataload
@@ -63,9 +63,9 @@ bb5:
   mstore
   push 32
   push 128
-  terminal return
+  return
 bb6:
-  fallthrough bb7
+  jump bb7
 bb7:
   push bb5
   push 4
@@ -150,4 +150,4 @@ bb13:
   mstore
   push 100
   push 0
-  terminal revert
+  revert

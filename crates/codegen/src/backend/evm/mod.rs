@@ -12,13 +12,6 @@ pub use codegen::{EvmArtifact, EvmCodegen, EvmCodegenConfig};
 
 pub mod ir;
 mod ir_stack_schedule;
-pub use ir::{
-    EVM_IR_PASSES, EvmIrBlock, EvmIrBlockHotness, EvmIrBlockId, EvmIrBlockMetadata,
-    EvmIrInstruction, EvmIrInstructionKind, EvmIrMetadata, EvmIrMetadataItem, EvmIrModule,
-    EvmIrOperand, EvmIrParseError, EvmIrPass, EvmIrPassOptions, EvmIrStackEffect, EvmIrStackOp,
-    EvmIrTerminator, EvmIrTerminatorKind, EvmIrValue, EvmIrValueId, EvmIrVerifyError,
-    parse_evm_ir_module, verify_evm_ir_module,
-};
 
 pub mod assembler;
 pub use assembler::{AssembledCode, Assembler, AssemblerConfig, Label};

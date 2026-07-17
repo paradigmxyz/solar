@@ -48,13 +48,13 @@ bb0 (entry):
 bb1:
   push 0
   dup1
-  terminal revert
+  revert
 bb2:
   push 0x4e0
   mload
   push 0x440
   mstore
-  terminal jump
+  jump
 bb3:
   calldatasize
   push 4
@@ -114,9 +114,9 @@ bb4:
   lt
   push bb7
   jumpi
-  fallthrough bb5
+  jump bb5
 bb5:
-  terminal stop
+  stop
 bb6:
   push 128
   mload
@@ -459,13 +459,13 @@ bb9:
   pop
   pop
   push 65
-  fallthrough bb10
+  jump bb10
 bb10:
   push 4
   mstore
   push 36
   push 0
-  terminal revert
+  revert
 bb11:
   push 0x4e487b7100000000000000000000000000000000000000000000000000000000
   push 0
@@ -522,7 +522,7 @@ bb13:
   mload
   mstore
   push 0
-  fallthrough bb14
+  jump bb14
 bb14:
   push 352
   mload
@@ -583,7 +583,7 @@ bb15:
   mstore
   push 352
   mload
-  fallthrough bb16
+  jump bb16
 bb16:
   push 512
   mload
@@ -938,7 +938,7 @@ bb21:
   push 128
   mstore
   push 0
-  fallthrough bb22
+  jump bb22
 bb22:
   push 288
   mload
@@ -993,7 +993,7 @@ bb23:
   mstore
   push 288
   mload
-  fallthrough bb24
+  jump bb24
 bb24:
   push 416
   mload
@@ -1058,13 +1058,13 @@ bb26:
   push 224
   mstore
   mload
-  fallthrough bb27
+  jump bb27
 bb27:
   push 128
   mstore
   push 32
   push 128
-  terminal return
+  return
 bb28:
   calldatasize
   push 4
@@ -1296,9 +1296,9 @@ bb32:
   or
   swap1
   sstore
-  fallthrough bb33
+  jump bb33
 bb33:
-  terminal stop
+  stop
 bb34:
   push 0
   push 128
@@ -1564,7 +1564,7 @@ bb39:
   swap1
   add
   dup2
-  terminal return
+  return
 bb40:
   push 0x4e487b7100000000000000000000000000000000000000000000000000000000
   push 0

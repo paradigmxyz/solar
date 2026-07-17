@@ -23,7 +23,7 @@ bb0 (entry):
 bb1:
   push 0
   dup1
-  terminal revert
+  revert
 bb2:
   calldatasize
   push 4
@@ -129,7 +129,7 @@ bb2:
   mstore
   push 32
   push 128
-  terminal return
+  return
 bb3:
   push 0x4e487b7100000000000000000000000000000000000000000000000000000000
   push 0
@@ -139,7 +139,7 @@ bb3:
   mstore
   push 36
   push 0
-  terminal revert
+  revert
 // === ROOT/tests/ui/codegen/public_library_call.sol:C (runtime) ===
 bb0 (entry):
   push 672
@@ -165,7 +165,7 @@ bb0 (entry):
 bb1:
   push 0
   dup1
-  terminal revert
+  revert
 bb2:
   calldatasize
   push 4
@@ -210,7 +210,7 @@ bb3:
   mstore
   push 32
   push 128
-  terminal return
+  return
 bb4:
   push 352
   mload
@@ -294,7 +294,7 @@ bb4:
   mload
   push 416
   mstore
-  terminal jump
+  jump
 bb5:
   push 0x4e487b7100000000000000000000000000000000000000000000000000000000
   push 0
@@ -304,4 +304,4 @@ bb5:
   mstore
   push 36
   push 0
-  terminal revert
+  revert

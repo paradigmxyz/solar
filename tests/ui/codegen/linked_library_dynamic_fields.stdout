@@ -23,7 +23,7 @@ bb0 (entry):
 bb1:
   push 0
   dup1
-  terminal revert
+  revert
 bb2:
   calldatasize
   push 4
@@ -301,7 +301,7 @@ bb3:
   mstore
   push 32
   push 128
-  terminal return
+  return
 bb4:
   push 288
   mload
@@ -488,13 +488,13 @@ bb5:
   pop
   pop
   push 50
-  fallthrough bb6
+  jump bb6
 bb6:
   push 4
   mstore
   push 36
   push 0
-  terminal revert
+  revert
 bb7:
   push 0x4e487b7100000000000000000000000000000000000000000000000000000000
   push 0
@@ -531,7 +531,7 @@ bb0 (entry):
 bb1:
   push 0
   dup1
-  terminal revert
+  revert
 bb2:
   calldatasize
   push 4
@@ -561,13 +561,13 @@ bb2:
   push 0
   keccak256
   sload
-  fallthrough bb3
+  jump bb3
 bb3:
   push 128
   mstore
   push 32
   push 128
-  terminal return
+  return
 bb4:
   calldatasize
   push 4
@@ -982,7 +982,7 @@ bb5:
   mstore
   push 36
   push 0
-  terminal revert
+  revert
 bb6:
   returndatasize
   dup1
@@ -994,4 +994,4 @@ bb6:
   push 512
   mload
   push 0
-  terminal revert
+  revert

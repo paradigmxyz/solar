@@ -38,16 +38,16 @@ bb0 (entry):
 bb1:
   push 0
   dup1
-  terminal revert
+  revert
 bb2:
   push 1
-  fallthrough bb3
+  jump bb3
 bb3:
   push 128
   mstore
   push 32
   push 128
-  terminal return
+  return
 bb4:
   calldatasize
   push 4
@@ -74,7 +74,7 @@ bb4:
   calldataload
   push bb1
   jumpi
-  fallthrough bb5
+  jump bb5
 bb5:
   push 2
   jump bb3

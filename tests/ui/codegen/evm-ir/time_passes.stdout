@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/evm-ir/time_passes.evmir (after cold-layout) ===
+// === ROOT/tests/ui/codegen/evm-ir/time_passes.evmir (after block-layout) ===
 bb0 (entry):
   jump bb2
 bb2:

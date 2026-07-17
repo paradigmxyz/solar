@@ -1,4 +1,4 @@
-//@compile-flags: --pass cold-layout
+//@compile-flags: --pass block-layout
 bb0 (entry):
   jump bb2
 bb1 [cold]:

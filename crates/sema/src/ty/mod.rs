@@ -3,6 +3,7 @@ use crate::{
     ast_lowering::SymbolResolver,
     builtins::{Builtin, members},
     hir::{self, Hir, SourceId},
+    typeck::override_checker::OverrideProxy,
 };
 use alloy_primitives::{B256, Selector, U256, keccak256};
 use either::Either;
@@ -1261,6 +1262,21 @@ impl<'gcx> Gcx<'gcx> {
         self.typeck_results.get()?.resolved_member(id)
     }
 
+    /// Resolves every segment of a source path in its source and contract scopes.
+    pub fn source_path_resolutions(
+        self,
+        segments: &[Ident],
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+    ) -> Option<Vec<Vec<hir::Res>>> {
+        self.symbol_resolver.source_path_resolutions(segments, source, contract)
+    }
+
+    /// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
+    pub fn natspec_contract(self, name: Symbol, source: hir::SourceId) -> Option<hir::ContractId> {
+        self.natspec_contract_in_source((name, source))
+    }
+
     /// Returns the selected builtin target for a non-call member access expression, if available.
     #[inline]
     pub fn builtin_member(self, id: hir::ExprId) -> Option<Builtin> {
@@ -2278,6 +2294,21 @@ pub(crate) fn base_override_functions(
     proxy: crate::typeck::override_checker::OverrideProxy
 ) -> &'gcx [crate::typeck::override_checker::OverrideProxy] {
     crate::typeck::override_checker::base_override_functions(gcx, proxy)
+}
+
+/// Returns the base declarations overridden by a function, modifier, or public variable.
+pub fn base_override_items(gcx: _, item: hir::ItemId) -> &'gcx [hir::ItemId] {
+    let proxy = match item {
+        hir::ItemId::Function(id) => OverrideProxy::Function(id),
+        hir::ItemId::Variable(id) if gcx.hir.variable(id).getter.is_some() => {
+            OverrideProxy::Variable(id)
+        }
+        _ => return &[],
+    };
+    gcx.bump().alloc_from_iter(gcx.base_override_functions(proxy).iter().map(|base| match base {
+        OverrideProxy::Function(id) => hir::ItemId::Function(*id),
+        OverrideProxy::Variable(id) => hir::ItemId::Variable(*id),
+    }))
 }
 
 /// Returns the resolved NatSpec doc comments for the given doc ID.

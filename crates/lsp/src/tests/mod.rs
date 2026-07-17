@@ -12,6 +12,7 @@ mod completion;
 mod goto_definition;
 mod inlay_hint;
 mod references;
+mod rename;
 mod signature_help;
 mod support;
 

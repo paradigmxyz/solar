@@ -47,7 +47,7 @@ bb0 (entry):
   mload
   push 0
   sstore
-  fallthrough_next
+  stop
 
 // === deployment ===
 bb0 (entry):
@@ -57,7 +57,7 @@ bb0 (entry):
   push 0
   codecopy
   push 0
-  terminal return
+  return
 
 // === runtime ===
 bb0 (entry):
@@ -84,7 +84,7 @@ bb0 (entry):
 bb1:
   push 0
   dup1
-  terminal revert
+  revert
 bb2:
   push 0
   sload
@@ -92,7 +92,7 @@ bb2:
   mstore
   push 32
   push 128
-  terminal return
+  return
 // === ROOT/tests/ui/codegen/emit_abi_bin.sol:C (runtime) ===
 bb0 (entry):
   push 160
@@ -118,7 +118,7 @@ bb0 (entry):
 bb1:
   push 0
   dup1
-  terminal revert
+  revert
 bb2:
   push 0
   sload
@@ -126,4 +126,4 @@ bb2:
   mstore
   push 32
   push 128
-  terminal return
+  return

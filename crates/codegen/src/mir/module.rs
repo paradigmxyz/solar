@@ -105,6 +105,11 @@ pub struct Module {
 }
 
 impl Module {
+    /// Parses textual MIR.
+    pub fn parse(input: &str) -> Result<Self, super::ParseError> {
+        super::parser::parse(input)
+    }
+
     /// Creates a new module.
     #[must_use]
     pub fn new(name: Ident) -> Self {

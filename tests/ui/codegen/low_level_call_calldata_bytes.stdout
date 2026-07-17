@@ -28,7 +28,7 @@ bb0 (entry):
 bb1:
   push 0
   dup1
-  terminal revert
+  revert
 bb2:
   push 64
   mload
@@ -49,7 +49,7 @@ bb2:
   dup2
   mstore
   swap1
-  terminal jump
+  jump
 bb3:
   calldatasize
   push 4
@@ -126,7 +126,7 @@ bb6:
   calldataload
   gas
   call
-  fallthrough bb7
+  jump bb7
 bb7:
   swap2
   pop
@@ -137,7 +137,7 @@ bb7:
   mstore
   push 32
   push 128
-  terminal return
+  return
 bb8:
   calldatasize
   push 4
@@ -223,7 +223,7 @@ bb12:
   mstore
   push 36
   push 0
-  terminal revert
+  revert
 bb13:
   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
   push 288
@@ -267,7 +267,7 @@ bb13:
   swap1
   pop
   swap1
-  terminal jump
+  jump
 bb14:
   push 0
   push 128
@@ -295,4 +295,4 @@ bb14:
   swap1
   pop
   swap1
-  terminal jump
+  jump
