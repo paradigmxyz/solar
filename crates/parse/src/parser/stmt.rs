@@ -408,7 +408,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             let (span, kind) = self.parse_spanned(Self::parse_elementary_type)?;
             path.push(IapKind::MemberTy(span, kind));
         } else if self.check_fixed_type() {
-            let (span, kind) = self.parse_spanned(Self::parse_fixed_type_unimplemented)?;
+            let (span, kind) = self.parse_spanned(Self::parse_fixed_type)?;
             path.push(IapKind::MemberTy(span, kind));
         } else {
             return self.unexpected();

@@ -651,6 +651,12 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::TypeCall(ref hir_ty) => {
+                if is_fixed_point_ty(hir_ty) {
+                    return self.gcx.mk_ty_err(
+                        self.dcx()
+                            .emit_err(hir_ty.span, "fixed-point types are not yet implemented"),
+                    );
+                }
                 let ty = self.gcx.type_of_hir_ty(hir_ty);
                 if valid_meta_type(ty) {
                     self.gcx.mk_ty(TyKind::Meta(ty))
@@ -661,6 +667,11 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Type(ref ty) => {
+                if is_fixed_point_ty(ty) {
+                    return self.gcx.mk_ty_err(
+                        self.dcx().emit_err(ty.span, "fixed-point types are not yet implemented"),
+                    );
+                }
                 self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
             }
             hir::ExprKind::Unary(op, inner) => {
@@ -2513,6 +2524,11 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
 
     fn visit_ty(&mut self, hir_ty: &'gcx hir::Type<'gcx>) -> ControlFlow<Self::BreakValue> {
         match hir_ty.kind {
+            hir::TypeKind::Elementary(
+                hir::ElementaryType::Fixed(..) | hir::ElementaryType::UFixed(..),
+            ) => {
+                self.dcx().emit_err(hir_ty.span, "fixed-point types are not yet implemented");
+            }
             hir::TypeKind::Array(array) => {
                 if let Some(size) = array.size {
                     let _ = self.expect_ty(size, self.gcx.types.uint(256));
@@ -2631,6 +2647,13 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         }
         self.walk_stmt(stmt)
     }
+}
+
+fn is_fixed_point_ty(ty: &hir::Type<'_>) -> bool {
+    matches!(
+        ty.kind,
+        hir::TypeKind::Elementary(hir::ElementaryType::Fixed(..) | hir::ElementaryType::UFixed(..))
+    )
 }
 
 enum OverloadError {
