@@ -22,11 +22,13 @@ fn snapshot(project: &TestProject) -> GlobalStateSnapshot {
 }
 
 fn snapshot_with_config(config: Config, vfs: Vfs) -> GlobalStateSnapshot {
+    let (published_analysis_version, _) = watch::channel(1);
     GlobalStateSnapshot {
         client: ClientSocket::new_closed(),
         vfs: Arc::new(RwLock::new(vfs)),
         config: Arc::new(config),
         analysis_version: Arc::new(AtomicUsize::new(1)),
+        published_analysis_version,
         flycheck_versions: Arc::new(Default::default()),
         symbol_tables: Arc::new(Default::default()),
         diagnostics: Arc::new(Default::default()),
