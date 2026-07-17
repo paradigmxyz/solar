@@ -18,31 +18,94 @@ SCHEMA = json.loads(
 DEFAULT_TIMING = object()
 
 
-def result(**compiler):
-    return {"test_id": "test", "compilers": {"solar": compiler}}
+def result(test_id="test", **compiler):
+    return {"test_id": test_id, "compilers": {"solar": compiler}}
 
 
 class ReportFormattingTests(unittest.TestCase):
     def test_unchanged_report_has_note(self):
-        report = benchmark.format_report("## Results", False)
+        report = benchmark.format_report("## Results", False, False)
         self.assertEqual(
             report,
+            "<details>\n"
+            "<summary>Codegen benchmark output</summary>\n\n"
             "> [!NOTE]\n"
             "> Codegen benchmark output is unchanged from `main`.\n\n"
-            "## Results",
+            "## Results\n\n"
+            "</details>",
         )
 
-    def test_changed_report_has_no_note(self):
-        self.assertEqual(benchmark.format_report("## Results", True), "## Results")
+    def test_changed_report_has_no_details(self):
+        self.assertEqual(benchmark.format_report("## Results", True, False), "## Results")
 
-    def test_size_delta_uses_conventional_sign(self):
+    def test_behind_main_report_has_warning(self):
+        report = benchmark.format_report("## Results", True, True)
         self.assertEqual(
-            benchmark.fmt_value_with_size_delta(95, 95, 100, "B"),
-            "95B (✅ -5.00%)",
+            report,
+            "> [!WARNING]\n"
+            "> This branch is behind `main`, so these benchmark results may be incorrect.\n\n"
+            "<details>\n"
+            "<summary>Codegen benchmark output</summary>\n\n"
+            "## Results\n\n"
+            "</details>",
+        )
+
+    def test_lower_is_better_delta_uses_conventional_sign(self):
+        self.assertEqual(
+            benchmark.fmt_value_with_lower_is_better_delta(95, 95, 100),
+            "95 (✅ -5.00%)",
         )
         self.assertEqual(
-            benchmark.fmt_value_with_size_delta(105, 105, 100, "B"),
+            benchmark.fmt_value_with_lower_is_better_delta(105, 105, 100, "B"),
             "105B (❌ +5.00%)",
+        )
+
+    def test_peak_rss_report_is_collapsed(self):
+        report = benchmark.memory_report(
+            [
+                {
+                    "test_id": "test",
+                    "compilers": {
+                        "solar": {"status": "ok", "peak_rss_bytes": 1024 * 1024},
+                        "solc": {"status": "ok", "peak_rss_bytes": 2 * 1024 * 1024},
+                    },
+                }
+            ]
+        )
+        self.assertEqual(
+            report,
+            [
+                "<details>",
+                "<summary>Peak RSS</summary>",
+                "",
+                "| compiler | benches | average peak RSS | maximum peak RSS | maximum bench |",
+                "| -------- | ------- | ---------------- | ---------------- | ------------- |",
+                "| solar | 1 | 1.0 MiB | 1.0 MiB | test |",
+                "| solc | 1 | 2.0 MiB | 2.0 MiB | test |",
+                "",
+                "#### Per-benchmark peak RSS",
+                "",
+                "| bench | solar peak | solc peak | Solar vs solc |",
+                "| --- | --- | --- | --- |",
+                "| test | 1.0 MiB | 2.0 MiB | ✅ -50.00% |",
+                "",
+                "</details>",
+                "",
+            ],
+        )
+
+    def test_codegen_report_combines_all_benches(self):
+        micro = result("micro", status="ok", total_gas=10, runtime_size=20)
+        repo = result("repository", status="ok", total_gas=30, runtime_size=40)
+        report = benchmark.codegen_report([micro], [repo], [micro], [repo])
+        self.assertEqual(
+            report,
+            "## Codegen benchmark\n"
+            "\n"
+            "| bench | gas (vs main) | solc | size (vs main) | solc |\n"
+            "| ----- | ------------- | ---- | -------------- | ---- |\n"
+            "| micro | 10 (~0%) | n/a (n/a) | 20B (~0%) | n/a (n/a) |\n"
+            "| repository | 30 (~0%) | n/a (n/a) | 40B (~0%) | n/a (n/a) |\n",
         )
 
 

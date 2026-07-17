@@ -11,7 +11,7 @@ use solar_interface::{Ident, Span, Symbol, kw, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ElementaryType, ExprKind},
-    ty::{ResolvedMember, TyKind},
+    ty::TyKind,
 };
 
 pub(super) struct MappingElementSlot {
@@ -265,7 +265,7 @@ impl<'gcx> Lowerer<'gcx> {
                 }
 
                 // Handle contract/library constants (e.g. MachineLib.NO_RECOVERY_PC).
-                if let Some(ResolvedMember::Res(hir::Res::Item(hir::ItemId::Variable(var_id)))) =
+                if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) =
                     self.resolved_member(expr)
                 {
                     let var = self.gcx.hir.variable(var_id);
@@ -832,7 +832,7 @@ impl<'gcx> Lowerer<'gcx> {
                     expr = var.initializer?;
                 }
                 ExprKind::Member(..) => {
-                    let ResolvedMember::Res(hir::Res::Item(hir::ItemId::Variable(var_id))) =
+                    let hir::Res::Item(hir::ItemId::Variable(var_id)) =
                         self.resolved_member(expr)?
                     else {
                         return None;
@@ -972,7 +972,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     fn lower_resolved_function_selector(&self, expr: &hir::Expr<'_>) -> Option<u32> {
-        let ResolvedMember::Res(hir::Res::Item(item_id)) = self.resolved_member(expr)? else {
+        let hir::Res::Item(item_id) = self.resolved_member(expr)? else {
             return None;
         };
         match item_id {
@@ -983,9 +983,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     fn lower_resolved_event_selector(&self, expr: &hir::Expr<'_>) -> Option<U256> {
-        let ResolvedMember::Res(hir::Res::Item(hir::ItemId::Event(event_id))) =
-            self.resolved_member(expr)?
-        else {
+        let hir::Res::Item(hir::ItemId::Event(event_id)) = self.resolved_member(expr)? else {
             return None;
         };
         Some(U256::from_be_bytes(self.gcx.event_selector(event_id).0))

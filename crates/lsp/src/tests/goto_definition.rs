@@ -37,7 +37,7 @@ fn resolves_member_targets() {
         r#"
         //- /Members.sol
         contract C {
-            enum Choice { A, B }
+            enum Choice { $3A, B }
             struct Data { uint256 field; }
 
             function read(Data memory data) public pure returns (uint256) {
@@ -60,6 +60,13 @@ fn resolves_member_targets() {
         "$2",
         str![[r#"
 /Members.sol:2:26 struct Data { uint256 field; }
+
+"#]],
+    );
+    fixture.check_goto_definition(
+        "$3",
+        str![[r#"
+/Members.sol:1:18 enum Choice { A, B }
 
 "#]],
     );

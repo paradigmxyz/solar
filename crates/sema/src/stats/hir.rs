@@ -302,8 +302,8 @@ impl<'hir> HirVisit<'hir> for HirStatCollector<'hir> {
 
     fn visit_enum(&mut self, enum_: &'hir hir::Enum<'hir>) -> ControlFlow<Self::BreakValue> {
         self.record("Enum", enum_);
-        for variant in enum_.variants {
-            self.record("Ident", variant);
+        for &variant in enum_.variants {
+            self.visit_nested_var(variant)?;
         }
         ControlFlow::Continue(())
     }
