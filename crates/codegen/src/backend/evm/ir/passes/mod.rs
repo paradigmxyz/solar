@@ -79,6 +79,6 @@ pub fn lookup_pass(name: &str) -> Option<&'static PassInfo> {
 pub fn run_pass(module: &mut Module, pass: &PassInfo, options: PassOptions) -> bool {
     let timer = PassTimer::new(options.time_passes);
     let changed = (pass.run_pass)(module);
-    timer.finish("EVM IR", &module.name, pass.name, changed);
+    timer.finish("EVM IR", module.name(), pass.name, changed);
     changed
 }

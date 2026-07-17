@@ -20,3 +20,6 @@ mod peephole;
 
 pub mod stack;
 pub use stack::{SpillManager, SpillSlot, StackModel, StackScheduler};
+
+#[cfg(test)]
+pub(crate) mod test_utils;

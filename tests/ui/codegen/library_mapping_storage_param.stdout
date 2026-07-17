@@ -6,8 +6,10 @@ bb0 (entry):
   mstore
   calldatasize
   iszero
-  push bb1
+  push bb2
   jumpi
+  jump bb1
+bb1:
   push 0
   calldataload
   push 224
@@ -15,7 +17,7 @@ bb0 (entry):
   push 0
   push 0
   revert
-bb1:
+bb2 [cold]:
   push 0
   push 0
   revert
@@ -26,12 +28,16 @@ bb0 (entry):
   push 64
   mstore
   callvalue
-  push bb1
+  push bb4
   jumpi
+  jump bb1
+bb1:
   calldatasize
   iszero
-  push bb1
+  push bb4
   jumpi
+  jump bb2
+bb2:
   push 0
   calldataload
   push 224
@@ -39,14 +45,16 @@ bb0 (entry):
   dup1
   push 0xd2514e84
   eq
-  push bb2
+  push bb3
   jumpi
-  jump bb1
-bb1:
+  jump bb4
+bb4 [cold]:
   push 0
   dup1
   revert
-bb2:
+bb3:
+  jump bb5
+bb5:
   calldatasize
   push 4
   swap1
@@ -54,16 +62,24 @@ bb2:
   push 32
   swap1
   slt
-  push bb1
+  push bb9
   jumpi
+  jump bb6
+bb6:
   push 4
   calldataload
   push 0xffffffffffffffffffffffffffffffffffffffff
   dup2
   and
-  sub
-  push bb1
+  dup2
+  eq
+  swap1
+  pop
+  iszero
+  push bb9
   jumpi
+  jump bb7
+bb7:
   push 4
   calldataload
   push 0
@@ -94,6 +110,9 @@ bb2:
   dup1
   push 256
   mstore
+  dup1
+  push 256
+  mstore
   dup2
   dup1
   push 288
@@ -103,11 +122,14 @@ bb2:
   swap2
   pop
   dup2
-  swap2
+  swap1
   pop
+  swap1
   pop
-  push bb3
+  push bb10
   jumpi
+  jump bb8
+bb8:
   push 256
   mload
   dup1
@@ -118,7 +140,9 @@ bb2:
   push 32
   push 128
   return
-bb3:
+bb10 [cold]:
+  jump bb14
+bb14:
   push 0x4e487b7100000000000000000000000000000000000000000000000000000000
   push 0
   mstore
@@ -127,4 +151,67 @@ bb3:
   mstore
   push 36
   push 0
+  revert
+bb11:
+  push 480
+  mload
+  push 0
+  mstore
+  push 448
+  mload
+  push 32
+  mstore
+  push 64
+  push 0
+  keccak256
+  dup1
+  push 672
+  mstore
+  sload
+  push 1
+  push 672
+  mload
+  add
+  sload
+  dup1
+  push 608
+  mstore
+  dup2
+  dup1
+  push 576
+  mstore
+  add
+  dup1
+  push 640
+  mstore
+  dup1
+  push 640
+  mstore
+  dup2
+  dup1
+  push 576
+  mstore
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap1
+  pop
+  swap1
+  pop
+  push bb13
+  jumpi
+  jump bb12
+bb12:
+  push 640
+  mload
+  push 512
+  mstore
+  jump
+bb13 [cold]:
+  jump bb14
+bb9 [cold]:
+  push 0
+  dup1
   revert

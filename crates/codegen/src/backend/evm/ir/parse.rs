@@ -96,11 +96,11 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     }
 
     fn parse_module(&mut self) -> PResult<'sess, Module> {
-        let mut name = sym::module.to_string();
+        let mut name = sym::module;
         while self.parser.eat(TokenKind::At) {
             let attr = self.parse_symbol()?;
             if attr == sym::module {
-                name = self.parse_ident()?;
+                name = self.parse_symbol()?;
             } else {
                 return Err(self.error(format!("unknown module attribute `@{attr}`")));
             }
@@ -243,7 +243,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
             block_order.push(block.id);
             return Ok(block.id);
         }
-        let id = module.add_block(Block::new(label.as_str()));
+        let id = module.add_block(Block::new(self.block_number(label)?));
         block_labels.insert(label, BlockLabel { id, defined: true, reference_span: None });
         block_order.push(id);
         Ok(id)
@@ -255,13 +255,19 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         block_labels: &mut FxHashMap<Symbol, BlockLabel>,
         label: Symbol,
         span: Span,
-    ) -> BlockId {
+    ) -> PResult<'sess, BlockId> {
         if let Some(block) = block_labels.get(&label) {
-            return block.id;
+            return Ok(block.id);
         }
-        let id = module.add_block(Block::new(label.as_str()));
+        let id = module.add_block(Block::new(self.block_number(label)?));
         block_labels.insert(label, BlockLabel { id, defined: false, reference_span: Some(span) });
-        id
+        Ok(id)
+    }
+
+    fn block_number(&self, label: Symbol) -> PResult<'sess, u32> {
+        label.as_str()[2..]
+            .parse()
+            .map_err(|_| self.error(format!("block label `{label}` is out of range")))
     }
 
     fn reject_unresolved_blocks(
@@ -293,7 +299,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     ) -> PResult<'sess, ()> {
         if module.blocks[block].terminator.is_some() {
             return Err(self.error(format!(
-                "instruction after terminator in block `{}`",
+                "instruction after terminator in block `bb{}`",
                 module.blocks[block].label
             )));
         }
@@ -319,10 +325,24 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         let operands =
             self.parse_operand_list(module, block_labels, value_labels, defined_values)?;
         let metadata = self.parse_metadata()?;
-        let kind = StackOp::parse(mnemonic)
-            .map(InstructionKind::Stack)
-            .unwrap_or_else(|| InstructionKind::Operation(mnemonic.to_string()));
-        module.blocks[block].instructions.push(Instruction { result, kind, operands, metadata });
+        let (opcode, encoding) = match mnemonic {
+            sym::push => (op::PUSH32, Instruction::ENCODED_PUSH),
+            sym::push_deferred => (op::PUSH32, Instruction::ENCODED_PUSH | Instruction::DEFERRED),
+            sym::push_immutable => (op::PUSH32, Instruction::ENCODED_PUSH | Instruction::IMMUTABLE),
+            _ => (
+                op::from_ir_mnemonic(mnemonic.as_str()).ok_or_else(|| {
+                    self.error(format!("unknown instruction opcode `{mnemonic}`"))
+                })?,
+                0,
+            ),
+        };
+        module.blocks[block].instructions.push(Instruction {
+            result,
+            opcode,
+            encoding,
+            operands,
+            metadata,
+        });
         self.skip_to_eol();
         Ok(())
     }
@@ -442,7 +462,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                     opcode
                 } else {
                     let mnemonic = self.parse_symbol()?;
-                    let Some(opcode) = op::from_mnemonic(mnemonic.as_str()) else {
+                    let Some(opcode) = op::from_ir_mnemonic(mnemonic.as_str()) else {
                         return Err(self.error(format!("unknown terminal opcode `{mnemonic}`")));
                     };
                     opcode
@@ -502,14 +522,14 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         }
         if self.parser.eat(TokenKind::At) {
             let symbol = self.parse_ident()?;
-            return Ok(Operand::Symbol(format!("@{symbol}")));
+            return Ok(Operand::Symbol(Symbol::intern(&format!("@{symbol}"))));
         }
         if let Some(label) = self.current_block_label()? {
             let span = self.parser.token().span;
             self.parser.bump();
-            return Ok(Operand::Block(self.block_id(module, block_labels, label, span)));
+            return Ok(Operand::Block(self.block_id(module, block_labels, label, span)?));
         }
-        Ok(Operand::Symbol(self.parse_ident()?))
+        Ok(Operand::Symbol(self.parse_symbol()?))
     }
 
     fn parse_block_ref(
@@ -521,7 +541,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
             self.current_block_label()?.ok_or_else(|| self.error("expected block label"))?;
         let span = self.parser.token().span;
         self.parser.bump();
-        Ok(self.block_id(module, block_labels, label, span))
+        self.block_id(module, block_labels, label, span)
     }
 
     fn parse_metadata(&mut self) -> PResult<'sess, Metadata> {
@@ -545,9 +565,9 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                 metadata.stack = Some(StackEffect::new(inputs, outputs));
             } else if self.parser.eat(TokenKind::Eq) {
                 let value = self.parse_metadata_value()?;
-                metadata.attrs.push(MetadataItem { key: key.to_string(), value: Some(value) });
+                metadata.attrs.push(MetadataItem { key, value: Some(value) });
             } else {
-                metadata.attrs.push(MetadataItem { key: key.to_string(), value: None });
+                metadata.attrs.push(MetadataItem { key, value: None });
             }
 
             if self.parser.eat(TokenKind::Comma) {
@@ -559,7 +579,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         Ok(metadata)
     }
 
-    fn parse_metadata_value(&mut self) -> PResult<'sess, String> {
+    fn parse_metadata_value(&mut self) -> PResult<'sess, Symbol> {
         let start = self.parser.token().span.lo();
         while !self.is_eof()
             && !self.parser.check(TokenKind::Comma)
@@ -573,7 +593,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         if value.is_empty() {
             return Err(self.error("expected metadata value"));
         }
-        Ok(value.to_string())
+        Ok(Symbol::intern(value))
     }
 
     fn parse_u16(&mut self) -> PResult<'sess, u16> {
@@ -597,7 +617,7 @@ fn value_id(
     if let Some(value) = value_labels.get(&name).copied() {
         return value;
     }
-    let value = module.add_value(name.as_str());
+    let value = module.add_value(name);
     value_labels.insert(name, value);
     value
 }
@@ -694,7 +714,7 @@ error: instruction after terminator in block `bb0`
 @module m
 
 bb0 (entry):
-  %0 = add 1 !meta(foo= )
+  %v0 = add 1 !meta(foo= )
 ";
         let source = sess
             .source_map()
@@ -705,10 +725,10 @@ bb0 (entry):
             sess.emitted_diagnostics().unwrap().to_string(),
             str![[r#"
 error: expected metadata value
-  ╭▸ <empty-metadata.evmir>:5:25
+  ╭▸ <empty-metadata.evmir>:5:26
   │
-5 │   %0 = add 1 !meta(foo= )
-  ╰╴                        ━
+5 │   %v0 = add 1 !meta(foo= )
+  ╰╴                         ━
 
 
 "#]]

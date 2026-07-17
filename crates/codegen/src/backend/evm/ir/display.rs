@@ -28,7 +28,7 @@ fn display_block<'a>(
     fmt::from_fn(move |f| {
         let entry = if module.entry_block == Some(block_id) { " (entry)" } else { "" };
         let cold = if block.metadata.hotness.is_cold() { " [cold]" } else { "" };
-        write!(f, "{}{}{}", block.label, entry, cold)?;
+        write!(f, "bb{}{}{}", block.label, entry, cold)?;
         if !block.entry_stack.is_empty() {
             write!(f, " (in ")?;
             for (i, &value) in block.entry_stack.iter().enumerate() {
@@ -199,7 +199,7 @@ fn display_value(module: &Module, value: ValueId) -> impl fmt::Display + '_ {
 }
 
 fn display_block_id(module: &Module, block: BlockId) -> impl fmt::Display + '_ {
-    fmt::from_fn(move |f| write!(f, "{}", module.blocks[block].label))
+    fmt::from_fn(move |f| write!(f, "bb{}", module.blocks[block].label))
 }
 
 fn display_u256(value: U256) -> impl fmt::Display {
