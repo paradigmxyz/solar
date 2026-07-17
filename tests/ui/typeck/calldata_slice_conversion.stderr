@@ -1,0 +1,8 @@
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/calldata_slice_conversion.sol:LL:CC
+   │
+LL │         uint256[](values[1:3]);
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━ cannot convert `uint8[] calldata slice` to `uint256[]`
+
+error: aborting due to 1 previous error
+

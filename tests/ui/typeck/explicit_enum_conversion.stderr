@@ -1,6 +1,54 @@
 error: invalid explicit type conversion
    ╭▸ ROOT/tests/ui/typeck/explicit_enum_conversion.sol:LL:CC
    │
+LL │         int8 i8 = int8(t);
+   ╰╴                  ━━━━━━━ cannot convert `enum C.TrafficLight` to `int8`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/explicit_enum_conversion.sol:LL:CC
+   │
+LL │         int256 i256 = int256(t);
+   ╰╴                      ━━━━━━━━━ cannot convert `enum C.TrafficLight` to `int256`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/explicit_enum_conversion.sol:LL:CC
+   │
+LL │         TrafficLight t6 = TrafficLight(-1);
+   ╰╴                          ━━━━━━━━━━━━━━━━ cannot convert `int_literal[1]` to `enum C.TrafficLight`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/explicit_enum_conversion.sol:LL:CC
+   │
+LL │         TrafficLight t7 = TrafficLight(3);
+   ╰╴                          ━━━━━━━━━━━━━━━ cannot convert `int_literal[2]` to `enum C.TrafficLight`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/explicit_enum_conversion.sol:LL:CC
+   │
+LL │         TrafficLight t8 = TrafficLight(13);
+   ╰╴                          ━━━━━━━━━━━━━━━━ cannot convert `int_literal[4]` to `enum C.TrafficLight`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/explicit_enum_conversion.sol:LL:CC
+   │
+LL │         TrafficLight t9 = TrafficLight(1 + 2);
+   ╰╴                          ━━━━━━━━━━━━━━━━━━━ cannot convert `int_literal[2]` to `enum C.TrafficLight`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/explicit_enum_conversion.sol:LL:CC
+   │
+LL │         TrafficLight t10 = TrafficLight(5 / 3);
+   ╰╴                           ━━━━━━━━━━━━━━━━━━━ cannot convert `int_literal[1]` to `enum C.TrafficLight`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/explicit_enum_conversion.sol:LL:CC
+   │
+LL │         TrafficLight t12 = TrafficLight(2 ** 300);
+   ╰╴                           ━━━━━━━━━━━━━━━━━━━━━━ cannot convert `int_literal[2]` to `enum C.TrafficLight`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/explicit_enum_conversion.sol:LL:CC
+   │
 LL │         bytes1 b1 = bytes1(t);
    ╰╴                    ━━━━━━━━━ cannot convert `enum C.TrafficLight` to `bytes1`
 
@@ -22,5 +70,5 @@ error: invalid explicit type conversion
 LL │         bool b = bool(t);
    ╰╴                 ━━━━━━━ cannot convert `enum C.TrafficLight` to `bool`
 
-error: aborting due to 4 previous errors
+error: aborting due to 12 previous errors
 
