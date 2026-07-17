@@ -99,10 +99,10 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     }
 
     pub(crate) fn parse_uint(&mut self) -> Result<U256, PErr<'sess>> {
-        let TokenKind::Literal(TokenLitKind::Integer, _) = self.token().kind else {
+        let TokenKind::Literal(TokenLitKind::Integer, symbol) = self.token().kind else {
             return Err(self.error("expected integer literal"));
         };
-        let text = self.token_text();
+        let text = symbol.as_str();
         let value = if let Some(text) = text.strip_prefix("0x").or_else(|| text.strip_prefix("0X"))
         {
             U256::from_str_radix(text, 16)
@@ -112,10 +112,6 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         let value = value.map_err(|err| self.error(format!("invalid integer: {err}")))?;
         self.bump();
         Ok(value)
-    }
-
-    pub(crate) fn token_text(&self) -> &'src str {
-        self.span_text(self.token().span)
     }
 
     pub(crate) fn span_text(&self, span: Span) -> &'src str {

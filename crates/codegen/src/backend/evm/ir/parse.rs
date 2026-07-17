@@ -22,11 +22,11 @@ pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
 
 #[derive(Clone, Debug)]
 struct ParsedBlockHeader {
-    label: String,
+    label: Symbol,
     entry: bool,
     hotness: Hotness,
     /// Incoming stack-word names from an `(in %a, %b)` signature, top first.
-    entry_stack: Vec<String>,
+    entry_stack: Vec<Symbol>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -43,7 +43,7 @@ enum BodyEnd {
 
 struct Parser<'sess, 'ast, 'src> {
     parser: crate::ir_parse::Parser<'sess, 'ast, 'src>,
-    block_labels: Vec<String>,
+    block_labels: Vec<Symbol>,
 }
 
 impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
@@ -58,13 +58,10 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                 if !crate::ir_parse::token_starts_line(source, &significant, cursor) {
                     return None;
                 }
-                let TokenKind::Ident(_) = token.kind else { return None };
-                let start = (token.span.lo() - source.start_pos).to_usize();
-                let end = (token.span.hi() - source.start_pos).to_usize();
-                let label = &source.src[start..end];
-                let number = label.strip_prefix("bb")?;
+                let TokenKind::Ident(symbol) = token.kind else { return None };
+                let number = symbol.as_str().strip_prefix("bb")?;
                 (!number.is_empty() && number.bytes().all(|byte| byte.is_ascii_digit()))
-                    .then(|| label.to_string())
+                    .then_some(symbol)
             })
             .collect();
         let parser = crate::ir_parse::Parser::from_tokens(sess, arena, source, tokens);
@@ -143,8 +140,8 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
             if block_labels.contains_key(label) {
                 continue;
             }
-            let id = module.add_block(Block::new(label.clone()));
-            block_labels.insert(label.clone(), BlockLabel { id, defined: false });
+            let id = module.add_block(Block::new(label.as_str()));
+            block_labels.insert(*label, BlockLabel { id, defined: false });
         }
         let mut current_block = None;
         let mut value_labels = FxHashMap::default();
@@ -162,14 +159,14 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                 break;
             }
             if let Some(header) = self.try_parse_block_header()? {
-                let block_id = self.define_block(module, &mut block_labels, &header.label)?;
+                let block_id = self.define_block(module, &mut block_labels, header.label)?;
                 if header.entry {
                     module.entry_block = Some(block_id);
                 }
                 module.blocks[block_id].metadata.hotness = header.hotness;
                 let mut entry_stack = Vec::with_capacity(header.entry_stack.len());
                 for name in &header.entry_stack {
-                    entry_stack.push(value_id(module, &mut value_labels, name));
+                    entry_stack.push(value_id(module, &mut value_labels, *name));
                 }
                 module.blocks[block_id].entry_stack = entry_stack;
                 current_block = Some(block_id);
@@ -252,57 +249,57 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         Ok(Some(ParsedBlockHeader { label, entry, hotness, entry_stack }))
     }
 
-    fn current_block_label(&self) -> PResult<'sess, Option<String>> {
-        let TokenKind::Ident(_) = self.parser.token().kind else { return Ok(None) };
-        let label = self.parser.token_text().to_string();
+    fn current_block_label(&self) -> PResult<'sess, Option<Symbol>> {
+        let TokenKind::Ident(symbol) = self.parser.token().kind else { return Ok(None) };
+        let label = symbol.as_str();
         let Some(number) = label.strip_prefix("bb") else { return Ok(None) };
         if number.is_empty() || !number.bytes().all(|b| b.is_ascii_digit()) {
             return Err(self.error("expected block number after `bb`"));
         }
-        Ok(Some(label))
+        Ok(Some(symbol))
     }
 
     fn define_block(
         &self,
         module: &mut Module,
-        block_labels: &mut FxHashMap<String, BlockLabel>,
-        label: &str,
+        block_labels: &mut FxHashMap<Symbol, BlockLabel>,
+        label: Symbol,
     ) -> PResult<'sess, BlockId> {
-        if let Some(block) = block_labels.get_mut(label) {
+        if let Some(block) = block_labels.get_mut(&label) {
             if block.defined {
                 return Err(self.error(format!("duplicate block `{label}`")));
             }
             block.defined = true;
             return Ok(block.id);
         }
-        let id = module.add_block(Block::new(label.to_string()));
-        block_labels.insert(label.to_string(), BlockLabel { id, defined: true });
+        let id = module.add_block(Block::new(label.as_str()));
+        block_labels.insert(label, BlockLabel { id, defined: true });
         Ok(id)
     }
 
     fn block_id(
         &self,
         module: &mut Module,
-        block_labels: &mut FxHashMap<String, BlockLabel>,
-        label: String,
+        block_labels: &mut FxHashMap<Symbol, BlockLabel>,
+        label: Symbol,
     ) -> BlockId {
         if let Some(block) = block_labels.get(&label) {
             return block.id;
         }
-        let id = module.add_block(Block::new(label.clone()));
+        let id = module.add_block(Block::new(label.as_str()));
         block_labels.insert(label, BlockLabel { id, defined: false });
         id
     }
 
     fn reject_unresolved_blocks(
         &self,
-        block_labels: &FxHashMap<String, BlockLabel>,
+        block_labels: &FxHashMap<Symbol, BlockLabel>,
     ) -> PResult<'sess, ()> {
         let mut unresolved = block_labels
             .iter()
             .filter_map(|(label, block)| (!block.defined).then_some(label))
             .collect::<Vec<_>>();
-        unresolved.sort_unstable();
+        unresolved.sort_unstable_by_key(|label| label.as_str());
         if let Some(label) = unresolved.first() {
             return Err(self.error(format!("unknown block `{label}`")));
         }
@@ -313,8 +310,8 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         &mut self,
         module: &mut Module,
         block: BlockId,
-        block_labels: &mut FxHashMap<String, BlockLabel>,
-        value_labels: &mut FxHashMap<String, ValueId>,
+        block_labels: &mut FxHashMap<Symbol, BlockLabel>,
+        value_labels: &mut FxHashMap<Symbol, ValueId>,
         defined_values: &mut GrowableBitSet<ValueId>,
     ) -> PResult<'sess, ()> {
         if module.blocks[block].terminator.is_some() {
@@ -356,7 +353,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     fn try_parse_result(
         &mut self,
         module: &mut Module,
-        value_labels: &mut FxHashMap<String, ValueId>,
+        value_labels: &mut FxHashMap<Symbol, ValueId>,
         defined_values: &mut GrowableBitSet<ValueId>,
     ) -> PResult<'sess, Option<ValueId>> {
         if !self.parser.check(TokenKind::BinOp(BinOpToken::Percent))
@@ -370,17 +367,17 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         }
         let name = self.parse_value_name()?;
         self.parser.bump();
-        let value = value_id(module, value_labels, &name);
+        let value = value_id(module, value_labels, name);
         if !defined_values.insert(value) {
             return Err(self.error(format!("duplicate value `%{name}`")));
         }
         Ok(Some(value))
     }
 
-    fn parse_value_name(&mut self) -> PResult<'sess, String> {
+    fn parse_value_name(&mut self) -> PResult<'sess, Symbol> {
         self.parser.expect(TokenKind::BinOp(BinOpToken::Percent))?;
         let name = match self.parser.token().kind {
-            TokenKind::Ident(_) | TokenKind::Literal(..) => self.parser.token_text().to_string(),
+            TokenKind::Ident(symbol) | TokenKind::Literal(_, symbol) => symbol,
             _ => return Err(self.error("expected value name")),
         };
         self.parser.bump();
@@ -391,8 +388,8 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         &mut self,
         mnemonic: Symbol,
         module: &mut Module,
-        block_labels: &mut FxHashMap<String, BlockLabel>,
-        value_labels: &mut FxHashMap<String, ValueId>,
+        block_labels: &mut FxHashMap<Symbol, BlockLabel>,
+        value_labels: &mut FxHashMap<Symbol, ValueId>,
         defined_values: &mut GrowableBitSet<ValueId>,
     ) -> PResult<'sess, Option<TerminatorKind>> {
         let kind = match mnemonic {
@@ -490,8 +487,8 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     fn parse_operand_list(
         &mut self,
         module: &mut Module,
-        block_labels: &mut FxHashMap<String, BlockLabel>,
-        value_labels: &mut FxHashMap<String, ValueId>,
+        block_labels: &mut FxHashMap<Symbol, BlockLabel>,
+        value_labels: &mut FxHashMap<Symbol, ValueId>,
         defined_values: &mut GrowableBitSet<ValueId>,
     ) -> PResult<'sess, Vec<Operand>> {
         let mut operands = Vec::new();
@@ -515,13 +512,13 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     fn parse_operand(
         &mut self,
         module: &mut Module,
-        block_labels: &mut FxHashMap<String, BlockLabel>,
-        value_labels: &mut FxHashMap<String, ValueId>,
+        block_labels: &mut FxHashMap<Symbol, BlockLabel>,
+        value_labels: &mut FxHashMap<Symbol, ValueId>,
         _defined_values: &mut GrowableBitSet<ValueId>,
     ) -> PResult<'sess, Operand> {
         if self.parser.check(TokenKind::BinOp(BinOpToken::Percent)) {
             let name = self.parse_value_name()?;
-            return Ok(Operand::Value(value_id(module, value_labels, &name)));
+            return Ok(Operand::Value(value_id(module, value_labels, name)));
         }
         if matches!(self.parser.token().kind, TokenKind::Literal(..)) {
             return Ok(Operand::Immediate(self.parse_uint_literal()?));
@@ -540,7 +537,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     fn parse_block_ref(
         &mut self,
         module: &mut Module,
-        block_labels: &mut FxHashMap<String, BlockLabel>,
+        block_labels: &mut FxHashMap<Symbol, BlockLabel>,
     ) -> PResult<'sess, BlockId> {
         let label =
             self.current_block_label()?.ok_or_else(|| self.error("expected block label"))?;
@@ -615,14 +612,14 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
 
 fn value_id(
     module: &mut Module,
-    value_labels: &mut FxHashMap<String, ValueId>,
-    name: &str,
+    value_labels: &mut FxHashMap<Symbol, ValueId>,
+    name: Symbol,
 ) -> ValueId {
-    if let Some(value) = value_labels.get(name).copied() {
+    if let Some(value) = value_labels.get(&name).copied() {
         return value;
     }
-    let value = module.add_value(name.to_string());
-    value_labels.insert(name.to_string(), value);
+    let value = module.add_value(name.as_str());
+    value_labels.insert(name, value);
     value
 }
 
