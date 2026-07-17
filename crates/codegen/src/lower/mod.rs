@@ -126,6 +126,9 @@ pub struct Lowerer<'gcx> {
     current_return_tys: Vec<Ty<'gcx>>,
     /// Mapping from struct state variable ID to base storage slot.
     pub struct_storage_base_slots: FxHashMap<VariableId, u64>,
+    /// Calldata bytes parameters materialized into memory because the function
+    /// rebinds them (for example, `proof = proof[offset:]`).
+    memory_backed_calldata_bytes: FxHashSet<VariableId>,
     /// Cached struct field slot offsets: (struct_type_id, field_index) -> slot offset from base.
     pub struct_field_offsets: FxHashMap<(hir::StructId, usize), u64>,
     /// Cached struct field memory offsets: (struct_type_id, field_index) -> byte offset from base.
@@ -184,6 +187,7 @@ impl<'gcx> Lowerer<'gcx> {
             in_unchecked_block: false,
             current_return_tys: Vec::new(),
             struct_storage_base_slots: FxHashMap::default(),
+            memory_backed_calldata_bytes: FxHashSet::default(),
             struct_field_offsets: FxHashMap::default(),
             struct_field_memory_offsets: FxHashMap::default(),
         }
@@ -555,6 +559,8 @@ impl<'gcx> Lowerer<'gcx> {
 
         let saved_locals = std::mem::take(&mut self.locals);
         let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
+        let saved_memory_backed_calldata_bytes =
+            std::mem::take(&mut self.memory_backed_calldata_bytes);
         let saved_next_local_memory_offset = self.next_local_memory_offset;
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
         let saved_current_contract_id = self.current_contract_id;
@@ -571,6 +577,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.locals = saved_locals;
         self.local_memory_slots = saved_local_memory_slots;
+        self.memory_backed_calldata_bytes = saved_memory_backed_calldata_bytes;
         self.next_local_memory_offset = saved_next_local_memory_offset;
         self.assigned_vars = saved_assigned_vars;
         self.current_contract_id = saved_current_contract_id;
@@ -710,6 +717,8 @@ impl<'gcx> Lowerer<'gcx> {
 
         let saved_locals = std::mem::take(&mut self.locals);
         let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
+        let saved_memory_backed_calldata_bytes =
+            std::mem::take(&mut self.memory_backed_calldata_bytes);
         let saved_next_local_memory_offset = self.next_local_memory_offset;
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
         let saved_current_contract_id = self.current_contract_id;
@@ -724,6 +733,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.locals = saved_locals;
         self.local_memory_slots = saved_local_memory_slots;
+        self.memory_backed_calldata_bytes = saved_memory_backed_calldata_bytes;
         self.next_local_memory_offset = saved_next_local_memory_offset;
         self.assigned_vars = saved_assigned_vars;
         self.current_contract_id = saved_current_contract_id;
@@ -777,6 +787,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.locals.clear();
         self.local_memory_slots.clear();
+        self.memory_backed_calldata_bytes.clear();
         self.next_local_memory_offset = 0x80;
         self.assigned_vars.clear();
         self.lowering_constructor = hir_func.kind == hir::FunctionKind::Constructor;
@@ -1010,7 +1021,7 @@ impl<'gcx> Lowerer<'gcx> {
                 } else {
                     // Non-struct parameters: use normal Arg handling
                     let arg_index = builder.func().params.len() as u64;
-                    let val = builder.add_param(ty);
+                    let head_or_value = builder.add_param(ty);
                     if decodes_abi_params {
                         self.emit_abi_param_validation(
                             &mut builder,
@@ -1019,7 +1030,18 @@ impl<'gcx> Lowerer<'gcx> {
                             abi_param_source,
                         );
                     }
-                    self.locals.insert(param_id, val);
+                    // A calldata bytes/string parameter which may be rebound to
+                    // a slice must have one representation on every CFG path.
+                    // Materialize it at entry instead of changing its meaning
+                    // while lowering whichever branch contains the assignment.
+                    if decodes_abi_params && self.memory_backed_calldata_bytes.contains(&param_id) {
+                        let value = self.materialize_calldata_bytes(&mut builder, head_or_value);
+                        let offset = self.alloc_local_memory(param_id);
+                        let addr = self.local_memory_addr(&mut builder, offset);
+                        builder.mstore(addr, value);
+                    } else {
+                        self.locals.insert(param_id, head_or_value);
+                    }
                     // A storage-reference parameter (`mapping`/`storage`) is passed
                     // by slot: its value *is* the base slot, so mark it so mapping
                     // indexing and struct/array reads through it use storage, and
@@ -1030,11 +1052,18 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
 
+            // Finalize the return prefix before calculating any named-return
+            // local address. `local_memory_addr` includes the complete return
+            // area; adding and initializing one return at a time placed the
+            // first initializer too early in multi-return functions.
+            for &ret_id in hir_func.returns {
+                let ret_var = self.gcx.hir.variable(ret_id);
+                let ty = self.lower_type_from_var(ret_var);
+                builder.add_return(ty);
+            }
             for &ret_id in hir_func.returns {
                 let ret_var = self.gcx.hir.variable(ret_id);
                 let ret_ty = self.gcx.type_of_hir_ty(&ret_var.ty);
-                let ty = self.lower_type_from_var(ret_var);
-                builder.add_return(ty);
                 // Allocate memory for return variables so they can be assigned to
                 // within the function body (e.g., `liquidity = 1` in if/else branches)
                 let offset = self.alloc_local_memory(ret_id);
@@ -1424,6 +1453,21 @@ impl<'gcx> Lowerer<'gcx> {
             ExprKind::Assign(lhs, _, rhs) => {
                 // Record assignment targets
                 self.mark_assigned_var(lhs);
+                if matches!(rhs.kind, ExprKind::Slice(..))
+                    && let Some(var_id) = self.ident_variable(lhs)
+                {
+                    let var = self.gcx.hir.variable(var_id);
+                    if var.data_location == Some(solar_ast::DataLocation::Calldata)
+                        && matches!(
+                            var.ty.kind,
+                            hir::TypeKind::Elementary(
+                                hir::ElementaryType::Bytes | hir::ElementaryType::String
+                            )
+                        )
+                    {
+                        self.memory_backed_calldata_bytes.insert(var_id);
+                    }
+                }
                 self.collect_assigned_vars_expr(rhs);
             }
             ExprKind::Binary(lhs, _, rhs) => {

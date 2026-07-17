@@ -44,8 +44,7 @@ fn @clamp(arg0: u256, arg1: u256, arg2: u256) {
     br v4, bb6, bb7
   bb5:
     v6 = mload 0 !metadata(memory=scratch)
-    v7 = mload 0 !metadata(memory=scratch)
-    mstore 128, v7
+    mstore 128, v6
     returndata 128, 32
   bb6:
     mstore 0, arg2 !metadata(memory=scratch)

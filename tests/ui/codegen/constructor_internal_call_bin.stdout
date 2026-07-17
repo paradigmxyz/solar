@@ -1,14 +1,14 @@
 // === ROOT/tests/ui/codegen/constructor_internal_call_bin.sol:ConstructorInternalCallBin (creation) ===
-// === constructor ===
-@module constructor
+// === deployment ===
+@module deployment
 bb0 (entry):
   push 0x4000
   push 64
   mstore
-  push 400
+  push 405
   codesize
   sub
-  push 400
+  push 405
   push 128
   codecopy
   jump bb6
@@ -239,14 +239,11 @@ bb7:
   mstore
   push 0
   sstore
-  stop
-
-// === deployment ===
-@module deployment
-bb0 (entry):
+  jump bb8
+bb8:
   push 47
   dup1
-  push 353
+  push 358
   push 0
   codecopy
   push 0

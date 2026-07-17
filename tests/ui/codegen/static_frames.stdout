@@ -481,6 +481,18 @@ bb18:
   dup1
   push 0x500
   mstore
+  push 64
+  mload
+  push 32
+  dup2
+  add
+  dup3
+  dup1
+  push 0x500
+  mstore
+  dup2
+  mstore
+  pop
   push 32
   mstore
   push 0
@@ -509,6 +521,8 @@ bb18:
   dup2
   swap2
   pop
+  pop
+  swap1
   pop
   push bb41
   jumpi
