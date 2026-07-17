@@ -4,10 +4,10 @@ bb0 (entry):
   push 0x4000
   push 64
   mstore
-  push 391
+  push 395
   codesize
   sub
-  push 391
+  push 395
   push 128
   codecopy
   push 7
@@ -226,7 +226,8 @@ bb5:
   mstore
   push 0
   sstore
-  stop
+  push 341
+  jump
 bb6:
   push 0x4e487b7100000000000000000000000000000000000000000000000000000000
   push 0
@@ -240,9 +241,10 @@ bb6:
 
 // === deployment ===
 bb0 (entry):
+  jumpdest
   push 43
   dup1
-  push 348
+  push 352
   push 0
   codecopy
   push 0
