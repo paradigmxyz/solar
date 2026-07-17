@@ -5,7 +5,7 @@ use solar_ast::{DataLocation, LitKind};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, ElementaryType, ExprKind},
-    ty::{ResolvedMember, TyKind},
+    ty::TyKind,
 };
 
 impl<'gcx> Lowerer<'gcx> {
@@ -24,7 +24,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Gets the non-call member target selected by sema's type checker.
-    pub(super) fn resolved_member(&self, expr: &hir::Expr<'_>) -> Option<ResolvedMember> {
+    pub(super) fn resolved_member(&self, expr: &hir::Expr<'_>) -> Option<hir::Res> {
         self.gcx.resolved_member(expr.id)
     }
 
@@ -92,24 +92,18 @@ impl<'gcx> Lowerer<'gcx> {
         &self,
         expr: &hir::Expr<'_>,
     ) -> Option<(hir::StructId, usize)> {
-        match self.resolved_member(expr)? {
-            ResolvedMember::StructField { struct_id, field_index } => {
-                Some((struct_id, field_index))
-            }
-            _ => None,
-        }
+        let res = self.resolved_member(expr)?;
+        let variable = self.gcx.hir.variable(res.as_variable()?);
+        Some((variable.parent?.as_struct()?, res.struct_field_index(&self.gcx.hir)?))
     }
 
     pub(super) fn resolved_enum_variant(
         &self,
         expr: &hir::Expr<'_>,
     ) -> Option<(hir::EnumId, usize)> {
-        match self.resolved_member(expr)? {
-            ResolvedMember::EnumVariant { enum_id, variant_index } => {
-                Some((enum_id, variant_index))
-            }
-            _ => None,
-        }
+        let res = self.resolved_member(expr)?;
+        let variable = self.gcx.hir.variable(res.as_variable()?);
+        Some((variable.parent?.as_enum()?, res.enum_variant_index(&self.gcx.hir)?))
     }
 
     pub(super) fn is_dynamic_memory_array_expr(&self, expr: &hir::Expr<'_>) -> bool {

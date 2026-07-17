@@ -462,7 +462,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
                 let ty = match self.select_member_access(&possible_members) {
                     Ok(member) => {
-                        self.register_resolved_member(expr, receiver_ty, member);
+                        self.register_resolved_member(expr, member);
                         member.ty
                     }
                     Err(MemberAccessError::NotFound) => {
@@ -1598,14 +1598,11 @@ impl<'gcx> TypeChecker<'gcx> {
     fn register_resolved_member(
         &mut self,
         expr: &'gcx hir::Expr<'gcx>,
-        receiver_ty: Ty<'gcx>,
         member: &members::Member<'gcx>,
     ) {
-        let Some(resolved) = self.gcx.resolve_member_target(receiver_ty, member.name, member.res)
-        else {
-            return;
-        };
-        self.results.resolved_members.insert(expr.id, resolved);
+        if let Some(res) = member.res {
+            self.results.resolved_members.insert(expr.id, res);
+        }
     }
 
     fn check_ident_call_callee(

@@ -558,6 +558,11 @@ impl<'gcx> Ty<'gcx> {
         matches!(self.kind, TyKind::Elementary(ElementaryType::FixedBytes(_)))
     }
 
+    /// Returns `true` if the type is an address, including payable addresses.
+    pub fn is_address(self) -> bool {
+        matches!(self.kind, TyKind::Elementary(ElementaryType::Address(_)))
+    }
+
     /// Returns `true` if the type is an integer, including literals.
     pub fn is_integer(self) -> bool {
         matches!(

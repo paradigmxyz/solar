@@ -73,6 +73,43 @@ fn indexes_member_references() {
 }
 
 #[test]
+fn distinguishes_enum_and_variant_declarations() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Enum.sol
+        contract C {
+            enum $1Choice { $2A, B }
+
+            function read() public pure returns (Choice) {
+                return Choice.A;
+            }
+        }
+        "#,
+        "/Enum.sol",
+    );
+
+    fixture.check_references(
+        "$1",
+        true,
+        str![[r#"
+/Enum.sol:1:9 enum Choice { A, B }
+/Enum.sol:2:41 function read() public pure returns (Choice) {
+/Enum.sol:3:15 return Choice.A;
+
+"#]],
+    );
+    fixture.check_references(
+        "$2",
+        true,
+        str![[r#"
+/Enum.sol:1:18 enum Choice { A, B }
+/Enum.sol:3:22 return Choice.A;
+
+"#]],
+    );
+}
+
+#[test]
 fn skips_generated_getter_references() {
     let fixture = RequestFixture::new(
         r#"
