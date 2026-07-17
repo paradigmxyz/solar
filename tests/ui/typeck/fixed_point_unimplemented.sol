@@ -11,6 +11,8 @@ contract C {
     function cast() internal pure {
         fixed128x18(1); //~ ERROR: fixed-point types are not yet implemented
         type(fixed); //~ ERROR: fixed-point types are not yet implemented
+        type(fixed[]); //~ ERROR: fixed-point types are not yet implemented
+        new fixed[](1); //~ ERROR: fixed-point types are not yet implemented
     }
 
     function locals() internal pure {

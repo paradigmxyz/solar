@@ -520,6 +520,12 @@ impl<'gcx> TypeChecker<'gcx> {
                 ty
             }
             hir::ExprKind::New(ref hir_ty) => {
+                if self.is_fixed_point_ty(hir_ty) {
+                    return self.gcx.mk_ty_err(
+                        self.dcx()
+                            .emit_err(hir_ty.span, "fixed-point types are not yet implemented"),
+                    );
+                }
                 let ty = self.gcx.type_of_hir_ty(hir_ty);
                 match ty.kind {
                     TyKind::Contract(id) => {
@@ -651,7 +657,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::TypeCall(ref hir_ty) => {
-                if is_fixed_point_ty(hir_ty) {
+                if self.is_fixed_point_ty(hir_ty) {
                     return self.gcx.mk_ty_err(
                         self.dcx()
                             .emit_err(hir_ty.span, "fixed-point types are not yet implemented"),
@@ -667,7 +673,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Type(ref ty) => {
-                if is_fixed_point_ty(ty) {
+                if self.is_fixed_point_ty(ty) {
                     return self.gcx.mk_ty_err(
                         self.dcx().emit_err(ty.span, "fixed-point types are not yet implemented"),
                     );
@@ -2377,6 +2383,26 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
+    fn is_fixed_point_ty(&self, ty: &hir::Type<'_>) -> bool {
+        match ty.kind {
+            hir::TypeKind::Elementary(
+                hir::ElementaryType::Fixed(..) | hir::ElementaryType::UFixed(..),
+            ) => true,
+            hir::TypeKind::Array(array) => self.is_fixed_point_ty(&array.element),
+            hir::TypeKind::Function(function) => function
+                .parameters
+                .iter()
+                .chain(function.returns)
+                .any(|&id| self.is_fixed_point_ty(&self.gcx.hir.variable(id).ty)),
+            hir::TypeKind::Mapping(mapping) => {
+                self.is_fixed_point_ty(&mapping.key) || self.is_fixed_point_ty(&mapping.value)
+            }
+            hir::TypeKind::Elementary(_) | hir::TypeKind::Custom(_) | hir::TypeKind::Err(_) => {
+                false
+            }
+        }
+    }
+
     fn register_ty(&mut self, expr: &'gcx hir::Expr<'gcx>, ty: Ty<'gcx>) {
         if self.unsupported_codegen_udvt_operator(expr, ty) {
             self.results.unsupported_udvt_operators.insert(expr.id);
@@ -2647,13 +2673,6 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         }
         self.walk_stmt(stmt)
     }
-}
-
-fn is_fixed_point_ty(ty: &hir::Type<'_>) -> bool {
-    matches!(
-        ty.kind,
-        hir::TypeKind::Elementary(hir::ElementaryType::Fixed(..) | hir::ElementaryType::UFixed(..))
-    )
 }
 
 enum OverloadError {
