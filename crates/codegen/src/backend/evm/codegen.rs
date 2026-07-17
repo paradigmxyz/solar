@@ -69,7 +69,7 @@ pub struct EvmCodegenConfig {
     /// Off by default: the default bytecode path must stay byte-for-byte
     /// unchanged. When enabled the bridge runs [`ir::STACK_SCHEDULE_PASS`] on the
     /// operand-cleared block IR. On that already-stack-scheduled input the pass
-    /// is a verified near no-op in `StructuredAsmProgram::optimize_with_evm_ir`.
+    /// is a verified near no-op in `StructuredAsmProgram::lower_through_evm_ir`.
     pub evm_ir_stack_schedule: bool,
     /// Capture final EVM IR immediately before assembly.
     pub capture_evm_ir: bool,
@@ -5227,7 +5227,7 @@ mod tests {
     /// flag: for each sample contract, compiling with `evm_ir_stack_schedule`
     /// OFF (the default) and ON must produce byte-for-byte identical runtime
     /// bytecode. The bridge feeds the scheduler operand-cleared IR, where the
-    /// pass is a verified near no-op, and `optimize_with_evm_ir` additionally
+    /// pass is a verified near no-op, and `lower_through_evm_ir` additionally
     /// guards the scheduled module behind the verifier oracle and a code-equality
     /// check — so turning the flag on can never diverge or produce invalid code.
     #[test]

@@ -20,7 +20,7 @@ pub(in crate::backend::evm) trait StructuredAsmContext {
         false
     }
     /// Whether the bridge should run the experimental EVM IR `StackSchedule`
-    /// pass. Off by default; see [`StructuredAsmProgram::optimize_with_evm_ir`].
+    /// pass. Off by default; see [`StructuredAsmProgram::lower_through_evm_ir`].
     fn run_evm_ir_stack_schedule(&self) -> bool {
         false
     }
@@ -124,13 +124,16 @@ impl StructuredAsmProgram {
     /// required to be unchanged; if either check fails the scheduled module is
     /// discarded and the original (pre-schedule) module is used, so enabling the
     /// flag can never produce invalid or divergent bytecode.
-    pub(in crate::backend::evm) fn optimize_with_evm_ir<C>(&mut self, context: &mut C) -> usize
+    pub(in crate::backend::evm) fn lower_through_evm_ir<C>(&mut self, context: &mut C) -> usize
     where
         C: StructuredAsmContext,
     {
-        let Some((mut module, mut labels)) = self.to_evm_ir_module(context) else {
+        if self.blocks.is_empty() {
             return 0;
-        };
+        }
+        let (mut module, mut labels) = self
+            .to_evm_ir_module(context)
+            .expect("non-empty structured assembly must lower to EVM IR");
 
         // Low-level assembler users may provide fragments whose stack inputs
         // come from outside the program. Preserve the verifier invariant only
@@ -219,7 +222,7 @@ impl StructuredAsmProgram {
             let next_block = (index + 1 < self.blocks.len())
                 .then(|| crate::backend::evm::ir::BlockId::from_usize(index + 1));
             let (instructions, terminator) =
-                Self::translate_block_to_evm_ir(block, next_block, &label_to_block, context)?;
+                Self::translate_block_to_evm_ir(block, next_block, &label_to_block, context);
             module.blocks[block_id].instructions = instructions;
             module.blocks[block_id].terminator = Some(ir::Terminator::new(terminator));
         }
@@ -232,7 +235,7 @@ impl StructuredAsmProgram {
         next_block: Option<crate::backend::evm::ir::BlockId>,
         label_to_block: &std::collections::BTreeMap<Label, crate::backend::evm::ir::BlockId>,
         context: &mut C,
-    ) -> Option<(Vec<ir::Instruction>, ir::TerminatorKind)>
+    ) -> (Vec<ir::Instruction>, ir::TerminatorKind)
     where
         C: StructuredAsmContext,
     {
@@ -248,14 +251,14 @@ impl StructuredAsmProgram {
                 body_len = body_len.saturating_sub(1);
                 ir::TerminatorKind::RawOpcode(opcode)
             } else {
-                ir::TerminatorKind::Jump(next_block?)
+                next_block.map_or(ir::TerminatorKind::Stop, ir::TerminatorKind::Jump)
             };
 
         let mut instructions = Vec::with_capacity(body_len);
         for &inst in &block.instructions[..body_len] {
-            instructions.push(Self::inst_to_evm_ir(inst, label_to_block, context)?);
+            instructions.push(Self::inst_to_evm_ir(inst, label_to_block, context));
         }
-        Some((instructions, terminator))
+        (instructions, terminator)
     }
 
     fn trailing_static_jump(
@@ -278,11 +281,11 @@ impl StructuredAsmProgram {
         inst: AsmInst,
         label_to_block: &std::collections::BTreeMap<Label, crate::backend::evm::ir::BlockId>,
         context: &mut C,
-    ) -> Option<ir::Instruction>
+    ) -> ir::Instruction
     where
         C: StructuredAsmContext,
     {
-        Some(match inst.kind() {
+        match inst.kind() {
             AsmInstKind::Op(opcode) => {
                 if let Some(stack_op) = stack_op_from_opcode(opcode) {
                     ir::Instruction::stack_op(stack_op)
@@ -297,7 +300,8 @@ impl StructuredAsmProgram {
                 push_instruction(ir::Operand::Immediate(context.push_value(index)))
             }
             AsmInstKind::PushLabel(label) => {
-                let block = *label_to_block.get(&label)?;
+                let block =
+                    *label_to_block.get(&label).expect("assembler label reference must be defined");
                 push_instruction(ir::Operand::Block(block))
             }
             AsmInstKind::PushDeferred(id) => ir::Instruction::new(
@@ -308,8 +312,8 @@ impl StructuredAsmProgram {
                 PUSH_IMMUTABLE_MNEMONIC,
                 vec![ir::Operand::Immediate(U256::from(id))],
             ),
-            AsmInstKind::Label(_) => return None,
-        })
+            AsmInstKind::Label(_) => panic!("labels must begin structured assembler blocks"),
+        }
     }
 
     fn from_evm_ir_module<C>(
@@ -418,7 +422,9 @@ impl StructuredAsmProgram {
                 program.push(AsmInst::op(op::JUMP));
             }
             ir::TerminatorKind::RawOpcode(opcode) => program.push(AsmInst::op(*opcode)),
-            ir::TerminatorKind::Stop => program.push(AsmInst::op(op::STOP)),
+            // Falling off the end of bytecode is an implicit stop, so the
+            // bridge's synthetic final `Stop` does not need an opcode.
+            ir::TerminatorKind::Stop => {}
             ir::TerminatorKind::Invalid => program.push(AsmInst::op(op::INVALID)),
             ir::TerminatorKind::Return { .. }
             | ir::TerminatorKind::Revert { .. }
