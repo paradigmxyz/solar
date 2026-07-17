@@ -384,12 +384,12 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     fn parse_iap(&mut self) -> PResult<'sess, IndexAccessedPath<'ast>> {
         // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2559
         let mut path = SmallVec::<[_; 4]>::new();
-        if self.check_elementary_type() {
-            let (span, kind) = self.parse_spanned(Self::parse_elementary_type)?;
-            path.push(IapKind::MemberTy(span, kind));
-        } else if self.check_fixed_type() {
+        if self.check_fixed_type() {
             let (span, kind) = self.parse_spanned(Self::parse_fixed_type)?;
             path.push(IapKind::MemberTy(span, kind));
+        } else if self.check_elementary_type() {
+            let (span, kind) = self.parse_spanned(Self::parse_elementary_type)?;
+            path.push(IapKind::MemberTy(span, TypeKind::Elementary(kind)));
         } else if self.check_nr_ident() {
             path.push(IapKind::Member(self.parse_ident()?));
             while self.eat(TokenKind::Dot) {
@@ -444,7 +444,7 @@ enum IapKind<'ast> {
     /// `<ident>` or `.<ident>`
     Member(Ident),
     /// `<ty>`
-    MemberTy(Span, ElementaryType),
+    MemberTy(Span, TypeKind<'ast>),
 }
 
 #[derive(Debug, Default)]
@@ -462,7 +462,7 @@ impl<'ast> IndexAccessedPath<'ast> {
 
         let mut ty = if let IapKind::MemberTy(span, kind) = first {
             debug_assert_eq!(self.n_idents, 1);
-            Type { span, kind: TypeKind::Elementary(kind) }
+            Type { span, kind }
         } else {
             debug_assert!(self.n_idents >= 1);
             let first = std::iter::once(&first);
@@ -505,7 +505,7 @@ impl<'ast> IndexAccessedPath<'ast> {
         let mut expr = parser.alloc(match path.next()? {
             IapKind::Member(ident) => Expr::from_ident(ident),
             IapKind::MemberTy(span, kind) => {
-                Expr { span, kind: ExprKind::Type(Type { span, kind: TypeKind::Elementary(kind) }) }
+                Expr { span, kind: ExprKind::Type(Type { span, kind }) }
             }
             IapKind::Index(..) => panic!("should not happen"),
         });

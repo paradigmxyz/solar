@@ -7,14 +7,32 @@ LL │ type fixed128x18 is uint256;
 error: fixed-point types are not yet implemented
    ╭▸ ROOT/tests/ui/typeck/fixed_point_unimplemented.sol:LL:CC
    │
+LL │ type Bad is fixed;
+   ╰╴            ━━━━━
+
+error: fixed-point types are not yet implemented
+   ╭▸ ROOT/tests/ui/typeck/fixed_point_unimplemented.sol:LL:CC
+   │
 LL │     fixed value;
    ╰╴    ━━━━━
 
 error: fixed-point types are not yet implemented
    ╭▸ ROOT/tests/ui/typeck/fixed_point_unimplemented.sol:LL:CC
    │
-LL │     ufixed128x18 sizedValue;
+LL │     ufixed128x18[] array;
    ╰╴    ━━━━━━━━━━━━
+
+error: fixed-point types are not yet implemented
+   ╭▸ ROOT/tests/ui/typeck/fixed_point_unimplemented.sol:LL:CC
+   │
+LL │     mapping(fixed => uint256) map;
+   ╰╴            ━━━━━
+
+error: fixed-point types are not yet implemented
+   ╭▸ ROOT/tests/ui/typeck/fixed_point_unimplemented.sol:LL:CC
+   │
+LL │     fixed immutable immutableValue;
+   ╰╴    ━━━━━
 
 error: fixed-point types are not yet implemented
    ╭▸ ROOT/tests/ui/typeck/fixed_point_unimplemented.sol:LL:CC
@@ -22,35 +40,11 @@ error: fixed-point types are not yet implemented
 LL │         fixed128x18(1);
    ╰╴        ━━━━━━━━━━━
 
-error: fixed-point types are not yet implemented
+error: the underlying type of UDVTs must be an elementary value type
    ╭▸ ROOT/tests/ui/typeck/fixed_point_unimplemented.sol:LL:CC
    │
-LL │         type(fixed);
-   ╰╴             ━━━━━
+LL │ type Recursive is Recursive;
+   ╰╴                  ━━━━━━━━━
 
-error: fixed-point types are not yet implemented
-   ╭▸ ROOT/tests/ui/typeck/fixed_point_unimplemented.sol:LL:CC
-   │
-LL │         type(fixed[]);
-   ╰╴             ━━━━━━━
-
-error: fixed-point types are not yet implemented
-   ╭▸ ROOT/tests/ui/typeck/fixed_point_unimplemented.sol:LL:CC
-   │
-LL │         new fixed[](1);
-   ╰╴            ━━━━━━━
-
-error: fixed-point types are not yet implemented
-   ╭▸ ROOT/tests/ui/typeck/fixed_point_unimplemented.sol:LL:CC
-   │
-LL │         fixed128x18 scalar;
-   ╰╴        ━━━━━━━━━━━
-
-error: fixed-point types are not yet implemented
-   ╭▸ ROOT/tests/ui/typeck/fixed_point_unimplemented.sol:LL:CC
-   │
-LL │         ufixed128x18[] memory array;
-   ╰╴        ━━━━━━━━━━━━
-
-error: aborting due to 9 previous errors
+error: aborting due to 8 previous errors
 

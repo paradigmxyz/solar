@@ -520,12 +520,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 ty
             }
             hir::ExprKind::New(ref hir_ty) => {
-                if self.is_fixed_point_ty(hir_ty) {
-                    return self.gcx.mk_ty_err(
-                        self.dcx()
-                            .emit_err(hir_ty.span, "fixed-point types are not yet implemented"),
-                    );
-                }
                 let ty = self.gcx.type_of_hir_ty(hir_ty);
                 match ty.kind {
                     TyKind::Contract(id) => {
@@ -657,12 +651,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::TypeCall(ref hir_ty) => {
-                if self.is_fixed_point_ty(hir_ty) {
-                    return self.gcx.mk_ty_err(
-                        self.dcx()
-                            .emit_err(hir_ty.span, "fixed-point types are not yet implemented"),
-                    );
-                }
                 let ty = self.gcx.type_of_hir_ty(hir_ty);
                 if valid_meta_type(ty) {
                     self.gcx.mk_ty(TyKind::Meta(ty))
@@ -673,11 +661,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Type(ref ty) => {
-                if self.is_fixed_point_ty(ty) {
-                    return self.gcx.mk_ty_err(
-                        self.dcx().emit_err(ty.span, "fixed-point types are not yet implemented"),
-                    );
-                }
                 self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
             }
             hir::ExprKind::Unary(op, inner) => {
@@ -2101,7 +2084,7 @@ impl<'gcx> TypeChecker<'gcx> {
         }
 
         if var.is_immutable() {
-            if !ty.is_value_type() {
+            if !ty.references_error() && !ty.is_value_type() {
                 self.dcx().emit_err(var.span, "immutable variables cannot have a non-value type");
             }
             if let TyKind::Fn(f) = ty.kind
@@ -2238,7 +2221,11 @@ impl<'gcx> TypeChecker<'gcx> {
         let ty = self.gcx.type_of_hir_ty(key);
         if !matches!(
             ty.kind,
-            TyKind::Elementary(_) | TyKind::Udvt(_, _) | TyKind::Contract(_) | TyKind::Enum(_)
+            TyKind::Elementary(_)
+                | TyKind::Udvt(_, _)
+                | TyKind::Contract(_)
+                | TyKind::Enum(_)
+                | TyKind::Err(_)
         ) {
             self.dcx().emit_err(key.span, "only elementary types, user defined value types, contract types or enums are allowed as mapping keys.");
         }
@@ -2380,26 +2367,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 })
                 .unwrap_or_else(|| self.gcx.mk_ty_misc_err()),
             res => self.gcx.type_of_res(res),
-        }
-    }
-
-    fn is_fixed_point_ty(&self, ty: &hir::Type<'_>) -> bool {
-        match ty.kind {
-            hir::TypeKind::Elementary(
-                hir::ElementaryType::Fixed(..) | hir::ElementaryType::UFixed(..),
-            ) => true,
-            hir::TypeKind::Array(array) => self.is_fixed_point_ty(&array.element),
-            hir::TypeKind::Function(function) => function
-                .parameters
-                .iter()
-                .chain(function.returns)
-                .any(|&id| self.is_fixed_point_ty(&self.gcx.hir.variable(id).ty)),
-            hir::TypeKind::Mapping(mapping) => {
-                self.is_fixed_point_ty(&mapping.key) || self.is_fixed_point_ty(&mapping.value)
-            }
-            hir::TypeKind::Elementary(_) | hir::TypeKind::Custom(_) | hir::TypeKind::Err(_) => {
-                false
-            }
         }
     }
 
@@ -2550,11 +2517,6 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
 
     fn visit_ty(&mut self, hir_ty: &'gcx hir::Type<'gcx>) -> ControlFlow<Self::BreakValue> {
         match hir_ty.kind {
-            hir::TypeKind::Elementary(
-                hir::ElementaryType::Fixed(..) | hir::ElementaryType::UFixed(..),
-            ) => {
-                self.dcx().emit_err(hir_ty.span, "fixed-point types are not yet implemented");
-            }
             hir::TypeKind::Array(array) => {
                 if let Some(size) = array.size {
                     let _ = self.expect_ty(size, self.gcx.types.uint(256));
@@ -2983,8 +2945,6 @@ fn binop_common_type<'gcx>(
 
         TyKind::Elementary(hir::ElementaryType::String)
         | TyKind::Elementary(hir::ElementaryType::Bytes)
-        | TyKind::Elementary(hir::ElementaryType::Fixed(..))
-        | TyKind::Elementary(hir::ElementaryType::UFixed(..))
         | TyKind::StringLiteral(..)
         | TyKind::DynArray(_)
         | TyKind::Array(..)

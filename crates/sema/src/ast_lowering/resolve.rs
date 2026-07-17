@@ -1888,6 +1888,9 @@ impl<'gcx> ResolveContext<'gcx> {
                 Ok(id) => hir::TypeKind::Custom(id),
                 Err(guar) => hir::TypeKind::Err(guar),
             },
+            ast::TypeKind::Err => hir::TypeKind::Err(
+                self.dcx().emit_err(ty.span, "fixed-point types are not yet implemented"),
+            ),
         };
         hir::Type { kind, span: ty.span }
     }

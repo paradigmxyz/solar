@@ -211,6 +211,7 @@ declare_visitors! {
                 TypeKind::Custom(path) => {
                     self.visit_path #_mut(path)?;
                 }
+                TypeKind::Err => {}
             }
             ControlFlow::Continue(())
         }

@@ -1462,10 +1462,7 @@ impl<'gcx> Lowerer<'gcx> {
                     self.shift_numeric_to_fixed_bytes(builder, value, bytes)
                 }
             }
-            ElementaryType::String
-            | ElementaryType::Bytes
-            | ElementaryType::Fixed(_, _)
-            | ElementaryType::UFixed(_, _) => value,
+            ElementaryType::String | ElementaryType::Bytes => value,
         }
     }
 
@@ -1955,10 +1952,7 @@ impl<'gcx> Lowerer<'gcx> {
             ElementaryType::FixedBytes(size) => {
                 self.clean_fixed_bytes(builder, value, size.bytes())
             }
-            ElementaryType::String
-            | ElementaryType::Bytes
-            | ElementaryType::Fixed(_, _)
-            | ElementaryType::UFixed(_, _) => value,
+            ElementaryType::String | ElementaryType::Bytes => value,
         };
         if cleaned != value {
             let is_clean = builder.eq(value, cleaned);

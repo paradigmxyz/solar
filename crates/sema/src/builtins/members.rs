@@ -19,7 +19,6 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
             ElementaryType::Bool => Default::default(),
             ElementaryType::String => Default::default(),
             ElementaryType::Bytes => expected_ref(),
-            ElementaryType::Fixed(..) | ElementaryType::UFixed(..) => Default::default(),
             ElementaryType::Int(_size) => Default::default(),
             ElementaryType::UInt(_size) => Default::default(),
             ElementaryType::FixedBytes(_size) => fixed_bytes(gcx),

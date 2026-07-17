@@ -35,6 +35,7 @@ impl EnumVariantSize for ast::TypeKind<'_> {
             Self::Function(ty) => variant_payload_size!(self, ty),
             Self::Mapping(ty) => variant_payload_size!(self, ty),
             Self::Custom(path) => variant_payload_size!(self, path),
+            Self::Err => 0,
         }
     }
 }
@@ -340,7 +341,7 @@ impl<'ast> Visit<'ast> for StatCollector {
     fn visit_ty(&mut self, ty: &'ast ast::Type<'ast>) -> ControlFlow<Self::BreakValue> {
         record_variants!(
             (self, ty, ty.kind, None, ast, Type, TypeKind),
-            [Elementary, Array, Function, Mapping, Custom]
+            [Elementary, Array, Function, Mapping, Custom, Err]
         );
         self.walk_ty(ty)
     }

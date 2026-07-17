@@ -469,9 +469,6 @@ impl<'gcx> Lowerer<'gcx> {
                 ElementaryType::Int(size) | ElementaryType::UInt(size) => size.bytes() as usize,
                 // Dynamic - handled specially.
                 ElementaryType::String | ElementaryType::Bytes => 32,
-                ElementaryType::Fixed(size, _) | ElementaryType::UFixed(size, _) => {
-                    size.bytes() as usize
-                }
             },
             TyKind::StringLiteral(_, size) => size.bytes() as usize,
             TyKind::IntLiteral(..) => 32,

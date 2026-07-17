@@ -1559,6 +1559,9 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
         hir::ItemId::Enum(id) => TyKind::Enum(id),
         hir::ItemId::Udvt(id) => {
             let udvt = gcx.hir.udvt(id);
+            if let hir::TypeKind::Err(guar) = &udvt.ty.kind {
+                return gcx.mk_ty_err(*guar);
+            }
             if udvt.ty.kind.is_elementary()
                 && let ty = gcx.type_of_hir_ty(&udvt.ty)
                 && ty.is_value_type()

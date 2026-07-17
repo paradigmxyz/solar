@@ -1370,8 +1370,6 @@ impl<'gcx> Lowerer<'gcx> {
                 ElementaryType::Address(_) => MirType::Address,
                 ElementaryType::Int(bits) => MirType::Int(bits.bits()),
                 ElementaryType::UInt(bits) => MirType::UInt(bits.bits()),
-                ElementaryType::Fixed(_, _) => MirType::Int(256),
-                ElementaryType::UFixed(_, _) => MirType::UInt(256),
                 ElementaryType::FixedBytes(n) => MirType::FixedBytes(n.bytes()),
                 ElementaryType::String | ElementaryType::Bytes => MirType::MemPtr,
             },

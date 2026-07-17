@@ -31,10 +31,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
     /// Parses a type kind. Does not parse suffixes.
     fn parse_basic_ty_kind(&mut self) -> PResult<'sess, TypeKind<'ast>> {
-        if self.check_elementary_type() {
+        if self.check_fixed_type() {
+            self.parse_fixed_type()
+        } else if self.check_elementary_type() {
             self.parse_elementary_type().map(TypeKind::Elementary)
-        } else if self.check_fixed_type() {
-            self.parse_fixed_type().map(TypeKind::Elementary)
         } else if self.eat_keyword(kw::Function) {
             self.parse_function_header(FunctionFlags::FUNCTION_TY).map(|f| {
                 let FunctionHeader {
@@ -65,15 +65,17 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     pub(super) fn check_fixed_type(&self) -> bool {
+        if self.token.is_keyword_any(&[kw::Fixed, kw::UFixed]) {
+            return true;
+        }
         let TokenKind::Ident(symbol) = self.token.kind else { return false };
-        parse_fixed_type(symbol.as_str()).is_ok_and(|ty| ty.is_some())
+        parse_fixed_type(symbol.as_str()).is_ok_and(|is_fixed| is_fixed)
     }
 
-    pub(super) fn parse_fixed_type(&mut self) -> PResult<'sess, ElementaryType> {
-        let TokenKind::Ident(symbol) = self.token.kind else { unreachable!() };
-        let ty = parse_fixed_type(symbol.as_str()).unwrap().unwrap();
+    pub(super) fn parse_fixed_type(&mut self) -> PResult<'sess, TypeKind<'ast>> {
+        debug_assert!(self.check_fixed_type());
         self.bump();
-        Ok(ty)
+        Ok(TypeKind::Err)
     }
 
     /// Parses an elementary type.
@@ -87,8 +89,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             kw::Bool => ElementaryType::Bool,
             kw::String => ElementaryType::String,
             kw::Bytes => ElementaryType::Bytes,
-            kw::Fixed => ElementaryType::Fixed(TypeSize::ZERO, TypeFixedSize::ZERO),
-            kw::UFixed => ElementaryType::UFixed(TypeSize::ZERO, TypeFixedSize::ZERO),
             kw::Int => ElementaryType::Int(TypeSize::ZERO),
             kw::UInt => ElementaryType::UInt(TypeSize::ZERO),
             s if s >= kw::UInt8 && s <= kw::UInt256 => {
@@ -165,23 +165,16 @@ impl fmt::Display for ParseTySizeError {
 }
 
 /// Parses `fixedMxN` or `ufixedMxN`.
-fn parse_fixed_type(original: &str) -> Result<Option<ElementaryType>, ParseTySizeError> {
-    let s = original;
-    let tmp = s.strip_prefix('u');
-    let unsigned = tmp.is_some();
-    let s = tmp.unwrap_or(s);
+fn parse_fixed_type(original: &str) -> Result<bool, ParseTySizeError> {
+    let s = original.strip_prefix('u').unwrap_or(original);
 
     if let Some(s) = s.strip_prefix("fixed") {
         debug_assert!(!s.is_empty());
-        let (m, n) = parse_fixed_size(s)?;
-        return Ok(Some(if unsigned {
-            ElementaryType::UFixed(m, n)
-        } else {
-            ElementaryType::Fixed(m, n)
-        }));
+        parse_fixed_size(s)?;
+        return Ok(true);
     }
 
-    Ok(None)
+    Ok(false)
 }
 
 #[allow(dead_code)]
@@ -189,18 +182,15 @@ fn parse_fb_size(s: &str) -> Result<TypeSize, ParseTySizeError> {
     parse_ty_size_u8(s, 1..=32, false).map(|x| TypeSize::new_fb_bytes(x))
 }
 
-#[allow(dead_code)]
 fn parse_int_size(s: &str) -> Result<TypeSize, ParseTySizeError> {
     parse_ty_size_u8(s, 1..=32, true).map(|x| TypeSize::new_int_bits(x as u16 * 8))
 }
 
-#[allow(dead_code)]
-fn parse_fixed_size(s: &str) -> Result<(TypeSize, TypeFixedSize), ParseTySizeError> {
+fn parse_fixed_size(s: &str) -> Result<(), ParseTySizeError> {
     let (m, n) = s.split_once('x').ok_or(ParseTySizeError::FixedX)?;
-    let m = parse_int_size(m)?;
-    let n = parse_ty_size_u8(n, 0..=80, false)?;
-    let n = TypeFixedSize::new(n).unwrap();
-    Ok((m, n))
+    parse_int_size(m)?;
+    parse_ty_size_u8(n, 0..=80, false)?;
+    Ok(())
 }
 
 /// Parses a type size.

@@ -143,10 +143,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             let kind = if self.eat(TokenKind::Dot) {
                 let dot_span = self.prev_token.span;
                 // expr.member
-                if !self.in_yul
-                    && (self.token.is_keyword_any(&[kw::Fixed, kw::UFixed])
-                        || self.check_fixed_type())
-                {
+                if !self.in_yul && self.check_fixed_type() {
                     self.expected_ident_found_err().emit();
                 }
                 match self.parse_ident_any() {

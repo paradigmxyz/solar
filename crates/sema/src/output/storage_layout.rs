@@ -367,9 +367,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
                 ElementaryType::Address(_) => U256::from(20),
                 ElementaryType::Bool => U256::from(1),
                 ElementaryType::String | ElementaryType::Bytes => U256::from(32),
-                ElementaryType::Fixed(size, _)
-                | ElementaryType::UFixed(size, _)
-                | ElementaryType::Int(size)
+                ElementaryType::Int(size)
                 | ElementaryType::UInt(size)
                 | ElementaryType::FixedBytes(size) => U256::from(size.bytes()),
             },
@@ -403,8 +401,6 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
             TyKind::Elementary(
                 ElementaryType::Address(_)
                     | ElementaryType::Bool
-                    | ElementaryType::Fixed(..)
-                    | ElementaryType::UFixed(..)
                     | ElementaryType::Int(_)
                     | ElementaryType::UInt(_)
                     | ElementaryType::FixedBytes(_)
