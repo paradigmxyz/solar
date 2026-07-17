@@ -6,18 +6,6 @@ use solar_ast::{
 use solar_interface::{BytePos, Session, Span, Symbol, source_map::SourceFile};
 use solar_parse::PErr;
 
-pub(crate) fn token_starts_line(source: &SourceFile, tokens: &[&Token], cursor: usize) -> bool {
-    let Some(previous) = cursor.checked_sub(1).and_then(|index| tokens.get(index)) else {
-        return true;
-    };
-    if previous.kind == TokenKind::OpenDelim(solar_ast::token::Delimiter::Brace) {
-        return true;
-    }
-    let start = (previous.span.hi() - source.start_pos).to_usize();
-    let end = (tokens[cursor].span.lo() - source.start_pos).to_usize();
-    source.src[start..end].contains(['\n', '\r'])
-}
-
 /// Shared parser primitives for the textual IR parsers.
 pub(crate) struct Parser<'sess, 'ast, 'src> {
     source: &'src SourceFile,
@@ -25,14 +13,8 @@ pub(crate) struct Parser<'sess, 'ast, 'src> {
 }
 
 impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
-    pub(crate) fn from_tokens(
-        sess: &'sess Session,
-        arena: &'ast Arena,
-        source: &'src SourceFile,
-        tokens: Vec<Token>,
-    ) -> Self {
-        let parser = solar_parse::Parser::new(sess, arena, tokens);
-        Self { source, parser }
+    pub(crate) fn new(sess: &'sess Session, arena: &'ast Arena, source: &'src SourceFile) -> Self {
+        Self { source, parser: solar_parse::Parser::from_source_file(sess, arena, source) }
     }
 
     pub(crate) fn token(&self) -> Token {

@@ -29,7 +29,7 @@
 //! - Phi nodes are represented only as phi *instructions* (`InstKind::Phi`).
 
 use super::{
-    BasicBlock, BlockId, EffectKind, Function, FunctionId, InstKind, Instruction,
+    BasicBlock, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, Instruction,
     InstructionMetadata, MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
 };
 use crate::mir::{Immediate, MirType};
@@ -37,13 +37,13 @@ use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_ast::{
     Arena,
-    token::{BinOpToken, Delimiter, TokenKind},
+    token::{BinOpToken, Delimiter, TokenKind, TokenLitKind},
 };
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym,
 };
-use solar_parse::{Lexer, PErr, PResult};
+use solar_parse::{PErr, PResult};
 use solar_sema::hir;
 
 // =============================================================================
@@ -102,12 +102,19 @@ fn parse_function(sess: &Session, input: &str) -> Result<Function> {
 
 struct Parser<'sess, 'ast, 'src> {
     parser: crate::ir_parse::Parser<'sess, 'ast, 'src>,
-    /// Function names in declaration order, pre-scanned from the `fn @name(`
-    /// headers so `@name` call references resolve even when they point
-    /// forward.
-    function_names: Vec<String>,
-    function_blocks: Vec<Vec<u32>>,
-    function_cursor: usize,
+    pending_function_ref: Option<(Symbol, Span)>,
+    function_refs: Vec<PendingFunctionRef>,
+}
+
+struct PendingFunctionRef {
+    name: Symbol,
+    span: Span,
+    target: FunctionRefTarget,
+}
+
+enum FunctionRefTarget {
+    Instruction(InstId),
+    Terminator(BlockId),
 }
 
 #[derive(Clone, Copy)]
@@ -119,44 +126,11 @@ struct BlockLabel {
 
 impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     fn new(sess: &'sess Session, arena: &'ast Arena, source: &'src SourceFile) -> Self {
-        let tokens = Lexer::from_source_file(sess, source).into_tokens();
-        let mut function_names = Vec::new();
-        let significant =
-            tokens.iter().filter(|token| !token.is_comment_or_doc()).collect::<Vec<_>>();
-        let mut function_blocks = Vec::new();
-        let mut current_function = None;
-        let mut cursor = 0;
-        while cursor < significant.len() {
-            if cursor + 2 < significant.len()
-                && significant[cursor].is_keyword(sym::fn_)
-                && significant[cursor + 1].kind == TokenKind::At
-                && let TokenKind::Ident(symbol) = significant[cursor + 2].kind
-            {
-                let mut name = symbol.to_string();
-                cursor += 3;
-                while cursor + 1 < significant.len()
-                    && significant[cursor].kind == TokenKind::Dot
-                    && let TokenKind::Ident(segment) = significant[cursor + 1].kind
-                {
-                    name.push('.');
-                    name.push_str(segment.as_str());
-                    cursor += 2;
-                }
-                function_names.push(name);
-                function_blocks.push(Vec::new());
-                current_function = Some(function_blocks.len() - 1);
-                continue;
-            }
-            if let Some(function) = current_function
-                && crate::ir_parse::token_starts_line(source, &significant, cursor)
-                && let Some(index) = block_header_index(&significant, cursor)
-            {
-                function_blocks[function].push(index);
-            }
-            cursor += 1;
+        Self {
+            parser: crate::ir_parse::Parser::new(sess, arena, source),
+            pending_function_ref: None,
+            function_refs: Vec::new(),
         }
-        let parser = crate::ir_parse::Parser::from_tokens(sess, arena, source, tokens);
-        Self { parser, function_names, function_blocks, function_cursor: 0 }
     }
 
     // ----- low-level cursor primitives -----
@@ -233,16 +207,66 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         let module_ident = Ident::with_dummy_span(Symbol::intern(&module_name));
         let mut module = Module::new(module_ident);
         module.phase = phase;
+        let mut function_refs = Vec::new();
 
         while !self.is_eof() {
             if self.is_eof() {
                 break;
             }
             let func = self.parse_function()?;
-            module.add_function(func);
+            let function = module.add_function(func);
+            function_refs
+                .extend(self.function_refs.drain(..).map(|reference| (function, reference)));
         }
+        self.resolve_function_refs(&mut module, function_refs)?;
 
         Ok(module)
+    }
+
+    fn resolve_function_refs(
+        &self,
+        module: &mut Module,
+        function_refs: Vec<(FunctionId, PendingFunctionRef)>,
+    ) -> PResult<'sess, ()> {
+        let mut functions = FxHashMap::<Symbol, Vec<FunctionId>>::default();
+        for (id, function) in module.functions.iter_enumerated() {
+            functions.entry(function.name.name).or_default().push(id);
+        }
+        for (owner, reference) in function_refs {
+            let Some(matches) = functions.get(&reference.name) else {
+                return Err(self
+                    .parser
+                    .error_at(reference.span, format!("unknown function `@{}`", reference.name)));
+            };
+            let [function] = matches.as_slice() else {
+                return Err(self.parser.error_at(
+                    reference.span,
+                    format!(
+                        "function name `@{}` is ambiguous; use the positional `fnN` form",
+                        reference.name
+                    ),
+                ));
+            };
+            match reference.target {
+                FunctionRefTarget::Instruction(inst) => {
+                    let InstKind::InternalCall { function: target, .. } =
+                        &mut module.functions[owner].instructions[inst].kind
+                    else {
+                        unreachable!()
+                    };
+                    *target = *function;
+                }
+                FunctionRefTarget::Terminator(block) => {
+                    let Some(Terminator::TailCall { function: target, .. }) =
+                        &mut module.functions[owner].blocks[block].terminator
+                    else {
+                        unreachable!()
+                    };
+                    *target = *function;
+                }
+            }
+        }
+        Ok(())
     }
 
     fn parse_function(&mut self) -> PResult<'sess, Function> {
@@ -303,17 +327,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Brace))?;
 
         let mut block_labels = FxHashMap::default();
-        if let Some(blocks) = self.function_blocks.get(self.function_cursor) {
-            for &index in blocks {
-                if block_labels.contains_key(&index) {
-                    continue;
-                }
-                let id =
-                    if block_labels.is_empty() { func.entry_block } else { func.alloc_block() };
-                block_labels.insert(index, BlockLabel { id, defined: false, reference_span: None });
-            }
-        }
-        self.function_cursor += 1;
+        let mut block_order = Vec::new();
         let mut value_labels = FxHashMap::default();
         let mut current_block = None;
 
@@ -326,7 +340,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
             }
 
             if let Some(idx) = self.try_parse_block_header()? {
-                let bid = self.define_block(&mut func, &mut block_labels, idx)?;
+                let bid = self.define_block(&mut func, &mut block_labels, &mut block_order, idx)?;
                 current_block = Some(bid);
                 self.skip_to_eol();
                 continue;
@@ -346,6 +360,12 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
 
         self.reject_unresolved_block_labels(&block_labels)?;
         self.reject_unresolved_value_labels(&func, &value_labels)?;
+        let block_remap = crate::mir::utils::remap_block_order(&mut func, &block_order);
+        for reference in &mut self.function_refs {
+            if let FunctionRefTarget::Terminator(block) = &mut reference.target {
+                *block = block_remap[block.index()];
+            }
+        }
 
         Ok(func)
     }
@@ -377,6 +397,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         &self,
         func: &mut Function,
         block_labels: &mut FxHashMap<u32, BlockLabel>,
+        block_order: &mut Vec<BlockId>,
         index: u32,
     ) -> PResult<'sess, BlockId> {
         if let Some(label) = block_labels.get_mut(&index) {
@@ -384,10 +405,12 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                 return Err(self.error(format!("duplicate block `bb{index}`")));
             }
             label.defined = true;
+            block_order.push(label.id);
             return Ok(label.id);
         }
         let id = if block_labels.is_empty() { func.entry_block } else { func.alloc_block() };
         block_labels.insert(index, BlockLabel { id, defined: true, reference_span: None });
+        block_order.push(id);
         Ok(id)
     }
 
@@ -587,7 +610,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         if let Some(label) = block_labels.get(&idx) {
             return Ok(label.id);
         }
-        let block = func.alloc_block();
+        let block = if block_labels.is_empty() { func.entry_block } else { func.alloc_block() };
         block_labels
             .insert(idx, BlockLabel { id: block, defined: false, reference_span: Some(span) });
         Ok(block)
@@ -595,17 +618,10 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
 
     fn parse_function_id(&mut self) -> PResult<'sess, FunctionId> {
         if self.parser.eat(TokenKind::At) {
+            let span = self.parser.token().span;
             let name = self.parse_function_name()?;
-            let mut matches = self.function_names.iter().enumerate().filter(|(_, n)| **n == name);
-            let Some((idx, _)) = matches.next() else {
-                return Err(self.error(format!("unknown function `@{name}`")));
-            };
-            if matches.next().is_some() {
-                return Err(self.error(format!(
-                    "function name `@{name}` is ambiguous; use the positional `fnN` form"
-                )));
-            }
-            return Ok(FunctionId::from_usize(idx));
+            self.pending_function_ref = Some((Symbol::intern(&name), span));
+            return Ok(FunctionId::from_usize(0));
         }
         let id = self.parse_ident()?;
         let rest = id
@@ -615,6 +631,12 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         let idx: usize =
             rest.parse().map_err(|_| self.error(format!("invalid function index `{id}`")))?;
         Ok(FunctionId::from_usize(idx))
+    }
+
+    fn finish_function_ref(&mut self, target: FunctionRefTarget) {
+        if let Some((name, span)) = self.pending_function_ref.take() {
+            self.function_refs.push(PendingFunctionRef { name, span, target });
+        }
     }
 
     /// Parses one instruction line (with optional `vN =` result) or a terminator.
@@ -742,6 +764,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                     args.push(self.parse_value(func, arg_values, value_labels)?);
                 }
                 self.set_terminator(func, block, Terminator::TailCall { function, args });
+                self.finish_function_ref(FunctionRefTarget::Terminator(block));
                 self.skip_to_eol();
                 return Ok(());
             }
@@ -763,6 +786,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         inst.metadata = metadata;
         let inst_id = func.alloc_inst(inst);
         func.blocks[block].instructions.push(inst_id);
+        self.finish_function_ref(FunctionRefTarget::Instruction(inst_id));
         if let Some(label) = result_label {
             self.resolve_result_label(func, value_labels, label, inst_id)?;
         }
@@ -824,12 +848,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                 }
                 sym::span => {
                     self.parser.expect(TokenKind::Eq)?;
-                    let lo = self.parse_uint_literal()?;
-                    let lo = self.u256_to_u32(lo)?;
-                    self.parser.expect(TokenKind::Dot)?;
-                    self.parser.expect(TokenKind::Dot)?;
-                    let hi = self.parse_uint_literal()?;
-                    let hi = self.u256_to_u32(hi)?;
+                    let (lo, hi) = self.parse_span_bounds()?;
                     metadata.set_source_span(Some(Span::new(BytePos(lo), BytePos(hi))));
                 }
                 _ => return Err(self.error(format!("unknown metadata key `{key}`"))),
@@ -843,6 +862,32 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         }
 
         Ok(metadata)
+    }
+
+    fn parse_span_bounds(&mut self) -> PResult<'sess, (u32, u32)> {
+        if let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.parser.token().kind
+            && let Some(lo) = symbol.as_str().strip_suffix('.')
+        {
+            let lo = lo.parse().map_err(|_| self.error("invalid span start"))?;
+            self.parser.bump();
+            let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.parser.token().kind
+            else {
+                return Err(self.error("expected span end"));
+            };
+            let Some(hi) = symbol.as_str().strip_prefix('.') else {
+                return Err(self.error("expected span end"));
+            };
+            let hi = hi.parse().map_err(|_| self.error("invalid span end"))?;
+            self.parser.bump();
+            return Ok((lo, hi));
+        }
+
+        let lo = self.parse_uint_literal()?;
+        let lo = self.u256_to_u32(lo)?;
+        self.parser.expect(TokenKind::Dot)?;
+        self.parser.expect(TokenKind::Dot)?;
+        let hi = self.parse_uint_literal()?;
+        Ok((lo, self.u256_to_u32(hi)?))
     }
 
     fn parse_storage_alias(
@@ -1463,20 +1508,6 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     }
 }
 
-fn block_header_index(tokens: &[&solar_ast::token::Token], cursor: usize) -> Option<u32> {
-    let TokenKind::Ident(label) = tokens[cursor].kind else { return None };
-    let index = label.as_str().strip_prefix("bb")?.parse().ok()?;
-    let next = tokens.get(cursor + 1)?.kind;
-    if next == TokenKind::Colon {
-        return Some(index);
-    }
-    (next == TokenKind::OpenDelim(Delimiter::Parenthesis)
-        && tokens.get(cursor + 2)?.is_keyword(sym::entry)
-        && tokens.get(cursor + 3)?.kind == TokenKind::CloseDelim(Delimiter::Parenthesis)
-        && tokens.get(cursor + 4)?.kind == TokenKind::Colon)
-        .then_some(index)
-}
-
 // =============================================================================
 // Suppress the unused `BasicBlock` import warning when this module is built
 // without tests. The struct is used transitively through `Function`, but the
@@ -1699,10 +1730,9 @@ fn @hash() -> u256 {
         with_session(|sess| {
             let src = "\
 @module Counter
-fn @count() -> u256 {
+fn @count() {
   bb0 (entry):
-    v1 = sload 0
-    ret v1
+    tail_call @set, 1
 }
 
 fn @set(arg0: u256) {
@@ -1713,6 +1743,13 @@ fn @set(arg0: u256) {
 ";
             let module = parse_module(sess, src).unwrap();
             assert_eq!(module.functions.len(), 2);
+            let Some(Terminator::TailCall { function, .. }) =
+                &module.functions[FunctionId::from_usize(0)].blocks[BlockId::from_usize(0)]
+                    .terminator
+            else {
+                panic!("expected tail call")
+            };
+            assert_eq!(*function, FunctionId::from_usize(1));
             // Round-trip the printed form.
             let printed = module.to_text().to_string();
             let module2 = parse_module(sess, &printed).unwrap();

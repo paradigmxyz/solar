@@ -8,7 +8,7 @@ use solar_ast::{
 };
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use solar_interface::{Result, Session, Symbol, kw, source_map::SourceFile, sym};
-use solar_parse::{Lexer, PErr, PResult};
+use solar_parse::{PErr, PResult};
 
 pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
     let errors = sess.dcx.err_count();
@@ -43,29 +43,11 @@ enum BodyEnd {
 
 struct Parser<'sess, 'ast, 'src> {
     parser: crate::ir_parse::Parser<'sess, 'ast, 'src>,
-    block_labels: Vec<Symbol>,
 }
 
 impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     fn new(sess: &'sess Session, arena: &'ast Arena, source: &'src SourceFile) -> Self {
-        let tokens = Lexer::from_source_file(sess, source).into_tokens();
-        let significant =
-            tokens.iter().filter(|token| !token.is_comment_or_doc()).collect::<Vec<_>>();
-        let block_labels = significant
-            .iter()
-            .enumerate()
-            .filter_map(|(cursor, token)| {
-                if !crate::ir_parse::token_starts_line(source, &significant, cursor) {
-                    return None;
-                }
-                let TokenKind::Ident(symbol) = token.kind else { return None };
-                let number = symbol.as_str().strip_prefix("bb")?;
-                (!number.is_empty() && number.bytes().all(|byte| byte.is_ascii_digit()))
-                    .then_some(symbol)
-            })
-            .collect();
-        let parser = crate::ir_parse::Parser::from_tokens(sess, arena, source, tokens);
-        Self { parser, block_labels }
+        Self { parser: crate::ir_parse::Parser::new(sess, arena, source) }
     }
 
     fn is_eof(&self) -> bool {
@@ -136,13 +118,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
 
     fn parse_program_body(&mut self, module: &mut Module, body_end: BodyEnd) -> PResult<'sess, ()> {
         let mut block_labels = FxHashMap::default();
-        for label in &self.block_labels {
-            if block_labels.contains_key(label) {
-                continue;
-            }
-            let id = module.add_block(Block::new(label.as_str()));
-            block_labels.insert(*label, BlockLabel { id, defined: false });
-        }
+        let mut block_order = Vec::new();
         let mut current_block = None;
         let mut value_labels = FxHashMap::default();
         let mut defined_values = GrowableBitSet::with_capacity(module.values.len());
@@ -159,8 +135,9 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                 break;
             }
             if let Some(header) = self.try_parse_block_header()? {
-                let block_id = self.define_block(module, &mut block_labels, header.label)?;
-                if header.entry {
+                let block_id =
+                    self.define_block(module, &mut block_labels, &mut block_order, header.label)?;
+                if header.entry || block_order.len() == 1 {
                     module.entry_block = Some(block_id);
                 }
                 module.blocks[block_id].metadata.hotness = header.hotness;
@@ -189,6 +166,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
             return Err(self.error("program must contain at least one block"));
         }
         self.reject_unresolved_blocks(&block_labels)?;
+        super::passes::utils::remap_block_order(module, &block_order);
 
         Ok(())
     }
@@ -263,6 +241,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         &self,
         module: &mut Module,
         block_labels: &mut FxHashMap<Symbol, BlockLabel>,
+        block_order: &mut Vec<BlockId>,
         label: Symbol,
     ) -> PResult<'sess, BlockId> {
         if let Some(block) = block_labels.get_mut(&label) {
@@ -270,10 +249,12 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                 return Err(self.error(format!("duplicate block `{label}`")));
             }
             block.defined = true;
+            block_order.push(block.id);
             return Ok(block.id);
         }
         let id = module.add_block(Block::new(label.as_str()));
         block_labels.insert(label, BlockLabel { id, defined: true });
+        block_order.push(id);
         Ok(id)
     }
 
