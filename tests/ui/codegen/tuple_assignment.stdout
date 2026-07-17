@@ -221,7 +221,7 @@ bb4:
   mstore
   push 4
   calldataload
-  fallthrough bb5
+  jump bb5
 bb5:
   push 160
   mstore

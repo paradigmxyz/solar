@@ -55,7 +55,7 @@ bb4:
   iszero
   push bb6
   jumpi
-  fallthrough bb5
+  jump bb5
 bb5:
   push 4
   calldataload
@@ -65,7 +65,7 @@ bb5:
   push 128
   return
 bb6:
-  fallthrough bb7
+  jump bb7
 bb7:
   push bb5
   push 4

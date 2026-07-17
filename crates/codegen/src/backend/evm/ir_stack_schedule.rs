@@ -37,7 +37,7 @@
 //! To keep the reloaded (anonymous) word from corrupting a value identity that a
 //! successor relies on, spilling is only enabled in blocks whose terminator does
 //! not hand a named value-word stack to a successor — i.e. anything other than a
-//! linear `jump`/`fallthrough`. Those are exactly the blocks whose flowing exit
+//! linear `jump`. Those are exactly the blocks whose flowing exit
 //! stack carries no named words across the edge, so replacing a spilled value
 //! with an anonymous reloaded word never breaks cross-block identity.
 //!
@@ -59,11 +59,11 @@
 //! explicit `(in ...)` signature it is treated as a claim to verify: if it does
 //! not match the inferred entry the block bails instead of trusting it.
 //!
-//! Only `jump`/`fallthrough` edges propagate a non-empty entry stack, because
+//! Only `jump` edges propagate a non-empty entry stack, because
 //! the verifier (the oracle) keeps a `br`/`switch` discriminant live on top of
 //! the predecessor's exit stack and requires a successor's declared entry to be
 //! a *prefix* of that exit. A successor of a conditional terminator therefore
-//! inherits the empty prefix; only the linear `jump`/`fallthrough` case can hand
+//! inherits the empty prefix; only the linear `jump` case can hand
 //! down the words below.
 
 use super::{ir, stack::SpillSlot};
@@ -90,7 +90,7 @@ struct StackScheduler<'a> {
     /// Exit stack each successfully scheduled block leaves behind, keyed by
     /// block id. A block that bailed has no entry here, so any successor that
     /// would inherit from it bails too. The entry value-word stack a block hands
-    /// to a `jump`/`fallthrough` successor is the prefix of this exit stack that
+    /// to a `jump` successor is the prefix of this exit stack that
     /// consists entirely of known SSA value words.
     exit_stacks: FxHashMap<ir::BlockId, Vec<ScheduledStackItem>>,
     /// Per-block spill state, reset for each block (see [`SpillState`]).
@@ -486,12 +486,12 @@ impl<'a> StackScheduler<'a> {
     /// value as a fresh anonymous word, which would corrupt a successor's
     /// declared incoming value identities; it is therefore disabled for blocks
     /// whose terminator hands a named value-word stack to a successor (a linear
-    /// `jump`/`fallthrough`). Every other terminator leaves no named exit words
+    /// `jump`). Every other terminator leaves no named exit words
     /// flowing across an edge, so reloading as anonymous is harmless.
     fn block_allows_spilling(&self, block_id: ir::BlockId) -> bool {
         !matches!(
             self.module.blocks[block_id].terminator.as_ref().map(|term| &term.kind),
-            Some(ir::TerminatorKind::Jump(_) | ir::TerminatorKind::Fallthrough(_))
+            Some(ir::TerminatorKind::Jump(_))
         )
     }
 
@@ -858,7 +858,7 @@ fn block_successors(block: &ir::Block) -> Vec<ir::BlockId> {
         return targets;
     };
     match &term.kind {
-        ir::TerminatorKind::Fallthrough(target) | ir::TerminatorKind::Jump(target) => {
+        ir::TerminatorKind::Jump(target) => {
             targets.push(*target);
         }
         ir::TerminatorKind::Branch { then_block, else_block, .. } => {
@@ -873,7 +873,6 @@ fn block_successors(block: &ir::Block) -> Vec<ir::BlockId> {
         }
         ir::TerminatorKind::Return { .. }
         | ir::TerminatorKind::Revert { .. }
-        | ir::TerminatorKind::FallthroughNext
         | ir::TerminatorKind::Stop
         | ir::TerminatorKind::Invalid
         | ir::TerminatorKind::SelfDestruct { .. }
@@ -885,7 +884,7 @@ fn block_successors(block: &ir::Block) -> Vec<ir::BlockId> {
 /// The entry value-word stack a predecessor hands to a successor across one CFG
 /// edge, given the predecessor block and its recorded exit stack (top first).
 ///
-/// Only the linear `jump`/`fallthrough` edge propagates words: the verifier
+/// Only the linear `jump` edge propagates words: the verifier
 /// keeps a `br`/`switch` discriminant live on top of the predecessor's exit and
 /// requires the successor's declared entry to be a *prefix* of that exit, so a
 /// conditional successor can only safely inherit the empty prefix. For a linear
@@ -896,7 +895,7 @@ fn block_successors(block: &ir::Block) -> Vec<ir::BlockId> {
 fn edge_entry_stack(pred: &ir::Block, exit: &[ScheduledStackItem]) -> Vec<ir::ValueId> {
     let linear = matches!(
         pred.terminator.as_ref().map(|term| &term.kind),
-        Some(ir::TerminatorKind::Jump(_) | ir::TerminatorKind::Fallthrough(_))
+        Some(ir::TerminatorKind::Jump(_))
     );
     if !linear {
         return Vec::new();
@@ -922,7 +921,7 @@ fn instruction_keeps_encoded_operands(inst: &ir::Instruction) -> bool {
 ///
 /// Switch case immediates stay encoded and are not arranged, so only the
 /// discriminant is returned for a `switch`. Operand-less terminators (`jump`,
-/// `fallthrough`, `stop`, `invalid`, raw opcodes) return an empty list.
+/// `stop`, `invalid`, raw opcodes) return an empty list.
 fn terminator_arrange_operands(kind: &ir::TerminatorKind) -> Vec<ir::ValueId> {
     let mut operands = Vec::new();
     let mut push = |operand: &ir::Operand| {
@@ -939,9 +938,7 @@ fn terminator_arrange_operands(kind: &ir::TerminatorKind) -> Vec<ir::ValueId> {
             push(size);
         }
         ir::TerminatorKind::SelfDestruct { recipient } => push(recipient),
-        ir::TerminatorKind::Fallthrough(_)
-        | ir::TerminatorKind::FallthroughNext
-        | ir::TerminatorKind::Jump(_)
+        ir::TerminatorKind::Jump(_)
         | ir::TerminatorKind::Stop
         | ir::TerminatorKind::Invalid
         | ir::TerminatorKind::RawOpcode(_) => {}
@@ -968,9 +965,7 @@ fn visit_terminator_value_operands(
             visit(size);
         }
         ir::TerminatorKind::SelfDestruct { recipient } => visit(recipient),
-        ir::TerminatorKind::Fallthrough(_)
-        | ir::TerminatorKind::FallthroughNext
-        | ir::TerminatorKind::Jump(_)
+        ir::TerminatorKind::Jump(_)
         | ir::TerminatorKind::Stop
         | ir::TerminatorKind::Invalid
         | ir::TerminatorKind::RawOpcode(_) => {}

@@ -114,7 +114,7 @@ impl StructuredAsmProgram {
     /// every virtual stack-word operand into physical `dup`/`swap`/`pop` and
     /// `push`/opcode instructions, so `to_evm_ir_module` produces
     /// *operand-cleared* IR — no instruction carries an [`ir::Operand::Value`],
-    /// and the only terminators emitted here (`jump`/`fallthrough`/raw terminal
+    /// and the only terminators emitted here (`jump`/raw terminal
     /// opcode/`stop`/`invalid`) carry no value operands either. `StackSchedule`
     /// only rewrites instructions that have value operands to materialize, so on
     /// this input it has nothing to materialize: every instruction is replayed
@@ -251,7 +251,7 @@ impl StructuredAsmProgram {
                 body_len = body_len.saturating_sub(1);
                 ir::TerminatorKind::RawOpcode(opcode)
             } else {
-                ir::TerminatorKind::Fallthrough(next_block?)
+                ir::TerminatorKind::Jump(next_block?)
             };
 
         let mut instructions = Vec::with_capacity(body_len);
@@ -412,20 +412,15 @@ impl StructuredAsmProgram {
         C: StructuredAsmContext,
     {
         match kind {
-            ir::TerminatorKind::Fallthrough(target) => {
-                if next_block(module, block_id) != Some(*target) {
-                    let label = label_for_block(module, *target, labels, context);
-                    program.push(AsmInst::push_label(label));
-                    program.push(AsmInst::op(op::JUMP));
-                }
-            }
             ir::TerminatorKind::Jump(target) => {
+                if next_block(module, block_id) == Some(*target) {
+                    return;
+                }
                 let label = label_for_block(module, *target, labels, context);
                 program.push(AsmInst::push_label(label));
                 program.push(AsmInst::op(op::JUMP));
             }
             ir::TerminatorKind::RawOpcode(opcode) => program.push(AsmInst::op(*opcode)),
-            ir::TerminatorKind::FallthroughNext => {}
             ir::TerminatorKind::Stop => program.push(AsmInst::op(op::STOP)),
             ir::TerminatorKind::Invalid => program.push(AsmInst::op(op::INVALID)),
             ir::TerminatorKind::Return { .. }

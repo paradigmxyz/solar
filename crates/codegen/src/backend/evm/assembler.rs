@@ -1926,11 +1926,33 @@ mod tests {
 
         let result = asm.assemble();
 
+        assert_eq!(result.bytecode, vec![op::STOP, op::PUSH0, op::PUSH0, op::REVERT]);
+    }
+
+    #[test]
+    fn block_layout_elides_jump_after_jumpi() {
+        let mut asm = Assembler::with_config(AssemblerConfig {
+            evm_ir_layout_passes: true,
+            ..AssemblerConfig::default()
+        });
+        let conditional = asm.new_label();
+        let default = asm.new_label();
+
+        asm.emit_push(U256::ONE);
+        asm.emit_push_label(conditional);
+        asm.emit_op(op::JUMPI);
+        asm.emit_push_label(default);
+        asm.emit_op(op::JUMP);
+        asm.define_label(conditional);
+        asm.emit_op(op::INVALID);
+        asm.define_label(default);
+        asm.emit_op(op::STOP);
+
+        let result = asm.assemble();
+
         assert_eq!(
             result.bytecode,
-            // The unreferenced cold block's `JUMPDEST` is elided: nothing
-            // jumps to it, so it is a dead byte.
-            vec![op::PUSH1, 3, op::JUMP, op::JUMPDEST, op::STOP, op::PUSH0, op::PUSH0, op::REVERT,]
+            vec![op::PUSH1, 1, op::PUSH1, 6, op::JUMPI, op::STOP, op::JUMPDEST, op::INVALID]
         );
     }
 

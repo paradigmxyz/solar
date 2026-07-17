@@ -488,7 +488,7 @@ bb5:
   pop
   pop
   push 50
-  fallthrough bb6
+  jump bb6
 bb6:
   push 4
   mstore
@@ -561,7 +561,7 @@ bb2:
   push 0
   keccak256
   sload
-  fallthrough bb3
+  jump bb3
 bb3:
   push 128
   mstore

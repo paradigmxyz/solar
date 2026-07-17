@@ -28,7 +28,7 @@ bb1:
   push bb3
   jumpi
   push 1
-  fallthrough bb2
+  jump bb2
 bb2:
   push 160
   mload
@@ -238,7 +238,7 @@ bb7:
   mstore
   push 0
   sstore
-  fallthrough_next
+  stop
 
 // === deployment ===
 bb0 (entry):

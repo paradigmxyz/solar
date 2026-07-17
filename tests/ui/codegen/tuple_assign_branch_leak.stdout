@@ -155,7 +155,7 @@ bb4:
   mload
   dup1
   push 608
-  fallthrough bb5
+  jump bb5
 bb5:
   mstore
   push 128
