@@ -834,6 +834,11 @@ impl ItemId {
     pub fn as_variable(&self) -> Option<VariableId> {
         if let Self::Variable(v) = *self { Some(v) } else { None }
     }
+
+    /// Returns the enum ID if this is an enum.
+    pub fn as_enum(&self) -> Option<EnumId> {
+        if let Self::Enum(v) = *self { Some(v) } else { None }
+    }
 }
 
 /// A contract, interface, or library.
@@ -1122,7 +1127,7 @@ pub struct Enum<'hir> {
     /// The enum name.
     pub name: Ident,
     /// The enum variants.
-    pub variants: &'hir [Ident],
+    pub variants: &'hir [VariableId],
 }
 
 /// A user-defined value type.
@@ -1348,6 +1353,8 @@ pub enum VarKind {
     State,
     /// Defined in a struct.
     Struct,
+    /// Defined in an enum.
+    Enum,
     /// Defined in an event.
     Event,
     /// Defined in an error.
@@ -1372,6 +1379,7 @@ impl VarKind {
             Self::Global => "file-level variable",
             Self::State => "state variable",
             Self::Struct => "struct field",
+            Self::Enum => "enum variant",
             Self::Event => "event parameter",
             Self::Error => "error parameter",
             Self::FunctionParam | Self::FunctionTyParam => "function parameter",
@@ -1621,6 +1629,24 @@ impl Res {
     /// Returns the builtin if this resolves to a builtin.
     pub fn as_builtin(&self) -> Option<Builtin> {
         if let Self::Builtin(builtin) = self { Some(*builtin) } else { None }
+    }
+
+    fn var_parent(self, hir: &Hir<'_>) -> Option<ItemId> {
+        hir.variable(self.as_variable()?).parent
+    }
+
+    /// Returns the field index if this resolves to a struct field.
+    pub fn struct_field_index(self, hir: &Hir<'_>) -> Option<usize> {
+        let variable = self.as_variable()?;
+        let strukt = hir.strukt(self.var_parent(hir)?.as_struct()?);
+        strukt.fields.iter().position(|&field| field == variable)
+    }
+
+    /// Returns the variant index if this resolves to an enum variant.
+    pub fn enum_variant_index(self, hir: &Hir<'_>) -> Option<usize> {
+        let variable = self.as_variable()?;
+        let enumm = hir.enumm(self.var_parent(hir)?.as_enum()?);
+        enumm.variants.iter().position(|&variant| variant == variable)
     }
 }
 

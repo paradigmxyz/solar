@@ -8,12 +8,12 @@ use solar_interface::{
 };
 use solar_sema::{
     Gcx,
-    builtins::Builtin,
+    builtins::{Builtin, Member},
     hir::{
-        self, ContractKind, EnumId, FunctionKind, ItemId, Res, StmtKind, TypeKind, UsingEntryKind,
-        VarKind, Visit,
+        self, ContractKind, FunctionKind, ItemId, Res, StmtKind, TypeKind, UsingEntryKind, VarKind,
+        Visit,
     },
-    ty::{MemberCompletion, ResolvedMember, Ty},
+    ty::Ty,
 };
 use std::ops::ControlFlow;
 
@@ -62,7 +62,6 @@ pub(crate) struct DeclarationSymbol {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum SymbolKey {
     Item(ItemId),
-    EnumVariant(EnumId, usize),
 }
 
 #[derive(Clone, Debug)]
@@ -172,34 +171,6 @@ impl SymbolTables {
         for (&item_id, &symbol_id) in &item_symbols {
             tables.declarations[symbol_id].parent =
                 item_id.parent(&gcx.hir).and_then(|parent| item_symbols.get(&parent).copied());
-        }
-
-        // Enum variants are declarations, but they are not HIR ItemIds. Add them explicitly and
-        // attach them to their enum so callers can still traverse the declaration scope tree.
-        for enum_id in gcx.hir.enumm_ids() {
-            let enumm = gcx.hir.enumm(enum_id);
-            let parent = item_symbols.get(&ItemId::Enum(enum_id)).copied();
-
-            for (variant_index, variant) in enumm.variants.iter().enumerate() {
-                let Some(location) = proto::span_to_location(gcx.sess.source_map(), variant.span)
-                else {
-                    continue;
-                };
-                let name = variant.to_string();
-                tables.push_declaration(
-                    SymbolKey::EnumVariant(enum_id, variant_index),
-                    DeclarationSymbol {
-                        id: tables.declarations.next_idx(),
-                        search_name: search_name(&name),
-                        name,
-                        kind: SymbolKind::ENUM_MEMBER,
-                        name_range: location.range,
-                        location,
-                        parent,
-                        has_definition: true,
-                    },
-                );
-            }
         }
 
         tables.build_scopes(gcx);
@@ -507,7 +478,7 @@ impl SymbolTables {
         contract: Option<hir::ContractId>,
     ) -> Vec<CompletionItem> {
         let mut items = gcx
-            .member_completions_of(ty, source, contract)
+            .members_of(ty, source, contract)
             .map(|member| self.completion_item_for_member(gcx, member))
             .collect::<Vec<_>>();
         sort_completion_items(&mut items);
@@ -820,19 +791,15 @@ impl SymbolTables {
         }
     }
 
-    fn completion_item_for_member(
-        &self,
-        gcx: Gcx<'_>,
-        member: MemberCompletion<'_>,
-    ) -> CompletionItem {
-        if let Some(symbol_id) = self.symbol_id_for_member_completion(gcx, member) {
+    fn completion_item_for_member(&self, gcx: Gcx<'_>, member: Member<'_>) -> CompletionItem {
+        if let Some(symbol_id) = self.symbol_id_for_member_completion(member) {
             return self.completion_item(symbol_id);
         }
 
         CompletionItem {
-            label: member.member.name.to_string(),
+            label: member.name.to_string(),
             kind: Some(member_completion_item_kind(gcx, member)),
-            detail: member.member.attached.then_some("using for".to_string()),
+            detail: member.attached.then_some("using for".to_string()),
             ..Default::default()
         }
     }
@@ -842,38 +809,14 @@ impl SymbolTables {
         Location { uri: symbol.location.uri.clone(), range: symbol.name_range }
     }
 
-    fn symbol_id_for_member_completion(
-        &self,
-        gcx: Gcx<'_>,
-        member: MemberCompletion<'_>,
-    ) -> Option<SymbolId> {
-        if let Some(resolved) = member.resolved {
-            return self.symbol_id_for_resolved_member(gcx, resolved);
-        }
-        member.member.res.and_then(|res| self.symbol_id_for_res(res))
+    fn symbol_id_for_member_completion(&self, member: Member<'_>) -> Option<SymbolId> {
+        member.res.and_then(|res| self.symbol_id_for_res(res))
     }
 
     fn symbol_id_for_res(&self, res: Res) -> Option<SymbolId> {
         match res {
             Res::Item(item_id) => self.symbols_by_key.get(&SymbolKey::Item(item_id)).copied(),
             Res::Namespace(_) | Res::Builtin(_) | Res::Err(_) => None,
-        }
-    }
-
-    fn symbol_id_for_resolved_member(
-        &self,
-        gcx: Gcx<'_>,
-        member: ResolvedMember,
-    ) -> Option<SymbolId> {
-        match member {
-            ResolvedMember::Res(res) => self.symbol_id_for_res(res),
-            ResolvedMember::StructField { struct_id, field_index } => {
-                let field_id = gcx.hir.strukt(struct_id).fields.get(field_index).copied()?;
-                self.symbols_by_key.get(&SymbolKey::Item(ItemId::Variable(field_id))).copied()
-            }
-            ResolvedMember::EnumVariant { enum_id, variant_index } => {
-                self.symbols_by_key.get(&SymbolKey::EnumVariant(enum_id, variant_index)).copied()
-            }
         }
     }
 
@@ -1069,9 +1012,9 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
         let Some(scope) = self.push_child_scope(enumm.span) else {
             return ControlFlow::Continue(());
         };
-        for variant_index in 0..enumm.variants.len() {
+        for &variant in enumm.variants {
             if let Some(symbol_id) =
-                self.tables.symbols_by_key.get(&SymbolKey::EnumVariant(id, variant_index))
+                self.tables.symbols_by_key.get(&SymbolKey::Item(ItemId::Variable(variant)))
             {
                 self.tables.add_symbol_to_scope(scope, *symbol_id);
             }
@@ -1257,7 +1200,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
 
     fn symbol_ids_for_member_expr(&self, expr: &hir::Expr<'gcx>) -> Vec<SymbolId> {
         if let Some(member) = self.gcx.resolved_member(expr.id)
-            && let Some(symbol_id) = self.tables.symbol_id_for_resolved_member(self.gcx, member)
+            && let Some(symbol_id) = self.tables.symbol_id_for_res(member)
         {
             return vec![symbol_id];
         }
@@ -1451,11 +1394,11 @@ fn range_size_key(range: Range) -> (u32, u32) {
     )
 }
 
-fn member_completion_item_kind(gcx: Gcx<'_>, member: MemberCompletion<'_>) -> CompletionItemKind {
-    match member.resolved {
-        Some(ResolvedMember::EnumVariant { .. }) => CompletionItemKind::ENUM_MEMBER,
-        Some(ResolvedMember::StructField { .. }) => CompletionItemKind::FIELD,
-        Some(ResolvedMember::Res(_)) | None => match member.member.res {
+fn member_completion_item_kind(gcx: Gcx<'_>, member: Member<'_>) -> CompletionItemKind {
+    match member.res {
+        Some(res) if res.enum_variant_index(&gcx.hir).is_some() => CompletionItemKind::ENUM_MEMBER,
+        Some(res) if res.struct_field_index(&gcx.hir).is_some() => CompletionItemKind::FIELD,
+        Some(_) | None => match member.res {
             Some(Res::Item(item_id)) => completion_item_kind(item_symbol_kind(gcx, item_id)),
             Some(Res::Namespace(_)) => CompletionItemKind::MODULE,
             Some(Res::Builtin(_)) => CompletionItemKind::METHOD,
@@ -1601,6 +1544,7 @@ fn variable_symbol_kind(variable: &hir::Variable<'_>) -> SymbolKind {
     }
 
     match variable.kind {
+        VarKind::Enum => SymbolKind::ENUM_MEMBER,
         VarKind::State | VarKind::Struct => SymbolKind::PROPERTY,
         VarKind::Global
         | VarKind::Event

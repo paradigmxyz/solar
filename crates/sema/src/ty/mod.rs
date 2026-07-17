@@ -77,7 +77,7 @@ pub struct InterfaceFunctions<'gcx> {
 pub struct TypeckResults<'gcx> {
     pub(crate) expr_types: FxHashMap<hir::ExprId, Ty<'gcx>>,
     pub(crate) resolved_callees: FxHashMap<hir::ExprId, ResolvedCallee>,
-    pub(crate) resolved_members: FxHashMap<hir::ExprId, ResolvedMember>,
+    pub(crate) resolved_members: FxHashMap<hir::ExprId, hir::Res>,
     pub(crate) unsupported_udvt_operators: FxHashSet<hir::ExprId>,
 }
 
@@ -94,26 +94,6 @@ impl ResolvedCallee {
     pub fn new(res: hir::Res, attached: bool) -> Self {
         Self { res, attached }
     }
-}
-
-/// The target selected for a non-call member access expression.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum ResolvedMember {
-    /// A member with a regular item or builtin resolution.
-    Res(hir::Res),
-    /// A struct field selected from the receiver type.
-    StructField { struct_id: hir::StructId, field_index: usize },
-    /// An enum variant selected from `Enum.Variant`.
-    EnumVariant { enum_id: hir::EnumId, variant_index: usize },
-}
-
-/// A completion candidate for a member visible on a receiver type.
-#[derive(Clone, Copy, Debug)]
-pub struct MemberCompletion<'gcx> {
-    /// The visible member candidate.
-    pub member: members::Member<'gcx>,
-    /// The source-level target for the member, if one can be identified.
-    pub resolved: Option<ResolvedMember>,
 }
 
 /// Parameter names available for a callable's visible arguments.
@@ -168,17 +148,14 @@ impl<'gcx> TypeckResults<'gcx> {
 
     /// Returns the target selected for a non-call member access expression, if available.
     #[inline]
-    pub fn resolved_member(&self, id: hir::ExprId) -> Option<ResolvedMember> {
+    pub fn resolved_member(&self, id: hir::ExprId) -> Option<hir::Res> {
         self.resolved_members.get(&id).copied()
     }
 
     /// Returns the selected builtin target for a non-call member access expression, if available.
     #[inline]
     pub fn builtin_member(&self, id: hir::ExprId) -> Option<Builtin> {
-        match self.resolved_member(id)? {
-            ResolvedMember::Res(hir::Res::Builtin(builtin)) => Some(builtin),
-            _ => None,
-        }
+        self.resolved_member(id)?.as_builtin()
     }
 
     /// Returns the selected builtin target for a call callee expression, if available.
@@ -547,7 +524,7 @@ impl<'gcx> Gcx<'gcx> {
 
     /// Returns the target selected for a non-call member access expression, if available.
     #[inline]
-    pub fn resolved_member(self, id: hir::ExprId) -> Option<ResolvedMember> {
+    pub fn resolved_member(self, id: hir::ExprId) -> Option<hir::Res> {
         self.typeck_results.get()?.resolved_member(id)
     }
 
@@ -1031,77 +1008,6 @@ impl<'gcx> Gcx<'gcx> {
             self.native_members_in_context(ty, contract).unwrap_or_else(|| self.native_members(ty));
         let attached = self.attached_functions(ty, source, contract);
         native.iter().copied().chain(attached)
-    }
-
-    pub fn member_completions_of(
-        self,
-        ty: Ty<'gcx>,
-        source: hir::SourceId,
-        contract: Option<hir::ContractId>,
-    ) -> impl Iterator<Item = MemberCompletion<'gcx>> + 'gcx {
-        self.members_of(ty, source, contract).map(move |member| MemberCompletion {
-            resolved: self.resolve_member_target(ty, member.name, member.res),
-            member,
-        })
-    }
-
-    pub(crate) fn resolve_member_target(
-        self,
-        receiver_ty: Ty<'gcx>,
-        name: Symbol,
-        res: Option<hir::Res>,
-    ) -> Option<ResolvedMember> {
-        if let Some(res) = res {
-            let struct_id = match receiver_ty.kind {
-                TyKind::Ref(inner, _) => {
-                    if let TyKind::Struct(struct_id) = inner.kind {
-                        Some(struct_id)
-                    } else {
-                        None
-                    }
-                }
-                TyKind::Struct(struct_id) => Some(struct_id),
-                _ => None,
-            };
-            if let Some(field_id) = res.as_variable()
-                && let Some(struct_id) = struct_id
-                && self.hir.variable(field_id).parent == Some(hir::ItemId::Struct(struct_id))
-                && let Some(field_index) =
-                    self.hir.strukt(struct_id).fields.iter().position(|&id| id == field_id)
-            {
-                return Some(ResolvedMember::StructField { struct_id, field_index });
-            }
-            return Some(ResolvedMember::Res(res));
-        }
-
-        match receiver_ty.kind {
-            TyKind::Ref(inner, _) => {
-                let TyKind::Struct(struct_id) = inner.kind else { return None };
-                let field_index = self.struct_field_index(struct_id, name)?;
-                Some(ResolvedMember::StructField { struct_id, field_index })
-            }
-            TyKind::Struct(struct_id) => {
-                let field_index = self.struct_field_index(struct_id, name)?;
-                Some(ResolvedMember::StructField { struct_id, field_index })
-            }
-            TyKind::Type(ty) => {
-                let TyKind::Enum(enum_id) = ty.kind else { return None };
-                let variant_index = self
-                    .hir
-                    .enumm(enum_id)
-                    .variants
-                    .iter()
-                    .position(|variant| variant.name == name)?;
-                Some(ResolvedMember::EnumVariant { enum_id, variant_index })
-            }
-            _ => None,
-        }
-    }
-
-    fn struct_field_index(self, struct_id: hir::StructId, name: Symbol) -> Option<usize> {
-        self.hir.strukt(struct_id).fields.iter().position(|&field_id| {
-            self.hir.variable(field_id).name.is_some_and(|field| field.name == name)
-        })
     }
 
     fn native_members_in_context(

@@ -238,9 +238,19 @@ fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberListOwned<'gcx> {
     match ty.kind {
         TyKind::Contract(id) => contract_type(gcx, id, None),
         TyKind::Super(id) => super_type(gcx, id),
-        TyKind::Enum(id) => {
-            gcx.hir.enumm(id).variants.iter().map(|v| Member::new(v.name, ty)).collect()
-        }
+        TyKind::Enum(id) => gcx
+            .hir
+            .enumm(id)
+            .variants
+            .iter()
+            .map(|&variant| {
+                Member::with_res(
+                    gcx.hir.variable(variant).name.unwrap().name,
+                    ty,
+                    hir::ItemId::Variable(variant),
+                )
+            })
+            .collect(),
         TyKind::Udvt(inner, _id) => {
             vec![
                 Member::with_builtin(
