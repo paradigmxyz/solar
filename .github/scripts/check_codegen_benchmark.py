@@ -188,19 +188,6 @@ def fmt_bytes(value: int | float | None) -> str:
     return f"{value / (1024 * 1024):,.1f} MiB"
 
 
-def pct_improvement(current: int | None, baseline: int | None) -> float | None:
-    if current is None or baseline in (None, 0):
-        return None
-    return (baseline - current) / baseline * 100
-
-
-def fmt_pct_improvement(current: int | None, baseline: int | None) -> str:
-    delta = pct_improvement(current, baseline)
-    if delta is None:
-        return "n/a"
-    return fmt_pct(delta)
-
-
 def pct_change(current: int | None, baseline: int | None) -> float | None:
     if current is None or baseline in (None, 0):
         return None
@@ -249,13 +236,7 @@ def absolute_delta(current: int | None, baseline: int | None) -> str:
     return f"{delta:+,}"
 
 
-def fmt_value_with_delta(
-    value: int | None, current: int | None, baseline: int | None, suffix: str = ""
-) -> str:
-    return f"{fmt_int(value, suffix)} ({fmt_pct_improvement(current, baseline)})"
-
-
-def fmt_value_with_size_delta(
+def fmt_value_with_lower_is_better_delta(
     value: int | None, current: int | None, baseline: int | None, suffix: str = ""
 ) -> str:
     return f"{fmt_int(value, suffix)} ({fmt_pct_change_lower_is_better(current, baseline)})"
@@ -286,9 +267,13 @@ def benchmark_rows(
             + " | ".join(
                 [
                     markdown_cell(test_id),
-                    fmt_value_with_delta(solar_gas, solar_gas, base_solar_gas),
+                    fmt_value_with_lower_is_better_delta(
+                        solar_gas, solar_gas, base_solar_gas
+                    ),
                     fmt_value_with_delta_vs_current(solc_gas, solar_gas, solc_gas),
-                    fmt_value_with_size_delta(solar_size, solar_size, base_solar_size, "B"),
+                    fmt_value_with_lower_is_better_delta(
+                        solar_size, solar_size, base_solar_size, "B"
+                    ),
                     fmt_value_with_delta_vs_current(solc_size, solar_size, solc_size, "B"),
                 ]
             )
@@ -336,7 +321,9 @@ def memory_benchmark_rows(results: list[dict[str, Any]]) -> list[str]:
             *(fmt_bytes(values[compiler_id]) for compiler_id in ids),
         ]
         if "solar" in values and "solc" in values:
-            cells.append(fmt_pct_improvement(values["solar"], values["solc"]))
+            cells.append(
+                fmt_pct_change_lower_is_better(values["solar"], values["solc"])
+            )
         rows.append("| " + " | ".join(cells) + " |")
     return rows
 
@@ -437,14 +424,44 @@ def append_github_output(name: str, value: str) -> None:
         f.write(f"{name}={value}\n")
 
 
-def format_report(markdown: str, has_changes: bool) -> str:
-    if has_changes:
+def branch_is_behind_main() -> bool:
+    head_sha = os.environ.get("BENCHMARK_PR_HEAD_SHA")
+    if not head_sha:
+        return False
+    try:
+        count = subprocess.check_output(
+            ["git", "rev-list", "--count", f"{head_sha}..origin/main"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        warning("could not determine whether the branch is behind main")
+        return False
+    return int(count) > 0
+
+
+def format_report(markdown: str, has_changes: bool, behind_main: bool) -> str:
+    if has_changes and not behind_main:
         return markdown
-    return (
-        "> [!NOTE]\n"
-        "> Codegen benchmark output is unchanged from `main`.\n\n"
-        f"{markdown}"
+    if not has_changes:
+        markdown = (
+            "> [!NOTE]\n"
+            "> Codegen benchmark output is unchanged from `main`.\n\n"
+            f"{markdown}"
+        )
+    details = (
+        "<details>\n"
+        "<summary>Codegen benchmark output</summary>\n\n"
+        f"{markdown}\n\n"
+        "</details>"
     )
+    if behind_main:
+        return (
+            "> [!WARNING]\n"
+            "> This branch is behind `main`, so these benchmark results may be incorrect.\n\n"
+            f"{details}"
+        )
+    return details
 
 
 def metric(value: int | float, unit: str, statistic: str) -> dict[str, Any]:
@@ -613,7 +630,7 @@ def main() -> int:
     should_comment = has_baseline_changes(
         micro_results, baseline_micro
     ) or has_baseline_changes(repo_results, baseline_repo)
-    markdown = format_report(report, should_comment)
+    markdown = format_report(report, should_comment, branch_is_behind_main())
     print(markdown)
     append_step_summary(markdown)
     append_github_output("should_comment", "true" if should_comment else "false")

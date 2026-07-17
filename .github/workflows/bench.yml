@@ -59,6 +59,8 @@ jobs:
     steps:
       - name: Checkout Solar
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
 
       - name: Test common benchmark result adapter
         run: |
@@ -182,6 +184,7 @@ jobs:
         id: runtime-report
         if: always()
         env:
+          BENCHMARK_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BENCHMARK_PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
