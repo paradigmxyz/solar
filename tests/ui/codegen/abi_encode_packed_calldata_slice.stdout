@@ -105,7 +105,7 @@ bb3:
   push bb10
   jumpi
   push bb4
-  jump bb11
+  jump bb12
 bb4:
   push bb10
   jumpi
@@ -225,12 +225,12 @@ bb7:
   swap2
   pop
   pop
-  push bb10
+  push bb11
   jumpi
   push bb8
-  jump bb11
+  jump bb12
 bb8:
-  push bb10
+  push bb11
   jumpi
   push bb9
   jump bb2
@@ -297,6 +297,8 @@ bb9:
   swap1
   jump bb6
 bb10:
+  jump bb11
+bb11:
   push 0x4e487b7100000000000000000000000000000000000000000000000000000000
   push 0
   mstore
@@ -306,7 +308,7 @@ bb10:
   push 36
   push 0
   revert
-bb11:
+bb12:
   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
   push 288
   mload

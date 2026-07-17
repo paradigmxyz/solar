@@ -27,15 +27,9 @@ bb0 (entry):
   shr
   dup1
   push 0x8c4ee692
-  eq
-  push bb2
+  sub
+  push bb1
   jumpi
-  jump bb1
-bb1:
-  push 0
-  dup1
-  revert
-bb2:
   calldatasize
   push 4
   swap1
@@ -57,7 +51,7 @@ bb2:
   calldataload
   swap1
   lt
-  push bb3
+  push bb2
   jumpi
   push 68
   calldataload
@@ -74,7 +68,7 @@ bb2:
   mstore
   swap1
   lt
-  push bb3
+  push bb2
   jumpi
   push 100
   calldataload
@@ -91,7 +85,7 @@ bb2:
   mstore
   swap1
   lt
-  push bb3
+  push bb2
   jumpi
   push 132
   calldataload
@@ -108,7 +102,7 @@ bb2:
   mstore
   swap1
   lt
-  push bb3
+  push bb2
   jumpi
   push 164
   calldataload
@@ -125,7 +119,7 @@ bb2:
   mstore
   swap1
   lt
-  push bb3
+  push bb2
   jumpi
   push 196
   calldataload
@@ -142,7 +136,7 @@ bb2:
   mstore
   swap1
   lt
-  push bb3
+  push bb2
   jumpi
   push 228
   calldataload
@@ -159,7 +153,7 @@ bb2:
   mstore
   swap1
   lt
-  push bb3
+  push bb2
   jumpi
   push 260
   calldataload
@@ -176,7 +170,7 @@ bb2:
   mstore
   swap1
   lt
-  push bb3
+  push bb2
   jumpi
   push 292
   calldataload
@@ -193,7 +187,7 @@ bb2:
   mstore
   swap1
   lt
-  push bb3
+  push bb2
   jumpi
   push 324
   calldataload
@@ -210,7 +204,7 @@ bb2:
   mstore
   swap1
   lt
-  push bb3
+  push bb2
   jumpi
   push 356
   calldataload
@@ -227,7 +221,7 @@ bb2:
   mstore
   swap1
   lt
-  push bb3
+  push bb2
   jumpi
   push 388
   calldataload
@@ -244,7 +238,7 @@ bb2:
   mstore
   swap1
   lt
-  push bb3
+  push bb2
   jumpi
   push 420
   calldataload
@@ -261,7 +255,7 @@ bb2:
   mstore
   swap1
   lt
-  push bb3
+  push bb2
   jumpi
   push 452
   calldataload
@@ -278,7 +272,7 @@ bb2:
   mstore
   swap1
   lt
-  push bb3
+  push bb2
   jumpi
   push 484
   calldataload
@@ -295,7 +289,7 @@ bb2:
   mstore
   swap1
   lt
-  push bb3
+  push bb2
   jumpi
   push 516
   calldataload
@@ -312,7 +306,7 @@ bb2:
   mstore
   swap1
   lt
-  push bb3
+  push bb2
   jumpi
   push 548
   calldataload
@@ -329,7 +323,7 @@ bb2:
   mstore
   swap1
   lt
-  push bb3
+  push bb2
   jumpi
   push 580
   calldataload
@@ -346,7 +340,7 @@ bb2:
   mstore
   swap1
   lt
-  push bb3
+  push bb2
   jumpi
   push 612
   calldataload
@@ -363,7 +357,7 @@ bb2:
   mstore
   swap1
   lt
-  push bb3
+  push bb2
   jumpi
   push 736
   mload
@@ -375,7 +369,11 @@ bb2:
   push 32
   push 128
   return
-bb3:
+bb1:
+  push 0
+  dup1
+  revert
+bb2:
   push 0x4e487b7100000000000000000000000000000000000000000000000000000000
   push 0
   mstore

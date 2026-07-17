@@ -83,11 +83,6 @@ pub struct AssemblerConfig {
     /// Off by default. See `StructuredAsmProgram::optimize_with_evm_ir` for why
     /// the pass is a verified near no-op on the bridge's operand-cleared IR.
     pub evm_ir_stack_schedule: bool,
-    /// Run EVM IR layout/code-size passes in the assembler bridge.
-    ///
-    /// Kept separate from `evm_ir_stack_schedule` so the experimental scheduler
-    /// flag remains bytecode-neutral.
-    pub evm_ir_layout_passes: bool,
     /// Capture the final EVM IR without running additional passes.
     pub capture_evm_ir: bool,
 }
@@ -111,6 +106,9 @@ pub struct Assembler {
     /// content-dependent ways. Off for constructor code, whose argument offset
     /// is resolved by a separate length fixpoint that such passes would break.
     run_structural_outlining: bool,
+    /// Whether to run EVM IR layout passes. Disabled with structural outlining
+    /// for constructor code because these passes can also change its length.
+    run_evm_ir_layout: bool,
 }
 
 impl Assembler {
@@ -131,12 +129,14 @@ impl Assembler {
             next_deferred: IdCounter::new(),
             deferred_values: FxHashMap::default(),
             run_structural_outlining: false,
+            run_evm_ir_layout: true,
         }
     }
 
-    /// Enables or disables structural outlining for the next `assemble`.
-    pub(in crate::backend::evm) fn set_structural_outlining(&mut self, enabled: bool) {
+    /// Enables or disables runtime-only optimizations for the next `assemble`.
+    pub(in crate::backend::evm) fn set_runtime_optimizations(&mut self, enabled: bool) {
         self.run_structural_outlining = enabled;
+        self.run_evm_ir_layout = enabled;
     }
 
     /// Clears all emitted instructions and local identifiers while retaining allocated storage.
@@ -759,7 +759,7 @@ impl Assembler {
             }
             AsmInst::push(push_values.intern(value))
         });
-        if self.config.evm_ir_stack_schedule || self.config.evm_ir_layout_passes {
+        if self.config.evm_ir_stack_schedule || self.run_evm_ir_layout {
             ir_program.optimize_with_evm_ir(self);
         }
         let mut program = ir_program.to_asm_program();
@@ -1249,8 +1249,8 @@ impl StructuredAsmContext for Assembler {
         self.config.evm_ir_stack_schedule
     }
 
-    fn run_evm_ir_layout_passes(&self) -> bool {
-        self.config.evm_ir_layout_passes
+    fn run_evm_ir_layout(&self) -> bool {
+        self.run_evm_ir_layout
     }
 }
 
@@ -1907,10 +1907,7 @@ mod tests {
 
     #[test]
     fn cold_terminal_block_moves_after_hot_block() {
-        let mut asm = Assembler::with_config(AssemblerConfig {
-            evm_ir_layout_passes: true,
-            ..AssemblerConfig::default()
-        });
+        let mut asm = Assembler::new();
         let cold = asm.new_label();
         let hot = asm.new_label();
 
@@ -1931,10 +1928,7 @@ mod tests {
 
     #[test]
     fn block_layout_elides_jump_after_jumpi() {
-        let mut asm = Assembler::with_config(AssemblerConfig {
-            evm_ir_layout_passes: true,
-            ..AssemblerConfig::default()
-        });
+        let mut asm = Assembler::new();
         let conditional = asm.new_label();
         let default = asm.new_label();
 
@@ -1958,10 +1952,7 @@ mod tests {
 
     #[test]
     fn cold_terminal_block_keeps_fallthrough_position() {
-        let mut asm = Assembler::with_config(AssemblerConfig {
-            evm_ir_layout_passes: true,
-            ..AssemblerConfig::default()
-        });
+        let mut asm = Assembler::new();
         let cold = asm.new_label();
 
         asm.emit_push(U256::ONE);

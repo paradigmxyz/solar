@@ -25,8 +25,8 @@ pub(in crate::backend::evm) trait StructuredAsmContext {
         false
     }
     /// Whether the bridge should run EVM IR layout/code-size passes.
-    fn run_evm_ir_layout_passes(&self) -> bool {
-        false
+    fn run_evm_ir_layout(&self) -> bool {
+        true
     }
 }
 
@@ -136,7 +136,11 @@ impl StructuredAsmProgram {
             return 0;
         };
 
-        debug_assert!(is_valid_evm_ir(&module));
+        // Low-level assembler users may provide fragments whose stack inputs
+        // come from outside the program. Preserve the verifier invariant only
+        // for complete modules that satisfy it before this bridge.
+        #[cfg(debug_assertions)]
+        let input_is_valid = is_valid_evm_ir(&module);
         let mut changed = 0;
         let pass_options = ir::PassOptions { time_passes: context.time_passes() };
 
@@ -156,12 +160,12 @@ impl StructuredAsmProgram {
             }
         }
 
-        if context.run_evm_ir_layout_passes() {
+        if context.run_evm_ir_layout() {
             for pass in ir::DEFAULT_LAYOUT_PIPELINE {
                 changed += usize::from(ir::run_pass(&mut module, pass, pass_options));
             }
         }
-        debug_assert!(is_valid_evm_ir(&module));
+        debug_assert!(!input_is_valid || is_valid_evm_ir(&module));
 
         *self = Self::from_evm_ir_module(&module, &mut labels, context);
         changed

@@ -17,15 +17,9 @@ bb0 (entry):
   shr
   dup1
   push 0xbc477c04
-  eq
-  push bb2
+  sub
+  push bb1
   jumpi
-  jump bb1
-bb1:
-  push 0
-  dup1
-  revert
-bb2:
   calldatasize
   push 4
   swap1
@@ -43,3 +37,7 @@ bb2:
   push 32
   push 128
   return
+bb1:
+  push 0
+  dup1
+  revert

@@ -17,12 +17,12 @@ bb0 (entry):
   dup1
   push 0x561cce0a
   eq
-  push bb4
+  push bb2
   jumpi
   dup1
   push 0xa871da91
   eq
-  push bb2
+  push bb4
   jumpi
   jump bb1
 bb1:
@@ -33,19 +33,11 @@ bb2:
   push 0
   push 128
   mstore
-  push 0x3339000000000000000000000000000000000000000000000000000000000000
-  jump bb3
-bb3:
+  push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
   push 288
   mstore
-  jump bb5
-bb4:
-  push 0
-  push 128
-  mstore
-  push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
   jump bb3
-bb5:
+bb3:
   push 64
   mload
   push 32
@@ -96,6 +88,14 @@ bb5:
   add
   dup2
   return
+bb4:
+  push 0
+  push 128
+  mstore
+  push 0x3339000000000000000000000000000000000000000000000000000000000000
+  push 288
+  mstore
+  jump bb3
 // === ROOT/tests/ui/codegen/revert_error_helper.sol:R (runtime) ===
 bb0 (entry):
   push 352
@@ -115,27 +115,27 @@ bb0 (entry):
   dup1
   push 0xc4186a6
   eq
-  push bb14
+  push bb3
   jumpi
   dup1
   push 0x17a0525e
   eq
-  push bb17
+  push bb6
   jumpi
   dup1
   push 0x9927bee4
   eq
-  push bb11
+  push bb8
   jumpi
   dup1
   push 0x9af992c0
   eq
-  push bb8
+  push bb10
   jumpi
   dup1
   push 0x9ee36b07
   eq
-  push bb3
+  push bb12
   jumpi
   jump bb1
 bb1:
@@ -166,7 +166,7 @@ bb3:
   push bb4
   jump bb2
 bb4:
-  push bb6
+  push bb20
   jumpi
   jump bb5
 bb5:
@@ -178,15 +178,21 @@ bb5:
   push 128
   return
 bb6:
-  push 2
-  push 288
-  mstore
-  push 0x3339000000000000000000000000000000000000000000000000000000000000
-  jump bb7
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  push bb1
+  jumpi
+  push bb7
+  jump bb2
 bb7:
-  push 320
-  mstore
-  jump bb20
+  push bb19
+  jumpi
+  jump bb5
 bb8:
   calldatasize
   push 4
@@ -200,54 +206,90 @@ bb8:
   push bb9
   jump bb2
 bb9:
-  push bb10
+  push bb18
   jumpi
   jump bb5
 bb10:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  push bb1
+  jumpi
+  push bb11
+  jump bb2
+bb11:
+  push bb16
+  jumpi
+  jump bb5
+bb12:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  push bb1
+  jumpi
+  push bb13
+  jump bb2
+bb13:
+  push bb14
+  jumpi
+  jump bb5
+bb14:
+  push 2
+  push 288
+  mstore
+  push 0x3339000000000000000000000000000000000000000000000000000000000000
+  push 320
+  mstore
+  jump bb15
+bb15:
+  push 0x8c379a000000000000000000000000000000000000000000000000000000000
+  push 0
+  mstore
+  push 32
+  push 4
+  mstore
+  push 288
+  mload
+  push 36
+  mstore
+  push 320
+  mload
+  push 68
+  mstore
+  push 100
+  push 0
+  revert
+bb16:
   push 11
   push 288
   mstore
   push 0x6c69746572616c206d7367000000000000000000000000000000000000000000
-  jump bb7
-bb11:
-  calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  swap1
-  slt
-  push bb1
-  jumpi
-  push bb12
-  jump bb2
-bb12:
-  push bb13
-  jumpi
-  jump bb5
-bb13:
+  jump bb17
+bb17:
+  push 320
+  mstore
+  jump bb15
+bb18:
   push 15
   push 288
   mstore
   push 0x6c6f63616c2d636f6e73742d6d73670000000000000000000000000000000000
-  jump bb7
-bb14:
-  calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  swap1
-  slt
-  push bb1
-  jumpi
-  push bb15
-  jump bb2
-bb15:
-  push bb16
-  jumpi
-  jump bb5
-bb16:
+  jump bb17
+bb19:
+  push 11
+  push 288
+  mstore
+  push 0x7265766572742d70617468000000000000000000000000000000000000000000
+  jump bb17
+bb20:
   push 64
   mload
   push 96
@@ -292,45 +334,5 @@ bb16:
   mcopy
   pop
   push 132
-  push 0
-  revert
-bb17:
-  calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  swap1
-  slt
-  push bb1
-  jumpi
-  push bb18
-  jump bb2
-bb18:
-  push bb19
-  jumpi
-  jump bb5
-bb19:
-  push 11
-  push 288
-  mstore
-  push 0x7265766572742d70617468000000000000000000000000000000000000000000
-  jump bb7
-bb20:
-  push 0x8c379a000000000000000000000000000000000000000000000000000000000
-  push 0
-  mstore
-  push 32
-  push 4
-  mstore
-  push 288
-  mload
-  push 36
-  mstore
-  push 320
-  mload
-  push 68
-  mstore
-  push 100
   push 0
   revert

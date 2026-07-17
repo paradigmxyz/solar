@@ -22,7 +22,7 @@ bb0 (entry):
   dup1
   push 0x4b692dff
   eq
-  push bb8
+  push bb9
   jumpi
   push 0
   push 0
@@ -65,71 +65,22 @@ bb5:
   push 128
   return
 bb6:
-  jump bb7
-bb7:
   push bb5
   push 4
   calldataload
-  jump bb9
-bb8:
-  calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  swap1
-  slt
-  push bb2
-  jumpi
-  push 0
-  push 128
-  mstore
-  push 100
-  push 4
-  calldataload
-  lt
-  push bb7
-  jumpi
-  jump bb5
-bb9:
+  jump bb7
+bb7:
   push 288
   mstore
   push 288
   mload
-  push bb10
+  push bb11
   jumpi
   push bb1
   push 4
   push 0x7a65726f00000000000000000000000000000000000000000000000000000000
-  jump bb13
-bb10:
-  push 1
-  push 288
-  mload
-  sub
-  push bb11
-  jumpi
-  push bb1
-  push 3
-  push 0x6f6e650000000000000000000000000000000000000000000000000000000000
-  jump bb13
-bb11:
-  push 2
-  push 288
-  mload
-  sub
-  push bb12
-  jumpi
-  push bb1
-  push 3
-  push 0x74776f0000000000000000000000000000000000000000000000000000000000
-  jump bb13
-bb12:
-  push bb1
-  push 5
-  push 0x6f74686572000000000000000000000000000000000000000000000000000000
-  jump bb13
-bb13:
+  jump bb8
+bb8:
   push 416
   mstore
   push 384
@@ -151,3 +102,55 @@ bb13:
   push 100
   push 0
   revert
+bb9:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  push bb2
+  jumpi
+  push 0
+  push 128
+  mstore
+  push 100
+  push 4
+  calldataload
+  lt
+  push bb10
+  jumpi
+  jump bb5
+bb10:
+  push bb5
+  push 4
+  calldataload
+  jump bb7
+bb11:
+  push 1
+  push 288
+  mload
+  sub
+  push bb12
+  jumpi
+  push bb1
+  push 3
+  push 0x6f6e650000000000000000000000000000000000000000000000000000000000
+  jump bb8
+bb12:
+  push 2
+  push 288
+  mload
+  sub
+  push bb13
+  jumpi
+  push bb1
+  push 3
+  push 0x74776f0000000000000000000000000000000000000000000000000000000000
+  jump bb8
+bb13:
+  push bb1
+  push 5
+  push 0x6f74686572000000000000000000000000000000000000000000000000000000
+  jump bb8

@@ -71,8 +71,6 @@ pub struct EvmCodegenConfig {
     /// operand-cleared block IR. On that already-stack-scheduled input the pass
     /// is a verified near no-op in `StructuredAsmProgram::optimize_with_evm_ir`.
     pub evm_ir_stack_schedule: bool,
-    /// Run EVM IR layout/code-size passes in the assembler bridge.
-    pub evm_ir_layout_passes: bool,
     /// Capture final EVM IR immediately before assembly.
     pub capture_evm_ir: bool,
 }
@@ -90,7 +88,6 @@ impl EvmCodegenConfig {
             // Keep the experimental EVM IR stack scheduler off in every default
             // compilation path so produced bytecode is unchanged.
             evm_ir_stack_schedule: false,
-            evm_ir_layout_passes: false,
             capture_evm_ir: false,
         }
     }
@@ -101,7 +98,6 @@ impl EvmCodegenConfig {
             optimization: self.optimization,
             time_passes: self.time_passes,
             evm_ir_stack_schedule: self.evm_ir_stack_schedule,
-            evm_ir_layout_passes: self.evm_ir_layout_passes,
             capture_evm_ir: self.capture_evm_ir,
         }
     }
@@ -1111,9 +1107,9 @@ impl EvmCodegen {
             }
         }
 
-        self.asm.set_structural_outlining(true);
+        self.asm.set_runtime_optimizations(true);
         let result = self.asm.assemble();
-        self.asm.set_structural_outlining(false);
+        self.asm.set_runtime_optimizations(false);
         self.runtime_immutable_refs = result.immutable_refs;
         GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir }
     }
