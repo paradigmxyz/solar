@@ -1684,6 +1684,8 @@ pub mod op {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::backend::evm::test_utils::disassemble;
+    use snapbox::{assert_data_eq, str};
 
     fn size_optimized_assembler() -> Assembler {
         Assembler::with_config(AssemblerConfig {
@@ -1750,14 +1752,26 @@ mod tests {
         asm.emit_push(large);
         let first = asm.assemble();
 
-        assert_eq!(first.bytecode, vec![0x63, 0x80, 0, 0, 0]);
+        assert_data_eq!(
+            disassemble(&first.bytecode),
+            str![[r#"
+PUSH4 0x80000000
+
+"#]]
+        );
         assert!(asm.program.instructions().is_empty());
         assert_eq!(asm.push_values.len(), 0);
 
         asm.emit_push(U256::from(2));
         let second = asm.assemble();
 
-        assert_eq!(second.bytecode, vec![0x60, 2]);
+        assert_data_eq!(
+            disassemble(&second.bytecode),
+            str![[r#"
+PUSH1 0x02
+
+"#]]
+        );
     }
 
     #[test]
@@ -1771,7 +1785,13 @@ mod tests {
         asm.emit_push(U256::ZERO);
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![op::PUSH0]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH0
+
+"#]]
+        );
     }
 
     #[test]
@@ -1785,7 +1805,13 @@ mod tests {
         asm.emit_push(U256::ZERO);
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![op::PUSH1, 0]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x00
+
+"#]]
+        );
     }
 
     #[test]
@@ -1811,13 +1837,29 @@ mod tests {
         });
         unoptimized.emit_push(U256::MAX);
 
-        let compact = vec![op::PUSH0, op::NOT];
-        assert_eq!(size_optimized.assemble().bytecode, compact);
-        assert_eq!(gas_optimized.assemble().bytecode, compact);
+        assert_data_eq!(
+            disassemble(&size_optimized.assemble().bytecode),
+            str![[r#"
+PUSH0
+NOT
 
-        let mut expected = vec![op::PUSH32];
-        expected.extend(std::iter::repeat_n(0xff, 32));
-        assert_eq!(unoptimized.assemble().bytecode, expected);
+"#]]
+        );
+        assert_data_eq!(
+            disassemble(&gas_optimized.assemble().bytecode),
+            str![[r#"
+PUSH0
+NOT
+
+"#]]
+        );
+        assert_data_eq!(
+            disassemble(&unoptimized.assemble().bytecode),
+            str![[r#"
+PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+
+"#]]
+        );
     }
 
     #[test]
@@ -1831,7 +1873,14 @@ mod tests {
         asm.emit_push(U256::MAX);
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![op::PUSH1, 0, op::NOT]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x00
+NOT
+
+"#]]
+        );
     }
 
     #[test]
@@ -1845,8 +1894,16 @@ mod tests {
 
         let result = asm.assemble();
 
-        // PUSH1 42, PUSH1 10, ADD, STOP
-        assert_eq!(result.bytecode, vec![0x60, 42, 0x60, 10, 0x01, 0x00]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x2a
+PUSH1 0x0a
+ADD
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -1895,20 +1952,19 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(
-            result.bytecode,
-            vec![
-                op::PUSH1,
-                1,
-                op::PUSH1,
-                6,
-                op::JUMPI,
-                op::STOP,
-                op::JUMPDEST,
-                op::PUSH0,
-                op::PUSH0,
-                op::REVERT,
-            ]
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x01
+PUSH1 0x06
+JUMPI
+STOP
+JUMPDEST
+PUSH0
+PUSH0
+REVERT
+
+"#]]
         );
     }
 
@@ -1930,9 +1986,17 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(
-            result.bytecode,
-            vec![op::PUSH1, 1, op::PUSH1, 6, op::JUMPI, op::STOP, op::JUMPDEST, op::INVALID]
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x01
+PUSH1 0x06
+JUMPI
+STOP
+JUMPDEST
+INVALID
+
+"#]]
         );
     }
 
@@ -1950,10 +2014,15 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(
-            result.bytecode,
-            // The unreferenced cold `JUMPDEST` is elided.
-            vec![op::PUSH1, 1, op::PUSH0, op::PUSH0, op::REVERT]
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x01
+PUSH0
+PUSH0
+REVERT
+
+"#]]
         );
     }
 
@@ -2000,7 +2069,15 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![op::PUSH0, op::NOT, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH0
+NOT
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -2013,7 +2090,17 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![op::PUSH0, op::NOT, 0x60, 96, op::SHR, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH0
+NOT
+PUSH1 0x60
+SHR
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -2025,7 +2112,15 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 31, op::NOT, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x1f
+NOT
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -2037,7 +2132,15 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 255, op::NOT, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0xff
+NOT
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -2050,9 +2153,15 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(
-            result.bytecode,
-            vec![0x63, 0x35, 0xea, 0x6a, 0x75, 0x60, 224, op::SHL, op::STOP]
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH4 0x35ea6a75
+PUSH1 0xe0
+SHL
+STOP
+
+"#]]
         );
     }
 
@@ -2067,9 +2176,15 @@ mod tests {
 
         let result = asm.assemble();
 
-        let mut expected = vec![0x70];
-        expected.extend_from_slice(b"Machine finished:");
-        expected.extend_from_slice(&[0x60, 120, op::SHL, op::STOP]);
-        assert_eq!(result.bytecode, expected);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH17 0x4d616368696e652066696e69736865643a
+PUSH1 0x78
+SHL
+STOP
+
+"#]]
+        );
     }
 }

@@ -4997,7 +4997,8 @@ impl crate::backend::Backend for EvmCodegen {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{lower, mir::FunctionBuilder};
+    use crate::{backend::evm::test_utils::disassemble, lower, mir::FunctionBuilder};
+    use snapbox::assert_data_eq;
     use solar_config::{CompileOpts, UnstableOpts};
     use solar_interface::{Ident, Session, sym};
     use solar_sema::Compiler;
@@ -5280,10 +5281,7 @@ mod tests {
             let off = off.expect("baseline compilation should succeed");
             let on = on.expect("stack-schedule compilation should succeed");
             assert!(!off.is_empty(), "baseline bytecode should not be empty");
-            assert_eq!(
-                off, on,
-                "enabling evm_ir_stack_schedule changed produced bytecode for sample:\n{source}"
-            );
+            assert_data_eq!(disassemble(&off), disassemble(&on));
         }
     }
 
