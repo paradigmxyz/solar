@@ -4,6 +4,7 @@ use super::*;
 use crate::backend::evm::assembler::op;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use solar_interface::{Symbol, sym};
+use solar_parse::lexer::{is_id_continue, is_id_start};
 use std::fmt as std_fmt;
 
 pub(super) fn parse(input: &str) -> Result<Module, ParseError> {
@@ -185,13 +186,13 @@ impl<'a> Parser<'a> {
         self.skip_inline();
         let start = self.pos;
         match self.peek_char() {
-            Some(c) if is_ident_start(c) => {
+            Some(c) if is_id_start(c) => {
                 self.advance();
             }
             _ => return Err(self.error("expected identifier")),
         }
         while let Some(c) = self.peek_char() {
-            if is_ident_continue(c) {
+            if is_id_continue(c) {
                 self.advance();
             } else {
                 break;
@@ -389,7 +390,7 @@ impl<'a> Parser<'a> {
         let save_in = (self.pos, self.line, self.col);
         if self.try_punct('(') {
             self.skip_inline_whitespace();
-            let keyword = if matches!(self.peek_char(), Some(c) if is_ident_start(c)) {
+            let keyword = if matches!(self.peek_char(), Some(c) if is_id_start(c)) {
                 Some(self.parse_ident()?)
             } else {
                 None
@@ -531,21 +532,7 @@ impl<'a> Parser<'a> {
     fn parse_value_name(&mut self) -> Result<String, ParseError> {
         self.skip_inline();
         self.expect_punct('%')?;
-        let start = self.pos;
-        match self.peek_char() {
-            Some(c) if is_ident_start(c) || c.is_ascii_digit() => {
-                self.advance();
-            }
-            _ => return Err(self.error("expected value name")),
-        }
-        while let Some(c) = self.peek_char() {
-            if is_ident_continue(c) {
-                self.advance();
-            } else {
-                break;
-            }
-        }
-        Ok(self.input[start..self.pos].to_string())
+        self.parse_ident().map(str::to_string)
     }
 
     fn parse_terminator_kind(

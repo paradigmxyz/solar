@@ -11,6 +11,7 @@
 use alloy_primitives::U256;
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
 use solar_interface::Symbol;
+use solar_parse::lexer::is_ident;
 
 mod display;
 mod parse;
@@ -54,13 +55,13 @@ impl Module {
     /// Creates an empty EVM IR program.
     #[must_use]
     pub fn new(name: Symbol) -> Self {
-        assert!(is_valid_ident(name.as_str()), "invalid EVM IR program name `{name}`");
+        assert!(is_ident(name.as_str()), "invalid EVM IR program name `{name}`");
         Self { name, blocks: IndexVec::new(), entry_block: None, values: IndexVec::new() }
     }
 
     /// Changes the program name.
     pub fn set_name(&mut self, name: Symbol) {
-        assert!(is_valid_ident(name.as_str()), "invalid EVM IR program name `{name}`");
+        assert!(is_ident(name.as_str()), "invalid EVM IR program name `{name}`");
         self.name = name;
     }
 
@@ -81,7 +82,7 @@ impl Module {
 
     /// Allocates a named untyped stack word.
     pub fn add_value(&mut self, name: Symbol) -> ValueId {
-        assert!(is_valid_value_name(name.as_str()), "invalid EVM IR value name `%{name}`");
+        assert!(is_ident(name.as_str()), "invalid EVM IR value name `%{name}`");
         self.values.push(Value { name })
     }
 
@@ -431,23 +432,4 @@ fn default_terminator_stack_effect(kind: &TerminatorKind) -> StackEffect {
             .map(|(inputs, outputs)| StackEffect::new(inputs, outputs))
             .unwrap_or_else(|| StackEffect::new(0, 0)),
     }
-}
-
-fn is_ident_start(c: char) -> bool {
-    c.is_ascii_alphabetic() || c == '_' || c == '$' || c == '.'
-}
-
-fn is_ident_continue(c: char) -> bool {
-    is_ident_start(c) || c.is_ascii_digit()
-}
-
-fn is_valid_ident(name: &str) -> bool {
-    let mut chars = name.chars();
-    matches!(chars.next(), Some(c) if is_ident_start(c)) && chars.all(is_ident_continue)
-}
-
-fn is_valid_value_name(name: &str) -> bool {
-    let mut chars = name.chars();
-    matches!(chars.next(), Some(c) if is_ident_start(c) || c.is_ascii_digit())
-        && chars.all(is_ident_continue)
 }

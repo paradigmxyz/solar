@@ -36,7 +36,7 @@ impl<'a> Verifier<'a> {
     /// Verifies basic EVM IR invariants.
     pub fn verify_module(&self, module: &Module) {
         let errors_before = self.dcx.err_count();
-        if !is_valid_ident(module.name.as_str()) {
+        if !solar_parse::lexer::is_ident(module.name.as_str()) {
             self.error(format_args!("invalid program name `{}`", module.name));
         }
         if module.blocks.is_empty() {
@@ -70,7 +70,7 @@ impl<'a> Verifier<'a> {
 
         let mut value_names = FxHashSet::default();
         for (_, value) in module.values.iter_enumerated() {
-            if !is_valid_value_name(value.name.as_str()) {
+            if !solar_parse::lexer::is_ident(value.name.as_str()) {
                 self.error(format_args!("invalid value name `%{}`", value.name));
             }
             if !value_names.insert(value.name) {
