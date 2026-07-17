@@ -361,7 +361,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             return LookAheadInfo::VariableDeclaration;
         }
 
-        if self.check_nr_ident() || self.check_elementary_type() {
+        if self.check_nr_ident() || self.check_elementary_type() || self.check_fixed_type() {
             let next = self.look_ahead(1);
             if self.token.is_elementary_type() && next.is_ident_where(|id| id.name == kw::Payable) {
                 return LookAheadInfo::VariableDeclaration;
@@ -406,6 +406,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             }
         } else if self.check_elementary_type() {
             let (span, kind) = self.parse_spanned(Self::parse_elementary_type)?;
+            path.push(IapKind::MemberTy(span, kind));
+        } else if self.check_fixed_type() {
+            let (span, kind) = self.parse_spanned(Self::parse_fixed_type_unimplemented)?;
             path.push(IapKind::MemberTy(span, kind));
         } else {
             return self.unexpected();

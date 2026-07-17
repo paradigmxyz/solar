@@ -511,7 +511,11 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
     #[must_use]
     fn check_nr_ident(&mut self) -> bool {
-        self.check_or_expected(self.token.is_non_reserved_ident(self.in_yul), ExpectedToken::Ident)
+        self.check_or_expected(
+            self.token.is_non_reserved_ident(self.in_yul)
+                && (self.in_yul || !self.check_fixed_type()),
+            ExpectedToken::Ident,
+        )
     }
 
     #[must_use]
@@ -1002,7 +1006,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     #[track_caller]
     fn parse_ident_common(&mut self, recover: bool) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(recover)?;
-        if ident.is_reserved(self.in_yul) {
+        if ident.is_reserved(self.in_yul) || (!self.in_yul && self.check_fixed_type()) {
             let err = self.expected_ident_found_err();
             if recover {
                 err.emit();

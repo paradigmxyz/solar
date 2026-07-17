@@ -1,0 +1,38 @@
+error: expected identifier, found `fixed128x18`
+   ╭▸ ROOT/tests/ui/typeck/fixed_point_unimplemented.sol:LL:CC
+   │
+LL │ type fixed128x18 is uint256;
+   ╰╴     ━━━━━━━━━━━
+
+error: fixed-point types are not yet implemented
+   ╭▸ ROOT/tests/ui/typeck/fixed_point_unimplemented.sol:LL:CC
+   │
+LL │     fixed value;
+   ╰╴    ━━━━━
+
+error: fixed-point types are not yet implemented
+   ╭▸ ROOT/tests/ui/typeck/fixed_point_unimplemented.sol:LL:CC
+   │
+LL │     ufixed128x18 sizedValue;
+   ╰╴    ━━━━━━━━━━━━
+
+error: fixed-point types are not yet implemented
+   ╭▸ ROOT/tests/ui/typeck/fixed_point_unimplemented.sol:LL:CC
+   │
+LL │         fixed128x18(1);
+   ╰╴        ━━━━━━━━━━━
+
+error: fixed-point types are not yet implemented
+   ╭▸ ROOT/tests/ui/typeck/fixed_point_unimplemented.sol:LL:CC
+   │
+LL │         fixed128x18 scalar;
+   ╰╴        ━━━━━━━━━━━
+
+error: fixed-point types are not yet implemented
+   ╭▸ ROOT/tests/ui/typeck/fixed_point_unimplemented.sol:LL:CC
+   │
+LL │         ufixed128x18[] memory array;
+   ╰╴        ━━━━━━━━━━━━
+
+error: aborting due to 6 previous errors
+

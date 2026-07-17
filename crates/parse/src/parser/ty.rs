@@ -33,6 +33,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     fn parse_basic_ty_kind(&mut self) -> PResult<'sess, TypeKind<'ast>> {
         if self.check_elementary_type() {
             self.parse_elementary_type().map(TypeKind::Elementary)
+        } else if self.check_fixed_type() {
+            self.parse_fixed_type_unimplemented().map(TypeKind::Elementary)
         } else if self.eat_keyword(kw::Function) {
             self.parse_function_header(FunctionFlags::FUNCTION_TY).map(|f| {
                 let FunctionHeader {
@@ -62,6 +64,18 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }
     }
 
+    pub(super) fn check_fixed_type(&self) -> bool {
+        let TokenKind::Ident(symbol) = self.token.kind else { return false };
+        parse_fixed_type(symbol.as_str()).is_ok_and(|ty| ty.is_some())
+    }
+
+    pub(super) fn parse_fixed_type_unimplemented(&mut self) -> PResult<'sess, ElementaryType> {
+        let span = self.token.span;
+        self.bump();
+        self.emit_fixed_type_unimplemented(span);
+        Ok(ElementaryType::UInt(TypeSize::ZERO))
+    }
+
     /// Parses an elementary type.
     ///
     /// Must be used after checking that the next token is an elementary type.
@@ -73,8 +87,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             kw::Bool => ElementaryType::Bool,
             kw::String => ElementaryType::String,
             kw::Bytes => ElementaryType::Bytes,
-            kw::Fixed => ElementaryType::Fixed(TypeSize::ZERO, TypeFixedSize::ZERO),
-            kw::UFixed => ElementaryType::UFixed(TypeSize::ZERO, TypeFixedSize::ZERO),
+            kw::Fixed | kw::UFixed => {
+                self.emit_fixed_type_unimplemented(id.span);
+                ElementaryType::UInt(TypeSize::ZERO)
+            }
             kw::Int => ElementaryType::Int(TypeSize::ZERO),
             kw::UInt => ElementaryType::UInt(TypeSize::ZERO),
             s if s >= kw::UInt8 && s <= kw::UInt256 => {
@@ -106,12 +122,12 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             }
         }
 
-        // TODO: Move to type checking.
-        // if matches!(ty, ElementaryType::Fixed(..) | ElementaryType::UFixed(..)) {
-        //     self.dcx().emit_err(id.span, "`fixed` types are not yet supported");
-        // }
-
         Ok(ty)
+    }
+
+    // Fixed-point types are parsed only enough to emit this error.
+    fn emit_fixed_type_unimplemented(&self, span: Span) {
+        self.dcx().emit_err(span, "fixed-point types are not yet implemented");
     }
 
     /// Parses a mapping type.
@@ -156,7 +172,6 @@ impl fmt::Display for ParseTySizeError {
 }
 
 /// Parses `fixedMxN` or `ufixedMxN`.
-#[allow(dead_code)]
 fn parse_fixed_type(original: &str) -> Result<Option<ElementaryType>, ParseTySizeError> {
     let s = original;
     let tmp = s.strip_prefix('u');

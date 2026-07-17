@@ -187,7 +187,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             let ty = self.parse_type()?;
             self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
             ExprKind::TypeCall(ty)
-        } else if self.check_elementary_type() {
+        } else if self.check_elementary_type() || self.check_fixed_type() {
             let mut ty = self.parse_type()?;
             if let TypeKind::Elementary(ElementaryType::Address(payable)) = &mut ty.kind
                 && *payable
