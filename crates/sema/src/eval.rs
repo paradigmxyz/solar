@@ -3,7 +3,7 @@ use alloy_primitives::{B256, U256, keccak256};
 use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::{One, Signed, Zero};
 use solar_ast::{LitKind, StrKind};
-use solar_interface::{ByteSymbol, Span, diagnostics::ErrorGuaranteed};
+use solar_interface::{ByteSymbol, Span, diagnostics::ErrorGuaranteed, sym};
 use std::fmt;
 
 const RECURSION_LIMIT: usize = 64;
@@ -68,6 +68,28 @@ impl<'gcx> Gcx<'gcx> {
             Ok(value) => Ok(value),
             Err(err) => Err(err.clone()),
         }
+    }
+
+    /// Evaluates a non-negative integer constant with wrapping 256-bit arithmetic.
+    ///
+    /// This is useful for source expressions evaluated in an `unchecked` context. Addition,
+    /// subtraction, and multiplication wrap as EVM words; all other expressions use ordinary
+    /// constant evaluation.
+    pub fn try_eval_const_u256_wrapping(self, expr: &hir::Expr<'_>) -> Option<U256> {
+        let expr = expr.peel_parens();
+        if let hir::ExprKind::Binary(lhs, op, rhs) = &expr.kind
+            && matches!(op.kind, hir::BinOpKind::Add | hir::BinOpKind::Sub | hir::BinOpKind::Mul)
+        {
+            let lhs = self.try_eval_const_u256_wrapping(lhs)?;
+            let rhs = self.try_eval_const_u256_wrapping(rhs)?;
+            return Some(match op.kind {
+                hir::BinOpKind::Add => lhs.wrapping_add(rhs),
+                hir::BinOpKind::Sub => lhs.wrapping_sub(rhs),
+                hir::BinOpKind::Mul => lhs.wrapping_mul(rhs),
+                _ => unreachable!(),
+            });
+        }
+        self.try_eval_const_value(expr).ok()?.as_u256()
     }
 
     /// Emits a diagnostic for the given constant evaluation error.
@@ -146,7 +168,12 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             // hir::ExprKind::Index(_, _) => unimplemented!(),
             // hir::ExprKind::Slice(_, _, _) => unimplemented!(),
             hir::ExprKind::Lit(lit) => self.eval_lit(lit),
-            // hir::ExprKind::Member(_, _) => unimplemented!(),
+            hir::ExprKind::Member(base, member)
+                if matches!(member.name, sym::min | sym::max)
+                    && let hir::ExprKind::TypeCall(ty) = &base.peel_parens().kind =>
+            {
+                self.eval_type_bound(ty, member.name == sym::max)
+            }
             // hir::ExprKind::New(_) => unimplemented!(),
             // hir::ExprKind::Payable(_) => unimplemented!(),
             hir::ExprKind::Ternary(cond, t, f) => {
@@ -199,6 +226,31 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             LitKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
             _ => Err(EE::UnsupportedLiteral.into()),
         }
+    }
+
+    fn eval_type_bound(&self, ty: &hir::Type<'_>, max: bool) -> EvalResult {
+        let value = match ty.kind {
+            hir::TypeKind::Elementary(hir::ElementaryType::UInt(size)) => {
+                if max {
+                    (BigInt::one() << size.bits()) - 1
+                } else {
+                    BigInt::zero()
+                }
+            }
+            hir::TypeKind::Elementary(hir::ElementaryType::Int(size)) => {
+                let bound = BigInt::one() << (size.bits() - 1);
+                if max { bound - 1 } else { -bound }
+            }
+            hir::TypeKind::Custom(hir::ItemId::Enum(id)) => {
+                if max {
+                    BigInt::from(self.gcx.hir.enumm(id).variants.len().saturating_sub(1))
+                } else {
+                    BigInt::zero()
+                }
+            }
+            _ => return Err(EE::UnsupportedExpr.into()),
+        };
+        Ok(ConstValue::Integer(IntScalar::checked(value)?))
     }
 }
 
@@ -539,8 +591,10 @@ impl std::error::Error for EvalError {}
 #[cfg(test)]
 mod tests {
     use super::{ConstValue, IntScalar, erc7201_slot};
-    use crate::hir;
+    use crate::{Compiler, hir};
     use alloy_primitives::{U256, b256};
+    use solar_interface::{Session, config::CompileOpts};
+    use std::{ops::ControlFlow, path::PathBuf};
 
     #[test]
     fn const_value_integer_accessors() {
@@ -581,5 +635,67 @@ mod tests {
             erc7201_slot(b"85"),
             b256!("06d0d983459328e82eacb1bf2d6fadfa38a6896e9d4cbfe0e1aa41c6281bab00")
         );
+    }
+
+    #[test]
+    fn evaluates_type_bounds_in_constant_expressions() {
+        const SOURCE: &str = r#"
+contract C {
+    uint8 constant U8_MAX = type(uint8).max;
+    int8 constant I8_MIN = type(int8).min;
+    uint256 constant COMPOSED = type(uint8).max * 2 + 1;
+
+    function wrapped() external pure returns (uint256) {
+        unchecked {
+            return type(uint256).max + 1;
+        }
+    }
+}
+"#;
+
+        let sess = Session::builder().opts(CompileOpts::default()).with_test_emitter().build();
+        let mut compiler = Compiler::new(sess);
+        compiler.enter_mut(|c| {
+            let mut pcx = c.parse();
+            let file =
+                c.sess().source_map().new_source_file(PathBuf::from("test.sol"), SOURCE).unwrap();
+            pcx.add_file(file);
+            pcx.parse();
+            assert_eq!(c.lower_asts(), Ok(ControlFlow::Continue(())));
+            assert_eq!(c.analysis(), Ok(ControlFlow::Continue(())));
+        });
+
+        compiler.enter(|c| {
+            let gcx = c.gcx();
+            let value = |name: &str| {
+                let variable = gcx
+                    .hir
+                    .variable_ids()
+                    .map(|id| gcx.hir.variable(id))
+                    .find(|variable| variable.name.is_some_and(|ident| ident.as_str() == name))
+                    .unwrap();
+                gcx.try_eval_const(variable.initializer.unwrap()).unwrap()
+            };
+
+            assert_eq!(value("U8_MAX").as_u256(), Some(U256::from(255)));
+            assert!(value("I8_MIN").is_negative());
+            assert_eq!(value("COMPOSED").as_u256(), Some(U256::from(511)));
+
+            let wrapped = gcx
+                .hir
+                .function_ids()
+                .find(|&id| gcx.item_canonical_name(id).to_string() == "C.wrapped")
+                .map(|id| gcx.hir.function(id))
+                .unwrap();
+            let [stmt] = wrapped.body.unwrap().stmts else { panic!("expected unchecked block") };
+            let hir::StmtKind::UncheckedBlock(block) = stmt.kind else {
+                panic!("expected unchecked block")
+            };
+            let [stmt] = block.stmts else { panic!("expected return statement") };
+            let hir::StmtKind::Return(Some(expr)) = stmt.kind else {
+                panic!("expected return statement")
+            };
+            assert_eq!(gcx.try_eval_const_u256_wrapping(expr), Some(U256::ZERO));
+        });
     }
 }

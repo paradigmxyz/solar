@@ -25,6 +25,52 @@ pub use print::HirPrinter;
 mod visit;
 pub use visit::Visit;
 
+mod effective;
+pub use effective::{
+    EffectiveBodyCx, EffectiveBodyVisitor, visit_effective_body, visit_effective_body_dispatches,
+    visit_effective_body_in_contract,
+};
+
+mod condition;
+pub use condition::{Comparison, apply_condition_facts, negate_comparison, reverse_comparison};
+
+mod flow;
+pub use flow::{
+    EffectiveFlowAnalysis, EffectiveFlowResult, ExprUse, InternalCallMode, JoinSemiLattice,
+    OperandOrder, analyze_effective_body_flow, analyze_effective_body_flow_dispatches,
+    analyze_effective_body_flow_in_contract,
+};
+
+mod place;
+pub use place::{Assignment, Place, ProjectionElem, assignment_pairs};
+
+mod value;
+pub use value::{
+    AbstractValue, EvaluatedSites, ValueFlowState, ValueGeneration, ValueOrigin, ValueSet,
+    ValueState,
+};
+
+mod value_analysis;
+pub use value_analysis::{ValueFlowAdapter, ValueFlowAnalysis};
+
+mod call_results;
+pub use call_results::CallResults;
+
+mod storage;
+pub use storage::{StorageAliasState, StorageProvenance, StorageRoots};
+
+mod storage_analysis;
+pub use storage_analysis::{StorageFlowAdapter, StorageFlowAnalysis};
+
+mod lint_analysis;
+pub use lint_analysis::{LintFlowAdapter, LintFlowAnalysis, LintFlowState};
+
+pub(crate) mod references;
+pub use references::{
+    FunctionReference, FunctionReferenceIndex, FunctionReferenceKind, FunctionValueTarget,
+    FunctionValueTargets,
+};
+
 /// HIR arena allocator.
 pub struct Arena {
     bump: bumpalo::Bump,
@@ -85,6 +131,8 @@ pub struct Hir<'hir> {
     pub(crate) contracts: IndexVec<ContractId, Contract<'hir>>,
     /// All functions.
     pub(crate) functions: IndexVec<FunctionId, Function<'hir>>,
+    /// Variables lexically owned by each function.
+    pub(crate) function_variables: IndexVec<FunctionId, &'hir [VariableId]>,
     /// All constants and variables.
     pub(crate) variables: IndexVec<VariableId, Variable<'hir>>,
     /// All structs.
@@ -181,6 +229,7 @@ impl<'hir> Hir<'hir> {
             docs,
             contracts: IndexVec::new(),
             functions: IndexVec::new(),
+            function_variables: IndexVec::new(),
             variables: IndexVec::new(),
             structs: IndexVec::new(),
             enums: IndexVec::new(),
@@ -201,6 +250,11 @@ impl<'hir> Hir<'hir> {
         udvt => udvts, UdvtId => Udvt<'hir>;
         error => errors, ErrorId => Error<'hir>;
         event => events, EventId => Event<'hir>;
+    }
+
+    /// Returns parameters, returns, and locals lexically owned by `function`.
+    pub fn function_variables(&self, function: FunctionId) -> &'hir [VariableId] {
+        self.function_variables[function]
     }
 
     /// Returns the item associated with the given ID.
@@ -1611,8 +1665,19 @@ impl Res {
         }
     }
 
+    /// Returns the function ID if this resolves to a function.
+    pub fn as_function(&self) -> Option<FunctionId> {
+        if let Self::Item(id) = self { id.as_function() } else { None }
+    }
+
+    /// Returns the variable ID if this resolves to a variable.
     pub fn as_variable(&self) -> Option<VariableId> {
         if let Self::Item(id) = self { id.as_variable() } else { None }
+    }
+
+    /// Returns the builtin if this resolves to a builtin.
+    pub fn as_builtin(&self) -> Option<Builtin> {
+        if let Self::Builtin(builtin) = self { Some(*builtin) } else { None }
     }
 }
 
@@ -1633,6 +1698,15 @@ impl Expr<'_> {
             expr = inner;
         }
         expr
+    }
+
+    /// Returns the variable ID if this is an unambiguous variable expression.
+    ///
+    /// Parentheses are ignored, but expressions with multiple resolutions are rejected even if
+    /// one of those resolutions is a variable.
+    pub fn as_variable(&self) -> Option<VariableId> {
+        let ExprKind::Ident([res]) = self.peel_parens().kind else { return None };
+        res.as_variable()
     }
 }
 
@@ -1706,6 +1780,13 @@ pub struct NamedArg<'hir> {
     pub value: Expr<'hir>,
 }
 
+impl NamedArg<'_> {
+    /// Returns the declaration-order parameter index for this named argument.
+    pub(crate) fn parameter_index(&self, parameter_names: &[Option<Symbol>]) -> Option<usize> {
+        parameter_names.iter().position(|&name| name == Some(self.name.name))
+    }
+}
+
 /// Function call options: `foo{ gas: 100_000 }`.
 #[derive(Clone, Copy, Debug)]
 pub struct CallOptions<'hir> {
@@ -1761,6 +1842,25 @@ impl<'hir> CallArgs<'hir> {
         &self,
     ) -> impl ExactSizeIterator<Item = &Expr<'hir>> + DoubleEndedIterator + Clone {
         self.kind.exprs()
+    }
+
+    /// Returns the source argument bound to the parameter at `index`.
+    ///
+    /// `parameter_names` is only required for named arguments and must be in declaration order.
+    pub(crate) fn argument_for_parameter(
+        &self,
+        index: usize,
+        parameter_names: Option<&[Option<Symbol>]>,
+    ) -> Option<&'hir Expr<'hir>> {
+        match self.kind {
+            CallArgsKind::Unnamed(exprs) => exprs.get(index),
+            CallArgsKind::Named(args) => {
+                let parameter_names = parameter_names?;
+                args.iter()
+                    .find(|arg| arg.parameter_index(parameter_names) == Some(index))
+                    .map(|arg| &arg.value)
+            }
+        }
     }
 }
 
@@ -1928,6 +2028,36 @@ pub struct TypeMapping<'hir> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn resolution_projections() {
+        let function = FunctionId::new(1);
+        let variable = VariableId::new(2);
+
+        assert_eq!(Res::Item(ItemId::Function(function)).as_function(), Some(function));
+        assert_eq!(Res::Item(ItemId::Variable(variable)).as_function(), None);
+        assert_eq!(Res::Builtin(Builtin::Require).as_builtin(), Some(Builtin::Require));
+        assert_eq!(Res::Item(ItemId::Variable(variable)).as_builtin(), None);
+    }
+
+    #[test]
+    fn expression_variable_resolution_is_unambiguous() {
+        let variable = VariableId::new(1);
+        let function = FunctionId::new(2);
+        let variable_res = [Res::Item(ItemId::Variable(variable))];
+        let variable_expr =
+            Expr { id: ExprId::new(1), kind: ExprKind::Ident(&variable_res), span: Span::DUMMY };
+        let paren_values = [Some(&variable_expr)];
+        let paren_expr =
+            Expr { id: ExprId::new(2), kind: ExprKind::Tuple(&paren_values), span: Span::DUMMY };
+        assert_eq!(paren_expr.as_variable(), Some(variable));
+
+        let ambiguous_res =
+            [Res::Item(ItemId::Variable(variable)), Res::Item(ItemId::Function(function))];
+        let ambiguous_expr =
+            Expr { id: ExprId::new(3), kind: ExprKind::Ident(&ambiguous_res), span: Span::DUMMY };
+        assert_eq!(ambiguous_expr.as_variable(), None);
+    }
+
     // Ensure that we track the size of individual HIR nodes.
     #[test]
     #[cfg_attr(not(target_pointer_width = "64"), ignore = "64-bit only")]
@@ -1943,7 +2073,7 @@ mod tests {
             assert_data_eq!(actual.to_string(), expected);
         }
 
-        assert_size::<Hir<'_>>(str!["240"]);
+        assert_size::<Hir<'_>>(str!["264"]);
 
         assert_size::<Item<'_, '_>>(str!["16"]);
         assert_size::<Contract<'_>>(str!["152"]);

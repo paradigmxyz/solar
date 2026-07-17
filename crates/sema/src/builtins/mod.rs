@@ -348,6 +348,107 @@ impl Builtin {
     const FIRST_YUL: usize = Self::YulAdd as usize;
     const LAST_YUL: usize = Self::YulMcopy as usize + 1;
 
+    /// Returns whether this is a Yul EVM builtin.
+    pub const fn is_yul(self) -> bool {
+        (self as usize) >= Self::FIRST_YUL && (self as usize) < Self::LAST_YUL
+    }
+
+    /// Returns whether invoking this builtin performs an external interaction.
+    pub const fn is_external_interaction(self) -> bool {
+        matches!(
+            self,
+            Self::AddressCall
+                | Self::AddressDelegatecall
+                | Self::AddressStaticcall
+                | Self::AddressPayableSend
+                | Self::AddressPayableTransfer
+                | Self::YulCreate
+                | Self::YulCreate2
+                | Self::YulCall
+                | Self::YulCallcode
+                | Self::YulDelegatecall
+                | Self::YulStaticcall
+                | Self::YulExtcall
+                | Self::YulExtdelegatecall
+                | Self::YulExtstaticcall
+        )
+    }
+
+    /// Returns whether invoking this builtin may modify EVM state or emit logs.
+    pub const fn may_mutate_state(self) -> bool {
+        matches!(
+            self,
+            Self::YulSstore
+                | Self::YulTstore
+                | Self::YulLog0
+                | Self::YulLog1
+                | Self::YulLog2
+                | Self::YulLog3
+                | Self::YulLog4
+                | Self::YulCreate
+                | Self::YulCreate2
+                | Self::YulCall
+                | Self::YulCallcode
+                | Self::YulDelegatecall
+                | Self::YulExtcall
+                | Self::YulExtdelegatecall
+                | Self::YulSelfdestruct
+        )
+    }
+
+    /// Returns whether invoking this builtin may change storage or otherwise make previously read
+    /// storage values stale.
+    ///
+    /// Unlike [`Builtin::may_mutate_state`], emitting a log is not a write for value-flow
+    /// invalidation.
+    pub const fn may_write_state(self) -> bool {
+        matches!(
+            self,
+            Self::ArrayPush0
+                | Self::ArrayPush
+                | Self::ArrayPop
+                | Self::Selfdestruct
+                | Self::YulSstore
+                | Self::YulTstore
+                | Self::YulCreate
+                | Self::YulCreate2
+                | Self::YulCall
+                | Self::YulCallcode
+                | Self::YulDelegatecall
+                | Self::YulExtcall
+                | Self::YulExtdelegatecall
+                | Self::YulSelfdestruct
+        )
+    }
+
+    /// Returns whether invoking this builtin directly writes persistent storage.
+    pub const fn is_persistent_state_write(self) -> bool {
+        matches!(self, Self::YulSstore)
+    }
+
+    /// Returns whether invoking this builtin directly writes transient storage.
+    pub const fn is_transient_state_write(self) -> bool {
+        matches!(self, Self::YulTstore)
+    }
+
+    /// Returns whether invoking this builtin emits an EVM log.
+    pub const fn is_log(self) -> bool {
+        matches!(
+            self,
+            Self::YulLog0 | Self::YulLog1 | Self::YulLog2 | Self::YulLog3 | Self::YulLog4
+        )
+    }
+
+    /// Returns whether invoking this builtin unconditionally reverts the current EVM execution.
+    pub const fn is_reverting_halt(self) -> bool {
+        matches!(self, Self::Revert | Self::RevertMsg | Self::YulRevert | Self::YulInvalid)
+    }
+
+    /// Returns whether invoking this builtin unconditionally halts successfully.
+    pub const fn is_successful_halt(self) -> bool {
+        matches!(self, Self::Selfdestruct | Self::YulReturn | Self::YulStop | Self::YulSelfdestruct)
+    }
+
     /// Returns an iterator over all builtins.
     #[inline]
     pub fn iter() -> std::iter::Map<std::ops::Range<usize>, impl FnMut(usize) -> Self> {

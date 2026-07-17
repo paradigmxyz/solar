@@ -49,7 +49,9 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
         TyKind::Module(id) => gcx.symbol_resolver.source_scopes[id]
             .iter()
             .flat_map(|(name, decls)| {
-                decls.iter().map(move |decl| Member::new(name, gcx.type_of_res(decl.res)))
+                decls
+                    .iter()
+                    .map(move |decl| Member::with_res(name, gcx.type_of_res(decl.res), decl.res))
             })
             .collect(),
         TyKind::BuiltinModule(builtin) => builtin
@@ -189,7 +191,13 @@ fn reference<'gcx>(
             fields
                 .iter()
                 .zip(tys)
-                .map(|(&f, &ty)| Member::new(gcx.item_name(f).name, ty.with_loc_if_ref(gcx, loc)))
+                .map(|(&f, &ty)| {
+                    Member::with_res(
+                        gcx.item_name(f).name,
+                        ty.with_loc_if_ref(gcx, loc),
+                        hir::ItemId::Variable(f),
+                    )
+                })
                 .collect()
         }
         (

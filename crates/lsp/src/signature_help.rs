@@ -651,7 +651,7 @@ fn signature_declaration_parts<'gcx>(
             );
             doc_id = Some(variable.doc);
         }
-        None => {
+        Some(CallableParamSource::Builtin(_)) | None => {
             let fallback_name = fallback_name.or_else(|| match res {
                 Some(Res::Builtin(builtin)) => Some(builtin.name().to_string()),
                 _ => None,

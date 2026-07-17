@@ -432,6 +432,20 @@ impl<'gcx> ResolveContext<'gcx> {
             }
         }
 
+        let mut owned_variables =
+            vec![SmallVec::<[hir::VariableId; 16]>::new(); self.hir.functions.len()];
+        for variable in self.hir.variable_ids() {
+            if let Some(hir::ItemId::Function(function)) = self.hir.variable(variable).parent {
+                owned_variables[function.index()].push(variable);
+            }
+        }
+        let mut function_variables = IndexVec::new();
+        for variables in owned_variables {
+            let variables: &'gcx [hir::VariableId] = self.arena.alloc_smallvec(variables);
+            function_variables.push(variables);
+        }
+        self.hir.function_variables = function_variables;
+
         // Resolve function parameters and local variables, created while resolving functions.
         for id in self.hir.variable_ids().skip(normal_vars) {
             self.resolve_var(id);
