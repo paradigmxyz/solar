@@ -49,7 +49,9 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
         TyKind::Module(id) => gcx.symbol_resolver.source_scopes[id]
             .iter()
             .flat_map(|(name, decls)| {
-                decls.iter().map(move |decl| Member::new(name, gcx.type_of_res(decl.res)))
+                decls
+                    .iter()
+                    .map(move |decl| Member::with_res(name, gcx.type_of_res(decl.res), decl.res))
             })
             .collect(),
         TyKind::BuiltinModule(builtin) => builtin
@@ -189,7 +191,13 @@ fn reference<'gcx>(
             fields
                 .iter()
                 .zip(tys)
-                .map(|(&f, &ty)| Member::new(gcx.item_name(f).name, ty.with_loc_if_ref(gcx, loc)))
+                .map(|(&f, &ty)| {
+                    Member::with_res(
+                        gcx.item_name(f).name,
+                        ty.with_loc_if_ref(gcx, loc),
+                        hir::ItemId::Variable(f),
+                    )
+                })
                 .collect()
         }
         (
@@ -230,9 +238,19 @@ fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberListOwned<'gcx> {
     match ty.kind {
         TyKind::Contract(id) => contract_type(gcx, id, None),
         TyKind::Super(id) => super_type(gcx, id),
-        TyKind::Enum(id) => {
-            gcx.hir.enumm(id).variants.iter().map(|v| Member::new(v.name, ty)).collect()
-        }
+        TyKind::Enum(id) => gcx
+            .hir
+            .enumm(id)
+            .variants
+            .iter()
+            .map(|&variant| {
+                Member::with_res(
+                    gcx.hir.variable(variant).name.unwrap().name,
+                    ty,
+                    hir::ItemId::Variable(variant),
+                )
+            })
+            .collect(),
         TyKind::Udvt(inner, _id) => {
             vec![
                 Member::with_builtin(

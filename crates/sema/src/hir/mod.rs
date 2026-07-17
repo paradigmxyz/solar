@@ -844,6 +844,11 @@ impl ItemId {
     pub fn as_variable(&self) -> Option<VariableId> {
         if let Self::Variable(v) = *self { Some(v) } else { None }
     }
+
+    /// Returns the enum ID if this is an enum.
+    pub fn as_enum(&self) -> Option<EnumId> {
+        if let Self::Enum(v) = *self { Some(v) } else { None }
+    }
 }
 
 /// A contract, interface, or library.
@@ -1132,7 +1137,7 @@ pub struct Enum<'hir> {
     /// The enum name.
     pub name: Ident,
     /// The enum variants.
-    pub variants: &'hir [Ident],
+    pub variants: &'hir [VariableId],
 }
 
 /// A user-defined value type.
@@ -1358,6 +1363,8 @@ pub enum VarKind {
     State,
     /// Defined in a struct.
     Struct,
+    /// Defined in an enum.
+    Enum,
     /// Defined in an event.
     Event,
     /// Defined in an error.
@@ -1382,6 +1389,7 @@ impl VarKind {
             Self::Global => "file-level variable",
             Self::State => "state variable",
             Self::Struct => "struct field",
+            Self::Enum => "enum variant",
             Self::Event => "event parameter",
             Self::Error => "error parameter",
             Self::FunctionParam | Self::FunctionTyParam => "function parameter",
@@ -1618,8 +1626,37 @@ impl Res {
         }
     }
 
+    /// Returns the function ID if this resolves to a function.
+    pub fn as_function(&self) -> Option<FunctionId> {
+        if let Self::Item(id) = self { id.as_function() } else { None }
+    }
+
+    /// Returns the variable ID if this resolves to a variable.
     pub fn as_variable(&self) -> Option<VariableId> {
         if let Self::Item(id) = self { id.as_variable() } else { None }
+    }
+
+    /// Returns the builtin if this resolves to a builtin.
+    pub fn as_builtin(&self) -> Option<Builtin> {
+        if let Self::Builtin(builtin) = self { Some(*builtin) } else { None }
+    }
+
+    fn var_parent(self, hir: &Hir<'_>) -> Option<ItemId> {
+        hir.variable(self.as_variable()?).parent
+    }
+
+    /// Returns the field index if this resolves to a struct field.
+    pub fn struct_field_index(self, hir: &Hir<'_>) -> Option<usize> {
+        let variable = self.as_variable()?;
+        let strukt = hir.strukt(self.var_parent(hir)?.as_struct()?);
+        strukt.fields.iter().position(|&field| field == variable)
+    }
+
+    /// Returns the variant index if this resolves to an enum variant.
+    pub fn enum_variant_index(self, hir: &Hir<'_>) -> Option<usize> {
+        let variable = self.as_variable()?;
+        let enumm = hir.enumm(self.var_parent(hir)?.as_enum()?);
+        enumm.variants.iter().position(|&variant| variant == variable)
     }
 }
 
@@ -1640,6 +1677,15 @@ impl Expr<'_> {
             expr = inner;
         }
         expr
+    }
+
+    /// Returns the variable ID if this is an unambiguous variable expression.
+    ///
+    /// Parentheses are ignored, but expressions with multiple resolutions are rejected even if
+    /// one of those resolutions is a variable.
+    pub fn as_variable(&self) -> Option<VariableId> {
+        let ExprKind::Ident([res]) = self.peel_parens().kind else { return None };
+        res.as_variable()
     }
 }
 
@@ -1934,6 +1980,36 @@ pub struct TypeMapping<'hir> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resolution_projections() {
+        let function = FunctionId::new(1);
+        let variable = VariableId::new(2);
+
+        assert_eq!(Res::Item(ItemId::Function(function)).as_function(), Some(function));
+        assert_eq!(Res::Item(ItemId::Variable(variable)).as_function(), None);
+        assert_eq!(Res::Builtin(Builtin::Require).as_builtin(), Some(Builtin::Require));
+        assert_eq!(Res::Item(ItemId::Variable(variable)).as_builtin(), None);
+    }
+
+    #[test]
+    fn expression_variable_resolution_is_unambiguous() {
+        let variable = VariableId::new(1);
+        let function = FunctionId::new(2);
+        let variable_res = [Res::Item(ItemId::Variable(variable))];
+        let variable_expr =
+            Expr { id: ExprId::new(1), kind: ExprKind::Ident(&variable_res), span: Span::DUMMY };
+        let paren_values = [Some(&variable_expr)];
+        let paren_expr =
+            Expr { id: ExprId::new(2), kind: ExprKind::Tuple(&paren_values), span: Span::DUMMY };
+        assert_eq!(paren_expr.as_variable(), Some(variable));
+
+        let ambiguous_res =
+            [Res::Item(ItemId::Variable(variable)), Res::Item(ItemId::Function(function))];
+        let ambiguous_expr =
+            Expr { id: ExprId::new(3), kind: ExprKind::Ident(&ambiguous_res), span: Span::DUMMY };
+        assert_eq!(ambiguous_expr.as_variable(), None);
+    }
 
     // Ensure that we track the size of individual HIR nodes.
     #[test]
