@@ -628,8 +628,7 @@ def main() -> int:
     should_comment = has_baseline_changes(
         micro_results, baseline_micro
     ) or has_baseline_changes(repo_results, baseline_repo)
-    markdown = format_report(report, should_comment, branch_is_behind_main()
-    )
+    markdown = format_report(report, should_comment, branch_is_behind_main())
     print(markdown)
     append_step_summary(markdown)
     append_github_output("should_comment", "true" if should_comment else "false")
