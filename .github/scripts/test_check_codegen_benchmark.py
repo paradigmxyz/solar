@@ -45,6 +45,31 @@ class ReportFormattingTests(unittest.TestCase):
             "105B (❌ +5.00%)",
         )
 
+    def test_peak_rss_report_is_collapsed(self):
+        report = benchmark.memory_report(
+            [result(status="ok", peak_rss_bytes=1024 * 1024)]
+        )
+        self.assertEqual(
+            report,
+            [
+                "<details>",
+                "<summary>Peak RSS</summary>",
+                "",
+                "| compiler | benches | average peak RSS | maximum peak RSS | maximum bench |",
+                "| -------- | ------- | ---------------- | ---------------- | ------------- |",
+                "| solar | 1 | 1.0 MiB | 1.0 MiB | test |",
+                "",
+                "#### Per-benchmark peak RSS",
+                "",
+                "| bench | solar peak |",
+                "| --- | --- |",
+                "| test | 1.0 MiB |",
+                "",
+                "</details>",
+                "",
+            ],
+        )
+
 
 class CommonBenchmarkResultTests(unittest.TestCase):
     def write_result(self, micro, repo=None, micro_timing=DEFAULT_TIMING, repo_timing=None):

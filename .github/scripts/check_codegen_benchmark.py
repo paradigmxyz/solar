@@ -352,14 +352,14 @@ def memory_report(results: list[dict[str, Any]]) -> list[str]:
         headers.append("Solar vs solc")
 
     return [
-        "### Peak RSS",
+        "<details>",
+        "<summary>Peak RSS</summary>",
         "",
         "| compiler | benches | average peak RSS | maximum peak RSS | maximum bench |",
         "| -------- | ------- | ---------------- | ---------------- | ------------- |",
         *summary_rows,
         "",
-        "<details>",
-        "<summary>Per-benchmark peak RSS</summary>",
+        "#### Per-benchmark peak RSS",
         "",
         "| " + " | ".join(headers) + " |",
         "| " + " | ".join("---" for _ in headers) + " |",
