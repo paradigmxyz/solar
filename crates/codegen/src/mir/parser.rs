@@ -151,7 +151,6 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         self.parser.expect_keyword(kw)
     }
 
-    /// Consume an identifier: `[a-zA-Z_][a-zA-Z0-9_]*`.
     /// Parses a phase name such as `evm-shaped`. Unlike an identifier, a phase
     /// name may contain internal hyphens.
     fn parse_phase_name(&mut self) -> PResult<'sess, Symbol> {
@@ -885,6 +884,13 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         let lo = self.parse_uint_literal()?;
         let lo = self.u256_to_u32(lo)?;
         self.parser.expect(TokenKind::Dot)?;
+        if let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.parser.token().kind
+            && let Some(hi) = symbol.as_str().strip_prefix('.')
+        {
+            let hi = hi.parse().map_err(|_| self.error("invalid span end"))?;
+            self.parser.bump();
+            return Ok((lo, hi));
+        }
         self.parser.expect(TokenKind::Dot)?;
         let hi = self.parse_uint_literal()?;
         Ok((lo, self.u256_to_u32(hi)?))
@@ -1893,6 +1899,30 @@ error: unknown type `notatype`
 
 "#]]
             );
+        });
+    }
+
+    #[test]
+    fn parse_compact_and_spaced_spans() {
+        with_session(|sess| {
+            for span in ["1..5", "1 .. 5"] {
+                let src = format!(
+                    "@module m\nfn @f() {{\n  bb0 (entry):\n    v0 = sload 0 !metadata(span={span})\n    stop\n}}\n"
+                );
+                let module = parse_module(sess, &src).unwrap();
+                assert_data_eq!(
+                    module.to_text().to_string(),
+                    str![[r#"
+@module m
+fn @f() {
+  bb0 (entry):
+    v0 = sload 0 !metadata(span=1..5)
+    stop
+}
+
+"#]]
+                );
+            }
         });
     }
 

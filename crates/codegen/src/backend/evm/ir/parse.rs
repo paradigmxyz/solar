@@ -7,7 +7,7 @@ use solar_ast::{
     token::{BinOpToken, Delimiter, TokenKind},
 };
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
-use solar_interface::{Result, Session, Symbol, kw, source_map::SourceFile, sym};
+use solar_interface::{Result, Session, Span, Symbol, kw, source_map::SourceFile, sym};
 use solar_parse::{PErr, PResult};
 
 pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
@@ -33,6 +33,7 @@ struct ParsedBlockHeader {
 struct BlockLabel {
     id: BlockId,
     defined: bool,
+    reference_span: Option<Span>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -60,6 +61,10 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
 
     fn error(&self, msg: impl Into<String>) -> PErr<'sess> {
         self.parser.error(msg)
+    }
+
+    fn error_at(&self, span: Span, msg: impl Into<String>) -> PErr<'sess> {
+        self.parser.error_at(span, msg)
     }
 
     fn expect_keyword(&mut self, kw: Symbol) -> PResult<'sess, ()> {
@@ -253,7 +258,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
             return Ok(block.id);
         }
         let id = module.add_block(Block::new(label.as_str()));
-        block_labels.insert(label, BlockLabel { id, defined: true });
+        block_labels.insert(label, BlockLabel { id, defined: true, reference_span: None });
         block_order.push(id);
         Ok(id)
     }
@@ -263,12 +268,13 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         module: &mut Module,
         block_labels: &mut FxHashMap<Symbol, BlockLabel>,
         label: Symbol,
+        span: Span,
     ) -> BlockId {
         if let Some(block) = block_labels.get(&label) {
             return block.id;
         }
         let id = module.add_block(Block::new(label.as_str()));
-        block_labels.insert(label, BlockLabel { id, defined: false });
+        block_labels.insert(label, BlockLabel { id, defined: false, reference_span: Some(span) });
         id
     }
 
@@ -278,11 +284,15 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     ) -> PResult<'sess, ()> {
         let mut unresolved = block_labels
             .iter()
-            .filter_map(|(label, block)| (!block.defined).then_some(label))
+            .filter_map(|(label, block)| (!block.defined).then_some((label, block.reference_span)))
             .collect::<Vec<_>>();
-        unresolved.sort_unstable_by_key(|label| label.as_str());
-        if let Some(label) = unresolved.first() {
-            return Err(self.error(format!("unknown block `{label}`")));
+        unresolved.sort_unstable_by_key(|(label, _)| label.as_str());
+        if let Some((label, span)) = unresolved.first() {
+            let message = format!("unknown block `{label}`");
+            return Err(match span {
+                Some(span) => self.error_at(*span, message),
+                None => self.error(message),
+            });
         }
         Ok(())
     }
@@ -509,8 +519,9 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
             return Ok(Operand::Symbol(format!("@{symbol}")));
         }
         if let Some(label) = self.current_block_label()? {
+            let span = self.parser.token().span;
             self.parser.bump();
-            return Ok(Operand::Block(self.block_id(module, block_labels, label)));
+            return Ok(Operand::Block(self.block_id(module, block_labels, label, span)));
         }
         Ok(Operand::Symbol(self.parse_ident()?))
     }
@@ -522,8 +533,9 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     ) -> PResult<'sess, BlockId> {
         let label =
             self.current_block_label()?.ok_or_else(|| self.error("expected block label"))?;
+        let span = self.parser.token().span;
         self.parser.bump();
-        Ok(self.block_id(module, block_labels, label))
+        Ok(self.block_id(module, block_labels, label, span))
     }
 
     fn parse_metadata(&mut self) -> PResult<'sess, Metadata> {
@@ -711,6 +723,30 @@ error: expected metadata value
   │
 5 │   %0 = add 1 !meta(foo= )
   ╰╴                        ━
+
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn unresolved_block_reports_reference_span() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.dcx.set_flags(|flags| flags.track_diagnostics = false);
+        let input = "@module m\n\nbb0 (entry):\n  jump bb9\n";
+        let source = sess
+            .source_map()
+            .new_source_file(FileName::Custom("unknown-block.evmir".into()), input)
+            .unwrap();
+        sess.enter(|| assert!(Module::parse(&sess, &source).is_err()));
+        assert_data_eq!(
+            sess.emitted_diagnostics().unwrap().to_string(),
+            str![[r#"
+error: unknown block `bb9`
+  ╭▸ <unknown-block.evmir>:4:8
+  │
+4 │   jump bb9
+  ╰╴       ━━━
 
 
 "#]]

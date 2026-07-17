@@ -23,6 +23,8 @@
 //!     defining block can reach the using block (phi inputs: their incoming predecessor). MIR is
 //!     deliberately loose SSA, but a use its definition can never reach is garbage on every
 //!     execution.
+//! 11. **Call consistency**: internal and tail-call targets exist and their argument counts match
+//!     the callee.
 //!
 //! # Usage
 //!
@@ -421,14 +423,35 @@ impl<'a> Validator<'a> {
             self.validate_function_inner(func);
         }
         self.function = None;
-        self.validate_tail_calls(module);
+        self.validate_calls(module);
         self.validate_phase(module);
     }
 
-    /// Checks the cross-function invariants of `tail_call` terminators: the
-    /// callee exists and the argument count matches its parameters.
-    fn validate_tail_calls(&mut self, module: &Module) {
+    /// Checks that call targets exist and argument counts match.
+    fn validate_calls(&mut self, module: &Module) {
         for (id, func) in module.iter_functions() {
+            for inst in &func.instructions {
+                let InstKind::InternalCall { function, args, .. } = &inst.kind else {
+                    continue;
+                };
+                let Some(callee) = module.functions.get(*function) else {
+                    self.emit(format_args!(
+                        "[fn{}] internal_call targets nonexistent function fn{}",
+                        id.index(),
+                        function.index()
+                    ));
+                    continue;
+                };
+                if args.len() != callee.params.len() {
+                    self.emit(format_args!(
+                        "[fn{}] internal_call to `{}` passes {} argument(s), expected {}",
+                        id.index(),
+                        callee.name,
+                        args.len(),
+                        callee.params.len()
+                    ));
+                }
+            }
             for block in func.blocks.iter() {
                 let Some(crate::mir::Terminator::TailCall { function, args }) = &block.terminator
                 else {
@@ -499,7 +522,9 @@ pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{BasicBlock, Function, FunctionBuilder, MirType, Terminator};
+    use crate::mir::{
+        BasicBlock, Function, FunctionBuilder, FunctionId, MirType, Module, Terminator,
+    };
     use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, Ident, Session};
 
@@ -643,6 +668,30 @@ error: [bb0] entry block must have no predecessors
             }
             Validator::new(&sess.dcx).validate_function(&func);
             assert!(sess.dcx.has_errors().is_ok());
+        });
+    }
+
+    #[test]
+    fn nonexistent_internal_call_target_is_caught() {
+        with_session(|sess| {
+            let mut caller = make_func();
+            {
+                let mut builder = FunctionBuilder::new(&mut caller);
+                builder.internal_call_void(FunctionId::from_usize(99), Vec::new(), 0);
+                builder.stop();
+            }
+            let mut module = Module::new(Ident::DUMMY);
+            module.add_function(caller);
+
+            validate(&sess.dcx, &module);
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [fn0] internal_call targets nonexistent function fn99
+
+
+"#]]
+            );
         });
     }
 
