@@ -396,6 +396,19 @@ def report_section(
     return "\n".join(lines)
 
 
+def codegen_report(
+    micro_results: list[dict[str, Any]],
+    repo_results: list[dict[str, Any]],
+    baseline_micro: list[dict[str, Any]],
+    baseline_repo: list[dict[str, Any]],
+) -> str:
+    return report_section(
+        "Codegen benchmark",
+        [*micro_results, *repo_results],
+        [*baseline_micro, *baseline_repo],
+    )
+
+
 def emit_warnings(
     label: str, results: list[dict[str, Any]], baseline_results: list[dict[str, Any]]
 ) -> None:
@@ -587,22 +600,20 @@ def main() -> int:
     emit_warnings("micro", micro_results, baseline_micro)
     emit_warnings("repository", repo_results, baseline_repo)
 
-    sections = []
-    if args.micro is not None:
-        sections.append(
-            report_section("Micro codegen benchmark", micro_results, baseline_micro)
+    if args.micro is not None or args.repo is not None:
+        report = codegen_report(
+            micro_results,
+            repo_results,
+            baseline_micro,
+            baseline_repo,
         )
-    if args.repo is not None:
-        sections.append(
-            report_section("Repository codegen benchmark", repo_results, baseline_repo)
-        )
-    if not sections:
-        sections.append("## Codegen benchmark\n\nNo benchmark inputs were configured.\n")
+    else:
+        report = "## Codegen benchmark\n\nNo benchmark inputs were configured.\n"
 
     should_comment = has_baseline_changes(
         micro_results, baseline_micro
     ) or has_baseline_changes(repo_results, baseline_repo)
-    markdown = format_report("\n".join(sections), should_comment)
+    markdown = format_report(report, should_comment)
     print(markdown)
     append_step_summary(markdown)
     append_github_output("should_comment", "true" if should_comment else "false")
