@@ -7,7 +7,9 @@
 //! - Two-pass assembly for label resolution
 
 use super::{
-    assembler::{Assembler, AssemblerConfig, DeferredConst, ImmutableRef, Label, op},
+    assembler::{
+        Assembler, AssemblerConfig, DeferredConst, ImmutableRef, Label, PreparedAssembly, op,
+    },
     ir,
     stack::{
         MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
@@ -29,6 +31,7 @@ use solar_data_structures::{
     map::FxHashMap,
 };
 use solar_interface::{Session, sym};
+use solar_sema::hir::StateMutability;
 
 // 0x00..0x7f follows Solidity's scratch/free-pointer/zero-slot convention, and
 // 0x80 is used as the static ABI return buffer. Keep the internal-call frame
@@ -51,6 +54,12 @@ struct GeneratedCode {
     evm_ir: Option<ir::Module>,
 }
 
+struct PreparedDeploymentPrefix {
+    assembly: PreparedAssembly,
+    constructor_arg_offset: Option<DeferredConst>,
+    runtime_offset: DeferredConst,
+}
+
 /// Configuration for the EVM backend.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EvmCodegenConfig {
@@ -64,15 +73,8 @@ pub struct EvmCodegenConfig {
     pub time_passes: bool,
     /// Lower dispatch/ABI as MIR phases and consume them here.
     pub mir_dispatch: bool,
-    /// Run the experimental EVM IR `StackSchedule` pass in the assembler bridge.
-    ///
-    /// Off by default: the default bytecode path must stay byte-for-byte
-    /// unchanged. When enabled the bridge runs [`ir::STACK_SCHEDULE_PASS`] on the
-    /// operand-cleared block IR. On that already-stack-scheduled input the pass
-    /// is a verified near no-op in `StructuredAsmProgram::optimize_with_evm_ir`.
+    /// Run the experimental EVM IR `StackSchedule` pass before assembly.
     pub evm_ir_stack_schedule: bool,
-    /// Run EVM IR layout/code-size passes in the assembler bridge.
-    pub evm_ir_layout_passes: bool,
     /// Capture final EVM IR immediately before assembly.
     pub capture_evm_ir: bool,
 }
@@ -90,7 +92,6 @@ impl EvmCodegenConfig {
             // Keep the experimental EVM IR stack scheduler off in every default
             // compilation path so produced bytecode is unchanged.
             evm_ir_stack_schedule: false,
-            evm_ir_layout_passes: false,
             capture_evm_ir: false,
         }
     }
@@ -101,7 +102,6 @@ impl EvmCodegenConfig {
             optimization: self.optimization,
             time_passes: self.time_passes,
             evm_ir_stack_schedule: self.evm_ir_stack_schedule,
-            evm_ir_layout_passes: self.evm_ir_layout_passes,
             capture_evm_ir: self.capture_evm_ir,
         }
     }
@@ -797,7 +797,7 @@ impl EvmCodegen {
         // First generate the runtime code
         let mut runtime_code = self.generate_runtime_code(module);
         if let Some(evm_ir) = &mut runtime_code.evm_ir {
-            evm_ir.name = "runtime".to_string();
+            evm_ir.set_name(sym::runtime);
         }
         let runtime_len = runtime_code.bytecode.len();
         let immutable_refs = std::mem::take(&mut self.runtime_immutable_refs);
@@ -814,18 +814,18 @@ impl EvmCodegen {
         };
 
         // Generate constructor initialization and the deployment postlude as
-        // one control-flow graph. Constructor arguments are appended after the
-        // generated deployment prefix, so their offset and the runtime-code
-        // offset depend on its final push widths. Iterate until both stabilize.
+        // one control-flow graph and optimize it once. Constructor arguments
+        // are appended after the generated deployment prefix, so their offset
+        // and the runtime-code offset depend on its final push widths. Only
+        // repeat final assembly while both offsets stabilize.
+        let prepared_deploy_code =
+            self.prepare_deployment_prefix(module, runtime_len, copy_base, &immutable_refs);
         let mut deploy_code_len = 0usize;
         let mut constructor_arg_offset = runtime_len;
-        let mut deploy_code = self.generate_deployment_prefix(
-            module,
-            Some(runtime_len),
+        let mut deploy_code = self.assemble_deployment_prefix(
+            &prepared_deploy_code,
+            constructor_arg_offset,
             deploy_code_len,
-            runtime_len,
-            copy_base,
-            &immutable_refs,
         );
         for _ in 0..8 {
             let next_deploy_code_len = deploy_code.bytecode.len();
@@ -836,13 +836,10 @@ impl EvmCodegen {
             }
             deploy_code_len = next_deploy_code_len;
             constructor_arg_offset = next_arg_offset;
-            deploy_code = self.generate_deployment_prefix(
-                module,
-                Some(constructor_arg_offset),
+            deploy_code = self.assemble_deployment_prefix(
+                &prepared_deploy_code,
+                constructor_arg_offset,
                 deploy_code_len,
-                runtime_len,
-                copy_base,
-                &immutable_refs,
             );
         }
 
@@ -857,7 +854,7 @@ impl EvmCodegen {
         // PUSH<n> copy_base     ; memory offset
         // RETURN                ; return the runtime code
         if let Some(evm_ir) = &mut deploy_code.evm_ir {
-            evm_ir.name = "deployment".to_string();
+            evm_ir.set_name(sym::deployment);
         }
 
         let mut deploy_bytecode = deploy_code.bytecode;
@@ -881,22 +878,9 @@ impl EvmCodegen {
         }
     }
 
-    fn build_deployment_postlude(
-        &mut self,
-        deploy_code_len: usize,
-        runtime_len: usize,
-        copy_base: u64,
-        immutable_refs: &[ImmutableRef],
-    ) -> GeneratedCode {
-        self.asm.clear();
-        self.emit_deployment_postlude(deploy_code_len, runtime_len, copy_base, immutable_refs);
-        let result = self.asm.assemble();
-        GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir }
-    }
-
     fn emit_deployment_postlude(
         &mut self,
-        deploy_code_len: usize,
+        runtime_offset: DeferredConst,
         runtime_len: usize,
         copy_base: u64,
         immutable_refs: &[ImmutableRef],
@@ -904,7 +888,7 @@ impl EvmCodegen {
         // Copy runtime code from creation code to memory at `copy_base`.
         self.asm.emit_push(U256::from(runtime_len as u64));
         self.asm.emit_op(op::dup(1));
-        self.asm.emit_push(U256::from(deploy_code_len as u64));
+        self.asm.emit_push_deferred(runtime_offset);
         self.asm.emit_push(U256::from(copy_base));
         self.asm.emit_op(op::CODECOPY);
 
@@ -927,23 +911,22 @@ impl EvmCodegen {
     ///
     /// Constructor arguments are read from the end of the initcode using CODECOPY.
     /// The args are ABI-encoded and appended after the deployment bytecode.
-    fn generate_deployment_prefix(
+    fn prepare_deployment_prefix(
         &mut self,
         module: &Module,
-        constructor_arg_offset: Option<usize>,
-        deploy_code_len: usize,
         runtime_len: usize,
         copy_base: u64,
         immutable_refs: &[ImmutableRef],
-    ) -> GeneratedCode {
+    ) -> PreparedDeploymentPrefix {
+        self.asm.clear();
+        let runtime_offset = self.asm.new_deferred_const();
+
         // Find constructor function if it exists
         let constructor =
             module.functions.iter_enumerated().find(|(_, f)| f.attributes.is_constructor);
 
-        if let Some((ctor_id, ctor)) = constructor {
+        let constructor_arg_offset = if let Some((ctor_id, ctor)) = constructor {
             // Generate constructor bytecode
-            self.asm.clear();
-
             // Clear state and generate function body
             self.block_labels.clear();
             self.block_copies.clear();
@@ -985,6 +968,8 @@ impl EvmCodegen {
             // patch it upward after emission if the lazily allocated spill area
             // needs more room.
             let constructor_free_memory_start = self.asm.new_deferred_const();
+            let constructor_arg_offset =
+                (!ctor.params.is_empty()).then(|| self.asm.new_deferred_const());
             self.asm.emit_push_deferred(constructor_free_memory_start);
             self.asm.emit_push(U256::from(0x40));
             self.asm.emit_op(op::MSTORE);
@@ -996,12 +981,11 @@ impl EvmCodegen {
             // If constructor has parameters, copy the full ABI-encoded argument blob to memory.
             // Constructor args are appended after generated deployment bytecode, so the copy size
             // is `CODESIZE - constructor_arg_offset`.
-            if !ctor.params.is_empty() {
-                let arg_offset = constructor_arg_offset.unwrap_or(0);
-                self.asm.emit_push(U256::from(arg_offset));
+            if let Some(arg_offset) = constructor_arg_offset {
+                self.asm.emit_push_deferred(arg_offset);
                 self.asm.emit_op(op::CODESIZE);
                 self.asm.emit_op(op::SUB); // size = CODESIZE - arg_offset
-                self.asm.emit_push(U256::from(arg_offset)); // code offset
+                self.asm.emit_push_deferred(arg_offset); // code offset
                 self.asm.emit_push(U256::from(0x80)); // destOffset in memory
                 self.asm.emit_op(op::CODECOPY);
             }
@@ -1047,12 +1031,32 @@ impl EvmCodegen {
             self.constructor_param_count = 0;
 
             self.asm.define_label(constructor_exit);
-            self.emit_deployment_postlude(deploy_code_len, runtime_len, copy_base, immutable_refs);
-            let result = self.asm.assemble();
-            GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir }
+            constructor_arg_offset
         } else {
-            self.build_deployment_postlude(deploy_code_len, runtime_len, copy_base, immutable_refs)
+            None
+        };
+
+        self.emit_deployment_postlude(runtime_offset, runtime_len, copy_base, immutable_refs);
+        PreparedDeploymentPrefix {
+            assembly: self.asm.prepare(),
+            constructor_arg_offset,
+            runtime_offset,
         }
+    }
+
+    fn assemble_deployment_prefix(
+        &mut self,
+        prepared: &PreparedDeploymentPrefix,
+        constructor_arg_offset: usize,
+        runtime_offset: usize,
+    ) -> GeneratedCode {
+        let mut deferred_values = Vec::with_capacity(2);
+        if let Some(id) = prepared.constructor_arg_offset {
+            deferred_values.push((id, U256::from(constructor_arg_offset)));
+        }
+        deferred_values.push((prepared.runtime_offset, U256::from(runtime_offset)));
+        let result = self.asm.assemble_prepared(&prepared.assembly, &deferred_values);
+        GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir }
     }
 
     /// Runs the canonical MIR optimization pipeline on the module.
@@ -1117,9 +1121,7 @@ impl EvmCodegen {
             }
         }
 
-        self.asm.set_structural_outlining(true);
         let result = self.asm.assemble();
-        self.asm.set_structural_outlining(false);
         self.runtime_immutable_refs = result.immutable_refs;
         GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir }
     }
@@ -1523,8 +1525,6 @@ impl EvmCodegen {
     }
 
     fn rejects_callvalue(func: &Function) -> bool {
-        use solar_sema::hir::StateMutability;
-
         matches!(
             func.attributes.state_mutability,
             StateMutability::NonPayable | StateMutability::View | StateMutability::Pure
@@ -5058,11 +5058,69 @@ impl crate::backend::Backend for EvmCodegen {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{lower, mir::FunctionBuilder};
+    use crate::{backend::evm::test_utils::disassemble, lower, mir::FunctionBuilder};
+    use snapbox::assert_data_eq;
     use solar_config::{CompileOpts, UnstableOpts};
-    use solar_interface::{Ident, Session, sym};
+    use solar_interface::{Ident, Session, kw, sym};
     use solar_sema::Compiler;
     use std::{ops::ControlFlow, path::PathBuf};
+
+    #[test]
+    fn constructor_success_jumps_to_deployment_postlude() {
+        let mut module = Module::new(Ident::with_dummy_span(sym::Test));
+        let mut constructor = Function::new(Ident::with_dummy_span(kw::Constructor));
+        constructor.attributes.is_constructor = true;
+        {
+            let mut builder = FunctionBuilder::new(&mut constructor);
+            let condition = builder.imm_u64(1);
+            let revert = builder.create_block();
+            let success = builder.create_block();
+            builder.branch(condition, revert, success);
+
+            builder.switch_to_block(revert);
+            let zero = builder.imm_u64(0);
+            builder.revert(zero, zero);
+
+            builder.switch_to_block(success);
+            builder.stop();
+        }
+        module.add_function(constructor);
+
+        let mut codegen = EvmCodegen::new(EvmCodegenConfig::default());
+        let prepared = codegen.prepare_deployment_prefix(&module, 0, 0, &[]);
+        let mut deploy_code_len = 0;
+        let deployment = loop {
+            let code = codegen.assemble_deployment_prefix(&prepared, 0, deploy_code_len);
+            if code.bytecode.len() == deploy_code_len {
+                break code;
+            }
+            deploy_code_len = code.bytecode.len();
+        };
+
+        assert_data_eq!(
+            disassemble(&deployment.bytecode),
+            snapbox::str![[r#"
+PUSH2 0x4000
+PUSH1 0x40
+MSTORE
+PUSH1 0x01
+PUSH1 0x13
+JUMPI
+PUSH0
+DUP1
+PUSH1 0x17
+PUSH0
+CODECOPY
+PUSH0
+RETURN
+JUMPDEST
+PUSH0
+DUP1
+REVERT
+
+"#]]
+        );
+    }
 
     #[test]
     fn cold_forwarder_selects_hot_fallthrough() {
@@ -5283,15 +5341,15 @@ mod tests {
         assert!(!bytecode.is_empty(), "Bytecode should not be empty");
     }
 
-    /// Differential check for the experimental EVM IR `StackSchedule` bridge
-    /// flag: for each sample contract, compiling with `evm_ir_stack_schedule`
+    /// Differential check for the experimental EVM IR `StackSchedule` flag:
+    /// for each sample contract, compiling with `evm_ir_stack_schedule`
     /// OFF (the default) and ON must produce byte-for-byte identical runtime
-    /// bytecode. The bridge feeds the scheduler operand-cleared IR, where the
-    /// pass is a verified near no-op, and `optimize_with_evm_ir` additionally
-    /// guards the scheduled module behind the verifier oracle and a code-equality
-    /// check — so turning the flag on can never diverge or produce invalid code.
+    /// bytecode. The scheduler receives operand-cleared IR, where the pass is a
+    /// verified near no-op, and assembly guards the scheduled module behind the
+    /// verifier oracle and a code-equality check — so turning the flag on can
+    /// never diverge or produce invalid code.
     #[test]
-    fn stack_schedule_bridge_flag_is_bytecode_neutral() {
+    fn stack_schedule_flag_is_bytecode_neutral() {
         let samples = [
             // Simple storage read + conditional store.
             r#"
@@ -5341,10 +5399,7 @@ mod tests {
             let off = off.expect("baseline compilation should succeed");
             let on = on.expect("stack-schedule compilation should succeed");
             assert!(!off.is_empty(), "baseline bytecode should not be empty");
-            assert_eq!(
-                off, on,
-                "enabling evm_ir_stack_schedule changed produced bytecode for sample:\n{source}"
-            );
+            assert_data_eq!(disassemble(&off), disassemble(&on));
         }
     }
 

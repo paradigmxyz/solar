@@ -3,6 +3,8 @@
 use super::*;
 use crate::backend::evm::assembler::op;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
+use solar_interface::{Symbol, sym};
+use solar_parse::lexer::{is_id_continue, is_id_start};
 use std::fmt as std_fmt;
 
 pub(super) fn parse(input: &str) -> Result<Module, ParseError> {
@@ -184,13 +186,13 @@ impl<'a> Parser<'a> {
         self.skip_inline();
         let start = self.pos;
         match self.peek_char() {
-            Some(c) if is_ident_start(c) => {
+            Some(c) if is_id_start(c) => {
                 self.advance();
             }
             _ => return Err(self.error("expected identifier")),
         }
         while let Some(c) = self.peek_char() {
-            if is_ident_continue(c) {
+            if is_id_continue(c) {
                 self.advance();
             } else {
                 break;
@@ -238,11 +240,11 @@ impl<'a> Parser<'a> {
             self.expect_keyword("evm")?;
             self.expect_keyword("module")?;
             self.expect_punct('@')?;
-            let name = self.parse_ident()?.to_string();
+            let name = Symbol::intern(self.parse_ident()?);
             self.skip_to_eol();
             name
         } else {
-            "module".to_string()
+            sym::module
         };
 
         let mut module = Module::new(name);
@@ -286,7 +288,14 @@ impl<'a> Parser<'a> {
                 if block_labels.contains_key(&header.label) {
                     return Err(self.error(format!("duplicate block `{}`", header.label)));
                 }
-                let block_id = module.add_block(Block::new(header.label.clone()));
+                let label = header
+                    .label
+                    .strip_prefix("bb")
+                    .and_then(|value| value.parse().ok())
+                    .ok_or_else(|| {
+                        self.error(format!("block label `{}` is out of range", header.label))
+                    })?;
+                let block_id = module.add_block(Block::new(label));
                 block_labels.insert(header.label, block_id);
                 self.skip_to_eol();
             } else {
@@ -388,7 +397,7 @@ impl<'a> Parser<'a> {
         let save_in = (self.pos, self.line, self.col);
         if self.try_punct('(') {
             self.skip_inline_whitespace();
-            let keyword = if matches!(self.peek_char(), Some(c) if is_ident_start(c)) {
+            let keyword = if matches!(self.peek_char(), Some(c) if is_id_start(c)) {
                 Some(self.parse_ident()?)
             } else {
                 None
@@ -455,7 +464,7 @@ impl<'a> Parser<'a> {
         self.skip_inline_whitespace();
         if module.blocks[block].terminator.is_some() {
             return Err(self.error(format!(
-                "instruction after terminator in block `{}`",
+                "instruction after terminator in block `bb{}`",
                 module.blocks[block].label
             )));
         }
@@ -481,10 +490,24 @@ impl<'a> Parser<'a> {
         let operands =
             self.parse_operand_list(module, block_labels, value_labels, defined_values)?;
         let metadata = self.parse_metadata()?;
-        let kind = StackOp::parse(&mnemonic)
-            .map(InstructionKind::Stack)
-            .unwrap_or(InstructionKind::Operation(mnemonic));
-        module.blocks[block].instructions.push(Instruction { result, kind, operands, metadata });
+        let (opcode, encoding) = match mnemonic.as_str() {
+            "push" => (op::PUSH32, Instruction::ENCODED_PUSH),
+            "push_deferred" => (op::PUSH32, Instruction::ENCODED_PUSH | Instruction::DEFERRED),
+            "push_immutable" => (op::PUSH32, Instruction::ENCODED_PUSH | Instruction::IMMUTABLE),
+            _ => (
+                op::from_ir_mnemonic(&mnemonic).ok_or_else(|| {
+                    self.error(format!("unknown instruction opcode `{mnemonic}`"))
+                })?,
+                0,
+            ),
+        };
+        module.blocks[block].instructions.push(Instruction {
+            result,
+            opcode,
+            encoding,
+            operands,
+            metadata,
+        });
         self.skip_to_eol();
         Ok(())
     }
@@ -516,21 +539,7 @@ impl<'a> Parser<'a> {
     fn parse_value_name(&mut self) -> Result<String, ParseError> {
         self.skip_inline();
         self.expect_punct('%')?;
-        let start = self.pos;
-        match self.peek_char() {
-            Some(c) if is_ident_start(c) || c.is_ascii_digit() => {
-                self.advance();
-            }
-            _ => return Err(self.error("expected value name")),
-        }
-        while let Some(c) = self.peek_char() {
-            if is_ident_continue(c) {
-                self.advance();
-            } else {
-                break;
-            }
-        }
-        Ok(self.input[start..self.pos].to_string())
+        self.parse_ident().map(str::to_string)
     }
 
     fn parse_terminator_kind(
@@ -679,7 +688,7 @@ impl<'a> Parser<'a> {
         if self.peek_char() == Some('@') {
             self.advance();
             let symbol = self.parse_ident()?;
-            return Ok(Operand::Symbol(format!("@{symbol}")));
+            return Ok(Operand::Symbol(Symbol::intern(&format!("@{symbol}"))));
         }
         if self.input[self.pos..].starts_with("bb") {
             let save = (self.pos, self.line, self.col);
@@ -691,7 +700,8 @@ impl<'a> Parser<'a> {
             }
             self.restore(save);
         }
-        Ok(Operand::Symbol(self.parse_ident()?.to_string()))
+        let symbol = self.parse_ident()?;
+        Ok(Operand::Symbol(Symbol::intern(symbol)))
     }
 
     fn parse_block_ref(
@@ -728,9 +738,12 @@ impl<'a> Parser<'a> {
                 metadata.stack = Some(StackEffect::new(inputs, outputs));
             } else if self.try_punct('=') {
                 let value = self.parse_metadata_value()?;
-                metadata.attrs.push(MetadataItem { key, value: Some(value) });
+                metadata.attrs.push(MetadataItem {
+                    key: Symbol::intern(&key),
+                    value: Some(Symbol::intern(&value)),
+                });
             } else {
-                metadata.attrs.push(MetadataItem { key, value: None });
+                metadata.attrs.push(MetadataItem { key: Symbol::intern(&key), value: None });
             }
 
             if self.try_punct(',') {
@@ -776,7 +789,7 @@ fn value_id(
     if let Some(value) = value_labels.get(name).copied() {
         return value;
     }
-    let value = module.add_value(name.to_string());
+    let value = module.add_value(Symbol::intern(name));
     value_labels.insert(name.to_string(), value);
     value
 }
@@ -803,30 +816,32 @@ mod tests {
 
     #[test]
     fn round_trip_all_evm_ir_fixtures() {
-        let dir = evm_ir_fixture_dir();
-        assert!(dir.exists(), "EVM IR fixture dir not found: {}", dir.display());
+        solar_interface::enter(|| {
+            let dir = evm_ir_fixture_dir();
+            assert!(dir.exists(), "EVM IR fixture dir not found: {}", dir.display());
 
-        let mut failures = Vec::new();
-        let mut count = 0usize;
-        for entry in std::fs::read_dir(&dir).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().and_then(|s| s.to_str()) != Some("evmir") {
-                continue;
+            let mut failures = Vec::new();
+            let mut count = 0usize;
+            for entry in std::fs::read_dir(&dir).unwrap() {
+                let path = entry.unwrap().path();
+                if path.extension().and_then(|s| s.to_str()) != Some("evmir") {
+                    continue;
+                }
+                count += 1;
+                if let Err(err) = round_trip_fixture(&path) {
+                    let name = path.file_name().unwrap().to_string_lossy();
+                    failures.push(format!("{name}: {err}"));
+                }
             }
-            count += 1;
-            if let Err(err) = round_trip_fixture(&path) {
-                let name = path.file_name().unwrap().to_string_lossy();
-                failures.push(format!("{name}: {err}"));
-            }
-        }
 
-        assert!(count > 0, "no .evmir fixtures found in {}", dir.display());
-        assert!(
-            failures.is_empty(),
-            "{} EVM IR round-trip failure(s):\n  {}",
-            failures.len(),
-            failures.join("\n  ")
-        );
+            assert!(count > 0, "no .evmir fixtures found in {}", dir.display());
+            assert!(
+                failures.is_empty(),
+                "{} EVM IR round-trip failure(s):\n  {}",
+                failures.len(),
+                failures.join("\n  ")
+            );
+        });
     }
 
     #[test]
@@ -840,15 +855,32 @@ fn @f {
     invalid
 }
 ";
-        assert_data_eq!(
-            parse_module(input).unwrap_err().to_string(),
-            str![[r#"
+        solar_interface::enter(|| {
+            assert_data_eq!(
+                parse_module(input).unwrap_err().to_string(),
+                str![[r#"
 EVM IR parse error at line 6, col 5: instruction after terminator in block `bb0`
    |
   6 |     invalid
    |     ^
 "#]]
-        );
+            );
+        });
+    }
+
+    #[test]
+    fn parser_rejects_overflowing_block_label() {
+        solar_interface::enter(|| {
+            assert_data_eq!(
+                parse_module("bb4294967296:\n  stop\n").unwrap_err().to_string(),
+                str![[r#"
+EVM IR parse error at line 1, col 14: block label `bb4294967296` is out of range
+   |
+  1 | bb4294967296:
+   |              ^
+"#]]
+            );
+        });
     }
 
     fn round_trip_fixture(path: &Path) -> Result<(), String> {

@@ -1,12 +1,16 @@
 //! EVM IR verifier.
 
 use super::*;
+use crate::backend::evm::assembler::op;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::IndexVec,
     map::FxHashSet,
 };
-use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
+use solar_interface::{
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    kw, sym,
+};
 use std::fmt;
 
 /// Stateful EVM IR verifier.
@@ -35,7 +39,7 @@ impl<'a> Verifier<'a> {
     /// Verifies basic EVM IR invariants.
     pub fn verify_module(&self, module: &Module) {
         let errors_before = self.dcx.err_count();
-        if !is_valid_ident(&module.name) {
+        if !solar_parse::lexer::is_ident(module.name.as_str()) {
             self.error(format_args!("invalid program name `{}`", module.name));
         }
         if module.blocks.is_empty() {
@@ -56,16 +60,10 @@ impl<'a> Verifier<'a> {
 
         let mut labels = FxHashSet::default();
         for (block_id, block) in module.blocks.iter_enumerated() {
-            if !is_valid_block_label(&block.label) {
+            if !labels.insert(block.label) {
                 self.error_in_block(
                     block_id,
-                    format_args!("invalid block label `{}`", block.label),
-                );
-            }
-            if !labels.insert(block.label.as_str()) {
-                self.error_in_block(
-                    block_id,
-                    format_args!("duplicate block label `{}`", block.label),
+                    format_args!("duplicate block label `bb{}`", block.label),
                 );
             }
             if block.terminator.is_none() {
@@ -75,10 +73,10 @@ impl<'a> Verifier<'a> {
 
         let mut value_names = FxHashSet::default();
         for (_, value) in module.values.iter_enumerated() {
-            if !is_valid_value_name(&value.name) {
+            if !solar_parse::lexer::is_ident(value.name.as_str()) {
                 self.error(format_args!("invalid value name `%{}`", value.name));
             }
-            if !value_names.insert(value.name.as_str()) {
+            if !value_names.insert(value.name) {
                 self.error(format_args!("duplicate value name `%{}`", value.name));
             }
         }
@@ -115,6 +113,7 @@ impl<'a> Verifier<'a> {
                 Ok::<(), ()>(())
             })
             .unwrap();
+            self.verify_metadata_is_untyped(block_id, &term.metadata);
             visit_terminator_targets(&term.kind, |target| {
                 if !self.block_exists(module, target) {
                     self.error_in_block(
@@ -125,7 +124,6 @@ impl<'a> Verifier<'a> {
                 Ok::<(), ()>(())
             })
             .unwrap();
-            self.verify_metadata_is_untyped(block_id, &term.metadata);
         }
 
         for (block_id, block) in module.blocks.iter_enumerated() {
@@ -277,7 +275,7 @@ impl Verifier<'_> {
                         format_args!(
                             "stack on edge to `{}` is inconsistent: successor declares incoming \
                                              stack [{}] but predecessor leaves [{}]",
-                            module.blocks[succ].label,
+                            format_args!("bb{}", module.blocks[succ].label),
                             self.format_entry_stack(module, &module.blocks[succ].entry_stack),
                             self.format_abstract_stack(module, exit),
                         ),
@@ -320,45 +318,42 @@ impl Verifier<'_> {
         inst: &Instruction,
         stack: &mut ModelStack,
     ) -> Result<(), ErrorGuaranteed> {
-        match &inst.kind {
-            InstructionKind::Stack(op) => self.apply_physical_stack_op(block_id, *op, stack),
-            InstructionKind::Operation(_) if is_encoded_push_instruction(inst) => {
-                // An encoded `push` adds one word: its SSA result if it has one,
-                // otherwise an anonymous immediate word.
+        if inst.is_physical_stack_op() {
+            self.apply_physical_stack_op(block_id, inst.opcode, stack)
+        } else if inst.is_encoded_push() {
+            // An encoded `push` adds one word: its SSA result if it has one,
+            // otherwise an anonymous immediate word.
+            stack.push(self.result_word(inst));
+            Ok(())
+        } else if !inst.operands.is_empty() {
+            // Unscheduled op: its value operands are still present, so they must
+            // be live on the model stack. They are not consumed (the operands
+            // sit on the stack until scheduling clears them); the result, if
+            // any, is pushed on top.
+            for operand in &inst.operands {
+                if let Operand::Value(value) = operand
+                    && !stack.contains(AbstractWord::Value(*value))
+                {
+                    return Err(self.error_in_block(
+                        block_id,
+                        format_args!(
+                            "operand `%{}` of `{}` is not live on the stack",
+                            module.value(*value).name,
+                            inst.mnemonic()
+                        ),
+                    ));
+                }
+            }
+            if inst.result.is_some() {
                 stack.push(self.result_word(inst));
-                Ok(())
             }
-            InstructionKind::Operation(_) if !inst.operands.is_empty() => {
-                // Unscheduled op: its value operands are still present, so they must
-                // be live on the model stack. They are not consumed (the operands
-                // sit on the stack until scheduling clears them); the result, if
-                // any, is pushed on top.
-                for operand in &inst.operands {
-                    if let Operand::Value(value) = operand
-                        && !stack.contains(AbstractWord::Value(*value))
-                    {
-                        return Err(self.error_in_block(
-                            block_id,
-                            format_args!(
-                                "operand `%{}` of `{}` is not live on the stack",
-                                module.value(*value).name,
-                                inst.mnemonic()
-                            ),
-                        ));
-                    }
-                }
-                if inst.result.is_some() {
-                    stack.push(self.result_word(inst));
-                }
-                Ok(())
-            }
-            InstructionKind::Operation(_) => {
-                // Scheduled op: operands cleared. Pop its declared inputs and push
-                // its outputs.
-                let effect =
-                    inst.metadata.stack.unwrap_or_else(|| default_instruction_stack_effect(inst));
-                self.apply_effect(block_id, inst, effect, stack)
-            }
+            Ok(())
+        } else {
+            // Scheduled op: operands cleared. Pop its declared inputs and push
+            // its outputs.
+            let effect =
+                inst.metadata.stack.unwrap_or_else(|| default_instruction_stack_effect(inst));
+            self.apply_effect(block_id, inst, effect, stack)
         }
     }
 
@@ -392,11 +387,12 @@ impl Verifier<'_> {
     fn apply_physical_stack_op(
         &self,
         block_id: BlockId,
-        op: StackOp,
+        opcode: u8,
         stack: &mut ModelStack,
     ) -> Result<(), ErrorGuaranteed> {
-        match op {
-            StackOp::Dup(n) => {
+        match opcode {
+            op::DUP1..=op::DUP16 => {
+                let n = opcode - op::DUP1 + 1;
                 let depth = usize::from(n);
                 if !stack.ensure_depth(depth) {
                     return Err(self.error_in_block(
@@ -410,7 +406,8 @@ impl Verifier<'_> {
                 let word = stack.words[depth - 1];
                 stack.push(word);
             }
-            StackOp::Swap(n) => {
+            op::SWAP1..=op::SWAP16 => {
+                let n = opcode - op::SWAP1 + 1;
                 let depth = usize::from(n);
                 if !stack.ensure_depth(depth + 1) {
                     return Err(self.error_in_block(
@@ -423,12 +420,13 @@ impl Verifier<'_> {
                 }
                 stack.words.swap(0, depth);
             }
-            StackOp::Pop => {
+            op::POP => {
                 if !stack.ensure_depth(1) {
                     return Err(self.error_in_block(block_id, "`pop` on an empty stack"));
                 }
                 stack.words.remove(0);
             }
+            _ => unreachable!("checked physical stack opcode"),
         }
         Ok(())
     }
@@ -574,21 +572,21 @@ impl Verifier<'_> {
     }
 
     fn verify_instruction_shape(&self, block_id: BlockId, inst: &Instruction) {
-        if let InstructionKind::Stack(op) = &inst.kind {
-            let expected = op.stack_effect();
+        if inst.is_physical_stack_op() {
+            let expected = default_instruction_stack_effect(inst);
             if inst.result.is_some() {
                 self.error_in_block(
                     block_id,
                     format_args!(
                         "physical stack op `{}` cannot define an SSA value",
-                        op.mnemonic()
+                        inst.mnemonic()
                     ),
                 );
             }
             if !inst.operands.is_empty() {
                 self.error_in_block(
                     block_id,
-                    format_args!("physical stack op `{}` cannot have operands", op.mnemonic()),
+                    format_args!("physical stack op `{}` cannot have operands", inst.mnemonic()),
                 );
             }
             if let Some(effect) = inst.metadata.stack
@@ -598,7 +596,7 @@ impl Verifier<'_> {
                     block_id,
                     format_args!(
                         "physical stack op `{}` has stack effect {}->{}, expected {}->{}",
-                        op.mnemonic(),
+                        inst.mnemonic(),
                         effect.inputs,
                         effect.outputs,
                         expected.inputs,
@@ -606,7 +604,7 @@ impl Verifier<'_> {
                     ),
                 );
             }
-        } else if is_encoded_push_instruction(inst) {
+        } else if inst.is_encoded_push() {
             if inst.operands.len() != 1 {
                 self.error_in_block(
                     block_id,
@@ -621,11 +619,7 @@ impl Verifier<'_> {
         } else {
             if inst.operands.is_empty()
                 && inst.metadata.stack.is_none()
-                && matches!(
-                    &inst.kind,
-                    InstructionKind::Operation(mnemonic)
-                        if opcode_stack_effect(mnemonic).is_none()
-                )
+                && op::stack_io(inst.opcode).is_none()
             {
                 self.error_in_block(
                     block_id,
@@ -681,7 +675,7 @@ impl Verifier<'_> {
 
     fn verify_metadata_is_untyped(&self, block_id: BlockId, metadata: &Metadata) {
         for item in &metadata.attrs {
-            if matches!(item.key.as_str(), "type" | "ty" | "result_ty" | "mir_type") {
+            if matches!(item.key, kw::Type | sym::mir_type | sym::result_ty | sym::ty) {
                 self.error_in_block(
                     block_id,
                     format_args!("EVM IR is untyped; metadata key `{}` is not allowed", item.key),

@@ -10,6 +10,8 @@
 
 use alloy_primitives::U256;
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
+use solar_interface::Symbol;
+use solar_parse::lexer::is_ident;
 
 mod display;
 mod parse;
@@ -35,7 +37,7 @@ newtype_index! {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Module {
     /// Program name used by tools and diagnostics.
-    pub name: String,
+    pub name: Symbol,
     /// Basic blocks in layout order.
     pub blocks: IndexVec<BlockId, Block>,
     /// The entry block, if one has been created.
@@ -52,10 +54,21 @@ impl Module {
 
     /// Creates an empty EVM IR program.
     #[must_use]
-    pub fn new(name: impl Into<String>) -> Self {
-        let name = name.into();
-        assert!(is_valid_ident(&name), "invalid EVM IR program name `{name}`");
+    pub fn new(name: Symbol) -> Self {
+        assert!(is_ident(name.as_str()), "invalid EVM IR program name `{name}`");
         Self { name, blocks: IndexVec::new(), entry_block: None, values: IndexVec::new() }
+    }
+
+    /// Changes the program name.
+    pub fn set_name(&mut self, name: Symbol) {
+        assert!(is_ident(name.as_str()), "invalid EVM IR program name `{name}`");
+        self.name = name;
+    }
+
+    /// Returns the program name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        self.name.as_str()
     }
 
     /// Adds a block to the program.
@@ -68,9 +81,8 @@ impl Module {
     }
 
     /// Allocates a named untyped stack word.
-    pub fn add_value(&mut self, name: impl Into<String>) -> ValueId {
-        let name = name.into();
-        assert!(is_valid_value_name(&name), "invalid EVM IR value name `%{name}`");
+    pub fn add_value(&mut self, name: Symbol) -> ValueId {
+        assert!(is_ident(name.as_str()), "invalid EVM IR value name `%{name}`");
         self.values.push(Value { name })
     }
 
@@ -96,7 +108,7 @@ impl Module {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Block {
     /// Stable textual label for this block.
-    pub label: String,
+    pub label: u32,
     /// Block metadata. The hot/cold field is present before it is consumed by
     /// layout or scheduling so fixtures can pin the format early.
     pub metadata: BlockMetadata,
@@ -117,9 +129,7 @@ pub struct Block {
 impl Block {
     /// Creates an empty hot block.
     #[must_use]
-    pub fn new(label: impl Into<String>) -> Self {
-        let label = label.into();
-        assert!(is_valid_block_label(&label), "invalid EVM IR block label `{label}`");
+    pub fn new(label: u32) -> Self {
         Self {
             label,
             metadata: BlockMetadata::default(),
@@ -167,7 +177,7 @@ impl Hotness {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Value {
     /// Stable textual stack-word name, without the leading `%`.
-    pub name: String,
+    pub name: Symbol,
 }
 
 /// A non-terminating untyped backend instruction.
@@ -175,8 +185,10 @@ pub struct Value {
 pub struct Instruction {
     /// Optional stack word produced by this instruction.
     pub result: Option<ValueId>,
-    /// EVM opcode, backend pseudo-op, or physical stack operation.
-    pub kind: InstructionKind,
+    /// Raw EVM opcode byte.
+    pub opcode: u8,
+    /// Internal encoding flags for instructions resolved during assembly.
+    encoding: u8,
     /// Instruction operands.
     pub operands: Vec<Operand>,
     /// Instruction metadata.
@@ -184,110 +196,87 @@ pub struct Instruction {
 }
 
 impl Instruction {
-    /// Creates an instruction.
+    const ENCODED_PUSH: u8 = 1;
+    const DEFERRED: u8 = 2;
+    const IMMUTABLE: u8 = 4;
+
+    /// Creates an instruction for an EVM opcode.
     #[must_use]
-    pub fn new(mnemonic: impl Into<String>, operands: Vec<Operand>) -> Self {
-        Self {
-            result: None,
-            kind: InstructionKind::Operation(mnemonic.into()),
-            operands,
-            metadata: Metadata::default(),
-        }
+    pub const fn opcode(opcode: u8) -> Self {
+        Self { result: None, opcode, encoding: 0, operands: Vec::new(), metadata: Metadata::EMPTY }
     }
 
-    /// Creates a physical stack operation.
+    /// Creates an encoded push instruction.
     #[must_use]
-    pub fn stack_op(op: StackOp) -> Self {
+    pub fn push(operand: Operand) -> Self {
+        Self::encoded_push(operand, Self::ENCODED_PUSH)
+    }
+
+    /// Creates an encoded deferred push instruction.
+    #[must_use]
+    pub fn push_deferred(operand: Operand) -> Self {
+        Self::encoded_push(operand, Self::ENCODED_PUSH | Self::DEFERRED)
+    }
+
+    /// Creates an encoded immutable push instruction.
+    #[must_use]
+    pub fn push_immutable(operand: Operand) -> Self {
+        Self::encoded_push(operand, Self::ENCODED_PUSH | Self::IMMUTABLE)
+    }
+
+    fn encoded_push(operand: Operand, encoding: u8) -> Self {
         Self {
             result: None,
-            kind: InstructionKind::Stack(op),
-            operands: Vec::new(),
-            metadata: Metadata::default(),
+            opcode: super::assembler::op::PUSH32,
+            encoding,
+            operands: vec![operand],
+            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), attrs: Vec::new() },
         }
     }
 
     /// Returns the instruction mnemonic as printed in EVM IR.
     #[must_use]
     pub fn mnemonic(&self) -> impl fmt::Display + '_ {
-        fmt::from_fn(move |f| match &self.kind {
-            InstructionKind::Operation(mnemonic) => write!(f, "{mnemonic}"),
-            InstructionKind::Stack(op) => write!(f, "{}", op.mnemonic()),
+        fmt::from_fn(move |f| match self.encoding {
+            Self::ENCODED_PUSH => f.write_str("push"),
+            encoding if encoding == Self::ENCODED_PUSH | Self::DEFERRED => {
+                f.write_str("push_deferred")
+            }
+            encoding if encoding == Self::ENCODED_PUSH | Self::IMMUTABLE => {
+                f.write_str("push_immutable")
+            }
+            _ => super::assembler::op::fmt(self.opcode, f),
         })
+    }
+
+    /// Returns whether this is an encoded push.
+    #[must_use]
+    pub const fn is_encoded_push(&self) -> bool {
+        self.encoding & Self::ENCODED_PUSH != 0
+    }
+
+    /// Returns whether this is a deferred push.
+    #[must_use]
+    pub const fn is_deferred_push(&self) -> bool {
+        self.encoding & Self::DEFERRED != 0
+    }
+
+    /// Returns whether this is an immutable push.
+    #[must_use]
+    pub const fn is_immutable_push(&self) -> bool {
+        self.encoding & Self::IMMUTABLE != 0
     }
 
     /// Returns whether this instruction materializes a physical EVM stack op.
     #[must_use]
     pub const fn is_physical_stack_op(&self) -> bool {
-        matches!(self.kind, InstructionKind::Stack(_))
-    }
-}
-
-/// A non-terminating EVM IR instruction kind.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum InstructionKind {
-    /// Untyped EVM opcode or backend pseudo-op mnemonic.
-    Operation(String),
-    /// Materialized physical EVM stack operation.
-    Stack(StackOp),
-}
-
-/// A materialized physical EVM stack operation.
-///
-/// These are modeled distinctly from generic operation mnemonics so stack
-/// scheduling can target EVM IR and later EVM IR passes can optimize the exact
-/// `DUP`/`SWAP`/`POP` sequence before final assembly.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum StackOp {
-    /// EVM `DUP1` through `DUP16`.
-    Dup(u8),
-    /// EVM `SWAP1` through `SWAP16`.
-    Swap(u8),
-    /// EVM `POP`.
-    Pop,
-}
-
-impl StackOp {
-    /// Creates a `DUP<N>` operation.
-    #[must_use]
-    pub const fn dup(n: u8) -> Option<Self> {
-        if n >= 1 && n <= 16 { Some(Self::Dup(n)) } else { None }
-    }
-
-    /// Creates a `SWAP<N>` operation.
-    #[must_use]
-    pub const fn swap(n: u8) -> Option<Self> {
-        if n >= 1 && n <= 16 { Some(Self::Swap(n)) } else { None }
-    }
-
-    /// Returns this operation's stack effect.
-    #[must_use]
-    pub const fn stack_effect(self) -> StackEffect {
-        match self {
-            Self::Dup(_) => StackEffect::new(0, 1),
-            Self::Swap(_) => StackEffect::new(0, 0),
-            Self::Pop => StackEffect::new(1, 0),
-        }
-    }
-
-    fn parse(mnemonic: &str) -> Option<Self> {
-        if mnemonic == "pop" {
-            return Some(Self::Pop);
-        }
-        if let Some(n) = mnemonic.strip_prefix("dup").and_then(|s| s.parse::<u8>().ok()) {
-            return Self::dup(n);
-        }
-        if let Some(n) = mnemonic.strip_prefix("swap").and_then(|s| s.parse::<u8>().ok()) {
-            return Self::swap(n);
-        }
-        None
-    }
-
-    fn mnemonic(self) -> impl fmt::Display {
-        fmt::from_fn(move |f| match self {
-            Self::Dup(n) => write!(f, "dup{n}"),
-            Self::Swap(n) => write!(f, "swap{n}"),
-            Self::Pop => write!(f, "pop"),
-        })
+        !self.is_encoded_push()
+            && matches!(
+                self.opcode,
+                super::assembler::op::POP
+                    | super::assembler::op::DUP1..=super::assembler::op::DUP16
+                    | super::assembler::op::SWAP1..=super::assembler::op::SWAP16
+            )
     }
 }
 
@@ -368,7 +357,7 @@ pub enum Operand {
     /// Basic block reference.
     Block(BlockId),
     /// Opaque backend symbol, such as a helper, data object, or future label kind.
-    Symbol(String),
+    Symbol(Symbol),
 }
 
 /// Generic metadata carried by instructions and terminators.
@@ -395,9 +384,9 @@ impl Metadata {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MetadataItem {
     /// Metadata key.
-    pub key: String,
+    pub key: Symbol,
     /// Metadata value, if the field is not a marker.
-    pub value: Option<String>,
+    pub value: Option<Symbol>,
 }
 
 /// Stack effect metadata for one EVM IR operation.
@@ -418,28 +407,16 @@ impl StackEffect {
 }
 
 pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> StackEffect {
-    match &inst.kind {
-        InstructionKind::Stack(op) => op.stack_effect(),
-        InstructionKind::Operation(_) if is_encoded_push_instruction(inst) => {
-            StackEffect::new(0, 1)
-        }
-        InstructionKind::Operation(mnemonic) => {
-            if let Some(effect) = opcode_stack_effect(mnemonic) {
-                effect
-            } else {
-                StackEffect::new(
-                    inst.operands.len().try_into().unwrap_or(u16::MAX),
-                    u16::from(inst.result.is_some()),
-                )
-            }
-        }
+    if inst.is_encoded_push() {
+        StackEffect::new(0, 1)
+    } else if let Some((inputs, outputs)) = super::assembler::op::stack_io(inst.opcode) {
+        StackEffect::new(inputs, outputs)
+    } else {
+        StackEffect::new(
+            inst.operands.len().try_into().unwrap_or(u16::MAX),
+            u16::from(inst.result.is_some()),
+        )
     }
-}
-
-fn opcode_stack_effect(mnemonic: &str) -> Option<StackEffect> {
-    let opcode = super::assembler::op::from_mnemonic(mnemonic)?;
-    let (inputs, outputs) = super::assembler::op::stack_io(opcode)?;
-    Some(StackEffect::new(inputs, outputs))
 }
 
 fn default_terminator_stack_effect(kind: &TerminatorKind) -> StackEffect {
@@ -455,38 +432,4 @@ fn default_terminator_stack_effect(kind: &TerminatorKind) -> StackEffect {
             .map(|(inputs, outputs)| StackEffect::new(inputs, outputs))
             .unwrap_or_else(|| StackEffect::new(0, 0)),
     }
-}
-
-pub(super) fn is_encoded_push_instruction(inst: &Instruction) -> bool {
-    matches!(
-        &inst.kind,
-        InstructionKind::Operation(mnemonic)
-            if matches!(mnemonic.as_str(), "push" | "push_deferred" | "push_immutable")
-    )
-}
-
-fn is_ident_start(c: char) -> bool {
-    c.is_ascii_alphabetic() || c == '_' || c == '$' || c == '.'
-}
-
-fn is_ident_continue(c: char) -> bool {
-    is_ident_start(c) || c.is_ascii_digit()
-}
-
-fn is_valid_ident(name: &str) -> bool {
-    let mut chars = name.chars();
-    matches!(chars.next(), Some(c) if is_ident_start(c)) && chars.all(is_ident_continue)
-}
-
-fn is_valid_value_name(name: &str) -> bool {
-    let mut chars = name.chars();
-    matches!(chars.next(), Some(c) if is_ident_start(c) || c.is_ascii_digit())
-        && chars.all(is_ident_continue)
-}
-
-fn is_valid_block_label(label: &str) -> bool {
-    let Some(digits) = label.strip_prefix("bb") else {
-        return false;
-    };
-    !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
 }
