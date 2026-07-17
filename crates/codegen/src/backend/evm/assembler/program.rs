@@ -139,8 +139,7 @@ impl StructuredAsmProgram {
         // Low-level assembler users may provide fragments whose stack inputs
         // come from outside the program. Preserve the verifier invariant only
         // for complete modules that satisfy it before this bridge.
-        #[cfg(debug_assertions)]
-        let input_is_valid = is_valid_evm_ir(&module);
+        let input_is_valid = cfg!(debug_assertions) && is_valid_evm_ir(&module);
         let mut changed = 0;
         let pass_options = ir::PassOptions { time_passes: context.time_passes() };
 
