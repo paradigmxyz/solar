@@ -188,22 +188,8 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         }
         let mut hotness = Hotness::Hot;
         if self.parser.eat(TokenKind::OpenDelim(Delimiter::Bracket)) {
-            let key = self.parse_symbol()?;
-            if key == sym::cold {
-                hotness = Hotness::Cold;
-            } else if key == sym::hot {
-                hotness = Hotness::Hot;
-            } else if key == sym::hotness {
-                self.parser.expect(TokenKind::Eq)?;
-                let value = self.parse_symbol()?;
-                hotness = match value {
-                    sym::cold => Hotness::Cold,
-                    sym::hot => Hotness::Hot,
-                    _ => return Err(self.error(format!("unknown block hotness `{value}`"))),
-                };
-            } else {
-                return Err(self.error(format!("unknown block metadata `{key}`")));
-            }
+            self.expect_keyword(sym::cold)?;
+            hotness = Hotness::Cold;
             self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
         }
 
@@ -747,6 +733,30 @@ error: unknown block `bb9`
   │
 4 │   jump bb9
   ╰╴       ━━━
+
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn parser_rejects_hotness_block_metadata() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.dcx.set_flags(|flags| flags.track_diagnostics = false);
+        let input = "@module m\n\nbb0 (entry) [hotness=cold]:\n  stop\n";
+        let source = sess
+            .source_map()
+            .new_source_file(FileName::Custom("hotness.evmir".into()), input)
+            .unwrap();
+        sess.enter(|| assert!(Module::parse(&sess, &source).is_err()));
+        assert_data_eq!(
+            sess.emitted_diagnostics().unwrap().to_string(),
+            str![[r#"
+error: expected `cold`
+  ╭▸ <hotness.evmir>:3:14
+  │
+3 │ bb0 (entry) [hotness=cold]:
+  ╰╴             ━━━━━━━
 
 
 "#]]

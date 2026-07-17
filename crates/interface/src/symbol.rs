@@ -1005,8 +1005,6 @@ symbols! {
         global,
         heap,
         hir,
-        hot,
-        hotness,
         interfaceId,
         internal_call,
         internal_frame,
