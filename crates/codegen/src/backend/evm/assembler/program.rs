@@ -287,6 +287,21 @@ impl StructuredAsmProgram {
         labels: &mut Vec<Option<Label>>,
         assembler: &mut Assembler,
     ) -> Self {
+        for block in &module.blocks {
+            for inst in &block.instructions {
+                for operand in &inst.operands {
+                    if let ir::Operand::Block(target) = operand {
+                        label_for_block(module, *target, labels, assembler);
+                    }
+                }
+            }
+            if let Some(ir::Terminator { kind: ir::TerminatorKind::Jump(target), .. }) =
+                &block.terminator
+            {
+                label_for_block(module, *target, labels, assembler);
+            }
+        }
+
         let mut program = Self::default();
         for (block_id, block) in module.blocks.iter_enumerated() {
             let original = block.label as usize;
@@ -372,9 +387,13 @@ impl StructuredAsmProgram {
                 program.push(AsmInst::op(op::JUMP));
             }
             ir::TerminatorKind::RawOpcode(opcode) => program.push(AsmInst::op(*opcode)),
-            // Falling off the end of bytecode is an implicit stop, so the
-            // bridge's synthetic final `Stop` does not need an opcode.
-            ir::TerminatorKind::Stop => {}
+            ir::TerminatorKind::Stop => {
+                // Falling off the end of bytecode is an implicit stop, so the
+                // bridge's synthetic final `Stop` does not need an opcode.
+                if next_block(module, block_id).is_some() {
+                    program.push(AsmInst::op(op::STOP));
+                }
+            }
             ir::TerminatorKind::Invalid => program.push(AsmInst::op(op::INVALID)),
             ir::TerminatorKind::Return { .. }
             | ir::TerminatorKind::Revert { .. }

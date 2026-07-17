@@ -288,7 +288,14 @@ impl<'a> Parser<'a> {
                 if block_labels.contains_key(&header.label) {
                     return Err(self.error(format!("duplicate block `{}`", header.label)));
                 }
-                let block_id = module.add_block(Block::new(block_label_index(&header.label)));
+                let label = header
+                    .label
+                    .strip_prefix("bb")
+                    .and_then(|value| value.parse().ok())
+                    .ok_or_else(|| {
+                        self.error(format!("block label `{}` is out of range", header.label))
+                    })?;
+                let block_id = module.add_block(Block::new(label));
                 block_labels.insert(header.label, block_id);
                 self.skip_to_eol();
             } else {
@@ -787,10 +794,6 @@ fn value_id(
     value
 }
 
-fn block_label_index(label: &str) -> u32 {
-    label.strip_prefix("bb").and_then(|value| value.parse().ok()).expect("parsed block label")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -860,6 +863,21 @@ EVM IR parse error at line 6, col 5: instruction after terminator in block `bb0`
    |
   6 |     invalid
    |     ^
+"#]]
+            );
+        });
+    }
+
+    #[test]
+    fn parser_rejects_overflowing_block_label() {
+        solar_interface::enter(|| {
+            assert_data_eq!(
+                parse_module("bb4294967296:\n  stop\n").unwrap_err().to_string(),
+                str![[r#"
+EVM IR parse error at line 1, col 14: block label `bb4294967296` is out of range
+   |
+  1 | bb4294967296:
+   |              ^
 "#]]
             );
         });

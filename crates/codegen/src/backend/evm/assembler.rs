@@ -1965,6 +1965,75 @@ REVERT
     }
 
     #[test]
+    fn block_layout_materializes_moved_implicit_stop() {
+        let mut asm = Assembler::new();
+        let cold = asm.new_label();
+        let eof = asm.new_label();
+
+        asm.emit_push(U256::ONE);
+        asm.emit_push_label(cold);
+        asm.emit_op(op::JUMPI);
+        asm.emit_push_label(eof);
+        asm.emit_op(op::JUMP);
+        asm.mark_label_cold(cold);
+        asm.define_label(cold);
+        asm.emit_push(U256::ZERO);
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(op::REVERT);
+        asm.define_label(eof);
+
+        let result = asm.assemble();
+
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x01
+PUSH1 0x06
+JUMPI
+STOP
+JUMPDEST
+PUSH0
+PUSH0
+REVERT
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn terminal_dedup_labels_prior_unlabeled_target() {
+        let mut asm = Assembler::new();
+        let duplicate = asm.new_label();
+
+        for copy in 0..2 {
+            if copy == 1 {
+                asm.define_label(duplicate);
+            }
+            asm.emit_push(U256::from(0x1234));
+            asm.emit_push(U256::ZERO);
+            asm.emit_op(op::MSTORE);
+            asm.emit_push(U256::ZERO);
+            asm.emit_push(U256::ZERO);
+            asm.emit_op(op::REVERT);
+        }
+
+        let result = asm.assemble();
+
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH2 0x1234
+PUSH0
+MSTORE
+PUSH0
+PUSH0
+REVERT
+
+"#]]
+        );
+    }
+
+    #[test]
     fn block_layout_elides_jump_after_jumpi() {
         let mut asm = Assembler::new();
         let conditional = asm.new_label();

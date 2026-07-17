@@ -7,7 +7,10 @@ use solar_data_structures::{
     index::IndexVec,
     map::FxHashSet,
 };
-use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
+use solar_interface::{
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    kw, sym,
+};
 use std::fmt;
 
 /// Stateful EVM IR verifier.
@@ -101,6 +104,7 @@ impl<'a> Verifier<'a> {
                 for operand in &inst.operands {
                     self.verify_operand(block_id, module, operand);
                 }
+                self.verify_metadata_is_untyped(block_id, &inst.metadata);
             }
             let Some(term) = &block.terminator else { continue };
             self.verify_terminator_shape(block_id, &term.kind);
@@ -109,6 +113,7 @@ impl<'a> Verifier<'a> {
                 Ok::<(), ()>(())
             })
             .unwrap();
+            self.verify_metadata_is_untyped(block_id, &term.metadata);
             visit_terminator_targets(&term.kind, |target| {
                 if !self.block_exists(module, target) {
                     self.error_in_block(
@@ -665,6 +670,17 @@ impl Verifier<'_> {
     fn verify_stack_value_operand(&self, block_id: BlockId, operand: &Operand, what: &str) {
         if !matches!(operand, Operand::Value(_)) {
             self.error_in_block(block_id, format_args!("{what} must be a stack value"));
+        }
+    }
+
+    fn verify_metadata_is_untyped(&self, block_id: BlockId, metadata: &Metadata) {
+        for item in &metadata.attrs {
+            if matches!(item.key, kw::Type | sym::mir_type | sym::result_ty | sym::ty) {
+                self.error_in_block(
+                    block_id,
+                    format_args!("EVM IR is untyped; metadata key `{}` is not allowed", item.key),
+                );
+            }
         }
     }
 
