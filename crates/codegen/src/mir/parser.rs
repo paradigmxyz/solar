@@ -43,7 +43,7 @@ use solar_data_structures::map::FxHashMap;
 use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym,
 };
-use solar_parse::{PErr, PResult};
+use solar_parse::{Lexer, PErr, PResult};
 use solar_sema::hir;
 
 // =============================================================================
@@ -106,29 +106,57 @@ struct Parser<'sess, 'ast, 'src> {
     /// headers so `@name` call references resolve even when they point
     /// forward.
     function_names: Vec<String>,
+    function_blocks: Vec<Vec<u32>>,
+    function_cursor: usize,
+}
+
+#[derive(Clone, Copy)]
+struct BlockLabel {
+    id: BlockId,
+    defined: bool,
+    reference_span: Option<Span>,
 }
 
 impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     fn new(sess: &'sess Session, arena: &'ast Arena, source: &'src SourceFile) -> Self {
-        let mut parser = crate::ir_parse::Parser::new(sess, arena, source);
-        let start = parser.checkpoint();
+        let tokens = Lexer::from_source_file(sess, source).into_tokens();
         let mut function_names = Vec::new();
-        while !parser.is_eof() {
-            if parser.eat_keyword(sym::fn_) && parser.eat(TokenKind::At) {
-                let Some(symbol) = parser.parse_ident_opt() else { continue };
+        let significant =
+            tokens.iter().filter(|token| !token.is_comment_or_doc()).collect::<Vec<_>>();
+        let mut function_blocks = Vec::new();
+        let mut current_function = None;
+        let mut cursor = 0;
+        while cursor < significant.len() {
+            if cursor + 2 < significant.len()
+                && significant[cursor].is_keyword(sym::fn_)
+                && significant[cursor + 1].kind == TokenKind::At
+                && let TokenKind::Ident(symbol) = significant[cursor + 2].kind
+            {
                 let mut name = symbol.to_string();
-                while parser.eat(TokenKind::Dot) {
-                    let Some(segment) = parser.parse_ident_opt() else { break };
+                cursor += 3;
+                while cursor + 1 < significant.len()
+                    && significant[cursor].kind == TokenKind::Dot
+                    && let TokenKind::Ident(segment) = significant[cursor + 1].kind
+                {
                     name.push('.');
                     name.push_str(segment.as_str());
+                    cursor += 2;
                 }
                 function_names.push(name);
-            } else {
-                parser.bump();
+                function_blocks.push(Vec::new());
+                current_function = Some(function_blocks.len() - 1);
+                continue;
             }
+            if let Some(function) = current_function
+                && crate::ir_parse::token_starts_line(source, &significant, cursor)
+                && let Some(index) = block_header_index(&significant, cursor)
+            {
+                function_blocks[function].push(index);
+            }
+            cursor += 1;
         }
-        parser.restore(start);
-        Self { parser, function_names }
+        let parser = crate::ir_parse::Parser::from_tokens(sess, arena, source, tokens);
+        Self { parser, function_names, function_blocks, function_cursor: 0 }
     }
 
     // ----- low-level cursor primitives -----
@@ -274,44 +302,20 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         self.parse_function_attributes(&mut func)?;
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Brace))?;
 
-        // Two-pass: first scan for all `bbN:` headers to pre-allocate
-        // BlockIds (so jumps to later blocks resolve correctly).
-        let mut block_labels: FxHashMap<u32, BlockId> = FxHashMap::default();
-
-        let scan_start = self.parser.checkpoint();
-
-        // First pass: walk lines, find `bbN:` patterns.
-        let mut first_block: Option<u32> = None;
-        loop {
-            if self.is_eof() {
-                return Err(self.error("unterminated function body"));
-            }
-            if self.parser.check(TokenKind::CloseDelim(Delimiter::Brace)) {
-                break;
-            }
-            if let Some(idx) = self.try_parse_block_header()? {
-                if first_block.is_none() {
-                    first_block = Some(idx);
+        let mut block_labels = FxHashMap::default();
+        if let Some(blocks) = self.function_blocks.get(self.function_cursor) {
+            for &index in blocks {
+                if block_labels.contains_key(&index) {
+                    continue;
                 }
-                // Don't allocate the entry block again — Function::new
-                // already created bb0. We need to map any first-encountered
-                // bbN to the entry block's id.
-                if block_labels.is_empty() {
-                    block_labels.insert(idx, func.entry_block);
-                } else {
-                    let id = func.alloc_block();
-                    block_labels.insert(idx, id);
-                }
-                continue;
+                let id =
+                    if block_labels.is_empty() { func.entry_block } else { func.alloc_block() };
+                block_labels.insert(index, BlockLabel { id, defined: false, reference_span: None });
             }
-            self.parser.skip_current_line();
         }
-
-        self.parser.restore(scan_start);
-
-        // Second pass: parse blocks, instructions, and terminators.
-        let mut value_labels: FxHashMap<u32, ValueId> = FxHashMap::default();
-        let mut current_block: Option<BlockId> = None;
+        self.function_cursor += 1;
+        let mut value_labels = FxHashMap::default();
+        let mut current_block = None;
 
         loop {
             if self.is_eof() {
@@ -322,9 +326,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
             }
 
             if let Some(idx) = self.try_parse_block_header()? {
-                let bid = *block_labels
-                    .get(&idx)
-                    .ok_or_else(|| self.error(format!("unknown block bb{idx}")))?;
+                let bid = self.define_block(&mut func, &mut block_labels, idx)?;
                 current_block = Some(bid);
                 self.skip_to_eol();
                 continue;
@@ -337,39 +339,56 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                 &mut func,
                 block,
                 &mut arg_values,
-                &block_labels,
+                &mut block_labels,
                 &mut value_labels,
             )?;
         }
 
+        self.reject_unresolved_block_labels(&block_labels)?;
         self.reject_unresolved_value_labels(&func, &value_labels)?;
 
         Ok(func)
     }
 
     fn try_parse_block_header(&mut self) -> PResult<'sess, Option<u32>> {
-        let checkpoint = self.parser.checkpoint();
-        let Some(label) = self.parser.parse_ident_opt() else {
-            self.parser.restore(checkpoint);
-            return Ok(None);
-        };
+        let TokenKind::Ident(label) = self.parser.token().kind else { return Ok(None) };
         let Some(index) = label.as_str().strip_prefix("bb").filter(|s| !s.is_empty()) else {
-            self.parser.restore(checkpoint);
             return Ok(None);
         };
         let Ok(index) = index.parse() else {
-            self.parser.restore(checkpoint);
             return Ok(None);
         };
+        if !matches!(
+            self.parser.look_ahead(1).kind,
+            TokenKind::Colon | TokenKind::OpenDelim(Delimiter::Parenthesis)
+        ) {
+            return Ok(None);
+        }
+        self.parser.bump();
         if self.parser.eat(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
             self.expect_keyword(sym::entry)?;
             self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
         }
-        if !self.parser.eat(TokenKind::Colon) {
-            self.parser.restore(checkpoint);
-            return Ok(None);
-        }
+        self.parser.expect(TokenKind::Colon)?;
         Ok(Some(index))
+    }
+
+    fn define_block(
+        &self,
+        func: &mut Function,
+        block_labels: &mut FxHashMap<u32, BlockLabel>,
+        index: u32,
+    ) -> PResult<'sess, BlockId> {
+        if let Some(label) = block_labels.get_mut(&index) {
+            if label.defined {
+                return Err(self.error(format!("duplicate block `bb{index}`")));
+            }
+            label.defined = true;
+            return Ok(label.id);
+        }
+        let id = if block_labels.is_empty() { func.entry_block } else { func.alloc_block() };
+        block_labels.insert(index, BlockLabel { id, defined: true, reference_span: None });
+        Ok(id)
     }
 
     fn parse_function_attributes(&mut self, func: &mut Function) -> PResult<'sess, ()> {
@@ -533,10 +552,31 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         Ok(())
     }
 
+    fn reject_unresolved_block_labels(
+        &self,
+        block_labels: &FxHashMap<u32, BlockLabel>,
+    ) -> PResult<'sess, ()> {
+        let mut unresolved = block_labels
+            .iter()
+            .filter_map(|(&index, label)| (!label.defined).then_some((index, label.reference_span)))
+            .collect::<Vec<_>>();
+        unresolved.sort_unstable_by_key(|&(index, _)| index);
+        if let Some(&(index, span)) = unresolved.first() {
+            let message = format!("unknown block `bb{index}`");
+            return Err(match span {
+                Some(span) => self.parser.error_at(span, message),
+                None => self.error(message),
+            });
+        }
+        Ok(())
+    }
+
     fn parse_block_id(
         &mut self,
-        block_labels: &FxHashMap<u32, BlockId>,
+        func: &mut Function,
+        block_labels: &mut FxHashMap<u32, BlockLabel>,
     ) -> PResult<'sess, BlockId> {
+        let span = self.parser.token().span;
         let id = self.parse_ident()?;
         let rest = id
             .as_str()
@@ -544,7 +584,13 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
             .ok_or_else(|| self.error(format!("expected `bbN`, got `{id}`")))?;
         let idx: u32 =
             rest.parse().map_err(|_| self.error(format!("invalid block index `{id}`")))?;
-        block_labels.get(&idx).copied().ok_or_else(|| self.error(format!("unknown block `{id}`")))
+        if let Some(label) = block_labels.get(&idx) {
+            return Ok(label.id);
+        }
+        let block = func.alloc_block();
+        block_labels
+            .insert(idx, BlockLabel { id: block, defined: false, reference_span: Some(span) });
+        Ok(block)
     }
 
     fn parse_function_id(&mut self) -> PResult<'sess, FunctionId> {
@@ -577,18 +623,18 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         func: &mut Function,
         block: BlockId,
         arg_values: &mut Vec<ValueId>,
-        block_labels: &FxHashMap<u32, BlockId>,
+        block_labels: &mut FxHashMap<u32, BlockLabel>,
         value_labels: &mut FxHashMap<u32, ValueId>,
     ) -> PResult<'sess, ()> {
         // Optional result: `vN = ...`
-        let checkpoint = self.parser.checkpoint();
-        let result_label = if let Some(label) = self.parser.parse_ident_opt()
+        let result_label = if let TokenKind::Ident(label) = self.parser.token().kind
             && let Some(index) = label.as_str().strip_prefix('v').and_then(|s| s.parse().ok())
-            && self.parser.eat(TokenKind::Eq)
+            && self.parser.look_ahead(1).kind == TokenKind::Eq
         {
+            self.parser.bump();
+            self.parser.bump();
             Some(index)
         } else {
-            self.parser.restore(checkpoint);
             None
         };
 
@@ -598,7 +644,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         // Terminators (no result).
         match mnemonic {
             sym::jump => {
-                let target = self.parse_block_id(block_labels)?;
+                let target = self.parse_block_id(func, block_labels)?;
                 self.set_terminator(func, block, Terminator::Jump(target));
                 self.skip_to_eol();
                 return Ok(());
@@ -606,9 +652,9 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
             sym::br => {
                 let condition = self.parse_value(func, arg_values, value_labels)?;
                 self.parser.expect(TokenKind::Comma)?;
-                let then_block = self.parse_block_id(block_labels)?;
+                let then_block = self.parse_block_id(func, block_labels)?;
                 self.parser.expect(TokenKind::Comma)?;
-                let else_block = self.parse_block_id(block_labels)?;
+                let else_block = self.parse_block_id(func, block_labels)?;
                 self.set_terminator(
                     func,
                     block,
@@ -621,7 +667,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                 let value = self.parse_value(func, arg_values, value_labels)?;
                 self.parser.expect(TokenKind::Comma)?;
                 self.expect_keyword(kw::Default)?;
-                let default = self.parse_block_id(block_labels)?;
+                let default = self.parse_block_id(func, block_labels)?;
                 self.parser.expect(TokenKind::Comma)?;
                 self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
                 let mut cases = Vec::new();
@@ -629,7 +675,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                     loop {
                         let val = self.parse_value(func, arg_values, value_labels)?;
                         self.parser.expect(TokenKind::FatArrow)?;
-                        let bid = self.parse_block_id(block_labels)?;
+                        let bid = self.parse_block_id(func, block_labels)?;
                         cases.push((val, bid));
                         if self.parser.eat(TokenKind::Comma) {
                             continue;
@@ -879,7 +925,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         mnemonic_span: Span,
         func: &mut Function,
         arg_values: &mut Vec<ValueId>,
-        block_labels: &FxHashMap<u32, BlockId>,
+        block_labels: &mut FxHashMap<u32, BlockLabel>,
         value_labels: &mut FxHashMap<u32, ValueId>,
     ) -> PResult<'sess, (InstKind, Option<MirType>)> {
         // Operand parsing helpers.
@@ -1396,7 +1442,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                 let mut incoming: Vec<(BlockId, ValueId)> = Vec::new();
                 loop {
                     self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
-                    let bid = self.parse_block_id(block_labels)?;
+                    let bid = self.parse_block_id(func, block_labels)?;
                     self.parser.expect(TokenKind::Colon)?;
                     let val = v!();
                     self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
@@ -1415,6 +1461,20 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
             }
         })
     }
+}
+
+fn block_header_index(tokens: &[&solar_ast::token::Token], cursor: usize) -> Option<u32> {
+    let TokenKind::Ident(label) = tokens[cursor].kind else { return None };
+    let index = label.as_str().strip_prefix("bb")?.parse().ok()?;
+    let next = tokens.get(cursor + 1)?.kind;
+    if next == TokenKind::Colon {
+        return Some(index);
+    }
+    (next == TokenKind::OpenDelim(Delimiter::Parenthesis)
+        && tokens.get(cursor + 2)?.is_keyword(sym::entry)
+        && tokens.get(cursor + 3)?.kind == TokenKind::CloseDelim(Delimiter::Parenthesis)
+        && tokens.get(cursor + 4)?.kind == TokenKind::Colon)
+        .then_some(index)
 }
 
 // =============================================================================
@@ -1724,6 +1784,27 @@ error: expected identifier
   │
 4 │     %bad
   ╰╴    ━
+
+
+"#]]
+            );
+        });
+
+        with_session(|sess| {
+            let input = "@module m\nfn @f() {\n  bb0 (entry):\n    jump bb9\n}\n";
+            let source = sess
+                .source_map()
+                .new_source_file(FileName::Custom("unknown-block.mir".into()), input)
+                .unwrap();
+            assert!(Module::parse(sess, &source).is_err());
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: unknown block `bb9`
+  ╭▸ <unknown-block.mir>:4:10
+  │
+4 │     jump bb9
+  ╰╴         ━━━
 
 
 "#]]

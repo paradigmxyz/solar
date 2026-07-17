@@ -4,12 +4,18 @@ use solar_ast::{
     token::{Token, TokenKind, TokenLitKind},
 };
 use solar_interface::{BytePos, Session, Span, Symbol, source_map::SourceFile};
-use solar_parse::{PErr, ParserCheckpoint};
+use solar_parse::PErr;
 
-#[derive(Clone)]
-pub(crate) struct Checkpoint {
-    parser: ParserCheckpoint,
-    lo: BytePos,
+pub(crate) fn token_starts_line(source: &SourceFile, tokens: &[&Token], cursor: usize) -> bool {
+    let Some(previous) = cursor.checked_sub(1).and_then(|index| tokens.get(index)) else {
+        return true;
+    };
+    if previous.kind == TokenKind::OpenDelim(solar_ast::token::Delimiter::Brace) {
+        return true;
+    }
+    let start = (previous.span.hi() - source.start_pos).to_usize();
+    let end = (tokens[cursor].span.lo() - source.start_pos).to_usize();
+    source.src[start..end].contains(['\n', '\r'])
 }
 
 /// Shared parser primitives for the textual IR parsers.
@@ -19,18 +25,14 @@ pub(crate) struct Parser<'sess, 'ast, 'src> {
 }
 
 impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
-    pub(crate) fn new(sess: &'sess Session, arena: &'ast Arena, source: &'src SourceFile) -> Self {
-        let parser = solar_parse::Parser::from_source_file(sess, arena, source);
+    pub(crate) fn from_tokens(
+        sess: &'sess Session,
+        arena: &'ast Arena,
+        source: &'src SourceFile,
+        tokens: Vec<Token>,
+    ) -> Self {
+        let parser = solar_parse::Parser::new(sess, arena, tokens);
         Self { source, parser }
-    }
-
-    pub(crate) fn checkpoint(&mut self) -> Checkpoint {
-        let _ = self.parser.parse_doc_comments();
-        Checkpoint { parser: self.parser.checkpoint(), lo: self.token().span.lo() }
-    }
-
-    pub(crate) fn restore(&mut self, checkpoint: Checkpoint) {
-        self.parser.restore(checkpoint.parser);
     }
 
     pub(crate) fn token(&self) -> Token {
@@ -39,6 +41,10 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
 
     pub(crate) fn prev_token(&self) -> Token {
         self.parser.prev_token
+    }
+
+    pub(crate) fn look_ahead(&self, distance: usize) -> Token {
+        self.parser.look_ahead(distance)
     }
 
     pub(crate) fn bump(&mut self) {
@@ -118,8 +124,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         &self.source.src[start..end]
     }
 
-    pub(crate) fn span_from(&self, checkpoint: Checkpoint) -> Span {
-        let lo = checkpoint.lo;
+    pub(crate) fn span_from(&self, lo: BytePos) -> Span {
         let hi = self.prev_token().span.hi().max(lo);
         Span::new(lo, hi)
     }
