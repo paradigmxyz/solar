@@ -102,13 +102,6 @@ pub struct Assembler {
     next_deferred: IdCounter<DeferredConst>,
     /// Resolved values for deferred constants.
     deferred_values: FxHashMap<DeferredConst, U256>,
-    /// Whether to run structural outlining that changes the emitted length in
-    /// content-dependent ways. Off for constructor code, whose argument offset
-    /// is resolved by a separate length fixpoint that such passes would break.
-    run_structural_outlining: bool,
-    /// Whether to run EVM IR layout passes. Disabled with structural outlining
-    /// for constructor code because these passes can also change its length.
-    run_evm_ir_layout: bool,
 }
 
 impl Assembler {
@@ -128,15 +121,7 @@ impl Assembler {
             next_label: IdCounter::new(),
             next_deferred: IdCounter::new(),
             deferred_values: FxHashMap::default(),
-            run_structural_outlining: false,
-            run_evm_ir_layout: true,
         }
-    }
-
-    /// Enables or disables runtime-only optimizations for the next `assemble`.
-    pub(in crate::backend::evm) fn set_runtime_optimizations(&mut self, enabled: bool) {
-        self.run_structural_outlining = enabled;
-        self.run_evm_ir_layout = enabled;
     }
 
     /// Clears all emitted instructions and local identifiers while retaining allocated storage.
@@ -214,9 +199,7 @@ impl Assembler {
     }
 
     /// Threads jump references through pure `label: PUSH2 target JUMP` thunks so
-    /// the thunks become unreferenced and the dedup chain deletes them. Runtime
-    /// only: it changes the emitted length, which the constructor's argument
-    /// offset fixpoint would not track.
+    /// the thunks become unreferenced and the dedup chain deletes them.
     fn thread_jump_thunks(instructions: &mut [AsmInst]) -> bool {
         let mut thunks: FxHashMap<Label, Label> = FxHashMap::default();
         for window in instructions.windows(3) {
@@ -260,8 +243,7 @@ impl Assembler {
     /// threading and fallthrough-elided jumps leave such corpses behind (the
     /// `PUSH2 target JUMP` body of a threaded thunk whose label was dropped
     /// still occupies bytes). Removing the run also drops its outgoing label
-    /// references, letting the unreferenced-label pass cascade. Runtime only,
-    /// like the other length-changing cleanups.
+    /// references, letting the unreferenced-label pass cascade.
     fn remove_unreachable_code(instructions: &mut Vec<AsmInst>) -> bool {
         let is_terminator = |inst: &AsmInst| {
             matches!(
@@ -295,11 +277,9 @@ impl Assembler {
     /// shared stub: `ISZERO PUSH2 shared JUMPI` falls through into `cont`. The
     /// inserted `ISZERO` folds with an existing negation in the later peephole
     /// (`ISZERO ISZERO <label> JUMPI -> <label> JUMPI`), so already-inverted
-    /// checks get the stub removed for free. Runtime-only: constructor code
-    /// resolves its argument offset with a separate length fixpoint that a
-    /// content-dependent length change would break.
+    /// checks get the stub removed for free.
     fn invert_branches_over_empty_reverts(&mut self, instructions: &mut Vec<AsmInst>) {
-        if self.config.optimization == OptimizationMode::None || !self.run_structural_outlining {
+        if self.config.optimization == OptimizationMode::None {
             return;
         }
         let is_zero_push = |inst: AsmInst| matches!(inst.kind(), AsmInstKind::PushInline(0));
@@ -542,12 +522,11 @@ impl Assembler {
     /// computation: a caller reaches a shared stub with only its return address
     /// on the stack, the stub's produced value (if any) ends up above that
     /// address, and a final `SWAP1` (for one output) then `JUMP` returns it.
-    /// Runs are outlined only when structural outlining is enabled (runtime
-    /// code, not constructor code), every opcode is on the verified whitelist,
-    /// the run never inspects below its entry, its net height is 0 or 1, and
-    /// the shared stub is smaller than the sites it replaces.
+    /// Runs are outlined only when every opcode is on the verified whitelist,
+    /// the run never inspects below its entry, its net height is 0 or 1, and the
+    /// shared stub is smaller than the sites it replaces.
     fn outline_closed_computations(&mut self, program: &mut EvmAsmProgram) {
-        if self.config.optimization == OptimizationMode::None || !self.run_structural_outlining {
+        if self.config.optimization == OptimizationMode::None {
             return;
         }
         let insts = &program.instructions;
@@ -759,9 +738,7 @@ impl Assembler {
             }
             AsmInst::push(push_values.intern(value))
         });
-        if self.config.evm_ir_stack_schedule || self.run_evm_ir_layout {
-            ir_program.optimize_with_evm_ir(self);
-        }
+        ir_program.optimize_with_evm_ir(self);
         let mut program = ir_program.to_asm_program();
         self.invert_branches_over_empty_reverts(&mut program.instructions);
         self.run_assembler_passes(&mut program);
@@ -781,17 +758,15 @@ impl Assembler {
             // expose a threaded thunk's corpse, so give the fixpoint headroom.
             for _ in 0..6 {
                 let merged = self.merge_terminal_suffixes(&mut program.instructions);
-                let threaded = self.run_structural_outlining
-                    && Self::thread_jump_thunks(&mut program.instructions);
-                let swept = self.run_structural_outlining
-                    && Self::remove_unreachable_code(&mut program.instructions);
+                let threaded = Self::thread_jump_thunks(&mut program.instructions);
+                let swept = Self::remove_unreachable_code(&mut program.instructions);
                 if !merged && !threaded && !swept {
                     break;
                 }
                 Self::dedup_terminal_spans(&mut program.instructions);
                 Self::remove_unreferenced_labels(&mut program.instructions);
             }
-        } else if self.run_structural_outlining {
+        } else {
             Self::remove_unreachable_code(&mut program.instructions);
         }
         self.outline_closed_computations(&mut program);
@@ -873,11 +848,9 @@ impl Assembler {
     /// per reference. Placement is control-flow-neutral: a candidate span is
     /// preceded by a terminating instruction (no fallthrough in), ends with
     /// one itself (no fallthrough out), and the insertion point directly
-    /// follows a terminating instruction. Runtime only: reordering moves the
-    /// width relaxation, which the constructor's appended-argument offset
-    /// fixpoint does not track.
+    /// follows a terminating instruction.
     fn hoist_hot_terminal_spans(&self, instructions: &mut Vec<AsmInst>) {
-        if self.config.optimization == OptimizationMode::None || !self.run_structural_outlining {
+        if self.config.optimization == OptimizationMode::None {
             return;
         }
 
@@ -1247,10 +1220,6 @@ impl StructuredAsmContext for Assembler {
 
     fn run_evm_ir_stack_schedule(&self) -> bool {
         self.config.evm_ir_stack_schedule
-    }
-
-    fn run_evm_ir_layout(&self) -> bool {
-        self.run_evm_ir_layout
     }
 }
 
@@ -1911,6 +1880,9 @@ mod tests {
         let cold = asm.new_label();
         let hot = asm.new_label();
 
+        asm.emit_push(U256::ONE);
+        asm.emit_push_label(cold);
+        asm.emit_op(op::JUMPI);
         asm.emit_push_label(hot);
         asm.emit_op(op::JUMP);
         asm.mark_label_cold(cold);
@@ -1923,7 +1895,21 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![op::STOP, op::PUSH0, op::PUSH0, op::REVERT]);
+        assert_eq!(
+            result.bytecode,
+            vec![
+                op::PUSH1,
+                1,
+                op::PUSH1,
+                6,
+                op::JUMPI,
+                op::STOP,
+                op::JUMPDEST,
+                op::PUSH0,
+                op::PUSH0,
+                op::REVERT,
+            ]
+        );
     }
 
     #[test]

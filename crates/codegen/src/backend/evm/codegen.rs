@@ -1107,9 +1107,7 @@ impl EvmCodegen {
             }
         }
 
-        self.asm.set_runtime_optimizations(true);
         let result = self.asm.assemble();
-        self.asm.set_runtime_optimizations(false);
         self.runtime_immutable_refs = result.immutable_refs;
         GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir }
     }

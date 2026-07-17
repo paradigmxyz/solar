@@ -4,13 +4,39 @@ bb0 (entry):
   push 0x4000
   push 64
   mstore
-  push 396
+  push 391
   codesize
   sub
-  push 396
+  push 391
   push 128
   codecopy
-  jump bb6
+  push 7
+  push 128
+  mload
+  and
+  push 64
+  mload
+  push 160
+  mload
+  dup2
+  push 32
+  add
+  mstore
+  dup2
+  dup2
+  push 64
+  add
+  mstore
+  dup1
+  push 160
+  mstore
+  push 256
+  add
+  push 64
+  mstore
+  pop
+  push bb5
+  jump bb1
 bb1:
   push 160
   mload
@@ -69,7 +95,7 @@ bb3:
   swap1
   pop
   iszero
-  push bb5
+  push bb6
   jumpi
   push 1
   push 160
@@ -167,7 +193,7 @@ bb4:
   mstore
   swap1
   lt
-  push bb5
+  push bb6
   jumpi
   push 160
   mload
@@ -176,44 +202,6 @@ bb4:
   mload
   jump bb2
 bb5:
-  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
-  push 0
-  mstore
-  push 17
-  push 4
-  mstore
-  push 36
-  push 0
-  revert
-bb6:
-  push 7
-  push 128
-  mload
-  and
-  push 64
-  mload
-  push 160
-  mload
-  dup2
-  push 32
-  add
-  mstore
-  dup2
-  dup2
-  push 64
-  add
-  mstore
-  dup1
-  push 160
-  mstore
-  push 256
-  add
-  push 64
-  mstore
-  pop
-  push bb7
-  jump bb1
-bb7:
   push 160
   mload
   push 96
@@ -239,12 +227,22 @@ bb7:
   push 0
   sstore
   stop
+bb6:
+  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
 
 // === deployment ===
 bb0 (entry):
   push 43
   dup1
-  push 353
+  push 348
   push 0
   codecopy
   push 0

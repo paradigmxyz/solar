@@ -24,10 +24,6 @@ pub(in crate::backend::evm) trait StructuredAsmContext {
     fn run_evm_ir_stack_schedule(&self) -> bool {
         false
     }
-    /// Whether the bridge should run EVM IR layout/code-size passes.
-    fn run_evm_ir_layout(&self) -> bool {
-        true
-    }
 }
 
 /// Structured assembler block program used while MIR lowering emits EVM code.
@@ -159,10 +155,8 @@ impl StructuredAsmProgram {
             }
         }
 
-        if context.run_evm_ir_layout() {
-            for pass in ir::DEFAULT_LAYOUT_PIPELINE {
-                changed += usize::from(ir::run_pass(&mut module, pass, pass_options));
-            }
+        for pass in ir::DEFAULT_LAYOUT_PIPELINE {
+            changed += usize::from(ir::run_pass(&mut module, pass, pass_options));
         }
         debug_assert!(!input_is_valid || is_valid_evm_ir(&module));
 
