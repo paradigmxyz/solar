@@ -24,24 +24,39 @@ def result(**compiler):
 
 class ReportFormattingTests(unittest.TestCase):
     def test_unchanged_report_has_note(self):
-        report = benchmark.format_report("## Results", False)
+        report = benchmark.format_report("## Results", False, False)
         self.assertEqual(
             report,
+            "<details>\n"
+            "<summary>Codegen benchmark output</summary>\n\n"
             "> [!NOTE]\n"
             "> Codegen benchmark output is unchanged from `main`.\n\n"
-            "## Results",
+            "## Results\n\n"
+            "</details>",
         )
 
-    def test_changed_report_has_no_note(self):
-        self.assertEqual(benchmark.format_report("## Results", True), "## Results")
+    def test_changed_report_has_no_details(self):
+        self.assertEqual(benchmark.format_report("## Results", True, False), "## Results")
 
-    def test_size_delta_uses_conventional_sign(self):
+    def test_behind_main_report_has_warning(self):
+        report = benchmark.format_report("## Results", True, True)
         self.assertEqual(
-            benchmark.fmt_value_with_size_delta(95, 95, 100, "B"),
-            "95B (✅ -5.00%)",
+            report,
+            "> [!WARNING]\n"
+            "> This branch is behind `main`, so these benchmark results may be incorrect.\n\n"
+            "<details>\n"
+            "<summary>Codegen benchmark output</summary>\n\n"
+            "## Results\n\n"
+            "</details>",
+        )
+
+    def test_lower_is_better_delta_uses_conventional_sign(self):
+        self.assertEqual(
+            benchmark.fmt_value_with_lower_is_better_delta(95, 95, 100),
+            "95 (✅ -5.00%)",
         )
         self.assertEqual(
-            benchmark.fmt_value_with_size_delta(105, 105, 100, "B"),
+            benchmark.fmt_value_with_lower_is_better_delta(105, 105, 100, "B"),
             "105B (❌ +5.00%)",
         )
 
