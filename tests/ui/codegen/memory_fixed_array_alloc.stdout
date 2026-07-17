@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/memory_fixed_array_alloc.sol:MemoryFixedArrayAlloc ===
-; module @MemoryFixedArrayAlloc
+@module MemoryFixedArrayAlloc
 fn @guardedFix(arg0: u256) {
   bb0 (entry):
     v0 = calldatasize
@@ -241,7 +241,7 @@ fn @literal() {
 }
 
 // === ROOT/tests/ui/codegen/memory_fixed_array_alloc.sol:NamedReturnAndDelete ===
-; module @NamedReturnAndDelete
+@module NamedReturnAndDelete
 fn @namedReturn() {
   bb0 (entry):
     v0 = mload 64 !metadata(memory=scratch)

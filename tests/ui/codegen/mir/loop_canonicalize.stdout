@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/loop_canonicalize.mir (after loop-canonicalize) ===
-; module @LoopCanonicalize
+@module LoopCanonicalize
 fn @insert_preheader(arg0: bool) -> u256 {
   bb0 (entry):
     br arg0, bb1, bb2

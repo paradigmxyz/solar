@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/signed_constant_ops.sol:SignedConstantOps ===
-; module @SignedConstantOps
+@module SignedConstantOps
 fn @lt() {
   bb0 (entry):
     mstore 128, 0

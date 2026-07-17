@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/event_dynamic_data.sol:EventDynamicData ===
-; module @EventDynamicData
+@module EventDynamicData
 fn @text(arg0: memptr) {
   bb0 (entry):
     v0 = calldatasize

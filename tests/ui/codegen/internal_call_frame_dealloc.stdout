@@ -1,4 +1,5 @@
 // === ROOT/tests/ui/codegen/internal_call_frame_dealloc.sol:InternalCallFrameDealloc (runtime) ===
+@module runtime
 bb0 (entry):
   push 352
   push 64

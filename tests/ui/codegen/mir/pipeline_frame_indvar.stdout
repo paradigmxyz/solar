@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/pipeline_frame_indvar.mir (after pipeline-default) ===
-; module @PipelineFrameIndVar [phase = optimized]
+@module PipelineFrameIndVar
+@phase optimized
 fn @frame_counter_feeds_affine_address(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
     jump bb1

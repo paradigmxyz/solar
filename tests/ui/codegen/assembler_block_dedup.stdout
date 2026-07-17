@@ -1,4 +1,5 @@
 // === ROOT/tests/ui/codegen/assembler_block_dedup.sol:AssemblerBlockDedup (runtime) ===
+@module runtime
 bb0 (entry):
   push 192
   push 64

@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/phase_explicit_built.mir (after dce) ===
-; module @PhaseExplicitBuilt
+@module PhaseExplicitBuilt
 fn @f() {
   bb0 (entry):
     stop

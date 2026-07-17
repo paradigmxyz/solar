@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/outline_reverts.mir (after outline-reverts) ===
-; module @OutlineReverts
+@module OutlineReverts
 fn @first(arg0: u256) {
   bb0 (entry):
     v0 = add arg0, 1

@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/licm_memory_alias.mir (after licm) ===
-; module @LicmMemoryAlias
+@module LicmMemoryAlias
 fn @hoist_non_aliasing_mload() -> u256 {
   bb0 (entry):
     v0 = mload 0

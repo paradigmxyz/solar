@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/storage_promotion.mir (after storage-promotion) ===
-; module @StoragePromotion
+@module StoragePromotion
 fn @promote_recomputed_offset_slot(arg0: u256) {
   bb0 (entry):
     v0 = add arg0, 1

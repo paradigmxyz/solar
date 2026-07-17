@@ -1,5 +1,5 @@
 //@compile-flags: --pass sccp
-; module @SccpEdge
+@module SccpEdge
 fn @phi_ignores_unreachable_predecessor() -> u256 {
   bb0 (entry):
     v0 = eq 1, 1

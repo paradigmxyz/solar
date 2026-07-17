@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/cse_global.mir (after cse) ===
-; module @CseGlobal
+@module CseGlobal
 fn @dominating_pure_expr(arg0: u256, arg1: u256, arg2: bool) -> u256 {
   bb0 (entry):
     v0 = add arg0, arg1

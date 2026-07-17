@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/check_elim_mul_div.mir (after check-elim) ===
-; module @CheckElimMulDiv
+@module CheckElimMulDiv
 fn @fold_mul_check_with_bound(arg0: u256) -> u256 {
   bb0 (entry):
     v0 = lt arg0, 100

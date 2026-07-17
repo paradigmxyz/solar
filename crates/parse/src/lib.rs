@@ -19,7 +19,7 @@ pub use lexer::{Cursor, Lexer, unescape};
 pub mod natspec;
 
 mod parser;
-pub use parser::{Parser, Recovered};
+pub use parser::{Parser, ParserCheckpoint, Recovered};
 
 // Convenience re-exports.
 #[doc(no_inline)]

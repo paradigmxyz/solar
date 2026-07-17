@@ -1,5 +1,5 @@
 //@compile-flags: --pass pure-eval
-; module @PureEvalLoop
+@module PureEvalLoop
 fn @bounded_loop() -> u256 {
   bb0 (entry):
     jump bb1

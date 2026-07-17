@@ -20,8 +20,7 @@
 //! ```
 
 use crate::{
-    analysis::Validator,
-    mir::{Function, MirPhase, Module},
+    mir::{Function, MirPhase, Module, validate},
     timing::PassTimer,
     transform::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
@@ -547,7 +546,7 @@ impl PassManager {
 
 fn validate_module_after_pass(module: &Module, pass_name: &str) {
     let dcx = DiagCtxt::new_early();
-    Validator::new(&dcx).validate_module(module);
+    validate(&dcx, module);
     if dcx.has_errors().is_err() {
         panic!("MIR validation failed after `{pass_name}`");
     }

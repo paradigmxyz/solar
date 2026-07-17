@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/cse_environment.mir (after cse) ===
-; module @CseEnvironment
+@module CseEnvironment
 fn @keep_cheap_nullary_environment_reads(arg0: u256) -> u256 {
   bb0 (entry):
     v0 = caller

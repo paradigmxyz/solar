@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/lower_dispatch_parity.mir (after lower-dispatch) ===
-; module @DispatchParity [phase = dispatch]
+@module DispatchParity
+@phase dispatch
 fn @pay() {
   bb0 (entry):
     stop

@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/storage_promotion_revert_exit.mir (after storage-promotion) ===
-; module @StoragePromotionRevertExit
+@module StoragePromotionRevertExit
 fn @promote_checked_sum_loop(arg0: u256) {
   bb0 (entry):
     v6 = sload 0

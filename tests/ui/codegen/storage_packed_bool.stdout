@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/storage_packed_bool.sol:PackedBool ===
-; module @PackedBool
+@module PackedBool
 fn @a() {
   bb0 (entry):
     mstore 128, 0

@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/check_elim_index_guard.mir (after check-elim) ===
-; module @CheckElimIndexGuard
+@module CheckElimIndexGuard
 fn @fold_const_len_check(arg0: u256) -> u256 {
   bb0 (entry):
     v0 = lt arg0, 3

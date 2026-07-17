@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/constructor_internal_call.sol:ConstructorInternalCall ===
-; module @ConstructorInternalCall
+@module ConstructorInternalCall
 fn @value() {
   bb0 (entry):
     mstore 128, 0

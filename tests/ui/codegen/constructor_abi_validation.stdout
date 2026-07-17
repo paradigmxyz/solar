@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/constructor_abi_validation.sol:ConstructorAbiValidation ===
-; module @ConstructorAbiValidation
+@module ConstructorAbiValidation
 fn @flag() {
   bb0 (entry):
     mstore 128, 0

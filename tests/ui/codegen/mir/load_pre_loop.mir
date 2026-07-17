@@ -5,7 +5,7 @@
 // either shape: a compensating latch reload would keep one sload per
 // iteration and add the phi spill copies on top, a strict per-iteration
 // loss.
-; module @LoadPreLoop
+@module LoadPreLoop
 fn @loop_header_reload(arg0: u256) -> u256 {
   bb0 (entry):
     v1 = sload 5

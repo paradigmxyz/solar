@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/storage_bytes_elements.sol:StorageBytesElements ===
-; module @StorageBytesElements
+@module StorageBytesElements
 fn @b() {
   bb0 (entry):
     mstore 128, 0
@@ -232,7 +232,7 @@ fn @hashB() {
 }
 
 // === ROOT/tests/ui/codegen/storage_bytes_elements.sol:StorageStringConstructor ===
-; module @StorageStringConstructor
+@module StorageStringConstructor
 fn @name() {
   bb0 (entry):
     mstore 128, 0
@@ -491,7 +491,7 @@ fn @_anonymous(arg0: memptr, arg1: memptr) {
 }
 
 // === ROOT/tests/ui/codegen/storage_bytes_elements.sol:StorageStringBase ===
-; module @StorageStringBase
+@module StorageStringBase
 fn @name() {
   bb0 (entry):
     mstore 128, 0
@@ -750,7 +750,7 @@ fn @_anonymous(arg0: memptr, arg1: memptr) {
 }
 
 // === ROOT/tests/ui/codegen/storage_bytes_elements.sol:StorageStringDerived ===
-; module @StorageStringDerived
+@module StorageStringDerived
 fn @_anonymous() {
   bb0 (entry):
     v0 = mload 64 !metadata(memory=scratch)
@@ -997,7 +997,7 @@ fn @symbol() {
 }
 
 // === ROOT/tests/ui/codegen/storage_bytes_elements.sol:StorageStringImplicitDerived ===
-; module @StorageStringImplicitDerived
+@module StorageStringImplicitDerived
 fn @constructor() {
   bb0 (entry):
     v0 = mload 64 !metadata(memory=scratch)

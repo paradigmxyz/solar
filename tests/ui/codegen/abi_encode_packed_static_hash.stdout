@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/abi_encode_packed_static_hash.sol:AbiEncodePackedStaticHash ===
-; module @AbiEncodePackedStaticHash
+@module AbiEncodePackedStaticHash
 fn @hash(arg0: u64, arg1: u64, arg2: bytes32) {
   bb0 (entry):
     v0 = calldatasize

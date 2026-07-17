@@ -8,6 +8,7 @@ impl Module {
     /// Returns the canonical EVM IR text-format representation.
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
+            writeln!(f, "@module {}", self.name)?;
             write!(
                 f,
                 "{}",

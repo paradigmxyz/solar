@@ -1,4 +1,5 @@
 // === ROOT/tests/ui/codegen/evm-ir/stack_terminator_multi_use.evmir (after stack-schedule) ===
+@module module
 bb0 (entry):
   %off = push 64
   dup1

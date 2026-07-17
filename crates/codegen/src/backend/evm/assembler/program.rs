@@ -454,7 +454,7 @@ fn modules_have_equal_code(before: &ir::Module, after: &ir::Module) -> bool {
 
 fn is_valid_evm_ir(module: &ir::Module) -> bool {
     let dcx = DiagCtxt::with_silent_emitter(None);
-    ir::Verifier::new(&dcx).verify_module(module);
+    ir::validate(&dcx, module);
     dcx.has_errors().is_ok()
 }
 

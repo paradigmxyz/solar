@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/licm_rotated_guard.mir (after licm) ===
-; module @LicmRotatedGuard
+@module LicmRotatedGuard
 fn @rotated_guard_overlap() -> u256 {
   bb0 (entry):
     jump bb1

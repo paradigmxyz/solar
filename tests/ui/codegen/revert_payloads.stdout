@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/revert_payloads.sol:RevertPayloads ===
-; module @RevertPayloads
+@module RevertPayloads
 fn @assert_panic(arg0: bool) {
   bb0 (entry):
     v0 = calldatasize

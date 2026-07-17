@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/low_level_call_returndata.sol:LowLevelCallReturndata ===
-; module @LowLevelCallReturndata
+@module LowLevelCallReturndata
 fn @safeTransfer(arg0: address, arg1: address, arg2: u256) {
   bb0 (entry):
     v0 = calldatasize

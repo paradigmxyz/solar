@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/yul_local_phi.sol:YulLocalPhi ===
-; module @YulLocalPhi
+@module YulLocalPhi
 fn @branchLocal(arg0: u256) {
   bb0 (entry):
     v0 = calldatasize

@@ -27,6 +27,7 @@ pub mod analysis;
 pub use analysis::{InductionVariable, Liveness, LivenessInfo, Loop, LoopAnalyzer, LoopInfo};
 
 pub mod backend;
+mod ir_parse;
 pub use backend::{
     Backend,
     evm::{

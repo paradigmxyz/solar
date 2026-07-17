@@ -1,7 +1,7 @@
 //@compile-flags: --pass sccp
 // Constant arithmetic: 10 + 20 = 30, 30 * 2 = 60.
 // SCCP should propagate through the chain and fold everything.
-; module @SccpFold
+@module SccpFold
 fn @const_chain() -> u256 {
   bb0 (entry):
     v0 = add 10, 20

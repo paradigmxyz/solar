@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/licm_staticcall_storage.mir (after licm) ===
-; module @LicmStaticcallStorage
+@module LicmStaticcallStorage
 fn @hoist_sload_with_staticcall() -> u256 {
   bb0 (entry):
     v2 = sload 5 !metadata(storage=slot(5))

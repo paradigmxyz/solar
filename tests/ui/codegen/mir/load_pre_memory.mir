@@ -3,7 +3,7 @@
 // a merge phi, but repeated same-key join reloads can amortize the insertion.
 // Loop-carried memory reloads are profitable now that canonical loop phis can
 // stay stack-resident in the EVM backend.
-; module @LoadPreMemory
+@module LoadPreMemory
 fn @mload_full_diamond(arg0: bool) -> u256 {
   bb0 (entry):
     br arg0, bb1, bb2

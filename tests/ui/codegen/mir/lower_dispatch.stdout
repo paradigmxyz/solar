@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/lower_dispatch.mir (after lower-dispatch) ===
-; module @LowerDispatch [phase = dispatch]
+@module LowerDispatch
+@phase dispatch
 fn @ping() {
   bb0 (entry):
     stop

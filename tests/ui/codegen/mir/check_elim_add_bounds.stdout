@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/check_elim_add_bounds.mir (after check-elim) ===
-; module @CheckElimAddBounds
+@module CheckElimAddBounds
 fn @fold_exact_boundary(arg0: u256) -> u256 {
   bb0 (entry):
     v0 = lt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe

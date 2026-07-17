@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/lower_abi_retargets_calls.mir (after lower-abi) ===
-; module @LowerAbiRetargets [phase = abi]
+@module LowerAbiRetargets
+@phase abi
 fn @pub() {
   bb0 (entry):
     v0 = add arg0, 1

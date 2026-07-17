@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/indvar_simplify.mir (after indvar-simplify) ===
-; module @IndVarSimplify
+@module IndVarSimplify
 fn @strength_reduce_shifted_address(arg0: u256) -> u256 {
   bb0 (entry):
     jump bb1

@@ -3,7 +3,7 @@
 // its static context, so balance/extcodesize/extcodehash/selfbalance reads stay valid
 // across it. It still rewrites the return-data buffer, so memory reads do not. A plain
 // CALL invalidates account-environment reads as before.
-; module @CseStaticcallEnvironment
+@module CseStaticcallEnvironment
 fn @reuse_account_reads_across_staticcall(arg0: address) -> u256 {
   bb0 (entry):
     v1 = balance arg0

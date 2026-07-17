@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/lower_evm_shaped.mir (after lower-evm-shaped) ===
-; module @LowerEvmShaped [phase = evm-shaped]
+@module LowerEvmShaped
+@phase evm-shaped
 fn @entry() {
   bb0 (entry):
     v0 = calldataload 0

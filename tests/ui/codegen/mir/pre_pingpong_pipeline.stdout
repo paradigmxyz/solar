@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/pre_pingpong_pipeline.mir (after pipeline-default) ===
-; module @PingPongPipeline [phase = optimized]
+@module PingPongPipeline
+@phase optimized
 fn @pingpong(arg0: u256, arg1: u256) {
   bb0 (entry):
     jump bb6

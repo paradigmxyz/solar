@@ -1,7 +1,7 @@
 //@compile-flags: --pass jump-threading
-; A block whose only instruction is a phi is not an empty forwarder: threading
-; its predecessors past it would sever the phi's incoming edges.
-; module @JumpThreadingPhiForwarder
+// A block whose only instruction is a phi is not an empty forwarder: threading
+// its predecessors past it would sever the phi's incoming edges.
+@module JumpThreadingPhiForwarder
 fn @keep_phi_only_block(arg0: bool) -> u256 {
   bb0 (entry):
     br arg0, bb1, bb2

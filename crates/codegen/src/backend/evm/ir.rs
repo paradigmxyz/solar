@@ -10,18 +10,22 @@
 
 use alloy_primitives::U256;
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
+use solar_interface::{Symbol, kw};
 
 mod display;
 mod parse;
 mod passes;
 mod verify;
 
-pub use parse::ParseError;
 pub use passes::{
     BLOCK_LAYOUT_PASS, DEFAULT_LAYOUT_PIPELINE, PASS_REGISTRY, PassInfo, PassOptions,
     STACK_SCHEDULE_PASS, TERMINAL_DEDUP_PASS, lookup_pass, run_pass,
 };
-pub use verify::Verifier;
+
+/// Validates the invariants of an EVM IR module.
+pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
+    verify::validate(dcx, module);
+}
 
 newtype_index! {
     /// A unique identifier for a basic block in EVM IR.
@@ -46,8 +50,11 @@ pub struct Module {
 
 impl Module {
     /// Parses textual EVM IR.
-    pub fn parse(input: &str) -> Result<Self, ParseError> {
-        parse::parse(input)
+    pub fn parse(
+        sess: &solar_interface::Session,
+        source: &solar_interface::source_map::SourceFile,
+    ) -> solar_interface::Result<Self> {
+        parse::parse(sess, source)
     }
 
     /// Creates an empty EVM IR program.
@@ -152,14 +159,6 @@ impl Hotness {
     #[must_use]
     pub const fn is_cold(self) -> bool {
         matches!(self, Self::Cold)
-    }
-
-    fn parse(value: &str) -> Option<Self> {
-        Some(match value {
-            "hot" => Self::Hot,
-            "cold" => Self::Cold,
-            _ => return None,
-        })
     }
 }
 
@@ -269,10 +268,11 @@ impl StackOp {
         }
     }
 
-    fn parse(mnemonic: &str) -> Option<Self> {
-        if mnemonic == "pop" {
+    fn parse(mnemonic: Symbol) -> Option<Self> {
+        if mnemonic == kw::Pop {
             return Some(Self::Pop);
         }
+        let mnemonic = mnemonic.as_str();
         if let Some(n) = mnemonic.strip_prefix("dup").and_then(|s| s.parse::<u8>().ok()) {
             return Self::dup(n);
         }

@@ -2,7 +2,7 @@
 // Dynamic parameters decode uniformly: the wrapper passes the ABI head word at
 // `4 + 32*i` through, and the body performs any further decoding itself, so a
 // memory-pointer parameter does not block the `abi` phase.
-; module @LowerAbiDynamicParams
+@module LowerAbiDynamicParams
 fn @takesBytes(arg0: memptr, arg1: u256) [selector=0x0dead002] {
   bb0 (entry):
     v1 = mload arg0

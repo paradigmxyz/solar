@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/mapping_slot_builtin.mir (after cse,lower-mapping-slots) ===
-; module @MappingSlotBuiltin
+@module MappingSlotBuiltin
 fn @word(arg0: u256) -> u256 {
   bb0 (entry):
     mstore 0, arg0 !metadata(memory=scratch)

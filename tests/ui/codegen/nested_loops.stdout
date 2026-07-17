@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/nested_loops.sol:NestedLoops ===
-; module @NestedLoops
+@module NestedLoops
 fn @sum_grid(arg0: u256, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize

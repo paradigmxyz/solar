@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/licm_loop_bound.mir (after licm) ===
-; module @LicmLoopBound
+@module LicmLoopBound
 fn @keep_mload_non_exiting_bound() -> u256 {
   bb0 (entry):
     jump bb1

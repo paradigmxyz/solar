@@ -1,8 +1,8 @@
 //@compile-flags: --pass check-elim
-; module @CheckElimLoopIncrement
+@module CheckElimLoopIncrement
 
-; The loop-header guard `v1 < arg0` dominates the increment, so `v1 + 1`
-; cannot wrap and its overflow check folds to the continue edge.
+// The loop-header guard `v1 < arg0` dominates the increment, so `v1 + 1`
+// cannot wrap and its overflow check folds to the continue edge.
 fn @fold_increment_check(arg0: u256) -> u256 {
   bb0 (entry):
     jump bb1
@@ -22,8 +22,8 @@ fn @fold_increment_check(arg0: u256) -> u256 {
     ret v1
 }
 
-; The guard sits on one arm of a diamond and does not dominate the join,
-; so the overflow check must stay.
+// The guard sits on one arm of a diamond and does not dominate the join,
+// so the overflow check must stay.
 fn @keep_non_dominating_guard(arg0: u256, arg1: bool) -> u256 {
   bb0 (entry):
     br arg1, bb1, bb2

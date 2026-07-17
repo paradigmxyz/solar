@@ -1,5 +1,5 @@
 //@compile-flags: --pass gvn
-; module @GvnPhi
+@module GvnPhi
 
 // Two phis in one block with pairwise-congruent incoming collapse to one.
 fn @congruent_phis_collapse(arg0: u256, arg1: u256, arg2: bool) -> u256 {

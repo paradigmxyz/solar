@@ -2,7 +2,7 @@
 // Loop-invariant PRE: the header expression's translated form is available at
 // the latch end and insertable in the jump-terminated preheader, so it is
 // hoisted out of the loop and the header gets a phi.
-; module @LoopInvariant
+@module LoopInvariant
 fn @hoist_header_expr(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
     jump bb1

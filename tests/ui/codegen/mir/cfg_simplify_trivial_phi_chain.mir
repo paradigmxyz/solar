@@ -1,8 +1,8 @@
 //@compile-flags: --pass cfg-simplify
-; Two trivial phis forming a chain across nested loops: v2's unique source is
-; v1, itself a trivial phi deleted in the same batch. Uses of v2 must resolve
-; through the chain to arg0, not to the deleted intermediate.
-; module @CfgSimplifyTrivialPhiChain
+// Two trivial phis forming a chain across nested loops: v2's unique source is
+// v1, itself a trivial phi deleted in the same batch. Uses of v2 must resolve
+// through the chain to arg0, not to the deleted intermediate.
+@module CfgSimplifyTrivialPhiChain
 fn @chained_trivial(arg0: u256) -> u256 {
   bb0 (entry):
     jump bb1

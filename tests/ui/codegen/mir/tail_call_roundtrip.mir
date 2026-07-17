@@ -2,7 +2,8 @@
 // `tail_call` round-trips through the text format: control transfers to the
 // callee and does not return, so the case block needs no trailing terminator.
 // The arity is validated against the callee (one u256 argument here).
-; module @TailCallRoundtrip [phase = dispatch]
+@module TailCallRoundtrip
+@phase dispatch
 fn @wrapper(arg0: u256) {
   bb0 (entry):
     mstore 128, arg0

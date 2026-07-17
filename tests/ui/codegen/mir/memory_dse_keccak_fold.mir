@@ -1,5 +1,5 @@
 //@compile-flags: --pass memory-dse
-; module @MemoryDseKeccakFold
+@module MemoryDseKeccakFold
 fn @fold_constant_scratch_keccak() -> bytes32 {
   bb0 (entry):
     mstore 0, 7

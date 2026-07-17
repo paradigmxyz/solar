@@ -1,7 +1,7 @@
 //@compile-flags: --pass memory-dse
-; module @MemoryDseCopyRanges
+@module MemoryDseCopyRanges
 
-; A full-word copy write to the same range makes the prior store dead.
+// A full-word copy write to the same range makes the prior store dead.
 fn @remove_store_overwritten_by_codecopy() -> u256 {
   bb0 (entry):
     mstore 0, 1
@@ -9,7 +9,7 @@ fn @remove_store_overwritten_by_codecopy() -> u256 {
     ret 0
 }
 
-; A partial disjoint copy range must not kill the store read from the next word.
+// A partial disjoint copy range must not kill the store read from the next word.
 fn @keep_store_after_partial_copy() -> u256 {
   bb0 (entry):
     mstore 32, 1
@@ -18,8 +18,8 @@ fn @keep_store_after_partial_copy() -> u256 {
     ret v2
 }
 
-; Updating the free-memory pointer at 0x40 and zeroing the data area do not
-; clobber the fresh allocation length word at the old FMP.
+// Updating the free-memory pointer at 0x40 and zeroing the data area do not
+// clobber the fresh allocation length word at the old FMP.
 fn @forward_fresh_array_length() -> u256 {
   bb0 (entry):
     v0 = mload 64

@@ -4,7 +4,7 @@
 // available on one diamond arm only is compensated on the other arm for
 // expensive storage/transient/keccak keys; cheap memory keys keep the stricter
 // loop-carried-only policy (load_pre_memory.mir).
-; module @LoadPre
+@module LoadPre
 fn @full_diamond(arg0: bool) -> u256 {
   bb0 (entry):
     br arg0, bb1, bb2

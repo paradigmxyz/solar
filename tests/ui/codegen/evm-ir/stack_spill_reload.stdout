@@ -1,4 +1,5 @@
 // === ROOT/tests/ui/codegen/evm-ir/stack_spill_reload.evmir (after stack-schedule) ===
+@module module
 bb0 (entry):
   %v0 = push 0
   %v1 = push 1

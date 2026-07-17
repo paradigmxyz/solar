@@ -33,6 +33,7 @@
 }
 // === ROOT/tests/ui/codegen/emit_abi_bin.sol:C (creation) ===
 // === constructor ===
+@module constructor
 bb0 (entry):
   push 0x4000
   push 64
@@ -50,6 +51,7 @@ bb0 (entry):
   stop
 
 // === deployment ===
+@module deployment
 bb0 (entry):
   push 47
   dup1
@@ -60,6 +62,7 @@ bb0 (entry):
   return
 
 // === runtime ===
+@module runtime
 bb0 (entry):
   push 160
   push 64
@@ -94,6 +97,7 @@ bb2:
   push 128
   return
 // === ROOT/tests/ui/codegen/emit_abi_bin.sol:C (runtime) ===
+@module runtime
 bb0 (entry):
   push 160
   push 64

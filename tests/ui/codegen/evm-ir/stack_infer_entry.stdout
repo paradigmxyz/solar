@@ -1,4 +1,5 @@
 // === ROOT/tests/ui/codegen/evm-ir/stack_infer_entry.evmir (after stack-schedule) ===
+@module module
 bb0 (entry):
   %a = push 7
   jump bb1

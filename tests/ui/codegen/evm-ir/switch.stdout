@@ -1,4 +1,5 @@
 // === ROOT/tests/ui/codegen/evm-ir/switch.evmir (after none) ===
+@module module
 bb0 (entry):
   %calldata_offset = push 0
   %selector = calldataload %calldata_offset

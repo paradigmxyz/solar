@@ -10,13 +10,13 @@ use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
 use std::fmt;
 
 /// Stateful EVM IR verifier.
-pub struct Verifier<'a> {
+struct Verifier<'a> {
     dcx: &'a DiagCtxt,
 }
 
 impl<'a> Verifier<'a> {
     /// Creates a verifier that emits findings into `dcx`.
-    pub const fn new(dcx: &'a DiagCtxt) -> Self {
+    const fn new(dcx: &'a DiagCtxt) -> Self {
         Self { dcx }
     }
 
@@ -33,7 +33,7 @@ impl<'a> Verifier<'a> {
     }
 
     /// Verifies basic EVM IR invariants.
-    pub fn verify_module(&self, module: &Module) {
+    fn verify_module(&self, module: &Module) {
         let errors_before = self.dcx.err_count();
         if !is_valid_ident(&module.name) {
             self.error(format_args!("invalid program name `{}`", module.name));
@@ -162,6 +162,10 @@ impl<'a> Verifier<'a> {
             self.verify_stack_consistency(module);
         }
     }
+}
+
+pub(super) fn validate(dcx: &DiagCtxt, module: &Module) {
+    Verifier::new(dcx).verify_module(module);
 }
 
 /// One abstract stack word tracked by the consistency simulator.

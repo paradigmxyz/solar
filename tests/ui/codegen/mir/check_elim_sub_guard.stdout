@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/check_elim_sub_guard.mir (after check-elim) ===
-; module @CheckElimSubGuard
+@module CheckElimSubGuard
 fn @fold_sub_after_ge_guard(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
     v0 = gt arg1, arg0

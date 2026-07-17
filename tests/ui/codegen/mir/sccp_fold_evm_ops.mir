@@ -2,7 +2,7 @@
 // Constant folding for the signed, modular, byte-level, and select operations,
 // with exact EVM edge-case semantics. Negative constants are written as
 // two's-complement hex literals.
-; module @SccpFoldEvmOps
+@module SccpFoldEvmOps
 
 // MIN sdiv -1 wraps back to MIN.
 fn @sdiv_min_by_neg_one() -> bool {

@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/frame_promotion_load_before_store.mir (after frame-slot-promotion) ===
-; module @FramePromotionLoadBeforeStore
+@module FramePromotionLoadBeforeStore
 fn @load_before_store() -> u256 {
   bb0 (entry):
     v0 = internal_frame_addr 128

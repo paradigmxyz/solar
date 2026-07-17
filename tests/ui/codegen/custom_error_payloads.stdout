@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/custom_error_payloads.sol:CustomErrorPayloads ===
-; module @CustomErrorPayloads
+@module CustomErrorPayloads
 fn @revert_empty() {
   bb0 (entry):
     v0 = mload 64 !metadata(memory=scratch)

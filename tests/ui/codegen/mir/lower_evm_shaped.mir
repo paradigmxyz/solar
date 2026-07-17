@@ -6,7 +6,8 @@
 // applies to callees the backend statically frames: `@spin` cannot return
 // either, but it is recursive, so its call stays an ordinary `internal_call`.
 // `@entry` is present so the module satisfies the dispatch-phase contract.
-; module @LowerEvmShaped [phase = dispatch]
+@module LowerEvmShaped
+@phase dispatch
 fn @entry() {
   bb0 (entry):
     v0 = calldataload 0

@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/storage_dse.mir (after storage-dse) ===
-; module @StorageDse
+@module StorageDse
 fn @remove_overwritten_store(arg0: u256) {
   bb0 (entry):
     sstore 0, 7 !metadata(storage=slot(0))

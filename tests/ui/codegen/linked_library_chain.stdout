@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/linked_library_chain.sol:DataTypes (runtime) ===
 // === ROOT/tests/ui/codegen/linked_library_chain.sol:Inner (runtime) ===
+@module runtime
 bb0 (entry):
   push 224
   push 64
@@ -89,6 +90,7 @@ bb3:
   push 0
   revert
 // === ROOT/tests/ui/codegen/linked_library_chain.sol:Outer (runtime) ===
+@module runtime
 bb0 (entry):
   push 224
   push 64
@@ -200,6 +202,7 @@ bb5:
   push 0
   revert
 // === ROOT/tests/ui/codegen/linked_library_chain.sol:C (runtime) ===
+@module runtime
 bb0 (entry):
   push 224
   push 64

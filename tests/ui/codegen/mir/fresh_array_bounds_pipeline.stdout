@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/fresh_array_bounds_pipeline.mir (after pipeline-default) ===
-; module @FreshArrayBoundsPipeline [phase = optimized]
+@module FreshArrayBoundsPipeline
+@phase optimized
 fn @constant_index() -> u256 {
   bb0 (entry):
     v0 = mload 64

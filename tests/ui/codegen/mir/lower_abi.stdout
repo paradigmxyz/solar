@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/lower_abi.mir (after lower-abi) ===
-; module @LowerAbi [phase = abi]
+@module LowerAbi
+@phase abi
 fn @add() {
   bb0 (entry):
     v0 = add arg0, arg1

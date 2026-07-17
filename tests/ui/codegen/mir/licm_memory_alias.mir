@@ -1,5 +1,5 @@
 //@compile-flags: --pass licm
-; module @LicmMemoryAlias
+@module LicmMemoryAlias
 fn @hoist_non_aliasing_mload() -> u256 {
   bb0 (entry):
     jump bb1

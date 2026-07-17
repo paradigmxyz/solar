@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/storage_checked_arithmetic.sol:StorageCheckedArithmetic ===
-; module @StorageCheckedArithmetic
+@module StorageCheckedArithmetic
 fn @storage_sub(arg0: address, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize

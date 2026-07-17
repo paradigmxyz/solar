@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/cfg_simplify_trivial_phi_chain.mir (after cfg-simplify) ===
-; module @CfgSimplifyTrivialPhiChain
+@module CfgSimplifyTrivialPhiChain
 fn @chained_trivial(arg0: u256) -> u256 {
   bb0 (entry):
     jump bb1

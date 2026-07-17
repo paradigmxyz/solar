@@ -1,7 +1,7 @@
 //@compile-flags: --pass sccp
 // Branch on a constant condition: lt(5, 10) = true.
 // SCCP should fold the comparison and the branch, making bb2 unreachable.
-; module @SccpBranch
+@module SccpBranch
 fn @const_branch() -> u256 {
   bb0 (entry):
     v0 = lt 5, 10

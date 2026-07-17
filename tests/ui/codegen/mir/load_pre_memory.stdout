@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/load_pre_memory.mir (after load-pre) ===
-; module @LoadPreMemory
+@module LoadPreMemory
 fn @mload_full_diamond(arg0: bool) -> u256 {
   bb0 (entry):
     br arg0, bb1, bb2

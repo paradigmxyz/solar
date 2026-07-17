@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/immutable_reads.sol:C ===
-; module @C
+@module C
 fn @start() {
   bb0 (entry):
     mstore 128, 0

@@ -1,5 +1,5 @@
 //@compile-flags: --pass inline
-; module @InlineInternalCall
+@module InlineInternalCall
 fn @caller(arg0: u256) -> u256 {
   bb0 (entry):
     v1 = internal_call fn1, 1, arg0

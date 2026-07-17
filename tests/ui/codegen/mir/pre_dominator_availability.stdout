@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/pre_dominator_availability.mir (after pre) ===
-; module @DomAvail
+@module DomAvail
 fn @reuse_dominating_def(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
     switch arg1, default bb1, [1 => bb2, 2 => bb3]

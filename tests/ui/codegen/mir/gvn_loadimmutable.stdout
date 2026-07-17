@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/gvn_loadimmutable.mir (after gvn) ===
-; module @GvnLoadImmutable
+@module GvnLoadImmutable
 fn @same_immutable_merges() -> u256 {
   bb0 (entry):
     v0 = loadimmutable 0

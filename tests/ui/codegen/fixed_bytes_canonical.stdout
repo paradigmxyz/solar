@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/fixed_bytes_canonical.sol:FixedBytesCanonical ===
-; module @FixedBytesCanonical
+@module FixedBytesCanonical
 fn @fromUint(arg0: u8) {
   bb0 (entry):
     v0 = calldatasize

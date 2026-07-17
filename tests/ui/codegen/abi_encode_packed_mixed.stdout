@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/abi_encode_packed_mixed.sol:AbiEncodePackedMixed ===
-; module @AbiEncodePackedMixed
+@module AbiEncodePackedMixed
 fn @fixedBytesArg(arg0: u256, arg1: address, arg2: bytes2) {
   bb0 (entry):
     v0 = calldatasize

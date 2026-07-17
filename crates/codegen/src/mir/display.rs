@@ -399,7 +399,7 @@ fn display_metadata<'a>(inst: &'a Instruction, func: &'a Function) -> impl fmt::
             }
             MetadataField::Memory(memory) => write!(f, "memory={}", memory.name()),
             MetadataField::Hir(hir_expr) => write!(f, "hir={}", hir_expr.index()),
-            MetadataField::Span { lo, hi } => write!(f, "span={lo}..{hi}"),
+            MetadataField::Span { lo, hi } => write!(f, "span={lo} .. {hi}"),
             MetadataField::Unchecked => write!(f, "unchecked"),
             MetadataField::LoopDepth(loop_depth) => write!(f, "loop_depth={loop_depth}"),
             MetadataField::Effect(effect) => write!(f, "effect={}", effect.name()),

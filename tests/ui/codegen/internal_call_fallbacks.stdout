@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/internal_call_fallbacks.sol:InternalCallFallbacks ===
-; module @InternalCallFallbacks
+@module InternalCallFallbacks
 fn @recurse(arg0: u256) {
   bb0 (entry):
     v0 = calldatasize

@@ -49,8 +49,9 @@ pub struct Parser<'sess, 'ast, 'cb> {
     /// The current doc-comments.
     docs: Vec<DocComment<'ast>>,
 
-    /// The token stream.
-    tokens: std::vec::IntoIter<Token>,
+    /// The token stream and current position within it.
+    tokens: Vec<Token>,
+    token_cursor: usize,
 
     /// Whether the parser is in Yul mode.
     ///
@@ -67,6 +68,20 @@ pub struct Parser<'sess, 'ast, 'cb> {
     #[allow(clippy::type_complexity)]
     import_callback:
         Option<std::boxed::Box<dyn FnMut(ast::ItemId, Span, &ast::ImportDirective<'ast>) + 'cb>>,
+}
+
+/// A checkpoint of parser state that can be restored after tentative parsing.
+#[derive(Clone)]
+pub struct ParserCheckpoint {
+    token: Token,
+    prev_token: Token,
+    expected_tokens: Vec<ExpectedToken>,
+    last_unexpected_token_span: Option<Span>,
+    token_cursor: usize,
+    in_yul: bool,
+    in_contract: bool,
+    recover_incomplete_input: bool,
+    recursion_depth: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -156,7 +171,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             expected_tokens: Vec::with_capacity(8),
             last_unexpected_token_span: None,
             docs: Vec::with_capacity(4),
-            tokens: tokens.into_iter(),
+            tokens,
+            token_cursor: 0,
             in_yul: false,
             in_contract: false,
             recover_incomplete_input: sess.opts.unstable.recover_incomplete_input,
@@ -226,6 +242,36 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Creates a new parser from a lexer.
     pub fn from_lexer(arena: &'ast ast::Arena, lexer: Lexer<'sess, '_>) -> Self {
         Self::new(lexer.sess, arena, lexer.into_tokens())
+    }
+
+    /// Saves the current parser state for later restoration.
+    pub fn checkpoint(&self) -> ParserCheckpoint {
+        assert!(self.docs.is_empty(), "cannot checkpoint while doc comments are pending");
+        ParserCheckpoint {
+            token: self.token,
+            prev_token: self.prev_token,
+            expected_tokens: self.expected_tokens.clone(),
+            last_unexpected_token_span: self.last_unexpected_token_span,
+            token_cursor: self.token_cursor,
+            in_yul: self.in_yul,
+            in_contract: self.in_contract,
+            recover_incomplete_input: self.recover_incomplete_input,
+            recursion_depth: self.recursion_depth,
+        }
+    }
+
+    /// Restores parser state saved by [`checkpoint`](Self::checkpoint).
+    pub fn restore(&mut self, checkpoint: ParserCheckpoint) {
+        self.token = checkpoint.token;
+        self.prev_token = checkpoint.prev_token;
+        self.expected_tokens = checkpoint.expected_tokens;
+        self.last_unexpected_token_span = checkpoint.last_unexpected_token_span;
+        self.docs.clear();
+        self.token_cursor = checkpoint.token_cursor;
+        self.in_yul = checkpoint.in_yul;
+        self.in_contract = checkpoint.in_contract;
+        self.recover_incomplete_input = checkpoint.recover_incomplete_input;
+        self.recursion_depth = checkpoint.recursion_depth;
     }
 
     /// Returns the diagnostic context.
@@ -811,7 +857,11 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Use [`bump`](Self::bump) and [`token`](Self::token) instead.
     #[inline(always)]
     fn next_token(&mut self) -> Token {
-        self.tokens.next().unwrap_or(Token::new(TokenKind::Eof, self.token.span))
+        let Some(token) = self.tokens.get(self.token_cursor).copied() else {
+            return Token::new(TokenKind::Eof, self.token.span);
+        };
+        self.token_cursor += 1;
+        token
     }
 
     /// Returns the token `dist` tokens ahead of the current one.
@@ -830,8 +880,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     fn look_ahead_full(&self, dist: usize) -> Token {
-        self.tokens
-            .as_slice()
+        self.tokens[self.token_cursor..]
             .iter()
             .copied()
             .filter(|t| !t.is_comment_or_doc())

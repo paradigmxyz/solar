@@ -1,5 +1,5 @@
 //@compile-flags: --pass jump-threading
-; module @JumpThreadingPhiConstants
+@module JumpThreadingPhiConstants
 fn @thread_branch_on_phi_constant(arg0: bool) -> u256 {
   bb0 (entry):
     br arg0, bb1, bb2

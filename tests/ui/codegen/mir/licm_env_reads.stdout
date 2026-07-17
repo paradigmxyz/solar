@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/licm_env_reads.mir (after licm) ===
-; module @LicmEnvReads
+@module LicmEnvReads
 fn @keep_balance_with_call() -> u256 {
   bb0 (entry):
     jump bb1

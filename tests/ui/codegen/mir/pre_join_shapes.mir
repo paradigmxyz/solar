@@ -1,5 +1,5 @@
 //@compile-flags: --passes pre
-; module @JoinShapes
+@module JoinShapes
 
 // bb2 reaches the join through two switch edges: the phi must keep one
 // incoming entry per unique predecessor.

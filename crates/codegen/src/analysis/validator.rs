@@ -27,8 +27,7 @@
 //! # Usage
 //!
 //! ```ignore
-//! use solar_codegen::analysis::Validator;
-//! Validator::new(dcx).validate_function(&func);
+//! solar_codegen::mir::validate(dcx, &module);
 //! ```
 
 use crate::{
@@ -44,7 +43,7 @@ use solar_interface::{diagnostics::DiagCtxt, sym};
 use std::fmt;
 
 /// Stateful MIR verifier.
-pub struct Validator<'a> {
+struct Validator<'a> {
     dcx: &'a DiagCtxt,
     function: Option<usize>,
     error_count: usize,
@@ -52,7 +51,7 @@ pub struct Validator<'a> {
 
 impl<'a> Validator<'a> {
     /// Creates a verifier that emits findings into `dcx`.
-    pub const fn new(dcx: &'a DiagCtxt) -> Self {
+    const fn new(dcx: &'a DiagCtxt) -> Self {
         Self { dcx, function: None, error_count: 0 }
     }
 
@@ -80,7 +79,8 @@ impl<'a> Validator<'a> {
     }
 
     /// Validates a single function.
-    pub fn validate_function(mut self, func: &Function) {
+    #[cfg(test)]
+    fn validate_function(mut self, func: &Function) {
         self.validate_function_inner(func);
     }
 
@@ -415,7 +415,7 @@ impl<'a> Validator<'a> {
     }
 
     /// Validates every function in a module.
-    pub fn validate_module(mut self, module: &Module) {
+    fn validate_module(mut self, module: &Module) {
         for (id, func) in module.iter_functions() {
             self.function = Some(id.index());
             self.validate_function_inner(func);
@@ -486,6 +486,10 @@ impl<'a> Validator<'a> {
             }
         }
     }
+}
+
+pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
+    Validator::new(dcx).validate_module(module);
 }
 
 // =============================================================================

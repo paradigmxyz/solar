@@ -2,7 +2,7 @@
 // Keccak reads with non-constant sizes key the canonical size operand: reads with the
 // same dynamic size still unify, reads with different dynamic sizes must not, and a
 // memory write with a dynamic size still invalidates them conservatively.
-; module @CseKeccakDynamicSize
+@module CseKeccakDynamicSize
 fn @keep_different_dynamic_sizes(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
     v2 = keccak256 0, arg0
