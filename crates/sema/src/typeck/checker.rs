@@ -234,7 +234,10 @@ impl<'gcx> TypeChecker<'gcx> {
                     );
                     result
                 } else {
-                    let _ = self.expect_ty(rhs, ty);
+                    let rhs_ty = self.check_expr_with_noexpect(rhs, Some(ty));
+                    if !self.can_assign_storage_copy(lhs, rhs_ty, ty) {
+                        let _ = self.check_expected(rhs, rhs_ty, ty);
+                    }
                     ty
                 }
             }
@@ -780,8 +783,9 @@ impl<'gcx> TypeChecker<'gcx> {
         for (i, (&lhs_component, &lhs_component_ty)) in
             lhs_components.iter().zip(lhs_types).enumerate()
         {
-            if let Some(_) = lhs_component
+            if let Some(lhs_component) = lhs_component
                 && let Some(rhs_component) = rhs_components.and_then(|components| components[i])
+                && !self.can_assign_storage_copy(lhs_component, rhs_types[i], lhs_component_ty)
             {
                 let _ = self.check_expected(rhs_component, rhs_types[i], lhs_component_ty);
             }
@@ -798,6 +802,50 @@ impl<'gcx> TypeChecker<'gcx> {
             }
         }
         false
+    }
+
+    /// Returns true if the expression refers to a non-state storage pointer variable.
+    fn is_storage_pointer_variable(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        if let hir::ExprKind::Ident(res_slice) = &expr.peel_parens().kind {
+            let res = self.resolve_overloads(res_slice, expr.span);
+            if let hir::Res::Item(hir::ItemId::Variable(var_id)) = res {
+                return !self.gcx.hir.variable(var_id).is_state_variable();
+            }
+        }
+        false
+    }
+
+    /// Returns whether an assignment performs a copy into a direct storage value.
+    fn can_assign_storage_copy(
+        &self,
+        lhs: &'gcx hir::Expr<'gcx>,
+        from: Ty<'gcx>,
+        to: Ty<'gcx>,
+    ) -> bool {
+        if self.is_storage_pointer_variable(lhs) {
+            return false;
+        }
+        self.can_copy_to_storage(from, to)
+    }
+
+    fn can_copy_to_storage(&self, from: Ty<'gcx>, to: Ty<'gcx>) -> bool {
+        let TyKind::Ref(to, DataLocation::Storage) = to.kind else { return false };
+        self.can_copy_storage_value(from, to)
+    }
+
+    fn can_copy_storage_value(&self, from: Ty<'gcx>, to: Ty<'gcx>) -> bool {
+        let from = from.peel_refs();
+        let to = to.peel_refs();
+        match (from.kind, to.kind) {
+            (TyKind::DynArray(from), TyKind::DynArray(to))
+            | (TyKind::Array(from, _), TyKind::DynArray(to)) => {
+                self.can_copy_storage_value(from, to)
+            }
+            (TyKind::Array(from, from_len), TyKind::Array(to, to_len)) => {
+                from_len <= to_len && self.can_copy_storage_value(from, to)
+            }
+            _ => from.convert_implicit_to(to, self.gcx),
+        }
     }
 
     /// Tries to evaluate an expression made up of int literals.
@@ -2076,7 +2124,13 @@ impl<'gcx> TypeChecker<'gcx> {
                 );
             } else if expect {
                 let _ = if var.is_state_variable() {
-                    self.with_construction_context(|this| this.expect_ty(init, ty))
+                    self.with_construction_context(|this| {
+                        let init_ty = this.check_expr_with_noexpect(init, Some(ty));
+                        if !this.can_copy_to_storage(init_ty, ty) {
+                            let _ = this.check_expected(init, init_ty, ty);
+                        }
+                        init_ty
+                    })
                 } else {
                     self.expect_ty(init, ty)
                 };

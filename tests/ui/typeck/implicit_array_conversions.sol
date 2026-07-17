@@ -1,9 +1,22 @@
 // Tests for implicit array conversions.
-// Arrays require exactly the same element type - no widening allowed.
-// Fixed arrays must also have the same length.
+// Outside direct storage copies, arrays require exactly the same element type and length.
 
 contract C {
+    struct Holder {
+        uint32[] children;
+        uint32[][] arrays;
+    }
+
+    Holder holder;
     uint256[] storageArr;
+    uint32[] widerStorageArr;
+    uint8[] narrowerStorageArr;
+    uint32[4] widerFixedStorageArr;
+    uint8[3] narrowerFixedStorageArr;
+    uint256[][] nestedDynamicStorageArr;
+    uint256[4][] nestedFixedStorageArr;
+    uint256[2] shortFixedStorageArr;
+    uint256[3] longFixedStorageArr;
     mapping(int256 => int256) mappingArrElement;
 
     // === Valid: same element type assignment ===
@@ -13,6 +26,59 @@ contract C {
 
     function sameFixedArray(uint256[3] memory a) internal pure {
         uint256[3] memory b = a;
+    }
+
+    // === Valid: element-wise copies into direct storage arrays ===
+
+    function wideningStorageCopy() internal {
+        widerStorageArr = narrowerStorageArr;
+        widerFixedStorageArr = narrowerFixedStorageArr;
+        longFixedStorageArr = shortFixedStorageArr;
+        shortFixedStorageArr = longFixedStorageArr; //~ ERROR: mismatched types
+    }
+
+    function nestedStorageCopies(
+        uint256[][] memory dynamicSource,
+        uint256[2][] memory fixedSource,
+        uint256[2][3] memory fixedToDynamicSource
+    ) internal {
+        nestedDynamicStorageArr = dynamicSource;
+        nestedFixedStorageArr = fixedSource;
+        nestedDynamicStorageArr = fixedToDynamicSource;
+    }
+
+    function tupleStorageCopies(
+        uint256[][] memory dynamicSource,
+        uint256[2][] memory fixedSource
+    ) internal {
+        (nestedDynamicStorageArr, nestedFixedStorageArr) = (dynamicSource, fixedSource);
+    }
+
+    function storagePointerMemberCopies(uint8[] memory source) internal {
+        Holder storage pointer = holder;
+        pointer.children = source;
+        pointer.arrays[0] = source;
+    }
+
+    function memoryToStoragePointer(uint8[] memory a) internal {
+        uint32[] storage b = a; //~ ERROR: mismatched types
+    }
+
+    function memoryToStorageParameter(
+        uint32[] storage pointer,
+        uint8[] memory a,
+        uint32[] memory exact
+    ) internal {
+        pointer = a; //~ ERROR: mismatched types
+        (pointer) = exact; //~ ERROR: mismatched types
+    }
+
+    function tupleMemoryToStorageParameter(
+        uint32[] storage pointer,
+        uint8[] memory a,
+        uint256 value
+    ) internal {
+        (pointer, value) = (a, value); //~ ERROR: mismatched types
     }
 
     function fixedArrayLiteral() internal pure {
