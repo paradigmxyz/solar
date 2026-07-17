@@ -120,11 +120,11 @@ impl<'gcx> HirPrinter<'gcx> {
         let enumm = self.gcx.hir.enumm(id);
         self.write_indent();
         write!(self.out, "enum {} {{", enumm.name).unwrap();
-        for (i, variant) in enumm.variants.iter().enumerate() {
+        for (i, &variant) in enumm.variants.iter().enumerate() {
             if i != 0 {
                 self.out.push_str(", ");
             }
-            self.out.push_str(variant.as_str());
+            self.out.push_str(self.gcx.hir.variable(variant).name.unwrap().as_str());
         }
         self.out.push_str("}\n");
     }

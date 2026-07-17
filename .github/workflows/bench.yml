@@ -31,15 +31,15 @@ on:
       benchmark_ref:
         description: solidity-compiler-benchmarks Git ref
         required: true
-        default: 759b27b596ca6632717465832859863eccbe41a2
+        default: 01209d2b8ac81645b92e3ef801b5bcdfd61bfd69
         type: string
 
 env:
   CARGO_TERM_COLOR: always
   SOLC_VERSION: ${{ inputs.solc_version || '0.8.36' }}
   BENCHMARK_REPOSITORY: walnuthq/solidity-compiler-benchmarks
-  DEFAULT_BENCHMARK_REF: 759b27b596ca6632717465832859863eccbe41a2
-  BENCHMARK_REF: ${{ inputs.benchmark_ref || '759b27b596ca6632717465832859863eccbe41a2' }}
+  DEFAULT_BENCHMARK_REF: 01209d2b8ac81645b92e3ef801b5bcdfd61bfd69
+  BENCHMARK_REF: ${{ inputs.benchmark_ref || '01209d2b8ac81645b92e3ef801b5bcdfd61bfd69' }}
   BENCHMARK_PATH: solidity-compiler-benchmarks
 
 jobs:
@@ -59,6 +59,8 @@ jobs:
     steps:
       - name: Checkout Solar
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
 
       - name: Test common benchmark result adapter
         run: |
@@ -182,6 +184,7 @@ jobs:
         id: runtime-report
         if: always()
         env:
+          BENCHMARK_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BENCHMARK_PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail

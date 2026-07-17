@@ -168,23 +168,24 @@ def runtime_size(result: dict[str, Any], compiler: str) -> int | None:
     return value if isinstance(value, int) else None
 
 
+def peak_rss(result: dict[str, Any], compiler: str) -> int | None:
+    data = compiler_data(result, compiler)
+    value = data.get("peak_rss_bytes")
+    if data.get("status") != "ok":
+        return None
+    return value if isinstance(value, int) else None
+
+
 def fmt_int(value: int | None, suffix: str = "") -> str:
     if value is None:
         return "n/a"
     return f"{value:,}{suffix}"
 
 
-def pct_improvement(current: int | None, baseline: int | None) -> float | None:
-    if current is None or baseline in (None, 0):
-        return None
-    return (baseline - current) / baseline * 100
-
-
-def fmt_pct_improvement(current: int | None, baseline: int | None) -> str:
-    delta = pct_improvement(current, baseline)
-    if delta is None:
+def fmt_bytes(value: int | float | None) -> str:
+    if value is None:
         return "n/a"
-    return fmt_pct(delta)
+    return f"{value / (1024 * 1024):,.1f} MiB"
 
 
 def pct_change(current: int | None, baseline: int | None) -> float | None:
@@ -235,13 +236,7 @@ def absolute_delta(current: int | None, baseline: int | None) -> str:
     return f"{delta:+,}"
 
 
-def fmt_value_with_delta(
-    value: int | None, current: int | None, baseline: int | None, suffix: str = ""
-) -> str:
-    return f"{fmt_int(value, suffix)} ({fmt_pct_improvement(current, baseline)})"
-
-
-def fmt_value_with_size_delta(
+def fmt_value_with_lower_is_better_delta(
     value: int | None, current: int | None, baseline: int | None, suffix: str = ""
 ) -> str:
     return f"{fmt_int(value, suffix)} ({fmt_pct_change_lower_is_better(current, baseline)})"
@@ -272,15 +267,94 @@ def benchmark_rows(
             + " | ".join(
                 [
                     markdown_cell(test_id),
-                    fmt_value_with_delta(solar_gas, solar_gas, base_solar_gas),
+                    fmt_value_with_lower_is_better_delta(
+                        solar_gas, solar_gas, base_solar_gas
+                    ),
                     fmt_value_with_delta_vs_current(solc_gas, solar_gas, solc_gas),
-                    fmt_value_with_size_delta(solar_size, solar_size, base_solar_size, "B"),
+                    fmt_value_with_lower_is_better_delta(
+                        solar_size, solar_size, base_solar_size, "B"
+                    ),
                     fmt_value_with_delta_vs_current(solc_size, solar_size, solc_size, "B"),
                 ]
             )
             + " |"
         )
     return rows
+
+
+def compiler_ids(results: list[dict[str, Any]]) -> list[str]:
+    ids = []
+    for result in results:
+        for compiler_id in (result.get("compilers") or {}).keys():
+            if compiler_id not in ids:
+                ids.append(compiler_id)
+    return ids
+
+
+def memory_summary_rows(results: list[dict[str, Any]]) -> list[str]:
+    rows = []
+    for compiler_id in compiler_ids(results):
+        values = [
+            (str(result.get("test_id", "<unknown>")), value)
+            for result in results
+            if (value := peak_rss(result, compiler_id)) is not None
+        ]
+        if not values:
+            continue
+        max_bench, max_value = max(values, key=lambda item: item[1])
+        average = sum(value for _, value in values) / len(values)
+        rows.append(
+            f"| {markdown_cell(compiler_id)} | {len(values)} | {fmt_bytes(average)} | "
+            f"{fmt_bytes(max_value)} | {markdown_cell(max_bench)} |"
+        )
+    return rows
+
+
+def memory_benchmark_rows(results: list[dict[str, Any]]) -> list[str]:
+    ids = compiler_ids(results)
+    rows = []
+    for result in results:
+        test_id = str(result.get("test_id", "<unknown>"))
+        values = {compiler_id: peak_rss(result, compiler_id) for compiler_id in ids}
+        cells = [
+            markdown_cell(test_id),
+            *(fmt_bytes(values[compiler_id]) for compiler_id in ids),
+        ]
+        if "solar" in values and "solc" in values:
+            cells.append(
+                fmt_pct_change_lower_is_better(values["solar"], values["solc"])
+            )
+        rows.append("| " + " | ".join(cells) + " |")
+    return rows
+
+
+def memory_report(results: list[dict[str, Any]]) -> list[str]:
+    ids = compiler_ids(results)
+    summary_rows = memory_summary_rows(results)
+    if not summary_rows:
+        return []
+
+    headers = ["bench", *(f"{compiler_id} peak" for compiler_id in ids)]
+    if "solar" in ids and "solc" in ids:
+        headers.append("Solar vs solc")
+
+    return [
+        "<details>",
+        "<summary>Peak RSS</summary>",
+        "",
+        "| compiler | benches | average peak RSS | maximum peak RSS | maximum bench |",
+        "| -------- | ------- | ---------------- | ---------------- | ------------- |",
+        *summary_rows,
+        "",
+        "#### Per-benchmark peak RSS",
+        "",
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join("---" for _ in headers) + " |",
+        *memory_benchmark_rows(results),
+        "",
+        "</details>",
+        "",
+    ]
 
 
 def report_section(
@@ -305,7 +379,21 @@ def report_section(
             "",
         ]
     )
+    lines.extend(memory_report(results))
     return "\n".join(lines)
+
+
+def codegen_report(
+    micro_results: list[dict[str, Any]],
+    repo_results: list[dict[str, Any]],
+    baseline_micro: list[dict[str, Any]],
+    baseline_repo: list[dict[str, Any]],
+) -> str:
+    return report_section(
+        "Codegen benchmark",
+        [*micro_results, *repo_results],
+        [*baseline_micro, *baseline_repo],
+    )
 
 
 def emit_warnings(
@@ -336,14 +424,44 @@ def append_github_output(name: str, value: str) -> None:
         f.write(f"{name}={value}\n")
 
 
-def format_report(markdown: str, has_changes: bool) -> str:
-    if has_changes:
+def branch_is_behind_main() -> bool:
+    head_sha = os.environ.get("BENCHMARK_PR_HEAD_SHA")
+    if not head_sha:
+        return False
+    try:
+        count = subprocess.check_output(
+            ["git", "rev-list", "--count", f"{head_sha}..origin/main"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        warning("could not determine whether the branch is behind main")
+        return False
+    return int(count) > 0
+
+
+def format_report(markdown: str, has_changes: bool, behind_main: bool) -> str:
+    if has_changes and not behind_main:
         return markdown
-    return (
-        "> [!NOTE]\n"
-        "> Codegen benchmark output is unchanged from `main`.\n\n"
-        f"{markdown}"
+    if not has_changes:
+        markdown = (
+            "> [!NOTE]\n"
+            "> Codegen benchmark output is unchanged from `main`.\n\n"
+            f"{markdown}"
+        )
+    details = (
+        "<details>\n"
+        "<summary>Codegen benchmark output</summary>\n\n"
+        f"{markdown}\n\n"
+        "</details>"
     )
+    if behind_main:
+        return (
+            "> [!WARNING]\n"
+            "> This branch is behind `main`, so these benchmark results may be incorrect.\n\n"
+            f"{details}"
+        )
+    return details
 
 
 def metric(value: int | float, unit: str, statistic: str) -> dict[str, Any]:
@@ -499,22 +617,20 @@ def main() -> int:
     emit_warnings("micro", micro_results, baseline_micro)
     emit_warnings("repository", repo_results, baseline_repo)
 
-    sections = []
-    if args.micro is not None:
-        sections.append(
-            report_section("Micro codegen benchmark", micro_results, baseline_micro)
+    if args.micro is not None or args.repo is not None:
+        report = codegen_report(
+            micro_results,
+            repo_results,
+            baseline_micro,
+            baseline_repo,
         )
-    if args.repo is not None:
-        sections.append(
-            report_section("Repository codegen benchmark", repo_results, baseline_repo)
-        )
-    if not sections:
-        sections.append("## Codegen benchmark\n\nNo benchmark inputs were configured.\n")
+    else:
+        report = "## Codegen benchmark\n\nNo benchmark inputs were configured.\n"
 
     should_comment = has_baseline_changes(
         micro_results, baseline_micro
     ) or has_baseline_changes(repo_results, baseline_repo)
-    markdown = format_report("\n".join(sections), should_comment)
+    markdown = format_report(report, should_comment, branch_is_behind_main())
     print(markdown)
     append_step_summary(markdown)
     append_github_output("should_comment", "true" if should_comment else "false")
