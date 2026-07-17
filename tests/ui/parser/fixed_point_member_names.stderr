@@ -1,0 +1,14 @@
+error: expected identifier, found `fixed128x18`
+   ╭▸ ROOT/tests/ui/parser/fixed_point_member_names.sol:LL:CC
+   │
+LL │         this.fixed128x18;
+   ╰╴             ━━━━━━━━━━━
+
+error: expected identifier, found `ufixed128x18`
+   ╭▸ ROOT/tests/ui/parser/fixed_point_member_names.sol:LL:CC
+   │
+LL │         f().ufixed128x18;
+   ╰╴            ━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

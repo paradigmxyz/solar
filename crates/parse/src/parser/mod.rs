@@ -511,11 +511,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
     #[must_use]
     fn check_nr_ident(&mut self) -> bool {
-        self.check_or_expected(
-            self.token.is_non_reserved_ident(self.in_yul)
-                && (self.in_yul || !self.check_fixed_type()),
-            ExpectedToken::Ident,
-        )
+        self.check_or_expected(self.token.is_non_reserved_ident(self.in_yul), ExpectedToken::Ident)
     }
 
     #[must_use]

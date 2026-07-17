@@ -117,8 +117,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Returns `true` if the current token is the start of a variable declaration.
     pub(super) fn is_variable_declaration(&self) -> bool {
         // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2451
-        (self.token.is_non_reserved_ident(false) && !self.check_fixed_type())
-            || self.is_non_custom_variable_declaration()
+        self.token.is_non_reserved_ident(false) || self.is_non_custom_variable_declaration()
     }
 
     pub(super) fn is_non_custom_variable_declaration(&self) -> bool {
@@ -126,7 +125,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             || (self.token.is_keyword(kw::Function)
                 && self.look_ahead(1).is_open_delim(Delimiter::Parenthesis))
             || self.token.is_elementary_type()
-            || self.check_fixed_type()
     }
 
     /* ----------------------------------------- Items ----------------------------------------- */

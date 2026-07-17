@@ -361,7 +361,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             return LookAheadInfo::VariableDeclaration;
         }
 
-        if self.check_nr_ident() || self.check_elementary_type() || self.check_fixed_type() {
+        if self.check_nr_ident() || self.check_elementary_type() {
             let next = self.look_ahead(1);
             if self.token.is_elementary_type() && next.is_ident_where(|id| id.name == kw::Payable) {
                 return LookAheadInfo::VariableDeclaration;
@@ -384,7 +384,13 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     fn parse_iap(&mut self) -> PResult<'sess, IndexAccessedPath<'ast>> {
         // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2559
         let mut path = SmallVec::<[_; 4]>::new();
-        if self.check_nr_ident() {
+        if self.check_elementary_type() {
+            let (span, kind) = self.parse_spanned(Self::parse_elementary_type)?;
+            path.push(IapKind::MemberTy(span, kind));
+        } else if self.check_fixed_type() {
+            let (span, kind) = self.parse_spanned(Self::parse_fixed_type)?;
+            path.push(IapKind::MemberTy(span, kind));
+        } else if self.check_nr_ident() {
             path.push(IapKind::Member(self.parse_ident()?));
             while self.eat(TokenKind::Dot) {
                 let id = match self.ident_or_err(true) {
@@ -398,18 +404,14 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                         break;
                     }
                 };
-                if id.name != kw::Address && id.is_reserved(self.in_yul) {
+                if id.name != kw::Address
+                    && (id.is_reserved(self.in_yul) || (!self.in_yul && self.check_fixed_type()))
+                {
                     self.expected_ident_found_err().emit();
                 }
                 self.bump(); // `id`
                 path.push(IapKind::Member(id));
             }
-        } else if self.check_elementary_type() {
-            let (span, kind) = self.parse_spanned(Self::parse_elementary_type)?;
-            path.push(IapKind::MemberTy(span, kind));
-        } else if self.check_fixed_type() {
-            let (span, kind) = self.parse_spanned(Self::parse_fixed_type)?;
-            path.push(IapKind::MemberTy(span, kind));
         } else {
             return self.unexpected();
         }
