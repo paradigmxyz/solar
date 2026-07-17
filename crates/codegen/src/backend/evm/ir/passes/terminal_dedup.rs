@@ -7,8 +7,7 @@
 
 use super::utils::is_evm_terminal;
 use crate::backend::evm::ir::{
-    Block, BlockId, Instruction, InstructionKind, Module, Operand, Terminator, TerminatorKind,
-    ValueId,
+    Block, BlockId, Instruction, Module, Operand, Terminator, TerminatorKind, ValueId,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
@@ -53,16 +52,17 @@ fn terminal_block_dedup_is_profitable(block: &Block) -> bool {
 }
 
 fn estimated_instruction_size(inst: &Instruction) -> usize {
-    match &inst.kind {
-        InstructionKind::Stack(_) => 1,
-        InstructionKind::Operation(mnemonic) if mnemonic == "push" => {
-            match inst.operands.as_slice() {
-                [operand] => estimated_push_size(operand),
-                _ => 1,
-            }
+    if inst.is_immutable_push() {
+        33
+    } else if inst.is_deferred_push() {
+        1
+    } else if inst.is_encoded_push() {
+        match inst.operands.as_slice() {
+            [operand] => estimated_push_size(operand),
+            _ => 1,
         }
-        InstructionKind::Operation(mnemonic) if mnemonic == "push_immutable" => 33,
-        InstructionKind::Operation(_) => 1,
+    } else {
+        1
     }
 }
 
@@ -103,7 +103,12 @@ fn terminal_block_key(block: &Block) -> Option<TerminalBlockKey> {
             locals.insert(value, index);
             index
         });
-        instructions.push(TerminalInstructionKey { result, kind: inst.kind.clone(), operands });
+        instructions.push(TerminalInstructionKey {
+            result,
+            opcode: inst.opcode,
+            encoding: inst.encoding,
+            operands,
+        });
     }
 
     let term = block.terminator.as_ref()?;
@@ -125,7 +130,7 @@ fn terminal_operand_key(
             .unwrap_or(TerminalOperandKey::ExternalValue(*value)),
         Operand::Immediate(value) => TerminalOperandKey::Immediate(*value),
         Operand::Block(block) => TerminalOperandKey::Block(*block),
-        Operand::Symbol(symbol) => TerminalOperandKey::Symbol(symbol.clone()),
+        Operand::Symbol(symbol) => TerminalOperandKey::Symbol(*symbol),
     }
 }
 
@@ -176,7 +181,8 @@ struct TerminalBlockKey {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct TerminalInstructionKey {
     result: Option<usize>,
-    kind: InstructionKind,
+    opcode: u8,
+    encoding: u8,
     operands: Vec<TerminalOperandKey>,
 }
 
@@ -215,5 +221,5 @@ enum TerminalOperandKey {
     ExternalValue(ValueId),
     Immediate(U256),
     Block(BlockId),
-    Symbol(String),
+    Symbol(crate::backend::evm::ir::InlineName),
 }

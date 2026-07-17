@@ -39,9 +39,7 @@ mod local_interner;
 use local_interner::LocalInterner;
 
 mod program;
-pub(in crate::backend::evm) use program::{
-    EvmAsmProgram, StructuredAsmContext, StructuredAsmProgram,
-};
+pub(in crate::backend::evm) use program::{EvmAsmProgram, StructuredAsmProgram};
 
 /// A `PUSH32` immutable placeholder emitted into the assembled bytecode.
 ///
@@ -1201,28 +1199,6 @@ impl Default for Assembler {
     }
 }
 
-impl StructuredAsmContext for Assembler {
-    fn push_value(&self, index: PushValueId) -> U256 {
-        self.push_value(index)
-    }
-
-    fn push_inst(&mut self, value: U256) -> AsmInst {
-        self.push_inst(value)
-    }
-
-    fn new_label(&mut self) -> Label {
-        self.new_label()
-    }
-
-    fn time_passes(&self) -> bool {
-        self.config.time_passes
-    }
-
-    fn run_evm_ir_stack_schedule(&self) -> bool {
-        self.config.evm_ir_stack_schedule
-    }
-}
-
 #[derive(Debug)]
 struct BytecodeAssembler {
     config: AssemblerConfig,
@@ -1416,6 +1392,8 @@ enum CompactPush {
 
 /// Common EVM op.
 pub mod op {
+    const UNKNOWN_PREFIX: &str = "op_";
+
     macro_rules! opcode_mnemonic {
         (r#return) => {
             "return"
@@ -1468,6 +1446,24 @@ pub mod op {
                     $(opcode_mnemonic!($mnemonic) => Some($opcode),)*
                     _ => None,
                 }
+            }
+
+            /// Formats an opcode using its canonical mnemonic or `op_<hex>`.
+            pub fn fmt(opcode: u8, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                if let Some(mnemonic) = mnemonic(opcode) {
+                    f.write_str(mnemonic)
+                } else {
+                    write!(f, "{UNKNOWN_PREFIX}{opcode:02x}")
+                }
+            }
+
+            /// Parses a canonical mnemonic or `op_<hex>` into an opcode.
+            #[must_use]
+            pub fn from_ir_mnemonic(mnemonic: &str) -> Option<u8> {
+                from_mnemonic(mnemonic).or_else(|| {
+                    let value = mnemonic.strip_prefix(UNKNOWN_PREFIX)?;
+                    u8::from_str_radix(value, 16).ok()
+                })
             }
 
             /// Returns the number of stack items consumed and produced by an opcode.

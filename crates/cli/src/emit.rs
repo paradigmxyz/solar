@@ -252,7 +252,7 @@ pub(crate) fn format_deployment_evm_ir(modules: &[ir::Module]) -> String {
         if index != 0 {
             output.push('\n');
         }
-        writeln!(output, "// === {} ===", module.name).unwrap();
+        writeln!(output, "// === {} ===", module.name()).unwrap();
         write!(output, "{}", module.to_text()).unwrap();
     }
     output

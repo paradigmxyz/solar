@@ -66,7 +66,7 @@
 //! inherits the empty prefix; only the linear `jump` case can hand
 //! down the words below.
 
-use super::{ir, stack::SpillSlot};
+use super::{assembler::op, ir, stack::SpillSlot};
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
@@ -420,8 +420,8 @@ impl<'a> StackScheduler<'a> {
         changed: &mut bool,
     ) -> bool {
         // Already-physical stack operations are replayed onto the model.
-        if let ir::InstructionKind::Stack(op) = inst.kind {
-            if !Self::apply_stack_op(stack, op) {
+        if inst.is_physical_stack_op() {
+            if !Self::apply_stack_op(stack, inst.opcode) {
                 return false;
             }
             out.push(inst);
@@ -589,7 +589,7 @@ impl<'a> StackScheduler<'a> {
 
         // Bring the victim to the top of the stack so `mstore` can pop it.
         if victim_depth != 0
-            && !self.emit_stack_op(ir::StackOp::Swap(victim_depth as u8), stack, out, changed)
+            && !self.emit_stack_op(op::swap(victim_depth as u8), stack, out, changed)
         {
             return false;
         }
@@ -598,7 +598,7 @@ impl<'a> StackScheduler<'a> {
         // Push the slot's memory offset, then store: `mstore(offset, value)`.
         self.emit_push_immediate(byte_offset(slot), stack, out, changed);
         // `mstore` pops the offset and the value (2 inputs, no output).
-        let mut mstore = ir::Instruction::new("mstore", Vec::new());
+        let mut mstore = ir::Instruction::opcode(op::MSTORE);
         mstore.metadata.stack = Some(ir::StackEffect::new(2, 0));
         out.push(mstore);
         if stack.len() < 2 {
@@ -628,7 +628,7 @@ impl<'a> StackScheduler<'a> {
         };
         // Push the slot offset, then load: `mload(offset)`.
         self.emit_push_immediate(byte_offset(slot), stack, out, changed);
-        let mut mload = ir::Instruction::new("mload", Vec::new());
+        let mut mload = ir::Instruction::opcode(op::MLOAD);
         mload.metadata.stack = Some(ir::StackEffect::new(1, 1));
         out.push(mload);
         if stack.is_empty() {
@@ -651,9 +651,7 @@ impl<'a> StackScheduler<'a> {
         changed: &mut bool,
     ) {
         let item = self.fresh_anonymous();
-        let mut push = ir::Instruction::new("push", vec![ir::Operand::Immediate(immediate)]);
-        push.metadata.stack = Some(ir::StackEffect::new(0, 1));
-        out.push(push);
+        out.push(ir::Instruction::push(ir::Operand::Immediate(immediate)));
         stack.insert(0, item);
         *changed = true;
     }
@@ -673,9 +671,7 @@ impl<'a> StackScheduler<'a> {
                 ir::Operand::Value(value) => target.push(ScheduledStackItem::Value(*value)),
                 ir::Operand::Immediate(_) | ir::Operand::Block(_) | ir::Operand::Symbol(_) => {
                     let item = self.fresh_anonymous();
-                    let mut push = ir::Instruction::new("push", vec![operand.clone()]);
-                    push.metadata.stack = Some(ir::StackEffect::new(0, 1));
-                    out.push(push);
+                    out.push(ir::Instruction::push(operand.clone()));
                     stack.insert(0, item);
                     target.push(item);
                     *changed = true;
@@ -720,7 +716,7 @@ impl<'a> StackScheduler<'a> {
             }
 
             if target_depth == 0 {
-                if !self.emit_stack_op(ir::StackOp::Swap(source_depth as u8), stack, out, changed) {
+                if !self.emit_stack_op(op::swap(source_depth as u8), stack, out, changed) {
                     return false;
                 }
             } else if !self.shuffle_item_to_depth(target_depth, target_item, stack, out, changed) {
@@ -741,7 +737,7 @@ impl<'a> StackScheduler<'a> {
         if target_depth >= MAX_STACK_REACH {
             return false;
         }
-        if !self.emit_stack_op(ir::StackOp::Swap(target_depth as u8), stack, out, changed) {
+        if !self.emit_stack_op(op::swap(target_depth as u8), stack, out, changed) {
             return false;
         }
         let Some(new_depth) = stack.iter().position(|item| *item == target_item) else {
@@ -750,10 +746,10 @@ impl<'a> StackScheduler<'a> {
         if new_depth == 0 || new_depth >= MAX_STACK_REACH {
             return false;
         }
-        if !self.emit_stack_op(ir::StackOp::Swap(new_depth as u8), stack, out, changed) {
+        if !self.emit_stack_op(op::swap(new_depth as u8), stack, out, changed) {
             return false;
         }
-        self.emit_stack_op(ir::StackOp::Swap(target_depth as u8), stack, out, changed)
+        self.emit_stack_op(op::swap(target_depth as u8), stack, out, changed)
     }
 
     /// Duplicates values until the stack holds a copy for every remaining use,
@@ -789,7 +785,7 @@ impl<'a> StackScheduler<'a> {
                 if depth >= MAX_STACK_REACH {
                     return false;
                 }
-                if !self.emit_stack_op(ir::StackOp::Dup((depth + 1) as u8), stack, out, changed) {
+                if !self.emit_stack_op(op::dup((depth + 1) as u8), stack, out, changed) {
                     return false;
                 }
                 have += 1;
@@ -800,41 +796,42 @@ impl<'a> StackScheduler<'a> {
 
     fn emit_stack_op(
         &mut self,
-        op: ir::StackOp,
+        opcode: u8,
         stack: &mut Vec<ScheduledStackItem>,
         out: &mut Vec<ir::Instruction>,
         changed: &mut bool,
     ) -> bool {
-        if !Self::apply_stack_op(stack, op) {
+        if !Self::apply_stack_op(stack, opcode) {
             return false;
         }
-        out.push(ir::Instruction::stack_op(op));
+        out.push(ir::Instruction::opcode(opcode));
         *changed = true;
         true
     }
 
-    fn apply_stack_op(stack: &mut Vec<ScheduledStackItem>, op: ir::StackOp) -> bool {
-        match op {
-            ir::StackOp::Dup(n) => {
-                let depth = usize::from(n - 1);
+    fn apply_stack_op(stack: &mut Vec<ScheduledStackItem>, opcode: u8) -> bool {
+        match opcode {
+            op::DUP1..=op::DUP16 => {
+                let depth = usize::from(opcode - op::DUP1);
                 let Some(value) = stack.get(depth).copied() else {
                     return false;
                 };
                 stack.insert(0, value);
             }
-            ir::StackOp::Swap(n) => {
-                let depth = usize::from(n);
+            op::SWAP1..=op::SWAP16 => {
+                let depth = usize::from(opcode - op::SWAP1 + 1);
                 if depth >= stack.len() {
                     return false;
                 }
                 stack.swap(0, depth);
             }
-            ir::StackOp::Pop => {
+            op::POP => {
                 if stack.is_empty() {
                     return false;
                 }
                 stack.remove(0);
             }
+            _ => return false,
         }
         true
     }

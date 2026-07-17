@@ -286,7 +286,7 @@ impl<'a> Parser<'a> {
                 if block_labels.contains_key(&header.label) {
                     return Err(self.error(format!("duplicate block `{}`", header.label)));
                 }
-                let block_id = module.add_block(Block::new(header.label.clone()));
+                let block_id = module.add_block(Block::new(block_label_index(&header.label)));
                 block_labels.insert(header.label, block_id);
                 self.skip_to_eol();
             } else {
@@ -455,7 +455,7 @@ impl<'a> Parser<'a> {
         self.skip_inline_whitespace();
         if module.blocks[block].terminator.is_some() {
             return Err(self.error(format!(
-                "instruction after terminator in block `{}`",
+                "instruction after terminator in block `bb{}`",
                 module.blocks[block].label
             )));
         }
@@ -481,10 +481,24 @@ impl<'a> Parser<'a> {
         let operands =
             self.parse_operand_list(module, block_labels, value_labels, defined_values)?;
         let metadata = self.parse_metadata()?;
-        let kind = StackOp::parse(&mnemonic)
-            .map(InstructionKind::Stack)
-            .unwrap_or(InstructionKind::Operation(mnemonic));
-        module.blocks[block].instructions.push(Instruction { result, kind, operands, metadata });
+        let (opcode, encoding) = match mnemonic.as_str() {
+            "push" => (op::PUSH32, Instruction::ENCODED_PUSH),
+            "push_deferred" => (op::PUSH32, Instruction::ENCODED_PUSH | Instruction::DEFERRED),
+            "push_immutable" => (op::PUSH32, Instruction::ENCODED_PUSH | Instruction::IMMUTABLE),
+            _ => (
+                op::from_ir_mnemonic(&mnemonic).ok_or_else(|| {
+                    self.error(format!("unknown instruction opcode `{mnemonic}`"))
+                })?,
+                0,
+            ),
+        };
+        module.blocks[block].instructions.push(Instruction {
+            result,
+            opcode,
+            encoding,
+            operands,
+            metadata,
+        });
         self.skip_to_eol();
         Ok(())
     }
@@ -679,7 +693,7 @@ impl<'a> Parser<'a> {
         if self.peek_char() == Some('@') {
             self.advance();
             let symbol = self.parse_ident()?;
-            return Ok(Operand::Symbol(format!("@{symbol}")));
+            return Ok(Operand::Symbol(InlineName::new(&format!("@{symbol}"))));
         }
         if self.input[self.pos..].starts_with("bb") {
             let save = (self.pos, self.line, self.col);
@@ -691,7 +705,8 @@ impl<'a> Parser<'a> {
             }
             self.restore(save);
         }
-        Ok(Operand::Symbol(self.parse_ident()?.to_string()))
+        let symbol = self.parse_ident()?;
+        Ok(Operand::Symbol(InlineName::new(symbol)))
     }
 
     fn parse_block_ref(
@@ -728,9 +743,12 @@ impl<'a> Parser<'a> {
                 metadata.stack = Some(StackEffect::new(inputs, outputs));
             } else if self.try_punct('=') {
                 let value = self.parse_metadata_value()?;
-                metadata.attrs.push(MetadataItem { key, value: Some(value) });
+                metadata.attrs.push(MetadataItem {
+                    key: InlineName::new(&key),
+                    value: Some(InlineName::new(&value)),
+                });
             } else {
-                metadata.attrs.push(MetadataItem { key, value: None });
+                metadata.attrs.push(MetadataItem { key: InlineName::new(&key), value: None });
             }
 
             if self.try_punct(',') {
@@ -776,9 +794,13 @@ fn value_id(
     if let Some(value) = value_labels.get(name).copied() {
         return value;
     }
-    let value = module.add_value(name.to_string());
+    let value = module.add_value(name);
     value_labels.insert(name.to_string(), value);
     value
+}
+
+fn block_label_index(label: &str) -> u32 {
+    label.strip_prefix("bb").and_then(|value| value.parse().ok()).expect("parsed block label")
 }
 
 #[cfg(test)]
