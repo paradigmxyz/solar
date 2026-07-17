@@ -32,12 +32,6 @@ struct BlockLabel {
     reference_span: Option<Span>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum BodyEnd {
-    Eof,
-    Brace,
-}
-
 struct Parser<'sess, 'ast, 'src> {
     parser: crate::ir_parse::Parser<'sess, 'ast>,
     source: &'src SourceFile,
@@ -89,31 +83,16 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     }
 
     fn parse_module(&mut self) -> PResult<'sess, Module> {
-        let mut name = sym::module;
-        while self.parser.eat(TokenKind::At) {
-            let attr = self.parse_symbol()?;
-            if attr == sym::module {
-                name = self.parse_symbol()?;
-            } else {
-                return Err(self.error(format!("unknown module attribute `@{attr}`")));
-            }
-        }
+        self.parser.expect(TokenKind::At)?;
+        self.expect_keyword(sym::module)?;
+        let name = self.parse_symbol()?;
 
         let mut module = Module::new(name);
-        let legacy_function_wrapper = self.parser.check_keyword(sym::fn_);
-        if legacy_function_wrapper {
-            self.expect_keyword(sym::fn_)?;
-            self.parser.expect(TokenKind::At)?;
-            let _legacy_function_name = self.parse_ident()?;
-            self.parser.expect(TokenKind::OpenDelim(Delimiter::Brace))?;
-            self.parse_program_body(&mut module, BodyEnd::Brace)?;
-        } else {
-            self.parse_program_body(&mut module, BodyEnd::Eof)?;
-        }
+        self.parse_program_body(&mut module)?;
         Ok(module)
     }
 
-    fn parse_program_body(&mut self, module: &mut Module, body_end: BodyEnd) -> PResult<'sess, ()> {
+    fn parse_program_body(&mut self, module: &mut Module) -> PResult<'sess, ()> {
         let mut block_labels = FxHashMap::default();
         let mut block_order = Vec::new();
         let mut current_block = None;
@@ -121,14 +100,6 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         let mut defined_values = GrowableBitSet::with_capacity(module.values.len());
         loop {
             if self.is_eof() {
-                if body_end == BodyEnd::Brace {
-                    return Err(self.error("unterminated EVM IR block body"));
-                }
-                break;
-            }
-            if body_end == BodyEnd::Brace
-                && self.parser.eat(TokenKind::CloseDelim(Delimiter::Brace))
-            {
                 break;
             }
             if let Some(header) = self.try_parse_block_header()? {
@@ -742,21 +713,19 @@ bb1 [cold]:
         let input = "\
 @module m
 
-fn @f {
-  bb0 (entry):
-    stop
-    invalid
-}
+bb0 (entry):
+  stop
+  invalid
 ";
         sess.enter(|| assert!(parse_module(&sess, input).is_err()));
         assert_data_eq!(
             sess.emitted_diagnostics().unwrap().to_string(),
             str![[r#"
 error: instruction after terminator in block `bb0`
-  ╭▸ <evmir-test-8131681028095984083>:6:5
+  ╭▸ <evmir-test-10709633122247444245>:5:3
   │
-6 │     invalid
-  ╰╴    ━━━━━━━
+5 │   invalid
+  ╰╴  ━━━━━━━
 
 
 "#]]

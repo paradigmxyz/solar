@@ -2,6 +2,8 @@
 // `switch` wants only its discriminant on top; the case immediates stay
 // encoded. An unrelated push sits above the discriminant, so it is swapped back
 // to the top before the terminator.
+@module module
+
 bb0 (entry):
   %x = push 3
   %sel = add %x, %x

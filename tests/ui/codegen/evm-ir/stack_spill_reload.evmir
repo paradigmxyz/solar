@@ -6,6 +6,8 @@
 // arranged. The spilled `%v1` is then reloaded with `mload` before its later use
 // in `mul`, keeping the schedule valid. The pass stays atomic and the verifier
 // accepts the spilled/reloaded result.
+@module module
+
 bb0 (entry):
   %v0 = push 0
   %v1 = push 1

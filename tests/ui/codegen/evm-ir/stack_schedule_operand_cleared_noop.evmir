@@ -6,6 +6,8 @@
 // onto the model stack and emitted unchanged. This pins the reality that wiring
 // the off-by-default `evm_ir_stack_schedule` flag into the bridge cannot change
 // produced bytecode.
+@module module
+
 bb0 (entry):
   push 1
   push 2

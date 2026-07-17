@@ -1,3 +1,5 @@
+@module module
+
 bb0 (entry):
   push 1
   dup1

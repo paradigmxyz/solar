@@ -1,5 +1,7 @@
 // Zero-input opcodes can be written without explicit stack metadata: their
 // stack effect is known from the opcode family, not from virtual operands.
+@module module
+
 bb0 (entry):
   %sender = caller
   %left = gas

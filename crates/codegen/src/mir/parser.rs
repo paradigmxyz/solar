@@ -173,11 +173,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_module(&mut self) -> PResult<'sess, Module> {
         let mut phase = super::MirPhase::default();
-        let mut module_name = sym::module.to_string();
+        self.parser.expect(TokenKind::At)?;
+        self.expect_keyword(sym::module)?;
+        let module_name = self.parse_ident()?.to_string();
         while self.parser.eat(TokenKind::At) {
             let attr = self.parse_ident()?;
             match attr {
-                sym::module => module_name = self.parse_ident()?.to_string(),
                 sym::phase => {
                     let phase_span = self.parser.token().span;
                     let phase_name = self.parse_phase_name()?;

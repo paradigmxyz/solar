@@ -4,6 +4,8 @@
 // the back-edge predecessor is not yet scheduled when bb1 is processed, so its
 // exit stack is unknown; rather than guess across the cycle the scheduler leaves
 // bb1 verbatim (`iszero %a` keeps its operand). bb0 still schedules.
+@module module
+
 bb0 (entry):
   %a = push 1
   jump bb1

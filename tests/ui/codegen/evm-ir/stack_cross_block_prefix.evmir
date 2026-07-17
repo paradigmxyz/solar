@@ -4,6 +4,8 @@
 // first); bb1 declares just `(in %top)`, leaving %keep untouched below it. The
 // verifier accepts this because the declared incoming stack is a prefix of the
 // predecessor's exit stack.
+@module module
+
 bb0 (entry):
   %keep = push 1
   %top = push 2

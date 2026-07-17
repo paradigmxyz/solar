@@ -1,3 +1,5 @@
+@module module
+
 bb0 (entry):
   %plain = push 1
   %deferred = push_deferred 2
