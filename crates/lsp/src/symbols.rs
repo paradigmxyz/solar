@@ -20,7 +20,7 @@ use solar_sema::{
     },
     ty::{CallableParamSource, MemberCompletion, ResolvedMember, Ty, TyKind},
 };
-use std::ops::ControlFlow;
+use std::{ops::ControlFlow, path::PathBuf};
 
 use crate::{
     document_links::DocumentLinkIndex,
@@ -139,7 +139,9 @@ impl SymbolTables {
     ///
     /// The compiler's resolver data is scoped to one analysis run. This table copies out the
     /// source-level declarations that LSP requests can query after that run has finished.
-    pub(crate) fn build(gcx: Gcx<'_>) -> Self {
+    /// `document_link_sources` restricts link sources to files owned by this analysis batch;
+    /// every other table still includes transitive dependencies.
+    pub(crate) fn build(gcx: Gcx<'_>, document_link_sources: &FxHashSet<PathBuf>) -> Self {
         let mut tables = Self::default();
         tables.rename.record_source_contents(gcx);
         tables.build_builtin_completions();
@@ -244,7 +246,7 @@ impl SymbolTables {
         tables.build_receiver_member_completions(gcx);
         tables.build_member_completions(gcx);
         tables.build_references(gcx, &item_symbols);
-        tables.document_links = DocumentLinkIndex::build(gcx);
+        tables.document_links = DocumentLinkIndex::build(gcx, document_link_sources);
         tables.inlay_hints = InlayHintIndex::build(gcx);
         tables.signature_help = SignatureHelpIndex::build(gcx);
         tables.rebuild_indexes();

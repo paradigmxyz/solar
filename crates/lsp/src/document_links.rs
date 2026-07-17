@@ -1,25 +1,30 @@
 use lsp_types::{DocumentLink, Range, Url};
-use solar_interface::{Span, data_structures::map::FxHashMap};
+use solar_interface::{
+    Span,
+    data_structures::map::{FxHashMap, FxHashSet},
+};
 use solar_sema::{Gcx, ast};
+use std::path::PathBuf;
 
 use crate::proto;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct DocumentLinkIndex {
-    by_file: FxHashMap<Url, FxHashMap<Range, LinkTarget>>,
+    by_file: FxHashMap<Url, Vec<StoredDocumentLink>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum LinkTarget {
-    Resolved(Url),
-    Ambiguous,
+#[derive(Clone, Debug)]
+struct StoredDocumentLink {
+    range: Range,
+    target: Url,
 }
 
 impl DocumentLinkIndex {
-    pub(crate) fn build(gcx: Gcx<'_>) -> Self {
+    pub(crate) fn build(gcx: Gcx<'_>, source_paths: &FxHashSet<PathBuf>) -> Self {
         let mut index = Self::default();
         for source in gcx.sources.iter() {
-            if source.file.name.as_real().is_none() {
+            let Some(source_path) = source.file.name.as_real() else { continue };
+            if !source_paths.contains(source_path) {
                 continue;
             }
             let Some(ast) = &source.ast else { continue };
@@ -36,120 +41,49 @@ impl DocumentLinkIndex {
                 let Some(target) = gcx.sources.get(target_source_id) else { continue };
                 let Some(target_path) = target.file.name.as_real() else { continue };
                 let Ok(target_uri) = Url::from_file_path(target_path) else { continue };
-                index.insert(location.uri, location.range, target_uri);
+                index.push(
+                    location.uri,
+                    StoredDocumentLink { range: location.range, target: target_uri },
+                );
             }
         }
+        index.sort();
         index
     }
 
-    fn insert(&mut self, source: Url, range: Range, target: Url) {
-        let links = self.by_file.entry(source).or_default();
-        merge_target(links, range, LinkTarget::Resolved(target));
+    fn push(&mut self, source: Url, link: StoredDocumentLink) {
+        self.by_file.entry(source).or_default().push(link);
     }
 
     #[cfg(test)]
     pub(crate) fn insert_for_test(&mut self, source: Url, range: Range, target: Url) {
-        self.insert(source, range, target);
+        self.push(source, StoredDocumentLink { range, target });
     }
 
     pub(crate) fn extend(&mut self, other: Self) {
-        for (source, links) in other.by_file {
-            let destination = self.by_file.entry(source).or_default();
-            for (range, target) in links {
-                merge_target(destination, range, target);
-            }
-        }
+        debug_assert!(other.by_file.keys().all(|uri| !self.by_file.contains_key(uri)));
+        self.by_file.extend(other.by_file);
     }
 
     pub(crate) fn links(&self, uri: &Url) -> Vec<DocumentLink> {
         let Some(links) = self.by_file.get(uri) else { return Vec::new() };
-        let mut links = links
-            .iter()
-            .filter_map(|(&range, target)| {
-                let LinkTarget::Resolved(target) = target else { return None };
-                Some(DocumentLink {
-                    range,
-                    target: Some(target.clone()),
-                    tooltip: None,
-                    data: None,
-                })
-            })
-            .collect::<Vec<_>>();
-        links.sort_by_key(|link| {
-            (
-                link.range.start.line,
-                link.range.start.character,
-                link.range.end.line,
-                link.range.end.character,
-            )
-        });
-        links
+        links.iter().map(StoredDocumentLink::to_lsp).collect()
     }
-}
 
-fn merge_target(links: &mut FxHashMap<Range, LinkTarget>, range: Range, target: LinkTarget) {
-    match links.get_mut(&range) {
-        None => {
-            links.insert(range, target);
+    fn sort(&mut self) {
+        for links in self.by_file.values_mut() {
+            links.sort_unstable_by_key(|link| (link.range.start, link.range.end));
         }
-        Some(existing) if *existing == target => {}
-        Some(existing) => *existing = LinkTarget::Ambiguous,
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use lsp_types::{DocumentLink, Position, Range, Url};
-
-    #[test]
-    fn identical_links_are_deduplicated() {
-        let source = uri("file:///workspace/src/Main.sol");
-        let target = uri("file:///workspace/src/Dependency.sol");
-        let range = Range::new(Position::new(1, 8), Position::new(1, 24));
-        let mut index = DocumentLinkIndex::default();
-
-        index.insert(source.clone(), range, target.clone());
-        index.insert(source.clone(), range, target.clone());
-
-        assert_eq!(index.links(&source), vec![link(range, target)]);
-    }
-
-    #[test]
-    fn conflicting_targets_are_omitted() {
-        let source = uri("file:///workspace/src/Main.sol");
-        let range = Range::new(Position::new(1, 8), Position::new(1, 24));
-        let mut index = DocumentLinkIndex::default();
-
-        index.insert(source.clone(), range, uri("file:///workspace-a/src/Dependency.sol"));
-        index.insert(source.clone(), range, uri("file:///workspace-b/src/Dependency.sol"));
-
-        assert!(index.links(&source).is_empty());
-    }
-
-    #[test]
-    fn extending_deduplicates_equal_links_and_omits_conflicts() {
-        let source = uri("file:///workspace/src/Main.sol");
-        let first_range = Range::new(Position::new(1, 8), Position::new(1, 24));
-        let second_range = Range::new(Position::new(2, 8), Position::new(2, 24));
-        let shared_target = uri("file:///workspace/src/Shared.sol");
-        let mut index = DocumentLinkIndex::default();
-        index.insert(source.clone(), first_range, shared_target.clone());
-        index.insert(source.clone(), second_range, uri("file:///workspace-a/src/Dependency.sol"));
-        let mut other = DocumentLinkIndex::default();
-        other.insert(source.clone(), first_range, shared_target.clone());
-        other.insert(source.clone(), second_range, uri("file:///workspace-b/src/Dependency.sol"));
-
-        index.extend(other);
-
-        assert_eq!(index.links(&source), vec![link(first_range, shared_target)]);
-    }
-
-    fn uri(value: &str) -> Url {
-        Url::parse(value).unwrap()
-    }
-
-    fn link(range: Range, target: Url) -> DocumentLink {
-        DocumentLink { range, target: Some(target), tooltip: None, data: None }
+impl StoredDocumentLink {
+    fn to_lsp(&self) -> DocumentLink {
+        DocumentLink {
+            range: self.range,
+            target: Some(self.target.clone()),
+            tooltip: None,
+            data: None,
+        }
     }
 }

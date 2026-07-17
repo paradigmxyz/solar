@@ -418,6 +418,8 @@ impl AnalysisBatch {
 
 fn analyze(batch: AnalysisBatch) -> AnalysisResult {
     let (emitter, diag_buffer) = InMemoryEmitter::new();
+    let document_link_sources =
+        batch.files.iter().map(|(path, _)| path.clone()).collect::<FxHashSet<_>>();
     let mut opts = batch.opts;
     opts.unstable.recover_incomplete_input = true;
     let sess = Session::builder().opts(opts).dcx(DiagCtxt::new(Box::new(emitter))).build();
@@ -453,7 +455,7 @@ fn analyze(batch: AnalysisBatch) -> AnalysisResult {
             }
         }
 
-        let symbol_tables = SymbolTables::build(compiler.gcx());
+        let symbol_tables = SymbolTables::build(compiler.gcx(), &document_link_sources);
         let diagnostics = diag_buffer
             .read()
             .iter()
