@@ -12,6 +12,11 @@ contract SliceRebind {
         if (x != 0) return x;
         return 0;
     }
+
+    function conditional(bytes calldata data, bool takeSlice) external pure returns (uint256) {
+        if (takeSlice) data = data[1:];
+        return data.length;
+    }
 }
 
 contract SliceRebindTest {
@@ -20,5 +25,19 @@ contract SliceRebindTest {
         bytes memory data = hex"010203040506";
 
         assert(target.forward(data, 2) == 4);
+    }
+
+    function testConditionalSliceRebindUntakenPath() public {
+        SliceRebind target = new SliceRebind();
+        bytes memory data = hex"010203040506";
+
+        assert(target.conditional(data, false) == 6);
+    }
+
+    function testConditionalSliceRebindTakenPath() public {
+        SliceRebind target = new SliceRebind();
+        bytes memory data = hex"010203040506";
+
+        assert(target.conditional(data, true) == 5);
     }
 }

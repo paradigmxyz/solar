@@ -215,7 +215,9 @@ impl<'gcx> Lowerer<'gcx> {
         let is_struct_type = matches!(var_ty.peel_refs().kind, TyKind::Struct(_));
 
         let initial_value = if let Some(init) = var.initializer {
-            if self.var_expects_memory_bytes_value(var) {
+            if self.memory_backed_calldata_bytes.contains(&var_id)
+                || self.var_expects_memory_bytes_value(var)
+            {
                 self.lower_expr_as_memory_bytes(builder, init)
             } else if self.var_expects_memory_dyn_array_value(var) {
                 self.lower_expr_as_memory_dyn_array(builder, init)

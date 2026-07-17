@@ -522,15 +522,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let mut items = Vec::with_capacity(arg_exprs.len());
         for (arg, ty) in arg_exprs.iter().zip(tys) {
-            let value = if let Some((head, is_bytes)) = self.calldata_dyn_head(arg) {
-                if is_bytes {
-                    self.materialize_calldata_bytes(builder, head)
-                } else {
-                    self.materialize_calldata_dyn_array(builder, head)
-                }
-            } else {
-                self.lower_return_value_for_ty(builder, arg, ty)
-            };
+            let value = self.lower_return_value_for_ty(builder, arg, ty);
             items.push((value, ty));
         }
         Some(items)
@@ -697,6 +689,9 @@ impl<'gcx> Lowerer<'gcx> {
         expr: &solar_sema::hir::Expr<'_>,
         ty: Ty<'gcx>,
     ) -> ValueId {
+        if let Some((head, _)) = self.calldata_dyn_head(expr) {
+            return self.materialize_calldata_value(builder, ty, head);
+        }
         if matches!(
             ty.peel_refs().kind,
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)

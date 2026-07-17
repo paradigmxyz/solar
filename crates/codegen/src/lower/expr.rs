@@ -410,22 +410,6 @@ impl<'gcx> Lowerer<'gcx> {
                     rhs_val
                 };
                 self.lower_assign(builder, lhs, final_val);
-                if op.is_none()
-                    && matches!(rhs.kind, ExprKind::Slice(..))
-                    && let Some(var_id) = self.ident_variable(lhs)
-                {
-                    let var = self.gcx.hir.variable(var_id);
-                    if var.data_location == Some(solar_ast::DataLocation::Calldata)
-                        && matches!(
-                            var.ty.kind,
-                            hir::TypeKind::Elementary(
-                                hir::ElementaryType::Bytes | hir::ElementaryType::String
-                            )
-                        )
-                    {
-                        self.materialized_calldata_params.insert(var_id);
-                    }
-                }
                 final_val
             }
 
@@ -533,7 +517,7 @@ impl<'gcx> Lowerer<'gcx> {
                     return ptr;
                 }
                 if let Some(var_id) = self.ident_variable(base)
-                    && self.materialized_calldata_params.contains(&var_id)
+                    && self.memory_backed_calldata_bytes.contains(&var_id)
                     && self.expr_has_bytes_or_string_type(base)
                 {
                     let base_ptr = self.lower_expr(builder, base);
@@ -1682,7 +1666,7 @@ impl<'gcx> Lowerer<'gcx> {
             return None;
         };
         let var = self.gcx.hir.variable(*var_id);
-        if self.materialized_calldata_params.contains(var_id) {
+        if self.memory_backed_calldata_bytes.contains(var_id) {
             return None;
         }
         if var.data_location != Some(solar_ast::DataLocation::Calldata) {
@@ -1739,24 +1723,17 @@ impl<'gcx> Lowerer<'gcx> {
         // including nested structs, store pointers to separate allocations.
         let struct_size = (num_fields as u64) * 32;
         let struct_ptr = self.allocate_memory(builder, struct_size);
+        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
 
         // Store each argument into the corresponding field
         for (i, arg) in args.exprs().enumerate() {
             if i >= num_fields {
                 break;
             }
-            // Memory struct fields hold memory values: a calldata dynamic
-            // array/bytes argument materializes as a memory copy — its raw
-            // calldata head word would be meaningless as a field value.
-            let field_val = if let Some((head, is_bytes)) = self.calldata_dyn_head(arg) {
-                if is_bytes {
-                    self.materialize_calldata_bytes(builder, head)
-                } else {
-                    self.materialize_calldata_dyn_array(builder, head)
-                }
-            } else {
-                self.lower_expr(builder, arg)
-            };
+            // Memory struct fields hold memory values. Calldata reference
+            // values therefore materialize recursively before storing their
+            // pointer in the field slot.
+            let field_val = self.lower_return_value_for_ty(builder, arg, field_tys[i]);
             let field_offset = (i as u64) * 32;
             if field_offset == 0 {
                 builder.mstore(struct_ptr, field_val);
