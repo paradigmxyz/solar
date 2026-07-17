@@ -599,7 +599,7 @@ impl Verifier<'_> {
                     ),
                 );
             }
-        } else if is_encoded_push_instruction(inst) {
+        } else if inst.is_encoded_push() {
             if inst.operands.len() != 1 {
                 self.error_in_block(
                     block_id,

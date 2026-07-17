@@ -4,7 +4,7 @@ use super::{AsmInst, AsmInstKind, Assembler, DeferredConst, Label, op};
 use crate::backend::evm::ir;
 use alloy_primitives::U256;
 use solar_data_structures::bit_set::GrowableBitSet;
-use solar_interface::diagnostics::DiagCtxt;
+use solar_interface::{diagnostics::DiagCtxt, sym};
 
 /// Structured assembler block program used while MIR lowering emits EVM code.
 ///
@@ -190,7 +190,7 @@ impl StructuredAsmProgram {
             }
         }
 
-        let mut module = ir::Module::new("asm");
+        let mut module = ir::Module::new(sym::asm);
         for (index, block) in self.blocks.iter().enumerate() {
             let mut ir_block = ir::Block::new(index as u32);
             ir_block.metadata.hotness = block.hotness;

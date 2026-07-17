@@ -910,7 +910,7 @@ fn instruction_stack_effect(inst: &ir::Instruction) -> ir::StackEffect {
 }
 
 fn instruction_keeps_encoded_operands(inst: &ir::Instruction) -> bool {
-    ir::is_encoded_push_instruction(inst)
+    inst.is_encoded_push()
 }
 
 /// The value operands a terminator needs arranged on top of the stack, in the

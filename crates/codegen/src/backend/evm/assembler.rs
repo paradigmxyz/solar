@@ -736,7 +736,7 @@ impl Assembler {
             }
             AsmInst::push(push_values.intern(value))
         });
-        ir_program.lower_through_evm_ir(self);
+        solar_interface::enter(|| ir_program.lower_through_evm_ir(self));
         let mut program = ir_program.to_asm_program();
         self.invert_branches_over_empty_reverts(&mut program.instructions);
         self.run_assembler_passes(&mut program);

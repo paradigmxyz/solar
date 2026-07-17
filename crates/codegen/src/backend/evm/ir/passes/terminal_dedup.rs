@@ -221,5 +221,5 @@ enum TerminalOperandKey {
     ExternalValue(ValueId),
     Immediate(U256),
     Block(BlockId),
-    Symbol(crate::backend::evm::ir::InlineName),
+    Symbol(solar_interface::Symbol),
 }

@@ -10,6 +10,7 @@
 
 use alloy_primitives::U256;
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
+use solar_interface::Symbol;
 
 mod display;
 mod parse;
@@ -31,37 +32,11 @@ newtype_index! {
     pub struct ValueId;
 }
 
-/// A compact inline IR identifier with no heap allocation.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct InlineName {
-    bytes: [u8; 31],
-    len: u8,
-}
-
-impl InlineName {
-    fn new(name: &str) -> Self {
-        assert!(name.len() <= 31, "EVM IR identifier is too long");
-        let mut bytes = [0; 31];
-        bytes[..name.len()].copy_from_slice(name.as_bytes());
-        Self { bytes, len: name.len() as u8 }
-    }
-
-    fn as_str(&self) -> &str {
-        std::str::from_utf8(&self.bytes[..usize::from(self.len)]).expect("validated identifier")
-    }
-}
-
-impl std::fmt::Display for InlineName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
 /// An EVM IR module.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Module {
     /// Program name used by tools and diagnostics.
-    pub name: InlineName,
+    pub name: Symbol,
     /// Basic blocks in layout order.
     pub blocks: IndexVec<BlockId, Block>,
     /// The entry block, if one has been created.
@@ -78,16 +53,15 @@ impl Module {
 
     /// Creates an empty EVM IR program.
     #[must_use]
-    pub fn new(name: impl AsRef<str>) -> Self {
-        let name = InlineName::new(name.as_ref());
+    pub fn new(name: Symbol) -> Self {
         assert!(is_valid_ident(name.as_str()), "invalid EVM IR program name `{name}`");
         Self { name, blocks: IndexVec::new(), entry_block: None, values: IndexVec::new() }
     }
 
     /// Changes the program name.
-    pub fn set_name(&mut self, name: &str) {
-        assert!(is_valid_ident(name), "invalid EVM IR program name `{name}`");
-        self.name = InlineName::new(name);
+    pub fn set_name(&mut self, name: Symbol) {
+        assert!(is_valid_ident(name.as_str()), "invalid EVM IR program name `{name}`");
+        self.name = name;
     }
 
     /// Returns the program name.
@@ -106,13 +80,9 @@ impl Module {
     }
 
     /// Allocates a named untyped stack word.
-    pub fn add_value(&mut self, name: impl AsRef<str>) -> ValueId {
-        assert!(
-            is_valid_value_name(name.as_ref()),
-            "invalid EVM IR value name `%{}`",
-            name.as_ref()
-        );
-        self.values.push(Value { name: InlineName::new(name.as_ref()) })
+    pub fn add_value(&mut self, name: Symbol) -> ValueId {
+        assert!(is_valid_value_name(name.as_str()), "invalid EVM IR value name `%{name}`");
+        self.values.push(Value { name })
     }
 
     /// Returns the block for the given ID.
@@ -206,7 +176,7 @@ impl Hotness {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Value {
     /// Stable textual stack-word name, without the leading `%`.
-    pub name: InlineName,
+    pub name: Symbol,
 }
 
 /// A non-terminating untyped backend instruction.
@@ -386,7 +356,7 @@ pub enum Operand {
     /// Basic block reference.
     Block(BlockId),
     /// Opaque backend symbol, such as a helper, data object, or future label kind.
-    Symbol(InlineName),
+    Symbol(Symbol),
 }
 
 /// Generic metadata carried by instructions and terminators.
@@ -413,9 +383,9 @@ impl Metadata {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MetadataItem {
     /// Metadata key.
-    pub key: InlineName,
+    pub key: Symbol,
     /// Metadata value, if the field is not a marker.
-    pub value: Option<InlineName>,
+    pub value: Option<Symbol>,
 }
 
 /// Stack effect metadata for one EVM IR operation.
@@ -461,10 +431,6 @@ fn default_terminator_stack_effect(kind: &TerminatorKind) -> StackEffect {
             .map(|(inputs, outputs)| StackEffect::new(inputs, outputs))
             .unwrap_or_else(|| StackEffect::new(0, 0)),
     }
-}
-
-pub(super) fn is_encoded_push_instruction(inst: &Instruction) -> bool {
-    inst.is_encoded_push()
 }
 
 fn is_ident_start(c: char) -> bool {

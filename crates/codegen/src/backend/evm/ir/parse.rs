@@ -3,6 +3,7 @@
 use super::*;
 use crate::backend::evm::assembler::op;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
+use solar_interface::{Symbol, sym};
 use std::fmt as std_fmt;
 
 pub(super) fn parse(input: &str) -> Result<Module, ParseError> {
@@ -238,11 +239,11 @@ impl<'a> Parser<'a> {
             self.expect_keyword("evm")?;
             self.expect_keyword("module")?;
             self.expect_punct('@')?;
-            let name = self.parse_ident()?.to_string();
+            let name = Symbol::intern(self.parse_ident()?);
             self.skip_to_eol();
             name
         } else {
-            "module".to_string()
+            sym::module
         };
 
         let mut module = Module::new(name);
@@ -693,7 +694,7 @@ impl<'a> Parser<'a> {
         if self.peek_char() == Some('@') {
             self.advance();
             let symbol = self.parse_ident()?;
-            return Ok(Operand::Symbol(InlineName::new(&format!("@{symbol}"))));
+            return Ok(Operand::Symbol(Symbol::intern(&format!("@{symbol}"))));
         }
         if self.input[self.pos..].starts_with("bb") {
             let save = (self.pos, self.line, self.col);
@@ -706,7 +707,7 @@ impl<'a> Parser<'a> {
             self.restore(save);
         }
         let symbol = self.parse_ident()?;
-        Ok(Operand::Symbol(InlineName::new(symbol)))
+        Ok(Operand::Symbol(Symbol::intern(symbol)))
     }
 
     fn parse_block_ref(
@@ -744,11 +745,11 @@ impl<'a> Parser<'a> {
             } else if self.try_punct('=') {
                 let value = self.parse_metadata_value()?;
                 metadata.attrs.push(MetadataItem {
-                    key: InlineName::new(&key),
-                    value: Some(InlineName::new(&value)),
+                    key: Symbol::intern(&key),
+                    value: Some(Symbol::intern(&value)),
                 });
             } else {
-                metadata.attrs.push(MetadataItem { key: InlineName::new(&key), value: None });
+                metadata.attrs.push(MetadataItem { key: Symbol::intern(&key), value: None });
             }
 
             if self.try_punct(',') {
@@ -794,7 +795,7 @@ fn value_id(
     if let Some(value) = value_labels.get(name).copied() {
         return value;
     }
-    let value = module.add_value(name);
+    let value = module.add_value(Symbol::intern(name));
     value_labels.insert(name.to_string(), value);
     value
 }
@@ -825,30 +826,32 @@ mod tests {
 
     #[test]
     fn round_trip_all_evm_ir_fixtures() {
-        let dir = evm_ir_fixture_dir();
-        assert!(dir.exists(), "EVM IR fixture dir not found: {}", dir.display());
+        solar_interface::enter(|| {
+            let dir = evm_ir_fixture_dir();
+            assert!(dir.exists(), "EVM IR fixture dir not found: {}", dir.display());
 
-        let mut failures = Vec::new();
-        let mut count = 0usize;
-        for entry in std::fs::read_dir(&dir).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().and_then(|s| s.to_str()) != Some("evmir") {
-                continue;
+            let mut failures = Vec::new();
+            let mut count = 0usize;
+            for entry in std::fs::read_dir(&dir).unwrap() {
+                let path = entry.unwrap().path();
+                if path.extension().and_then(|s| s.to_str()) != Some("evmir") {
+                    continue;
+                }
+                count += 1;
+                if let Err(err) = round_trip_fixture(&path) {
+                    let name = path.file_name().unwrap().to_string_lossy();
+                    failures.push(format!("{name}: {err}"));
+                }
             }
-            count += 1;
-            if let Err(err) = round_trip_fixture(&path) {
-                let name = path.file_name().unwrap().to_string_lossy();
-                failures.push(format!("{name}: {err}"));
-            }
-        }
 
-        assert!(count > 0, "no .evmir fixtures found in {}", dir.display());
-        assert!(
-            failures.is_empty(),
-            "{} EVM IR round-trip failure(s):\n  {}",
-            failures.len(),
-            failures.join("\n  ")
-        );
+            assert!(count > 0, "no .evmir fixtures found in {}", dir.display());
+            assert!(
+                failures.is_empty(),
+                "{} EVM IR round-trip failure(s):\n  {}",
+                failures.len(),
+                failures.join("\n  ")
+            );
+        });
     }
 
     #[test]
@@ -862,15 +865,17 @@ fn @f {
     invalid
 }
 ";
-        assert_data_eq!(
-            parse_module(input).unwrap_err().to_string(),
-            str![[r#"
+        solar_interface::enter(|| {
+            assert_data_eq!(
+                parse_module(input).unwrap_err().to_string(),
+                str![[r#"
 EVM IR parse error at line 6, col 5: instruction after terminator in block `bb0`
    |
   6 |     invalid
    |     ^
 "#]]
-        );
+            );
+        });
     }
 
     fn round_trip_fixture(path: &Path) -> Result<(), String> {

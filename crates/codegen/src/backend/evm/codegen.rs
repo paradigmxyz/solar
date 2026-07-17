@@ -28,7 +28,7 @@ use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::FxHashMap,
 };
-use solar_interface::{Session, sym};
+use solar_interface::{Session, kw, sym};
 
 // 0x00..0x7f follows Solidity's scratch/free-pointer/zero-slot convention, and
 // 0x80 is used as the static ABI return buffer. Keep the internal-call frame
@@ -790,7 +790,7 @@ impl EvmCodegen {
         // First generate the runtime code
         let mut runtime_code = self.generate_runtime_code(module);
         if let Some(evm_ir) = &mut runtime_code.evm_ir {
-            evm_ir.set_name("runtime");
+            evm_ir.set_name(sym::runtime);
         }
         let runtime_len = runtime_code.bytecode.len();
         let immutable_refs = std::mem::take(&mut self.runtime_immutable_refs);
@@ -847,10 +847,10 @@ impl EvmCodegen {
             &immutable_refs,
         );
         if let Some(evm_ir) = &mut constructor_code.evm_ir {
-            evm_ir.set_name("constructor");
+            evm_ir.set_name(kw::Constructor);
         }
         if let Some(evm_ir) = &mut postlude.evm_ir {
-            evm_ir.set_name("deployment");
+            evm_ir.set_name(sym::deployment);
         }
 
         // Build the deployment bytecode
