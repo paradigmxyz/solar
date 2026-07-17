@@ -8,11 +8,8 @@ use crate::{
     },
 };
 use alloy_primitives::U256;
-use num_bigint::{BigInt, Sign};
-use num_rational::BigRational;
-use num_traits::{One, ToPrimitive, Zero};
 use solar_ast::{
-    DataLocation, ElementaryType, LitKind, Span, StateMutability, TypeSize, UserDefinableOperator,
+    DataLocation, ElementaryType, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
 use solar_data_structures::{Never, bit_set::DenseBitSet, pluralize, smallvec::SmallVec};
 use solar_interface::{
@@ -2646,120 +2643,8 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
 }
 
 fn invalid_enum_literal(gcx: Gcx<'_>, expr: &hir::Expr<'_>, variants: usize) -> bool {
-    if let Some(value) = try_eval_rational_literal(expr) {
-        if !value.is_integer() {
-            return true;
-        }
-        let value = value.to_integer();
-        return value < BigInt::ZERO || value >= BigInt::from(variants);
-    }
     let Ok(value) = gcx.try_eval_const(expr) else { return true };
     value.as_u256().is_none_or(|value| value >= U256::from(variants))
-}
-
-fn try_eval_rational_literal(expr: &hir::Expr<'_>) -> Option<BigRational> {
-    match &expr.peel_parens().kind {
-        hir::ExprKind::Lit(lit) => match &lit.kind {
-            LitKind::Number(value) => Some(BigRational::from_integer(u256_to_bigint(*value))),
-            LitKind::Rational(value) => Some(BigRational::new(
-                u256_to_bigint(*value.numer()),
-                u256_to_bigint(*value.denom()),
-            )),
-            _ => None,
-        },
-        hir::ExprKind::Unary(op, inner) => {
-            let value = try_eval_rational_literal(inner)?;
-            match op.kind {
-                hir::UnOpKind::Neg => Some(-value),
-                hir::UnOpKind::BitNot if value.is_integer() => {
-                    Some(BigRational::from_integer(!value.to_integer()))
-                }
-                _ => None,
-            }
-        }
-        hir::ExprKind::Binary(lhs, op, rhs) => {
-            let lhs = try_eval_rational_literal(lhs)?;
-            let rhs = try_eval_rational_literal(rhs)?;
-            match op.kind {
-                hir::BinOpKind::Add => checked_rational(lhs + rhs),
-                hir::BinOpKind::Sub => checked_rational(lhs - rhs),
-                hir::BinOpKind::Mul => checked_rational(lhs * rhs),
-                hir::BinOpKind::Div if !rhs.is_zero() => checked_rational(lhs / rhs),
-                hir::BinOpKind::Rem if !rhs.is_zero() => {
-                    let quotient = (&lhs / &rhs).to_integer();
-                    checked_rational(lhs - rhs * quotient)
-                }
-                hir::BinOpKind::Pow if rhs.is_integer() => {
-                    let exponent = rhs.to_integer().to_i32()?;
-                    if exponent == 0 {
-                        return Some(BigRational::one());
-                    }
-                    if lhs.is_zero() {
-                        return (exponent > 0).then(BigRational::zero);
-                    }
-                    if lhs.is_one() {
-                        return Some(lhs);
-                    }
-                    if lhs == -BigRational::one() {
-                        return Some(if exponent % 2 == 0 { -lhs } else { lhs });
-                    }
-                    let result_bits = lhs
-                        .numer()
-                        .bits()
-                        .max(lhs.denom().bits())
-                        .saturating_mul(u64::from(exponent.unsigned_abs()));
-                    if result_bits > MAX_RATIONAL_BITS {
-                        return None;
-                    }
-                    checked_rational(lhs.pow(exponent))
-                }
-                hir::BinOpKind::BitOr | hir::BinOpKind::BitAnd | hir::BinOpKind::BitXor
-                    if lhs.is_integer() && rhs.is_integer() =>
-                {
-                    let lhs = lhs.to_integer();
-                    let rhs = rhs.to_integer();
-                    let value = match op.kind {
-                        hir::BinOpKind::BitOr => lhs | rhs,
-                        hir::BinOpKind::BitAnd => lhs & rhs,
-                        hir::BinOpKind::BitXor => lhs ^ rhs,
-                        _ => unreachable!(),
-                    };
-                    checked_rational(BigRational::from_integer(value))
-                }
-                hir::BinOpKind::Shl | hir::BinOpKind::Shr | hir::BinOpKind::Sar
-                    if lhs.is_integer() && rhs.is_integer() =>
-                {
-                    let lhs = lhs.to_integer();
-                    let rhs = rhs.to_integer().to_usize()?;
-                    if rhs > MAX_RATIONAL_BITS as usize {
-                        return None;
-                    }
-                    let value = if op.kind == hir::BinOpKind::Shl {
-                        if lhs.bits().saturating_add(rhs as u64) > MAX_RATIONAL_BITS {
-                            return None;
-                        }
-                        lhs << rhs
-                    } else {
-                        lhs >> rhs
-                    };
-                    checked_rational(BigRational::from_integer(value))
-                }
-                _ => None,
-            }
-        }
-        _ => None,
-    }
-}
-
-const MAX_RATIONAL_BITS: u64 = 4096;
-
-fn checked_rational(value: BigRational) -> Option<BigRational> {
-    let post_op_bits = MAX_RATIONAL_BITS + 1;
-    (value.numer().bits() <= post_op_bits && value.denom().bits() <= post_op_bits).then_some(value)
-}
-
-fn u256_to_bigint(value: U256) -> BigInt {
-    BigInt::from_bytes_be(Sign::Plus, &value.to_be_bytes::<32>())
 }
 
 enum OverloadError {

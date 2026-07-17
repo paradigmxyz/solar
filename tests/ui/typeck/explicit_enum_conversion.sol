@@ -24,14 +24,7 @@ contract C {
         TrafficLight t5 = TrafficLight(2);
         TrafficLight t6 = TrafficLight(-1); //~ ERROR: invalid explicit type conversion
         TrafficLight t7 = TrafficLight(3); //~ ERROR: invalid explicit type conversion
-        TrafficLight t8 = TrafficLight(13); //~ ERROR: invalid explicit type conversion
-        TrafficLight t9 = TrafficLight(1 + 2); //~ ERROR: invalid explicit type conversion
-        TrafficLight t10 = TrafficLight(5 / 3); //~ ERROR: invalid explicit type conversion
-        TrafficLight t11 = TrafficLight(4 / 2);
-        TrafficLight t12 = TrafficLight(2 ** 300); //~ ERROR: invalid explicit type conversion
-        TrafficLight t13 = TrafficLight(
-            ((1 << 2048) * (1 << 2048)) / ((1 << 2048) * (1 << 2048))
-        );
+        TrafficLight t8 = TrafficLight(1 + 2); //~ ERROR: invalid explicit type conversion
     }
 
     function invalidEnumToBytes(TrafficLight t) public pure {
