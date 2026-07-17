@@ -229,6 +229,15 @@ bb5:
   push 128
   return
 bb6:
+  push 64
+  mload
+  push 32
+  swap1
+  add
+  push 9
+  dup2
+  mstore
+  pop
   push 7
   push 128
   mstore

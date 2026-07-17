@@ -638,6 +638,8 @@ pub struct EvmCodegen {
     /// Whether we're currently generating constructor code.
     /// When true, LoadArg uses CODECOPY from the end of code instead of CALLDATALOAD.
     in_constructor: bool,
+    /// Shared constructor completion reached by ordinary `stop` terminators.
+    constructor_exit: Option<Label>,
     /// Number of constructor parameters (used for CODECOPY offset calculation).
     constructor_param_count: u32,
     /// Whether we're emitting an internal function body.
@@ -687,6 +689,7 @@ impl EvmCodegen {
             global_stack_aliases: FxHashMap::default(),
             runtime_immutable_refs: Vec::new(),
             in_constructor: false,
+            constructor_exit: None,
             constructor_param_count: 0,
             in_internal_function: false,
             emitting_dispatch_entry: false,
@@ -810,20 +813,22 @@ impl EvmCodegen {
             0
         };
 
-        // Generate constructor initialization code (if any). Constructor arguments are appended
-        // after the generated deployment bytecode, so the constructor arg offset depends on the
-        // constructor code length. Iterate until the push widths stabilize.
+        // Generate constructor initialization and the deployment postlude as
+        // one control-flow graph. Constructor arguments are appended after the
+        // generated deployment prefix, so their offset and the runtime-code
+        // offset depend on its final push widths. Iterate until both stabilize.
         let mut deploy_code_len = 0usize;
         let mut constructor_arg_offset = runtime_len;
-        let mut constructor_code = self.generate_constructor_code(module, Some(runtime_len));
+        let mut deploy_code = self.generate_deployment_prefix(
+            module,
+            Some(runtime_len),
+            deploy_code_len,
+            runtime_len,
+            copy_base,
+            &immutable_refs,
+        );
         for _ in 0..8 {
-            let postlude = self.build_deployment_postlude(
-                deploy_code_len,
-                runtime_len,
-                copy_base,
-                &immutable_refs,
-            );
-            let next_deploy_code_len = constructor_code.bytecode.len() + postlude.bytecode.len();
+            let next_deploy_code_len = deploy_code.bytecode.len();
             let next_arg_offset = next_deploy_code_len + runtime_len;
             if next_deploy_code_len == deploy_code_len && next_arg_offset == constructor_arg_offset
             {
@@ -831,7 +836,14 @@ impl EvmCodegen {
             }
             deploy_code_len = next_deploy_code_len;
             constructor_arg_offset = next_arg_offset;
-            constructor_code = self.generate_constructor_code(module, Some(constructor_arg_offset));
+            deploy_code = self.generate_deployment_prefix(
+                module,
+                Some(constructor_arg_offset),
+                deploy_code_len,
+                runtime_len,
+                copy_base,
+                &immutable_refs,
+            );
         }
 
         // Deploy code structure:
@@ -844,34 +856,15 @@ impl EvmCodegen {
         // [immutable patches]   ; patch staged words into the PUSH32 placeholders
         // PUSH<n> copy_base     ; memory offset
         // RETURN                ; return the runtime code
-        let mut postlude = self.build_deployment_postlude(
-            deploy_code_len,
-            runtime_len,
-            copy_base,
-            &immutable_refs,
-        );
-        if let Some(evm_ir) = &mut constructor_code.evm_ir {
-            evm_ir.name = "constructor".to_string();
-        }
-        if let Some(evm_ir) = &mut postlude.evm_ir {
+        if let Some(evm_ir) = &mut deploy_code.evm_ir {
             evm_ir.name = "deployment".to_string();
         }
 
-        // Build the deployment bytecode
-        let mut deploy_bytecode = Vec::new();
-
-        // Add constructor code first
-        deploy_bytecode.extend_from_slice(&constructor_code.bytecode);
-        deploy_bytecode.extend_from_slice(&postlude.bytecode);
-
-        // Append runtime code
+        let mut deploy_bytecode = deploy_code.bytecode;
         deploy_bytecode.extend_from_slice(&runtime_code.bytecode);
 
         let mut deployment_evm_ir = Vec::new();
-        if let Some(evm_ir) = constructor_code.evm_ir {
-            deployment_evm_ir.push(evm_ir);
-        }
-        if let Some(evm_ir) = postlude.evm_ir {
+        if let Some(evm_ir) = deploy_code.evm_ir {
             deployment_evm_ir.push(evm_ir);
         }
         if let Some(evm_ir) = runtime_code.evm_ir.clone() {
@@ -896,7 +889,18 @@ impl EvmCodegen {
         immutable_refs: &[ImmutableRef],
     ) -> GeneratedCode {
         self.asm.clear();
+        self.emit_deployment_postlude(deploy_code_len, runtime_len, copy_base, immutable_refs);
+        let result = self.asm.assemble();
+        GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir }
+    }
 
+    fn emit_deployment_postlude(
+        &mut self,
+        deploy_code_len: usize,
+        runtime_len: usize,
+        copy_base: u64,
+        immutable_refs: &[ImmutableRef],
+    ) {
         // Copy runtime code from creation code to memory at `copy_base`.
         self.asm.emit_push(U256::from(runtime_len as u64));
         self.asm.emit_op(op::dup(1));
@@ -916,8 +920,6 @@ impl EvmCodegen {
         // Return the patched runtime code; the DUP'd length is still on the stack.
         self.asm.emit_push(U256::from(copy_base));
         self.asm.emit_op(op::RETURN);
-        let result = self.asm.assemble();
-        GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir }
     }
 
     /// Generates constructor code that runs during deployment.
@@ -925,10 +927,14 @@ impl EvmCodegen {
     ///
     /// Constructor arguments are read from the end of the initcode using CODECOPY.
     /// The args are ABI-encoded and appended after the deployment bytecode.
-    fn generate_constructor_code(
+    fn generate_deployment_prefix(
         &mut self,
         module: &Module,
         constructor_arg_offset: Option<usize>,
+        deploy_code_len: usize,
+        runtime_len: usize,
+        copy_base: u64,
+        immutable_refs: &[ImmutableRef],
     ) -> GeneratedCode {
         // Find constructor function if it exists
         let constructor =
@@ -1020,7 +1026,12 @@ impl EvmCodegen {
                 self.asm.define_label(constructor_entry);
             }
 
-            // Generate the constructor body (which includes SSTORE for initializers)
+            // Generate the constructor body (which includes SSTORE for
+            // initializers). Every ordinary completion jumps to one label so
+            // branch layout cannot strand the deployment postlude behind a
+            // non-final STOP.
+            let constructor_exit = self.asm.new_label();
+            self.constructor_exit = Some(constructor_exit);
             self.generate_function_body(ctor);
             let constructor_spill_size = self.record_function_spill_size(ctor_id);
             self.asm.set_deferred_const(
@@ -1032,20 +1043,15 @@ impl EvmCodegen {
 
             // Reset constructor context
             self.in_constructor = false;
+            self.constructor_exit = None;
             self.constructor_param_count = 0;
 
+            self.asm.define_label(constructor_exit);
+            self.emit_deployment_postlude(deploy_code_len, runtime_len, copy_base, immutable_refs);
             let result = self.asm.assemble();
-            let mut bytecode = result.bytecode;
-            let evm_ir = result.evm_ir;
-
-            // Remove trailing STOP (0x00) if present - we want to fall through to CODECOPY/RETURN
-            if bytecode.last() == Some(&op::STOP) {
-                bytecode.pop();
-            }
-
-            GeneratedCode { bytecode, evm_ir }
+            GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir }
         } else {
-            GeneratedCode::default()
+            self.build_deployment_postlude(deploy_code_len, runtime_len, copy_base, immutable_refs)
         }
     }
 
@@ -3412,7 +3418,7 @@ impl EvmCodegen {
             self.asm.emit_push_deferred(addr);
             return;
         }
-        if !self.in_internal_function && !self.in_constructor {
+        if !self.in_internal_function {
             self.asm.emit_push(U256::from(LOW_MEMORY_START + offset));
             return;
         }
@@ -4998,6 +5004,9 @@ impl EvmCodegen {
             Terminator::Stop => {
                 if self.in_internal_function {
                     self.emit_internal_return(func, &[]);
+                } else if let Some(exit) = self.constructor_exit {
+                    self.asm.emit_push_label(exit);
+                    self.asm.emit_op(op::JUMP);
                 } else {
                     self.asm.emit_op(op::STOP);
                 }

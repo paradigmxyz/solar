@@ -559,6 +559,8 @@ impl<'gcx> Lowerer<'gcx> {
 
         let saved_locals = std::mem::take(&mut self.locals);
         let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
+        let saved_materialized_calldata_params =
+            std::mem::take(&mut self.materialized_calldata_params);
         let saved_next_local_memory_offset = self.next_local_memory_offset;
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
         let saved_current_contract_id = self.current_contract_id;
@@ -575,6 +577,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.locals = saved_locals;
         self.local_memory_slots = saved_local_memory_slots;
+        self.materialized_calldata_params = saved_materialized_calldata_params;
         self.next_local_memory_offset = saved_next_local_memory_offset;
         self.assigned_vars = saved_assigned_vars;
         self.current_contract_id = saved_current_contract_id;
@@ -714,6 +717,8 @@ impl<'gcx> Lowerer<'gcx> {
 
         let saved_locals = std::mem::take(&mut self.locals);
         let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
+        let saved_materialized_calldata_params =
+            std::mem::take(&mut self.materialized_calldata_params);
         let saved_next_local_memory_offset = self.next_local_memory_offset;
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
         let saved_current_contract_id = self.current_contract_id;
@@ -728,6 +733,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.locals = saved_locals;
         self.local_memory_slots = saved_local_memory_slots;
+        self.materialized_calldata_params = saved_materialized_calldata_params;
         self.next_local_memory_offset = saved_next_local_memory_offset;
         self.assigned_vars = saved_assigned_vars;
         self.current_contract_id = saved_current_contract_id;

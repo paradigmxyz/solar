@@ -1151,11 +1151,17 @@ impl<'gcx> Lowerer<'gcx> {
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
     ) -> ValueId {
-        // Determine if this is a tuple-typed ternary by checking if either branch is a tuple
-        let is_tuple = matches!(&then_expr.kind, ExprKind::Tuple(elements) if elements.len() > 1)
-            || matches!(&else_expr.kind, ExprKind::Tuple(elements) if elements.len() > 1);
+        // Determine if this is a tuple-typed ternary by checking if either branch is a tuple.
+        let tuple_arity = match (&then_expr.kind, &else_expr.kind) {
+            (ExprKind::Tuple(elements), _) | (_, ExprKind::Tuple(elements))
+                if elements.len() > 1 =>
+            {
+                Some(elements.len())
+            }
+            _ => None,
+        };
 
-        if is_tuple {
+        if let Some(tuple_arity) = tuple_arity {
             // For tuple ternaries, use branching to stage values in the
             // ephemeral multi-return buffer.
             let cond_val = self.lower_expr(builder, cond);
@@ -1168,12 +1174,12 @@ impl<'gcx> Lowerer<'gcx> {
 
             // Then block: evaluate then_expr and write tuple elements to memory
             builder.switch_to_block(then_block);
-            self.lower_tuple_to_multi_return_buffer(builder, then_expr);
+            self.lower_tuple_to_multi_return_buffer(builder, then_expr, tuple_arity);
             builder.jump(merge_block);
 
             // Else block: evaluate else_expr and write tuple elements to memory
             builder.switch_to_block(else_block);
-            self.lower_tuple_to_multi_return_buffer(builder, else_expr);
+            self.lower_tuple_to_multi_return_buffer(builder, else_expr, tuple_arity);
             builder.jump(merge_block);
 
             // Merge block: load the first value from the selected buffer.
@@ -1218,6 +1224,7 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
+        arity: usize,
     ) {
         let values = if let ExprKind::Tuple(elements) = &expr.kind {
             elements
@@ -1225,7 +1232,14 @@ impl<'gcx> Lowerer<'gcx> {
                 .filter_map(|elem| elem.map(|elem| self.lower_expr(builder, elem)))
                 .collect::<Vec<_>>()
         } else {
-            vec![self.lower_expr(builder, expr)]
+            let first = self.lower_expr(builder, expr);
+            let base = self.multi_return_buffer_base(builder);
+            let mut values = Vec::with_capacity(arity);
+            values.push(first);
+            for i in 1..arity {
+                values.push(self.load_multi_return_value(builder, base, i));
+            }
+            values
         };
         self.stage_multi_return_values(builder, &values);
     }
