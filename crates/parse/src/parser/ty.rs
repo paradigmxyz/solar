@@ -69,7 +69,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             return true;
         }
         let TokenKind::Ident(symbol) = self.token.kind else { return false };
-        parse_fixed_type(symbol.as_str()).is_ok_and(|is_fixed| is_fixed)
+        let name = symbol.as_str();
+        (8..=12).contains(&name.len()) && parse_fixed_type(name).is_ok_and(|is_fixed| is_fixed)
     }
 
     pub(super) fn parse_fixed_type(&mut self) -> PResult<'sess, TypeKind<'ast>> {
