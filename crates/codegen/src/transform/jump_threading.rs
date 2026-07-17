@@ -20,7 +20,7 @@ use crate::{
     },
     pass::FunctionPass,
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Statistics from jump threading optimization.
 #[derive(Debug, Default, Clone)]
@@ -81,7 +81,7 @@ impl JumpThreader {
 
         if !forwarders.is_empty() {
             // Resolve the final target for each forwarder (following chains)
-            let final_targets = self.resolve_final_targets(&forwarders);
+            let final_targets = self.resolve_final_targets(&forwarders, func.blocks.len());
 
             // Update all terminators to use final targets
             self.thread_jumps(func, &final_targets);
@@ -149,11 +149,12 @@ impl JumpThreader {
     fn resolve_final_targets(
         &self,
         forwarders: &FxHashMap<BlockId, BlockId>,
+        block_count: usize,
     ) -> FxHashMap<BlockId, BlockId> {
         let mut final_targets = FxHashMap::default();
 
         for &block_id in forwarders.keys() {
-            let final_target = self.follow_chain(block_id, forwarders);
+            let final_target = self.follow_chain(block_id, forwarders, block_count);
             if final_target != block_id {
                 final_targets.insert(block_id, final_target);
             }
@@ -163,8 +164,13 @@ impl JumpThreader {
     }
 
     /// Follows a chain of forwarders to find the final non-forwarder target.
-    fn follow_chain(&self, start: BlockId, forwarders: &FxHashMap<BlockId, BlockId>) -> BlockId {
-        let mut visited = FxHashSet::default();
+    fn follow_chain(
+        &self,
+        start: BlockId,
+        forwarders: &FxHashMap<BlockId, BlockId>,
+        block_count: usize,
+    ) -> BlockId {
+        let mut visited = DenseBitSet::new_empty(block_count);
         let mut current = start;
 
         while let Some(&next) = forwarders.get(&current) {
@@ -274,7 +280,7 @@ impl JumpThreader {
                         .kind
                         .operands()
                         .iter()
-                        .any(|operand| phi_results.contains(operand))
+                        .any(|&operand| phi_results.contains(operand))
                     {
                         return true;
                     }
@@ -285,7 +291,7 @@ impl JumpThreader {
                 continue;
             }
             if let Some(term) = &block.terminator
-                && term.operands().iter().any(|operand| phi_results.contains(operand))
+                && term.operands().iter().any(|&operand| phi_results.contains(operand))
             {
                 return true;
             }

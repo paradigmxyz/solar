@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 type U256 is uint256;
 type Word is bytes32;
 
@@ -52,7 +50,12 @@ contract C {
             udvt := add(udvtValue, 1)
             let udvtWordValue := udvtWord
             udvtWord := add(udvtWordValue, 1)
+            let yulTrue := true
+            let yulFalse := false
+            ok := yulTrue
+            ok := false
             ok := iszero(0)
+            pop(yulFalse)
             pop(ok)
             pop(memoryBytes)
 

@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/using/free_reference_type.sol
 
 function memoryHead(uint256[] memory x) pure returns (uint256) {

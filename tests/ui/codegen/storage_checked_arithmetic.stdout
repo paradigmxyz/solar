@@ -16,9 +16,7 @@ fn @storage_sub(arg0: address, arg1: u256) {
   bb3:
     revert 0, 0
   bb4:
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, 0 !metadata(memory=scratch)
-    v6 = keccak256 0, 64 !metadata(memory=scratch)
+    v6 = mapping_slot arg0, 0
     v7 = sload v6 !metadata(storage=symbolic(v6))
     v8 = sub v7, arg1
     v9 = lt v7, arg1
@@ -28,9 +26,7 @@ fn @storage_sub(arg0: address, arg1: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, 0 !metadata(memory=scratch)
-    v10 = keccak256 0, 64 !metadata(memory=scratch)
+    v10 = mapping_slot arg0, 0
     sstore v10, v8 !metadata(storage=symbolic(v10))
     stop
 }
@@ -51,9 +47,7 @@ fn @storage_binary_sub(arg0: address, arg1: u256) {
   bb3:
     revert 0, 0
   bb4:
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, 0 !metadata(memory=scratch)
-    v6 = keccak256 0, 64 !metadata(memory=scratch)
+    v6 = mapping_slot arg0, 0
     v7 = sload v6 !metadata(storage=symbolic(v6))
     v8 = sub v7, arg1
     v9 = lt v7, arg1
@@ -63,9 +57,7 @@ fn @storage_binary_sub(arg0: address, arg1: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, 0 !metadata(memory=scratch)
-    v10 = keccak256 0, 64 !metadata(memory=scratch)
+    v10 = mapping_slot arg0, 0
     sstore v10, v8 !metadata(storage=symbolic(v10))
     stop
 }
@@ -93,9 +85,7 @@ fn @storage_struct_add(arg0: address, arg1: u128) {
   bb5:
     revert 0, 0
   bb6:
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, 1 !metadata(memory=scratch)
-    v9 = keccak256 0, 64 !metadata(memory=scratch)
+    v9 = mapping_slot arg0, 1
     v10 = sload v9 !metadata(storage=symbolic(v9))
     v11 = add v10, arg1
     v12 = gt v11, 0xffffffffffffffffffffffffffffffff
@@ -105,9 +95,7 @@ fn @storage_struct_add(arg0: address, arg1: u128) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, 1 !metadata(memory=scratch)
-    v13 = keccak256 0, 64 !metadata(memory=scratch)
+    v13 = mapping_slot arg0, 1
     sstore v13, v11 !metadata(storage=symbolic(v13))
     stop
 }
@@ -135,9 +123,7 @@ fn @storage_struct_signed_sub(arg0: address, arg1: i8) {
   bb5:
     revert 0, 0
   bb6:
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, 1 !metadata(memory=scratch)
-    v9 = keccak256 0, 64 !metadata(memory=scratch)
+    v9 = mapping_slot arg0, 1
     v10 = add v9, 1
     v11 = sload v10 !metadata(storage=offset(v9, 1))
     v12 = sub v11, arg1
@@ -150,9 +136,7 @@ fn @storage_struct_signed_sub(arg0: address, arg1: i8) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, 1 !metadata(memory=scratch)
-    v16 = keccak256 0, 64 !metadata(memory=scratch)
+    v16 = mapping_slot arg0, 1
     v17 = add v16, 1
     sstore v17, v12 !metadata(storage=offset(v16, 1))
     stop

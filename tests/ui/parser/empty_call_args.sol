@@ -3,7 +3,7 @@ function f() {
     f ();
     f ({ });
 
-    revert;
+    revert; //~ ERROR: no matching declarations found
     revert ();
-    revert ({ });
+    revert ({ }); //~ ERROR: no matching declarations found
 }

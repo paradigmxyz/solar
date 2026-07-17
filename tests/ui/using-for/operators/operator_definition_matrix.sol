@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/operators/userDefined/operator_taking_no_parameters_binary.sol
 // ported-from: test/libsolidity/syntaxTests/operators/userDefined/operator_taking_two_parameters_unary.sol
 // ported-from: test/libsolidity/syntaxTests/operators/userDefined/operator_taking_and_returning_types_not_matching_using_for.sol

@@ -12,5 +12,11 @@ LL │     function g2(uint256[] transient transient) external {
    │
    ╰ note: data location must be `memory` or `calldata` for external function parameter, but got `transient`
 
-error: aborting due to 2 previous errors
+error: mismatched types
+   ╭▸ ROOT/tests/ui/parser/transient.sol:LL:CC
+   │
+LL │         transient = 5;
+   ╰╴                    ━ expected `uint256[] memory`, found `int_literal[3]`
+
+error: aborting due to 3 previous errors
 

@@ -1,0 +1,11 @@
+//@ compile-flags: -Ztime-passes --pass block-layout
+//@ normalize-stderr-test: "time: +[0-9]+\.[0-9]{3}" -> "time: <TIME>"
+
+bb0 (entry):
+  jump bb2
+bb1 [cold]:
+  %offset = push 0
+  %size = push 0
+  revert %offset, %size
+bb2:
+  stop

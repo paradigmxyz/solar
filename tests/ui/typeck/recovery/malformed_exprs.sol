@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract C {
     function tupleExpression() public {
         uint256 x = (1,, true); //~ ERROR: tuple components cannot be empty

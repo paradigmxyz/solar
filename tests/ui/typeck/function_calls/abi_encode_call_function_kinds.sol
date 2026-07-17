@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 library Lib {
     function externalTarget(uint256 value) external {
         value;

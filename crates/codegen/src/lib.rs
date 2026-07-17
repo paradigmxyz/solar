@@ -17,6 +17,14 @@ pub use solar_sema as sema;
 /// them to runtime bytecode.
 pub const IMMUTABLE_SCRATCH_BASE: u64 = 0x2000;
 
+/// Scratch word holding the base of the ephemeral multi-return buffer.
+///
+/// The returned words themselves live at the current free-memory pointer so
+/// three-or-more-value returns never overwrite Solidity's `0x40`/`0x60`
+/// reserved words. Consumers must snapshot the buffer before lowering any
+/// lvalue that may reuse this scratch word or the unbumped free memory.
+pub const MULTI_RETURN_BUFFER_PTR_SLOT: u64 = 0x20;
+
 pub mod mir;
 pub use mir::{
     BasicBlock, BlockId, Function, FunctionId, Immediate, InstId, InstKind, Instruction, MirType,
@@ -31,10 +39,7 @@ pub use backend::{
     Backend,
     evm::{
         AssembledCode, Assembler, AssemblerConfig, EvmArtifact, EvmCodegen, EvmCodegenConfig,
-        EvmIrBlock, EvmIrBlockHotness, EvmIrBlockId, EvmIrBlockMetadata, EvmIrInstruction,
-        EvmIrMetadata, EvmIrMetadataItem, EvmIrModule, EvmIrOperand, EvmIrParseError,
-        EvmIrStackEffect, EvmIrTerminator, EvmIrTerminatorKind, EvmIrValue, EvmIrValueId, Label,
-        SpillManager, SpillSlot, StackModel, StackScheduler, parse_evm_ir_module,
+        Label, SpillManager, SpillSlot, StackModel, StackScheduler,
     },
 };
 
@@ -42,6 +47,7 @@ pub mod lower;
 pub use lower::Lowerer;
 
 pub mod pass;
+mod timing;
 pub mod transform;
 pub(crate) mod utils;
 pub use transform::{

@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract C {
     function ok(uint256 n) public returns (uint256 x) {
         assembly {

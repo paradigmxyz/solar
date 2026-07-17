@@ -65,17 +65,27 @@ impl LowerDispatchPass {
         // than silently skipping, since a leftover argument-taking selector
         // function would mean the ABI invariant was violated.
         let mut routes: Vec<(u32, FunctionId)> = Vec::new();
+        let mut receive = None;
+        let mut fallback = None;
+        let mut callvalue = super::DispatchCallvalue::default();
         for (id, func) in module.functions.iter_enumerated() {
-            let Some(selector) = func.selector else { continue };
-            if func.blocks.is_empty() {
-                continue;
+            callvalue.observe(func);
+            if func.attributes.is_receive && !func.blocks.is_empty() && receive.is_none() {
+                receive = Some(id);
             }
-            debug_assert!(
-                func.params.is_empty(),
-                "dispatch after abi phase: selector function `{}` still takes arguments",
-                func.name
-            );
-            routes.push((u32::from_be_bytes(selector), id));
+            if func.attributes.is_fallback && !func.blocks.is_empty() && fallback.is_none() {
+                fallback = Some(id);
+            }
+            if let Some(selector) = func.selector
+                && !func.blocks.is_empty()
+            {
+                debug_assert!(
+                    func.params.is_empty(),
+                    "dispatch after abi phase: selector function `{}` still takes arguments",
+                    func.name
+                );
+                routes.push((u32::from_be_bytes(selector), id));
+            }
         }
         routes.sort_by_key(|(selector, _)| *selector);
 
@@ -83,15 +93,6 @@ impl LowerDispatchPass {
         // bodied declarations participate in runtime dispatch. A fallback with
         // the `fallback(bytes) returns (bytes)` shape takes an argument this
         // switch cannot supply; bail all-or-nothing rather than half-routing.
-        let special = |pick: fn(&Function) -> bool| {
-            module
-                .functions
-                .iter_enumerated()
-                .find(|(_, f)| pick(f) && !f.blocks.is_empty())
-                .map(|(id, _)| id)
-        };
-        let receive = special(|f| f.attributes.is_receive);
-        let fallback = special(|f| f.attributes.is_fallback);
         for id in [receive, fallback].into_iter().flatten() {
             if !module.function(id).params.is_empty() {
                 return false;
@@ -102,10 +103,11 @@ impl LowerDispatchPass {
         }
 
         // Hoist the callvalue check when every external entry rejects value,
-        // exactly like the backend dispatcher does.
-        let externals =
-            routes.iter().map(|&(_, id)| id).chain(receive).chain(fallback).collect::<Vec<_>>();
-        let hoist_callvalue = externals.iter().all(|&id| rejects_callvalue(module.function(id)));
+        // exactly like the backend dispatcher does. When the hoist does not
+        // apply, the selector cases route unguarded: `lower-abi` already
+        // injected the check into each rejecting wrapper's prologue (the two
+        // passes share this predicate).
+        let hoist_callvalue = callvalue.hoists();
 
         self.build_entry(module, &routes, receive, fallback, hoist_callvalue);
         self.stats.routed = routes.len();
@@ -129,19 +131,24 @@ impl LowerDispatchPass {
         fallback: Option<FunctionId>,
         hoist_callvalue: bool,
     ) {
-        let rejects: Vec<bool> =
-            routes.iter().map(|&(_, id)| rejects_callvalue(module.function(id))).collect();
-        let fallback_rejects = fallback.is_some_and(|id| rejects_callvalue(module.function(id)));
+        let fallback_rejects =
+            fallback.is_some_and(|id| super::rejects_callvalue(module.function(id)));
 
         let mut entry = Function::new(Ident::with_dummy_span(sym::entry));
         {
             let mut builder = FunctionBuilder::new(&mut entry);
 
             let size_block = builder.create_block();
-            let empty_block = builder.create_block();
+            // With no receive and no fallback there is no empty-calldata
+            // entry: empty calldata branches straight to the revert, and
+            // keeping `select_block` the fallthrough lets the backend invert
+            // the size check into the shared revert stub — the backend
+            // dispatcher's exact shape.
+            let empty_block =
+                (receive.is_some() || fallback.is_some()).then(|| builder.create_block());
             let select_block = builder.create_block();
             let case_blocks: Vec<_> = routes.iter().map(|_| builder.create_block()).collect();
-            let default_block = builder.create_block();
+            let default_block = fallback.map(|_| builder.create_block());
             let revert_block = builder.create_block();
 
             // Optional hoisted callvalue check.
@@ -152,25 +159,26 @@ impl LowerDispatchPass {
                 builder.jump(size_block);
             }
 
-            // Empty calldata: receive, else fallback, else revert.
+            // Empty calldata: receive, else fallback, else revert. Nonzero
+            // calldatasize is the branch condition itself; no comparison.
             builder.switch_to_block(size_block);
             let size = builder.calldatasize();
-            let zero = builder.imm_u64(0);
-            let is_empty = builder.eq(size, zero);
-            builder.branch(is_empty, empty_block, select_block);
+            builder.branch(size, select_block, empty_block.unwrap_or(revert_block));
 
-            builder.switch_to_block(empty_block);
-            match (receive, fallback) {
-                (Some(target), _) => builder.tail_call(target, Vec::new()),
-                (None, Some(target)) => {
-                    self.guarded_tail_call(
-                        &mut builder,
-                        target,
-                        fallback_rejects && !hoist_callvalue,
-                        revert_block,
-                    );
+            if let Some(empty_block) = empty_block {
+                builder.switch_to_block(empty_block);
+                match (receive, fallback) {
+                    (Some(target), _) => builder.tail_call(target, Vec::new()),
+                    (None, Some(target)) => {
+                        self.guarded_tail_call(
+                            &mut builder,
+                            target,
+                            fallback_rejects && !hoist_callvalue,
+                            revert_block,
+                        );
+                    }
+                    (None, None) => unreachable!("empty_block exists without receive or fallback"),
                 }
-                (None, None) => builder.jump(revert_block),
             }
 
             // Selector switch; the default goes to the fallback when present.
@@ -181,33 +189,27 @@ impl LowerDispatchPass {
                 .zip(&case_blocks)
                 .map(|((sel, _), block)| (builder.imm_u64(u64::from(*sel)), *block))
                 .collect();
-            builder.switch(selector, default_block, cases);
+            builder.switch(selector, default_block.unwrap_or(revert_block), cases);
 
-            builder.switch_to_block(default_block);
-            if let Some(target) = fallback {
+            if let Some(default_block) = default_block
+                && let Some(target) = fallback
+            {
+                builder.switch_to_block(default_block);
                 self.guarded_tail_call(
                     &mut builder,
                     target,
                     fallback_rejects && !hoist_callvalue,
                     revert_block,
                 );
-            } else {
-                builder.jump(revert_block);
             }
 
-            // Each case tail-calls its argument-free wrapper, with a callvalue
-            // check first when the entry rejects value and the check was not
-            // hoisted.
-            for (((_, target), block), rejects_value) in
-                routes.iter().zip(&case_blocks).zip(&rejects)
-            {
+            // Each case tail-calls its argument-free wrapper directly. A
+            // rejecting wrapper carries its own callvalue check in its
+            // prologue (injected by `lower-abi`) whenever the hoisted check
+            // does not apply, so no per-case guard is needed.
+            for ((_, target), block) in routes.iter().zip(&case_blocks) {
                 builder.switch_to_block(*block);
-                self.guarded_tail_call(
-                    &mut builder,
-                    *target,
-                    *rejects_value && !hoist_callvalue,
-                    revert_block,
-                );
+                builder.tail_call(*target, Vec::new());
             }
 
             builder.switch_to_block(revert_block);
@@ -234,16 +236,6 @@ impl LowerDispatchPass {
         }
         builder.tail_call(target, Vec::new());
     }
-}
-
-/// Whether an external entry must reject nonzero callvalue, mirroring the
-/// backend dispatcher's rule.
-fn rejects_callvalue(func: &Function) -> bool {
-    use solar_sema::hir::StateMutability;
-    matches!(
-        func.attributes.state_mutability,
-        StateMutability::NonPayable | StateMutability::View | StateMutability::Pure
-    )
 }
 
 /// Emits `calldataload(0) >> 224`, the 4-byte function selector.

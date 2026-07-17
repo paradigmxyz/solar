@@ -1,0 +1,40 @@
+// CHECK: "Inheritance": {
+// CHECK: "label": "baseValue"
+// CHECK: "offset": 0
+// CHECK: "slot": "42"
+// CHECK: "label": "rightValue"
+// CHECK: "offset": 16
+// CHECK: "slot": "42"
+// CHECK: "label": "derivedValue"
+// CHECK: "offset": 24
+// CHECK: "slot": "42"
+// CHECK: "transientStorageLayout": {
+// CHECK: "label": "baseTransient"
+// CHECK: "offset": 0
+// CHECK: "label": "rightTransient"
+// CHECK: "offset": 8
+// CHECK: "label": "derivedTransient"
+// CHECK: "offset": 24
+// CHECK: "Empty": {
+// CHECK: "storage": []
+// CHECK: "types": null
+// CHECK: "transientStorageLayout": {
+// CHECK: "storage": []
+// CHECK: "types": null
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "inheritance.sol": {
+        "Inheritance": [
+          "storageLayout",
+          "transientStorageLayout"
+        ],
+        "Empty": [
+          "storageLayout",
+          "transientStorageLayout"
+        ]
+      }
+    }
+  }
+}

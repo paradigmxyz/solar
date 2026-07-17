@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract C {
     function f1(int256 value) public {
         value;

@@ -1,0 +1,9 @@
+//@compile-flags: --pass block-layout
+bb0 (entry):
+  jump bb2
+bb1 [cold]:
+  %offset = push 0
+  %size = push 0
+  revert %offset, %size
+bb2:
+  stop

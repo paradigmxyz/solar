@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract C {
     enum ActionChoices { GoLeft, GoRight }
     function f() public pure {

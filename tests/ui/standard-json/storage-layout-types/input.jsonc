@@ -1,0 +1,28 @@
+// CHECK: "label": "unevenArray"
+// CHECK: "slot": "4"
+// CHECK: "type": "t_array(t_bytes17)3_storage"
+// CHECK: "label": "oddWidthArray"
+// CHECK: "slot": "7"
+// CHECK: "numberOfBytes": "96"
+// CHECK: "label": "struct LayoutTypes.Packed"
+// CHECK: "label": "tail"
+// CHECK: "slot": "4"
+// CHECK: "t_mapping(t_address,t_struct(Packed){{[0-9]+}}_storage)"
+// CHECK: "t_mapping(t_address,t_array(t_uint8)dyn_storage)"
+// CHECK: "label": "enum LayoutTypes.Choice"
+// CHECK: "label": "LayoutTypes.Small"
+// CHECK: "t_function_external_view(t_array(t_array(t_uint8)dyn_calldata_ptr)2_calldata_ptr,t_array(t_bytes_memory_ptr)dyn_memory_ptr)returns(t_array(t_string_memory_ptr)dyn_memory_ptr)"
+// CHECK: "label": "function (uint8[][2],bytes[]) view external returns (string[])"
+// CHECK: "label": "function (uint256) pure returns (bool)"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "types.sol": {
+        "LayoutTypes": [
+          "storageLayout"
+        ]
+      }
+    }
+  }
+}

@@ -18,7 +18,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.dcx().emit_err(lit.span, format!("string literal too long ({len} > 32)")),
                 );
             }
-            LitKind::Address(_) => return self.gcx.types.uint(256),
+            LitKind::Address(_) | LitKind::Bool(_) => return self.gcx.types.uint(256),
             _ => {}
         }
 

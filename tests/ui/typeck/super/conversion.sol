@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 // ported-from: test/libsolidity/syntaxTests/conversion/convert_to_super_empty.sol
 // ported-from: test/libsolidity/syntaxTests/conversion/convert_to_super_nonempty.sol
 // ported-from: test/libsolidity/syntaxTests/conversion/not_allowed_conversion_from_super.sol

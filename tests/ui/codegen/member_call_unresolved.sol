@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=bin
+//@compile-flags: -Zcodegen --emit=evm-ir
 //@check-fail
 // A member call on a receiver whose type is an unresolved import must produce
 // diagnostics, not an ICE in codegen (the typeck-invariant panic).

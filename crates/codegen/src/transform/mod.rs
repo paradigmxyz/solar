@@ -17,13 +17,17 @@ mod loop_opt;
 mod lower_abi;
 mod lower_dispatch;
 mod lower_evm_shaped;
+mod lower_mapping_slots;
 mod memory_dse;
+mod outline_reverts;
 mod pre;
 mod pure_eval;
 mod sccp;
+mod static_alloc;
 mod storage_dse;
 mod storage_load_cse;
 mod storage_promotion;
+mod utils;
 
 pub use adce::{AdcePass, AdceStats, AggressiveDeadCodeEliminator};
 pub use cfg_simplify::{
@@ -51,12 +55,17 @@ pub use loop_opt::{LicmPass, LoopOptConfig, LoopOptStats, LoopOptimizer};
 pub use lower_abi::{LowerAbiPass, LowerAbiStats};
 pub use lower_dispatch::{LowerDispatchPass, LowerDispatchStats};
 pub use lower_evm_shaped::{LowerEvmShapedPass, LowerEvmShapedStats};
+pub use lower_mapping_slots::LowerMappingSlotsPass;
 pub use memory_dse::{MemoryDsePass, MemoryStoreEliminator};
+pub use outline_reverts::{OutlineRevertsPass, OutlineRevertsStats};
 pub use pre::{PartialRedundancyEliminator, PrePass, PreStats};
 pub use pure_eval::{PureEvalPass, PureEvalStats, PureEvaluator};
 pub use sccp::{SccpPass, SccpStats, SccpTransformPass};
+pub use static_alloc::StaticAllocPass;
 pub use storage_dse::{StorageDsePass, StorageStoreEliminator};
 pub use storage_load_cse::{StorageLoadCse, StorageLoadCsePass};
 pub use storage_promotion::{
     StoragePromotionStats, StorageScalarPromoter, StorageScalarPromotionPass,
 };
+
+pub(crate) use utils::{DispatchCallvalue, rejects_callvalue};

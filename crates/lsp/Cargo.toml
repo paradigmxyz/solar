@@ -26,10 +26,12 @@ workspace = true
 [dependencies]
 solar-config = { workspace = true, features = ["version"] }
 solar-interface = { workspace = true, features = ["json"] }
+solar-parse.workspace = true
 solar-sema.workspace = true
 
 async-lsp = { workspace = true, features = ["omni-trait"] }
 crop = { workspace = true, features = ["utf16-metric"] }
+glob.workspace = true
 lsp-types.workspace = true
 normalize-path.workspace = true
 serde.workspace = true
@@ -37,7 +39,7 @@ serde_json.workspace = true
 thiserror.workspace = true
 toml_edit = { workspace = true, features = ["serde"] }
 tower.workspace = true
-tokio = { workspace = true, features = ["io-util", "macros", "process", "rt", "sync", "time"] }
+tokio = { workspace = true, features = ["fs", "io-util", "macros", "process", "rt", "sync", "time"] }
 tracing.workspace = true
 
 # This is needed because Windows does not support truly asynchronous pipes.

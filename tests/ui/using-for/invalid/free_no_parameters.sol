@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/using/using_free_no_parameters_err.sol
 
 function zero() pure returns (uint256) {

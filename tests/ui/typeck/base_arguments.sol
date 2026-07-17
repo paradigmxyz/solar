@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract Base {
     constructor(uint, int) {}
 }

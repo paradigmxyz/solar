@@ -184,16 +184,20 @@ str_enum! {
         BinRuntime,
         /// Function signature hashes.
         Hashes,
-        /// Textual MIR (mid-level IR) for inspection and FileCheck-style tests.
+        /// Textual Mid-Level IR.
         Mir,
+        /// Creation EVM IR.
+        EvmIr,
+        /// Runtime EVM IR.
+        EvmIrRuntime,
     }
 }
 
 impl CompilerOutput {
     /// Returns `true` for outputs produced by the codegen backend (which lowers
-    /// to MIR), i.e. `bin`, `bin-runtime`, and `mir`.
+    /// to MIR), i.e. bytecode, EVM IR, and MIR outputs.
     pub fn is_codegen(self) -> bool {
-        matches!(self, Self::Bin | Self::BinRuntime | Self::Mir)
+        matches!(self, Self::Bin | Self::BinRuntime | Self::EvmIr | Self::EvmIrRuntime | Self::Mir)
     }
 }
 

@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 // A mapping whose value is a fixed-size array: the array size expression must be
 // type-checked exactly once (previously the mapping value was visited twice,
 // causing an "already typechecked" ICE).

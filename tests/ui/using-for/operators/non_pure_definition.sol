@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/operators/userDefined/implementing_operator_with_non_pure_function.sol
 
 type U is uint256;

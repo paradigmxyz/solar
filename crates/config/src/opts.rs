@@ -177,7 +177,10 @@ pub struct CompileOpts {
     ///
     /// See `-Zhelp` for more details.
     #[doc(hidden)]
-    #[cfg_attr(feature = "clap", arg(id = "unstable-features", value_name = "FLAG", short = 'Z'))]
+    #[cfg_attr(
+        feature = "clap",
+        arg(id = "unstable-features", value_name = "FLAG", short = 'Z', global = true)
+    )]
     pub _unstable: Vec<String>,
 
     /// Parsed unstable flags.
@@ -323,6 +326,10 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub no_resolve_imports: bool,
 
+    /// Recovers incomplete input into a partial AST.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub recover_incomplete_input: bool,
+
     /// Print additional information about the compiler's internal state.
     ///
     /// Valid kinds are `ast` and `hir`.
@@ -353,13 +360,13 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub print_natspec: bool,
 
-    /// Type check the program. WIP.
-    #[cfg_attr(feature = "clap", arg(long))]
-    pub typeck: bool,
-
     /// Print MIR after every MIR optimization pass during codegen.
     #[cfg_attr(feature = "clap", arg(long))]
     pub mir_print_after_each: bool,
+
+    /// Print the time spent in each MIR and EVM IR pass.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub time_passes: bool,
 
     /// Enable the experimental EVM code generator (MIR lowering and backend).
     ///

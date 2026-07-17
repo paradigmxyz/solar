@@ -22,5 +22,19 @@ error: data locations are not allowed here
 LL │ S[] memory constant d0 = [];
    ╰╴    ━━━━━━
 
-error: aborting due to 4 previous errors
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/var_loc_file_level.sol:LL:CC
+   │
+LL │ uint[] memory constant b0 = [];
+   ╰╴                            ━━ expected `uint256[] memory`, found `uint256[0] memory`
+
+error: cannot infer nameable array element type
+   ╭▸ ROOT/tests/ui/typeck/var_loc_file_level.sol:LL:CC
+   │
+LL │ S[] memory constant d0 = [];
+   │                          ━━
+   │
+   ╰ help: add an explicit type conversion for the first element
+
+error: aborting due to 6 previous errors
 

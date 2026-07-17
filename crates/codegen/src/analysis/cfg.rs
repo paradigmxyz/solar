@@ -6,27 +6,42 @@
 //! differences between passes when unreachable predecessors or critical-edge
 //! rewrites are involved.
 
+use std::cell::OnceCell;
+
 use crate::mir::{BlockId, Function};
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use smallvec::SmallVec;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Control-flow facts for one MIR function.
 #[derive(Clone, Debug)]
 pub struct CfgInfo {
-    successors: Vec<Vec<BlockId>>,
-    reachable: FxHashSet<BlockId>,
-    rpo: Vec<BlockId>,
-    dominators: DominatorTree,
-    reachability: Option<FxHashMap<BlockId, FxHashSet<BlockId>>>,
+    entry_block: BlockId,
+    successors: Vec<SmallVec<[BlockId; 2]>>,
+    reachable: OnceCell<DenseBitSet<BlockId>>,
+    rpo: OnceCell<Vec<BlockId>>,
+    dominators: OnceCell<DominatorTree>,
+    reachability: OnceCell<FxHashMap<BlockId, DenseBitSet<BlockId>>>,
 }
 
 impl CfgInfo {
-    /// Computes shared CFG facts for `func`.
+    /// Snapshots the control-flow graph for `func`.
     #[must_use]
     pub fn new(func: &Function) -> Self {
-        let successors = collect_successors(func);
-        let (reachable, postorder, rpo) = reachable_orders(func, &successors);
-        let dominators = DominatorTree::compute(func, &postorder);
-        Self { successors, reachable, rpo, dominators, reachability: None }
+        let successors = func
+            .blocks
+            .iter()
+            .map(|block| {
+                block.terminator.as_ref().map(|term| term.successors()).unwrap_or_default()
+            })
+            .collect();
+        Self {
+            entry_block: func.entry_block,
+            successors,
+            reachable: OnceCell::new(),
+            rpo: OnceCell::new(),
+            dominators: OnceCell::new(),
+            reachability: OnceCell::new(),
+        }
     }
 
     /// Returns successor blocks for `block`.
@@ -37,34 +52,80 @@ impl CfgInfo {
 
     /// Returns the blocks reachable from the entry.
     #[must_use]
-    pub fn reachable(&self) -> &FxHashSet<BlockId> {
-        &self.reachable
+    pub fn reachable(&self) -> &DenseBitSet<BlockId> {
+        self.reachable.get_or_init(|| {
+            let mut reachable = DenseBitSet::new_empty(self.successors.len());
+            let mut stack = Vec::new();
+            stack.push(self.entry_block);
+            while let Some(block) = stack.pop() {
+                if reachable.insert(block) {
+                    stack.extend(self.successors[block.index()].iter().copied());
+                }
+            }
+            reachable
+        })
     }
 
     /// Returns true if `block` is reachable from the entry.
     #[must_use]
     pub fn is_reachable(&self, block: BlockId) -> bool {
-        self.reachable.contains(&block)
+        self.reachable().contains(block)
     }
 
     /// Returns reachable blocks in reverse postorder.
     #[must_use]
     pub fn rpo(&self) -> &[BlockId] {
-        &self.rpo
+        self.rpo.get_or_init(|| {
+            let mut reachable = DenseBitSet::new_empty(self.successors.len());
+            let mut rpo = Vec::with_capacity(self.successors.len());
+            let mut stack = vec![(self.entry_block, 0usize)];
+            reachable.insert(self.entry_block);
+            while let Some((block, next)) = stack.last_mut() {
+                if let Some(&succ) = self.successors[block.index()].get(*next) {
+                    *next += 1;
+                    if reachable.insert(succ) {
+                        stack.push((succ, 0));
+                    }
+                } else {
+                    rpo.push(*block);
+                    stack.pop();
+                }
+            }
+            rpo.reverse();
+            let _ = self.reachable.set(reachable);
+            rpo
+        })
     }
 
     /// Returns immediate-dominator information.
     #[must_use]
     pub fn dominators(&self) -> &DominatorTree {
-        &self.dominators
+        self.dominators
+            .get_or_init(|| DominatorTree::compute(self.entry_block, &self.successors, self.rpo()))
     }
 
     /// Returns block-to-block reachability through at least one CFG edge.
     ///
     /// The map is computed lazily because only memory/state-aware passes need
     /// this more expensive transitive query.
-    pub fn transitive_reachability(&mut self) -> &FxHashMap<BlockId, FxHashSet<BlockId>> {
-        self.reachability.get_or_insert_with(|| compute_transitive_reachability(&self.successors))
+    pub fn transitive_reachability(&self) -> &FxHashMap<BlockId, DenseBitSet<BlockId>> {
+        self.reachability.get_or_init(|| {
+            let mut reachability = FxHashMap::default();
+            let mut stack = Vec::new();
+            for block_index in 0..self.successors.len() {
+                let block_id = BlockId::from_usize(block_index);
+                let mut reachable = DenseBitSet::new_empty(self.successors.len());
+                stack.clear();
+                stack.extend(self.successors[block_id.index()].iter().copied());
+                while let Some(block) = stack.pop() {
+                    if reachable.insert(block) {
+                        stack.extend(self.successors[block.index()].iter().copied());
+                    }
+                }
+                reachability.insert(block_id, reachable);
+            }
+            reachability
+        })
     }
 }
 
@@ -76,24 +137,35 @@ pub struct DominatorTree {
 }
 
 impl DominatorTree {
-    fn compute(func: &Function, postorder: &[BlockId]) -> Self {
-        let block_count = func.blocks.len();
+    fn compute(
+        entry_block: BlockId,
+        successors: &[SmallVec<[BlockId; 2]>],
+        rpo: &[BlockId],
+    ) -> Self {
+        let block_count = successors.len();
+        let mut predecessors = vec![Vec::new(); block_count];
+        for (block_index, block_successors) in successors.iter().enumerate() {
+            let block = BlockId::from_usize(block_index);
+            for &successor in block_successors {
+                predecessors[successor.index()].push(block);
+            }
+        }
         let mut rpo_numbers = vec![usize::MAX; block_count];
-        for (number, &block) in postorder.iter().rev().enumerate() {
+        for (number, &block) in rpo.iter().enumerate() {
             rpo_numbers[block.index()] = number;
         }
 
         let mut idoms = vec![None; block_count];
-        idoms[func.entry_block.index()] = Some(func.entry_block);
+        idoms[entry_block.index()] = Some(entry_block);
         let mut changed = true;
         while changed {
             changed = false;
-            for &block in postorder.iter().rev() {
-                if block == func.entry_block {
+            for &block in rpo {
+                if block == entry_block {
                     continue;
                 }
                 let mut new_idom: Option<BlockId> = None;
-                for &pred in &func.blocks[block].predecessors {
+                for &pred in &predecessors[block.index()] {
                     if idoms[pred.index()].is_none() {
                         continue;
                     }
@@ -114,7 +186,7 @@ impl DominatorTree {
         let mut children = vec![Vec::new(); block_count];
         for (block_index, idom) in idoms.iter().copied().enumerate() {
             let block = BlockId::from_usize(block_index);
-            if block == func.entry_block {
+            if block == entry_block {
                 continue;
             }
             if let Some(idom) = idom {
@@ -184,59 +256,4 @@ impl DominatorTree {
         }
         out
     }
-}
-
-fn compute_transitive_reachability(
-    successors: &[Vec<BlockId>],
-) -> FxHashMap<BlockId, FxHashSet<BlockId>> {
-    let mut reachability = FxHashMap::default();
-    for block_index in 0..successors.len() {
-        let block_id = BlockId::from_usize(block_index);
-        let mut reachable = FxHashSet::default();
-        let mut stack = successors[block_id.index()].clone();
-        while let Some(block) = stack.pop() {
-            if reachable.insert(block) {
-                stack.extend(successors[block.index()].iter().copied());
-            }
-        }
-        reachability.insert(block_id, reachable);
-    }
-    reachability
-}
-
-fn collect_successors(func: &Function) -> Vec<Vec<BlockId>> {
-    func.blocks
-        .iter()
-        .map(|block| {
-            block
-                .terminator
-                .as_ref()
-                .map(|term| term.successors().into_iter().collect())
-                .unwrap_or_default()
-        })
-        .collect()
-}
-
-fn reachable_orders(
-    func: &Function,
-    successors: &[Vec<BlockId>],
-) -> (FxHashSet<BlockId>, Vec<BlockId>, Vec<BlockId>) {
-    let mut reachable = FxHashSet::default();
-    let mut postorder = Vec::with_capacity(func.blocks.len());
-    let mut stack = vec![(func.entry_block, 0usize)];
-    reachable.insert(func.entry_block);
-    while let Some((block, next)) = stack.last_mut() {
-        if let Some(&succ) = successors[block.index()].get(*next) {
-            *next += 1;
-            if reachable.insert(succ) {
-                stack.push((succ, 0));
-            }
-        } else {
-            postorder.push(*block);
-            stack.pop();
-        }
-    }
-    let mut rpo = postorder.clone();
-    rpo.reverse();
-    (reachable, postorder, rpo)
 }

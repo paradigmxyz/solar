@@ -1,9 +1,0 @@
-// === ROOT/tests/ui/codegen/evm-ir/cold_layout.evmir (after cold-layout) ===
-bb0 (entry):
-  jump bb2
-bb2:
-  stop
-bb1 [cold]:
-  %offset = push 0
-  %size = push 0
-  revert %offset, %size

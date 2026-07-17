@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/globalFunctions/erc7201_builtin_param_string_variable.sol
 // ported-from: test/libsolidity/syntaxTests/globalFunctions/erc7201_builtin_param_wrong_count.sol
 // ported-from: test/libsolidity/syntaxTests/globalFunctions/erc7201_builtin_param_invalid_bytes.sol

@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract IntegerConversions {
     // Int <-> Int (any size - only width changes)
     function validIntToInt(int8 i8, int256 i256) public pure {

@@ -23,6 +23,7 @@ use crate::{
 use alloy_primitives::U256;
 use solar_data_structures::{
     Never,
+    bit_set::GrowableBitSet,
     map::{FxHashMap, FxHashSet},
 };
 use solar_interface::{Ident, Span, diagnostics::DiagMsg, kw, sym};
@@ -84,12 +85,12 @@ pub struct Lowerer<'gcx> {
     loop_stack: Vec<LoopContext>,
     /// Variables that are assigned after declaration (need memory storage).
     /// Variables not in this set can be kept as SSA values.
-    assigned_vars: FxHashSet<VariableId>,
+    assigned_vars: GrowableBitSet<VariableId>,
     /// Local variables that are storage references (pointers). Their value in
     /// `locals` is a storage *slot*, so `r.field` reads `sload(slot + offset)`
     /// and `r.field = v` writes `sstore(slot + offset, v)`, rather than treating
     /// the value as a memory pointer.
-    storage_ref_locals: FxHashSet<VariableId>,
+    storage_ref_locals: GrowableBitSet<VariableId>,
     /// Stack of function IDs currently being inlined (for cycle detection).
     inline_stack: Vec<HirFunctionId>,
     /// HIR functions already lowered into this MIR module.
@@ -100,7 +101,7 @@ pub struct Lowerer<'gcx> {
     /// Cache of whether a function is (directly) self-recursive.
     recursive_functions: FxHashMap<HirFunctionId, bool>,
     /// Functions currently being lowered on demand.
-    lowering_functions: FxHashSet<HirFunctionId>,
+    lowering_functions: GrowableBitSet<HirFunctionId>,
     /// Whether the current function body is constructor code.
     lowering_constructor: bool,
     /// Whether local memory slots should be addressed through the internal-call frame.
@@ -125,6 +126,9 @@ pub struct Lowerer<'gcx> {
     current_return_tys: Vec<Ty<'gcx>>,
     /// Mapping from struct state variable ID to base storage slot.
     pub struct_storage_base_slots: FxHashMap<VariableId, u64>,
+    /// Calldata bytes parameters materialized into memory because the function
+    /// rebinds them (for example, `proof = proof[offset:]`).
+    memory_backed_calldata_bytes: FxHashSet<VariableId>,
     /// Cached struct field slot offsets: (struct_type_id, field_index) -> slot offset from base.
     pub struct_field_offsets: FxHashMap<(hir::StructId, usize), u64>,
     /// Cached struct field memory offsets: (struct_type_id, field_index) -> byte offset from base.
@@ -167,13 +171,13 @@ impl<'gcx> Lowerer<'gcx> {
             next_local_memory_offset: 0x80, // Start after Solidity's scratch space
             contract_bytecodes: FxHashMap::default(),
             loop_stack: Vec::new(),
-            assigned_vars: FxHashSet::default(),
-            storage_ref_locals: FxHashSet::default(),
+            assigned_vars: GrowableBitSet::new_empty(),
+            storage_ref_locals: GrowableBitSet::new_empty(),
             inline_stack: Vec::new(),
             hir_to_mir_functions: FxHashMap::default(),
             hir_to_internal_mir_functions: FxHashMap::default(),
             recursive_functions: FxHashMap::default(),
-            lowering_functions: FxHashSet::default(),
+            lowering_functions: GrowableBitSet::new_empty(),
             lowering_constructor: false,
             lowering_internal_function: false,
             revert_error_helper: None,
@@ -183,6 +187,7 @@ impl<'gcx> Lowerer<'gcx> {
             in_unchecked_block: false,
             current_return_tys: Vec::new(),
             struct_storage_base_slots: FxHashMap::default(),
+            memory_backed_calldata_bytes: FxHashSet::default(),
             struct_field_offsets: FxHashMap::default(),
             struct_field_memory_offsets: FxHashMap::default(),
         }
@@ -546,7 +551,7 @@ impl<'gcx> Lowerer<'gcx> {
             return mir_id;
         }
 
-        if self.lowering_functions.contains(&func_id) {
+        if self.lowering_functions.contains(func_id) {
             return self
                 .module
                 .add_function(Function::new(Ident::new(sym::_recursive_internal, Span::DUMMY)));
@@ -554,6 +559,8 @@ impl<'gcx> Lowerer<'gcx> {
 
         let saved_locals = std::mem::take(&mut self.locals);
         let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
+        let saved_memory_backed_calldata_bytes =
+            std::mem::take(&mut self.memory_backed_calldata_bytes);
         let saved_next_local_memory_offset = self.next_local_memory_offset;
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
         let saved_current_contract_id = self.current_contract_id;
@@ -566,10 +573,11 @@ impl<'gcx> Lowerer<'gcx> {
         self.current_contract_id = self.gcx.hir.function(func_id).contract;
         self.in_unchecked_block = false;
         let mir_id = self.lower_function(func_id, false);
-        self.lowering_functions.remove(&func_id);
+        self.lowering_functions.remove(func_id);
 
         self.locals = saved_locals;
         self.local_memory_slots = saved_local_memory_slots;
+        self.memory_backed_calldata_bytes = saved_memory_backed_calldata_bytes;
         self.next_local_memory_offset = saved_next_local_memory_offset;
         self.assigned_vars = saved_assigned_vars;
         self.current_contract_id = saved_current_contract_id;
@@ -577,7 +585,6 @@ impl<'gcx> Lowerer<'gcx> {
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
         self.current_return_tys = saved_current_return_tys;
-
         mir_id
     }
 
@@ -623,7 +630,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// argument (offset word, length, padded data) and terminates with
     /// `ReturnData`, so wrappers pay one cheap call instead of an inline
     /// encode each. Never inlined back: it has no MIR return values.
-    pub(super) fn ensure_ret_bytes_helper(&mut self, ty: Ty<'gcx>) -> FunctionId {
+    pub(super) fn ensure_ret_bytes_helper(&mut self) -> FunctionId {
         // Not `get_or_insert_with`: synthesis re-enters `self` lowering
         // methods, which the closure borrow would forbid.
         if let Some(id) = self.ret_bytes_helper {
@@ -635,9 +642,39 @@ impl<'gcx> Lowerer<'gcx> {
         {
             let mut builder = FunctionBuilder::new(&mut func);
             let ptr = builder.add_param(MirType::MemPtr);
-            self.synthesizing_helper = true;
-            self.emit_abi_return(&mut builder, &[(ptr, ty)]);
-            self.synthesizing_helper = false;
+
+            // This helper terminates externally, so its return buffer need not
+            // advance the free-memory pointer. Encode `(offset, length, data)`
+            // directly at the current pointer and return it.
+            let free_ptr_addr = builder.imm_u64(0x40);
+            let buf = builder.mload(free_ptr_addr);
+            let word = builder.imm_u64(32);
+            builder.mstore(buf, word);
+
+            let len = builder.mload(ptr);
+            let len_dst = builder.add(buf, word);
+            builder.mstore(len_dst, len);
+
+            let thirty_one = builder.imm_u64(31);
+            let rounded = builder.add(len, thirty_one);
+            let mask = builder.not(thirty_one);
+            let padded = builder.and(rounded, mask);
+            let data_dst = builder.add(len_dst, word);
+
+            // For an empty value `padded - 32` wraps, and adding it to
+            // `data_dst == buf + 64` lands on the already-zero length word.
+            // Thus one unconditional store handles both empty and non-empty
+            // padding without a control-flow split.
+            let last_word_offset = builder.sub(padded, word);
+            let last_word = builder.add(data_dst, last_word_offset);
+            let zero = builder.imm_u64(0);
+            builder.mstore(last_word, zero);
+
+            let data_src = builder.add(ptr, word);
+            self.mcopy(&mut builder, data_dst, data_src, len, None);
+            let prefix_size = builder.imm_u64(64);
+            let size = builder.add(prefix_size, padded);
+            builder.ret_data(buf, size);
         }
         let id = self.module.add_function(func);
         self.ret_bytes_helper = Some(id);
@@ -680,6 +717,8 @@ impl<'gcx> Lowerer<'gcx> {
 
         let saved_locals = std::mem::take(&mut self.locals);
         let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
+        let saved_memory_backed_calldata_bytes =
+            std::mem::take(&mut self.memory_backed_calldata_bytes);
         let saved_next_local_memory_offset = self.next_local_memory_offset;
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
         let saved_current_contract_id = self.current_contract_id;
@@ -694,6 +733,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.locals = saved_locals;
         self.local_memory_slots = saved_local_memory_slots;
+        self.memory_backed_calldata_bytes = saved_memory_backed_calldata_bytes;
         self.next_local_memory_offset = saved_next_local_memory_offset;
         self.assigned_vars = saved_assigned_vars;
         self.current_contract_id = saved_current_contract_id;
@@ -701,7 +741,6 @@ impl<'gcx> Lowerer<'gcx> {
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
         self.current_return_tys = saved_current_return_tys;
-
         mir_id
     }
 
@@ -748,6 +787,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.locals.clear();
         self.local_memory_slots.clear();
+        self.memory_backed_calldata_bytes.clear();
         self.next_local_memory_offset = 0x80;
         self.assigned_vars.clear();
         self.lowering_constructor = hir_func.kind == hir::FunctionKind::Constructor;
@@ -981,7 +1021,7 @@ impl<'gcx> Lowerer<'gcx> {
                 } else {
                     // Non-struct parameters: use normal Arg handling
                     let arg_index = builder.func().params.len() as u64;
-                    let val = builder.add_param(ty);
+                    let head_or_value = builder.add_param(ty);
                     if decodes_abi_params {
                         self.emit_abi_param_validation(
                             &mut builder,
@@ -990,7 +1030,18 @@ impl<'gcx> Lowerer<'gcx> {
                             abi_param_source,
                         );
                     }
-                    self.locals.insert(param_id, val);
+                    // A calldata bytes/string parameter which may be rebound to
+                    // a slice must have one representation on every CFG path.
+                    // Materialize it at entry instead of changing its meaning
+                    // while lowering whichever branch contains the assignment.
+                    if decodes_abi_params && self.memory_backed_calldata_bytes.contains(&param_id) {
+                        let value = self.materialize_calldata_bytes(&mut builder, head_or_value);
+                        let offset = self.alloc_local_memory(param_id);
+                        let addr = self.local_memory_addr(&mut builder, offset);
+                        builder.mstore(addr, value);
+                    } else {
+                        self.locals.insert(param_id, head_or_value);
+                    }
                     // A storage-reference parameter (`mapping`/`storage`) is passed
                     // by slot: its value *is* the base slot, so mark it so mapping
                     // indexing and struct/array reads through it use storage, and
@@ -1001,11 +1052,18 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
 
+            // Finalize the return prefix before calculating any named-return
+            // local address. `local_memory_addr` includes the complete return
+            // area; adding and initializing one return at a time placed the
+            // first initializer too early in multi-return functions.
+            for &ret_id in hir_func.returns {
+                let ret_var = self.gcx.hir.variable(ret_id);
+                let ty = self.lower_type_from_var(ret_var);
+                builder.add_return(ty);
+            }
             for &ret_id in hir_func.returns {
                 let ret_var = self.gcx.hir.variable(ret_id);
                 let ret_ty = self.gcx.type_of_hir_ty(&ret_var.ty);
-                let ty = self.lower_type_from_var(ret_var);
-                builder.add_return(ty);
                 // Allocate memory for return variables so they can be assigned to
                 // within the function body (e.g., `liquidity = 1` in if/else branches)
                 let offset = self.alloc_local_memory(ret_id);
@@ -1395,6 +1453,21 @@ impl<'gcx> Lowerer<'gcx> {
             ExprKind::Assign(lhs, _, rhs) => {
                 // Record assignment targets
                 self.mark_assigned_var(lhs);
+                if matches!(rhs.kind, ExprKind::Slice(..))
+                    && let Some(var_id) = self.ident_variable(lhs)
+                {
+                    let var = self.gcx.hir.variable(var_id);
+                    if var.data_location == Some(solar_ast::DataLocation::Calldata)
+                        && matches!(
+                            var.ty.kind,
+                            hir::TypeKind::Elementary(
+                                hir::ElementaryType::Bytes | hir::ElementaryType::String
+                            )
+                        )
+                    {
+                        self.memory_backed_calldata_bytes.insert(var_id);
+                    }
+                }
                 self.collect_assigned_vars_expr(rhs);
             }
             ExprKind::Binary(lhs, _, rhs) => {
@@ -1465,6 +1538,15 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Marks a variable as being assigned (needs memory storage).
     fn mark_assigned_var(&mut self, expr: &hir::Expr<'_>) {
+        // A tuple assignment `(a, b) = ...` assigns every element; missing
+        // them here kept the variables SSA-tracked, so a value assigned in
+        // one branch arm leaked into the sibling arm's lowering.
+        if let hir::ExprKind::Tuple(elements) = &expr.kind {
+            for element in elements.iter().copied().flatten() {
+                self.mark_assigned_var(element);
+            }
+            return;
+        }
         if let Some(var_id) = self.ident_variable(expr) {
             self.assigned_vars.insert(var_id);
         }
@@ -1472,7 +1554,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Returns true if a variable is assigned after declaration.
     pub fn is_var_assigned(&self, var_id: &VariableId) -> bool {
-        self.assigned_vars.contains(var_id)
+        self.assigned_vars.contains(*var_id)
     }
 
     /// Checks if an expression contains an external call.
@@ -1562,16 +1644,16 @@ pub fn lower_contract(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
 pub fn contract_bytecode_dependencies(
     gcx: Gcx<'_>,
     contract_id: ContractId,
-) -> FxHashSet<ContractId> {
-    let mut deps = FxHashSet::default();
+) -> GrowableBitSet<ContractId> {
+    let mut deps = GrowableBitSet::new_empty();
     BytecodeDependencyCollector { gcx, deps: &mut deps }.collect_contract(contract_id);
-    deps.remove(&contract_id);
+    deps.remove(contract_id);
     deps
 }
 
 struct BytecodeDependencyCollector<'a, 'gcx> {
     gcx: Gcx<'gcx>,
-    deps: &'a mut FxHashSet<ContractId>,
+    deps: &'a mut GrowableBitSet<ContractId>,
 }
 
 impl<'a, 'gcx> BytecodeDependencyCollector<'a, 'gcx> {

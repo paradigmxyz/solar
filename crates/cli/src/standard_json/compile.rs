@@ -11,7 +11,7 @@ use solar_codegen::{EvmCodegen, lower};
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, OptimizationMode,
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::{
     Result, SourceMap,
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
@@ -59,7 +59,7 @@ pub fn compile_standard_json(
         }
     }
 
-    let mut emitter = JsonEmitter::new(Box::new(io::sink()), Arc::clone(&source_map))
+    let mut emitter = JsonEmitter::new(Box::new(io::sink()), Arc::clone(&source_map), opts.color)
         .ui_testing(opts.unstable.ui_testing)
         .human_kind(opts.error_format_human)
         .terminal_width(opts.diagnostic_width);
@@ -400,41 +400,33 @@ fn generate_contract_bytecodes(
     gcx: solar_sema::Gcx<'_>,
 ) -> Result<FxHashMap<ContractId, GeneratedBytecodes>> {
     let mut all_bytecodes = FxHashMap::default();
-    let mut visiting = FxHashSet::default();
+    let mut artifacts = FxHashMap::default();
+    let mut visiting = DenseBitSet::new_empty(gcx.hir.contract_ids().len());
     for contract_id in gcx.hir.contract_ids() {
         let contract = gcx.hir.contract(contract_id);
         if !contract.kind.is_interface() && !contract.kind.is_abstract_contract() {
-            ensure_contract_bytecode(gcx, contract_id, &mut all_bytecodes, &mut visiting)?;
-        }
-    }
-
-    let mut bytecodes = FxHashMap::default();
-    for contract_id in gcx.hir.contract_ids() {
-        let contract = gcx.hir.contract(contract_id);
-        if !contract.kind.is_interface() && !contract.kind.is_abstract_contract() {
-            let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, &all_bytecodes);
-            gcx.dcx().has_errors()?;
-            let mut codegen = EvmCodegen::new(gcx);
-            let (deployment, runtime) = codegen.generate_deployment_bytecode(&mut module);
-            bytecodes.insert(
+            ensure_contract_bytecode(
+                gcx,
                 contract_id,
-                GeneratedBytecodes { deployment: deployment.into(), runtime: runtime.into() },
-            );
+                &mut all_bytecodes,
+                &mut artifacts,
+                &mut visiting,
+            )?;
         }
     }
-
-    Ok(bytecodes)
+    Ok(artifacts)
 }
 
 fn ensure_contract_bytecode(
     gcx: solar_sema::Gcx<'_>,
     contract_id: ContractId,
     all_bytecodes: &mut FxHashMap<ContractId, Vec<u8>>,
-    visiting: &mut FxHashSet<ContractId>,
+    artifacts: &mut FxHashMap<ContractId, GeneratedBytecodes>,
+    visiting: &mut DenseBitSet<ContractId>,
 ) -> Result {
     let contract = gcx.hir.contract(contract_id);
 
-    if all_bytecodes.contains_key(&contract_id) {
+    if artifacts.contains_key(&contract_id) {
         return Ok(());
     }
 
@@ -454,16 +446,20 @@ fn ensure_contract_bytecode(
             .emit());
     }
 
-    for dep in lower::contract_bytecode_dependencies(gcx, contract_id) {
-        ensure_contract_bytecode(gcx, dep, all_bytecodes, visiting)?;
+    for dep in &lower::contract_bytecode_dependencies(gcx, contract_id) {
+        ensure_contract_bytecode(gcx, dep, all_bytecodes, artifacts, visiting)?;
     }
 
     let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, all_bytecodes);
     gcx.dcx().has_errors()?;
     let mut codegen = EvmCodegen::new(gcx);
-    let (deployment, _) = codegen.generate_deployment_bytecode(&mut module);
-    all_bytecodes.insert(contract_id, deployment);
-    visiting.remove(&contract_id);
+    let (deployment, runtime) = codegen.generate_deployment_bytecode(&mut module);
+    all_bytecodes.insert(contract_id, deployment.clone());
+    artifacts.insert(
+        contract_id,
+        GeneratedBytecodes { deployment: deployment.into(), runtime: runtime.into() },
+    );
+    visiting.remove(contract_id);
 
     Ok(())
 }

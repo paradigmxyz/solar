@@ -22,20 +22,28 @@ pub(crate) async fn run(
     cancel: oneshot::Receiver<()>,
 ) -> Result<DiagnosticMap, FlycheckError> {
     let output = command_output(&config, FLYCHECK_TIMEOUT, cancel).await?;
-    let diagnostics = parser::parse(
+    let diagnostics = match parser::parse(
         diagnostic_output(&output.stdout, &output.stderr, config.output),
         &config.cwd,
         config.output,
-    )?;
+    ) {
+        Ok(diagnostics) => diagnostics,
+        Err(_) if !output.status.success() => return Err(command_failed(&output)),
+        Err(error) => return Err(error.into()),
+    };
 
     if !output.status.success() && diagnostics.is_empty() {
-        return Err(FlycheckError::Failed {
-            status: output.status.code(),
-            stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
-        });
+        return Err(command_failed(&output));
     }
 
     Ok(diagnostics)
+}
+
+fn command_failed(output: &Output) -> FlycheckError {
+    FlycheckError::Failed {
+        status: output.status.code(),
+        stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+    }
 }
 
 fn diagnostic_output<'a>(stdout: &'a [u8], stderr: &'a [u8], format: FlycheckOutput) -> &'a [u8] {
@@ -122,6 +130,34 @@ mod tests {
             ),
             br#"{"message":"stdout"}"#
         );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn failed_forge_lint_with_non_json_stderr_reports_command_failure() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+            "#,
+        );
+        let config = FlycheckConfig {
+            id: "forge-lint".into(),
+            command: "/bin/sh".into(),
+            args: vec!["-c".into(), "printf 'compiler failed' >&2; exit 1".into()],
+            cwd: project.root().to_path_buf(),
+            workspace_root: project.root().to_path_buf(),
+            output: FlycheckOutput::ForgeLintJson,
+        };
+        let (_cancel, cancelled) = oneshot::channel();
+
+        let error = run(config, cancelled).await.unwrap_err();
+
+        assert!(matches!(
+            error,
+            FlycheckError::Failed { status: Some(1), stderr } if stderr == "compiler failed"
+        ));
     }
 
     #[cfg(unix)]

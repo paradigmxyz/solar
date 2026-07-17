@@ -19,7 +19,7 @@ use crate::{
     pass::FunctionPass,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashSet;
+use solar_data_structures::bit_set::DenseBitSet;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum StorageSpace {
@@ -141,7 +141,6 @@ impl LoopOptimizer {
         let mut roots: Vec<InstId> = loop_data
             .invariant_insts
             .iter()
-            .copied()
             .filter(|&inst_id| {
                 self.can_hoist_safely(func, inst_id, ctx)
                     && self.is_profitable_licm_root(func, inst_id, ctx)
@@ -153,27 +152,31 @@ impl LoopOptimizer {
                 .then_with(|| a.index().cmp(&b.index()))
         });
 
-        let mut selected = FxHashSet::default();
+        let mut selected = DenseBitSet::new_empty(func.instructions.len());
+        let mut closure = Vec::new();
+        let mut visiting = DenseBitSet::new_empty(func.instructions.len());
         for root in roots {
-            let mut closure = Vec::new();
-            let mut visiting = FxHashSet::default();
+            closure.clear();
+            visiting.clear();
             if !self.collect_hoist_closure(func, root, ctx, &selected, &mut visiting, &mut closure)
             {
                 continue;
             }
 
-            let new_count = closure.iter().filter(|&&inst_id| !selected.contains(&inst_id)).count();
-            if selected.len() + new_count > self.config.max_licm_hoisted_insts {
+            let new_count = closure.iter().filter(|&&inst_id| !selected.contains(inst_id)).count();
+            if selected.count() + new_count > self.config.max_licm_hoisted_insts {
                 continue;
             }
-            selected.extend(closure);
+            for &inst_id in &closure {
+                selected.insert(inst_id);
+            }
         }
 
         if selected.is_empty() {
             return;
         }
 
-        let mut hoistable: Vec<InstId> = selected.into_iter().collect();
+        let mut hoistable: Vec<InstId> = selected.iter().collect();
         hoistable.sort_by_key(|inst_id| inst_id.index());
         let ordered = self.topological_sort_instructions(func, &hoistable);
 
@@ -182,7 +185,7 @@ impl LoopOptimizer {
             // instruction out of these blocks; pushing it again would schedule
             // the same instruction in two blocks.
             let mut removed = false;
-            for &block_id in &loop_data.blocks {
+            for block_id in &loop_data.blocks {
                 let block = &mut func.blocks[block_id];
                 if let Some(pos) = block.instructions.iter().position(|&id| id == inst_id) {
                     block.instructions.remove(pos);
@@ -202,11 +205,11 @@ impl LoopOptimizer {
         func: &Function,
         inst_id: InstId,
         ctx: LoopOptContext<'_>,
-        selected: &FxHashSet<InstId>,
-        visiting: &mut FxHashSet<InstId>,
+        selected: &DenseBitSet<InstId>,
+        visiting: &mut DenseBitSet<InstId>,
         out: &mut Vec<InstId>,
     ) -> bool {
-        if selected.contains(&inst_id) {
+        if selected.contains(inst_id) {
             return true;
         }
         if out.contains(&inst_id) {
@@ -262,6 +265,9 @@ impl LoopOptimizer {
                         self.const_addr(func, size),
                     );
             }
+            InstKind::MappingSlot(_, _)
+            | InstKind::MappingSlotMemory(_, _)
+            | InstKind::MappingSlotCalldata(_, _) => return false,
             InstKind::SLoad(slot) => {
                 return self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_mutate_storage_slot(
@@ -321,7 +327,6 @@ impl LoopOptimizer {
         let Some(inst_block) = loop_data
             .blocks
             .iter()
-            .copied()
             .find(|&block| func.blocks[block].instructions.contains(&inst_id))
         else {
             return false;
@@ -349,20 +354,20 @@ impl LoopOptimizer {
     /// leave the loop and are ignored.
     fn live_exiting_blocks(&self, func: &Function, loop_data: &Loop) -> Vec<BlockId> {
         let mut exiting = Vec::new();
-        for &block_id in &loop_data.blocks {
+        for block_id in &loop_data.blocks {
             let Some(term) = &func.blocks[block_id].terminator else { continue };
             let escapes = match term {
                 Terminator::Branch { condition, then_block, else_block } => {
                     match self.const_condition(func, *condition) {
-                        Some(true) => !loop_data.blocks.contains(then_block),
-                        Some(false) => !loop_data.blocks.contains(else_block),
+                        Some(true) => !loop_data.blocks.contains(*then_block),
+                        Some(false) => !loop_data.blocks.contains(*else_block),
                         None => {
-                            !loop_data.blocks.contains(then_block)
-                                || !loop_data.blocks.contains(else_block)
+                            !loop_data.blocks.contains(*then_block)
+                                || !loop_data.blocks.contains(*else_block)
                         }
                     }
                 }
-                _ => term.successors().iter().any(|succ| !loop_data.blocks.contains(succ)),
+                _ => term.successors().iter().any(|&succ| !loop_data.blocks.contains(succ)),
             };
             if escapes {
                 exiting.push(block_id);
@@ -381,7 +386,7 @@ impl LoopOptimizer {
     }
 
     fn loop_contains_call_or_create(&self, func: &Function, loop_data: &Loop) -> bool {
-        loop_data.blocks.iter().any(|&block_id| {
+        loop_data.blocks.iter().any(|block_id| {
             func.blocks[block_id].instructions.iter().any(|&inst_id| {
                 matches!(
                     func.instructions[inst_id].kind,
@@ -397,7 +402,7 @@ impl LoopOptimizer {
     }
 
     fn inst_in_loop(&self, func: &Function, inst_id: InstId, loop_data: &Loop) -> bool {
-        loop_data.blocks.iter().any(|&block| func.blocks[block].instructions.contains(&inst_id))
+        loop_data.blocks.iter().any(|block| func.blocks[block].instructions.contains(&inst_id))
     }
 
     fn licm_profit(&self, func: &Function, inst_id: InstId) -> u16 {
@@ -405,6 +410,9 @@ impl LoopOptimizer {
             InstKind::SLoad(_) => 100,
             InstKind::TLoad(_) => 100,
             InstKind::Keccak256(_, _) => 30,
+            InstKind::MappingSlot(_, _)
+            | InstKind::MappingSlotMemory(_, _)
+            | InstKind::MappingSlotCalldata(_, _) => 30,
             InstKind::Exp(_, _) => 10,
             InstKind::Mul(_, _)
             | InstKind::Div(_, _)
@@ -436,7 +444,7 @@ impl LoopOptimizer {
     }
 
     fn loop_observes_gas(&self, func: &Function, loop_data: &Loop) -> bool {
-        for &block_id in &loop_data.blocks {
+        for block_id in &loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 if matches!(func.instructions[inst_id].kind, InstKind::Gas) {
                     return true;
@@ -456,7 +464,6 @@ impl LoopOptimizer {
         let Some(inst_block) = loop_data
             .blocks
             .iter()
-            .copied()
             .find(|&block| func.blocks[block].instructions.contains(&inst_id))
         else {
             return false;
@@ -471,7 +478,7 @@ impl LoopOptimizer {
         load_addr: ValueId,
         load_width: Option<u64>,
     ) -> bool {
-        for &block_id in &ctx.loop_data.blocks {
+        for block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 match func.instructions[inst_id].kind {
                     InstKind::MStore(addr, _)
@@ -522,7 +529,7 @@ impl LoopOptimizer {
             return true;
         }
 
-        for &block_id in &ctx.loop_data.blocks {
+        for block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 match (space, &func.instructions[inst_id].kind) {
                     (StorageSpace::Persistent, InstKind::SStore(slot, _))
@@ -713,7 +720,7 @@ impl LoopOptimizer {
         ctx: LoopOptContext<'_>,
     ) -> bool {
         let Some(result) = func.inst_result_value(inst_id) else { return false };
-        for &block_id in &ctx.loop_data.blocks {
+        for block_id in &ctx.loop_data.blocks {
             for &user_inst in &func.blocks[block_id].instructions {
                 let kind = &func.instructions[user_inst].kind;
                 let address_operands: smallvec::SmallVec<[ValueId; 2]> = match kind {
@@ -726,6 +733,7 @@ impl LoopOptimizer {
                     | InstKind::TStore(addr, _)
                     | InstKind::CalldataLoad(addr) => smallvec::smallvec![*addr],
                     InstKind::Keccak256(addr, _)
+                    | InstKind::MappingSlotMemory(addr, _)
                     | InstKind::CalldataCopy(addr, _, _)
                     | InstKind::CodeCopy(addr, _, _)
                     | InstKind::ReturnDataCopy(addr, _, _) => smallvec::smallvec![*addr],
@@ -772,26 +780,28 @@ impl LoopOptimizer {
     }
 
     fn topological_sort_instructions(&self, func: &Function, insts: &[InstId]) -> Vec<InstId> {
-        let inst_set: FxHashSet<InstId> = insts.iter().copied().collect();
+        let mut inst_set = DenseBitSet::new_empty(func.instructions.len());
+        for &inst_id in insts {
+            inst_set.insert(inst_id);
+        }
         let mut result = Vec::new();
-        let mut visited = FxHashSet::default();
+        let mut visited = DenseBitSet::new_empty(func.instructions.len());
 
         fn visit(
             func: &Function,
             inst_id: InstId,
-            inst_set: &FxHashSet<InstId>,
-            visited: &mut FxHashSet<InstId>,
+            inst_set: &DenseBitSet<InstId>,
+            visited: &mut DenseBitSet<InstId>,
             result: &mut Vec<InstId>,
         ) {
-            if visited.contains(&inst_id) {
+            if !visited.insert(inst_id) {
                 return;
             }
-            visited.insert(inst_id);
 
             let inst = &func.instructions[inst_id];
             for operand in inst.kind.operands() {
                 if let Value::Inst(dep_inst) = &func.values[operand]
-                    && inst_set.contains(dep_inst)
+                    && inst_set.contains(*dep_inst)
                 {
                     visit(func, *dep_inst, inst_set, visited, result);
                 }

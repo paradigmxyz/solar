@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 function f() {
     // === Non-negative literals to uint ===
     // Value must fit in the unsigned range [0, 2^N - 1]

@@ -421,6 +421,21 @@ mod tests {
         assert_eq!(range.end.character - range.start.character, 2);
     }
 
+    #[test]
+    fn position_at_byte_handles_utf16_and_line_endings() {
+        for (text, expected) in [
+            ("", Position::new(0, 0)),
+            ("plain", Position::new(0, 5)),
+            ("🚀中文", Position::new(0, 4)),
+            ("a\r\n🚀中", Position::new(1, 3)),
+            ("a\r\n", Position::new(1, 0)),
+            ("a\n", Position::new(1, 0)),
+        ] {
+            let rope = Rope::from(text);
+            assert_eq!(position_at_byte(&rope, usize::MAX), expected, "{text:?}");
+        }
+    }
+
     fn solc_diagnostic_fixture(
         file: Cow<'static, str>,
         start: usize,
@@ -482,6 +497,8 @@ mod tests {
                 }],
                 label: None,
                 suggested_replacement: None,
+                suggestion_applicability: None,
+                expansion: None,
             }],
             children: Vec::new(),
             rendered: None,

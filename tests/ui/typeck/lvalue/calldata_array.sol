@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract Test {
     uint256 state;
     uint256 idx;

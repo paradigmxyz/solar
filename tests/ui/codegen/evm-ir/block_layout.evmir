@@ -1,0 +1,12 @@
+//@compile-flags: --pass block-layout
+bb0 (entry):
+  push 1
+  push bb1
+  jumpi
+  jump bb2
+bb1:
+  stop
+bb2:
+  jump bb3
+bb3:
+  stop

@@ -1,8 +1,10 @@
 //@compile-flags: --pass lower-abi
-// The ABI phase absorbs each external function's arguments: every `Arg` is
-// redefined as a `calldataload` of its head word, the function keeps its
-// selector and fused encode, and a pristine `.body` copy with parameters is
-// appended for internal callers. Advances the module to the `abi` phase.
+// The ABI phase absorbs each external function's arguments: the wrapper
+// loses its parameter list while its `argN` values stay and denote calldata
+// head words (rematerialized per use by the backend), the function keeps its
+// selector and fused encode. Since neither function has an internal caller,
+// no redundant `.body` copy is appended. Advances the module to the `abi`
+// phase.
 ; module @LowerAbi
 fn @add(arg0: u256, arg1: u256) [selector=0x771602f7] {
   bb0 (entry):

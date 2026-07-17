@@ -1,0 +1,23 @@
+{
+  "errors": [
+    {
+      "sourceLocation": {
+        "file": "A.sol",
+        "start": 61,
+        "end": 65
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "mismatched types",
+      "formattedMessage": "error: mismatched types\n   ╭▸ A.sol:LL:CC\n   │\nLL │         uint x = true;\n   ╰╴                 ━━━━ expected `uint256`, found `bool`\n\n"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  }
+}

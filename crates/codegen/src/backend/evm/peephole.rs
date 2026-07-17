@@ -101,6 +101,9 @@ where
             ($skip:expr => [$a:expr, $b:expr]) => {
                 Some(Peephole::replace_2($skip, $a, $b))
             };
+            ($skip:expr => [$a:expr, $b:expr, $c:expr]) => {
+                Some(Peephole::replace_3($skip, $a, $b, $c))
+            };
         }
 
         let stack = InstStack::new(&self.program.instructions[..write]);
@@ -198,6 +201,115 @@ where
             return peephole!(3 => [AsmInst::op(op::ISZERO)]);
         }
 
+        // `DUP2 <2-in/1-out op> SWAP1 POP`: the operation consumed a copy and
+        // the original below it is immediately nipped, so both operands are in
+        // fact dead — consume them in place. `[x, y] DUP2 op` computes
+        // `op(x, y)`; so does `SWAP1 op`, and a commutative op needs no swap.
+        if stack.len() >= 4
+            && let (
+                AsmInstKind::Op(op::POP),
+                AsmInstKind::Op(swap),
+                AsmInstKind::Op(binop),
+                AsmInstKind::Op(dup),
+            ) = (stack[0].kind(), stack[1].kind(), stack[2].kind(), stack[3].kind())
+            && swap == op::SWAP1
+            && dup == op::DUP2
+        {
+            if matches!(binop, op::ADD | op::MUL | op::AND | op::OR | op::XOR | op::EQ) {
+                return peephole!(4 => [AsmInst::op(binop)]);
+            }
+            if matches!(
+                binop,
+                op::SUB
+                    | op::DIV
+                    | op::SDIV
+                    | op::MOD
+                    | op::SMOD
+                    | op::EXP
+                    | op::SIGNEXTEND
+                    | op::LT
+                    | op::GT
+                    | op::SLT
+                    | op::SGT
+                    | op::BYTE
+                    | op::SHL
+                    | op::SHR
+                    | op::SAR
+                    | op::KECCAK256
+            ) {
+                return peephole!(4 => [AsmInst::op(op::SWAP1), AsmInst::op(binop)]);
+            }
+        }
+
+        // `SWAP1 POP SWAP1 POP` (nip twice) -> `SWAP2 POP POP`.
+        if stack.len() >= 4
+            && matches!(stack[0].kind(), AsmInstKind::Op(op::POP))
+            && matches!(stack[1].kind(), AsmInstKind::Op(s) if s == op::SWAP1)
+            && matches!(stack[2].kind(), AsmInstKind::Op(op::POP))
+            && matches!(stack[3].kind(), AsmInstKind::Op(s) if s == op::SWAP1)
+        {
+            return peephole!(4 => [
+                AsmInst::op(op::SWAP1 + 1),
+                AsmInst::op(op::POP),
+                AsmInst::op(op::POP)
+            ]);
+        }
+
+        // `DUP1 PUSH a MSTORE DUP1 PUSH a MSTORE -> DUP1 PUSH a MSTORE`: the
+        // second store writes the same value (the top of stack is unchanged
+        // after the first store) to the same address, back to back. This
+        // arises when a value's spill slot and its callee frame slot resolve
+        // to the same address, which is only visible after deferred-constant
+        // resolution — exactly where this pass runs.
+        if stack.len() >= 6
+            && matches!(stack[0].kind(), AsmInstKind::Op(op::MSTORE))
+            && matches!(stack[2].kind(), AsmInstKind::Op(d) if d == op::DUP1)
+            && matches!(stack[3].kind(), AsmInstKind::Op(op::MSTORE))
+            && matches!(stack[5].kind(), AsmInstKind::Op(d) if d == op::DUP1)
+            && let (Some(a), Some(b)) =
+                ((self.inst_push_value)(stack[1]), (self.inst_push_value)(stack[4]))
+            && a == b
+        {
+            return peephole!(6 => [stack[5], stack[4], stack[3]]);
+        }
+
+        // `DUP1 PUSH a MSTORE POP PUSH a MLOAD -> DUP1 PUSH a MSTORE`: the
+        // reload reads back exactly the value that was just stored and then
+        // popped; keep it on the stack instead.
+        if stack.len() >= 6
+            && matches!(stack[0].kind(), AsmInstKind::Op(op::MLOAD))
+            && matches!(stack[2].kind(), AsmInstKind::Op(op::POP))
+            && matches!(stack[3].kind(), AsmInstKind::Op(op::MSTORE))
+            && matches!(stack[5].kind(), AsmInstKind::Op(d) if d == op::DUP1)
+            && let (Some(a), Some(b)) =
+                ((self.inst_push_value)(stack[1]), (self.inst_push_value)(stack[4]))
+            && a == b
+        {
+            return peephole!(6 => [stack[5], stack[4], stack[3]]);
+        }
+
+        // `ISZERO ISZERO <label> JUMPI -> <label> JUMPI`: JUMPI tests
+        // truthiness, which double negation preserves.
+        if stack.len() >= 4
+            && matches!(stack[0].kind(), AsmInstKind::Op(op::JUMPI))
+            && matches!(stack[1].kind(), AsmInstKind::PushLabel(_))
+            && matches!(stack[2].kind(), AsmInstKind::Op(op::ISZERO))
+            && matches!(stack[3].kind(), AsmInstKind::Op(op::ISZERO))
+        {
+            return peephole!(4 => [stack[1], AsmInst::op(op::JUMPI)]);
+        }
+
+        // `EQ ISZERO <label> JUMPI -> SUB <label> JUMPI`: jump-if-not-equal
+        // only needs a nonzero word, which the difference already is.
+        if stack.len() >= 4
+            && matches!(stack[0].kind(), AsmInstKind::Op(op::JUMPI))
+            && matches!(stack[1].kind(), AsmInstKind::PushLabel(_))
+            && matches!(stack[2].kind(), AsmInstKind::Op(op::ISZERO))
+            && matches!(stack[3].kind(), AsmInstKind::Op(op::EQ))
+        {
+            return peephole!(4 => [AsmInst::op(op::SUB), stack[1], AsmInst::op(op::JUMPI)]);
+        }
+
         None
     }
 }
@@ -239,26 +351,36 @@ impl std::ops::Index<usize> for InstStack<'_> {
 struct Peephole {
     skip: u32,
     replacement_len: u32,
-    replacement: [AsmInst; 2],
+    replacement: [AsmInst; 3],
 }
 
 impl Peephole {
     fn delete(skip: u32) -> Self {
-        Self { skip, replacement_len: 0, replacement: [AsmInst::PLACEHOLDER; 2] }
+        Self { skip, replacement_len: 0, replacement: [AsmInst::PLACEHOLDER; 3] }
     }
 
     fn replace_1(skip: u32, inst: AsmInst) -> Self {
-        Self { skip, replacement_len: 1, replacement: [inst, AsmInst::PLACEHOLDER] }
+        Self {
+            skip,
+            replacement_len: 1,
+            replacement: [inst, AsmInst::PLACEHOLDER, AsmInst::PLACEHOLDER],
+        }
     }
 
     fn replace_2(skip: u32, a: AsmInst, b: AsmInst) -> Self {
-        Self { skip, replacement_len: 2, replacement: [a, b] }
+        Self { skip, replacement_len: 2, replacement: [a, b, AsmInst::PLACEHOLDER] }
+    }
+
+    fn replace_3(skip: u32, a: AsmInst, b: AsmInst, c: AsmInst) -> Self {
+        Self { skip, replacement_len: 3, replacement: [a, b, c] }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::backend::evm::test_utils::disassemble;
+    use snapbox::{assert_data_eq, str};
 
     #[test]
     fn removes_push_zero_add() {
@@ -271,7 +393,14 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 42, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x2a
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -285,7 +414,7 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert!(result.bytecode.is_empty());
+        assert_data_eq!(disassemble(&result.bytecode), str![""]);
     }
 
     #[test]
@@ -303,7 +432,110 @@ mod tests {
         let result = asm.assemble();
 
         assert_eq!(result.label_offsets[&label], 2);
-        assert_eq!(result.bytecode, vec![0x60, 42, op::JUMPDEST, 0x60, 2, op::JUMP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x2a
+JUMPDEST
+PUSH1 0x02
+JUMP
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn drops_adjacent_duplicate_store() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_op(op::DUP1);
+        asm.emit_push(U256::from(0x80));
+        asm.emit_op(op::MSTORE);
+        asm.emit_op(op::DUP1);
+        asm.emit_push(U256::from(0x80));
+        asm.emit_op(op::MSTORE);
+        asm.emit_op(op::STOP);
+
+        let result = asm.assemble();
+
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x2a
+DUP1
+PUSH1 0x80
+MSTORE
+STOP
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn forwards_store_pop_reload() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_op(op::DUP1);
+        asm.emit_push(U256::from(0x80));
+        asm.emit_op(op::MSTORE);
+        asm.emit_op(op::POP);
+        asm.emit_push(U256::from(0x80));
+        asm.emit_op(op::MLOAD);
+        asm.emit_op(op::STOP);
+
+        let result = asm.assemble();
+
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x2a
+DUP1
+PUSH1 0x80
+MSTORE
+STOP
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn keeps_duplicate_store_across_label() {
+        let mut asm = Assembler::new();
+        let label = asm.new_label();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_op(op::DUP1);
+        asm.emit_push(U256::from(0x80));
+        asm.emit_op(op::MSTORE);
+        asm.define_label(label);
+        asm.emit_op(op::DUP1);
+        asm.emit_push(U256::from(0x80));
+        asm.emit_op(op::MSTORE);
+        asm.emit_push_label(label);
+        asm.emit_op(op::JUMP);
+
+        let result = asm.assemble();
+
+        // The label between the stores is a jump target: the second store is
+        // reachable without the first and must stay.
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x2a
+DUP1
+PUSH1 0x80
+MSTORE
+JUMPDEST
+DUP1
+PUSH1 0x80
+MSTORE
+PUSH1 0x06
+JUMP
+
+"#]]
+        );
     }
 
     #[test]
@@ -317,7 +549,14 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![op::PUSH0, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH0
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -331,7 +570,16 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 42, op::PUSH0, op::SUB, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x2a
+PUSH0
+SUB
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -345,7 +593,118 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 42, op::ISZERO, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x2a
+ISZERO
+STOP
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn folds_dup2_binop_nip() {
+        // Commutative: `DUP2 ADD SWAP1 POP -> ADD`.
+        let mut asm = Assembler::new();
+        asm.emit_op(op::DUP2);
+        asm.emit_op(op::ADD);
+        asm.emit_op(op::SWAP1);
+        asm.emit_op(op::POP);
+        asm.emit_op(op::STOP);
+        assert_data_eq!(
+            disassemble(&asm.assemble().bytecode),
+            str![[r#"
+ADD
+STOP
+
+"#]]
+        );
+
+        // Non-commutative: `DUP2 SUB SWAP1 POP -> SWAP1 SUB`.
+        let mut asm = Assembler::new();
+        asm.emit_op(op::DUP2);
+        asm.emit_op(op::SUB);
+        asm.emit_op(op::SWAP1);
+        asm.emit_op(op::POP);
+        asm.emit_op(op::STOP);
+        assert_data_eq!(
+            disassemble(&asm.assemble().bytecode),
+            str![[r#"
+SWAP1
+SUB
+STOP
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn folds_double_nip() {
+        let mut asm = Assembler::new();
+        for _ in 0..2 {
+            asm.emit_op(op::SWAP1);
+            asm.emit_op(op::POP);
+        }
+        asm.emit_op(op::STOP);
+        assert_data_eq!(
+            disassemble(&asm.assemble().bytecode),
+            str![[r#"
+SWAP2
+POP
+POP
+STOP
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn folds_eq_iszero_jumpi() {
+        let mut asm = Assembler::new();
+        let label = asm.new_label();
+        asm.define_label(label);
+        asm.emit_op(op::EQ);
+        asm.emit_op(op::ISZERO);
+        asm.emit_push_label(label);
+        asm.emit_op(op::JUMPI);
+        let bytecode = asm.assemble().bytecode;
+        assert_data_eq!(
+            disassemble(&bytecode),
+            str![[r#"
+JUMPDEST
+SUB
+PUSH0
+JUMPI
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn drops_unreferenced_labels() {
+        let mut asm = Assembler::new();
+        let dead = asm.new_label();
+        let live = asm.new_label();
+        asm.emit_op(op::CALLER);
+        asm.define_label(dead); // fallthrough-only: no JUMPDEST needed
+        asm.emit_op(op::POP);
+        asm.define_label(live);
+        asm.emit_push_label(live);
+        asm.emit_op(op::JUMP);
+        let result = asm.assemble();
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+CALLER
+POP
+JUMPDEST
+PUSH1 0x02
+JUMP
+
+"#]]
+        );
     }
 
     #[test]
@@ -359,6 +718,15 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 42, 0x60, 1, op::DIV, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x2a
+PUSH1 0x01
+DIV
+STOP
+
+"#]]
+        );
     }
 }

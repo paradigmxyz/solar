@@ -81,7 +81,7 @@
         "solarLsp.formatOnSave": {
           "type": "boolean",
           "default": true,
-          "description": "Format files on save using forge fmt"
+          "description": "Format files on save using Solar LSP"
         },
         "solarLsp.flychecks": {
           "type": [
@@ -150,6 +150,6 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "vscode-languageclient": "^10.0.1"
+    "vscode-languageclient": "^10.1.0"
   }
 }

@@ -296,11 +296,7 @@ fn session() -> Session {
         .with_stderr_emitter_and_color(solar::parse::interface::ColorChoice::Always)
         .opts(solar::config::CompileOpts {
             threads: solar::config::Threads::resolve(1),
-            unstable: solar::config::UnstableOpts {
-                typeck: true,
-                codegen: true,
-                ..Default::default()
-            },
+            unstable: solar::config::UnstableOpts { codegen: true, ..Default::default() },
             ..Default::default()
         })
         .build()

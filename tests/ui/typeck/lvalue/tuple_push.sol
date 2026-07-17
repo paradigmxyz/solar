@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/array/bytes1_array_push_assign_multi.sol
 
 contract Test {

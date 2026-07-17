@@ -22,7 +22,7 @@ use crate::{
     },
     pass::{FunctionPass, ModulePass},
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Alpha-equivalence key for a terminal block used by
 /// [`CfgSimplifier::deduplicate_terminal_blocks`].
@@ -278,9 +278,11 @@ impl CfgSimplifier {
         // the chain or they dangle once the intermediate phi is removed.
         // Mutually-trivial cycles have no outside source; keep those phis.
         let mut replacements = FxHashMap::default();
-        let mut dead = FxHashSet::default();
+        let mut dead = DenseBitSet::new_empty(func.instructions.len());
+        let mut seen = DenseBitSet::new_empty(func.values.len());
         for &(inst_id, phi_value) in &candidates {
-            let mut seen = FxHashSet::from_iter([phi_value]);
+            seen.clear();
+            seen.insert(phi_value);
             let mut target = raw[&phi_value];
             let mut cyclic = false;
             while let Some(&next) = raw.get(&target) {
@@ -302,19 +304,19 @@ impl CfgSimplifier {
 
         func.replace_uses(&replacements);
         for block in func.blocks.iter_mut() {
-            block.instructions.retain(|inst_id| !dead.contains(inst_id));
+            block.instructions.retain(|&inst_id| !dead.contains(inst_id));
         }
-        self.stats.trivial_phis_simplified += dead.len();
+        self.stats.trivial_phis_simplified += dead.count();
     }
 
     fn trivial_phi_replacement(
         incoming: &[(BlockId, ValueId)],
         phi_value: ValueId,
-        same_block_phi_results: &FxHashSet<ValueId>,
+        same_block_phi_results: &DenseBitSet<ValueId>,
     ) -> Option<ValueId> {
         let mut incoming_values = incoming.iter().map(|(_, value)| *value);
         let first = incoming_values.find(|value| *value != phi_value)?;
-        if same_block_phi_results.contains(&first) {
+        if same_block_phi_results.contains(first) {
             return None;
         }
         incoming_values.all(|value| value == phi_value || value == first).then_some(first)
@@ -689,7 +691,7 @@ impl DeadFunctionEliminator {
         }
 
         let dead_functions: Vec<FunctionId> =
-            module.functions.indices().filter(|id| !reachable.contains(id)).collect();
+            module.functions.indices().filter(|&id| !reachable.contains(id)).collect();
 
         self.stats.dead_functions_eliminated = dead_functions.len();
 

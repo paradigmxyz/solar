@@ -1,0 +1,16 @@
+{
+  "sources": {
+    "nested/D.sol": {
+      "id": 0
+    },
+    "B.sol": {
+      "id": 1
+    },
+    "C.sol": {
+      "id": 2
+    },
+    "A.sol": {
+      "id": 3
+    }
+  }
+}

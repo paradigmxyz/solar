@@ -13,6 +13,10 @@ pub(crate) enum ProjectManifest {
 }
 
 impl ProjectManifest {
+    pub(crate) fn discover_in_parents(path: &Path) -> Option<Self> {
+        find_in_parent_dirs(path, "foundry.toml").map(Self::Foundry)
+    }
+
     fn discover(path: &Path) -> io::Result<Vec<Self>> {
         return find_foundry_toml(path)
             .map(|paths| paths.into_iter().map(ProjectManifest::Foundry).collect());
@@ -22,25 +26,6 @@ impl ProjectManifest {
                 Some(it) => Ok(vec![it]),
                 None => Ok(find_foundry_toml_in_child_dir(read_dir(path)?)),
             }
-        }
-
-        fn find_in_parent_dirs(path: &Path, target_file_name: &str) -> Option<PathBuf> {
-            if path.file_name().unwrap_or_default() == target_file_name {
-                return Some(path.to_path_buf());
-            }
-
-            let mut curr = Some(path);
-
-            while let Some(path) = curr {
-                let candidate = path.join(target_file_name);
-                if std::fs::metadata(&candidate).is_ok() {
-                    return Some(candidate);
-                }
-
-                curr = path.parent();
-            }
-
-            None
         }
 
         fn find_foundry_toml_in_child_dir(entities: ReadDir) -> Vec<PathBuf> {
@@ -67,6 +52,22 @@ impl ProjectManifest {
         res.sort();
         res
     }
+}
+
+fn find_in_parent_dirs(path: &Path, target_file_name: &str) -> Option<PathBuf> {
+    if path.file_name().unwrap_or_default() == target_file_name {
+        return Some(path.to_path_buf());
+    }
+
+    let mut current = Some(path);
+    while let Some(path) = current {
+        let candidate = path.join(target_file_name);
+        if std::fs::metadata(&candidate).is_ok() {
+            return Some(candidate);
+        }
+        current = path.parent();
+    }
+    None
 }
 
 #[cfg(test)]

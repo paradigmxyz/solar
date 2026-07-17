@@ -22,18 +22,21 @@
 use crate::{
     analysis::Validator,
     mir::{Function, MirPhase, Module},
+    timing::PassTimer,
     transform::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
         FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
         JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, LowerAbiPass,
-        LowerDispatchPass, LowerEvmShapedPass, MemoryDsePass, PrePass, PureEvalPass,
-        SccpTransformPass, StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
+        LowerDispatchPass, LowerEvmShapedPass, LowerMappingSlotsPass, MemoryDsePass,
+        OutlineRevertsPass, PrePass, PureEvalPass, SccpTransformPass, StaticAllocPass,
+        StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
     },
 };
 use solar_data_structures::map::FxHashMap;
+use solar_interface::diagnostics::DiagCtxt;
 use std::any::{Any, TypeId};
 
-type PassFactory = fn() -> Box<dyn ModulePass>;
+type PassRunner = fn(&mut Module) -> bool;
 
 /// Registry entry for a MIR transform pass.
 #[derive(Clone, Copy, Debug)]
@@ -46,17 +49,17 @@ pub struct PassInfo {
     pub min_phase: MirPhase,
     /// Latest [`MirPhase`] this pass may run on.
     pub max_phase: MirPhase,
-    make_pass: PassFactory,
+    run_pass: PassRunner,
 }
 
 impl PassInfo {
-    const fn new(name: &'static str, description: &'static str, make_pass: PassFactory) -> Self {
+    const fn new(name: &'static str, description: &'static str, run_pass: PassRunner) -> Self {
         Self {
             name,
             description,
             min_phase: MirPhase::Built,
             max_phase: MirPhase::EvmShaped,
-            make_pass,
+            run_pass,
         }
     }
 
@@ -73,10 +76,6 @@ impl PassInfo {
     pub fn admits(&self, module: &Module) -> bool {
         self.min_phase <= module.phase && module.phase <= self.max_phase
     }
-
-    fn make_pass(&self) -> Box<dyn ModulePass> {
-        (self.make_pass)()
-    }
 }
 
 macro_rules! declare_passes {
@@ -89,7 +88,7 @@ macro_rules! declare_passes {
             $vis const $const_name: PassInfo = PassInfo::new(
                 $name,
                 concat!($($description, "\n"),+).trim_ascii(),
-                || Box::new($pass),
+                |module| ModulePass::run(&mut $pass, module),
             );
         )+
     };
@@ -98,6 +97,9 @@ macro_rules! declare_passes {
 declare_passes! {
     /// Internal MIR function inlining.
     pub const INLINE_PASS -> "inline" = InlinePass;
+
+    /// Outline duplicate constant revert blocks before backend lowering.
+    pub const OUTLINE_REVERTS_PASS -> "outline-reverts" = OutlineRevertsPass::default();
 
     /// Dead internal function elimination.
     pub const FUNCTION_DCE_PASS -> "function-dce" = FunctionDcePass;
@@ -156,6 +158,9 @@ declare_passes! {
     /// Local dead memory-store elimination.
     pub const MEMORY_DSE_PASS -> "memory-dse" = MemoryDsePass;
 
+    /// Place provably local fmp-bump allocations at static frame addresses.
+    pub const STATIC_ALLOC_PASS -> "static-alloc" = StaticAllocPass;
+
     /// Dead Code Elimination (fixed-point).
     pub const DCE_PASS -> "dce" = DcePass;
 
@@ -170,6 +175,9 @@ declare_passes! {
 
     /// EVM-shape lowering: non-returning internal calls become tail calls.
     const LOWER_EVM_SHAPED_PASS_BASE -> "lower-evm-shaped" = LowerEvmShapedPass::default();
+
+    /// Lower mapping-slot hash builtins to memory operations.
+    pub const LOWER_MAPPING_SLOTS_PASS -> "lower-mapping-slots" = LowerMappingSlotsPass;
 }
 
 /// ABI phase lowering with its phase range declared: consumes
@@ -210,10 +218,13 @@ pub const PASS_REGISTRY: &[PassInfo] = &[
     JUMP_THREADING_PASS,
     FRAME_SLOT_PROMOTION_PASS,
     MEMORY_DSE_PASS,
+    STATIC_ALLOC_PASS,
     STORAGE_PROMOTION_PASS,
     LOWER_ABI_PASS,
     LOWER_DISPATCH_PASS,
     LOWER_EVM_SHAPED_PASS,
+    OUTLINE_REVERTS_PASS,
+    LOWER_MAPPING_SLOTS_PASS,
 ];
 
 /// Finds a pass in the global MIR pass registry by command-line name.
@@ -229,6 +240,9 @@ pub const DEFAULT_PIPELINE: &[PassInfo] = &[
     PURE_EVAL_PASS,
     INST_SIMPLIFY_PASS,
     CSE_PASS,
+    // Reuse mapping slots before their scratch-memory expansion can obscure
+    // the semantic expression from the remaining optimization passes.
+    LOWER_MAPPING_SLOTS_PASS,
     GVN_PASS,
     PRE_PASS,
     STORAGE_LOAD_CSE_PASS,
@@ -243,6 +257,7 @@ pub const DEFAULT_PIPELINE: &[PassInfo] = &[
     JUMP_THREADING_PASS,
     CFG_SIMPLIFY_PASS,
     MEMORY_DSE_PASS,
+    STATIC_ALLOC_PASS,
     ADCE_PASS,
     DCE_PASS,
 ];
@@ -279,51 +294,46 @@ const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
 pub struct PipelineOptions {
     /// Print the full module after every pass in the pipeline.
     pub print_after_each: bool,
+    /// Print the time spent in each pass.
+    pub time_passes: bool,
     /// Validate MIR after every pass.
     pub validate_after_each: bool,
 }
 
 impl Default for PipelineOptions {
     fn default() -> Self {
-        Self { print_after_each: false, validate_after_each: cfg!(debug_assertions) }
+        Self {
+            print_after_each: false,
+            time_passes: false,
+            validate_after_each: cfg!(debug_assertions),
+        }
     }
 }
 
 /// Runs a named MIR pass over a module.
-pub fn run_pass(module: &mut Module, pass: &PassInfo) -> bool {
-    run_pass_with_options(module, pass, PipelineOptions::default())
-}
-
-fn run_pass_with_options(module: &mut Module, pass: &PassInfo, options: PipelineOptions) -> bool {
+pub fn run_pass(module: &mut Module, pass: &PassInfo, options: PipelineOptions) -> bool {
     // Passes declare which phases they operate on; the manager enforces it so a
     // pipeline entry cannot silently corrupt a module in the wrong phase.
     if !pass.admits(module) {
         return false;
     }
-    let mut pm = PassManager::new();
-    pm.set_validate_after_each(options.validate_after_each);
-    pm.add_pass(pass.make_pass());
-    pm.run(module).1
-}
-
-/// Runs a named MIR pass pipeline over a module.
-pub fn run_pipeline(module: &mut Module, passes: &[PassInfo]) -> bool {
-    let mut changed = false;
-    for pass in passes {
-        changed |= run_pass(module, pass);
+    if options.validate_after_each {
+        validate_module_after_pass(module, "input");
+    }
+    let timer = PassTimer::new(options.time_passes);
+    let changed = (pass.run_pass)(module);
+    timer.finish("MIR", module.name, pass.name, changed);
+    if options.validate_after_each {
+        validate_module_after_pass(module, pass.name);
     }
     changed
 }
 
-/// Runs a named MIR pass pipeline over a module with observer options.
-pub fn run_pipeline_with_options(
-    module: &mut Module,
-    passes: &[PassInfo],
-    options: PipelineOptions,
-) -> bool {
+/// Runs a named MIR pass pipeline over a module.
+pub fn run_pipeline(module: &mut Module, passes: &[PassInfo], options: PipelineOptions) -> bool {
     let mut changed = false;
     for pass in passes {
-        changed |= run_pass_with_options(module, pass, options);
+        changed |= run_pass(module, pass, options);
         if options.print_after_each {
             println!("// === {} (after {}) ===", module.name, pass.name);
             print!("{}", module.to_text());
@@ -333,17 +343,12 @@ pub fn run_pipeline_with_options(
 }
 
 /// Runs the canonical MIR optimization pipeline used by EVM codegen.
-pub fn run_default_pipeline(module: &mut Module) -> bool {
-    run_default_pipeline_with_options(module, PipelineOptions::default())
-}
-
-/// Runs the canonical MIR optimization pipeline used by EVM codegen with options.
 ///
 /// This is a phase transition: the module comes out in [`MirPhase::Optimized`].
 /// Ad-hoc pass lists run through [`run_pipeline`], such as `solar mir-opt`
 /// invocations, deliberately do not advance the phase.
-pub fn run_default_pipeline_with_options(module: &mut Module, options: PipelineOptions) -> bool {
-    let mut changed = run_pipeline_with_options(module, DEFAULT_PIPELINE, options);
+pub fn run_default_pipeline(module: &mut Module, options: PipelineOptions) -> bool {
+    let mut changed = run_pipeline(module, DEFAULT_PIPELINE, options);
     changed |=
         run_cleanup_pipeline_to_fixpoint(module, DEFAULT_CLEANUP_PIPELINE, options, "cleanup");
     module.advance_phase(crate::mir::MirPhase::Optimized);
@@ -360,7 +365,7 @@ fn run_cleanup_pipeline_to_fixpoint(
     for round in 1..=DEFAULT_CLEANUP_MAX_ROUNDS {
         let mut round_changed = false;
         for pass in passes {
-            let pass_changed = run_pass_with_options(module, pass, options);
+            let pass_changed = run_pass(module, pass, options);
             round_changed |= pass_changed;
             if options.print_after_each {
                 println!("// === {} (after {label}-{round}:{}) ===", module.name, pass.name);
@@ -524,14 +529,16 @@ impl PassManager {
     pub fn run(&mut self, module: &mut Module) -> (AnalysisManager, bool) {
         let mut am = AnalysisManager::new();
         let mut changed = false;
+        if self.validate_after_each {
+            validate_module_after_pass(module, "input");
+        }
         for pass in &mut self.passes {
-            let pass_name = pass.name().to_string();
             if pass.run(module) {
                 changed = true;
                 am.invalidate_all();
             }
             if self.validate_after_each {
-                validate_module_after_pass(module, &pass_name);
+                validate_module_after_pass(module, pass.name());
             }
         }
         (am, changed)
@@ -539,17 +546,11 @@ impl PassManager {
 }
 
 fn validate_module_after_pass(module: &Module, pass_name: &str) {
-    let errors = Validator::validate_module(module);
-    if errors.is_empty() {
-        return;
+    let dcx = DiagCtxt::new_early();
+    Validator::new(&dcx).validate_module(module);
+    if dcx.has_errors().is_err() {
+        panic!("MIR validation failed after `{pass_name}`");
     }
-
-    let mut message = format!("MIR validation failed after `{pass_name}`");
-    for error in errors {
-        message.push_str("\n  ");
-        message.push_str(&error.to_string());
-    }
-    panic!("{message}");
 }
 
 /// Liveness analysis pass.

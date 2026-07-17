@@ -546,6 +546,18 @@ pub enum InstKind {
     // Hashing
     /// Keccak256 hash: `keccak256(offset, size)`
     Keccak256(ValueId, ValueId),
+    /// Hash a fixed-width mapping key and its parent slot.
+    ///
+    /// The temporary scratch memory used by its late lowering is not an
+    /// observable part of this instruction's MIR semantics.
+    MappingSlot(ValueId, ValueId),
+    /// Hash a `[length][data...]` memory value and its parent mapping slot.
+    MappingSlotMemory(ValueId, ValueId),
+    /// Hash a dynamically-sized calldata value and its parent mapping slot.
+    ///
+    /// The temporary scratch memory used by its late lowering is not an
+    /// observable part of this instruction's MIR semantics.
+    MappingSlotCalldata(ValueId, ValueId),
 
     // Call operations
     // TODO(codegen): Consider unifying external calls as one instruction with a call-kind enum
@@ -642,6 +654,9 @@ impl InstKind {
             | Self::SStore(a, b)
             | Self::TStore(a, b)
             | Self::Keccak256(a, b)
+            | Self::MappingSlot(a, b)
+            | Self::MappingSlotMemory(a, b)
+            | Self::MappingSlotCalldata(a, b)
             | Self::Log0(a, b)
             | Self::SignExtend(a, b) => {
                 out.push(*a);
@@ -803,6 +818,9 @@ impl InstKind {
             | Self::SStore(a, b)
             | Self::TStore(a, b)
             | Self::Keccak256(a, b)
+            | Self::MappingSlot(a, b)
+            | Self::MappingSlotMemory(a, b)
+            | Self::MappingSlotCalldata(a, b)
             | Self::Log0(a, b)
             | Self::SignExtend(a, b) => {
                 f(a);
@@ -1030,6 +1048,9 @@ impl InstKind {
             Self::BlobBaseFee => "blobbasefee",
             Self::BlobHash(_) => "blobhash",
             Self::Keccak256(_, _) => "keccak256",
+            Self::MappingSlot(_, _) => "mapping_slot",
+            Self::MappingSlotMemory(_, _) => "mapping_slot_memory",
+            Self::MappingSlotCalldata(_, _) => "mapping_slot_calldata",
             Self::Call { .. } => "call",
             Self::StaticCall { .. } => "staticcall",
             Self::DelegateCall { .. } => "delegatecall",
@@ -1093,7 +1114,10 @@ impl InstKind {
             | Self::CodeCopy(_, _, _)
             | Self::ExtCodeCopy(_, _, _, _)
             | Self::ReturnDataCopy(_, _, _) => EffectKind::MemoryWrite,
-            Self::MLoad(_) | Self::MSize | Self::Keccak256(_, _) => EffectKind::MemoryRead,
+            Self::MLoad(_)
+            | Self::MSize
+            | Self::Keccak256(_, _)
+            | Self::MappingSlotMemory(_, _) => EffectKind::MemoryRead,
             Self::SLoad(_) => EffectKind::StorageRead,
             Self::SStore(_, _) => EffectKind::StorageWrite,
             Self::TLoad(_) => EffectKind::TransientRead,
@@ -1109,6 +1133,7 @@ impl InstKind {
             | Self::Log3(_, _, _, _, _)
             | Self::Log4(_, _, _, _, _, _) => EffectKind::Log,
             Self::CalldataLoad(_)
+            | Self::MappingSlotCalldata(_, _)
             | Self::CalldataSize
             | Self::CodeSize
             | Self::LoadImmutable(_)
@@ -1134,6 +1159,7 @@ impl InstKind {
             | Self::BlobBaseFee
             | Self::BlobHash(_) => EffectKind::EnvironmentRead,
             Self::Add(_, _)
+            | Self::MappingSlot(_, _)
             | Self::Sub(_, _)
             | Self::Mul(_, _)
             | Self::Div(_, _)

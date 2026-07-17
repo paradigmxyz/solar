@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/viewPureChecker/inline_assembly_instructions_allowed.sol
 
 contract C {

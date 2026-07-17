@@ -23,6 +23,7 @@ use crate::{
     mir::{Function, InstKind, MirPhase, Module, Terminator},
     pass::ModulePass,
 };
+use solar_data_structures::bit_set::DenseBitSet;
 
 /// Statistics from EVM-shape lowering.
 #[derive(Clone, Debug, Default)]
@@ -45,22 +46,36 @@ impl LowerEvmShapedPass {
     }
 
     fn run(&mut self, module: &mut Module) -> bool {
+        self.stats = LowerEvmShapedStats::default();
         if module.phase >= MirPhase::EvmShaped {
             return false;
         }
 
-        let call_graph = CallGraphInfo::new(module);
-        let tail_callable: Vec<bool> = module
-            .functions
-            .iter_enumerated()
-            .map(|(func_id, func)| {
-                function_cannot_return(func)
-                    && func.selector.is_none()
-                    && !func.attributes.is_receive
-                    && !func.attributes.is_fallback
-                    && !call_graph.is_recursive(func_id)
+        // Dispatch already uses explicit tail calls. Most modules have no
+        // resultless internal call left to reshape, so avoid building a call
+        // graph and classifying every function in that common case.
+        let has_candidate = module.functions.iter().any(|func| {
+            func.instructions.iter().any(|inst| {
+                inst.result_ty.is_none() && matches!(inst.kind, InstKind::InternalCall { .. })
             })
-            .collect();
+        });
+        if !has_candidate {
+            module.advance_phase(MirPhase::EvmShaped);
+            return false;
+        }
+
+        let call_graph = CallGraphInfo::new(module);
+        let mut tail_callable = DenseBitSet::new_empty(module.functions.len());
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if function_cannot_return(func)
+                && func.selector.is_none()
+                && !func.attributes.is_receive
+                && !func.attributes.is_fallback
+                && !call_graph.is_recursive(func_id)
+            {
+                tail_callable.insert(func_id);
+            }
+        }
 
         for func in module.functions.iter_mut() {
             for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
@@ -71,7 +86,7 @@ impl LowerEvmShapedPass {
                         && matches!(
                             &inst.kind,
                             InstKind::InternalCall { function, .. }
-                                if tail_callable[function.index()]
+                                if tail_callable.contains(*function)
                         )
                 }) else {
                     continue;

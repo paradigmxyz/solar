@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 // Tests for implicit integer width conversions.
 // See: https://docs.soliditylang.org/en/latest/types.html#implicit-conversions
 // "Smaller width to larger width is allowed (e.g., uint8 -> uint256, int8 -> int256)."

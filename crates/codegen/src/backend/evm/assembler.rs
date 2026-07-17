@@ -5,14 +5,29 @@
 //! - Two-pass assembly for resolving jump targets
 //! - Variable-width PUSH sizing based on offset magnitudes
 
-use crate::mir::IMMUTABLE_WORD_SIZE;
+use crate::{backend::evm::ir, mir::IMMUTABLE_WORD_SIZE};
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    map::FxHashMap,
+};
+use solar_interface::{diagnostics::DiagCtxt, sym};
 
 const EVM_WORD_BYTES: usize = 32;
 const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
-const MIN_COMPACT_MASK_WIDTH: u8 = EVM_WORD_BYTES as u8 / 2;
+// The synthesized mask is 5 bytes on Shanghai (6 before), and `compact_push`
+// only picks it when strictly smaller than the literal, so any mask of five
+// or more bytes can profit: a `uint64` timestamp mask alone is 9 bytes as a
+// literal.
+const MIN_COMPACT_MASK_WIDTH: u8 = 5;
+
+/// Shortest closed run worth outlining into a shared stub.
+const MIN_CLOSED_RUN: usize = 4;
+
+/// A closed-run occurrence: `(start index, length, net stack height)`.
+type ClosedRunSite = (usize, usize, u16);
 
 mod id_counter;
 use id_counter::IdCounter;
@@ -25,9 +40,7 @@ mod local_interner;
 use local_interner::LocalInterner;
 
 mod program;
-pub(in crate::backend::evm) use program::{
-    EvmAsmProgram, StructuredAsmContext, StructuredAsmProgram,
-};
+pub(in crate::backend::evm) use program::EvmAsmProgram;
 
 /// A `PUSH32` immutable placeholder emitted into the assembled bytecode.
 ///
@@ -51,6 +64,18 @@ pub struct AssembledCode {
     pub label_offsets: FxHashMap<Label, usize>,
     /// All immutable placeholders, in emission order.
     pub immutable_refs: Vec<ImmutableRef>,
+    /// Final EVM IR captured immediately before byte emission.
+    pub evm_ir: Option<ir::Module>,
+}
+
+/// Optimized EVM IR lowered to reusable assembly before deferred constants are resolved.
+#[derive(Clone, Debug, Default)]
+pub(in crate::backend::evm) struct PreparedAssembly {
+    program: EvmAsmProgram,
+    evm_ir: Option<ir::Module>,
+    push_values: LocalInterner<U256, PushValueId>,
+    next_label: IdCounter<Label>,
+    deferred_values: FxHashMap<DeferredConst, U256>,
 }
 
 /// Configuration for EVM bytecode assembly.
@@ -60,16 +85,12 @@ pub struct AssemblerConfig {
     pub evm_version: EvmVersion,
     /// Optimization mode for alternate byte encodings.
     pub optimization: OptimizationMode,
-    /// Run the experimental EVM IR `StackSchedule` pass in the assembler bridge.
-    ///
-    /// Off by default. See `StructuredAsmProgram::optimize_with_evm_ir` for why
-    /// the pass is a verified near no-op on the bridge's operand-cleared IR.
+    /// Print the time spent in each EVM IR pass.
+    pub time_passes: bool,
+    /// Run the experimental EVM IR `StackSchedule` pass before assembly.
     pub evm_ir_stack_schedule: bool,
-    /// Run EVM IR layout/code-size passes in the assembler bridge.
-    ///
-    /// Kept separate from `evm_ir_stack_schedule` so the experimental scheduler
-    /// flag remains bytecode-neutral.
-    pub evm_ir_layout_passes: bool,
+    /// Capture the final EVM IR without running additional passes.
+    pub capture_evm_ir: bool,
 }
 
 /// Two-pass assembler for EVM bytecode.
@@ -77,8 +98,20 @@ pub struct AssemblerConfig {
 pub struct Assembler {
     /// Bytecode assembly configuration.
     config: AssemblerConfig,
-    /// Structured assembler block program to assemble.
-    pub(in crate::backend::evm) program: StructuredAsmProgram,
+    /// EVM IR emitted directly by MIR lowering.
+    program: ir::Module,
+    /// Block currently receiving emitted instructions.
+    current_block: Option<ir::BlockId>,
+    /// Original assembler label attached to each EVM IR block.
+    block_labels: Vec<Option<Label>>,
+    /// Defined assembler labels and their EVM IR blocks.
+    label_blocks: FxHashMap<Label, ir::BlockId>,
+    /// Labels marked cold before or after their definition.
+    cold_labels: GrowableBitSet<Label>,
+    /// Unresolved block references emitted as push operands.
+    label_relocations: Vec<(ir::BlockId, usize, Label)>,
+    /// Unresolved deferred constants emitted as push operands.
+    deferred_relocations: Vec<(ir::BlockId, usize, DeferredConst)>,
     /// Interned push immediates too large for inline storage.
     push_values: LocalInterner<U256, PushValueId>,
     /// Next label ID.
@@ -101,7 +134,13 @@ impl Assembler {
     pub fn with_config(config: AssemblerConfig) -> Self {
         Self {
             config,
-            program: StructuredAsmProgram::default(),
+            program: Self::new_ir_module(),
+            current_block: None,
+            block_labels: Vec::new(),
+            label_blocks: FxHashMap::default(),
+            cold_labels: GrowableBitSet::new_empty(),
+            label_relocations: Vec::new(),
+            deferred_relocations: Vec::new(),
             push_values: LocalInterner::new(),
             next_label: IdCounter::new(),
             next_deferred: IdCounter::new(),
@@ -109,9 +148,15 @@ impl Assembler {
         }
     }
 
-    /// Clears all emitted instructions and local identifiers while retaining allocated storage.
+    /// Clears all emitted instructions and local identifiers.
     pub fn clear(&mut self) {
-        self.program.clear();
+        self.program = Self::new_ir_module();
+        self.current_block = None;
+        self.block_labels.clear();
+        self.label_blocks.clear();
+        self.cold_labels.clear();
+        self.label_relocations.clear();
+        self.deferred_relocations.clear();
         self.push_values.clear();
         self.next_label.clear();
         self.next_deferred.clear();
@@ -130,23 +175,26 @@ impl Assembler {
 
     /// Emits a raw opcode.
     pub fn emit_op(&mut self, opcode: u8) {
-        self.program.push(AsmInst::op(opcode));
+        self.push_ir_instruction(ir::Instruction::opcode(opcode));
     }
 
     /// Emits a push instruction with an immediate value.
     pub fn emit_push(&mut self, value: U256) {
-        let inst = self.push_inst(value);
-        self.program.push(inst);
+        self.push_ir_instruction(ir::Instruction::push(ir::Operand::Immediate(value)));
     }
 
     /// Emits a push instruction that will be resolved to a label's offset.
     pub fn emit_push_label(&mut self, label: Label) {
-        self.program.push(AsmInst::push_label(label));
+        let (block, instruction) =
+            self.push_ir_instruction(ir::Instruction::push(ir::Operand::Immediate(U256::ZERO)));
+        self.label_relocations.push((block, instruction, label));
     }
 
     /// Emits a push instruction for a deferred constant.
     pub fn emit_push_deferred(&mut self, id: DeferredConst) {
-        self.program.push(AsmInst::push_deferred(id));
+        let (block, instruction) =
+            self.push_ir_instruction(ir::Instruction::push(ir::Operand::Immediate(U256::ZERO)));
+        self.deferred_relocations.push((block, instruction, id));
     }
 
     /// Sets the value of a deferred constant.
@@ -156,17 +204,50 @@ impl Assembler {
 
     /// Emits a `PUSH32` zero placeholder for the immutable identified by `id`.
     pub fn emit_push_immutable(&mut self, id: u32) {
-        self.program.push(AsmInst::push_immutable(id));
+        self.push_ir_instruction(ir::Instruction::push_immutable(ir::Operand::Immediate(
+            U256::from(id),
+        )));
     }
 
     /// Defines a label and emits a `JUMPDEST` at the current position.
     pub fn define_label(&mut self, label: Label) {
-        self.program.define_label(label);
+        let mut block = ir::Block::new(self.program.blocks.len() as u32);
+        if self.cold_labels.contains(label) {
+            block.metadata.hotness = ir::Hotness::Cold;
+        }
+        let block = self.program.add_block(block);
+        self.current_block = Some(block);
+        self.block_labels.push(Some(label));
+        self.label_blocks.insert(label, block);
     }
 
     /// Marks a label-started block as cold for EVM IR layout passes.
     pub(in crate::backend::evm) fn mark_label_cold(&mut self, label: Label) {
-        self.program.mark_cold(label);
+        self.cold_labels.insert(label);
+        if let Some(&block) = self.label_blocks.get(&label) {
+            self.program.blocks[block].metadata.hotness = ir::Hotness::Cold;
+        }
+    }
+
+    fn new_ir_module() -> ir::Module {
+        ir::Module { name: sym::asm, ..ir::Module::default() }
+    }
+
+    fn current_block(&mut self) -> ir::BlockId {
+        if let Some(block) = self.current_block {
+            return block;
+        }
+        let block = self.program.add_block(ir::Block::new(self.program.blocks.len() as u32));
+        self.current_block = Some(block);
+        self.block_labels.push(None);
+        block
+    }
+
+    fn push_ir_instruction(&mut self, instruction: ir::Instruction) -> (ir::BlockId, usize) {
+        let block = self.current_block();
+        let index = self.program.blocks[block].instructions.len();
+        self.program.blocks[block].instructions.push(instruction);
+        (block, index)
     }
 
     fn push_inst(&mut self, value: U256) -> AsmInst {
@@ -183,6 +264,519 @@ impl Assembler {
         *self.push_values.get(index)
     }
 
+    /// Threads jump references through pure `label: PUSH2 target JUMP` thunks so
+    /// the thunks become unreferenced and the dedup chain deletes them.
+    fn thread_jump_thunks(instructions: &mut [AsmInst]) -> bool {
+        let mut thunks: FxHashMap<Label, Label> = FxHashMap::default();
+        for window in instructions.windows(3) {
+            if let AsmInstKind::Label(label) = window[0].kind()
+                && let AsmInstKind::PushLabel(target) = window[1].kind()
+                && matches!(window[2].kind(), AsmInstKind::Op(op::JUMP))
+                && label != target
+            {
+                thunks.insert(label, target);
+            }
+        }
+        if thunks.is_empty() {
+            return false;
+        }
+        let resolve = |mut label: Label| {
+            let mut hops = 0;
+            while let Some(&next) = thunks.get(&label) {
+                label = next;
+                hops += 1;
+                if hops > thunks.len() {
+                    break;
+                }
+            }
+            label
+        };
+        let mut changed = false;
+        for inst in instructions.iter_mut() {
+            if let AsmInstKind::PushLabel(label) = inst.kind() {
+                let target = resolve(label);
+                if target != label {
+                    *inst = AsmInst::push_label(target);
+                    changed = true;
+                }
+            }
+        }
+        changed
+    }
+
+    /// Removes instruction runs that can never execute: code following an
+    /// unconditional control transfer with no label to enter it. Thunk
+    /// threading and fallthrough-elided jumps leave such corpses behind (the
+    /// `PUSH2 target JUMP` body of a threaded thunk whose label was dropped
+    /// still occupies bytes). Removing the run also drops its outgoing label
+    /// references, letting the unreferenced-label pass cascade.
+    fn remove_unreachable_code(instructions: &mut Vec<AsmInst>) -> bool {
+        let is_terminator = |inst: &AsmInst| {
+            matches!(
+                inst.kind(),
+                AsmInstKind::Op(
+                    op::JUMP | op::RETURN | op::REVERT | op::STOP | op::INVALID | op::SELFDESTRUCT
+                )
+            )
+        };
+        let before = instructions.len();
+        let mut reachable = true;
+        instructions.retain(|inst| {
+            if matches!(inst.kind(), AsmInstKind::Label(_)) {
+                reachable = true;
+                return true;
+            }
+            let keep = reachable;
+            if keep && is_terminator(inst) {
+                reachable = false;
+            }
+            keep
+        });
+        instructions.len() != before
+    }
+
+    /// Shares one `revert(0, 0)` stub by inverting the branches that skip it.
+    ///
+    /// A failed check compiles as `PUSH2 cont JUMPI; PUSH0 DUP1 REVERT; cont:`
+    /// — a three-byte stub per site, reached by fallthrough (so span dedup
+    /// cannot merge it). Inverting the condition makes every site jump to one
+    /// shared stub: `ISZERO PUSH2 shared JUMPI` falls through into `cont`. The
+    /// inserted `ISZERO` folds with an existing negation in the later peephole
+    /// (`ISZERO ISZERO <label> JUMPI -> <label> JUMPI`), so already-inverted
+    /// checks get the stub removed for free.
+    fn invert_branches_over_empty_reverts(&mut self, instructions: &mut Vec<AsmInst>) {
+        if self.config.optimization == OptimizationMode::None {
+            return;
+        }
+        let is_zero_push = |inst: AsmInst| matches!(inst.kind(), AsmInstKind::PushInline(0));
+        let mut shared: Option<Label> = None;
+        let mut alias: FxHashMap<Label, Label> = FxHashMap::default();
+        let mut out = Vec::with_capacity(instructions.len());
+        let mut i = 0;
+        while i < instructions.len() {
+            if let AsmInstKind::PushLabel(cont) = instructions[i].kind()
+                && i + 1 < instructions.len()
+                && matches!(instructions[i + 1].kind(), AsmInstKind::Op(op::JUMPI))
+            {
+                let mut j = i + 2;
+                let stub_label = if j < instructions.len()
+                    && let AsmInstKind::Label(stub) = instructions[j].kind()
+                {
+                    j += 1;
+                    Some(stub)
+                } else {
+                    None
+                };
+                if j + 3 < instructions.len()
+                    && is_zero_push(instructions[j])
+                    && matches!(instructions[j + 1].kind(), AsmInstKind::Op(d) if d == op::DUP1)
+                    && matches!(instructions[j + 2].kind(), AsmInstKind::Op(op::REVERT))
+                    && matches!(instructions[j + 3].kind(), AsmInstKind::Label(l) if l == cont)
+                {
+                    let target = *shared.get_or_insert_with(|| self.new_label());
+                    if let Some(stub) = stub_label {
+                        alias.insert(stub, target);
+                    }
+                    out.push(AsmInst::op(op::ISZERO));
+                    out.push(AsmInst::push_label(target));
+                    out.push(AsmInst::op(op::JUMPI));
+                    i = j + 3;
+                    continue;
+                }
+            }
+            out.push(instructions[i]);
+            i += 1;
+        }
+        let Some(target) = shared else { return };
+        out.push(AsmInst::label(target));
+        out.push(AsmInst::push_inline(0).unwrap());
+        out.push(AsmInst::op(op::DUP1));
+        out.push(AsmInst::op(op::REVERT));
+        if !alias.is_empty() {
+            for inst in out.iter_mut() {
+                if let AsmInstKind::PushLabel(label) = inst.kind()
+                    && let Some(&rep) = alias.get(&label)
+                {
+                    *inst = AsmInst::push_label(rep);
+                }
+            }
+        }
+        *instructions = out;
+    }
+
+    /// Merges identical terminal suffixes of distinct spans.
+    ///
+    /// Function epilogues repeat: `LOG3 ... MSTORE ... RETURN` tails compile
+    /// identically for every `approve`-shaped function, but the spans differ
+    /// earlier, so whole-span dedup cannot merge them. An identical
+    /// instruction suffix behaves as a function of the stack it consumes —
+    /// each predecessor supplies its own values positionally, exactly as the
+    /// inlined copy would have — so a duplicate suffix can be cut and replaced
+    /// with a jump into the representative's tail at a freshly inserted label.
+    /// Suffixes containing label definitions are never merged, and a cut only
+    /// happens when the suffix's conservative emitted size (pushes counted as
+    /// two bytes) exceeds the jump that replaces it.
+    fn merge_terminal_suffixes(&mut self, instructions: &mut Vec<AsmInst>) -> bool {
+        if self.config.optimization == OptimizationMode::None {
+            return false;
+        }
+        fn is_terminal(inst: AsmInst) -> bool {
+            matches!(
+                inst.kind(),
+                AsmInstKind::Op(
+                    op::STOP | op::JUMP | op::RETURN | op::REVERT | op::INVALID | op::SELFDESTRUCT,
+                )
+            )
+        }
+        fn lower_bound(insts: &[AsmInst]) -> usize {
+            insts
+                .iter()
+                .map(|inst| match inst.kind() {
+                    AsmInstKind::Op(_) => 1,
+                    _ => 2,
+                })
+                .sum()
+        }
+
+        // Terminal spans: label .. first terminal, with no label inside.
+        let mut spans = SmallVec::<[(usize, usize); 16]>::new();
+        let mut i = 0;
+        while i < instructions.len() {
+            if let AsmInstKind::Label(_) = instructions[i].kind() {
+                let mut j = i + 1;
+                while j < instructions.len() {
+                    if matches!(instructions[j].kind(), AsmInstKind::Label(_)) {
+                        break;
+                    }
+                    if is_terminal(instructions[j]) {
+                        spans.push((i + 1, j));
+                        break;
+                    }
+                    j += 1;
+                }
+            }
+            i += 1;
+        }
+
+        // Greedy: each span merges into the earlier span sharing its longest
+        // terminal suffix, when that suffix outweighs the jump plus the
+        // representative's inserted `JUMPDEST`.
+        let mut reps = SmallVec::<[(usize, usize); 16]>::new();
+        // (span_start, span_end, rep_index, suffix_len)
+        let mut merges = SmallVec::<[(usize, usize, usize, usize); 8]>::new();
+        for &(start, end) in &spans {
+            let body = &instructions[start..=end];
+            let mut best: Option<(usize, usize)> = None;
+            for (rep_idx, &(rep_start, rep_end)) in reps.iter().enumerate() {
+                let rep_body = &instructions[rep_start..=rep_end];
+                let max = body.len().min(rep_body.len());
+                let mut common = 0;
+                while common < max
+                    && body[body.len() - 1 - common] == rep_body[rep_body.len() - 1 - common]
+                {
+                    common += 1;
+                }
+                if common > best.map_or(0, |(_, len)| len) {
+                    best = Some((rep_idx, common));
+                }
+            }
+            if let Some((rep_idx, common)) = best
+                && lower_bound(&body[body.len() - common..]) > 5
+            {
+                merges.push((start, end, rep_idx, common));
+            } else {
+                reps.push((start, end));
+            }
+        }
+        if merges.is_empty() {
+            return false;
+        }
+
+        // One label per (representative, suffix length) cut point.
+        let mut cut_labels: FxHashMap<(usize, usize), Label> = FxHashMap::default();
+        for &(_, _, rep_idx, common) in &merges {
+            cut_labels.entry((rep_idx, common)).or_insert_with(|| self.new_label());
+        }
+
+        // Apply from the back so earlier indices stay valid: suffix cuts on
+        // merged spans, then label insertions into representatives.
+        let mut edits: Vec<(usize, Edit)> = Vec::new();
+        enum Edit {
+            /// Replace `at..=end` with a jump to the label.
+            Cut { end: usize, target: Label },
+            /// Insert a label definition at `at`.
+            Mid { label: Label },
+        }
+        for &(_start, end, rep_idx, common) in &merges {
+            let target = cut_labels[&(rep_idx, common)];
+            edits.push((end + 1 - common, Edit::Cut { end, target }));
+        }
+        for (&(rep_idx, common), &label) in &cut_labels {
+            let (_, rep_end) = reps[rep_idx];
+            edits.push((rep_end + 1 - common, Edit::Mid { label }));
+        }
+        edits.sort_unstable_by_key(|&(at, _)| at);
+        for &(at, ref edit) in edits.iter().rev() {
+            match *edit {
+                Edit::Cut { end, target } => {
+                    instructions
+                        .splice(at..=end, [AsmInst::push_label(target), AsmInst::op(op::JUMP)]);
+                }
+                Edit::Mid { label } => {
+                    instructions.insert(at, AsmInst::label(label));
+                }
+            }
+        }
+        true
+    }
+
+    /// Net stack effect of an opcode from a small verified whitelist:
+    /// `(reads_below_needed, pops, pushes)`. `reads_below_needed` is how deep
+    /// below the top the opcode inspects (its pops, or the index for
+    /// `DUP`/`SWAP`); a run stays closed only while the running height covers
+    /// it. Returns `None` for anything not on the whitelist, so a run
+    /// containing an unmodeled opcode is never outlined.
+    fn whitelisted_effect(inst: AsmInst) -> Option<(u16, u16, u16)> {
+        Some(match inst.kind() {
+            AsmInstKind::PushInline(_)
+            | AsmInstKind::Push(_)
+            | AsmInstKind::PushLabel(_)
+            | AsmInstKind::PushDeferred(_)
+            | AsmInstKind::PushImmutable(_) => (0, 0, 1),
+            AsmInstKind::Op(op) => match op {
+                op::CALLDATASIZE | op::PUSH0 | op::RETURNDATASIZE | op::MSIZE | op::CALLVALUE => {
+                    (0, 0, 1)
+                }
+                op::ISZERO | op::NOT | op::CALLDATALOAD | op::MLOAD => (1, 1, 1),
+                op::ADD
+                | op::SUB
+                | op::MUL
+                | op::AND
+                | op::OR
+                | op::XOR
+                | op::SHL
+                | op::SHR
+                | op::LT
+                | op::GT
+                | op::SLT
+                | op::SGT
+                | op::EQ
+                | op::DIV => (2, 2, 1),
+                op::MSTORE => (2, 2, 0),
+                op::POP => (1, 1, 0),
+                d if (op::DUP1..=op::DUP1 + 15).contains(&d) => {
+                    let n = u16::from(d - op::DUP1) + 1;
+                    (n, 0, 1)
+                }
+                sw if (op::SWAP1..=op::SWAP1 + 15).contains(&sw) => {
+                    let n = u16::from(sw - op::SWAP1) + 1;
+                    (n + 1, 0, 0)
+                }
+                _ => return None,
+            },
+            _ => return None,
+        })
+    }
+
+    /// Outlines identical stack-closed straight-line computations.
+    ///
+    /// ABI decode prologues repeat — an address argument's dirty-word check or
+    /// the calldata-size guard compile identically at each site — but they end
+    /// by falling through, not at a terminal, so neither span dedup nor suffix
+    /// merging reaches them. A run that reads nothing below its entry and
+    /// leaves at most one value behaves as a nullary-or-unary closed
+    /// computation: a caller reaches a shared stub with only its return address
+    /// on the stack, the stub's produced value (if any) ends up above that
+    /// address, and a final `SWAP1` (for one output) then `JUMP` returns it.
+    /// Runs are outlined only when every opcode is on the verified whitelist,
+    /// the run never inspects below its entry, its net height is 0 or 1, and the
+    /// shared stub is smaller than the sites it replaces.
+    fn outline_closed_computations(&mut self, program: &mut EvmAsmProgram) {
+        if self.config.optimization == OptimizationMode::None {
+            return;
+        }
+        let insts = &program.instructions;
+
+        // Borrow candidate runs from the immutable input instead of cloning
+        // every prefix into an owned hash key. Most runs occur only once, so
+        // keep their first two sites inline as well.
+        let mut candidates: FxHashMap<&[AsmInst], SmallVec<[ClosedRunSite; 2]>> =
+            FxHashMap::default();
+        let mut i = 0;
+        while i < insts.len() {
+            if matches!(insts[i].kind(), AsmInstKind::Label(_)) {
+                i += 1;
+                continue;
+            }
+            let mut height: i32 = 0;
+            let mut j = i;
+            while j < insts.len() {
+                if matches!(insts[j].kind(), AsmInstKind::Label(_)) {
+                    break;
+                }
+                let Some((reads, pops, pushes)) = Self::whitelisted_effect(insts[j]) else {
+                    break;
+                };
+                if height < i32::from(reads) {
+                    break;
+                }
+                height = height - i32::from(pops) + i32::from(pushes);
+                j += 1;
+                let len = j - i;
+                if len >= MIN_CLOSED_RUN && (height == 0 || height == 1) {
+                    candidates.entry(&insts[i..j]).or_default().push((i, len, height as u16));
+                }
+            }
+            i += 1;
+        }
+
+        let mut groups: Vec<_> = candidates.iter().filter(|(_, sites)| sites.len() >= 2).collect();
+        groups.sort_by_key(|(key, _)| std::cmp::Reverse(key.len()));
+
+        let mut claimed = DenseBitSet::new_empty(insts.len());
+        let mut chosen: Vec<(Vec<usize>, usize, u16)> = Vec::new();
+        for (_, sites) in groups {
+            let (run_len, height) = (sites[0].1, sites[0].2);
+            let free: Vec<usize> = sites
+                .iter()
+                .filter(|&&(start, len, _)| {
+                    (start..start + len).all(|index| !claimed.contains(index))
+                })
+                .map(|&(start, _, _)| start)
+                .collect();
+            if free.len() < 2 {
+                continue;
+            }
+            let run_lb: usize = insts[free[0]..free[0] + run_len]
+                .iter()
+                .map(|inst| match inst.kind() {
+                    AsmInstKind::Op(_) => 1,
+                    _ => 2,
+                })
+                .sum();
+            let stub = 1 + run_lb + usize::from(height) + 1;
+            // Per-site replacement is `PUSH2 ret PUSH2 stub JUMP JUMPDEST`,
+            // but a heavily-referenced stub is a small hot terminal span the
+            // hoist pass places below the one-byte boundary, relaxing its
+            // push at every site: credit that byte only when the group's
+            // reference count makes it a certain hoist pick.
+            let per_site = if free.len() >= 4 { 7 } else { 8 };
+            if free.len() * run_lb < free.len() * per_site + stub + 2 {
+                continue;
+            }
+            for &start in &free {
+                claimed.insert_range(start..start + run_len);
+            }
+            chosen.push((free, run_len, height));
+        }
+        if chosen.is_empty() {
+            return;
+        }
+
+        let stub_labels: Vec<Label> = chosen.iter().map(|_| self.new_label()).collect();
+        let mut site_to_group: FxHashMap<usize, usize> = FxHashMap::default();
+        for (g, (sites, _, _)) in chosen.iter().enumerate() {
+            for &site in sites {
+                site_to_group.insert(site, g);
+            }
+        }
+
+        let mut out = Vec::with_capacity(program.instructions.len());
+        let mut k = 0;
+        while k < program.instructions.len() {
+            if let Some(&g) = site_to_group.get(&k) {
+                let run_len = chosen[g].1;
+                let ret = self.new_label();
+                out.push(AsmInst::push_label(ret));
+                out.push(AsmInst::push_label(stub_labels[g]));
+                out.push(AsmInst::op(op::JUMP));
+                out.push(AsmInst::label(ret));
+                k += run_len;
+            } else {
+                out.push(program.instructions[k]);
+                k += 1;
+            }
+        }
+        for (g, (sites, run_len, height)) in chosen.iter().enumerate() {
+            let body = program.instructions[sites[0]..sites[0] + run_len].to_vec();
+            out.push(AsmInst::label(stub_labels[g]));
+            out.extend_from_slice(&body);
+            if *height == 1 {
+                out.push(AsmInst::op(op::SWAP1));
+            }
+            out.push(AsmInst::op(op::JUMP));
+        }
+        program.instructions = out;
+    }
+
+    /// Outlines repeated large constants into shared push stubs.
+    ///
+    /// Event topics and EIP-712 typehashes are 32-byte keccak constants pushed
+    /// inline at every use site — 33 bytes each time. When the same constant
+    /// appears at several sites and the arithmetic pays, each site becomes a
+    /// call-shaped `PUSH2 ret PUSH2 stub JUMP JUMPDEST` (8 bytes) to a shared
+    /// `JUMPDEST PUSH<n> value SWAP1 JUMP` stub appended after the program's
+    /// terminal instruction. The rewrite is stack-neutral: one value is pushed
+    /// either way. Skipped entirely when optimization is disabled.
+    fn outline_repeated_pushes(&mut self, program: &mut EvmAsmProgram) {
+        if self.config.optimization == OptimizationMode::None {
+            return;
+        }
+
+        // Count the sites of every interned (large) push value.
+        let mut counts: FxHashMap<PushValueId, u32> = FxHashMap::default();
+        for inst in &program.instructions {
+            if let AsmInstKind::Push(index) = inst.kind() {
+                *counts.entry(index).or_default() += 1;
+            }
+        }
+        // A site shrinks from the value's real emitted encoding (compact
+        // shapes like `PUSH1 0x1f NOT` can be far narrower than the value's
+        // byte length) to 8 bytes; the stub costs the encoding plus 3.
+        // Outline when the total saving is worth the jump indirection.
+        const SITE_BYTES: usize = 8;
+        const MIN_SAVING: usize = 8;
+        let mut stubs: FxHashMap<PushValueId, Label> = FxHashMap::default();
+        let mut order = Vec::new();
+        let sizer = BytecodeAssembler::new(self.config);
+        for (&index, &count) in &counts {
+            let len = sizer.encoded_push_len(self.push_value(index));
+            let count = count as usize;
+            let inline = count * len;
+            let outlined = count * SITE_BYTES + len + 3;
+            if count >= 2 && inline >= outlined + MIN_SAVING {
+                stubs.insert(index, self.new_label());
+                order.push(index);
+            }
+        }
+        if stubs.is_empty() {
+            return;
+        }
+        order.sort_unstable();
+
+        let mut rewritten = Vec::with_capacity(program.instructions.len());
+        for &inst in &program.instructions {
+            if let AsmInstKind::Push(index) = inst.kind()
+                && let Some(&stub) = stubs.get(&index)
+            {
+                let ret = self.new_label();
+                rewritten.push(AsmInst::push_label(ret));
+                rewritten.push(AsmInst::push_label(stub));
+                rewritten.push(AsmInst::op(op::JUMP));
+                rewritten.push(AsmInst::label(ret));
+            } else {
+                rewritten.push(inst);
+            }
+        }
+        for index in order {
+            rewritten.push(AsmInst::label(stubs[&index]));
+            rewritten.push(AsmInst::push(index));
+            rewritten.push(AsmInst::op(op::SWAP1));
+            rewritten.push(AsmInst::op(op::JUMP));
+        }
+        program.instructions = rewritten;
+    }
+
     pub(super) fn inst_push_value(&self, inst: AsmInst) -> Option<U256> {
         match inst.kind() {
             AsmInstKind::PushInline(value) => Some(U256::from(value)),
@@ -191,31 +785,203 @@ impl Assembler {
         }
     }
 
+    fn finish_evm_ir(&mut self) -> Option<(ir::Module, Vec<Option<Label>>)> {
+        let mut module = std::mem::replace(&mut self.program, Self::new_ir_module());
+        self.current_block = None;
+        if module.blocks.is_empty() {
+            return None;
+        }
+
+        for (block, instruction, label) in self.label_relocations.drain(..) {
+            let target = self
+                .label_blocks
+                .get(&label)
+                .copied()
+                .unwrap_or_else(|| panic!("label {label:?} was never defined"));
+            module.blocks[block].instructions[instruction] =
+                ir::Instruction::push(ir::Operand::Block(target));
+        }
+        for (block, instruction, id) in self.deferred_relocations.drain(..) {
+            module.blocks[block].instructions[instruction] =
+                ir::Instruction::push_deferred(ir::Operand::Immediate(U256::from(id.index())));
+        }
+        self.label_blocks.clear();
+        self.cold_labels.clear();
+
+        Self::finalize_evm_ir(&mut module);
+        Some((module, std::mem::take(&mut self.block_labels)))
+    }
+
+    fn finalize_evm_ir(module: &mut ir::Module) {
+        for index in 0..module.blocks.len() {
+            let block_id = ir::BlockId::from_usize(index);
+            let next =
+                (index + 1 < module.blocks.len()).then(|| ir::BlockId::from_usize(index + 1));
+            let block = &mut module.blocks[block_id];
+            let (kind, remove) = if let [.., push, jump] = block.instructions.as_slice()
+                && !jump.is_encoded_push()
+                && jump.opcode == op::JUMP
+                && let [ir::Operand::Block(target)] = push.operands.as_slice()
+                && push.is_encoded_push()
+            {
+                (ir::TerminatorKind::Jump(*target), 2)
+            } else if let Some(last) = block.instructions.last()
+                && !last.is_encoded_push()
+                && op::is_terminal(last.opcode)
+            {
+                (ir::TerminatorKind::RawOpcode(last.opcode), 1)
+            } else {
+                (next.map_or(ir::TerminatorKind::Stop, ir::TerminatorKind::Jump), 0)
+            };
+            block.instructions.truncate(block.instructions.len() - remove);
+            block.terminator = Some(ir::Terminator::new(kind));
+        }
+    }
+
     /// Assembles the instructions into bytecode.
     /// Uses an iterative two-pass algorithm that handles PUSH width changes.
     #[must_use]
     pub fn assemble(&mut self) -> AssembledCode {
-        let mut ir_program = std::mem::take(&mut self.program);
-        let deferred_values = &self.deferred_values;
-        let push_values = &mut self.push_values;
-        ir_program.resolve_deferred_consts(|id| {
-            let value = deferred_values
-                .get(&id)
-                .copied()
-                .unwrap_or_else(|| panic!("deferred constant {id:?} was never resolved"));
-            if let Ok(value) = u32::try_from(value)
-                && let Some(inst) = AsmInst::push_inline(value)
-            {
-                return inst;
+        let prepared = self.prepare();
+        let result = self.assemble_prepared(&prepared, &[]);
+        self.clear();
+        result
+    }
+
+    pub(in crate::backend::evm) fn prepare(&mut self) -> PreparedAssembly {
+        solar_interface::enter(|| self.prepare_inner())
+    }
+
+    fn prepare_inner(&mut self) -> PreparedAssembly {
+        let Some((mut ir_program, mut labels)) = self.finish_evm_ir() else {
+            return PreparedAssembly::default();
+        };
+
+        if self.config.optimization != OptimizationMode::None {
+            let input_is_valid = cfg!(debug_assertions) && is_valid_evm_ir(&ir_program);
+            let pass_options = ir::PassOptions { time_passes: self.config.time_passes };
+            if self.config.evm_ir_stack_schedule {
+                let mut scheduled = ir_program.clone();
+                if ir::run_pass(&mut scheduled, &ir::STACK_SCHEDULE_PASS, pass_options)
+                    && is_valid_evm_ir(&scheduled)
+                    && modules_have_equal_code(&ir_program, &scheduled)
+                {
+                    ir_program = scheduled;
+                }
             }
-            AsmInst::push(push_values.intern(value))
-        });
-        if self.config.evm_ir_stack_schedule || self.config.evm_ir_layout_passes {
-            ir_program.optimize_with_evm_ir(self);
+            for pass in ir::DEFAULT_LAYOUT_PIPELINE {
+                ir::run_pass(&mut ir_program, pass, pass_options);
+            }
+            debug_assert!(!input_is_valid || is_valid_evm_ir(&ir_program));
         }
-        let mut program = ir_program.to_asm_program();
+
+        let program = program::lower_evm_ir(&ir_program, &mut labels, self);
+        PreparedAssembly {
+            evm_ir: self.config.capture_evm_ir.then(|| ir_program.clone()),
+            program,
+            push_values: std::mem::take(&mut self.push_values),
+            next_label: std::mem::take(&mut self.next_label),
+            deferred_values: std::mem::take(&mut self.deferred_values),
+        }
+    }
+
+    pub(in crate::backend::evm) fn assemble_prepared(
+        &mut self,
+        prepared: &PreparedAssembly,
+        deferred_values: &[(DeferredConst, U256)],
+    ) -> AssembledCode {
+        self.push_values = prepared.push_values.clone();
+        self.next_label = prepared.next_label.clone();
+        self.deferred_values.clone_from(&prepared.deferred_values);
+        self.deferred_values.extend(deferred_values.iter().copied());
+
+        let mut program = prepared.program.clone();
+        for inst in &mut program.instructions {
+            if let AsmInstKind::PushDeferred(id) = inst.kind() {
+                let value = self
+                    .deferred_values
+                    .get(&id)
+                    .copied()
+                    .unwrap_or_else(|| panic!("deferred constant {id:?} was never resolved"));
+                *inst = self.push_inst(value);
+            }
+        }
+
+        let evm_ir = prepared.evm_ir.as_ref().map(|module| {
+            let mut module = module.clone();
+            for block in &mut module.blocks {
+                for inst in &mut block.instructions {
+                    if inst.is_deferred_push() {
+                        let [ir::Operand::Immediate(id)] = inst.operands.as_slice() else {
+                            unreachable!("deferred push must have one immediate operand")
+                        };
+                        let id = DeferredConst::from_usize(
+                            usize::try_from(*id).expect("deferred constant ID must fit usize"),
+                        );
+                        let value = self.deferred_values.get(&id).copied().unwrap_or_else(|| {
+                            panic!("deferred constant {id:?} was never resolved")
+                        });
+                        *inst = ir::Instruction::push(ir::Operand::Immediate(value));
+                    }
+                }
+            }
+            module
+        });
+
+        self.invert_branches_over_empty_reverts(&mut program.instructions);
         self.run_assembler_passes(&mut program);
-        Self::dedup_terminal_spans(&mut program.instructions);
+        let has_labels =
+            program.instructions.iter().any(|inst| matches!(inst.kind(), AsmInstKind::Label(_)));
+        if has_labels {
+            // Dedup first at the original span granularity, then drop the labels
+            // nothing references (which merges fallthrough-split spans), and
+            // dedup once more at the coarser granularity that removal exposes.
+            Self::dedup_terminal_spans(&mut program.instructions);
+            Self::remove_unreferenced_labels(&mut program.instructions);
+            Self::dedup_terminal_spans(&mut program.instructions);
+            Self::remove_unreferenced_labels(&mut program.instructions);
+            // Suffix cuts create new identical spans and tails; iterate the merge
+            // with the dedup chain to a capped fixpoint. The unreachable-code
+            // sweep needs the label drop at the end of the previous iteration to
+            // expose a threaded thunk's corpse, so give the fixpoint headroom.
+            for _ in 0..6 {
+                let merged = self.merge_terminal_suffixes(&mut program.instructions);
+                let threaded = Self::thread_jump_thunks(&mut program.instructions);
+                let swept = Self::remove_unreachable_code(&mut program.instructions);
+                if !merged && !threaded && !swept {
+                    break;
+                }
+                Self::dedup_terminal_spans(&mut program.instructions);
+                Self::remove_unreferenced_labels(&mut program.instructions);
+            }
+        } else {
+            Self::remove_unreachable_code(&mut program.instructions);
+        }
+        self.outline_closed_computations(&mut program);
+        if program
+            .instructions
+            .iter()
+            .filter(|inst| matches!(inst.kind(), AsmInstKind::Push(_)))
+            .take(2)
+            .count()
+            >= 2
+        {
+            self.outline_repeated_pushes(&mut program);
+        }
+        self.hoist_hot_terminal_spans(&mut program.instructions);
+
+        // Label-free constructor and deployment snippets need neither offset
+        // discovery nor push-width relaxation.
+        if !program
+            .instructions
+            .iter()
+            .any(|inst| matches!(inst.kind(), AsmInstKind::Label(_) | AsmInstKind::PushLabel(_)))
+        {
+            let mut result =
+                self.emit_bytecode(&program, FxHashMap::default(), &FxHashMap::default());
+            result.evm_ir = evm_ir;
+            return result;
+        }
 
         // We need to iterate until PUSH widths stabilize
         let mut push_widths: FxHashMap<usize, u8> = FxHashMap::default();
@@ -241,8 +1007,8 @@ impl Assembler {
 
             if !changed {
                 // Stable - emit final bytecode
-                let result = self.emit_bytecode(&program, label_offsets, &push_widths);
-                self.clear();
+                let mut result = self.emit_bytecode(&program, label_offsets, &push_widths);
+                result.evm_ir = evm_ir;
                 return result;
             }
 
@@ -253,9 +1019,148 @@ impl Assembler {
 
         // Fallback - just emit with current widths
         let (label_offsets, _) = self.compute_offsets(&program, &push_widths);
-        let result = self.emit_bytecode(&program, label_offsets, &push_widths);
-        self.clear();
+        let mut result = self.emit_bytecode(&program, label_offsets, &push_widths);
+        result.evm_ir = evm_ir;
         result
+    }
+
+    /// Moves the most-referenced small terminal spans (shared revert and
+    /// panic stubs, merged return tails) to the front of the program, right
+    /// after its first terminating instruction, so their addresses fit in one
+    /// byte and every `PUSH2 <label>` reference relaxes to `PUSH1` — one byte
+    /// per reference. Placement is control-flow-neutral: a candidate span is
+    /// preceded by a terminating instruction (no fallthrough in), ends with
+    /// one itself (no fallthrough out), and the insertion point directly
+    /// follows a terminating instruction.
+    fn hoist_hot_terminal_spans(&self, instructions: &mut Vec<AsmInst>) {
+        if self.config.optimization == OptimizationMode::None {
+            return;
+        }
+
+        fn is_terminal(inst: AsmInst) -> bool {
+            matches!(
+                inst.kind(),
+                AsmInstKind::Op(
+                    op::STOP | op::JUMP | op::RETURN | op::REVERT | op::INVALID | op::SELFDESTRUCT,
+                )
+            )
+        }
+        // Pessimistic emitted size, before width relaxation. Only steers the
+        // hoist budget; the exact widths come from the relaxation loop.
+        let inst_size = |inst: AsmInst| -> usize {
+            match inst.kind() {
+                AsmInstKind::Op(_) | AsmInstKind::Label(_) => 1,
+                AsmInstKind::PushLabel(_) | AsmInstKind::PushDeferred(_) => 3,
+                AsmInstKind::PushInline(value) => 1 + U256::from(value).byte_len(),
+                AsmInstKind::Push(id) => 1 + self.push_values.get(id).byte_len(),
+                AsmInstKind::PushImmutable(_) => 33,
+            }
+        };
+
+        let Some(first_terminal) = instructions.iter().position(|&inst| is_terminal(inst)) else {
+            return;
+        };
+        let insert_at = first_terminal + 1;
+        let insert_offset: usize = instructions[..insert_at].iter().map(|&i| inst_size(i)).sum();
+        if insert_offset >= 0xff {
+            return;
+        }
+
+        let mut refs: FxHashMap<Label, usize> = FxHashMap::default();
+        for inst in instructions.iter() {
+            if let AsmInstKind::PushLabel(label) = inst.kind() {
+                *refs.entry(label).or_default() += 1;
+            }
+        }
+
+        // Candidate spans: `label: ... <terminal>` with no interior labels,
+        // preceded by a terminal, past the insertion point, and small.
+        struct Candidate {
+            start: usize,
+            end: usize,
+            size: usize,
+            refs: usize,
+        }
+        let mut candidates: Vec<Candidate> = Vec::new();
+        let mut i = insert_at;
+        while i < instructions.len() {
+            if let AsmInstKind::Label(label) = instructions[i].kind()
+                && i > 0
+                && is_terminal(instructions[i - 1])
+            {
+                let mut j = i + 1;
+                while j < instructions.len()
+                    && !matches!(instructions[j].kind(), AsmInstKind::Label(_))
+                {
+                    if is_terminal(instructions[j]) {
+                        let size: usize =
+                            instructions[i..=j].iter().map(|&inst| inst_size(inst)).sum();
+                        let refs = refs.get(&label).copied().unwrap_or(0);
+                        if size <= 32 && refs >= 2 {
+                            candidates.push(Candidate { start: i, end: j, size, refs });
+                        }
+                        break;
+                    }
+                    j += 1;
+                }
+            }
+            i += 1;
+        }
+        if candidates.is_empty() {
+            return;
+        }
+
+        // Best saving per budget byte first (each reference saves one byte,
+        // the span consumes its size from the one-byte address window), with
+        // reference count and position as deterministic tie-breaks.
+        candidates.sort_by(|a, b| {
+            (b.refs * a.size)
+                .cmp(&(a.refs * b.size))
+                .then(b.refs.cmp(&a.refs))
+                .then(a.start.cmp(&b.start))
+        });
+        let mut budget = 0xff_usize.saturating_sub(insert_offset);
+        let mut picked: Vec<Candidate> = Vec::new();
+        for cand in candidates {
+            if cand.size <= budget {
+                budget -= cand.size;
+                picked.push(cand);
+            }
+        }
+        if picked.is_empty() {
+            return;
+        }
+
+        // Extract in descending start order so earlier ranges stay valid,
+        // then splice at the insertion point in rank order.
+        let mut extraction = picked.iter().map(|c| (c.start, c.end)).collect::<Vec<_>>();
+        extraction.sort_by_key(|&(start, _)| std::cmp::Reverse(start));
+        let mut moved: FxHashMap<usize, Vec<AsmInst>> = FxHashMap::default();
+        for (start, end) in extraction {
+            moved.insert(start, instructions.drain(start..=end).collect());
+        }
+        let mut block = Vec::new();
+        for cand in &picked {
+            block.extend(moved.remove(&cand.start).expect("extracted span"));
+        }
+        instructions.splice(insert_at..insert_at, block);
+    }
+
+    /// Deletes label definitions that nothing references: such a block can
+    /// only be entered by fallthrough, so its `JUMPDEST` byte is pure waste.
+    /// Rewrites and span dedup orphan labels, and running this before the
+    /// span dedup also exposes more spans whose predecessor is terminating.
+    fn remove_unreferenced_labels(instructions: &mut Vec<AsmInst>) {
+        let mut referenced = GrowableBitSet::new_empty();
+        for inst in instructions.iter() {
+            if let AsmInstKind::PushLabel(label) = inst.kind() {
+                referenced.insert(label);
+            }
+        }
+        instructions.retain(|inst| match inst.kind() {
+            AsmInstKind::Label(label) => referenced.contains(label),
+            _ => true,
+        });
     }
 
     /// Merges byte-identical label-started spans that end in a terminating
@@ -301,9 +1206,24 @@ impl Assembler {
             i += 1;
         }
 
+        // A span whose body's emitted size is provably larger than an
+        // explicit `PUSH2 <label> JUMP` (conservative lower bound: pushes are
+        // at least two bytes).
+        fn body_outweighs_jump(body: &[AsmInst]) -> bool {
+            let lower_bound: usize = body
+                .iter()
+                .map(|inst| match inst.kind() {
+                    AsmInstKind::Op(_) => 1,
+                    _ => 2,
+                })
+                .sum();
+            lower_bound > 6
+        }
+
         let mut representatives: FxHashMap<Vec<AsmInst>, Label> = FxHashMap::default();
         let mut alias: FxHashMap<Label, Label> = FxHashMap::default();
         let mut delete: Vec<(usize, usize)> = Vec::new();
+        let mut convert: Vec<(usize, usize, Label)> = Vec::new();
         for span in &spans {
             let body = instructions[span.start + 1..=span.end].to_vec();
             match representatives.entry(body) {
@@ -314,6 +1234,12 @@ impl Assembler {
                     if span.start > 0 && is_terminal(instructions[span.start - 1]) {
                         alias.insert(span.label, *rep.get());
                         delete.push((span.start, span.end));
+                    } else if body_outweighs_jump(&instructions[span.start + 1..=span.end]) {
+                        // Something falls into this copy, so it cannot be
+                        // deleted — but its body can become a jump to the
+                        // representative.
+                        alias.insert(span.label, *rep.get());
+                        convert.push((span.start, span.end, *rep.get()));
                     }
                 }
             }
@@ -329,9 +1255,22 @@ impl Assembler {
                 *inst = AsmInst::push_label(rep);
             }
         }
-        delete.sort_unstable();
-        for &(start, end) in delete.iter().rev() {
-            instructions.drain(start..=end);
+        let mut edits: Vec<(usize, usize, Option<Label>)> = delete
+            .into_iter()
+            .map(|(start, end)| (start, end, None))
+            .chain(convert.into_iter().map(|(start, end, rep)| (start, end, Some(rep))))
+            .collect();
+        edits.sort_unstable_by_key(|&(start, _, _)| start);
+        for &(start, end, rep) in edits.iter().rev() {
+            match rep {
+                None => {
+                    instructions.drain(start..=end);
+                }
+                Some(rep) => {
+                    instructions
+                        .splice(start + 1..=end, [AsmInst::push_label(rep), AsmInst::op(op::JUMP)]);
+                }
+            }
         }
     }
 
@@ -439,31 +1378,26 @@ impl Assembler {
     }
 }
 
+fn modules_have_equal_code(before: &ir::Module, after: &ir::Module) -> bool {
+    before.entry_block == after.entry_block
+        && before.blocks.len() == after.blocks.len()
+        && before.blocks.iter().zip(after.blocks.iter()).all(|(a, b)| {
+            a.label == b.label
+                && a.metadata == b.metadata
+                && a.instructions == b.instructions
+                && a.terminator == b.terminator
+        })
+}
+
+fn is_valid_evm_ir(module: &ir::Module) -> bool {
+    let dcx = DiagCtxt::with_silent_emitter(None);
+    ir::Verifier::new(&dcx).verify_module(module);
+    dcx.has_errors().is_ok()
+}
+
 impl Default for Assembler {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl StructuredAsmContext for Assembler {
-    fn push_value(&self, index: PushValueId) -> U256 {
-        self.push_value(index)
-    }
-
-    fn push_inst(&mut self, value: U256) -> AsmInst {
-        self.push_inst(value)
-    }
-
-    fn new_label(&mut self) -> Label {
-        self.new_label()
-    }
-
-    fn run_evm_ir_stack_schedule(&self) -> bool {
-        self.config.evm_ir_stack_schedule
-    }
-
-    fn run_evm_ir_layout_passes(&self) -> bool {
-        self.config.evm_ir_layout_passes
     }
 }
 
@@ -521,10 +1455,8 @@ impl BytecodeAssembler {
         }
 
         // `PUSH0 NOT PUSH1 <shift> SHR` is fixed-size apart from PUSH0
-        // availability: 5 bytes on Shanghai+, 6 bytes before Shanghai. Keep
-        // this shape for half-word-or-wider masks only: small masks are common
-        // immediates, while wide masks are where the bytecode-size win is
-        // substantial.
+        // availability: 5 bytes on Shanghai+, 6 bytes before Shanghai; the
+        // `consider` comparison keeps the literal whenever it is not larger.
         if width >= MIN_COMPACT_MASK_WIDTH {
             let bytes = value.to_be_bytes::<EVM_WORD_BYTES>();
             let start = EVM_WORD_BYTES - width as usize;
@@ -641,6 +1573,7 @@ impl BytecodeAssembler {
             bytecode: self.bytecode,
             label_offsets,
             immutable_refs: self.immutable_refs,
+            evm_ir: None,
         }
     }
 }
@@ -661,186 +1594,262 @@ enum CompactPush {
 
 /// Common EVM op.
 pub mod op {
-    pub const STOP: u8 = 0x00;
-    pub const ADD: u8 = 0x01;
-    pub const MUL: u8 = 0x02;
-    pub const SUB: u8 = 0x03;
-    pub const DIV: u8 = 0x04;
-    pub const SDIV: u8 = 0x05;
-    pub const MOD: u8 = 0x06;
-    pub const SMOD: u8 = 0x07;
-    pub const ADDMOD: u8 = 0x08;
-    pub const MULMOD: u8 = 0x09;
-    pub const EXP: u8 = 0x0a;
-    pub const SIGNEXTEND: u8 = 0x0b;
+    const UNKNOWN_PREFIX: &str = "op_";
 
-    pub const LT: u8 = 0x10;
-    pub const GT: u8 = 0x11;
-    pub const SLT: u8 = 0x12;
-    pub const SGT: u8 = 0x13;
-    pub const EQ: u8 = 0x14;
-    pub const ISZERO: u8 = 0x15;
-    pub const AND: u8 = 0x16;
-    pub const OR: u8 = 0x17;
-    pub const XOR: u8 = 0x18;
-    pub const NOT: u8 = 0x19;
-    pub const BYTE: u8 = 0x1a;
-    pub const SHL: u8 = 0x1b;
-    pub const SHR: u8 = 0x1c;
-    pub const SAR: u8 = 0x1d;
-    pub const CLZ: u8 = 0x1e;
+    macro_rules! opcode_mnemonic {
+        (r#return) => {
+            "return"
+        };
+        ($mnemonic:ident) => {
+            stringify!($mnemonic)
+        };
+    }
 
-    pub const KECCAK256: u8 = 0x20;
+    macro_rules! opcode_stack_io {
+        (_,_) => {
+            None
+        };
+        ($inputs:literal, $outputs:literal) => {
+            Some(($inputs, $outputs))
+        };
+    }
 
-    pub const ADDRESS: u8 = 0x30;
-    pub const BALANCE: u8 = 0x31;
-    pub const ORIGIN: u8 = 0x32;
-    pub const CALLER: u8 = 0x33;
-    pub const CALLVALUE: u8 = 0x34;
-    pub const CALLDATALOAD: u8 = 0x35;
-    pub const CALLDATASIZE: u8 = 0x36;
-    pub const CALLDATACOPY: u8 = 0x37;
-    pub const CODESIZE: u8 = 0x38;
-    pub const CODECOPY: u8 = 0x39;
-    pub const GASPRICE: u8 = 0x3a;
-    pub const EXTCODESIZE: u8 = 0x3b;
-    pub const EXTCODECOPY: u8 = 0x3c;
-    pub const RETURNDATASIZE: u8 = 0x3d;
-    pub const RETURNDATACOPY: u8 = 0x3e;
-    pub const EXTCODEHASH: u8 = 0x3f;
+    macro_rules! opcodes {
+        ($($opcode:literal => $constant:ident => $mnemonic:ident => stack_io($inputs:tt, $outputs:tt);)*) => {
+            $(
+                #[doc = concat!("Opcode byte for `", stringify!($constant), "`.")]
+                pub const $constant: u8 = $opcode;
+            )*
 
-    pub const BLOCKHASH: u8 = 0x40;
-    pub const COINBASE: u8 = 0x41;
-    pub const TIMESTAMP: u8 = 0x42;
-    pub const NUMBER: u8 = 0x43;
-    pub const PREVRANDAO: u8 = 0x44;
-    pub const GASLIMIT: u8 = 0x45;
-    pub const CHAINID: u8 = 0x46;
-    pub const SELFBALANCE: u8 = 0x47;
-    pub const BASEFEE: u8 = 0x48;
-    pub const BLOBHASH: u8 = 0x49;
-    pub const BLOBBASEFEE: u8 = 0x4a;
+            /// Maps each opcode byte to its canonical mnemonic.
+            static OPCODE_MNEMONICS: [Option<&str>; 256] = {
+                let mut map = [None; 256];
+                let mut prev = 0;
+                $(
+                    let opcode: u8 = $opcode;
+                    assert!(opcode == 0 || opcode > prev, "opcodes must be sorted in ascending order");
+                    prev = opcode;
+                    map[opcode as usize] = Some(opcode_mnemonic!($mnemonic));
+                )*
+                let _ = prev;
+                map
+            };
 
-    pub const POP: u8 = 0x50;
-    pub const MLOAD: u8 = 0x51;
-    pub const MSTORE: u8 = 0x52;
-    pub const MSTORE8: u8 = 0x53;
-    pub const SLOAD: u8 = 0x54;
-    pub const SSTORE: u8 = 0x55;
-    pub const JUMP: u8 = 0x56;
-    pub const JUMPI: u8 = 0x57;
-    pub const PC: u8 = 0x58;
-    pub const MSIZE: u8 = 0x59;
-    pub const GAS: u8 = 0x5a;
-    pub const JUMPDEST: u8 = 0x5b;
-    pub const TLOAD: u8 = 0x5c;
-    pub const TSTORE: u8 = 0x5d;
-    pub const MCOPY: u8 = 0x5e;
-    pub const PUSH0: u8 = 0x5f;
-    pub const PUSH1: u8 = 0x60;
-    pub const PUSH2: u8 = 0x61;
-    pub const PUSH3: u8 = 0x62;
-    pub const PUSH4: u8 = 0x63;
-    pub const PUSH5: u8 = 0x64;
-    pub const PUSH6: u8 = 0x65;
-    pub const PUSH7: u8 = 0x66;
-    pub const PUSH8: u8 = 0x67;
-    pub const PUSH9: u8 = 0x68;
-    pub const PUSH10: u8 = 0x69;
-    pub const PUSH11: u8 = 0x6a;
-    pub const PUSH12: u8 = 0x6b;
-    pub const PUSH13: u8 = 0x6c;
-    pub const PUSH14: u8 = 0x6d;
-    pub const PUSH15: u8 = 0x6e;
-    pub const PUSH16: u8 = 0x6f;
-    pub const PUSH17: u8 = 0x70;
-    pub const PUSH18: u8 = 0x71;
-    pub const PUSH19: u8 = 0x72;
-    pub const PUSH20: u8 = 0x73;
-    pub const PUSH21: u8 = 0x74;
-    pub const PUSH22: u8 = 0x75;
-    pub const PUSH23: u8 = 0x76;
-    pub const PUSH24: u8 = 0x77;
-    pub const PUSH25: u8 = 0x78;
-    pub const PUSH26: u8 = 0x79;
-    pub const PUSH27: u8 = 0x7a;
-    pub const PUSH28: u8 = 0x7b;
-    pub const PUSH29: u8 = 0x7c;
-    pub const PUSH30: u8 = 0x7d;
-    pub const PUSH31: u8 = 0x7e;
-    pub const PUSH32: u8 = 0x7f;
+            /// Returns the canonical mnemonic for an opcode.
+            #[must_use]
+            pub const fn mnemonic(opcode: u8) -> Option<&'static str> {
+                OPCODE_MNEMONICS[opcode as usize]
+            }
 
-    pub const DUP1: u8 = 0x80;
-    pub const DUP2: u8 = 0x81;
-    pub const DUP3: u8 = 0x82;
-    pub const DUP4: u8 = 0x83;
-    pub const DUP5: u8 = 0x84;
-    pub const DUP6: u8 = 0x85;
-    pub const DUP7: u8 = 0x86;
-    pub const DUP8: u8 = 0x87;
-    pub const DUP9: u8 = 0x88;
-    pub const DUP10: u8 = 0x89;
-    pub const DUP11: u8 = 0x8a;
-    pub const DUP12: u8 = 0x8b;
-    pub const DUP13: u8 = 0x8c;
-    pub const DUP14: u8 = 0x8d;
-    pub const DUP15: u8 = 0x8e;
-    pub const DUP16: u8 = 0x8f;
+            /// Returns the opcode for a canonical mnemonic.
+            #[must_use]
+            pub fn from_mnemonic(mnemonic: &str) -> Option<u8> {
+                match mnemonic {
+                    $(opcode_mnemonic!($mnemonic) => Some($opcode),)*
+                    _ => None,
+                }
+            }
 
-    pub const SWAP1: u8 = 0x90;
-    pub const SWAP2: u8 = 0x91;
-    pub const SWAP3: u8 = 0x92;
-    pub const SWAP4: u8 = 0x93;
-    pub const SWAP5: u8 = 0x94;
-    pub const SWAP6: u8 = 0x95;
-    pub const SWAP7: u8 = 0x96;
-    pub const SWAP8: u8 = 0x97;
-    pub const SWAP9: u8 = 0x98;
-    pub const SWAP10: u8 = 0x99;
-    pub const SWAP11: u8 = 0x9a;
-    pub const SWAP12: u8 = 0x9b;
-    pub const SWAP13: u8 = 0x9c;
-    pub const SWAP14: u8 = 0x9d;
-    pub const SWAP15: u8 = 0x9e;
-    pub const SWAP16: u8 = 0x9f;
+            /// Formats an opcode using its canonical mnemonic or `op_<hex>`.
+            pub fn fmt(opcode: u8, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                if let Some(mnemonic) = mnemonic(opcode) {
+                    f.write_str(mnemonic)
+                } else {
+                    write!(f, "{UNKNOWN_PREFIX}{opcode:02x}")
+                }
+            }
 
-    pub const LOG0: u8 = 0xa0;
-    pub const LOG1: u8 = 0xa1;
-    pub const LOG2: u8 = 0xa2;
-    pub const LOG3: u8 = 0xa3;
-    pub const LOG4: u8 = 0xa4;
+            /// Parses a canonical mnemonic or `op_<hex>` into an opcode.
+            #[must_use]
+            pub fn from_ir_mnemonic(mnemonic: &str) -> Option<u8> {
+                from_mnemonic(mnemonic).or_else(|| {
+                    let value = mnemonic.strip_prefix(UNKNOWN_PREFIX)?;
+                    u8::from_str_radix(value, 16).ok()
+                })
+            }
 
-    pub const DATALOAD: u8 = 0xd0;
-    pub const DATALOADN: u8 = 0xd1;
-    pub const DATASIZE: u8 = 0xd2;
-    pub const DATACOPY: u8 = 0xd3;
+            /// Returns the number of stack items consumed and produced by an opcode.
+            #[must_use]
+            pub const fn stack_io(opcode: u8) -> Option<(u16, u16)> {
+                match opcode {
+                    $($opcode => opcode_stack_io!($inputs, $outputs),)*
+                    _ => None,
+                }
+            }
+        };
+    }
 
-    pub const RJUMP: u8 = 0xe0;
-    pub const RJUMPI: u8 = 0xe1;
-    pub const RJUMPV: u8 = 0xe2;
-    pub const CALLF: u8 = 0xe3;
-    pub const RETF: u8 = 0xe4;
-    pub const JUMPF: u8 = 0xe5;
-    pub const DUPN: u8 = 0xe6;
-    pub const SWAPN: u8 = 0xe7;
-    pub const EXCHANGE: u8 = 0xe8;
-    pub const EOFCREATE: u8 = 0xec;
-    pub const RETURNCONTRACT: u8 = 0xee;
-
-    pub const CREATE: u8 = 0xf0;
-    pub const CALL: u8 = 0xf1;
-    pub const CALLCODE: u8 = 0xf2;
-    pub const RETURN: u8 = 0xf3;
-    pub const DELEGATECALL: u8 = 0xf4;
-    pub const CREATE2: u8 = 0xf5;
-    pub const RETURNDATALOAD: u8 = 0xf7;
-    pub const EXTCALL: u8 = 0xf8;
-    pub const EXTDELEGATECALL: u8 = 0xf9;
-    pub const STATICCALL: u8 = 0xfa;
-    pub const EXTSTATICCALL: u8 = 0xfb;
-    pub const REVERT: u8 = 0xfd;
-    pub const INVALID: u8 = 0xfe;
-    pub const SELFDESTRUCT: u8 = 0xff;
+    opcodes! {
+        0x00 => STOP => stop => stack_io(0, 0);
+        0x01 => ADD => add => stack_io(2, 1);
+        0x02 => MUL => mul => stack_io(2, 1);
+        0x03 => SUB => sub => stack_io(2, 1);
+        0x04 => DIV => div => stack_io(2, 1);
+        0x05 => SDIV => sdiv => stack_io(2, 1);
+        0x06 => MOD => mod => stack_io(2, 1);
+        0x07 => SMOD => smod => stack_io(2, 1);
+        0x08 => ADDMOD => addmod => stack_io(3, 1);
+        0x09 => MULMOD => mulmod => stack_io(3, 1);
+        0x0a => EXP => exp => stack_io(2, 1);
+        0x0b => SIGNEXTEND => signextend => stack_io(2, 1);
+        0x10 => LT => lt => stack_io(2, 1);
+        0x11 => GT => gt => stack_io(2, 1);
+        0x12 => SLT => slt => stack_io(2, 1);
+        0x13 => SGT => sgt => stack_io(2, 1);
+        0x14 => EQ => eq => stack_io(2, 1);
+        0x15 => ISZERO => iszero => stack_io(1, 1);
+        0x16 => AND => and => stack_io(2, 1);
+        0x17 => OR => or => stack_io(2, 1);
+        0x18 => XOR => xor => stack_io(2, 1);
+        0x19 => NOT => not => stack_io(1, 1);
+        0x1a => BYTE => byte => stack_io(2, 1);
+        0x1b => SHL => shl => stack_io(2, 1);
+        0x1c => SHR => shr => stack_io(2, 1);
+        0x1d => SAR => sar => stack_io(2, 1);
+        0x1e => CLZ => clz => stack_io(1, 1);
+        0x20 => KECCAK256 => keccak256 => stack_io(2, 1);
+        0x30 => ADDRESS => address => stack_io(0, 1);
+        0x31 => BALANCE => balance => stack_io(1, 1);
+        0x32 => ORIGIN => origin => stack_io(0, 1);
+        0x33 => CALLER => caller => stack_io(0, 1);
+        0x34 => CALLVALUE => callvalue => stack_io(0, 1);
+        0x35 => CALLDATALOAD => calldataload => stack_io(1, 1);
+        0x36 => CALLDATASIZE => calldatasize => stack_io(0, 1);
+        0x37 => CALLDATACOPY => calldatacopy => stack_io(3, 0);
+        0x38 => CODESIZE => codesize => stack_io(0, 1);
+        0x39 => CODECOPY => codecopy => stack_io(3, 0);
+        0x3a => GASPRICE => gasprice => stack_io(0, 1);
+        0x3b => EXTCODESIZE => extcodesize => stack_io(1, 1);
+        0x3c => EXTCODECOPY => extcodecopy => stack_io(4, 0);
+        0x3d => RETURNDATASIZE => returndatasize => stack_io(0, 1);
+        0x3e => RETURNDATACOPY => returndatacopy => stack_io(3, 0);
+        0x3f => EXTCODEHASH => extcodehash => stack_io(1, 1);
+        0x40 => BLOCKHASH => blockhash => stack_io(1, 1);
+        0x41 => COINBASE => coinbase => stack_io(0, 1);
+        0x42 => TIMESTAMP => timestamp => stack_io(0, 1);
+        0x43 => NUMBER => number => stack_io(0, 1);
+        0x44 => PREVRANDAO => prevrandao => stack_io(0, 1);
+        0x45 => GASLIMIT => gaslimit => stack_io(0, 1);
+        0x46 => CHAINID => chainid => stack_io(0, 1);
+        0x47 => SELFBALANCE => selfbalance => stack_io(0, 1);
+        0x48 => BASEFEE => basefee => stack_io(0, 1);
+        0x49 => BLOBHASH => blobhash => stack_io(1, 1);
+        0x4a => BLOBBASEFEE => blobbasefee => stack_io(0, 1);
+        0x50 => POP => pop => stack_io(1, 0);
+        0x51 => MLOAD => mload => stack_io(1, 1);
+        0x52 => MSTORE => mstore => stack_io(2, 0);
+        0x53 => MSTORE8 => mstore8 => stack_io(2, 0);
+        0x54 => SLOAD => sload => stack_io(1, 1);
+        0x55 => SSTORE => sstore => stack_io(2, 0);
+        0x56 => JUMP => jump => stack_io(1, 0);
+        0x57 => JUMPI => jumpi => stack_io(2, 0);
+        0x58 => PC => pc => stack_io(0, 1);
+        0x59 => MSIZE => msize => stack_io(0, 1);
+        0x5a => GAS => gas => stack_io(0, 1);
+        0x5b => JUMPDEST => jumpdest => stack_io(0, 0);
+        0x5c => TLOAD => tload => stack_io(1, 1);
+        0x5d => TSTORE => tstore => stack_io(2, 0);
+        0x5e => MCOPY => mcopy => stack_io(3, 0);
+        0x5f => PUSH0 => push0 => stack_io(0, 1);
+        0x60 => PUSH1 => push1 => stack_io(0, 1);
+        0x61 => PUSH2 => push2 => stack_io(0, 1);
+        0x62 => PUSH3 => push3 => stack_io(0, 1);
+        0x63 => PUSH4 => push4 => stack_io(0, 1);
+        0x64 => PUSH5 => push5 => stack_io(0, 1);
+        0x65 => PUSH6 => push6 => stack_io(0, 1);
+        0x66 => PUSH7 => push7 => stack_io(0, 1);
+        0x67 => PUSH8 => push8 => stack_io(0, 1);
+        0x68 => PUSH9 => push9 => stack_io(0, 1);
+        0x69 => PUSH10 => push10 => stack_io(0, 1);
+        0x6a => PUSH11 => push11 => stack_io(0, 1);
+        0x6b => PUSH12 => push12 => stack_io(0, 1);
+        0x6c => PUSH13 => push13 => stack_io(0, 1);
+        0x6d => PUSH14 => push14 => stack_io(0, 1);
+        0x6e => PUSH15 => push15 => stack_io(0, 1);
+        0x6f => PUSH16 => push16 => stack_io(0, 1);
+        0x70 => PUSH17 => push17 => stack_io(0, 1);
+        0x71 => PUSH18 => push18 => stack_io(0, 1);
+        0x72 => PUSH19 => push19 => stack_io(0, 1);
+        0x73 => PUSH20 => push20 => stack_io(0, 1);
+        0x74 => PUSH21 => push21 => stack_io(0, 1);
+        0x75 => PUSH22 => push22 => stack_io(0, 1);
+        0x76 => PUSH23 => push23 => stack_io(0, 1);
+        0x77 => PUSH24 => push24 => stack_io(0, 1);
+        0x78 => PUSH25 => push25 => stack_io(0, 1);
+        0x79 => PUSH26 => push26 => stack_io(0, 1);
+        0x7a => PUSH27 => push27 => stack_io(0, 1);
+        0x7b => PUSH28 => push28 => stack_io(0, 1);
+        0x7c => PUSH29 => push29 => stack_io(0, 1);
+        0x7d => PUSH30 => push30 => stack_io(0, 1);
+        0x7e => PUSH31 => push31 => stack_io(0, 1);
+        0x7f => PUSH32 => push32 => stack_io(0, 1);
+        0x80 => DUP1 => dup1 => stack_io(1, 2);
+        0x81 => DUP2 => dup2 => stack_io(2, 3);
+        0x82 => DUP3 => dup3 => stack_io(3, 4);
+        0x83 => DUP4 => dup4 => stack_io(4, 5);
+        0x84 => DUP5 => dup5 => stack_io(5, 6);
+        0x85 => DUP6 => dup6 => stack_io(6, 7);
+        0x86 => DUP7 => dup7 => stack_io(7, 8);
+        0x87 => DUP8 => dup8 => stack_io(8, 9);
+        0x88 => DUP9 => dup9 => stack_io(9, 10);
+        0x89 => DUP10 => dup10 => stack_io(10, 11);
+        0x8a => DUP11 => dup11 => stack_io(11, 12);
+        0x8b => DUP12 => dup12 => stack_io(12, 13);
+        0x8c => DUP13 => dup13 => stack_io(13, 14);
+        0x8d => DUP14 => dup14 => stack_io(14, 15);
+        0x8e => DUP15 => dup15 => stack_io(15, 16);
+        0x8f => DUP16 => dup16 => stack_io(16, 17);
+        0x90 => SWAP1 => swap1 => stack_io(2, 2);
+        0x91 => SWAP2 => swap2 => stack_io(3, 3);
+        0x92 => SWAP3 => swap3 => stack_io(4, 4);
+        0x93 => SWAP4 => swap4 => stack_io(5, 5);
+        0x94 => SWAP5 => swap5 => stack_io(6, 6);
+        0x95 => SWAP6 => swap6 => stack_io(7, 7);
+        0x96 => SWAP7 => swap7 => stack_io(8, 8);
+        0x97 => SWAP8 => swap8 => stack_io(9, 9);
+        0x98 => SWAP9 => swap9 => stack_io(10, 10);
+        0x99 => SWAP10 => swap10 => stack_io(11, 11);
+        0x9a => SWAP11 => swap11 => stack_io(12, 12);
+        0x9b => SWAP12 => swap12 => stack_io(13, 13);
+        0x9c => SWAP13 => swap13 => stack_io(14, 14);
+        0x9d => SWAP14 => swap14 => stack_io(15, 15);
+        0x9e => SWAP15 => swap15 => stack_io(16, 16);
+        0x9f => SWAP16 => swap16 => stack_io(17, 17);
+        0xa0 => LOG0 => log0 => stack_io(2, 0);
+        0xa1 => LOG1 => log1 => stack_io(3, 0);
+        0xa2 => LOG2 => log2 => stack_io(4, 0);
+        0xa3 => LOG3 => log3 => stack_io(5, 0);
+        0xa4 => LOG4 => log4 => stack_io(6, 0);
+        0xd0 => DATALOAD => dataload => stack_io(1, 1);
+        0xd1 => DATALOADN => dataloadn => stack_io(0, 1);
+        0xd2 => DATASIZE => datasize => stack_io(0, 1);
+        0xd3 => DATACOPY => datacopy => stack_io(3, 0);
+        0xe0 => RJUMP => rjump => stack_io(0, 0);
+        0xe1 => RJUMPI => rjumpi => stack_io(1, 0);
+        0xe2 => RJUMPV => rjumpv => stack_io(1, 0);
+        0xe3 => CALLF => callf => stack_io(_, _);
+        0xe4 => RETF => retf => stack_io(_, _);
+        0xe5 => JUMPF => jumpf => stack_io(_, _);
+        0xe6 => DUPN => dupn => stack_io(0, 1);
+        0xe7 => SWAPN => swapn => stack_io(0, 0);
+        0xe8 => EXCHANGE => exchange => stack_io(0, 0);
+        0xec => EOFCREATE => eofcreate => stack_io(4, 1);
+        0xee => RETURNCONTRACT => returncontract => stack_io(2, 0);
+        0xf0 => CREATE => create => stack_io(3, 1);
+        0xf1 => CALL => call => stack_io(7, 1);
+        0xf2 => CALLCODE => callcode => stack_io(7, 1);
+        0xf3 => RETURN => r#return => stack_io(2, 0);
+        0xf4 => DELEGATECALL => delegatecall => stack_io(6, 1);
+        0xf5 => CREATE2 => create2 => stack_io(4, 1);
+        0xf7 => RETURNDATALOAD => returndataload => stack_io(1, 1);
+        0xf8 => EXTCALL => extcall => stack_io(4, 1);
+        0xf9 => EXTDELEGATECALL => extdelegatecall => stack_io(3, 1);
+        0xfa => STATICCALL => staticcall => stack_io(6, 1);
+        0xfb => EXTSTATICCALL => extstaticcall => stack_io(3, 1);
+        0xfd => REVERT => revert => stack_io(2, 0);
+        0xfe => INVALID => invalid => stack_io(0, 0);
+        0xff => SELFDESTRUCT => selfdestruct => stack_io(1, 0);
+    }
 
     /// Returns the PUSH opcode for the given width (1-32).
     #[must_use]
@@ -873,6 +1882,8 @@ pub mod op {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::backend::evm::test_utils::disassemble;
+    use snapbox::{assert_data_eq, str};
 
     fn size_optimized_assembler() -> Assembler {
         Assembler::with_config(AssemblerConfig {
@@ -880,6 +1891,19 @@ mod tests {
             optimization: OptimizationMode::Size,
             ..AssemblerConfig::default()
         })
+    }
+
+    #[test]
+    fn opcode_mnemonics_round_trip() {
+        for opcode in 0..=u8::MAX {
+            if let Some(mnemonic) = op::mnemonic(opcode) {
+                assert_eq!(op::from_mnemonic(mnemonic), Some(opcode));
+            }
+        }
+        assert_eq!(op::stack_io(op::ADD), Some((2, 1)));
+        assert_eq!(op::stack_io(op::MSTORE), Some((2, 0)));
+        assert_eq!(op::stack_io(op::CALLVALUE), Some((0, 1)));
+        assert_eq!(op::stack_io(op::CALLF), None);
     }
 
     #[test]
@@ -906,14 +1930,13 @@ mod tests {
         assert!(AsmInst::push_inline(inline).is_some());
         assert!(AsmInst::push_inline(1u32 << 31).is_none());
 
-        asm.emit_push(U256::from(inline));
-        asm.emit_push(large);
-        asm.emit_push(large);
+        let inline = asm.push_inst(U256::from(inline));
+        let first = asm.push_inst(large);
+        let second = asm.push_inst(large);
 
-        let instructions = asm.program.instructions();
-        assert_eq!(instructions[0].kind(), AsmInstKind::PushInline(inline));
-        assert_eq!(instructions[1].kind(), AsmInstKind::Push(PushValueId::from_usize(0)));
-        assert_eq!(instructions[1], instructions[2]);
+        assert_eq!(inline.kind(), AsmInstKind::PushInline(u32::MAX >> 1));
+        assert_eq!(first.kind(), AsmInstKind::Push(PushValueId::from_usize(0)));
+        assert_eq!(first, second);
         assert_eq!(asm.push_values.len(), 1);
         assert_eq!(*asm.push_values.get(PushValueId::from_usize(0)), large);
     }
@@ -926,14 +1949,26 @@ mod tests {
         asm.emit_push(large);
         let first = asm.assemble();
 
-        assert_eq!(first.bytecode, vec![0x63, 0x80, 0, 0, 0]);
-        assert!(asm.program.instructions().is_empty());
+        assert_data_eq!(
+            disassemble(&first.bytecode),
+            str![[r#"
+PUSH4 0x80000000
+
+"#]]
+        );
+        assert!(asm.program.blocks.is_empty());
         assert_eq!(asm.push_values.len(), 0);
 
         asm.emit_push(U256::from(2));
         let second = asm.assemble();
 
-        assert_eq!(second.bytecode, vec![0x60, 2]);
+        assert_data_eq!(
+            disassemble(&second.bytecode),
+            str![[r#"
+PUSH1 0x02
+
+"#]]
+        );
     }
 
     #[test]
@@ -947,7 +1982,13 @@ mod tests {
         asm.emit_push(U256::ZERO);
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![op::PUSH0]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH0
+
+"#]]
+        );
     }
 
     #[test]
@@ -961,7 +2002,13 @@ mod tests {
         asm.emit_push(U256::ZERO);
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![op::PUSH1, 0]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x00
+
+"#]]
+        );
     }
 
     #[test]
@@ -987,13 +2034,29 @@ mod tests {
         });
         unoptimized.emit_push(U256::MAX);
 
-        let compact = vec![op::PUSH0, op::NOT];
-        assert_eq!(size_optimized.assemble().bytecode, compact);
-        assert_eq!(gas_optimized.assemble().bytecode, compact);
+        assert_data_eq!(
+            disassemble(&size_optimized.assemble().bytecode),
+            str![[r#"
+PUSH0
+NOT
 
-        let mut expected = vec![op::PUSH32];
-        expected.extend(std::iter::repeat_n(0xff, 32));
-        assert_eq!(unoptimized.assemble().bytecode, expected);
+"#]]
+        );
+        assert_data_eq!(
+            disassemble(&gas_optimized.assemble().bytecode),
+            str![[r#"
+PUSH0
+NOT
+
+"#]]
+        );
+        assert_data_eq!(
+            disassemble(&unoptimized.assemble().bytecode),
+            str![[r#"
+PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+
+"#]]
+        );
     }
 
     #[test]
@@ -1007,7 +2070,14 @@ mod tests {
         asm.emit_push(U256::MAX);
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![op::PUSH1, 0, op::NOT]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x00
+NOT
+
+"#]]
+        );
     }
 
     #[test]
@@ -1021,8 +2091,16 @@ mod tests {
 
         let result = asm.assemble();
 
-        // PUSH1 42, PUSH1 10, ADD, STOP
-        assert_eq!(result.bytecode, vec![0x60, 42, 0x60, 10, 0x01, 0x00]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x2a
+PUSH1 0x0a
+ADD
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -1052,13 +2130,13 @@ mod tests {
 
     #[test]
     fn cold_terminal_block_moves_after_hot_block() {
-        let mut asm = Assembler::with_config(AssemblerConfig {
-            evm_ir_layout_passes: true,
-            ..AssemblerConfig::default()
-        });
+        let mut asm = Assembler::new();
         let cold = asm.new_label();
         let hot = asm.new_label();
 
+        asm.emit_push(U256::ONE);
+        asm.emit_push_label(cold);
+        asm.emit_op(op::JUMPI);
         asm.emit_push_label(hot);
         asm.emit_op(op::JUMP);
         asm.mark_label_cold(cold);
@@ -1071,28 +2149,126 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(
-            result.bytecode,
-            vec![
-                op::PUSH1,
-                3,
-                op::JUMP,
-                op::JUMPDEST,
-                op::STOP,
-                op::JUMPDEST,
-                op::PUSH0,
-                op::PUSH0,
-                op::REVERT,
-            ]
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x01
+PUSH1 0x06
+JUMPI
+STOP
+JUMPDEST
+PUSH0
+PUSH0
+REVERT
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn block_layout_materializes_moved_implicit_stop() {
+        let mut asm = Assembler::new();
+        let cold = asm.new_label();
+        let eof = asm.new_label();
+
+        asm.emit_push(U256::ONE);
+        asm.emit_push_label(cold);
+        asm.emit_op(op::JUMPI);
+        asm.emit_push_label(eof);
+        asm.emit_op(op::JUMP);
+        asm.mark_label_cold(cold);
+        asm.define_label(cold);
+        asm.emit_push(U256::ZERO);
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(op::REVERT);
+        asm.define_label(eof);
+
+        let result = asm.assemble();
+
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x01
+PUSH1 0x06
+JUMPI
+STOP
+JUMPDEST
+PUSH0
+PUSH0
+REVERT
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn terminal_dedup_labels_prior_unlabeled_target() {
+        let mut asm = Assembler::new();
+        let duplicate = asm.new_label();
+
+        for copy in 0..2 {
+            if copy == 1 {
+                asm.define_label(duplicate);
+            }
+            asm.emit_push(U256::from(0x1234));
+            asm.emit_push(U256::ZERO);
+            asm.emit_op(op::MSTORE);
+            asm.emit_push(U256::ZERO);
+            asm.emit_push(U256::ZERO);
+            asm.emit_op(op::REVERT);
+        }
+
+        let result = asm.assemble();
+
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH2 0x1234
+PUSH0
+MSTORE
+PUSH0
+PUSH0
+REVERT
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn block_layout_elides_jump_after_jumpi() {
+        let mut asm = Assembler::new();
+        let conditional = asm.new_label();
+        let default = asm.new_label();
+
+        asm.emit_push(U256::ONE);
+        asm.emit_push_label(conditional);
+        asm.emit_op(op::JUMPI);
+        asm.emit_push_label(default);
+        asm.emit_op(op::JUMP);
+        asm.define_label(conditional);
+        asm.emit_op(op::INVALID);
+        asm.define_label(default);
+        asm.emit_op(op::STOP);
+
+        let result = asm.assemble();
+
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x01
+PUSH1 0x06
+JUMPI
+STOP
+JUMPDEST
+INVALID
+
+"#]]
         );
     }
 
     #[test]
     fn cold_terminal_block_keeps_fallthrough_position() {
-        let mut asm = Assembler::with_config(AssemblerConfig {
-            evm_ir_layout_passes: true,
-            ..AssemblerConfig::default()
-        });
+        let mut asm = Assembler::new();
         let cold = asm.new_label();
 
         asm.emit_push(U256::ONE);
@@ -1104,9 +2280,49 @@ mod tests {
 
         let result = asm.assemble();
 
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x01
+PUSH0
+PUSH0
+REVERT
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn terminal_span_dedup_converts_fallthrough_copy() {
+        let mut asm = size_optimized_assembler();
+        let representative = asm.new_label();
+        let duplicate = asm.new_label();
+        let body = [
+            AsmInst::push_inline(0x1234).unwrap(),
+            AsmInst::push_inline(0).unwrap(),
+            AsmInst::op(op::MSTORE),
+            AsmInst::push_inline(17).unwrap(),
+            AsmInst::push_inline(4).unwrap(),
+            AsmInst::op(op::MSTORE),
+            AsmInst::push_inline(36).unwrap(),
+            AsmInst::push_inline(0).unwrap(),
+            AsmInst::op(op::REVERT),
+        ];
+        let mut instructions = vec![AsmInst::label(representative)];
+        instructions.extend(body);
+        instructions.push(AsmInst::push_inline(1).unwrap());
+        instructions.push(AsmInst::label(duplicate));
+        instructions.extend(body);
+
+        Assembler::dedup_terminal_spans(&mut instructions);
+
         assert_eq!(
-            result.bytecode,
-            vec![op::PUSH1, 1, op::JUMPDEST, op::PUSH0, op::PUSH0, op::REVERT]
+            &instructions[instructions.len() - 3..],
+            &[
+                AsmInst::label(duplicate),
+                AsmInst::push_label(representative),
+                AsmInst::op(op::JUMP),
+            ]
         );
     }
 
@@ -1119,7 +2335,15 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![op::PUSH0, op::NOT, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH0
+NOT
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -1132,7 +2356,17 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![op::PUSH0, op::NOT, 0x60, 96, op::SHR, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH0
+NOT
+PUSH1 0x60
+SHR
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -1144,7 +2378,15 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 31, op::NOT, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x1f
+NOT
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -1156,7 +2398,15 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 255, op::NOT, op::STOP]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0xff
+NOT
+STOP
+
+"#]]
+        );
     }
 
     #[test]
@@ -1169,9 +2419,15 @@ mod tests {
 
         let result = asm.assemble();
 
-        assert_eq!(
-            result.bytecode,
-            vec![0x63, 0x35, 0xea, 0x6a, 0x75, 0x60, 224, op::SHL, op::STOP]
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH4 0x35ea6a75
+PUSH1 0xe0
+SHL
+STOP
+
+"#]]
         );
     }
 
@@ -1186,9 +2442,15 @@ mod tests {
 
         let result = asm.assemble();
 
-        let mut expected = vec![0x70];
-        expected.extend_from_slice(b"Machine finished:");
-        expected.extend_from_slice(&[0x60, 120, op::SHL, op::STOP]);
-        assert_eq!(result.bytecode, expected);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH17 0x4d616368696e652066696e69736865643a
+PUSH1 0x78
+SHL
+STOP
+
+"#]]
+        );
     }
 }

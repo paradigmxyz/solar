@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 // ported-from: test/libsolidity/semanticTests/functionTypes/selector_1.sol
 // ported-from: test/libsolidity/syntaxTests/nameAndTypeResolution/484_function_types_selector_1.sol
 // ported-from: test/libsolidity/syntaxTests/inheritance/override/override_implemented_and_unimplemented_with_implemented_call_via_contract.sol

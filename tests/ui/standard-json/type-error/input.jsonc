@@ -1,0 +1,16 @@
+// CHECK: "errors": [
+// CHECK: "message": "mismatched types"
+// CHECK: expected `uint256`, found `bool`
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi"
+        ]
+      }
+    }
+  }
+}

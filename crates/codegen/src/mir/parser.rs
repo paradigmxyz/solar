@@ -15,9 +15,8 @@
 //!
 //! # Session requirement
 //!
-//! Both [`parse_module`] and [`parse_function`] intern function and module
-//! names via [`Symbol::intern`], which requires an active
-//! [`solar_interface::Session`]. Wrap calls in `sess.enter(|| ...)`.
+//! [`Module::parse`] interns function and module names via [`Symbol::intern`], which requires an
+//! active [`solar_interface::Session`]. Wrap calls in `sess.enter(|| ...)`.
 //!
 //! # Caveats
 //!
@@ -44,32 +43,17 @@ use std::fmt;
 // Public API
 // =============================================================================
 
-/// Parses a textual MIR module.
-///
-/// # Errors
-///
-/// Returns a [`ParseError`] if the input does not conform to the MIR
-/// textual format produced by [`Module::to_text`](super::Module::to_text).
-///
-/// # Session
-///
-/// Must be called inside an active `solar_interface::Session::enter`,
-/// because module and function names are interned via [`Symbol::intern`].
-pub fn parse_module(input: &str) -> Result<Module, ParseError> {
-    let mut p = Parser::new(input);
-    p.parse_module()
+pub(super) fn parse(input: &str) -> Result<Module, ParseError> {
+    Parser::new(input).parse_module()
 }
 
-/// Parses a single textual MIR function.
-///
-/// # Errors
-///
-/// Returns a [`ParseError`] on malformed input.
-///
-/// # Session
-///
-/// Must be called inside an active `solar_interface::Session::enter`.
-pub fn parse_function(input: &str) -> Result<Function, ParseError> {
+#[cfg(test)]
+fn parse_module(input: &str) -> Result<Module, ParseError> {
+    Module::parse(input)
+}
+
+#[cfg(test)]
+fn parse_function(input: &str) -> Result<Function, ParseError> {
     let mut p = Parser::new(input);
     p.skip_blank_and_comments();
     let func = p.parse_function()?;
@@ -667,7 +651,7 @@ impl<'a> Parser<'a> {
             self.parse_instruction_or_terminator(
                 &mut func,
                 block,
-                &arg_values,
+                &mut arg_values,
                 &block_labels,
                 &mut value_labels,
             )?;
@@ -747,7 +731,7 @@ impl<'a> Parser<'a> {
     fn parse_value(
         &mut self,
         func: &mut Function,
-        arg_values: &[ValueId],
+        arg_values: &mut Vec<ValueId>,
         value_labels: &mut FxHashMap<u32, ValueId>,
     ) -> Result<ValueId, ParseError> {
         self.skip_inline();
@@ -773,6 +757,17 @@ impl<'a> Parser<'a> {
         if let Some(rest) = ident.strip_prefix("arg") {
             let idx: usize =
                 rest.parse().map_err(|_| self.error(format!("invalid arg `{ident}`")))?;
+            // ABI wrappers reference `argN` with an empty parameter list:
+            // those denote calldata head words. Allocate them on demand so
+            // printed `abi`-phase modules round-trip. A function that does
+            // declare parameters keeps strict bounds checking.
+            if idx >= arg_values.len() && func.params.is_empty() {
+                for index in arg_values.len()..=idx {
+                    let val = func
+                        .alloc_value(Value::Arg { index: index as u32, ty: MirType::uint256() });
+                    arg_values.push(val);
+                }
+            }
             return arg_values
                 .get(idx)
                 .copied()
@@ -873,7 +868,7 @@ impl<'a> Parser<'a> {
         &mut self,
         func: &mut Function,
         block: BlockId,
-        arg_values: &[ValueId],
+        arg_values: &mut Vec<ValueId>,
         block_labels: &FxHashMap<u32, BlockId>,
         value_labels: &mut FxHashMap<u32, ValueId>,
     ) -> Result<(), ParseError> {
@@ -1057,7 +1052,7 @@ impl<'a> Parser<'a> {
     fn parse_metadata(
         &mut self,
         func: &mut Function,
-        arg_values: &[ValueId],
+        arg_values: &mut Vec<ValueId>,
         value_labels: &mut FxHashMap<u32, ValueId>,
     ) -> Result<InstructionMetadata, ParseError> {
         let mut metadata = InstructionMetadata::EMPTY;
@@ -1133,7 +1128,7 @@ impl<'a> Parser<'a> {
     fn parse_storage_alias(
         &mut self,
         func: &mut Function,
-        arg_values: &[ValueId],
+        arg_values: &mut Vec<ValueId>,
         value_labels: &mut FxHashMap<u32, ValueId>,
     ) -> Result<StorageAlias, ParseError> {
         let kind = self.parse_ident()?.to_string();
@@ -1192,7 +1187,7 @@ impl<'a> Parser<'a> {
         value.try_into().map_err(|_| self.error(format!("integer `{value}` does not fit in u16")))
     }
 
-    fn set_terminator(&self, func: &mut Function, block: BlockId, term: Terminator) {
+    fn set_terminator(&mut self, func: &mut Function, block: BlockId, term: Terminator) {
         // Update predecessors so downstream passes see a valid CFG.
         let succs = term.successors();
         for s in succs {
@@ -1208,7 +1203,7 @@ impl<'a> Parser<'a> {
         &mut self,
         mnemonic: &str,
         func: &mut Function,
-        arg_values: &[ValueId],
+        arg_values: &mut Vec<ValueId>,
         block_labels: &FxHashMap<u32, BlockId>,
         value_labels: &mut FxHashMap<u32, ValueId>,
     ) -> Result<(InstKind, Option<MirType>), ParseError> {
@@ -1527,6 +1522,24 @@ impl<'a> Parser<'a> {
                 comma!();
                 let b = v!();
                 (InstKind::Keccak256(a, b), Some(MirType::bytes32()))
+            }
+            "mapping_slot" => {
+                let key = v!();
+                comma!();
+                let slot = v!();
+                (InstKind::MappingSlot(key, slot), Some(MirType::bytes32()))
+            }
+            "mapping_slot_memory" => {
+                let key = v!();
+                comma!();
+                let slot = v!();
+                (InstKind::MappingSlotMemory(key, slot), Some(MirType::bytes32()))
+            }
+            "mapping_slot_calldata" => {
+                let key = v!();
+                comma!();
+                let slot = v!();
+                (InstKind::MappingSlotCalldata(key, slot), Some(MirType::bytes32()))
             }
 
             // ----- calls -----

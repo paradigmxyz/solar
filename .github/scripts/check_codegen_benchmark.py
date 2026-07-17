@@ -10,6 +10,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -199,6 +201,19 @@ def fmt_pct_improvement(current: int | None, baseline: int | None) -> str:
     return fmt_pct(delta)
 
 
+def pct_change(current: int | None, baseline: int | None) -> float | None:
+    if current is None or baseline in (None, 0):
+        return None
+    return (current - baseline) / baseline * 100
+
+
+def fmt_pct_change_lower_is_better(current: int | None, baseline: int | None) -> str:
+    delta = pct_change(current, baseline)
+    if delta is None:
+        return "n/a"
+    return fmt_pct(delta, positive_is_good=False)
+
+
 def pct_vs_current(current: int | None, comparison: int | None) -> float | None:
     if current in (None, 0) or comparison is None:
         return None
@@ -212,11 +227,11 @@ def fmt_pct_vs_current(current: int | None, comparison: int | None) -> str:
     return fmt_pct(delta)
 
 
-def fmt_pct(delta: float) -> str:
+def fmt_pct(delta: float, positive_is_good: bool = True) -> str:
     rounded = round(delta, 2)
     if rounded == 0:
         return "~0%"
-    emoji = "✅" if rounded > 0 else "❌"
+    emoji = "✅" if (rounded > 0) == positive_is_good else "❌"
     return f"{emoji} {rounded:+.2f}%"
 
 
@@ -238,6 +253,12 @@ def fmt_value_with_delta(
     value: int | None, current: int | None, baseline: int | None, suffix: str = ""
 ) -> str:
     return f"{fmt_int(value, suffix)} ({fmt_pct_improvement(current, baseline)})"
+
+
+def fmt_value_with_size_delta(
+    value: int | None, current: int | None, baseline: int | None, suffix: str = ""
+) -> str:
+    return f"{fmt_int(value, suffix)} ({fmt_pct_change_lower_is_better(current, baseline)})"
 
 
 def fmt_value_with_delta_vs_current(
@@ -267,7 +288,7 @@ def benchmark_rows(
                     markdown_cell(test_id),
                     fmt_value_with_delta(solar_gas, solar_gas, base_solar_gas),
                     fmt_value_with_delta_vs_current(solc_gas, solar_gas, solc_gas),
-                    fmt_value_with_delta(solar_size, solar_size, base_solar_size, "B"),
+                    fmt_value_with_size_delta(solar_size, solar_size, base_solar_size, "B"),
                     fmt_value_with_delta_vs_current(solc_size, solar_size, solc_size, "B"),
                 ]
             )
@@ -403,12 +424,159 @@ def append_github_output(name: str, value: str) -> None:
         f.write(f"{name}={value}\n")
 
 
+def format_report(markdown: str, has_changes: bool) -> str:
+    if has_changes:
+        return markdown
+    return (
+        "> [!NOTE]\n"
+        "> Codegen benchmark output is unchanged from `main`.\n\n"
+        f"{markdown}"
+    )
+
+
+def metric(value: int | float, unit: str, statistic: str) -> dict[str, Any]:
+    return {"value": value, "unit": unit, "statistic": statistic}
+
+
+def load_timing(path: Path | None, label: str) -> dict[str, Any] | None:
+    if path is None or not path.exists():
+        warning(f"{label} benchmark timing not found: {path}")
+        return None
+    with path.open() as f:
+        timing = json.load(f)
+    if not isinstance(timing, dict):
+        warning(f"{label} benchmark timing has unexpected shape: expected object")
+        return None
+    return timing
+
+
+def common_benchmark(
+    name: str, results: list[dict[str, Any]], timing: dict[str, Any] | None
+) -> dict[str, Any] | None:
+    if not results or timing is None:
+        return None
+
+    wall_time = timing.get("wall_time_seconds")
+    if not isinstance(wall_time, (int, float)):
+        warning(f"{name} benchmark timing is missing wall time")
+        return None
+
+    successful = []
+    failed = 0
+    for result in results:
+        compiler = compiler_data(result, "solar")
+        if compiler.get("status") == "ok":
+            successful.append(compiler)
+        else:
+            failed += 1
+
+    benchmark = {
+        "name": f"codegen_runtime_suite/{name}",
+        "wall_time": metric(wall_time, "second", "total"),
+        "counters": {
+            "tests": metric(len(results), "count", "total"),
+            "successful_compilations": metric(len(successful), "count", "total"),
+            "failed_compilations": metric(failed, "count", "total"),
+        },
+    }
+
+    def complete_values(key: str) -> list[int] | None:
+        values = [compiler.get(key) for compiler in successful]
+        if failed or not values or any(type(value) is not int for value in values):
+            return None
+        return values
+
+    gas = {}
+    total_gas_values = complete_values("total_gas")
+    deploy_gas_values = complete_values("deploy_gas")
+    if total_gas_values is not None:
+        gas["runtime"] = metric(sum(total_gas_values), "gas", "total")
+    if deploy_gas_values is not None:
+        gas["deployment"] = metric(sum(deploy_gas_values), "gas", "total")
+    if gas:
+        benchmark["gas"] = gas
+
+    compiler_metrics = {}
+    creation_sizes = complete_values("bytecode_size")
+    runtime_sizes = complete_values("runtime_size")
+    if creation_sizes is not None:
+        compiler_metrics["creation_bytecode_size"] = metric(
+            sum(creation_sizes), "byte", "total"
+        )
+    if runtime_sizes is not None:
+        compiler_metrics["runtime_bytecode_size"] = metric(
+            sum(runtime_sizes), "byte", "total"
+        )
+    if compiler_metrics:
+        benchmark["compiler"] = compiler_metrics
+    return benchmark
+
+
+def git_commit() -> str:
+    commit = os.environ.get("GITHUB_SHA")
+    if commit:
+        return commit
+    return subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL
+    ).strip()
+
+
+def runner_metadata() -> dict[str, Any]:
+    runner = {
+        "os": platform.system().lower(),
+        "arch": platform.machine(),
+        "logical_cpus": os.cpu_count() or 1,
+    }
+    image = os.environ.get("ImageOS")
+    if image:
+        runner["image"] = image
+    return runner
+
+
+def write_common_result(
+    output: Path,
+    micro_results: list[dict[str, Any]],
+    repo_results: list[dict[str, Any]],
+    micro_timing: dict[str, Any] | None,
+    repo_timing: dict[str, Any] | None,
+) -> None:
+    benchmarks = [
+        benchmark
+        for benchmark in (
+            common_benchmark("micro", micro_results, micro_timing),
+            common_benchmark("repo", repo_results, repo_timing),
+        )
+        if benchmark is not None
+    ]
+    if not benchmarks:
+        warning("common benchmark result has no measurements; not writing output")
+        return
+
+    result = {
+        "schema_version": 1,
+        "repo": os.environ.get("GITHUB_REPOSITORY", "paradigmxyz/solar"),
+        "commit": git_commit(),
+        "runner": runner_metadata(),
+        "benchmarks": benchmarks,
+    }
+    pr = os.environ.get("BENCHMARK_PR_NUMBER")
+    if pr:
+        result["pr"] = int(pr)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("w") as f:
+        json.dump(result, f, indent=2)
+        f.write("\n")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--micro", type=Path)
     parser.add_argument("--repo", type=Path)
     parser.add_argument("--baseline-micro", type=Path)
     parser.add_argument("--baseline-repo", type=Path)
+    parser.add_argument("--micro-timing", type=Path)
+    parser.add_argument("--repo-timing", type=Path)
+    parser.add_argument("--common-output", type=Path)
     args = parser.parse_args()
 
     micro_results = load_results(args.micro, "micro")
@@ -431,13 +599,21 @@ def main() -> int:
     if not sections:
         sections.append("## Codegen benchmark\n\nNo benchmark inputs were configured.\n")
 
-    markdown = "\n".join(sections)
-    print(markdown)
-    append_step_summary(markdown)
     should_comment = has_baseline_changes(
         micro_results, baseline_micro
     ) or has_baseline_changes(repo_results, baseline_repo)
+    markdown = format_report("\n".join(sections), should_comment)
+    print(markdown)
+    append_step_summary(markdown)
     append_github_output("should_comment", "true" if should_comment else "false")
+    if args.common_output is not None:
+        write_common_result(
+            args.common_output,
+            micro_results,
+            repo_results,
+            load_timing(args.micro_timing, "micro"),
+            load_timing(args.repo_timing, "repository"),
+        )
     return 0
 
 

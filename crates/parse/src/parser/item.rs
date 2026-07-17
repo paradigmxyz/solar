@@ -50,7 +50,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }
         if !self.eat(end) {
             let (msg, note) = get_msg_note(self);
-            return Err(self.dcx().err(msg).span(self.token.span).note(note));
+            self.dcx().err(msg).span(self.token.span).note(note).emit();
         }
         Ok(self.alloc_vec(items))
     }
