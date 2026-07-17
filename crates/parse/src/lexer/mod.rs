@@ -40,6 +40,21 @@ pub struct Lexer<'sess, 'src> {
     /// in this file, it's safe to treat further occurrences of the non-breaking
     /// space character as whitespace.
     nbsp_is_whitespace: bool,
+
+    /// Whether a line break was consumed since the last non-comment token.
+    line_break_before_next_token: bool,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct SpacedToken {
+    pub(crate) token: Token,
+    pub(crate) line_break_before: bool,
+}
+
+impl SpacedToken {
+    pub(crate) const fn new(token: Token, line_break_before: bool) -> Self {
+        Self { token, line_break_before }
+    }
 }
 
 impl<'sess, 'src> Lexer<'sess, 'src> {
@@ -65,6 +80,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             src,
             cursor: Cursor::new(src),
             nbsp_is_whitespace: false,
+            line_break_before_next_token: false,
         }
     }
 
@@ -80,15 +96,19 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     ///
     /// Prefer using this method instead of manually collecting tokens using [`Iterator`].
     #[instrument(name = "lex", level = "debug", skip_all)]
-    pub fn into_tokens(mut self) -> Vec<Token> {
+    pub fn into_tokens(self) -> Vec<Token> {
+        self.into_token_stream().into_iter().map(|token| token.token).collect()
+    }
+
+    pub(crate) fn into_token_stream(mut self) -> Vec<SpacedToken> {
         // This is an estimate of the number of tokens in the source.
         let mut tokens = Vec::with_capacity(self.src.len() / 4);
         loop {
-            let token = self.slop();
-            if token.is_eof() {
+            let token = self.slop_spaced();
+            if token.token.is_eof() {
                 break;
             }
-            if token.is_comment() {
+            if token.token.is_comment() {
                 continue;
             }
             tokens.push(token);
@@ -108,11 +128,16 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     /// Advances the lexer by the length of the token.
     /// Prefer using `self` as an iterator instead.
     pub fn slop(&mut self) -> Token {
+        self.slop_spaced().token
+    }
+
+    fn slop_spaced(&mut self) -> SpacedToken {
         let mut swallow_next_invalid = 0;
         loop {
             let RawToken { kind: raw_kind, len } = self.cursor.slop();
             let start = self.pos;
             self.pos += len;
+            let line_break_before = self.line_break_before_next_token;
 
             // Now "cook" the token, converting the simple `RawTokenKind` into a rich `TokenKind`.
             // This turns strings into interned symbols and runs additional validation.
@@ -138,9 +163,12 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     let content_start = start + BytePos(if is_doc { 3 } else { 2 });
                     let content_end = self.pos - (terminated as u32) * 2;
                     let content = self.str_from_to(content_start, content_end);
+                    self.line_break_before_next_token |= content.contains(['\n', '\r']);
                     self.cook_doc_comment(content_start, content, is_doc, CommentKind::Block)
                 }
                 RawTokenKind::Whitespace => {
+                    self.line_break_before_next_token |=
+                        self.str_from_to(start, self.pos).contains(['\n', '\r']);
                     continue;
                 }
                 RawTokenKind::Ident => {
@@ -195,7 +223,11 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                 RawTokenKind::Eof => TokenKind::Eof,
             };
             let span = self.new_span(start, self.pos);
-            return Token::new(kind, span);
+            let token = Token::new(kind, span);
+            if !token.is_comment_or_doc() {
+                self.line_break_before_next_token = false;
+            }
+            return SpacedToken::new(token, line_break_before);
         }
     }
 

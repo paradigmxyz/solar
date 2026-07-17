@@ -9,6 +9,7 @@ use solar_ast::{
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use solar_interface::{Result, Session, Span, Symbol, kw, source_map::SourceFile, sym};
 use solar_parse::{PErr, PResult};
+use std::fmt::Write;
 
 pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
     let arena = Arena::new();
@@ -38,12 +39,12 @@ enum BodyEnd {
     Brace,
 }
 
-struct Parser<'sess, 'ast, 'src> {
-    parser: crate::ir_parse::Parser<'sess, 'ast, 'src>,
+struct Parser<'sess, 'ast> {
+    parser: crate::ir_parse::Parser<'sess, 'ast>,
 }
 
-impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
-    fn new(sess: &'sess Session, arena: &'ast Arena, source: &'src SourceFile) -> Self {
+impl<'sess, 'ast> Parser<'sess, 'ast> {
+    fn new(sess: &'sess Session, arena: &'ast Arena, source: &SourceFile) -> Self {
         Self { parser: crate::ir_parse::Parser::new(sess, arena, source) }
     }
 
@@ -576,20 +577,19 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     }
 
     fn parse_metadata_value(&mut self) -> PResult<'sess, Symbol> {
-        let start = self.parser.token().span.lo();
+        let mut value = String::new();
         while !self.is_eof()
             && !self.parser.check(TokenKind::Comma)
             && !self.parser.check(TokenKind::CloseDelim(Delimiter::Parenthesis))
-            && !self.parser.at_newline()
+            && !self.parser.token_starts_line()
         {
+            write!(value, "{}", self.parser.token().kind).unwrap();
             self.parser.bump();
         }
-        let span = self.parser.span_from(start);
-        let value = self.parser.span_text(span).trim();
         if value.is_empty() {
             return Err(self.error("expected metadata value"));
         }
-        Ok(Symbol::intern(value))
+        Ok(Symbol::intern(&value))
     }
 
     fn parse_u16(&mut self) -> PResult<'sess, u16> {
@@ -599,7 +599,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
 
     fn at_end_of_operation(&self) -> bool {
         self.is_eof()
-            || self.parser.at_newline()
+            || self.parser.token_starts_line()
             || self.parser.check(TokenKind::Not)
             || self.parser.check(TokenKind::CloseDelim(Delimiter::Brace))
     }

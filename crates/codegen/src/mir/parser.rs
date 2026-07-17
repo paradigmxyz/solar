@@ -92,8 +92,8 @@ fn parse_function(sess: &Session, input: &str) -> Result<Function> {
 // Parser implementation
 // =============================================================================
 
-struct Parser<'sess, 'ast, 'src> {
-    parser: crate::ir_parse::Parser<'sess, 'ast, 'src>,
+struct Parser<'sess, 'ast> {
+    parser: crate::ir_parse::Parser<'sess, 'ast>,
     pending_function_ref: Option<(Symbol, Span)>,
     function_refs: Vec<PendingFunctionRef>,
 }
@@ -116,8 +116,8 @@ struct BlockLabel {
     reference_span: Option<Span>,
 }
 
-impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
-    fn new(sess: &'sess Session, arena: &'ast Arena, source: &'src SourceFile) -> Self {
+impl<'sess, 'ast> Parser<'sess, 'ast> {
+    fn new(sess: &'sess Session, arena: &'ast Arena, source: &SourceFile) -> Self {
         Self {
             parser: crate::ir_parse::Parser::new(sess, arena, source),
             pending_function_ref: None,
@@ -704,7 +704,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
             sym::ret => {
                 let mut values: SmallVec<[ValueId; 2]> = SmallVec::new();
                 // Empty ret?
-                if !self.parser.at_newline() && !self.is_eof() {
+                if !self.is_eof() && !self.parser.token_starts_line() {
                     loop {
                         values.push(self.parse_value(func, arg_values, value_labels)?);
                         if !self.parser.eat(TokenKind::Comma) {
