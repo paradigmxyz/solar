@@ -18,6 +18,7 @@ use tower::ServiceBuilder;
 
 mod config;
 mod diagnostics;
+mod document_links;
 mod flycheck;
 mod formatter;
 mod global_state;
@@ -51,6 +52,7 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
     // Requests
     router
         .request::<req::DocumentSymbolRequest, _>(handlers::document_symbol)
+        .request::<req::DocumentLinkRequest, _>(handlers::document_links)
         .request::<req::WorkspaceSymbolRequest, _>(handlers::workspace_symbol)
         .request::<req::GotoDefinition, _>(handlers::goto_definition)
         .request::<req::GotoDeclaration, _>(handlers::goto_declaration)
@@ -113,11 +115,11 @@ mod tests {
     use async_lsp::{AnyNotification, AnyRequest, LanguageServer, LspService, router::Router};
     use lsp_types::{
         DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
-        DidSaveTextDocumentParams, DocumentFormattingParams, FileChangeType, FileEvent,
-        FormattingOptions, InitializeParams, InitializedParams, Position, SignatureHelpParams,
-        TextDocumentIdentifier, TextDocumentPositionParams, WorkDoneProgressParams,
-        WorkspaceClientCapabilities, notification as notif, notification::Notification, request,
-        request::Request,
+        DidSaveTextDocumentParams, DocumentFormattingParams, DocumentLinkParams, FileChangeType,
+        FileEvent, FormattingOptions, InitializeParams, InitializedParams, PartialResultParams,
+        Position, SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams,
+        WorkDoneProgressParams, WorkspaceClientCapabilities, notification as notif,
+        notification::Notification, request, request::Request,
     };
     use std::ops::ControlFlow;
     use tokio::sync::oneshot;
@@ -158,6 +160,28 @@ mod tests {
         .unwrap();
 
         assert!(matches!(router.notify(notification), ControlFlow::Continue(())));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_document_link_requests() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let params = DocumentLinkParams {
+            text_document: TextDocumentIdentifier {
+                uri: lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 1,
+            "method": request::DocumentLinkRequest::METHOD,
+            "params": params,
+        }))
+        .unwrap();
+
+        let response = router.call(request).await.unwrap();
+
+        assert_eq!(response, serde_json::json!([]));
     }
 
     #[tokio::test(flavor = "current_thread")]

@@ -7,12 +7,12 @@ use crate::{
 use async_lsp::{ErrorCode, ResponseError};
 use crop::Rope;
 use lsp_types::{
-    CompletionParams, CompletionResponse, DocumentChanges, DocumentFormattingParams,
-    DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse,
-    InlayHint, InlayHintParams, OneOf, OptionalVersionedTextDocumentIdentifier, Position,
-    PrepareRenameResponse, ReferenceParams, RenameParams, SignatureHelp, SignatureHelpParams,
-    TextDocumentEdit, TextDocumentPositionParams, TextEdit, Url, WorkspaceEdit,
-    WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    CompletionParams, CompletionResponse, DocumentChanges, DocumentFormattingParams, DocumentLink,
+    DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams,
+    GotoDefinitionResponse, InlayHint, InlayHintParams, OneOf,
+    OptionalVersionedTextDocumentIdentifier, Position, PrepareRenameResponse, ReferenceParams,
+    RenameParams, SignatureHelp, SignatureHelpParams, TextDocumentEdit, TextDocumentPositionParams,
+    TextEdit, Url, WorkspaceEdit, WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
 use solar_interface::{Symbol, data_structures::sync::RwLock, enter, source_map::SourceMap};
 use solar_parse::lexer::is_ident;
@@ -165,6 +165,14 @@ pub(crate) fn document_symbol(
         DocumentSymbolResponse::Flat(symbol_tables.flat_document_symbols(&params.text_document.uri))
     };
     ready(Ok(Some(response)))
+}
+
+pub(crate) fn document_links(
+    state: &mut GlobalState,
+    params: DocumentLinkParams,
+) -> impl Future<Output = Result<Option<Vec<DocumentLink>>, ResponseError>> + use<> {
+    let links = state.symbol_tables.read().document_links(&params.text_document.uri);
+    ready(Ok(Some(links)))
 }
 
 pub(crate) fn workspace_symbol(
