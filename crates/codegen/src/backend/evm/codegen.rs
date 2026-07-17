@@ -64,12 +64,7 @@ pub struct EvmCodegenConfig {
     pub time_passes: bool,
     /// Lower dispatch/ABI as MIR phases and consume them here.
     pub mir_dispatch: bool,
-    /// Run the experimental EVM IR `StackSchedule` pass in the assembler bridge.
-    ///
-    /// Off by default: the default bytecode path must stay byte-for-byte
-    /// unchanged. When enabled the bridge runs [`ir::STACK_SCHEDULE_PASS`] on the
-    /// operand-cleared block IR. On that already-stack-scheduled input the pass
-    /// is a verified near no-op in `StructuredAsmProgram::lower_through_evm_ir`.
+    /// Run the experimental EVM IR `StackSchedule` pass before assembly.
     pub evm_ir_stack_schedule: bool,
     /// Capture final EVM IR immediately before assembly.
     pub capture_evm_ir: bool,
@@ -5316,15 +5311,15 @@ RETURN
         assert!(!bytecode.is_empty(), "Bytecode should not be empty");
     }
 
-    /// Differential check for the experimental EVM IR `StackSchedule` bridge
-    /// flag: for each sample contract, compiling with `evm_ir_stack_schedule`
+    /// Differential check for the experimental EVM IR `StackSchedule` flag:
+    /// for each sample contract, compiling with `evm_ir_stack_schedule`
     /// OFF (the default) and ON must produce byte-for-byte identical runtime
-    /// bytecode. The bridge feeds the scheduler operand-cleared IR, where the
-    /// pass is a verified near no-op, and `lower_through_evm_ir` additionally
-    /// guards the scheduled module behind the verifier oracle and a code-equality
-    /// check — so turning the flag on can never diverge or produce invalid code.
+    /// bytecode. The scheduler receives operand-cleared IR, where the pass is a
+    /// verified near no-op, and assembly guards the scheduled module behind the
+    /// verifier oracle and a code-equality check — so turning the flag on can
+    /// never diverge or produce invalid code.
     #[test]
-    fn stack_schedule_bridge_flag_is_bytecode_neutral() {
+    fn stack_schedule_flag_is_bytecode_neutral() {
         let samples = [
             // Simple storage read + conditional store.
             r#"

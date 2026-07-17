@@ -13,6 +13,7 @@ use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::FxHashMap,
 };
+use solar_interface::{diagnostics::DiagCtxt, sym};
 
 const EVM_WORD_BYTES: usize = 32;
 const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
@@ -39,7 +40,7 @@ mod local_interner;
 use local_interner::LocalInterner;
 
 mod program;
-pub(in crate::backend::evm) use program::{EvmAsmProgram, StructuredAsmProgram};
+pub(in crate::backend::evm) use program::EvmAsmProgram;
 
 /// A `PUSH32` immutable placeholder emitted into the assembled bytecode.
 ///
@@ -76,10 +77,7 @@ pub struct AssemblerConfig {
     pub optimization: OptimizationMode,
     /// Print the time spent in each EVM IR pass.
     pub time_passes: bool,
-    /// Run the experimental EVM IR `StackSchedule` pass in the assembler bridge.
-    ///
-    /// Off by default. See `StructuredAsmProgram::optimize_with_evm_ir` for why
-    /// the pass is a verified near no-op on the bridge's operand-cleared IR.
+    /// Run the experimental EVM IR `StackSchedule` pass before assembly.
     pub evm_ir_stack_schedule: bool,
     /// Capture the final EVM IR without running additional passes.
     pub capture_evm_ir: bool,
@@ -90,8 +88,20 @@ pub struct AssemblerConfig {
 pub struct Assembler {
     /// Bytecode assembly configuration.
     config: AssemblerConfig,
-    /// Structured assembler block program to assemble.
-    pub(in crate::backend::evm) program: StructuredAsmProgram,
+    /// EVM IR emitted directly by MIR lowering.
+    program: ir::Module,
+    /// Block currently receiving emitted instructions.
+    current_block: Option<ir::BlockId>,
+    /// Original assembler label attached to each EVM IR block.
+    block_labels: Vec<Option<Label>>,
+    /// Defined assembler labels and their EVM IR blocks.
+    label_blocks: FxHashMap<Label, ir::BlockId>,
+    /// Labels marked cold before or after their definition.
+    cold_labels: GrowableBitSet<Label>,
+    /// Unresolved block references emitted as push operands.
+    label_relocations: Vec<(ir::BlockId, usize, Label)>,
+    /// Unresolved deferred constants emitted as push operands.
+    deferred_relocations: Vec<(ir::BlockId, usize, DeferredConst)>,
     /// Interned push immediates too large for inline storage.
     push_values: LocalInterner<U256, PushValueId>,
     /// Next label ID.
@@ -114,7 +124,13 @@ impl Assembler {
     pub fn with_config(config: AssemblerConfig) -> Self {
         Self {
             config,
-            program: StructuredAsmProgram::default(),
+            program: Self::new_ir_module(),
+            current_block: None,
+            block_labels: Vec::new(),
+            label_blocks: FxHashMap::default(),
+            cold_labels: GrowableBitSet::new_empty(),
+            label_relocations: Vec::new(),
+            deferred_relocations: Vec::new(),
             push_values: LocalInterner::new(),
             next_label: IdCounter::new(),
             next_deferred: IdCounter::new(),
@@ -124,7 +140,13 @@ impl Assembler {
 
     /// Clears all emitted instructions and local identifiers while retaining allocated storage.
     pub fn clear(&mut self) {
-        self.program.clear();
+        self.program = Self::new_ir_module();
+        self.current_block = None;
+        self.block_labels.clear();
+        self.label_blocks.clear();
+        self.cold_labels.clear();
+        self.label_relocations.clear();
+        self.deferred_relocations.clear();
         self.push_values.clear();
         self.next_label.clear();
         self.next_deferred.clear();
@@ -143,23 +165,26 @@ impl Assembler {
 
     /// Emits a raw opcode.
     pub fn emit_op(&mut self, opcode: u8) {
-        self.program.push(AsmInst::op(opcode));
+        self.push_ir_instruction(ir::Instruction::opcode(opcode));
     }
 
     /// Emits a push instruction with an immediate value.
     pub fn emit_push(&mut self, value: U256) {
-        let inst = self.push_inst(value);
-        self.program.push(inst);
+        self.push_ir_instruction(ir::Instruction::push(ir::Operand::Immediate(value)));
     }
 
     /// Emits a push instruction that will be resolved to a label's offset.
     pub fn emit_push_label(&mut self, label: Label) {
-        self.program.push(AsmInst::push_label(label));
+        let (block, instruction) =
+            self.push_ir_instruction(ir::Instruction::push(ir::Operand::Immediate(U256::ZERO)));
+        self.label_relocations.push((block, instruction, label));
     }
 
     /// Emits a push instruction for a deferred constant.
     pub fn emit_push_deferred(&mut self, id: DeferredConst) {
-        self.program.push(AsmInst::push_deferred(id));
+        let (block, instruction) =
+            self.push_ir_instruction(ir::Instruction::push(ir::Operand::Immediate(U256::ZERO)));
+        self.deferred_relocations.push((block, instruction, id));
     }
 
     /// Sets the value of a deferred constant.
@@ -169,17 +194,50 @@ impl Assembler {
 
     /// Emits a `PUSH32` zero placeholder for the immutable identified by `id`.
     pub fn emit_push_immutable(&mut self, id: u32) {
-        self.program.push(AsmInst::push_immutable(id));
+        self.push_ir_instruction(ir::Instruction::push_immutable(ir::Operand::Immediate(
+            U256::from(id),
+        )));
     }
 
     /// Defines a label and emits a `JUMPDEST` at the current position.
     pub fn define_label(&mut self, label: Label) {
-        self.program.define_label(label);
+        let mut block = ir::Block::new(self.program.blocks.len() as u32);
+        if self.cold_labels.contains(label) {
+            block.metadata.hotness = ir::Hotness::Cold;
+        }
+        let block = self.program.add_block(block);
+        self.current_block = Some(block);
+        self.block_labels.push(Some(label));
+        self.label_blocks.insert(label, block);
     }
 
     /// Marks a label-started block as cold for EVM IR layout passes.
     pub(in crate::backend::evm) fn mark_label_cold(&mut self, label: Label) {
-        self.program.mark_cold(label);
+        self.cold_labels.insert(label);
+        if let Some(&block) = self.label_blocks.get(&label) {
+            self.program.blocks[block].metadata.hotness = ir::Hotness::Cold;
+        }
+    }
+
+    fn new_ir_module() -> ir::Module {
+        ir::Module { name: sym::asm, ..ir::Module::default() }
+    }
+
+    fn current_block(&mut self) -> ir::BlockId {
+        if let Some(block) = self.current_block {
+            return block;
+        }
+        let block = self.program.add_block(ir::Block::new(self.program.blocks.len() as u32));
+        self.current_block = Some(block);
+        self.block_labels.push(None);
+        block
+    }
+
+    fn push_ir_instruction(&mut self, instruction: ir::Instruction) -> (ir::BlockId, usize) {
+        let block = self.current_block();
+        let index = self.program.blocks[block].instructions.len();
+        self.program.blocks[block].instructions.push(instruction);
+        (block, index)
     }
 
     fn push_inst(&mut self, value: U256) -> AsmInst {
@@ -717,27 +775,102 @@ impl Assembler {
         }
     }
 
+    fn finish_evm_ir(&mut self) -> Option<(ir::Module, Vec<Option<Label>>)> {
+        let mut module = std::mem::replace(&mut self.program, Self::new_ir_module());
+        self.current_block = None;
+        if module.blocks.is_empty() {
+            return None;
+        }
+
+        for (block, instruction, label) in self.label_relocations.drain(..) {
+            let target = self
+                .label_blocks
+                .get(&label)
+                .copied()
+                .unwrap_or_else(|| panic!("label {label:?} was never defined"));
+            module.blocks[block].instructions[instruction] =
+                ir::Instruction::push(ir::Operand::Block(target));
+        }
+        for (block, instruction, id) in self.deferred_relocations.drain(..) {
+            let value = self
+                .deferred_values
+                .get(&id)
+                .copied()
+                .unwrap_or_else(|| panic!("deferred constant {id:?} was never resolved"));
+            module.blocks[block].instructions[instruction] =
+                ir::Instruction::push(ir::Operand::Immediate(value));
+        }
+        self.label_blocks.clear();
+        self.cold_labels.clear();
+
+        Self::finalize_evm_ir(&mut module);
+        Some((module, std::mem::take(&mut self.block_labels)))
+    }
+
+    fn finalize_evm_ir(module: &mut ir::Module) {
+        for index in 0..module.blocks.len() {
+            let block_id = ir::BlockId::from_usize(index);
+            let next =
+                (index + 1 < module.blocks.len()).then(|| ir::BlockId::from_usize(index + 1));
+            let block = &mut module.blocks[block_id];
+            let (kind, remove) = if let [.., push, jump] = block.instructions.as_slice()
+                && !jump.is_encoded_push()
+                && jump.opcode == op::JUMP
+                && let [ir::Operand::Block(target)] = push.operands.as_slice()
+                && push.is_encoded_push()
+            {
+                (ir::TerminatorKind::Jump(*target), 2)
+            } else if let Some(last) = block.instructions.last()
+                && !last.is_encoded_push()
+                && op::is_terminal(last.opcode)
+            {
+                (ir::TerminatorKind::RawOpcode(last.opcode), 1)
+            } else {
+                (next.map_or(ir::TerminatorKind::Stop, ir::TerminatorKind::Jump), 0)
+            };
+            block.instructions.truncate(block.instructions.len() - remove);
+            block.terminator = Some(ir::Terminator::new(kind));
+        }
+    }
+
     /// Assembles the instructions into bytecode.
     /// Uses an iterative two-pass algorithm that handles PUSH width changes.
     #[must_use]
     pub fn assemble(&mut self) -> AssembledCode {
-        let mut ir_program = std::mem::take(&mut self.program);
-        let deferred_values = &self.deferred_values;
-        let push_values = &mut self.push_values;
-        ir_program.resolve_deferred_consts(|id| {
-            let value = deferred_values
-                .get(&id)
-                .copied()
-                .unwrap_or_else(|| panic!("deferred constant {id:?} was never resolved"));
-            if let Ok(value) = u32::try_from(value)
-                && let Some(inst) = AsmInst::push_inline(value)
-            {
-                return inst;
+        solar_interface::enter(|| self.assemble_inner())
+    }
+
+    fn assemble_inner(&mut self) -> AssembledCode {
+        let Some((mut ir_program, mut labels)) = self.finish_evm_ir() else {
+            let result = self.emit_bytecode(
+                &EvmAsmProgram::default(),
+                FxHashMap::default(),
+                &FxHashMap::default(),
+            );
+            self.clear();
+            return result;
+        };
+
+        if self.config.optimization != OptimizationMode::None {
+            let input_is_valid = cfg!(debug_assertions) && is_valid_evm_ir(&ir_program);
+            let pass_options = ir::PassOptions { time_passes: self.config.time_passes };
+            if self.config.evm_ir_stack_schedule {
+                let mut scheduled = ir_program.clone();
+                if ir::run_pass(&mut scheduled, &ir::STACK_SCHEDULE_PASS, pass_options)
+                    && is_valid_evm_ir(&scheduled)
+                    && modules_have_equal_code(&ir_program, &scheduled)
+                {
+                    ir_program = scheduled;
+                }
             }
-            AsmInst::push(push_values.intern(value))
-        });
-        solar_interface::enter(|| ir_program.lower_through_evm_ir(self));
-        let mut program = ir_program.to_asm_program();
+            for pass in ir::DEFAULT_LAYOUT_PIPELINE {
+                ir::run_pass(&mut ir_program, pass, pass_options);
+            }
+            debug_assert!(!input_is_valid || is_valid_evm_ir(&ir_program));
+        }
+
+        let evm_ir = self.config.capture_evm_ir.then(|| ir_program.clone());
+        let mut program = program::lower_evm_ir(&ir_program, &mut labels, self);
         self.invert_branches_over_empty_reverts(&mut program.instructions);
         self.run_assembler_passes(&mut program);
         let has_labels =
@@ -779,8 +912,6 @@ impl Assembler {
             self.outline_repeated_pushes(&mut program);
         }
         self.hoist_hot_terminal_spans(&mut program.instructions);
-
-        let evm_ir = self.config.capture_evm_ir.then(|| program.to_evm_ir_module(self)).flatten();
 
         // Label-free constructor and deployment snippets need neither offset
         // discovery nor push-width relaxation.
@@ -1191,6 +1322,23 @@ impl Assembler {
     fn push_width(value: U256) -> u8 {
         value.byte_len() as u8
     }
+}
+
+fn modules_have_equal_code(before: &ir::Module, after: &ir::Module) -> bool {
+    before.entry_block == after.entry_block
+        && before.blocks.len() == after.blocks.len()
+        && before.blocks.iter().zip(after.blocks.iter()).all(|(a, b)| {
+            a.label == b.label
+                && a.metadata == b.metadata
+                && a.instructions == b.instructions
+                && a.terminator == b.terminator
+        })
+}
+
+fn is_valid_evm_ir(module: &ir::Module) -> bool {
+    let dcx = DiagCtxt::with_silent_emitter(None);
+    ir::Verifier::new(&dcx).verify_module(module);
+    dcx.has_errors().is_ok()
 }
 
 impl Default for Assembler {
@@ -1728,14 +1876,13 @@ mod tests {
         assert!(AsmInst::push_inline(inline).is_some());
         assert!(AsmInst::push_inline(1u32 << 31).is_none());
 
-        asm.emit_push(U256::from(inline));
-        asm.emit_push(large);
-        asm.emit_push(large);
+        let inline = asm.push_inst(U256::from(inline));
+        let first = asm.push_inst(large);
+        let second = asm.push_inst(large);
 
-        let instructions = asm.program.instructions();
-        assert_eq!(instructions[0].kind(), AsmInstKind::PushInline(inline));
-        assert_eq!(instructions[1].kind(), AsmInstKind::Push(PushValueId::from_usize(0)));
-        assert_eq!(instructions[1], instructions[2]);
+        assert_eq!(inline.kind(), AsmInstKind::PushInline(u32::MAX >> 1));
+        assert_eq!(first.kind(), AsmInstKind::Push(PushValueId::from_usize(0)));
+        assert_eq!(first, second);
         assert_eq!(asm.push_values.len(), 1);
         assert_eq!(*asm.push_values.get(PushValueId::from_usize(0)), large);
     }
@@ -1755,7 +1902,7 @@ PUSH4 0x80000000
 
 "#]]
         );
-        assert!(asm.program.instructions().is_empty());
+        assert!(asm.program.blocks.is_empty());
         assert_eq!(asm.push_values.len(), 0);
 
         asm.emit_push(U256::from(2));

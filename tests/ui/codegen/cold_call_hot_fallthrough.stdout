@@ -4,12 +4,14 @@ bb0 (entry):
   push 64
   mstore
   callvalue
-  push bb3
+  push bb26
   jumpi
   calldatasize
   iszero
-  push bb3
+  push bb26
   jumpi
+  jump bb1
+bb1:
   push 0
   calldataload
   push 224
@@ -17,27 +19,17 @@ bb0 (entry):
   dup1
   push 0x161e4029
   eq
-  push bb4
+  push bb2
   jumpi
   dup1
   push 0x4b692dff
   eq
-  push bb9
+  push bb8
   jumpi
   push 0
   push 0
   revert
-bb1:
-  invalid
 bb2:
-  push 0
-  dup1
-  revert
-bb3:
-  push 0
-  push 0
-  revert
-bb4:
   calldatasize
   push 4
   swap1
@@ -45,8 +37,10 @@ bb4:
   push 32
   swap1
   slt
-  push bb2
+  push bb5
   jumpi
+  jump bb3
+bb3:
   push 0
   push 128
   mstore
@@ -55,8 +49,8 @@ bb4:
   iszero
   push bb6
   jumpi
-  jump bb5
-bb5:
+  jump bb4
+bb4:
   push 4
   calldataload
   push 128
@@ -64,23 +58,25 @@ bb5:
   push 32
   push 128
   return
-bb6:
-  push bb5
+bb6 [cold]:
+  push bb7
   push 4
   calldataload
-  jump bb7
-bb7:
+  jump bb14
+bb14:
   push 288
   mstore
   push 288
   mload
-  push bb11
+  push bb17
   jumpi
-  push bb1
+  jump bb15
+bb15 [cold]:
+  push bb16
   push 4
   push 0x7a65726f00000000000000000000000000000000000000000000000000000000
-  jump bb8
-bb8:
+  jump bb25
+bb25:
   push 416
   mstore
   push 384
@@ -102,7 +98,9 @@ bb8:
   push 100
   push 0
   revert
-bb9:
+bb7:
+  jump bb4
+bb8:
   calldatasize
   push 4
   swap1
@@ -110,8 +108,10 @@ bb9:
   push 32
   swap1
   slt
-  push bb2
+  push bb11
   jumpi
+  jump bb9
+bb9:
   push 0
   push 128
   mstore
@@ -119,38 +119,68 @@ bb9:
   push 4
   calldataload
   lt
-  push bb10
+  push bb12
   jumpi
-  jump bb5
+  jump bb10
 bb10:
-  push bb5
+  jump bb4
+bb12 [cold]:
+  push bb13
   push 4
   calldataload
-  jump bb7
-bb11:
+  jump bb14
+bb13:
+  jump bb10
+bb16:
+  invalid
+bb17 [cold]:
   push 1
   push 288
   mload
-  sub
-  push bb12
+  eq
+  iszero
+  push bb20
   jumpi
-  push bb1
+  jump bb18
+bb18 [cold]:
+  push bb19
   push 3
   push 0x6f6e650000000000000000000000000000000000000000000000000000000000
-  jump bb8
-bb12:
+  jump bb25
+bb19:
+  invalid
+bb20 [cold]:
   push 2
   push 288
   mload
-  sub
-  push bb13
+  eq
+  iszero
+  push bb23
   jumpi
-  push bb1
+  jump bb21
+bb21 [cold]:
+  push bb22
   push 3
   push 0x74776f0000000000000000000000000000000000000000000000000000000000
-  jump bb8
-bb13:
-  push bb1
+  jump bb25
+bb22:
+  invalid
+bb23 [cold]:
+  push bb24
   push 5
   push 0x6f74686572000000000000000000000000000000000000000000000000000000
-  jump bb8
+  jump bb25
+bb24:
+  invalid
+bb5 [cold]:
+  push 0
+  dup1
+  revert
+bb11 [cold]:
+  push 0
+  dup1
+  revert
+bb26 [cold]:
+  push 0
+  push 0
+  revert
