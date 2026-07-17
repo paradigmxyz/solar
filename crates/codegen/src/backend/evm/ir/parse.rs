@@ -390,6 +390,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         defined_values: &mut GrowableBitSet<ValueId>,
     ) -> PResult<'sess, Option<TerminatorKind>> {
         let kind = match mnemonic {
+            sym::jump if !self.operand_starts_here() => TerminatorKind::RawOpcode(op::JUMP),
             sym::jump => TerminatorKind::Jump(self.parse_block_ref(module, block_labels)?),
             sym::br => {
                 let condition =
@@ -614,7 +615,8 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                 !Self::is_operation_mnemonic(symbol)
                     && !matches!(
                         self.parser.look_ahead(1).kind,
-                        TokenKind::Colon | TokenKind::OpenDelim(Delimiter::Parenthesis)
+                        TokenKind::Colon
+                            | TokenKind::OpenDelim(Delimiter::Parenthesis | Delimiter::Bracket)
                     )
             }
             _ => false,
@@ -713,7 +715,7 @@ mod tests {
     #[test]
     fn parser_does_not_treat_newlines_as_syntax() {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        let input = "@module m bb0 (entry): %a = push 1 %b = push 2 %c = add %a, %b stop bb1: selfdestruct beneficiary";
+        let input = "@module m bb0 (entry): %a = push 1 %b = push 2 %c = add %a, %b jump bb1 bb1 [cold]: jump";
         sess.enter(|| {
             let module = parse_module(&sess, input).unwrap();
             assert_data_eq!(
@@ -724,9 +726,9 @@ bb0 (entry):
   %a = push 1
   %b = push 2
   %c = add %a, %b
-  stop
-bb1:
-  selfdestruct beneficiary
+  jump bb1
+bb1 [cold]:
+  jump
 
 "#]]
             );
