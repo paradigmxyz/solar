@@ -296,7 +296,6 @@ mod tests {
         SignatureInformationSettings, TextDocumentClientCapabilities, TextDocumentSyncCapability,
         TextDocumentSyncSaveOptions, WorkspaceClientCapabilities, WorkspaceEditClientCapabilities,
     };
-
     #[test]
     fn negotiate_capabilities_records_watched_file_dynamic_registration_support() {
         let (_, config) = negotiate_capabilities(InitializeParams::default());
@@ -525,6 +524,35 @@ mod tests {
             config.formatter_root_for_path(&project.path("/standalone/D.sol")),
             Some(project.path("/standalone"))
         );
+    }
+
+    #[test]
+    fn rediscover_workspaces_loads_nested_discovered_project() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+
+            //- /packages/token/foundry.toml
+            [profile.default]
+            src = "contracts"
+            "#,
+        );
+
+        let config = project.config();
+        let nested = config
+            .workspaces()
+            .iter()
+            .find(|workspace| {
+                workspace.compile_opts().base_path.as_deref()
+                    == Some(project.path("/packages/token").as_path())
+            })
+            .unwrap();
+
+        assert_eq!(config.workspaces().len(), 2);
+        assert!(
+            config.workspaces().iter().all(|workspace| workspace.kind() == WorkspaceKind::Foundry)
+        );
+        assert_eq!(nested.source_roots(), &[project.path("/packages/token/contracts")]);
     }
 
     #[test]

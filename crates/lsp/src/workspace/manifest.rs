@@ -18,23 +18,17 @@ impl ProjectManifest {
     }
 
     fn discover(path: &Path) -> io::Result<Vec<Self>> {
-        return find_foundry_toml(path)
-            .map(|paths| paths.into_iter().map(ProjectManifest::Foundry).collect());
-
-        fn find_foundry_toml(path: &Path) -> io::Result<Vec<PathBuf>> {
-            match find_in_parent_dirs(path, "foundry.toml") {
-                Some(it) => Ok(vec![it]),
-                None => Ok(find_foundry_toml_in_child_dir(read_dir(path)?)),
+        // Keep naked roots shallow, but recurse once a Foundry project boundary is known.
+        let mut manifests = Vec::new();
+        if let Some(manifest) = find_in_parent_dirs(path, "foundry.toml") {
+            manifests.push(manifest);
+            if let Ok(entries) = read_dir(path) {
+                find_foundry_toml_in_child_dirs(entries, &mut manifests, true);
             }
+        } else {
+            find_foundry_toml_in_child_dirs(read_dir(path)?, &mut manifests, false);
         }
-
-        fn find_foundry_toml_in_child_dir(entities: ReadDir) -> Vec<PathBuf> {
-            entities
-                .filter_map(Result::ok)
-                .map(|it| it.path().join("foundry.toml"))
-                .filter(|it| it.exists())
-                .collect()
-        }
+        Ok(manifests.into_iter().map(ProjectManifest::Foundry).collect())
     }
 
     /// Discover all project manifests at the given paths.
@@ -70,22 +64,88 @@ fn find_in_parent_dirs(path: &Path, target_file_name: &str) -> Option<PathBuf> {
     None
 }
 
+fn find_foundry_toml_in_child_dirs(
+    entities: ReadDir,
+    manifests: &mut Vec<PathBuf>,
+    within_project: bool,
+) {
+    for entry in entities.filter_map(Result::ok) {
+        let Ok(file_type) = entry.file_type() else { continue };
+        let path = entry.path();
+        if !file_type.is_dir() || is_heavy_dir(&path) {
+            continue;
+        }
+
+        let manifest = path.join("foundry.toml");
+        let is_project = manifest.is_file();
+        if is_project {
+            manifests.push(manifest);
+        }
+        if (within_project || is_project)
+            && let Ok(children) = read_dir(path)
+        {
+            find_foundry_toml_in_child_dirs(children, manifests, true);
+        }
+    }
+}
+
+fn is_heavy_dir(path: &Path) -> bool {
+    matches!(
+        path.file_name().and_then(|name| name.to_str()),
+        Some(".git" | "cache" | "lib" | "node_modules" | "out")
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_support::TestProject;
 
     #[test]
-    fn child_discovery_finds_foundry_manifest() {
+    fn naked_root_discovery_is_shallow() {
         let project = TestProject::from_fixture(
             r#"
             //- /child/foundry.toml
+
+            //- /container/deep/foundry.toml
             "#,
         );
 
         assert_eq!(
             ProjectManifest::discover_all(&[project.root().to_path_buf()]),
             vec![ProjectManifest::Foundry(project.path("/child/foundry.toml"))],
+        );
+    }
+
+    #[test]
+    fn root_project_recursively_discovers_nested_projects_and_skips_heavy_dirs() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+
+            //- /packages/token/foundry.toml
+
+            //- /packages/group/vault/foundry.toml
+
+            //- /.git/dependency/foundry.toml
+
+            //- /cache/dependency/foundry.toml
+
+            //- /lib/dependency/foundry.toml
+
+            //- /node_modules/dependency/foundry.toml
+
+            //- /out/dependency/foundry.toml
+            "#,
+        );
+
+        assert_eq!(
+            ProjectManifest::discover_all(&[project.root().to_path_buf()]),
+            vec![
+                ProjectManifest::Foundry(project.path("/foundry.toml")),
+                ProjectManifest::Foundry(project.path("/packages/group/vault/foundry.toml")),
+                ProjectManifest::Foundry(project.path("/packages/token/foundry.toml")),
+            ],
         );
     }
 
