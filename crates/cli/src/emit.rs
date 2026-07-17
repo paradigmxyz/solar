@@ -201,39 +201,22 @@ fn generate_contract_bytecodes(
     capture_evm_ir: bool,
 ) -> Result<FxHashMap<ContractId, GeneratedBytecodes>> {
     let mut all_bytecodes = FxHashMap::default();
+    let mut artifacts = FxHashMap::default();
     let mut visiting = DenseBitSet::new_empty(gcx.hir.contract_ids().len());
     for id in gcx.hir.contract_ids() {
         let contract = gcx.hir.contract(id);
         if !contract.kind.is_interface() && !contract.kind.is_abstract_contract() {
-            ensure_contract_bytecode(gcx, id, &mut all_bytecodes, &mut visiting)?;
+            ensure_contract_bytecode(
+                gcx,
+                id,
+                capture_evm_ir,
+                &mut all_bytecodes,
+                &mut artifacts,
+                &mut visiting,
+            )?;
         }
     }
-
-    let mut bytecodes = FxHashMap::default();
-    for id in gcx.hir.contract_ids() {
-        let contract = gcx.hir.contract(id);
-        if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
-            continue;
-        }
-
-        let mut module = lower::lower_contract_with_bytecodes(gcx, id, &all_bytecodes);
-        gcx.dcx().has_errors()?;
-        let mut codegen =
-            EvmCodegen::new(EvmCodegenConfig { capture_evm_ir, ..EvmCodegenConfig::from(gcx) });
-        let artifact = codegen.lower_module(&mut module);
-        bytecodes.insert(
-            id,
-            GeneratedBytecodes {
-                deployment: artifact.deployment.into(),
-                runtime: artifact.runtime.into(),
-                deployment_evm_ir: capture_evm_ir
-                    .then(|| format_deployment_evm_ir(&artifact.deployment_evm_ir)),
-                runtime_evm_ir: artifact.runtime_evm_ir.map(|ir| ir.to_text().to_string()),
-            },
-        );
-    }
-
-    Ok(bytecodes)
+    Ok(artifacts)
 }
 
 fn serialize_hex_bytes<S>(bytes: &Option<Bytes>, serializer: S) -> Result<S::Ok, S::Error>
@@ -261,10 +244,12 @@ pub(crate) fn format_deployment_evm_ir(modules: &[ir::Module]) -> String {
 fn ensure_contract_bytecode(
     gcx: Gcx<'_>,
     contract_id: ContractId,
+    capture_evm_ir: bool,
     all_bytecodes: &mut FxHashMap<ContractId, Vec<u8>>,
+    artifacts: &mut FxHashMap<ContractId, GeneratedBytecodes>,
     visiting: &mut DenseBitSet<ContractId>,
 ) -> Result {
-    if all_bytecodes.contains_key(&contract_id) {
+    if artifacts.contains_key(&contract_id) {
         return Ok(());
     }
 
@@ -286,14 +271,25 @@ fn ensure_contract_bytecode(
     }
 
     for dep in &lower::contract_bytecode_dependencies(gcx, contract_id) {
-        ensure_contract_bytecode(gcx, dep, all_bytecodes, visiting)?;
+        ensure_contract_bytecode(gcx, dep, capture_evm_ir, all_bytecodes, artifacts, visiting)?;
     }
 
     let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, all_bytecodes);
     gcx.dcx().has_errors()?;
-    let mut codegen = EvmCodegen::new(gcx);
+    let mut codegen =
+        EvmCodegen::new(EvmCodegenConfig { capture_evm_ir, ..EvmCodegenConfig::from(gcx) });
     let artifact = codegen.lower_module(&mut module);
-    all_bytecodes.insert(contract_id, artifact.deployment);
+    all_bytecodes.insert(contract_id, artifact.deployment.clone());
+    artifacts.insert(
+        contract_id,
+        GeneratedBytecodes {
+            deployment: artifact.deployment.into(),
+            runtime: artifact.runtime.into(),
+            deployment_evm_ir: capture_evm_ir
+                .then(|| format_deployment_evm_ir(&artifact.deployment_evm_ir)),
+            runtime_evm_ir: artifact.runtime_evm_ir.map(|ir| ir.to_text().to_string()),
+        },
+    );
     visiting.remove(contract_id);
 
     Ok(())

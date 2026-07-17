@@ -68,6 +68,16 @@ pub struct AssembledCode {
     pub evm_ir: Option<ir::Module>,
 }
 
+/// Optimized EVM IR lowered to reusable assembly before deferred constants are resolved.
+#[derive(Clone, Debug, Default)]
+pub(in crate::backend::evm) struct PreparedAssembly {
+    program: EvmAsmProgram,
+    evm_ir: Option<ir::Module>,
+    push_values: LocalInterner<U256, PushValueId>,
+    next_label: IdCounter<Label>,
+    deferred_values: FxHashMap<DeferredConst, U256>,
+}
+
 /// Configuration for EVM bytecode assembly.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AssemblerConfig {
@@ -138,7 +148,7 @@ impl Assembler {
         }
     }
 
-    /// Clears all emitted instructions and local identifiers while retaining allocated storage.
+    /// Clears all emitted instructions and local identifiers.
     pub fn clear(&mut self) {
         self.program = Self::new_ir_module();
         self.current_block = None;
@@ -792,13 +802,8 @@ impl Assembler {
                 ir::Instruction::push(ir::Operand::Block(target));
         }
         for (block, instruction, id) in self.deferred_relocations.drain(..) {
-            let value = self
-                .deferred_values
-                .get(&id)
-                .copied()
-                .unwrap_or_else(|| panic!("deferred constant {id:?} was never resolved"));
             module.blocks[block].instructions[instruction] =
-                ir::Instruction::push(ir::Operand::Immediate(value));
+                ir::Instruction::push_deferred(ir::Operand::Immediate(U256::from(id.index())));
         }
         self.label_blocks.clear();
         self.cold_labels.clear();
@@ -837,18 +842,19 @@ impl Assembler {
     /// Uses an iterative two-pass algorithm that handles PUSH width changes.
     #[must_use]
     pub fn assemble(&mut self) -> AssembledCode {
-        solar_interface::enter(|| self.assemble_inner())
+        let prepared = self.prepare();
+        let result = self.assemble_prepared(&prepared, &[]);
+        self.clear();
+        result
     }
 
-    fn assemble_inner(&mut self) -> AssembledCode {
+    pub(in crate::backend::evm) fn prepare(&mut self) -> PreparedAssembly {
+        solar_interface::enter(|| self.prepare_inner())
+    }
+
+    fn prepare_inner(&mut self) -> PreparedAssembly {
         let Some((mut ir_program, mut labels)) = self.finish_evm_ir() else {
-            let result = self.emit_bytecode(
-                &EvmAsmProgram::default(),
-                FxHashMap::default(),
-                &FxHashMap::default(),
-            );
-            self.clear();
-            return result;
+            return PreparedAssembly::default();
         };
 
         if self.config.optimization != OptimizationMode::None {
@@ -869,8 +875,59 @@ impl Assembler {
             debug_assert!(!input_is_valid || is_valid_evm_ir(&ir_program));
         }
 
-        let evm_ir = self.config.capture_evm_ir.then(|| ir_program.clone());
-        let mut program = program::lower_evm_ir(&ir_program, &mut labels, self);
+        let program = program::lower_evm_ir(&ir_program, &mut labels, self);
+        PreparedAssembly {
+            evm_ir: self.config.capture_evm_ir.then(|| ir_program.clone()),
+            program,
+            push_values: std::mem::take(&mut self.push_values),
+            next_label: std::mem::take(&mut self.next_label),
+            deferred_values: std::mem::take(&mut self.deferred_values),
+        }
+    }
+
+    pub(in crate::backend::evm) fn assemble_prepared(
+        &mut self,
+        prepared: &PreparedAssembly,
+        deferred_values: &[(DeferredConst, U256)],
+    ) -> AssembledCode {
+        self.push_values = prepared.push_values.clone();
+        self.next_label = prepared.next_label.clone();
+        self.deferred_values.clone_from(&prepared.deferred_values);
+        self.deferred_values.extend(deferred_values.iter().copied());
+
+        let mut program = prepared.program.clone();
+        for inst in &mut program.instructions {
+            if let AsmInstKind::PushDeferred(id) = inst.kind() {
+                let value = self
+                    .deferred_values
+                    .get(&id)
+                    .copied()
+                    .unwrap_or_else(|| panic!("deferred constant {id:?} was never resolved"));
+                *inst = self.push_inst(value);
+            }
+        }
+
+        let evm_ir = prepared.evm_ir.as_ref().map(|module| {
+            let mut module = module.clone();
+            for block in &mut module.blocks {
+                for inst in &mut block.instructions {
+                    if inst.is_deferred_push() {
+                        let [ir::Operand::Immediate(id)] = inst.operands.as_slice() else {
+                            unreachable!("deferred push must have one immediate operand")
+                        };
+                        let id = DeferredConst::from_usize(
+                            usize::try_from(*id).expect("deferred constant ID must fit usize"),
+                        );
+                        let value = self.deferred_values.get(&id).copied().unwrap_or_else(|| {
+                            panic!("deferred constant {id:?} was never resolved")
+                        });
+                        *inst = ir::Instruction::push(ir::Operand::Immediate(value));
+                    }
+                }
+            }
+            module
+        });
+
         self.invert_branches_over_empty_reverts(&mut program.instructions);
         self.run_assembler_passes(&mut program);
         let has_labels =
@@ -923,7 +980,6 @@ impl Assembler {
             let mut result =
                 self.emit_bytecode(&program, FxHashMap::default(), &FxHashMap::default());
             result.evm_ir = evm_ir;
-            self.clear();
             return result;
         }
 
@@ -953,7 +1009,6 @@ impl Assembler {
                 // Stable - emit final bytecode
                 let mut result = self.emit_bytecode(&program, label_offsets, &push_widths);
                 result.evm_ir = evm_ir;
-                self.clear();
                 return result;
             }
 
@@ -966,7 +1021,6 @@ impl Assembler {
         let (label_offsets, _) = self.compute_offsets(&program, &push_widths);
         let mut result = self.emit_bytecode(&program, label_offsets, &push_widths);
         result.evm_ir = evm_ir;
-        self.clear();
         result
     }
 
