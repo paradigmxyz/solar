@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/constructor_internal_call_bin.sol:ConstructorInternalCallBin (creation) ===
-// === constructor ===
+// === deployment ===
 bb0 (entry):
   push 0x4000
   push 64
   mstore
-  push 395
+  push 390
   codesize
   sub
-  push 395
+  push 390
   push 128
   codecopy
   jump bb8
@@ -242,8 +242,15 @@ bb9:
   mstore
   push 0
   sstore
-  push 341
-  jump
+  jump bb10
+bb10:
+  push 43
+  dup1
+  push 347
+  push 0
+  codecopy
+  push 0
+  return
 bb7 [cold]:
   push 0x4e487b7100000000000000000000000000000000000000000000000000000000
   push 0
@@ -254,17 +261,6 @@ bb7 [cold]:
   push 36
   push 0
   revert
-
-// === deployment ===
-bb0 (entry):
-  jumpdest
-  push 43
-  dup1
-  push 352
-  push 0
-  codecopy
-  push 0
-  return
 
 // === runtime ===
 bb0 (entry):

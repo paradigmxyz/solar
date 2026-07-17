@@ -520,13 +520,12 @@ impl<'gcx> Lowerer<'gcx> {
             };
             tys.push(ty);
         }
-        Some(
-            arg_exprs
-                .iter()
-                .zip(tys)
-                .map(|(arg, ty)| (self.lower_return_value_for_ty(builder, arg, ty), ty))
-                .collect(),
-        )
+        let mut items = Vec::with_capacity(arg_exprs.len());
+        for (arg, ty) in arg_exprs.iter().zip(tys) {
+            let value = self.lower_return_value_for_ty(builder, arg, ty);
+            items.push((value, ty));
+        }
+        Some(items)
     }
 
     /// Lowers `abi.encode(...)` to a fresh `bytes memory` allocation
@@ -690,6 +689,9 @@ impl<'gcx> Lowerer<'gcx> {
         expr: &solar_sema::hir::Expr<'_>,
         ty: Ty<'gcx>,
     ) -> ValueId {
+        if let Some((head, _)) = self.calldata_dyn_head(expr) {
+            return self.materialize_calldata_value(builder, ty, head);
+        }
         if matches!(
             ty.peel_refs().kind,
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
@@ -959,19 +961,29 @@ impl<'gcx> Lowerer<'gcx> {
                 .collect();
         }
         if let Some(arity) = self.get_ternary_tuple_arity(expr) {
-            let _ = self.lower_expr(builder, expr);
-            return (0..arity)
-                .map(|i| {
-                    let off = builder.imm_u64((i * 32) as u64);
-                    (builder.mload(off), tys[i])
-                })
-                .collect();
+            let first = self.lower_expr(builder, expr);
+            let mut items = Vec::with_capacity(arity);
+            items.push((first, tys[0]));
+            if arity > 1 {
+                let base = self.multi_return_buffer_base(builder);
+                for (i, &ty) in tys.iter().enumerate().take(arity).skip(1) {
+                    items.push((self.load_multi_return_value(builder, base, i), ty));
+                }
+            }
+            return items;
         }
         let first = self.lower_return_value_for_ty(builder, expr, tys[0]);
         let mut items = vec![(first, tys[0])];
+        let tail_base = (tys.len() > 1).then(|| self.multi_return_buffer_base(builder));
         for (i, &ty) in tys.iter().enumerate().skip(1) {
-            let off = builder.imm_u64((i * 32) as u64);
-            items.push((builder.mload(off), ty));
+            items.push((
+                self.load_multi_return_value(
+                    builder,
+                    tail_base.expect("tail base is available"),
+                    i,
+                ),
+                ty,
+            ));
         }
         items
     }

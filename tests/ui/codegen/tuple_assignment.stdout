@@ -41,6 +41,15 @@ bb6 [cold]:
 bb3:
   jump bb17
 bb17:
+  push 64
+  mload
+  push 32
+  swap1
+  add
+  push 9
+  dup2
+  mstore
+  pop
   push 7
   push 128
   mstore

@@ -32,30 +32,26 @@
   "version": "VERSION"
 }
 // === ROOT/tests/ui/codegen/emit_abi_bin.sol:C (creation) ===
-// === constructor ===
+// === deployment ===
 bb0 (entry):
   push 0x4000
   push 64
   mstore
-  push 76
+  push 72
   codesize
   sub
-  push 76
+  push 72
   push 128
   codecopy
   push 128
   mload
   push 0
   sstore
-  push 23
-  jump
-
-// === deployment ===
-bb0 (entry):
-  jumpdest
+  jump bb1
+bb1:
   push 43
   dup1
-  push 33
+  push 29
   push 0
   codecopy
   push 0

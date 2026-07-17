@@ -204,9 +204,18 @@ bb24:
   dup1
   push 0x500
   mstore
+  push 64
+  mload
+  push 32
+  dup2
+  add
+  dup3
   dup1
   push 0x500
   mstore
+  dup2
+  mstore
+  pop
   push 32
   mstore
   push 0
@@ -236,6 +245,8 @@ bb24:
   swap2
   pop
   dup2
+  swap1
+  pop
   swap1
   pop
   swap1

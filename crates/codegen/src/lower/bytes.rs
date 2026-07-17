@@ -8,7 +8,7 @@ use solar_interface::{Symbol, kw, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ElementaryType, ExprKind},
-    ty::TyKind,
+    ty::{Ty, TyKind},
 };
 
 impl<'gcx> Lowerer<'gcx> {
@@ -75,6 +75,16 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> ValueId {
         let four = builder.imm_u64(4);
         let len_pos = builder.add(four, head);
+        self.materialize_calldata_bytes_at(builder, len_pos)
+    }
+
+    /// Copies calldata bytes whose absolute length-word position is `len_pos`
+    /// into Solidity's memory bytes layout.
+    pub(super) fn materialize_calldata_bytes_at(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        len_pos: ValueId,
+    ) -> ValueId {
         let len = builder.calldataload(len_pos);
 
         let word_size = builder.imm_u64(32);
@@ -193,21 +203,21 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> ValueId {
-        if let Some((head, false)) = self.calldata_dyn_head(expr) {
-            return self.materialize_calldata_dyn_array(builder, head);
+        if let Some((head, false)) = self.calldata_dyn_head(expr)
+            && let Some(ty) = self.get_expr_type(expr)
+        {
+            return self.materialize_calldata_value(builder, ty, head);
         }
         self.lower_expr(builder, expr)
     }
 
-    /// Copies a calldata dynamic array of word elements into Solidity's
-    /// memory array layout (`[length][elems...]`).
-    pub(super) fn materialize_calldata_dyn_array(
+    /// Copies a single-word calldata array whose absolute length-word position
+    /// is `len_pos` into memory.
+    pub(super) fn materialize_calldata_word_array_at(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        head: ValueId,
+        len_pos: ValueId,
     ) -> ValueId {
-        let four = builder.imm_u64(4);
-        let len_pos = builder.add(four, head);
         let len = builder.calldataload(len_pos);
 
         let word_size = builder.imm_u64(32);
@@ -224,6 +234,183 @@ impl<'gcx> Lowerer<'gcx> {
         let data_pos = builder.add(len_pos, word_size);
         builder.calldatacopy(data_ptr, data_pos, byte_len);
         ptr
+    }
+
+    /// Materializes a top-level calldata dynamic value from its ABI offset.
+    /// Composite values are rebuilt recursively so memory contains pointers,
+    /// not the relative offsets stored in calldata heads.
+    pub(super) fn materialize_calldata_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: Ty<'gcx>,
+        head: ValueId,
+    ) -> ValueId {
+        let selector_size = builder.imm_u64(4);
+        let pos = builder.add(selector_size, head);
+        self.materialize_calldata_value_at(builder, ty, pos)
+    }
+
+    /// Materializes a calldata value whose ABI body starts at the absolute
+    /// calldata position `pos`.
+    fn materialize_calldata_value_at(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: Ty<'gcx>,
+        pos: ValueId,
+    ) -> ValueId {
+        let ty = ty.peel_refs();
+        match ty.kind {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                self.materialize_calldata_bytes_at(builder, pos)
+            }
+            TyKind::DynArray(elem) | TyKind::Slice(elem) => {
+                self.materialize_calldata_dynamic_array_at(builder, elem, pos)
+            }
+            TyKind::Array(elem, len) => {
+                self.materialize_calldata_fixed_array_at(builder, elem, len.to::<u64>(), pos)
+            }
+            TyKind::Struct(id) => {
+                let fields = self.gcx.struct_field_types(id).to_vec();
+                self.materialize_calldata_fields_at(builder, &fields, pos)
+            }
+            TyKind::Tuple(fields) => self.materialize_calldata_fields_at(builder, fields, pos),
+            TyKind::Udvt(inner, _) => self.materialize_calldata_value_at(builder, inner, pos),
+            _ => builder.calldataload(pos),
+        }
+    }
+
+    /// Materializes a dynamic calldata array. Arrays of ABI-word values can
+    /// be copied directly; reference and aggregate elements are rebuilt one at
+    /// a time so their memory slots contain memory pointers.
+    fn materialize_calldata_dynamic_array_at(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        elem: Ty<'gcx>,
+        len_pos: ValueId,
+    ) -> ValueId {
+        if self.abi_is_word_element(elem) {
+            return self.materialize_calldata_word_array_at(builder, len_pos);
+        }
+
+        let len = builder.calldataload(len_pos);
+        let word = builder.imm_u64(32);
+        let shift = builder.imm_u64(251);
+        let too_big = builder.shr(shift, len);
+        self.emit_panic_if(builder, too_big, PanicCode::MemoryAllocationOverflow);
+        let byte_len = builder.mul(len, word);
+        let total_size = builder.add(word, byte_len);
+        let total_overflow = builder.lt(total_size, byte_len);
+        self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
+
+        let ptr = self.allocate_memory_dynamic(builder, total_size);
+        builder.mstore(ptr, len);
+
+        // Recursive materialization allocates memory and can introduce CFG, so
+        // keep loop state in dedicated memory rather than MIR values.
+        let scratch = self.allocate_memory(builder, 3 * 32);
+        let remaining_slot = scratch;
+        let source_slot = self.offset_ptr(builder, scratch, 32);
+        let dest_slot = self.offset_ptr(builder, scratch, 64);
+        let tuple_base = builder.add(len_pos, word);
+        let dest = builder.add(ptr, word);
+        builder.mstore(remaining_slot, len);
+        builder.mstore(source_slot, tuple_base);
+        builder.mstore(dest_slot, dest);
+
+        let cond_block = builder.create_block();
+        let body_block = builder.create_block();
+        let done_block = builder.create_block();
+        builder.jump(cond_block);
+
+        builder.switch_to_block(cond_block);
+        let remaining = builder.mload(remaining_slot);
+        let zero = builder.imm_u64(0);
+        let has_next = builder.gt(remaining, zero);
+        builder.branch(has_next, body_block, done_block);
+
+        builder.switch_to_block(body_block);
+        let source = builder.mload(source_slot);
+        let elem_pos = self.calldata_abi_value_pos(builder, elem, source, tuple_base);
+        let value = self.materialize_calldata_value_at(builder, elem, elem_pos);
+        let dest = builder.mload(dest_slot);
+        builder.mstore(dest, value);
+
+        let one = builder.imm_u64(1);
+        let remaining = builder.mload(remaining_slot);
+        let next_remaining = builder.sub(remaining, one);
+        builder.mstore(remaining_slot, next_remaining);
+        let source = builder.mload(source_slot);
+        let elem_head_size = builder.imm_u64(self.abi_head_size(elem));
+        let next_source = builder.add(source, elem_head_size);
+        builder.mstore(source_slot, next_source);
+        let dest = builder.mload(dest_slot);
+        let next_dest = builder.add(dest, word);
+        builder.mstore(dest_slot, next_dest);
+        builder.jump(cond_block);
+
+        builder.switch_to_block(done_block);
+        ptr
+    }
+
+    /// Materializes a fixed-size calldata array into memory slots.
+    fn materialize_calldata_fixed_array_at(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        elem: Ty<'gcx>,
+        len: u64,
+        pos: ValueId,
+    ) -> ValueId {
+        let size = len.checked_mul(32).expect("fixed array memory size overflow");
+        let ptr = self.allocate_memory(builder, size);
+        let mut head_offset = 0;
+        for i in 0..len {
+            let head_pos = self.offset_ptr(builder, pos, head_offset);
+            let elem_pos = self.calldata_abi_value_pos(builder, elem, head_pos, pos);
+            let value = self.materialize_calldata_value_at(builder, elem, elem_pos);
+            let dest = self.offset_ptr(builder, ptr, i * 32);
+            builder.mstore(dest, value);
+            head_offset += self.abi_head_size(elem);
+        }
+        ptr
+    }
+
+    /// Materializes ABI tuple fields into Solidity's one-slot-per-field memory
+    /// representation used for structs and tuples.
+    fn materialize_calldata_fields_at(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        fields: &[Ty<'gcx>],
+        pos: ValueId,
+    ) -> ValueId {
+        let size = (fields.len() as u64).checked_mul(32).expect("aggregate memory size overflow");
+        let ptr = self.allocate_memory(builder, size);
+        let mut head_offset = 0;
+        for (i, &field) in fields.iter().enumerate() {
+            let head_pos = self.offset_ptr(builder, pos, head_offset);
+            let field_pos = self.calldata_abi_value_pos(builder, field, head_pos, pos);
+            let value = self.materialize_calldata_value_at(builder, field, field_pos);
+            let dest = self.offset_ptr(builder, ptr, (i as u64) * 32);
+            builder.mstore(dest, value);
+            head_offset += self.abi_head_size(field);
+        }
+        ptr
+    }
+
+    /// Resolves an ABI head position to the corresponding value body. Dynamic
+    /// offsets are relative to the containing tuple's head area.
+    fn calldata_abi_value_pos(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: Ty<'gcx>,
+        head_pos: ValueId,
+        tuple_base: ValueId,
+    ) -> ValueId {
+        if self.abi_is_dynamic(ty) {
+            let offset = builder.calldataload(head_pos);
+            builder.add(tuple_base, offset)
+        } else {
+            head_pos
+        }
     }
 
     pub(super) fn lhs_expects_memory_bytes_value(&self, lhs: &hir::Expr<'_>) -> bool {
