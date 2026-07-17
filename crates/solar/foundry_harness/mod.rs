@@ -780,6 +780,7 @@ pub(crate) fn run_default_suite() {
     test_project_solar("libraries", "tests/foundry/libraries");
     test_project_solar("constructor_args", "tests/foundry/constructor-args");
     test_project_solar("multi_return", "tests/foundry/multi-return");
+    test_project_solar("correctness", "tests/foundry/correctness");
     test_project_solar("inheritance", "tests/foundry/inheritance");
     test_project_solar_only("stack_deep", "tests/foundry/stack-deep");
     run_compilation_smoke();
@@ -858,6 +859,11 @@ mod tests {
     #[test]
     fn test_multi_return() {
         super::test_project_solar("multi_return", "tests/foundry/multi-return");
+    }
+
+    #[test]
+    fn test_correctness() {
+        super::test_project_solar("correctness", "tests/foundry/correctness");
     }
 
     #[test]

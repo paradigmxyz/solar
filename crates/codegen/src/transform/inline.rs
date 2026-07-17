@@ -19,6 +19,7 @@
 //! - `O2`: Aggressive inlining (larger threshold, loop-aware)
 
 use crate::{
+    MULTI_RETURN_BUFFER_PTR_SLOT,
     analysis::LoopAnalyzer,
     mir::{
         BlockId, Function, FunctionId as MirFunctionId, Immediate, InstKind, Instruction, MirType,
@@ -1228,10 +1229,18 @@ fn inline_call_impl(
     caller.blocks[continuation].terminator = old_terminator;
     redirect_phi_predecessors(caller, &old_successors, call_block, continuation);
 
-    let frame_base = caller.internal_frame_size;
+    let caller_is_external =
+        caller.selector.is_some() || caller.attributes.is_receive || caller.attributes.is_fallback;
+    let caller_frame_prefix = if caller_is_external {
+        0
+    } else {
+        64 + ((caller.params.len() + caller.returns.len()) as u64) * 32
+    };
+    let frame_base = caller_frame_prefix + caller.internal_frame_size;
+    let callee_frame_prefix = 64 + ((callee.params.len() + callee.returns.len()) as u64) * 32;
     caller.internal_frame_size += callee.internal_frame_size;
 
-    let mut cloner = InlineCloner::new(caller, callee, frame_base, &args);
+    let mut cloner = InlineCloner::new(caller, callee, frame_base, callee_frame_prefix, &args);
     let cloned_entry = cloner.clone_blocks(continuation)?;
     cloner.caller.blocks[call_block].terminator = Some(Terminator::Jump(cloned_entry));
 
@@ -1257,6 +1266,7 @@ struct InlineCloner<'a> {
     caller: &'a mut Function,
     callee: &'a Function,
     frame_base: u64,
+    callee_frame_prefix: u64,
     value_map: FxHashMap<ValueId, ValueId>,
     block_map: FxHashMap<BlockId, BlockId>,
     return_edges: Vec<(BlockId, SmallVec<[ValueId; 2]>)>,
@@ -1267,6 +1277,7 @@ impl<'a> InlineCloner<'a> {
         caller: &'a mut Function,
         callee: &'a Function,
         frame_base: u64,
+        callee_frame_prefix: u64,
         args: &[ValueId],
     ) -> Self {
         let mut value_map = FxHashMap::default();
@@ -1281,6 +1292,7 @@ impl<'a> InlineCloner<'a> {
             caller,
             callee,
             frame_base,
+            callee_frame_prefix,
             value_map,
             block_map: FxHashMap::default(),
             return_edges: Vec::new(),
@@ -1389,7 +1401,8 @@ impl<'a> InlineCloner<'a> {
             ),
             InstKind::CalldataSize => InstKind::CalldataSize,
             InstKind::InternalFrameAddr(offset) => {
-                InstKind::InternalFrameAddr(self.frame_base + offset)
+                let local_offset = offset.checked_sub(self.callee_frame_prefix)?;
+                InstKind::InternalFrameAddr(self.frame_base + local_offset)
             }
             InstKind::CodeSize => InstKind::CodeSize,
             InstKind::LoadImmutable(offset) => InstKind::LoadImmutable(offset),
@@ -1606,12 +1619,31 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
         .take_while(|&&inst_id| matches!(caller.instructions[inst_id].kind, InstKind::Phi(_)))
         .count();
 
+    let free_ptr_slot = caller.alloc_value(Value::Immediate(Immediate::uint256(U256::from(0x40))));
+    let base_load = caller
+        .alloc_inst(Instruction::new(InstKind::MLoad(free_ptr_slot), Some(MirType::uint256())));
+    let base = caller.alloc_value(Value::Inst(base_load));
+    let mut insert_at = phi_count;
+    caller.blocks[continuation].instructions.insert(insert_at, base_load);
+    insert_at += 1;
+
     for (index, &value) in values.iter().enumerate() {
         let offset = caller
             .alloc_value(Value::Immediate(Immediate::uint256(U256::from((index as u64 + 1) * 32))));
-        let store = caller.alloc_inst(Instruction::new(InstKind::MStore(offset, value), None));
-        caller.blocks[continuation].instructions.insert(phi_count + index, store);
+        let addr = caller
+            .alloc_inst(Instruction::new(InstKind::Add(base, offset), Some(MirType::uint256())));
+        let addr_value = caller.alloc_value(Value::Inst(addr));
+        let store = caller.alloc_inst(Instruction::new(InstKind::MStore(addr_value, value), None));
+        caller.blocks[continuation].instructions.insert(insert_at, addr);
+        caller.blocks[continuation].instructions.insert(insert_at + 1, store);
+        insert_at += 2;
     }
+
+    let ptr_slot = caller.alloc_value(Value::Immediate(Immediate::uint256(U256::from(
+        MULTI_RETURN_BUFFER_PTR_SLOT,
+    ))));
+    let publish = caller.alloc_inst(Instruction::new(InstKind::MStore(ptr_slot, base), None));
+    caller.blocks[continuation].instructions.insert(insert_at, publish);
 }
 
 fn redirect_phi_predecessors(
@@ -1683,33 +1715,34 @@ mod tests {
             let mut builder = FunctionBuilder::new(&mut callee);
             let limit = builder.add_param(MirType::uint256());
             builder.add_return(MirType::uint256());
+            let frame_offset = 64 + 2 * 32;
 
             let header = builder.create_block();
             let body = builder.create_block();
             let exit = builder.create_block();
 
-            let frame = builder.internal_frame_addr(0);
+            let frame = builder.internal_frame_addr(frame_offset);
             let zero = builder.imm_u64(0);
             builder.mstore(frame, zero);
             builder.jump(header);
 
             builder.switch_to_block(header);
-            let frame = builder.internal_frame_addr(0);
+            let frame = builder.internal_frame_addr(frame_offset);
             let current = builder.mload(frame);
             let cond = builder.lt(current, limit);
             builder.branch(cond, body, exit);
 
             builder.switch_to_block(body);
-            let frame = builder.internal_frame_addr(0);
+            let frame = builder.internal_frame_addr(frame_offset);
             let current = builder.mload(frame);
             let one = builder.imm_u64(1);
             let next = builder.add(current, one);
-            let frame = builder.internal_frame_addr(0);
+            let frame = builder.internal_frame_addr(frame_offset);
             builder.mstore(frame, next);
             builder.jump(header);
 
             builder.switch_to_block(exit);
-            let frame = builder.internal_frame_addr(0);
+            let frame = builder.internal_frame_addr(frame_offset);
             let result = builder.mload(frame);
             builder.ret([result]);
         }

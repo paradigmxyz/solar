@@ -188,16 +188,13 @@ impl<'gcx> Lowerer<'gcx> {
         offset
     }
 
-    /// Calculates the number of 32-byte memory words needed for a type (flattened for structs).
+    /// Calculates the number of 32-byte memory words needed for a value.
+    ///
+    /// A memory struct has one word per field. Nested structs and other
+    /// reference types occupy one pointer word in their parent allocation.
     pub fn calculate_memory_words_for_ty(&self, ty: Ty<'gcx>) -> u64 {
         match ty.peel_refs().kind {
-            TyKind::Struct(struct_id) => {
-                let mut total = 0u64;
-                for &field_ty in self.gcx.struct_field_types(struct_id) {
-                    total += self.calculate_memory_words_for_ty(field_ty);
-                }
-                total.max(1)
-            }
+            TyKind::Struct(struct_id) => self.gcx.struct_field_types(struct_id).len().max(1) as u64,
             _ => 1,
         }
     }
@@ -219,7 +216,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Recursively copies a struct from storage to memory.
-    /// Handles nested structs by flattening them into contiguous memory.
+    /// Allocates nested structs separately and stores their pointers in the parent.
     /// Returns the next memory offset after all fields are copied.
     pub fn copy_storage_to_memory(
         &mut self,
@@ -229,23 +226,50 @@ impl<'gcx> Lowerer<'gcx> {
         mem_ptr: ValueId,
         mem_offset: u64,
     ) -> u64 {
+        let base_slot = builder.imm_u64(base_slot);
+        self.copy_storage_to_memory_at(builder, struct_id, base_slot, mem_ptr, mem_offset)
+    }
+
+    /// Recursively copies a struct from a runtime-computed storage slot to memory.
+    pub fn copy_storage_to_memory_at(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        struct_id: hir::StructId,
+        base_slot: ValueId,
+        mem_ptr: ValueId,
+        mem_offset: u64,
+    ) -> u64 {
         let mut current_slot_offset = 0u64;
         let mut current_mem_offset = mem_offset;
 
         let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
         for field_ty in field_tys {
             if let TyKind::Struct(inner_struct_id) = field_ty.peel_refs().kind {
-                current_mem_offset = self.copy_storage_to_memory(
-                    builder,
-                    inner_struct_id,
-                    base_slot + current_slot_offset,
-                    mem_ptr,
-                    current_mem_offset,
-                );
+                let inner_slot = if current_slot_offset == 0 {
+                    base_slot
+                } else {
+                    let offset = builder.imm_u64(current_slot_offset);
+                    builder.add(base_slot, offset)
+                };
+                let inner_size = self.calculate_memory_words_for_ty(field_ty) * 32;
+                let inner_ptr = self.allocate_memory(builder, inner_size);
+                self.copy_storage_to_memory_at(builder, inner_struct_id, inner_slot, inner_ptr, 0);
+                if current_mem_offset == 0 {
+                    builder.mstore(mem_ptr, inner_ptr);
+                } else {
+                    let offset = builder.imm_u64(current_mem_offset);
+                    let field_addr = builder.add(mem_ptr, offset);
+                    builder.mstore(field_addr, inner_ptr);
+                }
                 current_slot_offset += self.calculate_storage_slots_for_ty(field_ty, Span::DUMMY);
+                current_mem_offset += 32;
             } else {
-                let slot = base_slot + current_slot_offset;
-                let slot_val = builder.imm_u64(slot);
+                let slot_val = if current_slot_offset == 0 {
+                    base_slot
+                } else {
+                    let offset = builder.imm_u64(current_slot_offset);
+                    builder.add(base_slot, offset)
+                };
                 let field_val = builder.sload(slot_val);
 
                 if current_mem_offset == 0 {
@@ -264,8 +288,29 @@ impl<'gcx> Lowerer<'gcx> {
         current_mem_offset
     }
 
+    /// Clears every storage slot occupied by a struct at a runtime-computed base slot.
+    pub fn clear_storage_struct_at(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        struct_id: hir::StructId,
+        base_slot: ValueId,
+    ) {
+        let ty = self.gcx.type_of_item(hir::ItemId::Struct(struct_id));
+        let slots = self.calculate_storage_slots_for_ty(ty, Span::DUMMY);
+        let zero = builder.imm_u64(0);
+        for slot_offset in 0..slots {
+            let slot = if slot_offset == 0 {
+                base_slot
+            } else {
+                let offset = builder.imm_u64(slot_offset);
+                builder.add(base_slot, offset)
+            };
+            builder.sstore(slot, zero);
+        }
+    }
+
     /// Recursively copies a struct from memory to storage.
-    /// Handles nested structs by reading from flattened memory layout.
+    /// Follows nested-struct pointers stored in the parent memory allocation.
     /// Returns the next memory offset after all fields are read.
     pub fn copy_memory_to_storage(
         &mut self,
@@ -275,23 +320,48 @@ impl<'gcx> Lowerer<'gcx> {
         mem_ptr: ValueId,
         mem_offset: u64,
     ) -> u64 {
+        let base_slot = builder.imm_u64(base_slot);
+        self.copy_memory_to_storage_at(builder, struct_id, base_slot, mem_ptr, mem_offset)
+    }
+
+    /// Recursively copies a struct from memory to a runtime-computed storage slot.
+    pub fn copy_memory_to_storage_at(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        struct_id: hir::StructId,
+        base_slot: ValueId,
+        mem_ptr: ValueId,
+        mem_offset: u64,
+    ) -> u64 {
         let mut current_slot_offset = 0u64;
         let mut current_mem_offset = mem_offset;
 
         let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
         for field_ty in field_tys {
             if let TyKind::Struct(inner_struct_id) = field_ty.peel_refs().kind {
-                current_mem_offset = self.copy_memory_to_storage(
-                    builder,
-                    inner_struct_id,
-                    base_slot + current_slot_offset,
-                    mem_ptr,
-                    current_mem_offset,
-                );
+                let inner_slot = if current_slot_offset == 0 {
+                    base_slot
+                } else {
+                    let offset = builder.imm_u64(current_slot_offset);
+                    builder.add(base_slot, offset)
+                };
+                let inner_ptr = if current_mem_offset == 0 {
+                    builder.mload(mem_ptr)
+                } else {
+                    let offset = builder.imm_u64(current_mem_offset);
+                    let field_addr = builder.add(mem_ptr, offset);
+                    builder.mload(field_addr)
+                };
+                self.copy_memory_to_storage_at(builder, inner_struct_id, inner_slot, inner_ptr, 0);
                 current_slot_offset += self.calculate_storage_slots_for_ty(field_ty, Span::DUMMY);
+                current_mem_offset += 32;
             } else {
-                let slot = base_slot + current_slot_offset;
-                let slot_val = builder.imm_u64(slot);
+                let slot_val = if current_slot_offset == 0 {
+                    base_slot
+                } else {
+                    let offset = builder.imm_u64(current_slot_offset);
+                    builder.add(base_slot, offset)
+                };
 
                 let field_val = if current_mem_offset == 0 {
                     builder.mload(mem_ptr)

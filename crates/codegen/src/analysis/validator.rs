@@ -19,10 +19,10 @@
 //! 8. **Instruction-block consistency**: each instruction's `block` field matches the block whose
 //!    `instructions` vector contains it.
 //! 9. **Predecessor consistency**: every stored predecessor actually branches to the block.
-//! 10. **Use reachability**: for every reachable cross-block use of an instruction result, the
-//!     defining block can reach the using block (phi inputs: their incoming predecessor). MIR is
-//!     deliberately loose SSA, but a use its definition can never reach is garbage on every
-//!     execution.
+//! 10. **Use reachability**: for every reachable use of an instruction result, the defining block
+//!     can reach the using block (phi inputs: their incoming predecessor). Within an acyclic block,
+//!     the definition must also precede an instruction use. MIR is deliberately loose SSA, but a
+//!     use its definition can never reach is garbage on every execution.
 //!
 //! # Usage
 //!
@@ -321,19 +321,17 @@ impl<'a> Validator<'a> {
             return;
         }
         let cfg = CfgInfo::new(func);
-        let mut def_block_of: IndexVec<ValueId, Option<BlockId>> = index_vec![None; num_values];
+        let mut def_location_of: IndexVec<ValueId, Option<(BlockId, usize)>> =
+            index_vec![None; num_values];
         for (block_id, block) in func.blocks.iter_enumerated() {
-            for &inst_id in &block.instructions {
+            for (index, &inst_id) in block.instructions.iter().enumerate() {
                 if let Some(result) = inst_results[inst_id] {
-                    def_block_of[result] = Some(block_id);
+                    def_location_of[result] = Some((block_id, index));
                 }
             }
         }
         let mut reach_cache: FxHashMap<BlockId, DenseBitSet<BlockId>> = FxHashMap::default();
         let mut reaches = |from: BlockId, to: BlockId| {
-            if from == to {
-                return true;
-            }
             let set = reach_cache.entry(from).or_insert_with(|| {
                 let mut seen = DenseBitSet::new_empty(func.blocks.len());
                 let mut stack = vec![from];
@@ -354,11 +352,13 @@ impl<'a> Validator<'a> {
             if !cfg.is_reachable(block_id) {
                 continue;
             }
-            for &inst_id in &block.instructions {
+            let block_in_cycle = reaches(block_id, block_id);
+            for (index, &inst_id) in block.instructions.iter().enumerate() {
                 match &func.instructions[inst_id].kind {
                     InstKind::Phi(incoming) => {
                         for &(pred, value) in incoming {
-                            if let Some(def) = def_block_of[value]
+                            if let Some((def, _)) = def_location_of[value]
+                                && def != pred
                                 && !reaches(def, pred)
                             {
                                 self.emit_at_inst(
@@ -376,19 +376,29 @@ impl<'a> Validator<'a> {
                     }
                     kind => {
                         for &operand in kind.operands().iter() {
-                            if let Some(def) = def_block_of[operand]
-                                && def != block_id
-                                && !reaches(def, block_id)
-                            {
-                                self.emit_at_inst(
-                                    format_args!(
-                                        "use of {operand:?} can never be reached by its \
-                                 definition in bb{}",
-                                        def.index()
-                                    ),
-                                    block_id,
-                                    inst_id,
-                                );
+                            if let Some((def, def_index)) = def_location_of[operand] {
+                                if def == block_id {
+                                    if !block_in_cycle && def_index >= index {
+                                        self.emit_at_inst(
+                                            format_args!(
+                                                "use of {operand:?} precedes its definition in \
+                                                 this acyclic block"
+                                            ),
+                                            block_id,
+                                            inst_id,
+                                        );
+                                    }
+                                } else if !reaches(def, block_id) {
+                                    self.emit_at_inst(
+                                        format_args!(
+                                            "use of {operand:?} can never be reached by its \
+                                             definition in bb{}",
+                                            def.index()
+                                        ),
+                                        block_id,
+                                        inst_id,
+                                    );
+                                }
                             }
                         }
                     }
@@ -396,7 +406,7 @@ impl<'a> Validator<'a> {
             }
             if let Some(term) = &block.terminator {
                 for &operand in term.operands().iter() {
-                    if let Some(def) = def_block_of[operand]
+                    if let Some((def, _)) = def_location_of[operand]
                         && def != block_id
                         && !reaches(def, block_id)
                     {
