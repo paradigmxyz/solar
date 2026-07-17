@@ -1099,15 +1099,13 @@ impl<'gcx> Ty<'gcx> {
                 gcx.mk_ty_tuple(gcx.mk_tys(&tys))
             }
             TyKind::Fn(f) => {
-                if f.is_declaration()
-                    || f.attached
-                    || matches!(
+                if f.attached
+                    || !matches!(
                         f.kind,
-                        TyFnKind::Builtin
-                            | TyFnKind::BareCall
-                            | TyFnKind::BareDelegateCall
-                            | TyFnKind::BareStaticCall
-                            | TyFnKind::Creation
+                        TyFnKind::Internal
+                            | TyFnKind::InternalWithSelector
+                            | TyFnKind::External
+                            | TyFnKind::DelegateCall
                     )
                 {
                     return None;
