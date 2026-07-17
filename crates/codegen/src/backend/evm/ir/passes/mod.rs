@@ -5,7 +5,6 @@
 //! remain local, matching the organization of the MIR transforms.
 
 mod block_layout;
-mod cold_layout;
 mod terminal_dedup;
 mod utils;
 
@@ -50,9 +49,6 @@ declare_passes! {
     /// Materialize virtual instruction operands with physical stack operations.
     pub const STACK_SCHEDULE_PASS -> "stack-schedule" = ir_stack_schedule::schedule_stack_ops;
 
-    /// Move cold terminal blocks after hot code without changing control flow.
-    pub const COLD_LAYOUT_PASS -> "cold-layout" = cold_layout::run;
-
     /// Replace duplicate terminal block bodies with jumps to the first copy when profitable.
     pub const TERMINAL_DEDUP_PASS -> "terminal-dedup" = terminal_dedup::run;
 
@@ -69,11 +65,10 @@ pub struct PassOptions {
 
 /// All EVM IR passes exposed by `solar evm-opt`.
 pub const PASS_REGISTRY: &[PassInfo] =
-    &[STACK_SCHEDULE_PASS, COLD_LAYOUT_PASS, TERMINAL_DEDUP_PASS, BLOCK_LAYOUT_PASS];
+    &[STACK_SCHEDULE_PASS, TERMINAL_DEDUP_PASS, BLOCK_LAYOUT_PASS];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
-pub const DEFAULT_LAYOUT_PIPELINE: &[PassInfo] =
-    &[COLD_LAYOUT_PASS, TERMINAL_DEDUP_PASS, BLOCK_LAYOUT_PASS];
+pub const DEFAULT_LAYOUT_PIPELINE: &[PassInfo] = &[TERMINAL_DEDUP_PASS, BLOCK_LAYOUT_PASS];
 
 /// Finds a pass in the EVM IR pass registry by command-line name.
 pub fn lookup_pass(name: &str) -> Option<&'static PassInfo> {
