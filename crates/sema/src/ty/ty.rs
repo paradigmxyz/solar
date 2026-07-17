@@ -907,8 +907,8 @@ impl<'gcx> Ty<'gcx> {
             return Ok(());
         }
         match (self.kind, other.kind) {
-            // Enum <-> all integer types.
-            (Enum(_), _) if other.is_integer() => Ok(()),
+            // Enum -> unsigned integer types.
+            (Enum(_), Elementary(UInt(_))) => Ok(()),
             (_, Enum(_)) if self.is_integer() => Ok(()),
 
             // bytes/FixedBytes to FixedBytes: always allowed (any size).
@@ -922,17 +922,8 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
 
-            // A calldata `bytes` slice (`data[i:j]`) converts like `bytes`: to
-            // fixed-bytes, `bytes`, or `string`.
-            (Slice(underlying), other_kind)
-                if matches!(underlying.peel_refs().kind, Elementary(Bytes)) =>
-            {
-                match other_kind {
-                    Elementary(FixedBytes(_) | Bytes | String) => Ok(()),
-                    Ref(inner, _) if matches!(inner.kind, Elementary(Bytes | String)) => Ok(()),
-                    _ => Result::Err(TyConvertError::InvalidConversion),
-                }
-            }
+            // Array slices convert exactly like their underlying calldata array.
+            (Slice(underlying), _) => underlying.can_convert_explicit_to(other, gcx),
 
             (Ref(from_inner, _), _) if from_inner == other && other.is_reference_type() => Ok(()),
 
@@ -1082,11 +1073,9 @@ impl<'gcx> Ty<'gcx> {
             {
                 gcx.types.string.with_loc(gcx, loc)
             }
-            // A calldata `bytes` slice converted to `bytes`/`string` stays in
-            // calldata (it is a view), so the result is `bytes`/`string calldata`.
-            (Slice(_), Elementary(Bytes)) => gcx.types.bytes.with_loc(gcx, DataLocation::Calldata),
-            (Slice(_), Elementary(String)) => {
-                gcx.types.string.with_loc(gcx, DataLocation::Calldata)
+            // A calldata slice conversion remains a calldata view.
+            (Slice(underlying), _) if other.is_reference_type() => {
+                other.with_loc(gcx, underlying.loc().unwrap_or(DataLocation::Calldata))
             }
             _ => other,
         })

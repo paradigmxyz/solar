@@ -949,6 +949,15 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         };
         let from = self.check_expr(from_expr);
+        if let TyKind::Enum(enum_id) = to.kind
+            && matches!(from.kind, TyKind::IntLiteral(..))
+            && invalid_enum_literal(self.gcx, from_expr, self.gcx.hir.enumm(enum_id).variants.len())
+        {
+            let mut diag = self.dcx().err("invalid explicit type conversion").span(span);
+            diag = diag
+                .span_label(span, TyConvertError::InvalidConversion.message(from, to, self.gcx));
+            return self.gcx.mk_ty_err(diag.emit());
+        }
         match from.try_convert_explicit_to(to, self.gcx) {
             Ok(result_ty) => result_ty,
             Err(err) => {
@@ -2628,6 +2637,11 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         }
         self.walk_stmt(stmt)
     }
+}
+
+fn invalid_enum_literal(gcx: Gcx<'_>, expr: &hir::Expr<'_>, variants: usize) -> bool {
+    gcx.try_eval_const(expr)
+        .is_ok_and(|value| value.as_u256().is_none_or(|value| value >= U256::from(variants)))
 }
 
 enum OverloadError {

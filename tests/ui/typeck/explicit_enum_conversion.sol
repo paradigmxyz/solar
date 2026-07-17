@@ -12,12 +12,19 @@ contract C {
         uint64 u64 = uint64(t);
         uint128 u128 = uint128(t);
         uint256 u256 = uint256(t);
+        int8 i8 = int8(t); //~ ERROR: invalid explicit type conversion
+        int256 i256 = int256(t); //~ ERROR: invalid explicit type conversion
     }
 
     function validIntegerToEnum(uint8 u8, int256 i256) public pure {
         TrafficLight t = TrafficLight(u8);
         TrafficLight t2 = TrafficLight(i256);
         TrafficLight t3 = TrafficLight(1);
+        TrafficLight t4 = TrafficLight(0);
+        TrafficLight t5 = TrafficLight(2);
+        TrafficLight t6 = TrafficLight(-1); //~ ERROR: invalid explicit type conversion
+        TrafficLight t7 = TrafficLight(3); //~ ERROR: invalid explicit type conversion
+        TrafficLight t8 = TrafficLight(1 + 2); //~ ERROR: invalid explicit type conversion
     }
 
     function invalidEnumToBytes(TrafficLight t) public pure {
@@ -33,4 +40,3 @@ contract C {
         bool b = bool(t); //~ ERROR: invalid explicit type conversion
     }
 }
-
