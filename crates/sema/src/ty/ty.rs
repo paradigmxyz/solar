@@ -1104,7 +1104,7 @@ impl<'gcx> Ty<'gcx> {
                 let tys = tys.iter().map(|ty| ty.mobile(gcx)).collect::<Option<Vec<_>>>()?;
                 gcx.mk_ty_tuple(gcx.mk_tys(&tys))
             }
-            TyKind::Fn(f)
+            TyKind::Fn(f) => {
                 if f.is_declaration()
                     || f.attached
                     || matches!(
@@ -1114,11 +1114,10 @@ impl<'gcx> Ty<'gcx> {
                             | TyFnKind::BareDelegateCall
                             | TyFnKind::BareStaticCall
                             | TyFnKind::Creation
-                    ) =>
-            {
-                return None;
-            }
-            TyKind::Fn(f) => {
+                    )
+                {
+                    return None;
+                }
                 let kind = if f.kind == TyFnKind::InternalWithSelector {
                     TyFnKind::Internal
                 } else {
