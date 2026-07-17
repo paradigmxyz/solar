@@ -98,14 +98,4 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     pub(crate) fn error_at(&self, span: Span, message: impl Into<String>) -> PErr<'sess> {
         self.parser.dcx().err(message.into()).span(span)
     }
-
-    pub(crate) fn skip_to_eol(&mut self) {
-        while !self.is_eof() && !self.token_starts_line() {
-            self.bump();
-        }
-    }
-
-    pub(crate) fn token_starts_line(&self) -> bool {
-        self.parser.token_starts_line()
-    }
 }

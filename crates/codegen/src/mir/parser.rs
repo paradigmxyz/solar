@@ -131,10 +131,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.parser.is_eof()
     }
 
-    fn skip_to_eol(&mut self) {
-        self.parser.skip_to_eol();
-    }
-
     fn error(&self, msg: impl Into<String>) -> PErr<'sess> {
         self.parser.error(msg)
     }
@@ -192,7 +188,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 _ => return Err(self.error(format!("unknown module attribute `@{attr}`"))),
             }
-            self.skip_to_eol();
         }
 
         let module_ident = Ident::with_dummy_span(Symbol::intern(&module_name));
@@ -333,7 +328,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             if let Some(idx) = self.try_parse_block_header()? {
                 let bid = self.define_block(&mut func, &mut block_labels, &mut block_order, idx)?;
                 current_block = Some(bid);
-                self.skip_to_eol();
                 continue;
             }
 
@@ -659,7 +653,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::jump => {
                 let target = self.parse_block_id(func, block_labels)?;
                 self.set_terminator(func, block, Terminator::Jump(target));
-                self.skip_to_eol();
                 return Ok(());
             }
             sym::br => {
@@ -673,7 +666,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     block,
                     Terminator::Branch { condition, then_block, else_block },
                 );
-                self.skip_to_eol();
                 return Ok(());
             }
             kw::Switch => {
@@ -698,13 +690,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     }
                 }
                 self.set_terminator(func, block, Terminator::Switch { value, default, cases });
-                self.skip_to_eol();
                 return Ok(());
             }
             sym::ret => {
                 let mut values: SmallVec<[ValueId; 2]> = SmallVec::new();
-                // Empty ret?
-                if !self.is_eof() && !self.parser.token_starts_line() {
+                if self.value_starts_here() {
                     loop {
                         values.push(self.parse_value(func, arg_values, value_labels)?);
                         if !self.parser.eat(TokenKind::Comma) {
@@ -713,7 +703,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     }
                 }
                 self.set_terminator(func, block, Terminator::Return { values });
-                self.skip_to_eol();
                 return Ok(());
             }
             kw::Revert => {
@@ -721,7 +710,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::Comma)?;
                 let size = self.parse_value(func, arg_values, value_labels)?;
                 self.set_terminator(func, block, Terminator::Revert { offset, size });
-                self.skip_to_eol();
                 return Ok(());
             }
             sym::returndata => {
@@ -729,23 +717,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::Comma)?;
                 let size = self.parse_value(func, arg_values, value_labels)?;
                 self.set_terminator(func, block, Terminator::ReturnData { offset, size });
-                self.skip_to_eol();
                 return Ok(());
             }
             kw::Stop => {
                 self.set_terminator(func, block, Terminator::Stop);
-                self.skip_to_eol();
                 return Ok(());
             }
             kw::Selfdestruct => {
                 let recipient = self.parse_value(func, arg_values, value_labels)?;
                 self.set_terminator(func, block, Terminator::SelfDestruct { recipient });
-                self.skip_to_eol();
                 return Ok(());
             }
             kw::Invalid => {
                 self.set_terminator(func, block, Terminator::Invalid);
-                self.skip_to_eol();
                 return Ok(());
             }
             sym::tail_call => {
@@ -756,7 +740,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 self.set_terminator(func, block, Terminator::TailCall { function, args });
                 self.finish_function_ref(FunctionRefTarget::Terminator(block));
-                self.skip_to_eol();
                 return Ok(());
             }
             _ => {}
@@ -781,8 +764,26 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if let Some(label) = result_label {
             self.resolve_result_label(func, value_labels, label, inst_id)?;
         }
-        self.skip_to_eol();
         Ok(())
+    }
+
+    fn value_starts_here(&self) -> bool {
+        match self.parser.token().kind {
+            TokenKind::Literal(TokenLitKind::Integer, _) => true,
+            TokenKind::Ident(symbol) if self.parser.look_ahead(1).kind != TokenKind::Eq => {
+                symbol == kw::True
+                    || symbol == kw::False
+                    || symbol == sym::err
+                    || symbol
+                        .as_str()
+                        .strip_prefix("arg")
+                        .or_else(|| symbol.as_str().strip_prefix('v'))
+                        .is_some_and(|index| {
+                            !index.is_empty() && index.bytes().all(|byte| byte.is_ascii_digit())
+                        })
+            }
+            _ => false,
+        }
     }
 
     fn parse_metadata(
@@ -1600,6 +1601,26 @@ error: unknown MIR phase `shiny`
 2 │ @phase shiny
   ╰╴       ━━━━━
 
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
+    fn parser_does_not_treat_newlines_as_syntax() {
+        with_session(|sess| {
+            let src = "@module m fn @f() -> u256 { bb0 (entry): v0 = add 1, 2 ret v0 }";
+            let module = parse_module(sess, src).unwrap();
+            assert_data_eq!(
+                module.to_text().to_string(),
+                str![[r#"
+@module m
+fn @f() -> u256 {
+  bb0 (entry):
+    v0 = add 1, 2
+    ret v0
+}
 
 "#]]
             );

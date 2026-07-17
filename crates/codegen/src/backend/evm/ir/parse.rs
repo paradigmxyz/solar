@@ -9,7 +9,6 @@ use solar_ast::{
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use solar_interface::{Result, Session, Span, Symbol, kw, source_map::SourceFile, sym};
 use solar_parse::{PErr, PResult};
-use std::fmt::Write;
 
 pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
     let arena = Arena::new();
@@ -39,21 +38,18 @@ enum BodyEnd {
     Brace,
 }
 
-struct Parser<'sess, 'ast> {
+struct Parser<'sess, 'ast, 'src> {
     parser: crate::ir_parse::Parser<'sess, 'ast>,
+    source: &'src SourceFile,
 }
 
-impl<'sess, 'ast> Parser<'sess, 'ast> {
-    fn new(sess: &'sess Session, arena: &'ast Arena, source: &SourceFile) -> Self {
-        Self { parser: crate::ir_parse::Parser::new(sess, arena, source) }
+impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
+    fn new(sess: &'sess Session, arena: &'ast Arena, source: &'src SourceFile) -> Self {
+        Self { parser: crate::ir_parse::Parser::new(sess, arena, source), source }
     }
 
     fn is_eof(&self) -> bool {
         self.parser.is_eof()
-    }
-
-    fn skip_to_eol(&mut self) {
-        self.parser.skip_to_eol();
     }
 
     fn error(&self, msg: impl Into<String>) -> PErr<'sess> {
@@ -101,7 +97,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             } else {
                 return Err(self.error(format!("unknown module attribute `@{attr}`")));
             }
-            self.skip_to_eol();
         }
 
         let mut module = Module::new(name);
@@ -149,7 +144,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 module.blocks[block_id].entry_stack = entry_stack;
                 current_block = Some(block_id);
-                self.skip_to_eol();
                 continue;
             }
 
@@ -315,13 +309,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             let metadata = self.parse_metadata()?;
             module.blocks[block].terminator = Some(Terminator { kind, metadata });
-            self.skip_to_eol();
             return Ok(());
         }
 
-        let operands =
-            self.parse_operand_list(module, block_labels, value_labels, defined_values)?;
-        let metadata = self.parse_metadata()?;
         let (opcode, encoding) = match mnemonic {
             sym::push => (op::PUSH32, Instruction::ENCODED_PUSH),
             sym::push_deferred => (op::PUSH32, Instruction::ENCODED_PUSH | Instruction::DEFERRED),
@@ -333,6 +323,20 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 0,
             ),
         };
+        let encoded_push = encoding & Instruction::ENCODED_PUSH != 0;
+        let has_operands = encoded_push
+            || match op::stack_io(opcode) {
+                Some((inputs, _)) => inputs > 0 && (result.is_some() || self.operand_starts_here()),
+                None => self.operand_starts_here(),
+            };
+        let operands = self.parse_operand_list(
+            has_operands,
+            module,
+            block_labels,
+            value_labels,
+            defined_values,
+        )?;
+        let metadata = self.parse_metadata()?;
         module.blocks[block].instructions.push(Instruction {
             result,
             opcode,
@@ -340,7 +344,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             operands,
             metadata,
         });
-        self.skip_to_eol();
         Ok(())
     }
 
@@ -422,7 +425,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 TerminatorKind::Switch { value, default, cases }
             }
-            kw::Return if self.at_end_of_operation() => TerminatorKind::RawOpcode(op::RETURN),
+            kw::Return if !self.operand_starts_here() => TerminatorKind::RawOpcode(op::RETURN),
             kw::Return => {
                 let offset =
                     self.parse_operand(module, block_labels, value_labels, defined_values)?;
@@ -431,7 +434,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.parse_operand(module, block_labels, value_labels, defined_values)?;
                 TerminatorKind::Return { offset, size }
             }
-            kw::Revert if self.at_end_of_operation() => TerminatorKind::RawOpcode(op::REVERT),
+            kw::Revert if !self.operand_starts_here() => TerminatorKind::RawOpcode(op::REVERT),
             kw::Revert => {
                 let offset =
                     self.parse_operand(module, block_labels, value_labels, defined_values)?;
@@ -442,7 +445,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             kw::Stop => TerminatorKind::Stop,
             kw::Invalid => TerminatorKind::Invalid,
-            kw::Selfdestruct if self.at_end_of_operation() => {
+            kw::Selfdestruct if !self.operand_starts_here() => {
                 TerminatorKind::RawOpcode(op::SELFDESTRUCT)
             }
             kw::Selfdestruct => {
@@ -480,13 +483,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_operand_list(
         &mut self,
+        has_operands: bool,
         module: &mut Module,
         block_labels: &mut FxHashMap<Symbol, BlockLabel>,
         value_labels: &mut FxHashMap<Symbol, ValueId>,
         defined_values: &mut GrowableBitSet<ValueId>,
     ) -> PResult<'sess, Vec<Operand>> {
         let mut operands = Vec::new();
-        if self.at_end_of_operation() {
+        if !has_operands {
             return Ok(operands);
         }
         loop {
@@ -577,19 +581,22 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_metadata_value(&mut self) -> PResult<'sess, Symbol> {
-        let mut value = String::new();
+        let start = self.parser.token().span.lo();
+        let mut end = start;
         while !self.is_eof()
             && !self.parser.check(TokenKind::Comma)
             && !self.parser.check(TokenKind::CloseDelim(Delimiter::Parenthesis))
-            && !self.parser.token_starts_line()
         {
-            write!(value, "{}", self.parser.token().kind).unwrap();
+            end = self.parser.token().span.hi();
             self.parser.bump();
         }
+        let start = (start - self.source.start_pos).to_usize();
+        let end = (end - self.source.start_pos).to_usize();
+        let value = self.source.src[start..end].trim();
         if value.is_empty() {
             return Err(self.error("expected metadata value"));
         }
-        Ok(Symbol::intern(&value))
+        Ok(Symbol::intern(value))
     }
 
     fn parse_u16(&mut self) -> PResult<'sess, u16> {
@@ -597,11 +604,41 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         value.try_into().map_err(|_| self.error(format!("integer `{value}` does not fit in u16")))
     }
 
-    fn at_end_of_operation(&self) -> bool {
-        self.is_eof()
-            || self.parser.token_starts_line()
-            || self.parser.check(TokenKind::Not)
-            || self.parser.check(TokenKind::CloseDelim(Delimiter::Brace))
+    fn operand_starts_here(&self) -> bool {
+        match self.parser.token().kind {
+            TokenKind::Literal(..) | TokenKind::At => true,
+            TokenKind::BinOp(BinOpToken::Percent) => {
+                self.parser.look_ahead(2).kind != TokenKind::Eq
+            }
+            TokenKind::Ident(symbol) => {
+                !Self::is_operation_mnemonic(symbol)
+                    && !matches!(
+                        self.parser.look_ahead(1).kind,
+                        TokenKind::Colon | TokenKind::OpenDelim(Delimiter::Parenthesis)
+                    )
+            }
+            _ => false,
+        }
+    }
+
+    fn is_operation_mnemonic(symbol: Symbol) -> bool {
+        op::from_ir_symbol(symbol).is_some()
+            || matches!(
+                symbol,
+                sym::push
+                    | sym::push_deferred
+                    | sym::push_immutable
+                    | sym::jump
+                    | sym::br
+                    | kw::Switch
+                    | kw::Return
+                    | kw::Revert
+                    | kw::Stop
+                    | kw::Invalid
+                    | kw::Selfdestruct
+                    | sym::terminal
+                    | sym::raw
+            )
     }
 }
 
@@ -671,6 +708,29 @@ mod tests {
             failures.len(),
             failures.join("\n  ")
         );
+    }
+
+    #[test]
+    fn parser_does_not_treat_newlines_as_syntax() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        let input = "@module m bb0 (entry): %a = push 1 %b = push 2 %c = add %a, %b stop bb1: selfdestruct beneficiary";
+        sess.enter(|| {
+            let module = parse_module(&sess, input).unwrap();
+            assert_data_eq!(
+                module.to_text().to_string(),
+                str![[r#"
+@module m
+bb0 (entry):
+  %a = push 1
+  %b = push 2
+  %c = add %a, %b
+  stop
+bb1:
+  selfdestruct beneficiary
+
+"#]]
+            );
+        });
     }
 
     #[test]

@@ -1,4 +1,4 @@
-use crate::{Lexer, PErr, PResult, lexer::SpacedToken};
+use crate::{Lexer, PErr, PResult};
 use smallvec::SmallVec;
 use solar_ast::{
     self as ast, AstPath, Box, BoxSlice, DocComment, DocComments,
@@ -42,8 +42,6 @@ pub struct Parser<'sess, 'ast, 'cb> {
     pub token: Token,
     /// The previous token.
     pub prev_token: Token,
-    /// Whether the current token is preceded by a line break.
-    token_starts_line: bool,
     /// List of expected tokens. Cleared after each `bump` call.
     expected_tokens: Vec<ExpectedToken>,
     /// The span of the last unexpected token.
@@ -52,7 +50,7 @@ pub struct Parser<'sess, 'ast, 'cb> {
     docs: Vec<DocComment<'ast>>,
 
     /// The token stream.
-    tokens: std::vec::IntoIter<SpacedToken>,
+    tokens: std::vec::IntoIter<Token>,
 
     /// Whether the parser is in Yul mode.
     ///
@@ -149,18 +147,12 @@ pub enum Recovered {
 impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Creates a new parser.
     pub fn new(sess: &'sess Session, arena: &'ast ast::Arena, tokens: Vec<Token>) -> Self {
-        let tokens = tokens.into_iter().map(|token| SpacedToken::new(token, false)).collect();
-        Self::new_spaced(sess, arena, tokens)
-    }
-
-    fn new_spaced(sess: &'sess Session, arena: &'ast ast::Arena, tokens: Vec<SpacedToken>) -> Self {
         assert!(sess.is_entered(), "session should be entered before parsing");
         let mut parser = Self {
             sess,
             arena,
             token: Token::DUMMY,
             prev_token: Token::DUMMY,
-            token_starts_line: false,
             expected_tokens: Vec::with_capacity(8),
             last_unexpected_token_span: None,
             docs: Vec::with_capacity(4),
@@ -233,14 +225,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
     /// Creates a new parser from a lexer.
     pub fn from_lexer(arena: &'ast ast::Arena, lexer: Lexer<'sess, '_>) -> Self {
-        let sess = lexer.sess;
-        Self::new_spaced(sess, arena, lexer.into_token_stream())
-    }
-
-    /// Returns whether the current token is preceded by a line break.
-    #[inline]
-    pub fn token_starts_line(&self) -> bool {
-        self.token_starts_line
+        Self::new(lexer.sess, arena, lexer.into_tokens())
     }
 
     /// Returns the diagnostic context.
@@ -767,7 +752,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Advance the parser by one token.
     pub fn bump(&mut self) {
         let next = self.next_token();
-        if next.token.is_comment_or_doc() {
+        if next.is_comment_or_doc() {
             return self.bump_trivia(next);
         }
         self.inlined_bump_with(next);
@@ -779,21 +764,17 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     ///
     /// Panics if the provided token is a comment.
     pub fn bump_with(&mut self, next: Token) {
-        self.inlined_bump_with(SpacedToken::new(next, false));
+        self.inlined_bump_with(next);
     }
 
     /// This always-inlined version should only be used on hot code paths.
     #[inline(always)]
-    fn inlined_bump_with(&mut self, next: SpacedToken) {
+    fn inlined_bump_with(&mut self, next: Token) {
         #[cfg(debug_assertions)]
-        if next.token.is_comment_or_doc() {
-            self.dcx()
-                .bug("`bump_with` should not be used with comments")
-                .span(next.token.span)
-                .emit();
+        if next.is_comment_or_doc() {
+            self.dcx().bug("`bump_with` should not be used with comments").span(next.span).emit();
         }
-        self.prev_token = std::mem::replace(&mut self.token, next.token);
-        self.token_starts_line = next.line_break_before;
+        self.prev_token = std::mem::replace(&mut self.token, next);
         self.expected_tokens.clear();
         self.docs.clear();
     }
@@ -802,12 +783,11 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     ///
     /// Pushes docs to `self.docs`. Retrieve them with `parse_doc_comments`.
     #[cold]
-    fn bump_trivia(&mut self, next: SpacedToken) {
+    fn bump_trivia(&mut self, next: Token) {
         self.docs.clear();
 
-        debug_assert!(next.token.is_comment_or_doc());
-        self.prev_token = std::mem::replace(&mut self.token, next.token);
-        self.token_starts_line = next.line_break_before;
+        debug_assert!(next.is_comment_or_doc());
+        self.prev_token = std::mem::replace(&mut self.token, next);
         while let Some((is_doc, kind, symbol)) = self.token.comment() {
             if is_doc {
                 let natspec = if let Some(items) =
@@ -820,9 +800,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 self.docs.push(DocComment { kind, span: self.token.span, symbol, natspec });
             }
             // Don't set `prev_token` on purpose.
-            let next = self.next_token();
-            self.token = next.token;
-            self.token_starts_line = next.line_break_before;
+            self.token = self.next_token();
         }
 
         self.expected_tokens.clear();
@@ -832,10 +810,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     ///
     /// Use [`bump`](Self::bump) and [`token`](Self::token) instead.
     #[inline(always)]
-    fn next_token(&mut self) -> SpacedToken {
-        self.tokens
-            .next()
-            .unwrap_or_else(|| SpacedToken::new(Token::new(TokenKind::Eof, self.token.span), false))
+    fn next_token(&mut self) -> Token {
+        self.tokens.next().unwrap_or(Token::new(TokenKind::Eof, self.token.span))
     }
 
     /// Returns the token `dist` tokens ahead of the current one.
@@ -858,8 +834,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             .as_slice()
             .iter()
             .copied()
-            .map(|token| token.token)
-            .filter(|token| !token.is_comment_or_doc())
+            .filter(|t| !t.is_comment_or_doc())
             .nth(dist - 1)
             .unwrap_or(Token::EOF)
     }
@@ -1254,30 +1229,6 @@ fn parse_natspec(
 mod tests {
     use super::*;
     use solar_interface::{Session, SourceMap};
-
-    #[test]
-    fn tracks_line_breaks_between_tokens() {
-        let sess =
-            Session::builder().with_buffer_emitter(Default::default()).single_threaded().build();
-        sess.enter_sequential(|| {
-            let arena = ast::Arena::new();
-            let mut parser = Parser::from_source_code(
-                &sess,
-                &arena,
-                "test.sol".to_string().into(),
-                "a b\nc /*\n*/ d",
-            )
-            .unwrap();
-
-            assert!(!parser.token_starts_line());
-            parser.bump();
-            assert!(!parser.token_starts_line());
-            parser.bump();
-            assert!(parser.token_starts_line());
-            parser.bump();
-            assert!(parser.token_starts_line());
-        });
-    }
 
     fn check_natspec_item(
         sm: &SourceMap,
