@@ -4,13 +4,13 @@ use solar_interface::{
     data_structures::map::{FxHashMap, FxHashSet},
 };
 use solar_sema::{Gcx, ast};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::proto;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct DocumentLinkIndex {
-    by_file: FxHashMap<Url, Vec<StoredDocumentLink>>,
+    by_file: FxHashMap<PathBuf, Vec<StoredDocumentLink>>,
 }
 
 #[derive(Clone, Debug)]
@@ -27,6 +27,7 @@ impl DocumentLinkIndex {
             if !source_paths.contains(source_path) {
                 continue;
             }
+            let source_path = source_path.to_path_buf();
             let Some(ast) = &source.ast else { continue };
             for &(item_id, target_source_id) in &source.imports {
                 let ast::ItemKind::Import(import) = &ast.items[item_id].kind else { continue };
@@ -42,7 +43,7 @@ impl DocumentLinkIndex {
                 let Some(target_path) = target.file.name.as_real() else { continue };
                 let Ok(target_uri) = Url::from_file_path(target_path) else { continue };
                 index.push(
-                    location.uri,
+                    source_path.clone(),
                     StoredDocumentLink { range: location.range, target: target_uri },
                 );
             }
@@ -51,22 +52,22 @@ impl DocumentLinkIndex {
         index
     }
 
-    fn push(&mut self, source: Url, link: StoredDocumentLink) {
+    fn push(&mut self, source: PathBuf, link: StoredDocumentLink) {
         self.by_file.entry(source).or_default().push(link);
     }
 
     #[cfg(test)]
-    pub(crate) fn insert_for_test(&mut self, source: Url, range: Range, target: Url) {
+    pub(crate) fn insert_for_test(&mut self, source: PathBuf, range: Range, target: Url) {
         self.push(source, StoredDocumentLink { range, target });
     }
 
     pub(crate) fn extend(&mut self, other: Self) {
-        debug_assert!(other.by_file.keys().all(|uri| !self.by_file.contains_key(uri)));
+        debug_assert!(other.by_file.keys().all(|path| !self.by_file.contains_key(path)));
         self.by_file.extend(other.by_file);
     }
 
-    pub(crate) fn links(&self, uri: &Url) -> Vec<DocumentLink> {
-        let Some(links) = self.by_file.get(uri) else { return Vec::new() };
+    pub(crate) fn links(&self, path: &Path) -> Vec<DocumentLink> {
+        let Some(links) = self.by_file.get(path) else { return Vec::new() };
         links.iter().map(StoredDocumentLink::to_lsp).collect()
     }
 

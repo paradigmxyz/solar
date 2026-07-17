@@ -73,6 +73,50 @@ fn returns_only_successfully_resolved_imports() {
 }
 
 #[test]
+fn equivalent_percent_encoded_uri_returns_document_links() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Imports.sol
+        import "./Target.sol";
+
+        //- /Target.sol
+        contract Target {}
+        "#,
+    );
+    let path = project.path("/Imports.sol");
+    let tables = analyze(AnalysisBatch {
+        opts: CompileOpts::default(),
+        files: vec![(path.clone(), project.read_file("/Imports.sol"))],
+        seen_paths: FxHashSet::default(),
+    })
+    .symbol_tables;
+    let canonical_uri = Url::from_file_path(&path).unwrap();
+    let encoded_uri =
+        Url::parse(&canonical_uri.as_str().replacen("Imports.sol", "%49mports.sol", 1)).unwrap();
+
+    assert_ne!(canonical_uri, encoded_uri);
+    assert_eq!(canonical_uri.to_file_path(), encoded_uri.to_file_path());
+
+    let params = DocumentLinkParams {
+        text_document: TextDocumentIdentifier::new(encoded_uri),
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
+    };
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    *state.symbol_tables.write() = tables;
+    let mut request = std::pin::pin!(crate::handlers::document_links(&mut state, params));
+    let waker = Waker::noop();
+    let mut context = Context::from_waker(waker);
+    let std::task::Poll::Ready(response) = request.as_mut().poll(&mut context) else {
+        panic!("document-link request should be ready");
+    };
+
+    let links = response.unwrap().unwrap();
+    assert_eq!(links.len(), 1);
+    assert_eq!(links[0].target, Some(Url::from_file_path(project.path("/Target.sol")).unwrap()));
+}
+
+#[test]
 fn overlapping_workspaces_prefer_vfs_document_links() {
     let mut project = TestProject::from_fixture(
         r#"
@@ -108,9 +152,9 @@ fn overlapping_workspaces_prefer_vfs_document_links() {
         }
     }
 
-    let uri = Url::from_file_path(project.path("/nested/A.sol")).unwrap();
+    let path = project.path("/nested/A.sol");
     let links = tables
-        .document_links(&uri)
+        .document_links(&path)
         .into_iter()
         .map(|link| (link.range, link.target.unwrap()))
         .collect::<Vec<_>>();

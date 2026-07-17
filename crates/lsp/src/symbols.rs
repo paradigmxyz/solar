@@ -20,7 +20,10 @@ use solar_sema::{
     },
     ty::{CallableParamSource, MemberCompletion, ResolvedMember, Ty, TyKind},
 };
-use std::{ops::ControlFlow, path::PathBuf};
+use std::{
+    ops::ControlFlow,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     document_links::DocumentLinkIndex,
@@ -325,8 +328,8 @@ impl SymbolTables {
         self.inlay_hints.hints(uri, range)
     }
 
-    pub(crate) fn document_links(&self, uri: &Url) -> Vec<lsp_types::DocumentLink> {
-        self.document_links.links(uri)
+    pub(crate) fn document_links(&self, path: &Path) -> Vec<lsp_types::DocumentLink> {
+        self.document_links.links(path)
     }
 
     pub(crate) fn signature_help(
@@ -1985,16 +1988,16 @@ mod tests {
 
     #[test]
     fn extend_preserves_document_links_without_declarations() {
-        let source = parse_uri("file:///workspace/src/Imports.sol");
+        let source_path = PathBuf::from("/workspace/src/Imports.sol");
         let target = parse_uri("file:///workspace/src/Dependency.sol");
         let link_range = range(0, 8, 0, 24);
         let mut tables = SymbolTables::default();
         let mut other = SymbolTables::default();
-        other.document_links.insert_for_test(source.clone(), link_range, target.clone());
+        other.document_links.insert_for_test(source_path.clone(), link_range, target.clone());
 
         tables.extend(other);
 
-        let links = tables.document_links(&source);
+        let links = tables.document_links(&source_path);
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].range, link_range);
         assert_eq!(links[0].target, Some(target));

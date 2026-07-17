@@ -173,13 +173,14 @@ pub(crate) fn document_links(
 ) -> impl Future<Output = Result<Option<Vec<DocumentLink>>, ResponseError>> + use<> {
     let symbol_tables = state.symbol_tables.clone();
     let (version, mut published) = state.current_analysis();
-    let uri = params.text_document.uri;
+    let path = params.text_document.uri.to_file_path().ok();
     async move {
         published
             .wait_for(|published| *published >= version)
             .await
             .map_err(|_| request_failed("analysis was cancelled"))?;
-        let links = symbol_tables.read().document_links(&uri);
+        let links =
+            path.as_ref().map_or_else(Vec::new, |path| symbol_tables.read().document_links(path));
         Ok(Some(links))
     }
 }

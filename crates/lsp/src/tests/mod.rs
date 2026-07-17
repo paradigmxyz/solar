@@ -309,8 +309,8 @@ fn document_links_use_vfs_overlay() {
     let result = analyze(batches.pop().unwrap());
 
     assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
-    let uri = Url::from_file_path(project.path("/src/A.sol")).unwrap();
-    let links = result.symbol_tables.document_links(&uri);
+    let path = project.path("/src/A.sol");
+    let links = result.symbol_tables.document_links(&path);
     assert_eq!(links.len(), 1);
     assert_eq!(links[0].target, Some(Url::from_file_path(project.path("/src/New.sol")).unwrap()));
 }
@@ -400,8 +400,8 @@ fn analysis_uses_workspace_remappings_for_import_resolution() {
     let result = analyze(batches.pop().unwrap());
 
     assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
-    let uri = Url::from_file_path(project.path("/src/A.sol")).unwrap();
-    let links = result.symbol_tables.document_links(&uri);
+    let path = project.path("/src/A.sol");
+    let links = result.symbol_tables.document_links(&path);
     assert_eq!(links.len(), 1);
     assert_eq!(links[0].target, Some(Url::from_file_path(project.path("/lib/B.sol")).unwrap()));
 }
