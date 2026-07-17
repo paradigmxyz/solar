@@ -2643,8 +2643,8 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
 }
 
 fn invalid_enum_literal(gcx: Gcx<'_>, expr: &hir::Expr<'_>, variants: usize) -> bool {
-    let Ok(value) = gcx.try_eval_const(expr) else { return true };
-    value.as_u256().is_none_or(|value| value >= U256::from(variants))
+    gcx.try_eval_const(expr)
+        .is_ok_and(|value| value.as_u256().is_none_or(|value| value >= U256::from(variants)))
 }
 
 enum OverloadError {
