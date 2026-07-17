@@ -1104,13 +1104,41 @@ impl<'gcx> Ty<'gcx> {
                 let tys = tys.iter().map(|ty| ty.mobile(gcx)).collect::<Option<Vec<_>>>()?;
                 gcx.mk_ty_tuple(gcx.mk_tys(&tys))
             }
+            TyKind::Fn(f)
+                if f.is_declaration()
+                    || f.attached
+                    || matches!(
+                        f.kind,
+                        TyFnKind::Builtin
+                            | TyFnKind::BareCall
+                            | TyFnKind::BareDelegateCall
+                            | TyFnKind::BareStaticCall
+                            | TyFnKind::Creation
+                    ) =>
+            {
+                return None;
+            }
+            TyKind::Fn(f) => {
+                let kind = if f.kind == TyFnKind::InternalWithSelector {
+                    TyFnKind::Internal
+                } else {
+                    f.kind
+                };
+                gcx.mk_ty_fn(TyFn {
+                    kind,
+                    parameters: f.parameters,
+                    returns: f.returns,
+                    state_mutability: f.state_mutability,
+                    function_id: None,
+                    attached: false,
+                })
+            }
             TyKind::Error(..)
             | TyKind::Event(..)
             | TyKind::Module(..)
             | TyKind::BuiltinModule(..)
             | TyKind::Type(_)
             | TyKind::Meta(_) => return None,
-            // TODO: functions
             _ => self,
         })
     }
@@ -1258,6 +1286,8 @@ pub struct TyFn<'gcx> {
 pub enum TyFnKind {
     /// An ordinary internal function value.
     Internal,
+    /// A builtin or other special function that can only be called directly.
+    Builtin,
     /// An internal function value for a public function accessed through a qualified name.
     ///
     /// It is callable as an internal function, but also has a `.selector` member.
@@ -1337,11 +1367,8 @@ impl<'gcx> TyFn<'gcx> {
     pub fn has_selector(&self) -> bool {
         matches!(
             self.kind,
-            TyFnKind::InternalWithSelector
-                | TyFnKind::External
-                | TyFnKind::Declaration
-                | TyFnKind::DelegateCall
-        )
+            TyFnKind::InternalWithSelector | TyFnKind::External | TyFnKind::Declaration
+        ) || (self.kind == TyFnKind::DelegateCall && self.function_id.is_some())
     }
 
     /// Returns whether this function value has an `.address` member.
