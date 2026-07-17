@@ -51,12 +51,8 @@ use solar_sema::hir;
 // =============================================================================
 
 pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
-    let errors = sess.dcx.err_count();
     let arena = Arena::new();
     let mut parser = Parser::new(sess, &arena, source);
-    if sess.dcx.err_count() > errors {
-        sess.dcx.has_errors()?;
-    }
     parser.parse_module().map_err(PErr::emit)
 }
 
@@ -83,12 +79,8 @@ fn parse_function(sess: &Session, input: &str) -> Result<Function> {
             input,
         )
         .unwrap();
-    let errors = sess.dcx.err_count();
     let arena = Arena::new();
     let mut p = Parser::new(sess, &arena, &source);
-    if sess.dcx.err_count() > errors {
-        sess.dcx.has_errors()?;
-    }
     let func = p.parse_function().map_err(PErr::emit)?;
     if !p.is_eof() {
         return Err(p.error("trailing input after function").emit());

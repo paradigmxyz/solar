@@ -11,12 +11,8 @@ use solar_interface::{Result, Session, Span, Symbol, kw, source_map::SourceFile,
 use solar_parse::{PErr, PResult};
 
 pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
-    let errors = sess.dcx.err_count();
     let arena = Arena::new();
     let mut parser = Parser::new(sess, &arena, source);
-    if sess.dcx.err_count() > errors {
-        sess.dcx.has_errors()?;
-    }
     parser.parse_module().map_err(PErr::emit)
 }
 
