@@ -407,14 +407,34 @@ impl SymbolTables {
         uri: &Url,
         position: Position,
     ) -> Option<GotoDefinitionResponse> {
-        let symbol_ids = self
-            .rename
-            .implementation_symbols_at(uri, position)
-            .or_else(|| self.symbol_ids_at_position(uri, position))?;
+        let reference_targets = self.rename.implementation_symbols_at(uri, position);
+        if reference_targets.as_ref().is_some_and(Vec::is_empty) {
+            return None;
+        }
+        let symbol_ids = if let Some(symbol_id) = self.declaration_at_position(uri, position) {
+            if self.override_families.is_override_symbol(symbol_id) {
+                self.override_families.descendants(symbol_id)
+            } else {
+                vec![symbol_id]
+            }
+        } else {
+            let targets =
+                reference_targets.or_else(|| self.symbol_ids_at_position(uri, position))?;
+            let mut implementations = Vec::new();
+            for symbol_id in targets {
+                if self.declarations[symbol_id].has_definition {
+                    implementations.push(symbol_id);
+                }
+                if self.override_families.is_override_symbol(symbol_id) {
+                    implementations.extend(self.override_families.descendants(symbol_id));
+                }
+            }
+            implementations
+        };
         let mut locations = Vec::new();
-        for member in self.override_families.members(symbol_ids) {
-            if self.declarations[member].has_definition {
-                locations.push(self.selection_location(member));
+        for symbol_id in symbol_ids {
+            if self.declarations[symbol_id].has_definition {
+                locations.push(self.selection_location(symbol_id));
             }
         }
         if locations.is_empty() {

@@ -26,9 +26,9 @@ fn resolves_interface_function_to_concrete_implementations() {
 /Implementation.sol:7:13 function run() external override {}
 
 "#]];
-    fixture.check_goto_implementation("$1", expected.clone());
-    fixture.check_goto_implementation("$2", expected.clone());
-    fixture.check_goto_implementation("$3", expected);
+    fixture.check_goto_implementation("$1", expected);
+    fixture.check_goto_implementation("$2", "<none>\n");
+    fixture.check_goto_implementation("$3", "<none>\n");
 }
 
 #[test]
@@ -60,8 +60,8 @@ fn filters_abstract_override_declarations() {
 
 "#]];
     fixture.check_goto_implementation("$1", expected.clone());
-    fixture.check_goto_implementation("$2", expected.clone());
-    fixture.check_goto_implementation("$3", expected);
+    fixture.check_goto_implementation("$2", expected);
+    fixture.check_goto_implementation("$3", "<none>\n");
     fixture.check_goto_implementation("$4", "<none>\n");
 }
 
@@ -99,22 +99,71 @@ fn traverses_multilevel_and_multiple_inheritance() {
         "/Inheritance.sol",
     );
 
-    let run = str![[r#"
+    let root_run = str![[r#"
 /Inheritance.sol:4:13 function run() public virtual {}
 /Inheritance.sol:8:13 function run() public override {}
 
 "#]];
-    fixture.check_goto_implementation("$1", run.clone());
-    fixture.check_goto_implementation("$2", run.clone());
-    fixture.check_goto_implementation("$3", run);
+    fixture.check_goto_implementation("$1", root_run);
+    fixture.check_goto_implementation(
+        "$2",
+        str![[r#"
+/Inheritance.sol:8:13 function run() public override {}
+
+"#]],
+    );
+    fixture.check_goto_implementation("$3", "<none>\n");
 
     let ping = str![[r#"
 /Inheritance.sol:17:13 function ping() external override(Left, Right) {}
 
 "#]];
     fixture.check_goto_implementation("$4", ping.clone());
-    fixture.check_goto_implementation("$5", ping.clone());
-    fixture.check_goto_implementation("$6", ping);
+    fixture.check_goto_implementation("$5", ping);
+    fixture.check_goto_implementation("$6", "<none>\n");
+}
+
+#[test]
+fn excludes_ancestors_and_self_from_transitive_implementations() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Directional.sol
+        contract Base {
+            function $1run() public virtual {}
+        }
+
+        contract Middle is Base {
+            function $2run() public virtual override {}
+        }
+
+        contract Leaf is Middle {
+            function $3run() public override {}
+        }
+
+        contract Unoverridden {
+            function $4standalone() public virtual {}
+        }
+        "#,
+        "/Directional.sol",
+    );
+
+    fixture.check_goto_implementation(
+        "$1",
+        str![[r#"
+/Directional.sol:4:13 function run() public virtual override {}
+/Directional.sol:7:13 function run() public override {}
+
+"#]],
+    );
+    fixture.check_goto_implementation(
+        "$2",
+        str![[r#"
+/Directional.sol:7:13 function run() public override {}
+
+"#]],
+    );
+    fixture.check_goto_implementation("$3", "<none>\n");
+    fixture.check_goto_implementation("$4", "<none>\n");
 }
 
 #[test]
@@ -144,15 +193,15 @@ fn keeps_overloads_separate_and_resolves_call_sites() {
 
 "#]];
     fixture.check_goto_implementation("$1", integer.clone());
-    fixture.check_goto_implementation("$3", integer.clone());
+    fixture.check_goto_implementation("$3", "<none>\n");
     fixture.check_goto_implementation("$5", integer);
 
     let string = str![[r#"
 /Overloads.sol:6:13 function pick(string calldata value) public override {}
 
 "#]];
-    fixture.check_goto_implementation("$2", string.clone());
-    fixture.check_goto_implementation("$4", string);
+    fixture.check_goto_implementation("$2", string);
+    fixture.check_goto_implementation("$4", "<none>\n");
 }
 
 #[test]
@@ -204,12 +253,12 @@ fn resolves_public_getter_overrides() {
 
 "#]];
     fixture.check_goto_implementation("$1", expected.clone());
-    fixture.check_goto_implementation("$2", expected.clone());
+    fixture.check_goto_implementation("$2", "<none>\n");
     fixture.check_goto_implementation("$3", expected);
 }
 
 #[test]
-fn resolves_modifier_override_families() {
+fn resolves_modifier_implementations_directionally() {
     let fixture = RequestFixture::new(
         r#"
         //- /Modifiers.sol
@@ -225,14 +274,13 @@ fn resolves_modifier_override_families() {
         "/Modifiers.sol",
     );
 
-    let expected = str![[r#"
-/Modifiers.sol:1:13 modifier guard() virtual { _; }
+    let implementation = str![[r#"
 /Modifiers.sol:4:13 modifier guard() override { _; }
 
 "#]];
-    fixture.check_goto_implementation("$1", expected.clone());
-    fixture.check_goto_implementation("$2", expected.clone());
-    fixture.check_goto_implementation("$3", expected);
+    fixture.check_goto_implementation("$1", implementation.clone());
+    fixture.check_goto_implementation("$2", "<none>\n");
+    fixture.check_goto_implementation("$3", implementation);
 }
 
 #[test]
@@ -318,7 +366,7 @@ fn returns_singleton_locations_for_non_override_declarations() {
 }
 
 #[test]
-fn merges_override_families_across_analysis_batches() {
+fn merges_override_descendants_across_analysis_batches() {
     let fixture = RequestFixture::new_in_batches(
         r#"
         //- /Base.sol
@@ -346,13 +394,13 @@ fn merges_override_families_across_analysis_batches() {
 /Second.sol:2:13 function run() external override {}
 
 "#]];
-    fixture.check_goto_implementation("$1", expected.clone());
-    fixture.check_goto_implementation("$2", expected.clone());
-    fixture.check_goto_implementation("$3", expected);
+    fixture.check_goto_implementation("$1", expected);
+    fixture.check_goto_implementation("$2", "<none>\n");
+    fixture.check_goto_implementation("$3", "<none>\n");
 }
 
 #[test]
-fn merges_getter_override_families_across_analysis_batches() {
+fn merges_getter_override_descendants_across_analysis_batches() {
     let fixture = RequestFixture::new_in_batches(
         r#"
         //- /Base.sol
@@ -380,9 +428,9 @@ fn merges_getter_override_families_across_analysis_batches() {
 /Second.sol:2:28 uint256 public override value;
 
 "#]];
-    fixture.check_goto_implementation("$1", expected.clone());
-    fixture.check_goto_implementation("$2", expected.clone());
-    fixture.check_goto_implementation("$3", expected);
+    fixture.check_goto_implementation("$1", expected);
+    fixture.check_goto_implementation("$2", "<none>\n");
+    fixture.check_goto_implementation("$3", "<none>\n");
 }
 
 #[test]

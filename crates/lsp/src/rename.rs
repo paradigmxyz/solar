@@ -371,6 +371,11 @@ impl RenameIndex {
             if function.is_getter() {
                 continue;
             }
+            if function.virtual_
+                && let Some(&symbol_id) = item_symbols.get(&ItemId::Function(function_id))
+            {
+                override_families.add_overridable(symbol_id);
+            }
             Self::add_override_edges(gcx, function_id.into(), item_symbols, override_families);
             let key = function.name.map_or_else(|| function.keyword_span(), |name| name.span);
             let Some(function_paths) = paths.paths.get(&key) else { continue };

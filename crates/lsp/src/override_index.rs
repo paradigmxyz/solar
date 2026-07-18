@@ -1,14 +1,22 @@
 use crate::symbols::{DeclarationSymbol, SymbolId};
-use solar_interface::data_structures::{index::IndexVec, map::FxHashMap};
+use solar_interface::data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    index::IndexVec,
+    map::FxHashMap,
+};
 
-/// The connected override families used by navigation and rename.
+/// Override relationships used by directional navigation and family-wide rename.
 ///
 /// HIR item IDs are only valid for the analysis that produced them, so this index stores the
 /// copied LSP symbol IDs and can be remapped when analysis batches are merged.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct OverrideFamilyIndex {
     edges: Vec<(SymbolId, SymbolId)>,
+    overridable: Vec<SymbolId>,
     families: IndexVec<SymbolId, SymbolId>,
+    canonical: IndexVec<SymbolId, SymbolId>,
+    derived: IndexVec<SymbolId, Vec<SymbolId>>,
+    override_symbols: GrowableBitSet<SymbolId>,
 }
 
 impl OverrideFamilyIndex {
@@ -16,16 +24,34 @@ impl OverrideFamilyIndex {
         self.edges.push((derived, base));
     }
 
+    pub(crate) fn add_overridable(&mut self, symbol_id: SymbolId) {
+        self.overridable.push(symbol_id);
+    }
+
     pub(crate) fn extend(&mut self, other: Self, symbol_offset: usize) {
         self.edges.extend(other.edges.into_iter().map(|(derived, base)| {
             (remap_symbol_id(derived, symbol_offset), remap_symbol_id(base, symbol_offset))
         }));
+        self.overridable.extend(
+            other
+                .overridable
+                .into_iter()
+                .map(|symbol_id| remap_symbol_id(symbol_id, symbol_offset)),
+        );
         self.families.clear();
+        self.canonical.clear();
+        self.derived.clear();
+        self.override_symbols.clear();
     }
 
     pub(crate) fn rebuild(&mut self, declarations: &IndexVec<SymbolId, DeclarationSymbol>) {
         self.families.clear();
         self.families.extend(declarations.indices());
+        self.canonical.clear();
+        self.canonical.extend(declarations.indices());
+        self.derived.clear();
+        self.derived.extend((0..declarations.len()).map(|_| Vec::new()));
+        self.override_symbols.clear();
         let mut declarations_by_location = FxHashMap::<_, SymbolId>::default();
         declarations_by_location.reserve(declarations.len());
 
@@ -40,15 +66,28 @@ impl OverrideFamilyIndex {
             );
             if let Some(&other) = declarations_by_location.get(&key) {
                 union(&mut self.families, symbol_id, other);
+                self.canonical[symbol_id] = other;
             } else {
                 declarations_by_location.insert(key, symbol_id);
             }
         }
 
+        for &symbol_id in &self.overridable {
+            self.override_symbols.insert(self.canonical[symbol_id]);
+        }
         for &(derived, base) in &self.edges {
             union(&mut self.families, derived, base);
+            let derived = self.canonical[derived];
+            let base = self.canonical[base];
+            self.derived[base].push(derived);
+            self.override_symbols.insert(derived);
+            self.override_symbols.insert(base);
         }
 
+        for derived in &mut self.derived {
+            derived.sort_unstable();
+            derived.dedup();
+        }
         for symbol_id in declarations.indices() {
             let family = find(&mut self.families, symbol_id);
             self.families[symbol_id] = family;
@@ -63,20 +102,26 @@ impl OverrideFamilyIndex {
         self.families.get(symbol_id).copied()
     }
 
-    pub(crate) fn members(&self, symbol_ids: Vec<SymbolId>) -> impl Iterator<Item = SymbolId> + '_ {
-        let mut families = symbol_ids;
-        families.retain_mut(|symbol_id| {
-            let Some(family) = self.family(*symbol_id) else { return false };
-            *symbol_id = family;
-            true
-        });
-        families.sort_unstable();
-        families.dedup();
+    pub(crate) fn is_override_symbol(&self, symbol_id: SymbolId) -> bool {
+        self.canonical
+            .get(symbol_id)
+            .is_some_and(|&symbol_id| self.override_symbols.contains(symbol_id))
+    }
 
-        let candidate_count = if families.is_empty() { 0 } else { self.families.len() };
-        self.families.iter_enumerated().take(candidate_count).filter_map(
-            move |(candidate, family)| families.binary_search(family).is_ok().then_some(candidate),
-        )
+    pub(crate) fn descendants(&self, symbol_id: SymbolId) -> Vec<SymbolId> {
+        let mut seen = DenseBitSet::new_empty(self.canonical.len());
+        let mut descendants = DenseBitSet::new_empty(self.canonical.len());
+        let Some(&symbol_id) = self.canonical.get(symbol_id) else { return Vec::new() };
+        seen.insert(symbol_id);
+        let mut pending = self.derived[symbol_id].clone();
+
+        while let Some(symbol_id) = pending.pop() {
+            if seen.insert(symbol_id) {
+                descendants.insert(symbol_id);
+                pending.extend(self.derived[symbol_id].iter().copied());
+            }
+        }
+        descendants.iter().collect()
     }
 }
 
