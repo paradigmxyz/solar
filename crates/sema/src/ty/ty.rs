@@ -686,14 +686,8 @@ impl<'gcx> Ty<'gcx> {
                         from_inner.try_convert_implicit_to(to_inner, gcx)
                     }
 
-                    // memory/calldata -> storage: allowed (copy semantics).
-                    (DataLocation::Memory, DataLocation::Storage)
-                    | (DataLocation::Calldata, DataLocation::Storage) => {
-                        from_inner.try_convert_implicit_to(to_inner, gcx)
-                    }
-
-                    // storage -> calldata: never allowed.
-                    // memory -> calldata: never allowed.
+                    // Copies from memory/calldata into direct storage values are handled by
+                    // assignment checking. They cannot convert to storage pointers here.
                     _ => Result::Err(TyConvertError::Incompatible),
                 }
             }

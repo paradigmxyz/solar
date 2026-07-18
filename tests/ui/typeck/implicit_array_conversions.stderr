@@ -1,3 +1,33 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_array_conversions.sol:LL:CC
+   │
+LL │         shortFixedStorageArr = longFixedStorageArr;
+   ╰╴                               ━━━━━━━━━━━━━━━━━━━ expected `uint256[2] storage`, found `uint256[3] storage`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_array_conversions.sol:LL:CC
+   │
+LL │         uint32[] storage b = a;
+   ╰╴                             ━ expected `uint32[] storage`, found `uint8[] memory`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_array_conversions.sol:LL:CC
+   │
+LL │         pointer = a;
+   ╰╴                  ━ expected `uint32[] storage`, found `uint8[] memory`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_array_conversions.sol:LL:CC
+   │
+LL │         (pointer) = exact;
+   ╰╴                    ━━━━━ expected `uint32[] storage`, found `uint32[] memory`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_array_conversions.sol:LL:CC
+   │
+LL │         (pointer, value) = (a, value);
+   ╰╴                            ━ expected `uint32[] storage`, found `uint8[] memory`
+
 error: invalid explicit type conversion
    ╭▸ ROOT/tests/ui/typeck/implicit_array_conversions.sol:LL:CC
    │
@@ -90,5 +120,5 @@ error: mismatched types
 LL │         uint8[] memory b = a;
    ╰╴                           ━ expected `uint8[] memory`, found `uint256[] memory`
 
-error: aborting due to 15 previous errors
+error: aborting due to 20 previous errors
 

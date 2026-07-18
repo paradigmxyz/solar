@@ -1,6 +1,12 @@
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/location_coercion.sol:LL:CC
    │
+LL │         S storage pointer = value;
+   ╰╴                            ━━━━━ expected `struct C.S storage`, found `struct C.S memory`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/location_coercion.sol:LL:CC
+   │
 LL │         uint256[] calldata a = storageArr;
    ╰╴                               ━━━━━━━━━━ expected `uint256[] calldata`, found `uint256[] storage`
 
@@ -22,5 +28,5 @@ error: mismatched types
 LL │         uint128[] memory b = a;
    ╰╴                             ━ expected `uint128[] memory`, found `uint256[] calldata`
 
-error: aborting due to 4 previous errors
+error: aborting due to 5 previous errors
 
