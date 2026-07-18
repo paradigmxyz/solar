@@ -29,10 +29,10 @@
 //! - Phi nodes are represented only as phi *instructions* (`InstKind::Phi`).
 
 use super::{
-    BlockId, EffectKind, Function, FunctionId, InstId, InstKind, Instruction, InstructionMetadata,
-    MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
+    BlockId, EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
+    InstructionMetadata, MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
 };
-use crate::mir::{Immediate, MirType};
+use crate::mir::MirType;
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_ast::{
@@ -262,86 +262,90 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let name = self.parse_function_name()?;
         let func_ident = Ident::with_dummy_span(name);
         let mut func = Function::new(func_ident);
+        let block_remap = {
+            let mut builder = FunctionBuilder::new(&mut func);
 
-        // Parse parameters: `(arg0: ty, arg1: ty, ...)` or `()`
-        self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
-        if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
+            // Parse parameters: `(arg0: ty, arg1: ty, ...)` or `()`
+            self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
+            if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
+                loop {
+                    let arg_name = self.parser.parse_ident()?;
+                    let arg_name_str = arg_name.as_str();
+                    if !arg_name_str.starts_with("arg") {
+                        return Err(self
+                            .parser
+                            .error(format!("expected `argN`, got `{arg_name}`")));
+                    }
+                    let parsed_index = arg_name_str[3..].parse::<u32>().map_err(|_| {
+                        self.parser.error(format!("invalid arg index in `{arg_name}`"))
+                    })?;
+                    let index = builder.func().params.len() as u32;
+                    if parsed_index != index {
+                        return Err(self
+                            .parser
+                            .error(format!("expected `arg{index}`, got `{arg_name}`")));
+                    }
+                    self.parser.expect(TokenKind::Colon)?;
+                    let ty = self.parse_type()?;
+                    self.arg_values.push(builder.add_param(ty));
+                    if self.parser.eat(TokenKind::Comma) {
+                        continue;
+                    }
+                    self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+                    break;
+                }
+            }
+
+            // Optional return type: `-> ty` or `-> (ty, ty, ...)`
+            if self.parser.eat(TokenKind::Arrow) {
+                if self.parser.eat(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
+                    if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
+                        loop {
+                            let ty = self.parse_type()?;
+                            builder.add_return(ty);
+                            if self.parser.eat(TokenKind::Comma) {
+                                continue;
+                            }
+                            self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+                            break;
+                        }
+                    }
+                } else {
+                    let ty = self.parse_type()?;
+                    builder.add_return(ty);
+                }
+            }
+
+            self.parse_function_attributes(&mut builder)?;
+            self.parser.expect(TokenKind::OpenDelim(Delimiter::Brace))?;
+
+            let mut current_block = None;
+
             loop {
-                let arg_name = self.parser.parse_ident()?;
-                let arg_name_str = arg_name.as_str();
-                if !arg_name_str.starts_with("arg") {
-                    return Err(self.parser.error(format!("expected `argN`, got `{arg_name}`")));
+                if self.parser.is_eof() {
+                    return Err(self.parser.error("unterminated function body"));
                 }
-                let parsed_index = arg_name_str[3..]
-                    .parse::<u32>()
-                    .map_err(|_| self.parser.error(format!("invalid arg index in `{arg_name}`")))?;
-                let index = func.params.len() as u32;
-                if parsed_index != index {
-                    return Err(self
-                        .parser
-                        .error(format!("expected `arg{index}`, got `{arg_name}`")));
+                if self.parser.eat(TokenKind::CloseDelim(Delimiter::Brace)) {
+                    break;
                 }
-                self.parser.expect(TokenKind::Colon)?;
-                let ty = self.parse_type()?;
-                func.params.push(ty);
-                let val = func.alloc_value(Value::Arg { index, ty });
-                self.arg_values.push(val);
-                if self.parser.eat(TokenKind::Comma) {
+
+                if let Some(idx) = self.try_parse_block_header()? {
+                    let bid = self.define_block(&mut builder, idx)?;
+                    builder.switch_to_block(bid);
+                    current_block = Some(bid);
                     continue;
                 }
-                self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
-                break;
-            }
-        }
 
-        // Optional return type: `-> ty` or `-> (ty, ty, ...)`
-        if self.parser.eat(TokenKind::Arrow) {
-            if self.parser.eat(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-                if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
-                    loop {
-                        let ty = self.parse_type()?;
-                        func.returns.push(ty);
-                        if self.parser.eat(TokenKind::Comma) {
-                            continue;
-                        }
-                        self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
-                        break;
-                    }
-                }
-            } else {
-                let ty = self.parse_type()?;
-                func.returns.push(ty);
-            }
-        }
-
-        self.parse_function_attributes(&mut func)?;
-        self.parser.expect(TokenKind::OpenDelim(Delimiter::Brace))?;
-
-        let mut current_block = None;
-
-        loop {
-            if self.parser.is_eof() {
-                return Err(self.parser.error("unterminated function body"));
-            }
-            if self.parser.eat(TokenKind::CloseDelim(Delimiter::Brace)) {
-                break;
+                // Not a block header — must be an instruction or terminator.
+                current_block
+                    .ok_or_else(|| self.parser.error("instruction outside of any block"))?;
+                self.parse_instruction_or_terminator(&mut builder)?;
             }
 
-            if let Some(idx) = self.try_parse_block_header()? {
-                let bid = self.define_block(&mut func, idx)?;
-                current_block = Some(bid);
-                continue;
-            }
-
-            // Not a block header — must be an instruction or terminator.
-            let block = current_block
-                .ok_or_else(|| self.parser.error("instruction outside of any block"))?;
-            self.parse_instruction_or_terminator(&mut func, block)?;
-        }
-
-        self.reject_unresolved_block_labels()?;
-        self.reject_unresolved_value_labels(&func)?;
-        let block_remap = crate::mir::utils::remap_block_order(&mut func, &self.block_order);
+            self.reject_unresolved_block_labels()?;
+            self.reject_unresolved_value_labels(builder.func())?;
+            crate::mir::utils::remap_block_order(builder.func_mut(), &self.block_order)
+        };
         for reference in &mut self.function_refs {
             if let FunctionRefTarget::Terminator(block) = &mut reference.target {
                 *block = block_remap[block.index()];
@@ -374,7 +378,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(Some(index))
     }
 
-    fn define_block(&mut self, func: &mut Function, index: u32) -> PResult<'sess, BlockId> {
+    fn define_block(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        index: u32,
+    ) -> PResult<'sess, BlockId> {
         if let Some(label) = self.block_labels.get_mut(&index) {
             if label.defined {
                 return Err(self.parser.error(format!("duplicate block `bb{index}`")));
@@ -383,13 +391,20 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.block_order.push(label.id);
             return Ok(label.id);
         }
-        let id = if self.block_labels.is_empty() { func.entry_block } else { func.alloc_block() };
+        let id = if self.block_labels.is_empty() {
+            builder.func().entry_block
+        } else {
+            builder.create_block()
+        };
         self.block_labels.insert(index, BlockLabel { id, defined: true, reference_span: None });
         self.block_order.push(id);
         Ok(id)
     }
 
-    fn parse_function_attributes(&mut self, func: &mut Function) -> PResult<'sess, ()> {
+    fn parse_function_attributes(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+    ) -> PResult<'sess, ()> {
         if !self.parser.eat(TokenKind::OpenDelim(Delimiter::Bracket)) {
             return Ok(());
         }
@@ -401,12 +416,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.parser.expect(TokenKind::Eq)?;
                     let selector = self.parser.parse_uint()?;
                     let selector = self.u256_to_u32(selector)?;
-                    func.selector = Some(selector.to_be_bytes());
+                    builder.func_mut().selector = Some(selector.to_be_bytes());
                 }
-                kw::Receive => func.attributes.is_receive = true,
-                kw::Fallback => func.attributes.is_fallback = true,
+                kw::Receive => builder.func_mut().attributes.is_receive = true,
+                kw::Fallback => builder.func_mut().attributes.is_fallback = true,
                 kw::Payable => {
-                    func.attributes.state_mutability = hir::StateMutability::Payable;
+                    builder.func_mut().attributes.state_mutability = hir::StateMutability::Payable;
                 }
                 _ => return Err(self.parser.error(format!("unknown function attribute `{key}`"))),
             }
@@ -455,25 +470,25 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a single value reference: `argN`, `vN`, integer literal, or `true`/`false`.
     /// Allocates a fresh `Immediate` for literals.
-    fn parse_value(&mut self, func: &mut Function) -> PResult<'sess, ValueId> {
+    fn parse_value(&mut self, builder: &mut FunctionBuilder<'_>) -> PResult<'sess, ValueId> {
         // Integer literal? (decimal or 0x…)
         if matches!(self.parser.token().kind, TokenKind::Literal(..)) {
             let v = self.parser.parse_uint()?;
-            return Ok(func.alloc_value(Value::Immediate(Immediate::uint256(v))));
+            return Ok(builder.imm_u256(v));
         }
         // Identifier-like — could be argN, vN, true, false.
         let ident = self.parser.parse_ident()?;
         if ident == kw::True {
-            return Ok(func.alloc_value(Value::Immediate(Immediate::bool(true))));
+            return Ok(builder.imm_bool(true));
         }
         if ident == kw::False {
-            return Ok(func.alloc_value(Value::Immediate(Immediate::bool(false))));
+            return Ok(builder.imm_bool(false));
         }
         if ident == sym::err {
             // Reconstructing an already-reported error state from text: there
             // is no live diagnostic to propagate here.
             let guar = solar_interface::diagnostics::ErrorGuaranteed::new_unchecked();
-            return Ok(func.alloc_value(Value::Error(guar)));
+            return Ok(builder.error_value(guar));
         }
         if let Some(rest) = ident.as_str().strip_prefix("arg") {
             let idx: usize =
@@ -482,9 +497,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             // those denote calldata head words. Allocate them on demand so
             // printed `abi`-phase modules round-trip. A function that does
             // declare parameters keeps strict bounds checking.
-            if idx >= self.arg_values.len() && func.params.is_empty() {
+            if idx >= self.arg_values.len() && builder.func().params.is_empty() {
                 for index in self.arg_values.len()..=idx {
-                    let val = func
+                    let val = builder
                         .alloc_value(Value::Arg { index: index as u32, ty: MirType::uint256() });
                     self.arg_values.push(val);
                 }
@@ -502,7 +517,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             if let Some(value) = self.value_labels.get(&idx).copied() {
                 return Ok(value);
             }
-            let value = func.alloc_value(Value::Undef(MirType::uint256()));
+            let value = builder.undef(MirType::uint256());
             self.value_labels.insert(idx, value);
             return Ok(value);
         }
@@ -511,19 +526,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn resolve_result_label(
         &mut self,
-        func: &mut Function,
+        builder: &mut FunctionBuilder<'_>,
         label: u32,
-        inst_id: super::InstId,
+        inst_id: InstId,
     ) -> PResult<'sess, ()> {
         if let Some(value) = self.value_labels.get(&label).copied() {
-            if matches!(func.values[value], Value::Undef(_)) {
-                func.values[value] = Value::Inst(inst_id);
+            if matches!(builder.func().values[value], Value::Undef(_)) {
+                builder.set_value(value, Value::Inst(inst_id));
                 return Ok(());
             }
             return Err(self.parser.error(format!("duplicate value `v{label}`")));
         }
 
-        let value = func.alloc_value(Value::Inst(inst_id));
+        let value = builder.alloc_value(Value::Inst(inst_id));
         self.value_labels.insert(label, value);
         Ok(())
     }
@@ -560,7 +575,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(())
     }
 
-    fn parse_block_id(&mut self, func: &mut Function) -> PResult<'sess, BlockId> {
+    fn parse_block_id(&mut self, builder: &mut FunctionBuilder<'_>) -> PResult<'sess, BlockId> {
         let span = self.parser.token().span;
         let id = self.parser.parse_ident()?;
         let rest = id
@@ -572,8 +587,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if let Some(label) = self.block_labels.get(&idx) {
             return Ok(label.id);
         }
-        let block =
-            if self.block_labels.is_empty() { func.entry_block } else { func.alloc_block() };
+        let block = if self.block_labels.is_empty() {
+            builder.func().entry_block
+        } else {
+            builder.create_block()
+        };
         self.block_labels
             .insert(idx, BlockLabel { id: block, defined: false, reference_span: Some(span) });
         Ok(block)
@@ -606,9 +624,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses one instruction line (with optional `vN =` result) or a terminator.
     fn parse_instruction_or_terminator(
         &mut self,
-        func: &mut Function,
-        block: BlockId,
+        builder: &mut FunctionBuilder<'_>,
     ) -> PResult<'sess, ()> {
+        let block = builder.current_block();
         // Optional result: `vN = ...`
         let result_label = if let TokenKind::Ident(label) = self.parser.token().kind
             && let Some(index) = label.as_str().strip_prefix('v').and_then(|s| s.parse().ok())
@@ -627,36 +645,32 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         // Terminators (no result).
         match mnemonic {
             sym::jump => {
-                let target = self.parse_block_id(func)?;
-                self.set_terminator(func, block, Terminator::Jump(target));
+                let target = self.parse_block_id(builder)?;
+                builder.set_terminator(Terminator::Jump(target));
                 return Ok(());
             }
             sym::br => {
-                let condition = self.parse_value(func)?;
+                let condition = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
-                let then_block = self.parse_block_id(func)?;
+                let then_block = self.parse_block_id(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
-                let else_block = self.parse_block_id(func)?;
-                self.set_terminator(
-                    func,
-                    block,
-                    Terminator::Branch { condition, then_block, else_block },
-                );
+                let else_block = self.parse_block_id(builder)?;
+                builder.set_terminator(Terminator::Branch { condition, then_block, else_block });
                 return Ok(());
             }
             kw::Switch => {
-                let value = self.parse_value(func)?;
+                let value = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
                 self.parser.expect_keyword(kw::Default)?;
-                let default = self.parse_block_id(func)?;
+                let default = self.parse_block_id(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
                 self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
                 let mut cases = Vec::new();
                 if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
                     loop {
-                        let val = self.parse_value(func)?;
+                        let val = self.parse_value(builder)?;
                         self.parser.expect(TokenKind::FatArrow)?;
-                        let bid = self.parse_block_id(func)?;
+                        let bid = self.parse_block_id(builder)?;
                         cases.push((val, bid));
                         if self.parser.eat(TokenKind::Comma) {
                             continue;
@@ -665,56 +679,56 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         break;
                     }
                 }
-                self.set_terminator(func, block, Terminator::Switch { value, default, cases });
+                builder.set_terminator(Terminator::Switch { value, default, cases });
                 return Ok(());
             }
             sym::ret => {
                 let mut values: SmallVec<[ValueId; 2]> = SmallVec::new();
                 if self.value_starts_here() {
                     loop {
-                        values.push(self.parse_value(func)?);
+                        values.push(self.parse_value(builder)?);
                         if !self.parser.eat(TokenKind::Comma) {
                             break;
                         }
                     }
                 }
-                self.set_terminator(func, block, Terminator::Return { values });
+                builder.set_terminator(Terminator::Return { values });
                 return Ok(());
             }
             kw::Revert => {
-                let offset = self.parse_value(func)?;
+                let offset = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
-                let size = self.parse_value(func)?;
-                self.set_terminator(func, block, Terminator::Revert { offset, size });
+                let size = self.parse_value(builder)?;
+                builder.set_terminator(Terminator::Revert { offset, size });
                 return Ok(());
             }
             sym::returndata => {
-                let offset = self.parse_value(func)?;
+                let offset = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
-                let size = self.parse_value(func)?;
-                self.set_terminator(func, block, Terminator::ReturnData { offset, size });
+                let size = self.parse_value(builder)?;
+                builder.set_terminator(Terminator::ReturnData { offset, size });
                 return Ok(());
             }
             kw::Stop => {
-                self.set_terminator(func, block, Terminator::Stop);
+                builder.set_terminator(Terminator::Stop);
                 return Ok(());
             }
             kw::Selfdestruct => {
-                let recipient = self.parse_value(func)?;
-                self.set_terminator(func, block, Terminator::SelfDestruct { recipient });
+                let recipient = self.parse_value(builder)?;
+                builder.set_terminator(Terminator::SelfDestruct { recipient });
                 return Ok(());
             }
             kw::Invalid => {
-                self.set_terminator(func, block, Terminator::Invalid);
+                builder.set_terminator(Terminator::Invalid);
                 return Ok(());
             }
             sym::tail_call => {
                 let function = self.parse_function_id()?;
                 let mut args = smallvec::SmallVec::new();
                 while self.parser.eat(TokenKind::Comma) {
-                    args.push(self.parse_value(func)?);
+                    args.push(self.parse_value(builder)?);
                 }
-                self.set_terminator(func, block, Terminator::TailCall { function, args });
+                builder.set_terminator(Terminator::TailCall { function, args });
                 self.finish_function_ref(FunctionRefTarget::Terminator(block));
                 return Ok(());
             }
@@ -722,16 +736,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
 
         // Otherwise — instruction.
-        let (kind, result_ty) = self.parse_inst_kind(mnemonic, mnemonic_span, func)?;
+        let (kind, result_ty) = self.parse_inst_kind(mnemonic, mnemonic_span, builder)?;
 
-        let metadata = self.parse_metadata(func)?;
+        let metadata = self.parse_metadata(builder)?;
         let mut inst = Instruction::new(kind, result_ty);
         inst.metadata = metadata;
-        let inst_id = func.alloc_inst(inst);
-        func.blocks[block].instructions.push(inst_id);
+        let inst_id = builder.append_instruction(inst);
         self.finish_function_ref(FunctionRefTarget::Instruction(inst_id));
         if let Some(label) = result_label {
-            self.resolve_result_label(func, label, inst_id)?;
+            self.resolve_result_label(builder, label, inst_id)?;
         }
         Ok(())
     }
@@ -755,7 +768,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
     }
 
-    fn parse_metadata(&mut self, func: &mut Function) -> PResult<'sess, InstructionMetadata> {
+    fn parse_metadata(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+    ) -> PResult<'sess, InstructionMetadata> {
         let mut metadata = InstructionMetadata::EMPTY;
         if !self.parser.eat(TokenKind::Not) {
             return Ok(metadata);
@@ -774,7 +790,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 kw::Storage => {
                     self.parser.expect(TokenKind::Eq)?;
-                    metadata.set_storage_alias(Some(self.parse_storage_alias(func)?));
+                    metadata.set_storage_alias(Some(self.parse_storage_alias(builder)?));
                 }
                 kw::Memory => {
                     self.parser.expect(TokenKind::Eq)?;
@@ -849,14 +865,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok((lo, self.u256_to_u32(hi)?))
     }
 
-    fn parse_storage_alias(&mut self, func: &mut Function) -> PResult<'sess, StorageAlias> {
+    fn parse_storage_alias(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+    ) -> PResult<'sess, StorageAlias> {
         let kind = self.parser.parse_ident()?;
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         let alias = match kind {
             sym::slot => StorageAlias::Slot(self.parser.parse_uint()?),
-            sym::symbolic => StorageAlias::Symbolic(self.parse_value(func)?),
+            sym::symbolic => StorageAlias::Symbolic(self.parse_value(builder)?),
             sym::offset => {
-                let base = self.parse_value(func)?;
+                let base = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
                 let offset = self.parser.parse_uint()?;
                 StorageAlias::Offset { base, offset }
@@ -908,15 +927,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             .map_err(|_| self.parser.error(format!("integer `{value}` does not fit in u16")))
     }
 
-    fn set_terminator(&mut self, func: &mut Function, block: BlockId, term: Terminator) {
-        // Update predecessors so downstream passes see a valid CFG.
-        let succs = term.successors();
-        for s in succs {
-            func.blocks[s].predecessors.push(block);
-        }
-        func.blocks[block].terminator = Some(term);
-    }
-
     /// Parses one instruction by mnemonic. Returns the constructed [`InstKind`]
     /// and its result type (or `None` if it produces no value).
     #[allow(clippy::too_many_lines)]
@@ -924,12 +934,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         mnemonic: Symbol,
         mnemonic_span: Span,
-        func: &mut Function,
+        builder: &mut FunctionBuilder<'_>,
     ) -> PResult<'sess, (InstKind, Option<MirType>)> {
         // Operand parsing helpers.
         macro_rules! v {
             () => {
-                self.parse_value(func)?
+                self.parse_value(builder)?
             };
         }
         macro_rules! comma {
@@ -1440,7 +1450,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let mut incoming: Vec<(BlockId, ValueId)> = Vec::new();
                 loop {
                     self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
-                    let bid = self.parse_block_id(func)?;
+                    let bid = self.parse_block_id(builder)?;
                     self.parser.expect(TokenKind::Colon)?;
                     let val = v!();
                     self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
