@@ -412,11 +412,9 @@ impl SymbolTables {
             .implementation_symbols_at(uri, position)
             .or_else(|| self.symbol_ids_at_position(uri, position))?;
         let mut locations = Vec::new();
-        for symbol_id in symbol_ids {
-            for member in self.override_families.members(symbol_id, &self.declarations) {
-                if self.declarations[member].has_definition {
-                    locations.push(self.selection_location(member));
-                }
+        for member in self.override_families.members(symbol_ids) {
+            if self.declarations[member].has_definition {
+                locations.push(self.selection_location(member));
             }
         }
         if locations.is_empty() {

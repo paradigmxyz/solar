@@ -352,6 +352,40 @@ fn merges_override_families_across_analysis_batches() {
 }
 
 #[test]
+fn merges_getter_override_families_across_analysis_batches() {
+    let fixture = RequestFixture::new_in_batches(
+        r#"
+        //- /Base.sol
+        abstract contract Base {
+            function $1value() external view virtual returns (uint256);
+        }
+
+        //- /First.sol
+        import "./Base.sol";
+        contract First is Base {
+            uint256 public override $2value;
+        }
+
+        //- /Second.sol
+        import "./Base.sol";
+        contract Second is Base {
+            uint256 public override $3value;
+        }
+        "#,
+        &["/First.sol", "/Second.sol"],
+    );
+
+    let expected = str![[r#"
+/First.sol:2:28 uint256 public override value;
+/Second.sol:2:28 uint256 public override value;
+
+"#]];
+    fixture.check_goto_implementation("$1", expected.clone());
+    fixture.check_goto_implementation("$2", expected.clone());
+    fixture.check_goto_implementation("$3", expected);
+}
+
+#[test]
 fn remaps_named_alias_targets_across_analysis_batches() {
     let fixture = RequestFixture::new_in_batches(
         r#"

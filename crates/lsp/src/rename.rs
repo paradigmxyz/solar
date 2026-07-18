@@ -171,10 +171,8 @@ impl RenameIndex {
                                 imported_source_id,
                                 imported.name,
                                 item_symbols,
-                            )
-                            .into_iter()
-                            .filter(|symbol_id| self.symbol_targets.contains(symbol_id))
-                            .collect::<Vec<_>>();
+                                &self.symbol_targets,
+                            );
                             if symbols.is_empty() {
                                 continue;
                             }
@@ -183,8 +181,7 @@ impl RenameIndex {
                             if let Some(alias) = alias
                                 && let Some(alias_id) = self.add_alias(gcx, alias)
                             {
-                                self.alias_symbols.insert(alias_id, symbols.clone());
-                                for symbol_id in symbols {
+                                for &symbol_id in &symbols {
                                     bindings.aliases.insert(
                                         ImportBindingKey {
                                             source: source_id,
@@ -194,6 +191,7 @@ impl RenameIndex {
                                         alias_id,
                                     );
                                 }
+                                self.alias_symbols.insert(alias_id, symbols);
                             }
                         }
                     }
@@ -369,10 +367,14 @@ impl RenameIndex {
 
         for function_id in gcx.hir.function_ids() {
             let function = gcx.hir.function(function_id);
+            // Getter overrides are represented by their source variables below.
+            if function.is_getter() {
+                continue;
+            }
             Self::add_override_edges(gcx, function_id.into(), item_symbols, override_families);
             let key = function.name.map_or_else(|| function.keyword_span(), |name| name.span);
             let Some(function_paths) = paths.paths.get(&key) else { continue };
-            for (path, &contract_id) in function_paths.iter().zip(function.overrides) {
+            for (&path, &contract_id) in function_paths.iter().zip(function.overrides) {
                 let Some(&symbol_id) = item_symbols.get(&ItemId::Contract(contract_id)) else {
                     continue;
                 };
@@ -385,7 +387,7 @@ impl RenameIndex {
                         item_symbols,
                         declarations,
                     },
-                    path_span(path),
+                    path,
                     &[symbol_id],
                 );
             }
@@ -399,7 +401,7 @@ impl RenameIndex {
             Self::add_override_edges(gcx, variable_id.into(), item_symbols, override_families);
             let Some(name) = variable.name else { continue };
             let Some(variable_paths) = paths.paths.get(&name.span) else { continue };
-            for (path, &contract_id) in variable_paths.iter().zip(variable.overrides) {
+            for (&path, &contract_id) in variable_paths.iter().zip(variable.overrides) {
                 let Some(&symbol_id) = item_symbols.get(&ItemId::Contract(contract_id)) else {
                     continue;
                 };
@@ -412,7 +414,7 @@ impl RenameIndex {
                         item_symbols,
                         declarations,
                     },
-                    path_span(path),
+                    path,
                     &[symbol_id],
                 );
             }
@@ -822,6 +824,7 @@ fn imported_symbols(
     source: hir::SourceId,
     name: Symbol,
     item_symbols: &FxHashMap<ItemId, SymbolId>,
+    symbol_targets: &FxHashSet<SymbolId>,
 ) -> Vec<SymbolId> {
     gcx.hir
         .source(source)
@@ -831,12 +834,13 @@ fn imported_symbols(
             let item = gcx.hir.item(item_id);
             (item.name()?.name == name).then(|| item_symbols.get(&item_id).copied()).flatten()
         })
+        .filter(|symbol_id| symbol_targets.contains(symbol_id))
         .collect()
 }
 
 #[derive(Default)]
 struct OverridePathCollector {
-    paths: FxHashMap<Span, Vec<Vec<Ident>>>,
+    paths: FxHashMap<Span, Vec<Span>>,
 }
 
 impl<'ast> ast::visit::Visit<'ast> for OverridePathCollector {
@@ -856,8 +860,7 @@ impl<'ast> ast::visit::Visit<'ast> for OverridePathCollector {
                 },
                 |name| name.span,
             );
-            self.paths
-                .insert(key, override_.paths.iter().map(|path| path.segments().to_vec()).collect());
+            self.paths.insert(key, override_.paths.iter().map(|path| path.span()).collect());
         }
         self.walk_item_function(function)
     }
@@ -869,20 +872,9 @@ impl<'ast> ast::visit::Visit<'ast> for OverridePathCollector {
         if let Some(override_) = &variable.override_
             && let Some(name) = variable.name
         {
-            self.paths.insert(
-                name.span,
-                override_.paths.iter().map(|path| path.segments().to_vec()).collect(),
-            );
+            self.paths.insert(name.span, override_.paths.iter().map(|path| path.span()).collect());
         }
         self.walk_variable_definition(variable)
-    }
-}
-
-fn path_span(path: &[Ident]) -> Span {
-    match path {
-        [ident] => ident.span,
-        [first, .., last] => first.span.with_hi(last.span.hi()),
-        [] => Span::DUMMY,
     }
 }
 
