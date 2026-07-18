@@ -70,14 +70,9 @@ pub trait Visit<'hir> {
             self.visit_nested_var(ret)?;
         }
         if let Some(body) = body {
-            self.visit_block(*body)?;
-        }
-        ControlFlow::Continue(())
-    }
-
-    fn visit_block(&mut self, block: Block<'hir>) -> ControlFlow<Self::BreakValue> {
-        for stmt in block.stmts {
-            self.visit_stmt(stmt)?;
+            for stmt in body.iter() {
+                self.visit_stmt(stmt)?;
+            }
         }
         ControlFlow::Continue(())
     }
@@ -232,7 +227,9 @@ pub trait Visit<'hir> {
             | StmtKind::UncheckedBlock(block)
             | StmtKind::AssemblyBlock(block)
             | StmtKind::Loop(block, _) => {
-                self.visit_block(block)?;
+                for stmt in block.stmts {
+                    self.visit_stmt(stmt)?;
+                }
             }
             StmtKind::Emit(expr) => self.visit_expr(expr)?,
             StmtKind::Revert(expr) => self.visit_expr(expr)?,
@@ -253,7 +250,9 @@ pub trait Visit<'hir> {
             StmtKind::Switch(switch) => {
                 self.visit_expr(switch.selector)?;
                 for case in switch.cases {
-                    self.visit_block(case.body)?;
+                    for stmt in case.body.iter() {
+                        self.visit_stmt(stmt)?;
+                    }
                 }
             }
             StmtKind::Try(try_) => {
@@ -262,7 +261,9 @@ pub trait Visit<'hir> {
                     for &var in clause.args {
                         self.visit_nested_var(var)?;
                     }
-                    self.visit_block(clause.block)?;
+                    for stmt in clause.block.iter() {
+                        self.visit_stmt(stmt)?;
+                    }
                 }
             }
             StmtKind::Expr(expr) => self.visit_expr(expr)?,

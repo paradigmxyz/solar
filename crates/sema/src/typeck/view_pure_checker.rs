@@ -5,23 +5,19 @@ use crate::{
 };
 use rayon::prelude::*;
 use solar_ast::{DataLocation, StateMutability, Visibility};
-use solar_data_structures::{
-    Never,
-    map::{FxBuildHasher, FxHashMap},
-};
+use solar_data_structures::{Never, bit_set::DenseBitSet, map::FxBuildHasher};
 use solar_interface::{
     Span,
     diagnostics::{Diag, Level},
     error_code,
 };
-use std::ops::ControlFlow;
+use std::{ops::ControlFlow, sync::Arc};
 
 pub(super) fn check(gcx: Gcx<'_>) {
     if gcx.dcx().has_errors().is_err() {
         return;
     }
-    let yul_functions = collect_yul_functions(gcx);
-    let modifier_mutability = ModifierCache::default();
+    let function_effects = FunctionCache::default();
     let diagnostics = gcx
         .hir
         .par_functions()
@@ -29,8 +25,7 @@ pub(super) fn check(gcx: Gcx<'_>) {
             if function.kind.is_modifier() || function.is_getter() || function.is_yul {
                 Vec::new()
             } else {
-                ViewPureChecker::new(gcx, &modifier_mutability, &yul_functions)
-                    .check_function(function)
+                ViewPureChecker::new(gcx, &function_effects).check_function(function)
             }
         })
         .collect::<Vec<_>>();
@@ -45,85 +40,32 @@ struct MutabilityAndLocation {
     location: Span,
 }
 
-type BlockKey = (Span, usize, usize);
-type YulFunctions<'gcx> = FxHashMap<BlockKey, Vec<&'gcx hir::Function<'gcx>>>;
-type ModifierCache = once_map::OnceMap<hir::FunctionId, MutabilityAndLocation, FxBuildHasher>;
-
-struct BlockCollector<'gcx> {
-    hir: &'gcx hir::Hir<'gcx>,
-    blocks: Vec<hir::Block<'gcx>>,
+struct FunctionEffects {
+    best: MutabilityAndLocation,
+    events: Vec<FunctionEffect>,
 }
 
-impl<'gcx> Visit<'gcx> for BlockCollector<'gcx> {
-    type BreakValue = Never;
-
-    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
-        self.hir
-    }
-
-    fn visit_block(&mut self, block: hir::Block<'gcx>) -> ControlFlow<Self::BreakValue> {
-        self.blocks.push(block);
-        self.walk_block(block)
-    }
-
-    fn visit_expr(&mut self, _expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
-        ControlFlow::Continue(())
-    }
+#[derive(Clone, Copy)]
+enum FunctionEffect {
+    Mutability(MutabilityAndLocation),
+    YulCall(hir::FunctionId),
 }
 
-fn collect_yul_functions(gcx: Gcx<'_>) -> YulFunctions<'_> {
-    let mut collector = BlockCollector { hir: &gcx.hir, blocks: Vec::new() };
-    let mut yul_functions = Vec::new();
-    for (_, function) in gcx.hir.functions_enumerated() {
-        if function.is_yul {
-            yul_functions.push(function);
-        }
-        if let Some(body) = function.body {
-            let _ = collector.visit_block(body);
-        }
-    }
-
-    let mut functions = YulFunctions::default();
-    for function in yul_functions {
-        let block = collector
-            .blocks
-            .iter()
-            .filter(|block| {
-                block.span.contains(function.span)
-                    && !block.stmts.iter().any(|stmt| stmt.span.contains(function.span))
-            })
-            .min_by_key(|block| block.span.hi().to_u32() - block.span.lo().to_u32());
-        if let Some(&block) = block {
-            functions.entry(block_key(block)).or_default().push(function);
-        }
-    }
-    for functions in functions.values_mut() {
-        functions.sort_by_key(|function| function.span.lo());
-    }
-    functions
-}
-
-fn block_key(block: hir::Block<'_>) -> BlockKey {
-    // Lowered Yul blocks can share spans, so include the statement slice identity.
-    (block.span, block.stmts.as_ptr() as usize, block.stmts.len())
-}
+type FunctionCache = once_map::OnceMap<hir::FunctionId, Arc<FunctionEffects>, FxBuildHasher>;
 
 struct ViewPureChecker<'gcx, 'a> {
     gcx: Gcx<'gcx>,
     current_function: Option<&'gcx hir::Function<'gcx>>,
     best: MutabilityAndLocation,
-    modifier_mutability: &'a ModifierCache,
-    yul_functions: &'a YulFunctions<'gcx>,
+    function_effects: &'a FunctionCache,
+    inferred_events: Vec<FunctionEffect>,
+    visited_yul_functions: Option<DenseBitSet<hir::FunctionId>>,
     writing: bool,
     diagnostics: Vec<Diag>,
 }
 
 impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
-    fn new(
-        gcx: Gcx<'gcx>,
-        modifier_mutability: &'a ModifierCache,
-        yul_functions: &'a YulFunctions<'gcx>,
-    ) -> Self {
+    fn new(gcx: Gcx<'gcx>, function_effects: &'a FunctionCache) -> Self {
         Self {
             gcx,
             current_function: None,
@@ -131,29 +73,78 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
                 mutability: StateMutability::Pure,
                 location: Span::DUMMY,
             },
-            modifier_mutability,
-            yul_functions,
+            function_effects,
+            inferred_events: Vec::new(),
+            visited_yul_functions: None,
             writing: false,
             diagnostics: Vec::new(),
         }
     }
 
-    fn infer_modifier(mut self, function: &'gcx hir::Function<'gcx>) -> MutabilityAndLocation {
+    fn infer_function(mut self, function: &'gcx hir::Function<'gcx>) -> FunctionEffects {
         self.best =
             MutabilityAndLocation { mutability: StateMutability::Pure, location: function.span };
         let _ = self.visit_function(function);
-        self.best
+        FunctionEffects { best: self.best, events: self.inferred_events }
     }
 
-    fn modifier_mutability(&self, id: hir::FunctionId) -> MutabilityAndLocation {
-        self.modifier_mutability.map_insert(
+    fn function_effects(&self, id: hir::FunctionId) -> Arc<FunctionEffects> {
+        self.function_effects.map_insert(
             id,
             |&id| {
-                ViewPureChecker::new(self.gcx, self.modifier_mutability, self.yul_functions)
-                    .infer_modifier(self.gcx.hir.function(id))
+                Arc::new(
+                    ViewPureChecker::new(self.gcx, self.function_effects)
+                        .infer_function(self.gcx.hir.function(id)),
+                )
             },
-            copy_mutability,
+            clone_effects,
         )
+    }
+
+    fn function_mutability(&self, id: hir::FunctionId) -> MutabilityAndLocation {
+        let mut visited = DenseBitSet::new_empty(self.gcx.hir.function_ids().len());
+        let mut stack = vec![id];
+        let mut best = MutabilityAndLocation {
+            mutability: StateMutability::Pure,
+            location: self.gcx.hir.function(id).span,
+        };
+        while let Some(id) = stack.pop() {
+            if visited.insert(id) {
+                let effects = self.function_effects(id);
+                if mutability_rank(effects.best.mutability) > mutability_rank(best.mutability) {
+                    best = effects.best;
+                }
+                stack.extend(effects.events.iter().rev().filter_map(|&effect| match effect {
+                    FunctionEffect::YulCall(callee) => Some(callee),
+                    FunctionEffect::Mutability(_) => None,
+                }));
+            }
+        }
+        best
+    }
+
+    fn report_yul_function(&mut self, id: hir::FunctionId) {
+        let mut stack = vec![FunctionEffect::YulCall(id)];
+        while let Some(effect) = stack.pop() {
+            match effect {
+                FunctionEffect::Mutability(effect) => {
+                    self.report(effect.mutability, effect.location, None);
+                }
+                FunctionEffect::YulCall(callee) => {
+                    if self.mark_yul_function_visited(callee) {
+                        let effects = self.function_effects(callee);
+                        stack.extend(effects.events.iter().rev().copied());
+                    }
+                }
+            }
+        }
+    }
+
+    fn mark_yul_function_visited(&mut self, id: hir::FunctionId) -> bool {
+        let function_count = self.gcx.hir.function_ids().len();
+        self.visited_yul_functions
+            .get_or_insert_with(|| DenseBitSet::new_empty(function_count))
+            .insert(id)
     }
 
     fn check_function(mut self, function: &'gcx hir::Function<'gcx>) -> Vec<Diag> {
@@ -199,40 +190,18 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
         self.writing = previous;
     }
 
-    fn visit_block_in_source_order(&mut self, block: hir::Block<'gcx>) -> ControlFlow<Never> {
-        let functions = self.yul_functions.get(&block_key(block)).map(Vec::as_slice).unwrap_or(&[]);
-        let mut stmt_index = 0;
-        let mut function_index = 0;
-        while stmt_index < block.stmts.len() || function_index < functions.len() {
-            match (block.stmts.get(stmt_index), functions.get(function_index).copied()) {
-                (Some(stmt), Some(function)) if stmt.span.lo() <= function.span.lo() => {
-                    let _ = self.visit_stmt(stmt);
-                    stmt_index += 1;
-                }
-                (_, Some(function)) => {
-                    if let Some(body) = function.body {
-                        self.visit_block(body)?;
-                    }
-                    function_index += 1;
-                }
-                (Some(stmt), None) => {
-                    let _ = self.visit_stmt(stmt);
-                    stmt_index += 1;
-                }
-                (None, None) => break,
-            }
-        }
-        ControlFlow::Continue(())
-    }
-
     fn report_call_expr(&mut self, expr: &'gcx hir::Expr<'gcx>, callee: &'gcx hir::Expr<'gcx>) {
-        let calls_yul_function = self
+        let yul_function = self
             .gcx
             .resolved_callee(callee.id)
             .and_then(|callee| callee.res.as_function())
-            .is_some_and(|id| self.gcx.hir.function(id).is_yul);
-        if calls_yul_function {
-            // Yul function definitions are checked as part of their containing assembly.
+            .filter(|&id| self.gcx.hir.function(id).is_yul);
+        if let Some(id) = yul_function {
+            if self.current_function.is_some() {
+                self.report_yul_function(id);
+            } else {
+                self.inferred_events.push(FunctionEffect::YulCall(id));
+            }
         } else if let Some(builtin) = self.gcx.builtin_callee(callee.id) {
             if builtin.is_yul() {
                 self.report_yul_builtin(builtin, expr.span);
@@ -361,6 +330,10 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
         location: Span,
         nested_location: Option<Span>,
     ) {
+        if self.current_function.is_none() && mutability != StateMutability::Pure {
+            self.inferred_events
+                .push(FunctionEffect::Mutability(MutabilityAndLocation { mutability, location }));
+        }
         if mutability_rank(mutability) > mutability_rank(self.best.mutability) {
             self.best = MutabilityAndLocation { mutability, location };
         }
@@ -458,14 +431,10 @@ impl<'gcx, 'a> Visit<'gcx> for ViewPureChecker<'gcx, 'a> {
     ) -> ControlFlow<Self::BreakValue> {
         self.walk_modifier(modifier)?;
         if let ItemId::Function(id) = modifier.id {
-            let inferred = self.modifier_mutability(id);
+            let inferred = self.function_mutability(id);
             self.report(inferred.mutability, modifier.span, Some(inferred.location));
         }
         ControlFlow::Continue(())
-    }
-
-    fn visit_block(&mut self, block: hir::Block<'gcx>) -> ControlFlow<Self::BreakValue> {
-        self.visit_block_in_source_order(block)
     }
 
     fn visit_var(&mut self, var: &'gcx hir::Variable<'gcx>) -> ControlFlow<Self::BreakValue> {
@@ -554,9 +523,6 @@ fn mutability_rank(mutability: StateMutability) -> u8 {
     }
 }
 
-fn copy_mutability(
-    _id: &hir::FunctionId,
-    mutability: &MutabilityAndLocation,
-) -> MutabilityAndLocation {
-    *mutability
+fn clone_effects(_id: &hir::FunctionId, effects: &Arc<FunctionEffects>) -> Arc<FunctionEffects> {
+    Arc::clone(effects)
 }

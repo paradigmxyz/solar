@@ -19,6 +19,24 @@ LL │                     tstore(0, 1)
 error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
    ╭▸ ROOT/tests/ui/typeck/view_pure_checker/yul_functions.sol:LL:CC
    │
+LL │                 tstore(4, 1)
+   ╰╴                ━━━━━━━━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/yul_functions.sol:LL:CC
+   │
+LL │                 sstore(4, 1)
+   ╰╴                ━━━━━━━━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/yul_functions.sol:LL:CC
+   │
+LL │                 sstore(5, 1)
+   ╰╴                ━━━━━━━━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/yul_functions.sol:LL:CC
+   │
 LL │                     sstore(2, 1)
    ╰╴                    ━━━━━━━━━━━━
 
@@ -40,5 +58,5 @@ error[8961]: function cannot be declared as view because this expression (potent
 LL │                     sstore(3, 1)
    ╰╴                    ━━━━━━━━━━━━
 
-error: aborting due to 7 previous errors
+error: aborting due to 10 previous errors
 
