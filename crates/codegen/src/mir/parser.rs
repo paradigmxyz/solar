@@ -29,8 +29,8 @@
 //! - Phi nodes are represented only as phi *instructions* (`InstKind::Phi`).
 
 use super::{
-    BasicBlock, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, Instruction,
-    InstructionMetadata, MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
+    BlockId, EffectKind, Function, FunctionId, InstId, InstKind, Instruction, InstructionMetadata,
+    MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
 };
 use crate::mir::{Immediate, MirType};
 use alloy_primitives::U256;
@@ -82,8 +82,8 @@ fn parse_function(sess: &Session, input: &str) -> Result<Function> {
     let arena = Arena::new();
     let mut p = Parser::new(sess, &arena, &source);
     let func = p.parse_function().map_err(PErr::emit)?;
-    if !p.is_eof() {
-        return Err(p.error("trailing input after function").emit());
+    if !p.parser.is_eof() {
+        return Err(p.parser.error("trailing input after function").emit());
     }
     Ok(func)
 }
@@ -96,6 +96,10 @@ struct Parser<'sess, 'ast> {
     parser: crate::ir_parse::Parser<'sess, 'ast>,
     pending_function_ref: Option<(Symbol, Span)>,
     function_refs: Vec<PendingFunctionRef>,
+    arg_values: Vec<ValueId>,
+    block_labels: FxHashMap<u32, BlockLabel>,
+    block_order: Vec<BlockId>,
+    value_labels: FxHashMap<u32, ValueId>,
 }
 
 struct PendingFunctionRef {
@@ -122,30 +126,20 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             parser: crate::ir_parse::Parser::new(sess, arena, source),
             pending_function_ref: None,
             function_refs: Vec::new(),
+            arg_values: Vec::new(),
+            block_labels: FxHashMap::default(),
+            block_order: Vec::new(),
+            value_labels: FxHashMap::default(),
         }
-    }
-
-    // ----- low-level cursor primitives -----
-
-    fn is_eof(&self) -> bool {
-        self.parser.is_eof()
-    }
-
-    fn error(&self, msg: impl Into<String>) -> PErr<'sess> {
-        self.parser.error(msg)
-    }
-
-    fn expect_keyword(&mut self, kw: Symbol) -> PResult<'sess, ()> {
-        self.parser.expect_keyword(kw)
     }
 
     /// Parses a phase name such as `evm-shaped`. Unlike an identifier, a phase
     /// name may contain internal hyphens.
     fn parse_phase_name(&mut self) -> PResult<'sess, Symbol> {
-        let mut name = self.parse_ident()?.to_string();
+        let mut name = self.parser.parse_ident()?.to_string();
         while self.parser.eat(TokenKind::BinOp(BinOpToken::Minus)) {
             name.push('-');
-            name.push_str(self.parse_ident()?.as_str());
+            name.push_str(self.parser.parse_ident()?.as_str());
         }
         Ok(Symbol::intern(&name))
     }
@@ -153,20 +147,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a function name: an identifier, optionally with `.`-joined
     /// segments (`f.body`), as minted by the ABI lowering.
     fn parse_function_name(&mut self) -> PResult<'sess, String> {
-        let mut name = self.parse_ident()?.to_string();
+        let mut name = self.parser.parse_ident()?.to_string();
         while self.parser.eat(TokenKind::Dot) {
             name.push('.');
-            name.push_str(self.parse_ident()?.as_str());
+            name.push_str(self.parser.parse_ident()?.as_str());
         }
         Ok(name)
-    }
-
-    fn parse_ident(&mut self) -> PResult<'sess, Symbol> {
-        self.parser.parse_ident()
-    }
-
-    fn parse_uint_literal(&mut self) -> PResult<'sess, alloy_primitives::U256> {
-        self.parser.parse_uint()
     }
 
     // ----- module / function parsing -----
@@ -174,10 +160,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_module(&mut self) -> PResult<'sess, Module> {
         let mut phase = super::MirPhase::default();
         self.parser.expect(TokenKind::At)?;
-        self.expect_keyword(sym::module)?;
-        let module_name = self.parse_ident()?.to_string();
+        self.parser.expect_keyword(sym::module)?;
+        let module_name = self.parser.parse_ident()?.to_string();
         while self.parser.eat(TokenKind::At) {
-            let attr = self.parse_ident()?;
+            let attr = self.parser.parse_ident()?;
             match attr {
                 sym::phase => {
                     let phase_span = self.parser.token().span;
@@ -187,7 +173,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                             .error_at(phase_span, format!("unknown MIR phase `{phase_name}`"))
                     })?;
                 }
-                _ => return Err(self.error(format!("unknown module attribute `@{attr}`"))),
+                _ => return Err(self.parser.error(format!("unknown module attribute `@{attr}`"))),
             }
         }
 
@@ -196,10 +182,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         module.phase = phase;
         let mut function_refs = Vec::new();
 
-        while !self.is_eof() {
-            if self.is_eof() {
-                break;
-            }
+        while !self.parser.is_eof() {
             let func = self.parse_function()?;
             let function = module.add_function(func);
             function_refs
@@ -257,7 +240,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_function(&mut self) -> PResult<'sess, Function> {
-        self.expect_keyword(sym::fn_)?;
+        self.arg_values.clear();
+        self.block_labels.clear();
+        self.block_order.clear();
+        self.value_labels.clear();
+
+        self.parser.expect_keyword(sym::fn_)?;
         self.parser.expect(TokenKind::At)?;
         let name = self.parse_function_name()?;
         let func_ident = Ident::with_dummy_span(Symbol::intern(&name));
@@ -265,23 +253,22 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         // Parse parameters: `(arg0: ty, arg1: ty, ...)` or `()`
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
-        let mut arg_values: Vec<ValueId> = Vec::new();
         if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
             loop {
-                let arg_name = self.parse_ident()?;
+                let arg_name = self.parser.parse_ident()?;
                 let arg_name_str = arg_name.as_str();
                 if !arg_name_str.starts_with("arg") {
-                    return Err(self.error(format!("expected `argN`, got `{arg_name}`")));
+                    return Err(self.parser.error(format!("expected `argN`, got `{arg_name}`")));
                 }
-                let _idx: u32 = arg_name_str[3..]
-                    .parse()
-                    .map_err(|_| self.error(format!("invalid arg index in `{arg_name}`")))?;
+                arg_name_str[3..]
+                    .parse::<u32>()
+                    .map_err(|_| self.parser.error(format!("invalid arg index in `{arg_name}`")))?;
                 self.parser.expect(TokenKind::Colon)?;
                 let ty = self.parse_type()?;
                 let index = func.params.len() as u32;
                 func.params.push(ty);
                 let val = func.alloc_value(Value::Arg { index, ty });
-                arg_values.push(val);
+                self.arg_values.push(val);
                 if self.parser.eat(TokenKind::Comma) {
                     continue;
                 }
@@ -313,40 +300,31 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.parse_function_attributes(&mut func)?;
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Brace))?;
 
-        let mut block_labels = FxHashMap::default();
-        let mut block_order = Vec::new();
-        let mut value_labels = FxHashMap::default();
         let mut current_block = None;
 
         loop {
-            if self.is_eof() {
-                return Err(self.error("unterminated function body"));
+            if self.parser.is_eof() {
+                return Err(self.parser.error("unterminated function body"));
             }
             if self.parser.eat(TokenKind::CloseDelim(Delimiter::Brace)) {
                 break;
             }
 
             if let Some(idx) = self.try_parse_block_header()? {
-                let bid = self.define_block(&mut func, &mut block_labels, &mut block_order, idx)?;
+                let bid = self.define_block(&mut func, idx)?;
                 current_block = Some(bid);
                 continue;
             }
 
             // Not a block header — must be an instruction or terminator.
-            let block =
-                current_block.ok_or_else(|| self.error("instruction outside of any block"))?;
-            self.parse_instruction_or_terminator(
-                &mut func,
-                block,
-                &mut arg_values,
-                &mut block_labels,
-                &mut value_labels,
-            )?;
+            let block = current_block
+                .ok_or_else(|| self.parser.error("instruction outside of any block"))?;
+            self.parse_instruction_or_terminator(&mut func, block)?;
         }
 
-        self.reject_unresolved_block_labels(&block_labels)?;
-        self.reject_unresolved_value_labels(&func, &value_labels)?;
-        let block_remap = crate::mir::utils::remap_block_order(&mut func, &block_order);
+        self.reject_unresolved_block_labels()?;
+        self.reject_unresolved_value_labels(&func)?;
+        let block_remap = crate::mir::utils::remap_block_order(&mut func, &self.block_order);
         for reference in &mut self.function_refs {
             if let FunctionRefTarget::Terminator(block) = &mut reference.target {
                 *block = block_remap[block.index()];
@@ -372,31 +350,25 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         self.parser.bump();
         if self.parser.eat(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-            self.expect_keyword(sym::entry)?;
+            self.parser.expect_keyword(sym::entry)?;
             self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
         }
         self.parser.expect(TokenKind::Colon)?;
         Ok(Some(index))
     }
 
-    fn define_block(
-        &self,
-        func: &mut Function,
-        block_labels: &mut FxHashMap<u32, BlockLabel>,
-        block_order: &mut Vec<BlockId>,
-        index: u32,
-    ) -> PResult<'sess, BlockId> {
-        if let Some(label) = block_labels.get_mut(&index) {
+    fn define_block(&mut self, func: &mut Function, index: u32) -> PResult<'sess, BlockId> {
+        if let Some(label) = self.block_labels.get_mut(&index) {
             if label.defined {
-                return Err(self.error(format!("duplicate block `bb{index}`")));
+                return Err(self.parser.error(format!("duplicate block `bb{index}`")));
             }
             label.defined = true;
-            block_order.push(label.id);
+            self.block_order.push(label.id);
             return Ok(label.id);
         }
-        let id = if block_labels.is_empty() { func.entry_block } else { func.alloc_block() };
-        block_labels.insert(index, BlockLabel { id, defined: true, reference_span: None });
-        block_order.push(id);
+        let id = if self.block_labels.is_empty() { func.entry_block } else { func.alloc_block() };
+        self.block_labels.insert(index, BlockLabel { id, defined: true, reference_span: None });
+        self.block_order.push(id);
         Ok(id)
     }
 
@@ -406,11 +378,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
 
         loop {
-            let key = self.parse_ident()?;
+            let key = self.parser.parse_ident()?;
             match key {
                 sym::selector => {
                     self.parser.expect(TokenKind::Eq)?;
-                    let selector = self.parse_uint_literal()?;
+                    let selector = self.parser.parse_uint()?;
                     let selector = self.u256_to_u32(selector)?;
                     func.selector = Some(selector.to_be_bytes());
                 }
@@ -419,7 +391,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 kw::Payable => {
                     func.attributes.state_mutability = hir::StateMutability::Payable;
                 }
-                _ => return Err(self.error(format!("unknown function attribute `{key}`"))),
+                _ => return Err(self.parser.error(format!("unknown function attribute `{key}`"))),
             }
 
             if self.parser.eat(TokenKind::Comma) {
@@ -433,20 +405,21 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_type(&mut self) -> PResult<'sess, MirType> {
-        let id = self.parse_ident()?;
+        let id = self.parser.parse_ident()?;
         let id_str = id.as_str();
         // u8..u256, i8..i256, bytes1..bytes32 — split into prefix + number.
         let ty = if let Some(rest) = id_str.strip_prefix('u') {
             let bits: u16 =
-                rest.parse().map_err(|_| self.error(format!("invalid u-type `{id}`")))?;
+                rest.parse().map_err(|_| self.parser.error(format!("invalid u-type `{id}`")))?;
             MirType::UInt(bits)
         } else if let Some(rest) = id_str.strip_prefix('i') {
             let bits: u16 =
-                rest.parse().map_err(|_| self.error(format!("invalid i-type `{id}`")))?;
+                rest.parse().map_err(|_| self.parser.error(format!("invalid i-type `{id}`")))?;
             MirType::Int(bits)
         } else if let Some(rest) = id_str.strip_prefix("bytes") {
-            let n: u8 =
-                rest.parse().map_err(|_| self.error(format!("invalid bytes type `{id}`")))?;
+            let n: u8 = rest
+                .parse()
+                .map_err(|_| self.parser.error(format!("invalid bytes type `{id}`")))?;
             MirType::FixedBytes(n)
         } else {
             match id {
@@ -457,7 +430,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 sym::calldataptr => MirType::CalldataPtr,
                 kw::Function => MirType::Function,
                 sym::void => MirType::Void,
-                _ => return Err(self.error(format!("unknown type `{id}`"))),
+                _ => return Err(self.parser.error(format!("unknown type `{id}`"))),
             }
         };
         Ok(ty)
@@ -465,19 +438,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a single value reference: `argN`, `vN`, integer literal, or `true`/`false`.
     /// Allocates a fresh `Immediate` for literals.
-    fn parse_value(
-        &mut self,
-        func: &mut Function,
-        arg_values: &mut Vec<ValueId>,
-        value_labels: &mut FxHashMap<u32, ValueId>,
-    ) -> PResult<'sess, ValueId> {
+    fn parse_value(&mut self, func: &mut Function) -> PResult<'sess, ValueId> {
         // Integer literal? (decimal or 0x…)
         if matches!(self.parser.token().kind, TokenKind::Literal(..)) {
-            let v = self.parse_uint_literal()?;
+            let v = self.parser.parse_uint()?;
             return Ok(func.alloc_value(Value::Immediate(Immediate::uint256(v))));
         }
         // Identifier-like — could be argN, vN, true, false.
-        let ident = self.parse_ident()?;
+        let ident = self.parser.parse_ident()?;
         if ident == kw::True {
             return Ok(func.alloc_value(Value::Immediate(Immediate::bool(true))));
         }
@@ -492,63 +460,60 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         if let Some(rest) = ident.as_str().strip_prefix("arg") {
             let idx: usize =
-                rest.parse().map_err(|_| self.error(format!("invalid arg `{ident}`")))?;
+                rest.parse().map_err(|_| self.parser.error(format!("invalid arg `{ident}`")))?;
             // ABI wrappers reference `argN` with an empty parameter list:
             // those denote calldata head words. Allocate them on demand so
             // printed `abi`-phase modules round-trip. A function that does
             // declare parameters keeps strict bounds checking.
-            if idx >= arg_values.len() && func.params.is_empty() {
-                for index in arg_values.len()..=idx {
+            if idx >= self.arg_values.len() && func.params.is_empty() {
+                for index in self.arg_values.len()..=idx {
                     let val = func
                         .alloc_value(Value::Arg { index: index as u32, ty: MirType::uint256() });
-                    arg_values.push(val);
+                    self.arg_values.push(val);
                 }
             }
-            return arg_values
+            return self
+                .arg_values
                 .get(idx)
                 .copied()
-                .ok_or_else(|| self.error(format!("arg{idx} out of range")));
+                .ok_or_else(|| self.parser.error(format!("arg{idx} out of range")));
         }
         if let Some(rest) = ident.as_str().strip_prefix('v') {
             let idx: u32 = rest
                 .parse()
-                .map_err(|_| self.error(format!("invalid value reference `{ident}`")))?;
-            if let Some(value) = value_labels.get(&idx).copied() {
+                .map_err(|_| self.parser.error(format!("invalid value reference `{ident}`")))?;
+            if let Some(value) = self.value_labels.get(&idx).copied() {
                 return Ok(value);
             }
             let value = func.alloc_value(Value::Undef(MirType::uint256()));
-            value_labels.insert(idx, value);
+            self.value_labels.insert(idx, value);
             return Ok(value);
         }
-        Err(self.error(format!("expected value reference, got `{ident}`")))
+        Err(self.parser.error(format!("expected value reference, got `{ident}`")))
     }
 
     fn resolve_result_label(
-        &self,
+        &mut self,
         func: &mut Function,
-        value_labels: &mut FxHashMap<u32, ValueId>,
         label: u32,
         inst_id: super::InstId,
     ) -> PResult<'sess, ()> {
-        if let Some(value) = value_labels.get(&label).copied() {
+        if let Some(value) = self.value_labels.get(&label).copied() {
             if matches!(func.values[value], Value::Undef(_)) {
                 func.values[value] = Value::Inst(inst_id);
                 return Ok(());
             }
-            return Err(self.error(format!("duplicate value `v{label}`")));
+            return Err(self.parser.error(format!("duplicate value `v{label}`")));
         }
 
         let value = func.alloc_value(Value::Inst(inst_id));
-        value_labels.insert(label, value);
+        self.value_labels.insert(label, value);
         Ok(())
     }
 
-    fn reject_unresolved_value_labels(
-        &self,
-        func: &Function,
-        value_labels: &FxHashMap<u32, ValueId>,
-    ) -> PResult<'sess, ()> {
-        let mut unresolved: Vec<_> = value_labels
+    fn reject_unresolved_value_labels(&self, func: &Function) -> PResult<'sess, ()> {
+        let mut unresolved: Vec<_> = self
+            .value_labels
             .iter()
             .filter_map(|(&label, &value)| {
                 matches!(func.values[value], Value::Undef(_)).then_some(label)
@@ -556,16 +521,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             .collect();
         unresolved.sort_unstable();
         if let Some(label) = unresolved.first() {
-            return Err(self.error(format!("undefined value `v{label}`")));
+            return Err(self.parser.error(format!("undefined value `v{label}`")));
         }
         Ok(())
     }
 
-    fn reject_unresolved_block_labels(
-        &self,
-        block_labels: &FxHashMap<u32, BlockLabel>,
-    ) -> PResult<'sess, ()> {
-        let mut unresolved = block_labels
+    fn reject_unresolved_block_labels(&self) -> PResult<'sess, ()> {
+        let mut unresolved = self
+            .block_labels
             .iter()
             .filter_map(|(&index, label)| (!label.defined).then_some((index, label.reference_span)))
             .collect::<Vec<_>>();
@@ -574,30 +537,27 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let message = format!("unknown block `bb{index}`");
             return Err(match span {
                 Some(span) => self.parser.error_at(span, message),
-                None => self.error(message),
+                None => self.parser.error(message),
             });
         }
         Ok(())
     }
 
-    fn parse_block_id(
-        &mut self,
-        func: &mut Function,
-        block_labels: &mut FxHashMap<u32, BlockLabel>,
-    ) -> PResult<'sess, BlockId> {
+    fn parse_block_id(&mut self, func: &mut Function) -> PResult<'sess, BlockId> {
         let span = self.parser.token().span;
-        let id = self.parse_ident()?;
+        let id = self.parser.parse_ident()?;
         let rest = id
             .as_str()
             .strip_prefix("bb")
-            .ok_or_else(|| self.error(format!("expected `bbN`, got `{id}`")))?;
+            .ok_or_else(|| self.parser.error(format!("expected `bbN`, got `{id}`")))?;
         let idx: u32 =
-            rest.parse().map_err(|_| self.error(format!("invalid block index `{id}`")))?;
-        if let Some(label) = block_labels.get(&idx) {
+            rest.parse().map_err(|_| self.parser.error(format!("invalid block index `{id}`")))?;
+        if let Some(label) = self.block_labels.get(&idx) {
             return Ok(label.id);
         }
-        let block = if block_labels.is_empty() { func.entry_block } else { func.alloc_block() };
-        block_labels
+        let block =
+            if self.block_labels.is_empty() { func.entry_block } else { func.alloc_block() };
+        self.block_labels
             .insert(idx, BlockLabel { id: block, defined: false, reference_span: Some(span) });
         Ok(block)
     }
@@ -609,13 +569,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.pending_function_ref = Some((Symbol::intern(&name), span));
             return Ok(FunctionId::from_usize(0));
         }
-        let id = self.parse_ident()?;
+        let id = self.parser.parse_ident()?;
         let rest = id
             .as_str()
             .strip_prefix("fn")
-            .ok_or_else(|| self.error(format!("expected `@name` or `fnN`, got `{id}`")))?;
-        let idx: usize =
-            rest.parse().map_err(|_| self.error(format!("invalid function index `{id}`")))?;
+            .ok_or_else(|| self.parser.error(format!("expected `@name` or `fnN`, got `{id}`")))?;
+        let idx: usize = rest
+            .parse()
+            .map_err(|_| self.parser.error(format!("invalid function index `{id}`")))?;
         Ok(FunctionId::from_usize(idx))
     }
 
@@ -630,9 +591,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         func: &mut Function,
         block: BlockId,
-        arg_values: &mut Vec<ValueId>,
-        block_labels: &mut FxHashMap<u32, BlockLabel>,
-        value_labels: &mut FxHashMap<u32, ValueId>,
     ) -> PResult<'sess, ()> {
         // Optional result: `vN = ...`
         let result_label = if let TokenKind::Ident(label) = self.parser.token().kind
@@ -647,21 +605,21 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         };
 
         let mnemonic_span = self.parser.token().span;
-        let mnemonic = self.parse_ident()?;
+        let mnemonic = self.parser.parse_ident()?;
 
         // Terminators (no result).
         match mnemonic {
             sym::jump => {
-                let target = self.parse_block_id(func, block_labels)?;
+                let target = self.parse_block_id(func)?;
                 self.set_terminator(func, block, Terminator::Jump(target));
                 return Ok(());
             }
             sym::br => {
-                let condition = self.parse_value(func, arg_values, value_labels)?;
+                let condition = self.parse_value(func)?;
                 self.parser.expect(TokenKind::Comma)?;
-                let then_block = self.parse_block_id(func, block_labels)?;
+                let then_block = self.parse_block_id(func)?;
                 self.parser.expect(TokenKind::Comma)?;
-                let else_block = self.parse_block_id(func, block_labels)?;
+                let else_block = self.parse_block_id(func)?;
                 self.set_terminator(
                     func,
                     block,
@@ -670,18 +628,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 return Ok(());
             }
             kw::Switch => {
-                let value = self.parse_value(func, arg_values, value_labels)?;
+                let value = self.parse_value(func)?;
                 self.parser.expect(TokenKind::Comma)?;
-                self.expect_keyword(kw::Default)?;
-                let default = self.parse_block_id(func, block_labels)?;
+                self.parser.expect_keyword(kw::Default)?;
+                let default = self.parse_block_id(func)?;
                 self.parser.expect(TokenKind::Comma)?;
                 self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
                 let mut cases = Vec::new();
                 if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
                     loop {
-                        let val = self.parse_value(func, arg_values, value_labels)?;
+                        let val = self.parse_value(func)?;
                         self.parser.expect(TokenKind::FatArrow)?;
-                        let bid = self.parse_block_id(func, block_labels)?;
+                        let bid = self.parse_block_id(func)?;
                         cases.push((val, bid));
                         if self.parser.eat(TokenKind::Comma) {
                             continue;
@@ -697,7 +655,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let mut values: SmallVec<[ValueId; 2]> = SmallVec::new();
                 if self.value_starts_here() {
                     loop {
-                        values.push(self.parse_value(func, arg_values, value_labels)?);
+                        values.push(self.parse_value(func)?);
                         if !self.parser.eat(TokenKind::Comma) {
                             break;
                         }
@@ -707,16 +665,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 return Ok(());
             }
             kw::Revert => {
-                let offset = self.parse_value(func, arg_values, value_labels)?;
+                let offset = self.parse_value(func)?;
                 self.parser.expect(TokenKind::Comma)?;
-                let size = self.parse_value(func, arg_values, value_labels)?;
+                let size = self.parse_value(func)?;
                 self.set_terminator(func, block, Terminator::Revert { offset, size });
                 return Ok(());
             }
             sym::returndata => {
-                let offset = self.parse_value(func, arg_values, value_labels)?;
+                let offset = self.parse_value(func)?;
                 self.parser.expect(TokenKind::Comma)?;
-                let size = self.parse_value(func, arg_values, value_labels)?;
+                let size = self.parse_value(func)?;
                 self.set_terminator(func, block, Terminator::ReturnData { offset, size });
                 return Ok(());
             }
@@ -725,7 +683,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 return Ok(());
             }
             kw::Selfdestruct => {
-                let recipient = self.parse_value(func, arg_values, value_labels)?;
+                let recipient = self.parse_value(func)?;
                 self.set_terminator(func, block, Terminator::SelfDestruct { recipient });
                 return Ok(());
             }
@@ -737,7 +695,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let function = self.parse_function_id()?;
                 let mut args = smallvec::SmallVec::new();
                 while self.parser.eat(TokenKind::Comma) {
-                    args.push(self.parse_value(func, arg_values, value_labels)?);
+                    args.push(self.parse_value(func)?);
                 }
                 self.set_terminator(func, block, Terminator::TailCall { function, args });
                 self.finish_function_ref(FunctionRefTarget::Terminator(block));
@@ -747,23 +705,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
 
         // Otherwise — instruction.
-        let (kind, result_ty) = self.parse_inst_kind(
-            mnemonic,
-            mnemonic_span,
-            func,
-            arg_values,
-            block_labels,
-            value_labels,
-        )?;
+        let (kind, result_ty) = self.parse_inst_kind(mnemonic, mnemonic_span, func)?;
 
-        let metadata = self.parse_metadata(func, arg_values, value_labels)?;
+        let metadata = self.parse_metadata(func)?;
         let mut inst = Instruction::new(kind, result_ty);
         inst.metadata = metadata;
         let inst_id = func.alloc_inst(inst);
         func.blocks[block].instructions.push(inst_id);
         self.finish_function_ref(FunctionRefTarget::Instruction(inst_id));
         if let Some(label) = result_label {
-            self.resolve_result_label(func, value_labels, label, inst_id)?;
+            self.resolve_result_label(func, label, inst_id)?;
         }
         Ok(())
     }
@@ -787,54 +738,45 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
     }
 
-    fn parse_metadata(
-        &mut self,
-        func: &mut Function,
-        arg_values: &mut Vec<ValueId>,
-        value_labels: &mut FxHashMap<u32, ValueId>,
-    ) -> PResult<'sess, InstructionMetadata> {
+    fn parse_metadata(&mut self, func: &mut Function) -> PResult<'sess, InstructionMetadata> {
         let mut metadata = InstructionMetadata::EMPTY;
         if !self.parser.eat(TokenKind::Not) {
             return Ok(metadata);
         }
-        self.expect_keyword(sym::metadata)?;
+        self.parser.expect_keyword(sym::metadata)?;
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         if self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
             return Ok(metadata);
         }
 
         loop {
-            let key = self.parse_ident()?;
+            let key = self.parser.parse_ident()?;
             match key {
                 kw::Unchecked => {
                     metadata.set_unchecked(true);
                 }
                 kw::Storage => {
                     self.parser.expect(TokenKind::Eq)?;
-                    metadata.set_storage_alias(Some(self.parse_storage_alias(
-                        func,
-                        arg_values,
-                        value_labels,
-                    )?));
+                    metadata.set_storage_alias(Some(self.parse_storage_alias(func)?));
                 }
                 kw::Memory => {
                     self.parser.expect(TokenKind::Eq)?;
-                    let value = self.parse_ident()?;
+                    let value = self.parser.parse_ident()?;
                     metadata.set_memory_region(Some(self.parse_memory_region(value)?));
                 }
                 sym::effect => {
                     self.parser.expect(TokenKind::Eq)?;
-                    let value = self.parse_ident()?;
+                    let value = self.parser.parse_ident()?;
                     metadata.set_effect(Some(self.parse_effect_kind(value)?));
                 }
                 sym::loop_depth => {
                     self.parser.expect(TokenKind::Eq)?;
-                    let value = self.parse_uint_literal()?;
+                    let value = self.parser.parse_uint()?;
                     metadata.loop_depth = self.u256_to_u16(value)?;
                 }
                 sym::hir => {
                     self.parser.expect(TokenKind::Eq)?;
-                    let value = self.parse_uint_literal()?;
+                    let value = self.parser.parse_uint()?;
                     metadata.set_hir_expr(Some(hir::ExprId::from_usize(
                         self.u256_to_u32(value)? as usize
                     )));
@@ -844,7 +786,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let (lo, hi) = self.parse_span_bounds()?;
                     metadata.set_source_span(Some(Span::new(BytePos(lo), BytePos(hi))));
                 }
-                _ => return Err(self.error(format!("unknown metadata key `{key}`"))),
+                _ => return Err(self.parser.error(format!("unknown metadata key `{key}`"))),
             }
 
             if self.parser.eat(TokenKind::Comma) {
@@ -861,55 +803,48 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.parser.token().kind
             && let Some(lo) = symbol.as_str().strip_suffix('.')
         {
-            let lo = lo.parse().map_err(|_| self.error("invalid span start"))?;
+            let lo = lo.parse().map_err(|_| self.parser.error("invalid span start"))?;
             self.parser.bump();
             let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.parser.token().kind
             else {
-                return Err(self.error("expected span end"));
+                return Err(self.parser.error("expected span end"));
             };
             let Some(hi) = symbol.as_str().strip_prefix('.') else {
-                return Err(self.error("expected span end"));
+                return Err(self.parser.error("expected span end"));
             };
-            let hi = hi.parse().map_err(|_| self.error("invalid span end"))?;
+            let hi = hi.parse().map_err(|_| self.parser.error("invalid span end"))?;
             self.parser.bump();
             return Ok((lo, hi));
         }
 
-        let lo = self.parse_uint_literal()?;
+        let lo = self.parser.parse_uint()?;
         let lo = self.u256_to_u32(lo)?;
         self.parser.expect(TokenKind::Dot)?;
         if let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.parser.token().kind
             && let Some(hi) = symbol.as_str().strip_prefix('.')
         {
-            let hi = hi.parse().map_err(|_| self.error("invalid span end"))?;
+            let hi = hi.parse().map_err(|_| self.parser.error("invalid span end"))?;
             self.parser.bump();
             return Ok((lo, hi));
         }
         self.parser.expect(TokenKind::Dot)?;
-        let hi = self.parse_uint_literal()?;
+        let hi = self.parser.parse_uint()?;
         Ok((lo, self.u256_to_u32(hi)?))
     }
 
-    fn parse_storage_alias(
-        &mut self,
-        func: &mut Function,
-        arg_values: &mut Vec<ValueId>,
-        value_labels: &mut FxHashMap<u32, ValueId>,
-    ) -> PResult<'sess, StorageAlias> {
-        let kind = self.parse_ident()?;
+    fn parse_storage_alias(&mut self, func: &mut Function) -> PResult<'sess, StorageAlias> {
+        let kind = self.parser.parse_ident()?;
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         let alias = match kind {
-            sym::slot => StorageAlias::Slot(self.parse_uint_literal()?),
-            sym::symbolic => {
-                StorageAlias::Symbolic(self.parse_value(func, arg_values, value_labels)?)
-            }
+            sym::slot => StorageAlias::Slot(self.parser.parse_uint()?),
+            sym::symbolic => StorageAlias::Symbolic(self.parse_value(func)?),
             sym::offset => {
-                let base = self.parse_value(func, arg_values, value_labels)?;
+                let base = self.parse_value(func)?;
                 self.parser.expect(TokenKind::Comma)?;
-                let offset = self.parse_uint_literal()?;
+                let offset = self.parser.parse_uint()?;
                 StorageAlias::Offset { base, offset }
             }
-            _ => return Err(self.error(format!("unknown storage metadata value `{kind}`"))),
+            _ => return Err(self.parser.error(format!("unknown storage metadata value `{kind}`"))),
         };
         self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
         Ok(alias)
@@ -922,7 +857,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::heap => MemoryRegion::Heap,
             sym::internal_frame => MemoryRegion::InternalFrame,
             sym::unknown => MemoryRegion::Unknown,
-            _ => return Err(self.error(format!("unknown memory metadata value `{value}`"))),
+            _ => return Err(self.parser.error(format!("unknown memory metadata value `{value}`"))),
         })
     }
 
@@ -940,16 +875,20 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::internal_call => EffectKind::InternalCall,
             kw::Create => EffectKind::Create,
             sym::log => EffectKind::Log,
-            _ => return Err(self.error(format!("unknown effect metadata value `{value}`"))),
+            _ => return Err(self.parser.error(format!("unknown effect metadata value `{value}`"))),
         })
     }
 
     fn u256_to_u32(&self, value: U256) -> PResult<'sess, u32> {
-        value.try_into().map_err(|_| self.error(format!("integer `{value}` does not fit in u32")))
+        value
+            .try_into()
+            .map_err(|_| self.parser.error(format!("integer `{value}` does not fit in u32")))
     }
 
     fn u256_to_u16(&self, value: U256) -> PResult<'sess, u16> {
-        value.try_into().map_err(|_| self.error(format!("integer `{value}` does not fit in u16")))
+        value
+            .try_into()
+            .map_err(|_| self.parser.error(format!("integer `{value}` does not fit in u16")))
     }
 
     fn set_terminator(&mut self, func: &mut Function, block: BlockId, term: Terminator) {
@@ -969,14 +908,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         mnemonic: Symbol,
         mnemonic_span: Span,
         func: &mut Function,
-        arg_values: &mut Vec<ValueId>,
-        block_labels: &mut FxHashMap<u32, BlockLabel>,
-        value_labels: &mut FxHashMap<u32, ValueId>,
     ) -> PResult<'sess, (InstKind, Option<MirType>)> {
         // Operand parsing helpers.
         macro_rules! v {
             () => {
-                self.parse_value(func, arg_values, value_labels)?
+                self.parse_value(func)?
             };
         }
         macro_rules! comma {
@@ -1217,7 +1153,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::CodeCopy(a, b, c), None)
             }
             kw::Loadimmutable => {
-                let offset = self.parse_uint_literal()?;
+                let offset = self.parser.parse_uint()?;
                 let offset = self.u256_to_u32(offset)?;
                 (InstKind::LoadImmutable(offset), Some(MirType::uint256()))
             }
@@ -1387,7 +1323,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::internal_call => {
                 let function = self.parse_function_id()?;
                 comma!();
-                let returns = self.parse_uint_literal()?.to::<u32>();
+                let returns = self.parser.parse_uint()?.to::<u32>();
                 let mut args = Vec::new();
                 while self.parser.eat(TokenKind::Comma) {
                     args.push(v!());
@@ -1396,7 +1332,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::InternalCall { function, args: args.into(), returns }, result_ty)
             }
             sym::internal_frame_addr => {
-                let offset = self.parse_uint_literal()?.to::<u64>();
+                let offset = self.parser.parse_uint()?.to::<u64>();
                 (InstKind::InternalFrameAddr(offset), Some(MirType::MemPtr))
             }
 
@@ -1487,7 +1423,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let mut incoming: Vec<(BlockId, ValueId)> = Vec::new();
                 loop {
                     self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
-                    let bid = self.parse_block_id(func, block_labels)?;
+                    let bid = self.parse_block_id(func)?;
                     self.parser.expect(TokenKind::Colon)?;
                     let val = v!();
                     self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
@@ -1507,15 +1443,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         })
     }
 }
-
-// =============================================================================
-// Suppress the unused `BasicBlock` import warning when this module is built
-// without tests. The struct is used transitively through `Function`, but the
-// import keeps the file self-documenting.
-// =============================================================================
-
-#[allow(dead_code)]
-const _BLOCK_TYPE_REFERENCE: Option<BasicBlock> = None;
 
 // =============================================================================
 // Tests

@@ -35,41 +35,28 @@ struct BlockLabel {
 struct Parser<'sess, 'ast, 'src> {
     parser: crate::ir_parse::Parser<'sess, 'ast>,
     source: &'src SourceFile,
+    block_labels: FxHashMap<Symbol, BlockLabel>,
+    block_order: Vec<BlockId>,
+    value_labels: FxHashMap<Symbol, ValueId>,
+    defined_values: GrowableBitSet<ValueId>,
 }
 
 impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     fn new(sess: &'sess Session, arena: &'ast Arena, source: &'src SourceFile) -> Self {
-        Self { parser: crate::ir_parse::Parser::new(sess, arena, source), source }
-    }
-
-    fn is_eof(&self) -> bool {
-        self.parser.is_eof()
-    }
-
-    fn error(&self, msg: impl Into<String>) -> PErr<'sess> {
-        self.parser.error(msg)
-    }
-
-    fn error_at(&self, span: Span, msg: impl Into<String>) -> PErr<'sess> {
-        self.parser.error_at(span, msg)
-    }
-
-    fn expect_keyword(&mut self, kw: Symbol) -> PResult<'sess, ()> {
-        self.parser.expect_keyword(kw)
-    }
-
-    fn parse_symbol(&mut self) -> PResult<'sess, Symbol> {
-        self.parser.parse_ident()
-    }
-
-    fn parse_uint_literal(&mut self) -> PResult<'sess, U256> {
-        self.parser.parse_uint()
+        Self {
+            parser: crate::ir_parse::Parser::new(sess, arena, source),
+            source,
+            block_labels: FxHashMap::default(),
+            block_order: Vec::new(),
+            value_labels: FxHashMap::default(),
+            defined_values: GrowableBitSet::new_empty(),
+        }
     }
 
     fn parse_module(&mut self) -> PResult<'sess, Module> {
         self.parser.expect(TokenKind::At)?;
-        self.expect_keyword(sym::module)?;
-        let name = self.parse_symbol()?;
+        self.parser.expect_keyword(sym::module)?;
+        let name = self.parser.parse_ident()?;
 
         let mut module = Module::new(name);
         self.parse_program_body(&mut module)?;
@@ -77,47 +64,33 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     }
 
     fn parse_program_body(&mut self, module: &mut Module) -> PResult<'sess, ()> {
-        let mut block_labels = FxHashMap::default();
-        let mut block_order = Vec::new();
         let mut current_block = None;
-        let mut value_labels = FxHashMap::default();
-        let mut defined_values = GrowableBitSet::with_capacity(module.values.len());
-        loop {
-            if self.is_eof() {
-                break;
-            }
+        while !self.parser.is_eof() {
             if let Some(header) = self.try_parse_block_header()? {
-                let block_id =
-                    self.define_block(module, &mut block_labels, &mut block_order, header.label)?;
-                if header.entry || block_order.len() == 1 {
+                let block_id = self.define_block(module, header.label)?;
+                if header.entry {
                     module.entry_block = Some(block_id);
                 }
                 module.blocks[block_id].metadata.hotness = header.hotness;
                 let mut entry_stack = Vec::with_capacity(header.entry_stack.len());
                 for name in &header.entry_stack {
-                    entry_stack.push(value_id(module, &mut value_labels, *name));
+                    entry_stack.push(self.value_id(module, *name));
                 }
                 module.blocks[block_id].entry_stack = entry_stack;
                 current_block = Some(block_id);
                 continue;
             }
 
-            let block =
-                current_block.ok_or_else(|| self.error("instruction outside of any block"))?;
-            self.parse_instruction_or_terminator(
-                module,
-                block,
-                &mut block_labels,
-                &mut value_labels,
-                &mut defined_values,
-            )?;
+            let block = current_block
+                .ok_or_else(|| self.parser.error("instruction outside of any block"))?;
+            self.parse_instruction_or_terminator(module, block)?;
         }
 
-        if block_labels.is_empty() {
-            return Err(self.error("program must contain at least one block"));
+        if self.block_labels.is_empty() {
+            return Err(self.parser.error("program must contain at least one block"));
         }
-        self.reject_unresolved_blocks(&block_labels)?;
-        super::passes::utils::remap_block_order(module, &block_order);
+        self.reject_unresolved_blocks()?;
+        super::passes::utils::remap_block_order(module, &self.block_order);
 
         Ok(())
     }
@@ -134,7 +107,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         }
         let mut hotness = Hotness::Hot;
         if self.parser.eat(TokenKind::OpenDelim(Delimiter::Bracket)) {
-            self.expect_keyword(sym::cold)?;
+            self.parser.expect_keyword(sym::cold)?;
             hotness = Hotness::Cold;
             self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
         }
@@ -169,58 +142,50 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         let label = symbol.as_str();
         let Some(number) = label.strip_prefix("bb") else { return Ok(None) };
         if number.is_empty() || !number.bytes().all(|b| b.is_ascii_digit()) {
-            return Err(self.error("expected block number after `bb`"));
+            return Err(self.parser.error("expected block number after `bb`"));
         }
         Ok(Some(symbol))
     }
 
-    fn define_block(
-        &self,
-        module: &mut Module,
-        block_labels: &mut FxHashMap<Symbol, BlockLabel>,
-        block_order: &mut Vec<BlockId>,
-        label: Symbol,
-    ) -> PResult<'sess, BlockId> {
-        if let Some(block) = block_labels.get_mut(&label) {
+    fn define_block(&mut self, module: &mut Module, label: Symbol) -> PResult<'sess, BlockId> {
+        if let Some(block) = self.block_labels.get_mut(&label) {
             if block.defined {
-                return Err(self.error(format!("duplicate block `{label}`")));
+                return Err(self.parser.error(format!("duplicate block `{label}`")));
             }
             block.defined = true;
-            block_order.push(block.id);
+            self.block_order.push(block.id);
             return Ok(block.id);
         }
         let id = module.add_block(Block::new(self.block_number(label)?));
-        block_labels.insert(label, BlockLabel { id, defined: true, reference_span: None });
-        block_order.push(id);
+        self.block_labels.insert(label, BlockLabel { id, defined: true, reference_span: None });
+        self.block_order.push(id);
         Ok(id)
     }
 
     fn block_id(
-        &self,
+        &mut self,
         module: &mut Module,
-        block_labels: &mut FxHashMap<Symbol, BlockLabel>,
         label: Symbol,
         span: Span,
     ) -> PResult<'sess, BlockId> {
-        if let Some(block) = block_labels.get(&label) {
+        if let Some(block) = self.block_labels.get(&label) {
             return Ok(block.id);
         }
         let id = module.add_block(Block::new(self.block_number(label)?));
-        block_labels.insert(label, BlockLabel { id, defined: false, reference_span: Some(span) });
+        self.block_labels
+            .insert(label, BlockLabel { id, defined: false, reference_span: Some(span) });
         Ok(id)
     }
 
     fn block_number(&self, label: Symbol) -> PResult<'sess, u32> {
         label.as_str()[2..]
             .parse()
-            .map_err(|_| self.error(format!("block label `{label}` is out of range")))
+            .map_err(|_| self.parser.error(format!("block label `{label}` is out of range")))
     }
 
-    fn reject_unresolved_blocks(
-        &self,
-        block_labels: &FxHashMap<Symbol, BlockLabel>,
-    ) -> PResult<'sess, ()> {
-        let mut unresolved = block_labels
+    fn reject_unresolved_blocks(&self) -> PResult<'sess, ()> {
+        let mut unresolved = self
+            .block_labels
             .iter()
             .filter_map(|(label, block)| (!block.defined).then_some((label, block.reference_span)))
             .collect::<Vec<_>>();
@@ -228,8 +193,8 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         if let Some((label, span)) = unresolved.first() {
             let message = format!("unknown block `{label}`");
             return Err(match span {
-                Some(span) => self.error_at(*span, message),
-                None => self.error(message),
+                Some(span) => self.parser.error_at(*span, message),
+                None => self.parser.error(message),
             });
         }
         Ok(())
@@ -239,28 +204,19 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         &mut self,
         module: &mut Module,
         block: BlockId,
-        block_labels: &mut FxHashMap<Symbol, BlockLabel>,
-        value_labels: &mut FxHashMap<Symbol, ValueId>,
-        defined_values: &mut GrowableBitSet<ValueId>,
     ) -> PResult<'sess, ()> {
         if module.blocks[block].terminator.is_some() {
-            return Err(self.error(format!(
+            return Err(self.parser.error(format!(
                 "instruction after terminator in block `bb{}`",
                 module.blocks[block].label
             )));
         }
 
-        let result = self.try_parse_result(module, value_labels, defined_values)?;
-        let mnemonic = self.parse_symbol()?;
-        if let Some(kind) = self.parse_terminator_kind(
-            mnemonic,
-            module,
-            block_labels,
-            value_labels,
-            defined_values,
-        )? {
+        let result = self.try_parse_result(module)?;
+        let mnemonic = self.parser.parse_ident()?;
+        if let Some(kind) = self.parse_terminator_kind(mnemonic, module)? {
             if result.is_some() {
-                return Err(self.error("terminator cannot produce a result"));
+                return Err(self.parser.error("terminator cannot produce a result"));
             }
             let metadata = self.parse_metadata()?;
             module.blocks[block].terminator = Some(Terminator { kind, metadata });
@@ -273,7 +229,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
             sym::push_immutable => (op::PUSH32, Instruction::ENCODED_PUSH | Instruction::IMMUTABLE),
             _ => (
                 op::from_ir_symbol(mnemonic).ok_or_else(|| {
-                    self.error(format!("unknown instruction opcode `{mnemonic}`"))
+                    self.parser.error(format!("unknown instruction opcode `{mnemonic}`"))
                 })?,
                 0,
             ),
@@ -284,13 +240,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                 Some((inputs, _)) => inputs > 0 && (result.is_some() || self.operand_starts_here()),
                 None => self.operand_starts_here(),
             };
-        let operands = self.parse_operand_list(
-            has_operands,
-            module,
-            block_labels,
-            value_labels,
-            defined_values,
-        )?;
+        let operands = if has_operands { self.parse_operand_list(module)? } else { Vec::new() };
         let metadata = self.parse_metadata()?;
         module.blocks[block].instructions.push(Instruction {
             result,
@@ -302,12 +252,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         Ok(())
     }
 
-    fn try_parse_result(
-        &mut self,
-        module: &mut Module,
-        value_labels: &mut FxHashMap<Symbol, ValueId>,
-        defined_values: &mut GrowableBitSet<ValueId>,
-    ) -> PResult<'sess, Option<ValueId>> {
+    fn try_parse_result(&mut self, module: &mut Module) -> PResult<'sess, Option<ValueId>> {
         if !self.parser.check(TokenKind::BinOp(BinOpToken::Percent))
             || !matches!(
                 self.parser.look_ahead(1).kind,
@@ -319,9 +264,9 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         }
         let name = self.parse_value_name()?;
         self.parser.bump();
-        let value = value_id(module, value_labels, name);
-        if !defined_values.insert(value) {
-            return Err(self.error(format!("duplicate value `%{name}`")));
+        let value = self.value_id(module, name);
+        if !self.defined_values.insert(value) {
+            return Err(self.parser.error(format!("duplicate value `%{name}`")));
         }
         Ok(Some(value))
     }
@@ -330,7 +275,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         self.parser.expect(TokenKind::BinOp(BinOpToken::Percent))?;
         let name = match self.parser.token().kind {
             TokenKind::Ident(symbol) | TokenKind::Literal(_, symbol) => symbol,
-            _ => return Err(self.error("expected value name")),
+            _ => return Err(self.parser.error("expected value name")),
         };
         self.parser.bump();
         Ok(name)
@@ -340,37 +285,31 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         &mut self,
         mnemonic: Symbol,
         module: &mut Module,
-        block_labels: &mut FxHashMap<Symbol, BlockLabel>,
-        value_labels: &mut FxHashMap<Symbol, ValueId>,
-        defined_values: &mut GrowableBitSet<ValueId>,
     ) -> PResult<'sess, Option<TerminatorKind>> {
         let kind = match mnemonic {
             sym::jump if !self.operand_starts_here() => TerminatorKind::RawOpcode(op::JUMP),
-            sym::jump => TerminatorKind::Jump(self.parse_block_ref(module, block_labels)?),
+            sym::jump => TerminatorKind::Jump(self.parse_block_ref(module)?),
             sym::br => {
-                let condition =
-                    self.parse_operand(module, block_labels, value_labels, defined_values)?;
+                let condition = self.parse_operand(module)?;
                 self.parser.expect(TokenKind::Comma)?;
-                let then_block = self.parse_block_ref(module, block_labels)?;
+                let then_block = self.parse_block_ref(module)?;
                 self.parser.expect(TokenKind::Comma)?;
-                let else_block = self.parse_block_ref(module, block_labels)?;
+                let else_block = self.parse_block_ref(module)?;
                 TerminatorKind::Branch { condition, then_block, else_block }
             }
             kw::Switch => {
-                let value =
-                    self.parse_operand(module, block_labels, value_labels, defined_values)?;
+                let value = self.parse_operand(module)?;
                 self.parser.expect(TokenKind::Comma)?;
-                self.expect_keyword(kw::Default)?;
-                let default = self.parse_block_ref(module, block_labels)?;
+                self.parser.expect_keyword(kw::Default)?;
+                let default = self.parse_block_ref(module)?;
                 self.parser.expect(TokenKind::Comma)?;
                 self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
                 let mut cases = Vec::new();
                 if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
                     loop {
-                        let case =
-                            self.parse_operand(module, block_labels, value_labels, defined_values)?;
+                        let case = self.parse_operand(module)?;
                         self.parser.expect(TokenKind::FatArrow)?;
-                        let target = self.parse_block_ref(module, block_labels)?;
+                        let target = self.parse_block_ref(module)?;
                         cases.push((case, target));
                         if self.parser.eat(TokenKind::Comma) {
                             continue;
@@ -383,20 +322,16 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
             }
             kw::Return if !self.operand_starts_here() => TerminatorKind::RawOpcode(op::RETURN),
             kw::Return => {
-                let offset =
-                    self.parse_operand(module, block_labels, value_labels, defined_values)?;
+                let offset = self.parse_operand(module)?;
                 self.parser.expect(TokenKind::Comma)?;
-                let size =
-                    self.parse_operand(module, block_labels, value_labels, defined_values)?;
+                let size = self.parse_operand(module)?;
                 TerminatorKind::Return { offset, size }
             }
             kw::Revert if !self.operand_starts_here() => TerminatorKind::RawOpcode(op::REVERT),
             kw::Revert => {
-                let offset =
-                    self.parse_operand(module, block_labels, value_labels, defined_values)?;
+                let offset = self.parse_operand(module)?;
                 self.parser.expect(TokenKind::Comma)?;
-                let size =
-                    self.parse_operand(module, block_labels, value_labels, defined_values)?;
+                let size = self.parse_operand(module)?;
                 TerminatorKind::Revert { offset, size }
             }
             kw::Stop => TerminatorKind::Stop,
@@ -405,30 +340,31 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                 TerminatorKind::RawOpcode(op::SELFDESTRUCT)
             }
             kw::Selfdestruct => {
-                let recipient =
-                    self.parse_operand(module, block_labels, value_labels, defined_values)?;
+                let recipient = self.parse_operand(module)?;
                 TerminatorKind::SelfDestruct { recipient }
             }
             sym::terminal => {
                 let opcode = if matches!(self.parser.token().kind, TokenKind::Literal(..)) {
-                    let opcode = self.parse_uint_literal()?;
+                    let opcode = self.parser.parse_uint()?;
                     let Ok(opcode) = u8::try_from(opcode) else {
-                        return Err(self.error("raw terminal opcode must fit in one byte"));
+                        return Err(self.parser.error("raw terminal opcode must fit in one byte"));
                     };
                     opcode
                 } else {
-                    let mnemonic = self.parse_symbol()?;
+                    let mnemonic = self.parser.parse_ident()?;
                     let Some(opcode) = op::from_ir_symbol(mnemonic) else {
-                        return Err(self.error(format!("unknown terminal opcode `{mnemonic}`")));
+                        return Err(self
+                            .parser
+                            .error(format!("unknown terminal opcode `{mnemonic}`")));
                     };
                     opcode
                 };
                 TerminatorKind::RawOpcode(opcode)
             }
             sym::raw => {
-                let opcode = self.parse_uint_literal()?;
+                let opcode = self.parser.parse_uint()?;
                 let Ok(opcode) = u8::try_from(opcode) else {
-                    return Err(self.error("raw opcode must fit in one byte"));
+                    return Err(self.parser.error("raw opcode must fit in one byte"));
                 };
                 TerminatorKind::RawOpcode(opcode)
             }
@@ -437,25 +373,10 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         Ok(Some(kind))
     }
 
-    fn parse_operand_list(
-        &mut self,
-        has_operands: bool,
-        module: &mut Module,
-        block_labels: &mut FxHashMap<Symbol, BlockLabel>,
-        value_labels: &mut FxHashMap<Symbol, ValueId>,
-        defined_values: &mut GrowableBitSet<ValueId>,
-    ) -> PResult<'sess, Vec<Operand>> {
+    fn parse_operand_list(&mut self, module: &mut Module) -> PResult<'sess, Vec<Operand>> {
         let mut operands = Vec::new();
-        if !has_operands {
-            return Ok(operands);
-        }
         loop {
-            operands.push(self.parse_operand(
-                module,
-                block_labels,
-                value_labels,
-                defined_values,
-            )?);
+            operands.push(self.parse_operand(module)?);
             if !self.parser.eat(TokenKind::Comma) {
                 break;
             }
@@ -463,38 +384,28 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         Ok(operands)
     }
 
-    fn parse_operand(
-        &mut self,
-        module: &mut Module,
-        block_labels: &mut FxHashMap<Symbol, BlockLabel>,
-        value_labels: &mut FxHashMap<Symbol, ValueId>,
-        _defined_values: &mut GrowableBitSet<ValueId>,
-    ) -> PResult<'sess, Operand> {
+    fn parse_operand(&mut self, module: &mut Module) -> PResult<'sess, Operand> {
         if self.parser.check(TokenKind::BinOp(BinOpToken::Percent)) {
             let name = self.parse_value_name()?;
-            return Ok(Operand::Value(value_id(module, value_labels, name)));
+            return Ok(Operand::Value(self.value_id(module, name)));
         }
         if matches!(self.parser.token().kind, TokenKind::Literal(..)) {
-            return Ok(Operand::Immediate(self.parse_uint_literal()?));
+            return Ok(Operand::Immediate(self.parser.parse_uint()?));
         }
         if let Some(label) = self.current_block_label()? {
             let span = self.parser.token().span;
             self.parser.bump();
-            return Ok(Operand::Block(self.block_id(module, block_labels, label, span)?));
+            return Ok(Operand::Block(self.block_id(module, label, span)?));
         }
-        Err(self.error("expected operand"))
+        Err(self.parser.error("expected operand"))
     }
 
-    fn parse_block_ref(
-        &mut self,
-        module: &mut Module,
-        block_labels: &mut FxHashMap<Symbol, BlockLabel>,
-    ) -> PResult<'sess, BlockId> {
+    fn parse_block_ref(&mut self, module: &mut Module) -> PResult<'sess, BlockId> {
         let label =
-            self.current_block_label()?.ok_or_else(|| self.error("expected block label"))?;
+            self.current_block_label()?.ok_or_else(|| self.parser.error("expected block label"))?;
         let span = self.parser.token().span;
         self.parser.bump();
-        self.block_id(module, block_labels, label, span)
+        self.block_id(module, label, span)
     }
 
     fn parse_metadata(&mut self) -> PResult<'sess, Metadata> {
@@ -502,14 +413,14 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         if !self.parser.eat(TokenKind::Not) {
             return Ok(metadata);
         }
-        self.expect_keyword(sym::meta)?;
+        self.parser.expect_keyword(sym::meta)?;
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         if self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
             return Ok(metadata);
         }
 
         loop {
-            let key = self.parse_symbol()?;
+            let key = self.parser.parse_ident()?;
             if key == sym::stack {
                 self.parser.expect(TokenKind::Eq)?;
                 let inputs = self.parse_u16()?;
@@ -535,7 +446,7 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
     fn parse_metadata_value(&mut self) -> PResult<'sess, Symbol> {
         let start = self.parser.token().span.lo();
         let mut end = start;
-        while !self.is_eof()
+        while !self.parser.is_eof()
             && !self.parser.check(TokenKind::Comma)
             && !self.parser.check(TokenKind::CloseDelim(Delimiter::Parenthesis))
         {
@@ -546,14 +457,16 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         let end = (end - self.source.start_pos).to_usize();
         let value = self.source.src[start..end].trim();
         if value.is_empty() {
-            return Err(self.error("expected metadata value"));
+            return Err(self.parser.error("expected metadata value"));
         }
         Ok(Symbol::intern(value))
     }
 
     fn parse_u16(&mut self) -> PResult<'sess, u16> {
-        let value = self.parse_uint_literal()?;
-        value.try_into().map_err(|_| self.error(format!("integer `{value}` does not fit in u16")))
+        let value = self.parser.parse_uint()?;
+        value
+            .try_into()
+            .map_err(|_| self.parser.error(format!("integer `{value}` does not fit in u16")))
     }
 
     fn operand_starts_here(&self) -> bool {
@@ -593,19 +506,15 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                     | sym::raw
             )
     }
-}
 
-fn value_id(
-    module: &mut Module,
-    value_labels: &mut FxHashMap<Symbol, ValueId>,
-    name: Symbol,
-) -> ValueId {
-    if let Some(value) = value_labels.get(&name).copied() {
-        return value;
+    fn value_id(&mut self, module: &mut Module, name: Symbol) -> ValueId {
+        if let Some(value) = self.value_labels.get(&name).copied() {
+            return value;
+        }
+        let value = module.add_value(name);
+        self.value_labels.insert(name, value);
+        value
     }
-    let value = module.add_value(name);
-    value_labels.insert(name, value);
-    value
 }
 
 #[cfg(test)]
