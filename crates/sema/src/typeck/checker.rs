@@ -9,7 +9,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_ast::{
-    DataLocation, ElementaryType, Span, StateMutability, TypeSize, UserDefinableOperator,
+    DataLocation, ElementaryType, LitKind, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
 use solar_data_structures::{Never, bit_set::DenseBitSet, pluralize, smallvec::SmallVec};
 use solar_interface::{
@@ -664,10 +664,11 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
             }
             hir::ExprKind::Unary(op, inner) => {
-                // For negation, don't propagate expected type to the inner expression
-                // because we'll modify the type (flipping the sign for int literals).
+                // For integer literal negation, don't propagate the expected type to the inner
+                // expression because we'll modify its type by flipping the sign.
                 let propagate_expected = op.kind != hir::UnOpKind::Neg
-                    || !matches!(expected, Some(ty) if ty.is_signed());
+                    || (!is_int_literal_expr(inner)
+                        && !matches!(expected, Some(ty) if ty.is_signed()));
                 let ty = if op.kind.has_side_effects() {
                     self.require_lvalue(inner)
                 } else if propagate_expected {
@@ -982,6 +983,24 @@ impl<'gcx> TypeChecker<'gcx> {
                 diag = diag.span_label(expr.span, err.message(actual, expected, self.gcx));
                 Err(diag.emit())
             }
+        }
+    }
+
+    fn check_return_expected(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        actual: Ty<'gcx>,
+        expected: Ty<'gcx>,
+    ) -> Result<(), ErrorGuaranteed> {
+        if invalid_storage_pointer_return(actual, expected) {
+            let mut diag = self.dcx().err("mismatched types").span(expr.span);
+            diag = diag.span_label(
+                expr.span,
+                TyConvertError::Incompatible.message(actual, expected, self.gcx),
+            );
+            Err(diag.emit())
+        } else {
+            self.check_expected(expr, actual, expected)
         }
     }
 
@@ -2633,9 +2652,62 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 }
                 return ControlFlow::Continue(());
             }
+            hir::StmtKind::Return(expr) if !self.in_yul => {
+                let returns =
+                    self.function.map(|id| self.gcx.hir.function(id).returns).unwrap_or_default();
+                if let Some(expr) = expr {
+                    let expected =
+                        match returns {
+                            [] => self.gcx.types.unit,
+                            [id] => self.gcx.type_of_item((*id).into()),
+                            ids => self.gcx.mk_ty_tuple(self.gcx.mk_ty_iter(
+                                ids.iter().map(|&id| self.gcx.type_of_item(id.into())),
+                            )),
+                        };
+                    let actual = self.check_expr_with_noexpect(expr, Some(expected));
+                    let _ = self.check_return_expected(expr, actual, expected);
+                } else if !returns.is_empty() {
+                    self.dcx().emit_err(stmt.span, "return arguments required");
+                }
+                return ControlFlow::Continue(());
+            }
             _ => {}
         }
         self.walk_stmt(stmt)
+    }
+}
+
+fn invalid_storage_pointer_return(actual: Ty<'_>, expected: Ty<'_>) -> bool {
+    if actual.references_error() || expected.references_error() {
+        return false;
+    }
+    match (actual.kind, expected.kind) {
+        (TyKind::Tuple(actual), TyKind::Tuple(expected)) if actual.len() == expected.len() => {
+            std::iter::zip(actual, expected)
+                .any(|(&actual, &expected)| invalid_storage_pointer_return(actual, expected))
+        }
+        (TyKind::Ref(_, DataLocation::Storage), TyKind::Ref(_, DataLocation::Storage)) => false,
+        (_, TyKind::Ref(_, DataLocation::Storage)) => true,
+        _ => false,
+    }
+}
+
+fn is_int_literal_expr(expr: &hir::Expr<'_>) -> bool {
+    match &expr.kind {
+        hir::ExprKind::Lit(lit) => matches!(lit.kind, LitKind::Number(_)),
+        hir::ExprKind::Unary(op, inner)
+            if matches!(op.kind, hir::UnOpKind::Neg | hir::UnOpKind::BitNot) =>
+        {
+            is_int_literal_expr(inner)
+        }
+        hir::ExprKind::Binary(lhs, op, rhs)
+            if !op.kind.is_cmp()
+                && !matches!(op.kind, hir::BinOpKind::Or | hir::BinOpKind::And) =>
+        {
+            is_int_literal_expr(lhs) && is_int_literal_expr(rhs)
+        }
+        hir::ExprKind::Tuple([Some(inner)]) => is_int_literal_expr(inner),
+        _ => false,
     }
 }
 
