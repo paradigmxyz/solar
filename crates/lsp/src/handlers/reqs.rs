@@ -204,6 +204,24 @@ pub(crate) fn goto_definition(
     ready(Ok(response))
 }
 
+pub(crate) fn goto_type_definition(
+    state: &mut GlobalState,
+    params: GotoDefinitionParams,
+) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
+    let symbol_tables = state.symbol_tables.clone();
+    let (version, mut published) = state.current_analysis();
+    let params = params.text_document_position_params;
+    async move {
+        published
+            .wait_for(|published| *published >= version)
+            .await
+            .map_err(|_| request_failed("analysis was cancelled"))?;
+        let response =
+            symbol_tables.read().goto_type_definition(&params.text_document.uri, params.position);
+        Ok(response)
+    }
+}
+
 pub(crate) fn goto_declaration(
     state: &mut GlobalState,
     params: GotoDefinitionParams,
