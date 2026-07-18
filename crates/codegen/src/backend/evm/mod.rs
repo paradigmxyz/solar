@@ -11,7 +11,7 @@ mod codegen;
 pub use codegen::{EvmArtifact, EvmCodegen, EvmCodegenConfig};
 
 pub mod ir;
-mod ir_stack_schedule;
+mod stack_schedule;
 
 pub mod assembler;
 pub use assembler::{AssembledCode, Assembler, AssemblerConfig, Label};
