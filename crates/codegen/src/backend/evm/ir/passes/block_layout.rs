@@ -8,9 +8,7 @@
 //! traces are placed before cold terminal traces so unlikely exit paths do not
 //! interrupt hot code.
 
-use super::utils::{
-    is_evm_terminal, remap_block_order, visit_terminator_operands, visit_terminator_targets,
-};
+use super::utils::{is_evm_terminal, remap_block_order};
 use crate::backend::evm::ir::{Block, BlockId, Instruction, Module, Operand, TerminatorKind};
 use alloy_primitives::U256;
 use solar_data_structures::bit_set::DenseBitSet;
@@ -146,9 +144,9 @@ fn block_reference_counts(module: &Module, order: &[BlockId]) -> Vec<usize> {
                 &term.kind,
                 TerminatorKind::Jump(target) if order.get(position + 1) == Some(target)
             ) {
-                visit_terminator_targets(&term.kind, |target| references[target.index()] += 1);
+                term.kind.visit_targets(|target| references[target.index()] += 1);
             }
-            visit_terminator_operands(&term.kind, |operand| {
+            term.kind.visit_operands(|operand| {
                 count_block_operand(operand, &mut references);
             });
         }

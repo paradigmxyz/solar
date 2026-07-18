@@ -1,9 +1,6 @@
 //! Machine-level EVM control-flow simplification.
 
-use super::utils::{
-    retain_blocks, visit_terminator_operands, visit_terminator_targets,
-    visit_terminator_targets_mut,
-};
+use super::utils::retain_blocks;
 use crate::backend::evm::{
     ir::{BlockId, Module, Operand, Terminator, TerminatorKind},
     opcode as op,
@@ -83,12 +80,13 @@ fn redirect_jump_thunks(module: &mut Module) -> bool {
             }
         }
         if let Some(term) = &mut block.terminator {
-            visit_terminator_targets_mut(&mut term.kind, |target| {
+            term.kind.visit_targets_mut(|target| {
                 let resolved = resolve(*target);
                 changed |= resolved != *target;
                 *target = resolved;
             });
-            redirect_terminator_operands(&mut term.kind, &resolve, &mut changed);
+            term.kind
+                .visit_operands_mut(|operand| redirect_operand(operand, &resolve, &mut changed));
         }
     }
     changed
@@ -103,33 +101,6 @@ fn redirect_operand(
         let target = resolve(*block);
         *changed |= target != *block;
         *block = target;
-    }
-}
-
-fn redirect_terminator_operands(
-    kind: &mut TerminatorKind,
-    resolve: &impl Fn(BlockId) -> BlockId,
-    changed: &mut bool,
-) {
-    match kind {
-        TerminatorKind::Branch { condition, .. } => redirect_operand(condition, resolve, changed),
-        TerminatorKind::Switch { value, cases, .. } => {
-            redirect_operand(value, resolve, changed);
-            for (case, _) in cases {
-                redirect_operand(case, resolve, changed);
-            }
-        }
-        TerminatorKind::Return { offset, size } | TerminatorKind::Revert { offset, size } => {
-            redirect_operand(offset, resolve, changed);
-            redirect_operand(size, resolve, changed);
-        }
-        TerminatorKind::SelfDestruct { recipient } => {
-            redirect_operand(recipient, resolve, changed);
-        }
-        TerminatorKind::Jump(_)
-        | TerminatorKind::Stop
-        | TerminatorKind::Invalid
-        | TerminatorKind::RawOpcode(_) => {}
     }
 }
 
@@ -150,8 +121,8 @@ fn remove_unreachable_blocks(module: &mut Module) -> bool {
             }
         }
         if let Some(term) = &block.terminator {
-            visit_terminator_targets(&term.kind, |target| pending.push(target));
-            visit_terminator_operands(&term.kind, |operand| {
+            term.kind.visit_targets(|target| pending.push(target));
+            term.kind.visit_operands(|operand| {
                 if let Operand::Block(target) = operand {
                     pending.push(*target);
                 }
@@ -175,8 +146,8 @@ fn coalesce_one_block(module: &mut Module) -> bool {
             }
         }
         if let Some(term) = &block.terminator {
-            visit_terminator_targets(&term.kind, |target| references[target.index()] += 1);
-            visit_terminator_operands(&term.kind, |operand| {
+            term.kind.visit_targets(|target| references[target.index()] += 1);
+            term.kind.visit_operands(|operand| {
                 count_operand(operand, &mut references);
             });
         }

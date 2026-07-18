@@ -337,6 +337,108 @@ pub(crate) enum TerminatorKind {
     RawOpcode(u8),
 }
 
+impl TerminatorKind {
+    /// Visits every basic block target.
+    pub(crate) fn visit_targets(&self, mut visit: impl FnMut(BlockId)) {
+        match self {
+            Self::Jump(target) => visit(*target),
+            Self::Branch { then_block, else_block, .. } => {
+                visit(*then_block);
+                visit(*else_block);
+            }
+            Self::Switch { default, cases, .. } => {
+                visit(*default);
+                for (_, target) in cases {
+                    visit(*target);
+                }
+            }
+            Self::Return { .. }
+            | Self::Revert { .. }
+            | Self::Stop
+            | Self::Invalid
+            | Self::SelfDestruct { .. }
+            | Self::RawOpcode(_) => {}
+        }
+    }
+
+    /// Visits every basic block target mutably.
+    pub(crate) fn visit_targets_mut(&mut self, mut visit: impl FnMut(&mut BlockId)) {
+        match self {
+            Self::Jump(target) => visit(target),
+            Self::Branch { then_block, else_block, .. } => {
+                visit(then_block);
+                visit(else_block);
+            }
+            Self::Switch { default, cases, .. } => {
+                visit(default);
+                for (_, target) in cases {
+                    visit(target);
+                }
+            }
+            Self::Return { .. }
+            | Self::Revert { .. }
+            | Self::Stop
+            | Self::Invalid
+            | Self::SelfDestruct { .. }
+            | Self::RawOpcode(_) => {}
+        }
+    }
+
+    /// Visits every operand.
+    pub(crate) fn visit_operands(&self, mut visit: impl FnMut(&Operand)) {
+        let result = self.try_visit_operands(|operand| {
+            visit(operand);
+            Ok::<(), std::convert::Infallible>(())
+        });
+        match result {
+            Ok(()) => {}
+            Err(never) => match never {},
+        }
+    }
+
+    /// Visits every operand mutably.
+    pub(crate) fn visit_operands_mut(&mut self, mut visit: impl FnMut(&mut Operand)) {
+        match self {
+            Self::Branch { condition, .. } => visit(condition),
+            Self::Switch { value, cases, .. } => {
+                visit(value);
+                for (case, _) in cases {
+                    visit(case);
+                }
+            }
+            Self::Return { offset, size } | Self::Revert { offset, size } => {
+                visit(offset);
+                visit(size);
+            }
+            Self::SelfDestruct { recipient } => visit(recipient),
+            Self::Jump(_) | Self::Stop | Self::Invalid | Self::RawOpcode(_) => {}
+        }
+    }
+
+    /// Visits every operand until the callback returns an error.
+    pub(crate) fn try_visit_operands<E>(
+        &self,
+        mut visit: impl FnMut(&Operand) -> Result<(), E>,
+    ) -> Result<(), E> {
+        match self {
+            Self::Branch { condition, .. } => visit(condition)?,
+            Self::Switch { value, cases, .. } => {
+                visit(value)?;
+                for (case, _) in cases {
+                    visit(case)?;
+                }
+            }
+            Self::Return { offset, size } | Self::Revert { offset, size } => {
+                visit(offset)?;
+                visit(size)?;
+            }
+            Self::SelfDestruct { recipient } => visit(recipient)?,
+            Self::Jump(_) | Self::Stop | Self::Invalid | Self::RawOpcode(_) => {}
+        }
+        Ok(())
+    }
+}
+
 /// An instruction or terminator operand.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Operand {
