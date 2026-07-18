@@ -42,7 +42,7 @@ impl<'a> FunctionBuilder<'a> {
     pub fn add_param(&mut self, ty: MirType) -> ValueId {
         let index = self.func.params.len() as u32;
         self.func.params.push(ty);
-        self.func.alloc_value(Value::Arg { index, ty })
+        self.alloc_value(Value::Arg { index, ty })
     }
 
     /// Adds a return type to the function.
@@ -52,7 +52,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Creates an immediate value.
     pub fn imm_u256(&mut self, value: U256) -> ValueId {
-        self.func.alloc_value(Value::Immediate(Immediate::uint256(value)))
+        self.alloc_value(Value::Immediate(Immediate::uint256(value)))
     }
 
     /// Creates a u64 immediate value.
@@ -62,17 +62,27 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Creates a boolean immediate.
     pub fn imm_bool(&mut self, value: bool) -> ValueId {
-        self.func.alloc_value(Value::Immediate(Immediate::bool(value)))
+        self.alloc_value(Value::Immediate(Immediate::bool(value)))
     }
 
     /// Creates an undefined value.
     pub fn undef(&mut self, ty: MirType) -> ValueId {
-        self.func.alloc_value(Value::Undef(ty))
+        self.alloc_value(Value::Undef(ty))
     }
 
     /// Creates an error sentinel value for an already-reported lowering error.
     pub fn error_value(&mut self, guar: solar_interface::diagnostics::ErrorGuaranteed) -> ValueId {
-        self.func.alloc_value(Value::Error(guar))
+        self.alloc_value(Value::Error(guar))
+    }
+
+    /// Allocates a fully constructed value.
+    pub(crate) fn alloc_value(&mut self, value: Value) -> ValueId {
+        self.func.alloc_value(value)
+    }
+
+    /// Replaces an allocated value.
+    pub(crate) fn set_value(&mut self, id: ValueId, value: Value) {
+        self.func.values[id] = value;
     }
 
     fn emit_inst_raw(&mut self, kind: InstKind, result_ty: Option<MirType>) -> InstId {
@@ -80,7 +90,11 @@ impl<'a> FunctionBuilder<'a> {
         inst.metadata.set_effect(Some(inst.kind.effect_kind()));
         inst.metadata.set_memory_region(self.memory_region_for_inst(&inst.kind));
         inst.metadata.set_storage_alias(self.storage_alias_for_inst(&inst.kind));
+        self.append_instruction(inst)
+    }
 
+    /// Appends a fully constructed instruction to the current block.
+    pub(crate) fn append_instruction(&mut self, inst: Instruction) -> InstId {
         let inst_id = self.func.alloc_inst(inst);
         self.func.blocks[self.current_block].instructions.push(inst_id);
         inst_id
@@ -89,7 +103,7 @@ impl<'a> FunctionBuilder<'a> {
     fn emit_inst(&mut self, kind: InstKind, result_ty: Option<MirType>) -> ValueId {
         debug_assert!(result_ty.is_some(), "value-producing instructions must have a result type");
         let inst_id = self.emit_inst_raw(kind, result_ty);
-        self.func.alloc_value(Value::Inst(inst_id))
+        self.alloc_value(Value::Inst(inst_id))
     }
 
     /// Emits an instruction that produces no value, such as a store or a log.
@@ -667,68 +681,63 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Sets a jump terminator.
     pub fn jump(&mut self, target: BlockId) {
-        let block = &mut self.func.blocks[self.current_block];
-        block.terminator = Some(Terminator::Jump(target));
-        self.func.blocks[target].predecessors.push(self.current_block);
+        self.set_terminator(Terminator::Jump(target));
     }
 
     /// Sets a branch terminator.
     pub fn branch(&mut self, condition: ValueId, then_block: BlockId, else_block: BlockId) {
-        let block = &mut self.func.blocks[self.current_block];
-        block.terminator = Some(Terminator::Branch { condition, then_block, else_block });
-        self.func.blocks[then_block].predecessors.push(self.current_block);
-        self.func.blocks[else_block].predecessors.push(self.current_block);
+        self.set_terminator(Terminator::Branch { condition, then_block, else_block });
     }
 
     /// Sets a switch terminator.
     pub fn switch(&mut self, value: ValueId, default: BlockId, cases: Vec<(ValueId, BlockId)>) {
-        let current = self.current_block;
-        self.func.blocks[current].terminator =
-            Some(Terminator::Switch { value, default, cases: cases.clone() });
-        self.func.blocks[default].predecessors.push(current);
-        for (_, case_block) in cases {
-            self.func.blocks[case_block].predecessors.push(current);
-        }
+        self.set_terminator(Terminator::Switch { value, default, cases });
     }
 
     /// Sets a return terminator.
     pub fn ret(&mut self, values: impl IntoIterator<Item = ValueId>) {
         let values: SmallVec<[ValueId; 2]> = values.into_iter().collect();
-        self.func.blocks[self.current_block].terminator = Some(Terminator::Return { values });
+        self.set_terminator(Terminator::Return { values });
     }
 
     /// Sets a revert terminator.
     pub fn revert(&mut self, offset: ValueId, size: ValueId) {
-        self.func.blocks[self.current_block].terminator = Some(Terminator::Revert { offset, size });
+        self.set_terminator(Terminator::Revert { offset, size });
     }
 
     /// Sets a return-data terminator: `RETURN(offset, size)`.
     pub fn ret_data(&mut self, offset: ValueId, size: ValueId) {
-        self.func.blocks[self.current_block].terminator =
-            Some(Terminator::ReturnData { offset, size });
+        self.set_terminator(Terminator::ReturnData { offset, size });
     }
 
     /// Sets a stop terminator.
     pub fn stop(&mut self) {
-        self.func.blocks[self.current_block].terminator = Some(Terminator::Stop);
+        self.set_terminator(Terminator::Stop);
     }
 
     /// Sets a tail-call terminator: transfer control to `function` without
     /// returning to this function.
     pub fn tail_call(&mut self, function: FunctionId, args: Vec<ValueId>) {
-        self.func.blocks[self.current_block].terminator =
-            Some(Terminator::TailCall { function, args: args.into_iter().collect() });
+        self.set_terminator(Terminator::TailCall { function, args: args.into_iter().collect() });
     }
 
     /// Sets an invalid terminator.
     pub fn invalid(&mut self) {
-        self.func.blocks[self.current_block].terminator = Some(Terminator::Invalid);
+        self.set_terminator(Terminator::Invalid);
     }
 
     /// Sets a selfdestruct terminator.
     pub fn selfdestruct(&mut self, recipient: ValueId) {
-        self.func.blocks[self.current_block].terminator =
-            Some(Terminator::SelfDestruct { recipient });
+        self.set_terminator(Terminator::SelfDestruct { recipient });
+    }
+
+    /// Sets a fully constructed terminator on the current block.
+    pub(crate) fn set_terminator(&mut self, terminator: Terminator) {
+        let current = self.current_block;
+        for successor in terminator.successors() {
+            self.func.blocks[successor].predecessors.push(current);
+        }
+        self.func.blocks[current].terminator = Some(terminator);
     }
 
     /// Returns a reference to the function.

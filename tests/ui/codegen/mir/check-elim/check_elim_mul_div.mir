@@ -1,0 +1,37 @@
+//@compile-flags: --pass check-elim
+@module CheckElimMulDiv
+
+// Checked multiplication tests `div(mul(x, c), c) == x`. With `x < 100` the
+// product is at most 297 and cannot wrap, so the roundtrip holds and the
+// panic branch folds.
+fn @fold_mul_check_with_bound(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = lt arg0, 100
+    br v1, bb1, bb2
+  bb1:
+    v2 = mul arg0, 3
+    v3 = div v2, 3
+    v4 = eq v3, arg0
+    v5 = iszero v4
+    br v5, bb3, bb4
+  bb2:
+    ret 0
+  bb3:
+    revert 0, 0
+  bb4:
+    ret v2
+}
+
+// Without a bound on `arg0` the product can wrap: the check must stay.
+fn @keep_mul_check_without_bound(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = mul arg0, 3
+    v2 = div v1, 3
+    v3 = eq v2, arg0
+    v4 = iszero v3
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v1
+}

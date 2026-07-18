@@ -1,0 +1,8 @@
+//@compile-flags: --pass stack-schedule
+// REVERT(offset, size) arranges like RETURN: offset on top, size below.
+@module module
+
+bb0 (entry):
+  %off = push 0
+  %size = push 4
+  revert %off, %size

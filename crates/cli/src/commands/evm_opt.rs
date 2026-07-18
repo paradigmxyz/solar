@@ -78,7 +78,7 @@ fn run_pipeline(sess: &Session, module: &mut ir::Module, name: &str, args: &EvmO
             ir::run_pass(module, pass, options);
         }
         if args.print_after_each || index + 1 == args.passes.len() {
-            ir::Verifier::new(dcx).verify_module(module);
+            ir::validate(dcx, module);
             if dcx.has_errors().is_err() {
                 break;
             }
@@ -93,9 +93,8 @@ fn process_evmir(sess: &Session, args: &EvmOptArgs) -> solar_interface::Result {
         .source_map()
         .load_file(Path::new(&args.input))
         .map_err(|e| sess.dcx.err(format!("failed to read {}: {e}", args.input)).emit())?;
-    let mut module = ir::Module::parse(source.src.as_str())
-        .map_err(|err| sess.dcx.err(format!("{err}")).emit())?;
-    ir::Verifier::new(&sess.dcx).verify_module(&module);
+    let mut module = ir::Module::parse(sess, &source)?;
+    ir::validate(&sess.dcx, &module);
     if sess.dcx.has_errors().is_ok() {
         run_pipeline(sess, &mut module, &args.input, args);
     }

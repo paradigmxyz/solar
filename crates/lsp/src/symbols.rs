@@ -20,9 +20,13 @@ use solar_sema::{
     },
     ty::{CallableParamSource, Ty, TyKind},
 };
-use std::ops::ControlFlow;
+use std::{
+    ops::ControlFlow,
+    path::{Path, PathBuf},
+};
 
 use crate::{
+    document_links::DocumentLinkIndex,
     inlay_hints::InlayHintIndex,
     override_index::OverrideFamilyIndex,
     proto,
@@ -50,6 +54,7 @@ pub(crate) struct SymbolTables {
     symbol_references: FxHashMap<SymbolId, Vec<Location>>,
     override_families: OverrideFamilyIndex,
     rename: RenameIndex,
+    document_links: DocumentLinkIndex,
     inlay_hints: InlayHintIndex,
     signature_help: SignatureHelpIndex,
 }
@@ -138,7 +143,9 @@ impl SymbolTables {
     ///
     /// The compiler's resolver data is scoped to one analysis run. This table copies out the
     /// source-level declarations that LSP requests can query after that run has finished.
-    pub(crate) fn build(gcx: Gcx<'_>) -> Self {
+    /// `document_link_sources` restricts link sources to files owned by this analysis batch;
+    /// every other table still includes transitive dependencies.
+    pub(crate) fn build(gcx: Gcx<'_>, document_link_sources: &FxHashSet<PathBuf>) -> Self {
         let mut tables = Self::default();
         tables.rename.record_source_contents(gcx);
         tables.build_builtin_completions();
@@ -211,6 +218,7 @@ impl SymbolTables {
         tables.build_receiver_member_completions(gcx);
         tables.build_member_completions(gcx);
         tables.build_references(gcx, &item_symbols);
+        tables.document_links = DocumentLinkIndex::build(gcx, document_link_sources);
         tables.inlay_hints = InlayHintIndex::build(gcx);
         tables.signature_help = SignatureHelpIndex::build(gcx);
         tables.rebuild_indexes();
@@ -240,6 +248,7 @@ impl SymbolTables {
         if self.builtin_member_completions.is_empty() {
             self.builtin_member_completions = std::mem::take(&mut other.builtin_member_completions);
         }
+        self.document_links.extend(other.document_links);
         self.inlay_hints.extend(other.inlay_hints);
         self.signature_help.extend(other.signature_help);
 
@@ -287,6 +296,10 @@ impl SymbolTables {
 
     pub(crate) fn inlay_hints(&self, uri: &Url, range: Range) -> Vec<InlayHint> {
         self.inlay_hints.hints(uri, range)
+    }
+
+    pub(crate) fn document_links(&self, path: &Path) -> Vec<lsp_types::DocumentLink> {
+        self.document_links.links(path)
     }
 
     pub(crate) fn signature_help(
@@ -1479,6 +1492,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
             CallableParamSource::Struct(id) => (self.gcx.hir.strukt(id).fields, 0),
             CallableParamSource::Event(id) => (self.gcx.hir.event(id).parameters, 0),
             CallableParamSource::Error(id) => (self.gcx.hir.error(id).parameters, 0),
+            CallableParamSource::Builtin(_) => return Vec::new(),
         };
         params.iter().copied().skip(skip).collect()
     }
@@ -1960,6 +1974,23 @@ mod tests {
                 ("Lib", SymbolKind::MODULE)
             ]
         );
+    }
+
+    #[test]
+    fn extend_preserves_document_links_without_declarations() {
+        let source_path = PathBuf::from("/workspace/src/Imports.sol");
+        let target = parse_uri("file:///workspace/src/Dependency.sol");
+        let link_range = range(0, 8, 0, 24);
+        let mut tables = SymbolTables::default();
+        let mut other = SymbolTables::default();
+        other.document_links.insert_for_test(source_path.clone(), link_range, target.clone());
+
+        tables.extend(other);
+
+        let links = tables.document_links(&source_path);
+        assert_eq!(links.len(), 1);
+        assert_eq!(links[0].range, link_range);
+        assert_eq!(links[0].target, Some(target));
     }
 
     fn sample_tables(uri: &Url, other_uri: &Url) -> SymbolTables {

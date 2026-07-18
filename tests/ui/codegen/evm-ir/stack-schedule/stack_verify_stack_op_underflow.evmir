@@ -1,0 +1,8 @@
+//@ failure-status: 1
+// `dup2` reaches beyond the entry stack.
+@module module
+
+bb0 (entry):
+  push 1
+  dup2
+  stop

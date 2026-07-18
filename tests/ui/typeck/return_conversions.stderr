@@ -1,0 +1,80 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/return_conversions.sol:LL:CC
+   │
+LL │         return I.CustomError;
+   ╰╴               ━━━━━━━━━━━━━ expected `bytes4`, found `error I.CustomError(uint256,bool)`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/return_conversions.sol:LL:CC
+   │
+LL │         return CustomEvent;
+   ╰╴               ━━━━━━━━━━━ expected `bytes4`, found `event C.CustomEvent(uint256)`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/return_conversions.sol:LL:CC
+   │
+LL │         return "hello";
+   ╰╴               ━━━━━━━ expected `string calldata`, found `utf8_string_literal[5]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/return_conversions.sol:LL:CC
+   │
+LL │         return unicode"hello";
+   ╰╴               ━━━━━━━━━━━━━━ expected `string calldata`, found `utf8_string_literal[5]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/return_conversions.sol:LL:CC
+   │
+LL │         return hex"68656c6c6f";
+   ╰╴               ━━━━━━━━━━━━━━━ expected `bytes calldata`, found `utf8_string_literal[5]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/return_conversions.sol:LL:CC
+   │
+LL │         return -1;
+   ╰╴               ━━ expected `address`, found `int_literal[1]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/return_conversions.sol:LL:CC
+   │
+LL │         return -(1 + 2);
+   ╰╴               ━━━━━━━━ expected `address`, found `int_literal[3]`
+
+error: return arguments required
+   ╭▸ ROOT/tests/ui/typeck/return_conversions.sol:LL:CC
+   │
+LL │         return;
+   ╰╴        ━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/return_conversions.sol:LL:CC
+   │
+LL │         return 1;
+   ╰╴               ━ expected `tuple(uint256,uint256)`, found `int_literal[1]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/return_conversions.sol:LL:CC
+   │
+LL │         return (1, 2, 3);
+   ╰╴               ━━━━━━━━━ expected `tuple(uint256,uint256)`, found `tuple(int_literal[1],int_literal[2],int_literal[2])`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/return_conversions.sol:LL:CC
+   │
+LL │         return values;
+   ╰╴               ━━━━━━ expected `uint256[] storage`, found `uint256[] memory`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/return_conversions.sol:LL:CC
+   │
+LL │         return value;
+   ╰╴               ━━━━━ expected `struct C.S storage`, found `struct C.S memory`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/return_conversions.sol:LL:CC
+   │
+LL │         return (values, stateValue);
+   ╰╴               ━━━━━━━━━━━━━━━━━━━━ expected `tuple(uint256[] storage,struct C.S storage)`, found `tuple(uint256[] memory,struct C.S storage)`
+
+error: aborting due to 13 previous errors
+

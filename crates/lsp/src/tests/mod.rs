@@ -12,6 +12,7 @@ use lsp_types::{
 use std::{path::Path, time::Duration};
 
 mod completion;
+mod document_link;
 mod goto_definition;
 mod implementation;
 mod inlay_hint;
@@ -25,11 +26,13 @@ fn snapshot(project: &TestProject) -> GlobalStateSnapshot {
 }
 
 fn snapshot_with_config(config: Config, vfs: Vfs) -> GlobalStateSnapshot {
+    let (published_analysis_version, _) = watch::channel(1);
     GlobalStateSnapshot {
         client: ClientSocket::new_closed(),
         vfs: Arc::new(RwLock::new(vfs)),
         config: Arc::new(config),
         analysis_version: Arc::new(AtomicUsize::new(1)),
+        published_analysis_version,
         flycheck_versions: Arc::new(Default::default()),
         symbol_tables: Arc::new(Default::default()),
         diagnostics: Arc::new(Default::default()),
@@ -342,6 +345,37 @@ fn analysis_batches_scan_workspace_source_roots_and_apply_vfs_overlay() {
 }
 
 #[test]
+fn document_links_use_vfs_overlay() {
+    let mut project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/A.sol
+        import "./Old.sol";
+
+        //- /src/Old.sol
+        contract Old {}
+
+        //- /src/New.sol
+        contract New {}
+        "#,
+    );
+    project.open_file("/src/A.sol", "import \"./New.sol\";");
+    let snapshot = snapshot(&project);
+
+    let mut batches = snapshot.analysis_batches(Vec::new());
+    let result = analyze(batches.pop().unwrap());
+
+    assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+    let path = project.path("/src/A.sol");
+    let links = result.symbol_tables.document_links(&path);
+    assert_eq!(links.len(), 1);
+    assert_eq!(links[0].target, Some(Url::from_file_path(project.path("/src/New.sol")).unwrap()));
+}
+
+#[test]
 fn analysis_batches_use_cached_workspace_source_files() {
     let project = TestProject::from_fixture(
         r#"
@@ -426,6 +460,10 @@ fn analysis_uses_workspace_remappings_for_import_resolution() {
     let result = analyze(batches.pop().unwrap());
 
     assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+    let path = project.path("/src/A.sol");
+    let links = result.symbol_tables.document_links(&path);
+    assert_eq!(links.len(), 1);
+    assert_eq!(links[0].target, Some(Url::from_file_path(project.path("/lib/B.sol")).unwrap()));
 }
 
 #[test]

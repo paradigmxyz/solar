@@ -1,0 +1,68 @@
+//@compile-flags: --pass check-elim
+@module CheckElimIndexGuard
+
+// A dominating `i < 3` guard proves the array bounds check `lt i, 3`
+// (the shape emitted for `if (i < 3) { x[i] }` on a fixed-size array), so
+// the check folds to the continue edge and the Panic(0x32) block dies.
+fn @fold_const_len_check(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = lt arg0, 3
+    br v1, bb1, bb4
+  bb1:
+    v2 = lt arg0, 3
+    br v2, bb3, bb2
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 50
+    revert 0, 36
+  bb3:
+    v3 = shl 5, arg0
+    v4 = mload v3
+    ret v4
+  bb4:
+    ret 0
+}
+
+// A dominating `i < len` guard on the same SSA length value proves the
+// bounds check for a dynamic array (`if (i < x.length) { x[i] }` once load
+// CSE merges the two length loads), so the check folds.
+fn @fold_dyn_len_check(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = sload 0
+    v2 = lt arg0, v1
+    br v2, bb1, bb4
+  bb1:
+    v3 = lt arg0, v1
+    br v3, bb3, bb2
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 50
+    revert 0, 36
+  bb3:
+    v4 = add arg0, 100
+    v5 = sload v4
+    ret v5
+  bb4:
+    ret 0
+}
+
+// The guard checks a different bound (`i < 2` does prove `i < 3`, but
+// `i < 5` does not), so the bounds check must stay.
+fn @keep_weaker_guard(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = lt arg0, 5
+    br v1, bb1, bb4
+  bb1:
+    v2 = lt arg0, 3
+    br v2, bb3, bb2
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 50
+    revert 0, 36
+  bb3:
+    v3 = shl 5, arg0
+    v4 = mload v3
+    ret v4
+  bb4:
+    ret 0
+}

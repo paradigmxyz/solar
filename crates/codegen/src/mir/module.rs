@@ -5,7 +5,7 @@ use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
 };
-use solar_interface::Ident;
+use solar_interface::{Ident, Symbol, sym};
 
 /// Current immutable staging and placeholder width.
 ///
@@ -70,13 +70,13 @@ impl MirPhase {
 
     /// Looks up a phase by its textual name.
     #[must_use]
-    pub fn by_name(name: &str) -> Option<Self> {
+    pub fn by_name(name: Symbol) -> Option<Self> {
         Some(match name {
-            "built" => Self::Built,
-            "optimized" => Self::Optimized,
-            "abi" => Self::Abi,
-            "dispatch" => Self::Dispatch,
-            "evm-shaped" => Self::EvmShaped,
+            sym::built => Self::Built,
+            sym::optimized => Self::Optimized,
+            sym::abi => Self::Abi,
+            sym::dispatch => Self::Dispatch,
+            sym::evm_dash_shaped => Self::EvmShaped,
             _ => return None,
         })
     }
@@ -106,8 +106,11 @@ pub struct Module {
 
 impl Module {
     /// Parses textual MIR.
-    pub fn parse(input: &str) -> Result<Self, super::ParseError> {
-        super::parser::parse(input)
+    pub fn parse(
+        sess: &solar_interface::Session,
+        source: &solar_interface::source_map::SourceFile,
+    ) -> solar_interface::Result<Self> {
+        super::parser::parse(sess, source)
     }
 
     /// Creates a new module.
@@ -191,10 +194,9 @@ impl Module {
     /// Returns the human-readable textual MIR representation of this module.
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
-            if self.phase == MirPhase::default() {
-                writeln!(f, "; module @{}", self.name)?;
-            } else {
-                writeln!(f, "; module @{} [phase = {}]", self.name, self.phase.name())?;
+            writeln!(f, "@module {}", self.name)?;
+            if self.phase != MirPhase::default() {
+                writeln!(f, "@phase {}", self.phase.name())?;
             }
             write!(
                 f,

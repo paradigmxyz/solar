@@ -1759,6 +1759,13 @@ pub struct NamedArg<'hir> {
     pub value: Expr<'hir>,
 }
 
+impl NamedArg<'_> {
+    /// Returns the declaration-order parameter index for this named argument.
+    pub(crate) fn parameter_index(&self, parameter_names: &[Option<Symbol>]) -> Option<usize> {
+        parameter_names.iter().position(|&name| name == Some(self.name.name))
+    }
+}
+
 /// Function call options: `foo{ gas: 100_000 }`.
 #[derive(Clone, Copy, Debug)]
 pub struct CallOptions<'hir> {
@@ -1814,6 +1821,25 @@ impl<'hir> CallArgs<'hir> {
         &self,
     ) -> impl ExactSizeIterator<Item = &Expr<'hir>> + DoubleEndedIterator + Clone {
         self.kind.exprs()
+    }
+
+    /// Returns the source argument bound to the parameter at `index`.
+    ///
+    /// `parameter_names` is only required for named arguments and must be in declaration order.
+    pub(crate) fn argument_for_parameter(
+        &self,
+        index: usize,
+        parameter_names: Option<&[Option<Symbol>]>,
+    ) -> Option<&'hir Expr<'hir>> {
+        match self.kind {
+            CallArgsKind::Unnamed(exprs) => exprs.get(index),
+            CallArgsKind::Named(args) => {
+                let parameter_names = parameter_names?;
+                args.iter()
+                    .find(|arg| arg.parameter_index(parameter_names) == Some(index))
+                    .map(|arg| &arg.value)
+            }
+        }
     }
 }
 

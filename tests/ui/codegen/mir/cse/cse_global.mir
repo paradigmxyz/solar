@@ -1,0 +1,18 @@
+//@compile-flags: --pass cse
+@module CseGlobal
+fn @dominating_pure_expr(arg0: u256, arg1: u256, arg2: bool) -> u256 {
+  bb0 (entry):
+    v3 = add arg0, arg1
+    br arg2, bb1, bb2
+  bb1:
+    v4 = add arg0, arg1
+    v5 = mul v4, 2
+    jump bb3
+  bb2:
+    v6 = add arg1, arg0
+    v7 = mul v6, 3
+    jump bb3
+  bb3:
+    v8 = phi [bb1: v5], [bb2: v7]
+    ret v8
+}

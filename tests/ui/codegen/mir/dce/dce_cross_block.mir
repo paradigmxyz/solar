@@ -1,0 +1,14 @@
+//@compile-flags: --pass dce
+// v1 is computed in bb0 and used in bb2. It must NOT be eliminated.
+// v2 is computed in bb1 but never used anywhere. It should be eliminated.
+@module DceCrossBlock
+fn @cross(arg0: u256, arg1: bool) -> u256 {
+  bb0 (entry):
+    v2 = add arg0, 1
+    br arg1, bb1, bb2
+  bb1:
+    v3 = mul arg0, arg0
+    jump bb2
+  bb2:
+    ret v2
+}

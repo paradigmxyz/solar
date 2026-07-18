@@ -1,0 +1,36 @@
+//@compile-flags: --pass adce
+@module AdceBranchCycle
+fn @keeps_branch_cycle(arg0: bool) -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    br arg0, bb2, bb3
+  bb2:
+    jump bb1
+  bb3:
+    ret 7
+}
+
+fn @keeps_branch_self_loop(arg0: bool) -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    br arg0, bb1, bb2
+  bb2:
+    ret 7
+}
+
+fn @removes_nested_transparent_diamond(arg0: bool, arg1: bool) -> u256 {
+  bb0 (entry):
+    br arg0, bb1, bb2
+  bb1:
+    br arg1, bb3, bb4
+  bb2:
+    jump bb5
+  bb3:
+    jump bb5
+  bb4:
+    jump bb5
+  bb5:
+    ret 7
+}

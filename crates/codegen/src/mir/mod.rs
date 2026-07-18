@@ -30,7 +30,11 @@ pub use builder::FunctionBuilder;
 mod display;
 
 mod parser;
-pub use parser::ParseError;
+
+/// Validates the invariants of a MIR module.
+pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
+    crate::analysis::validate(dcx, module);
+}
 
 pub(crate) mod utils;
 
@@ -65,7 +69,7 @@ newtype_index! {
 #[cfg(test)]
 mod round_trip {
     use super::Module;
-    use crate::{analysis::Validator, lower};
+    use crate::lower;
     use solar_interface::{ColorChoice, Session};
     use solar_sema::Compiler;
     use std::{
@@ -73,8 +77,8 @@ mod round_trip {
         path::{Path, PathBuf},
     };
 
-    fn parse_module(input: &str) -> Result<Module, super::ParseError> {
-        Module::parse(input)
+    fn parse_module(sess: &Session, input: &str) -> solar_interface::Result<Module> {
+        super::parser::parse_module(sess, input)
     }
 
     /// Path to `tests/ui/codegen/` (the workspace's UI test directory).
@@ -98,6 +102,23 @@ mod round_trip {
             .map(|(i, (la, lb))| (i + 1, la, lb))
     }
 
+    fn fixture_paths(root: &Path, extension: &str) -> Vec<PathBuf> {
+        let mut dirs = vec![root.to_path_buf()];
+        let mut paths = Vec::new();
+        while let Some(dir) = dirs.pop() {
+            for entry in std::fs::read_dir(dir).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    dirs.push(path);
+                } else if path.extension().and_then(|s| s.to_str()) == Some(extension) {
+                    paths.push(path);
+                }
+            }
+        }
+        paths.sort_unstable();
+        paths
+    }
+
     #[test]
     fn round_trip_all_sol_files() {
         let dir = ui_codegen_dir();
@@ -105,11 +126,7 @@ mod round_trip {
 
         let mut failures: Vec<String> = Vec::new();
         let mut count = 0usize;
-        for entry in std::fs::read_dir(&dir).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().and_then(|s| s.to_str()) != Some("sol") {
-                continue;
-            }
+        for path in fixture_paths(&dir, "sol") {
             count += 1;
             if let Err(e) = round_trip_sol(&path) {
                 let name = path.file_name().unwrap().to_string_lossy().into_owned();
@@ -132,11 +149,7 @@ mod round_trip {
         let dir = ui_codegen_dir();
         let mut failures: Vec<String> = Vec::new();
         let mut count = 0usize;
-        for entry in std::fs::read_dir(&dir).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().and_then(|s| s.to_str()) != Some("sol") {
-                continue;
-            }
+        for path in fixture_paths(&dir, "sol") {
             count += 1;
             if let Err(e) = validate_sol(&path) {
                 let name = path.file_name().unwrap().to_string_lossy().into_owned();
@@ -178,7 +191,7 @@ mod round_trip {
                 }
                 let module = lower::lower_contract(gcx, id);
                 let errors_before = gcx.dcx().err_count();
-                Validator::new(gcx.dcx()).validate_module(&module);
+                super::validate(gcx.dcx(), &module);
                 if gcx.dcx().err_count() != errors_before {
                     result = Err(format!(
                         "contract `{}` has invalid MIR:\n{}",
@@ -200,11 +213,7 @@ mod round_trip {
 
         let mut failures: Vec<String> = Vec::new();
         let mut count = 0usize;
-        for entry in std::fs::read_dir(&dir).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().and_then(|s| s.to_str()) != Some("mir") {
-                continue;
-            }
+        for path in fixture_paths(&dir, "mir") {
             count += 1;
             if let Err(e) = round_trip_mir(&path) {
                 let name = path.file_name().unwrap().to_string_lossy().into_owned();
@@ -252,7 +261,7 @@ mod round_trip {
                     continue;
                 }
                 let module = lower::lower_contract(gcx, id);
-                if let Err(e) = check_round_trip_module(&module) {
+                if let Err(e) = check_round_trip_module(gcx.sess, &module) {
                     result = Err(format!("contract `{}`: {e}", contract.name));
                     return Ok(());
                 }
@@ -264,7 +273,6 @@ mod round_trip {
 
     /// Round-trips one `.mir` file. Skips the lowering step.
     fn round_trip_mir(path: &Path) -> Result<(), String> {
-        // Tests don't need a SourceMap; reading a fixture as plain text is fine.
         #[allow(clippy::disallowed_methods)]
         let raw = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
         // Strip `//@compile-flags:` annotations the test harness reads — they're
@@ -276,18 +284,22 @@ mod round_trip {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
         let mut result: Result<(), String> = Ok(());
         sess.enter(|| {
-            let parsed1 = match parse_module(&text) {
+            let parsed1 = match parse_module(&sess, &text) {
                 Ok(m) => m,
-                Err(e) => {
-                    result = Err(format!("first parse failed: {e}"));
+                Err(_) => {
+                    result =
+                        Err(format!("first parse failed: {}", sess.emitted_diagnostics().unwrap()));
                     return;
                 }
             };
             let print1 = parsed1.to_text().to_string();
-            let parsed2 = match parse_module(&print1) {
+            let parsed2 = match parse_module(&sess, &print1) {
                 Ok(m) => m,
-                Err(e) => {
-                    result = Err(format!("second parse failed: {e}"));
+                Err(_) => {
+                    result = Err(format!(
+                        "second parse failed: {}",
+                        sess.emitted_diagnostics().unwrap()
+                    ));
                     return;
                 }
             };
@@ -304,13 +316,20 @@ mod round_trip {
 
     /// Common idempotency check: print → parse → print → parse → print, last two
     /// must match. Caller must already be inside an active `Session::enter`.
-    fn check_round_trip_module(module: &Module) -> Result<(), String> {
+    fn check_round_trip_module(sess: &Session, module: &Module) -> Result<(), String> {
         let print1 = module.to_text().to_string();
-        let parsed1 = parse_module(&print1)
-            .map_err(|e| format!("first parse: {e}\n--- print1 ---\n{print1}"))?;
+        let parsed1 = parse_module(sess, &print1).map_err(|_| {
+            format!(
+                "first parse: {}\n--- print1 ---\n{print1}",
+                sess.emitted_diagnostics().unwrap()
+            )
+        })?;
         let print2 = parsed1.to_text().to_string();
-        let parsed2 = parse_module(&print2).map_err(|e| {
-            format!("second parse: {e}\n--- print1 ---\n{print1}\n--- print2 ---\n{print2}")
+        let parsed2 = parse_module(sess, &print2).map_err(|_| {
+            format!(
+                "second parse: {}\n--- print1 ---\n{print1}\n--- print2 ---\n{print2}",
+                sess.emitted_diagnostics().unwrap()
+            )
         })?;
         let print3 = parsed2.to_text().to_string();
 

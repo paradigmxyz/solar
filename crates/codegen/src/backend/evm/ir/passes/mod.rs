@@ -6,10 +6,10 @@
 
 mod block_layout;
 mod terminal_dedup;
-mod utils;
+pub(super) mod utils;
 
 use super::Module;
-use crate::{backend::evm::ir_stack_schedule, timing::PassTimer};
+use crate::{backend::evm::stack_schedule, timing::PassTimer};
 
 type PassRunner = fn(&mut Module) -> bool;
 
@@ -47,7 +47,7 @@ macro_rules! declare_passes {
 
 declare_passes! {
     /// Materialize virtual instruction operands with physical stack operations.
-    pub const STACK_SCHEDULE_PASS -> "stack-schedule" = ir_stack_schedule::schedule_stack_ops;
+    pub const STACK_SCHEDULE_PASS -> "stack-schedule" = stack_schedule::schedule_stack_ops;
 
     /// Replace duplicate terminal block bodies with jumps to the first copy when profitable.
     pub const TERMINAL_DEDUP_PASS -> "terminal-dedup" = terminal_dedup::run;

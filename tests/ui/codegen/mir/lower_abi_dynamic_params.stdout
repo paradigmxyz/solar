@@ -1,9 +1,0 @@
-// === ROOT/tests/ui/codegen/mir/lower_abi_dynamic_params.mir (after lower-abi) ===
-; module @LowerAbiDynamicParams [phase = abi]
-fn @takesBytes() {
-  bb0 (entry):
-    v0 = mload arg0
-    v1 = add v0, arg1
-    mstore 128, v1
-    returndata 128, 32
-}

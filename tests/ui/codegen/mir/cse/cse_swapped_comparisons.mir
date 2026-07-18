@@ -1,0 +1,46 @@
+//@compile-flags: --pass cse
+// Swapped comparisons canonicalize to the same key: `gt b, a` unifies with `lt a, b`
+// (and the signed variants likewise) in both directions, while the kept instruction
+// retains its own opcode. Same-order lt/gt must not unify.
+@module CseSwappedComparisons
+fn @reuse_gt_after_lt(arg0: u256, arg1: u256) -> (bool, bool) {
+  bb0 (entry):
+    v2 = lt arg0, arg1
+    v3 = gt arg1, arg0
+    ret v2, v3
+}
+
+fn @reuse_lt_after_gt(arg0: u256, arg1: u256) -> (bool, bool) {
+  bb0 (entry):
+    v2 = gt arg1, arg0
+    v3 = lt arg0, arg1
+    ret v2, v3
+}
+
+fn @reuse_sgt_after_slt(arg0: u256, arg1: u256) -> (bool, bool) {
+  bb0 (entry):
+    v2 = slt arg0, arg1
+    v3 = sgt arg1, arg0
+    ret v2, v3
+}
+
+fn @reuse_slt_after_sgt(arg0: u256, arg1: u256) -> (bool, bool) {
+  bb0 (entry):
+    v2 = sgt arg1, arg0
+    v3 = slt arg0, arg1
+    ret v2, v3
+}
+
+fn @keep_same_order_lt_gt(arg0: u256, arg1: u256) -> (bool, bool) {
+  bb0 (entry):
+    v2 = lt arg0, arg1
+    v3 = gt arg0, arg1
+    ret v2, v3
+}
+
+fn @keep_unsigned_signed_distinct(arg0: u256, arg1: u256) -> (bool, bool) {
+  bb0 (entry):
+    v2 = lt arg0, arg1
+    v3 = sgt arg1, arg0
+    ret v2, v3
+}

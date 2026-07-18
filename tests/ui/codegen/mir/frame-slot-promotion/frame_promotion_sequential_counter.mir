@@ -1,0 +1,52 @@
+//@compile-flags: --passes frame-slot-promotion,cfg-simplify,dce
+@module SequentialCounter
+fn @sequential(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = internal_frame_addr 128
+    mstore v1, 0
+    v2 = internal_frame_addr 160
+    mstore v2, 0
+    jump bb1
+  bb1:
+    v3 = internal_frame_addr 160
+    v4 = mload v3
+    v5 = lt v4, arg0
+    br v5, bb2, bb3
+  bb2:
+    v6 = internal_frame_addr 128
+    v7 = mload v6
+    v8 = add v7, 1
+    v9 = internal_frame_addr 128
+    mstore v9, v8
+    v10 = internal_frame_addr 160
+    v11 = mload v10
+    v12 = add v11, 1
+    v13 = internal_frame_addr 160
+    mstore v13, v12
+    jump bb1
+  bb3:
+    v14 = internal_frame_addr 192
+    mstore v14, 0
+    jump bb4
+  bb4:
+    v15 = internal_frame_addr 192
+    v16 = mload v15
+    v17 = lt v16, arg0
+    br v17, bb5, bb6
+  bb5:
+    v18 = internal_frame_addr 128
+    v19 = mload v18
+    v20 = add v19, 1
+    v21 = internal_frame_addr 128
+    mstore v21, v20
+    v22 = internal_frame_addr 192
+    v23 = mload v22
+    v24 = add v23, 1
+    v25 = internal_frame_addr 192
+    mstore v25, v24
+    jump bb4
+  bb6:
+    v26 = internal_frame_addr 128
+    v27 = mload v26
+    ret v27
+}

@@ -1,7 +1,0 @@
-//@ failure-status: 1
-bb0 (entry):
-  push 0 !meta(type=u256)
-  push 0 !meta(ty=u256)
-  push 0 !meta(result_ty=u256)
-  push 0 !meta(mir_type=u256)
-  stop

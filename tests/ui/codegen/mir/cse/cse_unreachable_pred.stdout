@@ -1,0 +1,14 @@
+// === ROOT/tests/ui/codegen/mir/cse/cse_unreachable_pred.mir (after cse) ===
+@module CseUnreachablePred
+fn @no_dangling_use(arg0: u256) -> u256 {
+  bb0 (entry):
+    jump bb2
+  bb1:
+    jump bb2
+  bb2:
+    v0 = sload arg0
+    jump bb3
+  bb3:
+    v2 = add v0, v0
+    ret v2
+}

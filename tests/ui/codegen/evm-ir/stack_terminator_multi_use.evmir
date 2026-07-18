@@ -1,8 +1,0 @@
-//@compile-flags: --pass stack-schedule
-// A value shared between an instruction and the terminator. `%off` feeds both
-// `add` (twice) and the `return` offset, so it is duplicated enough times that a
-// copy survives for the terminator after the instruction consumes its operands.
-bb0 (entry):
-  %off = push 64
-  %size = add %off, %off
-  return %off, %size

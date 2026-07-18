@@ -1,0 +1,47 @@
+//@compile-flags: --passes frame-slot-promotion,cfg-simplify,dce
+@module NestedCounter
+fn @nested(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v1 = internal_frame_addr 128
+    mstore v1, 0
+    v2 = internal_frame_addr 160
+    mstore v2, 0
+    jump bb1
+  bb1:
+    v3 = internal_frame_addr 160
+    v4 = mload v3
+    v5 = lt v4, arg0
+    br v5, bb2, bb6
+  bb2:
+    v6 = internal_frame_addr 192
+    mstore v6, 0
+    jump bb3
+  bb3:
+    v7 = internal_frame_addr 192
+    v8 = mload v7
+    v9 = lt v8, arg1
+    br v9, bb4, bb5
+  bb4:
+    v10 = internal_frame_addr 128
+    v11 = mload v10
+    v12 = add v11, 1
+    v13 = internal_frame_addr 128
+    mstore v13, v12
+    v14 = internal_frame_addr 192
+    v15 = mload v14
+    v16 = add v15, 1
+    v17 = internal_frame_addr 192
+    mstore v17, v16
+    jump bb3
+  bb5:
+    v18 = internal_frame_addr 160
+    v19 = mload v18
+    v20 = add v19, 1
+    v21 = internal_frame_addr 160
+    mstore v21, v20
+    jump bb1
+  bb6:
+    v22 = internal_frame_addr 128
+    v23 = mload v22
+    ret v23
+}
