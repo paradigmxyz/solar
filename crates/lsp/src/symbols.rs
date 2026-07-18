@@ -445,8 +445,12 @@ impl SymbolTables {
             implementations
         };
         let mut locations = Vec::new();
+        let conflicting_contents = self.rename.conflicting_contents();
         for symbol_id in symbol_ids {
-            if self.declarations[symbol_id].has_definition {
+            let declaration = &self.declarations[symbol_id];
+            if declaration.has_definition
+                && !conflicting_contents.contains(&declaration.location.uri)
+            {
                 locations.push(self.selection_location(symbol_id));
             }
         }
@@ -992,7 +996,7 @@ impl SymbolTables {
             sort_locations(locations);
             locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
         }
-        self.override_families.rebuild(&self.declarations);
+        self.override_families.rebuild(&self.declarations, self.rename.conflicting_contents());
         self.rename.rebuild(&self.override_families);
     }
 }

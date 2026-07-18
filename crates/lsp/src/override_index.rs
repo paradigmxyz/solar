@@ -1,8 +1,9 @@
 use crate::symbols::{DeclarationSymbol, SymbolId};
+use lsp_types::Url;
 use solar_interface::data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::IndexVec,
-    map::FxHashMap,
+    map::{FxHashMap, FxHashSet},
 };
 
 /// Override relationships used by directional navigation and family-wide rename.
@@ -44,7 +45,11 @@ impl OverrideFamilyIndex {
         self.override_symbols.clear();
     }
 
-    pub(crate) fn rebuild(&mut self, declarations: &IndexVec<SymbolId, DeclarationSymbol>) {
+    pub(crate) fn rebuild(
+        &mut self,
+        declarations: &IndexVec<SymbolId, DeclarationSymbol>,
+        conflicting_contents: &FxHashSet<Url>,
+    ) {
         self.families.clear();
         self.families.extend(declarations.indices());
         self.canonical.clear();
@@ -55,10 +60,13 @@ impl OverrideFamilyIndex {
         let mut declarations_by_location = FxHashMap::<_, SymbolId>::default();
         declarations_by_location.reserve(declarations.len());
 
-        // The same source may be analyzed in more than one batch. Merge those copies before
-        // applying semantic override edges so navigation remains stable after batch extension.
+        // The same source may be analyzed in more than one batch. Merge identical snapshots before
+        // applying semantic override edges, but keep conflicting snapshots isolated.
         for symbol_id in declarations.indices() {
             let declaration = &declarations[symbol_id];
+            if conflicting_contents.contains(&declaration.location.uri) {
+                continue;
+            }
             let key = (
                 declaration.name.as_str(),
                 declaration.location.uri.as_str(),

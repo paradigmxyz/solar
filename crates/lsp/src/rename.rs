@@ -498,7 +498,9 @@ impl RenameIndex {
                 .map(RenameTarget::MappingName)
                 .collect(),
         };
-        if targets.iter().any(|target| self.ambiguous_targets.contains(target)) {
+        if !self.conflicting_contents.contains(uri)
+            && targets.iter().any(|target| self.ambiguous_targets.contains(target))
+        {
             return None;
         }
 
@@ -617,6 +619,10 @@ impl RenameIndex {
             sort_locations(locations);
             locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
         }
+    }
+
+    pub(crate) fn conflicting_contents(&self) -> &FxHashSet<Url> {
+        &self.conflicting_contents
     }
 
     pub(crate) fn implementation_symbols_at(

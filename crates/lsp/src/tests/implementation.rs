@@ -492,3 +492,58 @@ fn ignores_conflicting_source_snapshots_across_analysis_batches() {
         fixture.check_goto_implementation("$1", "<none>\n");
     }
 }
+
+#[test]
+fn isolates_conflicting_dependency_implementations_across_analysis_batches() {
+    let source = r#"
+        //- /Shared.sol open
+        import "./open/OpenImpl.sol";
+        abstract contract Base {
+            function run(uint256) public virtual {}
+        }
+
+        //- /open/OpenImpl.sol
+        import "../Shared.sol";
+        contract OpenImpl is Base {
+            function run(uint256) public override {}
+        }
+
+        //- /first/Main.sol
+        import "../Shared.sol";
+
+        contract DiskImpl is Base {
+            function run(bytes32) public override {}
+        }
+
+        contract UsesBase {
+            function call(Base base) public {
+                base.$1run(bytes32(0));
+            }
+        }
+        "#;
+    let disk_contents = r#"// Different snapshot of the same dependency.
+abstract contract Base {
+    function run(bytes32) public virtual;
+}
+
+contract SharedImpl is Base {
+    function run(bytes32) public override {}
+}
+"#;
+
+    for paths in [["/first/Main.sol", "/Shared.sol"], ["/Shared.sol", "/first/Main.sol"]] {
+        let fixture = RequestFixture::new_in_batches_with_stale_disk(
+            source,
+            "/Shared.sol",
+            disk_contents,
+            &paths,
+        );
+        fixture.check_goto_implementation(
+            "$1",
+            str![[r#"
+/first/Main.sol:2:13 function run(bytes32) public override {}
+
+"#]],
+        );
+    }
+}
