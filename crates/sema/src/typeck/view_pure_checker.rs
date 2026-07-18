@@ -21,13 +21,10 @@ pub(super) fn check(gcx: Gcx<'_>) {
     let diagnostics = gcx
         .hir
         .par_functions()
-        .map(|function| {
-            if function.kind.is_modifier() || function.is_getter() || function.is_yul {
-                Vec::new()
-            } else {
-                ViewPureChecker::new(gcx, &function_effects).check_function(function)
-            }
+        .filter(|function| {
+            !function.kind.is_modifier() && !function.is_getter() && !function.is_yul
         })
+        .map(|function| ViewPureChecker::new(gcx, &function_effects).check_function(function))
         .collect::<Vec<_>>();
     for diagnostic in diagnostics.into_iter().flatten() {
         let _ = gcx.dcx().emit_diagnostic(diagnostic);
