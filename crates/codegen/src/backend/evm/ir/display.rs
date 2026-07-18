@@ -190,7 +190,6 @@ fn display_operand<'a>(module: &'a Module, operand: &'a Operand) -> impl fmt::Di
         Operand::Value(value) => write!(f, "{}", display_value(module, *value)),
         Operand::Immediate(value) => write!(f, "{}", display_u256(*value)),
         Operand::Block(block) => write!(f, "{}", display_block_id(module, *block)),
-        Operand::Symbol(symbol) => write!(f, "{symbol}"),
     })
 }
 

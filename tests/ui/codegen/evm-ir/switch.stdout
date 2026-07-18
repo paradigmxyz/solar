@@ -7,7 +7,7 @@ bb0 (entry):
 bb1:
   jump bb4
 bb2:
-  %beneficiary = push @beneficiary
+  %beneficiary = push 0xbeef
   selfdestruct %beneficiary !meta(source=admin-path)
 bb3 [cold]:
   invalid

@@ -354,8 +354,6 @@ pub enum Operand {
     Immediate(U256),
     /// Basic block reference.
     Block(BlockId),
-    /// Opaque backend symbol, such as a helper, data object, or future label kind.
-    Symbol(Symbol),
 }
 
 /// Generic metadata carried by instructions and terminators.

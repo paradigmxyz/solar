@@ -62,22 +62,6 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         self.parser.parse_ident()
     }
 
-    fn parse_ident(&mut self) -> PResult<'sess, String> {
-        let mut ident = self.parser.parse_ident()?.to_string();
-        loop {
-            let separator = if self.parser.eat(TokenKind::Dot) {
-                '.'
-            } else if self.parser.eat(TokenKind::BinOp(BinOpToken::Minus)) {
-                '-'
-            } else {
-                break;
-            };
-            ident.push(separator);
-            ident.push_str(self.parser.parse_ident()?.as_str());
-        }
-        Ok(ident)
-    }
-
     fn parse_uint_literal(&mut self) -> PResult<'sess, U256> {
         self.parser.parse_uint()
     }
@@ -493,16 +477,12 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         if matches!(self.parser.token().kind, TokenKind::Literal(..)) {
             return Ok(Operand::Immediate(self.parse_uint_literal()?));
         }
-        if self.parser.eat(TokenKind::At) {
-            let symbol = self.parse_ident()?;
-            return Ok(Operand::Symbol(Symbol::intern(&format!("@{symbol}"))));
-        }
         if let Some(label) = self.current_block_label()? {
             let span = self.parser.token().span;
             self.parser.bump();
             return Ok(Operand::Block(self.block_id(module, block_labels, label, span)?));
         }
-        Ok(Operand::Symbol(self.parse_symbol()?))
+        Err(self.error("expected operand"))
     }
 
     fn parse_block_ref(
