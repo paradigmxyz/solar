@@ -12,7 +12,7 @@ use crate::backend::evm::ir::{
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
 
-pub(super) fn run(module: &mut Module) -> bool {
+pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
     let mut canonical = Vec::<(TerminalBlockKey, BlockId)>::new();
     let mut changed = false;
 

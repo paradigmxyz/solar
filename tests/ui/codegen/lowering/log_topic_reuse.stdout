@@ -1,20 +1,16 @@
 // === ROOT/tests/ui/codegen/lowering/log_topic_reuse.sol:LogTopicReuse (runtime) ===
 @module runtime
-bb0 (entry):
+bb8 (entry):
   push 160
   push 64
   mstore
   callvalue
-  push bb5
+  push bb7
   jumpi
-  jump bb1
-bb1:
   calldatasize
   iszero
-  push bb5
+  push bb7
   jumpi
-  jump bb2
-bb2:
   push 0
   calldataload
   push 224
@@ -22,21 +18,19 @@ bb2:
   dup1
   push 0x47799da8
   eq
-  push bb3
+  push bb5
   jumpi
   dup1
   push 0xb3de648b
   eq
-  push bb4
+  push bb6
   jumpi
-  jump bb5
-bb5 [cold]:
+  jump bb7
+bb7:
   push 0
   dup1
   revert
-bb3:
-  jump bb6
-bb6:
+bb5:
   push 0
   sload
   push 128
@@ -44,9 +38,7 @@ bb6:
   push 32
   push 128
   return
-bb4:
-  jump bb7
-bb7:
+bb6:
   calldatasize
   push 4
   swap1
@@ -54,10 +46,8 @@ bb7:
   push 32
   swap1
   slt
-  push bb9
+  push bb7
   jumpi
-  jump bb8
-bb8:
   push 4
   calldataload
   push 0
@@ -84,7 +74,3 @@ bb8:
   push 0
   sstore
   stop
-bb9 [cold]:
-  push 0
-  dup1
-  revert

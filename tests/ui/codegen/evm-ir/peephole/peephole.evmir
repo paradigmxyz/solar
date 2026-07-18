@@ -1,0 +1,16 @@
+//@compile-flags: --pass peephole
+@module module
+
+bb0 (entry):
+  push 5
+  push 0
+  add
+  push 7
+  push 1
+  mul
+  push 9
+  pop
+  push 1
+  not
+  not
+  stop

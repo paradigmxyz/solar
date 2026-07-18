@@ -4,9 +4,11 @@
 //! MIR lowering and final EVM assembly. EVM IR is intentionally untyped: values
 //! are EVM stack words, not Solidity or MIR values with a [`crate::mir::MirType`].
 //! It models backend basic blocks, opcode-like instructions, explicit physical
-//! stack operations, terminators, and metadata. The parser/printer at the bottom
-//! of the file provide a text format for tests and debugging; the IR itself is
-//! not defined by that serialization.
+//! stack operations, terminators, and metadata. After block layout, it lowers
+//! to a compact layout-linear EVM IR for adjacency- and size-sensitive final
+//! transforms; that form is also the assembler's direct input. The
+//! parser/printer at the bottom of the file provide a text format for tests and
+//! debugging; the IR itself is not defined by that serialization.
 
 use alloy_primitives::U256;
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
@@ -18,9 +20,11 @@ mod parse;
 mod passes;
 mod verify;
 
+pub(in crate::backend::evm) mod assembly;
+
 pub use passes::{
-    BLOCK_LAYOUT_PASS, DEFAULT_LAYOUT_PIPELINE, PASS_REGISTRY, PassInfo, PassOptions,
-    STACK_SCHEDULE_PASS, TERMINAL_DEDUP_PASS, lookup_pass, run_pass,
+    BLOCK_LAYOUT_PASS, COMPACT_PUSHES_PASS, DEFAULT_PIPELINE, PASS_REGISTRY, PEEPHOLE_PASS,
+    PassInfo, PassOptions, STACK_SCHEDULE_PASS, TERMINAL_DEDUP_PASS, lookup_pass, run_pass,
 };
 
 /// Validates the invariants of an EVM IR module.
@@ -225,7 +229,7 @@ impl Instruction {
     fn encoded_push(operand: Operand, encoding: u8) -> Self {
         Self {
             result: None,
-            opcode: super::assembler::op::PUSH32,
+            opcode: super::opcode::PUSH32,
             encoding,
             operands: vec![operand],
             metadata: Metadata { stack: Some(StackEffect::new(0, 1)), attrs: Vec::new() },
@@ -243,7 +247,7 @@ impl Instruction {
             encoding if encoding == Self::ENCODED_PUSH | Self::IMMUTABLE => {
                 f.write_str("push_immutable")
             }
-            _ => super::assembler::op::fmt(self.opcode, f),
+            _ => super::opcode::fmt(self.opcode, f),
         })
     }
 
@@ -271,9 +275,9 @@ impl Instruction {
         !self.is_encoded_push()
             && matches!(
                 self.opcode,
-                super::assembler::op::POP
-                    | super::assembler::op::DUP1..=super::assembler::op::DUP16
-                    | super::assembler::op::SWAP1..=super::assembler::op::SWAP16
+                super::opcode::POP
+                    | super::opcode::DUP1..=super::opcode::DUP16
+                    | super::opcode::SWAP1..=super::opcode::SWAP16
             )
     }
 }
@@ -405,7 +409,7 @@ impl StackEffect {
 pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> StackEffect {
     if inst.is_encoded_push() {
         StackEffect::new(0, 1)
-    } else if let Some((inputs, outputs)) = super::assembler::op::stack_io(inst.opcode) {
+    } else if let Some((inputs, outputs)) = super::opcode::stack_io(inst.opcode) {
         StackEffect::new(inputs, outputs)
     } else {
         StackEffect::new(
@@ -424,7 +428,7 @@ fn default_terminator_stack_effect(kind: &TerminatorKind) -> StackEffect {
         TerminatorKind::Jump(_) | TerminatorKind::Stop | TerminatorKind::Invalid => {
             StackEffect::new(0, 0)
         }
-        TerminatorKind::RawOpcode(opcode) => super::assembler::op::stack_io(*opcode)
+        TerminatorKind::RawOpcode(opcode) => super::opcode::stack_io(*opcode)
             .map(|(inputs, outputs)| StackEffect::new(inputs, outputs))
             .unwrap_or_else(|| StackEffect::new(0, 0)),
     }

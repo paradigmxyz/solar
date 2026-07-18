@@ -66,7 +66,7 @@
 //! inherits the empty prefix; only the linear `jump` case can hand
 //! down the words below.
 
-use super::{assembler::op, ir, stack::SpillSlot};
+use super::{ir, opcode as op, stack::SpillSlot};
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 

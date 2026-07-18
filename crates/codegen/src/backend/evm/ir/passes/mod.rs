@@ -5,13 +5,16 @@
 //! remain local, matching the organization of the MIR transforms.
 
 mod block_layout;
+mod compact_pushes;
+mod peephole;
 mod terminal_dedup;
 pub(super) mod utils;
 
 use super::Module;
 use crate::{backend::evm::stack_schedule, timing::PassTimer};
+use solar_config::{EvmVersion, OptimizationMode};
 
-type PassRunner = fn(&mut Module) -> bool;
+type PassRunner = fn(&mut Module, PassOptions) -> bool;
 
 /// Registry entry for an EVM IR transform pass.
 #[derive(Clone, Copy, Debug)]
@@ -47,7 +50,13 @@ macro_rules! declare_passes {
 
 declare_passes! {
     /// Materialize virtual instruction operands with physical stack operations.
-    pub const STACK_SCHEDULE_PASS -> "stack-schedule" = stack_schedule::schedule_stack_ops;
+    pub const STACK_SCHEDULE_PASS -> "stack-schedule" = run_stack_schedule;
+
+    /// Simplify local instruction sequences in scheduled EVM IR.
+    pub const PEEPHOLE_PASS -> "peephole" = peephole::run;
+
+    /// Select smaller instruction sequences for large immediate pushes.
+    pub const COMPACT_PUSHES_PASS -> "compact-pushes" = compact_pushes::run;
 
     /// Replace duplicate terminal block bodies with jumps to the first copy when profitable.
     pub const TERMINAL_DEDUP_PASS -> "terminal-dedup" = terminal_dedup::run;
@@ -61,14 +70,24 @@ declare_passes! {
 pub struct PassOptions {
     /// Print the time spent in the pass.
     pub time_passes: bool,
+    /// EVM version used for target-dependent instruction sizing.
+    pub evm_version: EvmVersion,
+    /// Optimization mode used for profitability decisions.
+    pub optimization: OptimizationMode,
 }
 
 /// All EVM IR passes exposed by `solar evm-opt`.
-pub const PASS_REGISTRY: &[PassInfo] =
-    &[STACK_SCHEDULE_PASS, TERMINAL_DEDUP_PASS, BLOCK_LAYOUT_PASS];
+pub const PASS_REGISTRY: &[PassInfo] = &[
+    STACK_SCHEDULE_PASS,
+    PEEPHOLE_PASS,
+    COMPACT_PUSHES_PASS,
+    TERMINAL_DEDUP_PASS,
+    BLOCK_LAYOUT_PASS,
+];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
-pub const DEFAULT_LAYOUT_PIPELINE: &[PassInfo] = &[TERMINAL_DEDUP_PASS, BLOCK_LAYOUT_PASS];
+pub const DEFAULT_PIPELINE: &[PassInfo] =
+    &[PEEPHOLE_PASS, COMPACT_PUSHES_PASS, TERMINAL_DEDUP_PASS, BLOCK_LAYOUT_PASS];
 
 /// Finds a pass in the EVM IR pass registry by command-line name.
 pub fn lookup_pass(name: &str) -> Option<&'static PassInfo> {
@@ -78,7 +97,11 @@ pub fn lookup_pass(name: &str) -> Option<&'static PassInfo> {
 /// Runs a named EVM IR pass over a module.
 pub fn run_pass(module: &mut Module, pass: &PassInfo, options: PassOptions) -> bool {
     let timer = PassTimer::new(options.time_passes);
-    let changed = (pass.run_pass)(module);
+    let changed = (pass.run_pass)(module, options);
     timer.finish("EVM IR", module.name(), pass.name, changed);
     changed
+}
+
+fn run_stack_schedule(module: &mut Module, _options: PassOptions) -> bool {
+    stack_schedule::schedule_stack_ops(module)
 }

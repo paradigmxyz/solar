@@ -1,7 +1,7 @@
 //! EVM IR text parser.
 
 use super::*;
-use crate::backend::evm::assembler::op;
+use crate::backend::evm::opcode as op;
 use solar_ast::{
     Arena,
     token::{BinOpToken, Delimiter, TokenKind},

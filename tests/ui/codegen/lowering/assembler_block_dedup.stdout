@@ -1,20 +1,16 @@
 // === ROOT/tests/ui/codegen/lowering/assembler_block_dedup.sol:AssemblerBlockDedup (runtime) ===
 @module runtime
-bb0 (entry):
+bb29 (entry):
   push 192
   push 64
   mstore
   callvalue
-  push bb7
+  push bb11
   jumpi
-  jump bb1
-bb1:
   calldatasize
   iszero
-  push bb7
+  push bb11
   jumpi
-  jump bb2
-bb2:
   push 0
   calldataload
   push 224
@@ -22,44 +18,40 @@ bb2:
   dup1
   push 0xdbe671f
   eq
-  push bb3
+  push bb7
   jumpi
   dup1
   push 0x4df7e3d0
   eq
-  push bb4
+  push bb0
   jumpi
   dup1
   push 0x5ce8bda8
   eq
-  push bb5
+  push bb9
   jumpi
   dup1
   push 0xfeb97429
   eq
-  push bb6
+  push bb10
   jumpi
-  jump bb7
-bb7 [cold]:
+  jump bb11
+bb11:
   push 0
   dup1
   revert
-bb3:
-  jump bb8
-bb8:
+bb7:
+  jump bb0
+bb0:
   push 1
+  jump bb28
+bb28:
   push 128
   mstore
   push 32
   push 128
   return
-bb4:
-  jump bb9
 bb9:
-  jump bb8
-bb5:
-  jump bb15
-bb15:
   calldatasize
   push 4
   swap1
@@ -67,10 +59,8 @@ bb15:
   push 32
   swap1
   slt
-  push bb19
+  push bb11
   jumpi
-  jump bb16
-bb16:
   push 4
   calldataload
   dup1
@@ -80,28 +70,17 @@ bb16:
   iszero
   push 160
   mload
-  eq
-  iszero
-  push bb19
+  sub
+  push bb11
   jumpi
-  jump bb17
-bb17:
   push 4
   calldataload
-  push bb19
+  push bb11
   jumpi
-  jump bb18
-bb18:
-  jump bb13
-bb13:
+  jump bb20
+bb20:
   push 2
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb6:
-  jump bb10
+  jump bb28
 bb10:
   calldatasize
   push 4
@@ -110,10 +89,8 @@ bb10:
   push 32
   swap1
   slt
-  push bb14
+  push bb11
   jumpi
-  jump bb11
-bb11:
   push 4
   calldataload
   dup1
@@ -123,22 +100,11 @@ bb11:
   iszero
   push 160
   mload
-  eq
-  iszero
-  push bb14
+  sub
+  push bb11
   jumpi
-  jump bb12
-bb12:
   push 4
   calldataload
-  push bb14
+  push bb11
   jumpi
-  jump bb13
-bb14 [cold]:
-  push 0
-  dup1
-  revert
-bb19 [cold]:
-  push 0
-  dup1
-  revert
+  jump bb20

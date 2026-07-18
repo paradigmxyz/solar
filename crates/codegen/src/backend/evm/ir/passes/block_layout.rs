@@ -12,7 +12,7 @@ use super::utils::{is_evm_terminal, remap_block_order};
 use crate::backend::evm::ir::{Block, BlockId, Module, TerminatorKind};
 use solar_data_structures::bit_set::DenseBitSet;
 
-pub(super) fn run(module: &mut Module) -> bool {
+pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
     let mut predecessor_counts = vec![0usize; module.blocks.len()];
     for block in &module.blocks {
         if let Some(target) = layout_successor(block)

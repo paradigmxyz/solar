@@ -71,7 +71,11 @@ fn print_module(module: &ir::Module, name: &str, after: &str) {
 
 fn run_pipeline(sess: &Session, module: &mut ir::Module, name: &str, args: &EvmOptArgs) {
     let dcx = &sess.dcx;
-    let options = ir::PassOptions { time_passes: sess.opts.unstable.time_passes };
+    let options = ir::PassOptions {
+        time_passes: sess.opts.unstable.time_passes,
+        evm_version: sess.opts.evm_version,
+        optimization: sess.opts.optimization,
+    };
     let pipeline_label = selected_pass_list_label(&args.passes, ",");
     for (index, &pass) in args.passes.iter().enumerate() {
         if let Some(pass) = pass {

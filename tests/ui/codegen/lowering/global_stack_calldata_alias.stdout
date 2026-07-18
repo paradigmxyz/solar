@@ -1,37 +1,25 @@
 // === ROOT/tests/ui/codegen/lowering/global_stack_calldata_alias.sol:Test (runtime) ===
 @module runtime
-bb0 (entry):
+bb34 (entry):
   push 320
   push 64
   mstore
   callvalue
-  push bb4
+  push bb7
   jumpi
-  jump bb1
-bb1:
   calldatasize
   iszero
-  push bb4
+  push bb7
   jumpi
-  jump bb2
-bb2:
   push 0
   calldataload
   push 224
   shr
   dup1
   push 0xc21f7bbb
-  eq
-  push bb3
+  sub
+  push bb7
   jumpi
-  jump bb4
-bb4 [cold]:
-  push 0
-  dup1
-  revert
-bb3:
-  jump bb5
-bb5:
   calldatasize
   push 4
   swap1
@@ -42,69 +30,57 @@ bb5:
   push 36
   calldataload
   swap1
-  push bb8
+  push bb7
   jumpi
-  jump bb6
-bb6:
   push 4
   calldataload
-  push 0xffffffffffffffffffffffffffffffffffffffff
+  push 0
+  not
+  push 96
+  shr
   dup2
   and
   dup2
-  eq
-  iszero
-  push bb8
+  sub
+  push bb7
   jumpi
-  jump bb7
-bb7:
   push 1
   dup2
   eq
-  push bb9
+  push bb11
   jumpi
-  jump bb11
-bb11:
   push 2
   dup2
   eq
+  push bb15
+  jumpi
+  push 3
+  dup2
+  sub
+  push bb20
+  jumpi
+  push 3
+  dup3
+  add
+  dup1
+  push 224
+  mstore
+  swap1
+  pop
+  dup1
+  push 224
+  mstore
+  dup2
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap2
+  pop
+  pop
   push bb13
   jumpi
-  jump bb15
-bb15:
-  push 3
-  dup2
-  eq
-  iszero
-  push bb18
-  jumpi
-  jump bb16
-bb16:
-  push 3
-  dup3
-  add
-  dup1
-  push 224
-  mstore
-  swap1
-  pop
-  dup1
-  push 224
-  mstore
-  dup2
-  dup2
-  lt
-  swap2
-  pop
-  dup2
-  swap1
-  pop
-  swap1
-  pop
-  push bb12
-  jumpi
-  jump bb17
-bb17:
   push 224
   mload
   dup1
@@ -115,176 +91,14 @@ bb17:
   push 32
   push 128
   return
-bb9:
-  push 1
-  dup3
-  add
-  dup1
-  push 160
-  mstore
-  swap1
-  pop
-  dup1
-  push 160
-  mstore
-  dup2
-  dup2
-  lt
-  swap2
-  pop
-  dup2
-  swap1
-  pop
-  swap1
-  pop
-  push bb12
-  jumpi
-  jump bb10
-bb10:
-  push 160
-  mload
-  dup1
-  push 160
-  mstore
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb13:
-  push 2
-  dup3
-  add
-  dup1
-  push 192
-  mstore
-  swap1
-  pop
-  dup1
-  push 192
-  mstore
-  dup2
-  dup2
-  lt
-  swap2
-  pop
-  dup2
-  swap1
-  pop
-  swap1
-  pop
-  push bb12
-  jumpi
-  jump bb14
-bb14:
-  push 192
-  mload
-  dup1
-  push 192
-  mstore
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb18:
-  push 4
-  dup2
-  eq
-  iszero
-  push bb21
-  jumpi
-  jump bb19
-bb19:
-  push 4
-  dup3
-  add
-  dup1
-  push 256
-  mstore
-  swap1
-  pop
-  dup1
-  push 256
-  mstore
-  dup2
-  dup2
-  lt
-  swap2
-  pop
-  dup2
-  swap1
-  pop
-  swap1
-  pop
-  push bb12
-  jumpi
-  jump bb20
-bb20:
-  push 256
-  mload
-  dup1
-  push 256
-  mstore
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb21:
-  push 5
-  swap1
-  eq
-  iszero
-  push bb24
-  jumpi
-  jump bb22
-bb22:
-  push 5
-  dup2
-  add
-  dup1
-  push 288
-  mstore
-  dup1
-  push 288
-  mstore
-  dup2
-  dup2
-  lt
-  swap2
-  pop
-  dup2
-  swap1
-  pop
-  swap1
-  pop
-  push bb12
-  jumpi
-  jump bb23
-bb23:
-  push 288
-  mload
-  dup1
-  push 288
-  mstore
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb24:
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb8 [cold]:
+bb7:
   push 0
   dup1
   revert
-bb12 [cold]:
-  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
+bb13:
+  push 0x4e487b71
+  push 224
+  shl
   push 0
   mstore
   push 17
@@ -293,3 +107,129 @@ bb12 [cold]:
   push 36
   push 0
   revert
+bb11:
+  push 1
+  dup3
+  add
+  dup1
+  push 160
+  mstore
+  swap1
+  pop
+  dup1
+  push 160
+  mstore
+  dup2
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap2
+  pop
+  pop
+  push bb13
+  jumpi
+  push 160
+  mload
+  dup1
+  push 160
+  jump bb32
+bb32:
+  mstore
+  jump bb33
+bb33:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb15:
+  push 2
+  dup3
+  add
+  dup1
+  push 192
+  mstore
+  swap1
+  pop
+  dup1
+  push 192
+  mstore
+  dup2
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap2
+  pop
+  pop
+  push bb13
+  jumpi
+  push 192
+  mload
+  dup1
+  push 192
+  jump bb32
+bb20:
+  push 4
+  dup2
+  sub
+  push bb24
+  jumpi
+  push 4
+  dup3
+  add
+  dup1
+  push 256
+  mstore
+  swap1
+  pop
+  dup1
+  push 256
+  mstore
+  dup2
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap2
+  pop
+  pop
+  push bb13
+  jumpi
+  push 256
+  mload
+  dup1
+  push 256
+  jump bb32
+bb24:
+  push 5
+  swap1
+  sub
+  push bb33
+  jumpi
+  push 5
+  dup2
+  add
+  dup1
+  push 288
+  mstore
+  dup2
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap2
+  pop
+  pop
+  push bb13
+  jumpi
+  push 288
+  mload
+  dup1
+  push 288
+  jump bb32

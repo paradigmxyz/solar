@@ -1,7 +1,7 @@
 //! EVM IR verifier.
 
 use super::*;
-use crate::backend::evm::assembler::op;
+use crate::backend::evm::opcode as op;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::IndexVec,

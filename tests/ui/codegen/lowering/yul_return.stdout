@@ -1,37 +1,25 @@
 // === ROOT/tests/ui/codegen/lowering/yul_return.sol:R (runtime) ===
 @module runtime
-bb0 (entry):
+bb8 (entry):
   push 160
   push 64
   mstore
   callvalue
-  push bb4
+  push bb7
   jumpi
-  jump bb1
-bb1:
   calldatasize
   iszero
-  push bb4
+  push bb7
   jumpi
-  jump bb2
-bb2:
   push 0
   calldataload
   push 224
   shr
   dup1
   push 0x6279e43c
-  eq
-  push bb3
+  sub
+  push bb7
   jumpi
-  jump bb4
-bb4 [cold]:
-  push 0
-  dup1
-  revert
-bb3:
-  jump bb5
-bb5:
   calldatasize
   push 4
   swap1
@@ -41,8 +29,6 @@ bb5:
   slt
   push bb7
   jumpi
-  jump bb6
-bb6:
   push 4
   calldataload
   push 0
@@ -50,7 +36,7 @@ bb6:
   push 32
   push 0
   return
-bb7 [cold]:
+bb7:
   push 0
   dup1
   revert

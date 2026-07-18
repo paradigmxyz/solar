@@ -5,8 +5,8 @@
 //! entry, operand, and terminator reference together.
 
 use crate::backend::evm::{
-    assembler::op,
     ir::{Block, BlockId, Module, Operand, TerminatorKind},
+    opcode as op,
 };
 use solar_data_structures::index::IndexVec;
 

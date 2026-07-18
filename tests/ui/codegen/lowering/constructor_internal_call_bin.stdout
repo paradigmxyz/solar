@@ -1,18 +1,16 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_internal_call_bin.sol:ConstructorInternalCallBin (creation) ===
 // === deployment ===
 @module deployment
-bb0 (entry):
+bb16 (entry):
   push 0x4000
   push 64
   mstore
-  push 390
+  push 388
   codesize
   sub
-  push 390
+  push 388
   push 128
   codecopy
-  jump bb8
-bb8:
   push 7
   push 128
   mload
@@ -38,9 +36,9 @@ bb8:
   push 64
   mstore
   pop
-  push bb9
-  jump bb1
-bb1:
+  push bb14
+  jump bb0
+bb0:
   push 160
   mload
   push 128
@@ -54,18 +52,30 @@ bb1:
   push 64
   add
   mload
-  push bb3
+  push bb4
   jumpi
-  jump bb2
-bb2:
   push 1
+  jump bb15
+bb15:
   push 160
   mload
   push 96
   add
   mstore
   jump
-bb3:
+bb5:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+bb4:
   push 11
   push 160
   mload
@@ -98,10 +108,8 @@ bb3:
   swap1
   pop
   iszero
-  push bb7
+  push bb5
   jumpi
-  jump bb4
-bb4:
   push 1
   push 160
   mload
@@ -130,9 +138,9 @@ bb4:
   push 64
   mstore
   pop
-  push bb5
-  jump bb1
-bb5:
+  push bb11
+  jump bb0
+bb11:
   push 160
   mload
   push 96
@@ -196,26 +204,17 @@ bb5:
   push 160
   add
   mstore
-  dup2
-  lt
   swap1
-  pop
-  push bb7
+  lt
+  push bb5
   jumpi
-  jump bb6
-bb6:
   push 160
   mload
   push 224
   add
   mload
-  push 160
-  mload
-  push 96
-  add
-  mstore
-  jump
-bb9:
+  jump bb15
+bb14:
   push 160
   mload
   push 96
@@ -234,69 +233,42 @@ bb9:
   add
   mload
   push 160
-  mstore
-  dup1
-  push 0x1000
   mstore
   dup1
   push 0x1000
   mstore
   push 0
   sstore
-  jump bb10
-bb10:
   push 43
   dup1
-  push 347
+  push 345
   push 0
   codecopy
   push 0
   return
-bb7 [cold]:
-  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
-  push 0
-  mstore
-  push 17
-  push 4
-  mstore
-  push 36
-  push 0
-  revert
 
 // === runtime ===
 @module runtime
-bb0 (entry):
+bb8 (entry):
   push 160
   push 64
   mstore
   callvalue
-  push bb4
+  push bb7
   jumpi
-  jump bb1
-bb1:
   calldatasize
   iszero
-  push bb4
+  push bb7
   jumpi
-  jump bb2
-bb2:
   push 0
   calldataload
   push 224
   shr
   dup1
   push 0x3fa4f245
-  eq
-  push bb3
+  sub
+  push bb7
   jumpi
-  jump bb4
-bb4 [cold]:
-  push 0
-  dup1
-  revert
-bb3:
-  jump bb5
-bb5:
   push 0
   sload
   push 128
@@ -304,3 +276,7 @@ bb5:
   push 32
   push 128
   return
+bb7:
+  push 0
+  dup1
+  revert

@@ -1,0 +1,137 @@
+//! Target-dependent selection of compact immediate materializations.
+
+use super::PassOptions;
+use crate::backend::evm::{
+    ir::{Instruction, Module, Operand},
+    opcode as op,
+};
+use alloy_primitives::U256;
+
+const EVM_WORD_BYTES: usize = 32;
+const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
+const MIN_COMPACT_MASK_WIDTH: u8 = 5;
+
+pub(super) fn run(module: &mut Module, options: PassOptions) -> bool {
+    let mut changed = false;
+    for block in &mut module.blocks {
+        let mut output = Vec::with_capacity(block.instructions.len());
+        for inst in std::mem::take(&mut block.instructions) {
+            let Some(value) = immediate(&inst) else {
+                output.push(inst);
+                continue;
+            };
+            match select(value, options) {
+                CompactPush::Literal => output.push(inst),
+                CompactPush::FullWord => {
+                    output.push(push(U256::ZERO));
+                    output.push(Instruction::opcode(op::NOT));
+                    changed = true;
+                }
+                CompactPush::LowerAllOnesMask { shift } => {
+                    output.push(push(U256::ZERO));
+                    output.push(Instruction::opcode(op::NOT));
+                    output.push(push(U256::from(shift)));
+                    output.push(Instruction::opcode(op::SHR));
+                    changed = true;
+                }
+                CompactPush::Not => {
+                    output.push(push(!value));
+                    output.push(Instruction::opcode(op::NOT));
+                    changed = true;
+                }
+                CompactPush::Shl { shift } => {
+                    output.push(push(value >> usize::from(shift)));
+                    output.push(push(U256::from(shift)));
+                    output.push(Instruction::opcode(op::SHL));
+                    changed = true;
+                }
+            }
+        }
+        block.instructions = output;
+    }
+    changed
+}
+
+fn immediate(inst: &Instruction) -> Option<U256> {
+    if inst.result.is_some()
+        || !inst.is_encoded_push()
+        || inst.is_deferred_push()
+        || inst.is_immutable_push()
+    {
+        return None;
+    }
+    match inst.operands.as_slice() {
+        [Operand::Immediate(value)] => Some(*value),
+        _ => None,
+    }
+}
+
+fn push(value: U256) -> Instruction {
+    Instruction::push(Operand::Immediate(value))
+}
+
+fn select(value: U256, options: PassOptions) -> CompactPush {
+    let width = push_width(value, options);
+    let normal_len = fixed_push_len(width, options);
+    let mut best = (normal_len, CompactPush::Literal);
+    let mut consider = |len, compact| {
+        if len < best.0 {
+            best = (len, compact);
+        }
+    };
+
+    if value == U256::MAX {
+        consider(zero_push_len(options) + 1, CompactPush::FullWord);
+    }
+
+    if width >= MIN_COMPACT_MASK_WIDTH {
+        let bytes = value.to_be_bytes::<EVM_WORD_BYTES>();
+        let start = EVM_WORD_BYTES - width as usize;
+        if bytes[start..].iter().all(|&byte| byte == 0xff) {
+            let shift = EVM_WORD_BITS - usize::from(width) * 8;
+            consider(
+                zero_push_len(options) + 4,
+                CompactPush::LowerAllOnesMask { shift: shift as u8 },
+            );
+        }
+    }
+
+    if width as usize == EVM_WORD_BYTES {
+        let inverted = !value;
+        consider(fixed_push_len(push_width(inverted, options), options) + 1, CompactPush::Not);
+    }
+
+    let trailing_zero_bytes =
+        (0..EVM_WORD_BYTES).take_while(|&index| value.byte(index) == 0).count();
+    if trailing_zero_bytes > 0 && trailing_zero_bytes < EVM_WORD_BYTES {
+        let shift = trailing_zero_bytes * 8;
+        let shifted = value >> shift;
+        consider(
+            fixed_push_len(push_width(shifted, options), options) + 3,
+            CompactPush::Shl { shift: shift as u8 },
+        );
+    }
+
+    best.1
+}
+
+fn fixed_push_len(width: u8, options: PassOptions) -> usize {
+    if width == 0 { zero_push_len(options) } else { 1 + width as usize }
+}
+
+fn zero_push_len(options: PassOptions) -> usize {
+    if options.evm_version.has_push0() { 1 } else { 2 }
+}
+
+fn push_width(value: U256, options: PassOptions) -> u8 {
+    if value.is_zero() && !options.evm_version.has_push0() { 1 } else { value.byte_len() as u8 }
+}
+
+#[derive(Clone, Copy)]
+enum CompactPush {
+    Literal,
+    FullWord,
+    LowerAllOnesMask { shift: u8 },
+    Not,
+    Shl { shift: u8 },
+}

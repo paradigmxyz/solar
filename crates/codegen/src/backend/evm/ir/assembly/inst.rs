@@ -1,3 +1,5 @@
+//! Compact instructions for finalized, layout-linear EVM IR.
+
 use solar_data_structures::{index::Idx, newtype_index};
 
 newtype_index! {
@@ -15,7 +17,7 @@ newtype_index! {
     pub(in crate::backend::evm) struct PushValueId;
 }
 
-pub(super) trait AsmIndex: Idx {
+pub(in crate::backend::evm) trait AsmIndex: Idx {
     const NAME: &'static str;
 
     fn inst_payload(self) -> u32 {
@@ -47,7 +49,6 @@ impl AsmIndex for PushValueId {
 pub(in crate::backend::evm) struct AsmInst(u32);
 
 impl AsmInst {
-    pub(in crate::backend::evm) const PLACEHOLDER: Self = Self(0);
     pub(in crate::backend::evm) const PAYLOAD_MASK: u32 = 0x0fff_ffff;
     const INLINE_PUSH_MAX: u32 = 0x7fff_ffff;
     const TAG_MASK: u32 = 0xf000_0000;
