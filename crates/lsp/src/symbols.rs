@@ -1439,6 +1439,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
             CallableParamSource::Struct(id) => (self.gcx.hir.strukt(id).fields, 0),
             CallableParamSource::Event(id) => (self.gcx.hir.event(id).parameters, 0),
             CallableParamSource::Error(id) => (self.gcx.hir.error(id).parameters, 0),
+            CallableParamSource::Builtin(_) => return Vec::new(),
         };
         params.iter().copied().skip(skip).collect()
     }

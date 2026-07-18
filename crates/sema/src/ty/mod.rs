@@ -576,11 +576,9 @@ impl<'gcx> Gcx<'gcx> {
         {
             return Some(CallableParamSource::FunctionType(id));
         }
-        if let hir::ExprKind::Member(receiver, name) = callee.kind
-            && let Some(receiver_ty) = self.type_of_expr(receiver.id)
-            && let Some(ResolvedMember::StructField { struct_id, field_index }) =
-                self.resolve_member_target(receiver_ty, name.name, None)
-            && let Some(&id) = self.hir.strukt(struct_id).fields.get(field_index)
+        if let hir::ExprKind::Member(..) = callee.kind
+            && let Some(id) =
+                self.resolved_callee(callee.id).and_then(|callee| callee.res.as_variable())
             && matches!(self.hir.variable(id).ty.kind, hir::TypeKind::Function(_))
         {
             return Some(CallableParamSource::FunctionType(id));
