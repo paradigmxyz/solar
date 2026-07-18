@@ -1445,6 +1445,9 @@ pub enum StmtKind<'hir> {
     /// An inline assembly block: `assembly { ... }`.
     AssemblyBlock(Block<'hir>),
 
+    /// A Yul function definition retained for lexical visitor order.
+    YulFunction(FunctionId),
+
     /// An emit statement: `emit Foo.bar(42);`.
     ///
     /// Always contains an `ExprKind::Call`.

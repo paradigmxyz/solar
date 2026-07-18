@@ -5,7 +5,7 @@ use crate::{
 };
 use rayon::prelude::*;
 use solar_ast::{DataLocation, StateMutability, Visibility};
-use solar_data_structures::{Never, bit_set::DenseBitSet, map::FxBuildHasher};
+use solar_data_structures::{Never, map::FxBuildHasher};
 use solar_interface::{
     Span,
     diagnostics::{Diag, Level},
@@ -39,13 +39,7 @@ struct MutabilityAndLocation {
 
 struct FunctionEffects {
     best: MutabilityAndLocation,
-    events: Vec<FunctionEffect>,
-}
-
-#[derive(Clone, Copy)]
-enum FunctionEffect {
-    Mutability(MutabilityAndLocation),
-    YulCall(hir::FunctionId),
+    events: Vec<MutabilityAndLocation>,
 }
 
 type FunctionCache = once_map::OnceMap<hir::FunctionId, Arc<FunctionEffects>, FxBuildHasher>;
@@ -55,8 +49,7 @@ struct ViewPureChecker<'gcx, 'a> {
     current_function: Option<&'gcx hir::Function<'gcx>>,
     best: MutabilityAndLocation,
     function_effects: &'a FunctionCache,
-    inferred_events: Vec<FunctionEffect>,
-    visited_yul_functions: Option<DenseBitSet<hir::FunctionId>>,
+    inferred_events: Vec<MutabilityAndLocation>,
     writing: bool,
     diagnostics: Vec<Diag>,
 }
@@ -72,7 +65,6 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
             },
             function_effects,
             inferred_events: Vec::new(),
-            visited_yul_functions: None,
             writing: false,
             diagnostics: Vec::new(),
         }
@@ -98,50 +90,11 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
         )
     }
 
-    fn function_mutability(&self, id: hir::FunctionId) -> MutabilityAndLocation {
-        let mut visited = DenseBitSet::new_empty(self.gcx.hir.function_ids().len());
-        let mut stack = vec![id];
-        let mut best = MutabilityAndLocation {
-            mutability: StateMutability::Pure,
-            location: self.gcx.hir.function(id).span,
-        };
-        while let Some(id) = stack.pop() {
-            if visited.insert(id) {
-                let effects = self.function_effects(id);
-                if mutability_rank(effects.best.mutability) > mutability_rank(best.mutability) {
-                    best = effects.best;
-                }
-                stack.extend(effects.events.iter().rev().filter_map(|&effect| match effect {
-                    FunctionEffect::YulCall(callee) => Some(callee),
-                    FunctionEffect::Mutability(_) => None,
-                }));
-            }
+    fn report_function_effects(&mut self, id: hir::FunctionId) {
+        let effects = self.function_effects(id);
+        for &effect in &effects.events {
+            self.report(effect.mutability, effect.location, None);
         }
-        best
-    }
-
-    fn report_yul_function(&mut self, id: hir::FunctionId) {
-        let mut stack = vec![FunctionEffect::YulCall(id)];
-        while let Some(effect) = stack.pop() {
-            match effect {
-                FunctionEffect::Mutability(effect) => {
-                    self.report(effect.mutability, effect.location, None);
-                }
-                FunctionEffect::YulCall(callee) => {
-                    if self.mark_yul_function_visited(callee) {
-                        let effects = self.function_effects(callee);
-                        stack.extend(effects.events.iter().rev().copied());
-                    }
-                }
-            }
-        }
-    }
-
-    fn mark_yul_function_visited(&mut self, id: hir::FunctionId) -> bool {
-        let function_count = self.gcx.hir.function_ids().len();
-        self.visited_yul_functions
-            .get_or_insert_with(|| DenseBitSet::new_empty(function_count))
-            .insert(id)
     }
 
     fn check_function(mut self, function: &'gcx hir::Function<'gcx>) -> Vec<Diag> {
@@ -193,19 +146,14 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
             .resolved_callee(callee.id)
             .and_then(|callee| callee.res.as_function())
             .filter(|&id| self.gcx.hir.function(id).is_yul);
-        if let Some(id) = yul_function {
-            if self.current_function.is_some() {
-                self.report_yul_function(id);
-            } else {
-                self.inferred_events.push(FunctionEffect::YulCall(id));
-            }
-        } else if let Some(builtin) = self.gcx.builtin_callee(callee.id) {
+        if yul_function.is_some() {
+            return;
+        }
+        if let Some(builtin) = self.gcx.builtin_callee(callee.id) {
             if builtin.is_yul() {
-                self.report_yul_builtin(builtin, expr.span);
-            } else if matches!(
-                builtin,
-                Builtin::ArrayPush0 | Builtin::ArrayPush | Builtin::ArrayPop
-            ) {
+                return;
+            }
+            if matches!(builtin, Builtin::ArrayPush0 | Builtin::ArrayPush | Builtin::ArrayPop) {
                 self.report(StateMutability::NonPayable, expr.span, None);
             } else if let Some(mutability) =
                 self.gcx.type_of_expr(callee.id).and_then(|ty| ty.state_mutability())
@@ -328,8 +276,7 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
         nested_location: Option<Span>,
     ) {
         if self.current_function.is_none() && mutability != StateMutability::Pure {
-            self.inferred_events
-                .push(FunctionEffect::Mutability(MutabilityAndLocation { mutability, location }));
+            self.inferred_events.push(MutabilityAndLocation { mutability, location });
         }
         if mutability_rank(mutability) > mutability_rank(self.best.mutability) {
             self.best = MutabilityAndLocation { mutability, location };
@@ -428,7 +375,7 @@ impl<'gcx, 'a> Visit<'gcx> for ViewPureChecker<'gcx, 'a> {
     ) -> ControlFlow<Self::BreakValue> {
         self.walk_modifier(modifier)?;
         if let ItemId::Function(id) = modifier.id {
-            let inferred = self.function_mutability(id);
+            let inferred = self.function_effects(id).best;
             self.report(inferred.mutability, modifier.span, Some(inferred.location));
         }
         ControlFlow::Continue(())
@@ -442,6 +389,10 @@ impl<'gcx, 'a> Visit<'gcx> for ViewPureChecker<'gcx, 'a> {
     }
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
+        if let StmtKind::YulFunction(id) = stmt.kind {
+            self.report_function_effects(id);
+            return ControlFlow::Continue(());
+        }
         self.walk_stmt(stmt)?;
         if let StmtKind::Emit(expr) = stmt.kind {
             let ExprKind::Call(callee, ref args, _) = expr.kind else { unreachable!() };
@@ -452,32 +403,42 @@ impl<'gcx, 'a> Visit<'gcx> for ViewPureChecker<'gcx, 'a> {
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
         let writing = std::mem::replace(&mut self.writing, false);
-        match expr.kind {
-            ExprKind::Assign(lhs, _, rhs) => {
-                self.visit_expr_with_writing(lhs, true);
-                self.visit_expr_with_writing(rhs, false);
-            }
-            ExprKind::Delete(inner) => self.visit_expr_with_writing(inner, true),
-            ExprKind::Member(_, _) if self.is_this_function_selector(expr) => {}
-            ExprKind::Ternary(cond, then_, else_) => {
-                self.visit_expr_with_writing(cond, false);
-                self.visit_expr_with_writing(then_, writing);
-                self.visit_expr_with_writing(else_, writing);
-            }
-            ExprKind::Tuple(exprs) => {
-                for expr in exprs.iter().flatten() {
-                    self.visit_expr_with_writing(expr, writing);
+        let yul_builtin = if let ExprKind::Call(callee, _, _) = expr.kind {
+            self.gcx.builtin_callee(callee.id).filter(|builtin| builtin.is_yul())
+        } else {
+            None
+        };
+        if let Some(builtin) = yul_builtin {
+            self.report_yul_builtin(builtin, expr.span);
+            let _ = self.walk_expr(expr);
+        } else {
+            match expr.kind {
+                ExprKind::Assign(lhs, _, rhs) => {
+                    self.visit_expr_with_writing(lhs, true);
+                    self.visit_expr_with_writing(rhs, false);
                 }
-            }
-            ExprKind::Unary(op, inner) => {
-                self.visit_expr_with_writing(inner, op.kind.has_side_effects());
-            }
-            ExprKind::YulMember(_, _)
-            | ExprKind::New(_)
-            | ExprKind::TypeCall(_)
-            | ExprKind::Type(_) => {}
-            _ => {
-                let _ = self.walk_expr(expr);
+                ExprKind::Delete(inner) => self.visit_expr_with_writing(inner, true),
+                ExprKind::Member(_, _) if self.is_this_function_selector(expr) => {}
+                ExprKind::Ternary(cond, then_, else_) => {
+                    self.visit_expr_with_writing(cond, false);
+                    self.visit_expr_with_writing(then_, writing);
+                    self.visit_expr_with_writing(else_, writing);
+                }
+                ExprKind::Tuple(exprs) => {
+                    for expr in exprs.iter().flatten() {
+                        self.visit_expr_with_writing(expr, writing);
+                    }
+                }
+                ExprKind::Unary(op, inner) => {
+                    self.visit_expr_with_writing(inner, op.kind.has_side_effects());
+                }
+                ExprKind::YulMember(_, _)
+                | ExprKind::New(_)
+                | ExprKind::TypeCall(_)
+                | ExprKind::Type(_) => {}
+                _ => {
+                    let _ = self.walk_expr(expr);
+                }
             }
         }
 

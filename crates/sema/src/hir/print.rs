@@ -328,6 +328,9 @@ impl<'gcx> HirPrinter<'gcx> {
     }
 
     fn print_stmt(&mut self, stmt: &hir::Stmt<'gcx>) {
+        if matches!(stmt.kind, StmtKind::YulFunction(_)) {
+            return;
+        }
         self.write_indent();
         match &stmt.kind {
             StmtKind::DeclSingle(var) => {
@@ -357,6 +360,7 @@ impl<'gcx> HirPrinter<'gcx> {
                 self.out.push_str("assembly ");
                 self.print_block(block);
             }
+            StmtKind::YulFunction(_) => unreachable!(),
             StmtKind::Emit(expr) => {
                 self.out.push_str("emit ");
                 self.print_expr(expr);

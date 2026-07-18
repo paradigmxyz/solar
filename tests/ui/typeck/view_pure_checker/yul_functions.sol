@@ -9,6 +9,7 @@ contract C {
 
             function uncalled() {
                 sstore(9, 1)
+                //~^ ERROR: function cannot be declared as view because this expression (potentially) modifies the state
             }
 
             sstore(1, 1)

@@ -1207,6 +1207,7 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
                 }
             }
             StmtKind::Emit(_)
+            | StmtKind::YulFunction(_)
             | StmtKind::Revert(_)
             | StmtKind::Return(_)
             | StmtKind::Break

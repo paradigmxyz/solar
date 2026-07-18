@@ -19,6 +19,7 @@ impl EnumVariantSize for hir::StmtKind<'_> {
             Self::Block(block) => variant_payload_size!(self, block),
             Self::UncheckedBlock(block) => variant_payload_size!(self, block),
             Self::AssemblyBlock(block) => variant_payload_size!(self, block),
+            Self::YulFunction(function) => variant_payload_size!(self, function),
             Self::Emit(expr) => variant_payload_size!(self, expr),
             Self::Revert(expr) => variant_payload_size!(self, expr),
             Self::Return(expr) => variant_payload_size!(self, expr),
@@ -440,6 +441,7 @@ impl<'hir> HirVisit<'hir> for HirStatCollector<'hir> {
                 Block,
                 UncheckedBlock,
                 AssemblyBlock,
+                YulFunction,
                 Emit,
                 Revert,
                 Return,
@@ -468,6 +470,7 @@ impl<'hir> HirVisit<'hir> for HirStatCollector<'hir> {
             | hir::StmtKind::UncheckedBlock(block)
             | hir::StmtKind::AssemblyBlock(block)
             | hir::StmtKind::Loop(block, _) => self.visit_block(block)?,
+            hir::StmtKind::YulFunction(_) => {}
             hir::StmtKind::Emit(expr) | hir::StmtKind::Revert(expr) => self.visit_expr(expr)?,
             hir::StmtKind::Return(expr) => {
                 if let Some(expr) = expr {

@@ -244,6 +244,7 @@ impl<'a> InlineAnalyzer<'a> {
     /// Counts a single statement (may be nested).
     fn count_statement(&self, stmt: &hir::Stmt<'_>) -> usize {
         match &stmt.kind {
+            StmtKind::YulFunction(_) => 0,
             StmtKind::Block(block) | StmtKind::UncheckedBlock(block) => {
                 self.count_statements(block)
             }
