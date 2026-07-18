@@ -34,13 +34,17 @@ use std::{
         atomic::{AtomicUsize, Ordering},
     },
 };
-use tokio::{sync::oneshot, task::JoinHandle};
+use tokio::{
+    sync::{oneshot, watch},
+    task::JoinHandle,
+};
 
 pub(crate) struct GlobalState {
     client: ClientSocket,
     pub(crate) vfs: Arc<RwLock<Vfs>>,
     pub(crate) config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
+    published_analysis_version: watch::Sender<usize>,
     flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
     flycheck_cancels: FxHashMap<DiagnosticOwner, oneshot::Sender<()>>,
     pub(crate) symbol_tables: Arc<RwLock<SymbolTables>>,
@@ -49,10 +53,12 @@ pub(crate) struct GlobalState {
 
 impl GlobalState {
     pub(crate) fn new(client: ClientSocket) -> Self {
+        let (published_analysis_version, _) = watch::channel(0);
         Self {
             client,
             vfs: Arc::new(Default::default()),
             analysis_version: Arc::new(AtomicUsize::new(0)),
+            published_analysis_version,
             flycheck_versions: Arc::new(Default::default()),
             flycheck_cancels: FxHashMap::default(),
             symbol_tables: Arc::new(Default::default()),
@@ -149,11 +155,16 @@ impl GlobalState {
                 }
             }
 
-            if snapshot.is_current(version) {
-                snapshot.set_symbol_tables(symbol_tables);
+            if snapshot.publish_symbol_tables(version, symbol_tables) {
                 snapshot.publish_diagnostics(DiagnosticOwner::Compiler, diagnostics);
             }
         });
+    }
+
+    pub(crate) fn current_analysis(&self) -> (usize, watch::Receiver<usize>) {
+        let published = self.published_analysis_version.subscribe();
+        let version = self.analysis_version.load(Ordering::Acquire);
+        (version, published)
     }
 
     pub(crate) fn run_flychecks_on_save(&mut self, path: PathBuf) {
@@ -249,6 +260,7 @@ impl GlobalState {
             vfs: self.vfs.clone(),
             config: self.config.clone(),
             analysis_version: self.analysis_version.clone(),
+            published_analysis_version: self.published_analysis_version.clone(),
             flycheck_versions: self.flycheck_versions.clone(),
             symbol_tables: self.symbol_tables.clone(),
             diagnostics: self.diagnostics.clone(),
@@ -302,6 +314,7 @@ pub(crate) struct GlobalStateSnapshot {
     vfs: Arc<RwLock<Vfs>>,
     config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
+    published_analysis_version: watch::Sender<usize>,
     flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
     symbol_tables: Arc<RwLock<SymbolTables>>,
     diagnostics: Arc<RwLock<DiagnosticStore>>,
@@ -375,8 +388,17 @@ impl GlobalStateSnapshot {
         batches
     }
 
-    fn set_symbol_tables(&mut self, symbol_tables: SymbolTables) {
-        *self.symbol_tables.write() = symbol_tables;
+    fn publish_symbol_tables(&mut self, version: usize, symbol_tables: SymbolTables) -> bool {
+        // Serialize the version check, table swap, and notification so stale tasks cannot publish
+        // last.
+        let mut current_tables = self.symbol_tables.write();
+        if !self.is_current(version) {
+            return false;
+        }
+
+        *current_tables = symbol_tables;
+        self.published_analysis_version.send_replace(version);
+        true
     }
 
     fn analysis_workspaces(&self) -> Cow<'_, [crate::workspace::Workspace]> {
@@ -418,6 +440,8 @@ impl AnalysisBatch {
 
 fn analyze(batch: AnalysisBatch) -> AnalysisResult {
     let (emitter, diag_buffer) = InMemoryEmitter::new();
+    let document_link_sources =
+        batch.files.iter().map(|(path, _)| path.clone()).collect::<FxHashSet<_>>();
     let mut opts = batch.opts;
     opts.unstable.recover_incomplete_input = true;
     let sess = Session::builder().opts(opts).dcx(DiagCtxt::new(Box::new(emitter))).build();
@@ -453,7 +477,7 @@ fn analyze(batch: AnalysisBatch) -> AnalysisResult {
             }
         }
 
-        let symbol_tables = SymbolTables::build(compiler.gcx());
+        let symbol_tables = SymbolTables::build(compiler.gcx(), &document_link_sources);
         let diagnostics = diag_buffer
             .read()
             .iter()

@@ -2,11 +2,12 @@ use super::super::{AnalysisBatch, AnalysisResult, GlobalState, analyze};
 use crate::test_support::MarkedProject;
 use async_lsp::{ClientSocket, ErrorCode};
 use lsp_types::{
-    CompletionItem, CompletionParams, CompletionResponse, Documentation, GotoDefinitionParams,
-    GotoDefinitionResponse, InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams, Location,
-    ParameterLabel, PartialResultParams, Position, PrepareRenameResponse, Range, ReferenceContext,
-    ReferenceParams, RenameParams, SignatureHelp, SignatureHelpParams, TextDocumentIdentifier,
-    TextDocumentPositionParams, Url, WorkDoneProgressParams, WorkspaceEdit,
+    CompletionItem, CompletionParams, CompletionResponse, DocumentLink, DocumentLinkParams,
+    Documentation, GotoDefinitionParams, GotoDefinitionResponse, InlayHint, InlayHintKind,
+    InlayHintLabel, InlayHintParams, Location, ParameterLabel, PartialResultParams, Position,
+    PrepareRenameResponse, Range, ReferenceContext, ReferenceParams, RenameParams, SignatureHelp,
+    SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams, Url,
+    WorkDoneProgressParams, WorkspaceEdit,
 };
 use snapbox::{IntoData, assert_data_eq};
 use solar_config::CompileOpts;
@@ -190,6 +191,16 @@ impl RequestFixture {
         assert_data_eq!(inlay_hint_output(&self.inlay_hints(uri, full_range())), expected);
     }
 
+    pub(super) fn check_document_links(&self, path: &str, expected: impl IntoData) {
+        let mut state = self.state();
+        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
+        let links =
+            expect_ready(crate::handlers::document_links(&mut state, document_link_params(uri)))
+                .unwrap()
+                .unwrap_or_default();
+        assert_data_eq!(self.document_links_output(links), expected);
+    }
+
     pub(super) fn check_signature_help(&self, marker: &str, expected: impl IntoData) {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);
@@ -326,6 +337,24 @@ impl RequestFixture {
         let mut output = String::new();
         for location in locations {
             writeln!(output, "{}", self.location_output(location)).unwrap();
+        }
+        output
+    }
+
+    fn document_links_output(&self, links: Vec<DocumentLink>) -> String {
+        let mut output = String::new();
+        for link in links {
+            let target = link.target.unwrap().to_file_path().unwrap();
+            let target = display_path(self.marked.project().root(), &target);
+            writeln!(
+                output,
+                "{}:{}..{}:{} -> {target}",
+                link.range.start.line,
+                link.range.start.character,
+                link.range.end.line,
+                link.range.end.character,
+            )
+            .unwrap();
         }
         output
     }
@@ -533,6 +562,14 @@ fn inlay_hint_params(uri: Url, range: Range) -> InlayHintParams {
         text_document: TextDocumentIdentifier { uri },
         range,
         work_done_progress_params: WorkDoneProgressParams::default(),
+    }
+}
+
+fn document_link_params(uri: Url) -> DocumentLinkParams {
+    DocumentLinkParams {
+        text_document: TextDocumentIdentifier { uri },
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
     }
 }
 
