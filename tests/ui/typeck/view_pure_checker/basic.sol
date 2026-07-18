@@ -12,9 +12,22 @@ contract Base {
         state = 1;
         _;
     }
+
+    modifier cached() {
+        _;
+    }
 }
 
 contract C is Base {
+    function cached1() public pure cached {}
+    function cached2() public pure cached {}
+    function cached3() public pure cached {}
+    function cached4() public pure cached {}
+    function cached5() public pure cached {}
+    function cached6() public pure cached {}
+    function cached7() public pure cached {}
+    function cached8() public pure cached {}
+
     function read() public pure returns (uint256) {
         return state;
         //~^ ERROR: function declared as pure, but this expression (potentially) reads from the environment or state and thus requires `view`

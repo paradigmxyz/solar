@@ -5,7 +5,10 @@ use crate::{
 };
 use rayon::prelude::*;
 use solar_ast::{DataLocation, StateMutability, Visibility};
-use solar_data_structures::{Never, map::FxHashMap};
+use solar_data_structures::{
+    Never,
+    map::{FxBuildHasher, FxHashMap},
+};
 use solar_interface::{
     Span,
     diagnostics::{Diag, Level},
@@ -18,15 +21,7 @@ pub(super) fn check(gcx: Gcx<'_>) {
         return;
     }
     let yul_functions = collect_yul_functions(gcx);
-    let modifier_mutability = gcx
-        .hir
-        .par_functions_enumerated()
-        .filter_map(|(id, function)| {
-            function.kind.is_modifier().then(|| {
-                (id, ViewPureChecker::new(gcx, None, &yul_functions).infer_modifier(function))
-            })
-        })
-        .collect::<FxHashMap<_, _>>();
+    let modifier_mutability = ModifierCache::default();
     let diagnostics = gcx
         .hir
         .par_functions()
@@ -34,7 +29,7 @@ pub(super) fn check(gcx: Gcx<'_>) {
             if function.kind.is_modifier() || function.is_getter() || function.is_yul {
                 Vec::new()
             } else {
-                ViewPureChecker::new(gcx, Some(&modifier_mutability), &yul_functions)
+                ViewPureChecker::new(gcx, &modifier_mutability, &yul_functions)
                     .check_function(function)
             }
         })
@@ -52,6 +47,7 @@ struct MutabilityAndLocation {
 
 type BlockKey = (Span, usize, usize);
 type YulFunctions<'gcx> = FxHashMap<BlockKey, Vec<&'gcx hir::Function<'gcx>>>;
+type ModifierCache = once_map::OnceMap<hir::FunctionId, MutabilityAndLocation, FxBuildHasher>;
 
 struct BlockCollector<'gcx> {
     hir: &'gcx hir::Hir<'gcx>,
@@ -77,14 +73,18 @@ impl<'gcx> Visit<'gcx> for BlockCollector<'gcx> {
 
 fn collect_yul_functions(gcx: Gcx<'_>) -> YulFunctions<'_> {
     let mut collector = BlockCollector { hir: &gcx.hir, blocks: Vec::new() };
+    let mut yul_functions = Vec::new();
     for (_, function) in gcx.hir.functions_enumerated() {
+        if function.is_yul {
+            yul_functions.push(function);
+        }
         if let Some(body) = function.body {
             let _ = collector.visit_block(body);
         }
     }
 
     let mut functions = YulFunctions::default();
-    for (_, function) in gcx.hir.functions_enumerated().filter(|(_, function)| function.is_yul) {
+    for function in yul_functions {
         let block = collector
             .blocks
             .iter()
@@ -112,7 +112,7 @@ struct ViewPureChecker<'gcx, 'a> {
     gcx: Gcx<'gcx>,
     current_function: Option<&'gcx hir::Function<'gcx>>,
     best: MutabilityAndLocation,
-    modifier_mutability: Option<&'a FxHashMap<hir::FunctionId, MutabilityAndLocation>>,
+    modifier_mutability: &'a ModifierCache,
     yul_functions: &'a YulFunctions<'gcx>,
     writing: bool,
     diagnostics: Vec<Diag>,
@@ -121,7 +121,7 @@ struct ViewPureChecker<'gcx, 'a> {
 impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
     fn new(
         gcx: Gcx<'gcx>,
-        modifier_mutability: Option<&'a FxHashMap<hir::FunctionId, MutabilityAndLocation>>,
+        modifier_mutability: &'a ModifierCache,
         yul_functions: &'a YulFunctions<'gcx>,
     ) -> Self {
         Self {
@@ -143,6 +143,17 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
             MutabilityAndLocation { mutability: StateMutability::Pure, location: function.span };
         let _ = self.visit_function(function);
         self.best
+    }
+
+    fn modifier_mutability(&self, id: hir::FunctionId) -> MutabilityAndLocation {
+        self.modifier_mutability.map_insert(
+            id,
+            |&id| {
+                ViewPureChecker::new(self.gcx, self.modifier_mutability, self.yul_functions)
+                    .infer_modifier(self.gcx.hir.function(id))
+            },
+            copy_mutability,
+        )
     }
 
     fn check_function(mut self, function: &'gcx hir::Function<'gcx>) -> Vec<Diag> {
@@ -446,10 +457,8 @@ impl<'gcx, 'a> Visit<'gcx> for ViewPureChecker<'gcx, 'a> {
         modifier: &'gcx hir::Modifier<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
         self.walk_modifier(modifier)?;
-        if let Some(modifier_mutability) = self.modifier_mutability
-            && let ItemId::Function(id) = modifier.id
-            && let Some(&inferred) = modifier_mutability.get(&id)
-        {
+        if let ItemId::Function(id) = modifier.id {
+            let inferred = self.modifier_mutability(id);
             self.report(inferred.mutability, modifier.span, Some(inferred.location));
         }
         ControlFlow::Continue(())
@@ -543,4 +552,11 @@ fn mutability_rank(mutability: StateMutability) -> u8 {
         StateMutability::NonPayable => 2,
         StateMutability::Payable => 3,
     }
+}
+
+fn copy_mutability(
+    _id: &hir::FunctionId,
+    mutability: &MutabilityAndLocation,
+) -> MutabilityAndLocation {
+    *mutability
 }
