@@ -1,0 +1,8 @@
+// === ROOT/tests/ui/codegen/evm-ir/stack-schedule/stack_ops.evmir (after none) ===
+@module module
+bb0 (entry):
+  push 1
+  dup1
+  swap1
+  pop
+  stop

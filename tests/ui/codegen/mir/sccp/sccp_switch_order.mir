@@ -1,0 +1,44 @@
+//@compile-flags: --pass sccp
+// Switch cases are tested in order at runtime, so a constant case match is
+// definitive only if every earlier case is a known constant that differs from
+// the scrutinee.
+@module SccpSwitchOrder
+
+// arg0 may equal 5 at runtime, so the switch must not fold to bb2. The default
+// edge is still infeasible: case 5 matches whenever arg0 does not.
+fn @earlier_unknown_case_blocks_fold(arg0: u256) -> u256 {
+  bb0 (entry):
+    switch 5, default bb3, [arg0 => bb1, 5 => bb2]
+  bb1:
+    ret 1
+  bb2:
+    ret 2
+  bb3:
+    ret 3
+}
+
+// Every earlier case is a constant that differs from the scrutinee, so the
+// match on 5 is definitive and the switch folds.
+fn @constant_cases_fold() -> u256 {
+  bb0 (entry):
+    switch 5, default bb3, [1 => bb1, 5 => bb2]
+  bb1:
+    ret 1
+  bb2:
+    ret 2
+  bb3:
+    ret 3
+}
+
+// No constant case matches: the unknown case and the default stay feasible,
+// but the constant case that differs from the scrutinee is unreachable.
+fn @unknown_case_keeps_default(arg0: u256) -> u256 {
+  bb0 (entry):
+    switch 5, default bb3, [arg0 => bb1, 4 => bb2]
+  bb1:
+    ret 1
+  bb2:
+    ret 2
+  bb3:
+    ret 3
+}

@@ -1,0 +1,12 @@
+// === ROOT/tests/ui/codegen/evm-ir/stack-schedule/stack_schedule_operand_cleared_noop.evmir (after stack-schedule) ===
+@module module
+bb0 (entry):
+  push 1
+  push 2
+  swap1
+  sub
+  push 0
+  swap1
+  eq
+  pop
+  stop

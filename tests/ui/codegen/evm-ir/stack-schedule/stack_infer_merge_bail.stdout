@@ -1,0 +1,14 @@
+// === ROOT/tests/ui/codegen/evm-ir/stack-schedule/stack_infer_merge_bail.evmir (after stack-schedule) ===
+@module module
+bb0 (entry):
+  %c = push 0
+  br %c, bb1, bb2
+bb1:
+  %a = push 1
+  jump bb3
+bb2:
+  %b = push 2
+  jump bb3
+bb3:
+  %r = iszero %a
+  stop

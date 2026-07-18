@@ -1,0 +1,68 @@
+//@compile-flags: --pass storage-promotion
+@module StoragePromotionRevertExit
+fn @promote_checked_sum_loop(arg0: u256) [selector=0x01020304] {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb3: v2]
+    v3 = lt v1, arg0
+    br v3, bb2, bb6
+  bb2:
+    v4 = sload 0
+    v5 = add v4, v1
+    v6 = lt v5, v4
+    br v6, bb4, bb5
+  bb4:
+    revert 0, 0
+  bb5:
+    sstore 0, v5
+    jump bb3
+  bb3:
+    v2 = add v1, 1
+    jump bb1
+  bb6:
+    stop
+}
+
+fn @promote_revert_exit_reads_slot(arg0: u256) [selector=0x01020304] {
+  bb0 (entry):
+    sstore 0, 1
+    jump bb1
+  bb1:
+    br true, bb2, bb5
+  bb2:
+    v1 = sload 0
+    v2 = mul v1, 2
+    sstore 0, v2
+    v3 = lt v2, arg0
+    br v3, bb3, bb4
+  bb4:
+    v4 = sload 0
+    mstore 0, v4
+    revert 0, 32
+  bb3:
+    jump bb1
+  bb5:
+    stop
+}
+
+fn @reject_revert_exit_with_call(arg0: u256) [selector=0x01020304] {
+  bb0 (entry):
+    sstore 0, 1
+    jump bb1
+  bb1:
+    br true, bb2, bb5
+  bb2:
+    v1 = sload 0
+    v2 = mul v1, 2
+    sstore 0, v2
+    v3 = lt v2, arg0
+    br v3, bb3, bb4
+  bb4:
+    v4 = call 100, arg0, 0, 0, 0, 0, 32
+    revert 0, 32
+  bb3:
+    jump bb1
+  bb5:
+    stop
+}

@@ -1,0 +1,32 @@
+// === ROOT/tests/ui/codegen/evm-ir/stack-schedule/stack_spill_reload.evmir (after stack-schedule) ===
+@module module
+bb0 (entry):
+  %v0 = push 0
+  %v1 = push 1
+  %v2 = push 2
+  %v3 = push 3
+  %v4 = push 4
+  %v5 = push 5
+  %v6 = push 6
+  %v7 = push 7
+  %v8 = push 8
+  %v9 = push 9
+  %v10 = push 10
+  %v11 = push 11
+  %v12 = push 12
+  %v13 = push 13
+  %v14 = push 14
+  %v15 = push 15
+  %v16 = push 16
+  swap15
+  push 0x1000
+  mstore
+  swap15
+  swap1
+  swap14
+  swap1
+  %r = add
+  push 0x1000
+  mload
+  %s = mul
+  stop

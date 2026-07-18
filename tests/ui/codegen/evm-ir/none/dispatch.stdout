@@ -1,0 +1,20 @@
+// === ROOT/tests/ui/codegen/evm-ir/none/dispatch.evmir (after none) ===
+@module module
+bb0 (entry):
+  %calldata_offset = push 0
+  %selector = calldataload %calldata_offset !meta(source=dispatch)
+  %inc_selector = push 0x371303c0
+  %is_inc = eq %selector, %inc_selector
+  br %is_inc, bb1, bb2
+bb1:
+  %slot = push 0
+  %value = sload %slot !meta(alias=storage0)
+  jump bb3
+bb2 [cold]:
+  %revert_offset = push 0
+  %revert_size = push 0
+  revert %revert_offset, %revert_size !meta(source=fallback)
+bb3:
+  %return_offset = push 0
+  %return_size = push 32
+  return %return_offset, %return_size

@@ -1,0 +1,20 @@
+//@compile-flags: --pass stack-schedule
+// The production assembler bridge (optimize_with_evm_ir) feeds StackSchedule
+// already-scheduled, operand-cleared IR: no instruction carries a value
+// operand, only physical stack ops and encoded pushes/opcodes. With nothing to
+// materialize, StackSchedule is a no-op here -- every instruction is replayed
+// onto the model stack and emitted unchanged. This pins the reality that wiring
+// the off-by-default `evm_ir_stack_schedule` flag into the bridge cannot change
+// produced bytecode.
+@module module
+
+bb0 (entry):
+  push 1
+  push 2
+  swap1
+  sub !meta(stack=2->1)
+  push 0
+  swap1
+  eq !meta(stack=2->1)
+  pop
+  stop

@@ -1,0 +1,31 @@
+// === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch.mir (after lower-dispatch) ===
+@module LowerDispatch
+@phase dispatch
+fn @ping() {
+  bb0 (entry):
+    stop
+}
+
+fn @pong() {
+  bb0 (entry):
+    stop
+}
+
+fn @entry() {
+  bb0 (entry):
+    v0 = callvalue
+    br v0, bb5, bb1
+  bb1:
+    v1 = calldatasize
+    br v1, bb2, bb5
+  bb2:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb5, [0x5c36b186 => bb3, 0x8d3a3e57 => bb4]
+  bb3:
+    tail_call @ping
+  bb4:
+    tail_call @pong
+  bb5:
+    revert 0, 0
+}

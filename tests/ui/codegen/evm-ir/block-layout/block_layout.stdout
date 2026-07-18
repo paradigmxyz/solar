@@ -1,0 +1,13 @@
+// === ROOT/tests/ui/codegen/evm-ir/block-layout/block_layout.evmir (after block-layout) ===
+@module module
+bb0 (entry):
+  push 1
+  push bb1
+  jumpi
+  jump bb2
+bb2:
+  jump bb3
+bb3:
+  stop
+bb1:
+  stop

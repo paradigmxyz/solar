@@ -1,0 +1,51 @@
+//@compile-flags: --pass outline-reverts
+//@filecheck: --match-full-lines
+// Two functions carry the same constant panic block; it is outlined into one
+// shared no-return helper and each site becomes an argless `tail_call` — a
+// bare jump in the backend. The distinct panic in `@third` stays inline: a
+// shape must occur at least twice to pay for the helper.
+
+@module OutlineReverts
+fn @first(arg0: u256) {
+  bb0 (entry):
+    v1 = add arg0, 1
+    v2 = lt v1, arg0
+    br v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 17
+    revert 0, 36
+  bb2:
+    mstore 128, v1
+    returndata 128, 32
+}
+fn @second(arg0: u256) {
+  bb0 (entry):
+    v1 = mul arg0, 2
+    v2 = lt v1, arg0
+    br v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 17
+    revert 0, 36
+  bb2:
+    mstore 128, v1
+    returndata 128, 32
+}
+fn @third(arg0: u256) {
+  bb0 (entry):
+    v1 = sub arg0, 1
+    v2 = gt v1, arg0
+    br v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 18
+    revert 0, 36
+  bb2:
+    mstore 128, v1
+    returndata 128, 32
+}
+
+// CHECK:     tail_call @__revert_stub0
+// CHECK:     tail_call @__revert_stub0
+// CHECK: fn @__revert_stub0() {

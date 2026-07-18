@@ -2,6 +2,7 @@ use crate::hir::{self, ContractId, SourceId};
 use solar_ast as ast;
 use solar_ast::visit::Visit;
 use solar_data_structures::{BumpExt, Never, smallvec::SmallVec};
+use solar_interface::Span;
 use std::ops::ControlFlow;
 
 impl<'gcx> super::LoweringContext<'gcx> {
@@ -314,13 +315,26 @@ impl<'gcx> super::LoweringContext<'gcx> {
         let ast::ItemEnum { name, ref variants } = *i;
         let id = self.hir.enums.next_idx();
         let doc = self.lower_item_docs(item, hir::ItemId::Enum(id));
+        let variants = self.arena.alloc_slice_fill_iter(variants.iter().map(|&variant| {
+            let mut variable = hir::Variable::new(
+                self.current_source_id,
+                hir::DocId::EMPTY,
+                hir::Type { span: Span::DUMMY, kind: hir::TypeKind::Custom(hir::ItemId::Enum(id)) },
+                Some(variant),
+                hir::VarKind::Enum,
+            );
+            variable.contract = self.current_contract_id;
+            variable.parent = Some(hir::ItemId::Enum(id));
+            variable.span = variant.span;
+            self.hir.variables.push(variable)
+        }));
         let pushed_id = self.hir.enums.push(hir::Enum {
             source: self.current_source_id,
             doc,
             contract: self.current_contract_id,
             span: item.span,
             name,
-            variants: self.arena.alloc_slice_copy(variants),
+            variants,
         });
         debug_assert_eq!(id, pushed_id);
         id

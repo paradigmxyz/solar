@@ -1,0 +1,18 @@
+//@compile-flags: --pass terminal-dedup
+@module module
+
+bb0 (entry):
+  %selector = push 0
+  switch %selector, default bb3, [1 => bb1, 2 => bb2]
+bb1 [cold]:
+  %a = push 0
+  %b = push 32
+  %c = push 64
+  revert %a, %b
+bb2 [cold]:
+  %x = push 0
+  %y = push 32
+  %z = push 64
+  revert %x, %y
+bb3:
+  stop

@@ -1,0 +1,10 @@
+//@compile-flags: --pass stack-schedule
+// A value used by more than one instruction is duplicated so a copy survives
+// every use (`%a` feeds both `add` and `mul`).
+@module module
+
+bb0 (entry):
+  %a = push 1
+  %b = add %a, %a
+  %c = mul %a, %b
+  stop

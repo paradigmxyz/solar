@@ -1,0 +1,281 @@
+// === ROOT/tests/ui/codegen/lowering/linked_library_call.sol:Lib (runtime) ===
+@module runtime
+bb0 (entry):
+  push 256
+  push 64
+  mstore
+  callvalue
+  push bb4
+  jumpi
+  jump bb1
+bb1:
+  calldatasize
+  iszero
+  push bb4
+  jumpi
+  jump bb2
+bb2:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0xed2f0bb8
+  eq
+  push bb3
+  jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  dup1
+  revert
+bb3:
+  jump bb5
+bb5:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 96
+  swap1
+  slt
+  push bb9
+  jumpi
+  jump bb6
+bb6:
+  push 36
+  calldataload
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  dup2
+  and
+  dup2
+  eq
+  swap1
+  pop
+  iszero
+  push bb9
+  jumpi
+  jump bb7
+bb7:
+  push 36
+  calldataload
+  push 0
+  mstore
+  push 4
+  calldataload
+  push 32
+  mstore
+  push 64
+  push 0
+  keccak256
+  dup1
+  push 160
+  mstore
+  dup1
+  push 160
+  mstore
+  dup1
+  push 160
+  mstore
+  sload
+  push 68
+  calldataload
+  dup2
+  dup1
+  push 224
+  mstore
+  add
+  dup1
+  push 192
+  mstore
+  dup1
+  push 192
+  mstore
+  dup2
+  dup1
+  push 224
+  mstore
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap1
+  pop
+  swap1
+  pop
+  push bb10
+  jumpi
+  jump bb8
+bb8:
+  push 192
+  mload
+  dup1
+  push 192
+  mstore
+  push 160
+  mload
+  sstore
+  push 160
+  mload
+  dup1
+  push 160
+  mstore
+  sload
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb9 [cold]:
+  push 0
+  dup1
+  revert
+bb10 [cold]:
+  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+// === ROOT/tests/ui/codegen/lowering/linked_library_call.sol:C (runtime) ===
+@module runtime
+bb0 (entry):
+  push 224
+  push 64
+  mstore
+  callvalue
+  push bb4
+  jumpi
+  jump bb1
+bb1:
+  calldatasize
+  iszero
+  push bb4
+  jumpi
+  jump bb2
+bb2:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x3dd41ca6
+  eq
+  push bb3
+  jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  dup1
+  revert
+bb3:
+  jump bb5
+bb5:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 64
+  swap1
+  slt
+  push bb9
+  jumpi
+  jump bb6
+bb6:
+  push 4
+  calldataload
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  dup2
+  and
+  dup2
+  eq
+  swap1
+  pop
+  iszero
+  push bb9
+  jumpi
+  jump bb7
+bb7:
+  push 0
+  push 128
+  mstore
+  push 64
+  mload
+  dup1
+  push 160
+  mstore
+  push 32
+  mstore
+  push 0xed2f0bb800000000000000000000000000000000000000000000000000000000
+  push 160
+  mload
+  mstore
+  push 4
+  push 160
+  mload
+  add
+  push 0
+  dup2
+  mstore
+  pop
+  push 36
+  push 160
+  mload
+  add
+  push 4
+  calldataload
+  dup2
+  mstore
+  pop
+  push 68
+  push 160
+  mload
+  add
+  push 36
+  calldataload
+  dup2
+  mstore
+  pop
+  gas
+  push 32
+  push 0
+  push 100
+  push 160
+  mload
+  push 0x1111111111111111111111111111111111111111
+  gas
+  delegatecall
+  swap1
+  pop
+  iszero
+  push bb10
+  jumpi
+  jump bb8
+bb8:
+  push 0
+  mload
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb9 [cold]:
+  push 0
+  dup1
+  revert
+bb10 [cold]:
+  returndatasize
+  dup1
+  push 192
+  mstore
+  push 0
+  dup1
+  returndatacopy
+  push 192
+  mload
+  push 0
+  revert

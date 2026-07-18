@@ -1,0 +1,81 @@
+//@compile-flags: --pass gvn
+@module GvnPhi
+
+// Two phis in one block with pairwise-congruent incoming collapse to one.
+fn @congruent_phis_collapse(arg0: u256, arg1: u256, arg2: bool) -> u256 {
+  bb0 (entry):
+    br arg2, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v3 = phi [bb1: arg0], [bb2: arg1]
+    v4 = phi [bb1: arg0], [bb2: arg1]
+    v5 = add v3, v4
+    ret v5
+}
+
+// Phi-of-same folds onto the operand because its def dominates the join.
+fn @phi_of_same_folds_to_dominating_operand(arg0: u256, arg1: bool) -> u256 {
+  bb0 (entry):
+    v2 = add arg0, 1
+    br arg1, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v2], [bb2: v2]
+    v4 = mul v3, 2
+    ret v4
+}
+
+// The incoming values are distinct defs in one class: v3 folds onto v2, and
+// the phi-of-same then folds onto the class leader v2 as well.
+fn @phi_of_congruent_incoming(arg0: u256, arg1: bool) -> u256 {
+  bb0 (entry):
+    v2 = add arg0, 1
+    br arg1, bb1, bb2
+  bb1:
+    v3 = add arg0, 1
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v4 = phi [bb1: v3], [bb2: v2]
+    ret v4
+}
+
+// Phi-of-same over equal immediates folds onto the constant.
+fn @phi_of_equal_immediates(arg0: bool) -> u256 {
+  bb0 (entry):
+    br arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: 7], [bb2: 7]
+    ret v1
+}
+
+// Documents current behavior: the two phis evolve in lockstep, but pessimistic
+// iteration starts them in distinct classes and nothing ever merges them -
+// unifying lockstep loop phis needs optimistic NewGVN-style assumptions.
+fn @lockstep_loop_phis_stay(arg0: u256) -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v4]
+    v2 = phi [bb0: 0], [bb2: v5]
+    v3 = lt v1, arg0
+    br v3, bb2, bb3
+  bb2:
+    v4 = add v1, 1
+    v5 = add v2, 1
+    jump bb1
+  bb3:
+    v6 = add v1, v2
+    ret v6
+}

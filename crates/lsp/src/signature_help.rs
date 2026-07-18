@@ -15,7 +15,7 @@ use solar_sema::{
     Gcx,
     builtins::Builtin,
     hir::{self, CallArgs, FunctionKind, ItemId, NatSpecKind, Res, StateMutability, Visit},
-    ty::{CallableParamSource, CallableSignature, ResolvedMember, TyKind},
+    ty::{CallableParamSource, CallableSignature, TyKind},
 };
 use std::{fmt::Write, ops::ControlFlow, sync::Arc};
 
@@ -395,12 +395,11 @@ impl<'gcx> CallCollector<'_, 'gcx> {
                 if let Some(source) = self.source
                     && let Some(receiver_ty) = self.gcx.type_of_expr(receiver.id)
                 {
-                    for completion in self
+                    for member in self
                         .gcx
-                        .member_completions_of(receiver_ty, source, self.contract)
-                        .filter(|completion| completion.member.name == name.name)
+                        .members_of(receiver_ty, source, self.contract)
+                        .filter(|member| member.name == name.name)
                     {
-                        let member = completion.member;
                         let Some(mut callable) = self
                             .gcx
                             .callable_signature_of_member(receiver_ty, &member)
@@ -409,10 +408,9 @@ impl<'gcx> CallCollector<'_, 'gcx> {
                             continue;
                         };
                         if callable.param_source.is_none()
-                            && let Some(ResolvedMember::StructField { struct_id, field_index }) =
-                                completion.resolved
-                            && let Some(&variable_id) =
-                                self.gcx.hir.strukt(struct_id).fields.get(field_index)
+                            && let Some(res) = member.res
+                            && let Some(variable_id) = res.as_variable()
+                            && res.struct_field_index(&self.gcx.hir).is_some()
                         {
                             callable.param_source =
                                 Some(CallableParamSource::FunctionType(variable_id));

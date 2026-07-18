@@ -1,0 +1,27 @@
+// === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_inner_counter.mir (after frame-slot-promotion,cfg-simplify,dce) ===
+@module NestedCounter
+fn @nested(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    v23 = phi [bb0: 0], [bb5: v24]
+    v25 = phi [bb0: 0], [bb5: v19]
+    v4 = lt v25, arg0
+    br v4, bb2, bb6
+  bb2:
+    jump bb3
+  bb3:
+    v24 = phi [bb2: v23], [bb4: v11]
+    v26 = phi [bb2: 0], [bb4: v15]
+    v8 = lt v26, arg1
+    br v8, bb4, bb5
+  bb4:
+    v11 = add v24, 1
+    v15 = add v26, 1
+    jump bb3
+  bb5:
+    v19 = add v25, 1
+    jump bb1
+  bb6:
+    ret v23
+}

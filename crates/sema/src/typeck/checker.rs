@@ -462,7 +462,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
                 let ty = match self.select_member_access(&possible_members) {
                     Ok(member) => {
-                        self.register_resolved_member(expr, receiver_ty, member);
+                        self.register_resolved_member(expr, member);
                         member.ty
                     }
                     Err(MemberAccessError::NotFound) => {
@@ -950,6 +950,15 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         };
         let from = self.check_expr(from_expr);
+        if let TyKind::Enum(enum_id) = to.kind
+            && matches!(from.kind, TyKind::IntLiteral(..))
+            && invalid_enum_literal(self.gcx, from_expr, self.gcx.hir.enumm(enum_id).variants.len())
+        {
+            let mut diag = self.dcx().err("invalid explicit type conversion").span(span);
+            diag = diag
+                .span_label(span, TyConvertError::InvalidConversion.message(from, to, self.gcx));
+            return self.gcx.mk_ty_err(diag.emit());
+        }
         match from.try_convert_explicit_to(to, self.gcx) {
             Ok(result_ty) => result_ty,
             Err(err) => {
@@ -1617,14 +1626,11 @@ impl<'gcx> TypeChecker<'gcx> {
     fn register_resolved_member(
         &mut self,
         expr: &'gcx hir::Expr<'gcx>,
-        receiver_ty: Ty<'gcx>,
         member: &members::Member<'gcx>,
     ) {
-        let Some(resolved) = self.gcx.resolve_member_target(receiver_ty, member.name, member.res)
-        else {
-            return;
-        };
-        self.results.resolved_members.insert(expr.id, resolved);
+        if let Some(res) = member.res {
+            self.results.resolved_members.insert(expr.id, res);
+        }
     }
 
     fn check_ident_call_callee(
@@ -2705,6 +2711,11 @@ fn is_int_literal_expr(expr: &hir::Expr<'_>) -> bool {
     }
 }
 
+fn invalid_enum_literal(gcx: Gcx<'_>, expr: &hir::Expr<'_>, variants: usize) -> bool {
+    gcx.try_eval_const(expr)
+        .is_ok_and(|value| value.as_u256().is_none_or(|value| value >= U256::from(variants)))
+}
+
 enum OverloadError {
     NotFound,
     Ambiguous,
@@ -2822,7 +2833,10 @@ fn abi_encode_call_function_kind_message(kind: TyFnKind) -> &'static str {
         }
         TyFnKind::DelegateCall => "first argument to `abi.encodeCall` cannot be a library function",
         TyFnKind::Creation => "first argument to `abi.encodeCall` cannot be a creation function",
-        TyFnKind::BareCall | TyFnKind::BareDelegateCall | TyFnKind::BareStaticCall => {
+        TyFnKind::Builtin
+        | TyFnKind::BareCall
+        | TyFnKind::BareDelegateCall
+        | TyFnKind::BareStaticCall => {
             "first argument to `abi.encodeCall` cannot be a special function"
         }
         TyFnKind::External | TyFnKind::Declaration => unreachable!(),

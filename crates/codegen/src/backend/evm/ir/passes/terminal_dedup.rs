@@ -86,7 +86,7 @@ fn estimated_push_size(operand: &Operand) -> usize {
     match operand {
         Operand::Immediate(value) if *value == U256::ZERO => 1,
         Operand::Immediate(value) => value.byte_len() + 1,
-        Operand::Block(_) | Operand::Symbol(_) => 3,
+        Operand::Block(_) => 3,
         Operand::Value(_) => 0,
     }
 }
@@ -130,7 +130,6 @@ fn terminal_operand_key(
             .unwrap_or(TerminalOperandKey::ExternalValue(*value)),
         Operand::Immediate(value) => TerminalOperandKey::Immediate(*value),
         Operand::Block(block) => TerminalOperandKey::Block(*block),
-        Operand::Symbol(symbol) => TerminalOperandKey::Symbol(*symbol),
     }
 }
 
@@ -221,5 +220,4 @@ enum TerminalOperandKey {
     ExternalValue(ValueId),
     Immediate(U256),
     Block(BlockId),
-    Symbol(solar_interface::Symbol),
 }

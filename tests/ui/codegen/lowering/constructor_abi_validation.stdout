@@ -1,0 +1,70 @@
+// === ROOT/tests/ui/codegen/lowering/constructor_abi_validation.sol:ConstructorAbiValidation ===
+@module ConstructorAbiValidation
+fn @flag() {
+  bb0 (entry):
+    mstore 128, 0
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 255
+    mstore 128, v1
+    returndata 128, 32
+}
+
+fn @second() {
+  bb0 (entry):
+    mstore 128, 0
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = shr 8, v0
+    v2 = and v1, 255
+    mstore 128, v2
+    returndata 128, 32
+}
+
+fn @_anonymous(arg0: bool, arg1: u256, arg2: u256) {
+  bb0 (entry):
+    v0 = mload 128
+    v1 = iszero v0
+    v2 = iszero v1
+    v3 = eq v0, v2
+    br v3, bb2, bb1
+  bb1:
+    revert 0, 0
+  bb2:
+    v4 = mload 64 !metadata(memory=scratch)
+    v5 = add v4, 64
+    mstore 64, v5 !metadata(memory=scratch)
+    v6 = mload 160
+    v7 = iszero v6
+    v8 = iszero v7
+    v9 = eq v6, v8
+    br v9, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    mstore v4, arg1
+    v10 = mload 192
+    v11 = iszero v10
+    v12 = iszero v11
+    v13 = eq v10, v12
+    br v13, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    v14 = add v4, 32
+    mstore v14, arg2
+    v15 = sload 0 !metadata(storage=slot(0))
+    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v17 = and arg0, 255
+    v18 = or v16, v17
+    sstore 0, v18 !metadata(storage=slot(0))
+    v19 = mul 1, 32
+    v20 = add v4, v19
+    v21 = mload v20
+    v22 = sload 0 !metadata(storage=slot(0))
+    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v24 = and v21, 255
+    v25 = shl 8, v24
+    v26 = or v23, v25
+    sstore 0, v26 !metadata(storage=slot(0))
+    stop
+}
+

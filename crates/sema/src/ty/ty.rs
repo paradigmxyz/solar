@@ -558,6 +558,11 @@ impl<'gcx> Ty<'gcx> {
         matches!(self.kind, TyKind::Elementary(ElementaryType::FixedBytes(_)))
     }
 
+    /// Returns `true` if the type is an address, including payable addresses.
+    pub fn is_address(self) -> bool {
+        matches!(self.kind, TyKind::Elementary(ElementaryType::Address(_)))
+    }
+
     /// Returns `true` if the type is an integer, including literals.
     pub fn is_integer(self) -> bool {
         matches!(
@@ -902,8 +907,8 @@ impl<'gcx> Ty<'gcx> {
             return Ok(());
         }
         match (self.kind, other.kind) {
-            // Enum <-> all integer types.
-            (Enum(_), _) if other.is_integer() => Ok(()),
+            // Enum -> unsigned integer types.
+            (Enum(_), Elementary(UInt(_))) => Ok(()),
             (_, Enum(_)) if self.is_integer() => Ok(()),
 
             // bytes/FixedBytes to FixedBytes: always allowed (any size).
@@ -917,17 +922,8 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
 
-            // A calldata `bytes` slice (`data[i:j]`) converts like `bytes`: to
-            // fixed-bytes, `bytes`, or `string`.
-            (Slice(underlying), other_kind)
-                if matches!(underlying.peel_refs().kind, Elementary(Bytes)) =>
-            {
-                match other_kind {
-                    Elementary(FixedBytes(_) | Bytes | String) => Ok(()),
-                    Ref(inner, _) if matches!(inner.kind, Elementary(Bytes | String)) => Ok(()),
-                    _ => Result::Err(TyConvertError::InvalidConversion),
-                }
-            }
+            // Array slices convert exactly like their underlying calldata array.
+            (Slice(underlying), _) => underlying.can_convert_explicit_to(other, gcx),
 
             (Ref(from_inner, _), _) if from_inner == other && other.is_reference_type() => Ok(()),
 
@@ -1077,11 +1073,9 @@ impl<'gcx> Ty<'gcx> {
             {
                 gcx.types.string.with_loc(gcx, loc)
             }
-            // A calldata `bytes` slice converted to `bytes`/`string` stays in
-            // calldata (it is a view), so the result is `bytes`/`string calldata`.
-            (Slice(_), Elementary(Bytes)) => gcx.types.bytes.with_loc(gcx, DataLocation::Calldata),
-            (Slice(_), Elementary(String)) => {
-                gcx.types.string.with_loc(gcx, DataLocation::Calldata)
+            // A calldata slice conversion remains a calldata view.
+            (Slice(underlying), _) if other.is_reference_type() => {
+                other.with_loc(gcx, underlying.loc().unwrap_or(DataLocation::Calldata))
             }
             _ => other,
         })
@@ -1104,13 +1098,38 @@ impl<'gcx> Ty<'gcx> {
                 let tys = tys.iter().map(|ty| ty.mobile(gcx)).collect::<Option<Vec<_>>>()?;
                 gcx.mk_ty_tuple(gcx.mk_tys(&tys))
             }
+            TyKind::Fn(f) => {
+                if f.attached
+                    || !matches!(
+                        f.kind,
+                        TyFnKind::Internal
+                            | TyFnKind::InternalWithSelector
+                            | TyFnKind::External
+                            | TyFnKind::DelegateCall
+                    )
+                {
+                    return None;
+                }
+                let kind = if f.kind == TyFnKind::InternalWithSelector {
+                    TyFnKind::Internal
+                } else {
+                    f.kind
+                };
+                gcx.mk_ty_fn(TyFn {
+                    kind,
+                    parameters: f.parameters,
+                    returns: f.returns,
+                    state_mutability: f.state_mutability,
+                    function_id: None,
+                    attached: false,
+                })
+            }
             TyKind::Error(..)
             | TyKind::Event(..)
             | TyKind::Module(..)
             | TyKind::BuiltinModule(..)
             | TyKind::Type(_)
             | TyKind::Meta(_) => return None,
-            // TODO: functions
             _ => self,
         })
     }
@@ -1258,6 +1277,8 @@ pub struct TyFn<'gcx> {
 pub enum TyFnKind {
     /// An ordinary internal function value.
     Internal,
+    /// A builtin or other special function that can only be called directly.
+    Builtin,
     /// An internal function value for a public function accessed through a qualified name.
     ///
     /// It is callable as an internal function, but also has a `.selector` member.
@@ -1337,11 +1358,8 @@ impl<'gcx> TyFn<'gcx> {
     pub fn has_selector(&self) -> bool {
         matches!(
             self.kind,
-            TyFnKind::InternalWithSelector
-                | TyFnKind::External
-                | TyFnKind::Declaration
-                | TyFnKind::DelegateCall
-        )
+            TyFnKind::InternalWithSelector | TyFnKind::External | TyFnKind::Declaration
+        ) || (self.kind == TyFnKind::DelegateCall && self.function_id.is_some())
     }
 
     /// Returns whether this function value has an `.address` member.
