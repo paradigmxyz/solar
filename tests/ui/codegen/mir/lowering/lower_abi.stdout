@@ -1,0 +1,15 @@
+// === ROOT/tests/ui/codegen/mir/lowering/lower_abi.mir (after lower-abi) ===
+@module LowerAbi
+@phase abi
+fn @add() {
+  bb0 (entry):
+    v0 = add arg0, arg1
+    mstore 128, v0
+    returndata 128, 32
+}
+
+fn @flag() {
+  bb0 (entry):
+    mstore 128, arg0
+    returndata 128, 32
+}

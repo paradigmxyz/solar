@@ -1,9 +1,0 @@
-// === ROOT/tests/ui/codegen/evm-ir/stack_entry_signature.evmir (after stack-schedule) ===
-@module module
-bb0 (entry):
-  %a = push 5
-  jump bb1
-bb1 (in %a):
-  dup1
-  %b = add
-  stop

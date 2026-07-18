@@ -1,7 +1,0 @@
-// === ROOT/tests/ui/codegen/evm-ir/stack_terminator_revert.evmir (after stack-schedule) ===
-@module module
-bb0 (entry):
-  %off = push 0
-  %size = push 4
-  swap1
-  revert %off, %size

@@ -1,0 +1,18 @@
+// === ROOT/tests/ui/codegen/mir/inline/inline_internal_call.mir (after inline) ===
+@module InlineInternalCall
+fn @caller(arg0: u256) -> u256 {
+  bb0 (entry):
+    jump bb2
+  bb1:
+    v2 = phi [bb2: v1]
+    ret v2
+  bb2:
+    v1 = add arg0, 1
+    jump bb1
+}
+
+fn @callee(arg0: u256) -> u256 {
+  bb0 (entry):
+    v0 = add arg0, 1
+    ret v0
+}

@@ -1,0 +1,18 @@
+// === ROOT/tests/ui/codegen/mir/licm/licm_wrap_add_descending.mir (after licm) ===
+@module LicmWrapAddDescending
+fn @wrap_add_descending() -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 64], [bb2: v4]
+    v1 = lt v0, 100
+    br v1, bb2, bb3
+  bb2:
+    v2 = mul v0, 32
+    mstore v2, 1
+    v3 = mload 0
+    v4 = add v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jump bb1
+  bb3:
+    ret v3
+}

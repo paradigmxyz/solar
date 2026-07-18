@@ -531,15 +531,22 @@ mod tests {
 
         let mut failures = Vec::new();
         let mut count = 0usize;
-        for entry in std::fs::read_dir(&dir).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().and_then(|s| s.to_str()) != Some("evmir") {
-                continue;
-            }
-            count += 1;
-            if let Err(err) = round_trip_fixture(&path) {
-                let name = path.file_name().unwrap().to_string_lossy();
-                failures.push(format!("{name}: {err}"));
+        let mut dirs = vec![dir.clone()];
+        while let Some(dir) = dirs.pop() {
+            for entry in std::fs::read_dir(dir).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    dirs.push(path);
+                    continue;
+                }
+                if path.extension().and_then(|s| s.to_str()) != Some("evmir") {
+                    continue;
+                }
+                count += 1;
+                if let Err(err) = round_trip_fixture(&path) {
+                    let name = path.file_name().unwrap().to_string_lossy();
+                    failures.push(format!("{name}: {err}"));
+                }
             }
         }
 

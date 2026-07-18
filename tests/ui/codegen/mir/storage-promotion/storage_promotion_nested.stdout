@@ -1,0 +1,81 @@
+// === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_nested.mir (after storage-promotion) ===
+@module StoragePromotionNested
+fn @promote_outer_after_inner_flush_split() {
+  bb0 (entry):
+    v4 = sload 0
+    mstore 192, v4
+    mstore 224, 0
+    jump bb6
+  bb1:
+    br 1, bb2, bb4
+  bb2:
+    mstore 128, 7
+    mstore 160, 1
+    jump bb3
+  bb3:
+    jump bb1
+  bb4:
+    v2 = mload 160
+    br v2, bb10, bb9
+  bb5:
+    v0 = mload 192
+    v1 = add v0, 1
+    mstore 192, v1
+    mstore 224, 1
+    jump bb6
+  bb6:
+    br 1, bb7, bb8
+  bb7:
+    mstore 160, 0
+    jump bb1
+  bb8:
+    v5 = mload 224
+    br v5, bb12, bb11
+  bb9:
+    jump bb5
+  bb10:
+    v3 = mload 128
+    mstore 192, v3
+    mstore 224, 1
+    jump bb9
+  bb11:
+    stop
+  bb12:
+    v6 = mload 192
+    sstore 0, v6
+    jump bb11
+}
+
+fn @reject_outer_when_inner_flush_may_alias(arg0: u256) {
+  bb0 (entry):
+    jump bb6
+  bb1:
+    br 1, bb2, bb4
+  bb2:
+    mstore 128, 7
+    mstore 160, 1
+    jump bb3
+  bb3:
+    jump bb1
+  bb4:
+    v2 = mload 160
+    br v2, bb10, bb9
+  bb5:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    sstore 0, v1 !metadata(storage=slot(0))
+    jump bb6
+  bb6:
+    br 1, bb7, bb8
+  bb7:
+    mstore 160, 0
+    jump bb1
+  bb8:
+    stop
+  bb9:
+    jump bb5
+  bb10:
+    v3 = mload 128
+    sstore arg0, v3
+    jump bb9
+}
