@@ -1,6 +1,7 @@
 use lsp_types::{
     CompletionItem, CompletionItemKind, DocumentSymbol, GotoDefinitionResponse, InlayHint,
     Location, OneOf, Position, Range, SymbolInformation, SymbolKind, Url, WorkspaceSymbol,
+    request::GotoTypeDefinitionResponse,
 };
 use solar_interface::{
     Span,
@@ -9,6 +10,7 @@ use solar_interface::{
         index::IndexVec,
         map::{FxHashMap, FxHashSet},
         newtype_index,
+        smallvec::SmallVec,
     },
 };
 use solar_sema::{
@@ -38,6 +40,7 @@ use crate::{
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SymbolTables {
     declarations: IndexVec<SymbolId, DeclarationSymbol>,
+    type_definitions: IndexVec<SymbolId, TypeDefinitionTargets>,
     files: FxHashMap<Url, Vec<SymbolId>>,
     workspace_symbol_ids: Vec<SymbolId>,
     symbols_by_key: FxHashMap<SymbolKey, SymbolId>,
@@ -64,6 +67,8 @@ newtype_index! {
     /// A lexical scope ID in the LSP symbol table.
     pub(crate) struct ScopeId;
 }
+
+type TypeDefinitionTargets = SmallVec<[SymbolId; 1]>;
 
 #[derive(Clone, Debug)]
 pub(crate) struct DeclarationSymbol {
@@ -203,6 +208,8 @@ impl SymbolTables {
                 item_id.parent(&gcx.hir).and_then(|parent| item_symbols.get(&parent).copied());
         }
 
+        tables.build_type_definitions(gcx, &item_symbols);
+
         // Public state-variable getters are compiler-generated functions, but source member calls
         // such as `this.value()` still name the state variable. Point getter resolutions back to
         // the source declaration so navigation and rename do not lose those references.
@@ -240,6 +247,8 @@ impl SymbolTables {
     }
 
     pub(crate) fn extend(&mut self, mut other: Self) {
+        debug_assert_eq!(self.declarations.len(), self.type_definitions.len());
+        debug_assert_eq!(other.declarations.len(), other.type_definitions.len());
         if self.global_completions.is_empty() {
             self.global_completions = std::mem::take(&mut other.global_completions);
         }
@@ -256,6 +265,11 @@ impl SymbolTables {
             declaration.id = remap_symbol_id(declaration.id, symbol_offset);
             declaration.parent =
                 declaration.parent.map(|parent| remap_symbol_id(parent, symbol_offset));
+        }
+        for targets in &mut other.type_definitions {
+            for target in targets {
+                *target = remap_symbol_id(*target, symbol_offset);
+            }
         }
         for scope in &mut other.scopes {
             scope.parent = scope.parent.map(|parent| remap_scope_id(parent, scope_offset));
@@ -275,6 +289,7 @@ impl SymbolTables {
             );
         }
         self.declarations.extend(other.declarations);
+        self.type_definitions.extend(other.type_definitions);
         self.scopes.extend(other.scopes);
         self.receiver_member_completions.extend(
             other
@@ -412,6 +427,27 @@ impl SymbolTables {
         Some(GotoDefinitionResponse::Array(locations))
     }
 
+    pub(crate) fn goto_type_definition(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<GotoTypeDefinitionResponse> {
+        let symbol_ids = self.symbol_ids_at_position(uri, position)?;
+        let mut locations = Vec::new();
+        for symbol_id in symbol_ids {
+            for &target in &self.type_definitions[symbol_id] {
+                let location = self.selection_location(target);
+                if !locations.contains(&location) {
+                    locations.push(location);
+                }
+            }
+        }
+        if locations.is_empty() {
+            return None;
+        }
+        Some(GotoTypeDefinitionResponse::Array(locations))
+    }
+
     pub(crate) fn references(
         &self,
         uri: &Url,
@@ -541,7 +577,9 @@ impl SymbolTables {
         self.files.entry(declaration.location.uri.clone()).or_default().push(id);
         self.symbols_by_key.insert(key, id);
         let pushed_id = self.declarations.push(declaration);
+        let type_definition_id = self.type_definitions.push(TypeDefinitionTargets::new());
         debug_assert_eq!(id, pushed_id);
+        debug_assert_eq!(id, type_definition_id);
         id
     }
 
@@ -550,7 +588,9 @@ impl SymbolTables {
         let id = declaration.id;
         self.files.entry(declaration.location.uri.clone()).or_default().push(id);
         let pushed_id = self.declarations.push(declaration);
+        let type_definition_id = self.type_definitions.push(TypeDefinitionTargets::new());
         debug_assert_eq!(id, pushed_id);
+        debug_assert_eq!(id, type_definition_id);
         id
     }
 
@@ -641,6 +681,44 @@ impl SymbolTables {
             }
             let _ = collector.visit_nested_source(source_id);
             collector.source = None;
+        }
+    }
+
+    fn build_type_definitions(&mut self, gcx: Gcx<'_>, item_symbols: &FxHashMap<ItemId, SymbolId>) {
+        for (&item_id, &symbol_id) in item_symbols {
+            let targets = match item_id {
+                ItemId::Contract(_) | ItemId::Struct(_) | ItemId::Enum(_) | ItemId::Udvt(_) => {
+                    TypeDefinitionTargets::from_iter([symbol_id])
+                }
+                ItemId::Function(function_id) => gcx
+                    .hir
+                    .function(function_id)
+                    .returns
+                    .iter()
+                    .filter_map(|&return_id| {
+                        Self::type_definition_symbol(&gcx.hir.variable(return_id).ty, item_symbols)
+                    })
+                    .collect(),
+                ItemId::Variable(variable_id) => TypeDefinitionTargets::from_iter(
+                    Self::type_definition_symbol(&gcx.hir.variable(variable_id).ty, item_symbols),
+                ),
+                ItemId::Error(_) | ItemId::Event(_) => TypeDefinitionTargets::new(),
+            };
+            self.type_definitions[symbol_id] = targets;
+        }
+    }
+
+    fn type_definition_symbol(
+        mut ty: &hir::Type<'_>,
+        item_symbols: &FxHashMap<ItemId, SymbolId>,
+    ) -> Option<SymbolId> {
+        loop {
+            match ty.kind {
+                TypeKind::Array(array) => ty = &array.element,
+                TypeKind::Mapping(mapping) => ty = &mapping.value,
+                TypeKind::Custom(item_id) => return item_symbols.get(&item_id).copied(),
+                TypeKind::Elementary(_) | TypeKind::Function(_) | TypeKind::Err(_) => return None,
+            }
         }
     }
 

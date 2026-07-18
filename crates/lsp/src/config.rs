@@ -7,7 +7,7 @@ use lsp_types::{
     CompletionOptions, DeclarationCapability, DocumentLinkOptions, InitializeParams, OneOf,
     RenameOptions, SaveOptions, ServerCapabilities, SignatureHelpOptions,
     TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-    TextDocumentSyncSaveOptions, WorkDoneProgressOptions,
+    TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WorkDoneProgressOptions,
 };
 use solar_interface::data_structures::map::FxHashSet;
 use std::{
@@ -249,6 +249,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             }),
             declaration_provider: Some(DeclarationCapability::Simple(true)),
             definition_provider: Some(OneOf::Left(true)),
+            type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(true)),
             document_formatting_provider: Some(OneOf::Left(true)),
             document_link_provider: Some(DocumentLinkOptions {
                 resolve_provider: Some(false),
@@ -299,7 +300,8 @@ mod tests {
         DidChangeWatchedFilesClientCapabilities, DocumentSymbolClientCapabilities, MarkupKind,
         OneOf, ParameterInformationSettings, RenameOptions, SignatureHelpClientCapabilities,
         SignatureInformationSettings, TextDocumentClientCapabilities, TextDocumentSyncCapability,
-        TextDocumentSyncSaveOptions, WorkspaceClientCapabilities, WorkspaceEditClientCapabilities,
+        TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WorkspaceClientCapabilities,
+        WorkspaceEditClientCapabilities,
     };
     #[test]
     fn negotiate_capabilities_records_watched_file_dynamic_registration_support() {
@@ -347,6 +349,10 @@ mod tests {
         assert_eq!(completion_provider.trigger_characters, Some(vec![".".to_string()]));
         assert_eq!(capabilities.declaration_provider, Some(DeclarationCapability::Simple(true)));
         assert_eq!(capabilities.definition_provider, Some(OneOf::Left(true)));
+        assert_eq!(
+            capabilities.type_definition_provider,
+            Some(TypeDefinitionProviderCapability::Simple(true))
+        );
         assert_eq!(capabilities.document_formatting_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.document_symbol_provider, Some(OneOf::Left(true)));
         let document_link_provider = capabilities.document_link_provider.unwrap();
