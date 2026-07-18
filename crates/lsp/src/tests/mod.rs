@@ -10,6 +10,7 @@ use std::{path::Path, time::Duration};
 
 mod completion;
 mod goto_definition;
+mod implementation;
 mod inlay_hint;
 mod references;
 mod rename;

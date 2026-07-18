@@ -23,6 +23,7 @@ mod formatter;
 mod global_state;
 mod handlers;
 mod inlay_hints;
+mod override_index;
 mod proto;
 mod rename;
 mod serde;
@@ -54,6 +55,7 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
         .request::<req::WorkspaceSymbolRequest, _>(handlers::workspace_symbol)
         .request::<req::GotoDefinition, _>(handlers::goto_definition)
         .request::<req::GotoDeclaration, _>(handlers::goto_declaration)
+        .request::<req::GotoImplementation, _>(handlers::goto_implementation)
         .request::<req::References, _>(handlers::references)
         .request::<req::PrepareRenameRequest, _>(handlers::prepare_rename)
         .request::<req::Rename, _>(handlers::rename)
@@ -176,6 +178,31 @@ mod tests {
         let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
             "id": 1,
             "method": request::SignatureHelpRequest::METHOD,
+            "params": params,
+        }))
+        .unwrap();
+
+        let response = router.call(request).await.unwrap();
+
+        assert_eq!(response, serde_json::Value::Null);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_goto_implementation_requests() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let params = request::GotoImplementationParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier {
+                    uri: lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
+                },
+                position: Position::new(0, 0),
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: lsp_types::PartialResultParams::default(),
+        };
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 1,
+            "method": request::GotoImplementation::METHOD,
             "params": params,
         }))
         .unwrap();
