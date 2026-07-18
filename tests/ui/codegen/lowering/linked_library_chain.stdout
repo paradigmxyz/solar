@@ -1,16 +1,16 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:DataTypes (runtime) ===
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Inner (runtime) ===
 @module runtime
-bb10 (entry):
+bb0 (entry):
   push 224
   push 64
   mstore
   callvalue
-  push bb7
+  push bb4
   jumpi
   calldatasize
   iszero
-  push bb7
+  push bb4
   jumpi
   push 0
   calldataload
@@ -19,7 +19,7 @@ bb10 (entry):
   dup1
   push 0xfaf4836c
   sub
-  push bb7
+  push bb4
   jumpi
   calldatasize
   push 4
@@ -28,7 +28,7 @@ bb10 (entry):
   push 64
   swap1
   slt
-  push bb7
+  push bb4
   jumpi
   push 4
   calldataload
@@ -73,11 +73,11 @@ bb10 (entry):
   push 32
   push 128
   return
-bb7:
+bb4 [cold]:
   push 0
   dup1
   revert
-bb9:
+bb9 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -91,16 +91,16 @@ bb9:
   revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Outer (runtime) ===
 @module runtime
-bb12 (entry):
+bb0 (entry):
   push 224
   push 64
   mstore
   callvalue
-  push bb7
+  push bb4
   jumpi
   calldatasize
   iszero
-  push bb7
+  push bb4
   jumpi
   push 0
   calldataload
@@ -109,7 +109,7 @@ bb12 (entry):
   dup1
   push 0x5e0b1cef
   sub
-  push bb7
+  push bb4
   jumpi
   calldatasize
   push 4
@@ -118,23 +118,23 @@ bb12 (entry):
   push 64
   swap1
   slt
-  push bb7
+  push bb4
   jumpi
   push 0
   push 128
   mstore
   push 36
   calldataload
-  push bb10
+  push bb9
   jumpi
   push 32
   push 128
   return
-bb7:
+bb4 [cold]:
   push 0
   dup1
   revert
-bb10:
+bb9:
   push 64
   mload
   dup1
@@ -187,7 +187,7 @@ bb10:
   push 32
   push 128
   return
-bb11:
+bb11 [cold]:
   returndatasize
   dup1
   push 192
@@ -201,16 +201,16 @@ bb11:
   revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:C (runtime) ===
 @module runtime
-bb10 (entry):
+bb0 (entry):
   push 224
   push 64
   mstore
   callvalue
-  push bb7
+  push bb4
   jumpi
   calldatasize
   iszero
-  push bb7
+  push bb4
   jumpi
   push 0
   calldataload
@@ -219,7 +219,7 @@ bb10 (entry):
   dup1
   push 0xb20e7344
   sub
-  push bb7
+  push bb4
   jumpi
   calldatasize
   push 4
@@ -228,7 +228,7 @@ bb10 (entry):
   push 32
   swap1
   slt
-  push bb7
+  push bb4
   jumpi
   push 0
   push 128
@@ -284,11 +284,11 @@ bb10 (entry):
   push 32
   push 128
   return
-bb7:
+bb4 [cold]:
   push 0
   dup1
   revert
-bb9:
+bb9 [cold]:
   returndatasize
   dup1
   push 192

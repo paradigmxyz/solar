@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/stack-too-deep/call_args.sol:StackTooDeepCall (creation) ===
 // === deployment ===
 @module deployment
-bb1 (entry):
-  push 0x446
+bb0 (entry):
+  push 0x41d
   dup1
   push 10
   push 0
@@ -12,16 +12,16 @@ bb1 (entry):
 
 // === runtime ===
 @module runtime
-bb12 (entry):
+bb0 (entry):
   push 0x560
   push 64
   mstore
   callvalue
-  push bb7
+  push bb4
   jumpi
   calldatasize
   iszero
-  push bb7
+  push bb4
   jumpi
   push 0
   calldataload
@@ -29,9 +29,27 @@ bb12 (entry):
   shr
   dup1
   push 0x2b096926
-  sub
-  push bb7
+  eq
+  push bb5
   jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  dup1
+  revert
+bb46 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+bb5:
   calldatasize
   push 4
   swap1
@@ -39,7 +57,7 @@ bb12 (entry):
   push 32
   swap1
   slt
-  push bb7
+  push bb4
   jumpi
   push 1
   push 4
@@ -52,7 +70,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 2
   push 4
@@ -65,7 +83,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 3
   push 4
@@ -78,7 +96,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 4
   push 4
@@ -91,7 +109,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 5
   push 4
@@ -104,7 +122,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 6
   push 4
@@ -117,7 +135,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 7
   push 4
@@ -130,7 +148,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 8
   push 4
@@ -143,7 +161,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 9
   push 4
@@ -156,7 +174,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 10
   push 4
@@ -169,7 +187,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 11
   push 4
@@ -182,7 +200,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 12
   push 4
@@ -195,7 +213,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 13
   push 4
@@ -208,7 +226,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 14
   push 4
@@ -221,7 +239,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 15
   push 4
@@ -234,7 +252,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 16
   push 4
@@ -247,7 +265,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 17
   push 4
@@ -260,7 +278,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 18
   push 4
@@ -273,7 +291,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 19
   push 4
@@ -286,7 +304,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 736
   mload
@@ -303,7 +321,7 @@ bb12 (entry):
   calldataload
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 768
   mload
@@ -323,7 +341,7 @@ bb12 (entry):
   mstore
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 800
   mload
@@ -343,7 +361,7 @@ bb12 (entry):
   mstore
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 832
   mload
@@ -363,7 +381,7 @@ bb12 (entry):
   mstore
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 864
   mload
@@ -383,7 +401,7 @@ bb12 (entry):
   mstore
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 896
   mload
@@ -403,7 +421,7 @@ bb12 (entry):
   mstore
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 928
   mload
@@ -423,7 +441,7 @@ bb12 (entry):
   mstore
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 960
   mload
@@ -443,7 +461,7 @@ bb12 (entry):
   mstore
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 992
   mload
@@ -463,7 +481,7 @@ bb12 (entry):
   mstore
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 0x400
   mload
@@ -483,7 +501,7 @@ bb12 (entry):
   mstore
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 0x420
   mload
@@ -503,7 +521,7 @@ bb12 (entry):
   mstore
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 0x440
   mload
@@ -523,7 +541,7 @@ bb12 (entry):
   mstore
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 0x460
   mload
@@ -543,7 +561,7 @@ bb12 (entry):
   mstore
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 0x480
   mload
@@ -563,7 +581,7 @@ bb12 (entry):
   mstore
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 0x4a0
   mload
@@ -583,7 +601,7 @@ bb12 (entry):
   mstore
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 0x4c0
   mload
@@ -603,7 +621,7 @@ bb12 (entry):
   mstore
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 0x4e0
   mload
@@ -623,7 +641,7 @@ bb12 (entry):
   mstore
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 0x500
   mload
@@ -643,7 +661,7 @@ bb12 (entry):
   mstore
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 0x520
   mload
@@ -663,7 +681,7 @@ bb12 (entry):
   mstore
   swap1
   lt
-  push bb11
+  push bb46
   jumpi
   push 0x540
   mload
@@ -675,19 +693,3 @@ bb12 (entry):
   push 32
   push 128
   return
-bb7:
-  push 0
-  dup1
-  revert
-bb11:
-  push 0x4e487b71
-  push 224
-  shl
-  push 0
-  mstore
-  push 17
-  push 4
-  mstore
-  push 36
-  push 0
-  revert

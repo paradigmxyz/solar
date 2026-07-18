@@ -2,3 +2,7 @@ time: <TIME>	MIR TimePasses lower-mapping-slots changed=false
 time: <TIME>	MIR TimePasses lower-abi changed=true
 time: <TIME>	MIR TimePasses lower-dispatch changed=true
 time: <TIME>	MIR TimePasses lower-evm-shaped changed=false
+time: <TIME>	EVM IR asm terminal-dedup changed=false
+time: <TIME>	EVM IR asm cfg-simplify changed=true
+time: <TIME>	EVM IR asm terminal-dedup changed=false
+time: <TIME>	EVM IR asm cfg-simplify changed=false

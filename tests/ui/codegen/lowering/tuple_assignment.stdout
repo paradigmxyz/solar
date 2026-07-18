@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/tuple_assignment.sol:C (runtime) ===
 @module runtime
-bb28 (entry):
+bb0 (entry):
   push 512
   push 64
   mstore
   callvalue
-  push bb10
+  push bb6
   jumpi
   calldatasize
   iszero
-  push bb10
+  push bb6
   jumpi
   push 0
   calldataload
@@ -18,24 +18,24 @@ bb28 (entry):
   dup1
   push 0x1b8f5d50
   eq
-  push bb7
+  push bb17
   jumpi
   dup1
   push 0x5030da75
   eq
-  push bb8
+  push bb7
   jumpi
   dup1
   push 0xd96073cf
   eq
-  push bb9
+  push bb14
   jumpi
-  jump bb10
-bb10:
+  jump bb6
+bb6 [cold]:
   push 0
   dup1
   revert
-bb16:
+bb13 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -48,27 +48,6 @@ bb16:
   push 0
   revert
 bb7:
-  push 64
-  mload
-  push 32
-  swap1
-  add
-  push 9
-  dup2
-  mstore
-  pop
-  push 7
-  push 128
-  mstore
-  push 9
-  jump bb27
-bb27:
-  push 160
-  mstore
-  push 64
-  push 128
-  return
-bb8:
   calldatasize
   push 4
   swap1
@@ -76,7 +55,7 @@ bb8:
   push 64
   swap1
   slt
-  push bb10
+  push bb6
   jumpi
   push 4
   calldataload
@@ -87,7 +66,7 @@ bb8:
   dup2
   and
   sub
-  push bb10
+  push bb6
   jumpi
   push 0
   push 128
@@ -114,7 +93,7 @@ bb8:
   lt
   swap1
   pop
-  push bb16
+  push bb13
   jumpi
   push 31
   not
@@ -158,7 +137,7 @@ bb8:
   lt
   swap1
   pop
-  push bb16
+  push bb13
   jumpi
   push 64
   mload
@@ -233,7 +212,7 @@ bb8:
   push 32
   push 128
   return
-bb9:
+bb14:
   calldatasize
   push 4
   swap1
@@ -241,7 +220,7 @@ bb9:
   push 64
   swap1
   slt
-  push bb10
+  push bb6
   jumpi
   push 36
   calldataload
@@ -249,4 +228,25 @@ bb9:
   mstore
   push 4
   calldataload
-  jump bb27
+  jump bb18
+bb18:
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+bb17:
+  push 64
+  mload
+  push 32
+  swap1
+  add
+  push 9
+  dup2
+  mstore
+  pop
+  push 7
+  push 128
+  mstore
+  push 9
+  jump bb18

@@ -1,0 +1,15 @@
+//@compile-flags: --pass cfg-simplify
+@module module
+
+bb0 (entry):
+  push bb3
+  jump bb1
+bb1:
+  jump bb2
+bb2:
+  push 1
+  jump bb4
+bb3:
+  stop
+bb4:
+  stop

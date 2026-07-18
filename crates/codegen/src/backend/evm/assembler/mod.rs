@@ -1,9 +1,10 @@
 //! Primitive EVM relocation and byte encoding.
 //!
 //! The assembler handles:
-//! - Label definition and reference tracking
-//! - Deferred immediate resolution
-//! - Variable-width PUSH sizing based on offset magnitudes
+//! - Deferred immediate and immutable materialization.
+//! - Label relocation.
+//! - Exact PUSH-width relaxation to a least fixed point.
+//! - Byte emission.
 
 use crate::{
     backend::evm::ir::{self, assembly},
@@ -55,7 +56,7 @@ pub struct AssembledCode {
     pub evm_ir: Option<ir::Module>,
 }
 
-/// Optimized EVM IR lowered to reusable assembly before deferred constants are resolved.
+/// Final EVM IR lowered to reusable primitive assembly.
 #[derive(Clone, Debug, Default)]
 pub(in crate::backend::evm) struct PreparedAssembly {
     program: AssemblyProgram,
@@ -325,13 +326,13 @@ impl Assembler {
 
         Self::resolve_known_deferred_constants(&mut ir_program, &self.deferred_values);
 
+        let pass_options = ir::PassOptions {
+            time_passes: self.config.time_passes,
+            evm_version: self.config.evm_version,
+            optimization: self.config.optimization,
+        };
         if self.config.optimization != OptimizationMode::None {
             let input_is_valid = cfg!(debug_assertions) && is_valid_evm_ir(&ir_program);
-            let pass_options = ir::PassOptions {
-                time_passes: self.config.time_passes,
-                evm_version: self.config.evm_version,
-                optimization: self.config.optimization,
-            };
             if self.config.evm_ir_stack_schedule {
                 let mut scheduled = ir_program.clone();
                 if ir::run_pass(&mut scheduled, &ir::STACK_SCHEDULE_PASS, pass_options)
@@ -345,19 +346,14 @@ impl Assembler {
                 ir::run_pass(&mut ir_program, pass, pass_options);
             }
             debug_assert!(!input_is_valid || is_valid_evm_ir(&ir_program));
+        } else {
+            for pass in ir::FINALIZE_PIPELINE {
+                ir::run_pass(&mut ir_program, pass, pass_options);
+            }
         }
 
-        let mut program = assembly::lower_evm_ir(&ir_program, &mut labels, self);
-        let pass_options = ir::PassOptions {
-            time_passes: self.config.time_passes,
-            evm_version: self.config.evm_version,
-            optimization: self.config.optimization,
-        };
-        assembly::optimize(&mut program, pass_options, &self.push_values, &mut self.next_label);
-        let evm_ir = self
-            .config
-            .capture_evm_ir
-            .then(|| assembly::raise_evm_ir(&program, &self.push_values, ir_program.name));
+        let evm_ir = self.config.capture_evm_ir.then(|| ir_program.clone());
+        let program = assembly::lower_evm_ir(&ir_program, &mut labels, self);
         PreparedAssembly {
             evm_ir,
             program,
@@ -1120,40 +1116,6 @@ PUSH0
 REVERT
 
 "#]]
-        );
-    }
-
-    #[test]
-    fn terminal_span_dedup_converts_fallthrough_copy() {
-        let mut asm = size_optimized_assembler();
-        let representative = asm.new_label();
-        let duplicate = asm.new_label();
-        let body = [
-            AsmInst::push_inline(0x1234).unwrap(),
-            AsmInst::push_inline(0).unwrap(),
-            AsmInst::op(op::MSTORE),
-            AsmInst::push_inline(17).unwrap(),
-            AsmInst::push_inline(4).unwrap(),
-            AsmInst::op(op::MSTORE),
-            AsmInst::push_inline(36).unwrap(),
-            AsmInst::push_inline(0).unwrap(),
-            AsmInst::op(op::REVERT),
-        ];
-        let mut instructions = vec![AsmInst::label(representative)];
-        instructions.extend(body);
-        instructions.push(AsmInst::push_inline(1).unwrap());
-        instructions.push(AsmInst::label(duplicate));
-        instructions.extend(body);
-
-        assembly::dedup_terminal_spans(&mut instructions);
-
-        assert_eq!(
-            &instructions[instructions.len() - 3..],
-            &[
-                AsmInst::label(duplicate),
-                AsmInst::push_label(representative),
-                AsmInst::op(op::JUMP),
-            ]
         );
     }
 

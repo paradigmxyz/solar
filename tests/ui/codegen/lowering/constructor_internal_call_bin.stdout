@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_internal_call_bin.sol:ConstructorInternalCallBin (creation) ===
 // === deployment ===
 @module deployment
-bb16 (entry):
+bb0 (entry):
   push 0x4000
   push 64
   mstore
@@ -36,9 +36,9 @@ bb16 (entry):
   push 64
   mstore
   pop
-  push bb14
-  jump bb0
-bb0:
+  push bb9
+  jump bb1
+bb1:
   push 160
   mload
   push 128
@@ -52,18 +52,18 @@ bb0:
   push 64
   add
   mload
-  push bb4
+  push bb3
   jumpi
   push 1
-  jump bb15
-bb15:
+  jump bb10
+bb10:
   push 160
   mload
   push 96
   add
   mstore
   jump
-bb5:
+bb7 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -75,7 +75,7 @@ bb5:
   push 36
   push 0
   revert
-bb4:
+bb3:
   push 11
   push 160
   mload
@@ -108,7 +108,7 @@ bb4:
   swap1
   pop
   iszero
-  push bb5
+  push bb7
   jumpi
   push 1
   push 160
@@ -138,9 +138,9 @@ bb4:
   push 64
   mstore
   pop
-  push bb11
-  jump bb0
-bb11:
+  push bb5
+  jump bb1
+bb5:
   push 160
   mload
   push 96
@@ -206,15 +206,15 @@ bb11:
   mstore
   swap1
   lt
-  push bb5
+  push bb7
   jumpi
   push 160
   mload
   push 224
   add
   mload
-  jump bb15
-bb14:
+  jump bb10
+bb9:
   push 160
   mload
   push 96
@@ -249,16 +249,16 @@ bb14:
 
 // === runtime ===
 @module runtime
-bb8 (entry):
+bb0 (entry):
   push 160
   push 64
   mstore
   callvalue
-  push bb7
+  push bb4
   jumpi
   calldatasize
   iszero
-  push bb7
+  push bb4
   jumpi
   push 0
   calldataload
@@ -267,7 +267,7 @@ bb8 (entry):
   dup1
   push 0x3fa4f245
   sub
-  push bb7
+  push bb4
   jumpi
   push 0
   sload
@@ -276,7 +276,7 @@ bb8 (entry):
   push 32
   push 128
   return
-bb7:
+bb4 [cold]:
   push 0
   dup1
   revert

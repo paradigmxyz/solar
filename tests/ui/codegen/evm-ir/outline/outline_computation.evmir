@@ -1,0 +1,55 @@
+//@compile-flags: --pass outline
+@module module
+
+bb0 (entry):
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  jump bb1
+bb1:
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  stop

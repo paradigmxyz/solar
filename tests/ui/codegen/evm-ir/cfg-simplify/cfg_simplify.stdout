@@ -1,0 +1,8 @@
+// === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/cfg_simplify.evmir (after cfg-simplify) ===
+@module module
+bb0 (entry):
+  push bb3
+  push 1
+  stop
+bb3:
+  stop

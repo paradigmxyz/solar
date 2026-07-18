@@ -4,11 +4,11 @@
 //! MIR lowering and final EVM assembly. EVM IR is intentionally untyped: values
 //! are EVM stack words, not Solidity or MIR values with a [`crate::mir::MirType`].
 //! It models backend basic blocks, opcode-like instructions, explicit physical
-//! stack operations, terminators, and metadata. After block layout, it lowers
-//! to a compact layout-linear EVM IR for adjacency- and size-sensitive final
-//! transforms; that form is also the assembler's direct input. The
-//! parser/printer at the bottom of the file provide a text format for tests and
-//! debugging; the IR itself is not defined by that serialization.
+//! stack operations, terminators, and metadata. All backend optimization and
+//! layout decisions remain here. After block layout, it lowers once to the
+//! assembler's primitive label-bearing encoding stream. The parser/printer at
+//! the bottom of the file provide a text format for tests and debugging; the IR
+//! itself is not defined by that serialization.
 
 use alloy_primitives::U256;
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
@@ -23,8 +23,9 @@ mod verify;
 pub(in crate::backend::evm) mod assembly;
 
 pub use passes::{
-    BLOCK_LAYOUT_PASS, COMPACT_PUSHES_PASS, DEFAULT_PIPELINE, PASS_REGISTRY, PEEPHOLE_PASS,
-    PassInfo, PassOptions, STACK_SCHEDULE_PASS, TERMINAL_DEDUP_PASS, lookup_pass, run_pass,
+    BLOCK_LAYOUT_PASS, CFG_SIMPLIFY_PASS, COMPACT_PUSHES_PASS, DEFAULT_PIPELINE, FINALIZE_PIPELINE,
+    OUTLINE_PASS, PASS_REGISTRY, PEEPHOLE_PASS, PassInfo, PassOptions, SHARE_REVERTS_PASS,
+    STACK_SCHEDULE_PASS, TAIL_MERGE_PASS, TERMINAL_DEDUP_PASS, lookup_pass, run_pass,
 };
 
 /// Validates the invariants of an EVM IR module.

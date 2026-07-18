@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:L (runtime) ===
 @module runtime
-bb32 (entry):
+bb0 (entry):
   push 896
   push 64
   mstore
   callvalue
-  push bb7
+  push bb4
   jumpi
   calldatasize
   iszero
-  push bb7
+  push bb4
   jumpi
   push 0
   calldataload
@@ -17,9 +17,29 @@ bb32 (entry):
   shr
   dup1
   push 0xfa06cb96
-  sub
-  push bb7
+  eq
+  push bb5
   jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  dup1
+  revert
+bb20 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  jump bb21
+bb21 [cold]:
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+bb5:
   calldatasize
   push 4
   swap1
@@ -27,7 +47,7 @@ bb32 (entry):
   push 64
   swap1
   slt
-  push bb7
+  push bb4
   jumpi
   push 64
   mload
@@ -156,7 +176,7 @@ bb32 (entry):
   swap1
   pop
   iszero
-  push bb7
+  push bb4
   jumpi
   push 96
   push 320
@@ -185,8 +205,8 @@ bb32 (entry):
   mstore
   pop
   push 0
-  jump bb11
-bb11:
+  jump bb9
+bb9:
   push 288
   mload
   dup1
@@ -196,7 +216,7 @@ bb11:
   mload
   swap1
   lt
-  push bb14
+  push bb13
   jumpi
   push 416
   mload
@@ -230,7 +250,7 @@ bb11:
   pop
   pop
   iszero
-  push bb18
+  push bb20
   jumpi
   push 160
   mload
@@ -259,7 +279,7 @@ bb11:
   swap2
   pop
   pop
-  push bb18
+  push bb20
   jumpi
   push 256
   mload
@@ -301,7 +321,7 @@ bb11:
   push 32
   push 128
   return
-bb14:
+bb13:
   push 288
   mload
   dup1
@@ -330,7 +350,7 @@ bb14:
   mload
   lt
   iszero
-  push bb16
+  push bb19
   jumpi
   push 32
   dup3
@@ -370,7 +390,7 @@ bb14:
   pop
   swap1
   pop
-  push bb18
+  push bb20
   jumpi
   push 224
   mload
@@ -407,7 +427,7 @@ bb14:
   swap1
   pop
   iszero
-  push bb18
+  push bb20
   jumpi
   push 160
   mload
@@ -436,7 +456,7 @@ bb14:
   swap2
   pop
   pop
-  push bb18
+  push bb20
   jumpi
   push 512
   mload
@@ -468,7 +488,7 @@ bb14:
   swap2
   pop
   pop
-  push bb18
+  push bb20
   jumpi
   push 384
   mload
@@ -479,12 +499,8 @@ bb14:
   mstore
   push 384
   mload
-  jump bb11
-bb7:
-  push 0
-  dup1
-  revert
-bb16:
+  jump bb9
+bb19 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -493,33 +509,19 @@ bb16:
   pop
   pop
   push 50
-  jump bb31
-bb31:
-  push 4
-  mstore
-  push 36
-  push 0
-  revert
-bb18:
-  push 0x4e487b71
-  push 224
-  shl
-  push 0
-  mstore
-  push 17
-  jump bb31
+  jump bb21
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:C (runtime) ===
 @module runtime
-bb27 (entry):
+bb0 (entry):
   push 544
   push 64
   mstore
   callvalue
-  push bb7
+  push bb5
   jumpi
   calldatasize
   iszero
-  push bb7
+  push bb5
   jumpi
   push 0
   calldataload
@@ -528,19 +530,19 @@ bb27 (entry):
   dup1
   push 0x2220ae27
   eq
-  push bb5
+  push bb10
   jumpi
   dup1
   push 0x776f3843
   eq
   push bb6
   jumpi
-  jump bb7
-bb7:
+  jump bb5
+bb5 [cold]:
   push 0
   dup1
   revert
-bb18:
+bb18 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -552,7 +554,46 @@ bb18:
   push 36
   push 0
   revert
-bb5:
+bb6:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  push bb5
+  jumpi
+  push 4
+  calldataload
+  push 0
+  not
+  push 96
+  shr
+  dup2
+  and
+  sub
+  push bb5
+  jumpi
+  push 4
+  calldataload
+  push 0
+  mstore
+  push 0
+  push 32
+  mstore
+  push 64
+  push 0
+  keccak256
+  sload
+  jump bb20
+bb20:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb10:
   calldatasize
   push 4
   swap1
@@ -560,7 +601,7 @@ bb5:
   push 128
   swap1
   slt
-  push bb7
+  push bb5
   jumpi
   push 100
   calldataload
@@ -571,7 +612,7 @@ bb5:
   dup2
   and
   sub
-  push bb7
+  push bb5
   jumpi
   push 0
   push 128
@@ -960,51 +1001,12 @@ bb5:
   swap1
   pop
   iszero
-  push bb24
+  push bb19
   jumpi
   push 0
   mload
-  jump bb26
-bb26:
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb6:
-  calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  swap1
-  slt
-  push bb7
-  jumpi
-  push 4
-  calldataload
-  push 0
-  not
-  push 96
-  shr
-  dup2
-  and
-  sub
-  push bb7
-  jumpi
-  push 4
-  calldataload
-  push 0
-  mstore
-  push 0
-  push 32
-  mstore
-  push 64
-  push 0
-  keccak256
-  sload
-  jump bb26
-bb24:
+  jump bb20
+bb19 [cold]:
   returndatasize
   dup1
   push 512

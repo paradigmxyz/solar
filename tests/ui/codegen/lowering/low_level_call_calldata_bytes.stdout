@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_call_calldata_bytes.sol:C (runtime) ===
 @module runtime
-bb38 (entry):
+bb0 (entry):
   push 352
   push 64
   mstore
   callvalue
-  push bb8
+  push bb5
   jumpi
   calldatasize
   iszero
-  push bb8
+  push bb5
   jumpi
   push 0
   calldataload
@@ -18,39 +18,30 @@ bb38 (entry):
   dup1
   push 0x6a57f6c7
   eq
-  push bb6
+  push bb13
   jumpi
   dup1
   push 0x6b995abd
   eq
-  push bb7
+  push bb6
   jumpi
-  jump bb8
-bb8:
+  jump bb5
+bb5 [cold]:
   push 0
   dup1
   revert
-bb31:
-  push 64
-  mload
-  push 256
-  mload
-  dup1
-  push 256
+bb20:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
   mstore
-  dup2
-  add
-  push 64
+  push 65
+  push 4
   mstore
-  push 192
-  mload
-  dup1
-  push 192
-  mstore
-  dup2
-  mstore
-  swap1
-  jump
+  push 36
+  push 0
+  revert
 bb6:
   calldatasize
   push 4
@@ -59,7 +50,7 @@ bb6:
   push 64
   swap1
   slt
-  push bb8
+  push bb5
   jumpi
   push 4
   calldataload
@@ -70,78 +61,39 @@ bb6:
   dup2
   and
   sub
-  push bb8
+  push bb5
   jumpi
-  push bb32
-  jump bb30
-bb32:
-  push bb2
-  jumpi
-  push bb33
-  jump bb29
-bb33:
-  push bb2
-  jumpi
-  push bb34
-  jump bb31
-bb34:
-  push 32
-  dup2
-  add
-  push 32
-  push 224
-  mload
-  sub
-  dup2
-  add
+  push bb27
+  jump bb23
+bb23:
   push 0
-  dup2
+  push 128
   mstore
-  pop
-  push 36
+  push 4
   push 36
   calldataload
   add
-  push 192
-  mload
+  calldataload
   dup1
   push 192
   mstore
+  push 31
   dup2
-  dup4
-  calldatacopy
-  pop
-  dup2
-  mload
-  swap2
-  pop
-  gas
-  push 0
-  push 0
-  push 64
-  mload
-  mload
-  push 64
-  mload
-  push 32
   add
-  push 4
-  calldataload
-  gas
-  delegatecall
-  jump bb28
-bb28:
-  swap2
-  pop
-  pop
+  dup1
+  push 288
+  mstore
+  dup2
+  dup1
+  push 192
+  mstore
+  swap1
+  lt
   swap1
   pop
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb7:
+  swap1
+  jump
+bb13:
   calldatasize
   push 4
   swap1
@@ -149,7 +101,7 @@ bb7:
   push 64
   swap1
   slt
-  push bb8
+  push bb5
   jumpi
   push 4
   calldataload
@@ -160,21 +112,11 @@ bb7:
   dup2
   and
   sub
-  push bb8
+  push bb5
   jumpi
-  push bb35
-  jump bb30
-bb35:
-  push bb14
-  jumpi
-  push bb36
-  jump bb29
-bb36:
-  push bb14
-  jumpi
-  push bb37
-  jump bb31
-bb37:
+  push bb30
+  jump bb23
+bb25:
   push 32
   dup2
   add
@@ -220,22 +162,50 @@ bb37:
   calldataload
   gas
   call
-  jump bb28
-bb14:
-  jump bb2
-bb2:
-  push 0x4e487b71
-  push 224
-  shl
-  push 0
+  jump bb21
+bb21:
+  swap2
+  pop
+  pop
+  swap1
+  pop
+  push 128
   mstore
-  push 65
-  push 4
+  push 32
+  push 128
+  return
+bb26:
+  push bb20
+  jumpi
+  push bb25
+  jump bb24
+bb24:
+  push 64
+  mload
+  push 256
+  mload
+  dup1
+  push 256
   mstore
-  push 36
-  push 0
-  revert
-bb29:
+  dup2
+  add
+  push 64
+  mstore
+  push 192
+  mload
+  dup1
+  push 192
+  mstore
+  dup2
+  mstore
+  swap1
+  jump
+bb27:
+  push bb20
+  jumpi
+  push bb26
+  jump bb22
+bb22:
   push 31
   not
   push 288
@@ -280,31 +250,59 @@ bb29:
   pop
   swap1
   jump
-bb30:
+bb28:
+  push 32
+  dup2
+  add
+  push 32
+  push 224
+  mload
+  sub
+  dup2
+  add
   push 0
-  push 128
+  dup2
   mstore
-  push 4
+  pop
+  push 36
   push 36
   calldataload
   add
-  calldataload
+  push 192
+  mload
   dup1
   push 192
   mstore
-  push 31
   dup2
-  add
-  dup1
-  push 288
-  mstore
-  dup2
-  dup1
-  push 192
-  mstore
-  swap1
-  lt
-  swap1
+  dup4
+  calldatacopy
   pop
-  swap1
-  jump
+  dup2
+  mload
+  swap2
+  pop
+  gas
+  push 0
+  push 0
+  push 64
+  mload
+  mload
+  push 64
+  mload
+  push 32
+  add
+  push 4
+  calldataload
+  gas
+  delegatecall
+  jump bb21
+bb29:
+  push bb20
+  jumpi
+  push bb28
+  jump bb24
+bb30:
+  push bb20
+  jumpi
+  push bb29
+  jump bb22

@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/public_library_call.sol:Lib (runtime) ===
 @module runtime
-bb12 (entry):
+bb0 (entry):
   push 352
   push 64
   mstore
   callvalue
-  push bb7
+  push bb4
   jumpi
   calldatasize
   iszero
-  push bb7
+  push bb4
   jumpi
   push 0
   calldataload
@@ -17,9 +17,27 @@ bb12 (entry):
   shr
   dup1
   push 0xed2f0bb8
-  sub
-  push bb7
+  eq
+  push bb5
   jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  dup1
+  revert
+bb11 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+bb5:
   calldatasize
   push 4
   swap1
@@ -27,7 +45,7 @@ bb12 (entry):
   push 96
   swap1
   slt
-  push bb7
+  push bb4
   jumpi
   push 36
   calldataload
@@ -38,7 +56,7 @@ bb12 (entry):
   dup2
   and
   sub
-  push bb7
+  push bb4
   jumpi
   push 36
   calldataload
@@ -128,11 +146,34 @@ bb12 (entry):
   push 32
   push 128
   return
-bb7:
+// === ROOT/tests/ui/codegen/lowering/public_library_call.sol:C (runtime) ===
+@module runtime
+bb0 (entry):
+  push 672
+  push 64
+  mstore
+  callvalue
+  push bb4
+  jumpi
+  calldatasize
+  iszero
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x3dd41ca6
+  eq
+  push bb5
+  jumpi
+  jump bb4
+bb4 [cold]:
   push 0
   dup1
   revert
-bb11:
+bb13 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -144,28 +185,7 @@ bb11:
   push 36
   push 0
   revert
-// === ROOT/tests/ui/codegen/lowering/public_library_call.sol:C (runtime) ===
-@module runtime
-bb15 (entry):
-  push 672
-  push 64
-  mstore
-  callvalue
-  push bb8
-  jumpi
-  calldatasize
-  iszero
-  push bb8
-  jumpi
-  push 0
-  calldataload
-  push 224
-  shr
-  dup1
-  push 0x3dd41ca6
-  sub
-  push bb8
-  jumpi
+bb5:
   calldatasize
   push 4
   swap1
@@ -173,7 +193,7 @@ bb15 (entry):
   push 64
   swap1
   slt
-  push bb8
+  push bb4
   jumpi
   push 4
   calldataload
@@ -184,7 +204,7 @@ bb15 (entry):
   dup2
   and
   sub
-  push bb8
+  push bb4
   jumpi
   push 0
   push 128
@@ -200,7 +220,7 @@ bb15 (entry):
   calldataload
   push 384
   mstore
-  push bb12
+  push bb8
   push 352
   mload
   push 0
@@ -238,7 +258,7 @@ bb15 (entry):
   swap2
   pop
   pop
-  push bb14
+  push bb13
   jumpi
   push 512
   mload
@@ -277,7 +297,7 @@ bb15 (entry):
   swap2
   pop
   pop
-  push bb14
+  push bb13
   jumpi
   push 608
   mload
@@ -285,22 +305,6 @@ bb15 (entry):
   mstore
   jump
 bb8:
-  push 0
-  dup1
-  revert
-bb14:
-  push 0x4e487b71
-  push 224
-  shl
-  push 0
-  mstore
-  push 17
-  push 4
-  mstore
-  push 36
-  push 0
-  revert
-bb12:
   push 416
   mload
   dup1

@@ -48,11 +48,22 @@ Pipeline: Lexing -> Parsing -> Semantic Analysis -> MIR -> EVM backend -> byteco
   EVM stack words, not Solidity or MIR typed values. It models asm-like basic
   blocks with opcode-like instructions, explicit physical stack operations
   (`dupN`, `swapN`, `pop`), and explicit terminators such as jumps, returns,
-  reverts, and stops. Use it for target-specific block layout, cold/revert-path
-  handling, backend peepholes, stack scheduling, and final assembly preparation.
+  reverts, and stops. Use it for target-specific CFG simplification, terminal
+  block deduplication and tail merging, cold/revert-path handling, backend
+  peepholes, computation and constant outlining, stack scheduling, block
+  layout, and address-sensitive code placement.
 - Stack scheduling belongs at EVM IR: materialize virtual stack-word operands
   into `dupN`/`swapN`/`pop` there, then run backend passes over the scheduled
   machine-like form before final assembly.
+- Keep the assembler primitive. Lower block EVM IR once into a compact stream
+  containing only opcodes, label definitions/references, deferred pushes, and
+  immutable placeholders. The assembler resolves deferred values, computes the
+  least fixed point of label offsets and PUSH widths, and emits bytes. PUSH
+  widths cannot generally be selected in one forward pass because widening one
+  forward reference can move a later target across another width boundary.
+- Do not add CFG cleanup, peepholes, deduplication, outlining, layout, or other
+  optimization logic to the compact assembly stream. Add those transforms to
+  block EVM IR, where control-flow edges and block identity remain explicit.
 - Keep the layers separate: MIR should not grow EVM stack-layout details, and
   EVM IR should not rediscover high-level Solidity typing or call semantics.
 

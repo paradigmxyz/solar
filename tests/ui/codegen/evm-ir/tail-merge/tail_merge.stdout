@@ -1,0 +1,19 @@
+// === ROOT/tests/ui/codegen/evm-ir/tail-merge/tail_merge.evmir (after tail-merge) ===
+@module module
+bb0 (entry):
+  push 1
+  push bb1
+  jumpi
+  jump bb2
+bb1 [cold]:
+  push 11
+  jump bb3
+bb2 [cold]:
+  push 99
+  jump bb3
+bb3 [cold]:
+  push 22
+  push 33
+  push 44
+  push 55
+  revert

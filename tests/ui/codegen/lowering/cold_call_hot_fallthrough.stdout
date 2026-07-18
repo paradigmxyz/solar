@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/cold_call_hot_fallthrough.sol:ColdCallHotFallthrough (runtime) ===
 @module runtime
-bb31 (entry):
+bb0 (entry):
   push 448
   push 64
   mstore
   callvalue
-  push bb4
+  push bb26
   jumpi
   calldatasize
   iszero
-  push bb4
+  push bb26
   jumpi
   push 0
   calldataload
@@ -18,27 +18,27 @@ bb31 (entry):
   dup1
   push 0x161e4029
   eq
-  push bb0
+  push bb2
   jumpi
   dup1
   push 0x4b692dff
   eq
-  push bb3
+  push bb8
   jumpi
   push 0
   push 0
   revert
-bb25:
+bb16:
   invalid
-bb7:
+bb26 [cold]:
+  push 0
+  push 0
+  revert
+bb5 [cold]:
   push 0
   dup1
   revert
-bb4:
-  push 0
-  push 0
-  revert
-bb0:
+bb2:
   calldatasize
   push 4
   swap1
@@ -46,7 +46,7 @@ bb0:
   push 32
   swap1
   slt
-  push bb7
+  push bb5
   jumpi
   push 0
   push 128
@@ -54,10 +54,12 @@ bb0:
   push 4
   calldataload
   iszero
-  push bb9
+  jump bb29
+bb29:
+  push bb27
   jumpi
-  jump bb10
-bb10:
+  jump bb4
+bb4:
   push 4
   calldataload
   push 128
@@ -65,25 +67,40 @@ bb10:
   push 32
   push 128
   return
-bb9:
-  push bb10
+bb8:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  push bb5
+  jumpi
+  push 0
+  push 128
+  mstore
+  push 100
   push 4
   calldataload
-  jump bb1
-bb1:
-  push 288
-  mstore
+  lt
+  jump bb29
+bb17 [cold]:
+  push 1
   push 288
   mload
+  sub
   push bb20
   jumpi
-  push bb25
-  push 4
-  push 0x7a65726f
-  push 224
+  push bb16
+  push 3
+  push 0x6f6e65
+  jump bb28
+bb28 [cold]:
+  push 232
   shl
-  jump bb2
-bb2:
+  jump bb25
+bb25:
   push 416
   mstore
   push 384
@@ -107,61 +124,37 @@ bb2:
   push 100
   push 0
   revert
-bb3:
-  calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  swap1
-  slt
-  push bb7
-  jumpi
-  push 0
-  push 128
-  mstore
-  push 100
-  push 4
-  calldataload
-  lt
-  push bb15
-  jumpi
-  jump bb10
-bb15:
-  push bb10
-  push 4
-  calldataload
-  jump bb1
-bb20:
-  push 1
-  push 288
-  mload
-  sub
-  push bb22
-  jumpi
-  push bb25
-  push 3
-  push 0x6f6e65
-  jump bb30
-bb30:
-  push 232
-  shl
-  jump bb2
-bb22:
+bb20 [cold]:
   push 2
   push 288
   mload
   sub
-  push bb24
+  push bb23
   jumpi
-  push bb25
+  push bb16
   push 3
   push 0x74776f
-  jump bb30
-bb24:
-  push bb25
+  jump bb28
+bb23 [cold]:
+  push bb16
   push 5
   push 0x6f74686572
   push 216
   shl
-  jump bb2
+  jump bb25
+bb27 [cold]:
+  push bb4
+  push 4
+  calldataload
+  push 288
+  mstore
+  push 288
+  mload
+  push bb17
+  jumpi
+  push bb16
+  push 4
+  push 0x7a65726f
+  push 224
+  shl
+  jump bb25

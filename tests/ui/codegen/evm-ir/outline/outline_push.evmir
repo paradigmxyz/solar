@@ -1,0 +1,9 @@
+//@compile-flags: --pass outline
+@module module
+
+bb0 (entry):
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop

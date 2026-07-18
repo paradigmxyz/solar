@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/global_stack_calldata_alias.sol:Test (runtime) ===
 @module runtime
-bb34 (entry):
+bb0 (entry):
   push 320
   push 64
   mstore
   callvalue
-  push bb7
+  push bb4
   jumpi
   calldatasize
   iszero
-  push bb7
+  push bb4
   jumpi
   push 0
   calldataload
@@ -17,85 +17,15 @@ bb34 (entry):
   shr
   dup1
   push 0xc21f7bbb
-  sub
-  push bb7
-  jumpi
-  calldatasize
-  push 4
-  swap1
-  sub
-  push 64
-  swap1
-  slt
-  push 36
-  calldataload
-  swap1
-  push bb7
-  jumpi
-  push 4
-  calldataload
-  push 0
-  not
-  push 96
-  shr
-  dup2
-  and
-  dup2
-  sub
-  push bb7
-  jumpi
-  push 1
-  dup2
   eq
-  push bb11
+  push bb5
   jumpi
-  push 2
-  dup2
-  eq
-  push bb15
-  jumpi
-  push 3
-  dup2
-  sub
-  push bb20
-  jumpi
-  push 3
-  dup3
-  add
-  dup1
-  push 224
-  mstore
-  swap1
-  pop
-  dup1
-  push 224
-  mstore
-  dup2
-  dup2
-  lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
-  push bb13
-  jumpi
-  push 224
-  mload
-  dup1
-  push 224
-  mstore
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb7:
+  jump bb4
+bb4 [cold]:
   push 0
   dup1
   revert
-bb13:
+bb12 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -107,7 +37,83 @@ bb13:
   push 36
   push 0
   revert
-bb11:
+bb5:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 64
+  swap1
+  slt
+  push 36
+  calldataload
+  swap1
+  push bb4
+  jumpi
+  push 4
+  calldataload
+  push 0
+  not
+  push 96
+  shr
+  dup2
+  and
+  dup2
+  sub
+  push bb4
+  jumpi
+  push 1
+  dup2
+  eq
+  push bb9
+  jumpi
+  push 2
+  dup2
+  eq
+  push bb13
+  jumpi
+  push 3
+  dup2
+  sub
+  push bb18
+  jumpi
+  push 3
+  dup3
+  add
+  dup1
+  push 224
+  mstore
+  swap1
+  pop
+  dup1
+  push 224
+  mstore
+  dup2
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap2
+  pop
+  pop
+  push bb12
+  jumpi
+  push 224
+  mload
+  dup1
+  push 224
+  jump bb28
+bb28:
+  mstore
+  jump bb29
+bb29:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb9:
   push 1
   dup3
   add
@@ -128,23 +134,14 @@ bb11:
   swap2
   pop
   pop
-  push bb13
+  push bb12
   jumpi
   push 160
   mload
   dup1
   push 160
-  jump bb32
-bb32:
-  mstore
-  jump bb33
-bb33:
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb15:
+  jump bb28
+bb13:
   push 2
   dup3
   add
@@ -165,18 +162,18 @@ bb15:
   swap2
   pop
   pop
-  push bb13
+  push bb12
   jumpi
   push 192
   mload
   dup1
   push 192
-  jump bb32
-bb20:
+  jump bb28
+bb18:
   push 4
   dup2
   sub
-  push bb24
+  push bb21
   jumpi
   push 4
   dup3
@@ -198,18 +195,18 @@ bb20:
   swap2
   pop
   pop
-  push bb13
+  push bb12
   jumpi
   push 256
   mload
   dup1
   push 256
-  jump bb32
-bb24:
+  jump bb28
+bb21:
   push 5
   swap1
   sub
-  push bb33
+  push bb29
   jumpi
   push 5
   dup2
@@ -226,10 +223,10 @@ bb24:
   swap2
   pop
   pop
-  push bb13
+  push bb12
   jumpi
   push 288
   mload
   dup1
   push 288
-  jump bb32
+  jump bb28

@@ -2,12 +2,12 @@
 //!
 //! Terminal blocks with alpha-equivalent instruction bodies can share one
 //! implementation because execution never returns to their callers. This pass
-//! keeps the first profitable body and replaces later copies with jumps to it,
-//! accounting for the byte cost of the replacement before changing the IR.
+//! keeps the first body and redirects later copies to it. CFG simplification
+//! then redirects references and removes the temporary jump thunks.
 
 use super::utils::is_evm_terminal;
 use crate::backend::evm::ir::{
-    Block, BlockId, Instruction, Module, Operand, Terminator, TerminatorKind, ValueId,
+    Block, BlockId, Module, Operand, Terminator, TerminatorKind, ValueId,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
@@ -19,9 +19,6 @@ pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
     let block_ids: Vec<_> = module.blocks.indices().collect();
     for block_id in block_ids {
         let block = &module.blocks[block_id];
-        if !terminal_block_dedup_is_profitable(block) {
-            continue;
-        }
         let Some(key) = terminal_block_key(block) else { continue };
         if let Some((_, target)) = canonical.iter().find(|(known, _)| *known == key) {
             module.blocks[block_id].instructions.clear();
@@ -36,62 +33,10 @@ pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
     changed
 }
 
-fn terminal_block_dedup_is_profitable(block: &Block) -> bool {
-    let Some(term) = &block.terminator else { return false };
-    if !is_evm_terminal(&term.kind) {
-        return false;
-    }
-    // A replacement block still needs `JUMPDEST PUSH2(label) JUMP`. Avoid
-    // rewriting tiny revert blocks where size is equal and revert-path gas
-    // would get worse.
-    let current_size = 1
-        + block.instructions.iter().map(estimated_instruction_size).sum::<usize>()
-        + estimated_terminator_size(&term.kind);
-    let replacement_size = 1 + 3 + 1;
-    current_size > replacement_size
-}
-
-fn estimated_instruction_size(inst: &Instruction) -> usize {
-    if inst.is_immutable_push() {
-        33
-    } else if inst.is_deferred_push() {
-        1
-    } else if inst.is_encoded_push() {
-        match inst.operands.as_slice() {
-            [operand] => estimated_push_size(operand),
-            _ => 1,
-        }
-    } else {
-        1
-    }
-}
-
-fn estimated_terminator_size(kind: &TerminatorKind) -> usize {
-    let operand_pushes = |operands: &[&Operand]| {
-        operands.iter().map(|operand| estimated_push_size(operand)).sum::<usize>() + 1
-    };
-    match kind {
-        TerminatorKind::Return { offset, size } | TerminatorKind::Revert { offset, size } => {
-            operand_pushes(&[offset, size])
-        }
-        TerminatorKind::SelfDestruct { recipient } => operand_pushes(&[recipient]),
-        TerminatorKind::Stop | TerminatorKind::Invalid | TerminatorKind::RawOpcode(_) => 1,
-        TerminatorKind::Jump(_) | TerminatorKind::Branch { .. } | TerminatorKind::Switch { .. } => {
-            0
-        }
-    }
-}
-
-fn estimated_push_size(operand: &Operand) -> usize {
-    match operand {
-        Operand::Immediate(value) if *value == U256::ZERO => 1,
-        Operand::Immediate(value) => value.byte_len() + 1,
-        Operand::Block(_) => 3,
-        Operand::Value(_) => 0,
-    }
-}
-
 fn terminal_block_key(block: &Block) -> Option<TerminalBlockKey> {
+    if !block.terminator.as_ref().is_some_and(|term| is_evm_terminal(&term.kind)) {
+        return None;
+    }
     let mut locals = FxHashMap::default();
     let mut instructions = Vec::with_capacity(block.instructions.len());
 

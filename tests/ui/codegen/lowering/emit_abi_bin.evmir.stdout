@@ -34,7 +34,7 @@
 // === ROOT/tests/ui/codegen/lowering/emit_abi_bin.sol:C (creation) ===
 // === deployment ===
 @module deployment
-bb1 (entry):
+bb0 (entry):
   push 0x4000
   push 64
   mstore
@@ -58,16 +58,16 @@ bb1 (entry):
 
 // === runtime ===
 @module runtime
-bb8 (entry):
+bb0 (entry):
   push 160
   push 64
   mstore
   callvalue
-  push bb7
+  push bb4
   jumpi
   calldatasize
   iszero
-  push bb7
+  push bb4
   jumpi
   push 0
   calldataload
@@ -76,7 +76,7 @@ bb8 (entry):
   dup1
   push 0xc55699c
   sub
-  push bb7
+  push bb4
   jumpi
   push 0
   sload
@@ -85,22 +85,22 @@ bb8 (entry):
   push 32
   push 128
   return
-bb7:
+bb4 [cold]:
   push 0
   dup1
   revert
 // === ROOT/tests/ui/codegen/lowering/emit_abi_bin.sol:C (runtime) ===
 @module runtime
-bb8 (entry):
+bb0 (entry):
   push 160
   push 64
   mstore
   callvalue
-  push bb7
+  push bb4
   jumpi
   calldatasize
   iszero
-  push bb7
+  push bb4
   jumpi
   push 0
   calldataload
@@ -109,7 +109,7 @@ bb8 (entry):
   dup1
   push 0xc55699c
   sub
-  push bb7
+  push bb4
   jumpi
   push 0
   sload
@@ -118,7 +118,7 @@ bb8 (entry):
   push 32
   push 128
   return
-bb7:
+bb4 [cold]:
   push 0
   dup1
   revert

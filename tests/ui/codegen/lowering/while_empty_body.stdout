@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/while_empty_body.sol:WhileEmptyBody (creation) ===
 // === deployment ===
 @module deployment
-bb1 (entry):
+bb0 (entry):
   push 53
   dup1
   push 9
@@ -12,16 +12,16 @@ bb1 (entry):
 
 // === runtime ===
 @module runtime
-bb10 (entry):
+bb0 (entry):
   push 128
   push 64
   mstore
   callvalue
-  push bb7
+  push bb4
   jumpi
   calldatasize
   iszero
-  push bb7
+  push bb4
   jumpi
   push 0
   calldataload
@@ -30,7 +30,7 @@ bb10 (entry):
   dup1
   push 0xb3de648b
   sub
-  push bb7
+  push bb4
   jumpi
   calldatasize
   push 4
@@ -39,16 +39,16 @@ bb10 (entry):
   push 32
   swap1
   slt
-  push bb7
+  push bb4
   jumpi
-  jump bb9
-bb9:
+  jump bb6
+bb6:
   push 4
   calldataload
-  push bb9
+  push bb6
   jumpi
   stop
-bb7:
+bb4 [cold]:
   push 0
   dup1
   revert

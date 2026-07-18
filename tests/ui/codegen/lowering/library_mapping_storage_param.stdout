@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/library_mapping_storage_param.sol:L (runtime) ===
 @module runtime
-bb1 (entry):
+bb0 (entry):
   push 0
   push 64
   mstore
   calldatasize
   iszero
-  push bb0
+  push bb2
   jumpi
   push 0
   calldataload
@@ -15,22 +15,22 @@ bb1 (entry):
   push 0
   push 0
   revert
-bb0:
+bb2 [cold]:
   push 0
   push 0
   revert
 // === ROOT/tests/ui/codegen/lowering/library_mapping_storage_param.sol:C (runtime) ===
 @module runtime
-bb16 (entry):
+bb0 (entry):
   push 704
   push 64
   mstore
   callvalue
-  push bb9
+  push bb4
   jumpi
   calldatasize
   iszero
-  push bb9
+  push bb4
   jumpi
   push 0
   calldataload
@@ -39,7 +39,7 @@ bb16 (entry):
   dup1
   push 0xd2514e84
   sub
-  push bb9
+  push bb4
   jumpi
   calldatasize
   push 4
@@ -48,7 +48,7 @@ bb16 (entry):
   push 32
   swap1
   slt
-  push bb9
+  push bb4
   jumpi
   push 4
   calldataload
@@ -59,7 +59,7 @@ bb16 (entry):
   dup2
   and
   sub
-  push bb9
+  push bb4
   jumpi
   push 4
   calldataload
@@ -103,7 +103,7 @@ bb16 (entry):
   swap2
   pop
   pop
-  push bb15
+  push bb14
   jumpi
   push 256
   mload
@@ -115,11 +115,11 @@ bb16 (entry):
   push 32
   push 128
   return
-bb9:
+bb4 [cold]:
   push 0
   dup1
   revert
-bb15:
+bb14:
   push 0x4e487b71
   push 224
   shl
