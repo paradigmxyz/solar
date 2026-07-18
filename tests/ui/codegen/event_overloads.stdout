@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/event_overloads.sol:EventOverloads ===
-; module @EventOverloads
+@module EventOverloads
 fn @emitBoth(arg0: address, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize

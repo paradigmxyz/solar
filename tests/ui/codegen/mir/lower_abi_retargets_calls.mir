@@ -3,7 +3,7 @@
 // wrapping: `@caller` calls `@pub.body`, not the argument-free `@pub` wrapper
 // it used to point at. Only `@pub` needs a body copy because `@caller` itself
 // has no internal callers.
-; module @LowerAbiRetargets
+@module LowerAbiRetargets
 fn @pub(arg0: u256) [selector=0x0a0a0a01] {
   bb0 (entry):
     v1 = add arg0, 1

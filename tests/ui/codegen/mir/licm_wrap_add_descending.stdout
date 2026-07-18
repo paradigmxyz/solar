@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/licm_wrap_add_descending.mir (after licm) ===
-; module @LicmWrapAddDescending
+@module LicmWrapAddDescending
 fn @wrap_add_descending() -> u256 {
   bb0 (entry):
     jump bb1

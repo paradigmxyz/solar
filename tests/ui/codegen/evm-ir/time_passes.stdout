@@ -1,4 +1,5 @@
 // === ROOT/tests/ui/codegen/evm-ir/time_passes.evmir (after block-layout) ===
+@module module
 bb0 (entry):
   jump bb2
 bb2:

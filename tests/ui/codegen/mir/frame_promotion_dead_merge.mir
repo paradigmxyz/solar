@@ -1,5 +1,5 @@
 //@compile-flags: --passes frame-slot-promotion
-; module @FramePromotionDeadMerge
+@module FramePromotionDeadMerge
 fn @dead_merge(arg0: u256, arg1: bool) -> u256 {
   bb0 (entry):
     br arg1, bb1, bb2

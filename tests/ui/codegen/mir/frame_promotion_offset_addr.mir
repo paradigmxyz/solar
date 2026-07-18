@@ -1,5 +1,5 @@
 //@compile-flags: --passes frame-slot-promotion,dce
-; module @FramePromotionOffsetAddr
+@module FramePromotionOffsetAddr
 fn @offset_addr() -> u256 {
   bb0 (entry):
     v1 = internal_frame_addr 128

@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/pure_eval_loop.mir (after pure-eval) ===
-; module @PureEvalLoop
+@module PureEvalLoop
 fn @bounded_loop() -> u256 {
   bb0 (entry):
     ret 3

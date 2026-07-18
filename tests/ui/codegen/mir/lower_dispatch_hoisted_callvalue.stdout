@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/lower_dispatch_hoisted_callvalue.mir (after lower-dispatch) ===
-; module @DispatchHoisted [phase = dispatch]
+@module DispatchHoisted
+@phase dispatch
 fn @a() {
   bb0 (entry):
     stop

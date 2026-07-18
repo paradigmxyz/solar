@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/erc7201/codegen.sol:Erc7201Builtin ===
-; module @Erc7201Builtin
+@module Erc7201Builtin
 fn @literal() {
   bb0 (entry):
     mstore 128, 0

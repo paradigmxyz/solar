@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/abi_dynamic_return.sol:AbiDynamicReturn ===
-; module @AbiDynamicReturn
+@module AbiDynamicReturn
 fn @bytesLiteral() {
   bb0 (entry):
     mstore 128, 0

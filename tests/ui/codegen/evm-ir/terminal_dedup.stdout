@@ -1,4 +1,5 @@
 // === ROOT/tests/ui/codegen/evm-ir/terminal_dedup.evmir (after terminal-dedup) ===
+@module module
 bb0 (entry):
   %selector = push 0
   switch %selector, default bb3, [1 => bb1, 2 => bb2]

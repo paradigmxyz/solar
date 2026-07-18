@@ -1,5 +1,5 @@
 //@compile-flags: --pass gvn
-; module @Gvn
+@module Gvn
 
 // Transitive congruence: v3 joins v2's class, so v5 and v4 key identically
 // over classes and v5 folds onto v4 in the same run.

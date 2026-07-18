@@ -1,9 +1,10 @@
 //@compile-flags: --pass dce
 //@filecheck: --implicit-check-not=[phase
-// CHECK: ; module @PhaseExplicitBuilt
-// `built` is the default phase: an explicit `[phase = built]` parses but is
+// CHECK: @module PhaseExplicitBuilt
+// `built` is the default phase: an explicit `@phase built` parses but is
 // not printed back.
-; module @PhaseExplicitBuilt [phase = built]
+@module PhaseExplicitBuilt
+@phase built
 fn @f() {
   bb0 (entry):
     stop

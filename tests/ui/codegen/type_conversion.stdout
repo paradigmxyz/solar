@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/type_conversion.sol:TypeConversion ===
-; module @TypeConversion
+@module TypeConversion
 fn @narrowAddress(arg0: address) {
   bb0 (entry):
     v0 = calldatasize

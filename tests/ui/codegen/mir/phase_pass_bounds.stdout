@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/phase_pass_bounds.mir (after lower-dispatch,lower-abi,lower-dispatch,dce) ===
-; module @PhasePassBounds [phase = dispatch]
+@module PhasePassBounds
+@phase dispatch
 fn @get() {
   bb0 (entry):
     mstore 128, arg0

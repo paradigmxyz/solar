@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/constructor_internal_call_bin.sol:ConstructorInternalCallBin (creation) ===
 // === deployment ===
+@module deployment
 bb0 (entry):
   push 0x4000
   push 64
@@ -263,6 +264,7 @@ bb7 [cold]:
   revert
 
 // === runtime ===
+@module runtime
 bb0 (entry):
   push 160
   push 64

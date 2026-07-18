@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mapping_struct_getter.sol:C ===
-; module @C
+@module C
 fn @constructor() {
   bb0 (entry):
     sstore 0, 1 !metadata(storage=slot(0))

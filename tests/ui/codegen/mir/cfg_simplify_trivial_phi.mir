@@ -1,5 +1,5 @@
 //@compile-flags: --passes cfg-simplify,dce
-; module @CfgSimplifyTrivialPhi
+@module CfgSimplifyTrivialPhi
 fn @fold_same_value_phi(arg0: u256, arg1: bool) -> u256 {
   bb0 (entry):
     br arg1, bb1, bb2

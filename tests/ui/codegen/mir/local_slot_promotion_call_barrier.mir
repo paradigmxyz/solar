@@ -1,5 +1,5 @@
 //@compile-flags: --passes frame-slot-promotion,dce
-; module @LocalSlotPromotionCallBarrier
+@module LocalSlotPromotionCallBarrier
 fn @promote_across_unrelated_staticcall(arg0: address) -> u256 {
   bb0 (entry):
     v1 = internal_frame_addr 128

@@ -1,4 +1,5 @@
 // === ROOT/tests/ui/codegen/evm-ir/stack_cross_block_prefix.evmir (after stack-schedule) ===
+@module module
 bb0 (entry):
   %keep = push 1
   %top = push 2

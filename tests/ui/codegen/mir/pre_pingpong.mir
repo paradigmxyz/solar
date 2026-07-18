@@ -2,7 +2,7 @@
 // Two join blocks that are mutual predecessors: eliminating the expression
 // from one join inserts it into the other, which used to ping-pong forever.
 // The pass must terminate after the single profitable rewrite in bb5.
-; module @PingPong
+@module PingPong
 fn @pingpong(arg0: u256, arg1: u256) {
   bb0 (entry):
     switch arg1, default bb1, [1 => bb2, 2 => bb3, 3 => bb4]

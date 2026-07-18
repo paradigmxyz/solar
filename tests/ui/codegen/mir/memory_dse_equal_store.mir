@@ -1,8 +1,8 @@
 //@compile-flags: --pass memory-dse
-; module @MemoryDseEqualStore
+@module MemoryDseEqualStore
 
-; A memory observer can read the first store but does not mutate memory, so the
-; second equal store is redundant.
+// A memory observer can read the first store but does not mutate memory, so the
+// second equal store is redundant.
 fn @remove_equal_store_after_keccak(arg0: u256) -> u256 {
   bb0 (entry):
     mstore 128, arg0
@@ -11,8 +11,8 @@ fn @remove_equal_store_after_keccak(arg0: u256) -> u256 {
     ret v2
 }
 
-; A memory mutator can change the address, so the equal-looking store after it
-; must be kept.
+// A memory mutator can change the address, so the equal-looking store after it
+// must be kept.
 fn @keep_equal_store_after_copy(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
     mstore 128, arg0

@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/memory_dse_alias.mir (after memory-dse) ===
-; module @MemoryDseAlias
+@module MemoryDseAlias
 fn @keep_symbolic_store_read_by_const_load(arg0: u256) -> u256 {
   bb0 (entry):
     mstore arg0, 1

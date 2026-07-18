@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/multi_return_named_init.sol:MultiReturnNamedInit ===
-; module @MultiReturnNamedInit
+@module MultiReturnNamedInit
 fn @readU64(arg0: memptr, arg1: u256) -> (u64, u256) {
   bb0 (entry):
     v0 = internal_frame_addr 192

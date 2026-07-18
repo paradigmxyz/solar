@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/memory_dse_copy_ranges.mir (after memory-dse) ===
-; module @MemoryDseCopyRanges
+@module MemoryDseCopyRanges
 fn @remove_store_overwritten_by_codecopy() -> u256 {
   bb0 (entry):
     codecopy 0, 0, 64

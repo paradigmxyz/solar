@@ -1,9 +1,9 @@
 //@compile-flags: --pass licm
-; module @LicmLoopBound
+@module LicmLoopBound
 
-; The only exit guard is the eq at the header, which yields no bound; the
-; in-body `lt v1, 2` has both successors inside the loop and must not be used
-; as a trip count. The mstore really covers [0, 3200) and overlaps mload 64.
+// The only exit guard is the eq at the header, which yields no bound; the
+// in-body `lt v1, 2` has both successors inside the loop and must not be used
+// as a trip count. The mstore really covers [0, 3200) and overlaps mload 64.
 fn @keep_mload_non_exiting_bound() -> u256 {
   bb0 (entry):
     jump bb1
@@ -26,9 +26,9 @@ fn @keep_mload_non_exiting_bound() -> u256 {
     ret v3
 }
 
-; Both an exiting `lt v1, 100` and a non-exiting `lt v1, 2` exist; only the
-; exiting guard may provide the bound (previously hash-order dependent).
-; With bound 100 the mstore range overlaps mload 64, so nothing is hoisted.
+// Both an exiting `lt v1, 100` and a non-exiting `lt v1, 2` exist; only the
+// exiting guard may provide the bound (previously hash-order dependent).
+// With bound 100 the mstore range overlaps mload 64, so nothing is hoisted.
 fn @keep_mload_inner_branch_bound() -> u256 {
   bb0 (entry):
     jump bb1

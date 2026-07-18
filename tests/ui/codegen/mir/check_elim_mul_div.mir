@@ -1,9 +1,9 @@
 //@compile-flags: --pass check-elim
-; module @CheckElimMulDiv
+@module CheckElimMulDiv
 
-; Checked multiplication tests `div(mul(x, c), c) == x`. With `x < 100` the
-; product is at most 297 and cannot wrap, so the roundtrip holds and the
-; panic branch folds.
+// Checked multiplication tests `div(mul(x, c), c) == x`. With `x < 100` the
+// product is at most 297 and cannot wrap, so the roundtrip holds and the
+// panic branch folds.
 fn @fold_mul_check_with_bound(arg0: u256) -> u256 {
   bb0 (entry):
     v1 = lt arg0, 100
@@ -22,7 +22,7 @@ fn @fold_mul_check_with_bound(arg0: u256) -> u256 {
     ret v2
 }
 
-; Without a bound on `arg0` the product can wrap: the check must stay.
+// Without a bound on `arg0` the product can wrap: the check must stay.
 fn @keep_mul_check_without_bound(arg0: u256) -> u256 {
   bb0 (entry):
     v1 = mul arg0, 3

@@ -2,7 +2,7 @@
 // Swapped comparisons canonicalize to the same key: `gt b, a` unifies with `lt a, b`
 // (and the signed variants likewise) in both directions, while the kept instruction
 // retains its own opcode. Same-order lt/gt must not unify.
-; module @CseSwappedComparisons
+@module CseSwappedComparisons
 fn @reuse_gt_after_lt(arg0: u256, arg1: u256) -> (bool, bool) {
   bb0 (entry):
     v2 = lt arg0, arg1

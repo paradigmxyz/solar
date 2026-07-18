@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/memory_dse_keccak_fold.mir (after memory-dse) ===
-; module @MemoryDseKeccakFold
+@module MemoryDseKeccakFold
 fn @fold_constant_scratch_keccak() -> bytes32 {
   bb0 (entry):
     mstore 0, 7

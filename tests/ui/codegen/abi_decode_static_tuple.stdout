@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/abi_decode_static_tuple.sol:AbiDecodeStaticTuple ===
-; module @AbiDecodeStaticTuple
+@module AbiDecodeStaticTuple
 fn @decode(arg0: memptr) {
   bb0 (entry):
     v0 = calldatasize

@@ -1,8 +1,8 @@
 //@compile-flags: --pass cfg-simplify
-; Both arms of the entry branch are empty forwarders into the same join.
-; Eliminating both would give the join phi two entries for bb0 with
-; conflicting values, so at most one forwarder may be folded away.
-; module @CfgSimplifyPhiForwarders
+// Both arms of the entry branch are empty forwarders into the same join.
+// Eliminating both would give the join phi two entries for bb0 with
+// conflicting values, so at most one forwarder may be folded away.
+@module CfgSimplifyPhiForwarders
 fn @keep_conflicting_diamond(arg0: bool) -> u256 {
   bb0 (entry):
     br arg0, bb1, bb2
@@ -15,8 +15,8 @@ fn @keep_conflicting_diamond(arg0: bool) -> u256 {
     ret v3
 }
 
-; With equal incoming values the forwarders can both collapse; the phi
-; keeps a single entry per predecessor.
+// With equal incoming values the forwarders can both collapse; the phi
+// keeps a single entry per predecessor.
 fn @fold_equal_value_diamond(arg0: bool) -> u256 {
   bb0 (entry):
     br arg0, bb1, bb2

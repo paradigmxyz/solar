@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/frame_promotion_inner_counter.mir (after frame-slot-promotion,cfg-simplify,dce) ===
-; module @NestedCounter
+@module NestedCounter
 fn @nested(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
     jump bb1

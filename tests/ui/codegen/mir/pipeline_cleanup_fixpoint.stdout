@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/pipeline_cleanup_fixpoint.mir (after pipeline-default) ===
-; module @PipelineCleanupFixpoint [phase = optimized]
+@module PipelineCleanupFixpoint
+@phase optimized
 fn @fold_phi_after_promotion(arg0: bool) -> u256 {
   bb0 (entry):
     ret 1

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/lower_abi_then_dispatch.mir (after lower-abi,lower-dispatch) ===
-; module @LowerAbiThenDispatch [phase = dispatch]
+@module LowerAbiThenDispatch
+@phase dispatch
 fn @get() {
   bb0 (entry):
     mstore 128, arg0

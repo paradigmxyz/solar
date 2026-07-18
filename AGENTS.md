@@ -60,7 +60,7 @@ Pipeline: Lexing -> Parsing -> Semantic Analysis -> MIR -> EVM backend -> byteco
 
 MIR is a phased IR, like rustc's MIR: a `Module` carries a `MirPhase`, phases
 only move forward (the enum order is the lowering order), and the phase
-round-trips through the text format as `; module @Name [phase = ...]` (printed
+round-trips through the text format as `@module Name` and `@phase ...` (printed
 only when not the default). The phases, in order:
 
 - `built`: fresh from HIR lowering — one MIR function per Solidity function,

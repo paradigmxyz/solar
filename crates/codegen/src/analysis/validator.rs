@@ -23,17 +23,18 @@
 //!     can reach the using block (phi inputs: their incoming predecessor). Within an acyclic block,
 //!     the definition must also precede an instruction use. MIR is deliberately loose SSA, but a
 //!     use its definition can never reach is garbage on every execution.
+//! 11. **Call consistency**: internal and tail-call targets exist and their argument counts match
+//!     the callee.
 //!
 //! # Usage
 //!
 //! ```ignore
-//! use solar_codegen::analysis::Validator;
-//! Validator::new(dcx).validate_function(&func);
+//! solar_codegen::mir::validate(dcx, &module);
 //! ```
 
 use crate::{
     analysis::CfgInfo,
-    mir::{BlockId, Function, InstId, InstKind, Module, Value, ValueId},
+    mir::{BlockId, Function, FunctionId, InstId, InstKind, Module, Value, ValueId},
 };
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -44,15 +45,15 @@ use solar_interface::{diagnostics::DiagCtxt, sym};
 use std::fmt;
 
 /// Stateful MIR verifier.
-pub struct Validator<'a> {
+struct Validator<'a> {
     dcx: &'a DiagCtxt,
-    function: Option<usize>,
+    function: Option<FunctionId>,
     error_count: usize,
 }
 
 impl<'a> Validator<'a> {
     /// Creates a verifier that emits findings into `dcx`.
-    pub const fn new(dcx: &'a DiagCtxt) -> Self {
+    const fn new(dcx: &'a DiagCtxt) -> Self {
         Self { dcx, function: None, error_count: 0 }
     }
 
@@ -61,7 +62,7 @@ impl<'a> Validator<'a> {
         // TODO: Use MIR debug-info spans when emitting verifier diagnostics.
         let message = fmt::from_fn(|f| {
             if let Some(function) = self.function {
-                write!(f, "[fn{function}] ")?;
+                write!(f, "[fn{}] ", function.index())?;
             }
             write!(f, "{message}")
         });
@@ -80,11 +81,18 @@ impl<'a> Validator<'a> {
     }
 
     /// Validates a single function.
-    pub fn validate_function(mut self, func: &Function) {
-        self.validate_function_inner(func);
+    #[cfg(test)]
+    fn validate_standalone_function(mut self, func: &Function) {
+        self.validate_function_body(func);
     }
 
-    fn validate_function_inner(&mut self, func: &Function) {
+    fn validate_function(&mut self, module: &Module, func: &Function) {
+        self.validate_function_body(func);
+        self.validate_calls(module, func);
+        self.validate_function_phase(module, func);
+    }
+
+    fn validate_function_body(&mut self, func: &Function) {
         let errors_before = self.error_count;
         let num_values = func.values.len();
         let num_blocks = func.blocks.len();
@@ -425,42 +433,56 @@ impl<'a> Validator<'a> {
     }
 
     /// Validates every function in a module.
-    pub fn validate_module(mut self, module: &Module) {
+    fn validate_module(mut self, module: &Module) {
+        self.validate_module_phase(module);
         for (id, func) in module.iter_functions() {
-            self.function = Some(id.index());
-            self.validate_function_inner(func);
+            self.function = Some(id);
+            self.validate_function(module, func);
         }
         self.function = None;
-        self.validate_tail_calls(module);
-        self.validate_phase(module);
     }
 
-    /// Checks the cross-function invariants of `tail_call` terminators: the
-    /// callee exists and the argument count matches its parameters.
-    fn validate_tail_calls(&mut self, module: &Module) {
-        for (id, func) in module.iter_functions() {
-            for block in func.blocks.iter() {
-                let Some(crate::mir::Terminator::TailCall { function, args }) = &block.terminator
-                else {
-                    continue;
-                };
-                let Some(callee) = module.functions.get(*function) else {
-                    self.emit(format_args!(
-                        "[fn{}] tail_call targets nonexistent function fn{}",
-                        id.index(),
-                        function.index()
-                    ));
-                    continue;
-                };
-                if args.len() != callee.params.len() {
-                    self.emit(format_args!(
-                        "[fn{}] tail_call to `{}` passes {} argument(s), expected {}",
-                        id.index(),
-                        callee.name,
-                        args.len(),
-                        callee.params.len()
-                    ));
-                }
+    /// Checks that call targets exist and argument counts match.
+    fn validate_calls(&mut self, module: &Module, func: &Function) {
+        for inst in &func.instructions {
+            let InstKind::InternalCall { function, args, .. } = &inst.kind else {
+                continue;
+            };
+            let Some(callee) = module.functions.get(*function) else {
+                self.emit(format_args!(
+                    "internal_call targets nonexistent function fn{}",
+                    function.index()
+                ));
+                continue;
+            };
+            if args.len() != callee.params.len() {
+                self.emit(format_args!(
+                    "internal_call to `{}` passes {} argument(s), expected {}",
+                    callee.name,
+                    args.len(),
+                    callee.params.len()
+                ));
+            }
+        }
+        for block in func.blocks.iter() {
+            let Some(crate::mir::Terminator::TailCall { function, args }) = &block.terminator
+            else {
+                continue;
+            };
+            let Some(callee) = module.functions.get(*function) else {
+                self.emit(format_args!(
+                    "tail_call targets nonexistent function fn{}",
+                    function.index()
+                ));
+                continue;
+            };
+            if args.len() != callee.params.len() {
+                self.emit(format_args!(
+                    "tail_call to `{}` passes {} argument(s), expected {}",
+                    callee.name,
+                    args.len(),
+                    callee.params.len()
+                ));
             }
         }
     }
@@ -468,7 +490,7 @@ impl<'a> Validator<'a> {
     /// Checks that the module's content satisfies its declared
     /// [`MirPhase`](crate::mir::MirPhase), so
     /// the phase is a real contract rather than a label.
-    fn validate_phase(&mut self, module: &Module) {
+    fn validate_module_phase(&mut self, module: &Module) {
         // From the `dispatch` phase on, routing is materialized: a module with
         // bodied selector functions must contain the synthesized `entry`.
         if module.phase >= crate::mir::MirPhase::Dispatch
@@ -480,22 +502,28 @@ impl<'a> Validator<'a> {
                 module.phase.name()
             ));
         }
+    }
+
+    fn validate_function_phase(&mut self, module: &Module, func: &Function) {
         // From the `abi` phase on, every bodied external (selector-bearing)
         // function is an argument-free self-decoding wrapper.
-        if module.phase >= crate::mir::MirPhase::Abi {
-            for (id, func) in module.iter_functions() {
-                if func.selector.is_some() && !func.blocks.is_empty() && !func.params.is_empty() {
-                    self.emit(format_args!(
-                        "[fn{}] selector function `{}` still takes arguments in the `{}` phase \
-                     (expected an argument-free ABI wrapper)",
-                        id.index(),
-                        func.name,
-                        module.phase.name()
-                    ));
-                }
-            }
+        if module.phase >= crate::mir::MirPhase::Abi
+            && func.selector.is_some()
+            && !func.blocks.is_empty()
+            && !func.params.is_empty()
+        {
+            self.emit(format_args!(
+                "selector function `{}` still takes arguments in the `{}` phase \
+                 (expected an argument-free ABI wrapper)",
+                func.name,
+                module.phase.name()
+            ));
         }
     }
+}
+
+pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
+    Validator::new(dcx).validate_module(module);
 }
 
 // =============================================================================
@@ -505,7 +533,9 @@ impl<'a> Validator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{BasicBlock, Function, FunctionBuilder, MirType, Terminator};
+    use crate::mir::{
+        BasicBlock, Function, FunctionBuilder, FunctionId, MirType, Module, Terminator,
+    };
     use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, Ident, Session};
 
@@ -530,7 +560,7 @@ mod tests {
                 let sum = b.add(x, one);
                 b.ret([sum]);
             }
-            Validator::new(&sess.dcx).validate_function(&func);
+            Validator::new(&sess.dcx).validate_standalone_function(&func);
             assert!(sess.dcx.has_errors().is_ok());
         });
     }
@@ -545,7 +575,7 @@ mod tests {
                 let _p = b.add_param(MirType::uint256());
                 // Don't terminate — leave the entry block dangling.
             }
-            Validator::new(&sess.dcx).validate_function(&func);
+            Validator::new(&sess.dcx).validate_standalone_function(&func);
             assert!(sess.dcx.has_errors().is_err());
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
@@ -570,7 +600,7 @@ error: [bb0] block has no terminator
             // Manually corrupt: replace the terminator with a Jump to a nonexistent block.
             let bad_block = BlockId::from_usize(99);
             func.blocks[func.entry_block].terminator = Some(Terminator::Jump(bad_block));
-            Validator::new(&sess.dcx).validate_function(&func);
+            Validator::new(&sess.dcx).validate_standalone_function(&func);
             assert!(sess.dcx.has_errors().is_err());
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
@@ -595,11 +625,11 @@ error: [bb0] terminator references nonexistent block bb99
                 b.switch_to_block(target);
                 b.stop();
             }
-            Validator::new(&sess.dcx).validate_function(&func);
+            Validator::new(&sess.dcx).validate_standalone_function(&func);
             assert!(sess.dcx.has_errors().is_ok());
             // Drop the back-link.
             func.blocks[target].predecessors.clear();
-            Validator::new(&sess.dcx).validate_function(&func);
+            Validator::new(&sess.dcx).validate_standalone_function(&func);
             assert!(sess.dcx.has_errors().is_err());
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
@@ -624,7 +654,7 @@ error: [bb0] successor bb1 does not list bb0 as a predecessor
             }
             // Add the invalid predecessor to the entry block.
             func.blocks[func.entry_block].predecessors.push(func.entry_block);
-            Validator::new(&sess.dcx).validate_function(&func);
+            Validator::new(&sess.dcx).validate_standalone_function(&func);
             assert!(sess.dcx.has_errors().is_err());
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
@@ -647,8 +677,32 @@ error: [bb0] entry block must have no predecessors
                 let mut b = FunctionBuilder::new(&mut func);
                 b.stop();
             }
-            Validator::new(&sess.dcx).validate_function(&func);
+            Validator::new(&sess.dcx).validate_standalone_function(&func);
             assert!(sess.dcx.has_errors().is_ok());
+        });
+    }
+
+    #[test]
+    fn nonexistent_internal_call_target_is_caught() {
+        with_session(|sess| {
+            let mut caller = make_func();
+            {
+                let mut builder = FunctionBuilder::new(&mut caller);
+                builder.internal_call_void(FunctionId::from_usize(99), Vec::new(), 0);
+                builder.stop();
+            }
+            let mut module = Module::new(Ident::DUMMY);
+            module.add_function(caller);
+
+            validate(&sess.dcx, &module);
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [fn0] internal_call targets nonexistent function fn99
+
+
+"#]]
+            );
         });
     }
 

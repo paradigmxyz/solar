@@ -1,4 +1,6 @@
 //@compile-flags: --pass stack-schedule
+@module module
+
 bb0 (entry):
   %a = push 1
   %b = push 2

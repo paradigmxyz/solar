@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/local_slot_promotion.mir (after frame-slot-promotion,dce) ===
-; module @LocalSlotPromotion
+@module LocalSlotPromotion
 fn @promote_loop_carried_slot(arg0: u256) -> u256 {
   bb0 (entry):
     jump bb1

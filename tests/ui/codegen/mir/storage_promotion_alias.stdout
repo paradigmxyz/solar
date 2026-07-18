@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/storage_promotion_alias.mir (after storage-promotion) ===
-; module @StoragePromotionAlias
+@module StoragePromotionAlias
 fn @reject_two_symbolic_slots(arg0: u256, arg1: u256) {
   bb0 (entry):
     sstore arg0, 1 !metadata(storage=symbolic(arg0))

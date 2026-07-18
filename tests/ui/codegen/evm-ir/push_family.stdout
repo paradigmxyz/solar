@@ -1,4 +1,5 @@
 // === ROOT/tests/ui/codegen/evm-ir/push_family.evmir (after none) ===
+@module module
 bb0 (entry):
   %plain = push 1
   %deferred = push_deferred 2

@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/abi_nested_return.sol:AbiNestedReturn ===
-; module @AbiNestedReturn
+@module AbiNestedReturn
 fn @structArray(arg0: u256) {
   bb0 (entry):
     v0 = calldatasize

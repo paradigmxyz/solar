@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/sccp_branch.mir (after sccp) ===
-; module @SccpBranch
+@module SccpBranch
 fn @const_branch() -> u256 {
   bb0 (entry):
     jump bb1

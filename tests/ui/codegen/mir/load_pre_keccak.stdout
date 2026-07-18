@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/load_pre_keccak.mir (after load-pre) ===
-; module @LoadPreKeccak
+@module LoadPreKeccak
 fn @keccak_same_dynamic_size(arg0: bool, arg1: u256) -> u256 {
   bb0 (entry):
     br arg0, bb1, bb2

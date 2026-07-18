@@ -2,7 +2,7 @@
 // Switch cases are tested in order at runtime, so a constant case match is
 // definitive only if every earlier case is a known constant that differs from
 // the scrutinee.
-; module @SccpSwitchOrder
+@module SccpSwitchOrder
 
 // arg0 may equal 5 at runtime, so the switch must not fold to bb2. The default
 // edge is still infeasible: case 5 matches whenever arg0 does not.

@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/jump_threading_phi_constants.mir (after jump-threading) ===
-; module @JumpThreadingPhiConstants
+@module JumpThreadingPhiConstants
 fn @thread_branch_on_phi_constant(arg0: bool) -> u256 {
   bb0 (entry):
     br arg0, bb5, bb4

@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/storage_long_bytes_return.sol:StorageLongBytesReturn ===
-; module @StorageLongBytesReturn
+@module StorageLongBytesReturn
 fn @s() {
   bb0 (entry):
     mstore 128, 0

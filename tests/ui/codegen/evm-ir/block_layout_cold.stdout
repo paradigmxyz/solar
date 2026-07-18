@@ -1,4 +1,5 @@
 // === ROOT/tests/ui/codegen/evm-ir/block_layout_cold.evmir (after block-layout) ===
+@module module
 bb0 (entry):
   jump bb2
 bb2:

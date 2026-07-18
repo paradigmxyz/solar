@@ -1,5 +1,5 @@
 //@compile-flags: --pass jump-threading
-; module @Threading
+@module Threading
 fn @forwarder_chain(arg0: u256) -> u256 {
   bb0 (entry):
     jump bb1

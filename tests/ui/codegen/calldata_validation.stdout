@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/calldata_validation.sol:CalldataValidation ===
-; module @CalldataValidation
+@module CalldataValidation
 fn @vUint8(arg0: u8) {
   bb0 (entry):
     v0 = calldatasize

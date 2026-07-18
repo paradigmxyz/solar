@@ -6,7 +6,7 @@
 
 mod block_layout;
 mod terminal_dedup;
-mod utils;
+pub(super) mod utils;
 
 use super::Module;
 use crate::{backend::evm::ir_stack_schedule, timing::PassTimer};

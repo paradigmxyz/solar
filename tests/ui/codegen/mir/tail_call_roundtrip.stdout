@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/tail_call_roundtrip.mir (after dce) ===
-; module @TailCallRoundtrip [phase = dispatch]
+@module TailCallRoundtrip
+@phase dispatch
 fn @wrapper(arg0: u256) {
   bb0 (entry):
     mstore 128, arg0

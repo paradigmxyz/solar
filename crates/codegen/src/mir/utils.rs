@@ -3,7 +3,63 @@
 use crate::mir::{BasicBlock, BlockId, Function, InstKind, Terminator, ValueId};
 use alloy_primitives::U256;
 use smallvec::smallvec;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{index::IndexVec, map::FxHashMap};
+
+pub(crate) fn remap_block_order(func: &mut Function, order: &[BlockId]) -> Vec<BlockId> {
+    debug_assert_eq!(order.len(), func.blocks.len());
+    let mut remap = vec![BlockId::from_usize(0); order.len()];
+    let mut old_blocks: Vec<Option<BasicBlock>> =
+        std::mem::take(&mut func.blocks).into_iter().map(Some).collect();
+    let mut blocks = IndexVec::with_capacity(old_blocks.len());
+    for &old_block in order {
+        let block = old_blocks[old_block.index()].take().expect("duplicate block in order");
+        remap[old_block.index()] = blocks.push(block);
+    }
+    debug_assert!(old_blocks.into_iter().all(|block| block.is_none()));
+    func.blocks = blocks;
+    func.entry_block = remap[func.entry_block.index()];
+
+    for block in &mut func.blocks {
+        for predecessor in &mut block.predecessors {
+            *predecessor = remap[predecessor.index()];
+        }
+        if let Some(terminator) = &mut block.terminator {
+            remap_terminator_blocks(terminator, &remap);
+        }
+    }
+    for inst in &mut func.instructions {
+        if let InstKind::Phi(incoming) = &mut inst.kind {
+            for (block, _) in incoming {
+                *block = remap[block.index()];
+            }
+        }
+    }
+    remap
+}
+
+fn remap_terminator_blocks(terminator: &mut Terminator, remap: &[BlockId]) {
+    let remap_block = |block: &mut BlockId| *block = remap[block.index()];
+    match terminator {
+        Terminator::Jump(target) => remap_block(target),
+        Terminator::Branch { then_block, else_block, .. } => {
+            remap_block(then_block);
+            remap_block(else_block);
+        }
+        Terminator::Switch { default, cases, .. } => {
+            remap_block(default);
+            for (_, target) in cases {
+                remap_block(target);
+            }
+        }
+        Terminator::Return { .. }
+        | Terminator::Revert { .. }
+        | Terminator::ReturnData { .. }
+        | Terminator::Stop
+        | Terminator::SelfDestruct { .. }
+        | Terminator::TailCall { .. }
+        | Terminator::Invalid => {}
+    }
+}
 
 /// Which state-access instructions should receive storage-alias metadata.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

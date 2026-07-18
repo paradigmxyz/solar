@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/yul_low_level_builtins.sol:YulLowLevelBuiltins ===
-; module @YulLowLevelBuiltins
+@module YulLowLevelBuiltins
 fn @safeCall(arg0: address, arg1: bytes4) {
   bb0 (entry):
     v0 = calldatasize

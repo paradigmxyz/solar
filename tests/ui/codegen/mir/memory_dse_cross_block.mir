@@ -1,5 +1,5 @@
 //@compile-flags: --pass memory-dse
-; module @MemoryDseCrossBlock
+@module MemoryDseCrossBlock
 
 fn @remove_store_overwritten_on_unique_edge() -> u256 {
   bb0 (entry):

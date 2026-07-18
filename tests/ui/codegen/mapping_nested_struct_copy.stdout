@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mapping_nested_struct_copy.sol:MappingNestedStructCopy ===
-; module @MappingNestedStructCopy
+@module MappingNestedStructCopy
 fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) {
   bb0 (entry):
     v0 = calldatasize

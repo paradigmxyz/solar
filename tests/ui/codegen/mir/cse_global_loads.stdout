@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/cse_global_loads.mir (after cse) ===
-; module @CseGlobalLoads
+@module CseGlobalLoads
 fn @dominating_mload(arg0: bool) -> u256 {
   bb0 (entry):
     mstore 0, 11

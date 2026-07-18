@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/inst_simplify.mir (after inst-simplify) ===
-; module @InstSimplify
+@module InstSimplify
 fn @strength_reduce_arithmetic(arg0: u256) -> u256 {
   bb0 (entry):
     v0 = shl 5, arg0

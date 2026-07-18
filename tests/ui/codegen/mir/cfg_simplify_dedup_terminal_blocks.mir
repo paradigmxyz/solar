@@ -1,7 +1,7 @@
 //@compile-flags: --pass cfg-simplify
-; module @CfgDedupTerminalBlocks
+@module CfgDedupTerminalBlocks
 
-; Two structurally identical panic blocks collapse into one shared block.
+// Two structurally identical panic blocks collapse into one shared block.
 fn @dedup_identical_panics(arg0: u256, arg1: u256) {
   bb0 (entry):
     br arg0, bb1, bb2
@@ -19,7 +19,7 @@ fn @dedup_identical_panics(arg0: u256, arg1: u256) {
     stop
 }
 
-; Panic blocks with different panic codes must NOT merge.
+// Panic blocks with different panic codes must NOT merge.
 fn @keep_distinct_panic_codes(arg0: u256, arg1: u256) {
   bb0 (entry):
     br arg0, bb1, bb2
@@ -37,7 +37,7 @@ fn @keep_distinct_panic_codes(arg0: u256, arg1: u256) {
     stop
 }
 
-; Identical instructions but different terminator operands must NOT merge.
+// Identical instructions but different terminator operands must NOT merge.
 fn @keep_distinct_revert_sizes(arg0: u256, arg1: u256) {
   bb0 (entry):
     br arg0, bb1, bb2
@@ -55,8 +55,8 @@ fn @keep_distinct_revert_sizes(arg0: u256, arg1: u256) {
     stop
 }
 
-; Block-local values compare by definition position, so alpha-equivalent
-; computations merge.
+// Block-local values compare by definition position, so alpha-equivalent
+// computations merge.
 fn @dedup_local_computations(arg0: u256, arg1: u256) {
   bb0 (entry):
     br arg0, bb1, bb2
@@ -74,7 +74,7 @@ fn @dedup_local_computations(arg0: u256, arg1: u256) {
     stop
 }
 
-; Blocks reading different outside values must NOT merge.
+// Blocks reading different outside values must NOT merge.
 fn @keep_distinct_outside_operands(arg0: u256, arg1: u256) {
   bb0 (entry):
     br arg0, bb1, bb2

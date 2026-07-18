@@ -1,4 +1,5 @@
 // === ROOT/tests/ui/codegen/evm-ir/stack_multi_use.evmir (after stack-schedule) ===
+@module module
 bb0 (entry):
   %a = push 1
   dup1

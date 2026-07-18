@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/builtin_addmod_mulmod.sol:AddmodMulmod ===
-; module @AddmodMulmod
+@module AddmodMulmod
 fn @am(arg0: u256, arg1: u256, arg2: u256) {
   bb0 (entry):
     v0 = calldatasize

@@ -1,10 +1,10 @@
 //@compile-flags: --pass licm
-; Two latches feeding the same phi with DIFFERENT increments (+1 and +7) take
-; the variable off the single-stride lattice that trip counts and affine
-; ranges assume: walking the +1 latch reaches i = 9, so the mstore really
-; writes byte 288 before the mload reads it. No induction variable may be
-; recorded and the mload must stay in the loop.
-; module @LicmMultiLatch
+// Two latches feeding the same phi with DIFFERENT increments (+1 and +7) take
+// the variable off the single-stride lattice that trip counts and affine
+// ranges assume: walking the +1 latch reaches i = 9, so the mstore really
+// writes byte 288 before the mload reads it. No induction variable may be
+// recorded and the mload must stay in the loop.
+@module LicmMultiLatch
 fn @multi_latch_mixed_step() -> u256 {
   bb0 (entry):
     jump bb1
@@ -28,8 +28,8 @@ fn @multi_latch_mixed_step() -> u256 {
     ret v3
 }
 
-; Two latches passing the SAME update value keep the stride uniform; the
-; store range is exactly [0, 320) and the mload at 320 may be hoisted.
+// Two latches passing the SAME update value keep the stride uniform; the
+// store range is exactly [0, 320) and the mload at 320 may be hoisted.
 fn @multi_latch_same_value() -> u256 {
   bb0 (entry):
     jump bb1

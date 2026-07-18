@@ -1,12 +1,13 @@
 //@compile-flags: --pass lower-dispatch,lower-abi,lower-dispatch,dce
 //@filecheck: --match-full-lines
-// CHECK: ; module @PhasePassBounds [phase = dispatch]
+// CHECK: @module PhasePassBounds
+// CHECK-NEXT: @phase dispatch
 // CHECK: fn @entry() {
 // Passes declare the phases they operate on and the pass manager enforces the
 // range: the first lower-dispatch is skipped on a `built` module (it requires
 // `abi`), lower-abi then advances the phase, the second lower-dispatch runs,
 // and dce demonstrates ordinary optimization still works after dispatch.
-; module @PhasePassBounds
+@module PhasePassBounds
 fn @get(arg0: u256) [selector=0x9507d39a] {
   bb0 (entry):
     mstore 128, arg0

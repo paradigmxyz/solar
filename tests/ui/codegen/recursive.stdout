@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/recursive.sol:Recursive ===
-; module @Recursive
+@module Recursive
 fn @fact(arg0: u256) {
   bb0 (entry):
     v0 = calldatasize

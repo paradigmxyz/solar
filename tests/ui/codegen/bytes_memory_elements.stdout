@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/bytes_memory_elements.sol:BytesMemoryElements ===
-; module @BytesMemoryElements
+@module BytesMemoryElements
 fn @alloc() {
   bb0 (entry):
     mstore 128, 0

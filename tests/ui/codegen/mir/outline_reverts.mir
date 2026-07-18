@@ -5,7 +5,7 @@
 // bare jump in the backend. The distinct panic in `@third` stays inline: a
 // shape must occur at least twice to pay for the helper.
 
-; module @OutlineReverts
+@module OutlineReverts
 fn @first(arg0: u256) {
   bb0 (entry):
     v1 = add arg0, 1

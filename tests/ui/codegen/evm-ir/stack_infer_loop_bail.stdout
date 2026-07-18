@@ -1,4 +1,5 @@
 // === ROOT/tests/ui/codegen/evm-ir/stack_infer_loop_bail.evmir (after stack-schedule) ===
+@module module
 bb0 (entry):
   %a = push 1
   jump bb1

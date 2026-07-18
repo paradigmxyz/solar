@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/storage_load_cse.mir (after storage-load-cse) ===
-; module @StorageLoadCse
+@module StorageLoadCse
 fn @reuse_across_disjoint_constant_store() -> u256 {
   bb0 (entry):
     v0 = sload 0 !metadata(storage=slot(0))

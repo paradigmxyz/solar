@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/check_elim_loop_increment.mir (after check-elim) ===
-; module @CheckElimLoopIncrement
+@module CheckElimLoopIncrement
 fn @fold_increment_check(arg0: u256) -> u256 {
   bb0 (entry):
     jump bb1

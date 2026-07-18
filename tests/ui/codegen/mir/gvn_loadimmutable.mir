@@ -1,5 +1,5 @@
 //@compile-flags: --pass gvn
-; module @GvnLoadImmutable
+@module GvnLoadImmutable
 
 // Repeated reads of the same immutable are congruent and merge.
 fn @same_immutable_merges() -> u256 {

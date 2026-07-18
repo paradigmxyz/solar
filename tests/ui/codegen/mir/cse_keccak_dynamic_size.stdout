@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/cse_keccak_dynamic_size.mir (after cse) ===
-; module @CseKeccakDynamicSize
+@module CseKeccakDynamicSize
 fn @keep_different_dynamic_sizes(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
     v0 = keccak256 0, arg0

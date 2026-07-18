@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/frame_promotion_sequential_counter.mir (after frame-slot-promotion,cfg-simplify,dce) ===
-; module @SequentialCounter
+@module SequentialCounter
 fn @sequential(arg0: u256) -> u256 {
   bb0 (entry):
     jump bb1

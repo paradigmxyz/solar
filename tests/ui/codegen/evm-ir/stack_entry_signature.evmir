@@ -2,6 +2,8 @@
 // A block can declare its incoming stack signature with `(in ...)`; scheduling
 // seeds the model stack from it so blocks that consume predecessor values are
 // scheduled instead of bailing.
+@module module
+
 bb0 (entry):
   %a = push 5
   jump bb1

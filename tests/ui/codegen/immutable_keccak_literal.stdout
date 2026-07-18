@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/immutable_keccak_literal.sol:ImmutableKeccakLiteral ===
-; module @ImmutableKeccakLiteral
+@module ImmutableKeccakLiteral
 fn @constructor() {
   bb0 (entry):
     mstore 0x2000, 0x31e1c5bf9da84811147b2cab01421da1659d9baff618fb99b976b2c0901cba01

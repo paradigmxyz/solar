@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/licm_zero_trip.mir (after licm) ===
-; module @LicmZeroTrip
+@module LicmZeroTrip
 fn @keep_sload_zero_trip() -> u256 {
   bb0 (entry):
     v0 = calldatasize

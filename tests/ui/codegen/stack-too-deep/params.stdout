@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/stack-too-deep/params.sol:StackTooDeepParams (creation) ===
 // === deployment ===
+@module deployment
 bb0 (entry):
   push 613
   dup1
@@ -10,6 +11,7 @@ bb0 (entry):
   return
 
 // === runtime ===
+@module runtime
 bb0 (entry):
   push 768
   push 64

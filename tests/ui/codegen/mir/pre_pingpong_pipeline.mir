@@ -1,7 +1,7 @@
 //@compile-flags: --pipeline-default
 // Same shape as pre_pingpong.mir: the full default pipeline must terminate on
 // joins that are mutual predecessors.
-; module @PingPongPipeline
+@module PingPongPipeline
 fn @pingpong(arg0: u256, arg1: u256) {
   bb0 (entry):
     switch arg1, default bb1, [1 => bb2, 2 => bb3, 3 => bb4]

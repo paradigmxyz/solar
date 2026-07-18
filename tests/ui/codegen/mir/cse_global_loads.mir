@@ -1,5 +1,5 @@
 //@compile-flags: --pass cse
-; module @CseGlobalLoads
+@module CseGlobalLoads
 fn @dominating_mload(arg0: bool) -> u256 {
   bb0 (entry):
     mstore 0, 11

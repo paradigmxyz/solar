@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/storage_promotion_nested.mir (after storage-promotion) ===
-; module @StoragePromotionNested
+@module StoragePromotionNested
 fn @promote_outer_after_inner_flush_split() {
   bb0 (entry):
     v4 = sload 0

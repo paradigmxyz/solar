@@ -669,7 +669,7 @@ impl<'a> StackScheduler<'a> {
         for operand in operands {
             match operand {
                 ir::Operand::Value(value) => target.push(ScheduledStackItem::Value(*value)),
-                ir::Operand::Immediate(_) | ir::Operand::Block(_) | ir::Operand::Symbol(_) => {
+                ir::Operand::Immediate(_) | ir::Operand::Block(_) => {
                     let item = self.fresh_anonymous();
                     out.push(ir::Instruction::push(operand.clone()));
                     stack.insert(0, item);

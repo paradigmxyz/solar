@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/cfg_simplify_dedup_terminal_blocks.mir (after cfg-simplify) ===
-; module @CfgDedupTerminalBlocks
+@module CfgDedupTerminalBlocks
 fn @dedup_identical_panics(arg0: u256, arg1: u256) {
   bb0 (entry):
     br arg0, bb1, bb2

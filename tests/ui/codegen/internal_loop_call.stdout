@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/internal_loop_call.sol:C ===
-; module @C
+@module C
 fn @sumTo(arg0: u256) -> u256 {
   bb0 (entry):
     v0 = internal_frame_addr 128

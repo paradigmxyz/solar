@@ -4,6 +4,8 @@
 // incoming stacks disagree. The scheduler refuses to guess and leaves bb3
 // verbatim (its `add %a, ...` operand stays un-scheduled), while bb1/bb2 still
 // schedule on their own.
+@module module
+
 bb0 (entry):
   %c = push 0
   br %c, bb1, bb2

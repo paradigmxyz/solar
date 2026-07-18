@@ -1,5 +1,5 @@
 //@compile-flags: --pass pre
-; module @Pre
+@module Pre
 fn @insert_missing_predecessor(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
     switch arg1, default bb3, [1 => bb1, 2 => bb2]

@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/cfg_simplify_phi_forwarders.mir (after cfg-simplify) ===
-; module @CfgSimplifyPhiForwarders
+@module CfgSimplifyPhiForwarders
 fn @keep_conflicting_diamond(arg0: bool) -> u256 {
   bb0 (entry):
     br arg0, bb3, bb2

@@ -1,5 +1,5 @@
 //@compile-flags: --pass adce
-; module @Adce
+@module Adce
 fn @removes_dead_branch_region(arg0: bool) -> u256 {
   bb0 (entry):
     br arg0, bb1, bb2

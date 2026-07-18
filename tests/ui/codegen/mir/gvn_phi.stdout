@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/gvn_phi.mir (after gvn) ===
-; module @GvnPhi
+@module GvnPhi
 fn @congruent_phis_collapse(arg0: u256, arg1: u256, arg2: bool) -> u256 {
   bb0 (entry):
     br arg2, bb1, bb2

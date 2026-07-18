@@ -3,7 +3,7 @@
 // The acyclic function uses v1 before its definition and must be rejected. The
 // cyclic function has the same textual ordering but remains valid under MIR's
 // deliberately loose SSA rules.
-; module @ValidateSameBlockUse
+@module ValidateSameBlockUse
 fn @acyclic() -> u256 {
   bb0 (entry):
     v0 = add v1, 1

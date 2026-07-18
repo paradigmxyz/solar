@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/gvn.mir (after gvn) ===
-; module @Gvn
+@module Gvn
 fn @transitive_congruence(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
     v0 = add arg0, arg1

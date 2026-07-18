@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/cse_swapped_comparisons.mir (after cse) ===
-; module @CseSwappedComparisons
+@module CseSwappedComparisons
 fn @reuse_gt_after_lt(arg0: u256, arg1: u256) -> (bool, bool) {
   bb0 (entry):
     v0 = lt arg0, arg1

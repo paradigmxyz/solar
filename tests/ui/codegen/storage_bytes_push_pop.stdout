@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/storage_bytes_push_pop.sol:StorageBytesPushPop ===
-; module @StorageBytesPushPop
+@module StorageBytesPushPop
 fn @_anonymous() {
   bb0 (entry):
     v0 = internal_call @__load_storage_bytes, 1, 0

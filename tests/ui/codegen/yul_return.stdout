@@ -1,4 +1,5 @@
 // === ROOT/tests/ui/codegen/yul_return.sol:R (runtime) ===
+@module runtime
 bb0 (entry):
   push 160
   push 64

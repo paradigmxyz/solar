@@ -1,5 +1,5 @@
 //@compile-flags: --pass cse
-; module @CseGlobalClobberPaths
+@module CseGlobalClobberPaths
 fn @diamond_sload_clobbered_arm(arg0: bool) -> u256 {
   bb0 (entry):
     v1 = sload 0

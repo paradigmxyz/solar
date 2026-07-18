@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/while_empty_body.sol:WhileEmptyBody (creation) ===
 // === deployment ===
+@module deployment
 bb0 (entry):
   push 53
   dup1
@@ -10,6 +11,7 @@ bb0 (entry):
   return
 
 // === runtime ===
+@module runtime
 bb0 (entry):
   push 128
   push 64

@@ -1,3 +1,5 @@
+@module module
+
 bb0 (entry):
   %calldata_offset = push 0
   %selector = calldataload %calldata_offset
@@ -5,7 +7,7 @@ bb0 (entry):
 bb1:
   jump bb4
 bb2:
-  %beneficiary = push @beneficiary
+  %beneficiary = push 0xbeef
   selfdestruct %beneficiary !meta(source=admin-path)
 bb3 [cold]:
   invalid

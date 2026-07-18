@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/licm_descending_iv.mir (after licm) ===
-; module @LicmDescendingIv
+@module LicmDescendingIv
 fn @keep_mload_descending_iv() -> u256 {
   bb0 (entry):
     jump bb1

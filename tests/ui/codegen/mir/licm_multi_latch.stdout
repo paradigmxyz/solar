@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/licm_multi_latch.mir (after licm) ===
-; module @LicmMultiLatch
+@module LicmMultiLatch
 fn @multi_latch_mixed_step() -> u256 {
   bb0 (entry):
     v4 = calldataload 0

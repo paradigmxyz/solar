@@ -3,7 +3,8 @@
 // the switch default routes to `fallback`, and the nonpayable entry gets a
 // per-case callvalue check because a payable entry exists, so the check cannot
 // be hoisted. Receive is payable and needs no check.
-; module @DispatchParity [phase = abi]
+@module DispatchParity
+@phase abi
 fn @pay() [selector=0x00000001, payable] {
   bb0 (entry):
     stop

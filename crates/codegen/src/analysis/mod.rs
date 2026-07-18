@@ -27,4 +27,4 @@ mod scalar_evolution;
 pub use scalar_evolution::{AffineExpr, AffineTerm, ScalarEvolution};
 
 mod validator;
-pub use validator::Validator;
+pub(crate) use validator::validate;

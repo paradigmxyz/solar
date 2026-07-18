@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/load_pre_clobbers.mir (after load-pre) ===
-; module @LoadPreClobbers
+@module LoadPreClobbers
 fn @kill_blocks_reuse(arg0: bool, arg1: u256) -> u256 {
   bb0 (entry):
     v0 = sload 5

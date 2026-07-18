@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/sccp_switch_order.mir (after sccp) ===
-; module @SccpSwitchOrder
+@module SccpSwitchOrder
 fn @earlier_unknown_case_blocks_fold(arg0: u256) -> u256 {
   bb0 (entry):
     switch 5, default bb3, [arg0 => bb1, 5 => bb2]

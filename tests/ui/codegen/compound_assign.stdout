@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/compound_assign.sol:CompoundAssign ===
-; module @CompoundAssign
+@module CompoundAssign
 fn @value() {
   bb0 (entry):
     mstore 128, 0

@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/phi.mir (after none) ===
-; module @PhiTest
+@module PhiTest
 fn @diamond(arg0: bool) -> u256 {
   bb0 (entry):
     br arg0, bb1, bb2

@@ -1,5 +1,5 @@
 //@compile-flags: --pass storage-load-cse
-; module @StorageLoadCse
+@module StorageLoadCse
 fn @reuse_across_disjoint_constant_store() -> u256 {
   bb0 (entry):
     v1 = sload 0

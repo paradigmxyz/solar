@@ -4,7 +4,7 @@
 // dominating load directly; a clobbering diamond arm may be compensated, but
 // the inserted load must stay after the clobber; gas() above the join load
 // blocks the rewrite in all spaces.
-; module @LoadPreClobbers
+@module LoadPreClobbers
 fn @kill_blocks_reuse(arg0: bool, arg1: u256) -> u256 {
   bb0 (entry):
     v1 = sload 5

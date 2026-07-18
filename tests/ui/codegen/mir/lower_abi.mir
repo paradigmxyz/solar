@@ -5,7 +5,7 @@
 // selector and fused encode. Since neither function has an internal caller,
 // no redundant `.body` copy is appended. Advances the module to the `abi`
 // phase.
-; module @LowerAbi
+@module LowerAbi
 fn @add(arg0: u256, arg1: u256) [selector=0x771602f7] {
   bb0 (entry):
     v2 = add arg0, arg1
