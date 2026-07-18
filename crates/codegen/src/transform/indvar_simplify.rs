@@ -32,7 +32,7 @@ use solar_data_structures::map::FxHashMap;
 
 /// Statistics from induction-variable simplification.
 #[derive(Clone, Debug, Default)]
-pub struct IndVarSimplifyStats {
+pub(crate) struct IndVarSimplifyStats {
     /// Number of loop-carried pointer phis inserted.
     pub pointer_phis_inserted: usize,
     /// Number of loop-local address uses replaced.
@@ -42,25 +42,21 @@ pub struct IndVarSimplifyStats {
 impl IndVarSimplifyStats {
     /// Returns the total number of MIR changes performed.
     #[must_use]
-    pub const fn total(&self) -> usize {
+    pub(crate) const fn total(&self) -> usize {
         self.pointer_phis_inserted + self.address_uses_replaced
     }
 }
 
 /// Performs conservative induction-variable strength reduction.
 #[derive(Debug, Default)]
-pub struct IndVarSimplifier {
+pub(crate) struct IndVarSimplifier {
     stats: IndVarSimplifyStats,
 }
 
 /// Function pass for induction-variable simplification and strength reduction.
-pub struct IndVarSimplifyPass;
+pub(crate) struct IndVarSimplifyPass;
 
 impl FunctionPass for IndVarSimplifyPass {
-    fn name(&self) -> &str {
-        "indvar-simplify"
-    }
-
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         IndVarSimplifier::new().run(func).total() != 0
     }
@@ -77,18 +73,12 @@ struct AddressKey {
 impl IndVarSimplifier {
     /// Creates a new induction-variable simplifier.
     #[must_use]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
-    /// Returns statistics from the last run.
-    #[must_use]
-    pub const fn stats(&self) -> &IndVarSimplifyStats {
-        &self.stats
-    }
-
     /// Runs induction-variable simplification once over `func`.
-    pub fn run(&mut self, func: &mut Function) -> &IndVarSimplifyStats {
+    pub(crate) fn run(&mut self, func: &mut Function) -> &IndVarSimplifyStats {
         self.stats = IndVarSimplifyStats::default();
 
         let mut analyzer = LoopAnalyzer::new();

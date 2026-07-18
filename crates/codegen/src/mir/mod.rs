@@ -5,27 +5,28 @@
 use solar_data_structures::newtype_index;
 
 mod types;
-pub use types::MirType;
+pub(crate) use types::MirType;
 
 mod value;
-pub use value::{Immediate, Value};
+pub(crate) use value::{Immediate, Value};
 
 mod inst;
-pub use inst::{
+pub(crate) use inst::{
     EffectKind, InstKind, Instruction, InstructionMetadata, MemoryRegion, StorageAlias,
 };
 
 mod block;
-pub use block::{BasicBlock, Terminator};
+pub(crate) use block::{BasicBlock, Terminator};
 
 mod function;
-pub use function::{Function, FunctionAttributes};
+pub(crate) use function::{Function, FunctionAttributes};
 
 mod module;
-pub use module::{DataSegment, IMMUTABLE_WORD_SIZE, ImmutableSlot, MirPhase, Module, StorageSlot};
+pub use module::Module;
+pub(crate) use module::{IMMUTABLE_WORD_SIZE, MirPhase};
 
 mod builder;
-pub use builder::FunctionBuilder;
+pub(crate) use builder::FunctionBuilder;
 
 mod display;
 
@@ -40,16 +41,16 @@ pub(crate) mod utils;
 
 newtype_index! {
     /// A unique identifier for a value in the MIR.
-    pub struct ValueId;
+    pub(crate) struct ValueId;
 
     /// A unique identifier for an instruction in the MIR.
-    pub struct InstId;
+    pub(crate) struct InstId;
 
     /// A unique identifier for a basic block in the MIR.
-    pub struct BlockId;
+    pub(crate) struct BlockId;
 
     /// A unique identifier for a function in the MIR.
-    pub struct FunctionId;
+    pub(crate) struct FunctionId;
 }
 
 /// Property tests verifying that the MIR printer/parser pair is self-consistent.

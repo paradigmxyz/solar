@@ -27,7 +27,7 @@ use solar_interface::{Ident, Symbol};
 
 /// Statistics from revert-block outlining.
 #[derive(Clone, Debug, Default)]
-pub struct OutlineRevertsStats {
+pub(crate) struct OutlineRevertsStats {
     /// Number of blocks rewritten into tail calls.
     pub outlined: usize,
     /// Number of shared helpers synthesized.
@@ -36,7 +36,7 @@ pub struct OutlineRevertsStats {
 
 /// Revert-block outlining pass.
 #[derive(Debug, Default)]
-pub struct OutlineRevertsPass {
+pub(crate) struct OutlineRevertsPass {
     stats: OutlineRevertsStats,
 }
 
@@ -44,12 +44,6 @@ pub struct OutlineRevertsPass {
 type RevertShape = (SmallVec<[(U256, U256); 2]>, U256, U256);
 
 impl OutlineRevertsPass {
-    /// Returns statistics for the most recent run.
-    #[must_use]
-    pub const fn stats(&self) -> &OutlineRevertsStats {
-        &self.stats
-    }
-
     fn run(&mut self, module: &mut Module) -> bool {
         // Collect every constant revert block, keyed by shape.
         let mut shapes: FxHashMap<RevertShape, Vec<(usize, usize)>> = FxHashMap::default();
@@ -111,10 +105,6 @@ impl OutlineRevertsPass {
 }
 
 impl ModulePass for OutlineRevertsPass {
-    fn name(&self) -> &str {
-        "outline-reverts"
-    }
-
     fn run(&mut self, module: &mut Module) -> bool {
         Self::run(self, module)
     }

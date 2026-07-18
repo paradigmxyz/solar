@@ -4,7 +4,7 @@ use std::fmt;
 
 /// Types used in MIR.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum MirType {
+pub(crate) enum MirType {
     /// Unsigned integer with a given bit width (8, 16, 32, ..., 256).
     UInt(u16),
     /// Signed integer with a given bit width.
@@ -28,41 +28,21 @@ pub enum MirType {
 }
 
 impl MirType {
-    /// Returns the size in bytes for this type on the stack.
-    #[must_use]
-    pub const fn stack_size(&self) -> usize {
-        match self {
-            Self::Bool => 1,
-            Self::UInt(bits) | Self::Int(bits) => (*bits as usize).div_ceil(8),
-            Self::Address => 20,
-            Self::FixedBytes(n) => *n as usize,
-            Self::MemPtr | Self::StoragePtr | Self::CalldataPtr => 32,
-            Self::Function => 24,
-            Self::Void => 0,
-        }
-    }
-
-    /// Returns true if this type fits in a single EVM word (32 bytes).
-    #[must_use]
-    pub const fn fits_in_word(&self) -> bool {
-        self.stack_size() <= 32
-    }
-
     /// Returns the uint256 type.
     #[must_use]
-    pub const fn uint256() -> Self {
+    pub(crate) const fn uint256() -> Self {
         Self::UInt(256)
     }
 
     /// Returns the int256 type.
     #[must_use]
-    pub const fn int256() -> Self {
+    pub(crate) const fn int256() -> Self {
         Self::Int(256)
     }
 
     /// Returns the bytes32 type.
     #[must_use]
-    pub const fn bytes32() -> Self {
+    pub(crate) const fn bytes32() -> Self {
         Self::FixedBytes(32)
     }
 }

@@ -22,11 +22,9 @@ mod verify;
 
 pub(in crate::backend::evm) mod assembly;
 
-pub use passes::{
-    BLOCK_LAYOUT_PASS, CFG_SIMPLIFY_PASS, COMPACT_PUSHES_PASS, DEFAULT_PIPELINE, OUTLINE_PASS,
-    PASS_REGISTRY, PEEPHOLE_PASS, PassInfo, PassOptions, SHARE_REVERTS_PASS, STACK_SCHEDULE_PASS,
-    TAIL_MERGE_PASS, TERMINAL_DEDUP_PASS, lookup_pass, run_pass,
-};
+pub use passes::{PASS_REGISTRY, PassInfo, PassOptions, lookup_pass, run_pass};
+
+pub(crate) use passes::{DEFAULT_PIPELINE, STACK_SCHEDULE_PASS};
 
 /// Validates the invariants of an EVM IR module.
 pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
@@ -35,23 +33,23 @@ pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
 
 newtype_index! {
     /// A unique identifier for a basic block in EVM IR.
-    pub struct BlockId;
+    pub(crate) struct BlockId;
 
     /// A unique identifier for an untyped stack word in EVM IR.
-    pub struct ValueId;
+    pub(crate) struct ValueId;
 }
 
 /// An EVM IR module.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Module {
     /// Program name used by tools and diagnostics.
-    pub name: Symbol,
+    pub(crate) name: Symbol,
     /// Basic blocks in layout order.
-    pub blocks: IndexVec<BlockId, Block>,
+    pub(crate) blocks: IndexVec<BlockId, Block>,
     /// The entry block, if one has been created.
-    pub entry_block: Option<BlockId>,
+    pub(crate) entry_block: Option<BlockId>,
     /// Untyped stack words known to this program.
-    pub values: IndexVec<ValueId, Value>,
+    pub(crate) values: IndexVec<ValueId, Value>,
 }
 
 impl Module {
@@ -65,13 +63,13 @@ impl Module {
 
     /// Creates an empty EVM IR program.
     #[must_use]
-    pub fn new(name: Symbol) -> Self {
+    pub(crate) fn new(name: Symbol) -> Self {
         assert!(is_ident(name.as_str()), "invalid EVM IR program name `{name}`");
         Self { name, blocks: IndexVec::new(), entry_block: None, values: IndexVec::new() }
     }
 
     /// Changes the program name.
-    pub fn set_name(&mut self, name: Symbol) {
+    pub(crate) fn set_name(&mut self, name: Symbol) {
         assert!(is_ident(name.as_str()), "invalid EVM IR program name `{name}`");
         self.name = name;
     }
@@ -83,7 +81,7 @@ impl Module {
     }
 
     /// Adds a block to the program.
-    pub fn add_block(&mut self, block: Block) -> BlockId {
+    pub(crate) fn add_block(&mut self, block: Block) -> BlockId {
         let id = self.blocks.push(block);
         if self.entry_block.is_none() {
             self.entry_block = Some(id);
@@ -92,41 +90,30 @@ impl Module {
     }
 
     /// Allocates a named untyped stack word.
-    pub fn add_value(&mut self, name: Symbol) -> ValueId {
+    pub(crate) fn add_value(&mut self, name: Symbol) -> ValueId {
         assert!(is_ident(name.as_str()), "invalid EVM IR value name `%{name}`");
         self.values.push(Value { name })
     }
 
-    /// Returns the block for the given ID.
-    #[must_use]
-    pub fn block(&self, id: BlockId) -> &Block {
-        &self.blocks[id]
-    }
-
-    /// Returns a mutable reference to the block for the given ID.
-    pub fn block_mut(&mut self, id: BlockId) -> &mut Block {
-        &mut self.blocks[id]
-    }
-
     /// Returns the value for the given ID.
     #[must_use]
-    pub fn value(&self, id: ValueId) -> &Value {
+    pub(crate) fn value(&self, id: ValueId) -> &Value {
         &self.values[id]
     }
 }
 
 /// A basic block in EVM IR.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Block {
+pub(crate) struct Block {
     /// Stable textual label for this block.
-    pub label: u32,
+    pub(crate) label: u32,
     /// Block metadata. The hot/cold field is present before it is consumed by
     /// layout or scheduling so fixtures can pin the format early.
-    pub metadata: BlockMetadata,
+    pub(crate) metadata: BlockMetadata,
     /// Non-terminating EVM backend instructions.
-    pub instructions: Vec<Instruction>,
+    pub(crate) instructions: Vec<Instruction>,
     /// Optional control-flow terminator.
-    pub terminator: Option<Terminator>,
+    pub(crate) terminator: Option<Terminator>,
     /// Values present on the stack at block entry, top first.
     ///
     /// This is the block's incoming stack-word signature: values produced by a
@@ -134,13 +121,13 @@ pub struct Block {
     /// blocks that begin from a clean stack. Stack scheduling seeds its model
     /// stack from this so blocks that consume predecessor values can be
     /// scheduled instead of bailing.
-    pub entry_stack: Vec<ValueId>,
+    pub(crate) entry_stack: Vec<ValueId>,
 }
 
 impl Block {
     /// Creates an empty hot block.
     #[must_use]
-    pub fn new(label: u32) -> Self {
+    pub(crate) fn new(label: u32) -> Self {
         Self {
             label,
             metadata: BlockMetadata::default(),
@@ -153,14 +140,14 @@ impl Block {
 
 /// Block-level metadata.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct BlockMetadata {
+pub(crate) struct BlockMetadata {
     /// Estimated block hotness for future layout and scheduling decisions.
-    pub hotness: Hotness,
+    pub(crate) hotness: Hotness,
 }
 
 /// Block hotness metadata.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum Hotness {
+pub(crate) enum Hotness {
     /// The block is expected to be frequently executed.
     #[default]
     Hot,
@@ -171,31 +158,31 @@ pub enum Hotness {
 impl Hotness {
     /// Returns whether this is cold code.
     #[must_use]
-    pub const fn is_cold(self) -> bool {
+    pub(crate) const fn is_cold(self) -> bool {
         matches!(self, Self::Cold)
     }
 }
 
 /// A named untyped stack word.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Value {
+pub(crate) struct Value {
     /// Stable textual stack-word name, without the leading `%`.
-    pub name: Symbol,
+    pub(crate) name: Symbol,
 }
 
 /// A non-terminating untyped backend instruction.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Instruction {
+pub(crate) struct Instruction {
     /// Optional stack word produced by this instruction.
-    pub result: Option<ValueId>,
+    pub(crate) result: Option<ValueId>,
     /// Raw EVM opcode byte.
-    pub opcode: u8,
+    pub(crate) opcode: u8,
     /// Internal encoding flags for instructions resolved during assembly.
     encoding: u8,
     /// Instruction operands.
-    pub operands: Vec<Operand>,
+    pub(crate) operands: Vec<Operand>,
     /// Instruction metadata.
-    pub metadata: Metadata,
+    pub(crate) metadata: Metadata,
 }
 
 impl Instruction {
@@ -205,25 +192,25 @@ impl Instruction {
 
     /// Creates an instruction for an EVM opcode.
     #[must_use]
-    pub const fn opcode(opcode: u8) -> Self {
+    pub(crate) const fn opcode(opcode: u8) -> Self {
         Self { result: None, opcode, encoding: 0, operands: Vec::new(), metadata: Metadata::EMPTY }
     }
 
     /// Creates an encoded push instruction.
     #[must_use]
-    pub fn push(operand: Operand) -> Self {
+    pub(crate) fn push(operand: Operand) -> Self {
         Self::encoded_push(operand, Self::ENCODED_PUSH)
     }
 
     /// Creates an encoded deferred push instruction.
     #[must_use]
-    pub fn push_deferred(operand: Operand) -> Self {
+    pub(crate) fn push_deferred(operand: Operand) -> Self {
         Self::encoded_push(operand, Self::ENCODED_PUSH | Self::DEFERRED)
     }
 
     /// Creates an encoded immutable push instruction.
     #[must_use]
-    pub fn push_immutable(operand: Operand) -> Self {
+    pub(crate) fn push_immutable(operand: Operand) -> Self {
         Self::encoded_push(operand, Self::ENCODED_PUSH | Self::IMMUTABLE)
     }
 
@@ -239,7 +226,7 @@ impl Instruction {
 
     /// Returns the instruction mnemonic as printed in EVM IR.
     #[must_use]
-    pub fn mnemonic(&self) -> impl fmt::Display + '_ {
+    pub(crate) fn mnemonic(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| match self.encoding {
             Self::ENCODED_PUSH => f.write_str("push"),
             encoding if encoding == Self::ENCODED_PUSH | Self::DEFERRED => {
@@ -254,25 +241,25 @@ impl Instruction {
 
     /// Returns whether this is an encoded push.
     #[must_use]
-    pub const fn is_encoded_push(&self) -> bool {
+    pub(crate) const fn is_encoded_push(&self) -> bool {
         self.encoding & Self::ENCODED_PUSH != 0
     }
 
     /// Returns whether this is a deferred push.
     #[must_use]
-    pub const fn is_deferred_push(&self) -> bool {
+    pub(crate) const fn is_deferred_push(&self) -> bool {
         self.encoding & Self::DEFERRED != 0
     }
 
     /// Returns whether this is an immutable push.
     #[must_use]
-    pub const fn is_immutable_push(&self) -> bool {
+    pub(crate) const fn is_immutable_push(&self) -> bool {
         self.encoding & Self::IMMUTABLE != 0
     }
 
     /// Returns whether this instruction materializes a physical EVM stack op.
     #[must_use]
-    pub const fn is_physical_stack_op(&self) -> bool {
+    pub(crate) const fn is_physical_stack_op(&self) -> bool {
         !self.is_encoded_push()
             && matches!(
                 self.opcode,
@@ -285,24 +272,24 @@ impl Instruction {
 
 /// A control-flow terminator.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Terminator {
+pub(crate) struct Terminator {
     /// The terminator kind.
-    pub kind: TerminatorKind,
+    pub(crate) kind: TerminatorKind,
     /// Terminator metadata.
-    pub metadata: Metadata,
+    pub(crate) metadata: Metadata,
 }
 
 impl Terminator {
     /// Creates a terminator without metadata.
     #[must_use]
-    pub const fn new(kind: TerminatorKind) -> Self {
+    pub(crate) const fn new(kind: TerminatorKind) -> Self {
         Self { kind, metadata: Metadata::EMPTY }
     }
 }
 
 /// Control-flow terminators in EVM IR.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum TerminatorKind {
+pub(crate) enum TerminatorKind {
     /// Unconditional jump.
     Jump(BlockId),
     /// Conditional branch.
@@ -352,7 +339,7 @@ pub enum TerminatorKind {
 
 /// An instruction or terminator operand.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Operand {
+pub(crate) enum Operand {
     /// Untyped stack-word reference.
     Value(ValueId),
     /// Immediate EVM word.
@@ -363,46 +350,46 @@ pub enum Operand {
 
 /// Generic metadata carried by instructions and terminators.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Metadata {
+pub(crate) struct Metadata {
     /// Optional stack effect.
-    pub stack: Option<StackEffect>,
+    pub(crate) stack: Option<StackEffect>,
     /// Extra key-value metadata fields, in textual order.
-    pub attrs: Vec<MetadataItem>,
+    pub(crate) attrs: Vec<MetadataItem>,
 }
 
 impl Metadata {
     /// Empty metadata value.
-    pub const EMPTY: Self = Self { stack: None, attrs: Vec::new() };
+    pub(crate) const EMPTY: Self = Self { stack: None, attrs: Vec::new() };
 
     /// Returns whether no metadata fields are present.
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.stack.is_none() && self.attrs.is_empty()
     }
 }
 
 /// A metadata key-value item.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MetadataItem {
+pub(crate) struct MetadataItem {
     /// Metadata key.
-    pub key: Symbol,
+    pub(crate) key: Symbol,
     /// Metadata value, if the field is not a marker.
-    pub value: Option<Symbol>,
+    pub(crate) value: Option<Symbol>,
 }
 
 /// Stack effect metadata for one EVM IR operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct StackEffect {
+pub(crate) struct StackEffect {
     /// Number of stack items consumed.
-    pub inputs: u16,
+    pub(crate) inputs: u16,
     /// Number of stack items produced.
-    pub outputs: u16,
+    pub(crate) outputs: u16,
 }
 
 impl StackEffect {
     /// Creates a stack effect descriptor.
     #[must_use]
-    pub const fn new(inputs: u16, outputs: u16) -> Self {
+    pub(crate) const fn new(inputs: u16, outputs: u16) -> Self {
         Self { inputs, outputs }
     }
 }

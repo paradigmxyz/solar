@@ -15,7 +15,7 @@ use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use solar_interface::{diagnostics::DiagCtxt, sym};
 
-pub use super::opcode as op;
+pub(crate) use super::opcode as op;
 
 const EVM_WORD_BYTES: usize = 32;
 
@@ -23,7 +23,7 @@ mod id_counter;
 pub(in crate::backend::evm) use id_counter::IdCounter;
 
 pub(super) use assembly::{AsmInst, AsmInstKind, PushValueId};
-pub use assembly::{DeferredConst, Label};
+pub(crate) use assembly::{DeferredConst, Label};
 
 mod local_interner;
 pub(in crate::backend::evm) use local_interner::LocalInterner;
@@ -35,7 +35,7 @@ use assembly::Program as AssemblyProgram;
 /// TODO: Track placeholder byte width here when smaller immutable references
 /// are supported.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ImmutableRef {
+pub(crate) struct ImmutableRef {
     /// The immutable's byte offset identifier.
     pub id: u32,
     /// Byte offset of the `PUSH32` opcode in the assembled bytecode.
@@ -45,11 +45,9 @@ pub struct ImmutableRef {
 
 /// Result of assembly.
 #[derive(Debug)]
-pub struct AssembledCode {
+pub(crate) struct AssembledCode {
     /// The final bytecode.
     pub bytecode: Vec<u8>,
-    /// Map from label to its final offset.
-    pub label_offsets: FxHashMap<Label, usize>,
     /// All immutable placeholders, in emission order.
     pub immutable_refs: Vec<ImmutableRef>,
     /// Final EVM IR captured immediately before byte emission.
@@ -68,7 +66,7 @@ pub(in crate::backend::evm) struct PreparedAssembly {
 
 /// Configuration for EVM bytecode assembly.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct AssemblerConfig {
+pub(crate) struct AssemblerConfig {
     /// EVM version to target when selecting hardfork-gated opcodes.
     pub evm_version: EvmVersion,
     /// Optimization mode for alternate byte encodings.
@@ -83,7 +81,7 @@ pub struct AssemblerConfig {
 
 /// Relocating assembler for finalized EVM IR.
 #[derive(Debug)]
-pub struct Assembler {
+pub(crate) struct Assembler {
     /// Bytecode assembly configuration.
     config: AssemblerConfig,
     /// EVM IR emitted directly by MIR lowering.
@@ -113,13 +111,13 @@ pub struct Assembler {
 impl Assembler {
     /// Creates a new assembler.
     #[must_use]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::with_config(AssemblerConfig::default())
     }
 
     /// Creates a new assembler with the given configuration.
     #[must_use]
-    pub fn with_config(config: AssemblerConfig) -> Self {
+    pub(crate) fn with_config(config: AssemblerConfig) -> Self {
         Self {
             config,
             program: Self::new_ir_module(),
@@ -137,7 +135,7 @@ impl Assembler {
     }
 
     /// Clears all emitted instructions and local identifiers.
-    pub fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.program = Self::new_ir_module();
         self.current_block = None;
         self.block_labels.clear();
@@ -152,53 +150,53 @@ impl Assembler {
     }
 
     /// Creates a new label.
-    pub fn new_label(&mut self) -> Label {
+    pub(crate) fn new_label(&mut self) -> Label {
         self.next_label.next()
     }
 
     /// Creates a new deferred constant.
-    pub fn new_deferred_const(&mut self) -> DeferredConst {
+    pub(crate) fn new_deferred_const(&mut self) -> DeferredConst {
         self.next_deferred.next()
     }
 
     /// Emits a raw opcode.
-    pub fn emit_op(&mut self, opcode: u8) {
+    pub(crate) fn emit_op(&mut self, opcode: u8) {
         self.push_ir_instruction(ir::Instruction::opcode(opcode));
     }
 
     /// Emits a push instruction with an immediate value.
-    pub fn emit_push(&mut self, value: U256) {
+    pub(crate) fn emit_push(&mut self, value: U256) {
         self.push_ir_instruction(ir::Instruction::push(ir::Operand::Immediate(value)));
     }
 
     /// Emits a push instruction that will be resolved to a label's offset.
-    pub fn emit_push_label(&mut self, label: Label) {
+    pub(crate) fn emit_push_label(&mut self, label: Label) {
         let (block, instruction) =
             self.push_ir_instruction(ir::Instruction::push(ir::Operand::Immediate(U256::ZERO)));
         self.label_relocations.push((block, instruction, label));
     }
 
     /// Emits a push instruction for a deferred constant.
-    pub fn emit_push_deferred(&mut self, id: DeferredConst) {
+    pub(crate) fn emit_push_deferred(&mut self, id: DeferredConst) {
         let (block, instruction) =
             self.push_ir_instruction(ir::Instruction::push(ir::Operand::Immediate(U256::ZERO)));
         self.deferred_relocations.push((block, instruction, id));
     }
 
     /// Sets the value of a deferred constant.
-    pub fn set_deferred_const(&mut self, id: DeferredConst, value: U256) {
+    pub(crate) fn set_deferred_const(&mut self, id: DeferredConst, value: U256) {
         self.deferred_values.insert(id, value);
     }
 
     /// Emits a `PUSH32` zero placeholder for the immutable identified by `id`.
-    pub fn emit_push_immutable(&mut self, id: u32) {
+    pub(crate) fn emit_push_immutable(&mut self, id: u32) {
         self.push_ir_instruction(ir::Instruction::push_immutable(ir::Operand::Immediate(
             U256::from(id),
         )));
     }
 
     /// Defines a label and emits a `JUMPDEST` at the current position.
-    pub fn define_label(&mut self, label: Label) {
+    pub(crate) fn define_label(&mut self, label: Label) {
         let mut block = ir::Block::new(self.program.blocks.len() as u32);
         if self.cold_labels.contains(label) {
             block.metadata.hotness = ir::Hotness::Cold;
@@ -308,7 +306,7 @@ impl Assembler {
     /// Assembles the instructions into bytecode.
     /// Resolves relocations and encodes finalized EVM IR as bytecode.
     #[must_use]
-    pub fn assemble(&mut self) -> AssembledCode {
+    pub(crate) fn assemble(&mut self) -> AssembledCode {
         let prepared = self.prepare();
         let result = self.assemble_prepared(&prepared, &[]);
         self.clear();
@@ -558,7 +556,7 @@ impl Assembler {
             }
         }
 
-        out.finish(label_offsets)
+        out.finish()
     }
 
     /// Returns the minimum number of non-zero bytes needed to push a value.
@@ -662,13 +660,8 @@ impl BytecodeAssembler {
         }
     }
 
-    fn finish(self, label_offsets: FxHashMap<Label, usize>) -> AssembledCode {
-        AssembledCode {
-            bytecode: self.bytecode,
-            label_offsets,
-            immutable_refs: self.immutable_refs,
-            evm_ir: None,
-        }
+    fn finish(self) -> AssembledCode {
+        AssembledCode { bytecode: self.bytecode, immutable_refs: self.immutable_refs, evm_ir: None }
     }
 }
 
@@ -918,10 +911,21 @@ STOP
 
         let result = asm.assemble();
 
-        // Check labels were resolved
-        assert!(result.label_offsets.contains_key(&loop_label));
-        assert!(result.label_offsets.contains_key(&end_label));
-        assert_eq!(result.label_offsets[&loop_label], 0);
+        assert_eq!(
+            result.bytecode,
+            [
+                op::JUMPDEST,
+                op::PUSH1,
+                1,
+                op::PUSH1,
+                8,
+                op::JUMPI,
+                op::PUSH0,
+                op::JUMP,
+                op::JUMPDEST,
+                op::STOP,
+            ]
+        );
     }
 
     #[test]
@@ -945,10 +949,10 @@ STOP
 
         let result = asm.assemble();
 
-        assert_eq!(result.label_offsets[&first], 2);
-        assert_eq!(result.label_offsets[&second], 257);
         assert_eq!(result.bytecode[0], op::PUSH1);
+        assert_eq!(result.bytecode[1], 2);
         assert_eq!(result.bytecode[3], op::PUSH2);
+        assert_eq!(&result.bytecode[4..6], &[1, 1]);
     }
 
     #[test]

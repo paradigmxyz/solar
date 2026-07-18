@@ -11,6 +11,7 @@ use solar_data_structures::fmt::{self, FmtIteratorExt};
 use solar_sema::hir;
 
 /// Displays a DOT format CFG for a function.
+#[cfg(test)]
 pub(crate) fn display_function_dot<'a>(
     func: &'a Function,
     funcs: Option<&'a solar_data_structures::index::IndexVec<FunctionId, Function>>,

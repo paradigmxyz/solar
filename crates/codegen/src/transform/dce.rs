@@ -4,7 +4,7 @@
 
 use crate::{
     analysis::CfgInfo,
-    mir::{BlockId, Function, InstId, Terminator, Value, ValueId, utils::repair_reachability_phis},
+    mir::{BlockId, Function, InstId, Terminator, ValueId, utils::repair_reachability_phis},
     pass::FunctionPass,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
@@ -19,34 +19,15 @@ use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 ///
 /// Side-effect instructions (SSTORE, MSTORE, CALL, LOG, etc.) are always kept.
 #[derive(Debug, Default)]
-pub struct DeadCodeEliminator {
+pub(crate) struct DeadCodeEliminator {
     /// Number of instructions eliminated in the last run.
     pub eliminated_count: usize,
-    /// Number of unreachable blocks removed.
-    pub blocks_removed: usize,
-    /// Number of unused parameters detected.
-    pub unused_params: usize,
-}
-
-/// Statistics for a DCE run.
-#[derive(Debug, Default, Clone, Copy)]
-pub struct DceStats {
-    /// Instructions eliminated (unused results).
-    pub dead_instructions: usize,
-    /// Unreachable blocks removed.
-    pub unreachable_blocks: usize,
-    /// Unused function parameters detected.
-    pub unused_parameters: usize,
 }
 
 /// Function pass for dead code elimination.
-pub struct DcePass;
+pub(crate) struct DcePass;
 
 impl FunctionPass for DcePass {
-    fn name(&self) -> &str {
-        "dce"
-    }
-
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         let changed = DeadCodeEliminator::new().run_to_fixpoint(func) != 0;
         repair_reachability_phis(func);
@@ -54,24 +35,10 @@ impl FunctionPass for DcePass {
     }
 }
 
-impl DceStats {
-    /// Returns total eliminations.
-    pub fn total(&self) -> usize {
-        self.dead_instructions + self.unreachable_blocks + self.unused_parameters
-    }
-}
-
 impl DeadCodeEliminator {
     /// Creates a new dead code eliminator.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
-    }
-
-    /// Runs dead code elimination on a function.
-    /// Returns the number of instructions eliminated.
-    pub fn run(&mut self, func: &mut Function) -> usize {
-        let inst_to_value = func.inst_results();
-        self.run_with_inst_results(func, &inst_to_value)
     }
 
     fn run_with_inst_results(
@@ -80,19 +47,14 @@ impl DeadCodeEliminator {
         inst_to_value: &FxHashMap<InstId, ValueId>,
     ) -> usize {
         self.eliminated_count = 0;
-        self.blocks_removed = 0;
-        self.unused_params = 0;
 
         // Phase 1: Remove unreachable blocks
         self.eliminate_unreachable_blocks(func);
 
-        // Phase 2: Find and count unused parameters
-        self.unused_params = self.find_unused_parameters(func).len();
-
-        // Phase 3: Find all used values
+        // Phase 2: Find all used values
         let used_values = self.collect_used_values(func);
 
-        // Phase 4: Find dead instructions
+        // Phase 3: Find dead instructions
         let dead_instructions = self.find_dead_instructions(func, &used_values, inst_to_value);
 
         // Remove dead instructions from blocks
@@ -105,18 +67,8 @@ impl DeadCodeEliminator {
         self.eliminated_count
     }
 
-    /// Runs dead code elimination with full statistics.
-    pub fn run_with_stats(&mut self, func: &mut Function) -> DceStats {
-        let eliminated = self.run(func);
-        DceStats {
-            dead_instructions: eliminated,
-            unreachable_blocks: self.blocks_removed,
-            unused_parameters: self.unused_params,
-        }
-    }
-
     /// Runs dead code elimination iteratively until no more changes.
-    pub fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total_eliminated = 0;
         let inst_to_value = func.inst_results();
         loop {
@@ -140,8 +92,6 @@ impl DeadCodeEliminator {
             .filter_map(|(id, _)| if !cfg.is_reachable(id) { Some(id) } else { None })
             .collect();
 
-        self.blocks_removed = unreachable.len();
-
         // Clear unreachable blocks (we can't actually remove from IndexVec,
         // but we can clear their contents to prevent codegen)
         for block_id in &unreachable {
@@ -150,46 +100,6 @@ impl DeadCodeEliminator {
             block.terminator = Some(Terminator::Invalid);
             block.predecessors.clear();
         }
-    }
-
-    /// Finds unused function parameters.
-    /// Returns the indices of parameters that are never used.
-    pub fn find_unused_parameters(&self, func: &Function) -> Vec<u32> {
-        // Collect all used argument indices
-        let mut used_args = DenseBitSet::new_empty(func.params.len());
-
-        // Collect from all values used in instructions
-        for (_, block) in func.blocks.iter_enumerated() {
-            for &inst_id in &block.instructions {
-                let inst = &func.instructions[inst_id];
-                for val_id in inst.kind.operands() {
-                    if let Value::Arg { index, .. } = &func.values[val_id] {
-                        let index = *index as usize;
-                        if index < used_args.domain_size() {
-                            used_args.insert(index);
-                        }
-                    }
-                }
-            }
-
-            // Collect from terminators
-            if let Some(ref term) = block.terminator {
-                for val_id in term.operands() {
-                    if let Value::Arg { index, .. } = &func.values[val_id] {
-                        let index = *index as usize;
-                        if index < used_args.domain_size() {
-                            used_args.insert(index);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Find unused parameter indices
-        (0..func.params.len())
-            .filter(|&index| !used_args.contains(index))
-            .map(|index| index as u32)
-            .collect()
     }
 
     /// Collects all values that are used (appear in instructions or terminators).

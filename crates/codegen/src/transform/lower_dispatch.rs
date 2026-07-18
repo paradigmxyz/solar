@@ -28,24 +28,18 @@ use solar_interface::{Ident, sym};
 
 /// Statistics from dispatch lowering.
 #[derive(Clone, Debug, Default)]
-pub struct LowerDispatchStats {
+pub(crate) struct LowerDispatchStats {
     /// Number of selector cases routed by the synthesized `entry` function.
     pub routed: usize,
 }
 
 /// Dispatch phase lowering pass.
 #[derive(Debug, Default)]
-pub struct LowerDispatchPass {
+pub(crate) struct LowerDispatchPass {
     stats: LowerDispatchStats,
 }
 
 impl LowerDispatchPass {
-    /// Returns statistics for the most recent run.
-    #[must_use]
-    pub const fn stats(&self) -> &LowerDispatchStats {
-        &self.stats
-    }
-
     fn run(&mut self, module: &mut Module) -> bool {
         // Idempotent: only build the dispatcher once.
         if module.phase >= MirPhase::Dispatch {
@@ -247,10 +241,6 @@ fn load_selector(builder: &mut FunctionBuilder<'_>) -> ValueId {
 }
 
 impl ModulePass for LowerDispatchPass {
-    fn name(&self) -> &str {
-        "lower-dispatch"
-    }
-
     fn run(&mut self, module: &mut Module) -> bool {
         Self::run(self, module)
     }

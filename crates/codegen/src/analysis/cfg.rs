@@ -14,7 +14,7 @@ use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Control-flow facts for one MIR function.
 #[derive(Clone, Debug)]
-pub struct CfgInfo {
+pub(crate) struct CfgInfo {
     entry_block: BlockId,
     successors: Vec<SmallVec<[BlockId; 2]>>,
     reachable: OnceCell<DenseBitSet<BlockId>>,
@@ -26,7 +26,7 @@ pub struct CfgInfo {
 impl CfgInfo {
     /// Snapshots the control-flow graph for `func`.
     #[must_use]
-    pub fn new(func: &Function) -> Self {
+    pub(crate) fn new(func: &Function) -> Self {
         let successors = func
             .blocks
             .iter()
@@ -46,13 +46,13 @@ impl CfgInfo {
 
     /// Returns successor blocks for `block`.
     #[must_use]
-    pub fn successors(&self, block: BlockId) -> &[BlockId] {
+    pub(crate) fn successors(&self, block: BlockId) -> &[BlockId] {
         &self.successors[block.index()]
     }
 
     /// Returns the blocks reachable from the entry.
     #[must_use]
-    pub fn reachable(&self) -> &DenseBitSet<BlockId> {
+    pub(crate) fn reachable(&self) -> &DenseBitSet<BlockId> {
         self.reachable.get_or_init(|| {
             let mut reachable = DenseBitSet::new_empty(self.successors.len());
             let mut stack = Vec::new();
@@ -68,13 +68,13 @@ impl CfgInfo {
 
     /// Returns true if `block` is reachable from the entry.
     #[must_use]
-    pub fn is_reachable(&self, block: BlockId) -> bool {
+    pub(crate) fn is_reachable(&self, block: BlockId) -> bool {
         self.reachable().contains(block)
     }
 
     /// Returns reachable blocks in reverse postorder.
     #[must_use]
-    pub fn rpo(&self) -> &[BlockId] {
+    pub(crate) fn rpo(&self) -> &[BlockId] {
         self.rpo.get_or_init(|| {
             let mut reachable = DenseBitSet::new_empty(self.successors.len());
             let mut rpo = Vec::with_capacity(self.successors.len());
@@ -99,7 +99,7 @@ impl CfgInfo {
 
     /// Returns immediate-dominator information.
     #[must_use]
-    pub fn dominators(&self) -> &DominatorTree {
+    pub(crate) fn dominators(&self) -> &DominatorTree {
         self.dominators
             .get_or_init(|| DominatorTree::compute(self.entry_block, &self.successors, self.rpo()))
     }
@@ -108,7 +108,7 @@ impl CfgInfo {
     ///
     /// The map is computed lazily because only memory/state-aware passes need
     /// this more expensive transitive query.
-    pub fn transitive_reachability(&self) -> &FxHashMap<BlockId, DenseBitSet<BlockId>> {
+    pub(crate) fn transitive_reachability(&self) -> &FxHashMap<BlockId, DenseBitSet<BlockId>> {
         self.reachability.get_or_init(|| {
             let mut reachability = FxHashMap::default();
             let mut stack = Vec::new();
@@ -131,7 +131,7 @@ impl CfgInfo {
 
 /// Immediate-dominator tree for one MIR function.
 #[derive(Clone, Debug)]
-pub struct DominatorTree {
+pub(crate) struct DominatorTree {
     idoms: Vec<Option<BlockId>>,
     children: Vec<Vec<BlockId>>,
 }
@@ -220,13 +220,13 @@ impl DominatorTree {
 
     /// Returns the immediate dominator of `block`, if reachable.
     #[must_use]
-    pub fn idom(&self, block: BlockId) -> Option<BlockId> {
+    pub(crate) fn idom(&self, block: BlockId) -> Option<BlockId> {
         self.idoms.get(block.index()).copied().flatten()
     }
 
     /// Returns true if `dominator` dominates `block`.
     #[must_use]
-    pub fn dominates(&self, dominator: BlockId, block: BlockId) -> bool {
+    pub(crate) fn dominates(&self, dominator: BlockId, block: BlockId) -> bool {
         let mut current = block;
         loop {
             if current == dominator {
@@ -241,13 +241,13 @@ impl DominatorTree {
 
     /// Returns dominator-tree children of `block`.
     #[must_use]
-    pub fn children(&self, block: BlockId) -> &[BlockId] {
+    pub(crate) fn children(&self, block: BlockId) -> &[BlockId] {
         self.children.get(block.index()).map_or(&[], Vec::as_slice)
     }
 
     /// Returns `block`, then its immediate dominators up to the entry.
     #[must_use]
-    pub fn self_and_dominators(&self, block: BlockId) -> Vec<BlockId> {
+    pub(crate) fn self_and_dominators(&self, block: BlockId) -> Vec<BlockId> {
         let mut out = Vec::new();
         let mut current = Some(block);
         while let Some(block) = current {

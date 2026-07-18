@@ -27,24 +27,18 @@ use solar_data_structures::bit_set::DenseBitSet;
 
 /// Statistics from EVM-shape lowering.
 #[derive(Clone, Debug, Default)]
-pub struct LowerEvmShapedStats {
+pub(crate) struct LowerEvmShapedStats {
     /// Number of internal calls rewritten into tail calls.
     pub tail_calls: usize,
 }
 
 /// EVM-shaped phase lowering pass.
 #[derive(Debug, Default)]
-pub struct LowerEvmShapedPass {
+pub(crate) struct LowerEvmShapedPass {
     stats: LowerEvmShapedStats,
 }
 
 impl LowerEvmShapedPass {
-    /// Returns statistics for the most recent run.
-    #[must_use]
-    pub const fn stats(&self) -> &LowerEvmShapedStats {
-        &self.stats
-    }
-
     fn run(&mut self, module: &mut Module) -> bool {
         self.stats = LowerEvmShapedStats::default();
         if module.phase >= MirPhase::EvmShaped {
@@ -113,10 +107,6 @@ impl LowerEvmShapedPass {
 }
 
 impl ModulePass for LowerEvmShapedPass {
-    fn name(&self) -> &str {
-        "lower-evm-shaped"
-    }
-
     fn run(&mut self, module: &mut Module) -> bool {
         Self::run(self, module)
     }

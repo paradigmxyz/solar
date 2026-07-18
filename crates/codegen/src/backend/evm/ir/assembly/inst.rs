@@ -4,14 +4,14 @@ use solar_data_structures::{index::Idx, newtype_index};
 
 newtype_index! {
     /// A label identifier.
-    pub struct Label;
+    pub(crate) struct Label;
 
     /// A deferred constant identifier.
     ///
     /// Deferred constants are immediates whose final value is only known after
     /// bytecode emission has observed lazy backend state, such as exact spill
     /// slot allocation. They must be resolved before assembly.
-    pub struct DeferredConst;
+    pub(crate) struct DeferredConst;
 
     /// An interned push immediate identifier.
     pub(in crate::backend::evm) struct PushValueId;

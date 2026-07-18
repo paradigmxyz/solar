@@ -9,7 +9,7 @@ use std::fmt;
 
 /// Extra information attached to a MIR instruction by lowering or analysis passes.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct InstructionMetadata {
+pub(crate) struct InstructionMetadata {
     /// Proven storage alias key for `sload`/`sstore` instructions.
     storage_alias: Option<Box<StorageAlias>>,
     /// Source span that produced this instruction, when the lowerer can preserve it.
@@ -17,14 +17,14 @@ pub struct InstructionMetadata {
     /// HIR expression that produced this instruction, when the lowerer can preserve it.
     hir_expr: Option<hir::ExprId>,
     /// Loop nesting depth attached by loop-aware analyses.
-    pub loop_depth: u16,
+    pub(crate) loop_depth: u16,
     /// Packed optional memory region, effect kind, and unchecked flag.
     flags: MetadataFlags,
 }
 
 impl InstructionMetadata {
     /// Empty instruction metadata.
-    pub const EMPTY: Self = Self {
+    pub(crate) const EMPTY: Self = Self {
         storage_alias: None,
         hir_expr: None,
         source_span: Span::DUMMY,
@@ -34,67 +34,67 @@ impl InstructionMetadata {
 
     /// Returns the proven storage alias key.
     #[must_use]
-    pub fn storage_alias(&self) -> Option<StorageAlias> {
+    pub(crate) fn storage_alias(&self) -> Option<StorageAlias> {
         self.storage_alias.as_deref().copied()
     }
 
     /// Sets the proven storage alias key.
-    pub fn set_storage_alias(&mut self, alias: Option<StorageAlias>) {
+    pub(crate) fn set_storage_alias(&mut self, alias: Option<StorageAlias>) {
         self.storage_alias = alias.map(Box::new);
     }
 
     /// Returns the HIR expression that produced this instruction.
     #[must_use]
-    pub fn hir_expr(&self) -> Option<hir::ExprId> {
+    pub(crate) fn hir_expr(&self) -> Option<hir::ExprId> {
         self.hir_expr
     }
 
     /// Sets the HIR expression that produced this instruction.
-    pub fn set_hir_expr(&mut self, expr: Option<hir::ExprId>) {
+    pub(crate) fn set_hir_expr(&mut self, expr: Option<hir::ExprId>) {
         self.hir_expr = expr;
     }
 
     /// Returns the source span that produced this instruction.
     #[must_use]
-    pub fn source_span(&self) -> Option<Span> {
+    pub(crate) fn source_span(&self) -> Option<Span> {
         (!self.source_span.is_dummy()).then_some(self.source_span)
     }
 
     /// Sets the source span that produced this instruction.
-    pub fn set_source_span(&mut self, span: Option<Span>) {
+    pub(crate) fn set_source_span(&mut self, span: Option<Span>) {
         self.source_span = span.unwrap_or(Span::DUMMY);
     }
 
     /// Returns the proven memory region.
     #[must_use]
-    pub fn memory_region(&self) -> Option<MemoryRegion> {
+    pub(crate) fn memory_region(&self) -> Option<MemoryRegion> {
         self.flags.memory_region()
     }
 
     /// Sets the proven memory region.
-    pub fn set_memory_region(&mut self, region: Option<MemoryRegion>) {
+    pub(crate) fn set_memory_region(&mut self, region: Option<MemoryRegion>) {
         self.flags.set_memory_region(region);
     }
 
     /// Returns whether this instruction was lowered from an unchecked arithmetic context.
     #[must_use]
-    pub fn unchecked(&self) -> bool {
+    pub(crate) fn unchecked(&self) -> bool {
         self.flags.unchecked()
     }
 
     /// Sets whether this instruction was lowered from an unchecked arithmetic context.
-    pub fn set_unchecked(&mut self, unchecked: bool) {
+    pub(crate) fn set_unchecked(&mut self, unchecked: bool) {
         self.flags.set_unchecked(unchecked);
     }
 
     /// Returns the conservative effect classification attached by lowering or analysis.
     #[must_use]
-    pub fn effect(&self) -> Option<EffectKind> {
+    pub(crate) fn effect(&self) -> Option<EffectKind> {
         self.flags.effect()
     }
 
     /// Sets the conservative effect classification attached by lowering or analysis.
-    pub fn set_effect(&mut self, effect: Option<EffectKind>) {
+    pub(crate) fn set_effect(&mut self, effect: Option<EffectKind>) {
         self.flags.set_effect(effect);
     }
 }
@@ -186,7 +186,7 @@ impl MetadataFlags {
 
 /// A conservative storage alias key.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum StorageAlias {
+pub(crate) enum StorageAlias {
     /// A known absolute storage slot.
     Slot(U256),
     /// A loop-invariant symbolic slot value.
@@ -203,7 +203,7 @@ pub enum StorageAlias {
 impl StorageAlias {
     /// Computes a conservative exact storage alias key for `value`.
     #[must_use]
-    pub fn for_value(func: &Function, value: ValueId) -> Self {
+    pub(crate) fn for_value(func: &Function, value: ValueId) -> Self {
         match func.value(value) {
             Value::Immediate(imm) => imm.as_u256().map_or(Self::Symbolic(value), Self::Slot),
             Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
@@ -231,7 +231,7 @@ impl StorageAlias {
 
     /// Returns true if two alias keys may refer to the same storage slot.
     #[must_use]
-    pub fn may_alias(self, other: Self) -> bool {
+    pub(crate) fn may_alias(self, other: Self) -> bool {
         match (self, other) {
             (Self::Slot(a), Self::Slot(b)) => a == b,
             (
@@ -251,7 +251,7 @@ impl StorageAlias {
 
     /// Returns the symbolic base value, if this alias has one.
     #[must_use]
-    pub const fn symbolic_base(self) -> Option<ValueId> {
+    pub(crate) const fn symbolic_base(self) -> Option<ValueId> {
         match self {
             Self::Symbolic(value) | Self::Offset { base: value, .. } => Some(value),
             Self::Slot(_) => None,
@@ -280,7 +280,7 @@ impl StorageAlias {
 
 /// A coarse memory region understood by MIR analyses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum MemoryRegion {
+pub(crate) enum MemoryRegion {
     /// Compiler-owned low-memory scratch space.
     Scratch,
     /// External ABI return buffer.
@@ -296,7 +296,7 @@ pub enum MemoryRegion {
 impl MemoryRegion {
     /// Returns the stable textual name used in MIR metadata.
     #[must_use]
-    pub const fn name(&self) -> &'static str {
+    pub(crate) const fn name(&self) -> &'static str {
         match self {
             Self::Scratch => "scratch",
             Self::AbiReturn => "abi_return",
@@ -309,7 +309,7 @@ impl MemoryRegion {
 
 /// Conservative side-effect class for an instruction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum EffectKind {
+pub(crate) enum EffectKind {
     /// Pure computation.
     Pure,
     /// Memory read.
@@ -339,7 +339,7 @@ pub enum EffectKind {
 impl EffectKind {
     /// Returns the stable textual name used in MIR metadata.
     #[must_use]
-    pub const fn name(&self) -> &'static str {
+    pub(crate) const fn name(&self) -> &'static str {
         match self {
             Self::Pure => "pure",
             Self::MemoryRead => "memory_read",
@@ -359,32 +359,26 @@ impl EffectKind {
 
 /// An instruction in the MIR.
 #[derive(Clone, Debug)]
-pub struct Instruction {
+pub(crate) struct Instruction {
     /// The kind of instruction.
-    pub kind: InstKind,
+    pub(crate) kind: InstKind,
     /// The result type (if any).
-    pub result_ty: Option<MirType>,
+    pub(crate) result_ty: Option<MirType>,
     /// Metadata produced by lowering or analysis.
-    pub metadata: InstructionMetadata,
+    pub(crate) metadata: InstructionMetadata,
 }
 
 impl Instruction {
     /// Creates a new instruction.
     #[must_use]
-    pub const fn new(kind: InstKind, result_ty: Option<MirType>) -> Self {
+    pub(crate) const fn new(kind: InstKind, result_ty: Option<MirType>) -> Self {
         Self { kind, result_ty, metadata: InstructionMetadata::EMPTY }
     }
 
     /// Returns the operands of this instruction.
     #[must_use]
-    pub fn operands(&self) -> SmallVec<[ValueId; 8]> {
+    pub(crate) fn operands(&self) -> SmallVec<[ValueId; 8]> {
         self.kind.operands()
-    }
-
-    /// Returns the metadata effect, or derives a conservative one from the instruction kind.
-    #[must_use]
-    pub fn effect_kind(&self) -> EffectKind {
-        self.metadata.effect().unwrap_or_else(|| self.kind.effect_kind())
     }
 }
 
@@ -394,7 +388,7 @@ impl Instruction {
 /// `Instruction { opcode: Opcode, operands: SmallVec<[ValueId; 4]>, ... }`. That would make generic
 /// operand visitors and rewrites less variant-heavy.
 #[derive(Clone, Debug)]
-pub enum InstKind {
+pub(crate) enum InstKind {
     // Arithmetic operations
     /// Addition: `a + b`
     Add(ValueId, ValueId),
@@ -626,7 +620,7 @@ pub enum InstKind {
 impl InstKind {
     /// Collects all operands of this instruction into the provided vector.
     /// This is the canonical way to get all operands for liveness analysis.
-    pub fn collect_operands(&self, out: &mut SmallVec<[ValueId; 8]>) {
+    pub(crate) fn collect_operands(&self, out: &mut SmallVec<[ValueId; 8]>) {
         match self {
             // Binary operations
             Self::Add(a, b)
@@ -784,14 +778,14 @@ impl InstKind {
 
     /// Returns the operands of this instruction.
     #[must_use]
-    pub fn operands(&self) -> SmallVec<[ValueId; 8]> {
+    pub(crate) fn operands(&self) -> SmallVec<[ValueId; 8]> {
         let mut out = SmallVec::new();
         self.collect_operands(&mut out);
         out
     }
 
     /// Visits every operand mutably.
-    pub fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
+    pub(crate) fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
         match self {
             Self::Add(a, b)
             | Self::Sub(a, b)
@@ -933,7 +927,7 @@ impl InstKind {
 
     /// Returns true if this instruction may mutate persistent storage.
     #[must_use]
-    pub const fn may_mutate_storage(&self) -> bool {
+    pub(crate) const fn may_mutate_storage(&self) -> bool {
         matches!(
             self,
             Self::SStore(_, _)
@@ -947,7 +941,7 @@ impl InstKind {
 
     /// Returns true if this instruction may mutate transient storage.
     #[must_use]
-    pub const fn may_mutate_transient_storage(&self) -> bool {
+    pub(crate) const fn may_mutate_transient_storage(&self) -> bool {
         matches!(
             self,
             Self::TStore(_, _)
@@ -961,7 +955,7 @@ impl InstKind {
 
     /// Returns true if this instruction writes or may write memory.
     #[must_use]
-    pub const fn may_mutate_memory(&self) -> bool {
+    pub(crate) const fn may_mutate_memory(&self) -> bool {
         matches!(
             self,
             Self::MStore(_, _)
@@ -982,7 +976,7 @@ impl InstKind {
 
     /// Returns the mnemonic for this instruction.
     #[must_use]
-    pub const fn mnemonic(&self) -> &'static str {
+    pub(crate) const fn mnemonic(&self) -> &'static str {
         match self {
             Self::Add(_, _) => "add",
             Self::Sub(_, _) => "sub",
@@ -1071,7 +1065,7 @@ impl InstKind {
     /// Returns true if this instruction has side effects.
     /// Side-effect instructions must not be eliminated by DCE.
     #[must_use]
-    pub const fn has_side_effects(&self) -> bool {
+    pub(crate) const fn has_side_effects(&self) -> bool {
         matches!(
             self,
             // Storage writes
@@ -1105,7 +1099,7 @@ impl InstKind {
 
     /// Returns a conservative effect classification for this instruction.
     #[must_use]
-    pub const fn effect_kind(&self) -> EffectKind {
+    pub(crate) const fn effect_kind(&self) -> EffectKind {
         match self {
             Self::MStore(_, _)
             | Self::MStore8(_, _)

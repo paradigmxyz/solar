@@ -8,7 +8,7 @@ mod inst;
 mod lower;
 
 pub(in crate::backend::evm) use inst::{AsmIndex, AsmInst, AsmInstKind, PushValueId};
-pub use inst::{DeferredConst, Label};
+pub(crate) use inst::{DeferredConst, Label};
 pub(in crate::backend::evm) use lower::lower_evm_ir;
 
 /// A compact label-bearing opcode stream ready for relocation and byte encoding.

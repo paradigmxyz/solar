@@ -29,7 +29,7 @@ const LOW_MEMORY_START: u64 = 0x80;
 
 /// Statistics from storage scalar promotion.
 #[derive(Clone, Debug, Default)]
-pub struct StoragePromotionStats {
+pub(crate) struct StoragePromotionStats {
     /// Number of loops promoted.
     pub loops_promoted: usize,
     /// Number of storage loads rewritten to memory loads.
@@ -40,18 +40,14 @@ pub struct StoragePromotionStats {
 
 /// Promotes loop-carried storage values to memory-backed scalars.
 #[derive(Debug, Default)]
-pub struct StorageScalarPromoter {
+pub(crate) struct StorageScalarPromoter {
     stats: StoragePromotionStats,
 }
 
 /// Function pass for loop-carried storage scalar promotion.
-pub struct StorageScalarPromotionPass;
+pub(crate) struct StorageScalarPromotionPass;
 
 impl FunctionPass for StorageScalarPromotionPass {
-    fn name(&self) -> &str {
-        "storage-promotion"
-    }
-
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         let mut promoter = StorageScalarPromoter::new();
         let stats = promoter.run(func);
@@ -78,18 +74,12 @@ struct PromotedCandidate {
 
 impl StorageScalarPromoter {
     /// Creates a new storage scalar promotion pass.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
-    /// Returns statistics for the most recent run.
-    #[must_use]
-    pub const fn stats(&self) -> &StoragePromotionStats {
-        &self.stats
-    }
-
     /// Runs the pass on one function.
-    pub fn run(&mut self, func: &mut Function) -> &StoragePromotionStats {
+    pub(crate) fn run(&mut self, func: &mut Function) -> &StoragePromotionStats {
         self.stats = StoragePromotionStats::default();
 
         // The pass currently introduces absolute low-memory temporaries, so it

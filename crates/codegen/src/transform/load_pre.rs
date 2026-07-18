@@ -89,7 +89,7 @@ use solar_data_structures::{
 
 /// Statistics for load PRE.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct LoadPreStats {
+pub(crate) struct LoadPreStats {
     /// Number of join-block loads replaced by phis or available values.
     pub loads_eliminated: usize,
     /// Number of compensating loads inserted into predecessors.
@@ -98,25 +98,21 @@ pub struct LoadPreStats {
 
 impl LoadPreStats {
     /// Returns the total number of MIR edits made by this pass.
-    pub const fn total(self) -> usize {
+    pub(crate) const fn total(self) -> usize {
         self.loads_eliminated + self.loads_inserted
     }
 }
 
 /// Dataflow-based redundancy eliminator for memory-dependent reads.
 #[derive(Debug, Default)]
-pub struct LoadRedundancyEliminator {
+pub(crate) struct LoadRedundancyEliminator {
     stats: LoadPreStats,
 }
 
 /// Function pass for load PRE.
-pub struct LoadPrePass;
+pub(crate) struct LoadPrePass;
 
 impl FunctionPass for LoadPrePass {
-    fn name(&self) -> &str {
-        "load-pre"
-    }
-
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         LoadRedundancyEliminator::new().run(func).total() != 0
     }
@@ -304,17 +300,12 @@ struct CandidateCx<'a> {
 
 impl LoadRedundancyEliminator {
     /// Creates a new load PRE pass.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
-    /// Returns statistics from the most recent run.
-    pub const fn stats(&self) -> LoadPreStats {
-        self.stats
-    }
-
     /// Runs load PRE to a fixed point under the rewrite budget.
-    pub fn run(&mut self, func: &mut Function) -> LoadPreStats {
+    pub(crate) fn run(&mut self, func: &mut Function) -> LoadPreStats {
         self.stats = LoadPreStats::default();
         repair_reachability_phis(func);
 

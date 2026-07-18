@@ -14,7 +14,7 @@ use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Statistics for aggressive dead-code elimination.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct AdceStats {
+pub(crate) struct AdceStats {
     /// Number of control terminators replaced with unconditional jumps.
     pub control_edges_removed: usize,
     /// Number of instructions removed by cleanup DCE after control rewrites.
@@ -23,25 +23,21 @@ pub struct AdceStats {
 
 impl AdceStats {
     /// Returns the total number of MIR edits made by this pass.
-    pub const fn total(self) -> usize {
+    pub(crate) const fn total(self) -> usize {
         self.control_edges_removed + self.instructions_removed
     }
 }
 
 /// Aggressive dead-code eliminator.
 #[derive(Debug, Default)]
-pub struct AggressiveDeadCodeEliminator {
+pub(crate) struct AggressiveDeadCodeEliminator {
     stats: AdceStats,
 }
 
 /// Function pass for aggressive dead-code elimination.
-pub struct AdcePass;
+pub(crate) struct AdcePass;
 
 impl FunctionPass for AdcePass {
-    fn name(&self) -> &str {
-        "adce"
-    }
-
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         let changed = AggressiveDeadCodeEliminator::new().run(func).total() != 0;
         repair_reachability_phis(func);
@@ -72,17 +68,12 @@ impl TargetSearch {
 
 impl AggressiveDeadCodeEliminator {
     /// Creates a new ADCE pass.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
-    /// Returns the statistics from the most recent run.
-    pub const fn stats(&self) -> AdceStats {
-        self.stats
-    }
-
     /// Runs aggressive dead-code elimination once to a fixed point.
-    pub fn run(&mut self, func: &mut Function) -> AdceStats {
+    pub(crate) fn run(&mut self, func: &mut Function) -> AdceStats {
         self.stats = AdceStats::default();
 
         loop {

@@ -62,7 +62,7 @@ enum CanonOperand {
 
 /// Statistics from CFG simplification.
 #[derive(Debug, Default, Clone)]
-pub struct CfgSimplifyStats {
+pub(crate) struct CfgSimplifyStats {
     /// Number of blocks merged.
     pub blocks_merged: usize,
     /// Number of empty blocks eliminated.
@@ -82,7 +82,7 @@ pub struct CfgSimplifyStats {
 impl CfgSimplifyStats {
     /// Returns total optimizations performed.
     #[must_use]
-    pub fn total(&self) -> usize {
+    pub(crate) fn total(&self) -> usize {
         self.blocks_merged
             + self.empty_blocks_eliminated
             + self.terminators_simplified
@@ -92,7 +92,7 @@ impl CfgSimplifyStats {
     }
 
     /// Combines stats from another run.
-    pub fn combine(&mut self, other: &Self) {
+    pub(crate) fn combine(&mut self, other: &Self) {
         self.blocks_merged += other.blocks_merged;
         self.empty_blocks_eliminated += other.empty_blocks_eliminated;
         self.terminators_simplified += other.terminators_simplified;
@@ -105,19 +105,15 @@ impl CfgSimplifyStats {
 
 /// CFG simplification pass for a single function.
 #[derive(Debug, Default)]
-pub struct CfgSimplifier {
+pub(crate) struct CfgSimplifier {
     /// Statistics from the last run.
     pub stats: CfgSimplifyStats,
 }
 
 /// Function pass for CFG simplification.
-pub struct CfgSimplifyPass;
+pub(crate) struct CfgSimplifyPass;
 
 impl FunctionPass for CfgSimplifyPass {
-    fn name(&self) -> &str {
-        "cfg-simplify"
-    }
-
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         CfgSimplifier::new().run_to_fixpoint(func).total() != 0
     }
@@ -126,13 +122,13 @@ impl FunctionPass for CfgSimplifyPass {
 impl CfgSimplifier {
     /// Creates a new CFG simplifier.
     #[must_use]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
     /// Runs CFG simplification on a function.
     /// Returns the number of optimizations performed.
-    pub fn run(&mut self, func: &mut Function) -> usize {
+    pub(crate) fn run(&mut self, func: &mut Function) -> usize {
         self.stats = CfgSimplifyStats::default();
 
         self.simplify_degenerate_terminators(func);
@@ -348,7 +344,7 @@ impl CfgSimplifier {
     }
 
     /// Runs CFG simplification iteratively until no more changes.
-    pub fn run_to_fixpoint(&mut self, func: &mut Function) -> CfgSimplifyStats {
+    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> CfgSimplifyStats {
         let mut total_stats = CfgSimplifyStats::default();
         loop {
             let changed = self.run(func);
@@ -654,19 +650,15 @@ impl CfgSimplifier {
 
 /// Dead function elimination pass for a module.
 #[derive(Debug, Default)]
-pub struct DeadFunctionEliminator {
+pub(crate) struct DeadFunctionEliminator {
     /// Statistics from the last run.
     pub stats: CfgSimplifyStats,
 }
 
 /// Module pass for dead internal function elimination.
-pub struct FunctionDcePass;
+pub(crate) struct FunctionDcePass;
 
 impl ModulePass for FunctionDcePass {
-    fn name(&self) -> &str {
-        "function-dce"
-    }
-
     fn run(&mut self, module: &mut Module) -> bool {
         DeadFunctionEliminator::new().run(module) != 0
     }
@@ -675,13 +667,13 @@ impl ModulePass for FunctionDcePass {
 impl DeadFunctionEliminator {
     /// Creates a new dead function eliminator.
     #[must_use]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
     /// Runs dead function elimination on a module.
     /// Returns the number of functions eliminated.
-    pub fn run(&mut self, module: &mut Module) -> usize {
+    pub(crate) fn run(&mut self, module: &mut Module) -> usize {
         self.stats = CfgSimplifyStats::default();
 
         let call_graph = CallGraphInfo::new(module);
@@ -704,29 +696,6 @@ impl DeadFunctionEliminator {
 
         self.stats.dead_functions_eliminated
     }
-}
-
-/// Runs all CFG simplification passes on a function.
-pub fn simplify_cfg(func: &mut Function) -> CfgSimplifyStats {
-    let mut simplifier = CfgSimplifier::new();
-    simplifier.run_to_fixpoint(func)
-}
-
-/// Runs all CFG simplification passes on a module.
-pub fn simplify_module_cfg(module: &mut Module) -> CfgSimplifyStats {
-    let mut total_stats = CfgSimplifyStats::default();
-
-    for func_id in module.functions.indices() {
-        let func = &mut module.functions[func_id];
-        let stats = simplify_cfg(func);
-        total_stats.combine(&stats);
-    }
-
-    let mut dfe = DeadFunctionEliminator::new();
-    dfe.run(module);
-    total_stats.combine(&dfe.stats);
-
-    total_stats
 }
 
 #[cfg(test)]

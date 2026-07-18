@@ -12,13 +12,9 @@ use crate::{
 use solar_data_structures::map::FxHashMap;
 
 /// Lowers mapping-slot hash builtins after mapping-aware CSE.
-pub struct LowerMappingSlotsPass;
+pub(crate) struct LowerMappingSlotsPass;
 
 impl FunctionPass for LowerMappingSlotsPass {
-    fn name(&self) -> &str {
-        "lower-mapping-slots"
-    }
-
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         let has_mapping_slots = func.blocks.iter().any(|block| {
             block.instructions.iter().any(|&inst_id| {

@@ -13,13 +13,11 @@ pub use codegen::{EvmArtifact, EvmCodegen, EvmCodegenConfig};
 pub mod ir;
 mod stack_schedule;
 
-pub mod opcode;
+pub(crate) mod opcode;
 
-pub mod assembler;
-pub use assembler::{AssembledCode, Assembler, AssemblerConfig, Label};
+pub(crate) mod assembler;
 
-pub mod stack;
-pub use stack::{SpillManager, SpillSlot, StackModel, StackScheduler};
+pub(crate) mod stack;
 
 #[cfg(test)]
 pub(crate) mod test_utils;

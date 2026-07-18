@@ -54,31 +54,31 @@ macro_rules! declare_passes {
 
 declare_passes! {
     /// Materialize virtual instruction operands with physical stack operations.
-    pub const STACK_SCHEDULE_PASS -> "stack-schedule" = run_stack_schedule;
+    pub(crate) const STACK_SCHEDULE_PASS -> "stack-schedule" = run_stack_schedule;
 
     /// Simplify local instruction sequences in scheduled EVM IR.
-    pub const PEEPHOLE_PASS -> "peephole" = peephole::run;
+    pub(crate) const PEEPHOLE_PASS -> "peephole" = peephole::run;
 
     /// Share empty revert blocks and invert their conditional branches.
-    pub const SHARE_REVERTS_PASS -> "share-reverts" = share_reverts::run;
+    pub(crate) const SHARE_REVERTS_PASS -> "share-reverts" = share_reverts::run;
 
     /// Select smaller instruction sequences for large immediate pushes.
-    pub const COMPACT_PUSHES_PASS -> "compact-pushes" = compact_pushes::run;
+    pub(crate) const COMPACT_PUSHES_PASS -> "compact-pushes" = compact_pushes::run;
 
     /// Redirect jump thunks, remove unreachable blocks, and coalesce linear control flow.
-    pub const CFG_SIMPLIFY_PASS -> "cfg-simplify" = cfg_simplify::run;
+    pub(crate) const CFG_SIMPLIFY_PASS -> "cfg-simplify" = cfg_simplify::run;
 
     /// Outline repeated closed computations and large immediate pushes.
-    pub const OUTLINE_PASS -> "outline" = outline::run;
+    pub(crate) const OUTLINE_PASS -> "outline" = outline::run;
 
     /// Redirect duplicate terminal block bodies to the first copy.
-    pub const TERMINAL_DEDUP_PASS -> "terminal-dedup" = terminal_dedup::run;
+    pub(crate) const TERMINAL_DEDUP_PASS -> "terminal-dedup" = terminal_dedup::run;
 
     /// Merge profitable common suffixes of terminal blocks.
-    pub const TAIL_MERGE_PASS -> "tail-merge" = tail_merge::run;
+    pub(crate) const TAIL_MERGE_PASS -> "tail-merge" = tail_merge::run;
 
     /// Reorder blocks to maximize jumps assembled as physical fallthroughs.
-    pub const BLOCK_LAYOUT_PASS -> "block-layout" = block_layout::run;
+    pub(crate) const BLOCK_LAYOUT_PASS -> "block-layout" = block_layout::run;
 }
 
 /// Options for running an EVM IR pass.
@@ -106,7 +106,7 @@ pub const PASS_REGISTRY: &[PassInfo] = &[
 ];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
-pub const DEFAULT_PIPELINE: &[PassInfo] = &[
+pub(crate) const DEFAULT_PIPELINE: &[PassInfo] = &[
     // Normalize and establish the first physical layout.
     PEEPHOLE_PASS,
     COMPACT_PUSHES_PASS,

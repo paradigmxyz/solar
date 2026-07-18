@@ -48,7 +48,7 @@ const MAX_INSERTIONS_PER_REWRITE: usize = 2;
 
 /// Statistics for pure expression PRE.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct PreStats {
+pub(crate) struct PreStats {
     /// Number of join-block expressions replaced by PRE phis.
     pub expressions_eliminated: usize,
     /// Number of predecessor computations inserted.
@@ -57,25 +57,21 @@ pub struct PreStats {
 
 impl PreStats {
     /// Returns the total number of MIR edits made by this pass.
-    pub const fn total(self) -> usize {
+    pub(crate) const fn total(self) -> usize {
         self.expressions_eliminated + self.expressions_inserted
     }
 }
 
 /// Partial redundancy eliminator for pure expressions.
 #[derive(Debug, Default)]
-pub struct PartialRedundancyEliminator {
+pub(crate) struct PartialRedundancyEliminator {
     stats: PreStats,
 }
 
 /// Function pass for pure expression PRE.
-pub struct PrePass;
+pub(crate) struct PrePass;
 
 impl FunctionPass for PrePass {
-    fn name(&self) -> &str {
-        "pre"
-    }
-
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         PartialRedundancyEliminator::new().run(func).total() != 0
     }
@@ -129,17 +125,12 @@ struct PreCandidate {
 
 impl PartialRedundancyEliminator {
     /// Creates a new PRE pass.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
-    /// Returns statistics from the most recent run.
-    pub const fn stats(&self) -> PreStats {
-        self.stats
-    }
-
     /// Runs PRE to a fixed point.
-    pub fn run(&mut self, func: &mut Function) -> PreStats {
+    pub(crate) fn run(&mut self, func: &mut Function) -> PreStats {
         self.stats = PreStats::default();
         repair_reachability_phis(func);
 
@@ -635,18 +626,12 @@ impl PartialRedundancyEliminator {
             Immediate::Bool(_) => 0,
             Immediate::UInt(_, _) => 1,
             Immediate::Int(_, _) => 2,
-            Immediate::Address(_) => 3,
-            Immediate::FixedBytes(_, _) => 4,
         };
         rank(a).cmp(&rank(b)).then_with(|| match (a, b) {
             (Immediate::Bool(a), Immediate::Bool(b)) => a.cmp(b),
             (Immediate::UInt(a_value, a_bits), Immediate::UInt(b_value, b_bits))
             | (Immediate::Int(a_value, a_bits), Immediate::Int(b_value, b_bits)) => {
                 a_bits.cmp(b_bits).then_with(|| a_value.cmp(b_value))
-            }
-            (Immediate::Address(a), Immediate::Address(b)) => a.cmp(b),
-            (Immediate::FixedBytes(a_value, a_len), Immediate::FixedBytes(b_value, b_len)) => {
-                a_len.cmp(b_len).then_with(|| a_value.cmp(b_value))
             }
             _ => Ordering::Equal,
         })

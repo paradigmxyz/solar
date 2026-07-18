@@ -276,8 +276,9 @@ fn ensure_contract_bytecode(
 
     let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, all_bytecodes);
     gcx.dcx().has_errors()?;
-    let mut codegen =
-        EvmCodegen::new(EvmCodegenConfig { capture_evm_ir, ..EvmCodegenConfig::from(gcx) });
+    let mut config = EvmCodegenConfig::from(gcx);
+    config.capture_evm_ir = capture_evm_ir;
+    let mut codegen = EvmCodegen::new(config);
     let artifact = codegen.lower_module(&mut module);
     all_bytecodes.insert(contract_id, artifact.deployment.clone());
     artifacts.insert(

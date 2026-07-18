@@ -26,7 +26,8 @@ macro_rules! opcodes {
     ($($opcode:literal => $constant:ident => $mnemonic:ident => stack_io($inputs:tt, $outputs:tt);)*) => {
         $(
             #[doc = concat!("Opcode byte for `", stringify!($constant), "`.")]
-            pub const $constant: u8 = $opcode;
+            #[allow(dead_code)]
+            pub(crate) const $constant: u8 = $opcode;
         )*
 
         /// Maps each opcode byte to its canonical mnemonic.
@@ -45,13 +46,13 @@ macro_rules! opcodes {
 
         /// Returns the canonical mnemonic for an opcode.
         #[must_use]
-        pub const fn mnemonic(opcode: u8) -> Option<&'static str> {
+        pub(crate) const fn mnemonic(opcode: u8) -> Option<&'static str> {
             OPCODE_MNEMONICS[opcode as usize]
         }
 
         /// Returns the opcode for a canonical mnemonic.
         #[must_use]
-        pub fn from_mnemonic(mnemonic: &str) -> Option<u8> {
+        pub(crate) fn from_mnemonic(mnemonic: &str) -> Option<u8> {
             match mnemonic {
                 $(opcode_mnemonic!($mnemonic) => Some($opcode),)*
                 _ => None,
@@ -59,7 +60,7 @@ macro_rules! opcodes {
         }
 
         /// Formats an opcode using its canonical mnemonic or `op_<hex>`.
-        pub fn fmt(opcode: u8, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        pub(crate) fn fmt(opcode: u8, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             if let Some(mnemonic) = mnemonic(opcode) {
                 f.write_str(mnemonic)
             } else {
@@ -69,7 +70,7 @@ macro_rules! opcodes {
 
         /// Parses a canonical mnemonic or `op_<hex>` into an opcode.
         #[must_use]
-        pub fn from_ir_mnemonic(mnemonic: &str) -> Option<u8> {
+        pub(crate) fn from_ir_mnemonic(mnemonic: &str) -> Option<u8> {
             from_mnemonic(mnemonic).or_else(|| {
                 let value = mnemonic.strip_prefix(UNKNOWN_PREFIX)?;
                 u8::from_str_radix(value, 16).ok()
@@ -78,13 +79,13 @@ macro_rules! opcodes {
 
         /// Parses an interned canonical mnemonic or `op_<hex>` into an opcode.
         #[must_use]
-        pub fn from_ir_symbol(mnemonic: Symbol) -> Option<u8> {
+        pub(crate) fn from_ir_symbol(mnemonic: Symbol) -> Option<u8> {
             from_ir_mnemonic(mnemonic.as_str())
         }
 
         /// Returns the number of stack items consumed and produced by an opcode.
         #[must_use]
-        pub const fn stack_io(opcode: u8) -> Option<(u16, u16)> {
+        pub(crate) const fn stack_io(opcode: u8) -> Option<(u16, u16)> {
             match opcode {
                 $($opcode => opcode_stack_io!($inputs, $outputs),)*
                 _ => None,
@@ -267,27 +268,27 @@ opcodes! {
 
 /// Returns the PUSH opcode for the given width (1-32).
 #[must_use]
-pub const fn push(width: u8) -> u8 {
+pub(crate) const fn push(width: u8) -> u8 {
     debug_assert!(width >= 1 && width <= 32);
     PUSH1 + width - 1
 }
 
 /// Returns the DUP opcode for the given depth (1-16).
 #[must_use]
-pub const fn dup(n: u8) -> u8 {
+pub(crate) const fn dup(n: u8) -> u8 {
     debug_assert!(n >= 1 && n <= 16);
     DUP1 + n - 1
 }
 
 /// Returns the SWAP opcode for the given depth (1-16).
 #[must_use]
-pub const fn swap(n: u8) -> u8 {
+pub(crate) const fn swap(n: u8) -> u8 {
     debug_assert!(n >= 1 && n <= 16);
     SWAP1 + n - 1
 }
 
 /// Returns whether an opcode halts or unconditionally transfers control.
 #[must_use]
-pub const fn is_terminal(op: u8) -> bool {
+pub(crate) const fn is_terminal(op: u8) -> bool {
     matches!(op, STOP | JUMP | RETURN | REVERT | INVALID | SELFDESTRUCT)
 }

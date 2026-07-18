@@ -17,7 +17,7 @@ use crate::{
     IMMUTABLE_SCRATCH_BASE,
     mir::{
         BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, IMMUTABLE_WORD_SIZE,
-        ImmutableSlot, MirType, Module, StorageSlot, ValueId,
+        MirType, Module, ValueId,
     },
 };
 use alloy_primitives::U256;
@@ -37,7 +37,7 @@ use self::storage::StorageLocation;
 
 /// Context for a loop (tracks break/continue targets).
 #[derive(Clone, Copy)]
-pub struct LoopContext {
+pub(crate) struct LoopContext {
     /// Block to jump to on `break`.
     pub break_target: BlockId,
     /// Block to jump to on `continue`.
@@ -51,7 +51,7 @@ enum AbiParamSource {
 }
 
 /// Lowering context for converting HIR to MIR.
-pub struct Lowerer<'gcx> {
+pub(crate) struct Lowerer<'gcx> {
     /// The global context.
     gcx: Gcx<'gcx>,
     /// The current module being built.
@@ -80,7 +80,7 @@ pub struct Lowerer<'gcx> {
     next_local_memory_offset: u64,
     /// Bytecodes of other contracts (for `new` expressions).
     /// Maps contract ID to (deployment_bytecode, data_segment_index).
-    contract_bytecodes: FxHashMap<ContractId, (Vec<u8>, usize)>,
+    contract_bytecodes: FxHashMap<ContractId, Vec<u8>>,
     /// Stack of loop contexts for nested loops.
     loop_stack: Vec<LoopContext>,
     /// Variables that are assigned after declaration (need memory storage).
@@ -125,14 +125,14 @@ pub struct Lowerer<'gcx> {
     /// return), used to ABI-encode external returns.
     current_return_tys: Vec<Ty<'gcx>>,
     /// Mapping from struct state variable ID to base storage slot.
-    pub struct_storage_base_slots: FxHashMap<VariableId, u64>,
+    pub(crate) struct_storage_base_slots: FxHashMap<VariableId, u64>,
     /// Calldata bytes parameters materialized into memory because the function
     /// rebinds them (for example, `proof = proof[offset:]`).
     memory_backed_calldata_bytes: FxHashSet<VariableId>,
     /// Cached struct field slot offsets: (struct_type_id, field_index) -> slot offset from base.
-    pub struct_field_offsets: FxHashMap<(hir::StructId, usize), u64>,
+    pub(crate) struct_field_offsets: FxHashMap<(hir::StructId, usize), u64>,
     /// Cached struct field memory offsets: (struct_type_id, field_index) -> byte offset from base.
-    pub struct_field_memory_offsets: FxHashMap<(hir::StructId, usize), u64>,
+    pub(crate) struct_field_memory_offsets: FxHashMap<(hir::StructId, usize), u64>,
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -149,7 +149,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Creates a new lowerer.
-    pub fn new(gcx: Gcx<'gcx>, name: Ident) -> Self {
+    pub(crate) fn new(gcx: Gcx<'gcx>, name: Ident) -> Self {
         if !gcx.has_typeck_results() {
             gcx.dcx().emit_err(
                 name.span,
@@ -194,17 +194,17 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Pushes a loop context onto the stack.
-    pub fn push_loop(&mut self, ctx: LoopContext) {
+    pub(crate) fn push_loop(&mut self, ctx: LoopContext) {
         self.loop_stack.push(ctx);
     }
 
     /// Pops a loop context from the stack.
-    pub fn pop_loop(&mut self) {
+    pub(crate) fn pop_loop(&mut self) {
         self.loop_stack.pop();
     }
 
     /// Gets the current loop context, if any.
-    pub fn current_loop(&self) -> Option<&LoopContext> {
+    pub(crate) fn current_loop(&self) -> Option<&LoopContext> {
         self.loop_stack.last()
     }
 
@@ -234,7 +234,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Allocates a memory slot for a local variable.
     /// Returns the memory offset.
-    pub fn alloc_local_memory(&mut self, var_id: VariableId) -> u64 {
+    pub(crate) fn alloc_local_memory(&mut self, var_id: VariableId) -> u64 {
         let offset = self.next_local_memory_offset;
         self.next_local_memory_offset += 32; // Each slot is 32 bytes
         self.local_memory_slots.insert(var_id, offset);
@@ -242,12 +242,16 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Gets the memory offset for a local variable, if it's stored in memory.
-    pub fn get_local_memory_offset(&self, var_id: &VariableId) -> Option<u64> {
+    pub(crate) fn get_local_memory_offset(&self, var_id: &VariableId) -> Option<u64> {
         self.local_memory_slots.get(var_id).copied()
     }
 
     /// Returns the address for a local memory slot in the current lowering context.
-    pub fn local_memory_addr(&self, builder: &mut FunctionBuilder<'_>, offset: u64) -> ValueId {
+    pub(crate) fn local_memory_addr(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        offset: u64,
+    ) -> ValueId {
         if self.lowering_internal_function {
             let header_size = 64;
             let arg_size = (builder.func().params.len() as u64) * 32;
@@ -260,12 +264,12 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Returns the constructor scratch address for an immutable word.
-    pub fn immutable_scratch_addr(offset: u32) -> u64 {
+    pub(crate) fn immutable_scratch_addr(offset: u32) -> u64 {
         IMMUTABLE_SCRATCH_BASE + u64::from(offset)
     }
 
     /// Stages an immutable word in constructor memory.
-    pub fn store_immutable_value(
+    pub(crate) fn store_immutable_value(
         &self,
         builder: &mut FunctionBuilder<'_>,
         offset: u32,
@@ -281,7 +285,11 @@ impl<'gcx> Lowerer<'gcx> {
     /// with the staged value before returning the runtime code. The running
     /// constructor's own placeholders are never patched, so constructor-context
     /// reads load the staged scratch word instead.
-    pub fn load_immutable_value(&self, builder: &mut FunctionBuilder<'_>, offset: u32) -> ValueId {
+    pub(crate) fn load_immutable_value(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        offset: u32,
+    ) -> ValueId {
         if self.lowering_constructor {
             let addr = builder.imm_u64(Self::immutable_scratch_addr(offset));
             builder.mload(addr)
@@ -291,18 +299,16 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Registers a contract's bytecode for use in `new` expressions.
-    pub fn register_contract_bytecode(&mut self, contract_id: ContractId, bytecode: Vec<u8>) {
-        let segment_idx = self.module.add_data_segment(bytecode.clone());
-        self.contract_bytecodes.insert(contract_id, (bytecode, segment_idx));
-    }
-
-    /// Gets the bytecode for a contract, if registered.
-    pub fn get_contract_bytecode(&self, contract_id: ContractId) -> Option<&(Vec<u8>, usize)> {
-        self.contract_bytecodes.get(&contract_id)
+    pub(crate) fn register_contract_bytecode(
+        &mut self,
+        contract_id: ContractId,
+        bytecode: Vec<u8>,
+    ) {
+        self.contract_bytecodes.insert(contract_id, bytecode);
     }
 
     /// Lowers a contract to MIR.
-    pub fn lower_contract(&mut self, contract_id: ContractId) {
+    pub(crate) fn lower_contract(&mut self, contract_id: ContractId) {
         let contract = self.gcx.hir.contract(contract_id);
 
         // Track the current contract for using directive resolution.
@@ -493,12 +499,7 @@ impl<'gcx> Lowerer<'gcx> {
                         .expect("immutable offset overflow");
                     self.immutable_slots.insert(var_id, offset);
 
-                    let mir_ty = self.lower_type_from_var(var);
-                    self.module.add_immutable_slot(ImmutableSlot {
-                        offset,
-                        ty: mir_ty,
-                        name: var.name,
-                    });
+                    self.module.add_immutable();
                 } else if var.is_state_variable() && !var.is_constant() {
                     let var_ty = self.gcx.type_of_hir_ty(&var.ty);
                     let location = self.allocate_storage_location(var_ty, var.ty.span);
@@ -511,14 +512,6 @@ impl<'gcx> Lowerer<'gcx> {
 
                     self.storage_slots.insert(var_id, base_slot);
                     self.storage_locations.insert(var_id, location);
-
-                    let mir_ty = self.lower_type_from_var(var);
-                    self.module.add_storage_slot(StorageSlot {
-                        slot: base_slot,
-                        offset: location.offset,
-                        ty: mir_ty,
-                        name: var.name,
-                    });
                 }
             }
         }
@@ -1393,7 +1386,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Returns the completed module.
     #[must_use]
-    pub fn finish(self) -> Module {
+    pub(crate) fn finish(self) -> Module {
         self.module
     }
 
@@ -1553,7 +1546,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Returns true if a variable is assigned after declaration.
-    pub fn is_var_assigned(&self, var_id: &VariableId) -> bool {
+    pub(crate) fn is_var_assigned(&self, var_id: &VariableId) -> bool {
         self.assigned_vars.contains(*var_id)
     }
 
@@ -1561,7 +1554,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// External calls write their return data to shared memory at offset 0,
     /// so variables initialized from them must be stored in memory to preserve the value
     /// across subsequent calls.
-    pub fn has_external_call(&self, expr: &hir::Expr<'_>) -> bool {
+    pub(crate) fn has_external_call(&self, expr: &hir::Expr<'_>) -> bool {
         use hir::ExprKind;
         match &expr.kind {
             ExprKind::Call(callee, args, _) => {

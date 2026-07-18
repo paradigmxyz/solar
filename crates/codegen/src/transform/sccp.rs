@@ -60,9 +60,9 @@ impl LatticeValue {
 
 /// SCCP statistics.
 #[derive(Debug, Default, Clone)]
-pub struct SccpStats {
+pub(crate) struct SccpStats {
     /// Number of instructions replaced with constants.
-    pub constants_folded: usize,
+    pub(crate) constants_folded: usize,
     /// Number of branches replaced with unconditional jumps.
     pub branches_folded: usize,
     /// Number of switches replaced with unconditional jumps.
@@ -73,19 +73,15 @@ pub struct SccpStats {
 
 /// Sparse Conditional Constant Propagation pass.
 #[derive(Debug, Default)]
-pub struct SccpPass {
+pub(crate) struct SccpPass {
     /// Statistics from the last run.
     pub stats: SccpStats,
 }
 
 /// Function pass adapter for sparse conditional constant propagation.
-pub struct SccpTransformPass;
+pub(crate) struct SccpTransformPass;
 
 impl FunctionPass for SccpTransformPass {
-    fn name(&self) -> &str {
-        "sccp"
-    }
-
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         SccpPass::new().run(func) != 0
     }
@@ -93,13 +89,13 @@ impl FunctionPass for SccpTransformPass {
 
 impl SccpPass {
     /// Creates a new SCCP pass.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
     /// Runs SCCP on a function. Returns the total number of mutations,
     /// including unreachable-block cleanup and phi repairs.
-    pub fn run(&mut self, func: &mut Function) -> usize {
+    pub(crate) fn run(&mut self, func: &mut Function) -> usize {
         self.stats = SccpStats::default();
 
         let num_values = func.values.len();

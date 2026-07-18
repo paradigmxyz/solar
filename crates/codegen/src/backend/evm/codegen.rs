@@ -64,17 +64,17 @@ struct PreparedDeploymentPrefix {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EvmCodegenConfig {
     /// EVM version to target when selecting hardfork-gated opcodes.
-    pub evm_version: EvmVersion,
+    pub(crate) evm_version: EvmVersion,
     /// Optimization mode for MIR passes and bytecode assembly.
-    pub optimization: OptimizationMode,
+    pub(crate) optimization: OptimizationMode,
     /// Print MIR after each pass before bytecode generation.
-    pub mir_print_after_each: bool,
+    pub(crate) mir_print_after_each: bool,
     /// Print the time spent in each MIR and EVM IR pass.
-    pub time_passes: bool,
+    pub(crate) time_passes: bool,
     /// Lower dispatch/ABI as MIR phases and consume them here.
-    pub mir_dispatch: bool,
+    pub(crate) mir_dispatch: bool,
     /// Run the experimental EVM IR `StackSchedule` pass before assembly.
-    pub evm_ir_stack_schedule: bool,
+    pub(crate) evm_ir_stack_schedule: bool,
     /// Capture final EVM IR immediately before assembly.
     pub capture_evm_ir: bool,
 }
@@ -82,7 +82,7 @@ pub struct EvmCodegenConfig {
 impl EvmCodegenConfig {
     /// Creates backend configuration from a compiler session.
     #[must_use]
-    pub fn from_session(sess: &Session) -> Self {
+    fn from_session(sess: &Session) -> Self {
         Self {
             evm_version: sess.opts.evm_version,
             optimization: sess.opts.optimization,
@@ -763,20 +763,6 @@ impl EvmCodegen {
                 self.scheduler.depth()
             );
         }
-    }
-
-    /// Generates bytecode for a module (runtime code only).
-    /// Returns empty bytecode for interfaces (they have no implementation).
-    ///
-    /// This runs optimization passes (including DCE) on the module before codegen unless disabled.
-    pub fn generate_module(&mut self, module: &mut Module) -> Vec<u8> {
-        if module.is_interface {
-            return Vec::new();
-        }
-        self.run_optimization_passes(module);
-        // Immutable reads are `PUSH32` zero placeholders here; only a
-        // constructor run patches them with actual values.
-        self.generate_runtime_code(module).bytecode
     }
 
     /// Generates deployment bytecode for a module.
@@ -4147,11 +4133,6 @@ impl EvmCodegen {
                     self.emit_spill_slot_addr(func, slot);
                     self.asm.emit_op(op::MLOAD);
                 }
-                ScheduledOp::SaveSpill(slot) => {
-                    // PUSH slot_offset, MSTORE
-                    self.emit_spill_slot_addr(func, slot);
-                    self.asm.emit_op(op::MSTORE);
-                }
                 ScheduledOp::LoadArg(index) => {
                     if self.in_internal_function {
                         self.emit_internal_arg_load(index);
@@ -5049,10 +5030,6 @@ pub struct EvmArtifact {
 impl crate::backend::Backend for EvmCodegen {
     type Output = EvmArtifact;
 
-    fn name(&self) -> &str {
-        "evm"
-    }
-
     fn lower_module(&mut self, module: &mut Module) -> EvmArtifact {
         self.generate_deployment_artifact(module)
     }
@@ -5239,7 +5216,7 @@ REVERT
                     let config =
                         EvmCodegenConfig { evm_ir_stack_schedule, ..EvmCodegenConfig::from(gcx) };
                     let mut codegen = EvmCodegen::new(config);
-                    let bytecode = codegen.generate_module(&mut module);
+                    let bytecode = codegen.generate_deployment_artifact(&mut module).runtime;
                     return Ok(bytecode);
                 }
             }

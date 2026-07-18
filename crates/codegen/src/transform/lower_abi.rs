@@ -47,7 +47,7 @@ use solar_interface::{Ident, Symbol};
 
 /// Statistics from ABI wrapper lowering.
 #[derive(Clone, Debug, Default)]
-pub struct LowerAbiStats {
+pub(crate) struct LowerAbiStats {
     /// Number of external functions wrapped.
     pub wrapped: usize,
     /// Number of external functions with returns, which the wrappers cannot
@@ -64,17 +64,11 @@ pub struct LowerAbiStats {
 
 /// ABI phase lowering pass.
 #[derive(Debug, Default)]
-pub struct LowerAbiPass {
+pub(crate) struct LowerAbiPass {
     stats: LowerAbiStats,
 }
 
 impl LowerAbiPass {
-    /// Returns statistics for the most recent run.
-    #[must_use]
-    pub const fn stats(&self) -> &LowerAbiStats {
-        &self.stats
-    }
-
     fn run(&mut self, module: &mut Module) -> bool {
         self.stats = LowerAbiStats::default();
 
@@ -221,10 +215,6 @@ impl LowerAbiPass {
 }
 
 impl ModulePass for LowerAbiPass {
-    fn name(&self) -> &str {
-        "lower-abi"
-    }
-
     fn run(&mut self, module: &mut Module) -> bool {
         Self::run(self, module)
     }

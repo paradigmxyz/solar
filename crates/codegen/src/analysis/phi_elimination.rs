@@ -14,7 +14,7 @@ use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Source for a parallel copy - either a regular value or a temporary.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum CopySource {
+pub(crate) enum CopySource {
     /// A regular MIR value.
     Value(ValueId),
     /// A temporary created during cycle breaking (identified by index).
@@ -23,7 +23,7 @@ pub enum CopySource {
 
 /// Destination for a parallel copy - either a regular value or a temporary.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum CopyDest {
+pub(crate) enum CopyDest {
     /// A regular MIR value.
     Value(ValueId),
     /// A temporary created during cycle breaking (identified by index).
@@ -32,7 +32,7 @@ pub enum CopyDest {
 
 /// A parallel copy operation: copy from source to destination.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ParallelCopy {
+pub(crate) struct ParallelCopy {
     /// Source value to copy from.
     pub src: CopySource,
     /// Destination value (the phi result).
@@ -43,14 +43,14 @@ pub struct ParallelCopy {
 
 /// Copies to insert at the end of a block (before the terminator).
 #[derive(Clone, Debug, Default)]
-pub struct BlockCopies {
+pub(crate) struct BlockCopies {
     /// Parallel copies to execute at this block's exit.
     pub copies: Vec<ParallelCopy>,
 }
 
 /// Result of phi elimination.
 #[derive(Debug)]
-pub struct PhiEliminationResult {
+pub(crate) struct PhiEliminationResult {
     /// Copies to insert at each predecessor block.
     pub block_copies: FxHashMap<BlockId, BlockCopies>,
     /// Phi instructions to remove (block, instruction index).
@@ -58,14 +58,14 @@ pub struct PhiEliminationResult {
 }
 
 /// Phi elimination query.
-pub struct PhiEliminator;
+pub(crate) struct PhiEliminator;
 
 impl PhiEliminator {
     /// Analyzes phi nodes and returns parallel copies to insert at predecessor exits.
     ///
     /// The caller is responsible for modifying the function.
     #[must_use]
-    pub fn analyze(func: &Function) -> PhiEliminationResult {
+    pub(crate) fn analyze(func: &Function) -> PhiEliminationResult {
         let mut block_copies: FxHashMap<BlockId, BlockCopies> = FxHashMap::default();
         let mut phis_to_remove = Vec::new();
 
@@ -104,15 +104,6 @@ impl PhiEliminator {
 
         PhiEliminationResult { block_copies, phis_to_remove }
     }
-}
-
-/// Eliminates phi nodes by inserting parallel copies at predecessor block exits.
-///
-/// Returns the copies to insert and phis to remove. The caller is responsible
-/// for actually modifying the function.
-#[must_use]
-pub fn eliminate_phis(func: &Function) -> PhiEliminationResult {
-    PhiEliminator::analyze(func)
 }
 
 /// Finds the ValueId that is defined by a phi instruction.

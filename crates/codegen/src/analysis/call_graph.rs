@@ -6,10 +6,8 @@ use std::collections::VecDeque;
 
 /// Module-level internal-call graph facts.
 #[derive(Clone, Debug)]
-pub struct CallGraphInfo {
+pub(crate) struct CallGraphInfo {
     callees: FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
-    callers: FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
-    entry_functions: DenseBitSet<FunctionId>,
     reachable_from_entries: DenseBitSet<FunctionId>,
     recursive_functions: DenseBitSet<FunctionId>,
     has_body: DenseBitSet<FunctionId>,
@@ -18,10 +16,9 @@ pub struct CallGraphInfo {
 impl CallGraphInfo {
     /// Computes call graph facts for `module`.
     #[must_use]
-    pub fn new(module: &Module) -> Self {
+    pub(crate) fn new(module: &Module) -> Self {
         let function_count = module.functions.len();
         let mut callees = FxHashMap::default();
-        let mut callers: FxHashMap<FunctionId, DenseBitSet<FunctionId>> = FxHashMap::default();
         let mut entry_functions = DenseBitSet::new_empty(function_count);
         let mut has_body = DenseBitSet::new_empty(function_count);
 
@@ -35,12 +32,6 @@ impl CallGraphInfo {
 
             let direct_callees = Self::collect_internal_callees(func, function_count);
             if !direct_callees.is_empty() {
-                for callee in &direct_callees {
-                    callers
-                        .entry(callee)
-                        .or_insert_with(|| DenseBitSet::new_empty(function_count))
-                        .insert(func_id);
-                }
                 callees.insert(func_id, direct_callees);
             }
         }
@@ -49,49 +40,24 @@ impl CallGraphInfo {
             Self::reachable_from_roots_in_graph(&callees, &entry_functions);
         let recursive_functions = Self::recursive_functions_in_graph(&callees, function_count);
 
-        Self {
-            callees,
-            callers,
-            entry_functions,
-            reachable_from_entries,
-            recursive_functions,
-            has_body,
-        }
-    }
-
-    /// Returns functions directly called by `func`.
-    #[must_use]
-    pub fn callees(&self, func: FunctionId) -> Option<&DenseBitSet<FunctionId>> {
-        self.callees.get(&func)
-    }
-
-    /// Returns functions that directly call `func`.
-    #[must_use]
-    pub fn callers(&self, func: FunctionId) -> Option<&DenseBitSet<FunctionId>> {
-        self.callers.get(&func)
-    }
-
-    /// Returns entry functions: external ABI entries, constructor, fallback, and receive.
-    #[must_use]
-    pub fn entry_functions(&self) -> &DenseBitSet<FunctionId> {
-        &self.entry_functions
+        Self { callees, reachable_from_entries, recursive_functions, has_body }
     }
 
     /// Returns all functions reachable from entry functions.
     #[must_use]
-    pub fn reachable_from_entries(&self) -> &DenseBitSet<FunctionId> {
+    pub(crate) fn reachable_from_entries(&self) -> &DenseBitSet<FunctionId> {
         &self.reachable_from_entries
     }
 
     /// Returns true if `func` is directly or indirectly recursive.
     #[must_use]
-    pub fn is_recursive(&self, func: FunctionId) -> bool {
+    pub(crate) fn is_recursive(&self, func: FunctionId) -> bool {
         self.recursive_functions.contains(func)
     }
 
     /// Returns functions reachable from `roots` that have MIR bodies.
     #[must_use]
-    pub fn reachable_bodies_from(
+    pub(crate) fn reachable_bodies_from(
         &self,
         roots: impl IntoIterator<Item = FunctionId>,
     ) -> DenseBitSet<FunctionId> {
@@ -108,19 +74,6 @@ impl CallGraphInfo {
         }
 
         reachable
-    }
-
-    /// Returns all functions reachable from `roots`.
-    #[must_use]
-    pub fn reachable_from_roots(
-        &self,
-        roots: impl IntoIterator<Item = FunctionId>,
-    ) -> DenseBitSet<FunctionId> {
-        let mut root_set = DenseBitSet::new_empty(self.has_body.domain_size());
-        for root in roots {
-            root_set.insert(root);
-        }
-        Self::reachable_from_roots_in_graph(&self.callees, &root_set)
     }
 
     fn collect_internal_callees(func: &Function, function_count: usize) -> DenseBitSet<FunctionId> {

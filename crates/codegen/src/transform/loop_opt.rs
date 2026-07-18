@@ -43,7 +43,7 @@ struct LoopOptContext<'a> {
 
 /// Loop optimization pass configuration.
 #[derive(Clone, Debug)]
-pub struct LoopOptConfig {
+pub(crate) struct LoopOptConfig {
     /// Enable Loop Invariant Code Motion.
     pub enable_licm: bool,
     /// Minimum estimated gas saved per iteration before an instruction is considered a LICM root.
@@ -60,26 +60,22 @@ impl Default for LoopOptConfig {
 
 /// Statistics from loop optimization.
 #[derive(Clone, Debug, Default)]
-pub struct LoopOptStats {
+pub(crate) struct LoopOptStats {
     /// Number of instructions hoisted out of loops.
     pub instructions_hoisted: usize,
 }
 
 /// Loop optimizer.
 #[derive(Debug)]
-pub struct LoopOptimizer {
+pub(crate) struct LoopOptimizer {
     config: LoopOptConfig,
     stats: LoopOptStats,
 }
 
 /// Function pass for loop-invariant code motion.
-pub struct LicmPass;
+pub(crate) struct LicmPass;
 
 impl FunctionPass for LicmPass {
-    fn name(&self) -> &str {
-        "licm"
-    }
-
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         let config =
             LoopOptConfig { enable_licm: true, min_licm_profit: 3, max_licm_hoisted_insts: 8 };
@@ -95,18 +91,12 @@ impl Default for LoopOptimizer {
 
 impl LoopOptimizer {
     /// Creates a new loop optimizer with the given configuration.
-    pub fn new(config: LoopOptConfig) -> Self {
+    pub(crate) fn new(config: LoopOptConfig) -> Self {
         Self { config, stats: LoopOptStats::default() }
     }
 
-    /// Returns the optimization statistics.
-    #[must_use]
-    pub fn stats(&self) -> &LoopOptStats {
-        &self.stats
-    }
-
     /// Runs all enabled loop optimizations on a function.
-    pub fn optimize(&mut self, func: &mut Function) -> &LoopOptStats {
+    pub(crate) fn optimize(&mut self, func: &mut Function) -> &LoopOptStats {
         self.stats = LoopOptStats::default();
         func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
 

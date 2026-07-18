@@ -16,7 +16,7 @@ use solar_data_structures::{
 
 /// Local dead storage-store elimination pass.
 #[derive(Debug, Default)]
-pub struct StorageStoreEliminator {
+pub(crate) struct StorageStoreEliminator {
     /// Number of storage stores eliminated.
     pub eliminated_count: usize,
 }
@@ -38,13 +38,9 @@ impl RunState {
 }
 
 /// Function pass for local dead storage-store elimination.
-pub struct StorageDsePass;
+pub(crate) struct StorageDsePass;
 
 impl FunctionPass for StorageDsePass {
-    fn name(&self) -> &str {
-        "storage-dse"
-    }
-
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         StorageStoreEliminator::new().run_to_fixpoint(func) != 0
     }
@@ -52,14 +48,8 @@ impl FunctionPass for StorageDsePass {
 
 impl StorageStoreEliminator {
     /// Creates a new storage-store eliminator.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
-    }
-
-    /// Runs local storage DSE on a function.
-    pub fn run(&mut self, func: &mut Function) -> usize {
-        let mut state = RunState::new(func);
-        self.run_with_state(func, &mut state)
     }
 
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
@@ -81,7 +71,7 @@ impl StorageStoreEliminator {
     }
 
     /// Runs local storage DSE to a fixed point.
-    pub fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
         let mut state = RunState::new(func);
         loop {

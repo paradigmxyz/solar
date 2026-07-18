@@ -6,31 +6,32 @@ use std::fmt;
 
 /// A basic block in the MIR.
 #[derive(Clone, Debug)]
-pub struct BasicBlock {
+pub(crate) struct BasicBlock {
     /// The instructions in this block (excluding the terminator).
-    pub instructions: Vec<InstId>,
+    pub(crate) instructions: Vec<InstId>,
     /// The terminator instruction.
-    pub terminator: Option<Terminator>,
+    pub(crate) terminator: Option<Terminator>,
     /// Predecessor blocks.
-    pub predecessors: SmallVec<[BlockId; 4]>,
+    pub(crate) predecessors: SmallVec<[BlockId; 4]>,
 }
 
 impl BasicBlock {
     /// Creates a new empty basic block.
     #[must_use]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self { instructions: Vec::new(), terminator: None, predecessors: SmallVec::new() }
     }
 
     /// Returns true if this block has a terminator.
     #[must_use]
-    pub const fn is_terminated(&self) -> bool {
+    pub(crate) const fn is_terminated(&self) -> bool {
         self.terminator.is_some()
     }
 
     /// Returns the terminator, if present.
     #[must_use]
-    pub const fn terminator(&self) -> Option<&Terminator> {
+    #[cfg(test)]
+    pub(crate) const fn terminator(&self) -> Option<&Terminator> {
         self.terminator.as_ref()
     }
 }
@@ -43,7 +44,7 @@ impl Default for BasicBlock {
 
 /// A block terminator instruction.
 #[derive(Clone, Debug, PartialEq)]
-pub enum Terminator {
+pub(crate) enum Terminator {
     /// Unconditional jump to another block.
     Jump(BlockId),
     /// Conditional branch.
@@ -110,7 +111,7 @@ pub enum Terminator {
 impl Terminator {
     /// Returns the successor blocks of this terminator.
     #[must_use]
-    pub fn successors(&self) -> SmallVec<[BlockId; 2]> {
+    pub(crate) fn successors(&self) -> SmallVec<[BlockId; 2]> {
         match self {
             Self::Jump(target) => smallvec::smallvec![*target],
             Self::Branch { then_block, else_block, .. } => {
@@ -136,7 +137,7 @@ impl Terminator {
 
     /// Returns the mnemonic for this terminator.
     #[must_use]
-    pub const fn mnemonic(&self) -> &'static str {
+    pub(crate) const fn mnemonic(&self) -> &'static str {
         match self {
             Self::Jump(_) => "jump",
             Self::Branch { .. } => "branch",
@@ -154,7 +155,7 @@ impl Terminator {
     /// Returns the [`ValueId`] operands of this terminator (the values it reads).
     /// Block targets are NOT included; use [`Self::successors`] for those.
     #[must_use]
-    pub fn operands(&self) -> SmallVec<[ValueId; 4]> {
+    pub(crate) fn operands(&self) -> SmallVec<[ValueId; 4]> {
         let mut out = SmallVec::new();
         match self {
             Self::Jump(_) => {}

@@ -29,43 +29,32 @@ mod storage_load_cse;
 mod storage_promotion;
 mod utils;
 
-pub use adce::{AdcePass, AdceStats, AggressiveDeadCodeEliminator};
-pub use cfg_simplify::{
-    CfgSimplifier, CfgSimplifyPass, CfgSimplifyStats, DeadFunctionEliminator, FunctionDcePass,
-    simplify_cfg, simplify_module_cfg,
-};
-pub use check_elim::{CheckElimPass, CheckElimStats, CheckEliminator};
-pub use cse::{CommonSubexprEliminator, CsePass};
-pub use dce::{DcePass, DceStats, DeadCodeEliminator};
-pub use frame_promotion::{
-    FramePromotionStats, FrameSlotPromoter, FrameSlotPromotionPass, PromotedSlot,
-    PromotedSlotSummary,
-};
-pub use gvn::{GlobalValueNumberer, GvnPass};
-pub use indvar_simplify::{IndVarSimplifier, IndVarSimplifyPass, IndVarSimplifyStats};
-pub use inline::{
-    FunctionInlineInfo, InlineAnalyzer, InlineConfig, InlineDecision, InlinePass, InlineStats,
-    MirInlineConfig, MirInlineStats, MirInliner, OptLevel,
-};
-pub use inst_simplify::{InstSimplifier, InstSimplifyPass};
-pub use jump_threading::{JumpThreader, JumpThreadingPass, JumpThreadingStats};
-pub use load_pre::{LoadPrePass, LoadPreStats, LoadRedundancyEliminator};
-pub use loop_canonicalize::{LoopCanonicalizePass, LoopCanonicalizeStats, LoopCanonicalizer};
-pub use loop_opt::{LicmPass, LoopOptConfig, LoopOptStats, LoopOptimizer};
-pub use lower_abi::{LowerAbiPass, LowerAbiStats};
-pub use lower_dispatch::{LowerDispatchPass, LowerDispatchStats};
-pub use lower_evm_shaped::{LowerEvmShapedPass, LowerEvmShapedStats};
-pub use lower_mapping_slots::LowerMappingSlotsPass;
-pub use memory_dse::{MemoryDsePass, MemoryStoreEliminator};
-pub use outline_reverts::{OutlineRevertsPass, OutlineRevertsStats};
-pub use pre::{PartialRedundancyEliminator, PrePass, PreStats};
-pub use pure_eval::{PureEvalPass, PureEvalStats, PureEvaluator};
-pub use sccp::{SccpPass, SccpStats, SccpTransformPass};
-pub use static_alloc::StaticAllocPass;
-pub use storage_dse::{StorageDsePass, StorageStoreEliminator};
-pub use storage_load_cse::{StorageLoadCse, StorageLoadCsePass};
-pub use storage_promotion::{
-    StoragePromotionStats, StorageScalarPromoter, StorageScalarPromotionPass,
-};
+pub(crate) use adce::AdcePass;
+pub(crate) use cfg_simplify::{CfgSimplifyPass, FunctionDcePass};
+pub(crate) use check_elim::CheckElimPass;
+pub(crate) use cse::CsePass;
+pub(crate) use dce::{DcePass, DeadCodeEliminator};
+pub(crate) use frame_promotion::FrameSlotPromotionPass;
+pub(crate) use gvn::GvnPass;
+pub(crate) use indvar_simplify::IndVarSimplifyPass;
+pub(crate) use inline::InlinePass;
+pub(crate) use inst_simplify::InstSimplifyPass;
+pub(crate) use jump_threading::JumpThreadingPass;
+pub(crate) use load_pre::LoadPrePass;
+pub(crate) use loop_canonicalize::LoopCanonicalizePass;
+pub(crate) use loop_opt::LicmPass;
+pub(crate) use lower_abi::LowerAbiPass;
+pub(crate) use lower_dispatch::LowerDispatchPass;
+pub(crate) use lower_evm_shaped::LowerEvmShapedPass;
+pub(crate) use lower_mapping_slots::LowerMappingSlotsPass;
+pub(crate) use memory_dse::MemoryDsePass;
+pub(crate) use outline_reverts::OutlineRevertsPass;
+pub(crate) use pre::PrePass;
+pub(crate) use pure_eval::PureEvalPass;
+pub(crate) use sccp::SccpTransformPass;
+pub(crate) use static_alloc::StaticAllocPass;
+pub(crate) use storage_dse::StorageDsePass;
+pub(crate) use storage_load_cse::StorageLoadCsePass;
+pub(crate) use storage_promotion::StorageScalarPromotionPass;
 
 pub(crate) use utils::{DispatchCallvalue, rejects_callvalue};
