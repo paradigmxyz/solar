@@ -1,0 +1,10 @@
+// === ROOT/tests/ui/codegen/evm-ir/none/push_family.evmir (after none) ===
+@module module
+bb0 (entry):
+  %plain = push 1
+  %deferred = push_deferred 2
+  %immutable = push_immutable 3
+  pop
+  pop
+  pop
+  stop

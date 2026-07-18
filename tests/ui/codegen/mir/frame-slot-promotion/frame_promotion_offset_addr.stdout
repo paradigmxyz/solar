@@ -1,0 +1,6 @@
+// === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_offset_addr.mir (after frame-slot-promotion,dce) ===
+@module FramePromotionOffsetAddr
+fn @offset_addr() -> u256 {
+  bb0 (entry):
+    ret 99
+}

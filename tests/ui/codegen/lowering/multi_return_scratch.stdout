@@ -1,0 +1,91 @@
+// === ROOT/tests/ui/codegen/lowering/multi_return_scratch.sol:MultiReturnScratch ===
+@module MultiReturnScratch
+fn @stored(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v3 = mapping_slot arg0, 0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    mstore 128, v4
+    returndata 128, 32
+}
+
+fn @triple(arg0: u256) -> (u256, u256, u256) {
+  bb0 (entry):
+    v0 = internal_frame_addr 192
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = internal_frame_addr 224
+    mstore v1, 0 !metadata(memory=internal_frame)
+    v2 = internal_frame_addr 256
+    mstore v2, 0 !metadata(memory=internal_frame)
+    v3 = eq arg0, 0
+    br v3, bb1, bb2
+  bb1:
+    ret 1, 2, 3
+  bb2:
+    v4 = add arg0, 1
+    v5 = lt v4, arg0
+    br v5, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v6 = add arg0, 2
+    v7 = lt v6, arg0
+    br v7, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    ret arg0, v4, v6
+}
+
+fn @assign(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    mstore 160, 0
+    mstore 192, 0
+    mstore 224, 0
+    v3 = mload 64 !metadata(memory=scratch)
+    mstore 192, v3
+    v4 = internal_call @triple, 3, arg1
+    v5 = mload 32 !metadata(memory=scratch)
+    v6 = add v5, 32
+    v7 = mload v6
+    v8 = add v5, 64
+    v9 = mload v8
+    v10 = mapping_slot arg0, 0
+    sstore v10, v4 !metadata(storage=symbolic(v10))
+    mstore 128, v7
+    mstore 160, v9
+    v11 = mload 64 !metadata(memory=scratch)
+    mstore 224, v11
+    v12 = mload 128
+    v13 = mload 160
+    v14 = mload 192
+    v15 = mload 224
+    mstore 128, v12
+    v16 = add 128, 32
+    mstore v16, v13
+    v17 = add 128, 64
+    mstore v17, v14
+    v18 = add 128, 96
+    mstore v18, v15
+    returndata 128, 128
+}
+

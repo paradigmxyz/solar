@@ -1,0 +1,33 @@
+// === ROOT/tests/ui/codegen/mir/check-elim/check_elim_add_bounds.mir (after check-elim) ===
+@module CheckElimAddBounds
+fn @fold_exact_boundary(arg0: u256) -> u256 {
+  bb0 (entry):
+    v0 = lt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    br v0, bb1, bb2
+  bb1:
+    v1 = add arg0, 2
+    v2 = lt v1, arg0
+    jump bb4
+  bb2:
+    ret 0
+  bb3:
+    revert 0, 0
+  bb4:
+    ret v1
+}
+
+fn @keep_wrappable_boundary(arg0: u256) -> u256 {
+  bb0 (entry):
+    v0 = lt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    br v0, bb1, bb2
+  bb1:
+    v1 = add arg0, 2
+    v2 = lt v1, arg0
+    br v2, bb3, bb4
+  bb2:
+    ret 0
+  bb3:
+    revert 0, 0
+  bb4:
+    ret v1
+}

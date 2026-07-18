@@ -1,7 +1,0 @@
-// === ROOT/tests/ui/codegen/mir/phase_header_preserved.mir (after dce) ===
-@module PhaseHeaderPreserved
-@phase optimized
-fn @f() {
-  bb0 (entry):
-    stop
-}

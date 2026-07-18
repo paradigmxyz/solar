@@ -1,0 +1,9 @@
+// === ROOT/tests/ui/codegen/mir/none/metadata.mir (after none) ===
+@module Metadata
+fn @metadata(arg0: u256) -> u256 {
+  bb0 (entry):
+    v0 = sload 7 !metadata(storage=slot(7), hir=42, span=1..5, loop_depth=2)
+    v1 = mload 64 !metadata(memory=scratch, unchecked)
+    v2 = add v0, v1
+    ret v2
+}

@@ -102,6 +102,23 @@ mod round_trip {
             .map(|(i, (la, lb))| (i + 1, la, lb))
     }
 
+    fn fixture_paths(root: &Path, extension: &str) -> Vec<PathBuf> {
+        let mut dirs = vec![root.to_path_buf()];
+        let mut paths = Vec::new();
+        while let Some(dir) = dirs.pop() {
+            for entry in std::fs::read_dir(dir).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    dirs.push(path);
+                } else if path.extension().and_then(|s| s.to_str()) == Some(extension) {
+                    paths.push(path);
+                }
+            }
+        }
+        paths.sort_unstable();
+        paths
+    }
+
     #[test]
     fn round_trip_all_sol_files() {
         let dir = ui_codegen_dir();
@@ -109,11 +126,7 @@ mod round_trip {
 
         let mut failures: Vec<String> = Vec::new();
         let mut count = 0usize;
-        for entry in std::fs::read_dir(&dir).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().and_then(|s| s.to_str()) != Some("sol") {
-                continue;
-            }
+        for path in fixture_paths(&dir, "sol") {
             count += 1;
             if let Err(e) = round_trip_sol(&path) {
                 let name = path.file_name().unwrap().to_string_lossy().into_owned();
@@ -136,11 +149,7 @@ mod round_trip {
         let dir = ui_codegen_dir();
         let mut failures: Vec<String> = Vec::new();
         let mut count = 0usize;
-        for entry in std::fs::read_dir(&dir).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().and_then(|s| s.to_str()) != Some("sol") {
-                continue;
-            }
+        for path in fixture_paths(&dir, "sol") {
             count += 1;
             if let Err(e) = validate_sol(&path) {
                 let name = path.file_name().unwrap().to_string_lossy().into_owned();
@@ -204,11 +213,7 @@ mod round_trip {
 
         let mut failures: Vec<String> = Vec::new();
         let mut count = 0usize;
-        for entry in std::fs::read_dir(&dir).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().and_then(|s| s.to_str()) != Some("mir") {
-                continue;
-            }
+        for path in fixture_paths(&dir, "mir") {
             count += 1;
             if let Err(e) = round_trip_mir(&path) {
                 let name = path.file_name().unwrap().to_string_lossy().into_owned();

@@ -1,6 +1,0 @@
-// === ROOT/tests/ui/codegen/mir/sccp_fold.mir (after sccp) ===
-@module SccpFold
-fn @const_chain() -> u256 {
-  bb0 (entry):
-    ret 60
-}

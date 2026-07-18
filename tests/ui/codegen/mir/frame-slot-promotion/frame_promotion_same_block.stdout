@@ -1,0 +1,7 @@
+// === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_same_block.mir (after frame-slot-promotion,dce) ===
+@module FramePromotionSameBlock
+fn @same_block() -> u256 {
+  bb0 (entry):
+    v3 = add 7, 1
+    ret v3
+}
