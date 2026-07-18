@@ -927,433 +927,150 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             .map_err(|_| self.parser.error(format!("integer `{value}` does not fit in u16")))
     }
 
-    /// Parses one instruction by mnemonic. Returns the constructed [`InstKind`]
-    /// and its result type (or `None` if it produces no value).
-    #[allow(clippy::too_many_lines)]
+    /// Parses one instruction by mnemonic.
     fn parse_inst_kind(
         &mut self,
         mnemonic: Symbol,
         mnemonic_span: Span,
         builder: &mut FunctionBuilder<'_>,
     ) -> PResult<'sess, (InstKind, Option<MirType>)> {
-        // Operand parsing helpers.
-        macro_rules! v {
-            () => {
-                self.parse_value(builder)?
+        macro_rules! operands {
+            () => {};
+            ($first:ident $(, $rest:ident)*) => {
+                let $first = self.parse_value(builder)?;
+                $(
+                    self.parser.expect(TokenKind::Comma)?;
+                    let $rest = self.parse_value(builder)?;
+                )*
             };
         }
-        macro_rules! comma {
-            () => {
-                self.parser.expect(TokenKind::Comma)?
+        macro_rules! inst {
+            ($kind:ident($($operand:ident),*) => $ty:expr) => {{
+                operands!($($operand),*);
+                (InstKind::$kind($($operand),*), Some($ty))
+            }};
+            ($kind:ident($($operand:ident),*)) => {{
+                operands!($($operand),*);
+                (InstKind::$kind($($operand),*), None)
+            }};
+        }
+        macro_rules! unit {
+            ($kind:ident => $ty:expr) => {
+                (InstKind::$kind, Some($ty))
             };
         }
+        macro_rules! struct_inst {
+            ($kind:ident { $($operand:ident),* } => $ty:expr) => {{
+                operands!($($operand),*);
+                (InstKind::$kind { $($operand),* }, Some($ty))
+            }};
+        }
 
-        Ok(match mnemonic {
-            // ----- arithmetic (all uint256 result) -----
-            kw::Add => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::Add(a, b), Some(MirType::uint256()))
-            }
-            kw::Sub => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::Sub(a, b), Some(MirType::uint256()))
-            }
-            kw::Mul => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::Mul(a, b), Some(MirType::uint256()))
-            }
-            kw::Div => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::Div(a, b), Some(MirType::uint256()))
-            }
-            kw::Sdiv => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::SDiv(a, b), Some(MirType::int256()))
-            }
-            kw::Mod => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::Mod(a, b), Some(MirType::uint256()))
-            }
-            kw::Smod => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::SMod(a, b), Some(MirType::int256()))
-            }
-            kw::Exp => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::Exp(a, b), Some(MirType::uint256()))
-            }
-            kw::Addmod => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                comma!();
-                let c = v!();
-                (InstKind::AddMod(a, b, c), Some(MirType::uint256()))
-            }
-            kw::Mulmod => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                comma!();
-                let c = v!();
-                (InstKind::MulMod(a, b, c), Some(MirType::uint256()))
-            }
+        let parsed = match mnemonic {
+            // Arithmetic and bitwise operations.
+            kw::Add => inst!(Add(a, b) => MirType::uint256()),
+            kw::Sub => inst!(Sub(a, b) => MirType::uint256()),
+            kw::Mul => inst!(Mul(a, b) => MirType::uint256()),
+            kw::Div => inst!(Div(a, b) => MirType::uint256()),
+            kw::Sdiv => inst!(SDiv(a, b) => MirType::int256()),
+            kw::Mod => inst!(Mod(a, b) => MirType::uint256()),
+            kw::Smod => inst!(SMod(a, b) => MirType::int256()),
+            kw::Exp => inst!(Exp(a, b) => MirType::uint256()),
+            kw::Addmod => inst!(AddMod(a, b, c) => MirType::uint256()),
+            kw::Mulmod => inst!(MulMod(a, b, c) => MirType::uint256()),
+            kw::And => inst!(And(a, b) => MirType::uint256()),
+            kw::Or => inst!(Or(a, b) => MirType::uint256()),
+            kw::Xor => inst!(Xor(a, b) => MirType::uint256()),
+            kw::Not => inst!(Not(a) => MirType::uint256()),
+            kw::Shl => inst!(Shl(a, b) => MirType::uint256()),
+            kw::Shr => inst!(Shr(a, b) => MirType::uint256()),
+            kw::Sar => inst!(Sar(a, b) => MirType::int256()),
+            kw::Byte => inst!(Byte(a, b) => MirType::uint256()),
+            kw::Signextend => inst!(SignExtend(a, b) => MirType::int256()),
 
-            // ----- bitwise -----
-            kw::And => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::And(a, b), Some(MirType::uint256()))
-            }
-            kw::Or => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::Or(a, b), Some(MirType::uint256()))
-            }
-            kw::Xor => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::Xor(a, b), Some(MirType::uint256()))
-            }
-            kw::Not => {
-                let a = v!();
-                (InstKind::Not(a), Some(MirType::uint256()))
-            }
-            kw::Shl => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::Shl(a, b), Some(MirType::uint256()))
-            }
-            kw::Shr => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::Shr(a, b), Some(MirType::uint256()))
-            }
-            kw::Sar => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::Sar(a, b), Some(MirType::int256()))
-            }
-            kw::Byte => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::Byte(a, b), Some(MirType::uint256()))
-            }
-            kw::Signextend => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::SignExtend(a, b), Some(MirType::int256()))
-            }
+            // Comparisons.
+            kw::Lt => inst!(Lt(a, b) => MirType::Bool),
+            kw::Gt => inst!(Gt(a, b) => MirType::Bool),
+            kw::Slt => inst!(SLt(a, b) => MirType::Bool),
+            kw::Sgt => inst!(SGt(a, b) => MirType::Bool),
+            kw::Eq => inst!(Eq(a, b) => MirType::Bool),
+            kw::Iszero => inst!(IsZero(a) => MirType::Bool),
 
-            // ----- comparison -----
-            kw::Lt => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::Lt(a, b), Some(MirType::Bool))
-            }
-            kw::Gt => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::Gt(a, b), Some(MirType::Bool))
-            }
-            kw::Slt => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::SLt(a, b), Some(MirType::Bool))
-            }
-            kw::Sgt => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::SGt(a, b), Some(MirType::Bool))
-            }
-            kw::Eq => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::Eq(a, b), Some(MirType::Bool))
-            }
-            kw::Iszero => {
-                let a = v!();
-                (InstKind::IsZero(a), Some(MirType::Bool))
-            }
+            // Memory and storage.
+            kw::Mload => inst!(MLoad(a) => MirType::uint256()),
+            kw::Mstore => inst!(MStore(a, b)),
+            kw::Mstore8 => inst!(MStore8(a, b)),
+            kw::Msize => unit!(MSize => MirType::uint256()),
+            kw::Mcopy => inst!(MCopy(a, b, c)),
+            kw::Sload => inst!(SLoad(a) => MirType::uint256()),
+            kw::Sstore => inst!(SStore(a, b)),
+            kw::Tload => inst!(TLoad(a) => MirType::uint256()),
+            kw::Tstore => inst!(TStore(a, b)),
 
-            // ----- memory -----
-            kw::Mload => {
-                let a = v!();
-                (InstKind::MLoad(a), Some(MirType::uint256()))
-            }
-            kw::Mstore => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::MStore(a, b), None)
-            }
-            kw::Mstore8 => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::MStore8(a, b), None)
-            }
-            kw::Msize => (InstKind::MSize, Some(MirType::uint256())),
-            kw::Mcopy => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                comma!();
-                let c = v!();
-                (InstKind::MCopy(a, b, c), None)
-            }
-
-            // ----- storage -----
-            kw::Sload => {
-                let a = v!();
-                (InstKind::SLoad(a), Some(MirType::uint256()))
-            }
-            kw::Sstore => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::SStore(a, b), None)
-            }
-            kw::Tload => {
-                let a = v!();
-                (InstKind::TLoad(a), Some(MirType::uint256()))
-            }
-            kw::Tstore => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::TStore(a, b), None)
-            }
-
-            // ----- calldata -----
-            kw::Calldataload => {
-                let a = v!();
-                (InstKind::CalldataLoad(a), Some(MirType::uint256()))
-            }
-            kw::Calldatasize => (InstKind::CalldataSize, Some(MirType::uint256())),
-            kw::Calldatacopy => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                comma!();
-                let c = v!();
-                (InstKind::CalldataCopy(a, b, c), None)
-            }
-
-            // ----- code -----
-            kw::Codesize => (InstKind::CodeSize, Some(MirType::uint256())),
-            kw::Codecopy => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                comma!();
-                let c = v!();
-                (InstKind::CodeCopy(a, b, c), None)
-            }
+            // Calldata, code, and return data.
+            kw::Calldataload => inst!(CalldataLoad(a) => MirType::uint256()),
+            kw::Calldatasize => unit!(CalldataSize => MirType::uint256()),
+            kw::Calldatacopy => inst!(CalldataCopy(a, b, c)),
+            kw::Codesize => unit!(CodeSize => MirType::uint256()),
+            kw::Codecopy => inst!(CodeCopy(a, b, c)),
             kw::Loadimmutable => {
                 let offset = self.parser.parse_uint()?;
                 let offset = self.u256_to_u32(offset)?;
                 (InstKind::LoadImmutable(offset), Some(MirType::uint256()))
             }
-            kw::Extcodesize => {
-                let a = v!();
-                (InstKind::ExtCodeSize(a), Some(MirType::uint256()))
-            }
-            kw::Extcodecopy => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                comma!();
-                let c = v!();
-                comma!();
-                let d = v!();
-                (InstKind::ExtCodeCopy(a, b, c, d), None)
-            }
-            kw::Extcodehash => {
-                let a = v!();
-                (InstKind::ExtCodeHash(a), Some(MirType::uint256()))
-            }
+            kw::Extcodesize => inst!(ExtCodeSize(a) => MirType::uint256()),
+            kw::Extcodecopy => inst!(ExtCodeCopy(a, b, c, d)),
+            kw::Extcodehash => inst!(ExtCodeHash(a) => MirType::uint256()),
+            kw::Returndatasize => unit!(ReturnDataSize => MirType::uint256()),
+            kw::Returndatacopy => inst!(ReturnDataCopy(a, b, c)),
 
-            // ----- return data -----
-            kw::Returndatasize => (InstKind::ReturnDataSize, Some(MirType::uint256())),
-            kw::Returndatacopy => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                comma!();
-                let c = v!();
-                (InstKind::ReturnDataCopy(a, b, c), None)
-            }
+            // Environment.
+            kw::Caller => unit!(Caller => MirType::Address),
+            kw::Callvalue => unit!(CallValue => MirType::uint256()),
+            kw::Origin => unit!(Origin => MirType::Address),
+            kw::Gasprice => unit!(GasPrice => MirType::uint256()),
+            kw::Coinbase => unit!(Coinbase => MirType::Address),
+            kw::Timestamp => unit!(Timestamp => MirType::uint256()),
+            kw::Number => unit!(BlockNumber => MirType::uint256()),
+            kw::Prevrandao => unit!(PrevRandao => MirType::uint256()),
+            kw::Gaslimit => unit!(GasLimit => MirType::uint256()),
+            kw::Chainid => unit!(ChainId => MirType::uint256()),
+            kw::Address => unit!(Address => MirType::Address),
+            kw::Selfbalance => unit!(SelfBalance => MirType::uint256()),
+            kw::Gas => unit!(Gas => MirType::uint256()),
+            kw::Basefee => unit!(BaseFee => MirType::uint256()),
+            kw::Blobbasefee => unit!(BlobBaseFee => MirType::uint256()),
+            kw::Blockhash => inst!(BlockHash(a) => MirType::FixedBytes(32)),
+            kw::Balance => inst!(Balance(a) => MirType::uint256()),
+            kw::Blobhash => inst!(BlobHash(a) => MirType::FixedBytes(32)),
 
-            // ----- environment (nullary) -----
-            kw::Caller => (InstKind::Caller, Some(MirType::Address)),
-            kw::Callvalue => (InstKind::CallValue, Some(MirType::uint256())),
-            kw::Origin => (InstKind::Origin, Some(MirType::Address)),
-            kw::Gasprice => (InstKind::GasPrice, Some(MirType::uint256())),
-            kw::Coinbase => (InstKind::Coinbase, Some(MirType::Address)),
-            kw::Timestamp => (InstKind::Timestamp, Some(MirType::uint256())),
-            kw::Number => (InstKind::BlockNumber, Some(MirType::uint256())),
-            kw::Prevrandao => (InstKind::PrevRandao, Some(MirType::uint256())),
-            kw::Gaslimit => (InstKind::GasLimit, Some(MirType::uint256())),
-            kw::Chainid => (InstKind::ChainId, Some(MirType::uint256())),
-            kw::Address => (InstKind::Address, Some(MirType::Address)),
-            kw::Selfbalance => (InstKind::SelfBalance, Some(MirType::uint256())),
-            kw::Gas => (InstKind::Gas, Some(MirType::uint256())),
-            kw::Basefee => (InstKind::BaseFee, Some(MirType::uint256())),
-            kw::Blobbasefee => (InstKind::BlobBaseFee, Some(MirType::uint256())),
-
-            // ----- environment (unary) -----
-            kw::Blockhash => {
-                let a = v!();
-                (InstKind::BlockHash(a), Some(MirType::FixedBytes(32)))
-            }
-            kw::Balance => {
-                let a = v!();
-                (InstKind::Balance(a), Some(MirType::uint256()))
-            }
-            kw::Blobhash => {
-                let a = v!();
-                (InstKind::BlobHash(a), Some(MirType::FixedBytes(32)))
-            }
-
-            // ----- hashing -----
-            kw::Keccak256 => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::Keccak256(a, b), Some(MirType::bytes32()))
-            }
-            sym::mapping_slot => {
-                let key = v!();
-                comma!();
-                let slot = v!();
-                (InstKind::MappingSlot(key, slot), Some(MirType::bytes32()))
-            }
+            // Hashing.
+            kw::Keccak256 => inst!(Keccak256(a, b) => MirType::bytes32()),
+            sym::mapping_slot => inst!(MappingSlot(key, slot) => MirType::bytes32()),
             sym::mapping_slot_memory => {
-                let key = v!();
-                comma!();
-                let slot = v!();
-                (InstKind::MappingSlotMemory(key, slot), Some(MirType::bytes32()))
+                inst!(MappingSlotMemory(key, slot) => MirType::bytes32())
             }
             sym::mapping_slot_calldata => {
-                let key = v!();
-                comma!();
-                let slot = v!();
-                (InstKind::MappingSlotCalldata(key, slot), Some(MirType::bytes32()))
+                inst!(MappingSlotCalldata(key, slot) => MirType::bytes32())
             }
 
-            // ----- calls -----
-            kw::Call => {
-                let gas = v!();
-                comma!();
-                let addr = v!();
-                comma!();
-                let value = v!();
-                comma!();
-                let args_offset = v!();
-                comma!();
-                let args_size = v!();
-                comma!();
-                let ret_offset = v!();
-                comma!();
-                let ret_size = v!();
-                (
-                    InstKind::Call {
-                        gas,
-                        addr,
-                        value,
-                        args_offset,
-                        args_size,
-                        ret_offset,
-                        ret_size,
-                    },
-                    Some(MirType::uint256()),
-                )
-            }
-            kw::Staticcall => {
-                let gas = v!();
-                comma!();
-                let addr = v!();
-                comma!();
-                let args_offset = v!();
-                comma!();
-                let args_size = v!();
-                comma!();
-                let ret_offset = v!();
-                comma!();
-                let ret_size = v!();
-                (
-                    InstKind::StaticCall {
-                        gas,
-                        addr,
-                        args_offset,
-                        args_size,
-                        ret_offset,
-                        ret_size,
-                    },
-                    Some(MirType::uint256()),
-                )
-            }
-            kw::Delegatecall => {
-                let gas = v!();
-                comma!();
-                let addr = v!();
-                comma!();
-                let args_offset = v!();
-                comma!();
-                let args_size = v!();
-                comma!();
-                let ret_offset = v!();
-                comma!();
-                let ret_size = v!();
-                (
-                    InstKind::DelegateCall {
-                        gas,
-                        addr,
-                        args_offset,
-                        args_size,
-                        ret_offset,
-                        ret_size,
-                    },
-                    Some(MirType::uint256()),
-                )
-            }
+            // Calls and creation.
+            kw::Call => struct_inst!(Call {
+                gas, addr, value, args_offset, args_size, ret_offset, ret_size
+            } => MirType::uint256()),
+            kw::Staticcall => struct_inst!(StaticCall {
+                gas, addr, args_offset, args_size, ret_offset, ret_size
+            } => MirType::uint256()),
+            kw::Delegatecall => struct_inst!(DelegateCall {
+                gas, addr, args_offset, args_size, ret_offset, ret_size
+            } => MirType::uint256()),
             sym::internal_call => {
                 let function = self.parse_function_id()?;
-                comma!();
+                self.parser.expect(TokenKind::Comma)?;
                 let returns = self.parser.parse_uint()?.to::<u32>();
                 let mut args = Vec::new();
                 while self.parser.eat(TokenKind::Comma) {
-                    args.push(v!());
+                    args.push(self.parse_value(builder)?);
                 }
                 let result_ty = (returns > 0).then(MirType::uint256);
                 (InstKind::InternalCall { function, args: args.into(), returns }, result_ty)
@@ -1362,99 +1079,25 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let offset = self.parser.parse_uint()?.to::<u64>();
                 (InstKind::InternalFrameAddr(offset), Some(MirType::MemPtr))
             }
+            kw::Create => inst!(Create(a, b, c) => MirType::Address),
+            kw::Create2 => inst!(Create2(a, b, c, d) => MirType::Address),
 
-            // ----- create -----
-            kw::Create => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                comma!();
-                let c = v!();
-                (InstKind::Create(a, b, c), Some(MirType::Address))
-            }
-            kw::Create2 => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                comma!();
-                let c = v!();
-                comma!();
-                let d = v!();
-                (InstKind::Create2(a, b, c, d), Some(MirType::Address))
-            }
-
-            // ----- logs -----
-            kw::Log0 => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                (InstKind::Log0(a, b), None)
-            }
-            kw::Log1 => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                comma!();
-                let c = v!();
-                (InstKind::Log1(a, b, c), None)
-            }
-            kw::Log2 => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                comma!();
-                let c = v!();
-                comma!();
-                let d = v!();
-                (InstKind::Log2(a, b, c, d), None)
-            }
-            kw::Log3 => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                comma!();
-                let c = v!();
-                comma!();
-                let d = v!();
-                comma!();
-                let e = v!();
-                (InstKind::Log3(a, b, c, d, e), None)
-            }
-            kw::Log4 => {
-                let a = v!();
-                comma!();
-                let b = v!();
-                comma!();
-                let c = v!();
-                comma!();
-                let d = v!();
-                comma!();
-                let e = v!();
-                comma!();
-                let f = v!();
-                (InstKind::Log4(a, b, c, d, e, f), None)
-            }
-
-            // ----- ssa -----
-            sym::select => {
-                let cond = v!();
-                comma!();
-                let then_v = v!();
-                comma!();
-                let else_v = v!();
-                (InstKind::Select(cond, then_v, else_v), Some(MirType::uint256()))
-            }
+            // Logs and SSA operations.
+            kw::Log0 => inst!(Log0(a, b)),
+            kw::Log1 => inst!(Log1(a, b, c)),
+            kw::Log2 => inst!(Log2(a, b, c, d)),
+            kw::Log3 => inst!(Log3(a, b, c, d, e)),
+            kw::Log4 => inst!(Log4(a, b, c, d, e, f)),
+            sym::select => inst!(Select(condition, then_value, else_value) => MirType::uint256()),
             sym::phi => {
-                // Format: `phi [bb0: v1], [bb1: v2]` — matches the printer in display.rs.
-                // Each pair is `[blockId: valueId]` separated by commas.
-                let mut incoming: Vec<(BlockId, ValueId)> = Vec::new();
+                let mut incoming = Vec::new();
                 loop {
                     self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
-                    let bid = self.parse_block_id(builder)?;
+                    let block = self.parse_block_id(builder)?;
                     self.parser.expect(TokenKind::Colon)?;
-                    let val = v!();
+                    let value = self.parse_value(builder)?;
                     self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
-                    incoming.push((bid, val));
+                    incoming.push((block, value));
                     if !self.parser.eat(TokenKind::Comma) {
                         break;
                     }
@@ -1462,12 +1105,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::Phi(incoming), Some(MirType::uint256()))
             }
 
-            other => {
+            _ => {
                 return Err(self
                     .parser
-                    .error_at(mnemonic_span, format!("unknown instruction `{other}`")));
+                    .error_at(mnemonic_span, format!("unknown instruction `{mnemonic}`")));
             }
-        })
+        };
+        Ok(parsed)
     }
 }
 
