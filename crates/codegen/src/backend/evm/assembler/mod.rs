@@ -346,10 +346,6 @@ impl Assembler {
                 ir::run_pass(&mut ir_program, pass, pass_options);
             }
             debug_assert!(!input_is_valid || is_valid_evm_ir(&ir_program));
-        } else {
-            for pass in ir::FINALIZE_PIPELINE {
-                ir::run_pass(&mut ir_program, pass, pass_options);
-            }
         }
 
         let evm_ir = self.config.capture_evm_ir.then(|| ir_program.clone());

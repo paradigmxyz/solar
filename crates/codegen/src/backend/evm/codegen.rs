@@ -595,7 +595,7 @@ pub struct EvmCodegen {
     /// site can re-emit after the stack drain, so they ride the stack above
     /// the return address instead of being stored to the callee frame at
     /// each site. The callee prologue stores them once.
-    stack_arg_masks: FxHashMap<FunctionId, Vec<bool>>,
+    stack_arg_masks: FxHashMap<FunctionId, DenseBitSet<usize>>,
     /// Whether the current assembly is the runtime (stack-passed arguments
     /// apply). The constructor assembly emits its own copies of internal
     /// functions with the plain frame-store convention.
@@ -3543,11 +3543,14 @@ impl EvmCodegen {
         scores.retain(|func_id, _| {
             self.static_frame_functions.contains(*func_id) && !excluded.contains(*func_id)
         });
-        let mut masks: FxHashMap<FunctionId, Vec<bool>> = FxHashMap::default();
+        let mut masks = FxHashMap::default();
         for (func_id, score) in scores {
             // The callee prologue pays one store per stack argument.
-            let mask: Vec<bool> = score.iter().map(|&benefit| benefit > 4).collect();
-            if mask.iter().any(|&stack| stack) {
+            let mut mask = DenseBitSet::new_empty(score.len());
+            for (index, _) in score.iter().enumerate().filter(|(_, benefit)| **benefit > 4) {
+                mask.insert(index);
+            }
+            if !mask.is_empty() {
                 masks.insert(func_id, mask);
             }
         }
@@ -3608,11 +3611,11 @@ impl EvmCodegen {
             return;
         }
         let Some(mask) = self.stack_arg_masks.get(&func_id).cloned() else { return };
-        if mask.len() != func.params.len() {
+        if mask.domain_size() != func.params.len() {
             return;
         }
-        for i in (0..mask.len()).rev() {
-            if mask[i] {
+        for i in (0..mask.domain_size()).rev() {
+            if mask.contains(i) {
                 let addr = self.static_frame_addr(func_id, 64 + i as u64 * 32);
                 self.asm.emit_push_deferred(addr);
                 self.asm.emit_op(op::MSTORE);
@@ -3999,7 +4002,7 @@ impl EvmCodegen {
             if self.runtime_stack_args { self.stack_arg_masks.get(&callee).cloned() } else { None };
 
         for (i, &arg) in args.iter().enumerate() {
-            if stack_mask.as_ref().is_some_and(|mask| mask[i]) {
+            if stack_mask.as_ref().is_some_and(|mask| mask.contains(i)) {
                 continue;
             }
             self.emit_operand(func, arg);
@@ -4015,7 +4018,7 @@ impl EvmCodegen {
         // while the value is still reachable.
         if let Some(mask) = &stack_mask {
             for (i, &arg) in args.iter().enumerate() {
-                if mask[i]
+                if mask.contains(i)
                     && matches!(func.value(arg), crate::mir::Value::Inst(_))
                     && !self.scheduler.spills.is_stored(arg)
                 {
@@ -4037,7 +4040,7 @@ impl EvmCodegen {
         // stores them into its frame before its body runs.
         if let Some(mask) = &stack_mask {
             for (i, &arg) in args.iter().enumerate() {
-                if mask[i] {
+                if mask.contains(i) {
                     self.emit_raw_stack_arg(func, arg);
                 }
             }

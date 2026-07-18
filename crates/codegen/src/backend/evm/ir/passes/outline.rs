@@ -5,7 +5,7 @@ use crate::backend::evm::{
     opcode as op,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 const MIN_CLOSED_RUN: usize = 4;
 
@@ -45,13 +45,16 @@ fn outline_closed_computations(module: &mut Module) -> bool {
 
     let mut groups: Vec<_> = candidates.into_iter().filter(|(_, sites)| sites.len() >= 2).collect();
     groups.sort_by_key(|(key, _)| std::cmp::Reverse(key.len()));
-    let mut claimed: Vec<_> =
-        module.blocks.iter().map(|block| vec![false; block.instructions.len()]).collect();
+    let mut claimed: Vec<_> = module
+        .blocks
+        .iter()
+        .map(|block| DenseBitSet::new_empty(block.instructions.len()))
+        .collect();
     let mut chosen = Vec::new();
     for (_, sites) in groups {
         let mut free = Vec::new();
         for site in sites {
-            if (site.start..site.start + site.len).all(|at| !claimed[site.block.index()][at]) {
+            if !claimed[site.block.index()].contains_any(site.start..site.start + site.len) {
                 free.push(site);
             }
         }
@@ -68,7 +71,7 @@ fn outline_closed_computations(module: &mut Module) -> bool {
             continue;
         }
         for site in &free {
-            claimed[site.block.index()][site.start..site.start + site.len].fill(true);
+            claimed[site.block.index()].insert_range(site.start..site.start + site.len);
         }
         chosen.push(ChosenGroup { body, sites: free, height: first.height });
     }

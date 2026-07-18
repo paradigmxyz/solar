@@ -8,6 +8,7 @@ use crate::backend::evm::{
     ir::{BlockId, Module, Operand, Terminator, TerminatorKind},
     opcode as op,
 };
+use solar_data_structures::bit_set::DenseBitSet;
 
 pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
     let mut changed = false;
@@ -134,10 +135,10 @@ fn redirect_terminator_operands(
 
 fn remove_unreachable_blocks(module: &mut Module) -> bool {
     let Some(entry) = module.entry_block else { return false };
-    let mut reachable = vec![false; module.blocks.len()];
+    let mut reachable = DenseBitSet::new_empty(module.blocks.len());
     let mut pending = vec![entry];
     while let Some(block_id) = pending.pop() {
-        if std::mem::replace(&mut reachable[block_id.index()], true) {
+        if !reachable.insert(block_id) {
             continue;
         }
         let block = &module.blocks[block_id];
@@ -157,10 +158,10 @@ fn remove_unreachable_blocks(module: &mut Module) -> bool {
             });
         }
     }
-    if reachable.iter().all(|reachable| *reachable) {
+    if reachable.count() == module.blocks.len() {
         return false;
     }
-    let order: Vec<_> = module.blocks.indices().filter(|block| reachable[block.index()]).collect();
+    let order: Vec<_> = reachable.iter().collect();
     retain_blocks(module, &order);
     true
 }

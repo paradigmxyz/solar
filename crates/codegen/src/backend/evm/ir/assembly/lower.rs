@@ -6,6 +6,7 @@ use crate::backend::evm::{
     ir::{self, BlockId},
     opcode as op,
 };
+use solar_data_structures::bit_set::DenseBitSet;
 
 /// Linear label-bearing opcode stream ready for final bytecode assembly.
 /// Lowers finalized EVM IR into the linear assembly stream.
@@ -39,12 +40,12 @@ fn allocate_referenced_labels(
     labels: &mut Vec<Option<Label>>,
     assembler: &mut Assembler,
 ) {
-    let mut referenced = vec![false; module.blocks.len()];
+    let mut referenced = DenseBitSet::new_empty(module.blocks.len());
     for (block_id, block) in module.blocks.iter_enumerated() {
         for inst in &block.instructions {
             for operand in &inst.operands {
                 if let ir::Operand::Block(target) = operand {
-                    referenced[target.index()] = true;
+                    referenced.insert(*target);
                 }
             }
         }
@@ -52,18 +53,18 @@ fn allocate_referenced_labels(
             &block.terminator
             && next_block(module, block_id) != Some(*target)
         {
-            referenced[target.index()] = true;
+            referenced.insert(*target);
         }
     }
     for (block_id, block) in module.blocks.iter_enumerated() {
         let original = block.label as usize;
-        if !referenced[block_id.index()]
+        if !referenced.contains(block_id)
             && let Some(label) = labels.get_mut(original)
         {
             *label = None;
         }
     }
-    for block in module.blocks.indices().filter(|block| referenced[block.index()]) {
+    for block in referenced.iter() {
         label_for_block(module, block, labels, assembler);
     }
 }

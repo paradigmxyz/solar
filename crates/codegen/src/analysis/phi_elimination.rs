@@ -10,7 +10,7 @@
 //! 3. Remove the phi instructions after copies are inserted.
 
 use crate::mir::{BlockId, Function, InstId, InstKind, MirType, Value, ValueId};
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Source for a parallel copy - either a regular value or a temporary.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -181,28 +181,28 @@ fn sequentialize_copies(copies: &mut Vec<ParallelCopy>, temp_counter: &mut u32) 
         }
     }
 
-    let mut emitted = vec![false; pending.len()];
+    let mut emitted = DenseBitSet::new_empty(pending.len());
 
     // Emit copies in dependency order until we hit cycles
     loop {
         let mut made_progress = false;
 
         for i in 0..pending.len() {
-            if emitted[i] {
+            if emitted.contains(i) {
                 continue;
             }
 
             // Can emit if no one is blocking us (all readers of our dst have been emitted)
             if blocked_by[i] == 0 {
                 result.push(pending[i].clone());
-                emitted[i] = true;
+                emitted.insert(i);
                 made_progress = true;
 
                 // Unblock anyone who was waiting for us to read their dst
                 if let Some(src) = src_value(&pending[i].src)
                     && let Some(&blocked_writer) = writes_to.get(&src)
                     && blocked_writer != i
-                    && !emitted[blocked_writer]
+                    && !emitted.contains(blocked_writer)
                 {
                     blocked_by[blocked_writer] = blocked_by[blocked_writer].saturating_sub(1);
                 }
@@ -221,13 +221,13 @@ fn sequentialize_copies(copies: &mut Vec<ParallelCopy>, temp_counter: &mut u32) 
             );
 
             // If we broke at least one cycle, continue to see if more copies are now unblocked
-            if !emitted.iter().all(|&e| e) {
+            if emitted.count() != pending.len() {
                 continue;
             }
             break;
         }
 
-        if emitted.iter().all(|&e| e) {
+        if emitted.count() == pending.len() {
             break;
         }
     }
@@ -244,7 +244,7 @@ fn sequentialize_copies(copies: &mut Vec<ParallelCopy>, temp_counter: &mut u32) 
 /// 4. Replace the broken copy's source with temp: b = tmp
 fn break_cycles(
     pending: &[ParallelCopy],
-    emitted: &mut [bool],
+    emitted: &mut DenseBitSet<usize>,
     blocked_by: &mut [usize],
     writes_to: &FxHashMap<ValueId, usize>,
     result: &mut Vec<ParallelCopy>,
@@ -254,15 +254,15 @@ fn break_cycles(
     let cycle_start = pending
         .iter()
         .enumerate()
-        .find(|(i, _)| !emitted[*i] && blocked_by[*i] > 0)
+        .find(|(i, _)| !emitted.contains(*i) && blocked_by[*i] > 0)
         .map(|(i, _)| i);
 
     let Some(start_idx) = cycle_start else {
         // No cycles, emit remaining in order
         for (i, copy) in pending.iter().enumerate() {
-            if !emitted[i] {
+            if !emitted.contains(i) {
                 result.push(copy.clone());
-                emitted[i] = true;
+                emitted.insert(i);
             }
         }
         return;
@@ -275,7 +275,7 @@ fn break_cycles(
     while let Some(src) = src_value(&pending[current].src) {
         // Find the copy that writes to our source (the predecessor in the cycle)
         if let Some(&pred_idx) = writes_to.get(&src) {
-            if emitted[pred_idx] {
+            if emitted.contains(pred_idx) {
                 break;
             }
             if pred_idx == start_idx {
@@ -320,14 +320,14 @@ fn break_cycles(
 
     // Emit copies that are now unblocked (in the cycle)
     for &idx in &cycle_indices[1..] {
-        if !emitted[idx] && blocked_by[idx] == 0 {
+        if !emitted.contains(idx) && blocked_by[idx] == 0 {
             result.push(pending[idx].clone());
-            emitted[idx] = true;
+            emitted.insert(idx);
 
             // Unblock the writer of our source
             if let Some(src) = src_value(&pending[idx].src)
                 && let Some(&blocked_writer) = writes_to.get(&src)
-                && !emitted[blocked_writer]
+                && !emitted.contains(blocked_writer)
             {
                 blocked_by[blocked_writer] = blocked_by[blocked_writer].saturating_sub(1);
             }
@@ -340,7 +340,7 @@ fn break_cycles(
         dst: break_copy.dst.clone(),
         ty: break_copy.ty,
     });
-    emitted[break_idx] = true;
+    emitted.insert(break_idx);
 }
 
 #[cfg(test)]

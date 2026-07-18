@@ -293,9 +293,9 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 
 ## Notes
 
-- **Small index sets**: Prefer bitsets over hash sets when keys are compact indices or the domain
-  size is known ahead of time. Use fixed dense or mixed bitsets for stable domains and growable
-  bitsets when new indices may be allocated while the set is live.
+- **Small index sets**: Never use `Vec<bool>` or hash sets when keys are compact indices or the
+  domain size is known ahead of time. Use fixed dense or mixed bitsets for stable domains and
+  growable bitsets when new indices may be allocated while the set is live.
 - **Symbol comparisons**: Use `sym::name` or `kw::Keyword` instead of `.as_str()` for performance. Add new symbols to the `symbols! { ... }` list in `crates/interface/src/symbol.rs`.
 - **No inline interning of fixed strings**: Never call `Symbol::intern("...")` with a string literal. Add the name to the pre-interned `symbols!` set and use `sym::name`; `Symbol::intern` is only for strings built at runtime.
 - **Arena allocation**: AST nodes use arenas for performance.

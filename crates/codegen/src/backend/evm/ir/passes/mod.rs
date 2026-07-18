@@ -134,9 +134,6 @@ pub const DEFAULT_PIPELINE: &[PassInfo] = &[
     BLOCK_LAYOUT_PASS,
 ];
 
-/// Mandatory machine-level cleanup before unoptimized EVM IR is encoded.
-pub const FINALIZE_PIPELINE: &[PassInfo] = &[TERMINAL_DEDUP_PASS, CFG_SIMPLIFY_PASS];
-
 /// Finds a pass in the EVM IR pass registry by command-line name.
 pub fn lookup_pass(name: &str) -> Option<&'static PassInfo> {
     PASS_REGISTRY.iter().find(|pass| pass.name == name)
