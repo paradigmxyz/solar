@@ -6,8 +6,8 @@ use crate::{
 use async_lsp::ClientSocket;
 use lsp_types::{
     DocumentSymbolClientCapabilities, DocumentSymbolResponse, InitializeParams,
-    PartialResultParams, SymbolKind, TextDocumentClientCapabilities, TextDocumentIdentifier, Url,
-    WorkDoneProgressParams, WorkspaceSymbolResponse,
+    PartialResultParams, ReferenceContext, SymbolKind, TextDocumentClientCapabilities,
+    TextDocumentIdentifier, Url, WorkDoneProgressParams, WorkspaceSymbolResponse,
 };
 use std::{
     future::Future,
@@ -96,6 +96,129 @@ fn workspace_symbol_returns_matching_symbols() {
     assert_eq!(symbols.iter().map(|symbol| symbol.name.as_str()).collect::<Vec<_>>(), ["Other"]);
 }
 
+#[test]
+fn semantic_requests_wait_for_latest_analysis() {
+    let uri = parse_uri("file:///workspace/src/Test.sol");
+    let mut state = pending_analysis_state();
+
+    assert_pending(document_symbol(&mut state, document_symbol_params(uri.clone())));
+    assert_pending(document_links(&mut state, document_link_params(uri.clone())));
+    assert_pending(goto_definition(&mut state, goto_params(uri.clone())));
+    assert_pending(goto_type_definition(&mut state, goto_params(uri.clone())));
+    assert_pending(goto_declaration(&mut state, goto_params(uri.clone())));
+    assert_pending(references(&mut state, reference_params(uri.clone())));
+    assert_pending(prepare_rename(&mut state, position_params(uri.clone())));
+    assert_pending(rename(&mut state, rename_params(uri.clone(), "renamed")));
+    assert_pending(inlay_hints(&mut state, inlay_hint_params(uri)));
+}
+
+#[test]
+fn semantic_requests_skip_analysis_for_non_file_uris() {
+    let uri = parse_uri("untitled:Test.sol");
+    let mut state = pending_analysis_state();
+
+    assert_ready(document_symbol(&mut state, document_symbol_params(uri.clone())));
+    assert_ready(document_links(&mut state, document_link_params(uri.clone())));
+    assert_ready(goto_definition(&mut state, goto_params(uri.clone())));
+    assert_ready(goto_type_definition(&mut state, goto_params(uri.clone())));
+    assert_ready(goto_declaration(&mut state, goto_params(uri.clone())));
+    assert_ready(references(&mut state, reference_params(uri.clone())));
+    assert_ready(prepare_rename(&mut state, position_params(uri.clone())));
+    assert_ready(rename(&mut state, rename_params(uri.clone(), "renamed")));
+    assert_ready(inlay_hints(&mut state, inlay_hint_params(uri)));
+}
+
+#[test]
+fn invalid_rename_names_and_latency_sensitive_requests_do_not_wait_for_analysis() {
+    let uri = parse_uri("file:///workspace/src/Test.sol");
+    let mut state = pending_analysis_state();
+
+    let error =
+        expect_ready(rename(&mut state, rename_params(uri.clone(), "not a name"))).unwrap_err();
+    assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
+    assert_ready(completion(&mut state, completion_params(uri.clone())));
+    assert_ready(signature_help(&mut state, signature_help_params(uri)));
+    assert_ready(workspace_symbol(
+        &mut state,
+        WorkspaceSymbolParams {
+            query: String::new(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        },
+    ));
+}
+
+fn pending_analysis_state() -> GlobalState {
+    let state = GlobalState::new(ClientSocket::new_closed());
+    state.mark_analysis_pending_for_test();
+    state
+}
+
+fn position_params(uri: Url) -> TextDocumentPositionParams {
+    TextDocumentPositionParams {
+        text_document: TextDocumentIdentifier::new(uri),
+        position: Position::new(0, 0),
+    }
+}
+
+fn goto_params(uri: Url) -> GotoDefinitionParams {
+    GotoDefinitionParams {
+        text_document_position_params: position_params(uri),
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
+    }
+}
+
+fn reference_params(uri: Url) -> ReferenceParams {
+    ReferenceParams {
+        text_document_position: position_params(uri),
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
+        context: ReferenceContext { include_declaration: true },
+    }
+}
+
+fn rename_params(uri: Url, new_name: &str) -> RenameParams {
+    RenameParams {
+        text_document_position: position_params(uri),
+        new_name: new_name.into(),
+        work_done_progress_params: WorkDoneProgressParams::default(),
+    }
+}
+
+fn document_link_params(uri: Url) -> DocumentLinkParams {
+    DocumentLinkParams {
+        text_document: TextDocumentIdentifier::new(uri),
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
+    }
+}
+
+fn inlay_hint_params(uri: Url) -> InlayHintParams {
+    InlayHintParams {
+        text_document: TextDocumentIdentifier::new(uri),
+        range: lsp_types::Range::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
+        work_done_progress_params: WorkDoneProgressParams::default(),
+    }
+}
+
+fn completion_params(uri: Url) -> CompletionParams {
+    CompletionParams {
+        text_document_position: position_params(uri),
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
+        context: None,
+    }
+}
+
+fn signature_help_params(uri: Url) -> SignatureHelpParams {
+    SignatureHelpParams {
+        context: None,
+        text_document_position_params: position_params(uri),
+        work_done_progress_params: WorkDoneProgressParams::default(),
+    }
+}
+
 fn state_with_symbols(symbol_tables: SymbolTables, params: InitializeParams) -> GlobalState {
     let (_, config) = negotiate_capabilities(params);
     let mut state = GlobalState::new(ClientSocket::new_closed());
@@ -145,6 +268,17 @@ fn expect_ready<F: Future>(future: F) -> F::Output {
         Poll::Ready(output) => output,
         Poll::Pending => panic!("request handler future should complete immediately"),
     }
+}
+
+fn assert_pending<F: Future>(future: F) {
+    let waker = Waker::noop();
+    let mut context = Context::from_waker(waker);
+    let mut future = std::pin::pin!(future);
+    assert!(future.as_mut().poll(&mut context).is_pending());
+}
+
+fn assert_ready<F: Future>(future: F) {
+    let _ = expect_ready(future);
 }
 
 fn assert_completion_input(
