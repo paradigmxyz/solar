@@ -25,8 +25,8 @@ fn completion_input_extracts_prefix_and_member_receiver() {
 
 #[test]
 fn document_symbol_returns_flat_symbols_without_hierarchical_client_support() {
-    let uri = parse_uri("file:///workspace/src/Test.sol");
-    let other_uri = parse_uri("file:///workspace/src/Other.sol");
+    let uri = file_uri("Test.sol");
+    let other_uri = file_uri("Other.sol");
     let mut state =
         state_with_symbols(symbol_tables(&uri, &other_uri), InitializeParams::default());
 
@@ -46,8 +46,8 @@ fn document_symbol_returns_flat_symbols_without_hierarchical_client_support() {
 
 #[test]
 fn document_symbol_returns_nested_symbols_with_hierarchical_client_support() {
-    let uri = parse_uri("file:///workspace/src/Test.sol");
-    let other_uri = parse_uri("file:///workspace/src/Other.sol");
+    let uri = file_uri("Test.sol");
+    let other_uri = file_uri("Other.sol");
     let mut state = state_with_symbols(
         symbol_tables(&uri, &other_uri),
         initialize_params_with_hierarchical_document_symbols(),
@@ -74,8 +74,8 @@ fn document_symbol_returns_nested_symbols_with_hierarchical_client_support() {
 
 #[test]
 fn workspace_symbol_returns_matching_symbols() {
-    let uri = parse_uri("file:///workspace/src/Test.sol");
-    let other_uri = parse_uri("file:///workspace/src/Other.sol");
+    let uri = file_uri("Test.sol");
+    let other_uri = file_uri("Other.sol");
     let mut state =
         state_with_symbols(symbol_tables(&uri, &other_uri), InitializeParams::default());
 
@@ -98,7 +98,7 @@ fn workspace_symbol_returns_matching_symbols() {
 
 #[test]
 fn semantic_requests_wait_for_latest_analysis() {
-    let uri = parse_uri("file:///workspace/src/Test.sol");
+    let uri = file_uri("Test.sol");
     let mut state = pending_analysis_state();
 
     assert_pending(document_symbol(&mut state, document_symbol_params(uri.clone())));
@@ -130,7 +130,7 @@ fn semantic_requests_skip_analysis_for_non_file_uris() {
 
 #[test]
 fn invalid_rename_names_and_latency_sensitive_requests_do_not_wait_for_analysis() {
-    let uri = parse_uri("file:///workspace/src/Test.sol");
+    let uri = file_uri("Test.sol");
     let mut state = pending_analysis_state();
 
     let error =
@@ -258,6 +258,10 @@ fn symbol_tables(uri: &lsp_types::Url, other_uri: &lsp_types::Url) -> SymbolTabl
 
 fn parse_uri(uri: &str) -> lsp_types::Url {
     lsp_types::Url::parse(uri).unwrap()
+}
+
+fn file_uri(path: &str) -> lsp_types::Url {
+    lsp_types::Url::from_file_path(std::env::temp_dir().join(path)).unwrap()
 }
 
 fn expect_ready<F: Future>(future: F) -> F::Output {
