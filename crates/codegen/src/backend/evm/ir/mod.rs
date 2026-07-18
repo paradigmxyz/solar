@@ -2,7 +2,7 @@
 //!
 //! This module defines the target-specific Machine-IR-like boundary between
 //! MIR lowering and final EVM assembly. EVM IR is intentionally untyped: values
-//! are EVM stack words, not Solidity or MIR values with a [`crate::mir::MirType`].
+//! are EVM stack words, not Solidity or MIR values with a `crate::mir::MirType`.
 //! It models backend basic blocks, opcode-like instructions, explicit physical
 //! stack operations, terminators, and metadata. All backend optimization and
 //! layout decisions remain here. After block layout, it lowers once to the

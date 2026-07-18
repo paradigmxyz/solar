@@ -3,11 +3,10 @@
 //! Panic checks and argless custom errors lower to small blocks of constant
 //! stores followed by `revert` — `mstore(0, selector); mstore(4, code);
 //! revert(0, 36)` — and the same shape repeats at every check site, across
-//! functions. The assembler also deduplicates byte-identical terminal spans,
-//! including fallthrough-entered copies, but only after backend lowering and
-//! layout. Outlining the semantic MIR shape first prevents stack scheduling,
-//! function layout, and label-width differences from hiding those duplicates
-//! from the later byte-level pass.
+//! functions. EVM IR also deduplicates equivalent terminal blocks and merges
+//! common terminal tails, but only after backend lowering. Outlining the
+//! semantic MIR shape first prevents stack scheduling and layout differences
+//! from hiding those duplicates from the backend passes.
 //!
 //! This pass hashes every block whose instructions are all `mstore(imm, imm)`
 //! and whose terminator is `revert(imm, imm)`. A shape that occurs at least

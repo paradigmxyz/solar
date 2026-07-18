@@ -3,10 +3,10 @@
 //! The IR keeps control-flow edges explicit and leaves physical fallthrough to
 //! assembly. This pass follows unconditional jump successors to form linear
 //! traces, making those successor blocks adjacent whenever possible. The
-//! assembler can then omit jumps whose target is the next emitted block without
-//! encoding physical layout assumptions in the IR. Independent hot traces are
-//! placed before cold terminal traces so unlikely exit paths do not interrupt
-//! hot code.
+//! final lowering can then omit jumps whose target is the next emitted block
+//! without encoding physical layout assumptions in the IR. Independent hot
+//! traces are placed before cold terminal traces so unlikely exit paths do not
+//! interrupt hot code.
 
 use super::utils::{
     is_evm_terminal, remap_block_order, visit_terminator_operands, visit_terminator_targets,

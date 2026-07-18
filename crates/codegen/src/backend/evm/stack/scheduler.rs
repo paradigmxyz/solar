@@ -252,10 +252,6 @@ impl StackScheduler {
 
     /// Shuffles the current stack to match the target layout.
     ///
-    /// This uses the backward layout optimization approach:
-    /// - Given a target layout (what we want the stack to look like)
-    /// - Generate the minimal sequence of DUP/SWAP/POP operations
-    ///
     /// Returns the shuffle result containing the operations to emit.
     pub(crate) fn shuffle_to_layout(&mut self, target: &[TargetSlot]) -> ShuffleResult {
         let shuffler = StackShuffler::new(&self.stack, target);

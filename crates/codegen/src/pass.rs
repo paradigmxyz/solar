@@ -1,10 +1,10 @@
 //! Pass infrastructure for MIR transformations and analyses.
 //!
 //! Inspired by LLVM/MLIR pass infrastructure:
-//! - **Analysis passes** ([`AnalysisPass`]) are read-only and produce a cached result. They take
-//!   `&Function` and store their result in [`AnalysisManager`].
-//! - **Module passes** ([`ModulePass`]) modify the IR at module scope. Function-local passes can
-//!   implement [`FunctionPass`] and are automatically applied to each function.
+//! - **Analysis passes** (`AnalysisPass`) are read-only and produce a cached result. They take
+//!   `&Function` and store their result in `AnalysisManager`.
+//! - **Module passes** (`ModulePass`) modify the IR at module scope. Function-local passes can
+//!   implement `FunctionPass` and are automatically applied to each function.
 //!
 //! # Usage
 //!
@@ -340,8 +340,8 @@ fn run_pipeline(module: &mut Module, passes: &[PassInfo], options: PipelineOptio
 
 /// Runs the canonical MIR optimization pipeline used by EVM codegen.
 ///
-/// This is a phase transition: the module comes out in [`MirPhase::Optimized`].
-/// Ad-hoc pass lists run through [`run_pipeline`], such as `solar mir-opt`
+/// This is a phase transition: the module comes out in `MirPhase::Optimized`.
+/// Ad-hoc pass lists run through `run_pipeline`, such as `solar mir-opt`
 /// invocations, deliberately do not advance the phase.
 pub fn run_default_pipeline(module: &mut Module, options: PipelineOptions) -> bool {
     let mut changed = run_pipeline(module, DEFAULT_PIPELINE, options);

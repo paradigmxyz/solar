@@ -1,8 +1,8 @@
-//! Stack shuffler for optimal stack layout transitions.
+//! Stack shuffler for stack layout transitions.
 //!
 //! This module implements a greedy shuffler algorithm similar to solc's approach.
-//! The shuffler converts a source stack layout to a target layout using minimal
-//! DUP, SWAP, and POP operations.
+//! The shuffler converts a source stack layout to a target layout using DUP,
+//! SWAP, and POP operations.
 //!
 //! ## Algorithm Overview
 //!

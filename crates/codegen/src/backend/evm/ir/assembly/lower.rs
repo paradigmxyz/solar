@@ -8,8 +8,7 @@ use crate::backend::evm::{
 };
 use solar_data_structures::bit_set::DenseBitSet;
 
-/// Linear label-bearing opcode stream ready for final bytecode assembly.
-/// Lowers finalized EVM IR into the linear assembly stream.
+/// Lowers finalized EVM IR into the linear label-bearing assembly stream.
 pub(in crate::backend::evm) fn lower_evm_ir(
     module: &ir::Module,
     labels: &mut Vec<Option<Label>>,

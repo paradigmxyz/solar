@@ -7,7 +7,7 @@
 //!
 //! - `model`: Core stack model tracking value positions
 //! - `scheduler`: Stack scheduler for generating DUP/SWAP sequences
-//! - `shuffler`: Optimal stack layout transitions (backward analysis)
+//! - `shuffler`: Greedy stack layout transitions
 //! - `spill`: Spill management for values beyond depth 16
 
 mod model;

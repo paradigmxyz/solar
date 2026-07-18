@@ -4,7 +4,7 @@
 //! - Liveness analysis to know when values die
 //! - Phi elimination to convert SSA to parallel copies
 //! - Stack scheduling to generate DUP/SWAP sequences
-//! - Two-pass assembly for label resolution
+//! - EVM IR optimization, relocation, and byte encoding
 
 use super::{
     assembler::{
@@ -65,7 +65,7 @@ struct PreparedDeploymentPrefix {
 pub struct EvmCodegenConfig {
     /// EVM version to target when selecting hardfork-gated opcodes.
     pub(crate) evm_version: EvmVersion,
-    /// Optimization mode for MIR passes and bytecode assembly.
+    /// Optimization mode for MIR and EVM IR passes.
     pub(crate) optimization: OptimizationMode,
     /// Print MIR after each pass before bytecode generation.
     pub(crate) mir_print_after_each: bool,
@@ -651,7 +651,7 @@ pub struct EvmCodegen {
     /// so the leftover word can neither accumulate nor disturb an internal
     /// return.
     emitting_dispatch_entry: bool,
-    /// Optimization mode for MIR passes and bytecode assembly.
+    /// Optimization mode for MIR and EVM IR passes.
     optimization: OptimizationMode,
     /// Print MIR after each pass before bytecode generation.
     mir_print_after_each: bool,
@@ -1055,10 +1055,9 @@ impl EvmCodegen {
         };
         if self.optimization != OptimizationMode::None {
             run_default_pipeline(module, options);
-            // MIR outlining remains profitable even though the assembler can
-            // merge byte-identical terminal spans: lowering and stack layout
-            // can make equivalent revert blocks differ before they reach that
-            // late pass.
+            // MIR outlining remains profitable even though EVM IR can merge
+            // equivalent terminal blocks: lowering and stack scheduling can
+            // hide their shared semantic shape from the backend passes.
             run_pass(module, &crate::pass::OUTLINE_REVERTS_PASS, options);
         }
         run_pass(module, &crate::pass::LOWER_MAPPING_SLOTS_PASS, options);

@@ -303,7 +303,6 @@ impl Assembler {
         }
     }
 
-    /// Assembles the instructions into bytecode.
     /// Resolves relocations and encodes finalized EVM IR as bytecode.
     #[must_use]
     pub(crate) fn assemble(&mut self) -> AssembledCode {
