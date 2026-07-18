@@ -602,7 +602,7 @@ impl<'gcx> Gcx<'gcx> {
         state_mutability: StateMutability,
         returns: &[Ty<'gcx>],
     ) -> Ty<'gcx> {
-        self.mk_ty_fn_with_kind(TyFnKind::Internal, parameters, state_mutability, returns)
+        self.mk_ty_fn_with_kind(TyFnKind::Builtin, parameters, state_mutability, returns)
     }
 
     pub(crate) fn mk_yul_builtin_fn(self, parameters: usize, returns: usize) -> Ty<'gcx> {

@@ -1,0 +1,45 @@
+// === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_alias.mir (after memory-dse) ===
+@module MemoryDseAlias
+fn @keep_symbolic_store_read_by_const_load(arg0: u256) -> u256 {
+  bb0 (entry):
+    mstore arg0, 1
+    v0 = mload 128
+    mstore arg0, 2
+    ret v0
+}
+
+fn @keep_const_store_forwarding_to_symbolic_load(arg0: u256) -> u256 {
+  bb0 (entry):
+    mstore arg0, 1
+    mstore 128, 2
+    v0 = mload arg0
+    ret v0
+}
+
+fn @keep_store_read_by_distinct_symbolic_base(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    mstore arg0, 1
+    v0 = mload arg1
+    mstore arg0, 2
+    ret v0
+}
+
+fn @remove_dead_const_overwrite() -> u256 {
+  bb0 (entry):
+    mstore 128, 2
+    ret 2
+}
+
+fn @remove_dead_symbolic_overwrite(arg0: u256) -> u256 {
+  bb0 (entry):
+    mstore arg0, 2
+    ret 2
+}
+
+fn @remove_overwrite_past_same_base_disjoint_load(arg0: u256) -> u256 {
+  bb0 (entry):
+    v0 = add arg0, 32
+    v1 = mload v0
+    mstore arg0, 2
+    ret v1
+}

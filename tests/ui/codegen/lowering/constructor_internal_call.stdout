@@ -1,0 +1,59 @@
+// === ROOT/tests/ui/codegen/lowering/constructor_internal_call.sol:ConstructorInternalCall ===
+@module ConstructorInternalCall
+fn @value() {
+  bb0 (entry):
+    mstore 128, 0
+    v0 = sload 0 !metadata(storage=slot(0))
+    mstore 128, v0
+    returndata 128, 32
+}
+
+fn @_anonymous(arg0: u256) {
+  bb0 (entry):
+    v0 = and arg0, 7
+    v1 = internal_call @helper, 1, v0
+    sstore 0, v1 !metadata(storage=slot(0))
+    stop
+}
+
+fn @helper(arg0: u256) -> u256 {
+  bb0 (entry):
+    v0 = internal_frame_addr 128
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = eq arg0, 0
+    br v1, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    v2 = mul arg0, 11
+    v3 = iszero 11
+    v4 = div v2, 11
+    v5 = eq v4, arg0
+    v6 = or v3, v5
+    v7 = iszero v6
+    br v7, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v8 = sub arg0, 1
+    v9 = lt arg0, 1
+    br v9, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v10 = internal_call @helper, 1, v8
+    v11 = add v2, v10
+    v12 = lt v11, v2
+    br v12, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    ret v11
+}
+

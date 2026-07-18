@@ -1,0 +1,16 @@
+//@compile-flags: --pass stack-schedule
+// Safe-bail on a back-edge. bb1 is a loop header: one predecessor is bb0
+// (forward edge) and the other is bb1 itself (back-edge). In reverse-postorder
+// the back-edge predecessor is not yet scheduled when bb1 is processed, so its
+// exit stack is unknown; rather than guess across the cycle the scheduler leaves
+// bb1 verbatim (`iszero %a` keeps its operand). bb0 still schedules.
+@module module
+
+bb0 (entry):
+  %a = push 1
+  jump bb1
+bb1:
+  %b = iszero %a
+  br %b, bb2, bb1
+bb2:
+  stop

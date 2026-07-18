@@ -2765,7 +2765,10 @@ fn abi_encode_call_function_kind_message(kind: TyFnKind) -> &'static str {
         }
         TyFnKind::DelegateCall => "first argument to `abi.encodeCall` cannot be a library function",
         TyFnKind::Creation => "first argument to `abi.encodeCall` cannot be a creation function",
-        TyFnKind::BareCall | TyFnKind::BareDelegateCall | TyFnKind::BareStaticCall => {
+        TyFnKind::Builtin
+        | TyFnKind::BareCall
+        | TyFnKind::BareDelegateCall
+        | TyFnKind::BareStaticCall => {
             "first argument to `abi.encodeCall` cannot be a special function"
         }
         TyFnKind::External | TyFnKind::Declaration => unreachable!(),

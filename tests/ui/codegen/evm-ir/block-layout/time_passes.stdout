@@ -1,0 +1,10 @@
+// === ROOT/tests/ui/codegen/evm-ir/block-layout/time_passes.evmir (after block-layout) ===
+@module module
+bb0 (entry):
+  jump bb2
+bb2:
+  stop
+bb1 [cold]:
+  %offset = push 0
+  %size = push 0
+  revert %offset, %size

@@ -1,0 +1,6 @@
+// === ROOT/tests/ui/codegen/mir/lowering/phase_explicit_built.mir (after dce) ===
+@module PhaseExplicitBuilt
+fn @f() {
+  bb0 (entry):
+    stop
+}

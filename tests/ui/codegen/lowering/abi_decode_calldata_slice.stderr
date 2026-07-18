@@ -1,0 +1,8 @@
+error: codegen does not support `abi.decode` from this calldata source yet
+   ╭▸ ROOT/tests/ui/codegen/lowering/abi_decode_calldata_slice.sol:LL:CC
+   │
+LL │         return abi.decode(data[4:], (uint256));
+   ╰╴                          ━━━━━━━━
+
+error: aborting due to 1 previous error
+

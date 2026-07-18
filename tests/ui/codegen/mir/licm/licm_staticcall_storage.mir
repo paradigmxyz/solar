@@ -1,0 +1,54 @@
+//@compile-flags: --pass licm
+@module LicmStaticcallStorage
+
+// STATICCALL cannot write storage, even reentrantly: the sload stays invariant
+// and is hoisted out of this view-heavy loop.
+fn @hoist_sload_with_staticcall() -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v9]
+    v2 = lt v1, 10
+    br v2, bb2, bb3
+  bb2:
+    v3 = sload 5
+    v4 = staticcall 1000, 0xbeef, 0, 0, 0, 0
+    v9 = add v1, 1
+    jump bb1
+  bb3:
+    ret v3
+}
+
+// Transient storage is equally unwritable from a static context.
+fn @hoist_tload_with_staticcall() -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v9]
+    v2 = lt v1, 10
+    br v2, bb2, bb3
+  bb2:
+    v3 = tload 5
+    v4 = staticcall 1000, 0xbeef, 0, 0, 0, 0
+    v9 = add v1, 1
+    jump bb1
+  bb3:
+    ret v3
+}
+
+// A plain call may write any slot; the sload must stay in the loop.
+fn @keep_sload_with_call() -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v9]
+    v2 = lt v1, 10
+    br v2, bb2, bb3
+  bb2:
+    v3 = sload 5
+    v4 = call 1000, 0xbeef, 0, 0, 0, 0, 0
+    v9 = add v1, 1
+    jump bb1
+  bb3:
+    ret v3
+}

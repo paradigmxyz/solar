@@ -21,7 +21,7 @@ pub(super) fn is_evm_terminal(kind: &TerminatorKind) -> bool {
     ) || matches!(kind, TerminatorKind::RawOpcode(opcode) if op::is_terminal(*opcode))
 }
 
-pub(super) fn remap_block_order(module: &mut Module, order: &[BlockId]) {
+pub(in crate::backend::evm::ir) fn remap_block_order(module: &mut Module, order: &[BlockId]) {
     debug_assert_eq!(order.len(), module.blocks.len());
     let mut remap = vec![BlockId::from_usize(0); module.blocks.len()];
     let mut old_blocks: Vec<Option<Block>> =

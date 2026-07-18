@@ -1,0 +1,38 @@
+//@compile-flags: --passes pre
+// The expression is computed in bb3, which dominates the empty forwarder bb4:
+// the join phi must reuse that def as the bb4 incoming instead of inserting a
+// duplicate computation into bb4.
+@module DomAvail
+fn @reuse_dominating_def(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    switch arg1, default bb1, [1 => bb2, 2 => bb3]
+  bb1:
+    v3 = add arg0, 7
+    jump bb5
+  bb2:
+    v4 = add arg0, 7
+    jump bb5
+  bb3:
+    v5 = add arg0, 7
+    jump bb4
+  bb4:
+    jump bb5
+  bb5:
+    v6 = add arg0, 7
+    ret v6
+}
+
+// Every predecessor reuses the same def from the shared dominator bb0: the
+// join expression collapses to that value directly, with no phi.
+fn @collapse_to_shared_def(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v2 = add arg0, 7
+    switch arg1, default bb1, [1 => bb2]
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v3 = add arg0, 7
+    ret v3
+}

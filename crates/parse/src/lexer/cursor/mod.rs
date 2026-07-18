@@ -260,6 +260,7 @@ impl<'a> Cursor<'a> {
                 }
                 _ => RawTokenKind::BinOp(BinOpToken::Percent),
             },
+            b'@' => RawTokenKind::At,
 
             // String literal.
             b'\'' | b'"' => {

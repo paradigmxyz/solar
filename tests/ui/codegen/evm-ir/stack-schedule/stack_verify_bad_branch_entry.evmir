@@ -1,0 +1,11 @@
+//@ failure-status: 1
+// `br` consumes its condition. The successor cannot claim that consumed word as
+// an incoming stack value even when unrelated stack junk is above it.
+@module module
+
+bb0 (entry):
+  %cond = push 1
+  %junk = push 7
+  br %cond, bb1, bb1
+bb1 (in %cond):
+  stop

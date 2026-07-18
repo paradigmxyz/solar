@@ -60,7 +60,7 @@ Pipeline: Lexing -> Parsing -> Semantic Analysis -> MIR -> EVM backend -> byteco
 
 MIR is a phased IR, like rustc's MIR: a `Module` carries a `MirPhase`, phases
 only move forward (the enum order is the lowering order), and the phase
-round-trips through the text format as `; module @Name [phase = ...]` (printed
+round-trips through the text format as `@module Name` and `@phase ...` (printed
 only when not the default). The phases, in order:
 
 - `built`: fresh from HIR lowering — one MIR function per Solidity function,
@@ -118,8 +118,18 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
 
 ### Codegen / MIR Pass Tests
 
-- Prefer UI tests for MIR/codegen behavior. Put MIR pass tests under
-  `tests/ui/codegen/mir/` and codegen lowering tests under `tests/ui/codegen/`.
+- Prefer UI tests for MIR/codegen behavior. Organize codegen tests by layer:
+  - Solidity-to-IR lowering tests go under `tests/ui/codegen/lowering/`.
+  - MIR optimization tests go under `tests/ui/codegen/mir/<pass-name>/`, using
+    the pass's command-line name for the directory.
+  - Progressive MIR lowering pass tests (`lower-abi`, `lower-dispatch`, and
+    `lower-evm-shaped`) go together under `tests/ui/codegen/mir/lowering/`.
+  - EVM IR optimization tests go under `tests/ui/codegen/evm-ir/<pass-name>/`,
+    using the `evm-opt` pass name for the directory.
+  - Pass-free round-trip fixtures, pipeline tests, and validation tests belong
+    in their existing `none/`, `pipeline/`, or `validation/` directories.
+- Keep each fixture's `.stdout` or `.stderr` expectation beside its source
+  file when moving or adding tests.
 - Do not add Rust unit tests that execute whole optimization passes; they make
   pass APIs harder to refactor. Use unit tests only for small pure helpers.
 - Validate pass output with MIR snapshots or FileCheck-style UI expectations,

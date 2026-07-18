@@ -1,0 +1,8 @@
+error: codegen does not support `type(C).runtimeCode` yet
+   ╭▸ ROOT/tests/ui/codegen/lowering/lowering_error_sentinel.sol:LL:CC
+   │
+LL │         return type(LoweringErrorSentinel).runtimeCode.length;
+   ╰╴                    ━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+
