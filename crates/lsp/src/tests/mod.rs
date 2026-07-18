@@ -16,6 +16,7 @@ mod references;
 mod rename;
 mod signature_help;
 mod support;
+mod type_definition;
 
 fn snapshot(project: &TestProject) -> GlobalStateSnapshot {
     snapshot_with_config(project.config(), project.vfs())
