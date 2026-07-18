@@ -178,7 +178,7 @@ impl<'gcx> InlayHintCollector<'gcx> {
         let CallArgsKind::Unnamed([target, arguments]) = args.kind else {
             return;
         };
-        let Some(param_source) = self.call_param_source_from_expr(target) else {
+        let Some(param_source) = self.gcx.call_param_source(target) else {
             return;
         };
         let param_names = self.gcx.callable_param_names(param_source);
@@ -251,67 +251,6 @@ impl<'gcx> InlayHintCollector<'gcx> {
         format!(": {}", ty.display(self.gcx))
     }
 
-    /// Finds the callable declaration that supplies parameter names for a call expression.
-    fn call_param_source(
-        &self,
-        callee: &'gcx hir::Expr<'gcx>,
-        callee_ty: Option<Ty<'gcx>>,
-    ) -> Option<CallableParamSource> {
-        if let ExprKind::New(hir_ty) = &callee.kind
-            && let TyKind::Contract(id) = self.gcx.type_of_hir_ty(hir_ty).kind
-            && let Some(ctor) = self.gcx.hir.contract(id).ctor
-        {
-            return Some(CallableParamSource::Function { id: ctor, skips_receiver: false });
-        }
-
-        self.call_param_source_from_expr(callee).or_else(|| {
-            callee_ty
-                .and_then(|ty| self.gcx.callable_signature_of_ty(ty))
-                .and_then(|signature| signature.param_source)
-        })
-    }
-
-    /// Finds the parameter-name source attached to a specific expression.
-    fn call_param_source_from_expr(
-        &self,
-        expr: &'gcx hir::Expr<'gcx>,
-    ) -> Option<CallableParamSource> {
-        let expr = expr.peel_parens();
-        if let ExprKind::Ident([res]) = expr.kind
-            && let Some(variable) = res.as_variable()
-            && matches!(self.gcx.hir.variable(variable).ty.kind, hir::TypeKind::Function(_))
-        {
-            return Some(CallableParamSource::FunctionType(variable));
-        }
-
-        if let ExprKind::Member(receiver, ident) = expr.kind
-            && let Some(receiver_ty) = self.gcx.type_of_expr(receiver.id)
-            && let Some(field) = self.struct_field(receiver_ty, ident.name)
-            && matches!(self.gcx.hir.variable(field).ty.kind, hir::TypeKind::Function(_))
-        {
-            return Some(CallableParamSource::FunctionType(field));
-        }
-
-        self.gcx
-            .type_of_expr(expr.id)
-            .and_then(|ty| self.gcx.callable_signature_of_ty(ty))
-            .and_then(|signature| signature.param_source)
-    }
-
-    fn struct_field(&self, receiver_ty: Ty<'gcx>, name: Symbol) -> Option<hir::VariableId> {
-        let struct_id = match receiver_ty.kind {
-            TyKind::Ref(inner, _) => match inner.kind {
-                TyKind::Struct(id) => id,
-                _ => return None,
-            },
-            TyKind::Struct(id) => id,
-            _ => return None,
-        };
-        self.gcx.hir.strukt(struct_id).fields.iter().copied().find(|&field| {
-            self.gcx.hir.variable(field).name.is_some_and(|field_name| field_name.name == name)
-        })
-    }
-
     /// Finds the function or constructor declaration that supplies parameter names for a modifier.
     fn modifier_param_source(
         &self,
@@ -339,7 +278,7 @@ impl<'gcx> Visit<'gcx> for InlayHintCollector<'gcx> {
             if self.gcx.builtin_callee(callee.id) == Some(Builtin::AbiEncodeCall) {
                 self.push_abi_encode_call_parameter_hints(args);
             }
-            self.push_parameter_hints(args, self.call_param_source(callee, callee_ty));
+            self.push_parameter_hints(args, self.gcx.call_param_source(callee));
             self.push_call_type_hint(expr, callee_ty);
         }
         hir::Visit::walk_expr(self, expr)

@@ -21,6 +21,7 @@ use solar_interface::{
     config::CompilerStage,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     source_map::{FileName, SourceFile},
+    sym,
 };
 use std::{
     fmt,
@@ -122,6 +123,8 @@ pub enum CallableParamSource {
     Event(hir::EventId),
     /// An error invocation.
     Error(hir::ErrorId),
+    /// A builtin with named parameters.
+    Builtin(Builtin),
 }
 
 /// The visible signature of a callable expression.
@@ -506,6 +509,94 @@ impl<'gcx> Gcx<'gcx> {
     #[inline]
     pub fn type_of_expr(self, id: hir::ExprId) -> Option<Ty<'gcx>> {
         self.typeck_results.get()?.type_of_expr(id)
+    }
+
+    /// Returns the source argument at the given visible parameter index.
+    ///
+    /// Named arguments are reordered into the selected callable's declaration order. For an
+    /// attached `using for` call, the implicit receiver is not part of this indexing. Positional
+    /// variadic calls are indexed by their source arguments, and explicit type conversions expose
+    /// their single argument at index zero.
+    ///
+    /// Returns `None` if type checking did not identify a callable target. This query maps source
+    /// arguments but does not revalidate their types.
+    pub fn call_arg(
+        self,
+        call: &hir::Expr<'gcx>,
+        parameter_index: usize,
+    ) -> Option<&'gcx hir::Expr<'gcx>> {
+        let hir::ExprKind::Call(callee, args, _) = call.peel_parens().kind else { return None };
+        let callee_ty = self.type_of_expr(callee.id)?;
+        let signature = self.callable_signature_of_ty(callee_ty);
+
+        let parameter_names = match args.kind {
+            hir::CallArgsKind::Unnamed(_) => {
+                let valid_index = signature.is_some_and(|signature| {
+                    parameter_index < signature.parameters.len()
+                        || signature
+                            .parameters
+                            .last()
+                            .is_some_and(|ty| matches!(ty.kind, TyKind::Variadic))
+                }) || matches!(callee_ty.kind, TyKind::Type(_))
+                    && parameter_index == 0;
+                if !valid_index {
+                    return None;
+                }
+                None
+            }
+            hir::CallArgsKind::Named(_) => {
+                let signature = signature?;
+                if parameter_index >= signature.parameters.len() {
+                    return None;
+                }
+                let source = self.call_param_source(callee).or(signature.param_source)?;
+                Some(self.callable_param_names(source))
+            }
+        };
+        args.argument_for_parameter(parameter_index, parameter_names.as_deref())
+    }
+
+    /// Returns the parameter-name source for a type-checked call callee.
+    ///
+    /// The selected callable type takes precedence. Syntax and builtin semantics only recover
+    /// parameter names when the selected signature does not carry a declaration source.
+    pub fn call_param_source(self, callee: &hir::Expr<'gcx>) -> Option<CallableParamSource> {
+        let callee = callee.peel_parens();
+        if let Some(source) = self
+            .type_of_expr(callee.id)
+            .and_then(|ty| self.callable_signature_of_ty(ty))
+            .and_then(|signature| signature.param_source)
+        {
+            return Some(source);
+        }
+
+        if let hir::ExprKind::Ident([res]) = callee.kind
+            && let Some(id) = res.as_variable()
+            && matches!(self.hir.variable(id).ty.kind, hir::TypeKind::Function(_))
+        {
+            return Some(CallableParamSource::FunctionType(id));
+        }
+        if let hir::ExprKind::Member(receiver, name) = callee.kind
+            && let Some(receiver_ty) = self.type_of_expr(receiver.id)
+            && let Some(ResolvedMember::StructField { struct_id, field_index }) =
+                self.resolve_member_target(receiver_ty, name.name, None)
+            && let Some(&id) = self.hir.strukt(struct_id).fields.get(field_index)
+            && matches!(self.hir.variable(id).ty.kind, hir::TypeKind::Function(_))
+        {
+            return Some(CallableParamSource::FunctionType(id));
+        }
+        if let hir::ExprKind::New(hir_ty) = &callee.kind
+            && let TyKind::Contract(id) = self.type_of_hir_ty(hir_ty).kind
+            && let Some(id) = self.hir.contract(id).ctor
+        {
+            return Some(CallableParamSource::Function { id, skips_receiver: false });
+        }
+        if let Some(builtin) = self.builtin_callee(callee.id)
+            && matches!(builtin, Builtin::AbiDecode)
+        {
+            return Some(CallableParamSource::Builtin(builtin));
+        }
+        None
     }
 
     /// Returns the overload/member target selected for a call callee expression, if available.
@@ -937,6 +1028,10 @@ impl<'gcx> Gcx<'gcx> {
             CallableParamSource::Struct(id) => self.param_names(self.hir.strukt(id).fields),
             CallableParamSource::Event(id) => self.param_names(self.hir.event(id).parameters),
             CallableParamSource::Error(id) => self.param_names(self.hir.error(id).parameters),
+            CallableParamSource::Builtin(Builtin::AbiDecode) => {
+                [Some(sym::data), Some(sym::types)].into_iter().collect()
+            }
+            CallableParamSource::Builtin(_) => Default::default(),
         }
     }
 
@@ -1752,4 +1847,249 @@ fn log_cache_query(name: &str, key: &dyn fmt::Debug) -> tracing::span::EnteredSp
 #[cfg(false)]
 fn log_cache_query_result(result: &dyn fmt::Debug, hit: bool) {
     trace!(?result, hit);
+}
+
+#[cfg(test)]
+mod call_arg_tests {
+    use super::*;
+    use crate::{Compiler, hir::Visit};
+    use solar_data_structures::Never;
+    use solar_interface::{Session, config::CompileOpts};
+    use std::{collections::BTreeMap, ops::ControlFlow, path::PathBuf};
+
+    struct CallCollector<'hir> {
+        hir: &'hir hir::Hir<'hir>,
+        calls: Vec<&'hir hir::Expr<'hir>>,
+    }
+
+    impl<'hir> Visit<'hir> for CallCollector<'hir> {
+        type BreakValue = Never;
+
+        fn hir(&self) -> &'hir hir::Hir<'hir> {
+            self.hir
+        }
+
+        fn visit_expr(&mut self, expr: &'hir hir::Expr<'hir>) -> ControlFlow<Self::BreakValue> {
+            if matches!(expr.kind, hir::ExprKind::Call(..)) {
+                self.calls.push(expr);
+            }
+            self.walk_expr(expr)
+        }
+    }
+
+    fn call_arguments(source: &str, expect_errors: bool) -> BTreeMap<String, Vec<Option<String>>> {
+        let sess = Session::builder().opts(CompileOpts::default()).with_test_emitter().build();
+        let mut compiler = Compiler::new(sess);
+
+        compiler.enter_mut(|c| {
+            let mut pcx = c.parse();
+            let file =
+                c.sess().source_map().new_source_file(PathBuf::from("test.sol"), source).unwrap();
+            pcx.add_file(file);
+            pcx.parse();
+
+            assert_eq!(c.lower_asts(), Ok(ControlFlow::Continue(())));
+            assert_eq!(c.analysis(), Ok(ControlFlow::Continue(())));
+        });
+        assert_eq!(compiler.sess().dcx.has_errors().is_err(), expect_errors);
+
+        compiler.enter(|c| {
+            let gcx = c.gcx();
+            let mut visitor = CallCollector { hir: &gcx.hir, calls: Vec::new() };
+            for source in gcx.hir.source_ids() {
+                let _ = visitor.visit_nested_source(source);
+            }
+            visitor
+                .calls
+                .into_iter()
+                .map(|call| {
+                    let source_map = gcx.sess.source_map();
+                    let call_source = source_map.span_to_snippet(call.span).unwrap();
+                    let arguments = (0..3)
+                        .map(|index| {
+                            gcx.call_arg(call, index)
+                                .map(|arg| source_map.span_to_snippet(arg.span).unwrap())
+                        })
+                        .collect();
+                    (call_source, arguments)
+                })
+                .collect()
+        })
+    }
+
+    #[test]
+    fn call_arg_uses_visible_parameter_order() {
+        let calls = call_arguments(
+            r#"
+struct CollisionHolder {
+    function(bool fieldFlag, address fieldAccount) internal pure callback;
+}
+
+library L {
+    function attached(uint256 self, uint256 first, uint256 second)
+        internal
+        pure
+        returns (uint256)
+    {
+        return self + first + second;
+    }
+
+    function callback(
+        CollisionHolder memory self,
+        uint256 attachedFirst,
+        address attachedAccount
+    ) internal pure {
+        self;
+        attachedFirst;
+        attachedAccount;
+    }
+}
+
+contract D {
+    constructor(uint256 first, uint256 second) {
+        first;
+        second;
+    }
+}
+
+contract C {
+    using L for uint256;
+    using L for CollisionHolder;
+
+    struct Pair { uint256 first; uint256 second; }
+    event E(uint256 first, uint256 second);
+    error Err(uint256 first, uint256 second);
+
+    function target(uint256 first, uint256 second) internal pure {}
+    function fieldTarget(bool fieldFlag, address fieldAccount) internal pure {
+        fieldFlag;
+        fieldAccount;
+    }
+    function overloaded(uint256 first, uint256 second) internal pure {}
+    function overloaded(address recipient, uint256 amount) internal pure {}
+
+    function calls(uint256 receiver) external {
+        target(11, 22);
+        target({second: 22, first: 11});
+        receiver.attached({second: 22, first: 11});
+        Pair memory pair = Pair({second: 22, first: 11});
+        D created = new D(11, 22);
+        emit E({second: 22, first: 11});
+        overloaded({amount: 22, recipient: address(11)});
+        abi.encode(11, 22, 33);
+        CollisionHolder memory collision =
+            CollisionHolder({callback: fieldTarget});
+        collision.callback({attachedAccount: address(44), attachedFirst: 33});
+        pair;
+        created;
+        collision;
+    }
+
+    function fail() external pure {
+        revert Err({second: 22, first: 11});
+    }
+
+    function decode(bytes memory raw) external pure returns (uint256) {
+        return abi.decode({types: (uint256), data: raw});
+    }
+}
+"#,
+            false,
+        );
+
+        assert_eq!(calls["target(11, 22)"], [Some("11".into()), Some("22".into()), None]);
+        assert_eq!(
+            calls["target({second: 22, first: 11})"],
+            [Some("11".into()), Some("22".into()), None]
+        );
+        assert_eq!(
+            calls["receiver.attached({second: 22, first: 11})"],
+            [Some("11".into()), Some("22".into()), None]
+        );
+        assert_eq!(
+            calls["Pair({second: 22, first: 11})"],
+            [Some("11".into()), Some("22".into()), None]
+        );
+        assert_eq!(calls["new D(11, 22)"], [Some("11".into()), Some("22".into()), None]);
+        assert_eq!(
+            calls["emit E({second: 22, first: 11});"],
+            [Some("11".into()), Some("22".into()), None]
+        );
+        assert_eq!(
+            calls["revert Err({second: 22, first: 11});"],
+            [Some("11".into()), Some("22".into()), None]
+        );
+        assert_eq!(
+            calls["overloaded({amount: 22, recipient: address(11)})"],
+            [Some("address(11)".into()), Some("22".into()), None]
+        );
+        assert_eq!(calls["address(11)"], [Some("11".into()), None, None]);
+        assert_eq!(
+            calls["abi.encode(11, 22, 33)"],
+            [Some("11".into()), Some("22".into()), Some("33".into())]
+        );
+        assert_eq!(
+            calls["abi.decode({types: (uint256), data: raw})"],
+            [Some("raw".into()), Some("(uint256)".into()), None]
+        );
+        assert_eq!(
+            calls["collision.callback({attachedAccount: address(44), attachedFirst: 33})"],
+            [Some("33".into()), Some("address(44)".into()), None]
+        );
+    }
+
+    #[test]
+    fn call_arg_handles_error_recovery() {
+        let calls = call_arguments(
+            r#"
+contract C {
+    struct Holder {
+        function(uint256 first, uint256 second) internal pure callback;
+    }
+
+    function ambiguous(uint256 value) internal pure {}
+    function ambiguous(int256 value) internal pure {}
+    function target(uint256 first, uint256 second) internal pure {}
+
+    function calls() external pure {
+        ambiguous({value: 1});
+        ambiguous(1);
+        abi.encode({value: 1});
+        uint256 notCallable = 1;
+        notCallable(1);
+        new D({second: 22, first: 11});
+        function(uint256 first, uint256 second) internal pure callback = target;
+        callback({second: 22, first: 11});
+        Holder memory holder = Holder({callback: target});
+        holder.callback({second: 44, first: 33});
+    }
+}
+
+contract D {
+    constructor(uint256 first, uint256 second) {
+        first;
+        second;
+    }
+}
+"#,
+            true,
+        );
+
+        assert_eq!(calls["ambiguous({value: 1})"], [None, None, None]);
+        assert_eq!(calls["ambiguous(1)"], [None, None, None]);
+        assert_eq!(calls["abi.encode({value: 1})"], [None, None, None]);
+        assert_eq!(calls["notCallable(1)"], [None, None, None]);
+        assert_eq!(
+            calls["new D({second: 22, first: 11})"],
+            [Some("11".into()), Some("22".into()), None]
+        );
+        assert_eq!(
+            calls["callback({second: 22, first: 11})"],
+            [Some("11".into()), Some("22".into()), None]
+        );
+        assert_eq!(
+            calls["holder.callback({second: 44, first: 33})"],
+            [Some("33".into()), Some("44".into()), None]
+        );
+    }
 }
