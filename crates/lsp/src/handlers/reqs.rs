@@ -14,7 +14,7 @@ use lsp_types::{
     RenameParams, SignatureHelp, SignatureHelpParams, TextDocumentEdit, TextDocumentPositionParams,
     TextEdit, Url, WorkspaceEdit, WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
-use solar_interface::{Symbol, data_structures::sync::RwLock, enter, source_map::SourceMap};
+use solar_interface::{data_structures::sync::RwLock, source_map::SourceMap};
 use solar_parse::lexer::is_ident;
 use std::{collections::HashMap, future::ready, io, path::Path, sync::Arc};
 use tracing::warn;
@@ -295,11 +295,12 @@ pub(crate) fn rename(
     params: RenameParams,
 ) -> impl Future<Output = Result<Option<WorkspaceEdit>, ResponseError>> + use<> {
     let RenameParams { text_document_position: params_position, new_name, .. } = params;
-    let invalid_name = !is_ident(&new_name)
-        || enter(|| {
-            let name = Symbol::intern(&new_name);
-            name.is_reserved(false)
-        });
+    let (invalid_name, invalid_yul_name) = if is_ident(&new_name) {
+        let name = state.sess.intern(&new_name);
+        (name.is_reserved(false), name.is_reserved(true))
+    } else {
+        (true, true)
+    };
     let latest_analysis = if invalid_name {
         None
     } else {
@@ -318,9 +319,7 @@ pub(crate) fn rename(
             .read()
             .rename_candidate(&params_position.text_document.uri, params_position.position);
         let Some(candidate) = candidate else { return Ok(None) };
-        if candidate.requires_yul_validation
-            && enter(|| Symbol::intern(&new_name).is_reserved(true))
-        {
+        if candidate.requires_yul_validation && invalid_yul_name {
             return Err(ResponseError::new(ErrorCode::INVALID_PARAMS, "invalid rename name"));
         }
         if candidate.old_name == new_name {

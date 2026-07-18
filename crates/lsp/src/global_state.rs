@@ -41,6 +41,7 @@ use tokio::{
 
 pub(crate) struct GlobalState {
     client: ClientSocket,
+    pub(crate) sess: Session,
     pub(crate) vfs: Arc<RwLock<Vfs>>,
     pub(crate) config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
@@ -56,6 +57,7 @@ impl GlobalState {
         let (published_analysis_version, _) = watch::channel(0);
         Self {
             client,
+            sess: Session::default(),
             vfs: Arc::new(Default::default()),
             analysis_version: Arc::new(AtomicUsize::new(0)),
             published_analysis_version,
