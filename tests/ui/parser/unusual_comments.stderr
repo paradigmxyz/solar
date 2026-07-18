@@ -1,0 +1,10 @@
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/parser/unusual_comments.sol:LL:CC
+   │
+LL │ ┏     function test() external {
+LL │ ┃         uint[]memory a;
+LL │ ┃         /* */uint/* */[]/* */memory/* */b;
+LL │ ┃         /** */uint/** */[]/** */memory/** */c;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+

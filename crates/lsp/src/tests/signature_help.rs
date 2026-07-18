@@ -348,7 +348,7 @@ fn does_not_reuse_a_stale_member_call_after_the_receiver_changes() {
         }
 
         contract C {
-            function use(A a, B b) public {
+            function use(A a, B b) public pure {
                 a.f($1 1);
             }
         }
@@ -374,7 +374,7 @@ fn does_not_reuse_a_stale_member_call_after_the_receiver_type_changes() {
         }
 
         contract C {
-            function use(A target) public {
+            function use(A target) public pure {
                 target.f($1 1);
             }
         }

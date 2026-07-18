@@ -1,0 +1,10 @@
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/parser/do_while.sol:LL:CC
+   │
+LL │ ┏ function f() {
+LL │ ┃     uint i;
+LL │ ┃     do ++i; while (false);
+LL │ ┃     do i += 1; while (true && false);
+LL │ ┃ }
+   ╰╴┗━┛
+

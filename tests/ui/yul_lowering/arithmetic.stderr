@@ -1,0 +1,11 @@
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/yul_lowering/arithmetic.sol:LL:CC
+   │
+LL │ ┏     function f(uint256 a, uint256 b) public returns (uint256 x) {
+LL │ ┃         assembly {
+LL │ ┃             let c := add(a, b)
+LL │ ┃             c := sub(c, 1)
+   ‡ ┃
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+

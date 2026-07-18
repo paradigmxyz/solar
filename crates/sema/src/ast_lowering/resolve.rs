@@ -1550,7 +1550,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 self.arena.alloc(hir::Expr {
                     id: self.next_id(),
                     kind: hir::ExprKind::Ident(res),
-                    span: path.last().span,
+                    span: path.span(),
                 }),
                 self.lower_call_args(args),
                 None,

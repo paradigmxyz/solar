@@ -1,0 +1,11 @@
+warning[2018]: function state mutability can be restricted to view
+   ╭▸ ROOT/tests/ui/yul_lowering/solc_inline_assembly_instructions_allowed.sol:LL:CC
+   │
+LL │ ┏     function f() public returns (uint256 x) {
+LL │ ┃         assembly {
+LL │ ┃             pop(calldatasize())
+LL │ ┃             calldatacopy(0, 1, 2)
+   ‡ ┃
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+

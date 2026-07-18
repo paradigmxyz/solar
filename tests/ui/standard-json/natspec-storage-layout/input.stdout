@@ -1,4 +1,20 @@
 {
+  "errors": [
+    {
+      "sourceLocation": {
+        "file": "A.sol",
+        "start": 474,
+        "end": 551
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2018",
+      "message": "function state mutability can be restricted to pure",
+      "formattedMessage": "warning[2018]: function state mutability can be restricted to pure\n   ╭▸ A.sol:LL:CC\n   │\nLL │ ┏     function f(uint x) public override returns (uint y) {\nLL │ ┃         return x;\nLL │ ┃     }\n   ╰╴┗━━━━━┛\n\n"
+    }
+  ],
   "sources": {
     "A.sol": {
       "id": 0
