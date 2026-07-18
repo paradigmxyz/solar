@@ -1,8 +1,5 @@
 use lsp_types::{DocumentLink, Range, Url};
-use solar_interface::{
-    Span,
-    data_structures::map::{FxHashMap, FxHashSet},
-};
+use solar_interface::data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::{Gcx, ast};
 use std::path::{Path, PathBuf};
 
@@ -31,12 +28,9 @@ impl DocumentLinkIndex {
             let Some(ast) = &source.ast else { continue };
             for &(item_id, target_source_id) in &source.imports {
                 let ast::ItemKind::Import(import) = &ast.items[item_id].kind else { continue };
-                let span = import.path.span;
-                if span.hi().to_u32().saturating_sub(span.lo().to_u32()) < 2 {
-                    continue;
-                }
-                let span = Span::new(span.lo() + 1, span.hi() - 1);
-                let Some(location) = proto::span_to_location(gcx.sess.source_map(), span) else {
+                let Some(location) =
+                    proto::span_to_location(gcx.sess.source_map(), import.path.span)
+                else {
                     continue;
                 };
                 let Some(target) = gcx.sources.get(target_source_id) else { continue };

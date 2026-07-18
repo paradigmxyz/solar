@@ -18,7 +18,7 @@ use std::{
 };
 
 #[test]
-fn all_import_forms_use_content_only_utf16_ranges() {
+fn all_import_forms_use_full_literal_utf16_ranges() {
     let fixture = RequestFixture::new(
         r#"
         //- /Imports.sol
@@ -41,9 +41,9 @@ fn all_import_forms_use_content_only_utf16_ranges() {
     fixture.check_document_links(
         "/Imports.sol",
         str![[r#"
-0:17..0:28 -> /Plain.sol
-1:23..1:33 -> /Glob.sol
-2:30..2:41 -> /Named.sol
+0:16..0:29 -> /Plain.sol
+1:22..1:34 -> /Glob.sol
+2:29..2:42 -> /Named.sol
 
 "#]],
     );
@@ -66,7 +66,7 @@ fn returns_only_successfully_resolved_imports() {
     fixture.check_document_links(
         "/Imports.sol",
         str![[r#"
-0:8..0:19 -> /Valid.sol
+0:7..0:20 -> /Valid.sol
 
 "#]],
     );
@@ -163,11 +163,11 @@ fn overlapping_workspaces_prefer_vfs_document_links() {
         links,
         [
             (
-                Range::new(Position::new(0, 8), Position::new(0, 27)),
+                Range::new(Position::new(0, 7), Position::new(0, 28)),
                 Url::from_file_path(project.path("/nested/OverlayLonger.sol")).unwrap(),
             ),
             (
-                Range::new(Position::new(1, 8), Position::new(1, 17)),
+                Range::new(Position::new(1, 7), Position::new(1, 18)),
                 Url::from_file_path(project.path("/nested/New.sol")).unwrap(),
             ),
         ]
