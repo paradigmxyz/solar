@@ -471,12 +471,12 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
 
     fn operand_starts_here(&self) -> bool {
         match self.parser.token().kind {
-            TokenKind::Literal(..) | TokenKind::At => true,
+            TokenKind::Literal(..) => true,
             TokenKind::BinOp(BinOpToken::Percent) => {
                 self.parser.look_ahead(2).kind != TokenKind::Eq
             }
             TokenKind::Ident(symbol) => {
-                !Self::is_operation_mnemonic(symbol)
+                symbol.as_str().starts_with("bb")
                     && !matches!(
                         self.parser.look_ahead(1).kind,
                         TokenKind::Colon
@@ -485,26 +485,6 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
             }
             _ => false,
         }
-    }
-
-    fn is_operation_mnemonic(symbol: Symbol) -> bool {
-        op::from_ir_symbol(symbol).is_some()
-            || matches!(
-                symbol,
-                sym::push
-                    | sym::push_deferred
-                    | sym::push_immutable
-                    | sym::jump
-                    | sym::br
-                    | kw::Switch
-                    | kw::Return
-                    | kw::Revert
-                    | kw::Stop
-                    | kw::Invalid
-                    | kw::Selfdestruct
-                    | sym::terminal
-                    | sym::raw
-            )
     }
 
     fn value_id(&mut self, module: &mut Module, name: Symbol) -> ValueId {

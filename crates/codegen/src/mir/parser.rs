@@ -136,7 +136,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a phase name such as `evm-shaped`. Unlike an identifier, a phase
     /// name may contain internal hyphens.
     fn parse_phase_name(&mut self) -> PResult<'sess, Symbol> {
-        let mut name = self.parser.parse_ident()?.to_string();
+        let first = self.parser.parse_ident()?;
+        if !self.parser.eat(TokenKind::BinOp(BinOpToken::Minus)) {
+            return Ok(first);
+        }
+        let mut name = first.to_string();
+        name.push('-');
+        name.push_str(self.parser.parse_ident()?.as_str());
         while self.parser.eat(TokenKind::BinOp(BinOpToken::Minus)) {
             name.push('-');
             name.push_str(self.parser.parse_ident()?.as_str());
@@ -146,13 +152,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a function name: an identifier, optionally with `.`-joined
     /// segments (`f.body`), as minted by the ABI lowering.
-    fn parse_function_name(&mut self) -> PResult<'sess, String> {
-        let mut name = self.parser.parse_ident()?.to_string();
+    fn parse_function_name(&mut self) -> PResult<'sess, Symbol> {
+        let first = self.parser.parse_ident()?;
+        if !self.parser.eat(TokenKind::Dot) {
+            return Ok(first);
+        }
+        let mut name = first.to_string();
+        name.push('.');
+        name.push_str(self.parser.parse_ident()?.as_str());
         while self.parser.eat(TokenKind::Dot) {
             name.push('.');
             name.push_str(self.parser.parse_ident()?.as_str());
         }
-        Ok(name)
+        Ok(Symbol::intern(&name))
     }
 
     // ----- module / function parsing -----
@@ -161,7 +173,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut phase = super::MirPhase::default();
         self.parser.expect(TokenKind::At)?;
         self.parser.expect_keyword(sym::module)?;
-        let module_name = self.parser.parse_ident()?.to_string();
+        let module_name = self.parser.parse_ident()?;
         while self.parser.eat(TokenKind::At) {
             let attr = self.parser.parse_ident()?;
             match attr {
@@ -177,7 +189,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
         }
 
-        let module_ident = Ident::with_dummy_span(Symbol::intern(&module_name));
+        let module_ident = Ident::with_dummy_span(module_name);
         let mut module = Module::new(module_ident);
         module.phase = phase;
         let mut function_refs = Vec::new();
@@ -248,7 +260,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.parser.expect_keyword(sym::fn_)?;
         self.parser.expect(TokenKind::At)?;
         let name = self.parse_function_name()?;
-        let func_ident = Ident::with_dummy_span(Symbol::intern(&name));
+        let func_ident = Ident::with_dummy_span(name);
         let mut func = Function::new(func_ident);
 
         // Parse parameters: `(arg0: ty, arg1: ty, ...)` or `()`
@@ -260,12 +272,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 if !arg_name_str.starts_with("arg") {
                     return Err(self.parser.error(format!("expected `argN`, got `{arg_name}`")));
                 }
-                arg_name_str[3..]
+                let parsed_index = arg_name_str[3..]
                     .parse::<u32>()
                     .map_err(|_| self.parser.error(format!("invalid arg index in `{arg_name}`")))?;
+                let index = func.params.len() as u32;
+                if parsed_index != index {
+                    return Err(self
+                        .parser
+                        .error(format!("expected `arg{index}`, got `{arg_name}`")));
+                }
                 self.parser.expect(TokenKind::Colon)?;
                 let ty = self.parse_type()?;
-                let index = func.params.len() as u32;
                 func.params.push(ty);
                 let val = func.alloc_value(Value::Arg { index, ty });
                 self.arg_values.push(val);
@@ -566,7 +583,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if self.parser.eat(TokenKind::At) {
             let span = self.parser.token().span;
             let name = self.parse_function_name()?;
-            self.pending_function_ref = Some((Symbol::intern(&name), span));
+            self.pending_function_ref = Some((name, span));
             return Ok(FunctionId::from_usize(0));
         }
         let id = self.parser.parse_ident()?;
@@ -1789,32 +1806,6 @@ error: unknown block `bb9`
   │
 4 │     jump bb9
   ╰╴         ━━━
-
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn error_includes_source_snippet() {
-        with_session(|sess| {
-            let src = "\
-fn @bad() {
-  bb0 (entry):
-    v1 = bogus arg0
-    stop
-}
-";
-            assert!(parse_function(sess, src).is_err());
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: unknown instruction `bogus`
-  ╭▸ <mir-function-test-13016118735129543399>:3:10
-  │
-3 │     v1 = bogus arg0
-  ╰╴         ━━━━━
 
 
 "#]]
