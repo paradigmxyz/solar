@@ -13,6 +13,7 @@ use std::ops::ControlFlow;
 mod checker;
 pub(crate) mod override_checker;
 mod udvt;
+mod view_pure_checker;
 
 pub(crate) fn check(gcx: Gcx<'_>) {
     let mut typeck_results = TypeckResults::default();
@@ -31,6 +32,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
             });
     },);
     gcx.set_typeck_results(typeck_results);
+    view_pure_checker::check(gcx);
 }
 
 fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {

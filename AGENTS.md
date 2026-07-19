@@ -307,3 +307,5 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 - Do not describe Solar in the third person. This repository is the project:
   say "we", "this codebase", or "the compiler" instead of "Solar does",
   "Solar is", or "Solar supports".
+  - Exception: `docs/SOLC_DIVERGENCE.md` may say `solar` when explicitly
+    contrasting behavior with `solc`.

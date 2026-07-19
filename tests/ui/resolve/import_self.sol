@@ -7,7 +7,7 @@ struct S {
 }
 
 contract C {
-    function f() external {
+    function f() external pure {
         self1.self2.self2.self1.self2.S memory s;
         S2 memory s2;
     }

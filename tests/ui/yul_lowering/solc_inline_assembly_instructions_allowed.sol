@@ -1,7 +1,7 @@
 // ported-from: test/libsolidity/syntaxTests/viewPureChecker/inline_assembly_instructions_allowed.sol
 
 contract C {
-    function f() public returns (uint256 x) {
+    function f() public view returns (uint256 x) {
         assembly {
             pop(calldatasize())
             calldatacopy(0, 1, 2)

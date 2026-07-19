@@ -3,7 +3,7 @@ struct Custom {
 }
 
 contract A {
-    function f(Custom memory custom) public returns (int256) {
+    function f(Custom memory custom) public pure returns (int256) {
         return custom.f1;
     }
 }
