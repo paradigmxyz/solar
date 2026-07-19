@@ -7,17 +7,66 @@ use crate::backend::evm::{
 };
 use solar_data_structures::bit_set::DenseBitSet;
 
-pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
+pub(super) fn run(
+    module: &mut Module,
+    _options: super::PassOptions,
+    pass_state: &mut super::PassState,
+) -> bool {
+    let state = &mut pass_state.cfg_simplify;
+    state.reserve(module.blocks.len());
     let mut changed = false;
     loop {
         let truncated = truncate_after_terminal(module);
-        let redirected = redirect_jump_thunks(module);
-        let swept = remove_unreachable_blocks(module);
-        let coalesced = coalesce_blocks(module);
+        let redirected = redirect_jump_thunks(module, &mut state.thunks);
+        let swept = remove_unreachable_blocks(
+            module,
+            &mut state.reachable,
+            &mut state.pending,
+            &mut state.order,
+        );
+        let coalesced =
+            coalesce_blocks(module, &mut state.references, &mut state.retained, &mut state.order);
         changed |= truncated || redirected || swept || coalesced;
         if !truncated && !redirected && !swept && !coalesced {
             return changed;
         }
+    }
+}
+
+pub(super) struct RunState {
+    thunks: Vec<Option<BlockId>>,
+    reachable: DenseBitSet<BlockId>,
+    pending: Vec<BlockId>,
+    references: Vec<usize>,
+    retained: DenseBitSet<BlockId>,
+    order: Vec<BlockId>,
+}
+
+impl Default for RunState {
+    fn default() -> Self {
+        Self {
+            thunks: Vec::new(),
+            reachable: DenseBitSet::new_empty(0),
+            pending: Vec::new(),
+            references: Vec::new(),
+            retained: DenseBitSet::new_empty(0),
+            order: Vec::new(),
+        }
+    }
+}
+
+impl RunState {
+    fn reserve(&mut self, blocks: usize) {
+        reserve_to(&mut self.thunks, blocks);
+        reserve_to(&mut self.pending, blocks);
+        reserve_to(&mut self.references, blocks);
+        reserve_to(&mut self.order, blocks);
+    }
+}
+
+fn reserve_to<T>(values: &mut Vec<T>, capacity: usize) {
+    if values.capacity() < capacity {
+        values.reserve(capacity - values.len());
     }
 }
 
@@ -36,21 +85,18 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
     changed
 }
 
-fn redirect_jump_thunks(module: &mut Module) -> bool {
-    let thunks: Vec<_> = module
-        .blocks
-        .iter()
-        .map(|block| {
-            if block.instructions.is_empty() && block.entry_stack.is_empty() {
-                match block.terminator.as_ref().map(|term| &term.kind) {
-                    Some(TerminatorKind::Jump(target)) => Some(*target),
-                    _ => None,
-                }
-            } else {
-                None
+fn redirect_jump_thunks(module: &mut Module, thunks: &mut Vec<Option<BlockId>>) -> bool {
+    thunks.clear();
+    thunks.extend(module.blocks.iter().map(|block| {
+        if block.instructions.is_empty() && block.entry_stack.is_empty() {
+            match block.terminator.as_ref().map(|term| &term.kind) {
+                Some(TerminatorKind::Jump(target)) => Some(*target),
+                _ => None,
             }
-        })
-        .collect();
+        } else {
+            None
+        }
+    }));
     if thunks.iter().all(Option::is_none) {
         return false;
     }
@@ -104,10 +150,20 @@ fn redirect_operand(
     }
 }
 
-fn remove_unreachable_blocks(module: &mut Module) -> bool {
+fn remove_unreachable_blocks(
+    module: &mut Module,
+    reachable: &mut DenseBitSet<BlockId>,
+    pending: &mut Vec<BlockId>,
+    order: &mut Vec<BlockId>,
+) -> bool {
     let Some(entry) = module.entry_block else { return false };
-    let mut reachable = DenseBitSet::new_empty(module.blocks.len());
-    let mut pending = vec![entry];
+    if reachable.domain_size() != module.blocks.len() {
+        *reachable = DenseBitSet::new_empty(module.blocks.len());
+    } else {
+        reachable.clear();
+    }
+    pending.clear();
+    pending.push(entry);
     while let Some(block_id) = pending.pop() {
         if !reachable.insert(block_id) {
             continue;
@@ -132,30 +188,41 @@ fn remove_unreachable_blocks(module: &mut Module) -> bool {
     if reachable.count() == module.blocks.len() {
         return false;
     }
-    let order: Vec<_> = reachable.iter().collect();
-    retain_blocks(module, &order);
+    order.clear();
+    order.extend(reachable.iter());
+    retain_blocks(module, order);
     true
 }
 
-fn coalesce_blocks(module: &mut Module) -> bool {
-    let mut references = vec![0usize; module.blocks.len()];
+fn coalesce_blocks(
+    module: &mut Module,
+    references: &mut Vec<usize>,
+    retained: &mut DenseBitSet<BlockId>,
+    order: &mut Vec<BlockId>,
+) -> bool {
+    references.clear();
+    references.resize(module.blocks.len(), 0);
     for block in &module.blocks {
         for inst in &block.instructions {
             for operand in &inst.operands {
-                count_operand(operand, &mut references);
+                count_operand(operand, references);
             }
         }
         if let Some(term) = &block.terminator {
             term.kind.visit_targets(|target| references[target.index()] += 1);
             term.kind.visit_operands(|operand| {
-                count_operand(operand, &mut references);
+                count_operand(operand, references);
             });
         }
     }
 
-    let mut removed = DenseBitSet::new_empty(module.blocks.len());
+    if retained.domain_size() != module.blocks.len() {
+        *retained = DenseBitSet::new_filled(module.blocks.len());
+    } else {
+        retained.insert_all();
+    }
     for predecessor in module.blocks.indices() {
-        if removed.contains(predecessor) {
+        if !retained.contains(predecessor) {
             continue;
         }
         while let Some(TerminatorKind::Jump(target)) =
@@ -166,22 +233,24 @@ fn coalesce_blocks(module: &mut Module) -> bool {
                 || Some(target) == module.entry_block
                 || references[target.index()] != 1
                 || !module.blocks[target].entry_stack.is_empty()
-                || removed.contains(target)
+                || !retained.contains(target)
             {
                 break;
             }
 
-            let mut successor = module.blocks[target].clone();
-            module.blocks[predecessor].instructions.append(&mut successor.instructions);
-            module.blocks[predecessor].terminator = successor.terminator;
-            removed.insert(target);
+            let mut instructions = std::mem::take(&mut module.blocks[target].instructions);
+            let terminator = module.blocks[target].terminator.take();
+            module.blocks[predecessor].instructions.append(&mut instructions);
+            module.blocks[predecessor].terminator = terminator;
+            retained.remove(target);
         }
     }
-    if removed.is_empty() {
+    if retained.count() == module.blocks.len() {
         return false;
     }
-    let order: Vec<_> = module.blocks.indices().filter(|block| !removed.contains(*block)).collect();
-    retain_blocks(module, &order);
+    order.clear();
+    order.extend(retained.iter());
+    retain_blocks(module, order);
     true
 }
 

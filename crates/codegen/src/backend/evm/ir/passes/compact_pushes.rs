@@ -11,43 +11,60 @@ const EVM_WORD_BYTES: usize = 32;
 const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
 const MIN_COMPACT_MASK_WIDTH: u8 = 5;
 
-pub(super) fn run(module: &mut Module, options: PassOptions) -> bool {
+#[derive(Default)]
+pub(super) struct RunState {
+    scratch: Vec<Instruction>,
+}
+
+pub(super) fn run(
+    module: &mut Module,
+    options: PassOptions,
+    pass_state: &mut super::PassState,
+) -> bool {
     let mut changed = false;
+    let scratch = &mut pass_state.compact_pushes.scratch;
     for block in &mut module.blocks {
-        let mut output = Vec::with_capacity(block.instructions.len());
-        for inst in std::mem::take(&mut block.instructions) {
+        if !block.instructions.iter().any(|inst| {
+            immediate(inst)
+                .is_some_and(|value| !matches!(select(value, options), CompactPush::Literal))
+        }) {
+            continue;
+        }
+        scratch.clear();
+        std::mem::swap(&mut block.instructions, scratch);
+        block.instructions.reserve(scratch.len());
+        for inst in scratch.drain(..) {
             let Some(value) = immediate(&inst) else {
-                output.push(inst);
+                block.instructions.push(inst);
                 continue;
             };
             match select(value, options) {
-                CompactPush::Literal => output.push(inst),
+                CompactPush::Literal => block.instructions.push(inst),
                 CompactPush::FullWord => {
-                    output.push(push(U256::ZERO));
-                    output.push(Instruction::opcode(op::NOT));
+                    block.instructions.push(push(U256::ZERO));
+                    block.instructions.push(Instruction::opcode(op::NOT));
                     changed = true;
                 }
                 CompactPush::LowerAllOnesMask { shift } => {
-                    output.push(push(U256::ZERO));
-                    output.push(Instruction::opcode(op::NOT));
-                    output.push(push(U256::from(shift)));
-                    output.push(Instruction::opcode(op::SHR));
+                    block.instructions.push(push(U256::ZERO));
+                    block.instructions.push(Instruction::opcode(op::NOT));
+                    block.instructions.push(push(U256::from(shift)));
+                    block.instructions.push(Instruction::opcode(op::SHR));
                     changed = true;
                 }
                 CompactPush::Not => {
-                    output.push(push(!value));
-                    output.push(Instruction::opcode(op::NOT));
+                    block.instructions.push(push(!value));
+                    block.instructions.push(Instruction::opcode(op::NOT));
                     changed = true;
                 }
                 CompactPush::Shl { shift } => {
-                    output.push(push(value >> usize::from(shift)));
-                    output.push(push(U256::from(shift)));
-                    output.push(Instruction::opcode(op::SHL));
+                    block.instructions.push(push(value >> usize::from(shift)));
+                    block.instructions.push(push(U256::from(shift)));
+                    block.instructions.push(Instruction::opcode(op::SHL));
                     changed = true;
                 }
             }
         }
-        block.instructions = output;
     }
     changed
 }
@@ -101,8 +118,7 @@ fn select(value: U256, options: PassOptions) -> CompactPush {
         consider(fixed_push_len(push_width(inverted, options), options) + 1, CompactPush::Not);
     }
 
-    let trailing_zero_bytes =
-        (0..EVM_WORD_BYTES).take_while(|&index| value.byte(index) == 0).count();
+    let trailing_zero_bytes = value.trailing_zeros() / 8;
     if trailing_zero_bytes > 0 && trailing_zero_bytes < EVM_WORD_BYTES {
         let shift = trailing_zero_bytes * 8;
         let shifted = value >> shift;

@@ -13,68 +13,122 @@ use crate::backend::evm::ir::{Block, BlockId, Instruction, Module, Operand, Term
 use alloy_primitives::U256;
 use solar_data_structures::bit_set::DenseBitSet;
 
-pub(super) fn run(module: &mut Module, options: super::PassOptions) -> bool {
-    let mut predecessor_counts = vec![0usize; module.blocks.len()];
-    for block in &module.blocks {
-        if let Some(target) = layout_successor(block)
-            && target.index() < predecessor_counts.len()
-        {
-            predecessor_counts[target.index()] += 1;
-        }
-    }
-
-    let original_order: Vec<_> = module.blocks.indices().collect();
-    let mut order = Vec::with_capacity(original_order.len());
-    let mut placed = DenseBitSet::new_empty(module.blocks.len());
-    if let Some(entry) = module.entry_block {
-        append_layout_trace(module, entry, &mut placed, &mut order);
-    }
-    for cold in [false, true] {
-        for &block in &original_order {
-            if predecessor_counts[block.index()] == 0
-                && is_cold_terminal_block(&module.blocks[block]) == cold
-            {
-                append_layout_trace(module, block, &mut placed, &mut order);
-            }
-        }
-    }
-
-    pack_hot_terminal_blocks(module, &mut order, options);
-    for cold in [false, true] {
-        for &block in &original_order {
-            if is_cold_terminal_block(&module.blocks[block]) == cold {
-                append_layout_trace(module, block, &mut placed, &mut order);
-            }
-        }
-    }
-
-    if order == original_order {
+pub(super) fn run(
+    module: &mut Module,
+    options: super::PassOptions,
+    pass_state: &mut super::PassState,
+) -> bool {
+    if module.blocks.len() <= 1 {
         return false;
     }
-    remap_block_order(module, &order);
+    let state = &mut pass_state.block_layout;
+    state.reset(module.blocks.len());
+    for block in &module.blocks {
+        if let Some(target) = layout_successor(block)
+            && target.index() < state.predecessor_counts.len()
+        {
+            state.predecessor_counts[target.index()] += 1;
+        }
+    }
+
+    if let Some(entry) = module.entry_block {
+        append_layout_trace(module, entry, &mut state.placed, &mut state.order);
+    }
+    for cold in [false, true] {
+        for block in module.blocks.indices() {
+            if state.predecessor_counts[block.index()] == 0
+                && is_cold_terminal_block(&module.blocks[block]) == cold
+            {
+                append_layout_trace(module, block, &mut state.placed, &mut state.order);
+            }
+        }
+    }
+
+    pack_hot_terminal_blocks(module, state, options);
+    for cold in [false, true] {
+        for block in module.blocks.indices() {
+            if is_cold_terminal_block(&module.blocks[block]) == cold {
+                append_layout_trace(module, block, &mut state.placed, &mut state.order);
+            }
+        }
+    }
+
+    if state.order.iter().copied().eq(module.blocks.indices()) {
+        return false;
+    }
+    remap_block_order(module, &state.order);
     true
 }
 
-fn pack_hot_terminal_blocks(
-    module: &Module,
-    order: &mut Vec<BlockId>,
-    options: super::PassOptions,
-) {
-    let Some(first_terminal) = order.iter().enumerate().position(|(position, &block)| {
-        is_physical_terminal_boundary(&module.blocks[block], order.get(position + 1).copied())
+pub(super) struct RunState {
+    predecessor_counts: Vec<usize>,
+    order: Vec<BlockId>,
+    placed: DenseBitSet<BlockId>,
+    references: Vec<usize>,
+    candidates: Vec<Candidate>,
+    picked: DenseBitSet<BlockId>,
+    picked_order: Vec<BlockId>,
+}
+
+impl Default for RunState {
+    fn default() -> Self {
+        Self {
+            predecessor_counts: Vec::new(),
+            order: Vec::new(),
+            placed: DenseBitSet::new_empty(0),
+            references: Vec::new(),
+            candidates: Vec::new(),
+            picked: DenseBitSet::new_empty(0),
+            picked_order: Vec::new(),
+        }
+    }
+}
+
+impl RunState {
+    fn reset(&mut self, blocks: usize) {
+        self.predecessor_counts.clear();
+        self.predecessor_counts.resize(blocks, 0);
+        self.order.clear();
+        if self.order.capacity() < blocks {
+            self.order.reserve(blocks);
+        }
+        if self.placed.domain_size() == blocks {
+            self.placed.clear();
+            self.picked.clear();
+        } else {
+            self.placed = DenseBitSet::new_empty(blocks);
+            self.picked = DenseBitSet::new_empty(blocks);
+        }
+        self.references.clear();
+        self.references.resize(blocks, 0);
+        self.candidates.clear();
+        self.picked_order.clear();
+    }
+}
+
+struct Candidate {
+    block: BlockId,
+    position: usize,
+    size: usize,
+    references: usize,
+}
+
+fn pack_hot_terminal_blocks(module: &Module, state: &mut RunState, options: super::PassOptions) {
+    let Some(first_terminal) = state.order.iter().enumerate().position(|(position, &block)| {
+        is_physical_terminal_boundary(&module.blocks[block], state.order.get(position + 1).copied())
     }) else {
         return;
     };
     let insert_at = first_terminal + 1;
-    let references = block_reference_counts(module, order);
-    let insert_offset: usize = order[..insert_at]
+    block_reference_counts(module, &state.order, &mut state.references);
+    let insert_offset: usize = state.order[..insert_at]
         .iter()
         .enumerate()
         .map(|(index, &block)| {
             estimated_block_size(
                 &module.blocks[block],
-                order.get(index + 1).copied(),
-                references[block.index()] != 0,
+                state.order.get(index + 1).copied(),
+                state.references[block.index()] != 0,
                 options,
             )
         })
@@ -83,60 +137,55 @@ fn pack_hot_terminal_blocks(
         return;
     }
 
-    struct Candidate {
-        block: BlockId,
-        position: usize,
-        size: usize,
-        references: usize,
-    }
-    let mut candidates = Vec::new();
-    for position in insert_at..order.len() {
-        let block = order[position];
+    for position in insert_at..state.order.len() {
+        let block = state.order[position];
         if position == 0
-            || !is_physical_terminal_boundary(&module.blocks[order[position - 1]], Some(block))
+            || !is_physical_terminal_boundary(
+                &module.blocks[state.order[position - 1]],
+                Some(block),
+            )
             || !is_terminal_block(&module.blocks[block])
         {
             continue;
         }
         let size = estimated_block_size(
             &module.blocks[block],
-            order.get(position + 1).copied(),
-            references[block.index()] != 0,
+            state.order.get(position + 1).copied(),
+            state.references[block.index()] != 0,
             options,
         );
-        let count = references[block.index()];
+        let count = state.references[block.index()];
         if size <= 32 && count >= 2 {
-            candidates.push(Candidate { block, position, size, references: count });
+            state.candidates.push(Candidate { block, position, size, references: count });
         }
     }
-    candidates.sort_by(|a, b| {
+    state.candidates.sort_by(|a, b| {
         (b.references * a.size)
             .cmp(&(a.references * b.size))
             .then(b.references.cmp(&a.references))
             .then(a.position.cmp(&b.position))
     });
     let mut budget = 0xff_usize.saturating_sub(insert_offset);
-    let mut picked = Vec::new();
-    for candidate in candidates {
+    for candidate in &state.candidates {
         if candidate.size <= budget {
             budget -= candidate.size;
-            picked.push(candidate.block);
+            state.picked.insert(candidate.block);
+            state.picked_order.push(candidate.block);
         }
     }
-    if picked.is_empty() {
+    if state.picked_order.is_empty() {
         return;
     }
-    order.retain(|block| !picked.contains(block));
-    order.splice(insert_at..insert_at, picked);
+    state.order.retain(|block| !state.picked.contains(*block));
+    state.order.splice(insert_at..insert_at, state.picked_order.drain(..));
 }
 
-fn block_reference_counts(module: &Module, order: &[BlockId]) -> Vec<usize> {
-    let mut references = vec![0usize; module.blocks.len()];
+fn block_reference_counts(module: &Module, order: &[BlockId], references: &mut [usize]) {
     for (position, &block_id) in order.iter().enumerate() {
         let block = &module.blocks[block_id];
         for inst in &block.instructions {
             for operand in &inst.operands {
-                count_block_operand(operand, &mut references);
+                count_block_operand(operand, references);
             }
         }
         if let Some(term) = &block.terminator {
@@ -147,11 +196,10 @@ fn block_reference_counts(module: &Module, order: &[BlockId]) -> Vec<usize> {
                 term.kind.visit_targets(|target| references[target.index()] += 1);
             }
             term.kind.visit_operands(|operand| {
-                count_block_operand(operand, &mut references);
+                count_block_operand(operand, references);
             });
         }
     }
-    references
 }
 
 fn count_block_operand(operand: &Operand, references: &mut [usize]) {

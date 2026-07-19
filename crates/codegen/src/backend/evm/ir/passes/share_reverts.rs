@@ -5,35 +5,61 @@ use crate::backend::evm::{
     opcode as op,
 };
 use alloy_primitives::U256;
+use solar_data_structures::bit_set::DenseBitSet;
 
-pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
-    let empty_reverts: Vec<_> =
-        module.blocks.indices().map(|block| is_empty_revert(module, block)).collect();
-    let Some(shared) = module.blocks.indices().find(|block| empty_reverts[block.index()]) else {
+pub(super) struct RunState {
+    empty_reverts: DenseBitSet<BlockId>,
+}
+
+impl Default for RunState {
+    fn default() -> Self {
+        Self { empty_reverts: DenseBitSet::new_empty(0) }
+    }
+}
+
+pub(super) fn run(
+    module: &mut Module,
+    _options: super::PassOptions,
+    pass_state: &mut super::PassState,
+) -> bool {
+    let empty_reverts = &mut pass_state.share_reverts.empty_reverts;
+    if empty_reverts.domain_size() == module.blocks.len() {
+        empty_reverts.clear();
+    } else {
+        *empty_reverts = DenseBitSet::new_empty(module.blocks.len());
+    }
+    for block in module.blocks.indices().filter(|&block| is_empty_revert(module, block)) {
+        empty_reverts.insert(block);
+    }
+    let Some(shared) = empty_reverts.iter().next() else {
         return false;
     };
     if preserves_shared_revert_low_address(module, shared) {
         return false;
     }
     let mut changed = false;
-    let block_ids: Vec<_> = module.blocks.indices().collect();
-    for block_id in block_ids {
-        let block = &mut module.blocks[block_id];
-        let Some(Terminator { kind: TerminatorKind::Jump(revert), .. }) = &block.terminator else {
+    for (index, block) in module.blocks.iter_mut().enumerate() {
+        let block_id = BlockId::from_usize(index);
+        let Some(revert) = block.terminator.as_ref().and_then(|term| match term.kind {
+            TerminatorKind::Jump(target) => Some(target),
+            _ => None,
+        }) else {
             continue;
         };
-        if !empty_reverts[revert.index()] {
+        if !empty_reverts.contains(revert) {
             continue;
         }
         let [.., target, jumpi] = block.instructions.as_mut_slice() else { continue };
         if jumpi.opcode != op::JUMPI || jumpi.is_encoded_push() {
             continue;
         }
-        let [Operand::Block(continuation)] = target.operands.as_slice() else { continue };
+        let continuation = match target.operands.as_slice() {
+            [Operand::Block(continuation)] => *continuation,
+            _ => continue,
+        };
         if !target.is_encoded_push() {
             continue;
         }
-        let continuation = *continuation;
         if revert.index() != block_id.index() + 1 || continuation.index() != revert.index() + 1 {
             continue;
         }
@@ -53,16 +79,6 @@ pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
 }
 
 fn preserves_shared_revert_low_address(module: &Module, shared: BlockId) -> bool {
-    let references = module
-        .blocks
-        .iter()
-        .flat_map(|block| block.instructions.iter())
-        .flat_map(|inst| &inst.operands)
-        .filter(|operand| matches!(operand, Operand::Block(target) if *target == shared))
-        .count();
-    if references < 2 {
-        return false;
-    }
     // Inverting the branch can remove the early unconditional jump that lets
     // layout keep a frequently referenced revert below the PUSH1 boundary.
     let block_size = |block: &crate::backend::evm::ir::Block| {
@@ -76,8 +92,24 @@ fn preserves_shared_revert_low_address(module: &Module, shared: BlockId) -> bool
                 .as_ref()
                 .map_or(0, |term| if matches!(term.kind, TerminatorKind::Jump(_)) { 3 } else { 1 })
     };
-    let shared_end: usize = module.blocks.iter().take(shared.index() + 1).map(block_size).sum();
-    let total: usize = module.blocks.iter().map(block_size).sum();
+    let mut references = 0;
+    let mut shared_end = 0;
+    let mut total = 0;
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        references += block
+            .instructions
+            .iter()
+            .flat_map(|inst| &inst.operands)
+            .filter(|operand| matches!(operand, Operand::Block(target) if *target == shared))
+            .count();
+        total += block_size(block);
+        if block_id == shared {
+            shared_end = total;
+        }
+    }
+    if references < 2 {
+        return false;
+    }
     shared_end <= 0xff && total > 0xff
 }
 

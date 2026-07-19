@@ -339,9 +339,7 @@ impl Assembler {
                     ir_program = scheduled;
                 }
             }
-            for pass in ir::DEFAULT_PIPELINE {
-                ir::run_pass(&mut ir_program, pass, pass_options);
-            }
+            ir::run_default_pipeline(&mut ir_program, pass_options);
             debug_assert!(!input_is_valid || is_valid_evm_ir(&ir_program));
         }
 

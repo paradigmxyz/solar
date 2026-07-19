@@ -5,32 +5,44 @@ use crate::backend::evm::{
     opcode as op,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 
-pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
+#[derive(Default)]
+pub(super) struct RunState {
+    scratch: Vec<Instruction>,
+}
+
+pub(super) fn run(
+    module: &mut Module,
+    _options: super::PassOptions,
+    pass_state: &mut super::PassState,
+) -> bool {
     let mut changed = false;
+    let scratch = &mut pass_state.peephole.scratch;
     for block in &mut module.blocks {
         if block.instructions.iter().any(|inst| {
             inst.result.is_some() || (!inst.is_encoded_push() && !inst.operands.is_empty())
         }) {
             continue;
         }
-        changed |= optimize(&mut block.instructions) != 0;
+        changed |= optimize(&mut block.instructions, scratch) != 0;
     }
     changed
 }
 
-fn optimize(instructions: &mut Vec<Instruction>) -> usize {
-    let mut output = Vec::with_capacity(instructions.len());
+fn optimize(instructions: &mut Vec<Instruction>, scratch: &mut Vec<Instruction>) -> usize {
+    scratch.clear();
+    std::mem::swap(instructions, scratch);
+    instructions.reserve(scratch.len());
     let mut rewrites = 0;
-    for inst in std::mem::take(instructions) {
-        output.push(inst);
-        while let Some(rewrite) = try_peephole(&output) {
-            output.truncate(output.len() - rewrite.skip);
-            output.extend(rewrite.replacement);
+    for inst in scratch.drain(..) {
+        instructions.push(inst);
+        while let Some(rewrite) = try_peephole(instructions) {
+            instructions.truncate(instructions.len() - rewrite.skip);
+            instructions.extend(rewrite.replacement);
             rewrites += 1;
         }
     }
-    *instructions = output;
     rewrites
 }
 
@@ -215,17 +227,17 @@ fn is_removable_push(inst: &Instruction) -> bool {
 
 struct Rewrite {
     skip: usize,
-    replacement: Vec<Instruction>,
+    replacement: SmallVec<[Instruction; 3]>,
 }
 
 impl Rewrite {
     fn delete(skip: usize) -> Self {
-        Self { skip, replacement: Vec::new() }
+        Self { skip, replacement: SmallVec::new() }
     }
 
     fn replace<const N: usize>(skip: usize, replacement: [Instruction; N]) -> Self {
         debug_assert!(N <= skip);
-        Self { skip, replacement: replacement.into() }
+        Self { skip, replacement: replacement.into_iter().collect() }
     }
 }
 

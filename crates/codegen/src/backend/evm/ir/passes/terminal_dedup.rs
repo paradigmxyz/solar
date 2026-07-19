@@ -10,39 +10,57 @@ use crate::backend::evm::ir::{
     Block, BlockId, Module, Operand, Terminator, TerminatorKind, ValueId,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashMap;
+use smallvec::SmallVec;
+use solar_data_structures::map::{FxHashMap, StdEntry};
 
-pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
-    let mut canonical = Vec::<(TerminalBlockKey, BlockId)>::new();
-    let mut changed = false;
+#[derive(Default)]
+pub(super) struct RunState {
+    canonical: FxHashMap<TerminalBlockKey, BlockId>,
+    locals: FxHashMap<ValueId, usize>,
+    redirects: Vec<(BlockId, BlockId)>,
+}
 
-    let block_ids: Vec<_> = module.blocks.indices().collect();
-    for block_id in block_ids {
+pub(super) fn run(
+    module: &mut Module,
+    _options: super::PassOptions,
+    pass_state: &mut super::PassState,
+) -> bool {
+    let state = &mut pass_state.terminal_dedup;
+    state.canonical.clear();
+    state.redirects.clear();
+
+    for block_id in module.blocks.indices() {
         let block = &module.blocks[block_id];
-        let Some(key) = terminal_block_key(block) else { continue };
-        if let Some((_, target)) = canonical.iter().find(|(known, _)| *known == key) {
-            module.blocks[block_id].instructions.clear();
-            module.blocks[block_id].terminator =
-                Some(Terminator::new(TerminatorKind::Jump(*target)));
-            changed = true;
-        } else {
-            canonical.push((key, block_id));
+        let Some(key) = terminal_block_key(block, &mut state.locals) else { continue };
+        match state.canonical.entry(key) {
+            StdEntry::Occupied(entry) => state.redirects.push((block_id, *entry.get())),
+            StdEntry::Vacant(entry) => {
+                entry.insert(block_id);
+            }
         }
     }
 
+    let changed = !state.redirects.is_empty();
+    for (block, target) in state.redirects.drain(..) {
+        module.blocks[block].instructions.clear();
+        module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(target)));
+    }
     changed
 }
 
-fn terminal_block_key(block: &Block) -> Option<TerminalBlockKey> {
+fn terminal_block_key(
+    block: &Block,
+    locals: &mut FxHashMap<ValueId, usize>,
+) -> Option<TerminalBlockKey> {
     if !block.terminator.as_ref().is_some_and(|term| is_evm_terminal(&term.kind)) {
         return None;
     }
-    let mut locals = FxHashMap::default();
+    locals.clear();
     let mut instructions = Vec::with_capacity(block.instructions.len());
 
     for inst in &block.instructions {
         let operands =
-            inst.operands.iter().map(|operand| terminal_operand_key(operand, &locals)).collect();
+            inst.operands.iter().map(|operand| terminal_operand_key(operand, locals)).collect();
         let result = inst.result.map(|value| {
             let index = locals.len();
             locals.insert(value, index);
@@ -57,10 +75,7 @@ fn terminal_block_key(block: &Block) -> Option<TerminalBlockKey> {
     }
 
     let term = block.terminator.as_ref()?;
-    Some(TerminalBlockKey {
-        instructions,
-        terminator: terminal_terminator_key(&term.kind, &locals),
-    })
+    Some(TerminalBlockKey { instructions, terminator: terminal_terminator_key(&term.kind, locals) })
 }
 
 fn terminal_operand_key(
@@ -116,21 +131,21 @@ fn terminal_terminator_key(
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct TerminalBlockKey {
     instructions: Vec<TerminalInstructionKey>,
     terminator: TerminalTerminatorKey,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct TerminalInstructionKey {
     result: Option<usize>,
     opcode: u8,
     encoding: u8,
-    operands: Vec<TerminalOperandKey>,
+    operands: SmallVec<[TerminalOperandKey; 1]>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum TerminalTerminatorKey {
     Jump(BlockId),
     Branch {
@@ -141,7 +156,7 @@ enum TerminalTerminatorKey {
     Switch {
         value: TerminalOperandKey,
         default: BlockId,
-        cases: Vec<(TerminalOperandKey, BlockId)>,
+        cases: SmallVec<[(TerminalOperandKey, BlockId); 2]>,
     },
     Return {
         offset: TerminalOperandKey,
@@ -159,7 +174,7 @@ enum TerminalTerminatorKey {
     RawOpcode(u8),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum TerminalOperandKey {
     LocalValue(usize),
     ExternalValue(ValueId),

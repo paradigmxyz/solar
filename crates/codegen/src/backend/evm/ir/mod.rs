@@ -11,6 +11,7 @@
 //! itself is not defined by that serialization.
 
 use alloy_primitives::U256;
+use smallvec::{SmallVec, smallvec};
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
 use solar_interface::Symbol;
 use solar_parse::lexer::is_ident;
@@ -24,7 +25,7 @@ pub(in crate::backend::evm) mod assembly;
 
 pub use passes::{PASS_REGISTRY, PassInfo, PassOptions, lookup_pass, run_pass};
 
-pub(crate) use passes::{DEFAULT_PIPELINE, STACK_SCHEDULE_PASS};
+pub(crate) use passes::{STACK_SCHEDULE_PASS, run_default_pipeline};
 
 /// Validates the invariants of an EVM IR module.
 pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
@@ -180,7 +181,7 @@ pub(crate) struct Instruction {
     /// Internal encoding flags for instructions resolved during assembly.
     encoding: u8,
     /// Instruction operands.
-    pub(crate) operands: Vec<Operand>,
+    pub(crate) operands: SmallVec<[Operand; 1]>,
     /// Instruction metadata.
     pub(crate) metadata: Metadata,
 }
@@ -192,8 +193,14 @@ impl Instruction {
 
     /// Creates an instruction for an EVM opcode.
     #[must_use]
-    pub(crate) const fn opcode(opcode: u8) -> Self {
-        Self { result: None, opcode, encoding: 0, operands: Vec::new(), metadata: Metadata::EMPTY }
+    pub(crate) fn opcode(opcode: u8) -> Self {
+        Self {
+            result: None,
+            opcode,
+            encoding: 0,
+            operands: SmallVec::new(),
+            metadata: Metadata::EMPTY,
+        }
     }
 
     /// Creates an encoded push instruction.
@@ -219,7 +226,7 @@ impl Instruction {
             result: None,
             opcode: super::opcode::PUSH32,
             encoding,
-            operands: vec![operand],
+            operands: smallvec![operand],
             metadata: Metadata { stack: Some(StackEffect::new(0, 1)), attrs: Vec::new() },
         }
     }

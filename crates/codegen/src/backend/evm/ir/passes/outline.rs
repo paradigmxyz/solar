@@ -5,16 +5,24 @@ use crate::backend::evm::{
     opcode as op,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use std::hash::{Hash, Hasher};
 
 const MIN_CLOSED_RUN: usize = 4;
 
-pub(super) fn run(module: &mut Module, options: super::PassOptions) -> bool {
-    outline_closed_computations(module) | outline_repeated_pushes(module, options)
+pub(super) fn run(
+    module: &mut Module,
+    options: super::PassOptions,
+    pass_state: &mut super::PassState,
+) -> bool {
+    let state = &mut pass_state.outline;
+    state.next_label = None;
+    outline_closed_computations(module, state) | outline_repeated_pushes(module, options, state)
 }
 
-fn outline_closed_computations(module: &mut Module) -> bool {
-    let mut candidates = FxHashMap::<Vec<MachineInstKey>, Vec<Site>>::default();
+fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> bool {
+    let mut candidates = FxHashMap::<MachineInstSlice<'_>, SmallVec<[Site; 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         if !block.entry_stack.is_empty() {
             continue;
@@ -30,8 +38,7 @@ fn outline_closed_computations(module: &mut Module) -> bool {
                 height = height - i32::from(pops) + i32::from(pushes);
                 let len = end + 1 - start;
                 if len >= MIN_CLOSED_RUN && matches!(height, 0 | 1) {
-                    let key =
-                        block.instructions[start..=end].iter().map(MachineInstKey::new).collect();
+                    let key = MachineInstSlice(&block.instructions[start..=end]);
                     candidates.entry(key).or_default().push(Site {
                         block: block_id,
                         start,
@@ -46,7 +53,7 @@ fn outline_closed_computations(module: &mut Module) -> bool {
     let mut groups: Vec<_> = candidates.into_iter().filter(|(_, sites)| sites.len() >= 2).collect();
     groups.sort_unstable_by_key(|(key, sites)| {
         let first = sites[0];
-        (std::cmp::Reverse(key.len()), first.block.index(), first.start)
+        (std::cmp::Reverse(key.0.len()), first.block.index(), first.start)
     });
     let mut claimed: Vec<_> = module
         .blocks
@@ -55,7 +62,7 @@ fn outline_closed_computations(module: &mut Module) -> bool {
         .collect();
     let mut chosen = Vec::new();
     for (_, sites) in groups {
-        let mut free = Vec::new();
+        let mut free = SmallVec::<[Site; 2]>::new();
         for site in sites {
             if !claimed[site.block.index()].contains_any(site.start..site.start + site.len) {
                 free.push(site);
@@ -84,7 +91,7 @@ fn outline_closed_computations(module: &mut Module) -> bool {
 
     let mut stubs = Vec::with_capacity(chosen.len());
     for group in &chosen {
-        let mut stub = Block::new(fresh_label(module));
+        let mut stub = Block::new(state.next_label(module));
         stub.instructions = group.body.clone();
         if group.height == 1 {
             stub.instructions.push(Instruction::opcode(op::SWAP1));
@@ -93,18 +100,22 @@ fn outline_closed_computations(module: &mut Module) -> bool {
         stubs.push(module.add_block(stub));
     }
     let original_blocks = claimed.len();
-    let mut edits = vec![Vec::new(); original_blocks];
+    let mut edits = vec![SmallVec::<[_; 1]>::new(); original_blocks];
     for (group, stub) in chosen.into_iter().zip(stubs) {
         for site in group.sites {
             edits[site.block.index()].push((site.start, site.len, stub));
         }
     }
-    apply_outline_edits(module, edits);
+    apply_outline_edits(module, edits, state);
     true
 }
 
-fn outline_repeated_pushes(module: &mut Module, options: super::PassOptions) -> bool {
-    let mut sites = FxHashMap::<U256, Vec<(BlockId, usize)>>::default();
+fn outline_repeated_pushes(
+    module: &mut Module,
+    options: super::PassOptions,
+    state: &mut RunState,
+) -> bool {
+    let mut sites = FxHashMap::<U256, SmallVec<[(BlockId, usize); 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         for (index, inst) in block.instructions.iter().enumerate() {
             if inst.is_encoded_push()
@@ -134,9 +145,9 @@ fn outline_repeated_pushes(module: &mut Module, options: super::PassOptions) -> 
     values.sort_unstable();
 
     let original_blocks = module.blocks.len();
-    let mut edits = vec![Vec::new(); original_blocks];
+    let mut edits = vec![SmallVec::<[_; 1]>::new(); original_blocks];
     for value in values {
-        let mut stub = Block::new(fresh_label(module));
+        let mut stub = Block::new(state.next_label(module));
         stub.instructions.push(Instruction::push(Operand::Immediate(value)));
         stub.instructions.push(Instruction::opcode(op::SWAP1));
         stub.terminator = Some(Terminator::new(TerminatorKind::RawOpcode(op::JUMP)));
@@ -145,16 +156,20 @@ fn outline_repeated_pushes(module: &mut Module, options: super::PassOptions) -> 
             edits[block.index()].push((index, 1, stub));
         }
     }
-    apply_outline_edits(module, edits);
+    apply_outline_edits(module, edits, state);
     true
 }
 
-fn apply_outline_edits(module: &mut Module, mut edits: Vec<Vec<(usize, usize, BlockId)>>) {
+fn apply_outline_edits(
+    module: &mut Module,
+    mut edits: Vec<SmallVec<[(usize, usize, BlockId); 1]>>,
+    state: &mut RunState,
+) {
     for (block, edits) in edits.iter_mut().enumerate() {
         edits.sort_unstable_by_key(|(start, _, _)| std::cmp::Reverse(*start));
         let block = BlockId::from_usize(block);
         for &(start, len, stub) in edits.iter() {
-            split_outline_site(module, block, start, len, stub);
+            split_outline_site(module, block, start, len, stub, state);
         }
     }
 }
@@ -165,8 +180,9 @@ fn split_outline_site(
     start: usize,
     len: usize,
     stub: BlockId,
+    state: &mut RunState,
 ) {
-    let mut continuation = Block::new(fresh_label(module));
+    let mut continuation = Block::new(state.next_label(module));
     continuation.metadata = module.blocks[block].metadata;
     continuation.instructions = module.blocks[block].instructions.split_off(start + len);
     module.blocks[block].instructions.truncate(start);
@@ -217,17 +233,6 @@ fn push_len(value: U256, options: super::PassOptions) -> usize {
     if width == 0 && !options.evm_version.has_push0() { 2 } else { width + 1 }
 }
 
-fn fresh_label(module: &Module) -> u32 {
-    module
-        .blocks
-        .iter()
-        .map(|block| block.label)
-        .max()
-        .unwrap_or(0)
-        .checked_add(1)
-        .expect("EVM IR block label overflow")
-}
-
 #[derive(Clone, Copy, Debug)]
 struct Site {
     block: BlockId,
@@ -238,19 +243,53 @@ struct Site {
 
 struct ChosenGroup {
     body: Vec<Instruction>,
-    sites: Vec<Site>,
+    sites: SmallVec<[Site; 2]>,
     height: u16,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct MachineInstKey {
-    opcode: u8,
-    encoding: u8,
-    operands: Vec<Operand>,
+#[derive(Clone, Copy)]
+struct MachineInstSlice<'a>(&'a [Instruction]);
+
+impl PartialEq for MachineInstSlice<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.len() == other.0.len()
+            && self.0.iter().zip(other.0).all(|(a, b)| {
+                a.opcode == b.opcode && a.encoding == b.encoding && a.operands == b.operands
+            })
+    }
 }
 
-impl MachineInstKey {
-    fn new(inst: &Instruction) -> Self {
-        Self { opcode: inst.opcode, encoding: inst.encoding, operands: inst.operands.clone() }
+impl Eq for MachineInstSlice<'_> {}
+
+impl Hash for MachineInstSlice<'_> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.len().hash(state);
+        for inst in self.0 {
+            inst.opcode.hash(state);
+            inst.encoding.hash(state);
+            inst.operands.hash(state);
+        }
+    }
+}
+
+#[derive(Default)]
+pub(super) struct RunState {
+    next_label: Option<u32>,
+}
+
+impl RunState {
+    fn next_label(&mut self, module: &Module) -> u32 {
+        let label = *self.next_label.get_or_insert_with(|| {
+            module
+                .blocks
+                .iter()
+                .map(|block| block.label)
+                .max()
+                .unwrap_or(0)
+                .checked_add(1)
+                .expect("EVM IR block label overflow")
+        });
+        self.next_label = Some(label.checked_add(1).expect("EVM IR block label overflow"));
+        label
     }
 }
