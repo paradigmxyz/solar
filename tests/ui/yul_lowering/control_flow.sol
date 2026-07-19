@@ -1,5 +1,5 @@
 contract C {
-    function f(uint256 n) public returns (uint256 x) {
+    function f(uint256 n) public pure returns (uint256 x) {
         assembly {
             for { let i := 0 } lt(i, n) { i := add(i, 1) } {
                 if iszero(eq(i, 3)) {

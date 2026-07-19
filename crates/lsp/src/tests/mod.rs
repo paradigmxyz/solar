@@ -495,7 +495,7 @@ fn analyze_builds_declaration_symbol_table() {
             constructor() {}
             fallback() external {}
             receive() external payable {}
-            function f(uint256 y) public returns (uint256 z) {
+            function f(uint256 y) public view returns (uint256 z) {
                 uint256 local = x + y;
                 return local;
             }
@@ -578,7 +578,7 @@ fn analyze_builds_lsp_symbol_responses() {
             struct S { uint256 field; }
             uint256 public x;
             constructor() {}
-            function f(uint256 y) public returns (uint256 z) {
+            function f(uint256 y) public pure returns (uint256 z) {
                 uint256 local = y;
                 return local;
             }

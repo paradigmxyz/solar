@@ -1,0 +1,20 @@
+error[2527]: function declared as pure, but this expression (potentially) reads from the environment or state and thus requires `view`
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/modifier_yul.sol:LL:CC
+   │
+LL │     function pureRead1() public pure readsInYul {
+   ╰╴                                     ━━━━━━━━━━
+
+error[2527]: function declared as pure, but this expression (potentially) reads from the environment or state and thus requires `view`
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/modifier_yul.sol:LL:CC
+   │
+LL │     function pureRead2() public pure readsInYul {
+   ╰╴                                     ━━━━━━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/modifier_yul.sol:LL:CC
+   │
+LL │     function viewWrite() public view writesInYul {
+   ╰╴                                     ━━━━━━━━━━━
+
+error: aborting due to 3 previous errors
+

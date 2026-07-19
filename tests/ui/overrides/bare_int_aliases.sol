@@ -30,7 +30,7 @@ abstract contract SignedBase {
 }
 
 contract SignedDerived is SignedBase {
-    function f(int256 value) public override returns (int256) {
+    function f(int256 value) public pure override returns (int256) {
         return value;
     }
 }
