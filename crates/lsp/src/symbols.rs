@@ -1494,7 +1494,6 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
             hir::ExprKind::Member(receiver, ident) | hir::ExprKind::YulMember(receiver, ident) => {
                 self.visit_member_reference(expr, receiver, ident, DocumentHighlightKind::WRITE)?;
             }
-            hir::ExprKind::Index(..) => hir::Visit::walk_expr(self, expr)?,
             hir::ExprKind::Tuple(exprs) => {
                 for expr in exprs.iter().copied().flatten() {
                     self.visit_lvalue(expr)?;
@@ -1537,11 +1536,10 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
             return ReferenceTargets::from_buf([symbol_id]);
         }
 
-        if let Some(callee) = self.gcx.resolved_callee(expr.id) {
-            let targets = self.symbol_ids_for_res([callee.res]);
-            if !targets.is_empty() {
-                return targets;
-            }
+        if let Some(callee) = self.gcx.resolved_callee(expr.id)
+            && let Some(symbol_id) = self.symbol_id_for_res(callee.res)
+        {
+            return ReferenceTargets::from_buf([symbol_id]);
         }
 
         ReferenceTargets::new()
@@ -1604,21 +1602,21 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         Some(CallableParamSource::Function { id, skips_receiver: false })
     }
 
-    fn call_param_ids(&self, source: CallableParamSource) -> Vec<VariableId> {
+    fn call_param_ids(&self, source: CallableParamSource) -> &'gcx [VariableId] {
         let (params, skip) = match source {
             CallableParamSource::Function { id, skips_receiver } => {
                 (self.gcx.hir.function(id).parameters, usize::from(skips_receiver))
             }
             CallableParamSource::FunctionType(id) => match self.gcx.hir.variable(id).ty.kind {
                 TypeKind::Function(ty) => (ty.parameters, 0),
-                _ => return Vec::new(),
+                _ => return &[],
             },
             CallableParamSource::Struct(id) => (self.gcx.hir.strukt(id).fields, 0),
             CallableParamSource::Event(id) => (self.gcx.hir.event(id).parameters, 0),
             CallableParamSource::Error(id) => (self.gcx.hir.error(id).parameters, 0),
-            CallableParamSource::Builtin(_) => return Vec::new(),
+            CallableParamSource::Builtin(_) => return &[],
         };
-        params.iter().copied().skip(skip).collect()
+        params.get(skip..).unwrap_or_default()
     }
 
     fn visit_using_directive(&mut self, using: &'gcx hir::UsingDirective<'gcx>) {
