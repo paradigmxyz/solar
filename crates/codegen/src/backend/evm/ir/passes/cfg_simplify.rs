@@ -13,7 +13,7 @@ pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
         let truncated = truncate_after_terminal(module);
         let redirected = redirect_jump_thunks(module);
         let swept = remove_unreachable_blocks(module);
-        let coalesced = coalesce_one_block(module);
+        let coalesced = coalesce_blocks(module);
         changed |= truncated || redirected || swept || coalesced;
         if !truncated && !redirected && !swept && !coalesced {
             return changed;
@@ -137,7 +137,7 @@ fn remove_unreachable_blocks(module: &mut Module) -> bool {
     true
 }
 
-fn coalesce_one_block(module: &mut Module) -> bool {
+fn coalesce_blocks(module: &mut Module) -> bool {
     let mut references = vec![0usize; module.blocks.len()];
     for block in &module.blocks {
         for inst in &block.instructions {
@@ -153,24 +153,35 @@ fn coalesce_one_block(module: &mut Module) -> bool {
         }
     }
 
-    let entry = module.entry_block;
-    let candidate = module.blocks.indices().find_map(|predecessor| {
-        let TerminatorKind::Jump(target) = &module.blocks[predecessor].terminator.as_ref()?.kind
-        else {
-            return None;
-        };
-        (*target != predecessor
-            && Some(*target) != entry
-            && references[target.index()] == 1
-            && module.blocks[*target].entry_stack.is_empty())
-        .then_some((predecessor, *target))
-    });
-    let Some((predecessor, target)) = candidate else { return false };
+    let mut removed = DenseBitSet::new_empty(module.blocks.len());
+    let blocks: Vec<_> = module.blocks.indices().collect();
+    for predecessor in blocks {
+        if removed.contains(predecessor) {
+            continue;
+        }
+        while let Some(TerminatorKind::Jump(target)) =
+            module.blocks[predecessor].terminator.as_ref().map(|terminator| &terminator.kind)
+        {
+            let target = *target;
+            if target == predecessor
+                || Some(target) == module.entry_block
+                || references[target.index()] != 1
+                || !module.blocks[target].entry_stack.is_empty()
+                || removed.contains(target)
+            {
+                break;
+            }
 
-    let mut successor = module.blocks[target].clone();
-    module.blocks[predecessor].instructions.append(&mut successor.instructions);
-    module.blocks[predecessor].terminator = successor.terminator;
-    let order: Vec<_> = module.blocks.indices().filter(|block| *block != target).collect();
+            let mut successor = module.blocks[target].clone();
+            module.blocks[predecessor].instructions.append(&mut successor.instructions);
+            module.blocks[predecessor].terminator = successor.terminator;
+            removed.insert(target);
+        }
+    }
+    if removed.is_empty() {
+        return false;
+    }
+    let order: Vec<_> = module.blocks.indices().filter(|block| !removed.contains(*block)).collect();
     retain_blocks(module, &order);
     true
 }

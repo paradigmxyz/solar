@@ -288,7 +288,7 @@ impl Terminator {
 }
 
 /// Control-flow terminators in EVM IR.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum TerminatorKind {
     /// Unconditional jump.
     Jump(BlockId),

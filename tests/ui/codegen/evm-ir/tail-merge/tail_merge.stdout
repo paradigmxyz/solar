@@ -7,13 +7,19 @@ bb0 (entry):
   jump bb2
 bb1 [cold]:
   push 11
-  jump bb3
+  jump bb5
 bb2 [cold]:
   push 99
-  jump bb3
+  jump bb5
 bb3 [cold]:
-  push 22
+  push 77
+  push 66
+  jump bb4
+bb4 [cold]:
   push 33
   push 44
   push 55
   revert
+bb5 [cold]:
+  push 22
+  jump bb4

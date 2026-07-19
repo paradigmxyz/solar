@@ -20,3 +20,10 @@ bb2 [cold]:
   push 44
   push 55
   revert
+bb3 [cold]:
+  push 77
+  push 66
+  push 33
+  push 44
+  push 55
+  revert
