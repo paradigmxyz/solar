@@ -53,7 +53,7 @@ pub(crate) struct SymbolTables {
     file_scopes: FxHashMap<Url, Vec<ScopeId>>,
     references: Vec<SymbolReference>,
     file_references: FxHashMap<Url, Vec<usize>>,
-    symbol_references: FxHashMap<SymbolId, Vec<Location>>,
+    symbol_references: FxHashMap<SymbolId, Vec<usize>>,
     rename: RenameIndex,
     document_links: DocumentLinkIndex,
     inlay_hints: InlayHintIndex,
@@ -69,6 +69,7 @@ newtype_index! {
 }
 
 type TypeDefinitionTargets = SmallVec<[SymbolId; 1]>;
+type ReferenceTargets = SmallVec<[SymbolId; 1]>;
 
 #[derive(Clone, Debug)]
 pub(crate) struct DeclarationSymbol {
@@ -123,7 +124,7 @@ impl<'a> CompletionContext<'a> {
 #[derive(Clone, Debug)]
 struct SymbolReference {
     location: Location,
-    targets: Vec<SymbolId>,
+    targets: ReferenceTargets,
     kind: DocumentHighlightKind,
 }
 
@@ -462,11 +463,11 @@ impl SymbolTables {
             locations.extend(target.iter().map(|&symbol_id| self.selection_location(symbol_id)));
         }
 
-        for symbol_id in target {
-            if let Some(references) = self.symbol_references.get(&symbol_id) {
-                locations.extend(references.iter().cloned());
-            }
-        }
+        locations.extend(
+            self.reference_indices_for_targets(&target)
+                .into_iter()
+                .map(|index| self.references[index].location.clone()),
+        );
 
         sort_locations(&mut locations);
         locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
@@ -482,9 +483,9 @@ impl SymbolTables {
         let mut highlights = targets
             .iter()
             .filter_map(|&symbol_id| {
-                let location = self.selection_location(symbol_id);
-                (&location.uri == uri).then_some(DocumentHighlight {
-                    range: location.range,
+                let declaration = &self.declarations[symbol_id];
+                (&declaration.location.uri == uri).then_some(DocumentHighlight {
+                    range: declaration.name_range,
                     kind: Some(DocumentHighlightKind::WRITE),
                 })
             })
@@ -502,14 +503,7 @@ impl SymbolTables {
             }));
         }
 
-        highlights.sort_by_key(|highlight| {
-            (
-                highlight.range.start.line,
-                highlight.range.start.character,
-                highlight.range.end.line,
-                highlight.range.end.character,
-            )
-        });
+        highlights.sort_by_key(|highlight| (highlight.range.start, highlight.range.end));
         highlights.dedup_by(|a, b| a.range == b.range);
         Some(highlights)
     }
@@ -837,13 +831,25 @@ impl SymbolTables {
         Some(locations)
     }
 
-    fn symbol_ids_at_position(&self, uri: &Url, position: Position) -> Option<Vec<SymbolId>> {
+    fn symbol_ids_at_position(&self, uri: &Url, position: Position) -> Option<ReferenceTargets> {
         if let Some(reference) = self.reference_at_position(uri, position) {
             return Some(reference.targets.clone());
         }
 
         let symbol_id = self.declaration_at_position(uri, position)?;
-        Some(vec![symbol_id])
+        Some(ReferenceTargets::from_buf([symbol_id]))
+    }
+
+    fn reference_indices_for_targets(&self, targets: &[SymbolId]) -> Vec<usize> {
+        let mut indices = targets
+            .iter()
+            .filter_map(|target| self.symbol_references.get(target))
+            .flatten()
+            .copied()
+            .collect::<Vec<_>>();
+        indices.sort_unstable();
+        indices.dedup();
+        indices
     }
 
     fn reference_at_position(&self, uri: &Url, position: Position) -> Option<&SymbolReference> {
@@ -1041,7 +1047,7 @@ impl SymbolTables {
         for (index, reference) in self.references.iter().enumerate() {
             self.file_references.entry(reference.location.uri.clone()).or_default().push(index);
             for &target in &reference.targets {
-                self.symbol_references.entry(target).or_default().push(reference.location.clone());
+                self.symbol_references.entry(target).or_default().push(index);
             }
         }
         for references in self.file_references.values_mut() {
@@ -1055,10 +1061,6 @@ impl SymbolTables {
                     index,
                 )
             });
-        }
-        for locations in self.symbol_references.values_mut() {
-            sort_locations(locations);
-            locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
         }
         self.rename.rebuild(&self.declarations);
     }
@@ -1421,14 +1423,14 @@ struct ReferenceCollector<'a, 'gcx> {
 }
 
 impl<'gcx> ReferenceCollector<'_, 'gcx> {
-    fn push_reference(&mut self, span: Span, targets: Vec<SymbolId>) {
+    fn push_reference(&mut self, span: Span, targets: ReferenceTargets) {
         self.push_reference_with_kind(span, targets, DocumentHighlightKind::READ);
     }
 
     fn push_reference_with_kind(
         &mut self,
         span: Span,
-        targets: Vec<SymbolId>,
+        targets: ReferenceTargets,
         kind: DocumentHighlightKind,
     ) {
         if let Some(source) = self.source {
@@ -1463,16 +1465,12 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         resolutions: &[Res],
         kind: DocumentHighlightKind,
     ) {
-        let resolutions = if let Some(callee) = self.gcx.resolved_callee(expr.id)
-            && !callee.res.is_err()
-        {
-            vec![callee.res]
-        } else {
-            resolutions.to_vec()
-        };
+        let callee = self.gcx.resolved_callee(expr.id).filter(|callee| !callee.res.is_err());
+        let resolutions =
+            callee.as_ref().map_or(resolutions, |callee| std::slice::from_ref(&callee.res));
         let targets = self.symbol_ids_for_res(resolutions.iter().copied());
         self.push_reference_with_kind(expr.span, targets, kind);
-        self.push_namespace_references(expr.span, &resolutions);
+        self.push_namespace_references(expr.span, resolutions);
     }
 
     fn visit_member_reference(
@@ -1496,12 +1494,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
             hir::ExprKind::Member(receiver, ident) | hir::ExprKind::YulMember(receiver, ident) => {
                 self.visit_member_reference(expr, receiver, ident, DocumentHighlightKind::WRITE)?;
             }
-            hir::ExprKind::Index(receiver, index) => {
-                self.visit_expr(receiver)?;
-                if let Some(index) = index {
-                    self.visit_expr(index)?;
-                }
-            }
+            hir::ExprKind::Index(..) => hir::Visit::walk_expr(self, expr)?,
             hir::ExprKind::Tuple(exprs) => {
                 for expr in exprs.iter().copied().flatten() {
                     self.visit_lvalue(expr)?;
@@ -1526,7 +1519,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         );
     }
 
-    fn symbol_ids_for_res(&self, res: impl IntoIterator<Item = Res>) -> Vec<SymbolId> {
+    fn symbol_ids_for_res(&self, res: impl IntoIterator<Item = Res>) -> ReferenceTargets {
         res.into_iter().filter_map(|res| self.symbol_id_for_res(res)).collect()
     }
 
@@ -1537,11 +1530,11 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         }
     }
 
-    fn symbol_ids_for_member_expr(&self, expr: &hir::Expr<'gcx>) -> Vec<SymbolId> {
+    fn symbol_ids_for_member_expr(&self, expr: &hir::Expr<'gcx>) -> ReferenceTargets {
         if let Some(res) = self.gcx.resolved_member(expr.id)
             && let Some(symbol_id) = self.symbol_id_for_res(res)
         {
-            return vec![symbol_id];
+            return ReferenceTargets::from_buf([symbol_id]);
         }
 
         if let Some(callee) = self.gcx.resolved_callee(expr.id) {
@@ -1551,7 +1544,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
             }
         }
 
-        Vec::new()
+        ReferenceTargets::new()
     }
 
     fn push_type_reference(&mut self, ty: &hir::Type<'gcx>) {
@@ -1559,7 +1552,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
             && let Some(symbol_id) =
                 self.tables.symbols_by_key.get(&SymbolKey::Item(item_id)).copied()
         {
-            self.push_reference(ty.span, vec![symbol_id]);
+            self.push_reference(ty.span, ReferenceTargets::from_buf([symbol_id]));
         }
     }
 
@@ -1584,7 +1577,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
             if let Some(symbol_id) =
                 self.tables.symbols_by_key.get(&SymbolKey::Item(param.into())).copied()
             {
-                self.push_reference(arg.name.span, vec![symbol_id]);
+                self.push_reference(arg.name.span, ReferenceTargets::from_buf([symbol_id]));
             }
         }
     }
@@ -1640,7 +1633,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
                         .copied()
                         .map(|function_id| Res::Item(ItemId::Function(function_id))),
                 ),
-                UsingEntryKind::Err(_) => Vec::new(),
+                UsingEntryKind::Err(_) => ReferenceTargets::new(),
             };
             self.push_reference(entry.span, targets);
         }
@@ -1674,7 +1667,10 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
         if let Some(symbol_id) =
             self.tables.symbols_by_key.get(&SymbolKey::Item(modifier.id)).copied()
         {
-            self.push_reference(modifier.span.with_hi(modifier.args.span.lo()), vec![symbol_id]);
+            self.push_reference(
+                modifier.span.with_hi(modifier.args.span.lo()),
+                ReferenceTargets::from_buf([symbol_id]),
+            );
         }
         if let Some(source) = self.item_param_source(modifier.id) {
             self.push_named_arg_references(source, &modifier.args);

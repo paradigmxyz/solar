@@ -138,6 +138,108 @@ fn scopes_semantic_matches_to_the_requested_document() {
 }
 
 #[test]
+fn preserves_ambiguous_reference_targets() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Ambiguous.sol
+        contract C {
+            function $1pick(uint8 value) internal pure returns (uint8) {
+                return value;
+            }
+
+            function $2pick(uint256 value) internal pure returns (uint256) {
+                return value;
+            }
+
+            function call(uint8 value) public pure returns (uint256) {
+                return $3pick(value);
+            }
+        }
+        "#,
+        "/Ambiguous.sol",
+    );
+
+    fixture.check_references(
+        "$3",
+        true,
+        str![[r#"
+/Ambiguous.sol:1:13 function pick(uint8 value) internal pure returns (uint8) {
+/Ambiguous.sol:4:13 function pick(uint256 value) internal pure returns (uint256) {
+/Ambiguous.sol:8:15 return pick(value);
+
+"#]],
+    );
+    fixture.check_document_highlights(
+        "$3",
+        str![[r#"
+1:13-1:17 WRITE
+4:13-4:17 WRITE
+8:15-8:19 READ
+
+"#]],
+    );
+}
+
+#[test]
+fn preserves_references_across_analysis_batches() {
+    let fixture = RequestFixture::new_in_batches(
+        r#"
+        //- /First.sol
+        contract First {
+            uint256 $3value;
+            function read() public view returns (uint256) {
+                return $4value;
+            }
+        }
+
+        //- /Second.sol
+        contract Second {
+            uint256 $1value;
+            function write() public {
+                $2value = 1;
+            }
+        }
+        "#,
+        &["/First.sol", "/Second.sol"],
+    );
+
+    fixture.check_references(
+        "$1",
+        true,
+        str![[r#"
+/Second.sol:1:12 uint256 value;
+/Second.sol:3:8 value = 1;
+
+"#]],
+    );
+    fixture.check_document_highlights(
+        "$2",
+        str![[r#"
+1:12-1:17 WRITE
+3:8-3:13 WRITE
+
+"#]],
+    );
+    fixture.check_references(
+        "$3",
+        true,
+        str![[r#"
+/First.sol:1:12 uint256 value;
+/First.sol:3:15 return value;
+
+"#]],
+    );
+    fixture.check_document_highlights(
+        "$4",
+        str![[r#"
+1:12-1:17 WRITE
+3:15-3:20 READ
+
+"#]],
+    );
+}
+
+#[test]
 fn waits_for_current_analysis_before_returning_highlights() {
     let project = TestProject::from_fixture(
         r#"
