@@ -4,10 +4,11 @@ use async_lsp::{ClientSocket, ErrorCode};
 use lsp_types::{
     CompletionItem, CompletionParams, CompletionResponse, DocumentHighlight, DocumentHighlightKind,
     DocumentHighlightParams, DocumentLink, DocumentLinkParams, Documentation, GotoDefinitionParams,
-    GotoDefinitionResponse, InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams, Location,
-    ParameterLabel, PartialResultParams, Position, PrepareRenameResponse, Range, ReferenceContext,
-    ReferenceParams, RenameParams, SignatureHelp, SignatureHelpParams, TextDocumentIdentifier,
-    TextDocumentPositionParams, Url, WorkDoneProgressParams, WorkspaceEdit,
+    GotoDefinitionResponse, Hover, HoverContents, HoverParams, InlayHint, InlayHintKind,
+    InlayHintLabel, InlayHintParams, Location, MarkupKind, ParameterLabel, PartialResultParams,
+    Position, PrepareRenameResponse, Range, ReferenceContext, ReferenceParams, RenameParams,
+    SignatureHelp, SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams, Url,
+    WorkDoneProgressParams, WorkspaceEdit,
 };
 use snapbox::{IntoData, assert_data_eq};
 use solar_config::CompileOpts;
@@ -169,6 +170,14 @@ impl RequestFixture {
         ))
         .unwrap();
         assert_data_eq!(document_highlight_output(response), expected);
+    }
+
+    pub(super) fn check_hover(&self, marker: &str, expected: impl IntoData) {
+        let mut state = self.state();
+        let (uri, position) = self.marker_location(marker);
+        let response =
+            expect_ready(crate::handlers::hover(&mut state, hover_params(uri, position))).unwrap();
+        assert_data_eq!(hover_output(response), expected);
     }
 
     pub(super) fn check_prepare_rename(&self, marker: &str, expected: impl IntoData) {
@@ -498,6 +507,23 @@ fn document_highlight_output(response: Option<Vec<DocumentHighlight>>) -> String
     output
 }
 
+fn hover_output(response: Option<Hover>) -> String {
+    let Some(hover) = response else { return "<none>\n".to_string() };
+    let range = hover.range.expect("hover response should include the current identifier range");
+    let HoverContents::Markup(contents) = hover.contents else {
+        panic!("hover response should contain markup");
+    };
+    assert_eq!(contents.kind, MarkupKind::Markdown);
+    format!(
+        "{}:{}-{}:{}\n{}\n",
+        range.start.line,
+        range.start.character,
+        range.end.line,
+        range.end.character,
+        contents.value,
+    )
+}
+
 fn document_highlight_kind(kind: Option<DocumentHighlightKind>) -> &'static str {
     match kind {
         Some(DocumentHighlightKind::TEXT) => "TEXT",
@@ -603,6 +629,13 @@ fn document_highlight_params(uri: Url, position: Position) -> DocumentHighlightP
         text_document_position_params: text_document_position(uri, position),
         work_done_progress_params: WorkDoneProgressParams::default(),
         partial_result_params: PartialResultParams::default(),
+    }
+}
+
+fn hover_params(uri: Url, position: Position) -> HoverParams {
+    HoverParams {
+        text_document_position_params: text_document_position(uri, position),
+        work_done_progress_params: WorkDoneProgressParams::default(),
     }
 }
 

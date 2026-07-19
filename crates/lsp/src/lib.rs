@@ -23,6 +23,7 @@ mod flycheck;
 mod formatter;
 mod global_state;
 mod handlers;
+mod hover;
 mod inlay_hints;
 mod proto;
 mod rename;
@@ -59,6 +60,7 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
         .request::<req::GotoDeclaration, _>(handlers::goto_declaration)
         .request::<req::References, _>(handlers::references)
         .request::<req::DocumentHighlightRequest, _>(handlers::document_highlight)
+        .request::<req::HoverRequest, _>(handlers::hover)
         .request::<req::PrepareRenameRequest, _>(handlers::prepare_rename)
         .request::<req::Rename, _>(handlers::rename)
         .request::<req::SignatureHelpRequest, _>(handlers::signature_help)
@@ -118,8 +120,8 @@ mod tests {
     use lsp_types::{
         DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
         DidSaveTextDocumentParams, DocumentFormattingParams, DocumentHighlightParams,
-        DocumentLinkParams, FileChangeType, FileEvent, FormattingOptions, InitializeParams,
-        InitializedParams, PartialResultParams, Position, SignatureHelpParams,
+        DocumentLinkParams, FileChangeType, FileEvent, FormattingOptions, HoverParams,
+        InitializeParams, InitializedParams, PartialResultParams, Position, SignatureHelpParams,
         TextDocumentIdentifier, TextDocumentPositionParams, WorkDoneProgressParams,
         WorkspaceClientCapabilities, notification as notif, notification::Notification, request,
         request::Request,
@@ -203,6 +205,30 @@ mod tests {
         let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
             "id": 1,
             "method": request::DocumentHighlightRequest::METHOD,
+            "params": params,
+        }))
+        .unwrap();
+
+        let response = router.call(request).await.unwrap();
+
+        assert_eq!(response, serde_json::Value::Null);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_hover_requests() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let params = HoverParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier {
+                    uri: lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
+                },
+                position: Position::new(0, 0),
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 1,
+            "method": request::HoverRequest::METHOD,
             "params": params,
         }))
         .unwrap();

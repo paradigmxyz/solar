@@ -1,7 +1,8 @@
 use lsp_types::{
     CompletionItem, CompletionItemKind, DocumentHighlight, DocumentHighlightKind, DocumentSymbol,
-    GotoDefinitionResponse, InlayHint, Location, OneOf, Position, Range, SymbolInformation,
-    SymbolKind, Url, WorkspaceSymbol, request::GotoTypeDefinitionResponse,
+    GotoDefinitionResponse, Hover, HoverContents, InlayHint, Location, MarkupContent, OneOf,
+    Position, Range, SymbolInformation, SymbolKind, Url, WorkspaceSymbol,
+    request::GotoTypeDefinitionResponse,
 };
 use solar_interface::{
     Span,
@@ -81,6 +82,7 @@ pub(crate) struct DeclarationSymbol {
     pub(crate) name_range: Range,
     pub(crate) parent: Option<SymbolId>,
     has_definition: bool,
+    hover: Option<MarkupContent>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -190,6 +192,7 @@ impl SymbolTables {
                     name_range: name_location.range,
                     parent: None,
                     has_definition: item_has_definition(gcx, item_id),
+                    hover: crate::hover::render(gcx, item_id),
                 },
             );
             item_symbols.insert(item_id, symbol_id);
@@ -508,6 +511,19 @@ impl SymbolTables {
         Some(highlights)
     }
 
+    pub(crate) fn hover(&self, uri: &Url, position: Position) -> Option<Hover> {
+        let (symbol_id, range) = if let Some(reference) = self.reference_at_position(uri, position)
+        {
+            let &[symbol_id] = reference.targets.as_slice() else { return None };
+            (symbol_id, reference.location.range)
+        } else {
+            let symbol_id = self.declaration_at_position(uri, position)?;
+            (symbol_id, self.declarations[symbol_id].name_range)
+        };
+        let contents = self.declarations[symbol_id].hover.clone()?;
+        Some(Hover { contents: HoverContents::Markup(contents), range: Some(range) })
+    }
+
     pub(crate) fn rename_candidate(
         &self,
         uri: &Url,
@@ -778,6 +794,7 @@ impl SymbolTables {
             name_range,
             parent,
             has_definition: true,
+            hover: None,
         });
         self.rebuild_indexes();
         pushed_id
