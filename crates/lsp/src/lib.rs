@@ -55,6 +55,7 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
         .request::<req::DocumentLinkRequest, _>(handlers::document_links)
         .request::<req::WorkspaceSymbolRequest, _>(handlers::workspace_symbol)
         .request::<req::GotoDefinition, _>(handlers::goto_definition)
+        .request::<req::GotoTypeDefinition, _>(handlers::goto_type_definition)
         .request::<req::GotoDeclaration, _>(handlers::goto_declaration)
         .request::<req::References, _>(handlers::references)
         .request::<req::PrepareRenameRequest, _>(handlers::prepare_rename)
@@ -200,6 +201,27 @@ mod tests {
         let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
             "id": 1,
             "method": request::SignatureHelpRequest::METHOD,
+            "params": params,
+        }))
+        .unwrap();
+
+        let response = router.call(request).await.unwrap();
+
+        assert_eq!(response, serde_json::Value::Null);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_type_definition_requests() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let params = TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier {
+                uri: lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
+            },
+            position: Position::new(0, 0),
+        };
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 1,
+            "method": request::GotoTypeDefinition::METHOD,
             "params": params,
         }))
         .unwrap();
