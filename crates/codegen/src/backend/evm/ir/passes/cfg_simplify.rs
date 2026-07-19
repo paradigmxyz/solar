@@ -154,8 +154,7 @@ fn coalesce_blocks(module: &mut Module) -> bool {
     }
 
     let mut removed = DenseBitSet::new_empty(module.blocks.len());
-    let blocks: Vec<_> = module.blocks.indices().collect();
-    for predecessor in blocks {
+    for predecessor in module.blocks.indices() {
         if removed.contains(predecessor) {
             continue;
         }
