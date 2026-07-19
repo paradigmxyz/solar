@@ -7,22 +7,13 @@ use crate::{
 use async_lsp::{ErrorCode, ResponseError};
 use crop::Rope;
 use lsp_types::{
-    CompletionParams, CompletionResponse, DocumentChanges, DocumentFormattingParams, DocumentLink,
-    DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams,
-    GotoDefinitionResponse, InlayHint, InlayHintParams, OneOf,
-    OptionalVersionedTextDocumentIdentifier, Position, PrepareRenameResponse, ReferenceParams,
-    RenameParams, SignatureHelp, SignatureHelpParams, TextDocumentEdit, TextDocumentPositionParams,
-    TextEdit, Url, WorkspaceEdit, WorkspaceSymbolParams, WorkspaceSymbolResponse,
-    request::GotoImplementationParams,
-};
-use lsp_types::{
     CompletionParams, CompletionResponse, DocumentChanges, DocumentFormattingParams,
     DocumentHighlight, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
     DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse,
     InlayHint, InlayHintParams, OneOf, OptionalVersionedTextDocumentIdentifier, Position,
     PrepareRenameResponse, ReferenceParams, RenameParams, SignatureHelp, SignatureHelpParams,
     TextDocumentEdit, TextDocumentPositionParams, TextEdit, Url, WorkspaceEdit,
-    WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    WorkspaceSymbolParams, WorkspaceSymbolResponse, request::GotoImplementationParams,
 };
 use solar_interface::{Symbol, data_structures::sync::RwLock, enter, source_map::SourceMap};
 use solar_parse::lexer::is_ident;

@@ -437,8 +437,9 @@ impl SymbolTables {
         uri: &Url,
         position: Position,
     ) -> Option<GotoDefinitionResponse> {
-        let reference_targets = self.rename.implementation_symbols_at(uri, position);
-        if reference_targets.as_ref().is_some_and(Vec::is_empty) {
+        let reference_targets =
+            self.rename.implementation_symbols_at(uri, position).map(ReferenceTargets::from_vec);
+        if reference_targets.as_ref().is_some_and(|targets| targets.is_empty()) {
             return None;
         }
         let symbol_ids = if let Some(symbol_id) = self.declaration_at_position(uri, position) {
