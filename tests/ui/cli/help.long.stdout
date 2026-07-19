@@ -23,7 +23,7 @@ Options:
           Number of threads to use. Zero specifies the number of logical cores
           
           [default: <DEFAULT>]
-          [aliases: --jobs]
+          [alias: --jobs]
 
       --evm-version <EVM_VERSION>
           EVM version
