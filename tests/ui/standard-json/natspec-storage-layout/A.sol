@@ -5,7 +5,7 @@ contract Base {
     /// @dev Base function
     /// @param x The input
     /// @return y The output
-    function f(uint x) public virtual returns (uint y) {
+    function f(uint x) public pure virtual returns (uint y) {
         return x;
     }
 }
@@ -21,7 +21,7 @@ contract A is Base layout at 10 {
     }
 
     /// @inheritdoc Base
-    function f(uint x) public override returns (uint y) {
+    function f(uint x) public pure override returns (uint y) {
         return x;
     }
 

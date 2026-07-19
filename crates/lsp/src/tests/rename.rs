@@ -842,7 +842,7 @@ fn resolves_overloads_and_shadowed_names_before_renaming() {
                 return $3pick(value);
             }
             uint256 $4value;
-            function read(uint256 $5value) public view returns (uint256) {
+            function read(uint256 $5value) public pure returns (uint256) {
                 return $6value;
             }
             function state() public view returns (uint256) {

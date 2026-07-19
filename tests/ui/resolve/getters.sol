@@ -8,7 +8,7 @@ contract C {
     mapping(string k1 => mapping(string k2 => bool v2)[] v1) public nestedArrayOfMaps;
     mapping(string k1 => mapping(string k2 => bool[] v2)[] v1) public nestedArrayOfMapsOfArrays;
 
-    function referenceNames() public {
+    function referenceNames() public view {
         simple;
         array;
         map;
@@ -19,7 +19,7 @@ contract C {
         nestedArrayOfMapsOfArrays;
     }
 
-    function referenceThis() public {
+    function referenceThis() public view {
         this.simple;
         this.array;
         this.map;
@@ -30,7 +30,7 @@ contract C {
         this.nestedArrayOfMapsOfArrays;
     }
 
-    function doCall() public {
+    function doCall() public view {
         bool x1 = this.simple();
         bool x2 = this.array(0);
         bool x3 = this.map("");

@@ -1,0 +1,20 @@
+error[4006]: this modifier uses `msg.value` or `callvalue()` and thus the constructor has to be payable
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/special_functions.sol:LL:CC
+   │
+LL │     constructor() readsValue {
+   │                   ━━━━━━━━━━
+   ╰╴
+note: `msg.value` or `callvalue()` appear here inside the modifier
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/special_functions.sol:LL:CC
+   │
+LL │         msg.value;
+   ╰╴        ━━━━━━━━━
+
+error[5887]: `msg.value` and `callvalue()` can only be used in payable public functions; make the function `payable` or use an internal function to avoid this error
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/special_functions.sol:LL:CC
+   │
+LL │         msg.value;
+   ╰╴        ━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

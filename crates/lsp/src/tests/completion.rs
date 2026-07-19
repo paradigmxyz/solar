@@ -9,7 +9,7 @@ fn completes_symbols_in_scope() {
         contract C {
             uint256 stateValue;
 
-            function target(uint256 input) public returns (uint256 output) {
+            function target(uint256 input) public view returns (uint256 output) {
                 uint256 localValue = input + stateValue;
                 output = $1localValue;
             }
