@@ -58,7 +58,7 @@ bb70:
   mstore
   push 50
   jump bb71
-bb71 [cold]:
+bb71:
   push 4
   mstore
   push 36

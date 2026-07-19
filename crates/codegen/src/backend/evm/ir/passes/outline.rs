@@ -44,7 +44,10 @@ fn outline_closed_computations(module: &mut Module) -> bool {
     }
 
     let mut groups: Vec<_> = candidates.into_iter().filter(|(_, sites)| sites.len() >= 2).collect();
-    groups.sort_by_key(|(key, _)| std::cmp::Reverse(key.len()));
+    groups.sort_unstable_by_key(|(key, sites)| {
+        let first = sites[0];
+        (std::cmp::Reverse(key.len()), first.block.index(), first.start)
+    });
     let mut claimed: Vec<_> = module
         .blocks
         .iter()

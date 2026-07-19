@@ -31,10 +31,7 @@ fn plan_merges(module: &Module) -> Vec<Merge> {
     let mut roots = FxHashMap::<TerminatorKind, usize>::default();
     let mut nodes = Vec::<SuffixNode>::new();
     let mut merges = Vec::new();
-    let mut blocks: Vec<_> = module.blocks.indices().collect();
-    blocks.sort_unstable_by_key(|&block| module.blocks[block].label);
-    for block_id in blocks {
-        let block = &module.blocks[block_id];
+    for (block_id, block) in module.blocks.iter_enumerated() {
         if !block.entry_stack.is_empty()
             || block.instructions.iter().any(|inst| inst.result.is_some())
         {
