@@ -151,7 +151,7 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
 
-            StmtKind::Placeholder | StmtKind::YulFunction(_) => {}
+            StmtKind::Placeholder => {}
 
             StmtKind::UncheckedBlock(block) => self.lower_unchecked_block(builder, block),
 

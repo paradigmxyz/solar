@@ -231,7 +231,6 @@ pub trait Visit<'hir> {
                     self.visit_stmt(stmt)?;
                 }
             }
-            StmtKind::YulFunction(_) => {}
             StmtKind::Emit(expr) => self.visit_expr(expr)?,
             StmtKind::Revert(expr) => self.visit_expr(expr)?,
             StmtKind::Return(expr) => {

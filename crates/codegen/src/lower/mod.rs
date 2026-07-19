@@ -1438,7 +1438,6 @@ impl<'gcx> Lowerer<'gcx> {
             StmtKind::AssemblyBlock(block) => self.collect_assigned_vars_block(block),
             StmtKind::DeclSingle(_)
             | StmtKind::DeclMulti(_, _)
-            | StmtKind::YulFunction(_)
             | StmtKind::Return(None)
             | StmtKind::Continue
             | StmtKind::Break

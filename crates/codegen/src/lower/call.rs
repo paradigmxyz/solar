@@ -2210,7 +2210,6 @@ impl<'gcx> Lowerer<'gcx> {
             }
             StmtKind::DeclMulti(_, init) => self.expr_collect_callees(init, callees),
             StmtKind::Return(None)
-            | StmtKind::YulFunction(_)
             | StmtKind::Continue
             | StmtKind::Break
             | StmtKind::Placeholder
@@ -2387,7 +2386,6 @@ impl<'gcx> Lowerer<'gcx> {
                 None
             }
             hir::StmtKind::Loop(..)
-            | hir::StmtKind::YulFunction(_)
             | hir::StmtKind::AssemblyBlock(_)
             | hir::StmtKind::Switch(_)
             | hir::StmtKind::Emit(_)

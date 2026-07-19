@@ -5,7 +5,7 @@ use crate::{
 };
 use rayon::prelude::*;
 use solar_ast::{DataLocation, StateMutability, Visibility};
-use solar_data_structures::{Never, map::FxBuildHasher};
+use solar_data_structures::{Never, bit_set::DenseBitSet, map::FxBuildHasher};
 use solar_interface::{
     Span,
     diagnostics::{Diag, Level},
@@ -39,7 +39,7 @@ struct MutabilityAndLocation {
 
 struct FunctionEffects {
     best: MutabilityAndLocation,
-    events: Vec<MutabilityAndLocation>,
+    yul_calls: Vec<hir::FunctionId>,
 }
 
 type FunctionCache = once_map::OnceMap<hir::FunctionId, Arc<FunctionEffects>, FxBuildHasher>;
@@ -49,7 +49,8 @@ struct ViewPureChecker<'gcx, 'a> {
     current_function: Option<&'gcx hir::Function<'gcx>>,
     best: MutabilityAndLocation,
     function_effects: &'a FunctionCache,
-    inferred_events: Vec<MutabilityAndLocation>,
+    inferred_yul_calls: Vec<hir::FunctionId>,
+    visited_yul_functions: Option<DenseBitSet<hir::FunctionId>>,
     writing: bool,
     diagnostics: Vec<Diag>,
 }
@@ -64,7 +65,8 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
                 location: Span::DUMMY,
             },
             function_effects,
-            inferred_events: Vec::new(),
+            inferred_yul_calls: Vec::new(),
+            visited_yul_functions: None,
             writing: false,
             diagnostics: Vec::new(),
         }
@@ -74,7 +76,7 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
         self.best =
             MutabilityAndLocation { mutability: StateMutability::Pure, location: function.span };
         let _ = self.visit_function(function);
-        FunctionEffects { best: self.best, events: self.inferred_events }
+        FunctionEffects { best: self.best, yul_calls: self.inferred_yul_calls }
     }
 
     fn function_effects(&self, id: hir::FunctionId) -> Arc<FunctionEffects> {
@@ -90,11 +92,30 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
         )
     }
 
-    fn report_function_effects(&mut self, id: hir::FunctionId) {
-        let effects = self.function_effects(id);
-        for &effect in &effects.events {
-            self.report(effect.mutability, effect.location, None);
+    fn function_mutability(&self, id: hir::FunctionId) -> MutabilityAndLocation {
+        let mut visited = DenseBitSet::new_empty(self.gcx.hir.function_ids().len());
+        let mut stack = vec![id];
+        let mut best = MutabilityAndLocation {
+            mutability: StateMutability::Pure,
+            location: self.gcx.hir.function(id).span,
+        };
+        while let Some(id) = stack.pop() {
+            if visited.insert(id) {
+                let effects = self.function_effects(id);
+                if mutability_rank(effects.best.mutability) > mutability_rank(best.mutability) {
+                    best = effects.best;
+                }
+                stack.extend(effects.yul_calls.iter().rev());
+            }
         }
+        best
+    }
+
+    fn mark_yul_function_visited(&mut self, id: hir::FunctionId) -> bool {
+        let function_count = self.gcx.hir.function_ids().len();
+        self.visited_yul_functions
+            .get_or_insert_with(|| DenseBitSet::new_empty(function_count))
+            .insert(id)
     }
 
     fn check_function(mut self, function: &'gcx hir::Function<'gcx>) -> Vec<Diag> {
@@ -146,7 +167,15 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
             .resolved_callee(callee.id)
             .and_then(|callee| callee.res.as_function())
             .filter(|&id| self.gcx.hir.function(id).is_yul);
-        if yul_function.is_some() {
+        if let Some(id) = yul_function {
+            if self.current_function.is_some() {
+                if self.mark_yul_function_visited(id) {
+                    let inferred = self.function_mutability(id);
+                    self.report(inferred.mutability, expr.span, None);
+                }
+            } else {
+                self.inferred_yul_calls.push(id);
+            }
             return;
         }
         if let Some(builtin) = self.gcx.builtin_callee(callee.id) {
@@ -275,9 +304,6 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
         location: Span,
         nested_location: Option<Span>,
     ) {
-        if self.current_function.is_none() && mutability != StateMutability::Pure {
-            self.inferred_events.push(MutabilityAndLocation { mutability, location });
-        }
         if mutability_rank(mutability) > mutability_rank(self.best.mutability) {
             self.best = MutabilityAndLocation { mutability, location };
         }
@@ -375,7 +401,7 @@ impl<'gcx, 'a> Visit<'gcx> for ViewPureChecker<'gcx, 'a> {
     ) -> ControlFlow<Self::BreakValue> {
         self.walk_modifier(modifier)?;
         if let ItemId::Function(id) = modifier.id {
-            let inferred = self.function_effects(id).best;
+            let inferred = self.function_mutability(id);
             self.report(inferred.mutability, modifier.span, Some(inferred.location));
         }
         ControlFlow::Continue(())
@@ -389,10 +415,6 @@ impl<'gcx, 'a> Visit<'gcx> for ViewPureChecker<'gcx, 'a> {
     }
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
-        if let StmtKind::YulFunction(id) = stmt.kind {
-            self.report_function_effects(id);
-            return ControlFlow::Continue(());
-        }
         self.walk_stmt(stmt)?;
         if let StmtKind::Emit(expr) = stmt.kind {
             let ExprKind::Call(callee, ref args, _) = expr.kind else { unreachable!() };
