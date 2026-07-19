@@ -1,7 +1,7 @@
 use crate::{
     formatter::{self, FormatterError},
     global_state::GlobalState,
-    symbols::CompletionContext,
+    symbols::{CompletionContext, SymbolTables},
     vfs::{Vfs, VfsPath},
 };
 use async_lsp::{ErrorCode, ResponseError};
@@ -15,7 +15,7 @@ use lsp_types::{
     TextDocumentEdit, TextDocumentPositionParams, TextEdit, Url, WorkspaceEdit,
     WorkspaceSymbolParams, WorkspaceSymbolResponse, request::GotoImplementationParams,
 };
-use solar_interface::{Symbol, data_structures::sync::RwLock, enter, source_map::SourceMap};
+use solar_interface::{data_structures::sync::RwLock, source_map::SourceMap};
 use solar_parse::lexer::is_ident;
 use std::{collections::HashMap, future::ready, io, path::Path, sync::Arc};
 use tracing::warn;
@@ -121,6 +121,14 @@ fn request_failed(message: &'static str) -> ResponseError {
     ResponseError::new(ErrorCode::REQUEST_FAILED, message)
 }
 
+fn latest_analysis_for_uri(
+    state: &GlobalState,
+    uri: &Url,
+) -> Option<impl Future<Output = Result<Arc<RwLock<SymbolTables>>, ResponseError>> + use<>> {
+    crate::proto::vfs_path(uri)?;
+    Some(state.latest_analysis())
+}
+
 fn formatting_edits(source: &str, formatted: String) -> Option<Vec<TextEdit>> {
     if source == formatted {
         return None;
@@ -159,29 +167,38 @@ pub(crate) fn document_symbol(
     state: &mut GlobalState,
     params: DocumentSymbolParams,
 ) -> impl Future<Output = Result<Option<DocumentSymbolResponse>, ResponseError>> + use<> {
-    let symbol_tables = state.symbol_tables.read();
-    let response = if state.config.supports_hierarchical_document_symbols() {
-        DocumentSymbolResponse::Nested(symbol_tables.document_symbols(&params.text_document.uri))
-    } else {
-        DocumentSymbolResponse::Flat(symbol_tables.flat_document_symbols(&params.text_document.uri))
-    };
-    ready(Ok(Some(response)))
+    let hierarchical = state.config.supports_hierarchical_document_symbols();
+    let uri = params.text_document.uri;
+    let latest_analysis = latest_analysis_for_uri(state, &uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else {
+            let response = if hierarchical {
+                DocumentSymbolResponse::Nested(Vec::new())
+            } else {
+                DocumentSymbolResponse::Flat(Vec::new())
+            };
+            return Ok(Some(response));
+        };
+        let symbol_tables = latest_analysis.await?;
+        let response = if hierarchical {
+            DocumentSymbolResponse::Nested(symbol_tables.read().document_symbols(&uri))
+        } else {
+            DocumentSymbolResponse::Flat(symbol_tables.read().flat_document_symbols(&uri))
+        };
+        Ok(Some(response))
+    }
 }
 
 pub(crate) fn document_links(
     state: &mut GlobalState,
     params: DocumentLinkParams,
 ) -> impl Future<Output = Result<Option<Vec<DocumentLink>>, ResponseError>> + use<> {
-    let symbol_tables = state.symbol_tables.clone();
-    let (version, mut published) = state.current_analysis();
-    let path = params.text_document.uri.to_file_path().ok();
+    let request =
+        params.text_document.uri.to_file_path().ok().map(|path| (path, state.latest_analysis()));
     async move {
-        published
-            .wait_for(|published| *published >= version)
-            .await
-            .map_err(|_| request_failed("analysis was cancelled"))?;
-        let links =
-            path.as_ref().map_or_else(Vec::new, |path| symbol_tables.read().document_links(path));
+        let Some((path, latest_analysis)) = request else { return Ok(Some(Vec::new())) };
+        let symbol_tables = latest_analysis.await?;
+        let links = symbol_tables.read().document_links(&path);
         Ok(Some(links))
     }
 }
@@ -199,23 +216,25 @@ pub(crate) fn goto_definition(
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
     let params = params.text_document_position_params;
-    let response =
-        state.symbol_tables.read().goto_definition(&params.text_document.uri, params.position);
-    ready(Ok(response))
+    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response =
+            symbol_tables.read().goto_definition(&params.text_document.uri, params.position);
+        Ok(response)
+    }
 }
 
 pub(crate) fn goto_type_definition(
     state: &mut GlobalState,
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
-    let symbol_tables = state.symbol_tables.clone();
-    let (version, mut published) = state.current_analysis();
     let params = params.text_document_position_params;
+    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
     async move {
-        published
-            .wait_for(|published| *published >= version)
-            .await
-            .map_err(|_| request_failed("analysis was cancelled"))?;
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
         let response =
             symbol_tables.read().goto_type_definition(&params.text_document.uri, params.position);
         Ok(response)
@@ -227,9 +246,14 @@ pub(crate) fn goto_declaration(
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
     let params = params.text_document_position_params;
-    let response =
-        state.symbol_tables.read().goto_declaration(&params.text_document.uri, params.position);
-    ready(Ok(response))
+    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response =
+            symbol_tables.read().goto_declaration(&params.text_document.uri, params.position);
+        Ok(response)
+    }
 }
 
 pub(crate) fn goto_implementation(
@@ -248,26 +272,28 @@ pub(crate) fn references(
 ) -> impl Future<Output = Result<Option<Vec<lsp_types::Location>>, ResponseError>> + use<> {
     let include_declaration = params.context.include_declaration;
     let params = params.text_document_position;
-    let response = state.symbol_tables.read().references(
-        &params.text_document.uri,
-        params.position,
-        include_declaration,
-    );
-    ready(Ok(response))
+    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response = symbol_tables.read().references(
+            &params.text_document.uri,
+            params.position,
+            include_declaration,
+        );
+        Ok(response)
+    }
 }
 
 pub(crate) fn document_highlight(
     state: &mut GlobalState,
     params: DocumentHighlightParams,
 ) -> impl Future<Output = Result<Option<Vec<DocumentHighlight>>, ResponseError>> + use<> {
-    let symbol_tables = state.symbol_tables.clone();
-    let (version, mut published) = state.current_analysis();
     let params = params.text_document_position_params;
+    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
     async move {
-        published
-            .wait_for(|published| *published >= version)
-            .await
-            .map_err(|_| request_failed("analysis was cancelled"))?;
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
         let response =
             symbol_tables.read().document_highlights(&params.text_document.uri, params.position);
         Ok(response)
@@ -278,45 +304,56 @@ pub(crate) fn prepare_rename(
     state: &mut GlobalState,
     params: TextDocumentPositionParams,
 ) -> impl Future<Output = Result<Option<PrepareRenameResponse>, ResponseError>> + use<> {
-    let response = state
-        .symbol_tables
-        .read()
-        .rename_candidate(&params.text_document.uri, params.position)
-        .map(|candidate| PrepareRenameResponse::Range(candidate.range));
-    ready(Ok(response))
+    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response = symbol_tables
+            .read()
+            .rename_candidate(&params.text_document.uri, params.position)
+            .map(|candidate| PrepareRenameResponse::Range(candidate.range));
+        Ok(response)
+    }
 }
 
 pub(crate) fn rename(
     state: &mut GlobalState,
     params: RenameParams,
 ) -> impl Future<Output = Result<Option<WorkspaceEdit>, ResponseError>> + use<> {
-    let params_position = params.text_document_position;
-    let candidate = state
-        .symbol_tables
-        .read()
-        .rename_candidate(&params_position.text_document.uri, params_position.position);
+    let RenameParams { text_document_position: params_position, new_name, .. } = params;
+    let (invalid_name, invalid_yul_name) = if is_ident(&new_name) {
+        let name = state.sess.intern(&new_name);
+        (name.is_reserved(false), name.is_reserved(true))
+    } else {
+        (true, true)
+    };
+    let latest_analysis = if invalid_name {
+        None
+    } else {
+        latest_analysis_for_uri(state, &params_position.text_document.uri)
+    };
     let vfs = state.vfs.clone();
     let document_changes = state.config.supports_workspace_edit_document_changes();
     async move {
-        if !is_ident(&params.new_name)
-            || enter(|| {
-                let name = Symbol::intern(&params.new_name);
-                name.is_reserved(false)
-                    || candidate.as_ref().is_some_and(|candidate| {
-                        candidate.requires_yul_validation && name.is_reserved(true)
-                    })
-            })
-        {
+        if invalid_name {
             return Err(ResponseError::new(ErrorCode::INVALID_PARAMS, "invalid rename name"));
         }
 
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let candidate = symbol_tables
+            .read()
+            .rename_candidate(&params_position.text_document.uri, params_position.position);
         let Some(candidate) = candidate else { return Ok(None) };
-        if candidate.old_name == params.new_name {
+        if candidate.requires_yul_validation && invalid_yul_name {
+            return Err(ResponseError::new(ErrorCode::INVALID_PARAMS, "invalid rename name"));
+        }
+        if candidate.old_name == new_name {
             return Ok(None);
         }
 
         tokio::task::spawn_blocking(move || {
-            validated_workspace_edit(candidate, params.new_name, vfs, document_changes)
+            validated_workspace_edit(candidate, new_name, vfs, document_changes)
         })
         .await
         .map_err(|error| {
@@ -435,8 +472,13 @@ pub(crate) fn inlay_hints(
     state: &mut GlobalState,
     params: InlayHintParams,
 ) -> impl Future<Output = Result<Option<Vec<InlayHint>>, ResponseError>> + use<> {
-    let response = state.symbol_tables.read().inlay_hints(&params.text_document.uri, params.range);
-    ready(Ok(Some(response)))
+    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(Some(Vec::new())) };
+        let symbol_tables = latest_analysis.await?;
+        let response = symbol_tables.read().inlay_hints(&params.text_document.uri, params.range);
+        Ok(Some(response))
+    }
 }
 
 pub(crate) fn signature_help(
