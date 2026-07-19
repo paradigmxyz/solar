@@ -86,12 +86,13 @@ pub(crate) fn run_pipeline(
 
     // Code generation (MIR, EVM IR, and bytecode) is experimental and not part of the
     // stable, solc-compatible pipeline yet, so it is gated behind `-Zcodegen`.
-    let needs_codegen = sess.opts.emit.iter().any(|e| e.is_codegen());
+    let needs_codegen = sess.opts.emit.iter().any(|e| e.is_codegen())
+        || sess.opts.unstable.dump.as_ref().is_some_and(|dump| dump.kind.is_codegen());
     if needs_codegen && !sess.opts.unstable.codegen {
         return Err(sess
             .dcx
             .err("code generation is experimental")
-            .help("pass `-Zcodegen` to emit MIR, EVM IR, or bytecode")
+            .help("pass `-Zcodegen` to emit or dump MIR, EVM IR, or bytecode")
             .emit());
     }
 

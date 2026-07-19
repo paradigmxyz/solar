@@ -186,4 +186,24 @@ impl Module {
             )
         })
     }
+
+    /// Returns this module's DOT-format CFGs.
+    pub fn to_dot(&self) -> impl fmt::Display + '_ {
+        fmt::from_fn(move |f| {
+            write!(
+                f,
+                "{}",
+                self.functions
+                    .iter()
+                    .map(|func| super::display::display_function_dot(func, Some(&self.functions)))
+                    .format("\n\n")
+            )
+        })
+    }
+}
+
+impl fmt::Display for Module {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.to_text())
+    }
 }

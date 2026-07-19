@@ -232,6 +232,17 @@ str_enum! {
         Ast,
         /// Print the HIR.
         Hir,
+        /// Print textual MIR.
+        Mir,
+        /// Print MIR CFGs in DOT format.
+        MirCfg,
+    }
+}
+
+impl DumpKind {
+    /// Returns whether this dump requires MIR/codegen lowering.
+    pub fn is_codegen(self) -> bool {
+        matches!(self, Self::Mir | Self::MirCfg)
     }
 }
 
