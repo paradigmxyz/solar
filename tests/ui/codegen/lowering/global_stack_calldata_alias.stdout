@@ -103,11 +103,11 @@ bb5:
   mload
   dup1
   push 224
-  jump bb28
-bb28:
+  jump bb26
+bb26:
   mstore
-  jump bb29
-bb29:
+  jump bb25
+bb25:
   push 128
   mstore
   push 32
@@ -140,7 +140,7 @@ bb9:
   mload
   dup1
   push 160
-  jump bb28
+  jump bb26
 bb13:
   push 2
   dup3
@@ -168,7 +168,7 @@ bb13:
   mload
   dup1
   push 192
-  jump bb28
+  jump bb26
 bb18:
   push 4
   dup2
@@ -201,12 +201,12 @@ bb18:
   mload
   dup1
   push 256
-  jump bb28
+  jump bb26
 bb21:
   push 5
   swap1
   sub
-  push bb29
+  push bb25
   jumpi
   push 5
   dup2
@@ -229,4 +229,4 @@ bb21:
   mload
   dup1
   push 288
-  jump bb28
+  jump bb26

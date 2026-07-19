@@ -153,9 +153,9 @@ bb9:
   slt
   push bb8
   jumpi
-  push bb43
-  jump bb42
-bb42:
+  push bb38
+  jump bb37
+bb37:
   push 0
   push 128
   mstore
@@ -172,8 +172,8 @@ bb13 [cold]:
   mstore
   push 0x3339
   push 240
-  jump bb41
-bb41 [cold]:
+  jump bb36
+bb36 [cold]:
   shl
   push 320
   mstore
@@ -206,17 +206,15 @@ bb14:
   slt
   push bb8
   jumpi
-  push bb44
-  jump bb42
+  push bb39
+  jump bb37
 bb18 [cold]:
   push 11
   push 288
   mstore
   push 0x6c69746572616c206d7367
-  jump bb39
-bb39 [cold]:
   push 168
-  jump bb41
+  jump bb36
 bb19:
   calldatasize
   push 4
@@ -227,15 +225,15 @@ bb19:
   slt
   push bb8
   jumpi
-  push bb45
-  jump bb42
+  push bb40
+  jump bb37
 bb23 [cold]:
   push 15
   push 288
   mstore
   push 0x6c6f63616c2d636f6e73742d6d7367
   push 136
-  jump bb41
+  jump bb36
 bb24:
   calldatasize
   push 4
@@ -246,8 +244,8 @@ bb24:
   slt
   push bb8
   jumpi
-  push bb46
-  jump bb42
+  push bb41
+  jump bb37
 bb29:
   calldatasize
   push 4
@@ -258,18 +256,19 @@ bb29:
   slt
   push bb8
   jumpi
-  push bb47
-  jump bb42
+  push bb42
+  jump bb37
 bb33 [cold]:
   push 11
   push 288
   mstore
   push 0x7265766572742d70617468
-  jump bb39
-bb43:
-  push bb13
-  jump bb38
+  push 168
+  jump bb36
 bb38:
+  push bb13
+  jump bb35
+bb35:
   jumpi
   push 4
   calldataload
@@ -278,18 +277,18 @@ bb38:
   push 32
   push 128
   return
-bb44:
+bb39:
   push bb18
-  jump bb38
-bb45:
+  jump bb35
+bb40:
   push bb23
-  jump bb38
-bb46:
+  jump bb35
+bb41:
   push bb28
-  jump bb38
-bb47:
+  jump bb35
+bb42:
   push bb33
-  jump bb38
+  jump bb35
 bb28 [cold]:
   push 64
   mload

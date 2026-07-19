@@ -62,8 +62,8 @@ bb7:
   push bb11
   jumpi
   push 11
-  jump bb50
-bb50:
+  jump bb48
+bb48:
   push 0
   mstore
   push 0
@@ -101,7 +101,7 @@ bb49:
   return
 bb11:
   push 7
-  jump bb50
+  jump bb48
 bb16:
   push 1
   push 352

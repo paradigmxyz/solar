@@ -47,8 +47,8 @@ bb40:
   push 0
   mstore
   push 17
-  jump bb44
-bb44 [cold]:
+  jump bb42
+bb42 [cold]:
   push 4
   mstore
   push 36
@@ -61,12 +61,12 @@ bb39:
   push 0
   mstore
   push 65
-  jump bb44
+  jump bb42
 bb8:
   push 0
   sload
-  jump bb45
-bb45:
+  jump bb41
+bb41:
   push 128
   mstore
   push 32
@@ -181,10 +181,8 @@ bb14:
   mload
   dup1
   push 416
-  jump bb41
-bb41:
   mstore
-  jump bb45
+  jump bb41
 bb16:
   push 192
   mload
@@ -366,7 +364,7 @@ bb22:
   push 224
   mstore
   mload
-  jump bb45
+  jump bb41
 bb27:
   calldatasize
   push 4
@@ -714,6 +712,7 @@ bb27:
   mload
   dup1
   push 512
+  mstore
   jump bb41
 bb20 [cold]:
   push 0x4e487b71
@@ -723,4 +722,4 @@ bb20 [cold]:
   mstore
   pop
   push 50
-  jump bb44
+  jump bb42

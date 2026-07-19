@@ -57,8 +57,8 @@ bb70:
   push 0
   mstore
   push 50
-  jump bb74
-bb74:
+  jump bb71
+bb71 [cold]:
   push 4
   mstore
   push 36
@@ -71,7 +71,7 @@ bb24 [cold]:
   push 0
   mstore
   push 17
-  jump bb74
+  jump bb71
 bb10:
   calldatasize
   push 4
@@ -1578,7 +1578,7 @@ bb23 [cold]:
   pop
   pop
   push 65
-  jump bb74
+  jump bb71
 bb35 [cold]:
   push 0x4e487b71
   push 224
@@ -1586,4 +1586,4 @@ bb35 [cold]:
   push 0
   mstore
   push 49
-  jump bb74
+  jump bb71
