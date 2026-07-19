@@ -2,7 +2,7 @@
 //@ filecheck: --check-prefix=DOT
 
 contract DumpCfg {
-    function f(uint x) public returns (uint) {
+    function f(uint x) public pure returns (uint) {
         // DOT: // === ROOT/tests/ui/codegen/mir/dump_cfg.sol:DumpCfg ===
         // DOT: digraph "f" {
         // DOT: node [shape=box
