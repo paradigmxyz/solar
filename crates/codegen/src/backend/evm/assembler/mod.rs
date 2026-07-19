@@ -910,20 +910,19 @@ STOP
 
         let result = asm.assemble();
 
-        assert_eq!(
-            result.bytecode,
-            [
-                op::JUMPDEST,
-                op::PUSH1,
-                1,
-                op::PUSH1,
-                8,
-                op::JUMPI,
-                op::PUSH0,
-                op::JUMP,
-                op::JUMPDEST,
-                op::STOP,
-            ]
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+JUMPDEST
+PUSH1 0x01
+PUSH1 0x08
+JUMPI
+PUSH0
+JUMP
+JUMPDEST
+STOP
+
+"#]]
         );
     }
 
@@ -940,18 +939,34 @@ STOP
         asm.emit_push_label(first);
         asm.define_label(first);
         asm.emit_push_label(second);
-        for _ in 0..251 {
-            asm.emit_op(op::PC);
+        for _ in 0..7 {
+            asm.emit_push(U256::MAX);
         }
+        asm.emit_push(U256::from(1) << 144);
         asm.define_label(second);
         asm.emit_op(op::STOP);
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode[0], op::PUSH1);
-        assert_eq!(result.bytecode[1], 2);
-        assert_eq!(result.bytecode[3], op::PUSH2);
-        assert_eq!(&result.bytecode[4..6], &[1, 1]);
+        assert_data_eq!(
+            disassemble(&result.bytecode),
+            str![[r#"
+PUSH1 0x02
+JUMPDEST
+PUSH2 0x0101
+PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+PUSH19 0x01000000000000000000000000000000000000
+JUMPDEST
+STOP
+
+"#]]
+        );
     }
 
     #[test]

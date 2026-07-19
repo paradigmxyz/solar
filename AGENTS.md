@@ -143,6 +143,8 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
   file when moving or adding tests.
 - Do not add Rust unit tests that execute whole optimization passes; they make
   pass APIs harder to refactor. Use unit tests only for small pure helpers.
+- In Rust tests that assert generated EVM bytecode, disassemble it and snapshot
+  the opcode text; do not compare raw byte arrays or individual byte offsets.
 - Validate pass output with MIR snapshots or FileCheck-style UI expectations,
   then add runtime or differential tests when behavior can affect bytecode
   execution.
