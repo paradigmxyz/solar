@@ -1,8 +1,0 @@
-warning[2018]: function state mutability can be restricted to pure
-   ╭▸ ROOT/tests/ui/codegen/lowering/internal_call_fallbacks.sol:LL:CC
-   │
-LL │ ┏     function pair(uint256 x) internal returns (uint256, uint256) {
-LL │ ┃         return (x, x + 1);
-LL │ ┃     }
-   ╰╴┗━━━━━┛
-

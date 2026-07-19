@@ -1,8 +1,0 @@
-warning[2018]: function state mutability can be restricted to pure
-   ╭▸ ROOT/tests/ui/overrides/bare_int_aliases.sol:LL:CC
-   │
-LL │ ┏     function f(int256 value) public override returns (int256) {
-LL │ ┃         return value;
-LL │ ┃     }
-   ╰╴┗━━━━━┛
-

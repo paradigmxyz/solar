@@ -1,9 +1,0 @@
-warning[2018]: function state mutability can be restricted to pure
-   ╭▸ ROOT/tests/ui/resolve/import_self.sol:LL:CC
-   │
-LL │ ┏     function f() external {
-LL │ ┃         self1.self2.self2.self1.self2.S memory s;
-LL │ ┃         S2 memory s2;
-LL │ ┃     }
-   ╰╴┗━━━━━┛
-

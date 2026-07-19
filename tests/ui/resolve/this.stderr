@@ -1,8 +1,0 @@
-warning[2018]: function state mutability can be restricted to view
-   ╭▸ ROOT/tests/ui/resolve/this.sol:LL:CC
-   │
-LL │ ┏     function f() public returns(uint y) {
-LL │ ┃         y = this.x();
-LL │ ┃     }
-   ╰╴┗━━━━━┛
-

@@ -1,8 +1,0 @@
-warning[2018]: function state mutability can be restricted to pure
-   ╭▸ ROOT/tests/ui/resolve/call_args.sol:LL:CC
-   │
-LL │ ┏     function f(Custom memory custom) public returns (int256) {
-LL │ ┃         return custom.f1;
-LL │ ┃     }
-   ╰╴┗━━━━━┛
-
