@@ -4,8 +4,8 @@ This file tracks intentional, user-visible differences from `solc`. The baseline
 the `solc` version checked into `testdata/solidity`, unless an entry names a
 different upstream version.
 
-The goal is not to list every missing feature. A divergence belongs here when the
-compiler deliberately accepts, rejects, warns, or reports source locations
+The goal is not to list every missing feature. A divergence belongs here when
+`solar` deliberately accepts, rejects, warns, or reports source locations
 differently from `solc`. Each entry should state the phase, the behavior
 difference, why we keep it, and the tests or issue that cover it.
 
@@ -43,8 +43,8 @@ No intentional divergences documented yet.
 Status: intentional.
 
 Difference: `solc` checks inline-assembly Yul function bodies at their definition
-site during view/pure checking, including bodies that are never called. The
-compiler only propagates Yul function effects through Yul call expressions.
+site during view/pure checking, including bodies that are never called. `solar`
+only propagates Yul function effects through Yul call expressions.
 Uncalled Yul function bodies do not affect view/pure diagnostics or mutability
 restriction suggestions.
 
