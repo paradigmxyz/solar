@@ -261,9 +261,14 @@ pub(crate) fn goto_implementation(
     params: GotoImplementationParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
     let params = params.text_document_position_params;
-    let response =
-        state.symbol_tables.read().goto_implementation(&params.text_document.uri, params.position);
-    ready(Ok(response))
+    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response =
+            symbol_tables.read().goto_implementation(&params.text_document.uri, params.position);
+        Ok(response)
+    }
 }
 
 pub(crate) fn references(
