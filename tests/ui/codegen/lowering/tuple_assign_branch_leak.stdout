@@ -261,7 +261,7 @@ bb18:
   push bb17
   jumpi
   jump bb26
-bb26:
+bb26 [cold]:
   push 0x4e487b71
   push 224
   shl

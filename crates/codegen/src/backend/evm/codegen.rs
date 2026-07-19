@@ -946,7 +946,8 @@ impl EvmCodegen {
             let call_graph = CallGraphInfo::new(module);
             let internal_targets = call_graph.reachable_bodies_from(std::iter::once(ctor_id));
             for func_id in &internal_targets {
-                self.function_labels.insert(func_id, self.asm.new_label());
+                let label = self.new_function_label(func_id);
+                self.function_labels.insert(func_id, label);
             }
 
             // Constructor spill slots are absolute addresses starting at
@@ -1160,7 +1161,7 @@ impl EvmCodegen {
             let needs_body = Self::is_external_entry(func)
                 || (Self::has_body(func) && internal_targets.contains(func_id));
             if needs_body {
-                let label = self.asm.new_label();
+                let label = self.new_function_label(func_id);
                 self.function_labels.insert(func_id, label);
             }
         }
@@ -1259,7 +1260,7 @@ impl EvmCodegen {
             let external = Self::is_external_entry(func);
             let needs_body =
                 external || (Self::has_body(func) && internal_targets.contains(func_id));
-            let label = needs_body.then(|| self.asm.new_label());
+            let label = needs_body.then(|| self.new_function_label(func_id));
             if let Some(label) = label {
                 self.function_labels.insert(func_id, label);
             }
@@ -1931,6 +1932,14 @@ impl EvmCodegen {
 
     fn block_is_cold(&self, block_id: BlockId) -> bool {
         self.cold_blocks.contains(block_id)
+    }
+
+    fn new_function_label(&mut self, function: FunctionId) -> Label {
+        let label = self.asm.new_label();
+        if self.cold_functions.contains(function) {
+            self.asm.mark_label_cold(label);
+        }
+        label
     }
 
     fn block_layout_order(&self, func: &Function) -> Vec<BlockId> {

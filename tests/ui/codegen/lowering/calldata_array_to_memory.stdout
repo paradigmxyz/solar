@@ -40,7 +40,7 @@ bb7 [cold]:
   push 0
   dup1
   revert
-bb40:
+bb40 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -48,13 +48,13 @@ bb40:
   mstore
   push 17
   jump bb41
-bb41:
+bb41 [cold]:
   push 4
   mstore
   push 36
   push 0
   revert
-bb39:
+bb39 [cold]:
   push 0x4e487b71
   push 224
   shl

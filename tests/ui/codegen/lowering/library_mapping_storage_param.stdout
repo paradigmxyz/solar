@@ -119,7 +119,7 @@ bb4 [cold]:
   push 0
   dup1
   revert
-bb14:
+bb14 [cold]:
   push 0x4e487b71
   push 224
   shl

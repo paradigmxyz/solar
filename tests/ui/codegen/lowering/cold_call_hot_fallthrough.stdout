@@ -100,7 +100,7 @@ bb28 [cold]:
   push 232
   shl
   jump bb25
-bb25:
+bb25 [cold]:
   push 416
   mstore
   push 384

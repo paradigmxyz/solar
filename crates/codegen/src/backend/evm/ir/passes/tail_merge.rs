@@ -2,7 +2,7 @@
 
 use super::utils::is_evm_terminal;
 use crate::backend::evm::ir::{
-    Block, BlockId, Instruction, Module, Operand, Terminator, TerminatorKind,
+    Block, BlockId, Hotness, Instruction, Module, Operand, Terminator, TerminatorKind,
 };
 use solar_data_structures::map::FxHashMap;
 
@@ -106,6 +106,12 @@ fn apply_merges(module: &mut Module, merges: Vec<Merge>, next_label: &mut u32) {
         let instructions = representative.instructions.clone();
         let terminator = representative.terminator.clone();
         let metadata = representative.metadata;
+        let max_hot_common = group
+            .sites
+            .iter()
+            .filter(|&&(block, _)| !module.blocks[block].metadata.hotness.is_cold())
+            .map(|&(_, common)| common)
+            .max();
         let mut commons: Vec<_> = group.sites.iter().map(|&(_, common)| common).collect();
         commons.sort_unstable();
         commons.dedup();
@@ -117,6 +123,11 @@ fn apply_merges(module: &mut Module, merges: Vec<Merge>, next_label: &mut u32) {
             let mut tail = Block::new(*next_label);
             *next_label = next_label.checked_add(1).expect("EVM IR block label overflow");
             tail.metadata = metadata;
+            if !metadata.hotness.is_cold()
+                || max_hot_common.is_some_and(|hot_common| common <= hot_common)
+            {
+                tail.metadata.hotness = Hotness::Hot;
+            }
             tail.instructions = instructions
                 [instructions.len() - common..instructions.len() - previous_common]
                 .to_vec();

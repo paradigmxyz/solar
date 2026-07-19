@@ -30,7 +30,7 @@ bb5 [cold]:
   push 0
   dup1
   revert
-bb19:
+bb19 [cold]:
   push 0x4e487b71
   push 224
   shl
