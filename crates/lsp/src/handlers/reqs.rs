@@ -7,12 +7,13 @@ use crate::{
 use async_lsp::{ErrorCode, ResponseError};
 use crop::Rope;
 use lsp_types::{
-    CompletionParams, CompletionResponse, DocumentChanges, DocumentFormattingParams, DocumentLink,
-    DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams,
-    GotoDefinitionResponse, InlayHint, InlayHintParams, OneOf,
-    OptionalVersionedTextDocumentIdentifier, Position, PrepareRenameResponse, ReferenceParams,
-    RenameParams, SignatureHelp, SignatureHelpParams, TextDocumentEdit, TextDocumentPositionParams,
-    TextEdit, Url, WorkspaceEdit, WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    CompletionParams, CompletionResponse, DocumentChanges, DocumentFormattingParams,
+    DocumentHighlight, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
+    DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse,
+    InlayHint, InlayHintParams, OneOf, OptionalVersionedTextDocumentIdentifier, Position,
+    PrepareRenameResponse, ReferenceParams, RenameParams, SignatureHelp, SignatureHelpParams,
+    TextDocumentEdit, TextDocumentPositionParams, TextEdit, Url, WorkspaceEdit,
+    WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
 use solar_interface::{Symbol, data_structures::sync::RwLock, enter, source_map::SourceMap};
 use solar_parse::lexer::is_ident;
@@ -243,6 +244,24 @@ pub(crate) fn references(
         include_declaration,
     );
     ready(Ok(response))
+}
+
+pub(crate) fn document_highlight(
+    state: &mut GlobalState,
+    params: DocumentHighlightParams,
+) -> impl Future<Output = Result<Option<Vec<DocumentHighlight>>, ResponseError>> + use<> {
+    let symbol_tables = state.symbol_tables.clone();
+    let (version, mut published) = state.current_analysis();
+    let params = params.text_document_position_params;
+    async move {
+        published
+            .wait_for(|published| *published >= version)
+            .await
+            .map_err(|_| request_failed("analysis was cancelled"))?;
+        let response =
+            symbol_tables.read().document_highlights(&params.text_document.uri, params.position);
+        Ok(response)
+    }
 }
 
 pub(crate) fn prepare_rename(

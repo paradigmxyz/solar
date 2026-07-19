@@ -1,7 +1,7 @@
 use lsp_types::{
-    CompletionItem, CompletionItemKind, DocumentSymbol, GotoDefinitionResponse, InlayHint,
-    Location, OneOf, Position, Range, SymbolInformation, SymbolKind, Url, WorkspaceSymbol,
-    request::GotoTypeDefinitionResponse,
+    CompletionItem, CompletionItemKind, DocumentHighlight, DocumentHighlightKind, DocumentSymbol,
+    GotoDefinitionResponse, InlayHint, Location, OneOf, Position, Range, SymbolInformation,
+    SymbolKind, Url, WorkspaceSymbol, request::GotoTypeDefinitionResponse,
 };
 use solar_interface::{
     Span,
@@ -124,6 +124,7 @@ impl<'a> CompletionContext<'a> {
 struct SymbolReference {
     location: Location,
     targets: Vec<SymbolId>,
+    kind: DocumentHighlightKind,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -470,6 +471,47 @@ impl SymbolTables {
         sort_locations(&mut locations);
         locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
         Some(locations)
+    }
+
+    pub(crate) fn document_highlights(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<Vec<DocumentHighlight>> {
+        let targets = self.symbol_ids_at_position(uri, position)?;
+        let mut highlights = targets
+            .iter()
+            .filter_map(|&symbol_id| {
+                let location = self.selection_location(symbol_id);
+                (&location.uri == uri).then_some(DocumentHighlight {
+                    range: location.range,
+                    kind: Some(DocumentHighlightKind::WRITE),
+                })
+            })
+            .collect::<Vec<_>>();
+
+        if let Some(references) = self.file_references.get(uri) {
+            highlights.extend(references.iter().filter_map(|&index| {
+                let reference = &self.references[index];
+                reference.targets.iter().any(|target| targets.contains(target)).then_some(
+                    DocumentHighlight {
+                        range: reference.location.range,
+                        kind: Some(reference.kind),
+                    },
+                )
+            }));
+        }
+
+        highlights.sort_by_key(|highlight| {
+            (
+                highlight.range.start.line,
+                highlight.range.start.character,
+                highlight.range.end.line,
+                highlight.range.end.character,
+            )
+        });
+        highlights.dedup_by(|a, b| a.range == b.range);
+        Some(highlights)
     }
 
     pub(crate) fn rename_candidate(
@@ -1380,6 +1422,15 @@ struct ReferenceCollector<'a, 'gcx> {
 
 impl<'gcx> ReferenceCollector<'_, 'gcx> {
     fn push_reference(&mut self, span: Span, targets: Vec<SymbolId>) {
+        self.push_reference_with_kind(span, targets, DocumentHighlightKind::READ);
+    }
+
+    fn push_reference_with_kind(
+        &mut self,
+        span: Span,
+        targets: Vec<SymbolId>,
+        kind: DocumentHighlightKind,
+    ) {
         if let Some(source) = self.source {
             if self.in_yul {
                 self.tables.rename.mark_yul_symbols(&targets);
@@ -1403,7 +1454,62 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         let Some(location) = proto::span_to_location(self.gcx.sess.source_map(), span) else {
             return;
         };
-        self.tables.references.push(SymbolReference { location, targets });
+        self.tables.references.push(SymbolReference { location, targets, kind });
+    }
+
+    fn visit_ident_reference(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        resolutions: &[Res],
+        kind: DocumentHighlightKind,
+    ) {
+        let resolutions = if let Some(callee) = self.gcx.resolved_callee(expr.id)
+            && !callee.res.is_err()
+        {
+            vec![callee.res]
+        } else {
+            resolutions.to_vec()
+        };
+        let targets = self.symbol_ids_for_res(resolutions.iter().copied());
+        self.push_reference_with_kind(expr.span, targets, kind);
+        self.push_namespace_references(expr.span, &resolutions);
+    }
+
+    fn visit_member_reference(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        receiver: &'gcx hir::Expr<'gcx>,
+        ident: solar_interface::Ident,
+        kind: DocumentHighlightKind,
+    ) -> ControlFlow<Never> {
+        self.visit_expr(receiver)?;
+        let targets = self.symbol_ids_for_member_expr(expr);
+        self.push_reference_with_kind(ident.span, targets, kind);
+        ControlFlow::Continue(())
+    }
+
+    fn visit_lvalue(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Never> {
+        match expr.kind {
+            hir::ExprKind::Ident(resolutions) => {
+                self.visit_ident_reference(expr, resolutions, DocumentHighlightKind::WRITE);
+            }
+            hir::ExprKind::Member(receiver, ident) | hir::ExprKind::YulMember(receiver, ident) => {
+                self.visit_member_reference(expr, receiver, ident, DocumentHighlightKind::WRITE)?;
+            }
+            hir::ExprKind::Index(receiver, index) => {
+                self.visit_expr(receiver)?;
+                if let Some(index) = index {
+                    self.visit_expr(index)?;
+                }
+            }
+            hir::ExprKind::Tuple(exprs) => {
+                for expr in exprs.iter().copied().flatten() {
+                    self.visit_lvalue(expr)?;
+                }
+            }
+            _ => self.visit_expr(expr)?,
+        }
+        ControlFlow::Continue(())
     }
 
     fn push_namespace_references(&mut self, span: Span, resolutions: &[Res]) {
@@ -1607,28 +1713,27 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
         match expr.kind {
+            hir::ExprKind::Assign(lhs, _, rhs) => {
+                self.visit_lvalue(lhs)?;
+                self.visit_expr(rhs)?;
+            }
             hir::ExprKind::Call(callee, ref args, _) => {
                 if let Some(source) = self.call_param_source(callee) {
                     self.push_named_arg_references(source, args);
                 }
                 hir::Visit::walk_expr(self, expr)?;
             }
-            hir::ExprKind::Ident(res) => {
-                let resolutions = if let Some(callee) = self.gcx.resolved_callee(expr.id)
-                    && !callee.res.is_err()
-                {
-                    vec![callee.res]
-                } else {
-                    res.to_vec()
-                };
-                let targets = self.symbol_ids_for_res(resolutions.iter().copied());
-                self.push_reference(expr.span, targets);
-                self.push_namespace_references(expr.span, &resolutions);
+            hir::ExprKind::Delete(inner) => {
+                self.visit_lvalue(inner)?;
+            }
+            hir::ExprKind::Unary(op, inner) if op.kind.has_side_effects() => {
+                self.visit_lvalue(inner)?;
+            }
+            hir::ExprKind::Ident(resolutions) => {
+                self.visit_ident_reference(expr, resolutions, DocumentHighlightKind::READ);
             }
             hir::ExprKind::Member(receiver, ident) | hir::ExprKind::YulMember(receiver, ident) => {
-                self.visit_expr(receiver)?;
-                let targets = self.symbol_ids_for_member_expr(expr);
-                self.push_reference(ident.span, targets);
+                self.visit_member_reference(expr, receiver, ident, DocumentHighlightKind::READ)?;
             }
             _ => {
                 hir::Visit::walk_expr(self, expr)?;

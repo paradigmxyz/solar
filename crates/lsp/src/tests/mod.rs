@@ -9,6 +9,7 @@ use lsp_types::{
 use std::{path::Path, time::Duration};
 
 mod completion;
+mod document_highlight;
 mod document_link;
 mod goto_definition;
 mod inlay_hint;
