@@ -1,0 +1,35 @@
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/calls.sol:LL:CC
+   │
+LL │         this.payableTarget{value: 1}();
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/calls.sol:LL:CC
+   │
+LL │         new D();
+   ╰╴        ━━━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/calls.sol:LL:CC
+   │
+LL │         values.push();
+   ╰╴        ━━━━━━━━━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/calls.sol:LL:CC
+   │
+LL │         values.pop();
+   ╰╴        ━━━━━━━━━━━━
+
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/calls.sol:LL:CC
+   │
+LL │ ┏     function operator(U lhs, U rhs) external returns (U) {
+LL │ ┃
+LL │ ┃         return lhs + rhs;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error: aborting due to 4 previous errors; 1 warning emitted
+

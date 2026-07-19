@@ -1,0 +1,14 @@
+error[4006]: this modifier uses `msg.value` or `callvalue()` and thus the function has to be payable or internal
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/payable_order.sol:LL:CC
+   │
+LL │     function modified() public view readsValueAndWritesState {
+   │                                     ━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: `msg.value` or `callvalue()` appear here inside the modifier
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/payable_order.sol:LL:CC
+   │
+LL │         msg.value;
+   ╰╴        ━━━━━━━━━
+
+error: aborting due to 1 previous error
+

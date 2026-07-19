@@ -1,0 +1,43 @@
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/yul_parity.sol:LL:CC
+   │
+LL │ ┏     function uncalledRead() public {
+LL │ ┃
+LL │ ┃         assembly {
+LL │ ┃             function read() {
+   ‡ ┃
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error[8961]: function cannot be declared as pure because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/yul_parity.sol:LL:CC
+   │
+LL │             sstore(sload(0), caller())
+   ╰╴            ━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[2527]: function declared as pure, but this expression (potentially) reads from the environment or state and thus requires `view`
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/yul_parity.sol:LL:CC
+   │
+LL │             sstore(sload(0), caller())
+   ╰╴                   ━━━━━━━━
+
+error[2527]: function declared as pure, but this expression (potentially) reads from the environment or state and thus requires `view`
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/yul_parity.sol:LL:CC
+   │
+LL │             sstore(sload(0), caller())
+   ╰╴                             ━━━━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/yul_parity.sol:LL:CC
+   │
+LL │             self()
+   ╰╴            ━━━━━━
+
+error[2527]: function declared as pure, but this expression (potentially) reads from the environment or state and thus requires `view`
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/yul_parity.sol:LL:CC
+   │
+LL │             a()
+   ╰╴            ━━━
+
+error: aborting due to 5 previous errors; 1 warning emitted
+

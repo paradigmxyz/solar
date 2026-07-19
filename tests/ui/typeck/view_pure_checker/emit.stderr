@@ -1,0 +1,14 @@
+error[8961]: function cannot be declared as pure because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/emit.sol:LL:CC
+   │
+LL │         emit E(1);
+   ╰╴             ━━━━
+
+error[8961]: function cannot be declared as pure because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/emit.sol:LL:CC
+   │
+LL │         emit L.E(1);
+   ╰╴             ━━━━━━
+
+error: aborting due to 2 previous errors
+

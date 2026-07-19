@@ -382,6 +382,12 @@ impl Builtin {
         Self::make_range_iter(Self::FIRST_GLOBAL..Self::LAST_GLOBAL)
     }
 
+    /// Returns whether this builtin is a Yul builtin.
+    pub const fn is_yul(self) -> bool {
+        let index = self as usize;
+        index >= Self::FIRST_YUL && index < Self::LAST_YUL
+    }
+
     /// Returns the builtin's members.
     pub fn members(self) -> Option<impl ExactSizeIterator<Item = Self> + Clone> {
         use Builtin::*;

@@ -1,5 +1,5 @@
 contract C {
-    function f(uint256 a, uint256 b) public returns (uint256 x) {
+    function f(uint256 a, uint256 b) public pure returns (uint256 x) {
         assembly {
             let c := add(a, b)
             c := sub(c, 1)

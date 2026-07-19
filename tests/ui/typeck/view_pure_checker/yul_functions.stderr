@@ -1,0 +1,50 @@
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/yul_functions.sol:LL:CC
+   │
+LL │             direct()
+   ╰╴            ━━━━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/yul_functions.sol:LL:CC
+   │
+LL │             sstore(1, 1)
+   ╰╴            ━━━━━━━━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/yul_functions.sol:LL:CC
+   │
+LL │             outer()
+   ╰╴            ━━━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/yul_functions.sol:LL:CC
+   │
+LL │             interleaved()
+   ╰╴            ━━━━━━━━━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/yul_functions.sol:LL:CC
+   │
+LL │                 nested_block()
+   ╰╴                ━━━━━━━━━━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/yul_functions.sol:LL:CC
+   │
+LL │                 tstore(2, 1)
+   ╰╴                ━━━━━━━━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/yul_functions.sol:LL:CC
+   │
+LL │                 tstore(3, 1)
+   ╰╴                ━━━━━━━━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/yul_functions.sol:LL:CC
+   │
+LL │                 post()
+   ╰╴                ━━━━━━
+
+error: aborting due to 8 previous errors
+

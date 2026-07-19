@@ -1,0 +1,32 @@
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/write_propagation.sol:LL:CC
+   │
+LL │         values[0].value = 1;
+   ╰╴        ━━━━━━━━━━━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/write_propagation.sol:LL:CC
+   │
+LL │         delete array[0];
+   ╰╴               ━━━━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/write_propagation.sol:LL:CC
+   │
+LL │         state++;
+   ╰╴        ━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/write_propagation.sol:LL:CC
+   │
+LL │         (state, array[0]) = (1, 2);
+   ╰╴         ━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/write_propagation.sol:LL:CC
+   │
+LL │         (state, array[0]) = (1, 2);
+   ╰╴                ━━━━━━━━
+
+error: aborting due to 5 previous errors
+

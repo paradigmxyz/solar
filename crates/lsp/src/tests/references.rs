@@ -9,12 +9,12 @@ fn indexes_function_and_state_references() {
         contract C {
             uint256 $2stateValue;
 
-            function $1target(uint256 input) public returns (uint256 output) {
+            function $1target(uint256 input) public view returns (uint256 output) {
                 uint256 localValue = input + stateValue;
                 output = localValue;
             }
 
-            function caller() public {
+            function caller() public view {
                 uint256 callerLocal = target(stateValue);
             }
         }
@@ -26,7 +26,7 @@ fn indexes_function_and_state_references() {
         "$1",
         true,
         str![[r#"
-/Symbols.sol:2:13 function target(uint256 input) public returns (uint256 output) {
+/Symbols.sol:2:13 function target(uint256 input) public view returns (uint256 output) {
 /Symbols.sol:7:30 uint256 callerLocal = target(stateValue);
 
 "#]],

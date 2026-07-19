@@ -258,6 +258,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
                 work_done_progress_options: WorkDoneProgressOptions::default(),
             }),
             document_symbol_provider: Some(OneOf::Left(true)),
+            document_highlight_provider: Some(OneOf::Left(true)),
             inlay_hint_provider: Some(OneOf::Left(true)),
             references_provider: Some(OneOf::Left(true)),
             rename_provider: Some(OneOf::Right(RenameOptions {
@@ -364,6 +365,7 @@ mod tests {
         let document_link_provider = capabilities.document_link_provider.unwrap();
         assert_eq!(document_link_provider.resolve_provider, Some(false));
         assert_eq!(capabilities.inlay_hint_provider, Some(OneOf::Left(true)));
+        assert_eq!(capabilities.document_highlight_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.references_provider, Some(OneOf::Left(true)));
         assert_eq!(
             capabilities.rename_provider,
