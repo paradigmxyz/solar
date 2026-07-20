@@ -4,7 +4,7 @@ use crate::{
     workspace::{Workspace, WorkspacePathIndex, manifest::ProjectManifest},
 };
 use lsp_types::{
-    CompletionOptions, DeclarationCapability, DocumentLinkOptions,
+    CompletionOptions, DeclarationCapability, DocumentLinkOptions, HoverProviderCapability,
     ImplementationProviderCapability, InitializeParams, OneOf, RenameOptions, SaveOptions,
     ServerCapabilities, SignatureHelpOptions, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions, TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability,
@@ -259,6 +259,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             }),
             document_symbol_provider: Some(OneOf::Left(true)),
             document_highlight_provider: Some(OneOf::Left(true)),
+            hover_provider: Some(HoverProviderCapability::Simple(true)),
             inlay_hint_provider: Some(OneOf::Left(true)),
             references_provider: Some(OneOf::Left(true)),
             rename_provider: Some(OneOf::Right(RenameOptions {
@@ -362,6 +363,7 @@ mod tests {
         );
         assert_eq!(capabilities.document_formatting_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.document_symbol_provider, Some(OneOf::Left(true)));
+        assert_eq!(capabilities.hover_provider, Some(HoverProviderCapability::Simple(true)));
         let document_link_provider = capabilities.document_link_provider.unwrap();
         assert_eq!(document_link_provider.resolve_provider, Some(false));
         assert_eq!(capabilities.inlay_hint_provider, Some(OneOf::Left(true)));

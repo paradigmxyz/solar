@@ -77,3 +77,11 @@ contract GrandChild is Child1 {
         return (true, x - y);
     }
 }
+
+contract GrandChildFromBase is Child1 {
+    /// @inheritdoc Base
+    //~^ NOTE: inherits NatSpec from function `Base.foo(uint256,uint256)`
+    function foo(uint x, uint y) public override returns (bool success, uint value) { //~ ERROR: resolved NatSpec for function `GrandChildFromBase.foo`
+        return (true, y - x);
+    }
+}

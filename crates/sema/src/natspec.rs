@@ -3,11 +3,108 @@ use crate::{
     ty::{Gcx, Ty, TyAbiPrinter, TyAbiPrinterMode, TyKind},
 };
 use solar_ast as ast;
-use solar_data_structures::{map::FxHashSet, smallvec::SmallVec};
+use solar_data_structures::{BumpExt, map::FxHashSet, smallvec::SmallVec};
 use solar_interface::{Ident, Span, Symbol};
+use std::ops::Range;
+
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ResolvedNatSpec<'gcx> {
+    items: &'gcx [hir::NatSpecItem],
+    local_len: usize,
+    local_tags: LocalTags,
+    inheritdoc_target: Option<(Span, hir::ItemId)>,
+}
+
+impl<'gcx> ResolvedNatSpec<'gcx> {
+    pub(crate) fn items(self) -> &'gcx [hir::NatSpecItem] {
+        self.items
+    }
+}
+
+/// Validated and resolved NatSpec for an HIR item.
+///
+/// [`Self::items`] preserves the existing flat resolved representation, including the names used
+/// by inherited declarations. [`Self::parameter`] and [`Self::return_`] instead align each NatSpec
+/// section with the corresponding position in the current item. This keeps inherited
+/// documentation correct when an override renames parameters or return values.
+///
+/// A local `@param` or `@return` tag replaces its entire inherited section. Each position contains
+/// a slice because some item kinds permit more than one tag for the same name.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct NatSpecView<'gcx> {
+    items: &'gcx [hir::NatSpecItem],
+    parameters: PositionalNatSpec<'gcx>,
+    returns: PositionalNatSpec<'gcx>,
+}
+
+impl<'gcx> NatSpecView<'gcx> {
+    /// Returns all validated and resolved NatSpec items in their flat representation.
+    pub fn items(self) -> &'gcx [hir::NatSpecItem] {
+        self.items
+    }
+
+    /// Returns the NatSpec items for the parameter at `index` in the current item.
+    ///
+    /// Returns an empty slice when the parameter has no documentation or `index` is out of bounds.
+    pub fn parameter(self, index: usize) -> &'gcx [hir::NatSpecItem] {
+        self.parameters.get(index)
+    }
+
+    /// Returns the NatSpec items for the return value at `index` in the current item.
+    ///
+    /// Returns an empty slice when the return value has no documentation or `index` is out of
+    /// bounds.
+    pub fn return_(self, index: usize) -> &'gcx [hir::NatSpecItem] {
+        self.returns.get(index)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct PositionalNatSpec<'gcx> {
+    items: &'gcx [hir::NatSpecItem],
+    ranges: &'gcx [Range<usize>],
+}
+
+impl<'gcx> PositionalNatSpec<'gcx> {
+    fn get(self, index: usize) -> &'gcx [hir::NatSpecItem] {
+        let Some(range) = self.ranges.get(index) else { return &[] };
+        &self.items[range.clone()]
+    }
+}
+
+#[derive(Default)]
+struct PositionalNatSpecBuilder {
+    items: SmallVec<[hir::NatSpecItem; 8]>,
+    ranges: SmallVec<[Range<usize>; 8]>,
+}
+
+impl PositionalNatSpecBuilder {
+    fn push(&mut self, items: impl IntoIterator<Item = hir::NatSpecItem>) {
+        let start = self.items.len();
+        self.items.extend(items);
+        self.ranges.push(start..self.items.len());
+    }
+
+    fn finish<'gcx>(self, gcx: Gcx<'gcx>) -> PositionalNatSpec<'gcx> {
+        if self.items.is_empty() {
+            return PositionalNatSpec::default();
+        }
+        PositionalNatSpec {
+            items: gcx.bump().alloc_smallvec(self.items),
+            ranges: gcx.bump().alloc_smallvec(self.ranges),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+struct CallableVariables<'gcx> {
+    parameters: &'gcx [hir::VariableId],
+    returns: &'gcx [hir::VariableId],
+}
 
 bitflags::bitflags! {
-    /// Tracks which documentation tags are locally defined in `merge_natspec_tags`.
+    /// Tracks which documentation tags are locally defined.
+    #[derive(Clone, Copy, Debug, Default)]
     struct LocalTags: u8 {
         const NOTICE = 1 << 0;
         const DEV    = 1 << 1;
@@ -35,6 +132,26 @@ bitflags::bitflags! {
     }
 }
 
+impl LocalTags {
+    fn from_items(items: &[hir::NatSpecItem]) -> Self {
+        let mut tags = Self::empty();
+        for item in items {
+            match item.kind {
+                hir::NatSpecKind::Notice => tags.insert(Self::NOTICE),
+                hir::NatSpecKind::Dev => tags.insert(Self::DEV),
+                hir::NatSpecKind::Title => tags.insert(Self::TITLE),
+                hir::NatSpecKind::Author => tags.insert(Self::AUTHOR),
+                hir::NatSpecKind::Param { .. } => tags.insert(Self::PARAM),
+                hir::NatSpecKind::Return { .. } => tags.insert(Self::RETURN),
+                hir::NatSpecKind::Custom { .. }
+                | hir::NatSpecKind::Internal { .. }
+                | hir::NatSpecKind::Inheritdoc { .. } => {}
+            }
+        }
+        tags
+    }
+}
+
 impl TagPermissions {
     fn from_item_id(item_id: hir::ItemId) -> Self {
         match item_id {
@@ -52,30 +169,33 @@ impl TagPermissions {
 pub(crate) fn validate_item_docs(gcx: Gcx<'_>, item_id: hir::ItemId) {
     let doc_id = gcx.hir.item(item_id).doc();
     if !doc_id.is_empty() {
-        let docs = gcx.natspec_doc_comments(doc_id);
+        let resolved = gcx.natspec_resolution(item_id);
         if gcx.sess.opts.unstable.print_natspec {
-            emit_natspec_debug(gcx, doc_id, item_id, docs);
+            emit_natspec_debug(gcx, item_id, resolved);
         }
     }
 }
 
-pub(crate) fn resolve_doc_comments<'gcx>(
-    gcx: Gcx<'gcx>,
-    doc_id: hir::DocId,
-) -> &'gcx [hir::NatSpecItem] {
-    if doc_id.is_empty() {
-        return &[];
-    }
-    Resolver::new(gcx).resolve_doc(doc_id)
+pub(crate) fn resolve_item<'gcx>(gcx: Gcx<'gcx>, item_id: hir::ItemId) -> ResolvedNatSpec<'gcx> {
+    Resolver::new(gcx).resolve_item(item_id)
 }
 
-fn emit_natspec_debug(
-    gcx: Gcx<'_>,
-    doc_id: hir::DocId,
-    item_id: hir::ItemId,
-    docs: &[hir::NatSpecItem],
-) {
-    let mut docs = docs
+pub(crate) fn resolve_view<'gcx>(gcx: Gcx<'gcx>, item_id: hir::ItemId) -> NatSpecView<'gcx> {
+    let resolved = gcx.natspec_resolution(item_id);
+    let inherited = resolved.inheritdoc_target.map(|(_, target)| gcx.natspec_view(target));
+    let local_items = &resolved.items[..resolved.local_len];
+    let (parameters, returns) = Resolver::new(gcx).positional_sections(
+        item_id,
+        local_items,
+        resolved.local_tags,
+        inherited,
+    );
+    NatSpecView { items: resolved.items, parameters, returns }
+}
+
+fn emit_natspec_debug(gcx: Gcx<'_>, item_id: hir::ItemId, resolved: ResolvedNatSpec<'_>) {
+    let mut docs = resolved
+        .items
         .iter()
         .filter(|item| !matches!(item.kind, hir::NatSpecKind::Inheritdoc { .. }))
         .peekable();
@@ -93,7 +213,7 @@ fn emit_natspec_debug(
     let mut diag =
         gcx.dcx().err(format!("resolved NatSpec for {item_desc} {item_name}")).span(item.span());
     let resolver = Resolver::new(gcx);
-    if let Some((span, inherited_item)) = resolver.find_inheritdoc_target(doc_id) {
+    if let Some((span, inherited_item)) = resolved.inheritdoc_target {
         diag = diag.span_note(
             span,
             format!("inherits NatSpec from {}", resolver.format_inherited_item(inherited_item)),
@@ -115,30 +235,28 @@ impl<'gcx> Resolver<'gcx> {
     }
 
     /// Resolves a NatSpec doc, validating all tags and expanding `@inheritdoc`.
-    fn resolve_doc(&self, doc_id: hir::DocId) -> &'gcx [hir::NatSpecItem] {
+    fn resolve_item(&self, item_id: hir::ItemId) -> ResolvedNatSpec<'gcx> {
+        let doc_id = self.gcx.hir.item(item_id).doc();
+        if doc_id.is_empty() {
+            return ResolvedNatSpec::default();
+        }
+
         let doc = self.gcx.hir.doc(doc_id);
-        let (item_id, source_id) = (doc.item, doc.source);
-        let (local_tags, inheritdoc) =
-            self.validate_item_natspec(&doc.ast_comments, item_id, source_id);
-
-        if let Some((contract_id, item_id)) = inheritdoc {
-            let inherit_doc_id = self.find_inherited_item(item_id, contract_id).and_then(
-                |inherited| match inherited {
-                    hir::ItemId::Function(id) => Some(self.gcx.hir.function(id).doc),
-                    hir::ItemId::Variable(id) => Some(self.gcx.hir.variable(id).doc),
-                    _ => None,
-                },
-            );
-
-            if let Some(inherit_doc_id) = inherit_doc_id
-                && !inherit_doc_id.is_empty()
-            {
-                self.merge_natspec_tags(&local_tags, self.gcx.natspec_doc_comments(inherit_doc_id))
-            } else {
-                self.gcx.arena().alloc_slice_copy(&local_tags)
-            }
+        let (local_tags, inheritdoc_target) =
+            self.validate_item_natspec(&doc.ast_comments, item_id, doc.source);
+        let local_sections = LocalTags::from_items(&local_tags);
+        let inherited = inheritdoc_target.map(|(_, target)| self.gcx.natspec_resolution(target));
+        let items: &'gcx [hir::NatSpecItem] = if let Some(inherited) = inherited {
+            self.merge_natspec_tags(&local_tags, local_sections, inherited.items)
         } else {
-            self.gcx.arena().alloc_slice_copy(&local_tags)
+            &*self.gcx.arena().alloc_slice_copy(&local_tags)
+        };
+
+        ResolvedNatSpec {
+            items,
+            local_len: local_tags.len(),
+            local_tags: local_sections,
+            inheritdoc_target,
         }
     }
 
@@ -153,7 +271,7 @@ impl<'gcx> Resolver<'gcx> {
         docs: &[ast::DocComment<'gcx>],
         item_id: hir::ItemId,
         source_id: hir::SourceId,
-    ) -> (SmallVec<[hir::NatSpecItem; 8]>, Option<(hir::ContractId, hir::ItemId)>) {
+    ) -> (SmallVec<[hir::NatSpecItem; 8]>, Option<(Span, hir::ItemId)>) {
         use ast::NatSpecKind;
         use hir::NatSpecItem;
 
@@ -214,11 +332,11 @@ impl<'gcx> Resolver<'gcx> {
                             continue;
                         }
 
-                        if let Some(contract_id) = self
+                        if let Some(inherited_item) = self
                             .validate_inheritdoc_contract(contract, tag_span, item_id, source_id)
                         {
                             local_tags.push(*natspec);
-                            inheritdoc = Some((contract_id, item_id));
+                            inheritdoc = Some((tag_span, inherited_item));
                         }
                     }
                     NatSpecKind::Param { name } => {
@@ -277,17 +395,17 @@ impl<'gcx> Resolver<'gcx> {
 
                         state.return_count += 1;
 
-                        let rets = returns.get_or_insert_with(|| {
-                            if let hir::ItemId::Function(id) = item_id {
-                                self.gcx.hir.function(id).returns
-                            } else {
-                                &[]
-                            }
+                        let rets = returns.get_or_insert_with(|| match item_id {
+                            hir::ItemId::Function(id) => self.gcx.hir.function(id).returns,
+                            hir::ItemId::Variable(id) => self
+                                .gcx
+                                .hir
+                                .variable(id)
+                                .getter
+                                .map_or(&[], |getter| self.gcx.hir.function(getter).returns),
+                            _ => &[],
                         });
-                        let return_count = match item_id {
-                            hir::ItemId::Variable(_) => 1,
-                            _ => rets.len(),
-                        };
+                        let return_count = rets.len();
 
                         let return_valid = if state.return_count > return_count {
                             self.gcx.dcx().emit_err(tag_span, format!(
@@ -302,7 +420,8 @@ impl<'gcx> Resolver<'gcx> {
                         };
 
                         if return_valid
-                            && let Some(item) = self.lower_return_natspec(*natspec, rets)
+                            && let Some(item) =
+                                self.lower_return_natspec(*natspec, rets, state.return_count - 1)
                         {
                             local_tags.push(item);
                         }
@@ -318,13 +437,15 @@ impl<'gcx> Resolver<'gcx> {
         &self,
         natspec: ast::NatSpecItem,
         rets: &[hir::VariableId],
+        index: usize,
     ) -> Option<hir::NatSpecItem> {
-        if !rets.iter().any(|&id| self.gcx.hir.variable(id).name.is_some()) {
+        let &return_id = rets.get(index)?;
+        let Some(expected) = self.gcx.hir.variable(return_id).name else {
             return Some(natspec);
-        }
+        };
 
         let content = natspec.symbol.as_str();
-        let Some((name, content_start)) = solar_parse::natspec::first_word(
+        let Some((documented, content_start)) = solar_parse::natspec::first_word(
             content,
             natspec.content_start as usize,
             natspec.content_end as usize,
@@ -339,20 +460,35 @@ impl<'gcx> Resolver<'gcx> {
         // Content offsets are relative to the comment, while `span` covers only the tag name.
         let tag_end = content[..natspec.content_start as usize].trim_ascii_end().len();
         let name_end = content[..content_start].trim_ascii_end().len();
-        let name_start = name_end - name.len();
+        let name_start = name_end - documented.len();
         let name_lo = natspec.span.hi() + (name_start - tag_end) as u32;
-        let name_span = Span::new(name_lo, name_lo + name.len() as u32);
-        let name = Symbol::intern(name);
-        if !rets.iter().any(|&id| self.gcx.hir.variable(id).name.is_some_and(|n| n.name == name)) {
-            self.gcx.dcx().emit_err(
-                natspec.span,
-                format!("tag `@return` references non-existent return parameter '{name}'"),
-            );
+        let name_span = Span::new(name_lo, name_lo + documented.len() as u32);
+
+        let documented_name = Symbol::intern(documented);
+        if documented_name != expected.name {
+            if rets.iter().any(|&id| {
+                self.gcx.hir.variable(id).name.is_some_and(|name| name.name == documented_name)
+            }) {
+                self.gcx.dcx().emit_err(
+                    name_span,
+                    format!(
+                        "mismatched `@return` parameter: expected `{}`, found `{documented_name}`",
+                        expected.name
+                    ),
+                );
+            } else {
+                self.gcx.dcx().emit_err(
+                    natspec.span,
+                    format!(
+                        "tag `@return` references non-existent return parameter '{documented_name}'"
+                    ),
+                );
+            }
             return None;
         }
 
         let mut item = natspec;
-        item.kind = ast::NatSpecKind::Return { name: Some(Ident::new(name, name_span)) };
+        item.kind = ast::NatSpecKind::Return { name: Some(Ident::new(expected.name, name_span)) };
         item.content_start = content_start as u32;
         Some(item)
     }
@@ -403,7 +539,7 @@ impl<'gcx> Resolver<'gcx> {
     }
 
     /// Validates contract resolution for `@inheritdoc`.
-    /// Returns the resolved contract ID if validation passed.
+    /// Returns the inherited item if validation passed.
     #[inline]
     fn validate_inheritdoc_contract(
         &self,
@@ -411,7 +547,7 @@ impl<'gcx> Resolver<'gcx> {
         tag_span: Span,
         item_id: hir::ItemId,
         source_id: hir::SourceId,
-    ) -> Option<hir::ContractId> {
+    ) -> Option<hir::ItemId> {
         let dcx = self.gcx.dcx();
 
         let cache_key = (contract_ident.name, source_id);
@@ -436,7 +572,7 @@ impl<'gcx> Resolver<'gcx> {
 
         if let Some(contract) = item_contract {
             let linearized_bases = &self.gcx.hir.contract(contract).linearized_bases;
-            if !linearized_bases.contains(&contract_id) {
+            if contract == contract_id || !linearized_bases.contains(&contract_id) {
                 dcx.emit_err(tag_span, format!(
                     "tag `@inheritdoc` references contract \"{}\", which is not a base of this contract",
                     contract_ident.name
@@ -445,15 +581,15 @@ impl<'gcx> Resolver<'gcx> {
             }
         }
 
-        if self.find_inherited_item(item_id, contract_id).is_none() {
+        let Some(inherited_item) = self.find_inherited_item(item_id, contract_id) else {
             dcx.emit_err(tag_span, format!(
                 "tag `@inheritdoc` references contract \"{}\", but the contract does not contain a matching item that can be inherited",
                 contract_ident.name
             ));
             return None;
-        }
+        };
 
-        Some(contract_id)
+        Some(inherited_item)
     }
 
     /// Merges local and inherited natspec tags.
@@ -465,24 +601,12 @@ impl<'gcx> Resolver<'gcx> {
     fn merge_natspec_tags(
         &self,
         items: &[hir::NatSpecItem],
+        local_tags: LocalTags,
         inherited_tags: &'gcx [hir::NatSpecItem],
     ) -> &'gcx [hir::NatSpecItem] {
         use hir::NatSpecKind as HirKind;
 
-        let mut local_tags = LocalTags::empty();
         let mut merged = SmallVec::<[hir::NatSpecItem; 8]>::from_slice(items);
-
-        for item in items.iter() {
-            match &item.kind {
-                HirKind::Notice => local_tags.insert(LocalTags::NOTICE),
-                HirKind::Dev => local_tags.insert(LocalTags::DEV),
-                HirKind::Title => local_tags.insert(LocalTags::TITLE),
-                HirKind::Author => local_tags.insert(LocalTags::AUTHOR),
-                HirKind::Param { .. } => local_tags.insert(LocalTags::PARAM),
-                HirKind::Return { .. } => local_tags.insert(LocalTags::RETURN),
-                HirKind::Custom { .. } | HirKind::Internal { .. } | HirKind::Inheritdoc { .. } => {}
-            }
-        }
 
         for item in inherited_tags.iter() {
             let should_inherit = match &item.kind {
@@ -504,21 +628,100 @@ impl<'gcx> Resolver<'gcx> {
         self.gcx.arena().alloc_slice_copy(&merged)
     }
 
-    fn find_inheritdoc_target(&self, doc_id: hir::DocId) -> Option<(Span, hir::ItemId)> {
-        let doc = self.gcx.hir.doc(doc_id);
-        for doc_comment in doc.ast_comments.iter() {
-            for item in doc_comment.natspec.iter() {
-                if let ast::NatSpecKind::Inheritdoc { contract } = &item.kind
-                    && let Some(contract_id) =
-                        self.gcx.natspec_contract_in_source((contract.name, doc.source))
-                    && let Some(inherited_item) = self.find_inherited_item(doc.item, contract_id)
-                {
-                    return Some((item.span, inherited_item));
-                }
+    fn positional_sections(
+        &self,
+        item_id: hir::ItemId,
+        local_items: &[hir::NatSpecItem],
+        local_tags: LocalTags,
+        inherited: Option<NatSpecView<'gcx>>,
+    ) -> (PositionalNatSpec<'gcx>, PositionalNatSpec<'gcx>) {
+        let variables = self.callable_variables(item_id);
+
+        let mut parameters = PositionalNatSpecBuilder::default();
+        for (index, &parameter_id) in variables.parameters.iter().enumerate() {
+            if local_tags.contains(LocalTags::PARAM) {
+                let name = self.gcx.hir.variable(parameter_id).name.map(|name| name.name);
+                parameters.push(local_items.iter().copied().filter(|item| {
+                    matches!(item.kind, hir::NatSpecKind::Param { name: documented } if Some(documented.name) == name)
+                }));
+            } else if let Some(inherited) = inherited {
+                parameters.push(inherited.parameter(index).iter().copied());
+            } else {
+                parameters.push(std::iter::empty());
             }
         }
 
-        None
+        let mut returns = PositionalNatSpecBuilder::default();
+        let local_returns = local_tags.contains(LocalTags::RETURN);
+        let return_items = local_returns.then(|| {
+            local_items
+                .iter()
+                .copied()
+                .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }))
+                .collect::<SmallVec<[_; 8]>>()
+        });
+        let named_returns =
+            variables.returns.iter().any(|&id| self.gcx.hir.variable(id).name.is_some());
+        let mut unnamed_return_items = return_items
+            .iter()
+            .flatten()
+            .copied()
+            .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { name: None }));
+
+        for (index, &return_id) in variables.returns.iter().enumerate() {
+            if let Some(local_returns) = &return_items {
+                if named_returns {
+                    let name = self.gcx.hir.variable(return_id).name.map(|name| name.name);
+                    if let Some(name) = name {
+                        returns.push(local_returns.iter().copied().filter(|item| {
+                            matches!(item.kind, hir::NatSpecKind::Return { name: Some(documented) } if documented.name == name)
+                        }));
+                    } else {
+                        returns.push(unnamed_return_items.next());
+                    }
+                } else {
+                    returns.push(local_returns.get(index).copied());
+                }
+            } else if let Some(inherited) = inherited {
+                returns.push(inherited.return_(index).iter().copied());
+            } else {
+                returns.push(std::iter::empty());
+            }
+        }
+
+        (parameters.finish(self.gcx), returns.finish(self.gcx))
+    }
+
+    fn callable_variables(&self, item_id: hir::ItemId) -> CallableVariables<'gcx> {
+        match item_id {
+            hir::ItemId::Function(id) => {
+                let function = self.gcx.hir.function(id);
+                CallableVariables { parameters: function.parameters, returns: function.returns }
+            }
+            hir::ItemId::Struct(id) => {
+                CallableVariables { parameters: self.gcx.hir.strukt(id).fields, returns: &[] }
+            }
+            hir::ItemId::Event(id) => {
+                CallableVariables { parameters: self.gcx.hir.event(id).parameters, returns: &[] }
+            }
+            hir::ItemId::Error(id) => {
+                CallableVariables { parameters: self.gcx.hir.error(id).parameters, returns: &[] }
+            }
+            hir::ItemId::Variable(id) => {
+                let variable = self.gcx.hir.variable(id);
+                if let Some(getter) = variable.getter {
+                    let function = self.gcx.hir.function(getter);
+                    CallableVariables { parameters: function.parameters, returns: function.returns }
+                } else if let hir::TypeKind::Function(function) = variable.ty.kind {
+                    CallableVariables { parameters: function.parameters, returns: function.returns }
+                } else {
+                    CallableVariables::default()
+                }
+            }
+            hir::ItemId::Contract(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_) => {
+                CallableVariables::default()
+            }
+        }
     }
 
     fn format_inherited_item(&self, item_id: hir::ItemId) -> String {
@@ -538,51 +741,16 @@ impl<'gcx> Resolver<'gcx> {
         item_id: hir::ItemId,
         contract_id: hir::ContractId,
     ) -> Option<hir::ItemId> {
-        let item_name = self.gcx.hir.item(item_id).name()?;
-
-        for base_item_id in self.gcx.hir.contract_item_ids(contract_id) {
-            if let Some(base_name) = self.gcx.hir.item(base_item_id).name()
-                && base_name.name == item_name.name
-                && self.items_have_matching_signature(item_id, base_item_id)
-            {
+        for &base_item_id in self.gcx.base_override_items(item_id) {
+            if self.gcx.hir.item(base_item_id).contract() == Some(contract_id) {
                 return Some(base_item_id);
+            }
+            if let Some(inherited_item) = self.find_inherited_item(base_item_id, contract_id) {
+                return Some(inherited_item);
             }
         }
 
         None
-    }
-
-    fn items_have_matching_signature(
-        &self,
-        item_id: hir::ItemId,
-        base_item_id: hir::ItemId,
-    ) -> bool {
-        if let Some(item_kind) = self.item_function_kind(item_id)
-            && let Some(base_kind) = self.item_function_kind(base_item_id)
-            && item_kind == base_kind
-        {
-            if !item_kind.is_function() {
-                return true;
-            }
-
-            if let Some(item_params) = self.item_callable_parameter_types(item_id)
-                && let Some(base_params) = self.item_callable_parameter_types(base_item_id)
-            {
-                return item_params == base_params;
-            }
-        }
-
-        false
-    }
-
-    fn item_function_kind(&self, item_id: hir::ItemId) -> Option<ast::FunctionKind> {
-        match item_id {
-            hir::ItemId::Function(id) => Some(self.gcx.hir.function(id).kind),
-            hir::ItemId::Variable(id) if self.gcx.hir.variable(id).is_public() => {
-                Some(ast::FunctionKind::Function)
-            }
-            _ => None,
-        }
     }
 
     fn item_callable_parameter_types(&self, item_id: hir::ItemId) -> Option<&'gcx [Ty<'gcx>]> {

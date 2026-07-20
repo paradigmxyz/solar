@@ -15,6 +15,7 @@ mod completion;
 mod document_highlight;
 mod document_link;
 mod goto_definition;
+mod hover;
 mod implementation;
 mod inlay_hint;
 mod references;

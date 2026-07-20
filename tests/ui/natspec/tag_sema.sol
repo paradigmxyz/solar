@@ -104,6 +104,24 @@ contract InvalidParamName {
     function foo(uint x) public {}
 }
 
+contract SelfInheritdoc {
+    /// @inheritdoc SelfInheritdoc
+    //~^ ERROR: tag `@inheritdoc` references contract "SelfInheritdoc", which is not a base of this contract
+    function foo() public {}
+}
+
+contract InheritdocGrandparent {
+    function inherited() public virtual {}
+}
+
+contract InheritdocIntermediate is InheritdocGrandparent {}
+
+contract InvalidIntermediateInheritdoc is InheritdocIntermediate {
+    /// @inheritdoc InheritdocIntermediate
+    //~^ ERROR: tag `@inheritdoc` references contract "InheritdocIntermediate", but the contract does not contain a matching item that can be inherited
+    function inherited() public override {}
+}
+
 contract StructParamDocs {
     /// @param value Valid field name
     /// @param value Duplicate struct field docs are accepted for solc compatibility

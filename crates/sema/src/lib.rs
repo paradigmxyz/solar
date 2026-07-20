@@ -41,7 +41,7 @@ pub mod hir;
 pub use hir::Hir;
 
 pub mod ty;
-pub use ty::{Gcx, Ty};
+pub use ty::{Gcx, NatSpecView, Ty};
 
 mod typeck;
 
