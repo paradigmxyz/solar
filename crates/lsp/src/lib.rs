@@ -18,6 +18,7 @@ use solar_config::LspArgs;
 use std::ops::ControlFlow;
 use tower::ServiceBuilder;
 
+mod commands;
 mod config;
 mod diagnostics;
 mod document_links;
@@ -60,6 +61,7 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
 
     // Requests
     router
+        .request::<req::ExecuteCommand, _>(commands::execute_command)
         .request::<req::DocumentSymbolRequest, _>(handlers::document_symbol)
         .request::<req::DocumentLinkRequest, _>(handlers::document_links)
         .request::<req::WorkspaceSymbolRequest, _>(handlers::workspace_symbol)
@@ -129,11 +131,11 @@ mod tests {
     use lsp_types::{
         DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
         DidSaveTextDocumentParams, DocumentFormattingParams, DocumentHighlightParams,
-        DocumentLinkParams, FileChangeType, FileEvent, FormattingOptions, HoverParams,
-        InitializeParams, InitializedParams, PartialResultParams, Position, SignatureHelpParams,
-        TextDocumentIdentifier, TextDocumentPositionParams, WorkDoneProgressParams,
-        WorkspaceClientCapabilities, notification as notif, notification::Notification, request,
-        request::Request,
+        DocumentLinkParams, ExecuteCommandParams, FileChangeType, FileEvent, FormattingOptions,
+        HoverParams, InitializeParams, InitializedParams, PartialResultParams, Position,
+        SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams,
+        WorkDoneProgressParams, WorkspaceClientCapabilities, notification as notif,
+        notification::Notification, request, request::Request,
     };
     use std::ops::ControlFlow;
     use tokio::sync::oneshot;
@@ -174,6 +176,41 @@ mod tests {
         .unwrap();
 
         assert!(matches!(router.notify(notification), ControlFlow::Continue(())));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_cache_commands() {
+        let mut router = new_router(ClientSocket::new_closed());
+
+        for command in ["solar.clearCache", "solar.reindex"] {
+            let params = ExecuteCommandParams { command: command.into(), ..Default::default() };
+            let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+                "id": 1,
+                "method": request::ExecuteCommand::METHOD,
+                "params": params,
+            }))
+            .unwrap();
+
+            let response = router.call(request).await.unwrap();
+
+            assert_eq!(response, serde_json::json!({ "success": true }));
+        }
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_rejects_unknown_cache_command() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let params = ExecuteCommandParams { command: "solar.unknown".into(), ..Default::default() };
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 1,
+            "method": request::ExecuteCommand::METHOD,
+            "params": params,
+        }))
+        .unwrap();
+
+        let error = router.call(request).await.unwrap_err();
+
+        assert_eq!(error.code, async_lsp::ErrorCode::METHOD_NOT_FOUND);
     }
 
     #[tokio::test(flavor = "current_thread")]
