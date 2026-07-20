@@ -491,6 +491,48 @@ fn analyze(batch: AnalysisBatch) -> AnalysisResult {
     })
 }
 
+/// Benchmark-only access to a fully analyzed, in-memory source.
+#[cfg(feature = "bench")]
+pub(crate) mod benchmark {
+    use super::{AnalysisBatch, SymbolTables, analyze};
+    use lsp_types::{HoverContents, Position, Url};
+    use solar_config::CompileOpts;
+    use solar_interface::data_structures::map::FxHashSet;
+    use std::path::PathBuf;
+
+    /// An opaque analysis snapshot used by the LSP Criterion benchmarks.
+    #[doc(hidden)]
+    pub struct BenchmarkAnalysis {
+        symbol_tables: SymbolTables,
+        uri: Url,
+    }
+
+    impl BenchmarkAnalysis {
+        /// Analyze one in-memory Solidity source without touching the filesystem.
+        pub fn from_source(source: String) -> Self {
+            let path =
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches").join("benchmark.sol");
+            let uri = Url::from_file_path(&path).expect("benchmark path should be a file URL");
+            let result = analyze(AnalysisBatch {
+                opts: CompileOpts::default(),
+                files: vec![(path, source)],
+                seen_paths: FxHashSet::default(),
+            });
+            Self { symbol_tables: result.symbol_tables, uri }
+        }
+
+        /// Resolve one declaration or reference position synchronously.
+        #[inline(never)]
+        pub fn hover(&self, line: u32, character: u32) -> Option<usize> {
+            let hover = std::hint::black_box(
+                self.symbol_tables.hover(&self.uri, Position::new(line, character)),
+            )?;
+            let HoverContents::Markup(content) = hover.contents else { return None };
+            Some(content.value.len())
+        }
+    }
+}
+
 #[cfg(test)]
 #[path = "tests/mod.rs"]
 mod tests;

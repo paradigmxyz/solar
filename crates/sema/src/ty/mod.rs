@@ -34,6 +34,8 @@ use std::{
 };
 use thread_local::ThreadLocal;
 
+pub use crate::natspec::NatSpecView;
+
 mod print;
 pub(crate) use print::TySolcPrinter;
 pub use print::{TyAbiPrinter, TyAbiPrinterMode};
@@ -1518,9 +1520,32 @@ pub fn base_override_items(gcx: _, item: hir::ItemId) -> &'gcx [hir::ItemId] {
     }))
 }
 
+pub(crate) fn natspec_resolution(
+    gcx: _,
+    item: hir::ItemId
+) -> crate::natspec::ResolvedNatSpec<'gcx> {
+    crate::natspec::resolve_item(gcx, item)
+}
+
+/// Returns the validated and resolved NatSpec view for an item.
+///
+/// Parameter and return documentation is aligned by position with the current item, including
+/// through explicit `@inheritdoc` chains. For a public state variable, positions correspond to its
+/// compiler-generated getter. Other variables have no positional documentation.
+pub fn natspec_view(gcx: _, item: hir::ItemId) -> NatSpecView<'gcx> {
+    crate::natspec::resolve_view(gcx, item)
+}
+
 /// Returns the resolved NatSpec doc comments for the given doc ID.
+///
+/// This preserves the flat representation used by compiler outputs. Use [`Gcx::natspec_view`] when
+/// documentation must be associated with the current item's parameter or return positions.
 pub fn natspec_doc_comments(gcx: _, id: hir::DocId) -> &'gcx [hir::NatSpecItem] {
-    crate::natspec::resolve_doc_comments(gcx, id)
+    if id.is_empty() {
+        &[]
+    } else {
+        gcx.natspec_resolution(gcx.hir.doc(id).item).items()
+    }
 }
 
 /// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.

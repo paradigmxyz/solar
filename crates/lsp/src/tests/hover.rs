@@ -128,6 +128,159 @@ uint256 result
 }
 
 #[test]
+fn maps_mixed_named_and_unnamed_return_docs_by_position() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Hover.sol open
+        contract C {
+            /// @return The first return value.
+            /// @return result The named return value.
+            function read() public pure returns (uint256, uint256 result) {
+                return (1, 2);
+            }
+
+            function use() public pure {
+                $1read();
+            }
+        }
+        "#,
+        "/Hover.sol",
+    );
+
+    fixture.check_hover(
+        "$1",
+        str![[r#"
+7:8-7:12
+```solidity
+function read() public pure returns (uint256, uint256 result)
+```
+
+**@return**
+
+- The first return value.
+
+- `result`: The named return value.
+
+"#]],
+    );
+}
+
+#[test]
+fn preserves_unnamed_return_docs_after_an_invalid_named_tag() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Hover.sol open
+        contract C {
+            /// @return wrong This tag is invalid.
+            /// @return The unnamed return value.
+            function read() public pure returns (uint256 first, uint256) {
+                return (1, 2);
+            }
+
+            function use() public pure {
+                $1read();
+            }
+        }
+        "#,
+        "/Hover.sol",
+    );
+
+    fixture.check_hover(
+        "$1",
+        str![[r#"
+7:8-7:12
+```solidity
+function read() public pure returns (uint256 first, uint256)
+```
+
+**@return**
+
+- The unnamed return value.
+
+"#]],
+    );
+}
+
+#[test]
+fn includes_local_docs_for_multi_return_public_getters() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Hover.sol open
+        contract C {
+            struct Record {
+                uint256 value;
+                address owner;
+            }
+
+            /// @return value The stored value.
+            /// @return owner The record owner.
+            Record public $1record;
+        }
+        "#,
+        "/Hover.sol",
+    );
+
+    fixture.check_hover(
+        "$1",
+        str![[r#"
+7:18-7:24
+```solidity
+Record public record
+```
+
+**@return**
+
+- `value`: The stored value.
+
+- `owner`: The record owner.
+
+"#]],
+    );
+}
+
+#[test]
+fn maps_inherited_docs_to_current_public_getter_returns() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Hover.sol open
+        interface Base {
+            /// @return first The first base value.
+            /// @return second The second base value.
+            function record() external view returns (uint256 first, address second);
+        }
+
+        contract Child is Base {
+            struct Record {
+                uint256 value;
+                address owner;
+            }
+
+            /// @inheritdoc Base
+            Record public override $1record;
+        }
+        "#,
+        "/Hover.sol",
+    );
+
+    fixture.check_hover(
+        "$1",
+        str![[r#"
+11:27-11:33
+```solidity
+Record public record
+```
+
+**@return**
+
+- `value`: The first base value.
+
+- `owner`: The second base value.
+
+"#]],
+    );
+}
+
+#[test]
 fn shows_variable_types_and_attributes() {
     let fixture = RequestFixture::new(
         r#"
@@ -536,6 +689,154 @@ Chooses a value.
 - `secondOut`: The first result.
 
 - `thirdOut`: The second result.
+
+"#]],
+    );
+}
+
+#[test]
+fn uses_the_explicit_inheritdoc_source_for_positional_documentation() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Hover.sol open
+        contract First {
+            /// @param right The first contract's left value.
+            /// @param left The first contract's right value.
+            function choose(uint256 right, uint256 left) public pure virtual {}
+        }
+
+        contract Second {
+            /// @param left The second contract's left value.
+            /// @param right The second contract's right value.
+            function choose(uint256 left, uint256 right) public pure virtual {}
+        }
+
+        contract Child is First, Second {
+            /// @inheritdoc Second
+            function choose(uint256 first, uint256 second)
+                public pure override(First, Second)
+            {}
+
+            function use() public pure {
+                $1choose(1, 2);
+            }
+        }
+        "#,
+        "/Hover.sol",
+    );
+
+    fixture.check_hover(
+        "$1",
+        str![[r#"
+16:8-16:14
+```solidity
+function choose(uint256 first, uint256 second) public pure override(First, Second)
+```
+
+**@param**
+
+- `first`: The second contract's left value.
+
+- `second`: The second contract's right value.
+
+"#]],
+    );
+}
+
+#[test]
+fn ignores_invalid_local_tags_when_resolving_inheritdoc() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Hover.sol open
+        contract Base {
+            /// @param value The inherited value.
+            /// @return result The inherited result.
+            function update(uint256 value) public pure virtual returns (uint256 result) {}
+        }
+
+        contract Child is Base {
+            /// @param missing This tag is invalid.
+            /// @return missing This tag is also invalid.
+            /// @inheritdoc Base
+            function update(uint256 renamed)
+                public pure override returns (uint256 renamedResult)
+            {}
+
+            function use() public pure {
+                $1update(1);
+            }
+        }
+        "#,
+        "/Hover.sol",
+    );
+
+    fixture.check_hover(
+        "$1",
+        str![[r#"
+13:8-13:14
+```solidity
+function update(uint256 renamed) public pure override returns (uint256 renamedResult)
+```
+
+**@param**
+
+- `renamed`: The inherited value.
+
+**@return**
+
+- `renamedResult`: The inherited result.
+
+"#]],
+    );
+}
+
+#[test]
+fn follows_positional_documentation_through_multiple_inheritdoc_levels() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Hover.sol open
+        contract Base {
+            /// @param value The base value.
+            /// @return result The base result.
+            function read(uint256 value) public pure virtual returns (uint256 result) {}
+        }
+
+        contract Middle is Base {
+            /// @inheritdoc Base
+            function read(uint256 middleValue)
+                public pure virtual override returns (uint256 middleResult)
+            {}
+        }
+
+        contract Leaf is Middle {
+            /// @inheritdoc Middle
+            function read(uint256 leafValue)
+                public pure override returns (uint256 leafResult)
+            {}
+
+            function use() public pure {
+                $1read(1);
+            }
+        }
+        "#,
+        "/Hover.sol",
+    );
+
+    fixture.check_hover(
+        "$1",
+        str![[r#"
+17:8-17:12
+```solidity
+function read(uint256 leafValue) public pure override returns (uint256 leafResult)
+```
+
+**@param**
+
+- `leafValue`: The base value.
+
+**@return**
+
+- `leafResult`: The base result.
 
 "#]],
     );

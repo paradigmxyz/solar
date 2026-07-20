@@ -16,5 +16,17 @@ error: tag `@return` does not contain the name of its return parameter
 LL │     /// @return
    ╰╴         ━━━━━━
 
-error: aborting due to 3 previous errors
+error: tag `@return` does not contain the name of its return parameter
+   ╭▸ ROOT/tests/ui/natspec/tag_returns.sol:LL:CC
+   │
+LL │     /// @return second The second return value is documented first
+   ╰╴         ━━━━━━
+
+error: tag `@return` does not contain the name of its return parameter
+   ╭▸ ROOT/tests/ui/natspec/tag_returns.sol:LL:CC
+   │
+LL │     /// @return first The first return value is documented second
+   ╰╴         ━━━━━━
+
+error: aborting due to 5 previous errors
 

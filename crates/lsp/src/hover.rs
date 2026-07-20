@@ -1,7 +1,7 @@
 //! Renders Solidity declarations and resolved NatSpec for LSP hover responses.
 
 use lsp_types::{MarkupContent, MarkupKind};
-use solar_sema::{Gcx, hir};
+use solar_sema::{Gcx, hir, ty::NatSpecView};
 use std::fmt::Write;
 
 pub(crate) fn render(gcx: Gcx<'_>, item_id: hir::ItemId) -> Option<MarkupContent> {
@@ -18,17 +18,6 @@ pub(crate) fn render(gcx: Gcx<'_>, item_id: hir::ItemId) -> Option<MarkupContent
     let mut value = format!("```solidity\n{signature}\n```");
     append_documentation(&mut value, &documentation(gcx, item_id));
     Some(MarkupContent { kind: MarkupKind::Markdown, value })
-}
-
-#[derive(Default)]
-struct RawDocumentation {
-    notice: Vec<String>,
-    dev: Vec<String>,
-    params: Vec<(String, String)>,
-    returns: Vec<(Option<String>, String)>,
-    has_local_params: bool,
-    has_local_returns: bool,
-    has_inheritdoc: bool,
 }
 
 #[derive(Default)]
@@ -74,18 +63,24 @@ fn callable_documentation(
     parameters: &[hir::VariableId],
     returns: &[hir::VariableId],
 ) -> Documentation {
-    let raw = raw_documentation(gcx, doc_id);
+    if doc_id.is_empty() {
+        return Documentation::default();
+    }
+    let view = gcx.natspec_view(item_id);
+    let mut documentation = item_documentation(view.items());
     let params = parameters
         .iter()
         .enumerate()
-        .filter_map(|(index, _)| parameter_doc_at(gcx, item_id, parameters, index, &raw))
+        .filter_map(|(index, _)| parameter_doc_at(gcx, parameters, index, view))
         .collect();
     let returns = returns
         .iter()
         .enumerate()
-        .filter_map(|(index, _)| return_doc_at(gcx, item_id, returns, index, &raw))
+        .filter_map(|(index, _)| return_doc_at(gcx, returns, index, view))
         .collect();
-    Documentation { notice: raw.notice, dev: raw.dev, params, returns }
+    documentation.params = params;
+    documentation.returns = returns;
+    documentation
 }
 
 fn variable_documentation(gcx: Gcx<'_>, id: hir::VariableId) -> Documentation {
@@ -97,51 +92,40 @@ fn variable_documentation(gcx: Gcx<'_>, id: hir::VariableId) -> Documentation {
                 gcx,
                 id,
                 hir::ItemId::Function(parent),
-                function.doc,
                 function.parameters,
             )
         }
         (hir::VarKind::FunctionReturn, Some(hir::ItemId::Function(parent))) => {
             let function = gcx.hir.function(parent);
-            selected_return_documentation(
-                gcx,
-                id,
-                hir::ItemId::Function(parent),
-                function.doc,
-                function.returns,
-            )
+            selected_return_documentation(gcx, id, hir::ItemId::Function(parent), function.returns)
         }
         (hir::VarKind::Event, Some(hir::ItemId::Event(parent))) => {
             let event = gcx.hir.event(parent);
-            selected_parameter_documentation(
-                gcx,
-                id,
-                hir::ItemId::Event(parent),
-                event.doc,
-                event.parameters,
-            )
+            selected_parameter_documentation(gcx, id, hir::ItemId::Event(parent), event.parameters)
         }
         (hir::VarKind::Error, Some(hir::ItemId::Error(parent))) => {
             let error = gcx.hir.error(parent);
-            selected_parameter_documentation(
-                gcx,
-                id,
-                hir::ItemId::Error(parent),
-                error.doc,
-                error.parameters,
-            )
+            selected_parameter_documentation(gcx, id, hir::ItemId::Error(parent), error.parameters)
         }
         (hir::VarKind::FunctionTyParam | hir::VarKind::FunctionTyReturn, _) => {
             Documentation::default()
         }
+        _ if variable.doc.is_empty() => Documentation::default(),
         _ => {
-            let raw = raw_documentation(gcx, variable.doc);
-            Documentation {
-                notice: raw.notice,
-                dev: raw.dev,
-                params: Vec::new(),
-                returns: raw.returns,
+            let view = gcx.natspec_view(hir::ItemId::Variable(id));
+            let items = view.items();
+            let mut documentation = item_documentation(items);
+            if let Some(getter) = variable.getter {
+                let returns = gcx.hir.function(getter).returns;
+                documentation.returns = returns
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, _)| return_doc_at(gcx, returns, index, view))
+                    .collect();
+            } else {
+                documentation.returns = return_documentation(items);
             }
+            documentation
         }
     }
 }
@@ -150,14 +134,16 @@ fn selected_parameter_documentation(
     gcx: Gcx<'_>,
     id: hir::VariableId,
     item_id: hir::ItemId,
-    doc_id: hir::DocId,
     parameters: &[hir::VariableId],
 ) -> Documentation {
     let Some(index) = parameters.iter().position(|&parameter| parameter == id) else {
         return Documentation::default();
     };
-    let raw = raw_documentation(gcx, doc_id);
-    let params = parameter_doc_at(gcx, item_id, parameters, index, &raw).into_iter().collect();
+    if gcx.hir.item(item_id).doc().is_empty() {
+        return Documentation::default();
+    }
+    let view = gcx.natspec_view(item_id);
+    let params = parameter_doc_at(gcx, parameters, index, view).into_iter().collect();
     Documentation { params, ..Documentation::default() }
 }
 
@@ -165,61 +151,30 @@ fn selected_return_documentation(
     gcx: Gcx<'_>,
     id: hir::VariableId,
     item_id: hir::ItemId,
-    doc_id: hir::DocId,
     returns: &[hir::VariableId],
 ) -> Documentation {
     let Some(index) = returns.iter().position(|&return_id| return_id == id) else {
         return Documentation::default();
     };
-    let raw = raw_documentation(gcx, doc_id);
-    let returns = return_doc_at(gcx, item_id, returns, index, &raw).into_iter().collect();
+    if gcx.hir.item(item_id).doc().is_empty() {
+        return Documentation::default();
+    }
+    let view = gcx.natspec_view(item_id);
+    let returns = return_doc_at(gcx, returns, index, view).into_iter().collect();
     Documentation { returns, ..Documentation::default() }
 }
 
-fn raw_documentation(gcx: Gcx<'_>, doc_id: hir::DocId) -> RawDocumentation {
-    if doc_id.is_empty() {
-        return RawDocumentation::default();
-    }
-    let mut documentation = RawDocumentation::default();
-    for comment in gcx.hir.doc(doc_id).ast_comments().iter() {
-        for item in comment.natspec.iter() {
-            match item.kind {
-                solar_sema::ast::NatSpecKind::Param { .. } => {
-                    documentation.has_local_params = true;
-                }
-                solar_sema::ast::NatSpecKind::Return { .. } => {
-                    documentation.has_local_returns = true;
-                }
-                solar_sema::ast::NatSpecKind::Inheritdoc { .. } => {
-                    documentation.has_inheritdoc = true;
-                }
-                solar_sema::ast::NatSpecKind::Title
-                | solar_sema::ast::NatSpecKind::Author
-                | solar_sema::ast::NatSpecKind::Notice
-                | solar_sema::ast::NatSpecKind::Dev
-                | solar_sema::ast::NatSpecKind::Custom { .. }
-                | solar_sema::ast::NatSpecKind::Internal { .. } => {}
-            }
-        }
-    }
-    for item in gcx.natspec_doc_comments(doc_id) {
-        let content = item.content().trim();
-        if content.is_empty() {
-            continue;
-        }
+fn item_documentation(items: &[hir::NatSpecItem]) -> Documentation {
+    let mut documentation = Documentation::default();
+    for item in items {
+        let Some(content) = item_content(item) else { continue };
         match item.kind {
             hir::NatSpecKind::Notice => documentation.notice.push(content.to_string()),
             hir::NatSpecKind::Dev => documentation.dev.push(content.to_string()),
-            hir::NatSpecKind::Param { name } => {
-                documentation.params.push((name.to_string(), content.to_string()));
-            }
-            hir::NatSpecKind::Return { name } => {
-                documentation
-                    .returns
-                    .push((name.map(|name| name.to_string()), content.to_string()));
-            }
+            hir::NatSpecKind::Return { .. } => {}
             hir::NatSpecKind::Title
             | hir::NatSpecKind::Author
+            | hir::NatSpecKind::Param { .. }
             | hir::NatSpecKind::Inheritdoc { .. }
             | hir::NatSpecKind::Custom { .. }
             | hir::NatSpecKind::Internal { .. } => {}
@@ -228,127 +183,52 @@ fn raw_documentation(gcx: Gcx<'_>, doc_id: hir::DocId) -> RawDocumentation {
     documentation
 }
 
-fn parameter_doc_at(
-    gcx: Gcx<'_>,
-    item_id: hir::ItemId,
-    parameters: &[hir::VariableId],
-    index: usize,
-    documentation: &RawDocumentation,
-) -> Option<(String, String)> {
-    let name = gcx.hir.variable(*parameters.get(index)?).name?.to_string();
-    let mut docs = if documentation.has_inheritdoc && !documentation.has_local_params {
-        inherited_parameter_docs(gcx, item_id, index, documentation)
-    } else {
-        Vec::new()
-    };
-    if docs.is_empty() {
-        docs = parameter_docs(documentation, &name);
-    }
-    (!docs.is_empty()).then(|| (name, docs.join("\n\n")))
-}
-
-fn parameter_docs<'a>(documentation: &'a RawDocumentation, name: &str) -> Vec<&'a str> {
-    documentation
-        .params
+fn return_documentation(items: &[hir::NatSpecItem]) -> Vec<(Option<String>, String)> {
+    items
         .iter()
-        .filter(|(parameter, _)| parameter == name)
-        .map(|(_, content)| content.as_str())
+        .filter_map(|item| {
+            let hir::NatSpecKind::Return { name } = item.kind else { return None };
+            let content = item_content(item)?;
+            Some((name.map(|name| name.to_string()), content.to_string()))
+        })
         .collect()
 }
 
-fn inherited_parameter_docs<'a>(
+fn parameter_doc_at(
     gcx: Gcx<'_>,
-    item_id: hir::ItemId,
+    parameters: &[hir::VariableId],
     index: usize,
-    documentation: &'a RawDocumentation,
-) -> Vec<&'a str> {
-    for &base_item in gcx.base_override_items(item_id) {
-        let hir::ItemId::Function(base_id) = base_item else { continue };
-        let Some(&variable_id) = gcx.hir.function(base_id).parameters.get(index) else {
-            continue;
-        };
-        let Some(name) = gcx.hir.variable(variable_id).name else { continue };
-        let docs = parameter_docs(documentation, name.as_str());
-        if !docs.is_empty() {
-            return docs;
-        }
-    }
-    Vec::new()
+    documentation: NatSpecView<'_>,
+) -> Option<(String, String)> {
+    let content = join_docs(documentation.parameter(index).iter().filter_map(item_content))?;
+    let name = gcx.hir.variable(*parameters.get(index)?).name?.to_string();
+    Some((name, content))
 }
 
 fn return_doc_at(
     gcx: Gcx<'_>,
-    item_id: hir::ItemId,
     returns: &[hir::VariableId],
     index: usize,
-    documentation: &RawDocumentation,
+    documentation: NatSpecView<'_>,
 ) -> Option<(Option<String>, String)> {
+    let content = join_docs(documentation.return_(index).iter().filter_map(item_content))?;
     let name = gcx.hir.variable(*returns.get(index)?).name.map(|name| name.to_string());
-    if documentation.has_inheritdoc
-        && !documentation.has_local_returns
-        && let Some(content) = inherited_return_doc(gcx, item_id, index, documentation)
-    {
-        return Some((name, content));
-    }
-    if let Some(name) = &name {
-        let docs = named_return_docs(documentation, name);
-        if !docs.is_empty() {
-            return Some((Some(name.clone()), docs.join("\n\n")));
-        }
-    }
-    if name.is_some() {
-        return None;
-    }
-
-    unnamed_return_doc(gcx, returns, index, documentation).map(|content| (None, content))
+    Some((name, content))
 }
 
-fn named_return_docs<'a>(documentation: &'a RawDocumentation, name: &str) -> Vec<&'a str> {
-    documentation
-        .returns
-        .iter()
-        .filter(|(return_name, _)| return_name.as_deref() == Some(name))
-        .map(|(_, content)| content.as_str())
-        .collect()
+fn item_content(item: &hir::NatSpecItem) -> Option<&str> {
+    let content = item.content().trim();
+    (!content.is_empty()).then_some(content)
 }
 
-fn inherited_return_doc(
-    gcx: Gcx<'_>,
-    item_id: hir::ItemId,
-    index: usize,
-    documentation: &RawDocumentation,
-) -> Option<String> {
-    for &base_item in gcx.base_override_items(item_id) {
-        let hir::ItemId::Function(base_id) = base_item else { continue };
-        let returns = gcx.hir.function(base_id).returns;
-        let Some(&variable_id) = returns.get(index) else { continue };
-        let content = if let Some(name) = gcx.hir.variable(variable_id).name {
-            let docs = named_return_docs(documentation, name.as_str());
-            (!docs.is_empty()).then(|| docs.join("\n\n"))
-        } else {
-            unnamed_return_doc(gcx, returns, index, documentation)
-        };
-        if content.is_some() {
-            return content;
-        }
+fn join_docs<'a>(mut docs: impl Iterator<Item = &'a str>) -> Option<String> {
+    let first = docs.next()?;
+    let mut joined = first.to_string();
+    for doc in docs {
+        joined.push_str("\n\n");
+        joined.push_str(doc);
     }
-    None
-}
-
-fn unnamed_return_doc(
-    gcx: Gcx<'_>,
-    returns: &[hir::VariableId],
-    index: usize,
-    documentation: &RawDocumentation,
-) -> Option<String> {
-    let unnamed_index =
-        returns[..index].iter().filter(|&&id| gcx.hir.variable(id).name.is_none()).count();
-    documentation
-        .returns
-        .iter()
-        .filter(|(return_name, _)| return_name.is_none())
-        .nth(unnamed_index)
-        .map(|(_, content)| content.clone())
+    Some(joined)
 }
 
 fn append_documentation(output: &mut String, documentation: &Documentation) {
@@ -358,7 +238,12 @@ fn append_documentation(output: &mut String, documentation: &Documentation) {
     }
     if !documentation.dev.is_empty() {
         output.push_str("\n\n**@dev**\n\n");
-        output.push_str(&documentation.dev.join("\n\n"));
+        for (index, dev) in documentation.dev.iter().enumerate() {
+            if index != 0 {
+                output.push_str("\n\n");
+            }
+            output.push_str(dev);
+        }
     }
     append_list(
         output,
@@ -377,8 +262,8 @@ fn append_list<'a>(
     heading: &str,
     items: impl Iterator<Item = (Option<&'a str>, &'a str)>,
 ) {
-    let items = items.collect::<Vec<_>>();
-    if items.is_empty() {
+    let mut items = items.peekable();
+    if items.peek().is_none() {
         return;
     }
     write!(output, "\n\n**{heading}**").unwrap();

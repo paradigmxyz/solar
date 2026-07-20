@@ -40,6 +40,18 @@ error: tag `@param` references non-existent parameter 'y'
 LL │     /// @param y Invalid parameter name
    ╰╴         ━━━━━
 
+error: tag `@inheritdoc` references contract "SelfInheritdoc", which is not a base of this contract
+   ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   │
+LL │     /// @inheritdoc SelfInheritdoc
+   ╰╴         ━━━━━━━━━━
+
+error: tag `@inheritdoc` references contract "InheritdocIntermediate", but the contract does not contain a matching item that can be inherited
+   ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   │
+LL │     /// @inheritdoc InheritdocIntermediate
+   ╰╴         ━━━━━━━━━━
+
 error: tag `@return` not valid for events
    ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    │
@@ -52,5 +64,5 @@ error: tag `@inheritdoc` not valid for events
 LL │     /// @inheritdoc InvalidInheritdocBase
    ╰╴         ━━━━━━━━━━
 
-error: aborting due to 8 previous errors
+error: aborting due to 10 previous errors
 

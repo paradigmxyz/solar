@@ -301,5 +301,49 @@ note: @return value The result value
 LL │     /// @return value The result value
    ╰╴         ━━━━━━
 
-error: aborting due to 7 previous errors
+error: resolved NatSpec for function `GrandChildFromBase.foo`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │ ┏     function foo(uint x, uint y) public override returns (bool success, uint value) {
+LL │ ┃         return (true, y - x);
+LL │ ┃     }
+   │ ┗━━━━━┛
+   ╰╴
+note: inherits NatSpec from function `Base.foo(uint256,uint256)`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @inheritdoc Base
+   ╰╴         ━━━━━━━━━━
+note: @notice Base function notice
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @notice Base function notice
+   ╰╴         ━━━━━━
+note: @dev Base function dev
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @dev Base function dev
+   ╰╴         ━━━
+note: @param x The x parameter from base
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @param x The x parameter from base
+   ╰╴         ━━━━━
+note: @param y The y parameter from base
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @param y The y parameter from base
+   ╰╴         ━━━━━
+note: @return success Whether the operation succeeded
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @return success Whether the operation succeeded
+   ╰╴         ━━━━━━
+note: @return value The result value
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @return value The result value
+   ╰╴         ━━━━━━
+
+error: aborting due to 8 previous errors
 

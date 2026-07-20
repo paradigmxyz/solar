@@ -48,11 +48,19 @@ tokio-util = { workspace = true, features = ["compat"] }
 tokio = { workspace = true, features = ["rt", "io-std"] }
 
 [dev-dependencies]
+criterion.workspace = true
 snapbox.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["io-util", "macros", "rt", "sync", "time"] }
 tokio-util = { workspace = true, features = ["compat"] }
 
 [features]
+bench = []
 nightly = ["solar-config/nightly"]
 version = ["solar-config/version"]
+
+[[bench]]
+name = "lsp"
+path = "benches/lsp.rs"
+harness = false
+required-features = ["bench"]

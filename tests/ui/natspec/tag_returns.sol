@@ -27,3 +27,11 @@ contract InvalidReturnNames {
     //~^ ERROR: tag `@return` does not contain the name of its return parameter
     function missingName() public returns (uint result) {}
 }
+
+contract InvalidReturnOrder {
+    /// @return second The second return value is documented first
+    //~^ ERROR: tag `@return` does not contain the name of its return parameter
+    /// @return first The first return value is documented second
+    //~^ ERROR: tag `@return` does not contain the name of its return parameter
+    function swappedNames() public returns (uint first, uint second) {}
+}
