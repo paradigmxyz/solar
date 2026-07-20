@@ -41,6 +41,7 @@ use tokio::{
 
 pub(crate) struct GlobalState {
     client: ClientSocket,
+    pub(crate) sess: Session,
     pub(crate) vfs: Arc<RwLock<Vfs>>,
     pub(crate) config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
@@ -56,6 +57,7 @@ impl GlobalState {
         let (published_analysis_version, _) = watch::channel(0);
         Self {
             client,
+            sess: Session::default(),
             vfs: Arc::new(Default::default()),
             analysis_version: Arc::new(AtomicUsize::new(0)),
             published_analysis_version,
@@ -161,10 +163,24 @@ impl GlobalState {
         });
     }
 
-    pub(crate) fn current_analysis(&self) -> (usize, watch::Receiver<usize>) {
-        let published = self.published_analysis_version.subscribe();
+    /// Waits for analysis results at least as new as the latest version requested before this call.
+    pub(crate) fn latest_analysis(
+        &self,
+    ) -> impl Future<Output = Result<Arc<RwLock<SymbolTables>>, ResponseError>> + use<> {
+        let mut published = self.published_analysis_version.subscribe();
         let version = self.analysis_version.load(Ordering::Acquire);
-        (version, published)
+        let symbol_tables = self.symbol_tables.clone();
+        async move {
+            published.wait_for(|published| *published >= version).await.map_err(|_| {
+                ResponseError::new(async_lsp::ErrorCode::REQUEST_FAILED, "analysis was cancelled")
+            })?;
+            Ok(symbol_tables)
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn mark_analysis_pending_for_test(&self) {
+        self.analysis_version.fetch_add(1, Ordering::AcqRel);
     }
 
     pub(crate) fn run_flychecks_on_save(&mut self, path: PathBuf) {
