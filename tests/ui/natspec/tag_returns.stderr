@@ -16,17 +16,17 @@ error: tag `@return` does not contain the name of its return parameter
 LL │     /// @return
    ╰╴         ━━━━━━
 
-error: tag `@return` does not contain the name of its return parameter
+error: mismatched `@return` parameter: expected `first`, found `second`
    ╭▸ ROOT/tests/ui/natspec/tag_returns.sol:LL:CC
    │
 LL │     /// @return second The second return value is documented first
-   ╰╴         ━━━━━━
+   ╰╴                ━━━━━━
 
-error: tag `@return` does not contain the name of its return parameter
+error: mismatched `@return` parameter: expected `second`, found `first`
    ╭▸ ROOT/tests/ui/natspec/tag_returns.sol:LL:CC
    │
 LL │     /// @return first The first return value is documented second
-   ╰╴         ━━━━━━
+   ╰╴                ━━━━━
 
 error: aborting due to 5 previous errors
 

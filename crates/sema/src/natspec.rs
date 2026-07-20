@@ -457,14 +457,24 @@ impl<'gcx> Resolver<'gcx> {
             return None;
         };
 
+        // Content offsets are relative to the comment, while `span` covers only the tag name.
+        let tag_end = content[..natspec.content_start as usize].trim_ascii_end().len();
+        let name_end = content[..content_start].trim_ascii_end().len();
+        let name_start = name_end - documented.len();
+        let name_lo = natspec.span.hi() + (name_start - tag_end) as u32;
+        let name_span = Span::new(name_lo, name_lo + documented.len() as u32);
+
         let documented_name = Symbol::intern(documented);
         if documented_name != expected.name {
             if rets.iter().any(|&id| {
                 self.gcx.hir.variable(id).name.is_some_and(|name| name.name == documented_name)
             }) {
                 self.gcx.dcx().emit_err(
-                    natspec.span,
-                    "tag `@return` does not contain the name of its return parameter",
+                    name_span,
+                    format!(
+                        "mismatched `@return` parameter: expected `{}`, found `{documented_name}`",
+                        expected.name
+                    ),
                 );
             } else {
                 self.gcx.dcx().emit_err(
@@ -476,13 +486,6 @@ impl<'gcx> Resolver<'gcx> {
             }
             return None;
         }
-
-        // Content offsets are relative to the comment, while `span` covers only the tag name.
-        let tag_end = content[..natspec.content_start as usize].trim_ascii_end().len();
-        let name_end = content[..content_start].trim_ascii_end().len();
-        let name_start = name_end - documented.len();
-        let name_lo = natspec.span.hi() + (name_start - tag_end) as u32;
-        let name_span = Span::new(name_lo, name_lo + documented.len() as u32);
 
         let mut item = natspec;
         item.kind = ast::NatSpecKind::Return { name: Some(Ident::new(expected.name, name_span)) };
