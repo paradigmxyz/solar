@@ -13,4 +13,9 @@ bb0 (entry):
   push 1
   not
   not
+  push 14
+  push 15
+  dup2
+  mstore
+  pop
   stop

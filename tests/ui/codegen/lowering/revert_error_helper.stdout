@@ -47,9 +47,8 @@ bb9:
   dup3
   add
   dup2
-  dup2
+  swap1
   mstore
-  pop
   push 31
   dup2
   add
@@ -66,9 +65,8 @@ bb9:
   dup2
   add
   push 0
-  dup2
+  swap1
   mstore
-  pop
   push 32
   push 288
   mload

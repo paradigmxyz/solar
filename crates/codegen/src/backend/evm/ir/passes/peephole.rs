@@ -26,6 +26,7 @@ const RULES: &[&str] = &[
     "triple_iszero",
     "dup2_commutative_pop",
     "dup2_binop_pop",
+    "dup2_sink_pop",
     "double_swap_pop",
     "duplicate_mstore",
     "store_load_pop",
@@ -195,6 +196,15 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
         ) {
             return Some(Rewrite::replace("dup2_binop_pop", 4, [raw(op::SWAP1), raw(binop)]));
         }
+    }
+
+    if stack.len() >= 3
+        && raw_opcode(&stack[0]) == Some(op::POP)
+        && let Some(opcode) = raw_opcode(&stack[1])
+        && matches!(opcode, op::MSTORE | op::MSTORE8 | op::SSTORE | op::TSTORE | op::LOG0)
+        && raw_opcode(&stack[2]) == Some(op::DUP2)
+    {
+        return Some(Rewrite::replace("dup2_sink_pop", 3, [raw(op::SWAP1), raw(opcode)]));
     }
 
     if stack.len() >= 4

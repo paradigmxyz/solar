@@ -140,9 +140,8 @@ bb5:
   dup1
   push 512
   mstore
-  dup2
+  swap1
   mstore
-  pop
   push 32
   mstore
   push 512
@@ -229,9 +228,8 @@ bb18:
   dup1
   push 704
   mstore
-  dup2
+  swap1
   mstore
-  pop
   push 32
   mstore
   push 704

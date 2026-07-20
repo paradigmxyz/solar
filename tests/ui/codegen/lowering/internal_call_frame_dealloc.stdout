@@ -79,9 +79,8 @@ bb13:
   push 128
   add
   push 0
-  dup2
+  swap1
   mstore
-  pop
   push 160
   mload
   push 64

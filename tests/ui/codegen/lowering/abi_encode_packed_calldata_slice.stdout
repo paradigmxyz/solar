@@ -214,9 +214,8 @@ bb22:
   dup2
   add
   push 0
-  dup2
+  swap1
   mstore
-  pop
   push 160
   mload
   dup1
@@ -298,9 +297,8 @@ bb24:
   dup2
   add
   push 0
-  dup2
+  swap1
   mstore
-  pop
   push 160
   mload
   dup1

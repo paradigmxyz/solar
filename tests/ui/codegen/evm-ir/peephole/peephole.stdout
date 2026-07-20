@@ -4,4 +4,8 @@ bb0 (entry):
   push 5
   push 7
   push 1
+  push 14
+  push 15
+  swap1
+  mstore
   stop

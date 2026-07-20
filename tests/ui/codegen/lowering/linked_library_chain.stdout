@@ -154,18 +154,16 @@ bb9:
   add
   push 4
   calldataload
-  dup2
+  swap1
   mstore
-  pop
   push 36
   push 160
   mload
   add
   push 36
   calldataload
-  dup2
+  swap1
   mstore
-  pop
   gas
   push 32
   push 0
@@ -251,18 +249,16 @@ bb0 (entry):
   mload
   add
   push 0
-  dup2
+  swap1
   mstore
-  pop
   push 36
   push 160
   mload
   add
   push 4
   calldataload
-  dup2
+  swap1
   mstore
-  pop
   gas
   push 32
   push 0

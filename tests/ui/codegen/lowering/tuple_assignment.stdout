@@ -167,9 +167,8 @@ bb7:
   dup2
   add
   push 0
-  dup2
+  swap1
   mstore
-  pop
   push 36
   push 36
   calldataload
@@ -242,9 +241,8 @@ bb17:
   swap1
   add
   push 9
-  dup2
+  swap1
   mstore
-  pop
   push 7
   push 128
   mstore

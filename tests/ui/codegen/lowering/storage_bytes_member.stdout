@@ -666,9 +666,8 @@ bb30:
   mload
   add
   push 0
-  dup2
+  swap1
   sstore
-  pop
   push 1
   push 704
   mload
@@ -1074,9 +1073,8 @@ bb41:
   mload
   add
   push 0
-  dup2
+  swap1
   sstore
-  pop
   push 1
   push 576
   mload
@@ -1467,9 +1465,8 @@ bb62:
   dup3
   add
   dup2
-  dup2
+  swap1
   mstore
-  pop
   push 31
   dup2
   add
@@ -1486,9 +1483,8 @@ bb62:
   dup2
   add
   push 0
-  dup2
+  swap1
   mstore
-  pop
   push 32
   push 0x420
   mload

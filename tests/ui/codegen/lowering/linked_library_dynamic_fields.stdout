@@ -308,9 +308,8 @@ bb9:
   dup1
   push 256
   mstore
-  dup2
+  swap1
   sstore
-  pop
   push 256
   mload
   dup1
@@ -780,9 +779,8 @@ bb10:
   dup2
   add
   push 0
-  dup2
+  swap1
   mstore
-  pop
   push 36
   push 68
   calldataload
@@ -818,24 +816,21 @@ bb10:
   dup1
   push 224
   mstore
-  dup2
+  swap1
   mstore
-  pop
   push 64
   dup2
   add
   dup4
-  dup2
+  swap1
   mstore
-  pop
   push 96
   dup2
   add
   push 100
   calldataload
-  dup2
+  swap1
   mstore
-  pop
   push 384
   mload
   dup1
@@ -860,24 +855,21 @@ bb10:
   add
   push 4
   calldataload
-  dup2
+  swap1
   mstore
-  pop
   push 260
   dup3
   add
   push 100
   calldataload
-  dup2
+  swap1
   mstore
-  pop
   push 196
   dup3
   add
   push 160
-  dup2
+  swap1
   mstore
-  pop
   push 224
   mload
   dup1
@@ -897,9 +889,8 @@ bb10:
   dup1
   push 448
   mstore
-  dup2
+  swap1
   mstore
-  pop
   push 324
   dup4
   add

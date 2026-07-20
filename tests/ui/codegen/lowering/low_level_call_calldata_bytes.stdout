@@ -127,9 +127,8 @@ bb25:
   dup2
   add
   push 0
-  dup2
+  swap1
   mstore
-  pop
   push 36
   push 36
   calldataload
@@ -261,9 +260,8 @@ bb28:
   dup2
   add
   push 0
-  dup2
+  swap1
   mstore
-  pop
   push 36
   push 36
   calldataload

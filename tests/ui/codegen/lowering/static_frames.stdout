@@ -199,9 +199,8 @@ bb7:
   dup1
   push 0x500
   mstore
-  dup2
+  swap1
   mstore
-  pop
   push 32
   mstore
   push 0
@@ -686,9 +685,8 @@ bb69:
   push 160
   add
   push 0
-  dup2
+  swap1
   mstore
-  pop
   push 160
   mload
   push 64
