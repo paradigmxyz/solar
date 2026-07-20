@@ -44,6 +44,7 @@ pub(crate) struct SymbolTables {
     declarations: IndexVec<SymbolId, DeclarationSymbol>,
     type_definitions: IndexVec<SymbolId, TypeDefinitionTargets>,
     files: FxHashMap<Url, Vec<SymbolId>>,
+    file_declaration_positions: FxHashMap<Url, PositionIndex<SymbolId>>,
     workspace_symbol_ids: Vec<SymbolId>,
     symbols_by_key: FxHashMap<SymbolKey, SymbolId>,
     scopes: IndexVec<ScopeId, Scope>,
@@ -54,7 +55,7 @@ pub(crate) struct SymbolTables {
     file_member_completions: FxHashMap<Url, Vec<usize>>,
     file_scopes: FxHashMap<Url, Vec<ScopeId>>,
     references: Vec<SymbolReference>,
-    file_references: FxHashMap<Url, Vec<usize>>,
+    file_references: FxHashMap<Url, PositionIndex<usize>>,
     symbol_references: FxHashMap<SymbolId, Vec<usize>>,
     override_families: OverrideFamilyIndex,
     rename: RenameIndex,
@@ -130,6 +131,61 @@ struct SymbolReference {
     location: Location,
     targets: ReferenceTargets,
     kind: DocumentHighlightKind,
+}
+
+/// A start-sorted interval index for point queries.
+#[derive(Clone, Debug)]
+struct PositionIndex<T> {
+    entries: Vec<T>,
+    prefix_max_end: Vec<Position>,
+}
+
+impl<T> Default for PositionIndex<T> {
+    fn default() -> Self {
+        Self { entries: Vec::new(), prefix_max_end: Vec::new() }
+    }
+}
+
+impl<T: Copy> PositionIndex<T> {
+    fn push(&mut self, entry: T) {
+        self.entries.push(entry);
+    }
+
+    fn iter(&self) -> std::slice::Iter<'_, T> {
+        self.entries.iter()
+    }
+
+    fn rebuild(&mut self, range: impl Fn(T) -> Range + Copy) {
+        self.entries.sort_by_key(|&entry| {
+            let range = range(entry);
+            (range.start, range.end)
+        });
+
+        self.prefix_max_end.clear();
+        self.prefix_max_end.reserve(self.entries.len());
+        let mut max_end = None;
+        for &entry in &self.entries {
+            let end = range(entry).end;
+            max_end = Some(max_end.map_or(end, |max_end: Position| max_end.max(end)));
+            self.prefix_max_end.push(max_end.unwrap());
+        }
+    }
+
+    fn candidates_at<'a>(
+        &'a self,
+        position: Position,
+        range: impl Fn(T) -> Range + Copy + 'a,
+    ) -> impl Iterator<Item = T> + 'a {
+        let end = self.entries.partition_point(|&entry| range(entry).start <= position);
+        self.entries[..end]
+            .iter()
+            .copied()
+            .zip(self.prefix_max_end[..end].iter().copied())
+            .rev()
+            .take_while(move |(_, prefix_max_end)| *prefix_max_end >= position)
+            .filter(move |&(entry, _)| range_contains(range(entry), position))
+            .map(|(entry, _)| entry)
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -928,21 +984,27 @@ impl SymbolTables {
     fn reference_at_position(&self, uri: &Url, position: Position) -> Option<&SymbolReference> {
         self.file_references
             .get(uri)?
-            .iter()
-            .filter_map(|&index| {
+            .candidates_at(position, |index| self.references[index].location.range)
+            .min_by_key(|&index| {
                 let reference = &self.references[index];
-                range_contains(reference.location.range, position).then_some(reference)
+                let range = reference.location.range;
+                (range_size_key(range), range.start, range.end, index)
             })
-            .min_by_key(|reference| range_size_key(reference.location.range))
+            .map(|index| &self.references[index])
     }
 
     fn declaration_at_position(&self, uri: &Url, position: Position) -> Option<SymbolId> {
-        self.files
+        self.file_declaration_positions
             .get(uri)?
-            .iter()
-            .copied()
-            .filter(|&symbol_id| range_contains(self.declarations[symbol_id].name_range, position))
-            .min_by_key(|&symbol_id| range_size_key(self.declarations[symbol_id].name_range))
+            .candidates_at(position, |symbol_id| self.declarations[symbol_id].name_range)
+            .min_by_key(|&symbol_id| {
+                let declaration = &self.declarations[symbol_id];
+                (
+                    range_size_key(declaration.name_range),
+                    declaration.location.range.start,
+                    symbol_id.index(),
+                )
+            })
     }
 
     fn scope_at_position(&self, uri: &Url, position: Position) -> Option<ScopeId> {
@@ -1087,6 +1149,15 @@ impl SymbolTables {
             sort_symbol_ids(&self.declarations, symbols);
         }
 
+        self.file_declaration_positions.clear();
+        self.file_declaration_positions.reserve(self.files.len());
+        for (uri, symbols) in &self.files {
+            let mut positions = PositionIndex::default();
+            positions.entries.extend(symbols.iter().copied());
+            positions.rebuild(|symbol_id| self.declarations[symbol_id].name_range);
+            self.file_declaration_positions.insert(uri.clone(), positions);
+        }
+
         self.workspace_symbol_ids.clear();
         self.workspace_symbol_ids.reserve(self.declarations.len());
         self.workspace_symbol_ids.extend(self.declarations.indices());
@@ -1124,16 +1195,7 @@ impl SymbolTables {
             }
         }
         for references in self.file_references.values_mut() {
-            references.sort_by_key(|&index| {
-                let location = &self.references[index].location;
-                (
-                    location.range.start.line,
-                    location.range.start.character,
-                    location.range.end.line,
-                    location.range.end.character,
-                    index,
-                )
-            });
+            references.rebuild(|index| self.references[index].location.range);
         }
         self.override_families.rebuild(&self.declarations, self.rename.conflicting_contents());
         self.rename.rebuild(&self.override_families);
@@ -2171,6 +2233,73 @@ mod tests {
                 ("Iface", SymbolKind::INTERFACE),
                 ("Lib", SymbolKind::MODULE)
             ]
+        );
+    }
+
+    #[test]
+    fn position_lookups_handle_nested_multiline_and_point_ranges() {
+        let uri = parse_uri("file:///workspace/src/Contract.sol");
+        let mut tables = SymbolTables::default();
+        let outer = tables.push_for_test(
+            &uri,
+            "outer",
+            SymbolKind::VARIABLE,
+            range(0, 0, 3, 0),
+            range(0, 0, 3, 0),
+            None,
+        );
+        let inner = tables.push_for_test(
+            &uri,
+            "inner",
+            SymbolKind::VARIABLE,
+            range(2, 4, 2, 9),
+            range(2, 4, 2, 9),
+            None,
+        );
+        let point = tables.push_for_test(
+            &uri,
+            "point",
+            SymbolKind::VARIABLE,
+            range(4, 2, 4, 2),
+            range(4, 2, 4, 2),
+            None,
+        );
+        tables.references.extend([
+            SymbolReference {
+                location: Location { uri: uri.clone(), range: range(0, 0, 3, 0) },
+                targets: ReferenceTargets::from_buf([outer]),
+                kind: DocumentHighlightKind::READ,
+            },
+            SymbolReference {
+                location: Location { uri: uri.clone(), range: range(2, 4, 2, 9) },
+                targets: ReferenceTargets::from_buf([inner]),
+                kind: DocumentHighlightKind::READ,
+            },
+            SymbolReference {
+                location: Location { uri: uri.clone(), range: range(4, 2, 4, 2) },
+                targets: ReferenceTargets::from_buf([point]),
+                kind: DocumentHighlightKind::READ,
+            },
+        ]);
+        tables.rebuild_indexes();
+
+        assert_eq!(tables.declaration_at_position(&uri, Position::new(1, 0)), Some(outer));
+        assert_eq!(tables.declaration_at_position(&uri, Position::new(2, 5)), Some(inner));
+        assert_eq!(tables.declaration_at_position(&uri, Position::new(3, 0)), None);
+        assert_eq!(tables.declaration_at_position(&uri, Position::new(4, 2)), Some(point));
+
+        assert_eq!(
+            tables.reference_at_position(&uri, Position::new(1, 0)).unwrap().targets,
+            ReferenceTargets::from_buf([outer])
+        );
+        assert_eq!(
+            tables.reference_at_position(&uri, Position::new(2, 5)).unwrap().targets,
+            ReferenceTargets::from_buf([inner])
+        );
+        assert!(tables.reference_at_position(&uri, Position::new(3, 0)).is_none());
+        assert_eq!(
+            tables.reference_at_position(&uri, Position::new(4, 2)).unwrap().targets,
+            ReferenceTargets::from_buf([point])
         );
     }
 

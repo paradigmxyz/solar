@@ -10,6 +10,8 @@ use async_lsp::{
     ClientSocket, client_monitor::ClientProcessMonitorLayer, concurrency::ConcurrencyLayer,
     router::Router, server::LifecycleLayer, tracing::TracingLayer,
 };
+#[cfg(test)]
+use criterion as _;
 use lsp_types::{notification as notif, request as req};
 use serde_json as _;
 use solar_config::LspArgs;
@@ -34,6 +36,11 @@ mod symbols;
 mod utils;
 mod vfs;
 mod workspace;
+
+/// Benchmark-only access to an opaque LSP analysis snapshot.
+#[cfg(feature = "bench")]
+#[doc(hidden)]
+pub use global_state::benchmark::BenchmarkAnalysis;
 
 #[cfg(test)]
 mod test_support;
