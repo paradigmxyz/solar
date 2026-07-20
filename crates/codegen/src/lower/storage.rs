@@ -167,7 +167,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Gets the storage slot offset for a struct field.
-    pub fn get_struct_field_slot_offset(
+    pub(crate) fn get_struct_field_slot_offset(
         &mut self,
         struct_id: hir::StructId,
         field_index: usize,
@@ -192,7 +192,7 @@ impl<'gcx> Lowerer<'gcx> {
     ///
     /// A memory struct has one word per field. Nested structs and other
     /// reference types occupy one pointer word in their parent allocation.
-    pub fn calculate_memory_words_for_ty(&self, ty: Ty<'gcx>) -> u64 {
+    pub(crate) fn calculate_memory_words_for_ty(&self, ty: Ty<'gcx>) -> u64 {
         match ty.peel_refs().kind {
             TyKind::Struct(struct_id) => self.gcx.struct_field_types(struct_id).len().max(1) as u64,
             _ => 1,
@@ -200,7 +200,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Gets the memory byte offset for a struct field.
-    pub fn get_struct_field_memory_offset(
+    pub(crate) fn get_struct_field_memory_offset(
         &mut self,
         struct_id: hir::StructId,
         field_index: usize,
@@ -218,7 +218,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// Recursively copies a struct from storage to memory.
     /// Allocates nested structs separately and stores their pointers in the parent.
     /// Returns the next memory offset after all fields are copied.
-    pub fn copy_storage_to_memory(
+    pub(crate) fn copy_storage_to_memory(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         struct_id: hir::StructId,
@@ -231,7 +231,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Recursively copies a struct from a runtime-computed storage slot to memory.
-    pub fn copy_storage_to_memory_at(
+    pub(crate) fn copy_storage_to_memory_at(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         struct_id: hir::StructId,
@@ -289,7 +289,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Clears every storage slot occupied by a struct at a runtime-computed base slot.
-    pub fn clear_storage_struct_at(
+    pub(crate) fn clear_storage_struct_at(
         &self,
         builder: &mut FunctionBuilder<'_>,
         struct_id: hir::StructId,
@@ -312,7 +312,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// Recursively copies a struct from memory to storage.
     /// Follows nested-struct pointers stored in the parent memory allocation.
     /// Returns the next memory offset after all fields are read.
-    pub fn copy_memory_to_storage(
+    pub(crate) fn copy_memory_to_storage(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         struct_id: hir::StructId,
@@ -325,7 +325,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Recursively copies a struct from memory to a runtime-computed storage slot.
-    pub fn copy_memory_to_storage_at(
+    pub(crate) fn copy_memory_to_storage_at(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         struct_id: hir::StructId,

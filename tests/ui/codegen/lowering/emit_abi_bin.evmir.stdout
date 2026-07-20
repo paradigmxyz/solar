@@ -48,8 +48,6 @@ bb0 (entry):
   mload
   push 0
   sstore
-  jump bb1
-bb1:
   push 43
   dup1
   push 29
@@ -67,31 +65,19 @@ bb0 (entry):
   callvalue
   push bb4
   jumpi
-  jump bb1
-bb1:
   calldatasize
   iszero
   push bb4
   jumpi
-  jump bb2
-bb2:
   push 0
   calldataload
   push 224
   shr
   dup1
   push 0xc55699c
-  eq
-  push bb3
+  sub
+  push bb4
   jumpi
-  jump bb4
-bb4 [cold]:
-  push 0
-  dup1
-  revert
-bb3:
-  jump bb5
-bb5:
   push 0
   sload
   push 128
@@ -99,6 +85,10 @@ bb5:
   push 32
   push 128
   return
+bb4 [cold]:
+  push 0
+  dup1
+  revert
 // === ROOT/tests/ui/codegen/lowering/emit_abi_bin.sol:C (runtime) ===
 @module runtime
 bb0 (entry):
@@ -108,31 +98,19 @@ bb0 (entry):
   callvalue
   push bb4
   jumpi
-  jump bb1
-bb1:
   calldatasize
   iszero
   push bb4
   jumpi
-  jump bb2
-bb2:
   push 0
   calldataload
   push 224
   shr
   dup1
   push 0xc55699c
-  eq
-  push bb3
+  sub
+  push bb4
   jumpi
-  jump bb4
-bb4 [cold]:
-  push 0
-  dup1
-  revert
-bb3:
-  jump bb5
-bb5:
   push 0
   sload
   push 128
@@ -140,3 +118,7 @@ bb5:
   push 32
   push 128
   return
+bb4 [cold]:
+  push 0
+  dup1
+  revert

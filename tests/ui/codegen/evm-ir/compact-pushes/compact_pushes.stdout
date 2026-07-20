@@ -1,0 +1,10 @@
+// === ROOT/tests/ui/codegen/evm-ir/compact-pushes/compact_pushes.evmir (after compact-pushes) ===
+@module module
+bb0 (entry):
+  push 0
+  not
+  push 0
+  not
+  push 96
+  shr
+  stop

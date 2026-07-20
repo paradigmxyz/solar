@@ -19,7 +19,7 @@ use solar_data_structures::map::FxHashMap;
 
 /// One affine induction-variable term.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct AffineTerm {
+pub(crate) struct AffineTerm {
     /// Loop induction variable.
     pub value: ValueId,
     /// Signed scale applied to the induction variable.
@@ -28,11 +28,11 @@ pub struct AffineTerm {
 
 /// An affine expression in one loop.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AffineExpr {
+pub(crate) struct AffineExpr {
     /// Optional loop-invariant base value.
     pub base: Option<ValueId>,
     /// Signed constant offset.
-    pub constant: i128,
+    pub(crate) constant: i128,
     /// Induction-variable terms.
     pub terms: SmallVec<[AffineTerm; 2]>,
 }
@@ -102,14 +102,14 @@ impl AffineExpr {
 
 /// Affine expressions recognized for one loop.
 #[derive(Clone, Debug, Default)]
-pub struct ScalarEvolution {
+pub(crate) struct ScalarEvolution {
     expressions: FxHashMap<ValueId, AffineExpr>,
 }
 
 impl ScalarEvolution {
     /// Computes affine expressions for values used by `loop_data`.
     #[must_use]
-    pub fn analyze(func: &Function, loop_data: &Loop) -> Self {
+    pub(crate) fn analyze(func: &Function, loop_data: &Loop) -> Self {
         let mut analysis = Self::default();
         for value in func.values.indices() {
             let _ = analysis.affine_expr(func, loop_data, value);
@@ -119,7 +119,7 @@ impl ScalarEvolution {
 
     /// Returns the affine expression for a value, if recognized.
     #[must_use]
-    pub fn get(&self, value: ValueId) -> Option<&AffineExpr> {
+    pub(crate) fn get(&self, value: ValueId) -> Option<&AffineExpr> {
         self.expressions.get(&value)
     }
 

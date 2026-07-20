@@ -1,7 +1,7 @@
 //! EVM IR verifier.
 
 use super::*;
-use crate::backend::evm::assembler::op;
+use crate::backend::evm::opcode as op;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::IndexVec,
@@ -108,22 +108,18 @@ impl<'a> Verifier<'a> {
             }
             let Some(term) = &block.terminator else { continue };
             self.verify_terminator_shape(block_id, &term.kind);
-            visit_terminator_operands(&term.kind, |operand| {
+            term.kind.visit_operands(|operand| {
                 self.verify_operand(block_id, module, operand);
-                Ok::<(), ()>(())
-            })
-            .unwrap();
+            });
             self.verify_metadata_is_untyped(block_id, &term.metadata);
-            visit_terminator_targets(&term.kind, |target| {
+            term.kind.visit_targets(|target| {
                 if !self.block_exists(module, target) {
                     self.error_in_block(
                         block_id,
                         format_args!("target block `{}` is out of range", target.index()),
                     );
                 }
-                Ok::<(), ()>(())
-            })
-            .unwrap();
+            });
         }
 
         for (block_id, block) in module.blocks.iter_enumerated() {
@@ -149,11 +145,9 @@ impl<'a> Verifier<'a> {
                 }
             }
             let Some(term) = &block.terminator else { continue };
-            visit_terminator_operands(&term.kind, |operand| {
+            term.kind.visit_operands(|operand| {
                 self.verify_value_defined(block_id, module, operand, &defined_values);
-                Ok::<(), ()>(())
-            })
-            .unwrap();
+            });
         }
 
         if entry.is_some() && self.dcx.err_count() == errors_before {
@@ -267,7 +261,7 @@ impl Verifier<'_> {
         for (block_id, block) in module.blocks.iter_enumerated() {
             let Some(exit) = &exit_stacks[block_id] else { continue };
             let term = block.terminator.as_ref().expect("checked above");
-            visit_terminator_targets(&term.kind, |succ| {
+            term.kind.visit_targets(|succ| {
                 let succ_entry: Vec<AbstractWord> = module.blocks[succ]
                     .entry_stack
                     .iter()
@@ -285,9 +279,7 @@ impl Verifier<'_> {
                         ),
                     );
                 }
-                Ok::<(), ()>(())
-            })
-            .unwrap();
+            });
         }
     }
 
@@ -448,7 +440,7 @@ impl Verifier<'_> {
         // consume their operand words at runtime, so successors must not be allowed
         // to claim those consumed words as incoming stack values.
         let mut result = Ok(());
-        visit_terminator_operands(kind, |operand| {
+        kind.visit_operands(|operand| {
             if let Operand::Value(value) = operand
                 && !stack.contains(AbstractWord::Value(*value))
             {
@@ -460,8 +452,7 @@ impl Verifier<'_> {
                     ),
                 ));
             }
-            Ok::<(), ErrorGuaranteed>(())
-        })?;
+        });
         result?;
 
         self.apply_terminator_effect(block_id, kind, stack)
@@ -474,7 +465,7 @@ impl Verifier<'_> {
         stack: &mut ModelStack,
     ) -> Result<(), ErrorGuaranteed> {
         let mut consumed = GrowableBitSet::new_empty();
-        visit_terminator_operands(kind, |operand| {
+        kind.try_visit_operands(|operand| {
             if let Operand::Value(value) = operand
                 && consumed.insert(*value)
             {
@@ -731,55 +722,4 @@ impl Verifier<'_> {
     fn value_exists(&self, module: &Module, value: ValueId) -> bool {
         value.index() < module.values.len()
     }
-}
-
-fn visit_terminator_operands<E>(
-    kind: &TerminatorKind,
-    mut visit: impl FnMut(&Operand) -> Result<(), E>,
-) -> Result<(), E> {
-    match kind {
-        TerminatorKind::Jump(_)
-        | TerminatorKind::Stop
-        | TerminatorKind::Invalid
-        | TerminatorKind::RawOpcode(_) => {}
-        TerminatorKind::Branch { condition, .. } => visit(condition)?,
-        TerminatorKind::Switch { value, cases, .. } => {
-            visit(value)?;
-            for (case, _) in cases {
-                visit(case)?;
-            }
-        }
-        TerminatorKind::Return { offset, size } | TerminatorKind::Revert { offset, size } => {
-            visit(offset)?;
-            visit(size)?;
-        }
-        TerminatorKind::SelfDestruct { recipient } => visit(recipient)?,
-    }
-    Ok(())
-}
-
-fn visit_terminator_targets<E>(
-    kind: &TerminatorKind,
-    mut visit: impl FnMut(BlockId) -> Result<(), E>,
-) -> Result<(), E> {
-    match kind {
-        TerminatorKind::Jump(target) => visit(*target)?,
-        TerminatorKind::Branch { then_block, else_block, .. } => {
-            visit(*then_block)?;
-            visit(*else_block)?;
-        }
-        TerminatorKind::Switch { default, cases, .. } => {
-            visit(*default)?;
-            for (_, target) in cases {
-                visit(*target)?;
-            }
-        }
-        TerminatorKind::Return { .. }
-        | TerminatorKind::Revert { .. }
-        | TerminatorKind::Stop
-        | TerminatorKind::Invalid
-        | TerminatorKind::SelfDestruct { .. }
-        | TerminatorKind::RawOpcode(_) => {}
-    }
-    Ok(())
 }

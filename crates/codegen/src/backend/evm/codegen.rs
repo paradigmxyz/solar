@@ -4,7 +4,7 @@
 //! - Liveness analysis to know when values die
 //! - Phi elimination to convert SSA to parallel copies
 //! - Stack scheduling to generate DUP/SWAP sequences
-//! - Two-pass assembly for label resolution
+//! - EVM IR optimization, relocation, and byte encoding
 
 use super::{
     assembler::{
@@ -64,17 +64,17 @@ struct PreparedDeploymentPrefix {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EvmCodegenConfig {
     /// EVM version to target when selecting hardfork-gated opcodes.
-    pub evm_version: EvmVersion,
-    /// Optimization mode for MIR passes and bytecode assembly.
-    pub optimization: OptimizationMode,
+    pub(crate) evm_version: EvmVersion,
+    /// Optimization mode for MIR and EVM IR passes.
+    pub(crate) optimization: OptimizationMode,
     /// Print MIR after each pass before bytecode generation.
-    pub mir_print_after_each: bool,
+    pub(crate) mir_print_after_each: bool,
     /// Print the time spent in each MIR and EVM IR pass.
-    pub time_passes: bool,
+    pub(crate) time_passes: bool,
     /// Lower dispatch/ABI as MIR phases and consume them here.
-    pub mir_dispatch: bool,
+    pub(crate) mir_dispatch: bool,
     /// Run the experimental EVM IR `StackSchedule` pass before assembly.
-    pub evm_ir_stack_schedule: bool,
+    pub(crate) evm_ir_stack_schedule: bool,
     /// Capture final EVM IR immediately before assembly.
     pub capture_evm_ir: bool,
 }
@@ -82,7 +82,7 @@ pub struct EvmCodegenConfig {
 impl EvmCodegenConfig {
     /// Creates backend configuration from a compiler session.
     #[must_use]
-    pub fn from_session(sess: &Session) -> Self {
+    fn from_session(sess: &Session) -> Self {
         Self {
             evm_version: sess.opts.evm_version,
             optimization: sess.opts.optimization,
@@ -595,7 +595,7 @@ pub struct EvmCodegen {
     /// site can re-emit after the stack drain, so they ride the stack above
     /// the return address instead of being stored to the callee frame at
     /// each site. The callee prologue stores them once.
-    stack_arg_masks: FxHashMap<FunctionId, Vec<bool>>,
+    stack_arg_masks: FxHashMap<FunctionId, DenseBitSet<usize>>,
     /// Whether the current assembly is the runtime (stack-passed arguments
     /// apply). The constructor assembly emits its own copies of internal
     /// functions with the plain frame-store convention.
@@ -651,7 +651,7 @@ pub struct EvmCodegen {
     /// so the leftover word can neither accumulate nor disturb an internal
     /// return.
     emitting_dispatch_entry: bool,
-    /// Optimization mode for MIR passes and bytecode assembly.
+    /// Optimization mode for MIR and EVM IR passes.
     optimization: OptimizationMode,
     /// Print MIR after each pass before bytecode generation.
     mir_print_after_each: bool,
@@ -763,20 +763,6 @@ impl EvmCodegen {
                 self.scheduler.depth()
             );
         }
-    }
-
-    /// Generates bytecode for a module (runtime code only).
-    /// Returns empty bytecode for interfaces (they have no implementation).
-    ///
-    /// This runs optimization passes (including DCE) on the module before codegen unless disabled.
-    pub fn generate_module(&mut self, module: &mut Module) -> Vec<u8> {
-        if module.is_interface {
-            return Vec::new();
-        }
-        self.run_optimization_passes(module);
-        // Immutable reads are `PUSH32` zero placeholders here; only a
-        // constructor run patches them with actual values.
-        self.generate_runtime_code(module).bytecode
     }
 
     /// Generates deployment bytecode for a module.
@@ -960,7 +946,8 @@ impl EvmCodegen {
             let call_graph = CallGraphInfo::new(module);
             let internal_targets = call_graph.reachable_bodies_from(std::iter::once(ctor_id));
             for func_id in &internal_targets {
-                self.function_labels.insert(func_id, self.asm.new_label());
+                let label = self.new_function_label(func_id);
+                self.function_labels.insert(func_id, label);
             }
 
             // Constructor spill slots are absolute addresses starting at
@@ -1069,10 +1056,9 @@ impl EvmCodegen {
         };
         if self.optimization != OptimizationMode::None {
             run_default_pipeline(module, options);
-            // MIR outlining remains profitable even though the assembler can
-            // merge byte-identical terminal spans: lowering and stack layout
-            // can make equivalent revert blocks differ before they reach that
-            // late pass.
+            // MIR outlining remains profitable even though EVM IR can merge
+            // equivalent terminal blocks: lowering and stack scheduling can
+            // hide their shared semantic shape from the backend passes.
             run_pass(module, &crate::pass::OUTLINE_REVERTS_PASS, options);
         }
         run_pass(module, &crate::pass::LOWER_MAPPING_SLOTS_PASS, options);
@@ -1175,7 +1161,7 @@ impl EvmCodegen {
             let needs_body = Self::is_external_entry(func)
                 || (Self::has_body(func) && internal_targets.contains(func_id));
             if needs_body {
-                let label = self.asm.new_label();
+                let label = self.new_function_label(func_id);
                 self.function_labels.insert(func_id, label);
             }
         }
@@ -1274,7 +1260,7 @@ impl EvmCodegen {
             let external = Self::is_external_entry(func);
             let needs_body =
                 external || (Self::has_body(func) && internal_targets.contains(func_id));
-            let label = needs_body.then(|| self.asm.new_label());
+            let label = needs_body.then(|| self.new_function_label(func_id));
             if let Some(label) = label {
                 self.function_labels.insert(func_id, label);
             }
@@ -1946,6 +1932,14 @@ impl EvmCodegen {
 
     fn block_is_cold(&self, block_id: BlockId) -> bool {
         self.cold_blocks.contains(block_id)
+    }
+
+    fn new_function_label(&mut self, function: FunctionId) -> Label {
+        let label = self.asm.new_label();
+        if self.cold_functions.contains(function) {
+            self.asm.mark_label_cold(label);
+        }
+        label
     }
 
     fn block_layout_order(&self, func: &Function) -> Vec<BlockId> {
@@ -3543,11 +3537,14 @@ impl EvmCodegen {
         scores.retain(|func_id, _| {
             self.static_frame_functions.contains(*func_id) && !excluded.contains(*func_id)
         });
-        let mut masks: FxHashMap<FunctionId, Vec<bool>> = FxHashMap::default();
+        let mut masks = FxHashMap::default();
         for (func_id, score) in scores {
             // The callee prologue pays one store per stack argument.
-            let mask: Vec<bool> = score.iter().map(|&benefit| benefit > 4).collect();
-            if mask.iter().any(|&stack| stack) {
+            let mut mask = DenseBitSet::new_empty(score.len());
+            for (index, _) in score.iter().enumerate().filter(|(_, benefit)| **benefit > 4) {
+                mask.insert(index);
+            }
+            if !mask.is_empty() {
                 masks.insert(func_id, mask);
             }
         }
@@ -3608,11 +3605,11 @@ impl EvmCodegen {
             return;
         }
         let Some(mask) = self.stack_arg_masks.get(&func_id).cloned() else { return };
-        if mask.len() != func.params.len() {
+        if mask.domain_size() != func.params.len() {
             return;
         }
-        for i in (0..mask.len()).rev() {
-            if mask[i] {
+        for i in (0..mask.domain_size()).rev() {
+            if mask.contains(i) {
                 let addr = self.static_frame_addr(func_id, 64 + i as u64 * 32);
                 self.asm.emit_push_deferred(addr);
                 self.asm.emit_op(op::MSTORE);
@@ -3999,7 +3996,7 @@ impl EvmCodegen {
             if self.runtime_stack_args { self.stack_arg_masks.get(&callee).cloned() } else { None };
 
         for (i, &arg) in args.iter().enumerate() {
-            if stack_mask.as_ref().is_some_and(|mask| mask[i]) {
+            if stack_mask.as_ref().is_some_and(|mask| mask.contains(i)) {
                 continue;
             }
             self.emit_operand(func, arg);
@@ -4015,7 +4012,7 @@ impl EvmCodegen {
         // while the value is still reachable.
         if let Some(mask) = &stack_mask {
             for (i, &arg) in args.iter().enumerate() {
-                if mask[i]
+                if mask.contains(i)
                     && matches!(func.value(arg), crate::mir::Value::Inst(_))
                     && !self.scheduler.spills.is_stored(arg)
                 {
@@ -4037,7 +4034,7 @@ impl EvmCodegen {
         // stores them into its frame before its body runs.
         if let Some(mask) = &stack_mask {
             for (i, &arg) in args.iter().enumerate() {
-                if mask[i] {
+                if mask.contains(i) {
                     self.emit_raw_stack_arg(func, arg);
                 }
             }
@@ -4143,11 +4140,6 @@ impl EvmCodegen {
                     // PUSH slot_offset, MLOAD
                     self.emit_spill_slot_addr(func, slot);
                     self.asm.emit_op(op::MLOAD);
-                }
-                ScheduledOp::SaveSpill(slot) => {
-                    // PUSH slot_offset, MSTORE
-                    self.emit_spill_slot_addr(func, slot);
-                    self.asm.emit_op(op::MSTORE);
                 }
                 ScheduledOp::LoadArg(index) => {
                     if self.in_internal_function {
@@ -5046,10 +5038,6 @@ pub struct EvmArtifact {
 impl crate::backend::Backend for EvmCodegen {
     type Output = EvmArtifact;
 
-    fn name(&self) -> &str {
-        "evm"
-    }
-
     fn lower_module(&mut self, module: &mut Module) -> EvmArtifact {
         self.generate_deployment_artifact(module)
     }
@@ -5236,7 +5224,7 @@ REVERT
                     let config =
                         EvmCodegenConfig { evm_ir_stack_schedule, ..EvmCodegenConfig::from(gcx) };
                     let mut codegen = EvmCodegen::new(config);
-                    let bytecode = codegen.generate_module(&mut module);
+                    let bytecode = codegen.generate_deployment_artifact(&mut module).runtime;
                     return Ok(bytecode);
                 }
             }

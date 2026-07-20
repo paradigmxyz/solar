@@ -7,14 +7,10 @@ bb0 (entry):
   callvalue
   push bb4
   jumpi
-  jump bb1
-bb1:
   calldatasize
   iszero
   push bb4
   jumpi
-  jump bb2
-bb2:
   push 0
   calldataload
   push 224
@@ -22,15 +18,25 @@ bb2:
   dup1
   push 0xed2f0bb8
   eq
-  push bb3
+  push bb5
   jumpi
   jump bb4
 bb4 [cold]:
   push 0
   dup1
   revert
-bb3:
-  jump bb5
+bb11 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
 bb5:
   calldatasize
   push 4
@@ -39,24 +45,19 @@ bb5:
   push 96
   swap1
   slt
-  push bb10
+  push bb4
   jumpi
-  jump bb6
-bb6:
   push 36
   calldataload
-  push 0xffffffffffffffffffffffffffffffffffffffff
+  push 0
+  not
+  push 96
+  shr
   dup2
   and
-  dup2
-  eq
-  swap1
-  pop
-  iszero
-  push bb10
+  sub
+  push bb4
   jumpi
-  jump bb7
-bb7:
   push 36
   calldataload
   push 0
@@ -71,12 +72,6 @@ bb7:
   dup1
   push 160
   mstore
-  dup1
-  push 160
-  mstore
-  dup1
-  push 160
-  mstore
   sload
   push 68
   calldataload
@@ -85,9 +80,6 @@ bb7:
   push 256
   mstore
   add
-  dup1
-  push 192
-  mstore
   dup1
   push 192
   mstore
@@ -100,14 +92,11 @@ bb7:
   swap2
   pop
   dup2
-  swap1
+  swap2
   pop
-  swap1
   pop
   push bb11
   jumpi
-  jump bb8
-bb8:
   push 192
   mload
   dup1
@@ -124,18 +113,12 @@ bb8:
   sload
   caller
   push 255
-  dup2
   and
-  swap1
-  pop
   dup2
   dup1
   push 288
   mstore
   add
-  dup1
-  push 224
-  mstore
   dup1
   push 224
   mstore
@@ -148,14 +131,11 @@ bb8:
   swap2
   pop
   dup2
-  swap1
+  swap2
   pop
-  swap1
   pop
   push bb11
   jumpi
-  jump bb9
-bb9:
   push 224
   mload
   dup1
@@ -166,20 +146,6 @@ bb9:
   push 32
   push 128
   return
-bb10 [cold]:
-  push 0
-  dup1
-  revert
-bb11 [cold]:
-  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
-  push 0
-  mstore
-  push 17
-  push 4
-  mstore
-  push 36
-  push 0
-  revert
 // === ROOT/tests/ui/codegen/lowering/public_library_call.sol:C (runtime) ===
 @module runtime
 bb0 (entry):
@@ -189,14 +155,10 @@ bb0 (entry):
   callvalue
   push bb4
   jumpi
-  jump bb1
-bb1:
   calldatasize
   iszero
   push bb4
   jumpi
-  jump bb2
-bb2:
   push 0
   calldataload
   push 224
@@ -204,15 +166,25 @@ bb2:
   dup1
   push 0x3dd41ca6
   eq
-  push bb3
+  push bb5
   jumpi
   jump bb4
 bb4 [cold]:
   push 0
   dup1
   revert
-bb3:
-  jump bb5
+bb13 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
 bb5:
   calldatasize
   push 4
@@ -221,24 +193,19 @@ bb5:
   push 64
   swap1
   slt
-  push bb9
+  push bb4
   jumpi
-  jump bb6
-bb6:
   push 4
   calldataload
-  push 0xffffffffffffffffffffffffffffffffffffffff
+  push 0
+  not
+  push 96
+  shr
   dup2
   and
-  dup2
-  eq
-  swap1
-  pop
-  iszero
-  push bb9
+  sub
+  push bb4
   jumpi
-  jump bb7
-bb7:
   push 0
   push 128
   mstore
@@ -254,8 +221,6 @@ bb7:
   push 384
   mstore
   push bb8
-  jump bb10
-bb10:
   push 352
   mload
   push 0
@@ -270,12 +235,6 @@ bb10:
   dup1
   push 640
   mstore
-  dup1
-  push 640
-  mstore
-  dup1
-  push 640
-  mstore
   sload
   push 384
   mload
@@ -284,9 +243,6 @@ bb10:
   push 480
   mstore
   add
-  dup1
-  push 512
-  mstore
   dup1
   push 512
   mstore
@@ -299,14 +255,11 @@ bb10:
   swap2
   pop
   dup2
-  swap1
+  swap2
   pop
-  swap1
   pop
   push bb13
   jumpi
-  jump bb11
-bb11:
   push 512
   mload
   dup1
@@ -323,18 +276,12 @@ bb11:
   sload
   caller
   push 255
-  dup2
   and
-  swap1
-  pop
   dup2
   dup1
   push 544
   mstore
   add
-  dup1
-  push 608
-  mstore
   dup1
   push 608
   mstore
@@ -347,14 +294,11 @@ bb11:
   swap2
   pop
   dup2
-  swap1
+  swap2
   pop
-  swap1
   pop
   push bb13
   jumpi
-  jump bb12
-bb12:
   push 608
   mload
   push 416
@@ -366,28 +310,8 @@ bb8:
   dup1
   push 224
   mstore
-  dup1
-  push 224
-  mstore
-  dup1
-  push 224
-  mstore
   push 128
   mstore
   push 32
   push 128
   return
-bb9 [cold]:
-  push 0
-  dup1
-  revert
-bb13 [cold]:
-  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
-  push 0
-  mstore
-  push 17
-  push 4
-  mstore
-  push 36
-  push 0
-  revert

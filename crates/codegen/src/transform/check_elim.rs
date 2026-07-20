@@ -38,19 +38,15 @@ const MAX_DEPTH: usize = 12;
 
 /// Statistics from check elimination.
 #[derive(Debug, Default, Clone)]
-pub struct CheckElimStats {
+pub(crate) struct CheckElimStats {
     /// Number of branches folded to unconditional jumps.
     pub branches_folded: usize,
 }
 
 /// Function pass adapter for range-based overflow-check elimination.
-pub struct CheckElimPass;
+pub(crate) struct CheckElimPass;
 
 impl FunctionPass for CheckElimPass {
-    fn name(&self) -> &str {
-        "check-elim"
-    }
-
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         CheckEliminator::new().run(func) != 0
     }
@@ -109,7 +105,7 @@ fn ordered(a: ValueId, b: ValueId) -> (ValueId, ValueId) {
 
 /// Range-based overflow-check eliminator.
 #[derive(Default)]
-pub struct CheckEliminator {
+pub(crate) struct CheckEliminator {
     /// Statistics from the last run.
     pub stats: CheckElimStats,
     ranges: FxHashMap<ValueId, Range>,
@@ -121,13 +117,13 @@ pub struct CheckEliminator {
 impl CheckEliminator {
     /// Creates a new check eliminator.
     #[must_use]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
     /// Runs check elimination on a function. Returns the number of folded
     /// branches.
-    pub fn run(&mut self, func: &mut Function) -> usize {
+    pub(crate) fn run(&mut self, func: &mut Function) -> usize {
         self.stats = CheckElimStats::default();
         if func.blocks.is_empty() {
             return 0;

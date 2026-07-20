@@ -7,20 +7,15 @@
 //!
 //! - `model`: Core stack model tracking value positions
 //! - `scheduler`: Stack scheduler for generating DUP/SWAP sequences
-//! - `shuffler`: Optimal stack layout transitions (backward analysis)
+//! - `shuffler`: Greedy stack layout transitions
 //! - `spill`: Spill management for values beyond depth 16
 
 mod model;
 mod scheduler;
-pub mod shuffler;
+pub(crate) mod shuffler;
 mod spill;
 
-pub(crate) use model::MAX_STACK_ACCESS;
-pub use model::{StackModel, StackOp};
-pub use scheduler::{ScheduledOp, StackScheduler};
-pub use shuffler::{
-    BlockStackLayout, LayoutAnalysis, ShuffleResult, StackShuffler, TargetSlot,
-    combine_stack_layouts, estimate_shuffle_cost, ideal_binary_op_entry, ideal_operand_layout,
-    ideal_unary_op_entry, is_freely_generable,
-};
-pub use spill::{SpillManager, SpillSlot};
+pub(crate) use model::{MAX_STACK_ACCESS, StackModel, StackOp};
+pub(crate) use scheduler::{ScheduledOp, StackScheduler};
+pub(crate) use shuffler::TargetSlot;
+pub(crate) use spill::SpillSlot;

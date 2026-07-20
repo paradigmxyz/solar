@@ -131,14 +131,10 @@ fn print_module(module: &Module, name: &str, after: &str) {
 /// Used for both .sol contracts and .mir input.
 fn run_pipeline(module: &mut Module, name: &str, args: &MirOptArgs, time_passes: bool) {
     if args.pipeline_default {
-        run_default_pipeline(
-            module,
-            PipelineOptions {
-                print_after_each: args.print_after_each,
-                time_passes,
-                ..PipelineOptions::default()
-            },
-        );
+        let mut options = PipelineOptions::default();
+        options.print_after_each = args.print_after_each;
+        options.time_passes = time_passes;
+        run_default_pipeline(module, options);
         if !args.print_after_each {
             print_module(module, name, "pipeline-default");
         }
@@ -146,7 +142,8 @@ fn run_pipeline(module: &mut Module, name: &str, args: &MirOptArgs, time_passes:
     }
 
     let passes = args.selected_passes();
-    let options = PipelineOptions { time_passes, ..PipelineOptions::default() };
+    let mut options = PipelineOptions::default();
+    options.time_passes = time_passes;
     let pipeline_label = args.pipeline_label(&passes);
     for (index, &pass) in passes.iter().enumerate() {
         if let Some(pass) = pass {

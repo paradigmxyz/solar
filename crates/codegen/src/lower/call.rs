@@ -304,7 +304,7 @@ impl<'gcx> Lowerer<'gcx> {
         };
 
         // Look up pre-compiled bytecode
-        let (bytecode, _segment_idx) = match self.contract_bytecodes.get(&contract_id) {
+        let bytecode = match self.contract_bytecodes.get(&contract_id) {
             Some(bc) => bc.clone(),
             None => {
                 let guar = self

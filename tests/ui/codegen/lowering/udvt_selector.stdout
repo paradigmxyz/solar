@@ -17,31 +17,19 @@ bb0 (entry):
   callvalue
   push bb4
   jumpi
-  jump bb1
-bb1:
   calldatasize
   iszero
   push bb4
   jumpi
-  jump bb2
-bb2:
   push 0
   calldataload
   push 224
   shr
   dup1
   push 0x8d2f9995
-  eq
-  push bb3
+  sub
+  push bb4
   jumpi
-  jump bb4
-bb4 [cold]:
-  push 0
-  dup1
-  revert
-bb3:
-  jump bb5
-bb5:
   calldatasize
   push 4
   swap1
@@ -49,18 +37,13 @@ bb5:
   push 64
   swap1
   slt
-  push bb8
+  push bb4
   jumpi
-  jump bb6
-bb6:
   push 36
   calldataload
   push 4
   calldataload
   add
-  dup1
-  push 160
-  mstore
   dup1
   push 160
   mstore
@@ -70,8 +53,6 @@ bb6:
   lt
   push bb9
   jumpi
-  jump bb7
-bb7:
   dup1
   push 160
   mstore
@@ -80,12 +61,14 @@ bb7:
   push 32
   push 128
   return
-bb8 [cold]:
+bb4 [cold]:
   push 0
   dup1
   revert
 bb9 [cold]:
-  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
+  push 0x4e487b71
+  push 224
+  shl
   push 0
   mstore
   pop

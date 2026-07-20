@@ -33,13 +33,9 @@ use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Pass that places provably local fmp-bump allocations statically.
-pub struct StaticAllocPass;
+pub(crate) struct StaticAllocPass;
 
 impl ModulePass for StaticAllocPass {
-    fn name(&self) -> &str {
-        "static-alloc"
-    }
-
     fn run(&mut self, module: &mut Module) -> bool {
         // Every entry's locals share the same low-memory region — only one
         // entry runs per call — so the tallest entry's frame top is a shadow

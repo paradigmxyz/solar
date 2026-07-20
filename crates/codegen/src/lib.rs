@@ -10,12 +10,9 @@
 extern crate derive_more as _;
 extern crate tracing as _;
 
-pub use solar_data_structures::map::FxHashMap;
-pub use solar_sema as sema;
-
 /// Constructor scratch memory used to stage immutable words before appending
 /// them to runtime bytecode.
-pub const IMMUTABLE_SCRATCH_BASE: u64 = 0x2000;
+pub(crate) const IMMUTABLE_SCRATCH_BASE: u64 = 0x2000;
 
 /// Scratch word holding the base of the ephemeral multi-return buffer.
 ///
@@ -23,36 +20,22 @@ pub const IMMUTABLE_SCRATCH_BASE: u64 = 0x2000;
 /// three-or-more-value returns never overwrite Solidity's `0x40`/`0x60`
 /// reserved words. Consumers must snapshot the buffer before lowering any
 /// lvalue that may reuse this scratch word or the unbumped free memory.
-pub const MULTI_RETURN_BUFFER_PTR_SLOT: u64 = 0x20;
+pub(crate) const MULTI_RETURN_BUFFER_PTR_SLOT: u64 = 0x20;
 
 pub mod mir;
-pub use mir::{
-    BasicBlock, BlockId, Function, FunctionId, Immediate, InstId, InstKind, Instruction, MirType,
-    Module, Terminator, Value, ValueId,
-};
 
-pub mod analysis;
-pub use analysis::{InductionVariable, Liveness, LivenessInfo, Loop, LoopAnalyzer, LoopInfo};
+mod analysis;
 
 pub mod backend;
-mod ir_parse;
 pub use backend::{
     Backend,
-    evm::{
-        AssembledCode, Assembler, AssemblerConfig, EvmArtifact, EvmCodegen, EvmCodegenConfig,
-        Label, SpillManager, SpillSlot, StackModel, StackScheduler,
-    },
+    evm::{EvmCodegen, EvmCodegenConfig},
 };
+mod ir_parse;
 
 pub mod lower;
-pub use lower::Lowerer;
 
 pub mod pass;
 mod timing;
-pub mod transform;
+mod transform;
 pub(crate) mod utils;
-pub use transform::{
-    CommonSubexprEliminator, DceStats, DeadCodeEliminator, FunctionInlineInfo, InlineAnalyzer,
-    InlineConfig, InlineDecision, InlineStats, InstSimplifier, JumpThreader, JumpThreadingStats,
-    LoopOptConfig, LoopOptStats, LoopOptimizer, OptLevel,
-};

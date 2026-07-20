@@ -332,7 +332,7 @@ pub struct UnstableOpts {
 
     /// Print additional information about the compiler's internal state.
     ///
-    /// Valid kinds are `ast` and `hir`.
+    /// Valid kinds are `ast`, `hir`, `mir`, and `mir-cfg`.
     #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "KIND[=PATHS...]"))]
     pub dump: Option<Dump>,
 

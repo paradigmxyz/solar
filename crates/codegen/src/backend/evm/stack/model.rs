@@ -21,7 +21,7 @@ pub(crate) const MAX_STACK_DEPTH: usize = 1024;
 /// - Position 1 = second from top
 /// - etc.
 #[derive(Clone, Debug)]
-pub struct StackModel {
+pub(crate) struct StackModel {
     /// The stack, with index 0 being the top.
     /// Each entry is either a known ValueId or None (for unknown/spilled values).
     stack: SmallVec<[Option<ValueId>; 16]>,
@@ -30,85 +30,67 @@ pub struct StackModel {
 impl StackModel {
     /// Creates a new empty stack model.
     #[must_use]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self { stack: SmallVec::new() }
     }
 
     /// Returns the current stack depth.
     #[must_use]
-    pub fn depth(&self) -> usize {
+    pub(crate) fn depth(&self) -> usize {
         self.stack.len()
     }
 
-    /// Returns true if the stack is empty.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.stack.is_empty()
-    }
-
     /// Pushes a value onto the stack.
-    pub fn push(&mut self, value: ValueId) {
+    pub(crate) fn push(&mut self, value: ValueId) {
         self.stack.insert(0, Some(value));
     }
 
     /// Pushes an unknown/anonymous value onto the stack.
-    pub fn push_unknown(&mut self) {
+    pub(crate) fn push_unknown(&mut self) {
         self.stack.insert(0, None);
     }
 
     /// Pops the top value from the stack.
     /// Returns the value that was at the top, if known.
-    pub fn pop(&mut self) -> Option<ValueId> {
+    pub(crate) fn pop(&mut self) -> Option<ValueId> {
         debug_assert!(!self.stack.is_empty(), "Stack underflow");
         if self.stack.is_empty() { None } else { self.stack.remove(0) }
     }
 
     /// Returns the value at the given stack depth (0 = top).
     #[must_use]
-    pub fn peek(&self, depth: usize) -> Option<ValueId> {
+    pub(crate) fn peek(&self, depth: usize) -> Option<ValueId> {
         self.stack.get(depth).copied().flatten()
     }
 
     /// Returns the value at the top of the stack.
     #[must_use]
-    pub fn top(&self) -> Option<ValueId> {
+    pub(crate) fn top(&self) -> Option<ValueId> {
         self.peek(0)
     }
 
     /// Finds the depth of a value on the stack.
     /// Returns None if the value is not on the stack.
     #[must_use]
-    pub fn find(&self, value: ValueId) -> Option<usize> {
+    pub(crate) fn find(&self, value: ValueId) -> Option<usize> {
         self.stack.iter().position(|&v| v == Some(value))
     }
 
     /// Returns true if the value is on the stack.
     #[must_use]
-    pub fn contains(&self, value: ValueId) -> bool {
+    pub(crate) fn contains(&self, value: ValueId) -> bool {
         self.find(value).is_some()
-    }
-
-    /// Counts how many times a value appears on the stack.
-    #[must_use]
-    pub fn count(&self, value: ValueId) -> usize {
-        self.stack.iter().filter(|&&v| v == Some(value)).count()
     }
 
     /// Returns true if the value is at the top of the stack.
     #[must_use]
-    pub fn is_on_top(&self, value: ValueId) -> bool {
+    pub(crate) fn is_on_top(&self, value: ValueId) -> bool {
         self.peek(0) == Some(value)
-    }
-
-    /// Returns true if the value is accessible via DUP (depth < 16).
-    #[must_use]
-    pub fn is_accessible(&self, value: ValueId) -> bool {
-        self.find(value).is_some_and(|d| d < MAX_STACK_ACCESS)
     }
 
     /// Simulates a DUP operation.
     /// `n` is 1-indexed (DUP1 = duplicate top, DUP2 = duplicate second from top).
-    pub fn dup(&mut self, n: u8) {
+    pub(crate) fn dup(&mut self, n: u8) {
         debug_assert!((1..=16).contains(&n), "DUP depth out of range: DUP{n} (valid: 1-16)");
         let depth = (n - 1) as usize;
         debug_assert!(
@@ -124,7 +106,7 @@ impl StackModel {
 
     /// Simulates a SWAP operation.
     /// `n` is 1-indexed (SWAP1 = swap top with second, SWAP2 = swap top with third).
-    pub fn swap(&mut self, n: u8) {
+    pub(crate) fn swap(&mut self, n: u8) {
         debug_assert!((1..=16).contains(&n), "SWAP depth out of range: SWAP{n} (valid: 1-16)");
         let depth = n as usize;
         debug_assert!(
@@ -138,19 +120,8 @@ impl StackModel {
         }
     }
 
-    /// Removes a value from the stack at any position.
-    /// Used when we know a value is dead and we want to track its removal.
-    pub fn remove(&mut self, value: ValueId) -> bool {
-        if let Some(pos) = self.find(value) {
-            self.stack.remove(pos);
-            true
-        } else {
-            false
-        }
-    }
-
     /// Renames one tracked stack word without changing the physical stack.
-    pub fn rename(&mut self, value: ValueId, replacement: ValueId) -> bool {
+    pub(crate) fn rename(&mut self, value: ValueId, replacement: ValueId) -> bool {
         if let Some(pos) = self.find(value) {
             self.stack[pos] = Some(replacement);
             true
@@ -160,18 +131,18 @@ impl StackModel {
     }
 
     /// Clears the stack.
-    pub fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.stack.clear();
     }
 
     /// Returns an iterator over all values on the stack (top to bottom).
-    pub fn iter(&self) -> impl Iterator<Item = Option<ValueId>> + '_ {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = Option<ValueId>> + '_ {
         self.stack.iter().copied()
     }
 
     /// Returns the stack contents as a slice (top to bottom).
     #[must_use]
-    pub fn as_slice(&self) -> &[Option<ValueId>] {
+    pub(crate) fn as_slice(&self) -> &[Option<ValueId>] {
         &self.stack
     }
 }
@@ -184,7 +155,7 @@ impl Default for StackModel {
 
 /// Operations to emit for stack manipulation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum StackOp {
+pub(crate) enum StackOp {
     /// DUP1-DUP16: Duplicate the nth stack element.
     Dup(u8),
     /// SWAP1-SWAP16: Swap top with the nth stack element.
@@ -196,7 +167,7 @@ pub enum StackOp {
 impl StackOp {
     /// Returns the opcode byte for this operation.
     #[must_use]
-    pub const fn opcode(self) -> u8 {
+    pub(crate) const fn opcode(self) -> u8 {
         match self {
             Self::Dup(n) => 0x80 + n - 1,  // DUP1 = 0x80
             Self::Swap(n) => 0x90 + n - 1, // SWAP1 = 0x90
@@ -222,7 +193,7 @@ mod tests {
         assert_eq!(model.top(), Some(v1));
         assert_eq!(model.pop(), Some(v1));
         assert_eq!(model.pop(), Some(v0));
-        assert!(model.is_empty());
+        assert_eq!(model.depth(), 0);
     }
 
     #[test]

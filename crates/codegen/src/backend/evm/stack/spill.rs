@@ -8,7 +8,7 @@ use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 
 /// A slot in memory where a spilled value is stored.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct SpillSlot {
+pub(crate) struct SpillSlot {
     /// Offset in the spill area (in 32-byte words).
     pub offset: u32,
 }
@@ -16,7 +16,7 @@ pub struct SpillSlot {
 impl SpillSlot {
     /// Returns the memory offset in bytes for this spill slot.
     #[must_use]
-    pub const fn byte_offset(&self) -> u32 {
+    pub(crate) const fn byte_offset(&self) -> u32 {
         // Memory layout in Solidity:
         // - 0x00-0x3F: Scratch space (used for hashing, CALL address/calldata spills, etc.)
         // - 0x40-0x5F: Free memory pointer location
@@ -47,7 +47,7 @@ impl SpillSlot {
 
 /// Manages spill slots for values that cannot fit on the stack.
 #[derive(Clone, Debug)]
-pub struct SpillManager {
+pub(crate) struct SpillManager {
     /// Map from value to its spill slot.
     slots: FxHashMap<ValueId, SpillSlot>,
     /// Values whose reserved spill slot can be loaded at the current program point.
@@ -63,7 +63,7 @@ pub struct SpillManager {
 impl SpillManager {
     /// Creates a new spill manager.
     #[must_use]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             slots: FxHashMap::default(),
             reloadable: GrowableBitSet::new_empty(),
@@ -75,7 +75,7 @@ impl SpillManager {
 
     /// Allocates a spill slot for a value.
     /// If the value already has a slot, returns the existing one.
-    pub fn allocate(&mut self, value: ValueId) -> SpillSlot {
+    pub(crate) fn allocate(&mut self, value: ValueId) -> SpillSlot {
         if let Some(&slot) = self.slots.get(&value) {
             return slot;
         }
@@ -89,24 +89,18 @@ impl SpillManager {
 
     /// Returns the spill slot for a value, if one exists.
     #[must_use]
-    pub fn get(&self, value: ValueId) -> Option<SpillSlot> {
+    pub(crate) fn get(&self, value: ValueId) -> Option<SpillSlot> {
         self.slots.get(&value).copied()
     }
 
-    /// Returns true if the value is currently spilled.
-    #[must_use]
-    pub fn is_spilled(&self, value: ValueId) -> bool {
-        self.slots.contains_key(&value)
-    }
-
     /// Marks a value's spill slot as reloadable at the current program point.
-    pub fn mark_reloadable(&mut self, value: ValueId) {
+    pub(crate) fn mark_reloadable(&mut self, value: ValueId) {
         debug_assert!(self.slots.contains_key(&value));
         self.reloadable.insert(value);
     }
 
     /// Marks a value's spill slot as written by emitted code.
-    pub fn mark_stored(&mut self, value: ValueId) {
+    pub(crate) fn mark_stored(&mut self, value: ValueId) {
         debug_assert!(self.slots.contains_key(&value));
         self.reloadable.insert(value);
         self.stored.insert(value);
@@ -114,43 +108,20 @@ impl SpillManager {
 
     /// Returns true if the value has a spill slot that can be loaded.
     #[must_use]
-    pub fn is_reloadable(&self, value: ValueId) -> bool {
+    pub(crate) fn is_reloadable(&self, value: ValueId) -> bool {
         self.reloadable.contains(value)
     }
 
     /// Returns true if already-emitted code has stored this value.
     #[must_use]
-    pub fn is_stored(&self, value: ValueId) -> bool {
+    pub(crate) fn is_stored(&self, value: ValueId) -> bool {
         self.stored.contains(value)
-    }
-
-    /// Frees a spill slot (when the value is reloaded and no longer needed in memory).
-    /// Note: Simple implementation doesn't reuse slots.
-    pub fn free(&mut self, value: ValueId) {
-        self.slots.remove(&value);
-        self.reloadable.remove(value);
-        self.stored.remove(value);
     }
 
     /// Returns the total size of the spill area in bytes.
     #[must_use]
-    pub fn spill_area_size(&self) -> u32 {
+    pub(crate) fn spill_area_size(&self) -> u32 {
         self.max_offset * 32
-    }
-
-    /// Clears all spill slots (used at function boundaries).
-    pub fn clear(&mut self) {
-        self.slots.clear();
-        self.reloadable.clear();
-        self.stored.clear();
-        self.next_offset = 0;
-        self.max_offset = 0;
-    }
-
-    /// Returns the number of currently spilled values.
-    #[must_use]
-    pub fn count(&self) -> usize {
-        self.slots.len()
     }
 }
 
@@ -193,19 +164,7 @@ mod tests {
         let slot2 = manager.allocate(v0);
 
         assert_eq!(slot1, slot2);
-        assert_eq!(manager.count(), 1);
-    }
-
-    #[test]
-    fn test_free() {
-        let mut manager = SpillManager::new();
-        let v0 = ValueId::from_usize(0);
-
-        manager.allocate(v0);
-        assert!(manager.is_spilled(v0));
-
-        manager.free(v0);
-        assert!(!manager.is_spilled(v0));
+        assert_eq!(manager.get(v0), Some(slot1));
     }
 
     #[test]

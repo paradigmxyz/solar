@@ -17,26 +17,22 @@ const DEFAULT_FUEL: usize = 10_000;
 
 /// Statistics from bounded pure evaluation.
 #[derive(Clone, Debug, Default)]
-pub struct PureEvalStats {
+pub(crate) struct PureEvalStats {
     /// Number of functions folded to constant returns.
     pub functions_folded: usize,
 }
 
 /// Bounded pure MIR evaluator.
 #[derive(Debug)]
-pub struct PureEvaluator {
+pub(crate) struct PureEvaluator {
     fuel: usize,
     stats: PureEvalStats,
 }
 
 /// Function pass for bounded pure MIR evaluation.
-pub struct PureEvalPass;
+pub(crate) struct PureEvalPass;
 
 impl FunctionPass for PureEvalPass {
-    fn name(&self) -> &str {
-        "pure-eval"
-    }
-
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         let changed = PureEvaluator::new().run(func).functions_folded != 0;
         let repaired = crate::mir::utils::repair_reachability_phis(func);
@@ -53,18 +49,12 @@ impl Default for PureEvaluator {
 impl PureEvaluator {
     /// Creates a new evaluator with the default fuel.
     #[must_use]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
-    /// Returns statistics for the most recent run.
-    #[must_use]
-    pub const fn stats(&self) -> &PureEvalStats {
-        &self.stats
-    }
-
     /// Runs the evaluator on one function.
-    pub fn run(&mut self, func: &mut Function) -> &PureEvalStats {
+    pub(crate) fn run(&mut self, func: &mut Function) -> &PureEvalStats {
         self.stats = PureEvalStats::default();
         if !func.params.is_empty() || !self.is_side_effect_free(func) {
             return &self.stats;

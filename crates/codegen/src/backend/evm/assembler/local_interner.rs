@@ -1,19 +1,19 @@
-use super::inst::AsmIndex;
+use crate::backend::evm::ir::assembly::AsmIndex;
 use solar_data_structures::map::FxIndexSet;
 use std::{hash::Hash, marker::PhantomData};
 
 #[derive(Clone, Debug)]
-pub(super) struct LocalInterner<T, I> {
+pub(in crate::backend::evm) struct LocalInterner<T, I> {
     values: FxIndexSet<T>,
     _index: PhantomData<fn() -> I>,
 }
 
 impl<T, I> LocalInterner<T, I> {
-    pub(super) fn new() -> Self {
+    pub(in crate::backend::evm) fn new() -> Self {
         Self { values: FxIndexSet::default(), _index: PhantomData }
     }
 
-    pub(super) fn clear(&mut self) {
+    pub(in crate::backend::evm) fn clear(&mut self) {
         self.values.clear();
     }
 }
@@ -23,14 +23,14 @@ where
     T: Eq + Hash,
     I: AsmIndex,
 {
-    pub(super) fn intern(&mut self, value: T) -> I {
+    pub(in crate::backend::evm) fn intern(&mut self, value: T) -> I {
         let (index, _) = self.values.insert_full(value);
         let index = I::from_usize(index);
         index.inst_payload();
         index
     }
 
-    pub(super) fn get(&self, index: I) -> &T {
+    pub(in crate::backend::evm) fn get(&self, index: I) -> &T {
         self.values.get_index(index.index()).expect("local interner index out of bounds")
     }
 

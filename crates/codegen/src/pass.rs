@@ -1,10 +1,10 @@
 //! Pass infrastructure for MIR transformations and analyses.
 //!
 //! Inspired by LLVM/MLIR pass infrastructure:
-//! - **Analysis passes** ([`AnalysisPass`]) are read-only and produce a cached result. They take
-//!   `&Function` and store their result in [`AnalysisManager`].
-//! - **Module passes** ([`ModulePass`]) modify the IR at module scope. Function-local passes can
-//!   implement [`FunctionPass`] and are automatically applied to each function.
+//! - **Analysis passes** (`AnalysisPass`) are read-only and produce a cached result. They take
+//!   `&Function` and store their result in `AnalysisManager`.
+//! - **Module passes** (`ModulePass`) modify the IR at module scope. Function-local passes can
+//!   implement `FunctionPass` and are automatically applied to each function.
 //!
 //! # Usage
 //!
@@ -13,10 +13,7 @@
 //! let mut am = AnalysisManager::new();
 //! let liveness = am.get_or_compute(&LivenessAnalysis, &func);
 //!
-//! // Transform pipeline:
-//! let mut pm = PassManager::new();
-//! pm.add_pass(Box::new(DcePass));
-//! let changed = pm.run(&mut module).1;
+//! let changed = run_pass(&mut module, &DCE_PASS, PipelineOptions::default());
 //! ```
 
 use crate::{
@@ -45,9 +42,9 @@ pub struct PassInfo {
     /// Human-readable help text.
     pub description: &'static str,
     /// Earliest [`MirPhase`] this pass may run on.
-    pub min_phase: MirPhase,
+    min_phase: MirPhase,
     /// Latest [`MirPhase`] this pass may run on.
-    pub max_phase: MirPhase,
+    max_phase: MirPhase,
     run_pass: PassRunner,
 }
 
@@ -72,7 +69,7 @@ impl PassInfo {
 
     /// Whether this pass's declared phase range admits the module's phase.
     #[must_use]
-    pub fn admits(&self, module: &Module) -> bool {
+    fn admits(&self, module: &Module) -> bool {
         self.min_phase <= module.phase && module.phase <= self.max_phase
     }
 }
@@ -95,76 +92,76 @@ macro_rules! declare_passes {
 
 declare_passes! {
     /// Internal MIR function inlining.
-    pub const INLINE_PASS -> "inline" = InlinePass;
+    pub(crate) const INLINE_PASS -> "inline" = InlinePass;
 
     /// Outline duplicate constant revert blocks before backend lowering.
-    pub const OUTLINE_REVERTS_PASS -> "outline-reverts" = OutlineRevertsPass::default();
+    pub(crate) const OUTLINE_REVERTS_PASS -> "outline-reverts" = OutlineRevertsPass::default();
 
     /// Dead internal function elimination.
-    pub const FUNCTION_DCE_PASS -> "function-dce" = FunctionDcePass;
+    pub(crate) const FUNCTION_DCE_PASS -> "function-dce" = FunctionDcePass;
 
     /// Sparse Conditional Constant Propagation.
-    pub const SCCP_PASS -> "sccp" = SccpTransformPass;
+    pub(crate) const SCCP_PASS -> "sccp" = SccpTransformPass;
 
     /// Bounded evaluator for closed pure MIR loops/functions.
-    pub const PURE_EVAL_PASS -> "pure-eval" = PureEvalPass;
+    pub(crate) const PURE_EVAL_PASS -> "pure-eval" = PureEvalPass;
 
     /// Local MIR instruction simplification.
-    pub const INST_SIMPLIFY_PASS -> "inst-simplify" = InstSimplifyPass;
+    pub(crate) const INST_SIMPLIFY_PASS -> "inst-simplify" = InstSimplifyPass;
 
     /// Common Subexpression Elimination (fixed-point).
-    pub const CSE_PASS -> "cse" = CsePass;
+    pub(crate) const CSE_PASS -> "cse" = CsePass;
 
     /// Partial redundancy elimination for pure expressions.
-    pub const PRE_PASS -> "pre" = PrePass;
+    pub(crate) const PRE_PASS -> "pre" = PrePass;
 
     /// Congruence-class global value numbering.
-    pub const GVN_PASS -> "gvn" = GvnPass;
+    pub(crate) const GVN_PASS -> "gvn" = GvnPass;
 
     /// Reuse storage loads across definitely-disjoint stores.
-    pub const STORAGE_LOAD_CSE_PASS -> "storage-load-cse" = StorageLoadCsePass;
+    pub(crate) const STORAGE_LOAD_CSE_PASS -> "storage-load-cse" = StorageLoadCsePass;
 
     /// Eliminate overwritten or repeated storage stores.
-    pub const STORAGE_DSE_PASS -> "storage-dse" = StorageDsePass;
+    pub(crate) const STORAGE_DSE_PASS -> "storage-dse" = StorageDsePass;
 
     /// Availability-dataflow redundancy elimination and PRE for memory-dependent reads.
-    pub const LOAD_PRE_PASS -> "load-pre" = LoadPrePass;
+    pub(crate) const LOAD_PRE_PASS -> "load-pre" = LoadPrePass;
 
     /// Canonicalize natural loops with explicit preheaders.
-    pub const LOOP_CANONICALIZE_PASS -> "loop-canonicalize" = LoopCanonicalizePass;
+    pub(crate) const LOOP_CANONICALIZE_PASS -> "loop-canonicalize" = LoopCanonicalizePass;
 
     /// Strength-reduce affine induction-variable address expressions.
-    pub const INDVAR_SIMPLIFY_PASS -> "indvar-simplify" = IndVarSimplifyPass;
+    pub(crate) const INDVAR_SIMPLIFY_PASS -> "indvar-simplify" = IndVarSimplifyPass;
 
     /// Promote simple loop-carried storage updates to memory.
-    pub const STORAGE_PROMOTION_PASS -> "storage-promotion" = StorageScalarPromotionPass;
+    pub(crate) const STORAGE_PROMOTION_PASS -> "storage-promotion" = StorageScalarPromotionPass;
 
     /// Loop-Invariant Code Motion.
-    pub const LICM_PASS -> "licm" = LicmPass;
+    pub(crate) const LICM_PASS -> "licm" = LicmPass;
 
     /// Range-based elimination of provably dead overflow-check branches.
-    pub const CHECK_ELIM_PASS -> "check-elim" = CheckElimPass;
+    pub(crate) const CHECK_ELIM_PASS -> "check-elim" = CheckElimPass;
 
     /// Jump Threading (fixed-point).
-    pub const JUMP_THREADING_PASS -> "jump-threading" = JumpThreadingPass;
+    pub(crate) const JUMP_THREADING_PASS -> "jump-threading" = JumpThreadingPass;
 
     /// CFG Simplification (fixed-point).
-    pub const CFG_SIMPLIFY_PASS -> "cfg-simplify" = CfgSimplifyPass;
+    pub(crate) const CFG_SIMPLIFY_PASS -> "cfg-simplify" = CfgSimplifyPass;
 
     /// Promote non-escaping compiler-local slots to SSA values.
-    pub const FRAME_SLOT_PROMOTION_PASS -> "frame-slot-promotion" = FrameSlotPromotionPass;
+    pub(crate) const FRAME_SLOT_PROMOTION_PASS -> "frame-slot-promotion" = FrameSlotPromotionPass;
 
     /// Local dead memory-store elimination.
-    pub const MEMORY_DSE_PASS -> "memory-dse" = MemoryDsePass;
+    pub(crate) const MEMORY_DSE_PASS -> "memory-dse" = MemoryDsePass;
 
     /// Place provably local fmp-bump allocations at static frame addresses.
-    pub const STATIC_ALLOC_PASS -> "static-alloc" = StaticAllocPass;
+    pub(crate) const STATIC_ALLOC_PASS -> "static-alloc" = StaticAllocPass;
 
     /// Dead Code Elimination (fixed-point).
-    pub const DCE_PASS -> "dce" = DcePass;
+    pub(crate) const DCE_PASS -> "dce" = DcePass;
 
     /// Aggressive dead-code elimination for dead control regions.
-    pub const ADCE_PASS -> "adce" = AdcePass;
+    pub(crate) const ADCE_PASS -> "adce" = AdcePass;
 
     /// ABI phase lowering: external functions become self-decoding wrappers.
     const LOWER_ABI_PASS_BASE -> "lower-abi" = LowerAbiPass::default();
@@ -176,22 +173,22 @@ declare_passes! {
     const LOWER_EVM_SHAPED_PASS_BASE -> "lower-evm-shaped" = LowerEvmShapedPass::default();
 
     /// Lower mapping-slot hash builtins to memory operations.
-    pub const LOWER_MAPPING_SLOTS_PASS -> "lower-mapping-slots" = LowerMappingSlotsPass;
+    pub(crate) const LOWER_MAPPING_SLOTS_PASS -> "lower-mapping-slots" = LowerMappingSlotsPass;
 }
 
 /// ABI phase lowering with its phase range declared: consumes
 /// `built`/`optimized` MIR and produces the `abi` phase.
-pub const LOWER_ABI_PASS: PassInfo =
+pub(crate) const LOWER_ABI_PASS: PassInfo =
     LOWER_ABI_PASS_BASE.phases(MirPhase::Built, MirPhase::Optimized);
 
 /// Dispatch phase lowering with its phase range declared: consumes exactly
 /// `abi`-phase MIR and produces the `dispatch` phase.
-pub const LOWER_DISPATCH_PASS: PassInfo =
+pub(crate) const LOWER_DISPATCH_PASS: PassInfo =
     LOWER_DISPATCH_PASS_BASE.phases(MirPhase::Abi, MirPhase::Abi);
 
 /// EVM-shape lowering with its phase range declared: consumes exactly
 /// `dispatch`-phase MIR and produces the `evm-shaped` phase.
-pub const LOWER_EVM_SHAPED_PASS: PassInfo =
+pub(crate) const LOWER_EVM_SHAPED_PASS: PassInfo =
     LOWER_EVM_SHAPED_PASS_BASE.phases(MirPhase::Dispatch, MirPhase::Dispatch);
 
 /// All known MIR passes exposed to `solar mir-opt`.
@@ -296,7 +293,7 @@ pub struct PipelineOptions {
     /// Print the time spent in each pass.
     pub time_passes: bool,
     /// Validate MIR after every pass.
-    pub validate_after_each: bool,
+    pub(crate) validate_after_each: bool,
 }
 
 impl Default for PipelineOptions {
@@ -329,7 +326,7 @@ pub fn run_pass(module: &mut Module, pass: &PassInfo, options: PipelineOptions) 
 }
 
 /// Runs a named MIR pass pipeline over a module.
-pub fn run_pipeline(module: &mut Module, passes: &[PassInfo], options: PipelineOptions) -> bool {
+fn run_pipeline(module: &mut Module, passes: &[PassInfo], options: PipelineOptions) -> bool {
     let mut changed = false;
     for pass in passes {
         changed |= run_pass(module, pass, options);
@@ -343,8 +340,8 @@ pub fn run_pipeline(module: &mut Module, passes: &[PassInfo], options: PipelineO
 
 /// Runs the canonical MIR optimization pipeline used by EVM codegen.
 ///
-/// This is a phase transition: the module comes out in [`MirPhase::Optimized`].
-/// Ad-hoc pass lists run through [`run_pipeline`], such as `solar mir-opt`
+/// This is a phase transition: the module comes out in `MirPhase::Optimized`.
+/// Ad-hoc pass lists run through `run_pipeline`, such as `solar mir-opt`
 /// invocations, deliberately do not advance the phase.
 pub fn run_default_pipeline(module: &mut Module, options: PipelineOptions) -> bool {
     let mut changed = run_pipeline(module, DEFAULT_PIPELINE, options);
@@ -381,11 +378,11 @@ fn run_cleanup_pipeline_to_fixpoint(
 
 /// A key identifying a particular analysis, derived from its result type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct AnalysisKey(TypeId);
+struct AnalysisKey(TypeId);
 
 impl AnalysisKey {
     /// Creates a key from a type.
-    pub fn of<T: 'static>() -> Self {
+    pub(crate) fn of<T: 'static>() -> Self {
         Self(TypeId::of::<T>())
     }
 }
@@ -394,12 +391,9 @@ impl AnalysisKey {
 ///
 /// Analysis passes inspect a function without modifying it and produce a
 /// cacheable result that downstream passes can query via [`AnalysisManager`].
-pub trait AnalysisPass {
+pub(crate) trait AnalysisPass {
     /// The result type produced by this analysis.
     type Result: 'static;
-
-    /// The name of this analysis, for debugging and logging.
-    fn name(&self) -> &str;
 
     /// Computes the analysis result for the given function.
     fn run(&self, func: &Function) -> Self::Result;
@@ -409,10 +403,7 @@ pub trait AnalysisPass {
 ///
 /// Module-level passes can inspect or transform more than one function. Function-local passes
 /// should implement [`FunctionPass`] instead and use the blanket [`ModulePass`] implementation.
-pub trait ModulePass {
-    /// The name of this pass, for debugging and logging.
-    fn name(&self) -> &str;
-
+pub(crate) trait ModulePass {
     /// Runs the transformation on the given module.
     ///
     /// Returns true if the transform changed MIR.
@@ -420,19 +411,12 @@ pub trait ModulePass {
 }
 
 /// A transformation pass that mutates one function at a time.
-pub trait FunctionPass {
-    /// The name of this pass, for debugging and logging.
-    fn name(&self) -> &str;
-
+pub(crate) trait FunctionPass {
     /// Runs the transformation on the given function.
     fn run_on_function(&mut self, func: &mut Function) -> bool;
 }
 
 impl<T: FunctionPass> ModulePass for T {
-    fn name(&self) -> &str {
-        FunctionPass::name(self)
-    }
-
     fn run(&mut self, module: &mut Module) -> bool {
         let mut changed = false;
         for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
@@ -446,101 +430,31 @@ impl<T: FunctionPass> ModulePass for T {
 ///
 /// Analyses are keyed by their result type via [`AnalysisKey`].
 #[derive(Default)]
-pub struct AnalysisManager {
+pub(crate) struct AnalysisManager {
     results: FxHashMap<AnalysisKey, Box<dyn Any>>,
 }
 
 impl AnalysisManager {
     /// Creates a new, empty analysis manager.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
-    }
-
-    /// Returns the cached result for the given analysis type, if available.
-    pub fn get<T: 'static>(&self) -> Option<&T> {
-        let key = AnalysisKey::of::<T>();
-        self.results.get(&key)?.downcast_ref::<T>()
-    }
-
-    /// Caches an analysis result.
-    pub fn insert<T: 'static>(&mut self, result: T) {
-        let key = AnalysisKey::of::<T>();
-        self.results.insert(key, Box::new(result));
     }
 
     /// Returns the result of the analysis, computing and caching it if not already present.
     ///
     /// This is the recommended way to obtain analysis results, matching
     /// LLVM's `AnalysisManager::getResult<AnalysisT>(F)` pattern.
-    pub fn get_or_compute<A: AnalysisPass>(&mut self, analysis: &A, func: &Function) -> &A::Result {
+    pub(crate) fn get_or_compute<A: AnalysisPass>(
+        &mut self,
+        analysis: &A,
+        func: &Function,
+    ) -> &A::Result {
         let key = AnalysisKey::of::<A::Result>();
         self.results.entry(key).or_insert_with(|| {
             let result = analysis.run(func);
             Box::new(result)
         });
         self.results[&key].downcast_ref::<A::Result>().unwrap()
-    }
-
-    /// Invalidates all cached analysis results.
-    pub fn invalidate_all(&mut self) {
-        self.results.clear();
-    }
-
-    /// Invalidates a specific analysis result.
-    pub fn invalidate<T: 'static>(&mut self) {
-        let key = AnalysisKey::of::<T>();
-        self.results.remove(&key);
-    }
-}
-
-/// Orchestrates execution of [`ModulePass`]es on a module.
-///
-/// Each transform automatically invalidates all cached analyses after changing MIR.
-pub struct PassManager {
-    passes: Vec<Box<dyn ModulePass>>,
-    validate_after_each: bool,
-}
-
-impl Default for PassManager {
-    fn default() -> Self {
-        Self { passes: Vec::new(), validate_after_each: cfg!(debug_assertions) }
-    }
-}
-
-impl PassManager {
-    /// Creates a new, empty pass manager.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Adds a transformation pass to the pipeline.
-    pub fn add_pass(&mut self, pass: Box<dyn ModulePass>) {
-        self.passes.push(pass);
-    }
-
-    /// Enables or disables MIR validation after every pass.
-    pub const fn set_validate_after_each(&mut self, enabled: bool) {
-        self.validate_after_each = enabled;
-    }
-
-    /// Runs all transforms in order on the given module.
-    /// Returns an [`AnalysisManager`] and whether any transform changed MIR.
-    pub fn run(&mut self, module: &mut Module) -> (AnalysisManager, bool) {
-        let mut am = AnalysisManager::new();
-        let mut changed = false;
-        if self.validate_after_each {
-            validate_module_after_pass(module, "input");
-        }
-        for pass in &mut self.passes {
-            if pass.run(module) {
-                changed = true;
-                am.invalidate_all();
-            }
-            if self.validate_after_each {
-                validate_module_after_pass(module, pass.name());
-            }
-        }
-        (am, changed)
     }
 }
 
@@ -553,14 +467,10 @@ fn validate_module_after_pass(module: &Module, pass_name: &str) {
 }
 
 /// Liveness analysis pass.
-pub struct LivenessAnalysis;
+pub(crate) struct LivenessAnalysis;
 
 impl AnalysisPass for LivenessAnalysis {
     type Result = crate::analysis::Liveness;
-
-    fn name(&self) -> &str {
-        "liveness"
-    }
 
     fn run(&self, func: &Function) -> Self::Result {
         crate::analysis::Liveness::compute(func)

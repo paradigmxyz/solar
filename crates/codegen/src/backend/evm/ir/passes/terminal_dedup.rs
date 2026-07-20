@@ -2,102 +2,65 @@
 //!
 //! Terminal blocks with alpha-equivalent instruction bodies can share one
 //! implementation because execution never returns to their callers. This pass
-//! keeps the first profitable body and replaces later copies with jumps to it,
-//! accounting for the byte cost of the replacement before changing the IR.
+//! keeps the first body and redirects later copies to it. CFG simplification
+//! then redirects references and removes the temporary jump thunks.
 
 use super::utils::is_evm_terminal;
 use crate::backend::evm::ir::{
-    Block, BlockId, Instruction, Module, Operand, Terminator, TerminatorKind, ValueId,
+    Block, BlockId, Module, Operand, Terminator, TerminatorKind, ValueId,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashMap;
+use smallvec::SmallVec;
+use solar_data_structures::map::{FxHashMap, StdEntry};
 
-pub(super) fn run(module: &mut Module) -> bool {
-    let mut canonical = Vec::<(TerminalBlockKey, BlockId)>::new();
-    let mut changed = false;
+#[derive(Default)]
+pub(super) struct RunState {
+    canonical: FxHashMap<TerminalBlockKey, BlockId>,
+    locals: FxHashMap<ValueId, usize>,
+    redirects: Vec<(BlockId, BlockId)>,
+}
 
-    let block_ids: Vec<_> = module.blocks.indices().collect();
-    for block_id in block_ids {
+pub(super) fn run(
+    module: &mut Module,
+    _options: super::PassOptions,
+    pass_state: &mut super::PassState,
+) -> bool {
+    let state = &mut pass_state.terminal_dedup;
+    state.canonical.clear();
+    state.redirects.clear();
+
+    for block_id in module.blocks.indices() {
         let block = &module.blocks[block_id];
-        if !terminal_block_dedup_is_profitable(block) {
-            continue;
-        }
-        let Some(key) = terminal_block_key(block) else { continue };
-        if let Some((_, target)) = canonical.iter().find(|(known, _)| *known == key) {
-            module.blocks[block_id].instructions.clear();
-            module.blocks[block_id].terminator =
-                Some(Terminator::new(TerminatorKind::Jump(*target)));
-            changed = true;
-        } else {
-            canonical.push((key, block_id));
+        let Some(key) = terminal_block_key(block, &mut state.locals) else { continue };
+        match state.canonical.entry(key) {
+            StdEntry::Occupied(entry) => state.redirects.push((block_id, *entry.get())),
+            StdEntry::Vacant(entry) => {
+                entry.insert(block_id);
+            }
         }
     }
 
+    let changed = !state.redirects.is_empty();
+    for (block, target) in state.redirects.drain(..) {
+        module.blocks[block].instructions.clear();
+        module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(target)));
+    }
     changed
 }
 
-fn terminal_block_dedup_is_profitable(block: &Block) -> bool {
-    let Some(term) = &block.terminator else { return false };
-    if !is_evm_terminal(&term.kind) {
-        return false;
+fn terminal_block_key(
+    block: &Block,
+    locals: &mut FxHashMap<ValueId, usize>,
+) -> Option<TerminalBlockKey> {
+    if !block.terminator.as_ref().is_some_and(|term| is_evm_terminal(&term.kind)) {
+        return None;
     }
-    // A replacement block still needs `JUMPDEST PUSH2(label) JUMP`. Avoid
-    // rewriting tiny revert blocks where size is equal and revert-path gas
-    // would get worse.
-    let current_size = 1
-        + block.instructions.iter().map(estimated_instruction_size).sum::<usize>()
-        + estimated_terminator_size(&term.kind);
-    let replacement_size = 1 + 3 + 1;
-    current_size > replacement_size
-}
-
-fn estimated_instruction_size(inst: &Instruction) -> usize {
-    if inst.is_immutable_push() {
-        33
-    } else if inst.is_deferred_push() {
-        1
-    } else if inst.is_encoded_push() {
-        match inst.operands.as_slice() {
-            [operand] => estimated_push_size(operand),
-            _ => 1,
-        }
-    } else {
-        1
-    }
-}
-
-fn estimated_terminator_size(kind: &TerminatorKind) -> usize {
-    let operand_pushes = |operands: &[&Operand]| {
-        operands.iter().map(|operand| estimated_push_size(operand)).sum::<usize>() + 1
-    };
-    match kind {
-        TerminatorKind::Return { offset, size } | TerminatorKind::Revert { offset, size } => {
-            operand_pushes(&[offset, size])
-        }
-        TerminatorKind::SelfDestruct { recipient } => operand_pushes(&[recipient]),
-        TerminatorKind::Stop | TerminatorKind::Invalid | TerminatorKind::RawOpcode(_) => 1,
-        TerminatorKind::Jump(_) | TerminatorKind::Branch { .. } | TerminatorKind::Switch { .. } => {
-            0
-        }
-    }
-}
-
-fn estimated_push_size(operand: &Operand) -> usize {
-    match operand {
-        Operand::Immediate(value) if *value == U256::ZERO => 1,
-        Operand::Immediate(value) => value.byte_len() + 1,
-        Operand::Block(_) => 3,
-        Operand::Value(_) => 0,
-    }
-}
-
-fn terminal_block_key(block: &Block) -> Option<TerminalBlockKey> {
-    let mut locals = FxHashMap::default();
+    locals.clear();
     let mut instructions = Vec::with_capacity(block.instructions.len());
 
     for inst in &block.instructions {
         let operands =
-            inst.operands.iter().map(|operand| terminal_operand_key(operand, &locals)).collect();
+            inst.operands.iter().map(|operand| terminal_operand_key(operand, locals)).collect();
         let result = inst.result.map(|value| {
             let index = locals.len();
             locals.insert(value, index);
@@ -112,10 +75,7 @@ fn terminal_block_key(block: &Block) -> Option<TerminalBlockKey> {
     }
 
     let term = block.terminator.as_ref()?;
-    Some(TerminalBlockKey {
-        instructions,
-        terminator: terminal_terminator_key(&term.kind, &locals),
-    })
+    Some(TerminalBlockKey { instructions, terminator: terminal_terminator_key(&term.kind, locals) })
 }
 
 fn terminal_operand_key(
@@ -171,21 +131,21 @@ fn terminal_terminator_key(
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct TerminalBlockKey {
     instructions: Vec<TerminalInstructionKey>,
     terminator: TerminalTerminatorKey,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct TerminalInstructionKey {
     result: Option<usize>,
     opcode: u8,
     encoding: u8,
-    operands: Vec<TerminalOperandKey>,
+    operands: SmallVec<[TerminalOperandKey; 1]>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum TerminalTerminatorKey {
     Jump(BlockId),
     Branch {
@@ -196,7 +156,7 @@ enum TerminalTerminatorKey {
     Switch {
         value: TerminalOperandKey,
         default: BlockId,
-        cases: Vec<(TerminalOperandKey, BlockId)>,
+        cases: SmallVec<[(TerminalOperandKey, BlockId); 2]>,
     },
     Return {
         offset: TerminalOperandKey,
@@ -214,7 +174,7 @@ enum TerminalTerminatorKey {
     RawOpcode(u8),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum TerminalOperandKey {
     LocalValue(usize),
     ExternalValue(ValueId),

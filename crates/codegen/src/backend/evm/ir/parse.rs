@@ -1,7 +1,7 @@
 //! EVM IR text parser.
 
 use super::*;
-use crate::backend::evm::assembler::op;
+use crate::backend::evm::opcode as op;
 use solar_ast::{
     Arena,
     token::{BinOpToken, Delimiter, TokenKind},
@@ -240,7 +240,8 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                 Some((inputs, _)) => inputs > 0 && (result.is_some() || self.operand_starts_here()),
                 None => self.operand_starts_here(),
             };
-        let operands = if has_operands { self.parse_operand_list(module)? } else { Vec::new() };
+        let operands =
+            if has_operands { self.parse_operand_list(module)? } else { SmallVec::new() };
         let metadata = self.parse_metadata()?;
         module.blocks[block].instructions.push(Instruction {
             result,
@@ -373,8 +374,11 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         Ok(Some(kind))
     }
 
-    fn parse_operand_list(&mut self, module: &mut Module) -> PResult<'sess, Vec<Operand>> {
-        let mut operands = Vec::new();
+    fn parse_operand_list(
+        &mut self,
+        module: &mut Module,
+    ) -> PResult<'sess, SmallVec<[Operand; 1]>> {
+        let mut operands = SmallVec::new();
         loop {
             operands.push(self.parse_operand(module)?);
             if !self.parser.eat(TokenKind::Comma) {

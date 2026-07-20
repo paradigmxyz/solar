@@ -1,6 +1,6 @@
 //! MIR module (top-level container).
 
-use super::{Function, FunctionId, MirType};
+use super::{Function, FunctionId};
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
@@ -15,7 +15,7 @@ use solar_interface::{Ident, Symbol, sym};
 /// can emit `PUSH<N>` for small immutable types. Doing that here requires
 /// carrying the byte width through MIR, assembler immutable refs, and the
 /// constructor patch loop instead of blindly patching with `MSTORE`.
-pub const IMMUTABLE_WORD_SIZE: usize = 32;
+pub(crate) const IMMUTABLE_WORD_SIZE: usize = 32;
 
 /// The lowering phase a [`Module`] is in.
 ///
@@ -32,7 +32,7 @@ pub const IMMUTABLE_WORD_SIZE: usize = 32;
 /// `dispatch`-phase module (opt out with `-Zno-mir-dispatch`); a module where
 /// lowering bails keeps its phase and is dispatched by the backend.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum MirPhase {
+pub(crate) enum MirPhase {
     /// Fresh from HIR lowering: typed values, internal calls by function id,
     /// dispatch and ABI handling not yet materialized as MIR.
     #[default]
@@ -58,7 +58,7 @@ pub enum MirPhase {
 impl MirPhase {
     /// Stable textual name, as printed in the module header.
     #[must_use]
-    pub const fn name(self) -> &'static str {
+    pub(crate) const fn name(self) -> &'static str {
         match self {
             Self::Built => "built",
             Self::Optimized => "optimized",
@@ -70,7 +70,7 @@ impl MirPhase {
 
     /// Looks up a phase by its textual name.
     #[must_use]
-    pub fn by_name(name: Symbol) -> Option<Self> {
+    pub(crate) fn by_name(name: Symbol) -> Option<Self> {
         Some(match name {
             sym::built => Self::Built,
             sym::optimized => Self::Optimized,
@@ -86,22 +86,18 @@ impl MirPhase {
 #[derive(Clone, Debug)]
 pub struct Module {
     /// Module/contract name.
-    pub name: Ident,
+    pub(crate) name: Ident,
     /// All functions in this module.
-    pub functions: IndexVec<FunctionId, Function>,
-    /// Data segments (for string literals, etc.).
-    pub data_segments: Vec<DataSegment>,
-    /// Storage layout.
-    pub storage_layout: Vec<StorageSlot>,
-    /// Immutable scratch-area layout (currently one staged word per immutable).
-    pub immutables: Vec<ImmutableSlot>,
+    pub(crate) functions: IndexVec<FunctionId, Function>,
+    /// Size of the constructor scratch area used to stage immutables.
+    immutable_data_len: usize,
     /// Whether this is an interface (no bytecode generation).
-    pub is_interface: bool,
+    pub(crate) is_interface: bool,
     /// Whether optimization passes should favor bytecode size over runtime
     /// gas (`-O size`): multi-use functions are called rather than inlined.
-    pub optimize_for_size: bool,
+    pub(crate) optimize_for_size: bool,
     /// The lowering phase this module is in.
-    pub phase: MirPhase,
+    pub(crate) phase: MirPhase,
 }
 
 impl Module {
@@ -115,13 +111,11 @@ impl Module {
 
     /// Creates a new module.
     #[must_use]
-    pub fn new(name: Ident) -> Self {
+    pub(crate) fn new(name: Ident) -> Self {
         Self {
             name,
             functions: IndexVec::new(),
-            data_segments: Vec::new(),
-            storage_layout: Vec::new(),
-            immutables: Vec::new(),
+            immutable_data_len: 0,
             is_interface: false,
             optimize_for_size: false,
             phase: MirPhase::Built,
@@ -132,7 +126,7 @@ impl Module {
     ///
     /// Phases only move forward; a pipeline that would regress the phase is a
     /// bug in pass scheduling.
-    pub fn advance_phase(&mut self, phase: MirPhase) {
+    pub(crate) fn advance_phase(&mut self, phase: MirPhase) {
         debug_assert!(
             phase >= self.phase,
             "MIR phase cannot regress: {} -> {}",
@@ -143,51 +137,35 @@ impl Module {
     }
 
     /// Adds a function to the module.
-    pub fn add_function(&mut self, function: Function) -> FunctionId {
+    pub(crate) fn add_function(&mut self, function: Function) -> FunctionId {
         self.functions.push(function)
     }
 
     /// Returns the function for the given ID.
     #[must_use]
-    pub fn function(&self, id: FunctionId) -> &Function {
+    pub(crate) fn function(&self, id: FunctionId) -> &Function {
         &self.functions[id]
     }
 
     /// Returns a mutable reference to the function.
-    pub fn function_mut(&mut self, id: FunctionId) -> &mut Function {
+    pub(crate) fn function_mut(&mut self, id: FunctionId) -> &mut Function {
         &mut self.functions[id]
     }
 
-    /// Adds a data segment.
-    pub fn add_data_segment(&mut self, data: Vec<u8>) -> usize {
-        let index = self.data_segments.len();
-        self.data_segments.push(DataSegment { data });
-        index
-    }
-
-    /// Adds a storage slot.
-    pub fn add_storage_slot(&mut self, slot: StorageSlot) -> usize {
-        let index = self.storage_layout.len();
-        self.storage_layout.push(slot);
-        index
-    }
-
-    /// Adds an immutable data slot.
-    pub fn add_immutable_slot(&mut self, slot: ImmutableSlot) -> usize {
-        let index = self.immutables.len();
-        self.immutables.push(slot);
-        index
+    /// Reserves one word in the constructor's immutable staging area.
+    pub(crate) fn add_immutable(&mut self) {
+        self.immutable_data_len += IMMUTABLE_WORD_SIZE;
     }
 
     /// Returns the size in bytes of the constructor scratch area that stages
     /// immutable words before they are patched into the runtime code.
     #[must_use]
-    pub fn immutable_data_len(&self) -> usize {
-        self.immutables.len() * IMMUTABLE_WORD_SIZE
+    pub(crate) fn immutable_data_len(&self) -> usize {
+        self.immutable_data_len
     }
 
     /// Returns an iterator over all functions.
-    pub fn iter_functions(&self) -> impl Iterator<Item = (FunctionId, &Function)> {
+    pub(crate) fn iter_functions(&self) -> impl Iterator<Item = (FunctionId, &Function)> {
         self.functions.iter_enumerated()
     }
 
@@ -224,69 +202,8 @@ impl Module {
     }
 }
 
-/// A data segment in the module.
-#[derive(Clone, Debug)]
-pub struct DataSegment {
-    /// The raw bytes of this segment.
-    pub data: Vec<u8>,
-}
-
-/// A storage slot in the contract.
-#[derive(Clone, Debug)]
-pub struct StorageSlot {
-    /// The slot number.
-    pub slot: u64,
-    /// The offset within the slot (for packed storage).
-    pub offset: u8,
-    /// The type of the value stored.
-    pub ty: MirType,
-    /// The variable name (for debugging).
-    pub name: Option<Ident>,
-}
-
-/// An immutable value staged in constructor scratch memory and patched into the
-/// runtime code's immutable placeholders at deploy time.
-#[derive(Clone, Debug)]
-pub struct ImmutableSlot {
-    /// Byte offset from the start of the immutable scratch area.
-    pub offset: u32,
-    /// The type of the value stored.
-    pub ty: MirType,
-    /// The variable name (for debugging).
-    pub name: Option<Ident>,
-}
-
-impl StorageSlot {
-    /// Creates a new storage slot.
-    #[must_use]
-    pub fn new(slot: u64, ty: MirType) -> Self {
-        Self { slot, offset: 0, ty, name: None }
-    }
-
-    /// Creates a new storage slot with an offset.
-    #[must_use]
-    pub fn with_offset(slot: u64, offset: u8, ty: MirType) -> Self {
-        Self { slot, offset, ty, name: None }
-    }
-}
-
 impl fmt::Display for Module {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "module {} {{", self.name)?;
-
-        if !self.storage_layout.is_empty() {
-            writeln!(f, "  storage:")?;
-            for slot in &self.storage_layout {
-                writeln!(f, "    slot {} @ {}: {}", slot.slot, slot.offset, slot.ty)?;
-            }
-            writeln!(f)?;
-        }
-
-        for (id, func) in self.functions.iter_enumerated() {
-            writeln!(f, "  ; function {}", id.index())?;
-            writeln!(f, "  {func}")?;
-        }
-
-        writeln!(f, "}}")
+        write!(f, "{}", self.to_text())
     }
 }

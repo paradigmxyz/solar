@@ -52,19 +52,15 @@ use std::cmp::Ordering;
 
 /// Common Subexpression Elimination pass.
 #[derive(Debug, Default)]
-pub struct CommonSubexprEliminator {
+pub(crate) struct CommonSubexprEliminator {
     /// Number of instructions eliminated.
     pub eliminated_count: usize,
 }
 
 /// Function pass for local common subexpression elimination.
-pub struct CsePass;
+pub(crate) struct CsePass;
 
 impl FunctionPass for CsePass {
-    fn name(&self) -> &str {
-        "cse"
-    }
-
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         CommonSubexprEliminator::new().run_to_fixpoint(func) != 0
     }
@@ -183,15 +179,8 @@ struct PhiSinkContext<'a> {
 
 impl CommonSubexprEliminator {
     /// Creates a new CSE pass.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
-    }
-
-    /// Runs CSE on a function.
-    /// Returns the number of expressions eliminated.
-    pub fn run(&mut self, func: &mut Function) -> usize {
-        let cfg = CfgInfo::new(func);
-        self.run_with_cfg(func, &cfg)
     }
 
     fn run_with_cfg(&mut self, func: &mut Function, cfg: &CfgInfo) -> usize {
@@ -213,7 +202,7 @@ impl CommonSubexprEliminator {
     }
 
     /// Runs CSE iteratively until no more changes.
-    pub fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
         let cfg = CfgInfo::new(func);
         loop {
@@ -1061,18 +1050,12 @@ impl CommonSubexprEliminator {
             Immediate::Bool(_) => 0,
             Immediate::UInt(_, _) => 1,
             Immediate::Int(_, _) => 2,
-            Immediate::Address(_) => 3,
-            Immediate::FixedBytes(_, _) => 4,
         };
         rank(a).cmp(&rank(b)).then_with(|| match (a, b) {
             (Immediate::Bool(a), Immediate::Bool(b)) => a.cmp(b),
             (Immediate::UInt(a_value, a_bits), Immediate::UInt(b_value, b_bits))
             | (Immediate::Int(a_value, a_bits), Immediate::Int(b_value, b_bits)) => {
                 a_bits.cmp(b_bits).then_with(|| a_value.cmp(b_value))
-            }
-            (Immediate::Address(a), Immediate::Address(b)) => a.cmp(b),
-            (Immediate::FixedBytes(a_value, a_len), Immediate::FixedBytes(b_value, b_len)) => {
-                a_len.cmp(b_len).then_with(|| a_value.cmp(b_value))
             }
             _ => Ordering::Equal,
         })

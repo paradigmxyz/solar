@@ -3,11 +3,10 @@
 //! Panic checks and argless custom errors lower to small blocks of constant
 //! stores followed by `revert` — `mstore(0, selector); mstore(4, code);
 //! revert(0, 36)` — and the same shape repeats at every check site, across
-//! functions. The assembler also deduplicates byte-identical terminal spans,
-//! including fallthrough-entered copies, but only after backend lowering and
-//! layout. Outlining the semantic MIR shape first prevents stack scheduling,
-//! function layout, and label-width differences from hiding those duplicates
-//! from the later byte-level pass.
+//! functions. EVM IR also deduplicates equivalent terminal blocks and merges
+//! common terminal tails, but only after backend lowering. Outlining the
+//! semantic MIR shape first prevents stack scheduling and layout differences
+//! from hiding those duplicates from the backend passes.
 //!
 //! This pass hashes every block whose instructions are all `mstore(imm, imm)`
 //! and whose terminator is `revert(imm, imm)`. A shape that occurs at least
@@ -27,7 +26,7 @@ use solar_interface::{Ident, Symbol};
 
 /// Statistics from revert-block outlining.
 #[derive(Clone, Debug, Default)]
-pub struct OutlineRevertsStats {
+pub(crate) struct OutlineRevertsStats {
     /// Number of blocks rewritten into tail calls.
     pub outlined: usize,
     /// Number of shared helpers synthesized.
@@ -36,7 +35,7 @@ pub struct OutlineRevertsStats {
 
 /// Revert-block outlining pass.
 #[derive(Debug, Default)]
-pub struct OutlineRevertsPass {
+pub(crate) struct OutlineRevertsPass {
     stats: OutlineRevertsStats,
 }
 
@@ -44,12 +43,6 @@ pub struct OutlineRevertsPass {
 type RevertShape = (SmallVec<[(U256, U256); 2]>, U256, U256);
 
 impl OutlineRevertsPass {
-    /// Returns statistics for the most recent run.
-    #[must_use]
-    pub const fn stats(&self) -> &OutlineRevertsStats {
-        &self.stats
-    }
-
     fn run(&mut self, module: &mut Module) -> bool {
         // Collect every constant revert block, keyed by shape.
         let mut shapes: FxHashMap<RevertShape, Vec<(usize, usize)>> = FxHashMap::default();
@@ -111,10 +104,6 @@ impl OutlineRevertsPass {
 }
 
 impl ModulePass for OutlineRevertsPass {
-    fn name(&self) -> &str {
-        "outline-reverts"
-    }
-
     fn run(&mut self, module: &mut Module) -> bool {
         Self::run(self, module)
     }

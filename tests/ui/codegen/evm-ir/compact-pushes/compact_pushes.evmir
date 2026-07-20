@@ -1,0 +1,7 @@
+//@compile-flags: --pass compact-pushes
+@module module
+
+bb0 (entry):
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  stop

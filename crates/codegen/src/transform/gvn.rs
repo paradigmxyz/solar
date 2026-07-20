@@ -62,19 +62,15 @@ type ClassId = ValueId;
 
 /// Congruence-class global value numbering pass.
 #[derive(Debug, Default)]
-pub struct GlobalValueNumberer {
+pub(crate) struct GlobalValueNumberer {
     /// Number of instructions folded onto a congruent leader.
     pub eliminated_count: usize,
 }
 
 /// Function pass for congruence-class global value numbering.
-pub struct GvnPass;
+pub(crate) struct GvnPass;
 
 impl FunctionPass for GvnPass {
-    fn name(&self) -> &str {
-        "gvn"
-    }
-
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         GlobalValueNumberer::new().run(func) != 0
     }
@@ -135,13 +131,13 @@ struct ReplaceCtx<'a> {
 
 impl GlobalValueNumberer {
     /// Creates a new GVN pass.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
     /// Runs GVN on a function to a fixed point of number-then-replace rounds.
     /// Returns the number of instructions eliminated.
-    pub fn run(&mut self, func: &mut Function) -> usize {
+    pub(crate) fn run(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
         for _ in 0..MAX_ROUNDS {
             if !self.run_round(func) {

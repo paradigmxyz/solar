@@ -1,23 +1,22 @@
-//! Final linear EVM assembly program.
+//! Lowering from block EVM IR to its finalized layout-linear form.
 
-use super::{AsmInst, Assembler, DeferredConst, Label, op};
-use crate::backend::evm::ir::{self, BlockId};
+use super::{AsmInst, Program};
+use crate::backend::evm::{
+    assembler::{Assembler, DeferredConst, Label},
+    ir::{self, BlockId},
+    opcode as op,
+};
+use solar_data_structures::bit_set::DenseBitSet;
 
-/// Linear label-bearing opcode stream ready for final bytecode assembly.
-#[derive(Clone, Debug, Default)]
-pub(in crate::backend::evm) struct EvmAsmProgram {
-    pub(in crate::backend::evm) instructions: Vec<AsmInst>,
-}
-
-/// Lowers finalized EVM IR into the linear assembly stream.
+/// Lowers finalized EVM IR into the linear label-bearing assembly stream.
 pub(in crate::backend::evm) fn lower_evm_ir(
     module: &ir::Module,
     labels: &mut Vec<Option<Label>>,
     assembler: &mut Assembler,
-) -> EvmAsmProgram {
+) -> Program {
     allocate_referenced_labels(module, labels, assembler);
 
-    let mut program = EvmAsmProgram::default();
+    let mut program = Program::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         let original = block.label as usize;
         if let Some(label) = labels.get(original).copied().flatten() {
@@ -40,19 +39,32 @@ fn allocate_referenced_labels(
     labels: &mut Vec<Option<Label>>,
     assembler: &mut Assembler,
 ) {
-    for block in &module.blocks {
+    let mut referenced = DenseBitSet::new_empty(module.blocks.len());
+    for (block_id, block) in module.blocks.iter_enumerated() {
         for inst in &block.instructions {
             for operand in &inst.operands {
                 if let ir::Operand::Block(target) = operand {
-                    label_for_block(module, *target, labels, assembler);
+                    referenced.insert(*target);
                 }
             }
         }
         if let Some(ir::Terminator { kind: ir::TerminatorKind::Jump(target), .. }) =
             &block.terminator
+            && next_block(module, block_id) != Some(*target)
         {
-            label_for_block(module, *target, labels, assembler);
+            referenced.insert(*target);
         }
+    }
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        let original = block.label as usize;
+        if !referenced.contains(block_id)
+            && let Some(label) = labels.get_mut(original)
+        {
+            *label = None;
+        }
+    }
+    for block in referenced.iter() {
+        label_for_block(module, block, labels, assembler);
     }
 }
 
@@ -88,7 +100,7 @@ fn lower_instruction(
 }
 
 fn lower_terminator(
-    program: &mut EvmAsmProgram,
+    program: &mut Program,
     block_id: BlockId,
     kind: &ir::TerminatorKind,
     module: &ir::Module,

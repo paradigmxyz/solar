@@ -23,7 +23,7 @@ use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Local MIR instruction simplification pass.
 #[derive(Debug, Default)]
-pub struct InstSimplifier {
+pub(crate) struct InstSimplifier {
     /// Number of instructions simplified in the last run.
     pub simplified_count: usize,
 }
@@ -45,13 +45,9 @@ impl RunState {
 }
 
 /// Function pass for local instruction simplification.
-pub struct InstSimplifyPass;
+pub(crate) struct InstSimplifyPass;
 
 impl FunctionPass for InstSimplifyPass {
-    fn name(&self) -> &str {
-        "inst-simplify"
-    }
-
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         InstSimplifier::new().run_to_fixpoint(func) != 0
     }
@@ -59,12 +55,12 @@ impl FunctionPass for InstSimplifyPass {
 
 impl InstSimplifier {
     /// Creates a new instruction simplifier.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
-    /// Runs instruction simplification on a function.
-    pub fn run(&mut self, func: &mut Function) -> usize {
+    #[cfg(test)]
+    fn run(&mut self, func: &mut Function) -> usize {
         let mut state = RunState::new(func);
         self.run_with_state(func, &mut state)
     }
@@ -124,7 +120,7 @@ impl InstSimplifier {
     }
 
     /// Runs instruction simplification until no more changes are found.
-    pub fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
         let mut state = RunState::new(func);
         loop {
@@ -826,7 +822,6 @@ impl InstSimplifier {
 
     fn is_clean_address(func: &Function, value: ValueId) -> bool {
         match &func.values[value] {
-            Value::Immediate(Immediate::Address(_)) => true,
             Value::Inst(inst_id) => matches!(
                 func.instructions[*inst_id].kind,
                 InstKind::Address

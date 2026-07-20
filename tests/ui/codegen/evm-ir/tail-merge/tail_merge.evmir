@@ -1,0 +1,43 @@
+//@compile-flags: --pass tail-merge
+@module module
+
+bb0 (entry):
+  push 1
+  push bb1
+  jumpi
+  jump bb2
+bb1 [cold]:
+  push 11
+  push 22
+  push 33
+  push 44
+  push 55
+  revert
+bb2 [cold]:
+  push 99
+  push 22
+  push 33
+  push 44
+  push 55
+  revert
+bb3:
+  push 77
+  push 66
+  push 33
+  push 44
+  push 55
+  revert
+bb6 [cold]:
+  push 111
+  push 222
+  push 333
+  push 444
+  push 555
+  revert
+bb7:
+  push 999
+  push 222
+  push 333
+  push 444
+  push 555
+  revert

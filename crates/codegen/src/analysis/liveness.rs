@@ -19,15 +19,13 @@ use solar_data_structures::{
 use std::collections::VecDeque;
 
 /// A dense bitset for tracking live values.
-pub type LiveSet = GrowableBitSet<ValueId>;
+pub(crate) type LiveSet = GrowableBitSet<ValueId>;
 
-/// Per-instruction liveness information.
+#[cfg(test)]
 #[derive(Clone, Debug)]
-pub struct LivenessInfo {
-    /// Values that are live before this instruction.
-    pub live_before: LiveSet,
-    /// Values that are live after this instruction.
-    pub live_after: LiveSet,
+struct LivenessInfo {
+    live_before: LiveSet,
+    live_after: LiveSet,
 }
 
 /// Per-block liveness results.
@@ -41,16 +39,13 @@ struct BlockLiveness {
 
 /// Liveness analysis results for a function.
 #[derive(Debug)]
-pub struct Liveness {
+pub(crate) struct Liveness {
     /// Per-block liveness information (indexed by block index).
     block_liveness: Vec<BlockLiveness>,
     /// The last use location of each value within each block: (block, instruction index).
     /// The key is (ValueId, BlockId), and value is the instruction index (None = terminator).
     /// This tracks the last use of a value *within* each block where it's used.
     last_use_in_block: FxHashMap<(ValueId, BlockId), Option<usize>>,
-    /// Precomputed map from InstId to the ValueId it defines.
-    /// Built once during compute() to avoid O(n) scans.
-    pub(crate) inst_to_value: FxHashMap<InstId, ValueId>,
     /// Number of values in the function.
     #[allow(dead_code)]
     num_values: usize,
@@ -59,7 +54,7 @@ pub struct Liveness {
 impl Liveness {
     /// Computes liveness for a function.
     #[must_use]
-    pub fn compute(func: &Function) -> Self {
+    pub(crate) fn compute(func: &Function) -> Self {
         let num_values = func.values.len();
         let num_blocks = func.blocks.len();
 
@@ -189,7 +184,7 @@ impl Liveness {
             }
         }
 
-        Self { block_liveness, last_use_in_block, inst_to_value, num_values }
+        Self { block_liveness, last_use_in_block, num_values }
     }
 
     /// Computes the subset of liveness needed by codegen when every computed
@@ -201,12 +196,9 @@ impl Liveness {
     /// last-use information for stack scheduling.
     pub(crate) fn compute_block_local_for_codegen(func: &Function) -> Option<Self> {
         let num_values = func.values.len();
-        let mut inst_to_value = FxHashMap::default();
-        for (val_id, val) in func.values.iter_enumerated() {
+        for val in &func.values {
             match val {
-                Value::Inst(inst_id) => {
-                    inst_to_value.insert(*inst_id, val_id);
-                }
+                Value::Inst(_) => {}
                 Value::Arg { .. } => return None,
                 Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => {}
             }
@@ -266,37 +258,27 @@ impl Liveness {
             }
         }
 
-        Some(Self { block_liveness, last_use_in_block, inst_to_value, num_values })
+        Some(Self { block_liveness, last_use_in_block, num_values })
     }
 
     /// Returns the values live at the entry of a block.
     #[must_use]
-    pub fn live_in(&self, block: BlockId) -> &LiveSet {
+    pub(crate) fn live_in(&self, block: BlockId) -> &LiveSet {
         &self.block_liveness[block.index()].live_in
     }
 
     /// Returns the values live at the exit of a block.
     #[must_use]
-    pub fn live_out(&self, block: BlockId) -> &LiveSet {
+    pub(crate) fn live_out(&self, block: BlockId) -> &LiveSet {
         &self.block_liveness[block.index()].live_out
     }
 
-    /// Computes liveness at a specific instruction within a block.
-    /// Returns values live before and after the instruction.
-    #[must_use]
-    pub fn live_at_inst(
-        &self,
-        func: &Function,
-        block_id: BlockId,
-        inst_idx: usize,
-    ) -> LivenessInfo {
-        let bidx = block_id.index();
+    #[cfg(test)]
+    fn live_at_inst(&self, func: &Function, block_id: BlockId, inst_idx: usize) -> LivenessInfo {
         let block = &func.blocks[block_id];
+        let inst_to_value = func.inst_results();
+        let mut live = self.block_liveness[block_id.index()].live_out.clone();
 
-        // Start with live_out of the block
-        let mut live = self.block_liveness[bidx].live_out.clone();
-
-        // Process terminator (add its uses — they must be live before the terminator)
         if let Some(term) = &block.terminator {
             let mut term_uses = SmallVec::<[ValueId; 8]>::new();
             collect_terminator_uses(term, &mut term_uses);
@@ -305,42 +287,27 @@ impl Liveness {
             }
         }
 
-        // Process instructions in reverse order from end to inst_idx
         let mut operand_buf = SmallVec::<[ValueId; 8]>::new();
-        let mut live_after = None;
-
         for (idx, &inst_id) in block.instructions.iter().enumerate().rev() {
-            if idx == inst_idx {
-                live_after = Some(live.clone());
+            let live_after = (idx == inst_idx).then(|| live.clone());
+            if let Some(&value) = inst_to_value.get(&inst_id) {
+                live.remove(value);
             }
-
-            // Remove definition using precomputed map (O(1) instead of O(n)).
-            if let Some(&val_id) = self.inst_to_value.get(&inst_id) {
-                live.remove(val_id);
-            }
-
-            // Add uses (values become live before this instruction)
             operand_buf.clear();
             func.instruction(inst_id).kind.collect_operands(&mut operand_buf);
             for &operand in &operand_buf {
                 live.insert(operand);
             }
-
-            if idx == inst_idx {
-                return LivenessInfo { live_before: live, live_after: live_after.unwrap() };
+            if let Some(live_after) = live_after {
+                return LivenessInfo { live_before: live, live_after };
             }
         }
 
-        // Should not reach here
         LivenessInfo { live_before: live.clone(), live_after: live }
     }
 
-    /// Returns the last use location of a value within a specific block, if any.
-    /// Returns `Some(Some(inst_idx))` if last used at an instruction,
-    /// `Some(None)` if last used in a terminator,
-    /// `None` if the value is not used in this block.
-    #[must_use]
-    pub fn last_use_in_block(&self, val: ValueId, block: BlockId) -> Option<Option<usize>> {
+    #[cfg(test)]
+    fn last_use_in_block(&self, val: ValueId, block: BlockId) -> Option<Option<usize>> {
         self.last_use_in_block.get(&(val, block)).copied()
     }
 
@@ -369,7 +336,7 @@ impl Liveness {
     /// 1. The instruction is the last use of the value within this block, AND
     /// 2. The value is NOT in live_out (meaning no successor blocks use it)
     #[must_use]
-    pub fn is_dead_after(&self, val: ValueId, block: BlockId, inst_idx: usize) -> bool {
+    pub(crate) fn is_dead_after(&self, val: ValueId, block: BlockId, inst_idx: usize) -> bool {
         // If the value is in live_out, it's used by successor blocks, so it's not dead
         if self.block_liveness[block.index()].live_out.contains(val) {
             return false;
@@ -903,33 +870,5 @@ mod tests {
         assert!(liveness.live_in(exit).contains(phi_val), "phi_val live-in to exit");
         // phi_val should NOT be live-in to entry (it's defined in header).
         assert!(!liveness.live_in(entry).contains(phi_val), "phi_val not live-in to entry");
-    }
-
-    #[test]
-    fn test_inst_to_value_map_consistency() {
-        // The precomputed inst_to_value map must agree with a linear scan
-        // of func.values. This validates the O(1) lookup matches O(n) truth.
-        let mut func = make_func();
-        {
-            let mut b = FunctionBuilder::new(&mut func);
-            let x = b.add_param(MirType::uint256());
-            let y = b.add_param(MirType::uint256());
-            let sum = b.add(x, y);
-            let product = b.mul(sum, x);
-            b.sstore(x, product); // no result
-            let loaded = b.sload(y);
-            b.ret([loaded]);
-        }
-        let liveness = Liveness::compute(&func);
-
-        // Rebuild the map the slow way and compare.
-        use solar_data_structures::map::FxHashMap;
-        let mut expected: FxHashMap<crate::mir::InstId, ValueId> = FxHashMap::default();
-        for (val_id, val) in func.values.iter_enumerated() {
-            if let crate::mir::Value::Inst(inst_id) = val {
-                expected.insert(*inst_id, val_id);
-            }
-        }
-        assert_eq!(liveness.inst_to_value, expected, "inst_to_value map diverged from linear scan");
     }
 }

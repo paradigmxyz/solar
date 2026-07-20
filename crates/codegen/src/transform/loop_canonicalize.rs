@@ -23,7 +23,7 @@ use solar_data_structures::bit_set::DenseBitSet;
 
 /// Statistics from loop canonicalization.
 #[derive(Clone, Debug, Default)]
-pub struct LoopCanonicalizeStats {
+pub(crate) struct LoopCanonicalizeStats {
     /// Number of preheader blocks inserted.
     pub preheaders_inserted: usize,
     /// Number of header phi nodes rewritten to use a preheader incoming value.
@@ -35,25 +35,21 @@ pub struct LoopCanonicalizeStats {
 impl LoopCanonicalizeStats {
     /// Returns total canonicalization changes performed.
     #[must_use]
-    pub const fn total(&self) -> usize {
+    pub(crate) const fn total(&self) -> usize {
         self.preheaders_inserted + self.header_phis_rewritten + self.preheader_phis_inserted
     }
 }
 
 /// Canonicalizes natural loops into a form expected by loop optimizers.
 #[derive(Debug, Default)]
-pub struct LoopCanonicalizer {
+pub(crate) struct LoopCanonicalizer {
     stats: LoopCanonicalizeStats,
 }
 
 /// Function pass for loop canonicalization.
-pub struct LoopCanonicalizePass;
+pub(crate) struct LoopCanonicalizePass;
 
 impl FunctionPass for LoopCanonicalizePass {
-    fn name(&self) -> &str {
-        "loop-canonicalize"
-    }
-
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         LoopCanonicalizer::new().run(func).total() != 0
     }
@@ -62,18 +58,12 @@ impl FunctionPass for LoopCanonicalizePass {
 impl LoopCanonicalizer {
     /// Creates a new loop canonicalizer.
     #[must_use]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
-    /// Returns statistics from the last run.
-    #[must_use]
-    pub const fn stats(&self) -> &LoopCanonicalizeStats {
-        &self.stats
-    }
-
     /// Runs loop canonicalization to a fixed point.
-    pub fn run(&mut self, func: &mut Function) -> &LoopCanonicalizeStats {
+    pub(crate) fn run(&mut self, func: &mut Function) -> &LoopCanonicalizeStats {
         self.stats = LoopCanonicalizeStats::default();
 
         loop {

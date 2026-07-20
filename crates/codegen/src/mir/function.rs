@@ -16,38 +16,38 @@ use solar_sema::hir::{StateMutability, Visibility};
 
 /// A function in the MIR.
 #[derive(Clone, Debug)]
-pub struct Function {
+pub(crate) struct Function {
     /// Function name.
-    pub name: Ident,
+    pub(crate) name: Ident,
     /// Function selector (4 bytes, for external functions).
-    pub selector: Option<[u8; 4]>,
+    pub(crate) selector: Option<[u8; 4]>,
     /// Function attributes.
-    pub attributes: FunctionAttributes,
+    pub(crate) attributes: FunctionAttributes,
     /// Parameter types.
-    pub params: Vec<MirType>,
+    pub(crate) params: Vec<MirType>,
     /// Return types.
-    pub returns: Vec<MirType>,
+    pub(crate) returns: Vec<MirType>,
     /// Bytes reserved for lowered local memory slots.
     ///
     /// Internal-call functions place these in the internal frame; external entries
     /// reserve the same space in their low-memory scratch layout.
-    pub internal_frame_size: u64,
+    pub(crate) internal_frame_size: u64,
     /// Bytes reserved for the low-memory external ABI return buffer.
-    pub external_static_return_size: u64,
+    pub(crate) external_static_return_size: u64,
     /// All values in this function.
-    pub values: IndexVec<ValueId, Value>,
+    pub(crate) values: IndexVec<ValueId, Value>,
     /// All instructions in this function.
-    pub instructions: IndexVec<InstId, Instruction>,
+    pub(crate) instructions: IndexVec<InstId, Instruction>,
     /// All basic blocks in this function.
-    pub blocks: IndexVec<BlockId, BasicBlock>,
+    pub(crate) blocks: IndexVec<BlockId, BasicBlock>,
     /// The entry block.
-    pub entry_block: BlockId,
+    pub(crate) entry_block: BlockId,
 }
 
 impl Function {
     /// Creates a new function.
     #[must_use]
-    pub fn new(name: Ident) -> Self {
+    pub(crate) fn new(name: Ident) -> Self {
         let mut blocks = IndexVec::new();
         let entry_block = blocks.push(BasicBlock::new());
 
@@ -68,25 +68,25 @@ impl Function {
 
     /// Returns the value for the given ID.
     #[must_use]
-    pub fn value(&self, id: ValueId) -> &Value {
+    pub(crate) fn value(&self, id: ValueId) -> &Value {
         &self.values[id]
     }
 
     /// Returns an immediate value as U256.
     #[must_use]
-    pub fn value_u256(&self, id: ValueId) -> Option<U256> {
+    pub(crate) fn value_u256(&self, id: ValueId) -> Option<U256> {
         self.value(id).as_immediate()?.as_u256()
     }
 
     /// Returns an immediate value as u64 when lossless.
     #[must_use]
-    pub fn value_u64(&self, id: ValueId) -> Option<u64> {
+    pub(crate) fn value_u64(&self, id: ValueId) -> Option<u64> {
         self.value_u256(id).and_then(super::utils::u256_to_u64)
     }
 
     /// Returns a possibly replaced immediate value as U256.
     #[must_use]
-    pub fn value_u256_after_replacements(
+    pub(crate) fn value_u256_after_replacements(
         &self,
         id: ValueId,
         replacements: &FxHashMap<ValueId, ValueId>,
@@ -96,7 +96,7 @@ impl Function {
 
     /// Returns the statically known memory region for an address value.
     #[must_use]
-    pub fn memory_region_for_addr(&self, addr: ValueId) -> MemoryRegion {
+    pub(crate) fn memory_region_for_addr(&self, addr: ValueId) -> MemoryRegion {
         match self.value(addr) {
             Value::Immediate(imm)
                 if imm.as_u256().is_some_and(|value| value < U256::from(0x80)) =>
@@ -109,13 +109,13 @@ impl Function {
 
     /// Returns the instruction for the given ID.
     #[must_use]
-    pub fn instruction(&self, id: InstId) -> &Instruction {
+    pub(crate) fn instruction(&self, id: InstId) -> &Instruction {
         &self.instructions[id]
     }
 
     /// Returns the value produced by the given instruction, if it has one.
     #[must_use]
-    pub fn inst_result_value(&self, id: InstId) -> Option<ValueId> {
+    pub(crate) fn inst_result_value(&self, id: InstId) -> Option<ValueId> {
         self.values
             .iter_enumerated()
             .find(|(_, value)| matches!(value, Value::Inst(inst) if *inst == id))
@@ -124,7 +124,7 @@ impl Function {
 
     /// Returns a map from each instruction to its result value.
     #[must_use]
-    pub fn inst_results(&self) -> FxHashMap<InstId, ValueId> {
+    pub(crate) fn inst_results(&self) -> FxHashMap<InstId, ValueId> {
         let mut results =
             FxHashMap::with_capacity_and_hasher(self.instructions.len(), Default::default());
         for (value_id, value) in self.values.iter_enumerated() {
@@ -137,7 +137,7 @@ impl Function {
 
     /// Returns a map from each instruction to the block containing it.
     #[must_use]
-    pub fn inst_blocks(&self) -> FxHashMap<InstId, BlockId> {
+    pub(crate) fn inst_blocks(&self) -> FxHashMap<InstId, BlockId> {
         let mut inst_blocks =
             FxHashMap::with_capacity_and_hasher(self.instructions.len(), Default::default());
         for (block_id, block) in self.blocks.iter_enumerated() {
@@ -150,7 +150,7 @@ impl Function {
 
     /// Returns predecessors with duplicate CFG edges collapsed.
     #[must_use]
-    pub fn unique_predecessors(&self, block: BlockId) -> Vec<BlockId> {
+    pub(crate) fn unique_predecessors(&self, block: BlockId) -> Vec<BlockId> {
         let mut predecessors = Vec::new();
         for &pred in &self.blocks[block].predecessors {
             if !predecessors.contains(&pred) {
@@ -162,7 +162,7 @@ impl Function {
 
     /// Returns true if the block contains any phi instruction.
     #[must_use]
-    pub fn block_has_phi(&self, block: BlockId) -> bool {
+    pub(crate) fn block_has_phi(&self, block: BlockId) -> bool {
         self.blocks[block]
             .instructions
             .iter()
@@ -171,7 +171,7 @@ impl Function {
 
     /// Returns true if every instruction in the block is a phi instruction.
     #[must_use]
-    pub fn block_has_only_phis(&self, block: BlockId) -> bool {
+    pub(crate) fn block_has_only_phis(&self, block: BlockId) -> bool {
         self.blocks[block]
             .instructions
             .iter()
@@ -180,7 +180,7 @@ impl Function {
 
     /// Returns the result values produced by phi instructions in the block.
     #[must_use]
-    pub fn block_phi_results(&self, block: BlockId) -> DenseBitSet<ValueId> {
+    pub(crate) fn block_phi_results(&self, block: BlockId) -> DenseBitSet<ValueId> {
         let mut results = DenseBitSet::new_empty(self.values.len());
         for &inst_id in &self.blocks[block].instructions {
             if matches!(self.instructions[inst_id].kind, InstKind::Phi(_))
@@ -194,38 +194,32 @@ impl Function {
 
     /// Returns the basic block for the given ID.
     #[must_use]
-    pub fn block(&self, id: BlockId) -> &BasicBlock {
+    pub(crate) fn block(&self, id: BlockId) -> &BasicBlock {
         &self.blocks[id]
     }
 
     /// Returns a mutable reference to the basic block.
-    pub fn block_mut(&mut self, id: BlockId) -> &mut BasicBlock {
+    pub(crate) fn block_mut(&mut self, id: BlockId) -> &mut BasicBlock {
         &mut self.blocks[id]
     }
 
-    /// Returns the entry block.
-    #[must_use]
-    pub fn entry(&self) -> &BasicBlock {
-        &self.blocks[self.entry_block]
-    }
-
     /// Allocates a new value.
-    pub fn alloc_value(&mut self, value: Value) -> ValueId {
+    pub(crate) fn alloc_value(&mut self, value: Value) -> ValueId {
         self.values.push(value)
     }
 
     /// Allocates a new instruction.
-    pub fn alloc_inst(&mut self, inst: Instruction) -> InstId {
+    pub(crate) fn alloc_inst(&mut self, inst: Instruction) -> InstId {
         self.instructions.push(inst)
     }
 
     /// Allocates a new basic block.
-    pub fn alloc_block(&mut self) -> BlockId {
+    pub(crate) fn alloc_block(&mut self) -> BlockId {
         self.blocks.push(BasicBlock::new())
     }
 
     /// Replaces all value uses according to a one-step replacement map.
-    pub fn replace_uses(&mut self, replacements: &FxHashMap<ValueId, ValueId>) {
+    pub(crate) fn replace_uses(&mut self, replacements: &FxHashMap<ValueId, ValueId>) {
         if replacements.is_empty() {
             return;
         }
@@ -241,7 +235,10 @@ impl Function {
     }
 
     /// Replaces all value uses according to a canonicalized replacement map.
-    pub fn replace_uses_canonicalized(&mut self, replacements: &FxHashMap<ValueId, ValueId>) {
+    pub(crate) fn replace_uses_canonicalized(
+        &mut self,
+        replacements: &FxHashMap<ValueId, ValueId>,
+    ) {
         if replacements.is_empty() {
             return;
         }
@@ -277,7 +274,7 @@ impl Function {
 
     /// Returns stored storage-alias metadata, or computes a conservative alias key.
     #[must_use]
-    pub fn storage_alias(&self, inst_id: InstId, slot: ValueId) -> StorageAlias {
+    pub(crate) fn storage_alias(&self, inst_id: InstId, slot: ValueId) -> StorageAlias {
         self.instructions[inst_id]
             .metadata
             .storage_alias()
@@ -286,7 +283,7 @@ impl Function {
 
     /// Returns storage-alias metadata after applying value replacements.
     #[must_use]
-    pub fn storage_alias_after_replacements(
+    pub(crate) fn storage_alias_after_replacements(
         &self,
         inst_id: InstId,
         slot: ValueId,
@@ -303,44 +300,40 @@ impl Function {
 
     /// Returns true if this function is public or external.
     #[must_use]
-    pub fn is_public(&self) -> bool {
+    pub(crate) fn is_public(&self) -> bool {
         matches!(self.attributes.visibility, Visibility::Public | Visibility::External)
     }
 
-    /// Returns the function selector as a hex string.
-    #[must_use]
-    pub fn selector_hex(&self) -> Option<String> {
-        self.selector.map(alloy_primitives::hex::encode)
-    }
-
     /// Returns the human-readable textual MIR representation of this function.
-    pub fn to_text(&self) -> impl fmt::Display + '_ {
+    #[cfg(test)]
+    pub(crate) fn to_text(&self) -> impl fmt::Display + '_ {
         super::display::display_function_text(self, None)
     }
 
     /// Returns this function's DOT-format CFG.
-    pub fn to_dot(&self) -> impl fmt::Display + '_ {
+    #[cfg(test)]
+    pub(crate) fn to_dot(&self) -> impl fmt::Display + '_ {
         super::display::display_function_dot(self, None)
     }
 }
 
 /// Function attributes.
 #[derive(Clone, Debug)]
-pub struct FunctionAttributes {
+pub(crate) struct FunctionAttributes {
     /// Visibility modifier.
-    pub visibility: Visibility,
+    pub(crate) visibility: Visibility,
     /// State mutability.
-    pub state_mutability: StateMutability,
+    pub(crate) state_mutability: StateMutability,
     /// Whether this is a constructor.
-    pub is_constructor: bool,
+    pub(crate) is_constructor: bool,
     /// Whether this is a fallback function.
-    pub is_fallback: bool,
+    pub(crate) is_fallback: bool,
     /// Whether this is a receive function.
-    pub is_receive: bool,
+    pub(crate) is_receive: bool,
     /// Never clone this function into multiple callers (synthesized shared
     /// helpers whose whole point is existing once per module). A sole call
     /// site may still absorb it: with one caller there is nothing to share.
-    pub no_inline: bool,
+    pub(crate) no_inline: bool,
 }
 
 impl Default for FunctionAttributes {

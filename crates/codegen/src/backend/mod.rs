@@ -13,9 +13,6 @@ pub trait Backend {
     /// The artifact this backend produces from a module.
     type Output;
 
-    /// A short identifier for this backend, e.g. `"evm"`.
-    fn name(&self) -> &str;
-
     /// Lowers a module to this backend's output artifact. Takes `&mut` so the
     /// backend can run its own target-specific passes over the MIR first.
     fn lower_module(&mut self, module: &mut Module) -> Self::Output;

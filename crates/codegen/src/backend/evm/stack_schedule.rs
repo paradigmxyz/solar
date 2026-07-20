@@ -66,8 +66,9 @@
 //! inherits the empty prefix; only the linear `jump` case can hand
 //! down the words below.
 
-use super::{assembler::op, ir, stack::SpillSlot};
+use super::{ir, opcode as op, stack::SpillSlot};
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Maximum stack depth reachable by `DUP<N>`/`SWAP<N>`.
@@ -93,6 +94,8 @@ struct StackScheduler<'a> {
     /// to a `jump` successor is the prefix of this exit stack that
     /// consists entirely of known SSA value words.
     exit_stacks: FxHashMap<ir::BlockId, Vec<ScheduledStackItem>>,
+    successors: Vec<SmallVec<[ir::BlockId; 2]>>,
+    predecessors: Vec<SmallVec<[ir::BlockId; 2]>>,
     /// Per-block spill state, reset for each block (see [`SpillState`]).
     spills: SpillState,
 }
@@ -151,11 +154,24 @@ impl SpillState {
 
 impl<'a> StackScheduler<'a> {
     fn new(module: &'a mut ir::Module) -> Self {
+        let successors: Vec<_> = module.blocks.iter().map(block_successors).collect();
+        let mut predecessors = vec![SmallVec::new(); module.blocks.len()];
+        for (predecessor, targets) in module.blocks.indices().zip(&successors) {
+            for &target in targets {
+                if target.index() < predecessors.len()
+                    && !predecessors[target.index()].contains(&predecessor)
+                {
+                    predecessors[target.index()].push(predecessor);
+                }
+            }
+        }
         Self {
             module,
             next_anonymous: 0,
             changed: false,
             exit_stacks: FxHashMap::default(),
+            successors,
+            predecessors,
             spills: SpillState::default(),
         }
     }
@@ -177,18 +193,18 @@ impl<'a> StackScheduler<'a> {
     /// across back-edges (loops), which the scheduler detects and bails on.
     fn reverse_postorder(&self) -> Vec<ir::BlockId> {
         let mut postorder = Vec::with_capacity(self.module.blocks.len());
-        let mut visited = DenseBitSet::new_empty(self.module.blocks.len());
+        let mut unvisited = DenseBitSet::new_filled(self.module.blocks.len());
         if let Some(entry) = self.module.entry_block {
             // Iterative DFS recording postorder. Each frame remembers the
             // successors still to descend into.
-            let mut work: Vec<(ir::BlockId, Vec<ir::BlockId>)> = Vec::new();
-            visited.insert(entry);
-            work.push((entry, block_successors(&self.module.blocks[entry])));
-            while let Some((block_id, succs)) = work.last_mut() {
-                if let Some(succ) = succs.pop() {
-                    if visited.insert(succ) {
-                        let succs = block_successors(&self.module.blocks[succ]);
-                        work.push((succ, succs));
+            let mut work = Vec::new();
+            unvisited.remove(entry);
+            work.push((entry, 0));
+            while let Some((block_id, next_successor)) = work.last_mut() {
+                if let Some(&successor) = self.successors[block_id.index()].get(*next_successor) {
+                    *next_successor += 1;
+                    if unvisited.remove(successor) {
+                        work.push((successor, 0));
                     }
                 } else {
                     postorder.push(*block_id);
@@ -199,11 +215,7 @@ impl<'a> StackScheduler<'a> {
         postorder.reverse();
         // Append unreachable blocks so they are still visited (and left verbatim
         // unless they happen to schedule from a clean stack).
-        for block_id in self.module.blocks.indices() {
-            if !visited.contains(block_id) {
-                postorder.push(block_id);
-            }
-        }
+        postorder.extend(unvisited.iter());
         postorder
     }
 
@@ -231,17 +243,15 @@ impl<'a> StackScheduler<'a> {
         // the terminator) so multi-use values are duplicated and preserved.
         let mut remaining = self.collect_value_uses(block_id);
 
-        // Snapshot for verbatim restore; take the live instructions to iterate by
-        // value. The block is rewritten only if every instruction schedules.
-        let original = self.module.blocks[block_id].instructions.clone();
-        let working = std::mem::take(&mut self.module.blocks[block_id].instructions);
-
-        let mut out = Vec::with_capacity(working.len());
+        // Build the replacement separately so a failed schedule leaves the
+        // original block untouched.
+        let instruction_count = self.module.blocks[block_id].instructions.len();
+        let mut out = Vec::with_capacity(instruction_count);
         let mut changed = false;
-        for inst in working {
+        for index in 0..instruction_count {
+            let inst = self.module.blocks[block_id].instructions[index].clone();
             if !self.schedule_instruction(inst, &mut stack, &mut out, &mut remaining, &mut changed)
             {
-                self.module.blocks[block_id].instructions = original;
                 return;
             }
         }
@@ -251,7 +261,6 @@ impl<'a> StackScheduler<'a> {
         // machinery and stays atomic with instruction scheduling: if the
         // terminator cannot be arranged, the whole block is restored verbatim.
         if !self.schedule_terminator(block_id, &mut stack, &mut out, &remaining, &mut changed) {
-            self.module.blocks[block_id].instructions = original;
             return;
         }
 
@@ -286,14 +295,14 @@ impl<'a> StackScheduler<'a> {
         let inferred = if self.module.entry_block == Some(block_id) {
             Vec::new()
         } else {
-            let preds = self.predecessors(block_id);
+            let preds = &self.predecessors[block_id.index()];
             // A reachable non-entry block must have at least one predecessor; if
             // it has none it is unreachable, so fall back to a clean stack.
             if preds.is_empty() {
                 Vec::new()
             } else {
                 let mut merged: Option<Vec<ir::ValueId>> = None;
-                for pred in preds {
+                for &pred in preds {
                     // A predecessor not yet scheduled (back-edge/loop) or one that
                     // bailed has no recorded exit: bail this block too.
                     let exit = self.exit_stacks.get(&pred)?;
@@ -317,17 +326,6 @@ impl<'a> StackScheduler<'a> {
         // declared prefix is kept as the seed so the block only names the words
         // it consumes.
         if inferred.starts_with(declared) { Some(declared.clone()) } else { None }
-    }
-
-    /// Predecessors of `block_id`: every block whose terminator targets it.
-    fn predecessors(&self, block_id: ir::BlockId) -> Vec<ir::BlockId> {
-        let mut preds = Vec::new();
-        for (id, block) in self.module.blocks.iter_enumerated() {
-            if block_successors(block).contains(&block_id) {
-                preds.push(id);
-            }
-        }
-        preds
     }
 
     /// The exit stack the scheduled terminator leaves behind. `br`/`switch`
@@ -376,7 +374,7 @@ impl<'a> StackScheduler<'a> {
             return true;
         }
 
-        let target: Vec<ScheduledStackItem> =
+        let target: SmallVec<[ScheduledStackItem; 2]> =
             operands.into_iter().map(ScheduledStackItem::Value).collect();
         // Every targeted operand must already be live on the model stack.
         if !target.iter().all(|item| stack.contains(item)) {
@@ -519,7 +517,7 @@ impl<'a> StackScheduler<'a> {
         }
 
         // The value operands that must end up reachable on the stack.
-        let needed: Vec<ir::ValueId> = operands
+        let needed: SmallVec<[ir::ValueId; 2]> = operands
             .iter()
             .filter_map(|operand| match operand {
                 ir::Operand::Value(value) => Some(*value),
@@ -664,8 +662,8 @@ impl<'a> StackScheduler<'a> {
         stack: &mut Vec<ScheduledStackItem>,
         out: &mut Vec<ir::Instruction>,
         changed: &mut bool,
-    ) -> Option<Vec<ScheduledStackItem>> {
-        let mut target = Vec::with_capacity(operands.len());
+    ) -> Option<SmallVec<[ScheduledStackItem; 2]>> {
+        let mut target = SmallVec::with_capacity(operands.len());
         for operand in operands {
             match operand {
                 ir::Operand::Value(value) => target.push(ScheduledStackItem::Value(*value)),
@@ -762,12 +760,16 @@ impl<'a> StackScheduler<'a> {
         out: &mut Vec<ir::Instruction>,
         changed: &mut bool,
     ) -> bool {
-        let mut target_counts = FxHashMap::<ScheduledStackItem, usize>::default();
+        let mut target_counts = SmallVec::<[(ScheduledStackItem, usize); 2]>::new();
         for &item in target {
-            *target_counts.entry(item).or_default() += 1;
+            if let Some((_, count)) = target_counts.iter_mut().find(|(known, _)| *known == item) {
+                *count += 1;
+            } else {
+                target_counts.push((item, 1));
+            }
         }
 
-        for (&item, &target_count) in &target_counts {
+        for &(item, target_count) in &target_counts {
             // A value needs a copy for every remaining use (this instruction plus
             // any later instruction or the terminator). Anonymous push results are
             // single-use, so only the target multiplicity is required.
@@ -849,8 +851,8 @@ fn byte_offset(slot: SpillSlot) -> U256 {
 }
 
 /// The successor blocks a block's terminator can transfer control to.
-fn block_successors(block: &ir::Block) -> Vec<ir::BlockId> {
-    let mut targets = Vec::new();
+fn block_successors(block: &ir::Block) -> SmallVec<[ir::BlockId; 2]> {
+    let mut targets = SmallVec::new();
     let Some(term) = &block.terminator else {
         return targets;
     };
@@ -919,8 +921,8 @@ fn instruction_keeps_encoded_operands(inst: &ir::Instruction) -> bool {
 /// Switch case immediates stay encoded and are not arranged, so only the
 /// discriminant is returned for a `switch`. Operand-less terminators (`jump`,
 /// `stop`, `invalid`, raw opcodes) return an empty list.
-fn terminator_arrange_operands(kind: &ir::TerminatorKind) -> Vec<ir::ValueId> {
-    let mut operands = Vec::new();
+fn terminator_arrange_operands(kind: &ir::TerminatorKind) -> SmallVec<[ir::ValueId; 2]> {
+    let mut operands = SmallVec::new();
     let mut push = |operand: &ir::Operand| {
         if let ir::Operand::Value(value) = operand {
             operands.push(*value);

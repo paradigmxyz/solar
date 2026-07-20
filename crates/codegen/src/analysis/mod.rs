@@ -6,25 +6,22 @@
 //! - Loop analysis for detecting and analyzing natural loops
 
 mod cfg;
-pub use cfg::{CfgInfo, DominatorTree};
+pub(crate) use cfg::{CfgInfo, DominatorTree};
 
 mod call_graph;
-pub use call_graph::CallGraphInfo;
+pub(crate) use call_graph::CallGraphInfo;
 
 mod liveness;
-pub use liveness::{LiveSet, Liveness, LivenessInfo};
+pub(crate) use liveness::Liveness;
 
 mod phi_elimination;
-pub use phi_elimination::{
-    BlockCopies, CopyDest, CopySource, ParallelCopy, PhiEliminationResult, PhiEliminator,
-    eliminate_phis,
-};
+pub(crate) use phi_elimination::{CopyDest, CopySource, ParallelCopy, PhiEliminator};
 
 mod loop_analysis;
-pub use loop_analysis::{InductionVariable, Loop, LoopAnalyzer, LoopInfo};
+pub(crate) use loop_analysis::{Loop, LoopAnalyzer};
 
 mod scalar_evolution;
-pub use scalar_evolution::{AffineExpr, AffineTerm, ScalarEvolution};
+pub(crate) use scalar_evolution::{AffineExpr, ScalarEvolution};
 
 mod validator;
 pub(crate) use validator::validate;

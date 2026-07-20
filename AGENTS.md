@@ -48,11 +48,22 @@ Pipeline: Lexing -> Parsing -> Semantic Analysis -> MIR -> EVM backend -> byteco
   EVM stack words, not Solidity or MIR typed values. It models asm-like basic
   blocks with opcode-like instructions, explicit physical stack operations
   (`dupN`, `swapN`, `pop`), and explicit terminators such as jumps, returns,
-  reverts, and stops. Use it for target-specific block layout, cold/revert-path
-  handling, backend peepholes, stack scheduling, and final assembly preparation.
+  reverts, and stops. Use it for target-specific CFG simplification, terminal
+  block deduplication and tail merging, cold/revert-path handling, backend
+  peepholes, computation and constant outlining, stack scheduling, block
+  layout, and address-sensitive code placement.
 - Stack scheduling belongs at EVM IR: materialize virtual stack-word operands
   into `dupN`/`swapN`/`pop` there, then run backend passes over the scheduled
   machine-like form before final assembly.
+- Keep the assembler primitive. Lower block EVM IR once into a compact stream
+  containing only opcodes, label definitions/references, deferred pushes, and
+  immutable placeholders. The assembler resolves deferred values, computes the
+  least fixed point of label offsets and PUSH widths, and emits bytes. PUSH
+  widths cannot generally be selected in one forward pass because widening one
+  forward reference can move a later target across another width boundary.
+- Do not add CFG cleanup, peepholes, deduplication, outlining, layout, or other
+  optimization logic to the compact assembly stream. Add those transforms to
+  block EVM IR, where control-flow edges and block identity remain explicit.
 - Keep the layers separate: MIR should not grow EVM stack-layout details, and
   EVM IR should not rediscover high-level Solidity typing or call semantics.
 
@@ -132,6 +143,8 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
   file when moving or adding tests.
 - Do not add Rust unit tests that execute whole optimization passes; they make
   pass APIs harder to refactor. Use unit tests only for small pure helpers.
+- In Rust tests that assert generated EVM bytecode, disassemble it and snapshot
+  the opcode text; do not compare raw byte arrays or individual byte offsets.
 - Validate pass output with MIR snapshots or FileCheck-style UI expectations,
   then add runtime or differential tests when behavior can affect bytecode
   execution.
@@ -282,9 +295,11 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 
 ## Notes
 
-- **Small index sets**: Prefer bitsets over hash sets when keys are compact indices or the domain
-  size is known ahead of time. Use fixed dense or mixed bitsets for stable domains and growable
-  bitsets when new indices may be allocated while the set is live.
+- **Index sets**: Never use `Vec<bool>`; a bitset is always the more compact representation. Prefer
+  fixed dense or mixed bitsets for compact, stable domains and growable bitsets when new indices
+  may be allocated while the set is live. Use hash sets for sparse sets, especially when there are
+  few entries or the domain is large or unbounded. Iterate set bits with the bitset's built-in
+  iterators; never scan `0..domain_size` and test membership one index at a time.
 - **Symbol comparisons**: Use `sym::name` or `kw::Keyword` instead of `.as_str()` for performance. Add new symbols to the `symbols! { ... }` list in `crates/interface/src/symbol.rs`.
 - **No inline interning of fixed strings**: Never call `Symbol::intern("...")` with a string literal. Add the name to the pre-interned `symbols!` set and use `sym::name`; `Symbol::intern` is only for strings built at runtime.
 - **Arena allocation**: AST nodes use arenas for performance.

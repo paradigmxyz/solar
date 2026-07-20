@@ -12,7 +12,7 @@ use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Local storage load CSE pass.
 #[derive(Debug, Default)]
-pub struct StorageLoadCse {
+pub(crate) struct StorageLoadCse {
     /// Number of storage loads eliminated.
     pub eliminated_count: usize,
 }
@@ -34,13 +34,9 @@ impl RunState {
 }
 
 /// Function pass for straight-line storage-load CSE.
-pub struct StorageLoadCsePass;
+pub(crate) struct StorageLoadCsePass;
 
 impl FunctionPass for StorageLoadCsePass {
-    fn name(&self) -> &str {
-        "storage-load-cse"
-    }
-
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         StorageLoadCse::new().run_to_fixpoint(func) != 0
     }
@@ -48,14 +44,8 @@ impl FunctionPass for StorageLoadCsePass {
 
 impl StorageLoadCse {
     /// Creates a new storage-load CSE pass.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
-    }
-
-    /// Runs storage-load CSE on a function.
-    pub fn run(&mut self, func: &mut Function) -> usize {
-        let mut state = RunState::new(func);
-        self.run_with_state(func, &mut state)
     }
 
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
@@ -86,7 +76,7 @@ impl StorageLoadCse {
     }
 
     /// Runs storage-load CSE to a fixed point.
-    pub fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
         let mut state = RunState::new(func);
         loop {

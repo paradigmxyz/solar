@@ -10,11 +10,11 @@
 //! 3. Remove the phi instructions after copies are inserted.
 
 use crate::mir::{BlockId, Function, InstId, InstKind, MirType, Value, ValueId};
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Source for a parallel copy - either a regular value or a temporary.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum CopySource {
+pub(crate) enum CopySource {
     /// A regular MIR value.
     Value(ValueId),
     /// A temporary created during cycle breaking (identified by index).
@@ -23,7 +23,7 @@ pub enum CopySource {
 
 /// Destination for a parallel copy - either a regular value or a temporary.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum CopyDest {
+pub(crate) enum CopyDest {
     /// A regular MIR value.
     Value(ValueId),
     /// A temporary created during cycle breaking (identified by index).
@@ -32,7 +32,7 @@ pub enum CopyDest {
 
 /// A parallel copy operation: copy from source to destination.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ParallelCopy {
+pub(crate) struct ParallelCopy {
     /// Source value to copy from.
     pub src: CopySource,
     /// Destination value (the phi result).
@@ -43,14 +43,14 @@ pub struct ParallelCopy {
 
 /// Copies to insert at the end of a block (before the terminator).
 #[derive(Clone, Debug, Default)]
-pub struct BlockCopies {
+pub(crate) struct BlockCopies {
     /// Parallel copies to execute at this block's exit.
     pub copies: Vec<ParallelCopy>,
 }
 
 /// Result of phi elimination.
 #[derive(Debug)]
-pub struct PhiEliminationResult {
+pub(crate) struct PhiEliminationResult {
     /// Copies to insert at each predecessor block.
     pub block_copies: FxHashMap<BlockId, BlockCopies>,
     /// Phi instructions to remove (block, instruction index).
@@ -58,14 +58,14 @@ pub struct PhiEliminationResult {
 }
 
 /// Phi elimination query.
-pub struct PhiEliminator;
+pub(crate) struct PhiEliminator;
 
 impl PhiEliminator {
     /// Analyzes phi nodes and returns parallel copies to insert at predecessor exits.
     ///
     /// The caller is responsible for modifying the function.
     #[must_use]
-    pub fn analyze(func: &Function) -> PhiEliminationResult {
+    pub(crate) fn analyze(func: &Function) -> PhiEliminationResult {
         let mut block_copies: FxHashMap<BlockId, BlockCopies> = FxHashMap::default();
         let mut phis_to_remove = Vec::new();
 
@@ -104,15 +104,6 @@ impl PhiEliminator {
 
         PhiEliminationResult { block_copies, phis_to_remove }
     }
-}
-
-/// Eliminates phi nodes by inserting parallel copies at predecessor block exits.
-///
-/// Returns the copies to insert and phis to remove. The caller is responsible
-/// for actually modifying the function.
-#[must_use]
-pub fn eliminate_phis(func: &Function) -> PhiEliminationResult {
-    PhiEliminator::analyze(func)
 }
 
 /// Finds the ValueId that is defined by a phi instruction.
@@ -181,28 +172,28 @@ fn sequentialize_copies(copies: &mut Vec<ParallelCopy>, temp_counter: &mut u32) 
         }
     }
 
-    let mut emitted = vec![false; pending.len()];
+    let mut emitted = DenseBitSet::new_empty(pending.len());
 
     // Emit copies in dependency order until we hit cycles
     loop {
         let mut made_progress = false;
 
         for i in 0..pending.len() {
-            if emitted[i] {
+            if emitted.contains(i) {
                 continue;
             }
 
             // Can emit if no one is blocking us (all readers of our dst have been emitted)
             if blocked_by[i] == 0 {
                 result.push(pending[i].clone());
-                emitted[i] = true;
+                emitted.insert(i);
                 made_progress = true;
 
                 // Unblock anyone who was waiting for us to read their dst
                 if let Some(src) = src_value(&pending[i].src)
                     && let Some(&blocked_writer) = writes_to.get(&src)
                     && blocked_writer != i
-                    && !emitted[blocked_writer]
+                    && !emitted.contains(blocked_writer)
                 {
                     blocked_by[blocked_writer] = blocked_by[blocked_writer].saturating_sub(1);
                 }
@@ -221,13 +212,13 @@ fn sequentialize_copies(copies: &mut Vec<ParallelCopy>, temp_counter: &mut u32) 
             );
 
             // If we broke at least one cycle, continue to see if more copies are now unblocked
-            if !emitted.iter().all(|&e| e) {
+            if emitted.count() != pending.len() {
                 continue;
             }
             break;
         }
 
-        if emitted.iter().all(|&e| e) {
+        if emitted.count() == pending.len() {
             break;
         }
     }
@@ -244,7 +235,7 @@ fn sequentialize_copies(copies: &mut Vec<ParallelCopy>, temp_counter: &mut u32) 
 /// 4. Replace the broken copy's source with temp: b = tmp
 fn break_cycles(
     pending: &[ParallelCopy],
-    emitted: &mut [bool],
+    emitted: &mut DenseBitSet<usize>,
     blocked_by: &mut [usize],
     writes_to: &FxHashMap<ValueId, usize>,
     result: &mut Vec<ParallelCopy>,
@@ -254,15 +245,15 @@ fn break_cycles(
     let cycle_start = pending
         .iter()
         .enumerate()
-        .find(|(i, _)| !emitted[*i] && blocked_by[*i] > 0)
+        .find(|(i, _)| !emitted.contains(*i) && blocked_by[*i] > 0)
         .map(|(i, _)| i);
 
     let Some(start_idx) = cycle_start else {
         // No cycles, emit remaining in order
         for (i, copy) in pending.iter().enumerate() {
-            if !emitted[i] {
+            if !emitted.contains(i) {
                 result.push(copy.clone());
-                emitted[i] = true;
+                emitted.insert(i);
             }
         }
         return;
@@ -275,7 +266,7 @@ fn break_cycles(
     while let Some(src) = src_value(&pending[current].src) {
         // Find the copy that writes to our source (the predecessor in the cycle)
         if let Some(&pred_idx) = writes_to.get(&src) {
-            if emitted[pred_idx] {
+            if emitted.contains(pred_idx) {
                 break;
             }
             if pred_idx == start_idx {
@@ -320,14 +311,14 @@ fn break_cycles(
 
     // Emit copies that are now unblocked (in the cycle)
     for &idx in &cycle_indices[1..] {
-        if !emitted[idx] && blocked_by[idx] == 0 {
+        if !emitted.contains(idx) && blocked_by[idx] == 0 {
             result.push(pending[idx].clone());
-            emitted[idx] = true;
+            emitted.insert(idx);
 
             // Unblock the writer of our source
             if let Some(src) = src_value(&pending[idx].src)
                 && let Some(&blocked_writer) = writes_to.get(&src)
-                && !emitted[blocked_writer]
+                && !emitted.contains(blocked_writer)
             {
                 blocked_by[blocked_writer] = blocked_by[blocked_writer].saturating_sub(1);
             }
@@ -340,7 +331,7 @@ fn break_cycles(
         dst: break_copy.dst.clone(),
         ty: break_copy.ty,
     });
-    emitted[break_idx] = true;
+    emitted.insert(break_idx);
 }
 
 #[cfg(test)]

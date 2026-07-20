@@ -15,7 +15,7 @@ use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// A natural loop in the control flow graph.
 #[derive(Clone, Debug)]
-pub struct Loop {
+pub(crate) struct Loop {
     /// The header block (entry point with back edge).
     pub header: BlockId,
     /// All blocks in the loop body (including header).
@@ -43,7 +43,7 @@ pub struct Loop {
 
 /// An induction variable in a loop.
 #[derive(Clone, Debug)]
-pub struct InductionVariable {
+pub(crate) struct InductionVariable {
     /// The value ID of the induction variable (typically a phi node in header).
     pub value: ValueId,
     /// Initial value before loop entry.
@@ -58,7 +58,7 @@ pub struct InductionVariable {
 
 /// Result of loop analysis for a function.
 #[derive(Clone, Debug, Default)]
-pub struct LoopInfo {
+pub(crate) struct LoopInfo {
     /// All loops in the function, keyed by header block.
     pub loops: FxHashMap<BlockId, Loop>,
     /// Mapping from block to the innermost loop containing it.
@@ -66,44 +66,32 @@ pub struct LoopInfo {
 }
 
 impl LoopInfo {
-    /// Returns true if the block is in any loop.
-    #[must_use]
-    pub fn is_in_loop(&self, block: BlockId) -> bool {
-        self.block_to_loop.contains_key(&block)
-    }
-
-    /// Returns the loop containing the given block, if any.
-    #[must_use]
-    pub fn get_loop(&self, block: BlockId) -> Option<&Loop> {
-        self.block_to_loop.get(&block).and_then(|header| self.loops.get(header))
-    }
-
     /// Returns all loops in the function.
-    pub fn all_loops(&self) -> impl Iterator<Item = &Loop> {
+    pub(crate) fn all_loops(&self) -> impl Iterator<Item = &Loop> {
         self.loops.values()
     }
 }
 
 /// Loop analyzer that detects and analyzes loops in MIR functions.
 #[derive(Debug, Default)]
-pub struct LoopAnalyzer {
+pub(crate) struct LoopAnalyzer {
     cfg: Option<CfgInfo>,
 }
 
 impl LoopAnalyzer {
     /// Creates a new loop analyzer.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
     /// Returns true if `dominator` dominates `block` in the last analyzed function.
     #[must_use]
-    pub fn dominates(&self, dominator: BlockId, block: BlockId) -> bool {
+    pub(crate) fn dominates(&self, dominator: BlockId, block: BlockId) -> bool {
         self.cfg.as_ref().is_some_and(|cfg| cfg.dominators().dominates(dominator, block))
     }
 
     /// Analyzes loops in a function.
-    pub fn analyze(&mut self, func: &Function) -> LoopInfo {
+    pub(crate) fn analyze(&mut self, func: &Function) -> LoopInfo {
         let mut info = LoopInfo::default();
 
         self.cfg = Some(CfgInfo::new(func));

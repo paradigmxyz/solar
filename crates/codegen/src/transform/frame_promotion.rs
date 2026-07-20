@@ -29,7 +29,7 @@ const LOW_MEMORY_START: u64 = 0x80;
 
 /// Statistics for one frame promotion run.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct FramePromotionStats {
+pub(crate) struct FramePromotionStats {
     /// Number of distinct compiler-local slots promoted.
     pub slots_promoted: usize,
     /// Number of local-slot loads replaced by SSA values.
@@ -42,7 +42,7 @@ pub struct FramePromotionStats {
 
 /// A compiler-owned memory slot promoted to SSA.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum PromotedSlot {
+pub(crate) enum PromotedSlot {
     /// Slot addressed relative to the internal-call frame pointer.
     InternalFrame(u64),
     /// Slot addressed in the external entry's compiler-owned low-memory locals.
@@ -51,11 +51,11 @@ pub enum PromotedSlot {
 
 /// Per-slot information produced by frame-slot promotion.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PromotedSlotSummary {
+pub(crate) struct PromotedSlotSummary {
     /// Promoted compiler-owned slot.
     pub slot: PromotedSlot,
     /// Blocks where the slot had an upward-exposed load before promotion.
-    pub use_blocks: Vec<BlockId>,
+    pub(crate) use_blocks: Vec<BlockId>,
     /// Blocks where the slot was defined before promotion.
     pub def_blocks: Vec<BlockId>,
     /// Blocks where SSA phis were inserted.
@@ -70,26 +70,22 @@ pub struct PromotedSlotSummary {
 
 impl FramePromotionStats {
     /// Returns the total number of MIR edits made by this pass.
-    pub const fn total(self) -> usize {
+    pub(crate) const fn total(self) -> usize {
         self.loads_promoted + self.stores_promoted + self.phis_inserted
     }
 }
 
 /// Promotes non-escaping compiler-local slots to SSA values.
 #[derive(Debug, Default)]
-pub struct FrameSlotPromoter {
+pub(crate) struct FrameSlotPromoter {
     stats: FramePromotionStats,
     summaries: Vec<PromotedSlotSummary>,
 }
 
 /// Function pass for internal-frame scalar promotion.
-pub struct FrameSlotPromotionPass;
+pub(crate) struct FrameSlotPromotionPass;
 
 impl FunctionPass for FrameSlotPromotionPass {
-    fn name(&self) -> &str {
-        "frame-slot-promotion"
-    }
-
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         let changed = FrameSlotPromoter::new().run(func).total() != 0;
         repair_reachability_phis(func);
@@ -201,22 +197,12 @@ fn sorted_blocks(blocks: &DenseBitSet<BlockId>) -> Vec<BlockId> {
 
 impl FrameSlotPromoter {
     /// Creates a new compiler-local-slot promoter.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
-    /// Returns the statistics from the most recent run.
-    pub const fn stats(&self) -> FramePromotionStats {
-        self.stats
-    }
-
-    /// Returns per-slot promotion summaries from the most recent run.
-    pub fn summaries(&self) -> &[PromotedSlotSummary] {
-        &self.summaries
-    }
-
     /// Runs compiler-local-slot promotion on a function.
-    pub fn run(&mut self, func: &mut Function) -> FramePromotionStats {
+    pub(crate) fn run(&mut self, func: &mut Function) -> FramePromotionStats {
         self.stats = FramePromotionStats::default();
         self.summaries.clear();
 

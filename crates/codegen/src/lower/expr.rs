@@ -1068,7 +1068,7 @@ impl<'gcx> Lowerer<'gcx> {
             );
         }
 
-        let (bytecode, _segment_idx) = match self.contract_bytecodes.get(&contract_id) {
+        let bytecode = match self.contract_bytecodes.get(&contract_id) {
             Some(bc) => bc.clone(),
             None => {
                 return self.err_value(

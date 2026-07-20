@@ -5,14 +5,12 @@ bb0 (entry):
   push 0x4000
   push 64
   mstore
-  push 390
+  push 388
   codesize
   sub
-  push 390
+  push 388
   push 128
   codecopy
-  jump bb8
-bb8:
   push 7
   push 128
   mload
@@ -56,15 +54,27 @@ bb1:
   mload
   push bb3
   jumpi
-  jump bb2
-bb2:
   push 1
+  jump bb10
+bb10:
   push 160
   mload
   push 96
   add
   mstore
   jump
+bb7 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
 bb3:
   push 11
   push 160
@@ -100,8 +110,6 @@ bb3:
   iszero
   push bb7
   jumpi
-  jump bb4
-bb4:
   push 1
   push 160
   mload
@@ -196,25 +204,16 @@ bb5:
   push 160
   add
   mstore
-  dup2
-  lt
   swap1
-  pop
+  lt
   push bb7
   jumpi
-  jump bb6
-bb6:
   push 160
   mload
   push 224
   add
   mload
-  push 160
-  mload
-  push 96
-  add
-  mstore
-  jump
+  jump bb10
 bb9:
   push 160
   mload
@@ -238,30 +237,15 @@ bb9:
   dup1
   push 0x1000
   mstore
-  dup1
-  push 0x1000
-  mstore
   push 0
   sstore
-  jump bb10
-bb10:
   push 43
   dup1
-  push 347
+  push 345
   push 0
   codecopy
   push 0
   return
-bb7 [cold]:
-  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
-  push 0
-  mstore
-  push 17
-  push 4
-  mstore
-  push 36
-  push 0
-  revert
 
 // === runtime ===
 @module runtime
@@ -272,31 +256,19 @@ bb0 (entry):
   callvalue
   push bb4
   jumpi
-  jump bb1
-bb1:
   calldatasize
   iszero
   push bb4
   jumpi
-  jump bb2
-bb2:
   push 0
   calldataload
   push 224
   shr
   dup1
   push 0x3fa4f245
-  eq
-  push bb3
+  sub
+  push bb4
   jumpi
-  jump bb4
-bb4 [cold]:
-  push 0
-  dup1
-  revert
-bb3:
-  jump bb5
-bb5:
   push 0
   sload
   push 128
@@ -304,3 +276,7 @@ bb5:
   push 32
   push 128
   return
+bb4 [cold]:
+  push 0
+  dup1
+  revert

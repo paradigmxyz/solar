@@ -1,14 +1,18 @@
 use alloy_json_abi::AbiItem;
 use alloy_primitives::Bytes;
 use solar_codegen::{Backend, EvmCodegen, EvmCodegenConfig, backend::evm::ir, lower};
-use solar_config::CompilerOutput;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_config::{CompilerOutput, DumpKind};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_interface::Result;
 use solar_sema::{CompilerRef, Gcx, hir::ContractId};
 use std::{
     collections::BTreeMap,
     io::{self, Write},
     path::Path,
+    sync::Arc,
 };
 
 type Hashes = BTreeMap<String, String>;
@@ -35,6 +39,7 @@ struct CombinedJsonContract<'a> {
 
 pub(crate) fn emit_requested(compiler: &mut CompilerRef<'_>) -> Result {
     let gcx = compiler.gcx();
+    emit_mir_dump(gcx)?;
     emit_combined_json(gcx)?;
     emit_mir(gcx)?;
     emit_evm_ir(gcx)
@@ -118,6 +123,92 @@ fn contract_output_name(gcx: Gcx<'_>, id: ContractId) -> String {
     let contract = gcx.hir.contract(id);
     let source = gcx.hir.source(contract.source);
     format!("{}:{}", source.file.name.display().to_string().replace('\\', "/"), contract.name)
+}
+
+fn emit_mir_dump(gcx: Gcx<'_>) -> Result {
+    let sess = gcx.sess;
+    let Some(dump) = &sess.opts.unstable.dump else { return Ok(()) };
+    if !matches!(dump.kind, DumpKind::Mir | DumpKind::MirCfg) {
+        return Ok(());
+    }
+
+    let mut writer = out_writer(None)
+        .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+    if let Some(paths) = dump.paths.as_deref() {
+        let mut seen = FxHashSet::default();
+        for path in paths {
+            let mut matched = false;
+            for id in gcx.hir.contract_ids() {
+                if !is_dumpable_contract(gcx, id) || !contract_dump_path_matches(gcx, id, path) {
+                    continue;
+                }
+                matched = true;
+                if seen.insert(id) {
+                    write_mir_dump_contract(&mut writer, gcx, id, dump.kind)?;
+                }
+            }
+            if !matched {
+                let msg =
+                    format!("`-Zdump={kind}={path}` did not match any contract", kind = dump.kind);
+                let note = format!("available contracts: {}", available_dump_contracts(gcx));
+                return Err(sess.dcx.err(msg).note(note).emit());
+            }
+        }
+    } else {
+        for id in gcx.hir.contract_ids() {
+            if is_dumpable_contract(gcx, id) {
+                write_mir_dump_contract(&mut writer, gcx, id, dump.kind)?;
+            }
+        }
+    }
+    writer.flush().map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+
+    Ok(())
+}
+
+fn is_dumpable_contract(gcx: Gcx<'_>, id: ContractId) -> bool {
+    let contract = gcx.hir.contract(id);
+    !contract.kind.is_interface() && !contract.kind.is_abstract_contract()
+}
+
+fn contract_dump_path_matches(gcx: Gcx<'_>, id: ContractId, path: &str) -> bool {
+    let contract = gcx.hir.contract(id);
+    let source = gcx.hir.source(contract.source);
+    if gcx.get_file(path.to_owned()).is_some_and(|file| Arc::ptr_eq(&file, &source.file)) {
+        return true;
+    }
+
+    let path = path.replace('\\', "/");
+    path == gcx.contract_fully_qualified_name(id).to_string().replace('\\', "/")
+}
+
+fn write_mir_dump_contract(
+    writer: &mut impl Write,
+    gcx: Gcx<'_>,
+    id: ContractId,
+    kind: DumpKind,
+) -> Result {
+    let module = lower::lower_contract(gcx, id);
+    gcx.dcx().has_errors()?;
+    let name = gcx.contract_fully_qualified_name(id);
+    writeln!(writer, "// === {name} ===")
+        .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+    match kind {
+        DumpKind::Mir => writeln!(writer, "{module}"),
+        DumpKind::MirCfg => writeln!(writer, "{}", module.to_dot()),
+        _ => unreachable!("checked by caller"),
+    }
+    .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+    Ok(())
+}
+
+fn available_dump_contracts(gcx: Gcx<'_>) -> String {
+    gcx.hir
+        .contract_ids()
+        .filter(|&id| is_dumpable_contract(gcx, id))
+        .map(|id| gcx.contract_fully_qualified_name(id).to_string().replace('\\', "/"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn emit_mir(gcx: Gcx<'_>) -> Result {
@@ -276,8 +367,9 @@ fn ensure_contract_bytecode(
 
     let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, all_bytecodes);
     gcx.dcx().has_errors()?;
-    let mut codegen =
-        EvmCodegen::new(EvmCodegenConfig { capture_evm_ir, ..EvmCodegenConfig::from(gcx) });
+    let mut config = EvmCodegenConfig::from(gcx);
+    config.capture_evm_ir = capture_evm_ir;
+    let mut codegen = EvmCodegen::new(config);
     let artifact = codegen.lower_module(&mut module);
     all_bytecodes.insert(contract_id, artifact.deployment.clone());
     artifacts.insert(

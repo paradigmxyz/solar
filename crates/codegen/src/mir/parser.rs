@@ -1,4 +1,4 @@
-//! Parser for the textual MIR format produced by [`Function::to_text`] and [`Module::to_text`].
+//! Parser for the textual MIR format produced by [`Function`] and [`Module::to_text`].
 //!
 //! # Format
 //!
