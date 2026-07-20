@@ -294,14 +294,11 @@ pub(crate) fn hover(
     state: &mut GlobalState,
     params: HoverParams,
 ) -> impl Future<Output = Result<Option<Hover>, ResponseError>> + use<> {
-    let symbol_tables = state.symbol_tables.clone();
-    let (version, mut published) = state.current_analysis();
     let params = params.text_document_position_params;
+    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
     async move {
-        published
-            .wait_for(|published| *published >= version)
-            .await
-            .map_err(|_| request_failed("analysis was cancelled"))?;
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
         let response = symbol_tables.read().hover(&params.text_document.uri, params.position);
         Ok(response)
     }

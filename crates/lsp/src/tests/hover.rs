@@ -8,10 +8,7 @@ use lsp_types::{
 use snapbox::str;
 use solar_config::CompileOpts;
 use solar_interface::data_structures::map::FxHashSet;
-use std::{
-    sync::atomic::Ordering,
-    task::{Context, Poll, Waker},
-};
+use std::task::{Context, Poll, Waker};
 
 #[test]
 fn shows_function_signature_at_a_reference() {
@@ -909,7 +906,7 @@ function two(address account) external pure returns (address)
 }
 
 #[test]
-fn waits_for_current_analysis_before_returning_hover() {
+fn waits_for_latest_analysis_before_returning_hover() {
     let project = TestProject::from_fixture(
         r#"
         //- /Fresh.sol
@@ -941,14 +938,14 @@ fn waits_for_current_analysis_before_returning_hover() {
     };
     let mut state = GlobalState::new(ClientSocket::new_closed());
     *state.symbol_tables.write() = old_tables;
-    state.analysis_version.fetch_add(1, Ordering::AcqRel);
+    state.mark_analysis_pending_for_test();
 
     let mut request = std::pin::pin!(crate::handlers::hover(&mut state, params));
     let waker = Waker::noop();
     let mut context = Context::from_waker(waker);
     assert!(request.as_mut().poll(&mut context).is_pending());
 
-    state.analysis_version.fetch_add(1, Ordering::AcqRel);
+    state.mark_analysis_pending_for_test();
     let mut snapshot = state.snapshot();
     assert!(snapshot.publish_symbol_tables(2, new_tables));
     assert!(!snapshot.publish_symbol_tables(1, SymbolTables::default()));
