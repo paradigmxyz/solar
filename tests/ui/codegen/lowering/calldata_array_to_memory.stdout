@@ -624,10 +624,9 @@ bb27:
   swap2
   pop
   dup2
-  swap2
+  swap4
   pop
   pop
-  swap2
   pop
   pop
   iszero

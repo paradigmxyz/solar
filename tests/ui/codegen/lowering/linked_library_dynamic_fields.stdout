@@ -170,10 +170,9 @@ bb5:
   dup2
   and
   eq
-  swap2
+  swap3
   pop
   pop
-  swap1
   pop
   iszero
   push bb4
@@ -384,10 +383,9 @@ bb13:
   swap2
   pop
   dup2
-  swap2
+  swap3
   pop
   pop
-  swap1
   pop
   push bb20
   jumpi
@@ -700,10 +698,9 @@ bb10:
   mstore
   swap1
   lt
-  swap2
+  swap3
   pop
   pop
-  swap1
   pop
   push bb18
   jumpi
@@ -986,10 +983,9 @@ bb10:
   push 0x1000000000000000000000000000000000000001
   gas
   delegatecall
-  swap2
+  swap3
   pop
   pop
-  swap1
   pop
   iszero
   push bb19

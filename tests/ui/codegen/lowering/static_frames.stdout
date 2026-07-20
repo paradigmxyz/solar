@@ -134,10 +134,9 @@ bb7:
   swap2
   pop
   dup2
-  swap2
+  swap3
   pop
   pop
-  swap1
   pop
   push bb64
   jumpi
@@ -227,10 +226,9 @@ bb7:
   swap2
   pop
   dup2
-  swap2
+  swap3
   pop
   pop
-  swap1
   pop
   push bb64
   jumpi
@@ -1003,10 +1001,9 @@ bb78:
   swap2
   pop
   dup2
-  swap2
+  swap3
   pop
   pop
-  swap1
   pop
   push bb64
   jumpi

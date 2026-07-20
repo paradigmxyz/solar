@@ -163,10 +163,9 @@ bb25:
   call
   jump bb21
 bb21:
-  swap2
+  swap3
   pop
   pop
-  swap1
   pop
   push 128
   mstore

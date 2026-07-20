@@ -27,7 +27,7 @@ const RULES: &[&str] = &[
     "dup2_commutative_pop",
     "dup2_binop_pop",
     "dup2_sink_pop",
-    "double_swap_pop",
+    "merge_swap_pop",
     "duplicate_mstore",
     "store_load_pop",
     "double_iszero_jumpi",
@@ -210,14 +210,18 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
     if stack.len() >= 4
         && raw_opcode(&stack[0]) == Some(op::POP)
         && raw_opcode(&stack[1]) == Some(op::SWAP1)
-        && raw_opcode(&stack[2]) == Some(op::POP)
-        && raw_opcode(&stack[3]) == Some(op::SWAP1)
     {
-        return Some(Rewrite::replace(
-            "double_swap_pop",
-            4,
-            [raw(op::SWAP2), raw(op::POP), raw(op::POP)],
-        ));
+        for depth in 1..16 {
+            let previous = depth + 2;
+            if stack.len() <= previous {
+                break;
+            }
+            if (2..previous).all(|index| raw_opcode(&stack[index]) == Some(op::POP))
+                && raw_opcode(&stack[previous]) == Some(op::swap(depth as u8))
+            {
+                return Some(Rewrite::merge_swap_pop(depth + 1));
+            }
+        }
     }
 
     if stack.len() >= 6
@@ -314,7 +318,7 @@ fn is_removable_push(inst: &Instruction) -> bool {
 struct Rewrite {
     rule: &'static str,
     skip: usize,
-    replacement: ArrayVec<Instruction, 3>,
+    replacement: ArrayVec<Instruction, 17>,
 }
 
 impl Rewrite {
@@ -329,6 +333,14 @@ impl Rewrite {
     ) -> Self {
         debug_assert!(N <= skip);
         Self { rule, skip, replacement: replacement.into_iter().collect() }
+    }
+
+    fn merge_swap_pop(depth: usize) -> Self {
+        debug_assert!((2..=16).contains(&depth));
+        let mut replacement = ArrayVec::new();
+        replacement.push(raw(op::swap(depth as u8)));
+        replacement.extend((0..depth).map(|_| raw(op::POP)));
+        Self { rule: "merge_swap_pop", skip: depth + 2, replacement }
     }
 }
 

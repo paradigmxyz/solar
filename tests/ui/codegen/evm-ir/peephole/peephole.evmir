@@ -18,4 +18,11 @@ bb0 (entry):
   dup2
   mstore
   pop
+  push 16
+  swap1
+  pop
+  swap1
+  pop
+  swap1
+  pop
   stop

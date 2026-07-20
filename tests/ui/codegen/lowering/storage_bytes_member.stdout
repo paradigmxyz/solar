@@ -278,13 +278,11 @@ bb63:
   push 0x500
   mstore
   dup4
-  swap2
+  swap5
   pop
   pop
-  swap2
   pop
   pop
-  swap1
   pop
   push bb65
   jumpi
@@ -428,10 +426,9 @@ bb20:
   calldataload
   swap1
   lt
-  swap2
+  swap3
   pop
   pop
-  swap1
   pop
   push bb24
   jumpi
@@ -588,13 +585,11 @@ bb20:
   push 544
   mstore
   dup3
-  swap2
+  swap6
   pop
   pop
-  swap2
   pop
   pop
-  swap2
   pop
   pop
   push bb26
@@ -1000,13 +995,11 @@ bb33:
   push 448
   mstore
   dup2
-  swap2
+  swap6
   pop
   pop
-  swap2
   pop
   pop
-  swap2
   pop
   pop
   push bb37
@@ -1336,10 +1329,9 @@ bb52:
   push 160
   mstore
   dup2
-  swap2
+  swap3
   pop
   pop
-  swap1
   pop
   push bb59
   jumpi

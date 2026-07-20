@@ -201,10 +201,9 @@ bb7:
   calldataload
   gas
   call
-  swap2
+  swap3
   pop
   pop
-  swap1
   pop
   push 128
   mstore

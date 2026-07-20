@@ -135,10 +135,9 @@ bb17:
   mstore
   swap1
   eq
-  swap2
+  swap3
   pop
   pop
-  swap1
   pop
   iszero
   push bb47
@@ -396,10 +395,9 @@ bb41:
   dup4
   push 288
   mstore
-  swap2
+  swap3
   pop
   pop
-  swap1
   pop
   push bb43
   jumpi
