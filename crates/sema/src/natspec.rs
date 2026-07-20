@@ -659,6 +659,11 @@ impl<'gcx> Resolver<'gcx> {
         });
         let named_returns =
             variables.returns.iter().any(|&id| self.gcx.hir.variable(id).name.is_some());
+        let mut unnamed_return_items = return_items
+            .iter()
+            .flatten()
+            .copied()
+            .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { name: None }));
 
         for (index, &return_id) in variables.returns.iter().enumerate() {
             if let Some(local_returns) = &return_items {
@@ -669,19 +674,7 @@ impl<'gcx> Resolver<'gcx> {
                             matches!(item.kind, hir::NatSpecKind::Return { name: Some(documented) } if documented.name == name)
                         }));
                     } else {
-                        let unnamed_index = variables.returns[..index]
-                            .iter()
-                            .filter(|&&id| self.gcx.hir.variable(id).name.is_none())
-                            .count();
-                        returns.push(
-                            local_returns
-                                .iter()
-                                .copied()
-                                .filter(|item| {
-                                    matches!(item.kind, hir::NatSpecKind::Return { name: None })
-                                })
-                                .nth(unnamed_index),
-                        );
+                        returns.push(unnamed_return_items.next());
                     }
                 } else {
                     returns.push(local_returns.get(index).copied());

@@ -3552,7 +3552,6 @@ name = "solar-lsp"
 version = "0.2.0"
 dependencies = [
  "async-lsp",
- "codspeed-criterion-compat",
  "crop",
  "glob",
  "lsp-types",

@@ -132,8 +132,9 @@ fn maps_mixed_named_and_unnamed_return_docs_by_position() {
         contract C {
             /// @return The first return value.
             /// @return result The named return value.
-            function read() public pure returns (uint256, uint256 result) {
-                return (1, 2);
+            /// @return The final return value.
+            function read() public pure returns (uint256, uint256 result, address) {
+                return (1, 2, address(0));
             }
 
             function use() public pure {
@@ -147,9 +148,9 @@ fn maps_mixed_named_and_unnamed_return_docs_by_position() {
     fixture.check_hover(
         "$1",
         str![[r#"
-7:8-7:12
+8:8-8:12
 ```solidity
-function read() public pure returns (uint256, uint256 result)
+function read() public pure returns (uint256, uint256 result, address)
 ```
 
 **@return**
@@ -157,6 +158,8 @@ function read() public pure returns (uint256, uint256 result)
 - The first return value.
 
 - `result`: The named return value.
+
+- The final return value.
 
 "#]],
     );
@@ -264,7 +267,7 @@ fn maps_inherited_docs_to_current_public_getter_returns() {
         str![[r#"
 11:27-11:33
 ```solidity
-Record public record
+Record public override record
 ```
 
 **@return**
@@ -272,6 +275,36 @@ Record public record
 - `value`: The first base value.
 
 - `owner`: The second base value.
+
+"#]],
+    );
+}
+
+#[test]
+fn shows_explicit_state_variable_override_list() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Hover.sol open
+        interface First {
+            function value() external view returns (uint256);
+        }
+        interface Second {
+            function value() external view returns (uint256);
+        }
+        contract Child is First, Second {
+            uint256 public override(First, Second) $1value;
+        }
+        "#,
+        "/Hover.sol",
+    );
+
+    fixture.check_hover(
+        "$1",
+        str![[r#"
+7:43-7:48
+```solidity
+uint256 public override(First, Second) value
+```
 
 "#]],
     );
@@ -523,6 +556,45 @@ fallback() external payable
 4:4-4:11
 ```solidity
 receive() external payable
+```
+
+"#]],
+    );
+}
+
+#[test]
+fn includes_modifier_and_base_constructor_arguments() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Special.sol open
+        contract Base {
+            constructor(uint256 initial) {}
+        }
+        contract Child is Base {
+            modifier guarded(uint256 threshold) { _; }
+            $1constructor(uint256 initial) Base(initial + 1) {}
+            function $2run(uint256 value) public guarded(value * 2) {}
+        }
+        "#,
+        "/Special.sol",
+    );
+
+    fixture.check_hover(
+        "$1",
+        str![[r#"
+5:4-5:15
+```solidity
+constructor(uint256 initial) Base(initial + 1)
+```
+
+"#]],
+    );
+    fixture.check_hover(
+        "$2",
+        str![[r#"
+6:13-6:16
+```solidity
+function run(uint256 value) public guarded(value * 2)
 ```
 
 "#]],

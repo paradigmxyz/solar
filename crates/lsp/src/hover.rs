@@ -1,6 +1,7 @@
 //! Renders Solidity declarations and resolved NatSpec for LSP hover responses.
 
 use lsp_types::{MarkupContent, MarkupKind};
+use solar_interface::Symbol;
 use solar_sema::{Gcx, hir, ty::NatSpecView};
 use std::fmt::Write;
 
@@ -24,8 +25,8 @@ pub(crate) fn render(gcx: Gcx<'_>, item_id: hir::ItemId) -> Option<MarkupContent
 struct Documentation {
     notice: Vec<String>,
     dev: Vec<String>,
-    params: Vec<(String, String)>,
-    returns: Vec<(Option<String>, String)>,
+    params: Vec<(Symbol, String)>,
+    returns: Vec<(Option<Symbol>, String)>,
 }
 
 fn documentation(gcx: Gcx<'_>, item_id: hir::ItemId) -> Documentation {
@@ -71,12 +72,12 @@ fn callable_documentation(
     let params = parameters
         .iter()
         .enumerate()
-        .filter_map(|(index, _)| parameter_doc_at(gcx, parameters, index, view))
+        .filter_map(|(index, &id)| parameter_doc_at(gcx, id, index, view))
         .collect();
     let returns = returns
         .iter()
         .enumerate()
-        .filter_map(|(index, _)| return_doc_at(gcx, returns, index, view))
+        .filter_map(|(index, &id)| return_doc_at(gcx, id, index, view))
         .collect();
     documentation.params = params;
     documentation.returns = returns;
@@ -120,7 +121,7 @@ fn variable_documentation(gcx: Gcx<'_>, id: hir::VariableId) -> Documentation {
                 documentation.returns = returns
                     .iter()
                     .enumerate()
-                    .filter_map(|(index, _)| return_doc_at(gcx, returns, index, view))
+                    .filter_map(|(index, &id)| return_doc_at(gcx, id, index, view))
                     .collect();
             } else {
                 documentation.returns = return_documentation(items);
@@ -143,7 +144,7 @@ fn selected_parameter_documentation(
         return Documentation::default();
     }
     let view = gcx.natspec_view(item_id);
-    let params = parameter_doc_at(gcx, parameters, index, view).into_iter().collect();
+    let params = parameter_doc_at(gcx, id, index, view).into_iter().collect();
     Documentation { params, ..Documentation::default() }
 }
 
@@ -160,7 +161,7 @@ fn selected_return_documentation(
         return Documentation::default();
     }
     let view = gcx.natspec_view(item_id);
-    let returns = return_doc_at(gcx, returns, index, view).into_iter().collect();
+    let returns = return_doc_at(gcx, id, index, view).into_iter().collect();
     Documentation { returns, ..Documentation::default() }
 }
 
@@ -183,36 +184,36 @@ fn item_documentation(items: &[hir::NatSpecItem]) -> Documentation {
     documentation
 }
 
-fn return_documentation(items: &[hir::NatSpecItem]) -> Vec<(Option<String>, String)> {
+fn return_documentation(items: &[hir::NatSpecItem]) -> Vec<(Option<Symbol>, String)> {
     items
         .iter()
         .filter_map(|item| {
             let hir::NatSpecKind::Return { name } = item.kind else { return None };
             let content = item_content(item)?;
-            Some((name.map(|name| name.to_string()), content.to_string()))
+            Some((name.map(|name| name.name), content.to_string()))
         })
         .collect()
 }
 
 fn parameter_doc_at(
     gcx: Gcx<'_>,
-    parameters: &[hir::VariableId],
+    id: hir::VariableId,
     index: usize,
     documentation: NatSpecView<'_>,
-) -> Option<(String, String)> {
+) -> Option<(Symbol, String)> {
     let content = join_docs(documentation.parameter(index).iter().filter_map(item_content))?;
-    let name = gcx.hir.variable(*parameters.get(index)?).name?.to_string();
+    let name = gcx.hir.variable(id).name?.name;
     Some((name, content))
 }
 
 fn return_doc_at(
     gcx: Gcx<'_>,
-    returns: &[hir::VariableId],
+    id: hir::VariableId,
     index: usize,
     documentation: NatSpecView<'_>,
-) -> Option<(Option<String>, String)> {
+) -> Option<(Option<Symbol>, String)> {
     let content = join_docs(documentation.return_(index).iter().filter_map(item_content))?;
-    let name = gcx.hir.variable(*returns.get(index)?).name.map(|name| name.to_string());
+    let name = gcx.hir.variable(id).name.map(|name| name.name);
     Some((name, content))
 }
 
@@ -253,7 +254,10 @@ fn append_documentation(output: &mut String, documentation: &Documentation) {
     append_list(
         output,
         "@return",
-        documentation.returns.iter().map(|(name, content)| (name.as_deref(), content.as_str())),
+        documentation
+            .returns
+            .iter()
+            .map(|(name, content)| (name.as_ref().map(|name| name.as_str()), content.as_str())),
     );
 }
 
@@ -322,6 +326,10 @@ fn render_function(gcx: Gcx<'_>, id: hir::FunctionId) -> Option<String> {
     for modifier in function.modifiers {
         let name = gcx.item_name_opt(modifier.id)?;
         write!(signature, " {name}").ok()?;
+        if !modifier.args.is_dummy() {
+            let args = gcx.sess.source_map().span_to_snippet(modifier.args.span).ok()?;
+            signature.push_str(args.trim());
+        }
     }
     if !function.returns.is_empty() {
         signature.push_str(" returns (");
@@ -340,6 +348,10 @@ fn render_variable(gcx: Gcx<'_>, id: hir::VariableId) -> Option<String> {
     }
     if let Some(mutability) = variable.mutability {
         write!(signature, " {mutability}").ok()?;
+    }
+    if variable.override_ {
+        signature.push_str(" override");
+        render_override_list(gcx, variable.overrides, &mut signature)?;
     }
     if let Some(data_location) = variable.data_location {
         write!(signature, " {data_location}").ok()?;
