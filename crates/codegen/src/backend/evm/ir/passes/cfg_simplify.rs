@@ -7,12 +7,8 @@ use crate::backend::evm::{
 };
 use solar_data_structures::bit_set::DenseBitSet;
 
-pub(super) fn run(
-    module: &mut Module,
-    _options: super::PassOptions,
-    pass_state: &mut super::PassState,
-) -> bool {
-    let state = &mut pass_state.cfg_simplify;
+pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
+    let mut state = RunState::default();
     state.reserve(module.blocks.len());
     let mut changed = false;
     loop {
@@ -33,7 +29,7 @@ pub(super) fn run(
     }
 }
 
-pub(super) struct RunState {
+struct RunState {
     thunks: Vec<Option<BlockId>>,
     reachable: DenseBitSet<BlockId>,
     pending: Vec<BlockId>,

@@ -7,25 +7,16 @@ use crate::backend::evm::{
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 
-#[derive(Default)]
-pub(super) struct RunState {
-    scratch: Vec<Instruction>,
-}
-
-pub(super) fn run(
-    module: &mut Module,
-    _options: super::PassOptions,
-    pass_state: &mut super::PassState,
-) -> bool {
+pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
     let mut changed = false;
-    let scratch = &mut pass_state.peephole.scratch;
+    let mut scratch = Vec::new();
     for block in &mut module.blocks {
         if block.instructions.iter().any(|inst| {
             inst.result.is_some() || (!inst.is_encoded_push() && !inst.operands.is_empty())
         }) {
             continue;
         }
-        changed |= optimize(&mut block.instructions, scratch) != 0;
+        changed |= optimize(&mut block.instructions, &mut scratch) != 0;
     }
     changed
 }

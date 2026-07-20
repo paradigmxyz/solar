@@ -25,7 +25,7 @@ pub(in crate::backend::evm) mod assembly;
 
 pub use passes::{PASS_REGISTRY, PassInfo, PassOptions, lookup_pass, run_pass};
 
-pub(crate) use passes::{STACK_SCHEDULE_PASS, run_default_pipeline};
+pub(crate) use passes::{DEFAULT_PIPELINE, STACK_SCHEDULE_PASS};
 
 /// Validates the invariants of an EVM IR module.
 pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {

@@ -13,15 +13,11 @@ use crate::backend::evm::ir::{Block, BlockId, Instruction, Module, Operand, Term
 use alloy_primitives::U256;
 use solar_data_structures::bit_set::DenseBitSet;
 
-pub(super) fn run(
-    module: &mut Module,
-    options: super::PassOptions,
-    pass_state: &mut super::PassState,
-) -> bool {
+pub(super) fn run(module: &mut Module, options: super::PassOptions) -> bool {
     if module.blocks.len() <= 1 {
         return false;
     }
-    let state = &mut pass_state.block_layout;
+    let mut state = RunState::default();
     state.reset(module.blocks.len());
     for block in &module.blocks {
         if let Some(target) = layout_successor(block)
@@ -44,7 +40,7 @@ pub(super) fn run(
         }
     }
 
-    pack_hot_terminal_blocks(module, state, options);
+    pack_hot_terminal_blocks(module, &mut state, options);
     for cold in [false, true] {
         for block in module.blocks.indices() {
             if is_cold_terminal_block(&module.blocks[block]) == cold {
@@ -60,7 +56,7 @@ pub(super) fn run(
     true
 }
 
-pub(super) struct RunState {
+struct RunState {
     predecessor_counts: Vec<usize>,
     order: Vec<BlockId>,
     placed: DenseBitSet<BlockId>,
