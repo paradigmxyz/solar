@@ -25,6 +25,7 @@ mod global_state;
 mod handlers;
 mod hover;
 mod inlay_hints;
+mod override_index;
 mod proto;
 mod rename;
 mod serde;
@@ -58,6 +59,7 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
         .request::<req::GotoDefinition, _>(handlers::goto_definition)
         .request::<req::GotoTypeDefinition, _>(handlers::goto_type_definition)
         .request::<req::GotoDeclaration, _>(handlers::goto_declaration)
+        .request::<req::GotoImplementation, _>(handlers::goto_implementation)
         .request::<req::References, _>(handlers::references)
         .request::<req::DocumentHighlightRequest, _>(handlers::document_highlight)
         .request::<req::HoverRequest, _>(handlers::hover)
@@ -263,6 +265,30 @@ mod tests {
         assert_eq!(response, serde_json::Value::Null);
     }
 
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_goto_implementation_requests() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let params = request::GotoImplementationParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier {
+                    uri: lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
+                },
+                position: Position::new(0, 0),
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: lsp_types::PartialResultParams::default(),
+        };
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 1,
+            "method": request::GotoImplementation::METHOD,
+            "params": params,
+        }))
+        .unwrap();
+
+        let response = router.call(request).await.unwrap();
+
+        assert_eq!(response, serde_json::Value::Null);
+    }
     #[tokio::test(flavor = "current_thread")]
     async fn router_handles_type_definition_requests() {
         let mut router = new_router(ClientSocket::new_closed());

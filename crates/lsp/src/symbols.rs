@@ -31,6 +31,7 @@ use std::{
 use crate::{
     document_links::DocumentLinkIndex,
     inlay_hints::InlayHintIndex,
+    override_index::OverrideFamilyIndex,
     proto,
     rename::{
         ImportBindings, MappingBindings, RenameCandidate, RenameIndex, RenameReferenceContext,
@@ -55,6 +56,7 @@ pub(crate) struct SymbolTables {
     references: Vec<SymbolReference>,
     file_references: FxHashMap<Url, Vec<usize>>,
     symbol_references: FxHashMap<SymbolId, Vec<usize>>,
+    override_families: OverrideFamilyIndex,
     rename: RenameIndex,
     document_links: DocumentLinkIndex,
     inlay_hints: InlayHintIndex,
@@ -265,6 +267,7 @@ impl SymbolTables {
         self.signature_help.extend(other.signature_help);
 
         let symbol_offset = self.declarations.len();
+        self.override_families.extend(other.override_families, symbol_offset);
         let scope_offset = self.scopes.len();
         for declaration in &mut other.declarations {
             declaration.id = remap_symbol_id(declaration.id, symbol_offset);
@@ -432,6 +435,53 @@ impl SymbolTables {
         Some(GotoDefinitionResponse::Array(locations))
     }
 
+    pub(crate) fn goto_implementation(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<GotoDefinitionResponse> {
+        let reference_targets =
+            self.rename.implementation_symbols_at(uri, position).map(ReferenceTargets::from_vec);
+        if reference_targets.as_ref().is_some_and(|targets| targets.is_empty()) {
+            return None;
+        }
+        let symbol_ids = if let Some(symbol_id) = self.declaration_at_position(uri, position) {
+            if self.override_families.is_override_symbol(symbol_id) {
+                self.override_families.descendants(symbol_id)
+            } else {
+                vec![symbol_id]
+            }
+        } else {
+            let targets =
+                reference_targets.or_else(|| self.symbol_ids_at_position(uri, position))?;
+            let mut implementations = Vec::new();
+            for symbol_id in targets {
+                if self.declarations[symbol_id].has_definition {
+                    implementations.push(symbol_id);
+                }
+                if self.override_families.is_override_symbol(symbol_id) {
+                    implementations.extend(self.override_families.descendants(symbol_id));
+                }
+            }
+            implementations
+        };
+        let mut locations = Vec::new();
+        let conflicting_contents = self.rename.conflicting_contents();
+        for symbol_id in symbol_ids {
+            let declaration = &self.declarations[symbol_id];
+            if declaration.has_definition
+                && !conflicting_contents.contains(&declaration.location.uri)
+            {
+                locations.push(self.selection_location(symbol_id));
+            }
+        }
+        if locations.is_empty() {
+            return None;
+        }
+        sort_locations(&mut locations);
+        locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
+        Some(GotoDefinitionResponse::Array(locations))
+    }
     pub(crate) fn goto_type_definition(
         &self,
         uri: &Url,
@@ -529,7 +579,7 @@ impl SymbolTables {
         uri: &Url,
         position: Position,
     ) -> Option<RenameCandidate> {
-        self.rename.candidate(uri, position, &self.declarations)
+        self.rename.candidate(uri, position, &self.override_families, &self.declarations)
     }
 
     pub(crate) fn completion_items(
@@ -714,7 +764,13 @@ impl SymbolTables {
         let bindings = self.rename.build_imports(gcx, item_symbols);
         let mapping_bindings = self.rename.build_mapping_names(gcx);
         self.rename.build_natspec(gcx, &bindings, item_symbols, &self.declarations);
-        self.rename.build_overrides(gcx, &bindings, item_symbols, &self.declarations);
+        self.rename.build_overrides(
+            gcx,
+            &bindings,
+            item_symbols,
+            &self.declarations,
+            &mut self.override_families,
+        );
         let mut collector = ReferenceCollector {
             tables: self,
             gcx,
@@ -1079,7 +1135,8 @@ impl SymbolTables {
                 )
             });
         }
-        self.rename.rebuild(&self.declarations);
+        self.override_families.rebuild(&self.declarations, self.rename.conflicting_contents());
+        self.rename.rebuild(&self.override_families);
     }
 }
 

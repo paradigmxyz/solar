@@ -134,6 +134,17 @@ impl RequestFixture {
         assert_data_eq!(self.goto_output(response), expected);
     }
 
+    pub(super) fn check_goto_implementation(&self, marker: &str, expected: impl IntoData) {
+        let mut state = self.state();
+        let (uri, position) = self.marker_location(marker);
+        let response = expect_ready(crate::handlers::goto_implementation(
+            &mut state,
+            goto_params(uri, position),
+        ))
+        .unwrap();
+        assert_data_eq!(self.goto_output(response), expected);
+    }
+
     pub(super) fn check_goto_type_definition(&self, marker: &str, expected: impl IntoData) {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);

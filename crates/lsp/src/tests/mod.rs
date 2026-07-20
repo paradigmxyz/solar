@@ -1,7 +1,10 @@
 use super::*;
 #[cfg(unix)]
 use crate::test_support::process_exists;
-use crate::{config::negotiate_capabilities, test_support::TestProject};
+use crate::{
+    config::negotiate_capabilities,
+    test_support::{MarkedProject, TestProject},
+};
 use async_lsp::ClientSocket;
 use lsp_types::{
     DocumentSymbol, SymbolKind, WatchKind, WorkspaceSymbol, notification::Notification,
@@ -13,6 +16,7 @@ mod document_highlight;
 mod document_link;
 mod goto_definition;
 mod hover;
+mod implementation;
 mod inlay_hint;
 mod references;
 mod rename;
@@ -212,6 +216,59 @@ fn analysis_batches_read_tracked_disk_files() {
     assert_eq!(batch.files, vec![(path, "contract C { function f() public { number+; } }".into())]);
 }
 
+#[test]
+fn goto_implementation_finds_unopened_naked_workspace_files() {
+    let marked = MarkedProject::from_fixture(
+        r#"
+        //- /Base.sol open
+        interface Runner {
+            function $1run(uint256 input) external returns (uint256);
+        }
+
+        //- /First.sol
+        import {Runner} from "./Base.sol";
+
+        contract First is Runner {
+            function run(uint256 input) external pure override returns (uint256) {
+                return input + 1;
+            }
+        }
+
+        //- /Second.sol
+        import {Runner} from "./Base.sol";
+
+        contract Second is Runner {
+            function run(uint256 input) external pure override returns (uint256) {
+                return input + 2;
+            }
+        }
+        "#,
+    );
+    let snapshot = snapshot(marked.project());
+    let mut symbol_tables = SymbolTables::default();
+    for batch in snapshot.analysis_batches(Vec::new()) {
+        let result = analyze(batch);
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+        symbol_tables.extend(result.symbol_tables);
+    }
+
+    let marker = marked.marker("$1");
+    let uri = Url::from_file_path(marked.project().path(marker.path())).unwrap();
+    let Some(lsp_types::GotoDefinitionResponse::Array(locations)) =
+        symbol_tables.goto_implementation(&uri, marker.position())
+    else {
+        panic!("expected implementation locations");
+    };
+    let paths = locations
+        .into_iter()
+        .map(|location| {
+            location.uri.to_file_path().unwrap().file_name().unwrap().to_str().unwrap().to_owned()
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(paths, ["First.sol", "Second.sol"]);
+}
+
 #[cfg(unix)]
 async fn wait_for_path(path: &Path) {
     for _ in 0..100 {
@@ -234,26 +291,29 @@ async fn wait_for_process_exit(pid: u32) {
 }
 
 #[test]
-fn analysis_batches_ignore_naked_workspace_disk_files() {
+fn analysis_batches_include_created_naked_workspace_disk_files() {
     let project = TestProject::from_fixture(
         r#"
-        //- /Disk.sol
-        contract Disk {}
-
         //- /Open.sol open
         contract Open { function f() public { number+; } }
         "#,
     );
+    let mut config = project.config();
+    project.write_file("/Disk.sol", "contract Disk {}");
     let disk_path = project.path("/Disk.sol");
     let open_path = project.path("/Open.sol");
-    let snapshot = snapshot(&project);
+    config.add_source_file(disk_path.clone());
+    let snapshot = snapshot_with_config(config, project.vfs());
 
-    let mut batches = snapshot.analysis_batches(vec![disk_path]);
+    let mut batches = snapshot.analysis_batches(vec![disk_path.clone()]);
     let batch = batches.pop().unwrap();
 
     assert_eq!(
         batch.files,
-        vec![(open_path, "contract Open { function f() public { number+; } }".into())]
+        vec![
+            (disk_path, "contract Disk {}".into()),
+            (open_path, "contract Open { function f() public { number+; } }".into()),
+        ]
     );
 }
 

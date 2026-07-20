@@ -106,6 +106,7 @@ fn semantic_requests_wait_for_latest_analysis() {
     assert_pending(goto_definition(&mut state, goto_params(uri.clone())));
     assert_pending(goto_type_definition(&mut state, goto_params(uri.clone())));
     assert_pending(goto_declaration(&mut state, goto_params(uri.clone())));
+    assert_pending(goto_implementation(&mut state, goto_params(uri.clone())));
     assert_pending(references(&mut state, reference_params(uri.clone())));
     assert_pending(prepare_rename(&mut state, position_params(uri.clone())));
     assert_pending(rename(&mut state, rename_params(uri.clone(), "renamed")));
@@ -122,6 +123,7 @@ fn semantic_requests_skip_analysis_for_non_file_uris() {
     assert_ready(goto_definition(&mut state, goto_params(uri.clone())));
     assert_ready(goto_type_definition(&mut state, goto_params(uri.clone())));
     assert_ready(goto_declaration(&mut state, goto_params(uri.clone())));
+    assert_ready(goto_implementation(&mut state, goto_params(uri.clone())));
     assert_ready(references(&mut state, reference_params(uri.clone())));
     assert_ready(prepare_rename(&mut state, position_params(uri.clone())));
     assert_ready(rename(&mut state, rename_params(uri.clone(), "renamed")));
