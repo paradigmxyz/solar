@@ -1,5 +1,5 @@
-// === ROOT/tests/ui/codegen/mapping_dynamic_key.sol:MappingDynamicKey ===
-; module @MappingDynamicKey
+// === ROOT/tests/ui/codegen/lowering/mapping_dynamic_key.sol:MappingDynamicKey ===
+@module MappingDynamicKey
 fn @lookup(arg0: calldataslice) {
   bb0 (entry):
     v0 = calldatasize
@@ -75,8 +75,8 @@ fn @get(arg0: memorybytes) {
     returndata 128, 32
 }
 
-// === ROOT/tests/ui/codegen/mapping_dynamic_key.sol:MappingDynamicKeyPaths ===
-; module @MappingDynamicKeyPaths
+// === ROOT/tests/ui/codegen/lowering/mapping_dynamic_key.sol:MappingDynamicKeyPaths ===
+@module MappingDynamicKeyPaths
 fn @flat(arg0: calldataslice) {
   bb0 (entry):
     v0 = calldatasize

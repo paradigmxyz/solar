@@ -1,5 +1,5 @@
-// === ROOT/tests/ui/codegen/using_for_struct.sol:L ===
-; module @L
+// === ROOT/tests/ui/codegen/lowering/using_for_struct.sol:L ===
+@module L
 fn @hashLib(arg0: memorystruct) -> bytes32 {
   bb0 (entry):
     v0 = internal_frame_addr 128
@@ -27,8 +27,8 @@ fn @hashLib(arg0: memorystruct) -> bytes32 {
     ret v15
 }
 
-// === ROOT/tests/ui/codegen/using_for_struct.sol:C ===
-; module @C
+// === ROOT/tests/ui/codegen/lowering/using_for_struct.sol:C ===
+@module C
 fn @viaMethod(arg0: bytes32, arg1: bytes32) {
   bb0 (entry):
     v0 = calldatasize

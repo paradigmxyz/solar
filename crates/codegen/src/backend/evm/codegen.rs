@@ -5376,7 +5376,11 @@ impl crate::backend::Backend for EvmCodegen<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{backend::evm::test_utils::disassemble, lower, mir::FunctionBuilder};
+    use crate::{
+        backend::evm::test_utils::disassemble,
+        lower,
+        mir::{FunctionBuilder, MirType},
+    };
     use snapbox::assert_data_eq;
     use solar_config::{CompileOpts, UnstableOpts};
     use solar_interface::{Ident, Session, kw, sym};

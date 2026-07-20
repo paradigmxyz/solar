@@ -1,5 +1,6 @@
-// === ROOT/tests/ui/codegen/mir/lower_slices.mir (after lower-abi,lower-slices) ===
-; module @LowerSlices [phase = abi]
+// === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (after lower-abi,lower-slices) ===
+@module LowerSlices
+@phase abi
 fn @entry() {
   bb0 (entry):
     v0 = internal_call @len, 1, arg0

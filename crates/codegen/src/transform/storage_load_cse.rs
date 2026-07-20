@@ -125,13 +125,12 @@ impl StorageLoadCse {
                     }
                 }
                 InstKind::SStore(slot, _) => {
-                    let alias =
-                        aa.storage_alias_after_replacements(
-                            func,
-                            inst_id,
-                            *slot,
-                            &state.replacements,
-                        );
+                    let alias = aa.storage_alias_after_replacements(
+                        func,
+                        inst_id,
+                        *slot,
+                        &state.replacements,
+                    );
                     state.cached_loads.retain(|cached_alias, _| {
                         !aa.alias(Location::Storage(*cached_alias), Location::Storage(alias))
                             .may_alias()

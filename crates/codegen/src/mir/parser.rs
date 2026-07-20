@@ -33,8 +33,7 @@ use super::{
     AllocationInitialization, AllocationKind, AllocationSemantics, BlockId, EffectKind, Function,
     FunctionBuilder, FunctionId, InstId, InstKind, Instruction, InstructionMetadata,
     MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField,
-    StorageLayout,
-    StorageLayoutRef, Terminator, Value, ValueId,
+    StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
 };
 use crate::mir::{MirType, SliceLocation};
 use alloy_primitives::U256;
@@ -108,6 +107,8 @@ struct Parser<'sess, 'ast> {
     abi_layouts: Vec<AbiLayoutRef>,
     /// Aggregate storage layouts interned while parsing instructions.
     storage_layouts: Vec<StorageLayoutRef>,
+    /// Number of `>` closers still owed after splitting a `>>`/`>>>` token.
+    pending_gt: u32,
 }
 
 struct PendingFunctionRef {
@@ -140,6 +141,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             value_labels: FxHashMap::default(),
             abi_layouts: Vec::new(),
             storage_layouts: Vec::new(),
+            pending_gt: 0,
         }
     }
 
@@ -468,7 +470,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             MirType::FixedBytes(n)
         } else {
             match id {
-kw::Bool => MirType::Bool,
+                kw::Bool => MirType::Bool,
                 kw::Address => MirType::Address,
                 sym::memptr => MirType::MemPtr,
                 sym::memorybytes => MirType::MemoryObject(MemoryObjectKind::Bytes),
@@ -616,6 +618,34 @@ kw::Bool => MirType::Bool,
         Ok(block)
     }
 
+    /// Consumes one `>` closer, splitting `>>`/`>>>` shift tokens so nested
+    /// `<...>` layout arguments close correctly.
+    fn eat_gt(&mut self) -> bool {
+        if self.pending_gt > 0 {
+            self.pending_gt -= 1;
+            return true;
+        }
+        if self.parser.eat(TokenKind::Gt) {
+            return true;
+        }
+        if self.parser.eat(TokenKind::BinOp(BinOpToken::Shr)) {
+            self.pending_gt += 1;
+            return true;
+        }
+        if self.parser.eat(TokenKind::BinOp(BinOpToken::Sar)) {
+            self.pending_gt += 2;
+            return true;
+        }
+        false
+    }
+
+    fn expect_gt(&mut self) -> PResult<'sess, ()> {
+        if self.eat_gt() {
+            return Ok(());
+        }
+        self.parser.expect(TokenKind::Gt).map(drop)
+    }
+
     /// Parses an ABI layout: `[type, type, ...]`. Structurally identical
     /// layouts are interned so repeated encodes share one allocation.
     fn parse_abi_layout(&mut self) -> PResult<'sess, AbiLayoutRef> {
@@ -648,7 +678,7 @@ kw::Bool => MirType::Bool,
             sym::memory_array | sym::calldata_array => {
                 self.parser.expect(TokenKind::Lt)?;
                 let element = Box::new(self.parse_abi_type()?);
-                self.parser.expect(TokenKind::Gt)?;
+                self.expect_gt()?;
                 let location = if name == sym::memory_array {
                     SliceLocation::Memory
                 } else {
@@ -664,16 +694,16 @@ kw::Bool => MirType::Bool,
                     .map_err(|_| self.parser.error("ABI fixed-array length does not fit in u64"))?;
                 self.parser.expect(TokenKind::Comma)?;
                 let element = Box::new(self.parse_abi_type()?);
-                self.parser.expect(TokenKind::Gt)?;
+                self.expect_gt()?;
                 AbiType::FixedArray { element, len }
             }
             sym::tuple => {
                 self.parser.expect(TokenKind::Lt)?;
                 let mut fields = Vec::new();
-                if !self.parser.eat(TokenKind::Gt) {
+                if !self.eat_gt() {
                     loop {
                         fields.push(self.parse_abi_type()?);
-                        if self.parser.eat(TokenKind::Gt) {
+                        if self.eat_gt() {
                             break;
                         }
                         self.parser.expect(TokenKind::Comma)?;
@@ -693,10 +723,10 @@ kw::Bool => MirType::Bool,
             kw::Struct => {
                 self.parser.expect(TokenKind::Lt)?;
                 let mut fields = Vec::new();
-                if !self.parser.eat(TokenKind::Gt) {
+                if !self.eat_gt() {
                     loop {
                         fields.push(self.parse_storage_field()?);
-                        if self.parser.eat(TokenKind::Gt) {
+                        if self.eat_gt() {
                             break;
                         }
                         self.parser.expect(TokenKind::Comma)?;
@@ -712,7 +742,7 @@ kw::Bool => MirType::Bool,
                     .map_err(|_| self.parser.error("storage array length does not fit in u64"))?;
                 self.parser.expect(TokenKind::Comma)?;
                 let element = self.parse_storage_field()?;
-                self.parser.expect(TokenKind::Gt)?;
+                self.expect_gt()?;
                 StorageLayout::Array { element, len }
             }
             _ => return Err(self.parser.error(format!("unknown storage layout `{name}`"))),
@@ -743,7 +773,7 @@ kw::Bool => MirType::Bool,
                     let value = value
                         .try_into()
                         .map_err(|_| self.parser.error("memory-array stride does not fit"))?;
-                    self.parser.expect(TokenKind::Gt)?;
+                    self.expect_gt()?;
                     value
                 } else {
                     1
@@ -761,7 +791,7 @@ kw::Bool => MirType::Bool,
                     let element_words = element_words
                         .try_into()
                         .map_err(|_| self.parser.error("memory fixed-array stride does not fit"))?;
-                    self.parser.expect(TokenKind::Gt)?;
+                    self.expect_gt()?;
                     (len, element_words)
                 } else {
                     (0, 1)
@@ -774,7 +804,7 @@ kw::Bool => MirType::Bool,
                     let value = value
                         .try_into()
                         .map_err(|_| self.parser.error("memory struct field count does not fit"))?;
-                    self.parser.expect(TokenKind::Gt)?;
+                    self.expect_gt()?;
                     value
                 } else {
                     0

@@ -576,9 +576,9 @@ impl<'a> Validator<'a> {
                 for &inst_id in &block.instructions {
                     let kind = &func.instructions[inst_id].kind;
                     let semantic_op = match kind {
-                        InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => {
-                            Some("slice")
-                        }
+                        InstKind::MakeSlice { .. }
+                        | InstKind::SlicePtr(_)
+                        | InstKind::SliceLen(_) => Some("slice"),
                         InstKind::AbiEncode { .. } => Some("ABI encoding"),
                         InstKind::StorageToMemory { .. }
                         | InstKind::MemoryToStorage { .. }
@@ -752,24 +752,8 @@ error: [bb0] entry block must have no predecessors
     }
 
     #[test]
-    fn validator_as_analysis_pass() {
-        use crate::pass::AnalysisManager;
-        with_session(|| {
-            let mut func = make_func();
-            {
-                let mut b = FunctionBuilder::new(&mut func);
-                let x = b.add_param(MirType::uint256());
-                b.ret([x]);
-            }
-            let mut am = AnalysisManager::new();
-            let errors = am.get_or_compute(&ValidatorAnalysis, &func);
-            assert!(errors.is_empty());
-        });
-    }
-
-    #[test]
     fn evm_shaped_rejects_semantic_memory_operations() {
-        with_session(|| {
+        with_session(|sess| {
             let mut module = Module::new(Ident::DUMMY);
             module.phase = MirPhase::EvmShaped;
             let mut func = make_func();
@@ -785,10 +769,12 @@ error: [bb0] entry block must have no predecessors
             }
             module.add_function(func);
 
-            let errors = Validator::validate_module(&module);
-            assert!(errors.iter().any(|error| error.message.contains("slice instruction")));
-            assert!(errors.iter().any(|error| error.message.contains("ABI encoding instruction")));
-            assert!(errors.iter().any(|error| error.message.contains("aggregate instruction")));
+            Validator::new(&sess.dcx).validate_module(&module);
+            assert!(sess.dcx.has_errors().is_err());
+            let diagnostics = sess.emitted_diagnostics().unwrap().to_string();
+            assert!(diagnostics.contains("slice instruction"));
+            assert!(diagnostics.contains("ABI encoding instruction"));
+            assert!(diagnostics.contains("aggregate instruction"));
         });
     }
 

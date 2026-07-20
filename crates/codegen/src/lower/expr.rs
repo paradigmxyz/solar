@@ -523,40 +523,6 @@ impl<'gcx> Lowerer<'gcx> {
                     let ptr = builder.add(base_ptr, offset);
                     return builder.make_slice(ptr, len, crate::mir::SliceLocation::Calldata);
                 }
-                if let Some(var_id) = self.ident_variable(base)
-                    && self.memory_backed_calldata_bytes.contains(&var_id)
-                    && self.expr_has_bytes_or_string_type(base)
-                {
-                    let base_ptr = self.lower_expr(builder, base);
-                    let len = builder.mload(base_ptr);
-                    let start = start
-                        .map(|expr| self.lower_expr(builder, expr))
-                        .unwrap_or_else(|| builder.imm_u64(0));
-                    let end = end.map(|expr| self.lower_expr(builder, expr)).unwrap_or(len);
-                    let reversed = builder.gt(start, end);
-                    let past_end = builder.gt(end, len);
-                    let invalid = builder.or(reversed, past_end);
-                    self.emit_abi_decode_revert_if(builder, invalid);
-
-                    let slice_len = builder.sub(end, start);
-                    let thirty_one = builder.imm_u64(31);
-                    let rounded = builder.add(slice_len, thirty_one);
-                    let mask = builder.not(thirty_one);
-                    let padded = builder.and(rounded, mask);
-                    let word = builder.imm_u64(32);
-                    let total = builder.add(word, padded);
-                    let ptr = self.allocate_memory_object_dynamic(
-                        builder,
-                        total,
-                        crate::mir::MemoryObjectKind::Bytes,
-                    );
-                    builder.mstore(ptr, slice_len);
-                    let dst = builder.add(ptr, word);
-                    let data = builder.add(base_ptr, word);
-                    let src = builder.add(data, start);
-                    self.mcopy(builder, dst, src, slice_len, None);
-                    return ptr;
-                }
                 let base_val = self.lower_expr(builder, base);
                 let start_val = start
                     .map(|s| self.lower_expr(builder, s))
@@ -1657,9 +1623,6 @@ impl<'gcx> Lowerer<'gcx> {
             return None;
         };
         let var = self.gcx.hir.variable(*var_id);
-        if self.memory_backed_calldata_bytes.contains(var_id) {
-            return None;
-        }
         if var.data_location != Some(solar_ast::DataLocation::Calldata) {
             return None;
         }

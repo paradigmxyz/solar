@@ -1,5 +1,5 @@
-// === ROOT/tests/ui/codegen/storage_bytes_from_calldata.sol:StorageBytesFromCalldata ===
-; module @StorageBytesFromCalldata
+// === ROOT/tests/ui/codegen/lowering/storage_bytes_from_calldata.sol:StorageBytesFromCalldata ===
+@module StorageBytesFromCalldata
 fn @setText(arg0: calldataslice) {
   bb0 (entry):
     v0 = calldatasize

@@ -1,0 +1,23 @@
+//@compile-flags: --passes lower-alloc
+//@filecheck: --match-full-lines
+// CHECK-LABEL: fn @checked(arg0: u256) -> memorybytes {
+// CHECK:     v0 = mload 64 !metadata(memory=scratch)
+// CHECK:     br v8, bb2, bb1
+// CHECK:     calldatacopy v0, v9, v3
+// CHECK:     revert 0, 36
+// CHECK-LABEL: fn @internal() -> memptr {
+// CHECK:     v0 = mload 64 !metadata(memory=scratch)
+// CHECK:     mstore 64, v1 !metadata(memory=scratch)
+@module AllocationPolicy
+
+fn @checked(arg0: u256) -> memorybytes {
+  bb0 (entry):
+    v1 = alloc memorybytes, word, zeroed, panic, arg0
+    ret v1
+}
+
+fn @internal() -> memptr {
+  bb0 (entry):
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    ret v0
+}

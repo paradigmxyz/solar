@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_rebind.sol:CalldataSliceRebind ===
 @module CalldataSliceRebind
-fn @forward(arg0: memptr, arg1: u256, arg2: address) {
+fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4
@@ -9,114 +9,42 @@ fn @forward(arg0: memptr, arg1: u256, arg2: address) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = add 4, arg0
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = lt v5, v4
-    br v6, bb3, bb4
+    v3 = calldataload 68
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb4:
-    v7 = not 31
-    v8 = and v5, v7
-    v9 = iszero v8
-    v10 = select v9, 32, v8
-    v11 = add 32, v10
-    v12 = lt v11, v10
-    br v12, bb5, bb6
+    v6 = slice_ptr arg0
+    v7 = slice_len arg0
+    v8 = lt v7, arg1
+    br v8, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v13 = mload 64 !metadata(memory=scratch)
-    v14 = add v13, v11
-    mstore 64, v14 !metadata(memory=scratch)
-    mstore v13, v4
-    v15 = add v13, 32
-    v16 = sub v10, 32
-    v17 = add v15, v16
-    mstore v17, 0
-    v18 = add v3, 32
-    calldatacopy v15, v18, v4
-    mstore 128, v13
-    v19 = calldataload 68
-    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffff
-    v21 = eq v19, v20
-    br v21, bb8, bb7
-  bb7:
-    revert 0, 0
-  bb8:
-    v22 = mload 128
-    v23 = mload v22
-    v24 = gt arg1, v23
-    v25 = gt v23, v23
-    v26 = or v24, v25
-    br v26, bb9, bb10
-  bb9:
-    revert 0, 0
-  bb10:
-    v27 = sub v23, arg1
-    v28 = add v27, 31
-    v29 = not 31
-    v30 = and v28, v29
-    v31 = add 32, v30
-    v32 = mload 64 !metadata(memory=scratch)
-    v33 = add v32, v31
-    mstore 64, v33 !metadata(memory=scratch)
-    mstore v32, v27
-    v34 = add v32, 32
-    v35 = add v22, 32
-    v36 = add v35, arg1
-    mcopy v34, v36, v27
-    mstore 128, v32
-    v37 = mload 128
-    v38 = mload 64 !metadata(memory=scratch)
-    mstore v38, 0xd18d0bac00000000000000000000000000000000000000000000000000000000
-    v39 = add v38, 4
-    v40 = add v39, 32
-    v41 = sub v40, v39
-    mstore v39, v41
-    v42 = mload v37
-    mstore v40, v42
-    v43 = not 31
-    v44 = add v42, 31
-    v45 = and v44, v43
-    v46 = add v40, 32
-    v47 = iszero v45
-    br v47, bb12, bb11
-  bb11:
-    v48 = sub v45, 32
-    v49 = add v46, v48
-    mstore v49, 0
-    jump bb12
-  bb12:
-    v50 = add v37, 32
-    v51 = add v46, v45
-    mcopy v46, v50, v42
-    v52 = sub v51, v39
-    v53 = add v52, 4
-    v54 = add v53, 31
-    v55 = not 31
-    v56 = and v54, v55
-    v57 = add v38, v56
-    mstore 64, v57 !metadata(memory=scratch)
+    v9 = sub v7, arg1
+    v10 = add v6, arg1
+    v11 = make_calldata_slice v10, v9
+    v12 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v11
+    v13 = slice_ptr v12
+    v14 = slice_len v12
     mstore 0, arg2 !metadata(memory=scratch)
-    mstore 32, v38 !metadata(memory=scratch)
-    v58 = mload 0 !metadata(memory=scratch)
-    v59 = gas
-    v60 = mload 32 !metadata(memory=scratch)
-    v61 = call v59, v58, 0, v60, v53, 0, 32
-    v62 = iszero v61
-    br v62, bb13, bb14
-  bb13:
-    v63 = returndatasize
-    returndatacopy 0, 0, v63 !metadata(memory=scratch)
-    revert 0, v63
-  bb14:
-    v64 = mload 0 !metadata(memory=scratch)
+    mstore 32, v13 !metadata(memory=scratch)
+    v15 = mload 0 !metadata(memory=scratch)
+    v16 = gas
+    v17 = mload 32 !metadata(memory=scratch)
+    v18 = call v16, v15, 0, v17, v14, 0, 32
+    v19 = iszero v18
+    br v19, bb7, bb8
+  bb7:
+    v20 = returndatasize
+    returndatacopy 0, 0, v20 !metadata(memory=scratch)
+    revert 0, v20
+  bb8:
+    v21 = mload 0 !metadata(memory=scratch)
     stop
 }
 

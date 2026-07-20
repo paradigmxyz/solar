@@ -1,0 +1,12 @@
+error: [fn0] [bb0, inst0] slice instruction `make_memory_slice` survives the `evm-shaped` phase boundary
+
+error: [fn0] [bb0, inst1] slice instruction `slice_len` survives the `evm-shaped` phase boundary
+
+error: [fn1] [bb0, inst0] ABI encoding instruction `abi_encode` survives the `evm-shaped` phase boundary
+
+error: [fn2] memory-object signature type `memorystruct` survives the `evm-shaped` phase boundary
+
+error: [fn2] [bb0, inst0] aggregate instruction `storage_to_memory` survives the `evm-shaped` phase boundary
+
+error: aborting due to 5 previous errors
+

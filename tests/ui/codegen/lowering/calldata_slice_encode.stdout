@@ -1,5 +1,5 @@
-// === ROOT/tests/ui/codegen/calldata_slice_encode.sol:CalldataSliceEncode ===
-; module @CalldataSliceEncode
+// === ROOT/tests/ui/codegen/lowering/calldata_slice_encode.sol:CalldataSliceEncode ===
+@module CalldataSliceEncode
 fn @encode(arg0: calldataslice, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize

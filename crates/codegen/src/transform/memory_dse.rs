@@ -454,20 +454,15 @@ impl MemoryStoreEliminator {
                 if let Some(cached_copy) = cached.get(&key).copied()
                     && Self::copy_dominates(cfg.dominators(), cached_copy, block_id, index)
                 {
-                    if let Some(cached_copy) = cached.get(&key).copied()
-                        && Self::copy_dominates(cfg.dominators(), cached_copy, block_id, index)
-                    {
-                        replacements.insert(loaded_value, cached_copy.value);
-                        func.instructions[codecopy].kind =
-                            InstKind::MStore(dest, cached_copy.value);
-                        dead.insert(load);
-                        self.eliminated_count += 1;
-                    } else {
-                        cached.insert(
-                            key,
-                            CachedImmutableCopy { block: block_id, index, value: loaded_value },
-                        );
-                    }
+                    replacements.insert(loaded_value, cached_copy.value);
+                    func.instructions[codecopy].kind = InstKind::MStore(dest, cached_copy.value);
+                    dead.insert(load);
+                    self.eliminated_count += 1;
+                } else {
+                    cached.insert(
+                        key,
+                        CachedImmutableCopy { block: block_id, index, value: loaded_value },
+                    );
                 }
             }
         }
@@ -598,6 +593,8 @@ impl MemoryStoreEliminator {
                         if scratch.overwritten.contains(&key) {
                             scratch.dead.insert(inst_id);
                             self.eliminated_count += 1;
+                        } else {
+                            scratch.overwritten.insert(key);
                         }
                     } else {
                         scratch.overwritten.clear();
@@ -1063,8 +1060,12 @@ impl MemoryStoreEliminator {
             match &inst.kind {
                 InstKind::MStore(addr, value) => {
                     if let Some(key) = self.mem_addr_key(func, *addr) {
-                        if !self.remove_overlapping_write_range(func, &mut scratch.stored_values, *addr, 32)
-                        {
+                        if !self.remove_overlapping_write_range(
+                            func,
+                            &mut scratch.stored_values,
+                            *addr,
+                            32,
+                        ) {
                             scratch.stored_values.clear();
                             continue;
                         }
@@ -1083,10 +1084,9 @@ impl MemoryStoreEliminator {
                         continue;
                     };
                     Self::remove_overlapping_map(&mut scratch.stored_values, key);
-                    scratch.stored_values.insert(
-                        key,
-                        mir_utils::resolve_replacement(*value, &scratch.replacements),
-                    );
+                    scratch
+                        .stored_values
+                        .insert(key, mir_utils::resolve_replacement(*value, &scratch.replacements));
                 }
                 InstKind::MLoad(addr) => {
                     let Some(key) = self.mem_addr_key(func, *addr) else {
@@ -1114,7 +1114,12 @@ impl MemoryStoreEliminator {
                     }
                 }
                 InstKind::MStore8(addr, _)
-                    if !self.remove_overlapping_write_range(func, &mut scratch.stored_values, *addr, 1) =>
+                    if !self.remove_overlapping_write_range(
+                        func,
+                        &mut scratch.stored_values,
+                        *addr,
+                        1,
+                    ) =>
                 {
                     scratch.stored_values.clear();
                 }
@@ -1125,7 +1130,12 @@ impl MemoryStoreEliminator {
                         scratch.stored_values.clear();
                         continue;
                     };
-                    if !self.remove_overlapping_write_range(func, &mut scratch.stored_values, *dest, size) {
+                    if !self.remove_overlapping_write_range(
+                        func,
+                        &mut scratch.stored_values,
+                        *dest,
+                        size,
+                    ) {
                         scratch.stored_values.clear();
                     }
                 }
@@ -1134,7 +1144,12 @@ impl MemoryStoreEliminator {
                         scratch.stored_values.clear();
                         continue;
                     };
-                    if !self.remove_overlapping_write_range(func, &mut scratch.stored_values, *dest, size) {
+                    if !self.remove_overlapping_write_range(
+                        func,
+                        &mut scratch.stored_values,
+                        *dest,
+                        size,
+                    ) {
                         scratch.stored_values.clear();
                     }
                 }

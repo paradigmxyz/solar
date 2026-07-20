@@ -1,5 +1,5 @@
-// === ROOT/tests/ui/codegen/abi_decode_dynamic_tuple.sol:AbiDecodeDynamicTuple ===
-; module @AbiDecodeDynamicTuple
+// === ROOT/tests/ui/codegen/lowering/abi_decode_dynamic_tuple.sol:AbiDecodeDynamicTuple ===
+@module AbiDecodeDynamicTuple
 fn @decode(arg0: memorybytes) {
   bb0 (entry):
     v0 = calldatasize
