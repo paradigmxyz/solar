@@ -1157,11 +1157,11 @@ bb34:
   add
   push 64
   mload
-  dup2
-  dup2
   dup1
   push 512
   mstore
+  dup2
+  dup2
   add
   swap2
   pop
@@ -1672,6 +1672,9 @@ bb62:
 bb69:
   push 64
   mload
+  dup1
+  push 0x440
+  mstore
   push 32
   dup2
   mstore

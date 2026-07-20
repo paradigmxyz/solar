@@ -82,42 +82,56 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = calldataload 68
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    br v5, bb4, bb3
+    v3 = slice_ptr arg0
+    v4 = slice_len arg0
+    mstore 128, v3
+    mstore 160, v4
+    v5 = calldataload 68
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
+    v7 = eq v5, v6
+    br v7, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v6 = slice_ptr arg0
-    v7 = slice_len arg0
-    v8 = lt v7, arg1
-    br v8, bb5, bb6
+    v8 = mload 128
+    v9 = mload 160
+    v10 = make_calldata_slice v8, v9
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = lt v12, arg1
+    br v13, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v9 = sub v7, arg1
-    v10 = add v6, arg1
-    v11 = make_calldata_slice v10, v9
-    v12 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v11
-    v13 = slice_ptr v12
-    v14 = slice_len v12
+    v14 = sub v12, arg1
+    v15 = add v11, arg1
+    v16 = make_calldata_slice v15, v14
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    mstore 128, v17
+    mstore 160, v18
+    v19 = mload 128
+    v20 = mload 160
+    v21 = make_calldata_slice v19, v20
+    v22 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v21
+    v23 = slice_ptr v22
+    v24 = slice_len v22
     mstore 0, arg2 !metadata(memory=scratch)
-    mstore 32, v13 !metadata(memory=scratch)
-    v15 = mload 0 !metadata(memory=scratch)
-    v16 = gas
-    v17 = mload 32 !metadata(memory=scratch)
-    v18 = call v16, v15, 0, v17, v14, 0, 32
-    v19 = iszero v18
-    br v19, bb7, bb8
+    mstore 32, v23 !metadata(memory=scratch)
+    v25 = mload 0 !metadata(memory=scratch)
+    v26 = gas
+    v27 = mload 32 !metadata(memory=scratch)
+    v28 = call v26, v25, 0, v27, v24, 0, 32
+    v29 = iszero v28
+    br v29, bb7, bb8
   bb7:
-    v20 = returndatasize
-    returndatacopy 0, 0, v20 !metadata(memory=scratch)
-    revert 0, v20
+    v30 = returndatasize
+    returndatacopy 0, 0, v30 !metadata(memory=scratch)
+    revert 0, v30
   bb8:
-    v21 = mload 0 !metadata(memory=scratch)
+    v31 = mload 0 !metadata(memory=scratch)
     stop
 }
 

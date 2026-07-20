@@ -48,7 +48,7 @@ impl<'gcx> Lowerer<'gcx> {
             return builder.sload(element_slot);
         }
 
-        if let Some((slice, is_bytes)) = self.calldata_dyn_slice(base) {
+        if let Some((slice, is_bytes)) = self.calldata_dyn_slice(builder, base) {
             let index_val = self.lower_index_or_zero(builder, index);
             let len = builder.slice_len(slice);
             self.emit_index_bounds_check(builder, index_val, len);

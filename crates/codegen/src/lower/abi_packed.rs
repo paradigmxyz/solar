@@ -110,11 +110,11 @@ impl<'gcx> Lowerer<'gcx> {
             // Calldata `bytes`/`string`: copy into a `[len][data]` memory buffer
             // and pack its data like any other dynamic bytes value.
             if self.expr_is_calldata_dynamic_bytes(arg) {
-                if let Some((slice, _)) = self.calldata_dyn_slice(arg) {
+                if let Some((slice, _)) = self.calldata_dyn_slice(builder, arg) {
                     let ptr = self.materialize_calldata_bytes(builder, slice);
                     packed_args.push(PackedAbiArg::DynamicBytes(ptr));
                 } else if let ExprKind::Slice(base, low, high) = &arg.kind
-                    && let Some((slice, _)) = self.calldata_dyn_slice(base)
+                    && let Some((slice, _)) = self.calldata_dyn_slice(builder, base)
                 {
                     // A slice `base[low:high]` of calldata bytes.
                     let start = (*low).map(|e| self.lower_expr(builder, e));

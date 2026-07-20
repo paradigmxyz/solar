@@ -76,6 +76,11 @@ pub(crate) struct Lowerer<'gcx> {
     /// Mapping from HIR variable IDs to memory offsets (for mutable locals).
     /// Memory layout: starts at offset 0x80 (after scratch space).
     local_memory_slots: FxHashMap<VariableId, u64>,
+    /// Reassignable calldata `bytes`/`string`/array locals whose two-word
+    /// local slot holds the logical slice as `[ptr][len]`. Rebinding stores
+    /// both words, so every CFG join reads one merged representation while
+    /// the value stays a lazy slice.
+    slice_slot_locals: FxHashSet<VariableId>,
     /// Next available memory offset for locals.
     next_local_memory_offset: u64,
     /// Bytecodes of other contracts (for `new` expressions).
@@ -167,6 +172,7 @@ impl<'gcx> Lowerer<'gcx> {
             next_immutable_offset: 0,
             locals: FxHashMap::default(),
             local_memory_slots: FxHashMap::default(),
+            slice_slot_locals: FxHashSet::default(),
             next_local_memory_offset: EvmMemoryLayout::HEAP_START,
             contract_bytecodes: FxHashMap::default(),
             loop_stack: Vec::new(),
@@ -237,6 +243,50 @@ impl<'gcx> Lowerer<'gcx> {
         self.next_local_memory_offset += EvmMemoryLayout::WORD_SIZE;
         self.local_memory_slots.insert(var_id, offset);
         offset
+    }
+
+    /// Allocates a two-word memory slot holding a logical slice as
+    /// `[ptr][len]` and returns the base offset.
+    pub fn alloc_local_slice_memory(&mut self, var_id: VariableId) -> u64 {
+        let offset = self.next_local_memory_offset;
+        self.next_local_memory_offset += 2 * EvmMemoryLayout::WORD_SIZE;
+        self.local_memory_slots.insert(var_id, offset);
+        self.slice_slot_locals.insert(var_id);
+        offset
+    }
+
+    /// Whether `var_id` is a reassignable local whose slot holds a slice.
+    pub fn is_slice_slot_local(&self, var_id: &VariableId) -> bool {
+        self.slice_slot_locals.contains(var_id)
+    }
+
+    /// Stores a logical slice into its two-word local slot.
+    pub(crate) fn store_slice_slot(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        offset: u64,
+        slice: ValueId,
+    ) {
+        let ptr = builder.slice_ptr(slice);
+        let len = builder.slice_len(slice);
+        let ptr_addr = self.local_memory_addr(builder, offset);
+        builder.mstore(ptr_addr, ptr);
+        let len_addr = self.local_memory_addr(builder, offset + EvmMemoryLayout::WORD_SIZE);
+        builder.mstore(len_addr, len);
+    }
+
+    /// Reloads a logical slice from its two-word local slot.
+    pub(crate) fn load_slice_slot(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        offset: u64,
+        location: crate::mir::SliceLocation,
+    ) -> ValueId {
+        let ptr_addr = self.local_memory_addr(builder, offset);
+        let ptr = builder.mload(ptr_addr);
+        let len_addr = self.local_memory_addr(builder, offset + EvmMemoryLayout::WORD_SIZE);
+        let len = builder.mload(len_addr);
+        builder.make_slice(ptr, len, location)
     }
 
     /// Gets the memory offset for a local variable, if it's stored in memory.
@@ -550,6 +600,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         let saved_locals = std::mem::take(&mut self.locals);
         let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
+        let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
         let saved_next_local_memory_offset = self.next_local_memory_offset;
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
         let saved_current_contract_id = self.current_contract_id;
@@ -566,6 +617,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.locals = saved_locals;
         self.local_memory_slots = saved_local_memory_slots;
+        self.slice_slot_locals = saved_slice_slot_locals;
         self.next_local_memory_offset = saved_next_local_memory_offset;
         self.assigned_vars = saved_assigned_vars;
         self.current_contract_id = saved_current_contract_id;
@@ -704,6 +756,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         let saved_locals = std::mem::take(&mut self.locals);
         let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
+        let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
         let saved_next_local_memory_offset = self.next_local_memory_offset;
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
         let saved_current_contract_id = self.current_contract_id;
@@ -718,6 +771,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.locals = saved_locals;
         self.local_memory_slots = saved_local_memory_slots;
+        self.slice_slot_locals = saved_slice_slot_locals;
         self.next_local_memory_offset = saved_next_local_memory_offset;
         self.assigned_vars = saved_assigned_vars;
         self.current_contract_id = saved_current_contract_id;
@@ -771,6 +825,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.locals.clear();
         self.local_memory_slots.clear();
+        self.slice_slot_locals.clear();
         self.next_local_memory_offset = EvmMemoryLayout::HEAP_START;
         self.assigned_vars.clear();
         self.lowering_constructor = hir_func.kind == hir::FunctionKind::Constructor;
@@ -1041,7 +1096,17 @@ impl<'gcx> Lowerer<'gcx> {
                             abi_param_source,
                         );
                     }
-                    self.locals.insert(param_id, head_or_value);
+                    if Self::calldata_dynamic_var_kind(param).is_some()
+                        && self.is_var_assigned(&param_id)
+                    {
+                        // A rebindable calldata slice needs one representation
+                        // on every CFG path: give it a two-word slot instead
+                        // of a lexical SSA binding.
+                        let offset = self.alloc_local_slice_memory(param_id);
+                        self.store_slice_slot(&mut builder, offset, head_or_value);
+                    } else {
+                        self.locals.insert(param_id, head_or_value);
+                    }
                     // A storage-reference parameter (`mapping`/`storage`) is passed
                     // by slot: its value *is* the base slot, so mark it so mapping
                     // indexing and struct/array reads through it use storage, and

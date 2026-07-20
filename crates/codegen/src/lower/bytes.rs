@@ -64,7 +64,8 @@ impl<'gcx> Lowerer<'gcx> {
             let slice = self.lower_expr(builder, expr);
             return self.materialize_calldata_bytes(builder, slice);
         }
-        self.lower_expr(builder, expr)
+        let value = self.lower_expr(builder, expr);
+        self.coerce_memory_slice_value(builder, value)
     }
 
     /// Copies a calldata `bytes`/`string` parameter into Solidity's memory
@@ -101,6 +102,62 @@ impl<'gcx> Lowerer<'gcx> {
         let data_pos = builder.slice_ptr(slice);
         builder.calldatacopy(data_ptr, data_pos, len);
         ptr
+    }
+
+    /// Whether a lowered value is a logical memory slice (an ABI-encode
+    /// payload) rather than a `[length][data...]` bytes pointer.
+    pub(super) fn value_is_memory_slice(builder: &FunctionBuilder<'_>, value: ValueId) -> bool {
+        use crate::mir::{MirType, SliceLocation, Value};
+        let func = builder.func();
+        let ty = match func.value(value) {
+            Value::Arg { ty, .. } | Value::Undef(ty) => Some(*ty),
+            Value::Inst(inst_id) => func.instructions[*inst_id].result_ty,
+            Value::Immediate(_) | Value::Error(_) => None,
+        };
+        matches!(ty, Some(MirType::Slice(SliceLocation::Memory)))
+    }
+
+    /// Adapts a logical memory slice to Solidity's `[length][data...]` memory
+    /// bytes layout. ABI-encode payloads are memory slices; a `bytes memory`
+    /// consumer needs a real length-prefixed object.
+    pub(super) fn materialize_memory_slice_bytes(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slice: ValueId,
+    ) -> ValueId {
+        let len = builder.slice_len(slice);
+
+        let word_size = builder.imm_u64(32);
+        let thirty_one = builder.imm_u64(31);
+        let rounded = builder.add(len, thirty_one);
+        let rounded_overflow = builder.lt(rounded, len);
+        self.emit_panic_if(builder, rounded_overflow, PanicCode::MemoryAllocationOverflow);
+        let mask = builder.not(thirty_one);
+        let padded = builder.and(rounded, mask);
+        let total_size = builder.add(word_size, padded);
+        let total_overflow = builder.lt(total_size, padded);
+        self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
+
+        let ptr = self.allocate_memory_object_dynamic(builder, total_size, MemoryObjectKind::Bytes);
+        builder.mstore(ptr, len);
+        let data_ptr = builder.add(ptr, word_size);
+        let data_pos = builder.slice_ptr(slice);
+        self.mcopy(builder, data_ptr, data_pos, len, None);
+        ptr
+    }
+
+    /// Coerces a lowered value into a `bytes memory` consumer's shape: a
+    /// logical memory slice materializes as a length-prefixed object, anything
+    /// else already is one word.
+    pub(super) fn coerce_memory_slice_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+    ) -> ValueId {
+        if Self::value_is_memory_slice(builder, value) {
+            return self.materialize_memory_slice_bytes(builder, value);
+        }
+        value
     }
 
     /// Copies calldata bytes whose absolute length-word position is `len_pos`
@@ -226,7 +283,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> ValueId {
-        if let Some((slice, false)) = self.calldata_dyn_slice(expr) {
+        if let Some((slice, false)) = self.calldata_dyn_slice(builder, expr) {
             if let Some(ty) = self.get_expr_type(expr)
                 && let TyKind::DynArray(elem) | TyKind::Slice(elem) = ty.peel_refs().kind
                 && !self.abi_is_word_element(elem)

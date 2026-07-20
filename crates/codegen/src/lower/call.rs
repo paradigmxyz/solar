@@ -517,6 +517,53 @@ impl<'gcx> Lowerer<'gcx> {
                 // Returns bytes memory (length + data)
                 self.lower_abi_encode_packed(builder, args)
             }
+            Builtin::AbiEncodeWithSelector => {
+                // A selector-prefixed payload adapted to a `bytes memory`
+                // value: `[length][selector + ABI tuple encoding]`.
+                let mut exprs = args.exprs();
+                if let Some(selector_expr) = exprs.next() {
+                    // `bytes4` values are left-aligned words.
+                    let selector = self.lower_expr(builder, selector_expr);
+                    let arg_exprs: Vec<_> = exprs.collect();
+                    if let Some((data, len)) =
+                        self.abi_encode_call_payload(builder, Some(selector), &arg_exprs)
+                    {
+                        let slice =
+                            builder.make_slice(data, len, crate::mir::SliceLocation::Memory);
+                        return self.materialize_memory_slice_bytes(builder, slice);
+                    }
+                }
+                self.err_value(
+                    builder,
+                    args.span,
+                    "codegen does not support these `abi.encodeWithSelector` arguments yet",
+                )
+            }
+            Builtin::AbiEncodeWithSignature => {
+                let mut exprs = args.exprs();
+                if let Some(sig_expr) = exprs.next()
+                    && let hir::ExprKind::Lit(lit) = &sig_expr.kind
+                    && let solar_ast::LitKind::Str(_, sig, _) = &lit.kind
+                {
+                    let hash = alloy_primitives::keccak256(sig.as_byte_str());
+                    let selector =
+                        U256::from(u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]])) << 224;
+                    let selector = builder.imm_u256(selector);
+                    let arg_exprs: Vec<_> = exprs.collect();
+                    if let Some((data, len)) =
+                        self.abi_encode_call_payload(builder, Some(selector), &arg_exprs)
+                    {
+                        let slice =
+                            builder.make_slice(data, len, crate::mir::SliceLocation::Memory);
+                        return self.materialize_memory_slice_bytes(builder, slice);
+                    }
+                }
+                self.err_value(
+                    builder,
+                    args.span,
+                    "codegen does not support these `abi.encodeWithSignature` arguments yet",
+                )
+            }
             Builtin::AbiDecode => self.lower_abi_decode(builder, args),
             Builtin::YulAdd
             | Builtin::YulSub
@@ -1519,7 +1566,10 @@ impl<'gcx> Lowerer<'gcx> {
                 {
                     slot
                 } else {
-                    self.lower_expr(builder, arg)
+                    // A `bytes memory` parameter receives one word; an
+                    // ABI-encode payload (a memory slice) materializes first.
+                    let value = self.lower_expr(builder, arg);
+                    self.coerce_memory_slice_value(builder, value)
                 }
             })
             .collect();

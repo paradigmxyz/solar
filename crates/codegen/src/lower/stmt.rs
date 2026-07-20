@@ -247,6 +247,13 @@ impl<'gcx> Lowerer<'gcx> {
             self.is_var_assigned(&var_id) || (has_external_call && !is_struct_type);
 
         if needs_local_memory {
+            if Lowerer::calldata_dynamic_var_kind(var).is_some() {
+                // A rebindable calldata slice local keeps its two words in a
+                // dedicated slot so joins read one merged representation.
+                let offset = self.alloc_local_slice_memory(var_id);
+                self.store_slice_slot(builder, offset, initial_value);
+                return;
+            }
             let offset = self.alloc_local_memory(var_id);
             let offset_val = self.local_memory_addr(builder, offset);
             builder.mstore(offset_val, initial_value);

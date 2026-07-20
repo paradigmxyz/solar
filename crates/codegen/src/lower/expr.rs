@@ -492,7 +492,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Slice(base, start, end) => {
-                if let Some((slice, is_bytes)) = self.calldata_dyn_slice(base) {
+                if let Some((slice, is_bytes)) = self.calldata_dyn_slice(builder, base) {
                     let base_ptr = builder.slice_ptr(slice);
                     let base_len = builder.slice_len(slice);
                     let start_val = start
@@ -585,6 +585,13 @@ impl<'gcx> Lowerer<'gcx> {
 
                     // Check if it's a local variable stored in memory
                     if let Some(offset) = self.get_local_memory_offset(var_id) {
+                        if self.is_slice_slot_local(var_id) {
+                            return self.load_slice_slot(
+                                builder,
+                                offset,
+                                crate::mir::SliceLocation::Calldata,
+                            );
+                        }
                         let offset_val = self.local_memory_addr(builder, offset);
                         return builder.mload(offset_val);
                     }
@@ -927,7 +934,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         // Calldata dynamic array/bytes carry their decoded length in the slice.
-        if let Some((slice, _)) = self.calldata_dyn_slice(base) {
+        if let Some((slice, _)) = self.calldata_dyn_slice(builder, base) {
             return Some(builder.slice_len(slice));
         }
 
@@ -1284,6 +1291,10 @@ impl<'gcx> Lowerer<'gcx> {
 
                     // Check if it's a local variable stored in memory
                     if let Some(offset) = self.get_local_memory_offset(var_id) {
+                        if self.is_slice_slot_local(var_id) {
+                            self.store_slice_slot(builder, offset, rhs);
+                            return;
+                        }
                         let offset_val = self.local_memory_addr(builder, offset);
                         builder.mstore(offset_val, rhs);
                     } else if self.locals.contains_key(var_id) {
@@ -1678,7 +1689,11 @@ impl<'gcx> Lowerer<'gcx> {
     ///
     /// Fixed-size calldata array parameters are not ABI heads: they are decoded to memory in
     /// the function prologue and take the regular memory path.
-    pub(super) fn calldata_dyn_slice(&self, expr: &hir::Expr<'_>) -> Option<(ValueId, bool)> {
+    pub(super) fn calldata_dyn_slice(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> Option<(ValueId, bool)> {
         let ExprKind::Ident(res_slice) = &expr.kind else { return None };
         let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
             return None;
@@ -1687,8 +1702,14 @@ impl<'gcx> Lowerer<'gcx> {
         if var.data_location != Some(solar_ast::DataLocation::Calldata) {
             return None;
         }
+        let is_bytes = Self::calldata_dynamic_var_kind(var)?;
+        if self.is_slice_slot_local(var_id) {
+            let offset = self.get_local_memory_offset(var_id)?;
+            let slice = self.load_slice_slot(builder, offset, crate::mir::SliceLocation::Calldata);
+            return Some((slice, is_bytes));
+        }
         let slice = self.locals.get(var_id).copied()?;
-        Self::calldata_dynamic_var_kind(var).map(|is_bytes| (slice, is_bytes))
+        Some((slice, is_bytes))
     }
 
     pub(super) fn calldata_dynamic_var_kind(var: &hir::Variable<'_>) -> Option<bool> {

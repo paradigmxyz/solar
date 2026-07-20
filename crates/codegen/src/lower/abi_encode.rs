@@ -319,7 +319,7 @@ impl<'gcx> Lowerer<'gcx> {
         let mut items = Vec::with_capacity(arg_exprs.len());
         let mut calldata_slices = FxHashSet::default();
         for (arg, ty) in arg_exprs.iter().zip(tys) {
-            let value = if let Some((slice, is_bytes)) = self.calldata_dyn_slice(arg)
+            let value = if let Some((slice, is_bytes)) = self.calldata_dyn_slice(builder, arg)
                 && (is_bytes
                     || matches!(ty.peel_refs().kind, TyKind::DynArray(elem) if self.abi_is_word_element(elem)))
             {
@@ -477,7 +477,7 @@ impl<'gcx> Lowerer<'gcx> {
         expr: &solar_sema::hir::Expr<'_>,
         ty: Ty<'gcx>,
     ) -> ValueId {
-        if let Some((slice, is_bytes)) = self.calldata_dyn_slice(expr) {
+        if let Some((slice, is_bytes)) = self.calldata_dyn_slice(builder, expr) {
             return if is_bytes {
                 self.materialize_calldata_bytes(builder, slice)
             } else {
@@ -508,7 +508,8 @@ impl<'gcx> Lowerer<'gcx> {
         {
             return ptr;
         }
-        self.lower_expr(builder, expr)
+        let value = self.lower_expr(builder, expr);
+        self.coerce_memory_slice_value(builder, value)
     }
 
     /// Decodes a storage `bytes`/`string` slot into the memory layout the ABI
