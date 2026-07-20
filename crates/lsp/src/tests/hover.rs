@@ -278,6 +278,44 @@ Record public record
 }
 
 #[test]
+fn preserves_named_mapping_keys_and_values() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Hover.sol open
+        contract C {
+            mapping(uint256 bucket => mapping(address account => uint256 amount)) private $1balances;
+
+            function read(uint256 bucket, address account) external view returns (uint256) {
+                return $2balances[bucket][account];
+            }
+        }
+        "#,
+        "/Hover.sol",
+    );
+
+    fixture.check_hover(
+        "$1",
+        str![[r#"
+1:82-1:90
+```solidity
+mapping(uint256 bucket => mapping(address account => uint256 amount)) private balances
+```
+
+"#]],
+    );
+    fixture.check_hover(
+        "$2",
+        str![[r#"
+3:15-3:23
+```solidity
+mapping(uint256 bucket => mapping(address account => uint256 amount)) private balances
+```
+
+"#]],
+    );
+}
+
+#[test]
 fn shows_variable_types_and_attributes() {
     let fixture = RequestFixture::new(
         r#"

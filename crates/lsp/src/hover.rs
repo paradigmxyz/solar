@@ -421,8 +421,14 @@ fn render_type(gcx: Gcx<'_>, ty: &hir::Type<'_>, output: &mut String) -> Option<
         hir::TypeKind::Mapping(mapping) => {
             output.push_str("mapping(");
             render_type(gcx, &mapping.key, output)?;
+            if let Some(name) = mapping.key_name {
+                write!(output, " {name}").ok()?;
+            }
             output.push_str(" => ");
             render_type(gcx, &mapping.value, output)?;
+            if let Some(name) = mapping.value_name {
+                write!(output, " {name}").ok()?;
+            }
             output.push(')');
         }
         hir::TypeKind::Custom(item_id) => {
