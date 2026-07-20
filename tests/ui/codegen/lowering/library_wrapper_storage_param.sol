@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=evm-ir-runtime
+//@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 // The external wrapper of a public library function must decode a
 // storage-reference parameter as its slot (one calldata word), not

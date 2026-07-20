@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 contract Storage {
     uint256 public count;

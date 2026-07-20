@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen --emit=hashes,evm-ir-runtime --pretty-json
+//@compile-flags: -Zcodegen --emit=hashes -Zdump=evm-ir-runtime --pretty-json
 
 type Wad is uint256;
 

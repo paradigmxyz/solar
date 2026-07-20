@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 // Packed encoding writes each value's top `size` bytes: fixed-bytes values
 // are already left-aligned and must not be shifted again, and `bytes`/

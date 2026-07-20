@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=evm-ir-runtime
+//@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 // A `public`/`external` library function called from another contract is
 // compiled by solc into the library's own runtime and reached via delegatecall

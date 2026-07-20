@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 contract AbiDecodeCalldataSlice {
     function decode(bytes calldata data) external pure returns (uint256) {

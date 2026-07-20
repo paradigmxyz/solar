@@ -332,8 +332,11 @@ pub struct UnstableOpts {
 
     /// Print additional information about the compiler's internal state.
     ///
-    /// Valid kinds are `ast`, `hir`, `mir`, and `mir-cfg`.
-    #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "KIND[=PATHS...]"))]
+    /// Valid kinds are `ast`, `hir`, `mir`, `mir-cfg`, `evm-ir`, and `evm-ir-runtime`.
+    #[cfg_attr(
+        feature = "clap",
+        arg(long, require_equals = true, value_name = "KIND[,KIND...][=PATHS...]")
+    )]
     pub dump: Option<Dump>,
 
     /// Print AST stats.
@@ -370,9 +373,9 @@ pub struct UnstableOpts {
 
     /// Enable the experimental EVM code generator (MIR lowering and backend).
     ///
-    /// Off by default: MIR and bytecode output is only produced when this is
-    /// set. Codegen is a work in progress and not yet part of the compiler's
-    /// stable, solc-compatible behavior.
+    /// Off by default: MIR and EVM IR dumps and bytecode output are only produced
+    /// when this is set. Codegen is a work in progress and not yet part of the
+    /// compiler's stable, solc-compatible behavior.
     #[cfg_attr(feature = "clap", arg(long))]
     pub codegen: bool,
 

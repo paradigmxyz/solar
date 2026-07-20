@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 contract ImmutableKeccakLiteral {
     bytes32 immutable value = keccak256("solar");

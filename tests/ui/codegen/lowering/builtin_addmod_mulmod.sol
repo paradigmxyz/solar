@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 contract AddmodMulmod {
     function am(uint x, uint y, uint n) public pure returns (uint) {

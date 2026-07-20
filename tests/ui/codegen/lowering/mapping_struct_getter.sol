@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 // The auto-generated getter for a `mapping(K => Struct) public` must read the
 // struct fields from the element's storage slot `keccak256(key, slot)`, not from

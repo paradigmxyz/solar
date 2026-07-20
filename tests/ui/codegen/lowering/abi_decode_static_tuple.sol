@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 contract AbiDecodeStaticTuple {
     function decode(bytes memory data) external pure returns (uint256 a, bool b, address c) {

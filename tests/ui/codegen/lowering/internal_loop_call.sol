@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 // A same-contract internal function whose body contains a loop, called by bare
 // ident, must be lowered as a real `internal_call` rather than inlined. The SSA

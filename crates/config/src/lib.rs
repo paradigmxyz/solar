@@ -6,7 +6,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 use std::{fmt, num::NonZeroUsize, sync::OnceLock};
-use strum::EnumIs;
 
 #[macro_use]
 mod macros;
@@ -184,27 +183,20 @@ str_enum! {
         BinRuntime,
         /// Function signature hashes.
         Hashes,
-        /// Textual Mid-Level IR.
-        Mir,
-        /// Creation EVM IR.
-        EvmIr,
-        /// Runtime EVM IR.
-        EvmIrRuntime,
     }
 }
 
 impl CompilerOutput {
-    /// Returns `true` for outputs produced by the codegen backend (which lowers
-    /// to MIR), i.e. bytecode, EVM IR, and MIR outputs.
+    /// Returns `true` for outputs produced by the codegen backend.
     pub fn is_codegen(self) -> bool {
-        matches!(self, Self::Bin | Self::BinRuntime | Self::EvmIr | Self::EvmIrRuntime | Self::Mir)
+        matches!(self, Self::Bin | Self::BinRuntime)
     }
 }
 
-/// `-Zdump=kind[=paths...]`.
+/// `-Zdump=kind[,kind...][=paths...]`.
 #[derive(Clone, Debug)]
 pub struct Dump {
-    pub kind: DumpKind,
+    pub kinds: Vec<DumpKind>,
     pub paths: Option<Vec<String>>,
 }
 
@@ -212,19 +204,22 @@ impl std::str::FromStr for Dump {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (kind, paths) = if let Some((kind, paths)) = s.split_once('=') {
+        let (kinds, paths) = if let Some((kinds, paths)) = s.split_once('=') {
             let paths = paths.split(',').map(ToString::to_string).collect();
-            (kind, Some(paths))
+            (kinds, Some(paths))
         } else {
             (s, None)
         };
-        Ok(Self { kind: kind.parse::<DumpKind>().map_err(|e| e.to_string())?, paths })
+        let kinds = kinds
+            .split(',')
+            .map(|kind| kind.parse::<DumpKind>().map_err(|e| e.to_string()))
+            .collect::<Result<_, _>>()?;
+        Ok(Self { kinds, paths })
     }
 }
 
 str_enum! {
-    /// What kind of output to dump. See [`Dump`].
-    #[derive(EnumIs)]
+    /// A kind of output to dump. See [`Dump`].
     #[strum(serialize_all = "kebab-case")]
     #[non_exhaustive]
     pub enum DumpKind {
@@ -236,13 +231,10 @@ str_enum! {
         Mir,
         /// Print MIR CFGs in DOT format.
         MirCfg,
-    }
-}
-
-impl DumpKind {
-    /// Returns whether this dump requires MIR/codegen lowering.
-    pub fn is_codegen(self) -> bool {
-        matches!(self, Self::Mir | Self::MirCfg)
+        /// Print creation EVM IR.
+        EvmIr,
+        /// Print runtime EVM IR.
+        EvmIrRuntime,
     }
 }
 

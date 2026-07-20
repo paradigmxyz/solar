@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 // Pins the per-op checked-arithmetic check shapes so they stay at or below
 // solc's happy-path gas:

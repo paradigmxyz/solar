@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 // Storage references are modeled as slot values: `Item storage r = items[k]`
 // binds the storage *slot*, so `r.a` reads/writes `sload`/`sstore(slot + off)`
