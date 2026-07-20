@@ -24,7 +24,11 @@ from pathlib import Path
 from tabulate import tabulate
 
 
-DEFAULT_RUST_LOG = "solar::codegen::evm_ir::peephole=trace,solar_codegen=debug"
+DEFAULT_RUST_LOG = (
+    "solar::codegen::evm_ir::peephole=trace,"
+    "solar::codegen::mir::inst_simplify=trace,"
+    "solar_codegen=debug"
+)
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 STACK_OP_RE = re.compile(r"^(?:DUP|SWAP)\d+$|^POP$", re.IGNORECASE)
 
@@ -70,6 +74,9 @@ def analyze(args: argparse.Namespace) -> int:
     rule_modules: dict[str, Counter[str]] = {}
     rewrites: Counter[tuple[str, str, str]] = Counter()
     ngrams: Counter[tuple[str, ...]] = Counter()
+    mir_round_runs: Counter[int] = Counter()
+    mir_round_changed: Counter[int] = Counter()
+    mir_round_simplified: Counter[int] = Counter()
     blocks = 0
 
     with open(args.log) as log:
@@ -92,6 +99,12 @@ def analyze(args: argparse.Namespace) -> int:
                 instructions = [instruction for instruction in instructions if instruction]
                 for size in range(2, args.max_pattern + 1):
                     ngrams.update(zip(*(instructions[offset:] for offset in range(size))))
+            elif "mir_inst_simplify_round" in line:
+                round_number = int(field(line, "round") or 0)
+                simplified = int(field(line, "simplified") or 0)
+                mir_round_runs[round_number] += 1
+                mir_round_changed[round_number] += simplified != 0
+                mir_round_simplified[round_number] += simplified
 
     if not rules and not hits and blocks == 0:
         print("No EVM IR peephole trace events found", file=sys.stderr)
@@ -115,6 +128,16 @@ def analyze(args: argparse.Namespace) -> int:
         ],
     )
 
+    if mir_round_runs:
+        print("MIR instruction simplifier fixpoint rounds:\n")
+        markdown_table(
+            ["Round", "Runs", "Changed runs", "Simplifications"],
+            [
+                [round_number, runs, mir_round_changed[round_number], mir_round_simplified[round_number]]
+                for round_number, runs in sorted(mir_round_runs.items())
+            ],
+        )
+
     print("<details>\n<summary>Exact rewrite patterns</summary>\n")
     markdown_table(
         ["Rule", "Input", "Output", "Hits"],
@@ -127,9 +150,15 @@ def analyze(args: argparse.Namespace) -> int:
 
     rewritten_inputs = {tuple(input_sequence.split(",")) for _, input_sequence, _ in rewrites}
 
-    def occurs_in_rewrite(pattern: tuple[str, ...]) -> bool:
+    def overlaps_rewrite(pattern: tuple[str, ...]) -> bool:
+        def contains(sequence: tuple[str, ...], subsequence: tuple[str, ...]) -> bool:
+            return any(
+                sequence[offset : offset + len(subsequence)] == subsequence
+                for offset in range(len(sequence) - len(subsequence) + 1)
+            )
+
         return any(
-            any(sequence[offset : offset + len(pattern)] == pattern for offset in range(len(sequence)))
+            contains(sequence, pattern) or contains(pattern, sequence)
             for sequence in rewritten_inputs
         )
 
@@ -138,7 +167,7 @@ def analyze(args: argparse.Namespace) -> int:
         for pattern, count in ngrams.most_common()
         if count >= args.min_count
         and any(STACK_OP_RE.match(instruction) for instruction in pattern)
-        and not occurs_in_rewrite(pattern)
+        and not overlaps_rewrite(pattern)
     ][: args.top]
     print("Frequent stack-instruction patterns not exactly matched by a recorded rewrite:\n")
     markdown_table(
