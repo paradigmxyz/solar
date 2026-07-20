@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 // Nitro-style compact hashes should stage small all-static packed data in
 // scratch memory and coalesce adjacent sub-word writes into one word store.

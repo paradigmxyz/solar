@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 contract FixedBytesCanonical {
     function fromUint(uint8 value) external pure returns (bytes1) {

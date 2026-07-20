@@ -1,4 +1,4 @@
-use solar_config::CompileOpts;
+use solar_config::{CompileOpts, DumpKind};
 use solar_interface::{Result, Session};
 use solar_sema::{CompilerRef, ParsingContext};
 use std::{ops::ControlFlow, process::ExitCode};
@@ -87,12 +87,17 @@ pub(crate) fn run_pipeline(
     // Code generation (MIR, EVM IR, and bytecode) is experimental and not part of the
     // stable, solc-compatible pipeline yet, so it is gated behind `-Zcodegen`.
     let needs_codegen = sess.opts.emit.iter().any(|e| e.is_codegen())
-        || sess.opts.unstable.dump.as_ref().is_some_and(|dump| dump.kind.is_codegen());
+        || sess.opts.unstable.dump.as_ref().is_some_and(|dump| {
+            dump.kinds.contains(&DumpKind::Mir)
+                || dump.kinds.contains(&DumpKind::MirCfg)
+                || dump.kinds.contains(&DumpKind::EvmIr)
+                || dump.kinds.contains(&DumpKind::EvmIrRuntime)
+        });
     if needs_codegen && !sess.opts.unstable.codegen {
         return Err(sess
             .dcx
             .err("code generation is experimental")
-            .help("pass `-Zcodegen` to emit or dump MIR, EVM IR, or bytecode")
+            .help("pass `-Zcodegen` to emit bytecode or dump MIR or EVM IR")
             .emit());
     }
 

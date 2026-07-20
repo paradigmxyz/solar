@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 contract InternalCallFallbacks {
     function recurse(uint256 x) public returns (uint256) {

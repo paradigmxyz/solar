@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 // Memory `bytes` uses the packed `[length][data...]` layout: `new bytes(n)`
 // allocates 32 + pad32(n) zeroed bytes (not one word per byte), element reads

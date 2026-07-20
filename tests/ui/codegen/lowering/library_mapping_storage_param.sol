@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=evm-ir-runtime
+//@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 // A `library` function may take a `mapping`/`storage` reference parameter and
 // bind a storage-reference local from it:

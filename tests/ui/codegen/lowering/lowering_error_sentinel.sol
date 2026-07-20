@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 //@check-fail
 
 // Unsupported constructs reported during lowering produce an error sentinel

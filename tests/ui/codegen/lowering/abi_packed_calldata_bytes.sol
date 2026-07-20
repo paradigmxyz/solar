@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=evm-ir-runtime
+//@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 // `abi.encodePacked(...)` may include a `bytes`/`string` calldata argument,
 // which is packed as its raw data (no length prefix, no padding). The calldata

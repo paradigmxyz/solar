@@ -1,11 +1,8 @@
 use alloy_json_abi::AbiItem;
 use alloy_primitives::Bytes;
 use solar_codegen::{Backend, EvmCodegen, EvmCodegenConfig, backend::evm::ir, lower};
-use solar_config::{CompilerOutput, DumpKind};
-use solar_data_structures::{
-    bit_set::DenseBitSet,
-    map::{FxHashMap, FxHashSet},
-};
+use solar_config::{CompilerOutput, Dump, DumpKind};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::Result;
 use solar_sema::{CompilerRef, Gcx, hir::ContractId};
 use std::{
@@ -39,10 +36,9 @@ struct CombinedJsonContract<'a> {
 
 pub(crate) fn emit_requested(compiler: &mut CompilerRef<'_>) -> Result {
     let gcx = compiler.gcx();
-    emit_mir_dump(gcx)?;
+    dump_mir(gcx)?;
     emit_combined_json(gcx)?;
-    emit_mir(gcx)?;
-    emit_evm_ir(gcx)
+    dump_evm_ir(gcx)
 }
 
 fn emit_combined_json(gcx: Gcx<'_>) -> Result {
@@ -125,40 +121,23 @@ fn contract_output_name(gcx: Gcx<'_>, id: ContractId) -> String {
     format!("{}:{}", source.file.name.display().to_string().replace('\\', "/"), contract.name)
 }
 
-fn emit_mir_dump(gcx: Gcx<'_>) -> Result {
+fn dump_mir(gcx: Gcx<'_>) -> Result {
     let sess = gcx.sess;
     let Some(dump) = &sess.opts.unstable.dump else { return Ok(()) };
-    if !matches!(dump.kind, DumpKind::Mir | DumpKind::MirCfg) {
+    if !dump.kinds.contains(&DumpKind::Mir) && !dump.kinds.contains(&DumpKind::MirCfg) {
         return Ok(());
     }
 
     let mut writer = out_writer(None)
         .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
-    if let Some(paths) = dump.paths.as_deref() {
-        let mut seen = FxHashSet::default();
-        for path in paths {
-            let mut matched = false;
-            for id in gcx.hir.contract_ids() {
-                if !is_dumpable_contract(gcx, id) || !contract_dump_path_matches(gcx, id, path) {
-                    continue;
-                }
-                matched = true;
-                if seen.insert(id) {
-                    write_mir_dump_contract(&mut writer, gcx, id, dump.kind)?;
-                }
-            }
-            if !matched {
-                let msg =
-                    format!("`-Zdump={kind}={path}` did not match any contract", kind = dump.kind);
-                let note = format!("available contracts: {}", available_dump_contracts(gcx));
-                return Err(sess.dcx.err(msg).note(note).emit());
-            }
+    for id in matching_dump_contracts(gcx, dump)? {
+        let module = lower::lower_contract(gcx, id);
+        gcx.dcx().has_errors()?;
+        if dump.kinds.contains(&DumpKind::Mir) {
+            write_mir_dump_contract(&mut writer, gcx, id, &module, DumpKind::Mir)?;
         }
-    } else {
-        for id in gcx.hir.contract_ids() {
-            if is_dumpable_contract(gcx, id) {
-                write_mir_dump_contract(&mut writer, gcx, id, dump.kind)?;
-            }
+        if dump.kinds.contains(&DumpKind::MirCfg) {
+            write_mir_dump_contract(&mut writer, gcx, id, &module, DumpKind::MirCfg)?;
         }
     }
     writer.flush().map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
@@ -182,14 +161,41 @@ fn contract_dump_path_matches(gcx: Gcx<'_>, id: ContractId, path: &str) -> bool 
     path == gcx.contract_fully_qualified_name(id).to_string().replace('\\', "/")
 }
 
+fn matching_dump_contracts(gcx: Gcx<'_>, dump: &Dump) -> Result<Vec<ContractId>> {
+    let Some(paths) = dump.paths.as_deref() else {
+        return Ok(gcx.hir.contract_ids().filter(|&id| is_dumpable_contract(gcx, id)).collect());
+    };
+
+    let mut seen = DenseBitSet::new_empty(gcx.hir.contract_ids().len());
+    let mut contracts = Vec::new();
+    for path in paths {
+        let mut matched = false;
+        for id in gcx.hir.contract_ids() {
+            if !is_dumpable_contract(gcx, id) || !contract_dump_path_matches(gcx, id, path) {
+                continue;
+            }
+            matched = true;
+            if seen.insert(id) {
+                contracts.push(id);
+            }
+        }
+        if !matched {
+            let kinds = dump.kinds.iter().map(ToString::to_string).collect::<Vec<_>>().join(",");
+            let msg = format!("`-Zdump={kinds}={path}` did not match any contract");
+            let note = format!("available contracts: {}", available_dump_contracts(gcx));
+            return Err(gcx.sess.dcx.err(msg).note(note).emit());
+        }
+    }
+    Ok(contracts)
+}
+
 fn write_mir_dump_contract(
     writer: &mut impl Write,
     gcx: Gcx<'_>,
     id: ContractId,
+    module: &solar_codegen::mir::Module,
     kind: DumpKind,
 ) -> Result {
-    let module = lower::lower_contract(gcx, id);
-    gcx.dcx().has_errors()?;
     let name = gcx.contract_fully_qualified_name(id);
     writeln!(writer, "// === {name} ===")
         .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
@@ -211,44 +217,16 @@ fn available_dump_contracts(gcx: Gcx<'_>) -> String {
         .join(", ")
 }
 
-fn emit_mir(gcx: Gcx<'_>) -> Result {
+fn dump_evm_ir(gcx: Gcx<'_>) -> Result {
     let sess = gcx.sess;
-    if !sess.opts.emit.contains(&CompilerOutput::Mir) {
+    let Some(dump) = &sess.opts.unstable.dump else { return Ok(()) };
+    if !dump.kinds.contains(&DumpKind::EvmIr) && !dump.kinds.contains(&DumpKind::EvmIrRuntime) {
         return Ok(());
     }
 
-    let out_path = sess.opts.out_dir.as_deref().map(|dir| dir.join("combined.mir"));
-    let mut writer = out_writer(out_path.as_deref())
-        .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
-    for id in gcx.hir.contract_ids() {
-        let contract = gcx.hir.contract(id);
-        if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
-            continue;
-        }
-        let module = lower::lower_contract(gcx, id);
-        gcx.dcx().has_errors()?;
-        let name = gcx.contract_fully_qualified_name(id);
-        writeln!(writer, "// === {name} ===")
-            .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
-        writeln!(writer, "{}", module.to_text())
-            .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
-    }
-    writer.flush().map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
-
-    Ok(())
-}
-
-fn emit_evm_ir(gcx: Gcx<'_>) -> Result {
-    let sess = gcx.sess;
-    let emit_deployment = sess.opts.emit.contains(&CompilerOutput::EvmIr);
-    let emit_runtime = sess.opts.emit.contains(&CompilerOutput::EvmIrRuntime);
-    if !emit_deployment && !emit_runtime {
-        return Ok(());
-    }
-
+    let contracts = matching_dump_contracts(gcx, dump)?;
     let bytecodes = generate_contract_bytecodes(gcx, true)?;
-    let out_path = sess.opts.out_dir.as_deref().map(|dir| dir.join("combined.evmir"));
-    let mut writer = out_writer(out_path.as_deref())
+    let mut writer = out_writer(None)
         .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     if sess.opts.out_dir.is_none()
         && sess
@@ -260,16 +238,16 @@ fn emit_evm_ir(gcx: Gcx<'_>) -> Result {
         writeln!(writer)
             .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     }
-    for id in gcx.hir.contract_ids() {
+    for id in contracts {
         let Some(bytecode) = bytecodes.get(&id) else { continue };
         let name = gcx.contract_fully_qualified_name(id);
-        if emit_deployment {
+        if dump.kinds.contains(&DumpKind::EvmIr) {
             writeln!(writer, "// === {name} (creation) ===")
                 .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
             write!(writer, "{}", bytecode.deployment_evm_ir.as_deref().unwrap_or_default())
                 .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
         }
-        if emit_runtime {
+        if dump.kinds.contains(&DumpKind::EvmIrRuntime) {
             writeln!(writer, "// === {name} (runtime) ===")
                 .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
             write!(writer, "{}", bytecode.runtime_evm_ir.as_deref().unwrap_or_default())

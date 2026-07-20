@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 // Functions returning a memory reference can now recurse: the return is a
 // 32-byte pointer that flows through the internal-frame slots, and callee heap

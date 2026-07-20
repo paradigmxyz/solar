@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=evm-ir-runtime
+//@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 // A low-level call may take a `bytes calldata` value as its call data, e.g. a
 // proxy fallback `impl.delegatecall(data)` with `bytes calldata data` (aave-v3

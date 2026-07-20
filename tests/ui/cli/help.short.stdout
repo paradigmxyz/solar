@@ -18,7 +18,7 @@ Options:
   -O, --optimize <OPTIMIZATION>    MIR optimization objective [default: gas] [possible values: none, gas, size]
       --libraries <NAME=ADDRESS>   Library addresses for linking, as `LibraryName=0xADDRESS`
       --out-dir <OUT_DIR>          Directory to write output files
-      --emit <EMIT>                Comma separated list of types of output for the compiler to emit [possible values: abi, bin, bin-runtime, hashes, mir, evm-ir, evm-ir-runtime]
+      --emit <EMIT>                Comma separated list of types of output for the compiler to emit [possible values: abi, bin, bin-runtime, hashes]
       --standard-json              Switch to Standard JSON input/output mode
   -Z <FLAG>                        Unstable flags. WARNING: these are completely unstable, and may change at any time
   -h, --help                       Print help (see more with '--help')

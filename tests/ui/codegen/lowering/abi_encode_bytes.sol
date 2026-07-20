@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 // `abi.encode(...)` allocates a fresh `bytes memory` `[length][data...]` from
 // the free memory pointer; it must never stage argument words at absolute low

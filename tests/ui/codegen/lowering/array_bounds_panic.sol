@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 // Array indexing emits a bounds check that reverts with Panic(0x32)
 // (selector 0x4e487b71, code 0x32) when `index >= length`, matching solc:

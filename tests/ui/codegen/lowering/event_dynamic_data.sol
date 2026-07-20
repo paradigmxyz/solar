@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 contract EventDynamicData {
     event Text(uint256 indexed id, string message, uint256 count);

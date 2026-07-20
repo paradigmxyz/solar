@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 //@filecheck: --check-prefix=MIR
 
 // Emitting an overloaded event must use the overload selected by the type

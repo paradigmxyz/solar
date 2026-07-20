@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=evm-ir-runtime
+//@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 // A calldata dynamic array converted to memory (declaration initializer,
 // assignment, or a struct-literal field) must materialize as a

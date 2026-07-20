@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 // `using L for S` attached calls on a struct (a reference type) must resolve to
 // the library function — previously the receiver's `Ref(Struct, loc)` type

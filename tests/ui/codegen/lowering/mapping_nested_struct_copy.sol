@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 //@filecheck: --check-prefix=STRUCT
 
 // Mapping values that are structs use a runtime-computed base slot. Copy the

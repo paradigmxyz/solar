@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 contract CheckedArithmeticPanic {
     function add(uint256 a, uint256 b) public pure returns (uint256) {
