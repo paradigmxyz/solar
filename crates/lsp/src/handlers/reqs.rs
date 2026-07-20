@@ -13,7 +13,7 @@ use lsp_types::{
     InlayHint, InlayHintParams, OneOf, OptionalVersionedTextDocumentIdentifier, Position,
     PrepareRenameResponse, ReferenceParams, RenameParams, SignatureHelp, SignatureHelpParams,
     TextDocumentEdit, TextDocumentPositionParams, TextEdit, Url, WorkspaceEdit,
-    WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    WorkspaceSymbolParams, WorkspaceSymbolResponse, request::GotoImplementationParams,
 };
 use solar_interface::{data_structures::sync::RwLock, source_map::SourceMap};
 use solar_parse::lexer::is_ident;
@@ -252,6 +252,21 @@ pub(crate) fn goto_declaration(
         let symbol_tables = latest_analysis.await?;
         let response =
             symbol_tables.read().goto_declaration(&params.text_document.uri, params.position);
+        Ok(response)
+    }
+}
+
+pub(crate) fn goto_implementation(
+    state: &mut GlobalState,
+    params: GotoImplementationParams,
+) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
+    let params = params.text_document_position_params;
+    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response =
+            symbol_tables.read().goto_implementation(&params.text_document.uri, params.position);
         Ok(response)
     }
 }
