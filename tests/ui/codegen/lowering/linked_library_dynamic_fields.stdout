@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:L (runtime) ===
 @module runtime
 bb0 (entry):
-  push 864
+  push 928
   push 64
   mstore
   callvalue
@@ -75,6 +75,9 @@ bb6:
   add
   push 64
   mload
+  dup1
+  push 832
+  mstore
   dup2
   dup2
   add
@@ -117,6 +120,9 @@ bb6:
   push 288
   mstore
   dup2
+  dup1
+  push 832
+  mstore
   dup2
   mstore
   swap1
@@ -137,6 +143,9 @@ bb6:
   add
   push 64
   mload
+  dup1
+  push 864
+  mstore
   dup2
   dup2
   add
@@ -176,6 +185,9 @@ bb6:
   push 416
   mstore
   dup2
+  dup1
+  push 864
+  mstore
   dup2
   mstore
   swap1
@@ -606,7 +618,7 @@ bb20 [cold]:
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:C (runtime) ===
 @module runtime
 bb0 (entry):
-  push 576
+  push 736
   push 64
   mstore
   callvalue
@@ -769,10 +781,10 @@ bb13:
   dup2
   add
   dup1
-  push 416
+  push 384
   mstore
   dup1
-  push 416
+  push 384
   mstore
   dup2
   dup1
@@ -791,14 +803,14 @@ bb13:
   jump bb14
 bb14:
   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-  push 416
+  push 384
   mload
   and
   dup1
-  push 480
+  push 448
   mstore
   iszero
-  push 480
+  push 448
   mload
   push 32
   dup3
@@ -842,6 +854,9 @@ bb14:
 bb15:
   push 64
   mload
+  dup1
+  push 480
+  mstore
   push 320
   mload
   dup1
@@ -887,6 +902,9 @@ bb15:
   pop
   push 64
   mload
+  dup1
+  push 512
+  mstore
   push 128
   dup2
   add
@@ -910,6 +928,9 @@ bb15:
   dup3
   add
   dup4
+  dup1
+  push 480
+  mstore
   dup2
   mstore
   swap3
@@ -923,6 +944,9 @@ bb15:
   mstore
   push 64
   mload
+  dup1
+  push 160
+  mstore
   dup1
   push 160
   mstore
@@ -940,6 +964,9 @@ bb15:
   dup2
   mstore
   dup4
+  dup1
+  push 512
+  mstore
   mload
   swap4
   pop
@@ -976,11 +1003,11 @@ bb15:
   mstore
   pop
   dup1
-  push 512
+  push 544
   mstore
   mload
   dup1
-  push 384
+  push 416
   mstore
   push 5
   shl
@@ -988,10 +1015,10 @@ bb15:
   push 160
   mload
   add
-  push 384
+  push 416
   mload
   dup1
-  push 384
+  push 416
   mstore
   dup2
   mstore
@@ -1001,7 +1028,7 @@ bb15:
   mload
   add
   push 32
-  push 512
+  push 544
   mload
   add
   dup3
@@ -1050,7 +1077,7 @@ bb15:
   swap4
   pop
   dup1
-  push 448
+  push 576
   mstore
   dup4
   dup4
@@ -1060,7 +1087,7 @@ bb15:
   swap1
   pop
   push 32
-  push 448
+  push 576
   mload
   add
   dup2
@@ -1073,25 +1100,21 @@ bb15:
   gas
   push 32
   mload
+  dup2
+  push 640
+  mstore
+  dup1
+  push 672
+  mstore
+  dup3
+  push 704
+  mstore
   push 32
   push 0
-  push 384
-  mload
-  push 5
-  shl
-  push 192
-  add
-  push 448
-  mload
-  push 32
-  add
-  add
-  push 4
-  add
-  push 32
-  mload
+  dup5
+  dup4
   push 0x1000000000000000000000000000000000000001
-  gas
+  dup7
   delegatecall
   swap1
   pop
@@ -1176,12 +1199,12 @@ bb18 [cold]:
 bb19 [cold]:
   returndatasize
   dup1
-  push 544
+  push 608
   mstore
   push 0
   dup1
   returndatacopy
-  push 544
+  push 608
   mload
   push 0
   revert

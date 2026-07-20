@@ -96,6 +96,15 @@ impl SpillManager {
         self.stored.contains(value)
     }
 
+    /// Forgets that already-emitted code stored this value. A value carried on
+    /// the stack across a loop back edge is redefined without a store, so its
+    /// reserved slot no longer holds the current definition: the next
+    /// spill must store it again before any reload can use the slot.
+    pub(crate) fn invalidate_stored(&mut self, value: ValueId) {
+        self.reloadable.remove(value);
+        self.stored.remove(value);
+    }
+
     /// Returns the total size of the spill area in bytes.
     #[must_use]
     pub(crate) fn spill_area_size(&self) -> u32 {

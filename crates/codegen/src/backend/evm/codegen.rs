@@ -1589,13 +1589,16 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !entered_by_preserved_fallthrough {
                 if let Some(entry_stack) = block_entry_stacks.remove(&block_id) {
                     self.scheduler.stack = entry_stack;
+                    self.invalidate_carried_phi_spills(func);
                     // Live-ins not on the carried stack still arrive in memory.
                     self.mark_live_in_spills(func, liveness, block_id);
                 } else if let Some(entry) = stack_phi_plan.entries.get(&block_id) {
                     self.set_stack_to_values(entry);
+                    self.invalidate_carried_phi_spills(func);
                     self.mark_live_in_spills(func, liveness, block_id);
                 } else if let Some(entry) = global_stack_plan.entry(block_id) {
                     self.set_stack_to_values(entry);
+                    self.invalidate_carried_phi_spills(func);
                     self.mark_live_in_spills(func, liveness, block_id);
                 } else {
                     self.scheduler.clear_stack();
@@ -1628,6 +1631,19 @@ impl<'gcx> EvmCodegen<'gcx> {
                 );
                 if let Some(result) = result_value {
                     self.spill_reserved_result_if_live(func, liveness, block_id, inst_idx, result);
+                    // A free-memory-pointer load cannot be rematerialized once
+                    // the pointer moves. Park every FMP load at its
+                    // definition so later uses reload the original value —
+                    // whether the definition crosses a block on a preserved
+                    // edge or is re-materialized between two allocations in
+                    // its own block.
+                    if matches!(
+                        inst.kind,
+                        InstKind::MLoad(addr)
+                            if func.value_u64(addr) == Some(EvmMemoryLayout::FMP_SLOT)
+                    ) {
+                        self.spill_value_if_needed(func, result);
+                    }
                 }
             }
 
@@ -2295,6 +2311,25 @@ impl<'gcx> EvmCodegen<'gcx> {
         None
     }
 
+    /// Invalidates the spill bookkeeping of every phi result on a stack
+    /// restored from a carried edge. A loop-carried phi is redefined on every
+    /// re-entry without a store, so a slot stored during an earlier iteration
+    /// holds a stale definition: an exit-path use must spill the carried copy
+    /// again before anything reloads the slot. Other carried values are
+    /// immutable SSA definitions whose stored slots stay current, and
+    /// invalidating those would force later paths to recompute
+    /// memory-dependent definitions whose operands may have changed.
+    fn invalidate_carried_phi_spills(&mut self, func: &Function) {
+        let carried: Vec<ValueId> = self.scheduler.stack.iter().flatten().collect();
+        for value in carried {
+            if let crate::mir::Value::Inst(inst_id) = func.value(value)
+                && matches!(func.instructions[*inst_id].kind, InstKind::Phi(_))
+            {
+                self.scheduler.spills.invalidate_stored(value);
+            }
+        }
+    }
+
     fn mark_live_in_spills(&mut self, func: &Function, liveness: &Liveness, block_id: BlockId) {
         // Values already on the stack (carried in from a preserved predecessor
         // edge) are read directly; marking them reloadable would point at a
@@ -2318,6 +2353,17 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn spill_values_before_stack_clear(&mut self, func: &Function, values: &[ValueId]) {
         for &value in values {
             self.spill_value_if_needed(func, value);
+        }
+    }
+
+    /// Parks stack-resident operands in their spill slots before an
+    /// `emit_value_fresh` sequence. The sequence re-materializes each value,
+    /// and definitions such as free-memory-pointer loads cannot be recomputed
+    /// once memory has moved on: reaching them through a reload keeps the
+    /// original definition.
+    fn prepare_fresh_operands(&mut self, func: &Function, operands: &[ValueId]) {
+        for &operand in operands {
+            self.spill_value_if_needed(func, operand);
         }
     }
 
@@ -3144,6 +3190,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // EVM pops in order: gas (TOS), addr, value, argsOffset, argsSize, retOffset,
                 // retSize So we push in reverse order: retSize first (deepest), gas
                 // last (TOS)
+                self.prepare_fresh_operands(
+                    func,
+                    &[*gas, *addr, *value, *args_offset, *args_size, *ret_offset, *ret_size],
+                );
                 self.emit_value_fresh(func, *ret_size);
                 self.emit_value_fresh(func, *ret_offset);
                 self.emit_value_fresh(func, *args_size);
@@ -3159,6 +3209,10 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
                 // STATICCALL(gas, addr, argsOffset, argsSize, retOffset, retSize)
+                self.prepare_fresh_operands(
+                    func,
+                    &[*gas, *addr, *args_offset, *args_size, *ret_offset, *ret_size],
+                );
                 self.emit_value_fresh(func, *ret_size);
                 self.emit_value_fresh(func, *ret_offset);
                 self.emit_value_fresh(func, *args_size);
@@ -3171,6 +3225,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
+                self.prepare_fresh_operands(
+                    func,
+                    &[*gas, *addr, *args_offset, *args_size, *ret_offset, *ret_size],
+                );
                 // DELEGATECALL(gas, addr, argsOffset, argsSize, retOffset, retSize)
                 self.emit_value_fresh(func, *ret_size);
                 self.emit_value_fresh(func, *ret_offset);
@@ -4516,12 +4574,25 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.scheduler.stack.push(val);
             }
             crate::mir::Value::Inst(inst_id) => {
+                // A value carried on the live stack is the current definition;
+                // duplicate it instead of reloading or recomputing. A preserved
+                // edge can carry a value that was never spilled, and
+                // recomputing a definition such as an FMP load would observe
+                // memory that changed since the definition executed.
+                if let Some(depth) = self.scheduler.stack.find(val)
+                    && depth < MAX_STACK_ACCESS
+                {
+                    self.emit_stack_op(StackOp::Dup(depth as u8 + 1));
+                    return;
+                }
                 // For instruction results, we need to check if they're spilled
                 // or if they're instruction results that produce fresh values (like GAS, MLOAD)
                 if let Some(slot) = self.scheduler.spills.get(val)
                     && self.scheduler.spills.is_stored(val)
                 {
-                    // Load from spill slot
+                    // Load from spill slot. Reloadable covers slots whose
+                    // defining block is emitted later: the definition still
+                    // executes before any use at runtime.
                     self.emit_spill_slot_addr(func, slot);
                     self.asm.emit_op(op::MLOAD);
                     self.scheduler.stack.push(val);
@@ -4578,16 +4649,38 @@ impl<'gcx> EvmCodegen<'gcx> {
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::MLoad(offset) => {
-                            // Note: Re-emitting MLOAD(0x40) is incorrect for struct pointers
-                            // because the free memory pointer changes. However, with spill
-                            // slots now at 0x1000+ (away from dynamic allocations), values
-                            // should be properly spilled and reloaded, so we shouldn't hit
-                            // this path for struct pointers.
-                            //
-                            // For other MLOAD addresses (reading from constant locations),
-                            // re-emit is safe.
+                            // Re-reading a constant scratch location is safe, but the
+                            // free-memory-pointer word moves: a pointer defined as
+                            // `mload(0x40)` must reach this point through its spill
+                            // slot. A slot that is reloadable but not yet stored
+                            // belongs to a defining block emitted after this point
+                            // that still executes first at runtime.
+                            if func.value_u64(*offset) == Some(EvmMemoryLayout::FMP_SLOT) {
+                                if let Some(slot) = self.scheduler.spills.get(val)
+                                    && self.scheduler.spills.is_reloadable(val)
+                                {
+                                    self.emit_spill_slot_addr(func, slot);
+                                    self.asm.emit_op(op::MLOAD);
+                                    self.scheduler.stack.push(val);
+                                    return;
+                                }
+                                panic!(
+                                    "emit_value_fresh: rematerializing a stale \
+                                     free-memory-pointer load: {val:?} in `{}`",
+                                    func.name
+                                );
+                            }
                             self.emit_value_fresh(func, *offset);
                             self.asm.emit_op(op::MLOAD);
+                            // Pop offset, push result
+                            self.scheduler.stack.pop();
+                            self.scheduler.stack.push(val);
+                        }
+                        crate::mir::InstKind::CalldataLoad(offset) => {
+                            // Calldata is immutable, so re-reading it is
+                            // always safe once the address rematerializes.
+                            self.emit_value_fresh(func, *offset);
+                            self.asm.emit_op(op::CALLDATALOAD);
                             // Pop offset, push result
                             self.scheduler.stack.pop();
                             self.scheduler.stack.push(val);
