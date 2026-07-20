@@ -3451,6 +3451,7 @@ name = "solar-codegen"
 version = "0.2.0"
 dependencies = [
  "alloy-primitives",
+ "arrayvec",
  "derive_more",
  "smallvec",
  "snapbox",

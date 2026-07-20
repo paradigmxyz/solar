@@ -6,7 +6,7 @@ use super::{
     BasicBlock, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, Instruction,
     MemoryRegion, StorageAlias, Terminator, Value, ValueId,
 };
-use smallvec::SmallVec;
+use arrayvec::ArrayVec;
 use solar_data_structures::fmt::{self, FmtIteratorExt};
 use solar_sema::hir;
 
@@ -418,7 +418,7 @@ fn display_metadata<'a>(inst: &'a Instruction, func: &'a Function) -> impl fmt::
 
     fmt::from_fn(move |f| {
         let metadata = &inst.metadata;
-        let mut fields = SmallVec::<[MetadataField<'_>; 8]>::new();
+        let mut fields = ArrayVec::<MetadataField<'_>, 7>::new();
 
         if let Some(storage) = metadata.storage_alias() {
             fields.push(MetadataField::Storage(storage, func));
