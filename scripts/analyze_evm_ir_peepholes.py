@@ -67,6 +67,7 @@ def markdown_table(headers: list[str], rows: list[list[object]]) -> None:
 def analyze(args: argparse.Namespace) -> int:
     rules: set[str] = set()
     hits: Counter[str] = Counter()
+    rule_modules: dict[str, Counter[str]] = {}
     rewrites: Counter[tuple[str, str, str]] = Counter()
     ngrams: Counter[tuple[str, ...]] = Counter()
     blocks = 0
@@ -78,9 +79,12 @@ def analyze(args: argparse.Namespace) -> int:
                 rules.update(filter(None, (field(line, "rules") or "").split(",")))
             elif "evm_ir_peephole_rewrite" in line:
                 rule = field(line, "rule") or "unknown"
+                module_match = re.search(r"evm_codegen\{module=([^}]+)\}", line)
+                module = module_match.group(1) if module_match else field(line, "module") or "unknown"
                 input_sequence = field(line, "input") or ""
                 output_sequence = field(line, "output") or ""
                 hits[rule] += 1
+                rule_modules.setdefault(rule, Counter())[module] += 1
                 rewrites[(rule, input_sequence, output_sequence)] += 1
             elif "evm_ir_peephole_input" in line:
                 blocks += 1
@@ -95,9 +99,18 @@ def analyze(args: argparse.Namespace) -> int:
 
     print(f"Analyzed {blocks:,} eligible input blocks and {sum(hits.values()):,} rewrites.\n")
     markdown_table(
-        ["Rule", "Hits", "Share"],
+        ["Rule", "Hits", "Share", "Top modules"],
         [
-            [rule, hits[rule], f"{hits[rule] / sum(hits.values()):.1%}" if hits else "-"]
+            [
+                rule,
+                hits[rule],
+                f"{hits[rule] / sum(hits.values()):.1%}" if hits else "-",
+                ", ".join(
+                    f"{module} ({count})"
+                    for module, count in rule_modules.get(rule, Counter()).most_common(3)
+                )
+                or "-",
+            ]
             for rule in sorted(rules | hits.keys(), key=lambda rule: (-hits[rule], rule))
         ],
     )
@@ -113,12 +126,19 @@ def analyze(args: argparse.Namespace) -> int:
     print("</details>\n")
 
     rewritten_inputs = {tuple(input_sequence.split(",")) for _, input_sequence, _ in rewrites}
+
+    def occurs_in_rewrite(pattern: tuple[str, ...]) -> bool:
+        return any(
+            any(sequence[offset : offset + len(pattern)] == pattern for offset in range(len(sequence)))
+            for sequence in rewritten_inputs
+        )
+
     candidates = [
         (pattern, count)
         for pattern, count in ngrams.most_common()
         if count >= args.min_count
         and any(STACK_OP_RE.match(instruction) for instruction in pattern)
-        and pattern not in rewritten_inputs
+        and not occurs_in_rewrite(pattern)
     ][: args.top]
     print("Frequent stack-instruction patterns not exactly matched by a recorded rewrite:\n")
     markdown_table(
