@@ -11,7 +11,7 @@ use solar_interface::{Ident, Span, Symbol, kw, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ElementaryType, ExprKind},
-    ty::TyKind,
+    ty::{Ty, TyKind},
 };
 
 pub(super) struct MappingElementSlot {
@@ -173,7 +173,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Ternary(cond, then_expr, else_expr) => {
-                self.lower_ternary(builder, cond, then_expr, else_expr)
+                self.lower_ternary(builder, expr, cond, then_expr, else_expr)
             }
 
             ExprKind::Call(callee, args, call_opts) => {
@@ -1091,6 +1091,7 @@ impl<'gcx> Lowerer<'gcx> {
     fn lower_ternary(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
         cond: &hir::Expr<'_>,
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
@@ -1133,6 +1134,19 @@ impl<'gcx> Lowerer<'gcx> {
         } else {
             // For non-tuple ternaries, still use branching for correct semantics
             // (only one branch should be evaluated for side effects)
+            let result_ty = self.get_expr_type(expr);
+            // A calldata bytes/string/array ternary produces a logical slice:
+            // its pointer and length round-trip through both scratch words and
+            // re-form a slice at the merge, keeping the value lazy.
+            let slice_location = result_ty.and_then(|ty| match ty.kind {
+                TyKind::Ref(inner, solar_ast::DataLocation::Calldata) => match inner.kind {
+                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+                    | TyKind::DynArray(_)
+                    | TyKind::Slice(_) => Some(crate::mir::SliceLocation::Calldata),
+                    _ => None,
+                },
+                _ => None,
+            });
             let cond_val = self.lower_expr(builder, cond);
 
             let then_block = builder.create_block();
@@ -1141,25 +1155,72 @@ impl<'gcx> Lowerer<'gcx> {
 
             builder.branch(cond_val, then_block, else_block);
 
-            // Then block
-            builder.switch_to_block(then_block);
-            let then_val = self.lower_expr(builder, then_expr);
-            let zero_then = builder.imm_u64(0);
-            builder.mstore(zero_then, then_val);
-            builder.jump(merge_block);
+            for (block, arm) in [(then_block, then_expr), (else_block, else_expr)] {
+                builder.switch_to_block(block);
+                if slice_location.is_some() {
+                    let value = self.lower_expr(builder, arm);
+                    let ptr = builder.slice_ptr(value);
+                    let len = builder.slice_len(value);
+                    let ptr_slot = builder.imm_u64(0);
+                    builder.mstore(ptr_slot, ptr);
+                    // The second scratch word doubles as the ephemeral
+                    // multi-return buffer pointer, which is only live between
+                    // a multi-return call and its immediately-emitted reads,
+                    // never across an arm of a user expression.
+                    let len_slot = builder.imm_u64(32);
+                    builder.mstore(len_slot, len);
+                } else {
+                    let value = self.lower_ternary_arm_value(builder, arm, result_ty);
+                    let slot = builder.imm_u64(0);
+                    builder.mstore(slot, value);
+                }
+                builder.jump(merge_block);
+            }
 
-            // Else block
-            builder.switch_to_block(else_block);
-            let else_val = self.lower_expr(builder, else_expr);
-            let zero_else = builder.imm_u64(0);
-            builder.mstore(zero_else, else_val);
-            builder.jump(merge_block);
-
-            // Merge block: load result from scratch memory
+            // Merge block: load the selected result from scratch memory.
             builder.switch_to_block(merge_block);
-            let zero = builder.imm_u64(0);
-            builder.mload(zero)
+            if let Some(location) = slice_location {
+                let ptr_slot = builder.imm_u64(0);
+                let ptr = builder.mload(ptr_slot);
+                let len_slot = builder.imm_u64(32);
+                let len = builder.mload(len_slot);
+                builder.make_slice(ptr, len, location)
+            } else {
+                let slot = builder.imm_u64(0);
+                builder.mload(slot)
+            }
         }
+    }
+
+    /// Lowers one arm of a word-merged ternary. A memory-located dynamic
+    /// result adopts calldata arms by materializing them: their logical slice
+    /// value has no single-word form to round-trip through scratch.
+    fn lower_ternary_arm_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        arm: &hir::Expr<'_>,
+        result_ty: Option<Ty<'gcx>>,
+    ) -> ValueId {
+        if let Some(ty) = result_ty
+            && !matches!(
+                ty.kind,
+                TyKind::Ref(
+                    _,
+                    solar_ast::DataLocation::Calldata | solar_ast::DataLocation::Storage
+                )
+            )
+        {
+            match ty.peel_refs().kind {
+                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                    return self.lower_expr_as_memory_bytes(builder, arm);
+                }
+                TyKind::DynArray(_) => {
+                    return self.lower_expr_as_memory_dyn_array(builder, arm);
+                }
+                _ => {}
+            }
+        }
+        self.lower_expr(builder, arm)
     }
 
     /// Lowers a tuple expression by evaluating every element before staging
