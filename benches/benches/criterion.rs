@@ -71,8 +71,6 @@ fn micro_benches(c: &mut Criterion) {
 }
 
 fn compiler_benches(c: &mut Criterion) {
-    let _tracing_guard = std::env::var_os("SOLAR_LOG_FILE")
-        .map(|_| solar::cli::utils::init_logger(Default::default()));
     for s in get_srcs() {
         eprintln!("{}: {} LoC, {} bytes", s.name, s.src.lines().count(), s.src.len());
     }
