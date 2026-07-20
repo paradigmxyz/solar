@@ -24,7 +24,7 @@ pub(crate) fn execute_command(
             Ok(success())
         }
         command => Err(ResponseError::new(
-            ErrorCode::METHOD_NOT_FOUND,
+            ErrorCode::INVALID_PARAMS,
             format!("unknown command `{command}`"),
         )),
     };

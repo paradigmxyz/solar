@@ -210,7 +210,7 @@ mod tests {
 
         let error = router.call(request).await.unwrap_err();
 
-        assert_eq!(error.code, async_lsp::ErrorCode::METHOD_NOT_FOUND);
+        assert_eq!(error.code, async_lsp::ErrorCode::INVALID_PARAMS);
     }
 
     #[tokio::test(flavor = "current_thread")]

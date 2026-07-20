@@ -44,7 +44,6 @@ fn snapshot_with_config(config: Config, vfs: Vfs) -> GlobalStateSnapshot {
         analysis_version: Arc::new(AtomicUsize::new(1)),
         published_analysis_version,
         analysis_commit: Arc::new(Default::default()),
-        analysis_cache_invalidated: Arc::new(AtomicBool::new(false)),
         flycheck_versions: Arc::new(Default::default()),
         symbol_tables: Arc::new(Default::default()),
         diagnostics: Arc::new(Default::default()),
@@ -207,6 +206,17 @@ fn clearing_analysis_cache_rejects_older_analysis_results() {
     );
 }
 
+#[test]
+fn reindex_if_invalidated_is_a_no_op_for_a_current_cache() {
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    let version = state.analysis_version.load(Ordering::Acquire);
+
+    state.reindex_if_invalidated();
+
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), version);
+    assert!(!state.analysis_cache_invalidated());
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn failed_current_analysis_unblocks_waiters_and_invalidates_cache() {
     let project = TestProject::from_fixture(
@@ -225,7 +235,7 @@ async fn failed_current_analysis_unblocks_waiters_and_invalidates_cache() {
         DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("old compiler")])]),
     );
 
-    let version = state.begin_analysis(false, false, Vec::new()).unwrap();
+    let version = state.begin_analysis(AnalysisMode::Recompute, Vec::new()).unwrap();
     let task = tokio::spawn(async { panic!("test analysis failure") });
     state.monitor_analysis_task(version, task);
 
@@ -252,7 +262,7 @@ async fn failed_current_analysis_unblocks_waiters_and_invalidates_cache() {
 async fn cancelled_current_analysis_unblocks_waiters_and_invalidates_cache() {
     let mut state = GlobalState::new(ClientSocket::new_closed());
 
-    let version = state.begin_analysis(false, false, Vec::new()).unwrap();
+    let version = state.begin_analysis(AnalysisMode::Recompute, Vec::new()).unwrap();
     let task = tokio::spawn(std::future::pending::<()>());
     task.abort();
     state.monitor_analysis_task(version, task);
