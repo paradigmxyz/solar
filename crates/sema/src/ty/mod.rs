@@ -636,6 +636,14 @@ impl<'gcx> Gcx<'gcx> {
         self.natspec_contract_in_source((name, source))
     }
 
+    /// Returns the resolved NatSpec doc comments for the given doc ID.
+    ///
+    /// This preserves the flat representation used by compiler outputs. Use [`Gcx::natspec_view`]
+    /// when documentation must be associated with the current item's parameter or return positions.
+    pub fn natspec_doc_comments(self, id: hir::DocId) -> &'gcx [hir::NatSpecItem] {
+        if id.is_empty() { &[] } else { self.natspec_resolution(self.hir.doc(id).item).items() }
+    }
+
     /// Returns the selected builtin target for a non-call member access expression, if available.
     #[inline]
     pub fn builtin_member(self, id: hir::ExprId) -> Option<Builtin> {
@@ -1534,18 +1542,6 @@ pub(crate) fn natspec_resolution(
 /// compiler-generated getter. Other variables have no positional documentation.
 pub fn natspec_view(gcx: _, item: hir::ItemId) -> NatSpecView<'gcx> {
     crate::natspec::resolve_view(gcx, item)
-}
-
-/// Returns the resolved NatSpec doc comments for the given doc ID.
-///
-/// This preserves the flat representation used by compiler outputs. Use [`Gcx::natspec_view`] when
-/// documentation must be associated with the current item's parameter or return positions.
-pub fn natspec_doc_comments(gcx: _, id: hir::DocId) -> &'gcx [hir::NatSpecItem] {
-    if id.is_empty() {
-        &[]
-    } else {
-        gcx.natspec_resolution(gcx.hir.doc(id).item).items()
-    }
 }
 
 /// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
