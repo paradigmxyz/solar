@@ -59,11 +59,15 @@ impl<'gcx> Lowerer<'gcx> {
                 if !visiting.insert(id) {
                     return None;
                 }
+                // A field's sema type may carry a storage location ref, but a
+                // field of a memory/calldata aggregate is a value, never a
+                // storage pointer: peel it so the top-level library
+                // storage-parameter guard cannot collapse it to one word.
                 let fields = self
                     .gcx
                     .struct_field_types(id)
                     .iter()
-                    .map(|&field| self.abi_type_inner(field, false, visiting))
+                    .map(|&field| self.abi_type_inner(field.peel_refs(), false, visiting))
                     .collect::<Option<Vec<_>>>()?;
                 visiting.remove(&id);
                 AbiType::Tuple(fields.into())
@@ -71,7 +75,7 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::Tuple(fields) => AbiType::Tuple(
                 fields
                     .iter()
-                    .map(|&field| self.abi_type_inner(field, false, visiting))
+                    .map(|&field| self.abi_type_inner(field.peel_refs(), false, visiting))
                     .collect::<Option<Vec<_>>>()?
                     .into(),
             ),
@@ -326,9 +330,14 @@ impl<'gcx> Lowerer<'gcx> {
                 calldata_slices.insert(slice);
                 slice
             } else if self.expr_is_calldata_dynamic_bytes(arg) {
-                let slice = self.lower_expr(builder, arg);
-                calldata_slices.insert(slice);
-                slice
+                let value = self.lower_expr(builder, arg);
+                // A decoded calldata-struct member is already a memory bytes
+                // pointer despite its calldata-located type; only genuine
+                // slices stay lazy in the payload.
+                if Self::value_is_calldata_slice(builder, value) {
+                    calldata_slices.insert(value);
+                }
+                value
             } else {
                 self.lower_return_value_for_ty(builder, arg, ty)
             };
@@ -481,21 +490,29 @@ impl<'gcx> Lowerer<'gcx> {
             return if is_bytes {
                 self.materialize_calldata_bytes(builder, slice)
             } else {
-                self.materialize_calldata_dyn_array(builder, slice)
+                self.materialize_calldata_dyn_array_for_ty(builder, ty, slice)
             };
         }
         if self.expr_is_calldata_dynamic_bytes(expr) {
-            let slice = self.lower_expr(builder, expr);
-            return self.materialize_calldata_bytes(builder, slice);
+            let value = self.lower_expr(builder, expr);
+            if Self::value_is_calldata_slice(builder, value) {
+                return self.materialize_calldata_bytes(builder, value);
+            }
+            // A decoded calldata-struct member is already a memory bytes
+            // pointer despite its calldata-located type.
+            return value;
         }
         if matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Calldata)) {
             let value = self.lower_expr(builder, expr);
+            if !Self::value_is_calldata_slice(builder, value) {
+                return value;
+            }
             return match ty.peel_refs().kind {
                 TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                     self.materialize_calldata_bytes(builder, value)
                 }
-                TyKind::DynArray(elem) if self.abi_is_word_element(elem) => {
-                    self.materialize_calldata_dyn_array(builder, value)
+                TyKind::DynArray(_) | TyKind::Slice(_) => {
+                    self.materialize_calldata_dyn_array_for_ty(builder, ty, value)
                 }
                 _ => value,
             };

@@ -61,8 +61,13 @@ impl<'gcx> Lowerer<'gcx> {
             return ptr;
         }
         if self.expr_is_calldata_dynamic_bytes(expr) {
-            let slice = self.lower_expr(builder, expr);
-            return self.materialize_calldata_bytes(builder, slice);
+            let value = self.lower_expr(builder, expr);
+            // A decoded calldata-struct member is already a memory bytes
+            // pointer despite its calldata-located type.
+            if Self::value_is_calldata_slice(builder, value) {
+                return self.materialize_calldata_bytes(builder, value);
+            }
+            return value;
         }
         let value = self.lower_expr(builder, expr);
         self.coerce_memory_slice_value(builder, value)
@@ -107,14 +112,34 @@ impl<'gcx> Lowerer<'gcx> {
     /// Whether a lowered value is a logical memory slice (an ABI-encode
     /// payload) rather than a `[length][data...]` bytes pointer.
     pub(super) fn value_is_memory_slice(builder: &FunctionBuilder<'_>, value: ValueId) -> bool {
-        use crate::mir::{MirType, SliceLocation, Value};
+        use crate::mir::{MirType, SliceLocation};
+        matches!(Self::value_mir_type(builder, value), Some(MirType::Slice(SliceLocation::Memory)))
+    }
+
+    /// Whether a lowered value is a logical calldata slice. A calldata-typed
+    /// expression does not guarantee one: a member of a calldata struct that
+    /// was decoded to memory in the prologue lowers to a memory bytes
+    /// pointer.
+    pub(super) fn value_is_calldata_slice(builder: &FunctionBuilder<'_>, value: ValueId) -> bool {
+        use crate::mir::{MirType, SliceLocation};
+        matches!(
+            Self::value_mir_type(builder, value),
+            Some(MirType::Slice(SliceLocation::Calldata))
+        )
+    }
+
+    /// The MIR type of a lowered value, when it records one.
+    fn value_mir_type(
+        builder: &FunctionBuilder<'_>,
+        value: ValueId,
+    ) -> Option<crate::mir::MirType> {
+        use crate::mir::Value;
         let func = builder.func();
-        let ty = match func.value(value) {
+        match func.value(value) {
             Value::Arg { ty, .. } | Value::Undef(ty) => Some(*ty),
             Value::Inst(inst_id) => func.instructions[*inst_id].result_ty,
             Value::Immediate(_) | Value::Error(_) => None,
-        };
-        matches!(ty, Some(MirType::Slice(SliceLocation::Memory)))
+        }
     }
 
     /// Adapts a logical memory slice to Solidity's `[length][data...]` memory
@@ -284,16 +309,8 @@ impl<'gcx> Lowerer<'gcx> {
         expr: &hir::Expr<'_>,
     ) -> ValueId {
         if let Some((slice, false)) = self.calldata_dyn_slice(builder, expr) {
-            if let Some(ty) = self.get_expr_type(expr)
-                && let TyKind::DynArray(elem) | TyKind::Slice(elem) = ty.peel_refs().kind
-                && !self.abi_is_word_element(elem)
-            {
-                // Reference/aggregate elements rebuild one at a time; an
-                // ABI-root slice's data is preceded by its length word.
-                let word = builder.imm_u64(32);
-                let data_pos = builder.slice_ptr(slice);
-                let len_pos = builder.sub(data_pos, word);
-                return self.materialize_calldata_dynamic_array_at(builder, elem, len_pos);
+            if let Some(ty) = self.get_expr_type(expr) {
+                return self.materialize_calldata_dyn_array_for_ty(builder, ty, slice);
             }
             return self.materialize_calldata_dyn_array(builder, slice);
         }
@@ -311,6 +328,25 @@ impl<'gcx> Lowerer<'gcx> {
         let word_size = builder.imm_u64(32);
         let data_pos = builder.add(len_pos, word_size);
         self.copy_calldata_word_array(builder, data_pos, len)
+    }
+
+    /// Materializes a calldata dynamic-array slice into memory, rebuilding
+    /// reference/aggregate elements so their memory slots hold memory
+    /// pointers. Word elements copy verbatim.
+    pub(super) fn materialize_calldata_dyn_array_for_ty(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: Ty<'gcx>,
+        slice: ValueId,
+    ) -> ValueId {
+        if let TyKind::DynArray(elem) | TyKind::Slice(elem) = ty.peel_refs().kind
+            && !self.abi_is_word_element(elem)
+        {
+            let data_pos = builder.slice_ptr(slice);
+            let len = builder.slice_len(slice);
+            return self.materialize_calldata_nested_array(builder, elem, data_pos, len);
+        }
+        self.materialize_calldata_dyn_array(builder, slice)
     }
 
     /// Copies a single-word calldata array SLICE into memory.
@@ -395,6 +431,22 @@ impl<'gcx> Lowerer<'gcx> {
 
         let len = builder.calldataload(len_pos);
         let word = builder.imm_u64(32);
+        let data_pos = builder.add(len_pos, word);
+        self.materialize_calldata_nested_array(builder, elem, data_pos, len)
+    }
+
+    /// Materializes a calldata dynamic array of reference/aggregate elements
+    /// from its data position and length: per the ABI, element offset words
+    /// start at `data_pos` and are relative to it. Elements rebuild one at a
+    /// time so their memory slots contain memory pointers.
+    pub(super) fn materialize_calldata_nested_array(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        elem: Ty<'gcx>,
+        data_pos: ValueId,
+        len: ValueId,
+    ) -> ValueId {
+        let word = builder.imm_u64(32);
         let shift = builder.imm_u64(251);
         let too_big = builder.shr(shift, len);
         self.emit_panic_if(builder, too_big, PanicCode::MemoryAllocationOverflow);
@@ -416,7 +468,7 @@ impl<'gcx> Lowerer<'gcx> {
         let remaining_slot = scratch;
         let source_slot = self.offset_ptr(builder, scratch, 32);
         let dest_slot = self.offset_ptr(builder, scratch, 64);
-        let tuple_base = builder.add(len_pos, word);
+        let tuple_base = data_pos;
         let dest = builder.add(ptr, word);
         builder.mstore(remaining_slot, len);
         builder.mstore(source_slot, tuple_base);

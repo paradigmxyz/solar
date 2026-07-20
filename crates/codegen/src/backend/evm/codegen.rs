@@ -3383,7 +3383,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => {
-                unreachable!("slice instructions must be lowered before EVM codegen")
+                unreachable!(
+                    "slice instructions must be lowered before EVM codegen: {kind:?} in `{}`",
+                    func.name
+                )
             }
 
             InstKind::MemoryObjectLen(_, _)

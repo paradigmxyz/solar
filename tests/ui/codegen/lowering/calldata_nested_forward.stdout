@@ -1,0 +1,238 @@
+// === ROOT/tests/ui/codegen/lowering/calldata_nested_forward.sol:NestedCalldataForward ===
+@module NestedCalldataForward
+fn @forward(arg0: calldataslice, arg1: address) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 36
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = slice_ptr arg0
+    v7 = slice_len arg0
+    v8 = shr 251, v7
+    br v8, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v9 = mul v7, 32
+    v10 = add 32, v9
+    v11 = lt v10, v9
+    br v11, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v12 = alloc memoryarray<1>, exact, uninitialized, infallible, v10
+    mstore v12, v7
+    v13 = alloc raw, exact, uninitialized, infallible, 96
+    v14 = add v13, 32
+    v15 = add v13, 64
+    v16 = add v12, 32
+    mstore v13, v7
+    mstore v14, v6
+    mstore v15, v16
+    jump bb9
+  bb9:
+    v17 = mload v13
+    v18 = gt v17, 0
+    br v18, bb10, bb11
+  bb10:
+    v19 = mload v14
+    v20 = calldataload v19
+    v21 = add v6, v20
+    v22 = calldataload v21
+    v23 = add v22, 31
+    v24 = lt v23, v22
+    br v24, bb12, bb13
+  bb11:
+    v43 = abi_encode [memory_array<memory_bytes>], selector 0x3731ba7300000000000000000000000000000000000000000000000000000000, args v12
+    v44 = slice_ptr v43
+    v45 = slice_len v43
+    mstore 0, arg1 !metadata(memory=scratch)
+    mstore 32, v44 !metadata(memory=scratch)
+    v46 = mload 0 !metadata(memory=scratch)
+    v47 = gas
+    v48 = mload 32 !metadata(memory=scratch)
+    v49 = call v47, v46, 0, v48, v45, 0, 32
+    v50 = iszero v49
+    br v50, bb16, bb17
+  bb12:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb13:
+    v25 = not 31
+    v26 = and v23, v25
+    v27 = iszero v26
+    v28 = select v27, 32, v26
+    v29 = add 32, v28
+    v30 = lt v29, v28
+    br v30, bb14, bb15
+  bb14:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb15:
+    v31 = alloc memorybytes, exact, uninitialized, infallible, v29
+    mstore v31, v22
+    v32 = add v31, 32
+    v33 = sub v28, 32
+    v34 = add v32, v33
+    mstore v34, 0
+    v35 = add v21, 32
+    calldatacopy v32, v35, v22
+    v36 = mload v15
+    mstore v36, v31
+    v37 = mload v13
+    v38 = sub v37, 1
+    mstore v13, v38
+    v39 = mload v14
+    v40 = add v39, 32
+    mstore v14, v40
+    v41 = mload v15
+    v42 = add v41, 32
+    mstore v15, v42
+    jump bb9
+  bb16:
+    v51 = returndatasize
+    returndatacopy 0, 0, v51 !metadata(memory=scratch)
+    revert 0, v51
+  bb17:
+    v52 = mload 0 !metadata(memory=scratch)
+    stop
+}
+
+fn @forwardStructs(arg0: calldataslice, arg1: address) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 36
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = slice_ptr arg0
+    v7 = slice_len arg0
+    v8 = shr 251, v7
+    br v8, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v9 = mul v7, 32
+    v10 = add 32, v9
+    v11 = lt v10, v9
+    br v11, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v12 = alloc memoryarray<1>, exact, uninitialized, infallible, v10
+    mstore v12, v7
+    v13 = alloc raw, exact, uninitialized, infallible, 96
+    v14 = add v13, 32
+    v15 = add v13, 64
+    v16 = add v12, 32
+    mstore v13, v7
+    mstore v14, v6
+    mstore v15, v16
+    jump bb9
+  bb9:
+    v17 = mload v13
+    v18 = gt v17, 0
+    br v18, bb10, bb11
+  bb10:
+    v19 = mload v14
+    v20 = calldataload v19
+    v21 = add v6, v20
+    v22 = alloc raw, exact, uninitialized, infallible, 64
+    v23 = calldataload v21
+    mstore v22, v23
+    v24 = add v21, 32
+    v25 = calldataload v24
+    v26 = add v21, v25
+    v27 = calldataload v26
+    v28 = add v27, 31
+    v29 = lt v28, v27
+    br v29, bb12, bb13
+  bb11:
+    v49 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v12
+    v50 = slice_ptr v49
+    v51 = slice_len v49
+    mstore 0, arg1 !metadata(memory=scratch)
+    mstore 32, v50 !metadata(memory=scratch)
+    v52 = mload 0 !metadata(memory=scratch)
+    v53 = gas
+    v54 = mload 32 !metadata(memory=scratch)
+    v55 = call v53, v52, 0, v54, v51, 0, 32
+    v56 = iszero v55
+    br v56, bb16, bb17
+  bb12:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb13:
+    v30 = not 31
+    v31 = and v28, v30
+    v32 = iszero v31
+    v33 = select v32, 32, v31
+    v34 = add 32, v33
+    v35 = lt v34, v33
+    br v35, bb14, bb15
+  bb14:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb15:
+    v36 = alloc memorybytes, exact, uninitialized, infallible, v34
+    mstore v36, v27
+    v37 = add v36, 32
+    v38 = sub v33, 32
+    v39 = add v37, v38
+    mstore v39, 0
+    v40 = add v26, 32
+    calldatacopy v37, v40, v27
+    v41 = add v22, 32
+    mstore v41, v36
+    v42 = mload v15
+    mstore v42, v22
+    v43 = mload v13
+    v44 = sub v43, 1
+    mstore v13, v44
+    v45 = mload v14
+    v46 = add v45, 32
+    mstore v14, v46
+    v47 = mload v15
+    v48 = add v47, 32
+    mstore v15, v48
+    jump bb9
+  bb16:
+    v57 = returndatasize
+    returndatacopy 0, 0, v57 !metadata(memory=scratch)
+    revert 0, v57
+  bb17:
+    v58 = mload 0 !metadata(memory=scratch)
+    stop
+}
+
