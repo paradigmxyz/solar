@@ -11,18 +11,9 @@ const EVM_WORD_BYTES: usize = 32;
 const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
 const MIN_COMPACT_MASK_WIDTH: u8 = 5;
 
-#[derive(Default)]
-pub(super) struct RunState {
-    scratch: Vec<Instruction>,
-}
-
-pub(super) fn run(
-    module: &mut Module,
-    options: PassOptions,
-    pass_state: &mut super::PassState,
-) -> bool {
+pub(super) fn run(module: &mut Module, options: PassOptions) -> bool {
     let mut changed = false;
-    let scratch = &mut pass_state.compact_pushes.scratch;
+    let mut scratch = Vec::new();
     for block in &mut module.blocks {
         if !block.instructions.iter().any(|inst| {
             immediate(inst)
@@ -31,7 +22,7 @@ pub(super) fn run(
             continue;
         }
         scratch.clear();
-        std::mem::swap(&mut block.instructions, scratch);
+        std::mem::swap(&mut block.instructions, &mut scratch);
         block.instructions.reserve(scratch.len());
         for inst in scratch.drain(..) {
             let Some(value) = immediate(&inst) else {
