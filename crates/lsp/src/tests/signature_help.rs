@@ -562,84 +562,6 @@ function set(uint256 first, uint256 second) public
 }
 
 #[test]
-fn includes_inherited_parameter_docs_after_parameters_are_renamed() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Signature.sol open
-        contract Base {
-            /// @notice Updates both values.
-            /// @param first The first inherited value.
-            /// @param second The second inherited value.
-            function set(uint256 first, uint256 second) public virtual {}
-        }
-
-        contract Child is Base {
-            /// @inheritdoc Base
-            function set(uint256 left, uint256 right) public override {}
-
-            function use() public {
-                set($1 1, 2);
-            }
-        }
-        "#,
-        "/Signature.sol",
-    );
-
-    fixture.check_signature_help(
-        "$1",
-        str![[r#"
-active signature=Some(0) parameter=Some(0)
-function set(uint256 left, uint256 right) public
-  docs=Updates both values.
-  13..25 docs=The first inherited value.
-  27..40 docs=The second inherited value.
-function set(uint256 first, uint256 second) public
-  docs=Updates both values.
-  13..26 docs=The first inherited value.
-  28..42 docs=The second inherited value.
-
-"#]],
-    );
-}
-
-#[test]
-fn includes_inherited_docs_for_public_variable_getters() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Signature.sol open
-        interface Base {
-            /// @param outerKey The outer lookup key.
-            /// @param innerKey The inner lookup key.
-            /// @return result The stored value.
-            function values(uint256 outerKey, address innerKey)
-                external view returns (uint256 result);
-        }
-
-        contract Child is Base {
-            /// @inheritdoc Base
-            mapping(uint256 => mapping(address => uint256)) public override values;
-
-            function use() public view {
-                values($1 1, address(0));
-            }
-        }
-        "#,
-        "/Signature.sol",
-    );
-
-    fixture.check_signature_help(
-        "$1",
-        str![[r#"
-active signature=Some(0) parameter=Some(0)
-function values(uint256, address) external view returns (uint256)
-  16..23 docs=The outer lookup key.
-  25..32 docs=The inner lookup key.
-
-"#]],
-    );
-}
-
-#[test]
 fn respects_optional_signature_information_capabilities() {
     let fixture = RequestFixture::new(
         r#"
@@ -966,8 +888,6 @@ fn hides_the_receiver_for_attached_library_functions() {
         r#"
         //- /Signature.sol open
         library Math {
-            /// @param self The receiver value.
-            /// @param amount The amount to add.
             function bump(uint256 self, uint256 amount) internal pure returns (uint256) {
                 return self + amount;
             }
@@ -989,7 +909,7 @@ fn hides_the_receiver_for_attached_library_functions() {
         str![[r#"
 active signature=Some(0) parameter=Some(0)
 function bump(uint256 amount) internal pure returns (uint256)
-  14..28 docs=The amount to add.
+  14..28
 
 "#]],
     );

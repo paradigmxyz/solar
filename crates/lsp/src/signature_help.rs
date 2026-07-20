@@ -15,7 +15,7 @@ use solar_sema::{
     Gcx,
     builtins::Builtin,
     hir::{self, CallArgs, FunctionKind, ItemId, NatSpecKind, Res, StateMutability, Visit},
-    ty::{CallableParamSource, CallableSignature, NatSpecView, TyKind},
+    ty::{CallableParamSource, CallableSignature, TyKind},
 };
 use std::{fmt::Write, ops::ControlFlow, sync::Arc};
 
@@ -549,7 +549,7 @@ fn render_callable<'gcx>(
     let names =
         callable.param_source.map(|source| gcx.callable_param_names(source)).unwrap_or_default();
     let (prefix, suffix, doc_id) = signature_declaration_parts(gcx, callable, res, fallback_name)?;
-    let (documentation, natspec) = documentation(gcx, doc_id);
+    let (documentation, parameter_docs) = documentation(gcx, doc_id);
 
     let mut label = prefix;
     let mut label_utf16_len = label.encode_utf16().count();
@@ -573,10 +573,7 @@ fn render_callable<'gcx>(
             write!(label, " {name}").ok()?;
         }
         label_utf16_len += label[parameter_start..].encode_utf16().count();
-        let natspec_index = natspec_parameter_index(callable.param_source, index);
-        let documentation = natspec.and_then(|view| {
-            view.parameter(natspec_index).iter().rev().find_map(item_content).map(str::to_string)
-        });
+        let documentation = name.and_then(|name| parameter_docs.get(name.as_str())).cloned();
         parameter_names.push(name.map(|name| name.to_string()));
         parameters.push(ParameterInformation {
             label: ParameterLabel::LabelOffsets([start, label_utf16_len as u32]),
@@ -701,42 +698,25 @@ fn parameter_is_indexed(gcx: Gcx<'_>, source: Option<CallableParamSource>, index
     gcx.hir.event(id).parameters.get(index).is_some_and(|&id| gcx.hir.variable(id).indexed)
 }
 
-fn natspec_parameter_index(source: Option<CallableParamSource>, index: usize) -> usize {
-    if matches!(source, Some(CallableParamSource::Function { skips_receiver: true, .. })) {
-        index + 1
-    } else {
-        index
-    }
-}
-
-fn documentation<'gcx>(
-    gcx: Gcx<'gcx>,
+fn documentation(
+    gcx: Gcx<'_>,
     doc_id: Option<hir::DocId>,
-) -> (Option<String>, Option<NatSpecView<'gcx>>) {
+) -> (Option<String>, FxHashMap<String, String>) {
     let Some(doc_id) = doc_id.filter(|id| !id.is_empty()) else {
         return Default::default();
     };
-    let view = gcx.natspec_view(gcx.hir.doc(doc_id).item);
-    let docs = view.items().iter().filter_map(|item| match item.kind {
-        NatSpecKind::Notice | NatSpecKind::Dev => item_content(item),
-        _ => None,
-    });
-    (join_docs(docs), Some(view))
-}
-
-fn item_content(item: &hir::NatSpecItem) -> Option<&str> {
-    let content = item.content().trim();
-    (!content.is_empty()).then_some(content)
-}
-
-fn join_docs<'a>(mut docs: impl Iterator<Item = &'a str>) -> Option<String> {
-    let first = docs.next()?;
-    let mut joined = first.to_string();
-    for doc in docs {
-        joined.push_str("\n\n");
-        joined.push_str(doc);
+    let mut docs = Vec::new();
+    let mut params = FxHashMap::default();
+    for item in gcx.natspec_doc_comments(doc_id) {
+        match item.kind {
+            NatSpecKind::Notice | NatSpecKind::Dev => docs.push(item.content().to_string()),
+            NatSpecKind::Param { name } => {
+                params.insert(name.name.to_string(), item.content().to_string());
+            }
+            _ => {}
+        }
     }
-    Some(joined)
+    ((!docs.is_empty()).then(|| docs.join("\n\n")), params)
 }
 
 fn markdown(value: String) -> Documentation {
