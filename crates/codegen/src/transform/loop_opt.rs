@@ -19,6 +19,7 @@ use crate::{
     pass::FunctionPass,
 };
 use alloy_primitives::U256;
+use arrayvec::ArrayVec;
 use solar_data_structures::bit_set::DenseBitSet;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -713,7 +714,8 @@ impl LoopOptimizer {
         for block_id in &ctx.loop_data.blocks {
             for &user_inst in &func.blocks[block_id].instructions {
                 let kind = &func.instructions[user_inst].kind;
-                let address_operands: smallvec::SmallVec<[ValueId; 2]> = match kind {
+                let mut address_operands = ArrayVec::<ValueId, 2>::new();
+                match kind {
                     InstKind::MLoad(addr)
                     | InstKind::MStore(addr, _)
                     | InstKind::MStore8(addr, _)
@@ -721,16 +723,19 @@ impl LoopOptimizer {
                     | InstKind::SStore(addr, _)
                     | InstKind::TLoad(addr)
                     | InstKind::TStore(addr, _)
-                    | InstKind::CalldataLoad(addr) => smallvec::smallvec![*addr],
-                    InstKind::Keccak256(addr, _)
+                    | InstKind::CalldataLoad(addr)
+                    | InstKind::Keccak256(addr, _)
                     | InstKind::MappingSlotMemory(addr, _)
                     | InstKind::CalldataCopy(addr, _, _)
                     | InstKind::CodeCopy(addr, _, _)
-                    | InstKind::ReturnDataCopy(addr, _, _) => smallvec::smallvec![*addr],
-                    InstKind::MCopy(dst, src, _) => smallvec::smallvec![*dst, *src],
-                    InstKind::ExtCodeCopy(_, dst, _, _) => smallvec::smallvec![*dst],
+                    | InstKind::ReturnDataCopy(addr, _, _)
+                    | InstKind::ExtCodeCopy(_, addr, _, _) => address_operands.push(*addr),
+                    InstKind::MCopy(dst, src, _) => {
+                        address_operands.push(*dst);
+                        address_operands.push(*src);
+                    }
                     _ => continue,
-                };
+                }
 
                 for address in address_operands {
                     if self.value_feeds_affine_address(func, ctx, result, address, 0) {

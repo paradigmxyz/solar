@@ -24,6 +24,7 @@ solar-parse.workspace = true
 solar-sema.workspace = true
 
 alloy-primitives.workspace = true
+arrayvec.workspace = true
 derive_more.workspace = true
 smallvec.workspace = true
 tracing.workspace = true

@@ -5,7 +5,7 @@ use crate::backend::evm::{
     opcode as op,
 };
 use alloy_primitives::U256;
-use smallvec::SmallVec;
+use arrayvec::ArrayVec;
 
 pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
     let mut changed = false;
@@ -218,12 +218,12 @@ fn is_removable_push(inst: &Instruction) -> bool {
 
 struct Rewrite {
     skip: usize,
-    replacement: SmallVec<[Instruction; 3]>,
+    replacement: ArrayVec<Instruction, 3>,
 }
 
 impl Rewrite {
     fn delete(skip: usize) -> Self {
-        Self { skip, replacement: SmallVec::new() }
+        Self { skip, replacement: ArrayVec::new() }
     }
 
     fn replace<const N: usize>(skip: usize, replacement: [Instruction; N]) -> Self {

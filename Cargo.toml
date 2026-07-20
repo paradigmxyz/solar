@@ -180,6 +180,7 @@ lsp-types = "0.95.0"
 tower = "0.5"
 
 # misc
+arrayvec = "0.7"
 bitflags = "2.4"
 bumpalo = "3.14"
 cfg-if = "1.0"
