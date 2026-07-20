@@ -313,6 +313,8 @@ impl Assembler {
     }
 
     pub(in crate::backend::evm) fn prepare(&mut self) -> PreparedAssembly {
+        let _guard =
+            tracing::debug_span!("evm_ir_pipeline", module = %self.program.name()).entered();
         solar_interface::enter(|| self.prepare_inner())
     }
 

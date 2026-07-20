@@ -776,6 +776,7 @@ impl EvmCodegen {
     }
 
     fn generate_deployment_artifact(&mut self, module: &mut Module) -> EvmArtifact {
+        let _guard = tracing::debug_span!("evm_codegen", module = %module.name).entered();
         if module.is_interface {
             return EvmArtifact::default();
         }

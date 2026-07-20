@@ -6,8 +6,39 @@ use crate::backend::evm::{
 };
 use alloy_primitives::U256;
 use arrayvec::ArrayVec;
+use solar_interface::Symbol;
+use std::fmt;
+use tracing::trace;
+
+const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
+const RULES: &[&str] = &[
+    "zero_absorbing_dead_lhs",
+    "one_exp_dead_lhs",
+    "zero_identity",
+    "zero_eq",
+    "zero_absorbing",
+    "one_mul",
+    "one_exp",
+    "pop_push",
+    "double_not",
+    "dup_pop",
+    "double_swap",
+    "triple_iszero",
+    "dup2_commutative_pop",
+    "dup2_binop_pop",
+    "double_swap_pop",
+    "duplicate_mstore",
+    "store_load_pop",
+    "double_iszero_jumpi",
+    "eq_iszero_jumpi",
+];
 
 pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
+    trace!(
+        target: TRACE_TARGET,
+        rules = %RuleSequence(RULES),
+        "evm_ir_peephole_rules"
+    );
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
@@ -16,12 +47,24 @@ pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
         }) {
             continue;
         }
-        changed |= optimize(&mut block.instructions, &mut scratch) != 0;
+        trace!(
+            target: TRACE_TARGET,
+            module = %module.name,
+            block = block.label,
+            instructions = %InstructionSequence(&block.instructions),
+            "evm_ir_peephole_input"
+        );
+        changed |= optimize(&mut block.instructions, &mut scratch, module.name, block.label) != 0;
     }
     changed
 }
 
-fn optimize(instructions: &mut Vec<Instruction>, scratch: &mut Vec<Instruction>) -> usize {
+fn optimize(
+    instructions: &mut Vec<Instruction>,
+    scratch: &mut Vec<Instruction>,
+    module: Symbol,
+    block: u32,
+) -> usize {
     scratch.clear();
     std::mem::swap(instructions, scratch);
     instructions.reserve(scratch.len());
@@ -29,6 +72,16 @@ fn optimize(instructions: &mut Vec<Instruction>, scratch: &mut Vec<Instruction>)
     for inst in scratch.drain(..) {
         instructions.push(inst);
         while let Some(rewrite) = try_peephole(instructions) {
+            let input_start = instructions.len() - rewrite.skip;
+            trace!(
+                target: TRACE_TARGET,
+                module = %module,
+                block,
+                rule = rewrite.rule,
+                input = %InstructionSequence(&instructions[input_start..]),
+                output = %InstructionSequence(&rewrite.replacement),
+                "evm_ir_peephole_rewrite"
+            );
             instructions.truncate(instructions.len() - rewrite.skip);
             instructions.extend(rewrite.replacement);
             rewrites += 1;
@@ -51,10 +104,10 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
                 op::MUL | op::DIV | op::SDIV | op::MOD | op::SMOD | op::AND | op::GT
             )
         {
-            return Some(Rewrite::replace(3, [push(U256::ZERO)]));
+            return Some(Rewrite::replace("zero_absorbing_dead_lhs", 3, [push(U256::ZERO)]));
         }
         if value == U256::ONE && opcode == op::EXP {
-            return Some(Rewrite::replace(3, [push(U256::ONE)]));
+            return Some(Rewrite::replace("one_exp_dead_lhs", 3, [push(U256::ONE)]));
         }
     }
 
@@ -65,26 +118,26 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
         if value.is_zero() {
             return match opcode {
                 op::ADD | op::OR | op::XOR | op::SHL | op::SHR | op::SAR => {
-                    Some(Rewrite::delete(2))
+                    Some(Rewrite::delete("zero_identity", 2))
                 }
-                op::EQ => Some(Rewrite::replace(2, [raw(op::ISZERO)])),
+                op::EQ => Some(Rewrite::replace("zero_eq", 2, [raw(op::ISZERO)])),
                 op::MUL | op::DIV | op::SDIV | op::MOD | op::SMOD | op::AND | op::GT => {
-                    Some(Rewrite::replace(2, [raw(op::POP), push(U256::ZERO)]))
+                    Some(Rewrite::replace("zero_absorbing", 2, [raw(op::POP), push(U256::ZERO)]))
                 }
                 _ => None,
             };
         }
         if value == U256::ONE {
             return match opcode {
-                op::MUL => Some(Rewrite::delete(2)),
-                op::EXP => Some(Rewrite::replace(2, [raw(op::POP), push(U256::ONE)])),
+                op::MUL => Some(Rewrite::delete("one_mul", 2)),
+                op::EXP => Some(Rewrite::replace("one_exp", 2, [raw(op::POP), push(U256::ONE)])),
                 _ => None,
             };
         }
     }
 
     if stack.len() >= 2 && raw_opcode(&stack[0]) == Some(op::POP) && is_removable_push(&stack[1]) {
-        return Some(Rewrite::delete(2));
+        return Some(Rewrite::delete("pop_push", 2));
     }
 
     if stack.len() >= 2
@@ -94,7 +147,14 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
             || (b == op::POP && (op::DUP1..=op::DUP16).contains(&a))
             || (a == b && (op::SWAP1..=op::SWAP16).contains(&a)))
     {
-        return Some(Rewrite::delete(2));
+        let rule = if (a, b) == (op::NOT, op::NOT) {
+            "double_not"
+        } else if b == op::POP {
+            "dup_pop"
+        } else {
+            "double_swap"
+        };
+        return Some(Rewrite::delete(rule, 2));
     }
 
     if stack.len() >= 3
@@ -102,7 +162,7 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
         && raw_opcode(&stack[1]) == Some(op::ISZERO)
         && raw_opcode(&stack[2]) == Some(op::ISZERO)
     {
-        return Some(Rewrite::replace(3, [raw(op::ISZERO)]));
+        return Some(Rewrite::replace("triple_iszero", 3, [raw(op::ISZERO)]));
     }
 
     if stack.len() >= 4
@@ -112,7 +172,7 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
         && raw_opcode(&stack[3]) == Some(op::DUP2)
     {
         if matches!(binop, op::ADD | op::MUL | op::AND | op::OR | op::XOR | op::EQ) {
-            return Some(Rewrite::replace(4, [raw(binop)]));
+            return Some(Rewrite::replace("dup2_commutative_pop", 4, [raw(binop)]));
         }
         if matches!(
             binop,
@@ -133,7 +193,7 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
                 | op::SAR
                 | op::KECCAK256
         ) {
-            return Some(Rewrite::replace(4, [raw(op::SWAP1), raw(binop)]));
+            return Some(Rewrite::replace("dup2_binop_pop", 4, [raw(op::SWAP1), raw(binop)]));
         }
     }
 
@@ -143,7 +203,11 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
         && raw_opcode(&stack[2]) == Some(op::POP)
         && raw_opcode(&stack[3]) == Some(op::SWAP1)
     {
-        return Some(Rewrite::replace(4, [raw(op::SWAP2), raw(op::POP), raw(op::POP)]));
+        return Some(Rewrite::replace(
+            "double_swap_pop",
+            4,
+            [raw(op::SWAP2), raw(op::POP), raw(op::POP)],
+        ));
     }
 
     if stack.len() >= 6
@@ -155,7 +219,11 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
         && raw_opcode(&stack[5]) == Some(op::DUP1)
         && a == b
     {
-        return Some(Rewrite::replace(6, [stack[5].clone(), stack[4].clone(), stack[3].clone()]));
+        return Some(Rewrite::replace(
+            "duplicate_mstore",
+            6,
+            [stack[5].clone(), stack[4].clone(), stack[3].clone()],
+        ));
     }
 
     if stack.len() >= 6
@@ -167,7 +235,11 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
         && raw_opcode(&stack[5]) == Some(op::DUP1)
         && a == b
     {
-        return Some(Rewrite::replace(6, [stack[5].clone(), stack[4].clone(), stack[3].clone()]));
+        return Some(Rewrite::replace(
+            "store_load_pop",
+            6,
+            [stack[5].clone(), stack[4].clone(), stack[3].clone()],
+        ));
     }
 
     if stack.len() >= 4
@@ -176,7 +248,11 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
         && raw_opcode(&stack[2]) == Some(op::ISZERO)
         && raw_opcode(&stack[3]) == Some(op::ISZERO)
     {
-        return Some(Rewrite::replace(4, [stack[1].clone(), raw(op::JUMPI)]));
+        return Some(Rewrite::replace(
+            "double_iszero_jumpi",
+            4,
+            [stack[1].clone(), raw(op::JUMPI)],
+        ));
     }
 
     if stack.len() >= 4
@@ -185,7 +261,11 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
         && raw_opcode(&stack[2]) == Some(op::ISZERO)
         && raw_opcode(&stack[3]) == Some(op::EQ)
     {
-        return Some(Rewrite::replace(4, [raw(op::SUB), stack[1].clone(), raw(op::JUMPI)]));
+        return Some(Rewrite::replace(
+            "eq_iszero_jumpi",
+            4,
+            [raw(op::SUB), stack[1].clone(), raw(op::JUMPI)],
+        ));
     }
 
     None
@@ -222,18 +302,65 @@ fn is_removable_push(inst: &Instruction) -> bool {
 }
 
 struct Rewrite {
+    rule: &'static str,
     skip: usize,
     replacement: ArrayVec<Instruction, 3>,
 }
 
 impl Rewrite {
-    fn delete(skip: usize) -> Self {
-        Self { skip, replacement: ArrayVec::new() }
+    fn delete(rule: &'static str, skip: usize) -> Self {
+        Self { rule, skip, replacement: ArrayVec::new() }
     }
 
-    fn replace<const N: usize>(skip: usize, replacement: [Instruction; N]) -> Self {
+    fn replace<const N: usize>(
+        rule: &'static str,
+        skip: usize,
+        replacement: [Instruction; N],
+    ) -> Self {
         debug_assert!(N <= skip);
-        Self { skip, replacement: replacement.into_iter().collect() }
+        Self { rule, skip, replacement: replacement.into_iter().collect() }
+    }
+}
+
+struct InstructionSequence<'a>(&'a [Instruction]);
+
+struct RuleSequence<'a>(&'a [&'a str]);
+
+impl fmt::Display for RuleSequence<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (index, rule) in self.0.iter().enumerate() {
+            if index != 0 {
+                f.write_str(",")?;
+            }
+            f.write_str(rule)?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for InstructionSequence<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (index, inst) in self.0.iter().enumerate() {
+            if index != 0 {
+                f.write_str(",")?;
+            }
+            if let Some(value) = push_value(inst) {
+                if value.is_zero() {
+                    f.write_str("PUSH0")?;
+                } else if value == U256::ONE {
+                    f.write_str("PUSH1")?;
+                } else {
+                    f.write_str("PUSH")?;
+                }
+            } else if inst.is_encoded_push() {
+                f.write_str("PUSH_REF")?;
+            } else if let Some(mnemonic) = op::mnemonic(inst.opcode) {
+                f.write_str(mnemonic)?;
+            } else {
+                write!(f, "0x{:02x}", inst.opcode)?;
+            }
+        }
+        Ok(())
     }
 }
 
