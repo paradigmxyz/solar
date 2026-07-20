@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 // Multi-value returns from internal *calls* must propagate all N values, not
 // just the first. Previously the non-inlined `internal_call` carried a return

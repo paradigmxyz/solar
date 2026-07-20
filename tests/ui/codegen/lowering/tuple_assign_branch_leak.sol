@@ -1,4 +1,4 @@
-//@ compile-flags: -Zcodegen --emit=evm-ir-runtime
+//@ compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 // A multi-return tuple assignment inside one branch arm must not leak its
 // values into the sibling arm: `off` below is reassigned only in the `then`
 // arm, so the `else` arm must read the pre-branch value, not the pickup from

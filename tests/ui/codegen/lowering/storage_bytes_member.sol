@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=evm-ir-runtime
+//@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 // A `bytes` struct field reached through a storage reference bound from a
 // mapping element (`state.part` below) uses Solidity's packed short/long

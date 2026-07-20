@@ -7,27 +7,8 @@ use crate::backend::evm::{
 use alloy_primitives::U256;
 use solar_data_structures::bit_set::DenseBitSet;
 
-pub(super) struct RunState {
-    empty_reverts: DenseBitSet<BlockId>,
-}
-
-impl Default for RunState {
-    fn default() -> Self {
-        Self { empty_reverts: DenseBitSet::new_empty(0) }
-    }
-}
-
-pub(super) fn run(
-    module: &mut Module,
-    _options: super::PassOptions,
-    pass_state: &mut super::PassState,
-) -> bool {
-    let empty_reverts = &mut pass_state.share_reverts.empty_reverts;
-    if empty_reverts.domain_size() == module.blocks.len() {
-        empty_reverts.clear();
-    } else {
-        *empty_reverts = DenseBitSet::new_empty(module.blocks.len());
-    }
+pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
+    let mut empty_reverts = DenseBitSet::new_empty(module.blocks.len());
     for block in module.blocks.indices().filter(|&block| is_empty_revert(module, block)) {
         empty_reverts.insert(block);
     }

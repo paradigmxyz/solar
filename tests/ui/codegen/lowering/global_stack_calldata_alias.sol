@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=evm-ir-runtime
+//@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 contract Test {
     function select(address account, uint256 value) external pure returns (uint256) {

@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 //@filecheck: --check-prefix=SLICE
 
 // Rebinding calldata bytes to a slice materializes a memory `[length][data]`

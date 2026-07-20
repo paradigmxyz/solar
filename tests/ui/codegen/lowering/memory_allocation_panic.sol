@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 // Dynamic memory allocations must revert with Panic(0x41) when the requested
 // size overflows while computing the padded byte length, element byte length,

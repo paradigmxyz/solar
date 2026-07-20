@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 interface IERC20Minimal {
     function transfer(address to, uint256 value) external returns (bool);

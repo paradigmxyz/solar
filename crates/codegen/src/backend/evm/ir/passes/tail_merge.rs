@@ -6,12 +6,8 @@ use crate::backend::evm::ir::{
 };
 use solar_data_structures::map::FxHashMap;
 
-pub(super) fn run(
-    module: &mut Module,
-    _options: super::PassOptions,
-    pass_state: &mut super::PassState,
-) -> bool {
-    let state = &mut pass_state.tail_merge;
+pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
+    let mut state = RunState::default();
     state.plan_merges(module);
     if state.merges.is_empty() {
         return false;
@@ -34,7 +30,7 @@ pub(super) fn run(
 }
 
 #[derive(Default)]
-pub(super) struct RunState {
+struct RunState {
     representatives: Vec<BlockId>,
     merges: Vec<Merge>,
     group_indices: FxHashMap<BlockId, usize>,

@@ -18,19 +18,7 @@ use super::Module;
 use crate::{backend::evm::stack_schedule, timing::PassTimer};
 use solar_config::{EvmVersion, OptimizationMode};
 
-type PassRunner = fn(&mut Module, PassOptions, &mut PassState) -> bool;
-
-#[derive(Default)]
-struct PassState {
-    block_layout: block_layout::RunState,
-    cfg_simplify: cfg_simplify::RunState,
-    compact_pushes: compact_pushes::RunState,
-    outline: outline::RunState,
-    peephole: peephole::RunState,
-    share_reverts: share_reverts::RunState,
-    tail_merge: tail_merge::RunState,
-    terminal_dedup: terminal_dedup::RunState,
-}
+type PassRunner = fn(&mut Module, PassOptions) -> bool;
 
 /// Registry entry for an EVM IR transform pass.
 #[derive(Clone, Copy, Debug)]
@@ -40,24 +28,18 @@ pub struct PassInfo {
     /// Human-readable help text.
     pub description: &'static str,
     run_pass: PassRunner,
-    preserves_cfg: bool,
 }
 
 impl PassInfo {
-    const fn new(
-        name: &'static str,
-        description: &'static str,
-        run_pass: PassRunner,
-        preserves_cfg: bool,
-    ) -> Self {
-        Self { name, description, run_pass, preserves_cfg }
+    const fn new(name: &'static str, description: &'static str, run_pass: PassRunner) -> Self {
+        Self { name, description, run_pass }
     }
 }
 
 macro_rules! declare_passes {
     ($(
         $(#[doc = $description:literal])+
-        $vis:vis const $const_name:ident -> $name:literal = $run_pass:path $(, $preserves_cfg:ident)?;
+        $vis:vis const $const_name:ident -> $name:literal = $run_pass:path;
     )+) => {
         $(
             $(#[doc = $description])+
@@ -65,26 +47,23 @@ macro_rules! declare_passes {
                 $name,
                 concat!($($description, "\n"),+).trim_ascii(),
                 $run_pass,
-                declare_passes!(@preserves_cfg $($preserves_cfg)?),
             );
         )+
     };
-    (@preserves_cfg) => { false };
-    (@preserves_cfg preserves_cfg) => { true };
 }
 
 declare_passes! {
     /// Materialize virtual instruction operands with physical stack operations.
-    pub(crate) const STACK_SCHEDULE_PASS -> "stack-schedule" = run_stack_schedule, preserves_cfg;
+    pub(crate) const STACK_SCHEDULE_PASS -> "stack-schedule" = run_stack_schedule;
 
     /// Simplify local instruction sequences in scheduled EVM IR.
-    pub(crate) const PEEPHOLE_PASS -> "peephole" = peephole::run, preserves_cfg;
+    pub(crate) const PEEPHOLE_PASS -> "peephole" = peephole::run;
 
     /// Share empty revert blocks and invert their conditional branches.
     pub(crate) const SHARE_REVERTS_PASS -> "share-reverts" = share_reverts::run;
 
     /// Select smaller instruction sequences for large immediate pushes.
-    pub(crate) const COMPACT_PUSHES_PASS -> "compact-pushes" = compact_pushes::run, preserves_cfg;
+    pub(crate) const COMPACT_PUSHES_PASS -> "compact-pushes" = compact_pushes::run;
 
     /// Redirect jump thunks, remove unreachable blocks, and coalesce linear control flow.
     pub(crate) const CFG_SIMPLIFY_PASS -> "cfg-simplify" = cfg_simplify::run;
@@ -99,7 +78,7 @@ declare_passes! {
     pub(crate) const TAIL_MERGE_PASS -> "tail-merge" = tail_merge::run;
 
     /// Reorder blocks to maximize jumps assembled as physical fallthroughs.
-    pub(crate) const BLOCK_LAYOUT_PASS -> "block-layout" = block_layout::run, preserves_cfg;
+    pub(crate) const BLOCK_LAYOUT_PASS -> "block-layout" = block_layout::run;
 }
 
 /// Options for running an EVM IR pass.
@@ -162,43 +141,12 @@ pub fn lookup_pass(name: &str) -> Option<&'static PassInfo> {
 
 /// Runs a named EVM IR pass over a module.
 pub fn run_pass(module: &mut Module, pass: &PassInfo, options: PassOptions) -> bool {
-    run_pass_with_state(module, pass, options, &mut PassState::default())
-}
-
-fn run_pass_with_state(
-    module: &mut Module,
-    pass: &PassInfo,
-    options: PassOptions,
-    state: &mut PassState,
-) -> bool {
     let timer = PassTimer::new(options.time_passes);
-    let changed = (pass.run_pass)(module, options, state);
+    let changed = (pass.run_pass)(module, options);
     timer.finish("EVM IR", module.name(), pass.name, changed);
     changed
 }
 
-pub(crate) fn run_default_pipeline(module: &mut Module, options: PassOptions) -> bool {
-    let mut state = PassState::default();
-    let mut cfg_clean = false;
-    let mut changed = false;
-    for pass in DEFAULT_PIPELINE {
-        let pass_changed = if pass.name == CFG_SIMPLIFY_PASS.name && cfg_clean {
-            let timer = PassTimer::new(options.time_passes);
-            timer.finish("EVM IR", module.name(), pass.name, false);
-            false
-        } else {
-            run_pass_with_state(module, pass, options, &mut state)
-        };
-        changed |= pass_changed;
-        if pass.name == CFG_SIMPLIFY_PASS.name {
-            cfg_clean = true;
-        } else if pass_changed && !pass.preserves_cfg {
-            cfg_clean = false;
-        }
-    }
-    changed
-}
-
-fn run_stack_schedule(module: &mut Module, _options: PassOptions, _state: &mut PassState) -> bool {
+fn run_stack_schedule(module: &mut Module, _options: PassOptions) -> bool {
     stack_schedule::schedule_stack_ops(module)
 }

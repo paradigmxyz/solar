@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 contract NestedLoops {
     function sum_grid(uint256 n, uint256 m) public pure returns (uint256) {

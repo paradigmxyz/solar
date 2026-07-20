@@ -11,14 +11,10 @@ use std::hash::{Hash, Hasher};
 
 const MIN_CLOSED_RUN: usize = 4;
 
-pub(super) fn run(
-    module: &mut Module,
-    options: super::PassOptions,
-    pass_state: &mut super::PassState,
-) -> bool {
-    let state = &mut pass_state.outline;
-    state.next_label = None;
-    outline_closed_computations(module, state) | outline_repeated_pushes(module, options, state)
+pub(super) fn run(module: &mut Module, options: super::PassOptions) -> bool {
+    let mut state = RunState::default();
+    outline_closed_computations(module, &mut state)
+        | outline_repeated_pushes(module, options, &mut state)
 }
 
 fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> bool {
@@ -273,7 +269,7 @@ impl Hash for MachineInstSlice<'_> {
 }
 
 #[derive(Default)]
-pub(super) struct RunState {
+struct RunState {
     next_label: Option<u32>,
 }
 

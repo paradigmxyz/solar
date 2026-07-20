@@ -11,7 +11,10 @@ extern crate tracing;
 
 use indexmap as _;
 use rayon::prelude::*;
-use solar_interface::{Result, Session, config::CompilerStage};
+use solar_interface::{
+    Result, Session,
+    config::{CompilerStage, DumpKind},
+};
 use std::ops::ControlFlow;
 
 // Convenience re-exports.
@@ -59,7 +62,7 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
     }
 
     if let Some(dump) = &sess.opts.unstable.dump
-        && dump.kind.is_ast()
+        && dump.kinds.contains(&DumpKind::Ast)
     {
         dump_ast(sess, &gcx.sources, dump.paths.as_deref())?;
     }
@@ -104,7 +107,7 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
     }
 
     if let Some(dump) = &gcx.sess.opts.unstable.dump
-        && dump.kind.is_hir()
+        && dump.kinds.contains(&DumpKind::Hir)
     {
         dump_hir(gcx, dump.paths.as_deref())?;
     }

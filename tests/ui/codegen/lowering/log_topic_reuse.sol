@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=evm-ir-runtime
+//@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 // A value used as a `LOG` topic and then used again *later in the same block*
 // (here `value` is both the event topic and the stored word) must survive the

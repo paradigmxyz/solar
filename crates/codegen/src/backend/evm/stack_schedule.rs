@@ -68,6 +68,7 @@
 
 use super::{ir, opcode as op, stack::SpillSlot};
 use alloy_primitives::U256;
+use arrayvec::ArrayVec;
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
@@ -374,7 +375,7 @@ impl<'a> StackScheduler<'a> {
             return true;
         }
 
-        let target: SmallVec<[ScheduledStackItem; 2]> =
+        let target: ArrayVec<ScheduledStackItem, 2> =
             operands.into_iter().map(ScheduledStackItem::Value).collect();
         // Every targeted operand must already be live on the model stack.
         if !target.iter().all(|item| stack.contains(item)) {
@@ -921,8 +922,8 @@ fn instruction_keeps_encoded_operands(inst: &ir::Instruction) -> bool {
 /// Switch case immediates stay encoded and are not arranged, so only the
 /// discriminant is returned for a `switch`. Operand-less terminators (`jump`,
 /// `stop`, `invalid`, raw opcodes) return an empty list.
-fn terminator_arrange_operands(kind: &ir::TerminatorKind) -> SmallVec<[ir::ValueId; 2]> {
-    let mut operands = SmallVec::new();
+fn terminator_arrange_operands(kind: &ir::TerminatorKind) -> ArrayVec<ir::ValueId, 2> {
+    let mut operands = ArrayVec::new();
     let mut push = |operand: &ir::Operand| {
         if let ir::Operand::Value(value) = operand {
             operands.push(*value);

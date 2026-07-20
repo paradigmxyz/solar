@@ -14,20 +14,14 @@ use smallvec::SmallVec;
 use solar_data_structures::map::{FxHashMap, StdEntry};
 
 #[derive(Default)]
-pub(super) struct RunState {
+struct RunState {
     canonical: FxHashMap<TerminalBlockKey, BlockId>,
     locals: FxHashMap<ValueId, usize>,
     redirects: Vec<(BlockId, BlockId)>,
 }
 
-pub(super) fn run(
-    module: &mut Module,
-    _options: super::PassOptions,
-    pass_state: &mut super::PassState,
-) -> bool {
-    let state = &mut pass_state.terminal_dedup;
-    state.canonical.clear();
-    state.redirects.clear();
+pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
+    let mut state = RunState::default();
 
     for block_id in module.blocks.indices() {
         let block = &module.blocks[block_id];

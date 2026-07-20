@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 library ConstructorLibrary {
     function helper(uint256 n) internal pure returns (uint256) {

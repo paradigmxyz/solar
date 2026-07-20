@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=mir
+//@compile-flags: -Zcodegen -Zdump=mir
 
 // Pins the calldata lower-bound check and validators emitted for value-type
 // external parameters.

@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=evm-ir-runtime
+//@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 // Tuple assignment to EXISTING lvalues, `(a, b) = rhs`. `lower_assign` had no
 // tuple case, so these silently assigned nothing (e.g. `(ok, ) = addr.call(d)`

@@ -5,27 +5,18 @@ use crate::backend::evm::{
     opcode as op,
 };
 use alloy_primitives::U256;
-use smallvec::SmallVec;
+use arrayvec::ArrayVec;
 
-#[derive(Default)]
-pub(super) struct RunState {
-    scratch: Vec<Instruction>,
-}
-
-pub(super) fn run(
-    module: &mut Module,
-    _options: super::PassOptions,
-    pass_state: &mut super::PassState,
-) -> bool {
+pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
     let mut changed = false;
-    let scratch = &mut pass_state.peephole.scratch;
+    let mut scratch = Vec::new();
     for block in &mut module.blocks {
         if block.instructions.iter().any(|inst| {
             inst.result.is_some() || (!inst.is_encoded_push() && !inst.operands.is_empty())
         }) {
             continue;
         }
-        changed |= optimize(&mut block.instructions, scratch) != 0;
+        changed |= optimize(&mut block.instructions, &mut scratch) != 0;
     }
     changed
 }
@@ -50,8 +41,9 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
     let stack = InstStack::new(instructions);
 
     if stack.len() >= 3
+        && let Some(opcode) = raw_opcode(&stack[0])
+        && let Some(value) = push_value(&stack[1])
         && is_removable_push(&stack[2])
-        && let (Some(value), Some(opcode)) = (push_value(&stack[1]), raw_opcode(&stack[0]))
     {
         if value.is_zero()
             && matches!(
@@ -67,7 +59,8 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
     }
 
     if stack.len() >= 2
-        && let (Some(value), Some(opcode)) = (push_value(&stack[1]), raw_opcode(&stack[0]))
+        && let Some(opcode) = raw_opcode(&stack[0])
+        && let Some(value) = push_value(&stack[1])
     {
         if value.is_zero() {
             return match opcode {
@@ -90,12 +83,13 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
         }
     }
 
-    if stack.len() >= 2 && is_removable_push(&stack[1]) && raw_opcode(&stack[0]) == Some(op::POP) {
+    if stack.len() >= 2 && raw_opcode(&stack[0]) == Some(op::POP) && is_removable_push(&stack[1]) {
         return Some(Rewrite::delete(2));
     }
 
     if stack.len() >= 2
-        && let (Some(a), Some(b)) = (raw_opcode(&stack[1]), raw_opcode(&stack[0]))
+        && let Some(b) = raw_opcode(&stack[0])
+        && let Some(a) = raw_opcode(&stack[1])
         && ((a, b) == (op::NOT, op::NOT)
             || (b == op::POP && (op::DUP1..=op::DUP16).contains(&a))
             || (a == b && (op::SWAP1..=op::SWAP16).contains(&a)))
@@ -104,9 +98,9 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
     }
 
     if stack.len() >= 3
-        && raw_opcode(&stack[2]) == Some(op::ISZERO)
-        && raw_opcode(&stack[1]) == Some(op::ISZERO)
         && raw_opcode(&stack[0]) == Some(op::ISZERO)
+        && raw_opcode(&stack[1]) == Some(op::ISZERO)
+        && raw_opcode(&stack[2]) == Some(op::ISZERO)
     {
         return Some(Rewrite::replace(3, [raw(op::ISZERO)]));
     }
@@ -114,8 +108,8 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
     if stack.len() >= 4
         && raw_opcode(&stack[0]) == Some(op::POP)
         && raw_opcode(&stack[1]) == Some(op::SWAP1)
-        && raw_opcode(&stack[3]) == Some(op::DUP2)
         && let Some(binop) = raw_opcode(&stack[2])
+        && raw_opcode(&stack[3]) == Some(op::DUP2)
     {
         if matches!(binop, op::ADD | op::MUL | op::AND | op::OR | op::XOR | op::EQ) {
             return Some(Rewrite::replace(4, [raw(binop)]));
@@ -154,10 +148,11 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
 
     if stack.len() >= 6
         && raw_opcode(&stack[0]) == Some(op::MSTORE)
+        && let Some(a) = push_value(&stack[1])
         && raw_opcode(&stack[2]) == Some(op::DUP1)
         && raw_opcode(&stack[3]) == Some(op::MSTORE)
+        && let Some(b) = push_value(&stack[4])
         && raw_opcode(&stack[5]) == Some(op::DUP1)
-        && let (Some(a), Some(b)) = (push_value(&stack[1]), push_value(&stack[4]))
         && a == b
     {
         return Some(Rewrite::replace(6, [stack[5].clone(), stack[4].clone(), stack[3].clone()]));
@@ -165,10 +160,11 @@ fn try_peephole(instructions: &[Instruction]) -> Option<Rewrite> {
 
     if stack.len() >= 6
         && raw_opcode(&stack[0]) == Some(op::MLOAD)
+        && let Some(a) = push_value(&stack[1])
         && raw_opcode(&stack[2]) == Some(op::POP)
         && raw_opcode(&stack[3]) == Some(op::MSTORE)
+        && let Some(b) = push_value(&stack[4])
         && raw_opcode(&stack[5]) == Some(op::DUP1)
-        && let (Some(a), Some(b)) = (push_value(&stack[1]), push_value(&stack[4]))
         && a == b
     {
         return Some(Rewrite::replace(6, [stack[5].clone(), stack[4].clone(), stack[3].clone()]));
@@ -227,12 +223,12 @@ fn is_removable_push(inst: &Instruction) -> bool {
 
 struct Rewrite {
     skip: usize,
-    replacement: SmallVec<[Instruction; 3]>,
+    replacement: ArrayVec<Instruction, 3>,
 }
 
 impl Rewrite {
     fn delete(skip: usize) -> Self {
-        Self { skip, replacement: SmallVec::new() }
+        Self { skip, replacement: ArrayVec::new() }
     }
 
     fn replace<const N: usize>(skip: usize, replacement: [Instruction; N]) -> Self {
