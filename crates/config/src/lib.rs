@@ -200,6 +200,18 @@ pub struct Dump {
     pub paths: Option<Vec<String>>,
 }
 
+impl Dump {
+    /// Returns whether any requested dump requires the codegen pipeline.
+    pub fn needs_codegen(&self) -> bool {
+        self.kinds.iter().any(|kind| {
+            matches!(
+                kind,
+                DumpKind::Mir | DumpKind::MirCfg | DumpKind::EvmIr | DumpKind::EvmIrRuntime
+            )
+        })
+    }
+}
+
 impl std::str::FromStr for Dump {
     type Err = String;
 
