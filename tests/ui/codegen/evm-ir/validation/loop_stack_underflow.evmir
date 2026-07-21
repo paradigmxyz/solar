@@ -1,0 +1,9 @@
+//@ failure-status: 1
+@module module
+
+bb0 (entry):
+  push 1
+  jump bb1
+bb1:
+  pop
+  jump bb1

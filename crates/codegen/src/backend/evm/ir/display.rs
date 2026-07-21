@@ -45,11 +45,7 @@ fn display_instruction<'a>(module: &'a Module, inst: &'a Instruction) -> impl fm
         if let Some(value) = &inst.value {
             write!(f, " {}", display_push_value(module, value))?;
         }
-        write!(
-            f,
-            "{}",
-            display_metadata(&inst.metadata, Some(default_instruction_stack_effect(inst)))
-        )
+        write!(f, "{}", display_metadata(&inst.metadata, default_instruction_stack_effect(inst)))
     })
 }
 
@@ -78,7 +74,7 @@ fn display_terminator<'a>(module: &'a Module, term: &'a Terminator) -> impl fmt:
         write!(
             f,
             "{}",
-            display_metadata(&term.metadata, Some(default_terminator_stack_effect(&term.kind)))
+            display_metadata(&term.metadata, default_terminator_stack_effect(&term.kind))
         )
     })
 }

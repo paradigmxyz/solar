@@ -2,7 +2,11 @@
 
 use super::*;
 use crate::backend::evm::op;
-use solar_data_structures::map::FxHashSet;
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+    map::FxHashSet,
+};
 use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
 use std::fmt;
 
@@ -29,6 +33,7 @@ impl<'a> Verifier<'a> {
     }
 
     fn verify_module(&self, module: &Module) {
+        let errors_before = self.dcx.err_count();
         if !solar_parse::lexer::is_ident(module.name.as_str()) {
             self.error(format_args!("invalid program name `{}`", module.name));
         }
@@ -61,7 +66,7 @@ impl<'a> Verifier<'a> {
                 self.error_in_block(block_id, "missing terminator");
                 continue;
             };
-            self.verify_terminator_shape(block_id, &term.kind);
+            self.verify_terminator_shape(block_id, term);
             term.kind.visit_targets(|target| {
                 if !self.block_exists(module, target) {
                     self.error_in_block(
@@ -72,7 +77,9 @@ impl<'a> Verifier<'a> {
             });
         }
 
-        self.verify_stack_ops(module);
+        if self.dcx.err_count() == errors_before {
+            self.verify_stack_ops(module);
+        }
     }
 
     fn verify_instruction_shape(&self, block_id: BlockId, module: &Module, inst: &Instruction) {
@@ -96,27 +103,35 @@ impl<'a> Verifier<'a> {
             self.error_in_block(block_id, "only `push` instructions can carry a value");
         }
 
-        let expected = default_instruction_stack_effect(inst);
-        if let Some(effect) = inst.metadata.stack
-            && op::stack_io(inst.opcode).is_some()
-            && effect != expected
-        {
-            self.error_in_block(
-                block_id,
-                format_args!(
-                    "`{}` has stack effect {}->{}, expected {}->{}",
-                    inst.mnemonic(),
-                    effect.inputs,
-                    effect.outputs,
-                    expected.inputs,
-                    expected.outputs
-                ),
-            );
+        match (inst.metadata.stack, default_instruction_stack_effect(inst)) {
+            (Some(effect), Some(expected)) if effect != expected => {
+                self.error_in_block(
+                    block_id,
+                    format_args!(
+                        "`{}` has stack effect {}->{}, expected {}->{}",
+                        inst.mnemonic(),
+                        effect.inputs,
+                        effect.outputs,
+                        expected.inputs,
+                        expected.outputs
+                    ),
+                );
+            }
+            (None, None) => {
+                self.error_in_block(
+                    block_id,
+                    format_args!(
+                        "instruction `{}` must declare an explicit stack effect",
+                        inst.mnemonic()
+                    ),
+                );
+            }
+            _ => {}
         }
     }
 
-    fn verify_terminator_shape(&self, block_id: BlockId, kind: &TerminatorKind) {
-        if let TerminatorKind::Op(opcode) = kind
+    fn verify_terminator_shape(&self, block_id: BlockId, term: &Terminator) {
+        if let TerminatorKind::Op(opcode) = &term.kind
             && !op::is_terminal(*opcode)
         {
             self.error_in_block(
@@ -124,36 +139,89 @@ impl<'a> Verifier<'a> {
                 format_args!("terminator opcode `0x{opcode:02x}` is not terminal"),
             );
         }
+        match (term.metadata.stack, default_terminator_stack_effect(&term.kind)) {
+            (Some(effect), Some(expected)) if effect != expected => {
+                self.error_in_block(
+                    block_id,
+                    format_args!(
+                        "`{}` has stack effect {}->{}, expected {}->{}",
+                        terminator_name(&term.kind),
+                        effect.inputs,
+                        effect.outputs,
+                        expected.inputs,
+                        expected.outputs
+                    ),
+                );
+            }
+            (None, None) => {
+                self.error_in_block(
+                    block_id,
+                    format_args!(
+                        "terminator `{}` must declare an explicit stack effect",
+                        terminator_name(&term.kind)
+                    ),
+                );
+            }
+            _ => {}
+        }
     }
 
-    /// Checks physical stack operations precisely in the entry block and
-    /// relative to an implicit incoming stack in every other block.
+    /// Checks physical stack operations along every direct path from the entry block.
     fn verify_stack_ops(&self, module: &Module) {
-        for (block_id, block) in module.blocks.iter_enumerated() {
-            let mut stack =
-                ModelStack { depth: 0, infinite_floor: module.entry_block != Some(block_id) };
+        let Some(entry) = module.entry_block else { return };
+        let mut entry_depths: IndexVec<BlockId, Option<usize>> =
+            index_vec![None; module.blocks.len()];
+        entry_depths[entry] = Some(0);
+        let mut pending = vec![entry];
+        let mut invalid = DenseBitSet::new_empty(module.blocks.len());
+        while let Some(block_id) = pending.pop() {
+            if invalid.contains(block_id) {
+                continue;
+            }
+            let block = &module.blocks[block_id];
+            let mut stack = ModelStack { depth: entry_depths[block_id].unwrap() };
+            let mut valid = true;
             for inst in &block.instructions {
                 if inst.is_physical_stack_op() {
                     if self.apply_physical_stack_op(block_id, inst.opcode, &mut stack).is_err() {
+                        valid = false;
                         break;
                     }
                 } else {
                     let effect = inst
                         .metadata
                         .stack
-                        .unwrap_or_else(|| default_instruction_stack_effect(inst));
+                        .or_else(|| default_instruction_stack_effect(inst))
+                        .expect("instruction stack effect must be known after shape validation");
                     if self.apply_effect(block_id, inst.mnemonic(), effect, &mut stack).is_err() {
+                        valid = false;
                         break;
                     }
                 }
             }
-            if let Some(term) = &block.terminator {
-                let effect = term
-                    .metadata
-                    .stack
-                    .unwrap_or_else(|| default_terminator_stack_effect(&term.kind));
-                self.apply_effect(block_id, terminator_name(&term.kind), effect, &mut stack).ok();
+            if valid && let Some(term) = &block.terminator {
+                let effect = default_terminator_stack_effect(&term.kind)
+                    .or(term.metadata.stack)
+                    .expect("terminator stack effect must be known after shape validation");
+                valid = self
+                    .apply_effect(block_id, terminator_name(&term.kind), effect, &mut stack)
+                    .is_ok();
             }
+            if !valid {
+                invalid.insert(block_id);
+                continue;
+            }
+            let Some(term) = &block.terminator else { continue };
+            term.kind.visit_targets(|target| {
+                let update = match entry_depths[target] {
+                    Some(previous) => stack.depth < previous,
+                    None => true,
+                };
+                if update && !invalid.contains(target) {
+                    entry_depths[target] = Some(stack.depth);
+                    pending.push(target);
+                }
+            });
         }
     }
 
@@ -228,19 +296,11 @@ impl<'a> Verifier<'a> {
 
 struct ModelStack {
     depth: usize,
-    infinite_floor: bool,
 }
 
 impl ModelStack {
-    fn ensure_depth(&mut self, depth: usize) -> bool {
-        if self.depth >= depth {
-            return true;
-        }
-        if !self.infinite_floor {
-            return false;
-        }
-        self.depth = depth;
-        true
+    fn ensure_depth(&self, depth: usize) -> bool {
+        self.depth >= depth
     }
 }
 

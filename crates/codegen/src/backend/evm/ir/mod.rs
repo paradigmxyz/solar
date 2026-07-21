@@ -366,22 +366,22 @@ impl StackEffect {
     }
 }
 
-pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> StackEffect {
+pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> Option<StackEffect> {
     if inst.is_encoded_push() {
-        StackEffect::new(0, 1)
+        Some(StackEffect::new(0, 1))
     } else if let Some((inputs, outputs)) = op::stack_io(inst.opcode) {
-        StackEffect::new(inputs, outputs)
+        Some(StackEffect::new(inputs, outputs))
     } else {
-        StackEffect::new(0, 0)
+        None
     }
 }
 
-fn default_terminator_stack_effect(kind: &TerminatorKind) -> StackEffect {
+fn default_terminator_stack_effect(kind: &TerminatorKind) -> Option<StackEffect> {
     match kind {
-        TerminatorKind::JumpI { .. } => StackEffect::new(1, 0),
-        TerminatorKind::Jump(_) => StackEffect::new(0, 0),
-        TerminatorKind::Op(opcode) => op::stack_io(*opcode)
-            .map(|(inputs, outputs)| StackEffect::new(inputs, outputs))
-            .unwrap_or_else(|| StackEffect::new(0, 0)),
+        TerminatorKind::JumpI { .. } => Some(StackEffect::new(1, 0)),
+        TerminatorKind::Jump(_) => Some(StackEffect::new(0, 0)),
+        TerminatorKind::Op(opcode) => {
+            op::stack_io(*opcode).map(|(inputs, outputs)| StackEffect::new(inputs, outputs))
+        }
     }
 }
