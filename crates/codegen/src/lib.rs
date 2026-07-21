@@ -27,10 +27,7 @@ pub mod mir;
 mod analysis;
 
 pub mod backend;
-pub use backend::{
-    Backend,
-    evm::{EvmCodegen, EvmCodegenConfig},
-};
+pub use backend::{Backend, evm::EvmCodegen};
 mod ir_parse;
 
 pub mod lower;

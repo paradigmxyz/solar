@@ -15,6 +15,7 @@ use crate::{
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_sema::Gcx;
 
 /// Configuration for MIR-level internal-call inlining.
 #[derive(Clone, Debug)]
@@ -125,8 +126,8 @@ pub(crate) struct MirInliner {
 pub(crate) struct InlinePass;
 
 impl ModulePass for InlinePass {
-    fn run(&mut self, module: &mut Module) -> bool {
-        let config = if module.optimize_for_size {
+    fn run(&mut self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        let config = if gcx.sess.opts.optimization == solar_config::OptimizationMode::Size {
             MirInlineConfig::for_size()
         } else {
             MirInlineConfig::default()

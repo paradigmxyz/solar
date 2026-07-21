@@ -14,14 +14,13 @@ use solar_codegen::{
     lower,
     mir::{Module, validate},
     pass::{
-        DEFAULT_CLEANUP_PIPELINE, DEFAULT_PIPELINE, PASS_REGISTRY, PassInfo, PipelineOptions,
-        lookup_pass, run_default_pipeline, run_pass,
+        DEFAULT_CLEANUP_PIPELINE, DEFAULT_PIPELINE, PASS_REGISTRY, PassInfo, lookup_pass,
+        run_default_pipeline, run_pass,
     },
 };
 use solar_config::CompileOpts;
 use solar_data_structures::fmt::{self, FmtIteratorExt};
-use solar_interface::Session;
-use solar_sema::CompilerRef;
+use solar_sema::{CompilerRef, Gcx};
 use std::{ops::ControlFlow, path::Path, process::ExitCode};
 
 fn after_help() -> String {
@@ -129,12 +128,9 @@ fn print_module(module: &Module, name: &str, after: &str) {
 
 /// Runs the pass pipeline on a single module and emits output.
 /// Used for both .sol contracts and .mir input.
-fn run_pipeline(module: &mut Module, name: &str, args: &MirOptArgs, time_passes: bool) {
+fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: &str, args: &MirOptArgs) {
     if args.pipeline_default {
-        let mut options = PipelineOptions::default();
-        options.print_after_each = args.print_after_each;
-        options.time_passes = time_passes;
-        run_default_pipeline(module, options);
+        run_default_pipeline(gcx, module);
         if !args.print_after_each {
             print_module(module, name, "pipeline-default");
         }
@@ -142,12 +138,10 @@ fn run_pipeline(module: &mut Module, name: &str, args: &MirOptArgs, time_passes:
     }
 
     let passes = args.selected_passes();
-    let mut options = PipelineOptions::default();
-    options.time_passes = time_passes;
     let pipeline_label = args.pipeline_label(&passes);
     for (index, &pass) in passes.iter().enumerate() {
         if let Some(pass) = pass {
-            run_pass(module, pass, options);
+            run_pass(gcx, module, pass);
         }
         if args.print_after_each || index + 1 == passes.len() {
             let label = if args.print_after_each { pass_label(pass) } else { &pipeline_label };
@@ -157,7 +151,8 @@ fn run_pipeline(module: &mut Module, name: &str, args: &MirOptArgs, time_passes:
 }
 
 /// Process a `.mir` input: read file, parse, run passes, print.
-fn process_mir(sess: &Session, args: &MirOptArgs) -> solar_interface::Result {
+fn process_mir(compiler: &mut CompilerRef<'_>, args: &MirOptArgs) -> solar_interface::Result {
+    let sess = compiler.sess();
     let source = sess
         .source_map()
         .load_file(Path::new(&args.input))
@@ -167,7 +162,7 @@ fn process_mir(sess: &Session, args: &MirOptArgs) -> solar_interface::Result {
     // diagnostic instead of tripping the post-pass validator ICE.
     validate(&sess.dcx, &module);
     if sess.dcx.has_errors().is_ok() {
-        run_pipeline(&mut module, &args.input, args, sess.opts.unstable.time_passes);
+        run_pipeline(compiler.gcx(), &mut module, &args.input, args);
     }
     Ok(())
 }
@@ -191,7 +186,7 @@ fn process_sol(compiler: &mut CompilerRef<'_>, args: &MirOptArgs) -> solar_inter
         }
         let mut module = lower::lower_contract(gcx, id);
         let name = gcx.contract_fully_qualified_name(id).to_string();
-        run_pipeline(&mut module, &name, args, gcx.sess.opts.unstable.time_passes);
+        run_pipeline(gcx, &mut module, &name, args);
     }
     Ok(())
 }
@@ -199,11 +194,12 @@ fn process_sol(compiler: &mut CompilerRef<'_>, args: &MirOptArgs) -> solar_inter
 /// Entry point for the `mir-opt` subcommand.
 pub(super) fn run(args: MirOptArgs, mut opts: CompileOpts) -> ExitCode {
     opts.input.push(args.input.clone());
+    opts.unstable.mir_print_after_each = args.print_after_each;
     // Dispatch on input file extension.
     let ext = Path::new(&args.input).extension().and_then(|s| s.to_str()).unwrap_or("");
     let result = match ext {
         "sol" => super::compile::run_compiler_with(opts, |compiler| process_sol(compiler, &args)),
-        "mir" => super::compile::run_session_with(opts, |sess| process_mir(sess, &args)),
+        "mir" => super::compile::run_compiler_with(opts, |compiler| process_mir(compiler, &args)),
         _ => super::compile::run_session_with(opts, |sess| {
             Err(sess
                 .dcx

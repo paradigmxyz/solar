@@ -6,8 +6,9 @@ use crate::backend::evm::{
     op,
 };
 use solar_data_structures::bit_set::DenseBitSet;
+use solar_sema::Gcx;
 
-pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
+pub(super) fn run(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
     state.reserve(module.blocks.len());
     let mut changed = false;

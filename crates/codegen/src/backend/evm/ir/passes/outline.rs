@@ -7,14 +7,15 @@ use crate::backend::evm::{
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_sema::Gcx;
 use std::hash::{Hash, Hasher};
 
 const MIN_CLOSED_RUN: usize = 4;
 
-pub(super) fn run(module: &mut Module, options: super::PassOptions) -> bool {
+pub(super) fn run(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
     outline_closed_computations(module, &mut state)
-        | outline_repeated_pushes(module, options, &mut state)
+        | outline_repeated_pushes(gcx, module, &mut state)
 }
 
 fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> bool {
@@ -103,11 +104,7 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
     true
 }
 
-fn outline_repeated_pushes(
-    module: &mut Module,
-    options: super::PassOptions,
-    state: &mut RunState,
-) -> bool {
+fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
     let mut sites = FxHashMap::<U256, SmallVec<[(BlockId, usize); 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         for (index, inst) in block.instructions.iter().enumerate() {
@@ -126,7 +123,7 @@ fn outline_repeated_pushes(
     let mut values: Vec<_> = sites
         .iter()
         .filter_map(|(&value, occurrences)| {
-            let push_len = push_len(value, options);
+            let push_len = push_len(gcx, value);
             let inline = occurrences.len() * push_len;
             let outlined = occurrences.len() * SITE_BYTES + push_len + 3;
             (occurrences.len() >= 2 && inline >= outlined + MIN_SAVING).then_some(value)
@@ -218,9 +215,9 @@ fn lower_bound(instructions: &[Instruction]) -> usize {
     instructions.iter().map(|inst| if inst.is_encoded_push() { 2 } else { 1 }).sum()
 }
 
-fn push_len(value: U256, options: super::PassOptions) -> usize {
+fn push_len(gcx: Gcx<'_>, value: U256) -> usize {
     let width = value.byte_len();
-    if width == 0 && !options.evm_version.has_push0() { 2 } else { width + 1 }
+    if width == 0 && !gcx.sess.opts.evm_version.has_push0() { 2 } else { width + 1 }
 }
 
 #[derive(Clone, Copy, Debug)]

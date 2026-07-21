@@ -6,8 +6,9 @@ use crate::backend::evm::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::bit_set::DenseBitSet;
+use solar_sema::Gcx;
 
-pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
+pub(super) fn run(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut empty_reverts = DenseBitSet::new_empty(module.blocks.len());
     for block in module.blocks.indices().filter(|&block| is_empty_revert(module, block)) {
         empty_reverts.insert(block);

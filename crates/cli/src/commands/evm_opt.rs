@@ -7,7 +7,7 @@
 use clap::ValueHint;
 use solar_codegen::backend::evm::ir;
 use solar_config::CompileOpts;
-use solar_interface::Session;
+use solar_sema::CompilerRef;
 use std::{path::Path, process::ExitCode};
 
 #[derive(clap::Args)]
@@ -69,17 +69,18 @@ fn print_module(module: &ir::Module, name: &str, after: &str) {
     print!("{}", module.to_text());
 }
 
-fn run_pipeline(sess: &Session, module: &mut ir::Module, name: &str, args: &EvmOptArgs) {
+fn run_pipeline(
+    compiler: &CompilerRef<'_>,
+    module: &mut ir::Module,
+    name: &str,
+    args: &EvmOptArgs,
+) {
+    let sess = compiler.sess();
     let dcx = &sess.dcx;
-    let options = ir::PassOptions {
-        time_passes: sess.opts.unstable.time_passes,
-        evm_version: sess.opts.evm_version,
-        optimization: sess.opts.optimization,
-    };
     let pipeline_label = selected_pass_list_label(&args.passes, ",");
     for (index, &pass) in args.passes.iter().enumerate() {
         if let Some(pass) = pass {
-            ir::run_pass(module, pass, options);
+            ir::run_pass(compiler.gcx(), module, pass);
         }
         if args.print_after_each || index + 1 == args.passes.len() {
             ir::validate(dcx, module);
@@ -92,7 +93,8 @@ fn run_pipeline(sess: &Session, module: &mut ir::Module, name: &str, args: &EvmO
     }
 }
 
-fn process_evmir(sess: &Session, args: &EvmOptArgs) -> solar_interface::Result {
+fn process_evmir(compiler: &mut CompilerRef<'_>, args: &EvmOptArgs) -> solar_interface::Result {
+    let sess = compiler.sess();
     let source = sess
         .source_map()
         .load_file(Path::new(&args.input))
@@ -100,7 +102,7 @@ fn process_evmir(sess: &Session, args: &EvmOptArgs) -> solar_interface::Result {
     let mut module = ir::Module::parse(sess, &source)?;
     ir::validate(&sess.dcx, &module);
     if sess.dcx.has_errors().is_ok() {
-        run_pipeline(sess, &mut module, &args.input, args);
+        run_pipeline(compiler, &mut module, &args.input, args);
     }
     Ok(())
 }
@@ -108,9 +110,10 @@ fn process_evmir(sess: &Session, args: &EvmOptArgs) -> solar_interface::Result {
 pub(crate) fn run(args: EvmOptArgs, mut opts: CompileOpts) -> ExitCode {
     opts.input.push(args.input.clone());
     let ext = Path::new(&args.input).extension().and_then(|s| s.to_str()).unwrap_or("");
-    let result = super::compile::run_session_with(opts, |sess| match ext {
-        "evmir" => process_evmir(sess, &args),
-        _ => Err(sess
+    let result = super::compile::run_compiler_with(opts, |compiler| match ext {
+        "evmir" => process_evmir(compiler, &args),
+        _ => Err(compiler
+            .sess()
             .dcx
             .err(format!("unsupported input file extension `.{ext}` (expected .evmir)"))
             .emit()),
