@@ -11,7 +11,44 @@ use solar_sema::{
     ty::{Ty, TyKind},
 };
 
+/// The ABI-encoded region an argument decode reads from. External calls read
+/// calldata after the selector; constructors read the argument blob CODECOPY'd
+/// into memory at the heap start.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum AbiSource {
+    Calldata,
+    Memory,
+}
+
 impl<'gcx> Lowerer<'gcx> {
+    /// Loads one ABI word from `pos` in the selected source region.
+    fn abi_load(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
+        pos: ValueId,
+    ) -> ValueId {
+        match source {
+            AbiSource::Calldata => builder.calldataload(pos),
+            AbiSource::Memory => builder.mload(pos),
+        }
+    }
+
+    /// Copies `len` bytes from `src` in the selected source region to memory.
+    fn abi_copy(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
+        dst: ValueId,
+        src: ValueId,
+        len: ValueId,
+    ) {
+        match source {
+            AbiSource::Calldata => builder.calldatacopy(dst, src, len),
+            AbiSource::Memory => self.mcopy(builder, dst, src, len, None),
+        }
+    }
+
     /// Lowers a string/bytes literal to Solidity's memory layout
     /// `[length][data...]` and returns the memory pointer. General literal
     /// lowering still returns a word; ABI return encoding needs a real pointer.
@@ -190,9 +227,10 @@ impl<'gcx> Lowerer<'gcx> {
     pub(super) fn materialize_calldata_bytes_at(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
         len_pos: ValueId,
     ) -> ValueId {
-        let len = builder.calldataload(len_pos);
+        let len = self.abi_load(builder, source, len_pos);
 
         let word_size = builder.imm_u64(32);
         let thirty_one = builder.imm_u64(31);
@@ -217,7 +255,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(last_word, zero);
 
         let data_pos = builder.add(len_pos, word_size);
-        builder.calldatacopy(data_ptr, data_pos, len);
+        self.abi_copy(builder, source, data_ptr, data_pos, len);
         ptr
     }
 
@@ -322,12 +360,13 @@ impl<'gcx> Lowerer<'gcx> {
     pub(super) fn materialize_calldata_word_array_at(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
         len_pos: ValueId,
     ) -> ValueId {
-        let len = builder.calldataload(len_pos);
+        let len = self.abi_load(builder, source, len_pos);
         let word_size = builder.imm_u64(32);
         let data_pos = builder.add(len_pos, word_size);
-        self.copy_calldata_word_array(builder, data_pos, len)
+        self.copy_calldata_word_array(builder, source, data_pos, len)
     }
 
     /// Materializes a calldata dynamic-array slice into memory, rebuilding
@@ -344,7 +383,7 @@ impl<'gcx> Lowerer<'gcx> {
         {
             let data_pos = builder.slice_ptr(slice);
             let len = builder.slice_len(slice);
-            return self.materialize_calldata_nested_array(builder, elem, data_pos, len);
+            return self.materialize_calldata_nested_array(builder, AbiSource::Calldata, elem, data_pos, len);
         }
         self.materialize_calldata_dyn_array(builder, slice)
     }
@@ -357,7 +396,7 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> ValueId {
         let len = builder.slice_len(slice);
         let data_pos = builder.slice_ptr(slice);
-        self.copy_calldata_word_array(builder, data_pos, len)
+        self.copy_calldata_word_array(builder, AbiSource::Calldata, data_pos, len)
     }
 
     /// Copies `len` calldata words starting at `data_pos` into a fresh memory
@@ -365,6 +404,7 @@ impl<'gcx> Lowerer<'gcx> {
     fn copy_calldata_word_array(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
         data_pos: ValueId,
         len: ValueId,
     ) -> ValueId {
@@ -383,7 +423,7 @@ impl<'gcx> Lowerer<'gcx> {
         );
         builder.set_memory_object_len(ptr, len, MemoryObjectKind::DynamicArray);
         let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
-        builder.calldatacopy(data_ptr, data_pos, byte_len);
+        self.abi_copy(builder, source, data_ptr, data_pos, byte_len);
         ptr
     }
 
@@ -392,27 +432,28 @@ impl<'gcx> Lowerer<'gcx> {
     pub(super) fn materialize_calldata_value_at(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
         ty: Ty<'gcx>,
         pos: ValueId,
     ) -> ValueId {
         let ty = ty.peel_refs();
         match ty.kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                self.materialize_calldata_bytes_at(builder, pos)
+                self.materialize_calldata_bytes_at(builder, source, pos)
             }
             TyKind::DynArray(elem) | TyKind::Slice(elem) => {
-                self.materialize_calldata_dynamic_array_at(builder, elem, pos)
+                self.materialize_calldata_dynamic_array_at(builder, source, elem, pos)
             }
             TyKind::Array(elem, len) => {
-                self.materialize_calldata_fixed_array_at(builder, elem, len.to::<u64>(), pos)
+                self.materialize_calldata_fixed_array_at(builder, source, elem, len.to::<u64>(), pos)
             }
             TyKind::Struct(id) => {
                 let fields = self.gcx.struct_field_types(id).to_vec();
-                self.materialize_calldata_fields_at(builder, &fields, pos)
+                self.materialize_calldata_fields_at(builder, source, &fields, pos)
             }
-            TyKind::Tuple(fields) => self.materialize_calldata_fields_at(builder, fields, pos),
-            TyKind::Udvt(inner, _) => self.materialize_calldata_value_at(builder, inner, pos),
-            _ => builder.calldataload(pos),
+            TyKind::Tuple(fields) => self.materialize_calldata_fields_at(builder, source, fields, pos),
+            TyKind::Udvt(inner, _) => self.materialize_calldata_value_at(builder, source, inner, pos),
+            _ => self.abi_load(builder, source, pos),
         }
     }
 
@@ -422,17 +463,18 @@ impl<'gcx> Lowerer<'gcx> {
     fn materialize_calldata_dynamic_array_at(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
         elem: Ty<'gcx>,
         len_pos: ValueId,
     ) -> ValueId {
         if self.abi_is_word_element(elem) {
-            return self.materialize_calldata_word_array_at(builder, len_pos);
+            return self.materialize_calldata_word_array_at(builder, source, len_pos);
         }
 
-        let len = builder.calldataload(len_pos);
+        let len = self.abi_load(builder, source, len_pos);
         let word = builder.imm_u64(32);
         let data_pos = builder.add(len_pos, word);
-        self.materialize_calldata_nested_array(builder, elem, data_pos, len)
+        self.materialize_calldata_nested_array(builder, source, elem, data_pos, len)
     }
 
     /// Materializes a calldata dynamic array of reference/aggregate elements
@@ -442,6 +484,7 @@ impl<'gcx> Lowerer<'gcx> {
     pub(super) fn materialize_calldata_nested_array(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
         elem: Ty<'gcx>,
         data_pos: ValueId,
         len: ValueId,
@@ -486,9 +529,9 @@ impl<'gcx> Lowerer<'gcx> {
         builder.branch(has_next, body_block, done_block);
 
         builder.switch_to_block(body_block);
-        let source = builder.mload(source_slot);
-        let elem_pos = self.calldata_abi_value_pos(builder, elem, source, tuple_base);
-        let value = self.materialize_calldata_value_at(builder, elem, elem_pos);
+        let head_cursor = builder.mload(source_slot);
+        let elem_pos = self.calldata_abi_value_pos(builder, source, elem, head_cursor, tuple_base);
+        let value = self.materialize_calldata_value_at(builder, source, elem, elem_pos);
         let dest = builder.mload(dest_slot);
         builder.mstore(dest, value);
 
@@ -496,9 +539,9 @@ impl<'gcx> Lowerer<'gcx> {
         let remaining = builder.mload(remaining_slot);
         let next_remaining = builder.sub(remaining, one);
         builder.mstore(remaining_slot, next_remaining);
-        let source = builder.mload(source_slot);
+        let head_cursor = builder.mload(source_slot);
         let elem_head_size = builder.imm_u64(self.abi_head_size(elem));
-        let next_source = builder.add(source, elem_head_size);
+        let next_source = builder.add(head_cursor, elem_head_size);
         builder.mstore(source_slot, next_source);
         let dest = builder.mload(dest_slot);
         let next_dest = builder.add(dest, word);
@@ -513,6 +556,7 @@ impl<'gcx> Lowerer<'gcx> {
     fn materialize_calldata_fixed_array_at(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
         elem: Ty<'gcx>,
         len: u64,
         pos: ValueId,
@@ -522,8 +566,8 @@ impl<'gcx> Lowerer<'gcx> {
         let mut head_offset = 0;
         for i in 0..len {
             let head_pos = self.offset_ptr(builder, pos, head_offset);
-            let elem_pos = self.calldata_abi_value_pos(builder, elem, head_pos, pos);
-            let value = self.materialize_calldata_value_at(builder, elem, elem_pos);
+            let elem_pos = self.calldata_abi_value_pos(builder, source, elem, head_pos, pos);
+            let value = self.materialize_calldata_value_at(builder, source, elem, elem_pos);
             let dest = self.offset_ptr(builder, ptr, i * 32);
             builder.mstore(dest, value);
             head_offset += self.abi_head_size(elem);
@@ -536,6 +580,7 @@ impl<'gcx> Lowerer<'gcx> {
     fn materialize_calldata_fields_at(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
         fields: &[Ty<'gcx>],
         pos: ValueId,
     ) -> ValueId {
@@ -544,8 +589,8 @@ impl<'gcx> Lowerer<'gcx> {
         let mut head_offset = 0;
         for (i, &field) in fields.iter().enumerate() {
             let head_pos = self.offset_ptr(builder, pos, head_offset);
-            let field_pos = self.calldata_abi_value_pos(builder, field, head_pos, pos);
-            let value = self.materialize_calldata_value_at(builder, field, field_pos);
+            let field_pos = self.calldata_abi_value_pos(builder, source, field, head_pos, pos);
+            let value = self.materialize_calldata_value_at(builder, source, field, field_pos);
             let dest = self.offset_ptr(builder, ptr, (i as u64) * 32);
             builder.mstore(dest, value);
             head_offset += self.abi_head_size(field);
@@ -558,12 +603,13 @@ impl<'gcx> Lowerer<'gcx> {
     fn calldata_abi_value_pos(
         &self,
         builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
         ty: Ty<'gcx>,
         head_pos: ValueId,
         tuple_base: ValueId,
     ) -> ValueId {
         if self.abi_is_dynamic(ty) {
-            let offset = builder.calldataload(head_pos);
+            let offset = self.abi_load(builder, source, head_pos);
             builder.add(tuple_base, offset)
         } else {
             head_pos
