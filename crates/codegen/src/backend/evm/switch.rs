@@ -155,6 +155,7 @@ fn bucket_count_candidates(len: usize) -> Vec<usize> {
     let mut candidates = (0..MAX_BUCKET_CANDIDATES)
         .map(|index| first + span.saturating_mul(index) / denominator)
         .collect::<Vec<_>>();
+    candidates.push(len);
     candidates.sort_unstable();
     candidates.dedup();
     candidates
@@ -318,7 +319,10 @@ mod tests {
 
     #[test]
     fn bounds_bucket_search_for_large_switches() {
-        assert!(bucket_count_candidates(10_000).len() <= MAX_BUCKET_CANDIDATES);
+        let candidates = bucket_count_candidates(10_000);
+        assert!(candidates.len() <= MAX_BUCKET_CANDIDATES + 1);
+        assert!(candidates.contains(&10_000));
+        assert!(bucket_count_candidates(97).contains(&97));
     }
 
     #[test]

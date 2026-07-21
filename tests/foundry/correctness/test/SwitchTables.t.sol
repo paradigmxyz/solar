@@ -241,7 +241,7 @@ contract SwitchTablesTest {
     function testBucketDispatchMiss() public {
         (bool firstBucket,) = address(tables).call(hex"00000000");
         assert(!firstBucket);
-        (bool lastBucket,) = address(tables).call(hex"00000027");
+        (bool lastBucket,) = address(tables).call(hex"00000026");
         assert(!lastBucket);
         (bool interiorBucket,) = address(tables).call(hex"ffffffff");
         assert(!interiorBucket);
