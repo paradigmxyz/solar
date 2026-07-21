@@ -2,9 +2,9 @@ error: codegen does not support this calldata-slice usage yet
    ╭▸ ROOT/tests/ui/codegen/lowering/calldata_slice_backend_unsupported.sol:LL:CC
    │
 LL │ ┏ contract CalldataSliceBackendUnsupported {
-LL │ ┃     struct Call {
-LL │ ┃         address to;
-LL │ ┃         uint256 value;
+LL │ ┃     function _empty() internal pure returns (bytes calldata d) {
+LL │ ┃         assembly {
+LL │ ┃             d.length := 0
    ‡ ┃
 LL │ ┃ }
    ╰╴┗━┛

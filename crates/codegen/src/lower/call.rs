@@ -1684,11 +1684,41 @@ impl<'gcx> Lowerer<'gcx> {
         })
     }
 
+    /// Whether any statement in `body`, at any depth, is an explicit `return`.
+    /// Control-flow inlining lowers the body through [`Self::lower_block`], which
+    /// would turn such a `return` into a terminator that returns from the
+    /// caller, so a body with one cannot be inlined that way.
+    fn body_has_return(body: &hir::Block<'_>) -> bool {
+        body.stmts.iter().any(Self::stmt_has_return)
+    }
+
+    fn stmt_has_return(stmt: &hir::Stmt<'_>) -> bool {
+        use hir::StmtKind;
+        match &stmt.kind {
+            StmtKind::Return(_) => true,
+            StmtKind::Block(b) | StmtKind::UncheckedBlock(b) | StmtKind::AssemblyBlock(b) => {
+                Self::body_has_return(b)
+            }
+            StmtKind::If(_, then_stmt, else_stmt) => {
+                Self::stmt_has_return(then_stmt)
+                    || else_stmt.is_some_and(Self::stmt_has_return)
+            }
+            StmtKind::Loop(b, _) => Self::body_has_return(b),
+            StmtKind::Switch(sw) => sw.cases.iter().any(|case| Self::body_has_return(&case.body)),
+            StmtKind::Try(t) => t.clauses.iter().any(|clause| Self::body_has_return(&clause.block)),
+            _ => false,
+        }
+    }
+
     /// Lowers a call to an internal function that returns a calldata slice by
-    /// inlining its straight-line body, so the returned slice is a `make_slice`
-    /// at the call site. A callee that cannot be inlined — a storage-reference
-    /// parameter, a non-straight-line body, or recursion — is reported instead
-    /// of lowered to a slice the backend cannot handle.
+    /// inlining its body, so the returned slice is a `make_slice` at the call
+    /// site that folds away. A straight-line body inlines through the
+    /// simple-return path; a control-flow body without explicit returns inlines
+    /// through full block lowering, its named-return slices merging across
+    /// branches through their two-word slots. A callee that cannot be inlined —
+    /// a storage-reference parameter, an explicit return under control flow, or
+    /// recursion — is reported instead of lowered to a slice the backend cannot
+    /// handle.
     fn lower_calldata_slice_return_call(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -1697,24 +1727,28 @@ impl<'gcx> Lowerer<'gcx> {
         has_storage_ref_param: bool,
     ) -> ValueId {
         let func = self.gcx.hir.function(func_id);
-        let inlinable = !has_storage_ref_param
-            && func.body.as_ref().is_some_and(Self::is_straight_line_body)
-            && !self.function_is_recursive(func_id);
-        if inlinable && self.try_enter_inline(func_id) {
-            let saved_locals = std::mem::take(&mut self.locals);
-            for (i, &param_id) in func.parameters.iter().enumerate() {
-                if let Some(&arg_val) = arg_vals.get(i) {
-                    self.locals.insert(param_id, arg_val);
+        if let Some(body) = func.body
+            && !has_storage_ref_param
+            && !self.function_is_recursive(func_id)
+        {
+            if Self::is_straight_line_body(&body) && self.try_enter_inline(func_id) {
+                let saved_locals = std::mem::take(&mut self.locals);
+                for (i, &param_id) in func.parameters.iter().enumerate() {
+                    if let Some(&arg_val) = arg_vals.get(i) {
+                        self.locals.insert(param_id, arg_val);
+                    }
                 }
+                let result = self.lower_library_body_simple(builder, &body, func);
+                self.locals = saved_locals;
+                self.exit_inline();
+                return result;
             }
-            let result = if let Some(body) = &func.body {
-                self.lower_library_body_simple(builder, body, func)
-            } else {
-                builder.imm_u64(0)
-            };
-            self.locals = saved_locals;
-            self.exit_inline();
-            return result;
+            if !Self::body_has_return(&body) && self.try_enter_inline(func_id) {
+                let result =
+                    self.inline_calldata_slice_control_flow(builder, func, &body, &arg_vals);
+                self.exit_inline();
+                return result;
+            }
         }
         let guar = self
             .gcx
@@ -1723,6 +1757,75 @@ impl<'gcx> Lowerer<'gcx> {
             .span(func.span)
             .emit();
         builder.error_value(guar)
+    }
+
+    /// Inlines a calldata-slice-returning function whose body has statement-level
+    /// control flow but no explicit `return`. The full body is lowered through
+    /// [`Self::lower_block`] so branches lower correctly; each named calldata
+    /// slice return is given a two-word slot seeded with an empty slice, so a
+    /// slice reassigned on only one path merges through memory. The first
+    /// return's slice value is handed back for the call site to consume.
+    fn inline_calldata_slice_control_flow(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func: &hir::Function<'_>,
+        body: &hir::Block<'_>,
+        arg_vals: &[ValueId],
+    ) -> ValueId {
+        let saved_locals = std::mem::take(&mut self.locals);
+        let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
+        let saved_next_local_memory_offset = self.next_local_memory_offset;
+        let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
+        let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
+
+        self.collect_assigned_vars_block(body);
+
+        // Every named calldata slice return lives in a slot so a value assigned
+        // on only one arm of a branch is merged there, not left leaking. An
+        // empty seed makes an unwritten return read as empty rather than junk.
+        for &ret_id in func.returns {
+            if Self::calldata_dynamic_var_kind(self.gcx.hir.variable(ret_id)).is_some() {
+                let offset = self.alloc_local_slice_memory(ret_id);
+                let zero = builder.imm_u64(0);
+                let empty = builder.make_slice(zero, zero, crate::mir::SliceLocation::Calldata);
+                self.store_slice_slot(builder, offset, empty);
+            }
+        }
+
+        for (i, &param_id) in func.parameters.iter().enumerate() {
+            if let Some(&arg_val) = arg_vals.get(i) {
+                self.locals.insert(param_id, arg_val);
+            }
+        }
+
+        let saved_in_unchecked_block = self.in_unchecked_block;
+        self.in_unchecked_block = false;
+        self.lower_block(builder, body);
+        self.in_unchecked_block = saved_in_unchecked_block;
+
+        // Read the first named return through its slot before caller state is
+        // restored; the loaded slice value stays valid afterwards.
+        let result = func
+            .returns
+            .first()
+            .map(|&ret_id| {
+                if self.is_slice_slot_local(&ret_id)
+                    && let Some(offset) = self.get_local_memory_offset(&ret_id)
+                {
+                    self.load_slice_slot(builder, offset, crate::mir::SliceLocation::Calldata)
+                } else {
+                    self.locals.get(&ret_id).copied().unwrap_or_else(|| builder.imm_u64(0))
+                }
+            })
+            .unwrap_or_else(|| builder.imm_u64(0));
+
+        self.locals = saved_locals;
+        self.local_memory_slots = saved_local_memory_slots;
+        self.next_local_memory_offset = saved_next_local_memory_offset;
+        self.assigned_vars = saved_assigned_vars;
+        self.slice_slot_locals = saved_slice_slot_locals;
+
+        result
     }
 
     fn lower_internal_call_fallback(

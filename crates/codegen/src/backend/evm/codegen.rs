@@ -670,6 +670,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         std::mem::take(&mut self.unsupported)
     }
 
+    /// Whether a function is an external interface of its module: an ABI entry,
+    /// the constructor, the fallback, or the receive function. A module with
+    /// none has no reachable runtime code.
+    fn is_module_entry(func: &Function) -> bool {
+        func.selector.is_some()
+            || func.attributes.is_constructor
+            || func.attributes.is_fallback
+            || func.attributes.is_receive
+    }
+
     /// Records any instruction that survives MIR lowering but the word-based
     /// backend cannot emit — chiefly logical slices whose aggregate use slice
     /// lowering could not fold. When this finds anything the module is left
@@ -785,7 +795,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         fields(module = %module.name),
     )]
     fn generate_deployment_artifact(&mut self, module: &mut Module) -> EvmArtifact {
-        if module.is_interface {
+        // An internal-only library (no external interface) has no reachable
+        // runtime code — like `solc`, it produces no bytecode rather than
+        // standalone bodies for functions only ever inlined elsewhere.
+        if module.is_interface || !module.functions.iter().any(Self::is_module_entry) {
             return EvmArtifact::default();
         }
         self.run_optimization_passes(module);

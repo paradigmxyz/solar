@@ -1,0 +1,191 @@
+// === ROOT/tests/ui/codegen/lowering/calldata_slice_control_flow.sol:CalldataSliceControlFlow ===
+@module CalldataSliceControlFlow
+fn @trimLen(arg0: calldataslice) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v3 = make_calldata_slice 0, 0
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    mstore 160, v4
+    mstore 192, v5
+    v6 = slice_ptr arg0
+    v7 = slice_len arg0
+    mstore 160, v6
+    mstore 192, v7
+    v8 = slice_len arg0
+    v9 = gt v8, 8
+    br v9, bb3, bb4
+  bb3:
+    v10 = slice_ptr arg0
+    v11 = add v10, 8
+    v12 = mload 160
+    v13 = mload 192
+    v14 = make_calldata_slice v12, v13
+    v15 = slice_len v14
+    v16 = make_calldata_slice v11, v15
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    mstore 160, v17
+    mstore 192, v18
+    v19 = slice_len arg0
+    v20 = sub v19, 8
+    v21 = mload 160
+    v22 = mload 192
+    v23 = make_calldata_slice v21, v22
+    v24 = slice_ptr v23
+    v25 = make_calldata_slice v24, v20
+    v26 = slice_ptr v25
+    v27 = slice_len v25
+    mstore 160, v26
+    mstore 192, v27
+    jump bb4
+  bb4:
+    v28 = mload 160
+    v29 = mload 192
+    v30 = make_calldata_slice v28, v29
+    v31 = slice_len v30
+    mstore 128, v31
+    returndata 128, 32
+}
+
+fn @_trim(arg0: calldataslice) -> memorybytes {
+  bb0 (entry):
+    v0 = internal_frame_addr 128
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = internal_frame_addr 128
+    mstore v1, arg0 !metadata(memory=internal_frame)
+    v2 = slice_len arg0
+    v3 = gt v2, 8
+    br v3, bb1, bb2
+  bb1:
+    v4 = slice_ptr arg0
+    v5 = add v4, 8
+    v6 = make_calldata_slice v5, 0
+    v7 = slice_len arg0
+    v8 = sub v7, 8
+    v9 = slice_ptr v6
+    v10 = make_calldata_slice v9, v8
+    jump bb2
+  bb2:
+    v11 = internal_frame_addr 128
+    v12 = mload v11 !metadata(memory=internal_frame)
+    ret v12
+}
+
+fn @forward(arg0: calldataslice) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v3 = make_calldata_slice 0, 0
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    mstore 160, v4
+    mstore 192, v5
+    v6 = make_calldata_slice 0, 0
+    v7 = slice_ptr v6
+    v8 = slice_len v6
+    mstore 224, v7
+    mstore 256, v8
+    v9 = mload 224
+    v10 = mload 256
+    v11 = make_calldata_slice v9, v10
+    v12 = slice_ptr v11
+    v13 = make_calldata_slice v12, 0
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    mstore 224, v14
+    mstore 256, v15
+    v16 = slice_ptr arg0
+    v17 = mload 160
+    v18 = mload 192
+    v19 = make_calldata_slice v17, v18
+    v20 = slice_len v19
+    v21 = make_calldata_slice v16, v20
+    v22 = slice_ptr v21
+    v23 = slice_len v21
+    mstore 160, v22
+    mstore 192, v23
+    v24 = slice_len arg0
+    v25 = mload 160
+    v26 = mload 192
+    v27 = make_calldata_slice v25, v26
+    v28 = slice_ptr v27
+    v29 = make_calldata_slice v28, v24
+    v30 = slice_ptr v29
+    v31 = slice_len v29
+    mstore 160, v30
+    mstore 192, v31
+    v32 = mload 160
+    v33 = mload 192
+    v34 = make_calldata_slice v32, v33
+    v35 = mload 224
+    v36 = mload 256
+    v37 = make_calldata_slice v35, v36
+    v38 = slice_len v34
+    v39 = mul v38, 0x3e8
+    v40 = iszero 0x3e8
+    v41 = div v39, 0x3e8
+    v42 = eq v41, v38
+    v43 = or v40, v42
+    v44 = iszero v43
+    br v44, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v45 = slice_len v37
+    v46 = add v39, v45
+    v47 = lt v46, v39
+    br v47, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    mstore 128, v46
+    returndata 128, 32
+}
+
+fn @_sum(arg0: calldataslice, arg1: calldataslice) -> u256 {
+  bb0 (entry):
+    v0 = internal_frame_addr 160
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = slice_len arg0
+    v2 = mul v1, 0x3e8
+    v3 = iszero 0x3e8
+    v4 = div v2, 0x3e8
+    v5 = eq v4, v1
+    v6 = or v3, v5
+    v7 = iszero v6
+    br v7, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v8 = slice_len arg1
+    v9 = add v2, v8
+    v10 = lt v9, v2
+    br v10, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    ret v9
+}
+

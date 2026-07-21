@@ -1,35 +1,37 @@
 //@compile-flags: -Zcodegen --emit=bin-runtime
 //@check-fail
 
-// A calldata slice whose aggregate use slice lowering cannot fold — here two
-// calldata slices built in assembly and passed on to an internal call — is
-// reported as an unsupported construct rather than reaching the word-based
-// backend, which cannot emit a logical slice. The check keeps such a slice from
-// panicking the emitter.
+// Destructuring a function that returns *two* calldata slices needs the tail
+// value to cross the call boundary through the one-word-per-value multi-return
+// buffer, which cannot carry a two-word slice. The tail is a `make_slice` the
+// backend cannot emit, so it is reported as an unsupported construct rather
+// than reaching the word-based backend and panicking. (A discarded or
+// single-slice return inlines and folds; only destructured multi-slice returns
+// hit this.)
 contract CalldataSliceBackendUnsupported { //~ ERROR: codegen does not support this calldata-slice usage yet
-    struct Call {
-        address to;
-        uint256 value;
-        bytes data;
+    function _empty() internal pure returns (bytes calldata d) {
+        assembly {
+            d.length := 0
+        }
     }
 
-    function _execute(Call[] calldata calls, bytes calldata opData)
+    function decode(bytes calldata data)
         internal
         pure
-        returns (uint256)
+        returns (bytes calldata head, bytes calldata tail)
     {
-        return calls.length + opData.length;
+        head = data;
+        tail = _empty();
+        if (data.length > 32) {
+            assembly {
+                tail.offset := add(data.offset, 32)
+                tail.length := sub(data.length, 32)
+            }
+        }
     }
 
-    function execute(bytes calldata executionData) external pure returns (uint256) {
-        Call[] calldata calls;
-        bytes calldata opData;
-        assembly {
-            opData.length := 0
-            let o := add(executionData.offset, calldataload(executionData.offset))
-            calls.offset := add(o, 0x20)
-            calls.length := calldataload(o)
-        }
-        return _execute(calls, opData);
+    function use(bytes calldata data) external pure returns (uint256) {
+        (bytes calldata head, bytes calldata tail) = decode(data);
+        return head.length + tail.length;
     }
 }

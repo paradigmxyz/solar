@@ -249,9 +249,18 @@ impl<'gcx> Lowerer<'gcx> {
         if needs_local_memory {
             if Lowerer::calldata_dynamic_var_kind(var).is_some() {
                 // A rebindable calldata slice local keeps its two words in a
-                // dedicated slot so joins read one merged representation.
+                // dedicated slot so joins read one merged representation. An
+                // uninitialized one seeds an empty slice, not a zero word, so
+                // the slot store projects a real `make_slice` that folds away
+                // rather than a `slice_ptr`/`slice_len` of a non-slice value.
+                let initial = if var.initializer.is_some() {
+                    initial_value
+                } else {
+                    let zero = builder.imm_u64(0);
+                    builder.make_slice(zero, zero, crate::mir::SliceLocation::Calldata)
+                };
                 let offset = self.alloc_local_slice_memory(var_id);
-                self.store_slice_slot(builder, offset, initial_value);
+                self.store_slice_slot(builder, offset, initial);
                 return;
             }
             let offset = self.alloc_local_memory(var_id);

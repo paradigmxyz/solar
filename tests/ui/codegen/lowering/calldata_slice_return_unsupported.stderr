@@ -4,8 +4,9 @@ error: returning a `bytes`/`string` calldata slice from this internal function i
 LL │ ┏     function decode(bytes calldata data)
 LL │ ┃         internal
 LL │ ┃         pure
-LL │ ┃         returns (bytes calldata head)
+LL │ ┃         returns (bytes calldata)
    ‡ ┃
+LL │ ┃         return data;
 LL │ ┃     }
    ╰╴┗━━━━━┛
 
