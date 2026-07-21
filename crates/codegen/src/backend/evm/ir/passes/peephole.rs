@@ -73,23 +73,25 @@ fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
         && let Some(opcode) = raw_opcode(instruction)
     {
         if value.is_zero() {
-            return match opcode {
+            match opcode {
                 op::ADD | op::OR | op::XOR | op::SHL | op::SHR | op::SAR => {
-                    rewrite(instructions, 2, Edit::Keep(0), block)
+                    return rewrite(instructions, 2, Edit::Keep(0), block);
                 }
-                op::EQ => rewrite(instructions, 2, Edit::RemoveFirstOverwrite(op::ISZERO), block),
+                op::EQ => {
+                    return rewrite(instructions, 2, Edit::RemoveFirstOverwrite(op::ISZERO), block);
+                }
                 op::MUL | op::DIV | op::SDIV | op::MOD | op::SMOD | op::AND | op::GT => {
-                    rewrite(instructions, 2, Edit::SwapOverwrite(op::POP), block)
+                    return rewrite(instructions, 2, Edit::SwapOverwrite(op::POP), block);
                 }
-                _ => false,
-            };
+                _ => {}
+            }
         }
         if value == U256::ONE {
-            return match opcode {
-                op::MUL => rewrite(instructions, 2, Edit::Keep(0), block),
-                op::EXP => rewrite(instructions, 2, Edit::SwapOverwrite(op::POP), block),
-                _ => false,
-            };
+            match opcode {
+                op::MUL => return rewrite(instructions, 2, Edit::Keep(0), block),
+                op::EXP => return rewrite(instructions, 2, Edit::SwapOverwrite(op::POP), block),
+                _ => {}
+            }
         }
     }
 
