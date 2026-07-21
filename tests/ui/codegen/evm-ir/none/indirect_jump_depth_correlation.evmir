@@ -1,0 +1,19 @@
+@module module
+
+bb0 (entry):
+  push 1
+  jumpi bb1, bb2
+bb1:
+  push 0
+  push bb4
+  jump bb3
+bb2:
+  push bb5
+  jump bb3
+bb3:
+  jump
+bb4:
+  pop
+  stop
+bb5:
+  stop
