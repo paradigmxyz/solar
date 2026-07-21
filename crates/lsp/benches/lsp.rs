@@ -93,7 +93,7 @@ fn analysis_build(c: &mut Criterion) {
     for function_count in ANALYSIS_FUNCTION_COUNTS {
         let fixture = benchmark_source(function_count);
         let analysis = fixture.project.clone().analyze();
-        assert_eq!(analysis.diagnostic_count(), 0, "{}", analysis.diagnostic_fingerprint());
+        assert_clean(&analysis);
         group.throughput(Throughput::Bytes(fixture.project.source_bytes() as u64));
         group.bench_with_input(
             BenchmarkId::from_parameter(function_count),
@@ -114,7 +114,7 @@ fn burst_hover(c: &mut Criterion) {
     let fixture = benchmark_source(HOVER_FUNCTION_COUNT);
     let analysis = fixture.project.analyze();
     let requests = fixture.hover_requests;
-    assert_eq!(analysis.diagnostic_count(), 0, "{}", analysis.diagnostic_fingerprint());
+    assert_clean(&analysis);
     assert_eq!(requests.len(), HOVER_FUNCTION_COUNT * 2);
     assert!(
         requests.iter().all(|request| {

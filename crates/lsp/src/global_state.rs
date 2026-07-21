@@ -515,8 +515,9 @@ fn analyze_with_source_map(batch: AnalysisBatch, source_map: Arc<SourceMap>) -> 
     })
 }
 
-/// Benchmark-only access to prepared, fully analyzed in-memory projects.
-#[cfg(feature = "bench")]
+/// Access to prepared, fully analyzed in-memory projects for benchmarks and tests.
+#[cfg(any(test, feature = "bench"))]
+#[cfg_attr(all(test, not(feature = "bench")), allow(dead_code, unreachable_pub))]
 pub(crate) mod benchmark;
 #[cfg(test)]
 #[path = "tests/mod.rs"]

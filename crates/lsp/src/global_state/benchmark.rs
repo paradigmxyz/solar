@@ -15,14 +15,15 @@ use solar_interface::{
 };
 use std::{
     collections::BTreeMap,
-    fmt, io,
+    io,
     path::{Component, Path, PathBuf},
     sync::Arc,
 };
 
 /// An opaque error returned while preparing an LSP benchmark project.
 #[doc(hidden)]
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[error("{message}")]
 pub struct BenchmarkError {
     message: String,
 }
@@ -33,14 +34,6 @@ impl BenchmarkError {
     }
 }
 
-impl fmt::Display for BenchmarkError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.message)
-    }
-}
-
-impl std::error::Error for BenchmarkError {}
-
 /// A prepared, entirely in-memory LSP benchmark project.
 #[doc(hidden)]
 #[derive(Clone)]
@@ -48,7 +41,7 @@ pub struct BenchmarkProject {
     root: PathBuf,
     opts: CompileOpts,
     files: Vec<(PathBuf, String)>,
-    loader_sources: FxHashMap<PathBuf, String>,
+    loader: InMemoryFileLoader,
     markers: BTreeMap<String, Vec<(PathBuf, Position)>>,
 }
 
@@ -97,7 +90,8 @@ impl BenchmarkProject {
         }
 
         let loader_sources = files.iter().cloned().collect();
-        Ok(Self { root, opts, files, loader_sources, markers: BTreeMap::new() })
+        let loader = InMemoryFileLoader::new(root.clone(), loader_sources);
+        Ok(Self { root, opts, files, loader, markers: BTreeMap::new() })
     }
 
     /// Prepare a stable multi-file project from the fixture format shared with LSP tests.
@@ -180,8 +174,9 @@ impl BenchmarkProject {
             )));
         }
 
-        files.sort_by(|(lhs, _), (rhs, _)| lhs.cmp(rhs));
-        Ok(Self { root: root.normalize(), opts, files, loader_sources, markers: BTreeMap::new() })
+        let root = root.normalize();
+        let loader = InMemoryFileLoader::new(root.clone(), loader_sources);
+        Ok(Self { root, opts, files, loader, markers: BTreeMap::new() })
     }
 
     /// The number of primary Solidity source files in this project.
@@ -191,7 +186,7 @@ impl BenchmarkProject {
 
     /// The total number of bytes in all prepared primary and dependency sources.
     pub fn source_bytes(&self) -> usize {
-        self.loader_sources.values().map(String::len).sum()
+        self.loader.sources.values().map(String::len).sum()
     }
 
     /// Resolve a unique source substring to its LSP URI and UTF-16 position.
@@ -252,24 +247,22 @@ impl BenchmarkProject {
             apply_document_changes(&Rope::from(source.as_str()), vec![edit.change.clone()])
                 .to_string();
         *source = updated.clone();
-        self.loader_sources.insert(edit.path.clone(), updated);
+        self.loader.sources.insert(edit.path.clone(), updated);
         Ok(())
     }
 
     /// Consume this prepared project and run the production compiler analysis pipeline.
     pub fn analyze(self) -> BenchmarkAnalysis {
-        let default_uri = self.files.first().and_then(|(path, _)| Url::from_file_path(path).ok());
+        let Self { root, opts, files, loader, markers: _ } = self;
+        let default_uri = files.first().and_then(|(path, _)| Url::from_file_path(path).ok());
         let source_map = Arc::new(SourceMap::empty());
-        source_map.set_file_loader(InMemoryFileLoader::new(
-            self.root.clone(),
-            Arc::new(self.loader_sources),
-        ));
+        source_map.set_file_loader(loader);
         let result = analyze_with_source_map(
-            AnalysisBatch { opts: self.opts, files: self.files, seen_paths: FxHashSet::default() },
+            AnalysisBatch { opts, files, seen_paths: FxHashSet::default() },
             source_map,
         );
         BenchmarkAnalysis {
-            root: self.root,
+            root,
             diagnostics: result.diagnostics,
             symbol_tables: result.symbol_tables,
             default_uri,
@@ -391,12 +384,12 @@ impl BenchmarkAnalysis {
 #[derive(Clone)]
 struct InMemoryFileLoader {
     root: PathBuf,
-    sources: Arc<FxHashMap<PathBuf, String>>,
-    directories: Arc<FxHashSet<PathBuf>>,
+    sources: FxHashMap<PathBuf, String>,
+    directories: FxHashSet<PathBuf>,
 }
 
 impl InMemoryFileLoader {
-    fn new(root: PathBuf, sources: Arc<FxHashMap<PathBuf, String>>) -> Self {
+    fn new(root: PathBuf, sources: FxHashMap<PathBuf, String>) -> Self {
         let mut directories = FxHashSet::default();
         directories.insert(root.clone());
         for path in sources.keys() {
@@ -409,11 +402,11 @@ impl InMemoryFileLoader {
                 current = directory.parent();
             }
         }
-        Self { root, sources, directories: Arc::new(directories) }
+        Self { root, sources, directories }
     }
 
     fn normalized(&self, path: &Path) -> PathBuf {
-        if path.is_absolute() { path.normalize() } else { self.root.join(path).normalize() }
+        self.root.join(path).normalize()
     }
 
     fn not_found(path: &Path) -> io::Error {
@@ -468,11 +461,9 @@ fn absolute_normalized(path: &Path) -> Result<PathBuf, BenchmarkError> {
 }
 
 fn resolve_relative_path(root: &Path, relative_path: &Path) -> Result<PathBuf, BenchmarkError> {
-    if relative_path.is_absolute()
-        || relative_path.components().any(|component| {
-            matches!(component, Component::ParentDir | Component::RootDir | Component::Prefix(_))
-        })
-    {
+    if relative_path.components().any(|component| {
+        matches!(component, Component::ParentDir | Component::RootDir | Component::Prefix(_))
+    }) {
         return Err(BenchmarkError::new(format!(
             "benchmark source path `{}` is not project-relative",
             relative_path.display()
@@ -531,7 +522,17 @@ fn collect_dependency_sources(
     path: &Path,
     sources: &mut FxHashMap<PathBuf, String>,
 ) -> Result<(), BenchmarkError> {
-    let Ok(metadata) = std::fs::symlink_metadata(path) else { return Ok(()) };
+    let mut directory_stack = FxHashSet::default();
+    collect_dependency_sources_inner(file_loader, path, sources, &mut directory_stack)
+}
+
+fn collect_dependency_sources_inner(
+    file_loader: &dyn FileLoader,
+    path: &Path,
+    sources: &mut FxHashMap<PathBuf, String>,
+    directory_stack: &mut FxHashSet<PathBuf>,
+) -> Result<(), BenchmarkError> {
+    let Ok(metadata) = std::fs::metadata(path) else { return Ok(()) };
     if metadata.is_file() {
         if path.extension().is_some_and(|extension| extension == "sol") {
             sources.insert(path.normalize(), read_source(file_loader, path)?);
@@ -539,6 +540,15 @@ fn collect_dependency_sources(
         return Ok(());
     }
     if !metadata.is_dir() {
+        return Ok(());
+    }
+    let canonical = file_loader.canonicalize_path(path).map_err(|error| {
+        BenchmarkError::new(format!(
+            "failed to resolve benchmark dependency directory `{}`: {error}",
+            path.display()
+        ))
+    })?;
+    if !directory_stack.insert(canonical.clone()) {
         return Ok(());
     }
     let entries = std::fs::read_dir(path).map_err(|error| {
@@ -554,8 +564,9 @@ fn collect_dependency_sources(
                 path.display()
             ))
         })?;
-        collect_dependency_sources(file_loader, &entry.path(), sources)?;
+        collect_dependency_sources_inner(file_loader, &entry.path(), sources, directory_stack)?;
     }
+    directory_stack.remove(&canonical);
     Ok(())
 }
 
@@ -584,6 +595,30 @@ fn diagnostic_line(root: &Path, uri: &Url, diagnostic: &Diagnostic) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    use std::{fs, os::unix::fs::symlink};
+
+    #[cfg(unix)]
+    #[test]
+    fn dependency_collection_follows_directory_symlinks_without_cycles() {
+        let temp = tempfile::tempdir().unwrap();
+        let dependency = temp.path().join("vendor/package");
+        fs::create_dir_all(&dependency).unwrap();
+        fs::write(dependency.join("Dependency.sol"), "contract Dependency {}").unwrap();
+        symlink(&dependency, dependency.join("cycle")).unwrap();
+
+        let alias = temp.path().join("lib/package");
+        fs::create_dir_all(alias.parent().unwrap()).unwrap();
+        symlink(&dependency, &alias).unwrap();
+
+        let source_map = SourceMap::empty();
+        let mut sources = FxHashMap::default();
+        collect_dependency_sources(source_map.file_loader(), &alias, &mut sources).unwrap();
+
+        assert_eq!(sources.get(&alias.join("Dependency.sol")).unwrap(), "contract Dependency {}");
+        assert_eq!(sources.len(), 1);
+    }
 
     #[test]
     fn anchors_use_utf16_positions_and_require_uniqueness() {

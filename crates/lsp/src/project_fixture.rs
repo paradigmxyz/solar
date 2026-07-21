@@ -1,7 +1,7 @@
 //! Pure in-memory project fixtures shared by tests and benchmarks.
 
 use lsp_types::Position;
-use std::{collections::BTreeMap, fmt};
+use std::collections::BTreeMap;
 
 /// An ordered collection of in-memory fixture files and source markers.
 #[derive(Clone, Debug)]
@@ -25,7 +25,8 @@ pub(crate) struct FixtureMarker {
     position: Position,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("{message}")]
 pub(crate) struct FixtureError {
     message: String,
 }
@@ -35,14 +36,6 @@ impl FixtureError {
         Self { message: message.into() }
     }
 }
-
-impl fmt::Display for FixtureError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.message)
-    }
-}
-
-impl std::error::Error for FixtureError {}
 
 impl ProjectFixture {
     /// Parses a fixture and removes its `$N` markers from the file contents.
@@ -91,16 +84,15 @@ impl ProjectFixture {
         &self.files
     }
 
-    #[cfg(feature = "bench")]
     pub(crate) fn markers(&self) -> &BTreeMap<String, Vec<FixtureMarker>> {
         &self.markers
     }
 
-    pub(crate) fn marker(&self, name: &str) -> FixtureMarker {
+    pub(crate) fn marker(&self, name: &str) -> &FixtureMarker {
         let name = normalize_marker_name(name);
         let markers = self.markers.get(name).unwrap_or_else(|| panic!("missing marker `${name}`"));
         assert_eq!(markers.len(), 1, "marker `${name}` is ambiguous: {markers:?}");
-        markers[0].clone()
+        &markers[0]
     }
 }
 
@@ -235,7 +227,7 @@ fn trim_indent(text: &str) -> String {
         .min()
         .unwrap_or(0);
 
-    let mut trimmed = String::new();
+    let mut trimmed = String::with_capacity(text.len());
     for line in text.split_inclusive('\n') {
         if line.trim().is_empty() {
             trimmed.push_str(line.trim_start());

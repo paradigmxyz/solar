@@ -157,7 +157,7 @@ impl MarkedProject {
         &mut self.project
     }
 
-    pub(crate) fn marker(&self, name: &str) -> FixtureMarker {
+    pub(crate) fn marker(&self, name: &str) -> &FixtureMarker {
         self.fixture.marker(name)
     }
 }
