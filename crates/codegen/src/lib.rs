@@ -33,6 +33,7 @@ mod ir_parse;
 pub mod lower;
 
 pub mod pass;
+mod pass_manager;
 mod timing;
 mod transform;
 pub(crate) mod utils;

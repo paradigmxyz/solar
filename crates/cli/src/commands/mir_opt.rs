@@ -16,7 +16,7 @@ use solar_codegen::{
     lower,
     mir::{Module, validate},
     pass::{
-        DEFAULT_CLEANUP_PIPELINE, DEFAULT_PIPELINE, PASS_REGISTRY, PassInfo, lookup_pass,
+        DEFAULT_CLEANUP_PIPELINE, DEFAULT_PIPELINE, MirPass, PASS_REGISTRY, lookup_pass,
         run_default_pipeline, run_pass,
     },
 };
@@ -26,13 +26,16 @@ use solar_sema::{CompilerRef, Gcx};
 use std::{ops::ControlFlow, path::Path, process::ExitCode};
 
 fn after_help() -> String {
-    fn display_pass_help(pass: &PassInfo) -> impl fmt::Display + '_ {
-        fmt::from_fn(move |f| write!(f, "  {:<20} {}", pass.name, pass.description))
+    fn display_pass_help(pass: &MirPass) -> impl fmt::Display + '_ {
+        fmt::from_fn(move |f| write!(f, "  {:<20} {}", pass.name(), pass.description()))
     }
 
-    fn display_pass_list<'a>(passes: &'a [PassInfo], separator: &'a str) -> impl fmt::Display + 'a {
+    fn display_pass_list<'a>(
+        passes: &'a [&'static MirPass],
+        separator: &'a str,
+    ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
-            write!(f, "{}", passes.iter().map(|pass| pass.name).format(separator))
+            write!(f, "{}", passes.iter().map(|pass| pass.name()).format(separator))
         })
     }
 
@@ -53,7 +56,7 @@ Default cleanup fixpoint:
 Input formats:
   *.sol  Solidity contract — lowered through the normal compiler pipeline
   *.mir  Textual MIR — parsed directly via solar_codegen::mir::Module::parse",
-            PASS_REGISTRY.iter().map(display_pass_help).format("\n"),
+            PASS_REGISTRY.iter().copied().map(display_pass_help).format("\n"),
             "none",
             display_pass_list(DEFAULT_PIPELINE, " → "),
             display_pass_list(DEFAULT_CLEANUP_PIPELINE, " → ")
@@ -78,7 +81,7 @@ pub(crate) struct MirOptArgs {
         required_unless_present = "pipeline_default",
         conflicts_with = "pipeline_default"
     )]
-    passes: Option<Vec<Option<&'static PassInfo>>>,
+    passes: Option<Vec<Option<&'static MirPass>>>,
     /// Run the same pass pipeline as EvmCodegen::run_optimization_passes.
     #[arg(long, conflicts_with = "passes")]
     pipeline_default: bool,
@@ -88,11 +91,11 @@ pub(crate) struct MirOptArgs {
 }
 
 impl MirOptArgs {
-    fn selected_passes(&self) -> Vec<Option<&'static PassInfo>> {
+    fn selected_passes(&self) -> Vec<Option<&'static MirPass>> {
         self.passes.clone().expect("clap requires passes unless pipeline-default is set")
     }
 
-    fn pipeline_label(&self, passes: &[Option<&PassInfo>]) -> String {
+    fn pipeline_label(&self, passes: &[Option<&MirPass>]) -> String {
         if self.pipeline_default {
             "pipeline-default".to_string()
         } else {
@@ -101,21 +104,21 @@ impl MirOptArgs {
     }
 }
 
-fn parse_pass(name: &str) -> Result<Option<&'static PassInfo>, String> {
+fn parse_pass(name: &str) -> Result<Option<&'static MirPass>, String> {
     match name {
         "none" => Ok(None),
         other => lookup_pass(other).map(Some).ok_or_else(|| format!("unknown pass: {other}")),
     }
 }
 
-fn pass_label(pass: Option<&PassInfo>) -> &'static str {
+fn pass_label(pass: Option<&MirPass>) -> &'static str {
     match pass {
-        Some(pass) => pass.name,
+        Some(pass) => pass.name(),
         None => "none",
     }
 }
 
-fn selected_pass_list_label(passes: &[Option<&PassInfo>], separator: &str) -> String {
+fn selected_pass_list_label(passes: &[Option<&MirPass>], separator: &str) -> String {
     passes.iter().copied().map(pass_label).format(separator).to_string()
 }
 

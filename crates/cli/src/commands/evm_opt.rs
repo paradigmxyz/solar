@@ -25,7 +25,7 @@ pub(crate) struct EvmOptArgs {
         value_parser = parse_pass,
         default_value = "none"
     )]
-    passes: Vec<Option<&'static ir::PassInfo>>,
+    passes: Vec<Option<&'static ir::EvmPass>>,
     /// If true, print EVM IR after every pass; otherwise only after the last.
     #[arg(long)]
     print_after_each: bool,
@@ -34,7 +34,7 @@ pub(crate) struct EvmOptArgs {
     input: String,
 }
 
-fn parse_pass(name: &str) -> Result<Option<&'static ir::PassInfo>, String> {
+fn parse_pass(name: &str) -> Result<Option<&'static ir::EvmPass>, String> {
     match name {
         "none" => Ok(None),
         other => {
@@ -48,21 +48,21 @@ fn after_help() -> String {
         "Passes:\n  {}\n  {:<20} No transform; validate and print the module\n\nInput formats:\n  *.evmir  EVM IR",
         ir::PASS_REGISTRY
             .iter()
-            .map(|pass| format!("{:<20} {}", pass.name, pass.description))
+            .map(|pass| format!("{:<20} {}", pass.name(), pass.description()))
             .collect::<Vec<_>>()
             .join("\n  "),
         "none",
     )
 }
 
-fn pass_label(pass: Option<&ir::PassInfo>) -> &'static str {
+fn pass_label(pass: Option<&ir::EvmPass>) -> &'static str {
     match pass {
-        Some(pass) => pass.name,
+        Some(pass) => pass.name(),
         None => "none",
     }
 }
 
-fn selected_pass_list_label(passes: &[Option<&ir::PassInfo>], separator: &str) -> String {
+fn selected_pass_list_label(passes: &[Option<&ir::EvmPass>], separator: &str) -> String {
     passes.iter().copied().map(pass_label).collect::<Vec<_>>().join(separator)
 }
 

@@ -16,8 +16,10 @@
 //! let changed = run_pass(gcx, &mut module, &DCE_PASS);
 //! ```
 
+pub use crate::pass_manager::Pass;
 use crate::{
     mir::{Function, MirPhase, Module, validate},
+    pass_manager::{PassFactory, PassManager, find_pass},
     timing::PassTimer,
     transform::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
@@ -33,30 +35,25 @@ use solar_interface::diagnostics::DiagCtxt;
 use solar_sema::Gcx;
 use std::any::{Any, TypeId};
 
-type PassRunner = fn(Gcx<'_>, &mut Module) -> bool;
-
 /// Registry entry for a MIR transform pass.
-#[derive(Clone, Copy, Debug)]
 pub struct PassInfo {
-    /// Command-line and pipeline name.
-    pub name: &'static str,
-    /// Human-readable help text.
-    pub description: &'static str,
+    pass: PassFactory<Module>,
     /// Earliest [`MirPhase`] this pass may run on.
     min_phase: MirPhase,
     /// Latest [`MirPhase`] this pass may run on.
     max_phase: MirPhase,
-    run_pass: PassRunner,
 }
 
 impl PassInfo {
-    const fn new(name: &'static str, description: &'static str, run_pass: PassRunner) -> Self {
+    const fn new(
+        name: &'static str,
+        description: &'static str,
+        run_pass: for<'gcx> fn(Gcx<'gcx>, &mut Module) -> bool,
+    ) -> Self {
         Self {
-            name,
-            description,
+            pass: PassFactory::new(name, description, run_pass),
             min_phase: MirPhase::Built,
             max_phase: MirPhase::EvmShaped,
-            run_pass,
         }
     }
 
@@ -75,10 +72,38 @@ impl PassInfo {
     }
 }
 
+impl Pass<Module> for PassInfo {
+    fn name(&self) -> &'static str {
+        self.pass.name()
+    }
+
+    fn description(&self) -> &'static str {
+        self.pass.description()
+    }
+
+    fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
+        self.admits(module)
+    }
+
+    fn run(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        self.pass.run(gcx, module)
+    }
+}
+
+impl std::fmt::Debug for PassInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.pass.fmt(f)
+    }
+}
+
+/// A dynamically dispatched MIR transformation pass.
+pub type MirPass = dyn Pass<Module>;
+
 macro_rules! declare_passes {
     ($(
         $(#[doc = $description:literal])+
-        $vis:vis const $const_name:ident -> $name:literal = $pass:expr;
+        $vis:vis const $const_name:ident -> $name:literal = $pass:expr
+            $(; phases = $min_phase:expr => $max_phase:expr)?;
     )+) => {
         $(
             $(#[doc = $description])+
@@ -86,8 +111,11 @@ macro_rules! declare_passes {
                 $name,
                 concat!($($description, "\n"),+).trim_ascii(),
                 |gcx, module| ModulePass::run(&mut $pass, gcx, module),
-            );
+            )$(.phases($min_phase, $max_phase))?;
         )+
+
+        /// All known MIR passes exposed to `solar mir-opt`.
+        pub static PASS_REGISTRY: &[&MirPass] = &[$(&$const_name),+];
     };
 }
 
@@ -165,98 +193,54 @@ declare_passes! {
     pub(crate) const ADCE_PASS -> "adce" = AdcePass;
 
     /// ABI phase lowering: external functions become self-decoding wrappers.
-    const LOWER_ABI_PASS_BASE -> "lower-abi" = LowerAbiPass::default();
+    pub(crate) const LOWER_ABI_PASS -> "lower-abi" = LowerAbiPass::default();
+        phases = MirPhase::Built => MirPhase::Optimized;
 
     /// Dispatch phase lowering: synthesize the selector-switch `entry` function.
-    const LOWER_DISPATCH_PASS_BASE -> "lower-dispatch" = LowerDispatchPass::default();
+    pub(crate) const LOWER_DISPATCH_PASS -> "lower-dispatch" = LowerDispatchPass::default();
+        phases = MirPhase::Abi => MirPhase::Abi;
 
     /// EVM-shape lowering: non-returning internal calls become tail calls.
-    const LOWER_EVM_SHAPED_PASS_BASE -> "lower-evm-shaped" = LowerEvmShapedPass::default();
+    pub(crate) const LOWER_EVM_SHAPED_PASS -> "lower-evm-shaped" = LowerEvmShapedPass::default();
+        phases = MirPhase::Dispatch => MirPhase::Dispatch;
 
     /// Lower mapping-slot hash builtins to memory operations.
     pub(crate) const LOWER_MAPPING_SLOTS_PASS -> "lower-mapping-slots" = LowerMappingSlotsPass;
 }
 
-/// ABI phase lowering with its phase range declared: consumes
-/// `built`/`optimized` MIR and produces the `abi` phase.
-pub(crate) const LOWER_ABI_PASS: PassInfo =
-    LOWER_ABI_PASS_BASE.phases(MirPhase::Built, MirPhase::Optimized);
-
-/// Dispatch phase lowering with its phase range declared: consumes exactly
-/// `abi`-phase MIR and produces the `dispatch` phase.
-pub(crate) const LOWER_DISPATCH_PASS: PassInfo =
-    LOWER_DISPATCH_PASS_BASE.phases(MirPhase::Abi, MirPhase::Abi);
-
-/// EVM-shape lowering with its phase range declared: consumes exactly
-/// `dispatch`-phase MIR and produces the `evm-shaped` phase.
-pub(crate) const LOWER_EVM_SHAPED_PASS: PassInfo =
-    LOWER_EVM_SHAPED_PASS_BASE.phases(MirPhase::Dispatch, MirPhase::Dispatch);
-
-/// All known MIR passes exposed to `solar mir-opt`.
-pub const PASS_REGISTRY: &[PassInfo] = &[
-    INLINE_PASS,
-    FUNCTION_DCE_PASS,
-    ADCE_PASS,
-    DCE_PASS,
-    INST_SIMPLIFY_PASS,
-    CSE_PASS,
-    GVN_PASS,
-    PRE_PASS,
-    STORAGE_LOAD_CSE_PASS,
-    STORAGE_DSE_PASS,
-    LOAD_PRE_PASS,
-    LOOP_CANONICALIZE_PASS,
-    INDVAR_SIMPLIFY_PASS,
-    SCCP_PASS,
-    PURE_EVAL_PASS,
-    LICM_PASS,
-    CHECK_ELIM_PASS,
-    CFG_SIMPLIFY_PASS,
-    JUMP_THREADING_PASS,
-    FRAME_SLOT_PROMOTION_PASS,
-    MEMORY_DSE_PASS,
-    STATIC_ALLOC_PASS,
-    STORAGE_PROMOTION_PASS,
-    LOWER_ABI_PASS,
-    LOWER_DISPATCH_PASS,
-    LOWER_EVM_SHAPED_PASS,
-    OUTLINE_REVERTS_PASS,
-    LOWER_MAPPING_SLOTS_PASS,
-];
-
 /// Finds a pass in the global MIR pass registry by command-line name.
-pub fn lookup_pass(name: &str) -> Option<&'static PassInfo> {
-    PASS_REGISTRY.iter().find(|pass| pass.name == name)
+pub fn lookup_pass(name: &str) -> Option<&'static MirPass> {
+    find_pass(PASS_REGISTRY, name)
 }
 
 /// The canonical MIR optimization pipeline used by EVM codegen.
-pub const DEFAULT_PIPELINE: &[PassInfo] = &[
-    INLINE_PASS,
-    FUNCTION_DCE_PASS,
-    SCCP_PASS,
-    PURE_EVAL_PASS,
-    INST_SIMPLIFY_PASS,
-    CSE_PASS,
+pub static DEFAULT_PIPELINE: &[&MirPass] = &[
+    &INLINE_PASS,
+    &FUNCTION_DCE_PASS,
+    &SCCP_PASS,
+    &PURE_EVAL_PASS,
+    &INST_SIMPLIFY_PASS,
+    &CSE_PASS,
     // Reuse mapping slots before their scratch-memory expansion can obscure
     // the semantic expression from the remaining optimization passes.
-    LOWER_MAPPING_SLOTS_PASS,
-    GVN_PASS,
-    PRE_PASS,
-    STORAGE_LOAD_CSE_PASS,
-    STORAGE_DSE_PASS,
-    LOAD_PRE_PASS,
-    FRAME_SLOT_PROMOTION_PASS,
-    LOOP_CANONICALIZE_PASS,
-    INDVAR_SIMPLIFY_PASS,
-    STORAGE_PROMOTION_PASS,
-    LICM_PASS,
-    CHECK_ELIM_PASS,
-    JUMP_THREADING_PASS,
-    CFG_SIMPLIFY_PASS,
-    MEMORY_DSE_PASS,
-    STATIC_ALLOC_PASS,
-    ADCE_PASS,
-    DCE_PASS,
+    &LOWER_MAPPING_SLOTS_PASS,
+    &GVN_PASS,
+    &PRE_PASS,
+    &STORAGE_LOAD_CSE_PASS,
+    &STORAGE_DSE_PASS,
+    &LOAD_PRE_PASS,
+    &FRAME_SLOT_PROMOTION_PASS,
+    &LOOP_CANONICALIZE_PASS,
+    &INDVAR_SIMPLIFY_PASS,
+    &STORAGE_PROMOTION_PASS,
+    &LICM_PASS,
+    &CHECK_ELIM_PASS,
+    &JUMP_THREADING_PASS,
+    &CFG_SIMPLIFY_PASS,
+    &MEMORY_DSE_PASS,
+    &STATIC_ALLOC_PASS,
+    &ADCE_PASS,
+    &DCE_PASS,
 ];
 
 /// Cleanup passes rerun after the primary pipeline until no pass changes MIR.
@@ -265,23 +249,23 @@ pub const DEFAULT_PIPELINE: &[PassInfo] = &[
 /// profitability passes such as inlining and storage promotion run once in
 /// [`DEFAULT_PIPELINE`], while this loop cleans up opportunities exposed by
 /// those transforms.
-pub const DEFAULT_CLEANUP_PIPELINE: &[PassInfo] = &[
-    SCCP_PASS,
-    PURE_EVAL_PASS,
-    INST_SIMPLIFY_PASS,
-    CSE_PASS,
-    GVN_PASS,
-    PRE_PASS,
-    STORAGE_LOAD_CSE_PASS,
-    STORAGE_DSE_PASS,
-    LOAD_PRE_PASS,
-    CHECK_ELIM_PASS,
-    JUMP_THREADING_PASS,
-    CFG_SIMPLIFY_PASS,
-    FRAME_SLOT_PROMOTION_PASS,
-    MEMORY_DSE_PASS,
-    ADCE_PASS,
-    DCE_PASS,
+pub static DEFAULT_CLEANUP_PIPELINE: &[&MirPass] = &[
+    &SCCP_PASS,
+    &PURE_EVAL_PASS,
+    &INST_SIMPLIFY_PASS,
+    &CSE_PASS,
+    &GVN_PASS,
+    &PRE_PASS,
+    &STORAGE_LOAD_CSE_PASS,
+    &STORAGE_DSE_PASS,
+    &LOAD_PRE_PASS,
+    &CHECK_ELIM_PASS,
+    &JUMP_THREADING_PASS,
+    &CFG_SIMPLIFY_PASS,
+    &FRAME_SLOT_PROMOTION_PASS,
+    &MEMORY_DSE_PASS,
+    &ADCE_PASS,
+    &DCE_PASS,
 ];
 
 const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
@@ -291,33 +275,41 @@ const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
     name = "mir_pass",
     level = "debug",
     skip_all,
-    fields(module = %module.name, pass = pass.name),
+    fields(module = %module.name, pass = pass.name()),
 )]
-pub fn run_pass(gcx: solar_sema::Gcx<'_>, module: &mut Module, pass: &PassInfo) -> bool {
+pub fn run_pass(gcx: Gcx<'_>, module: &mut Module, pass: &MirPass) -> bool {
+    PassManager::new(gcx, run_pass_inner).run_pass(module, pass)
+}
+
+fn run_pass_inner(gcx: Gcx<'_>, module: &mut Module, pass: &MirPass) -> bool {
     // Passes declare which phases they operate on; the manager enforces it so a
     // pipeline entry cannot silently corrupt a module in the wrong phase.
-    if !pass.admits(module) {
+    if !pass.is_enabled(gcx, module) {
         return false;
     }
     if cfg!(debug_assertions) {
         validate_module_after_pass(module, "input");
     }
     let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-    let changed = (pass.run_pass)(gcx, module);
-    timer.finish("MIR", module.name, pass.name, changed);
+    let changed = pass.run(gcx, module);
+    timer.finish("MIR", module.name, pass.name(), changed);
     if cfg!(debug_assertions) {
-        validate_module_after_pass(module, pass.name);
+        validate_module_after_pass(module, pass.name());
     }
     changed
 }
 
 /// Runs a named MIR pass pipeline over a module.
-fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, passes: &[PassInfo]) -> bool {
+fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, passes: &[&MirPass]) -> bool {
+    let manager = PassManager::new(gcx, run_pass_inner);
+    if !gcx.sess.opts.unstable.mir_print_after_each {
+        return manager.run_passes(module, passes);
+    }
     let mut changed = false;
-    for pass in passes {
-        changed |= run_pass(gcx, module, pass);
+    for &pass in passes {
+        changed |= manager.run_pass(module, pass);
         if gcx.sess.opts.unstable.mir_print_after_each {
-            println!("// === {} (after {}) ===", module.name, pass.name);
+            println!("// === {} (after {}) ===", module.name, pass.name());
             print!("{}", module.to_text());
         }
     }
@@ -345,17 +337,18 @@ pub fn run_default_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bo
 fn run_cleanup_pipeline_to_fixpoint(
     gcx: solar_sema::Gcx<'_>,
     module: &mut Module,
-    passes: &[PassInfo],
+    passes: &[&MirPass],
     label: &str,
 ) -> bool {
+    let manager = PassManager::new(gcx, run_pass_inner);
     let mut changed = false;
     for round in 1..=DEFAULT_CLEANUP_MAX_ROUNDS {
         let mut round_changed = false;
-        for pass in passes {
-            let pass_changed = run_pass(gcx, module, pass);
+        for &pass in passes {
+            let pass_changed = manager.run_pass(module, pass);
             round_changed |= pass_changed;
             if gcx.sess.opts.unstable.mir_print_after_each {
-                println!("// === {} (after {label}-{round}:{}) ===", module.name, pass.name);
+                println!("// === {} (after {label}-{round}:{}) ===", module.name, pass.name());
                 print!("{}", module.to_text());
             }
         }

@@ -314,9 +314,7 @@ impl<'gcx> Assembler<'gcx> {
 
         if self.gcx.sess.opts.optimization != OptimizationMode::None {
             let input_is_valid = cfg!(debug_assertions) && is_valid_evm_ir(&ir_program);
-            for pass in ir::DEFAULT_PIPELINE {
-                ir::run_pass(self.gcx, &mut ir_program, pass);
-            }
+            ir::run_passes(self.gcx, &mut ir_program, ir::DEFAULT_PIPELINE);
             debug_assert!(!input_is_valid || is_valid_evm_ir(&ir_program));
         }
 

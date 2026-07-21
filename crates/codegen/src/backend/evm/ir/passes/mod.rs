@@ -15,26 +15,14 @@ mod terminal_dedup;
 pub(super) mod utils;
 
 use super::Module;
-use crate::timing::PassTimer;
+use crate::{
+    pass_manager::{Pass, PassFactory, PassManager, find_pass},
+    timing::PassTimer,
+};
 use solar_sema::Gcx;
 
-type PassRunner = fn(Gcx<'_>, &mut Module) -> bool;
-
-/// Registry entry for an EVM IR transform pass.
-#[derive(Clone, Copy, Debug)]
-pub struct PassInfo {
-    /// Command-line and pipeline name.
-    pub name: &'static str,
-    /// Human-readable help text.
-    pub description: &'static str,
-    run_pass: PassRunner,
-}
-
-impl PassInfo {
-    const fn new(name: &'static str, description: &'static str, run_pass: PassRunner) -> Self {
-        Self { name, description, run_pass }
-    }
-}
+/// A dynamically dispatched EVM IR transformation pass.
+pub type EvmPass = dyn Pass<Module>;
 
 macro_rules! declare_passes {
     ($(
@@ -43,12 +31,15 @@ macro_rules! declare_passes {
     )+) => {
         $(
             $(#[doc = $description])+
-            $vis const $const_name: PassInfo = PassInfo::new(
+            $vis const $const_name: PassFactory<Module> = PassFactory::new(
                 $name,
                 concat!($($description, "\n"),+).trim_ascii(),
                 $run_pass,
             );
         )+
+
+        /// All EVM IR passes exposed by `solar evm-opt`.
+        pub static PASS_REGISTRY: &[&EvmPass] = &[$(&$const_name),+];
     };
 }
 
@@ -78,50 +69,38 @@ declare_passes! {
     pub(crate) const BLOCK_LAYOUT_PASS -> "block-layout" = block_layout::run;
 }
 
-/// All EVM IR passes exposed by `solar evm-opt`.
-pub const PASS_REGISTRY: &[PassInfo] = &[
-    PEEPHOLE_PASS,
-    SHARE_REVERTS_PASS,
-    COMPACT_PUSHES_PASS,
-    CFG_SIMPLIFY_PASS,
-    OUTLINE_PASS,
-    TERMINAL_DEDUP_PASS,
-    TAIL_MERGE_PASS,
-    BLOCK_LAYOUT_PASS,
-];
-
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
-pub(crate) const DEFAULT_PIPELINE: &[PassInfo] = &[
+pub(crate) static DEFAULT_PIPELINE: &[&EvmPass] = &[
     // Normalize and establish the first physical layout.
-    PEEPHOLE_PASS,
-    COMPACT_PUSHES_PASS,
-    CFG_SIMPLIFY_PASS,
-    BLOCK_LAYOUT_PASS,
-    SHARE_REVERTS_PASS,
+    &PEEPHOLE_PASS,
+    &COMPACT_PUSHES_PASS,
+    &CFG_SIMPLIFY_PASS,
+    &BLOCK_LAYOUT_PASS,
+    &SHARE_REVERTS_PASS,
     // Simplify and merge the explicit control-flow graph.
-    CFG_SIMPLIFY_PASS,
-    TERMINAL_DEDUP_PASS,
-    CFG_SIMPLIFY_PASS,
-    TAIL_MERGE_PASS,
-    CFG_SIMPLIFY_PASS,
-    TAIL_MERGE_PASS,
-    CFG_SIMPLIFY_PASS,
+    &CFG_SIMPLIFY_PASS,
+    &TERMINAL_DEDUP_PASS,
+    &CFG_SIMPLIFY_PASS,
+    &TAIL_MERGE_PASS,
+    &CFG_SIMPLIFY_PASS,
+    &TAIL_MERGE_PASS,
+    &CFG_SIMPLIFY_PASS,
     // Outline only after straight-line paths and terminal tails are canonical.
-    OUTLINE_PASS,
-    CFG_SIMPLIFY_PASS,
-    TERMINAL_DEDUP_PASS,
-    CFG_SIMPLIFY_PASS,
+    &OUTLINE_PASS,
+    &CFG_SIMPLIFY_PASS,
+    &TERMINAL_DEDUP_PASS,
+    &CFG_SIMPLIFY_PASS,
     // Pack address-sensitive terminal blocks, then clean up any adjacent
     // revert branch that remains profitable in the final layout.
-    BLOCK_LAYOUT_PASS,
-    SHARE_REVERTS_PASS,
-    CFG_SIMPLIFY_PASS,
-    BLOCK_LAYOUT_PASS,
+    &BLOCK_LAYOUT_PASS,
+    &SHARE_REVERTS_PASS,
+    &CFG_SIMPLIFY_PASS,
+    &BLOCK_LAYOUT_PASS,
 ];
 
 /// Finds a pass in the EVM IR pass registry by command-line name.
-pub fn lookup_pass(name: &str) -> Option<&'static PassInfo> {
-    PASS_REGISTRY.iter().find(|pass| pass.name == name)
+pub fn lookup_pass(name: &str) -> Option<&'static EvmPass> {
+    find_pass(PASS_REGISTRY, name)
 }
 
 /// Runs a named EVM IR pass over a module.
@@ -129,11 +108,20 @@ pub fn lookup_pass(name: &str) -> Option<&'static PassInfo> {
     name = "evm_ir_pass",
     level = "debug",
     skip_all,
-    fields(pass = pass.name),
+    fields(pass = pass.name()),
 )]
-pub fn run_pass(gcx: Gcx<'_>, module: &mut Module, pass: &PassInfo) -> bool {
+pub fn run_pass(gcx: Gcx<'_>, module: &mut Module, pass: &EvmPass) -> bool {
+    PassManager::new(gcx, run_pass_inner).run_pass(module, pass)
+}
+
+fn run_pass_inner(gcx: Gcx<'_>, module: &mut Module, pass: &EvmPass) -> bool {
     let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-    let changed = (pass.run_pass)(gcx, module);
-    timer.finish("EVM IR", module.name(), pass.name, changed);
+    let changed = pass.run(gcx, module);
+    timer.finish("EVM IR", module.name(), pass.name(), changed);
     changed
+}
+
+/// Runs an EVM IR pass pipeline.
+pub(crate) fn run_passes(gcx: Gcx<'_>, module: &mut Module, passes: &[&EvmPass]) -> bool {
+    PassManager::new(gcx, run_pass_inner).run_passes(module, passes)
 }
