@@ -1530,11 +1530,15 @@ impl EvmCodegen {
         revert_label: Label,
         bucket_count: usize,
     ) {
-        let bucket_labels: Vec<_> = (0..bucket_count).map(|_| self.asm.new_label()).collect();
         let mut buckets = vec![Vec::new(); bucket_count];
         for &entry in selectors {
             buckets[bucket_index(U256::from(entry.selector), bucket_count)].push(entry);
         }
+        let default_label = fallback_label.unwrap_or(revert_label);
+        let bucket_labels: Vec<_> = buckets
+            .iter()
+            .map(|bucket| if bucket.is_empty() { default_label } else { self.asm.new_label() })
+            .collect();
 
         self.asm.emit_op(op::DUP1);
         self.asm.emit_push(U256::from(bucket_count));
@@ -1543,6 +1547,9 @@ impl EvmCodegen {
         self.asm.emit_indexed_jump(bucket_labels.clone());
 
         for (label, bucket) in bucket_labels.into_iter().zip(buckets) {
+            if bucket.is_empty() {
+                continue;
+            }
             self.asm.define_label(label);
             self.emit_linear_selector_dispatch(&bucket, fallback_label, revert_label);
         }
@@ -4985,11 +4992,15 @@ impl EvmCodegen {
         can_fallthrough: bool,
         bucket_count: usize,
     ) {
-        let bucket_labels: Vec<_> = (0..bucket_count).map(|_| self.asm.new_label()).collect();
         let mut buckets = vec![Vec::new(); bucket_count];
         for &entry in entries {
             buckets[bucket_index(entry.value, bucket_count)].push(entry);
         }
+        let default_label = self.block_labels[&default];
+        let bucket_labels: Vec<_> = buckets
+            .iter()
+            .map(|bucket| if bucket.is_empty() { default_label } else { self.asm.new_label() })
+            .collect();
 
         self.asm.emit_op(op::DUP1);
         self.scheduler.stack.dup(1);
@@ -5003,8 +5014,11 @@ impl EvmCodegen {
         self.scheduler.stack.pop();
 
         let entry_stack = self.scheduler.stack.clone();
-        let last_bucket = bucket_count - 1;
+        let last_bucket = buckets.iter().rposition(|bucket| !bucket.is_empty()).unwrap();
         for (index, (label, bucket)) in bucket_labels.into_iter().zip(buckets).enumerate() {
+            if bucket.is_empty() {
+                continue;
+            }
             self.asm.define_label(label);
             self.scheduler.stack = entry_stack.clone();
             for entry in bucket {

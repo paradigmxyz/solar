@@ -5,11 +5,11 @@ bb0 (entry):
   push 64
   mstore
   callvalue
-  push bb75
+  push bb59
   jumpi
   calldatasize
   iszero
-  push bb75
+  push bb59
   jumpi
   push 0
   calldataload
@@ -19,151 +19,151 @@ bb0 (entry):
   push 40
   swap1
   mod
-  indexed_jump bb3, bb75, bb75, bb6, bb75, bb8, bb75, bb10, bb75, bb75, bb13, bb14, bb75, bb16, bb75, bb18, bb19, bb20, bb21, bb75, bb75, bb24, bb25, bb26, bb75, bb75, bb29, bb30, bb31, bb32, bb33, bb75, bb35, bb36, bb37, bb75, bb39, bb75, bb75, bb42
+  indexed_jump bb3, bb59, bb59, bb4, bb59, bb5, bb59, bb6, bb59, bb59, bb7, bb8, bb59, bb9, bb59, bb10, bb11, bb12, bb13, bb59, bb59, bb14, bb15, bb16, bb59, bb59, bb17, bb18, bb19, bb20, bb21, bb59, bb22, bb23, bb24, bb59, bb25, bb59, bb59, bb26
 bb3:
   dup1
   push 0xcbf99d38
-  jump bb77
-bb77:
+  jump bb61
+bb61:
   eq
-  push bb76
+  push bb60
   jumpi
-  jump bb75
-bb75 [cold]:
+  jump bb59
+bb59 [cold]:
   push 0
   dup1
   revert
-bb6:
+bb4:
   dup1
   push 0x87d912cb
   eq
-  push bb76
+  push bb60
   jumpi
   dup1
   push 0x920f5c73
-  jump bb77
-bb8:
+  jump bb61
+bb5:
   dup1
   push 0x41052a0d
-  jump bb77
-bb10:
+  jump bb61
+bb6:
   dup1
   push 0x7238232f
   eq
-  push bb76
+  push bb60
   jumpi
   dup1
   push 0x905f7d67
-  jump bb77
-bb13:
+  jump bb61
+bb7:
   dup1
   push 0x3b88f6c2
-  jump bb77
-bb14:
+  jump bb61
+bb8:
   dup1
   push 0xaa66aa63
-  jump bb77
-bb16:
+  jump bb61
+bb9:
   dup1
   push 0x24a75cfd
   eq
-  push bb76
+  push bb60
   jumpi
   dup1
   push 0x98e9a73d
-  jump bb77
-bb18:
+  jump bb61
+bb10:
   dup1
   push 0xebd25c8f
-  jump bb77
-bb19:
+  jump bb61
+bb11:
   dup1
   push 0x8a67ee70
   eq
-  push bb76
+  push bb60
   jumpi
   dup1
   push 0xc43b1a78
-  jump bb77
-bb20:
+  jump bb61
+bb12:
   dup1
   push 0xebbd40a9
-  jump bb77
-bb21:
+  jump bb61
+bb13:
   dup1
   push 0x1eb6457a
   eq
-  push bb76
+  push bb60
   jumpi
   dup1
   push 0xdca2fb5a
-  jump bb77
-bb24:
+  jump bb61
+bb14:
   dup1
   push 0x67e648b5
-  jump bb77
-bb25:
+  jump bb61
+bb15:
   dup1
   push 0xe6e0ae36
-  jump bb77
-bb26:
+  jump bb61
+bb16:
   dup1
   push 0xcba58af7
-  jump bb77
-bb29:
+  jump bb61
+bb17:
   dup1
   push 0x6d4975a2
   eq
-  push bb76
+  push bb60
   jumpi
   dup1
   push 0x8dc714ba
-  jump bb77
-bb30:
+  jump bb61
+bb18:
   dup1
   push 0x54eaadab
-  jump bb77
-bb31:
+  jump bb61
+bb19:
   dup1
   push 0x10c772cc
   eq
-  push bb76
+  push bb60
   jumpi
   dup1
   push 0x4e580bc4
-  jump bb77
-bb32:
+  jump bb61
+bb20:
   dup1
   push 0x965a68f5
-  jump bb77
-bb33:
+  jump bb61
+bb21:
   dup1
   push 0xd758c88e
-  jump bb77
-bb35:
+  jump bb61
+bb22:
   dup1
   push 0x6d738a50
-  jump bb77
-bb36:
+  jump bb61
+bb23:
   dup1
   push 0xf02a00c9
-  jump bb77
-bb37:
+  jump bb61
+bb24:
   dup1
   push 0x40bcff2a
   eq
-  push bb76
+  push bb60
   jumpi
   dup1
   push 0x5fb43592
-  jump bb77
-bb39:
+  jump bb61
+bb25:
   dup1
   push 0x3d492ec4
-  jump bb77
-bb42:
+  jump bb61
+bb26:
   dup1
   push 0x1f49dbe7
-  jump bb77
-bb76:
+  jump bb61
+bb60:
   stop

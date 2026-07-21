@@ -166,11 +166,6 @@ fn bucket_lowering_cost(
     bucket_count: usize,
     evm_version: EvmVersion,
 ) -> LoweringCost {
-    let mut buckets = vec![Vec::new(); bucket_count];
-    for &value in values {
-        buckets[bucket_index(value, bucket_count)].push(value);
-    }
-
     let hash_len = 1 + push_len(U256::from(bucket_count), evm_version) + 1 + 1;
     let hash_gas = VERY_LOW_GAS * 3 + MOD_GAS;
     let indexed_jump_gas = VERY_LOW_GAS
@@ -187,21 +182,22 @@ fn bucket_lowering_cost(
         code_size: hash_len
             + INDEXED_JUMP_BASE_LEN
             + INDEXED_JUMP_GUARD_LEN
-            + bucket_count * INDEXED_JUMP_STUB_LEN
-            + bucket_count * (JUMPDEST_LEN + DEFAULT_JUMP_LEN),
+            + bucket_count * INDEXED_JUMP_STUB_LEN,
         hit_gas_sum: dispatch_gas * values.len(),
-        miss_gas: dispatch_gas + DEFAULT_JUMP_GAS,
+        miss_gas: dispatch_gas,
     };
 
-    for bucket in buckets {
-        let mut path_gas = 0;
-        for value in bucket {
-            let test = equality_test_cost(value, evm_version);
-            cost.code_size += test.code_size;
-            path_gas += test.gas;
-            cost.hit_gas_sum += path_gas;
+    let mut bucket_path_gas = vec![0; bucket_count];
+    for &value in values {
+        let index = bucket_index(value, bucket_count);
+        let test = equality_test_cost(value, evm_version);
+        if bucket_path_gas[index] == 0 {
+            cost.code_size += JUMPDEST_LEN + DEFAULT_JUMP_LEN;
         }
-        cost.miss_gas = cost.miss_gas.max(dispatch_gas + path_gas + DEFAULT_JUMP_GAS);
+        cost.code_size += test.code_size;
+        bucket_path_gas[index] += test.gas;
+        cost.hit_gas_sum += bucket_path_gas[index];
+        cost.miss_gas = cost.miss_gas.max(dispatch_gas + bucket_path_gas[index] + DEFAULT_JUMP_GAS);
     }
     cost
 }
