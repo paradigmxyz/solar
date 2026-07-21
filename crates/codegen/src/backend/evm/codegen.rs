@@ -775,6 +775,12 @@ impl EvmCodegen {
         (artifact.deployment, artifact.runtime)
     }
 
+    #[tracing::instrument(
+        name = "evm_codegen",
+        level = "debug",
+        skip_all,
+        fields(module = %module.name),
+    )]
     fn generate_deployment_artifact(&mut self, module: &mut Module) -> EvmArtifact {
         if module.is_interface {
             return EvmArtifact::default();

@@ -1,9 +1,12 @@
 [alias]
+r = "run --package solar-compiler --bin solar --"
+ryul = "r --language yul -Zparse-yul"
+
 xtask = "run --package xtask --bin xtask --"
-tq = "xtask test"
+t = "tq"
 qt = "tq"
-ryul = "run --package solar-compiler --bin solar -- --language yul -Zparse-yul"
-bless = "uibless"
+tq = "xtask test"
+bless = "xtask test --bless"
 uitest = "xtask test ui"
 uibless = "xtask test ui --bless"
 

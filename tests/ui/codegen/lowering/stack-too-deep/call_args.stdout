@@ -2,7 +2,7 @@
 // === deployment ===
 @module deployment
 bb0 (entry):
-  push 0x41d
+  push 0x3f6
   dup1
   push 10
   push 0
@@ -55,8 +55,7 @@ bb5:
   swap1
   sub
   push 32
-  swap1
-  slt
+  sgt
   push bb4
   jumpi
   push 1
@@ -68,8 +67,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 2
@@ -81,8 +79,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 3
@@ -94,8 +91,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 4
@@ -107,8 +103,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 5
@@ -120,8 +115,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 6
@@ -133,8 +127,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 7
@@ -146,8 +139,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 8
@@ -159,8 +151,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 9
@@ -172,8 +163,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 10
@@ -185,8 +175,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 11
@@ -198,8 +187,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 12
@@ -211,8 +199,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 13
@@ -224,8 +211,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 14
@@ -237,8 +223,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 15
@@ -250,8 +235,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 16
@@ -263,8 +247,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 17
@@ -276,8 +259,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 18
@@ -289,8 +271,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 19
@@ -302,8 +283,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 736
@@ -319,8 +299,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 768
@@ -339,8 +318,7 @@ bb5:
   dup1
   push 160
   mstore
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 800
@@ -359,8 +337,7 @@ bb5:
   dup1
   push 192
   mstore
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 832
@@ -379,8 +356,7 @@ bb5:
   dup1
   push 224
   mstore
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 864
@@ -399,8 +375,7 @@ bb5:
   dup1
   push 256
   mstore
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 896
@@ -419,8 +394,7 @@ bb5:
   dup1
   push 288
   mstore
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 928
@@ -439,8 +413,7 @@ bb5:
   dup1
   push 320
   mstore
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 960
@@ -459,8 +432,7 @@ bb5:
   dup1
   push 352
   mstore
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 992
@@ -479,8 +451,7 @@ bb5:
   dup1
   push 384
   mstore
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 0x400
@@ -499,8 +470,7 @@ bb5:
   dup1
   push 416
   mstore
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 0x420
@@ -519,8 +489,7 @@ bb5:
   dup1
   push 448
   mstore
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 0x440
@@ -539,8 +508,7 @@ bb5:
   dup1
   push 480
   mstore
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 0x460
@@ -559,8 +527,7 @@ bb5:
   dup1
   push 512
   mstore
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 0x480
@@ -579,8 +546,7 @@ bb5:
   dup1
   push 544
   mstore
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 0x4a0
@@ -599,8 +565,7 @@ bb5:
   dup1
   push 576
   mstore
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 0x4c0
@@ -619,8 +584,7 @@ bb5:
   dup1
   push 608
   mstore
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 0x4e0
@@ -639,8 +603,7 @@ bb5:
   dup1
   push 640
   mstore
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 0x500
@@ -659,8 +622,7 @@ bb5:
   dup1
   push 672
   mstore
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 0x520
@@ -679,8 +641,7 @@ bb5:
   dup1
   push 704
   mstore
-  swap1
-  lt
+  gt
   push bb46
   jumpi
   push 0x540

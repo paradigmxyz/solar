@@ -317,6 +317,12 @@ impl Assembler {
         result
     }
 
+    #[tracing::instrument(
+        name = "evm_ir_pipeline",
+        level = "debug",
+        skip_all,
+        fields(program = %self.program.name()),
+    )]
     pub(in crate::backend::evm) fn prepare(&mut self) -> PreparedAssembly {
         solar_interface::enter(|| self.prepare_inner())
     }

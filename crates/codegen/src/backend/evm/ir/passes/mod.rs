@@ -140,6 +140,12 @@ pub fn lookup_pass(name: &str) -> Option<&'static PassInfo> {
 }
 
 /// Runs a named EVM IR pass over a module.
+#[tracing::instrument(
+    name = "evm_ir_pass",
+    level = "debug",
+    skip_all,
+    fields(pass = pass.name),
+)]
 pub fn run_pass(module: &mut Module, pass: &PassInfo, options: PassOptions) -> bool {
     let timer = PassTimer::new(options.time_passes);
     let changed = (pass.run_pass)(module, options);

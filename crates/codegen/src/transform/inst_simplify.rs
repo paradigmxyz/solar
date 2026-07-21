@@ -76,33 +76,61 @@ impl InstSimplifier {
             let instruction_count = func.blocks[block_id].instructions.len();
             for index in 0..instruction_count {
                 let inst_id = func.blocks[block_id].instructions[index];
-                let kind = func.instructions[inst_id].kind.clone();
+                loop {
+                    let kind = func.instructions[inst_id].kind.clone();
 
-                if self.is_dead_noop_inst(func, &kind, &state.replacements) {
-                    state.dead.insert(inst_id);
-                    self.simplified_count += 1;
-                    continue;
-                }
+                    if self.is_dead_noop_inst(func, &kind, &state.replacements) {
+                        tracing::trace!(
+                            target: "solar::codegen::mir::inst_simplify",
+                            function = %func.name,
+                            action = "delete",
+                            instruction = %kind,
+                            "mir_inst_simplify"
+                        );
+                        state.dead.insert(inst_id);
+                        self.simplified_count += 1;
+                        break;
+                    }
 
-                if let Some(new_kind) = self.rewrite_inst(func, &kind, &state.replacements) {
-                    func.instructions[inst_id].kind = new_kind;
-                    self.simplified_count += 1;
-                    continue;
-                }
+                    if let Some(new_kind) = self.rewrite_inst(func, &kind, &state.replacements) {
+                        tracing::trace!(
+                            target: "solar::codegen::mir::inst_simplify",
+                            function = %func.name,
+                            action = "rewrite",
+                            input = %kind,
+                            output = %new_kind,
+                            "mir_inst_simplify"
+                        );
+                        func.instructions[inst_id].kind = new_kind;
+                        self.simplified_count += 1;
+                        continue;
+                    }
 
-                let Some(&result) = state.inst_results.get(&inst_id) else {
-                    continue;
-                };
-                let Some(replacement) = self.simplify_inst(func, &kind, &state.replacements) else {
-                    continue;
-                };
-                let replacement = mir_utils::resolve_replacement(replacement, &state.replacements);
-                if replacement == result {
-                    continue;
+                    let Some(&result) = state.inst_results.get(&inst_id) else {
+                        break;
+                    };
+                    let Some(replacement) = self.simplify_inst(func, &kind, &state.replacements)
+                    else {
+                        break;
+                    };
+                    let replacement =
+                        mir_utils::resolve_replacement(replacement, &state.replacements);
+                    if replacement != result {
+                        tracing::trace!(
+                            target: "solar::codegen::mir::inst_simplify",
+                            function = %func.name,
+                            action = "replace",
+                            instruction = %kind,
+                            ?result,
+                            ?replacement,
+                            "mir_inst_simplify"
+                        );
+                        state.replacements.insert(result, replacement);
+                        state.dead.insert(inst_id);
+                        self.simplified_count += 1;
+                    }
+                    break;
                 }
-                state.replacements.insert(result, replacement);
-                state.dead.insert(inst_id);
-                self.simplified_count += 1;
             }
         }
 
@@ -123,8 +151,15 @@ impl InstSimplifier {
     pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
         let mut state = RunState::new(func);
-        loop {
+        for round in 1.. {
             let simplified = self.run_with_state(func, &mut state);
+            tracing::trace!(
+                target: "solar::codegen::mir::inst_simplify",
+                function = %func.name,
+                round,
+                simplified,
+                "mir_inst_simplify_round"
+            );
             if simplified == 0 {
                 break;
             }
@@ -849,59 +884,54 @@ impl InstSimplifier {
     ) -> usize {
         let externally_terminating =
             func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback;
-        let mut branch_rewrites = Vec::new();
-        let mut empty_returns = Vec::new();
+        let mut rewrites = 0;
         for block_id in func.blocks.indices() {
-            match func.blocks[block_id].terminator {
-                Some(Terminator::Branch { condition, .. }) => {
-                    let condition = mir_utils::resolve_replacement(condition, replacements);
-                    if let Some(inner) = Self::iszero_operand(func, condition) {
-                        branch_rewrites.push((
-                            block_id,
-                            mir_utils::resolve_replacement(inner, replacements),
-                            true,
-                        ));
-                    } else if let Some(inner) = Self::nonzero_test_operand(func, condition) {
-                        // `branch gt(x, 0)` / `branch lt(0, x)` test exactly `x != 0`,
-                        // which is what `branch x` already does.
-                        branch_rewrites.push((
-                            block_id,
-                            mir_utils::resolve_replacement(inner, replacements),
-                            false,
-                        ));
-                    }
-                }
-                Some(Terminator::ReturnData { size, .. })
-                    if externally_terminating
-                        && Self::is_zero(
-                            func,
-                            mir_utils::resolve_replacement(size, replacements),
-                        ) =>
-                {
-                    empty_returns.push(block_id);
-                }
-                _ => {}
-            }
-        }
-
-        for (block_id, inner, swap) in branch_rewrites.iter().copied() {
-            {
+            loop {
+                let Some(Terminator::Branch { condition, .. }) = func.blocks[block_id].terminator
+                else {
+                    break;
+                };
+                let condition = mir_utils::resolve_replacement(condition, replacements);
+                let (inner, swap) = if let Some(inner) = Self::iszero_operand(func, condition) {
+                    (inner, true)
+                } else if let Some(inner) = Self::nonzero_test_operand(func, condition) {
+                    // `branch gt(x, 0)` / `branch lt(0, x)` test exactly `x != 0`,
+                    // which is what `branch x` already does.
+                    (inner, false)
+                } else {
+                    break;
+                };
+                let inner = mir_utils::resolve_replacement(inner, replacements);
                 let Some(Terminator::Branch { condition, then_block, else_block }) =
                     &mut func.blocks[block_id].terminator
                 else {
-                    continue;
+                    unreachable!()
                 };
                 *condition = inner;
                 if swap {
                     std::mem::swap(then_block, else_block);
                 }
+                rewrites += 1;
+                tracing::trace!(
+                    target: "solar::codegen::mir::inst_simplify",
+                    function = %func.name,
+                    action = "rewrite_terminator",
+                    ?block_id,
+                    swap,
+                    "mir_inst_simplify"
+                );
+            }
+
+            if externally_terminating
+                && let Some(Terminator::ReturnData { size, .. }) = func.blocks[block_id].terminator
+                && Self::is_zero(func, mir_utils::resolve_replacement(size, replacements))
+            {
+                func.blocks[block_id].terminator = Some(Terminator::Stop);
+                rewrites += 1;
             }
         }
-        for &block_id in &empty_returns {
-            func.blocks[block_id].terminator = Some(Terminator::Stop);
-        }
 
-        branch_rewrites.len() + empty_returns.len()
+        rewrites
     }
 
     /// Returns `x` when `value` computes `gt(x, 0)` or `lt(0, x)`, both of
@@ -1166,7 +1196,7 @@ mod tests {
         builder.branch(inverted, then_block, else_block);
 
         let mut pass = InstSimplifier::new();
-        assert_eq!(pass.run(&mut func), 1);
+        assert_eq!(pass.run(&mut func), 2);
 
         let block = &func.blocks[func.entry_block];
         let Some(Terminator::Branch { condition, then_block: new_then, else_block: new_else }) =
@@ -1174,7 +1204,7 @@ mod tests {
         else {
             panic!("expected branch terminator");
         };
-        assert_eq!(condition, cmp);
+        assert_eq!(condition, arg);
         assert_eq!(new_then, else_block);
         assert_eq!(new_else, then_block);
     }

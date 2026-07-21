@@ -19,7 +19,11 @@ fn main() -> anyhow::Result<()> {
         flags::XtaskCmd::Test(flags::Test { bless, test_name, rest }) => {
             let sh = Shell::new()?;
 
-            let mut cmd = cmd!(sh, "cargo test");
+            let mut cmd =
+                if bless { cmd!(sh, "cargo test") } else { cmd!(sh, "cargo nextest run") };
+            if bless && test_name.is_none() {
+                cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", "ui");
+            }
             if let Some(t) = test_name {
                 if let Some(mode) = tester_mode(&t) {
                     cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", mode);

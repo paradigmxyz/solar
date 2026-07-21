@@ -1,0 +1,179 @@
+//@compile-flags: --pass peephole
+@module module
+
+bb0 (entry):
+  push 1
+  push 2
+  dup2
+  add
+  swap1
+  pop
+  stop
+bb1:
+  push 1
+  push 2
+  dup2
+  mul
+  swap1
+  pop
+  stop
+bb2:
+  push 1
+  push 2
+  dup2
+  and
+  swap1
+  pop
+  stop
+bb3:
+  push 1
+  push 2
+  dup2
+  or
+  swap1
+  pop
+  stop
+bb4:
+  push 1
+  push 2
+  dup2
+  xor
+  swap1
+  pop
+  stop
+bb5:
+  push 1
+  push 2
+  dup2
+  eq
+  swap1
+  pop
+  stop
+bb6:
+  push 1
+  push 2
+  dup2
+  sub
+  swap1
+  pop
+  stop
+bb7:
+  push 1
+  push 2
+  dup2
+  div
+  swap1
+  pop
+  stop
+bb8:
+  push 1
+  push 2
+  dup2
+  sdiv
+  swap1
+  pop
+  stop
+bb9:
+  push 1
+  push 2
+  dup2
+  mod
+  swap1
+  pop
+  stop
+bb10:
+  push 1
+  push 2
+  dup2
+  smod
+  swap1
+  pop
+  stop
+bb11:
+  push 1
+  push 2
+  dup2
+  exp
+  swap1
+  pop
+  stop
+bb12:
+  push 1
+  push 2
+  dup2
+  signextend
+  swap1
+  pop
+  stop
+bb13:
+  push 1
+  push 2
+  dup2
+  lt
+  swap1
+  pop
+  stop
+bb14:
+  push 1
+  push 2
+  dup2
+  gt
+  swap1
+  pop
+  stop
+bb15:
+  push 1
+  push 2
+  dup2
+  slt
+  swap1
+  pop
+  stop
+bb16:
+  push 1
+  push 2
+  dup2
+  sgt
+  swap1
+  pop
+  stop
+bb17:
+  push 1
+  push 2
+  dup2
+  byte
+  swap1
+  pop
+  stop
+bb18:
+  push 1
+  push 2
+  dup2
+  shl
+  swap1
+  pop
+  stop
+bb19:
+  push 1
+  push 2
+  dup2
+  shr
+  swap1
+  pop
+  stop
+bb20:
+  push 1
+  push 2
+  dup2
+  sar
+  swap1
+  pop
+  stop
+bb21:
+  push 1
+  push 2
+  dup2
+  keccak256
+  swap1
+  pop
+  stop
