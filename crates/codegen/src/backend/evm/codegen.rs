@@ -1441,7 +1441,7 @@ impl EvmCodegen {
         revert_label: Label,
     ) {
         let values: Vec<_> = selectors.iter().map(|entry| U256::from(entry.selector)).collect();
-        match select_switch_plan(&values, self.optimization, self.evm_version) {
+        match select_switch_plan(&values, self.optimization, self.evm_version, false) {
             SwitchPlan::Linear => {
                 self.emit_linear_selector_dispatch(selectors, fallback_label, revert_label);
             }
@@ -5243,7 +5243,12 @@ impl EvmCodegen {
                 let constant_entries = self.constant_switch_entries(func, cases);
                 let plan = constant_entries.as_ref().map_or(SwitchPlan::Linear, |entries| {
                     let values: Vec<_> = entries.iter().map(|entry| entry.value).collect();
-                    select_switch_plan(&values, self.optimization, self.evm_version)
+                    select_switch_plan(
+                        &values,
+                        self.optimization,
+                        self.evm_version,
+                        !self.emitting_dispatch_entry,
+                    )
                 });
 
                 if self.emitting_dispatch_entry {
