@@ -14,7 +14,7 @@ const UNIFAP_FACTORY: &str = "src/UnifapV2Factory.sol";
 
 struct BenchmarkSource {
     project: BenchmarkProject,
-    hover_requests: Vec<BenchmarkRequest>,
+    hover_positions: Vec<(u32, u32)>,
 }
 
 struct SourceBuilder {
@@ -38,17 +38,17 @@ impl SourceBuilder {
 
     fn finish(self) -> BenchmarkSource {
         let project = BenchmarkProject::from_source(self.source);
-        let hover_requests = self
+        let hover_positions = self
             .hover_anchors
             .into_iter()
             .map(|anchor| {
-                let (uri, position) = project
+                let (_, position) = project
                     .unique_anchor("benchmark.sol", &anchor)
                     .expect("generated hover anchors should be unique");
-                BenchmarkRequest::Hover { uri, position }
+                (position.line, position.character)
             })
             .collect();
-        BenchmarkSource { project, hover_requests }
+        BenchmarkSource { project, hover_positions }
     }
 }
 
@@ -113,22 +113,18 @@ fn analysis_build(c: &mut Criterion) {
 fn burst_hover(c: &mut Criterion) {
     let fixture = benchmark_source(HOVER_FUNCTION_COUNT);
     let analysis = fixture.project.analyze();
-    let requests = fixture.hover_requests;
+    let positions = fixture.hover_positions;
     assert_clean(&analysis);
-    assert_eq!(requests.len(), HOVER_FUNCTION_COUNT * 2);
-    assert!(
-        requests.iter().all(|request| {
-            matches!(analysis.execute(request), BenchmarkResponse::Hover(Some(_)))
-        })
-    );
+    assert_eq!(positions.len(), HOVER_FUNCTION_COUNT * 2);
+    assert!(positions.iter().all(|&(line, character)| analysis.hover(line, character).is_some()));
 
     let mut group = c.benchmark_group("lsp/burst-hover");
-    group.throughput(Throughput::Elements(requests.len() as u64));
+    group.throughput(Throughput::Elements(positions.len() as u64));
     group.bench_function(HOVER_FUNCTION_COUNT.to_string(), |b| {
         b.iter(|| {
             let analysis = black_box(&analysis);
-            for request in black_box(&requests) {
-                black_box(analysis.execute(black_box(request)));
+            for &(line, character) in black_box(&positions) {
+                black_box(analysis.hover(black_box(line), black_box(character)));
             }
         });
     });
