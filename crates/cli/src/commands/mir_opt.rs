@@ -79,7 +79,7 @@ pub(crate) struct MirOptArgs {
         conflicts_with = "pipeline_default"
     )]
     passes: Option<Vec<Option<&'static PassInfo>>>,
-    /// If true, print a MIR diff for every pass; otherwise only for the full pipeline.
+    /// If true, print MIR output for every pass; otherwise only for the full pipeline.
     #[arg(long)]
     print_after_each: bool,
     /// Run the same pass pipeline as EvmCodegen::run_optimization_passes.

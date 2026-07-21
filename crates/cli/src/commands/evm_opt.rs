@@ -21,10 +21,9 @@ pub(crate) struct EvmOptArgs {
         visible_alias = "pass",
         value_name = "NAMES",
         value_delimiter = ',',
-        value_parser = parse_pass,
-        default_value = "none"
+        value_parser = parse_pass
     )]
-    passes: Vec<Option<&'static ir::PassInfo>>,
+    passes: Option<Vec<Option<&'static ir::PassInfo>>>,
     /// If true, print an EVM IR diff for every pass; otherwise only for the full pipeline.
     #[arg(long)]
     print_after_each: bool,
@@ -65,20 +64,33 @@ fn selected_pass_list_label(passes: &[Option<&ir::PassInfo>], separator: &str) -
     passes.iter().copied().map(pass_label).collect::<Vec<_>>().join(separator)
 }
 
+/// Prints a module with a header indicating which pass(es) produced it.
+fn print_module(module: &ir::Module, name: &str, after: &str) {
+    println!("// === {name} (after {after}) ===");
+    print!("{}", module.to_text());
+}
+
 fn run_pipeline(sess: &Session, module: &mut ir::Module, name: &str, args: &EvmOptArgs) {
     let dcx = &sess.dcx;
+    let Some(passes) = &args.passes else {
+        ir::validate(dcx, module);
+        if dcx.has_errors().is_ok() {
+            print_module(module, name, "none");
+        }
+        return;
+    };
     let options = ir::PassOptions {
         time_passes: sess.opts.unstable.time_passes,
         evm_version: sess.opts.evm_version,
         optimization: sess.opts.optimization,
     };
-    let pipeline_label = selected_pass_list_label(&args.passes, ",");
+    let pipeline_label = selected_pass_list_label(passes, ",");
     let mut before = module.to_text().to_string();
-    for (index, &pass) in args.passes.iter().enumerate() {
+    for (index, &pass) in passes.iter().enumerate() {
         if let Some(pass) = pass {
             ir::run_pass(module, pass, options);
         }
-        if args.print_after_each || index + 1 == args.passes.len() {
+        if args.print_after_each || index + 1 == passes.len() {
             ir::validate(dcx, module);
             if dcx.has_errors().is_err() {
                 break;

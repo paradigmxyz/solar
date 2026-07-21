@@ -363,7 +363,7 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub print_natspec: bool,
 
-    /// Print a MIR diff for every MIR optimization pass during codegen.
+    /// Print MIR after every MIR optimization pass during codegen.
     #[cfg_attr(feature = "clap", arg(long))]
     pub mir_print_after_each: bool,
 

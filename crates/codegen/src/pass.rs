@@ -288,7 +288,7 @@ const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
 /// Options for running a MIR pass pipeline.
 #[derive(Clone, Copy, Debug)]
 pub struct PipelineOptions {
-    /// Print a diff of the module before and after every pass in the pipeline.
+    /// Print the full module after every pass in the pipeline.
     pub print_after_each: bool,
     /// Print the time spent in each pass.
     pub time_passes: bool,
@@ -314,22 +314,9 @@ impl Default for PipelineOptions {
     fields(module = %module.name, pass = pass.name),
 )]
 pub fn run_pass(module: &mut Module, pass: &PassInfo, options: PipelineOptions) -> bool {
-    run_pass_with_label(module, pass, options, pass.name)
-}
-
-fn run_pass_with_label(
-    module: &mut Module,
-    pass: &PassInfo,
-    options: PipelineOptions,
-    label: &str,
-) -> bool {
-    let before = options.print_after_each.then(|| module.to_text().to_string());
     // Passes declare which phases they operate on; the manager enforces it so a
     // pipeline entry cannot silently corrupt a module in the wrong phase.
     if !pass.admits(module) {
-        if let Some(before) = before {
-            print_pass_diff(module, label, &before);
-        }
         return false;
     }
     if options.validate_after_each {
@@ -341,24 +328,18 @@ fn run_pass_with_label(
     if options.validate_after_each {
         validate_module_after_pass(module, pass.name);
     }
-    if let Some(before) = before {
-        print_pass_diff(module, label, &before);
-    }
     changed
-}
-
-fn print_pass_diff(module: &Module, pass: &str, before: &str) {
-    let after = module.to_text().to_string();
-    let before = format!("// === {} (before {pass}) ===\n{before}", module.name);
-    let after = format!("// === {} (after {pass}) ===\n{after}", module.name);
-    print!("{}", solar_data_structures::fmt::line_diff(&before, &after));
 }
 
 /// Runs a named MIR pass pipeline over a module.
 fn run_pipeline(module: &mut Module, passes: &[PassInfo], options: PipelineOptions) -> bool {
     let mut changed = false;
     for pass in passes {
-        changed |= run_pass_with_label(module, pass, options, pass.name);
+        changed |= run_pass(module, pass, options);
+        if options.print_after_each {
+            println!("// === {} (after {}) ===", module.name, pass.name);
+            print!("{}", module.to_text());
+        }
     }
     changed
 }
@@ -392,9 +373,12 @@ fn run_cleanup_pipeline_to_fixpoint(
     for round in 1..=DEFAULT_CLEANUP_MAX_ROUNDS {
         let mut round_changed = false;
         for pass in passes {
-            let pass_label = format!("{label}-{round}:{}", pass.name);
-            let pass_changed = run_pass_with_label(module, pass, options, &pass_label);
+            let pass_changed = run_pass(module, pass, options);
             round_changed |= pass_changed;
+            if options.print_after_each {
+                println!("// === {} (after {label}-{round}:{}) ===", module.name, pass.name);
+                print!("{}", module.to_text());
+            }
         }
         if !round_changed {
             break;
