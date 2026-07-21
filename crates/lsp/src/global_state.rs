@@ -455,12 +455,20 @@ impl AnalysisBatch {
 }
 
 fn analyze(batch: AnalysisBatch) -> AnalysisResult {
+    analyze_with_source_map(batch, Arc::new(SourceMap::empty()))
+}
+
+fn analyze_with_source_map(batch: AnalysisBatch, source_map: Arc<SourceMap>) -> AnalysisResult {
     let (emitter, diag_buffer) = InMemoryEmitter::new();
     let document_link_sources =
         batch.files.iter().map(|(path, _)| path.clone()).collect::<FxHashSet<_>>();
     let mut opts = batch.opts;
     opts.unstable.recover_incomplete_input = true;
-    let sess = Session::builder().opts(opts).dcx(DiagCtxt::new(Box::new(emitter))).build();
+    let sess = Session::builder()
+        .opts(opts)
+        .source_map(source_map)
+        .dcx(DiagCtxt::new(Box::new(emitter)))
+        .build();
 
     let mut compiler = Compiler::new(sess);
     compiler.enter_mut(move |compiler| {
@@ -507,48 +515,9 @@ fn analyze(batch: AnalysisBatch) -> AnalysisResult {
     })
 }
 
-/// Benchmark-only access to a fully analyzed, in-memory source.
+/// Benchmark-only access to prepared, fully analyzed in-memory projects.
 #[cfg(feature = "bench")]
-pub(crate) mod benchmark {
-    use super::{AnalysisBatch, SymbolTables, analyze};
-    use lsp_types::{HoverContents, Position, Url};
-    use solar_config::CompileOpts;
-    use solar_interface::data_structures::map::FxHashSet;
-    use std::path::PathBuf;
-
-    /// An opaque analysis snapshot used by the LSP Criterion benchmarks.
-    #[doc(hidden)]
-    pub struct BenchmarkAnalysis {
-        symbol_tables: SymbolTables,
-        uri: Url,
-    }
-
-    impl BenchmarkAnalysis {
-        /// Analyze one in-memory Solidity source without touching the filesystem.
-        pub fn from_source(source: String) -> Self {
-            let path =
-                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches").join("benchmark.sol");
-            let uri = Url::from_file_path(&path).expect("benchmark path should be a file URL");
-            let result = analyze(AnalysisBatch {
-                opts: CompileOpts::default(),
-                files: vec![(path, source)],
-                seen_paths: FxHashSet::default(),
-            });
-            Self { symbol_tables: result.symbol_tables, uri }
-        }
-
-        /// Resolve one declaration or reference position synchronously.
-        #[inline(never)]
-        pub fn hover(&self, line: u32, character: u32) -> Option<usize> {
-            let hover = std::hint::black_box(
-                self.symbol_tables.hover(&self.uri, Position::new(line, character)),
-            )?;
-            let HoverContents::Markup(content) = hover.contents else { return None };
-            Some(content.value.len())
-        }
-    }
-}
-
+pub(crate) mod benchmark;
 #[cfg(test)]
 #[path = "tests/mod.rs"]
 mod tests;
