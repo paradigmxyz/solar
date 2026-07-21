@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_skips_dynamic.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_skips_dynamic.mir (after lower-abi) ===
   @module LowerAbiSkipsDynamic
@@ -6,3 +7,11 @@
       ret arg0
   }
   
+=======
+// === ROOT/tests/ui/codegen/mir/lowering/lower_abi_skips_dynamic.mir (after lower-abi) ===
+@module LowerAbiSkipsDynamic
+fn @givesBytes(arg0: memptr) -> memptr {
+  bb0 (entry):
+    ret arg0
+}
+>>>>>>> 912969bf (feat(codegen): fuse static-word returns in lower-abi)

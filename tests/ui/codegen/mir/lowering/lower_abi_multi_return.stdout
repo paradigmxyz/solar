@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_multi_return.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_multi_return.mir (after lower-abi) ===
   @module LowerAbiMultiReturn
@@ -7,3 +8,15 @@
       ret arg0, v0
   }
   
+=======
+// === ROOT/tests/ui/codegen/mir/lowering/lower_abi_multi_return.mir (after lower-abi) ===
+@module LowerAbiMultiReturn
+@phase abi
+fn @pair() {
+  bb0 (entry):
+    v0 = add arg0, 1
+    mstore 128, arg0
+    mstore 160, v0
+    returndata 128, 64
+}
+>>>>>>> 912969bf (feat(codegen): fuse static-word returns in lower-abi)
