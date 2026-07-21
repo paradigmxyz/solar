@@ -204,7 +204,6 @@ bb18:
   jump bb26
 bb21:
   push 5
-  swap1
   sub
   push bb25
   jumpi

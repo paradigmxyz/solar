@@ -179,7 +179,6 @@ bb12:
   mstore
   push 36
   calldataload
-  swap1
   add
   dup1
   push 192
@@ -342,7 +341,6 @@ bb24:
   dup2
   mstore
   push 32
-  swap1
   add
   dup2
   swap1

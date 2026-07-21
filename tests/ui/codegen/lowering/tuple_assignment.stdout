@@ -237,7 +237,6 @@ bb17:
   push 64
   mload
   push 32
-  swap1
   add
   push 9
   swap1

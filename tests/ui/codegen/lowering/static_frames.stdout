@@ -77,7 +77,6 @@ bb7:
   div
   push 4
   calldataload
-  swap1
   eq
   swap1
   pop
@@ -256,7 +255,6 @@ bb7:
   dup1
   push 0x4c0
   mstore
-  swap1
   sub
   push bb64
   jumpi
@@ -328,7 +326,6 @@ bb11:
   dup1
   push 256
   mstore
-  swap1
   eq
   swap1
   pop
@@ -764,7 +761,6 @@ bb74:
   push 192
   add
   mstore
-  swap1
   sub
   push bb64
   jumpi
@@ -815,7 +811,6 @@ bb74:
   push 256
   add
   mstore
-  swap1
   xor
   push 0
   sstore
@@ -970,7 +965,6 @@ bb77:
   mload
   mod
   push 7
-  swap1
   add
   jump bb68
 bb78:
@@ -1109,7 +1103,6 @@ bb79:
   push bb43
   jump bb35
 bb80:
-  swap1
   sub
   push bb64
   jumpi
@@ -1160,7 +1153,6 @@ bb80:
   push 480
   add
   mstore
-  swap1
   xor
   push 0
   sstore

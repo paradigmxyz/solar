@@ -619,7 +619,6 @@ bb27:
   dup1
   push 576
   mstore
-  swap1
   eq
   swap2
   pop
@@ -675,7 +674,6 @@ bb27:
   dup1
   push 608
   mstore
-  swap1
   eq
   swap2
   pop

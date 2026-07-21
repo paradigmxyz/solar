@@ -133,7 +133,6 @@ bb17:
   dup1
   push 352
   mstore
-  swap1
   eq
   swap3
   pop
@@ -307,7 +306,6 @@ bb31:
   dup1
   push 288
   mstore
-  swap1
   eq
   swap1
   pop

@@ -186,7 +186,6 @@ bb63:
   dup2
   and
   push 1
-  swap1
   eq
   push 255
   dup3
@@ -220,7 +219,6 @@ bb63:
   add
   push 31
   not
-  swap1
   and
   dup1
   push 0x4a0
@@ -240,7 +238,6 @@ bb63:
   swap1
   pop
   push 32
-  swap1
   add
   push 64
   mload
@@ -330,7 +327,6 @@ bb20:
   add
   push 31
   not
-  swap1
   and
   dup1
   push 800
@@ -441,7 +437,6 @@ bb20:
   push 255
   push 248
   shl
-  swap1
   and
   push 248
   shr
@@ -473,7 +468,6 @@ bb20:
   dup2
   and
   push 1
-  swap1
   eq
   push 255
   dup3
@@ -536,7 +530,6 @@ bb20:
   add
   push 31
   not
-  swap1
   and
   push 5
   shr
@@ -685,7 +678,6 @@ bb26:
   push 1
   shl
   push 1
-  swap1
   or
   push 256
   mload
@@ -795,7 +787,6 @@ bb33:
   add
   push 31
   not
-  swap1
   and
   dup1
   push 640
@@ -893,7 +884,6 @@ bb33:
   dup2
   and
   push 1
-  swap1
   eq
   push 255
   dup3
@@ -956,7 +946,6 @@ bb33:
   add
   push 31
   not
-  swap1
   and
   push 5
   shr
@@ -1089,7 +1078,6 @@ bb37:
   push 1
   shl
   push 1
-  swap1
   or
   push 224
   mload
@@ -1157,7 +1145,6 @@ bb44:
   push 0
   keccak256
   push 1
-  swap1
   add
   dup1
   push 0x420
@@ -1202,7 +1189,6 @@ bb46:
   push 0
   keccak256
   push 1
-  swap1
   add
   dup1
   push 0x420
@@ -1229,13 +1215,11 @@ bb48:
   add
   push 4
   calldataload
-  swap1
   add
   mload
   push 255
   push 248
   shl
-  swap1
   and
   jump bb72
 bb52:
@@ -1286,7 +1270,6 @@ bb52:
   dup2
   and
   push 1
-  swap1
   eq
   dup1
   push 224
@@ -1428,7 +1411,6 @@ bb61:
   push 0
   keccak256
   push 1
-  swap1
   add
   dup1
   push 0x420
@@ -1464,7 +1446,6 @@ bb62:
   add
   push 31
   not
-  swap1
   and
   push 64
   dup4
@@ -1490,7 +1471,6 @@ bb62:
   swap1
   pop
   push 64
-  swap1
   add
   dup2
   return

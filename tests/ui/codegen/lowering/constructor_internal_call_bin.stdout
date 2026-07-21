@@ -5,10 +5,10 @@ bb0 (entry):
   push 0x4000
   push 64
   mstore
-  push 387
+  push 386
   codesize
   sub
-  push 387
+  push 386
   push 128
   codecopy
   push 7
@@ -102,7 +102,6 @@ bb3:
   push 64
   add
   mload
-  swap1
   eq
   swap1
   pop
@@ -240,7 +239,7 @@ bb9:
   sstore
   push 43
   dup1
-  push 344
+  push 343
   push 0
   codecopy
   push 0

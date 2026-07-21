@@ -54,7 +54,6 @@ bb9:
   add
   push 31
   not
-  swap1
   and
   push 64
   dup4
@@ -80,7 +79,6 @@ bb9:
   swap1
   pop
   push 64
-  swap1
   add
   dup2
   return

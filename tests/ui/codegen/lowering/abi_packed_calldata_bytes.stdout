@@ -308,7 +308,6 @@ bb27:
   dup2
   mstore
   push 20
-  swap1
   add
   dup2
   swap1
