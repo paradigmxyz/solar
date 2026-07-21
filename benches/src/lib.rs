@@ -50,7 +50,7 @@ pub fn get_srcs() -> &'static [Source] {
             include_source("../testdata/Vm.sol", Capabilities::all()),
             include_source("../testdata/safeconsole.sol", Capabilities::all()),
             include_source("../testdata/Seaport.sol", Capabilities::no_codegen()), // TODO: unsupported yul `return`
-            include_source("../testdata/Solady.sol", Capabilities::no_codegen()), // TODO: unsupported yul `return`
+            include_source("../testdata/Solady.sol", Capabilities::all()),
             include_source("../testdata/Optimism.sol", Capabilities::lex_and_parse()),
         ];
         extend_repro_sources(&mut sources);
