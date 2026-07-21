@@ -136,6 +136,16 @@
         "command": "solarLsp.formatDocument",
         "title": "Format Document",
         "category": "Solar"
+      },
+      {
+        "command": "solar.clearCache",
+        "title": "Clear Analysis Cache",
+        "category": "Solar"
+      },
+      {
+        "command": "solar.reindex",
+        "title": "Reindex Workspace",
+        "category": "Solar"
       }
     ]
   },

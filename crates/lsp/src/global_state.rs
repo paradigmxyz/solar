@@ -19,7 +19,7 @@ use solar_interface::{
     Session,
     data_structures::{
         map::{FxHashMap, FxHashSet},
-        sync::RwLock,
+        sync::{Mutex, RwLock},
     },
     diagnostics::{DiagCtxt, InMemoryEmitter},
     source_map::{FileName, SourceMap},
@@ -27,6 +27,7 @@ use solar_interface::{
 use solar_sema::Compiler;
 use std::{
     borrow::Cow,
+    mem,
     ops::ControlFlow,
     path::PathBuf,
     sync::{
@@ -36,8 +37,21 @@ use std::{
 };
 use tokio::{
     sync::{oneshot, watch},
-    task::JoinHandle,
+    task::{JoinError, JoinHandle},
 };
+
+#[derive(Clone, Copy)]
+enum AnalysisMode {
+    Recompute,
+    Rediscover,
+    IfInvalidated,
+}
+
+/// State serialized with analysis and diagnostic publication.
+#[derive(Default)]
+struct AnalysisCommitState {
+    cache_invalidated: bool,
+}
 
 pub(crate) struct GlobalState {
     client: ClientSocket,
@@ -46,6 +60,7 @@ pub(crate) struct GlobalState {
     pub(crate) config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
     published_analysis_version: watch::Sender<usize>,
+    analysis_commit: Arc<Mutex<AnalysisCommitState>>,
     flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
     flycheck_cancels: FxHashMap<DiagnosticOwner, oneshot::Sender<()>>,
     pub(crate) symbol_tables: Arc<RwLock<SymbolTables>>,
@@ -61,6 +76,7 @@ impl GlobalState {
             vfs: Arc::new(Default::default()),
             analysis_version: Arc::new(AtomicUsize::new(0)),
             published_analysis_version,
+            analysis_commit: Arc::new(Default::default()),
             flycheck_versions: Arc::new(Default::default()),
             flycheck_cancels: FxHashMap::default(),
             symbol_tables: Arc::new(Default::default()),
@@ -123,8 +139,64 @@ impl GlobalState {
     }
 
     pub(crate) fn recompute_with_disk_files(&mut self, disk_paths: Vec<PathBuf>) {
-        let version = self.analysis_version.fetch_add(1, Ordering::AcqRel) + 1;
-        self.spawn_with_snapshot(move |mut snapshot| {
+        self.request_analysis(AnalysisMode::Recompute, disk_paths, Vec::new());
+    }
+
+    pub(crate) fn recompute_for_file_changes(
+        &mut self,
+        disk_paths: Vec<PathBuf>,
+        removed_paths: Vec<PathBuf>,
+        force_rediscover: bool,
+    ) {
+        let mode =
+            if force_rediscover { AnalysisMode::Rediscover } else { AnalysisMode::Recompute };
+        self.request_analysis(mode, disk_paths, removed_paths);
+    }
+
+    pub(crate) fn reindex(&mut self) {
+        self.request_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new());
+    }
+
+    pub(crate) fn reindex_if_invalidated(&mut self) {
+        self.request_analysis(AnalysisMode::IfInvalidated, Vec::new(), Vec::new());
+    }
+
+    pub(crate) fn clear_analysis_cache(&mut self) {
+        let old_symbol_tables = {
+            let analysis_commit = self.analysis_commit.clone();
+            let mut commit = analysis_commit.lock();
+            let version = self.analysis_version.fetch_add(1, Ordering::AcqRel) + 1;
+
+            let old_symbol_tables = mem::take(&mut *self.symbol_tables.write());
+            let batches = self
+                .diagnostics
+                .write()
+                .replace_and_publish_batches(DiagnosticOwner::Compiler, DiagnosticMap::default());
+            publish_diagnostic_batches(&mut self.client, batches);
+
+            commit.cache_invalidated = true;
+            self.published_analysis_version.send_replace(version);
+            old_symbol_tables
+        };
+        drop(old_symbol_tables);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn analysis_cache_invalidated(&self) -> bool {
+        self.analysis_commit.lock().cache_invalidated
+    }
+
+    fn request_analysis(
+        &mut self,
+        mode: AnalysisMode,
+        disk_paths: Vec<PathBuf>,
+        removed_paths: Vec<PathBuf>,
+    ) {
+        let removed_uris = self.prepare_removed_file_diagnostics(removed_paths);
+        let Some(version) = self.begin_analysis(mode, removed_uris) else {
+            return;
+        };
+        let task = self.spawn_with_snapshot(move |mut snapshot| {
             if !snapshot.is_current(version) {
                 return;
             }
@@ -157,10 +229,35 @@ impl GlobalState {
                 }
             }
 
-            if snapshot.publish_symbol_tables(version, symbol_tables) {
-                snapshot.publish_diagnostics(DiagnosticOwner::Compiler, diagnostics);
-            }
+            snapshot.publish_analysis(version, AnalysisResult { diagnostics, symbol_tables });
         });
+        self.monitor_analysis_task(version, task);
+    }
+
+    fn begin_analysis(&mut self, mode: AnalysisMode, removed_uris: Vec<Url>) -> Option<usize> {
+        let (version, rediscover) = {
+            let analysis_commit = self.analysis_commit.clone();
+            let mut commit = analysis_commit.lock();
+            if matches!(mode, AnalysisMode::IfInvalidated) && !commit.cache_invalidated {
+                return None;
+            }
+
+            let invalidated = mem::take(&mut commit.cache_invalidated);
+            let version = self.analysis_version.fetch_add(1, Ordering::AcqRel) + 1;
+            let batches = self.diagnostics.write().clear_uris_and_publish_batches(removed_uris);
+            publish_diagnostic_batches(&mut self.client, batches);
+            (version, matches!(mode, AnalysisMode::Rediscover) || invalidated)
+        };
+
+        if rediscover {
+            self.rediscover_workspaces();
+        }
+        Some(version)
+    }
+
+    fn rediscover_workspaces(&mut self) {
+        let removed_owners = Arc::make_mut(&mut self.config).rediscover_workspaces();
+        self.clear_removed_flycheck_diagnostics(removed_owners);
     }
 
     /// Waits for analysis results at least as new as the latest version requested before this call.
@@ -198,10 +295,16 @@ impl GlobalState {
                 }
 
                 match result {
-                    Ok(diagnostics) => snapshot.publish_diagnostics(task_owner, diagnostics),
+                    Ok(diagnostics) => {
+                        snapshot.publish_flycheck_diagnostics(task_owner, version, diagnostics)
+                    }
                     Err(error) => {
                         tracing::warn!(%id, %error, "flycheck failed");
-                        snapshot.publish_diagnostics(task_owner, DiagnosticMap::default());
+                        snapshot.publish_flycheck_diagnostics(
+                            task_owner,
+                            version,
+                            DiagnosticMap::default(),
+                        );
                     }
                 }
             });
@@ -224,15 +327,11 @@ impl GlobalState {
         }
     }
 
-    pub(crate) fn clear_removed_file_diagnostics(
-        &mut self,
-        paths: impl IntoIterator<Item = PathBuf>,
-    ) {
-        let paths = paths.into_iter().collect::<Vec<_>>();
+    fn prepare_removed_file_diagnostics(&mut self, paths: Vec<PathBuf>) -> Vec<Url> {
         let uris =
             paths.iter().filter_map(|path| Url::from_file_path(path).ok()).collect::<Vec<_>>();
         if uris.is_empty() {
-            return;
+            return uris;
         }
 
         let mut owners = FxHashSet::default();
@@ -244,17 +343,13 @@ impl GlobalState {
         for owner in owners {
             self.begin_flycheck_epoch(&owner);
         }
-
-        let batches = {
-            let mut store = self.diagnostics.write();
-            store.clear_uris_and_publish_batches(uris)
-        };
-
-        publish_diagnostic_batches(&mut self.client, batches);
+        uris
     }
 
     fn begin_flycheck_epoch(&mut self, owner: &DiagnosticOwner) -> usize {
         let version = {
+            let analysis_commit = self.analysis_commit.clone();
+            let _commit = analysis_commit.lock();
             let mut versions = self.flycheck_versions.write();
             let version = versions.get(owner).copied().unwrap_or_default() + 1;
             versions.insert(owner.clone(), version);
@@ -277,6 +372,7 @@ impl GlobalState {
             config: self.config.clone(),
             analysis_version: self.analysis_version.clone(),
             published_analysis_version: self.published_analysis_version.clone(),
+            analysis_commit: self.analysis_commit.clone(),
             flycheck_versions: self.flycheck_versions.clone(),
             symbol_tables: self.symbol_tables.clone(),
             diagnostics: self.diagnostics.clone(),
@@ -289,6 +385,15 @@ impl GlobalState {
     ) -> JoinHandle<T> {
         let snapshot = self.snapshot();
         tokio::task::spawn_blocking(move || f(snapshot))
+    }
+
+    fn monitor_analysis_task(&self, version: usize, task: JoinHandle<()>) {
+        let mut snapshot = self.snapshot();
+        tokio::spawn(async move {
+            if let Err(error) = task.await {
+                snapshot.handle_analysis_failure(version, error);
+            }
+        });
     }
 }
 
@@ -331,6 +436,7 @@ pub(crate) struct GlobalStateSnapshot {
     config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
     published_analysis_version: watch::Sender<usize>,
+    analysis_commit: Arc<Mutex<AnalysisCommitState>>,
     flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
     symbol_tables: Arc<RwLock<SymbolTables>>,
     diagnostics: Arc<RwLock<DiagnosticStore>>,
@@ -404,17 +510,46 @@ impl GlobalStateSnapshot {
         batches
     }
 
+    fn publish_analysis(&mut self, version: usize, result: AnalysisResult) -> bool {
+        let old_symbol_tables = {
+            let analysis_commit = self.analysis_commit.clone();
+            let _commit = analysis_commit.lock();
+            if !self.is_current(version) {
+                return false;
+            }
+
+            let old_symbol_tables =
+                mem::replace(&mut *self.symbol_tables.write(), result.symbol_tables);
+            let batches = self
+                .diagnostics
+                .write()
+                .replace_and_publish_batches(DiagnosticOwner::Compiler, result.diagnostics);
+            publish_diagnostic_batches(&mut self.client, batches);
+            self.published_analysis_version.send_replace(version);
+            old_symbol_tables
+        };
+        drop(old_symbol_tables);
+        true
+    }
+
+    #[cfg(test)]
     fn publish_symbol_tables(&mut self, version: usize, symbol_tables: SymbolTables) -> bool {
-        // Serialize the version check, table swap, and notification so stale tasks cannot publish
-        // last.
-        let mut current_tables = self.symbol_tables.write();
+        self.publish_analysis(
+            version,
+            AnalysisResult { diagnostics: DiagnosticMap::default(), symbol_tables },
+        )
+    }
+
+    fn handle_analysis_failure(&mut self, version: usize, error: JoinError) {
+        let analysis_commit = self.analysis_commit.clone();
+        let mut commit = analysis_commit.lock();
         if !self.is_current(version) {
-            return false;
+            return;
         }
 
-        *current_tables = symbol_tables;
+        tracing::warn!(%error, version, "analysis task failed");
+        commit.cache_invalidated = true;
         self.published_analysis_version.send_replace(version);
-        true
     }
 
     fn analysis_workspaces(&self) -> Cow<'_, [crate::workspace::Workspace]> {
@@ -427,11 +562,32 @@ impl GlobalStateSnapshot {
     }
 
     fn publish_diagnostics(&mut self, owner: DiagnosticOwner, diagnostics: DiagnosticMap) {
+        let analysis_commit = self.analysis_commit.clone();
+        let _commit = analysis_commit.lock();
         let batches = {
             let mut store = self.diagnostics.write();
             store.replace_and_publish_batches(owner, diagnostics)
         };
 
+        publish_diagnostic_batches(&mut self.client, batches);
+    }
+
+    fn publish_flycheck_diagnostics(
+        &mut self,
+        owner: DiagnosticOwner,
+        version: usize,
+        diagnostics: DiagnosticMap,
+    ) {
+        let analysis_commit = self.analysis_commit.clone();
+        let _commit = analysis_commit.lock();
+        if !self.is_current_flycheck(&owner, version) {
+            return;
+        }
+
+        let batches = {
+            let mut store = self.diagnostics.write();
+            store.replace_and_publish_batches(owner, diagnostics)
+        };
         publish_diagnostic_batches(&mut self.client, batches);
     }
 }
