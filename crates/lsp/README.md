@@ -26,4 +26,3 @@ The benchmark groups intentionally keep separate timing boundaries:
 - `project-analysis` and `project-analysis-after-edit` measure compiler and symbol-table rebuilds.
 - `project-edit-application` measures UTF-16 document edit application without analysis.
 - `symbol-table-queries` measures synchronous query kernels, not complete LSP request latency.
-- `workspace-symbols` tracks broad and exact query costs as the symbol count grows.

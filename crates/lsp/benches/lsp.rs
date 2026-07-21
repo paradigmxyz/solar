@@ -219,12 +219,10 @@ fn assert_clean(analysis: &solar_lsp::BenchmarkAnalysis) {
 
 fn project_analysis(c: &mut Criterion) {
     let project = unifap_project();
-    let source_bytes = project.source_bytes() as u64;
     let analysis = project.clone().analyze();
     assert_clean(&analysis);
 
     let mut group = c.benchmark_group("lsp/project-analysis");
-    group.throughput(Throughput::Bytes(source_bytes));
     group.bench_function(UNIFAP_PROJECT, |b| {
         b.iter_batched(
             || project.clone(),
@@ -243,7 +241,6 @@ fn project_analysis_after_edit(c: &mut Criterion) {
 
     let mut preflight = project.clone();
     preflight.apply_edit(&edit).expect("the benchmark edit should apply");
-    let source_bytes = preflight.source_bytes() as u64;
     preflight
         .unique_anchor(UNIFAP_PAIR, "MINIMUM_LIQUIDITY = 1e4")
         .expect("the edited source should contain the replacement");
@@ -251,7 +248,6 @@ fn project_analysis_after_edit(c: &mut Criterion) {
     assert_clean(&analysis);
 
     let mut group = c.benchmark_group("lsp/project-analysis-after-edit");
-    group.throughput(Throughput::Bytes(source_bytes));
     group.bench_function(UNIFAP_PROJECT, |b| {
         b.iter_batched(
             || {
@@ -311,32 +307,6 @@ fn symbol_table_queries(c: &mut Criterion) {
     group.finish();
 }
 
-fn workspace_symbol_scaling(c: &mut Criterion) {
-    let mut group = c.benchmark_group("lsp/workspace-symbols");
-    for function_count in ANALYSIS_FUNCTION_COUNTS {
-        let analysis = benchmark_source(function_count).project.analyze();
-        assert_clean(&analysis);
-        let exact_query = format!("function_{:04}", function_count - 1);
-        for (case, query, expected) in
-            [("all", "function_", function_count), ("exact", exact_query.as_str(), 1)]
-        {
-            let request = BenchmarkRequest::WorkspaceSymbols { query: query.into() };
-            let BenchmarkResponse::WorkspaceSymbols(symbols) = analysis.execute(&request) else {
-                panic!("workspace-symbols benchmark returned the wrong response type")
-            };
-            assert_eq!(symbols.len(), expected);
-
-            group.throughput(Throughput::Elements(expected as u64));
-            group.bench_with_input(
-                BenchmarkId::new(case, function_count),
-                &request,
-                |b, request| b.iter(|| black_box(analysis.execute(black_box(request)))),
-            );
-        }
-    }
-    group.finish();
-}
-
 criterion_group!(
     benches,
     analysis_build,
@@ -344,7 +314,6 @@ criterion_group!(
     project_analysis,
     project_analysis_after_edit,
     project_edit_application,
-    symbol_table_queries,
-    workspace_symbol_scaling
+    symbol_table_queries
 );
 criterion_main!(benches);
