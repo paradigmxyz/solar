@@ -115,7 +115,7 @@ fn try_init_logger(mut dst: LogDestination) -> Result<impl Sized, String> {
             .create(true)
             .append(true)
             .open(&path)
-            .map_err(|e| format!("failed to open `{}`: {e}", path.to_string_lossy()))?;
+            .map_err(|e| format!("failed to open `{}`: {e}", path.display()))?;
         dst = LogDestination::File(file);
     }
 
