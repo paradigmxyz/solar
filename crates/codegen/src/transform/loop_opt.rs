@@ -42,20 +42,23 @@ struct LoopOptContext<'a> {
     analyzer: &'a LoopAnalyzer,
 }
 
-/// Loop optimization pass configuration.
-#[derive(Clone, Debug)]
-pub(crate) struct LoopOptConfig {
-    /// Enable Loop Invariant Code Motion.
-    pub enable_licm: bool,
+/// Loop optimizer.
+#[derive(Debug)]
+pub(crate) struct LoopOptimizer {
     /// Minimum estimated gas saved per iteration before an instruction is considered a LICM root.
-    pub min_licm_profit: u16,
+    min_licm_profit: u16,
     /// Maximum number of instructions hoisted from one loop.
-    pub max_licm_hoisted_insts: usize,
+    max_licm_hoisted_insts: usize,
+    stats: LoopOptStats,
 }
 
-impl Default for LoopOptConfig {
+impl Default for LoopOptimizer {
     fn default() -> Self {
-        Self { enable_licm: true, min_licm_profit: 0, max_licm_hoisted_insts: usize::MAX }
+        Self {
+            min_licm_profit: 0,
+            max_licm_hoisted_insts: usize::MAX,
+            stats: LoopOptStats::default(),
+        }
     }
 }
 
@@ -66,37 +69,21 @@ pub(crate) struct LoopOptStats {
     pub instructions_hoisted: usize,
 }
 
-/// Loop optimizer.
-#[derive(Debug)]
-pub(crate) struct LoopOptimizer {
-    config: LoopOptConfig,
-    stats: LoopOptStats,
-}
-
 /// Function pass for loop-invariant code motion.
 pub(crate) struct LicmPass;
 
 impl FunctionPass for LicmPass {
     fn run_on_function(&mut self, func: &mut Function) -> bool {
-        let config =
-            LoopOptConfig { enable_licm: true, min_licm_profit: 3, max_licm_hoisted_insts: 8 };
-        LoopOptimizer::new(config).optimize(func).instructions_hoisted != 0
-    }
-}
-
-impl Default for LoopOptimizer {
-    fn default() -> Self {
-        Self::new(LoopOptConfig::default())
+        LoopOptimizer::with_limits(3, 8).optimize(func).instructions_hoisted != 0
     }
 }
 
 impl LoopOptimizer {
-    /// Creates a new loop optimizer with the given configuration.
-    pub(crate) fn new(config: LoopOptConfig) -> Self {
-        Self { config, stats: LoopOptStats::default() }
+    fn with_limits(min_licm_profit: u16, max_licm_hoisted_insts: usize) -> Self {
+        Self { min_licm_profit, max_licm_hoisted_insts, stats: LoopOptStats::default() }
     }
 
-    /// Runs all enabled loop optimizations on a function.
+    /// Runs loop-invariant code motion on a function.
     pub(crate) fn optimize(&mut self, func: &mut Function) -> &LoopOptStats {
         self.stats = LoopOptStats::default();
         func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
@@ -111,9 +98,7 @@ impl LoopOptimizer {
         let loop_headers: Vec<BlockId> = loop_info.loops.keys().copied().collect();
 
         for header in loop_headers {
-            if let Some(loop_data) = loop_info.loops.get(&header)
-                && self.config.enable_licm
-            {
+            if let Some(loop_data) = loop_info.loops.get(&header) {
                 self.apply_licm(func, loop_data, &analyzer);
             }
         }
@@ -155,7 +140,7 @@ impl LoopOptimizer {
             }
 
             let new_count = closure.iter().filter(|&&inst_id| !selected.contains(inst_id)).count();
-            if selected.count() + new_count > self.config.max_licm_hoisted_insts {
+            if selected.count() + new_count > self.max_licm_hoisted_insts {
                 continue;
             }
             for &inst_id in &closure {
@@ -423,7 +408,7 @@ impl LoopOptimizer {
         inst_id: InstId,
         ctx: LoopOptContext<'_>,
     ) -> bool {
-        self.licm_profit(func, inst_id) >= self.config.min_licm_profit
+        self.licm_profit(func, inst_id) >= self.min_licm_profit
             || (self.loop_has_known_multiple_iterations(ctx.loop_data)
                 && self.is_affine_address_base_used_in_loop(func, inst_id, ctx))
             || (self.inst_dominates_loop_backedges(func, inst_id, ctx.loop_data, ctx.analyzer)
@@ -860,9 +845,7 @@ mod tests {
         let mul_inst = *mul_inst;
         assert!(func.blocks[body].instructions.contains(&mul_inst));
 
-        let config =
-            LoopOptConfig { enable_licm: true, min_licm_profit: 5, max_licm_hoisted_insts: 4 };
-        let mut optimizer = LoopOptimizer::new(config);
+        let mut optimizer = LoopOptimizer::with_limits(5, 4);
         optimizer.optimize(&mut func);
 
         assert!(func.blocks[entry].instructions.contains(&mul_inst));
@@ -909,9 +892,7 @@ mod tests {
         let load_inst = *load_inst;
         assert!(func.blocks[body].instructions.contains(&load_inst));
 
-        let config =
-            LoopOptConfig { enable_licm: true, min_licm_profit: 3, max_licm_hoisted_insts: 4 };
-        let mut optimizer = LoopOptimizer::new(config);
+        let mut optimizer = LoopOptimizer::with_limits(3, 4);
         optimizer.optimize(&mut func);
 
         assert!(func.blocks[entry].instructions.contains(&load_inst));
@@ -954,9 +935,7 @@ mod tests {
         };
         let load_inst = *load_inst;
 
-        let config =
-            LoopOptConfig { enable_licm: true, min_licm_profit: 3, max_licm_hoisted_insts: 4 };
-        let mut optimizer = LoopOptimizer::new(config);
+        let mut optimizer = LoopOptimizer::with_limits(3, 4);
         optimizer.optimize(&mut func);
 
         assert!(func.blocks[body].instructions.contains(&load_inst));
@@ -1001,9 +980,7 @@ mod tests {
         };
         let hash_inst = *hash_inst;
 
-        let config =
-            LoopOptConfig { enable_licm: true, min_licm_profit: 5, max_licm_hoisted_insts: 4 };
-        let mut optimizer = LoopOptimizer::new(config);
+        let mut optimizer = LoopOptimizer::with_limits(5, 4);
         optimizer.optimize(&mut func);
 
         assert!(func.blocks[entry].instructions.contains(&hash_inst));
@@ -1047,9 +1024,7 @@ mod tests {
         };
         let hash_inst = *hash_inst;
 
-        let config =
-            LoopOptConfig { enable_licm: true, min_licm_profit: 5, max_licm_hoisted_insts: 4 };
-        let mut optimizer = LoopOptimizer::new(config);
+        let mut optimizer = LoopOptimizer::with_limits(5, 4);
         optimizer.optimize(&mut func);
 
         assert!(func.blocks[body].instructions.contains(&hash_inst));
@@ -1093,9 +1068,7 @@ mod tests {
         };
         let load_inst = *load_inst;
 
-        let config =
-            LoopOptConfig { enable_licm: true, min_licm_profit: 5, max_licm_hoisted_insts: 4 };
-        let mut optimizer = LoopOptimizer::new(config);
+        let mut optimizer = LoopOptimizer::with_limits(5, 4);
         optimizer.optimize(&mut func);
 
         assert!(func.blocks[entry].instructions.contains(&load_inst));
@@ -1137,9 +1110,7 @@ mod tests {
         };
         let load_inst = *load_inst;
 
-        let config =
-            LoopOptConfig { enable_licm: true, min_licm_profit: 5, max_licm_hoisted_insts: 4 };
-        let mut optimizer = LoopOptimizer::new(config);
+        let mut optimizer = LoopOptimizer::with_limits(5, 4);
         optimizer.optimize(&mut func);
 
         assert!(func.blocks[body].instructions.contains(&load_inst));
@@ -1180,9 +1151,7 @@ mod tests {
         };
         let mul_inst = *mul_inst;
 
-        let config =
-            LoopOptConfig { enable_licm: true, min_licm_profit: 5, max_licm_hoisted_insts: 4 };
-        let mut optimizer = LoopOptimizer::new(config);
+        let mut optimizer = LoopOptimizer::with_limits(5, 4);
         optimizer.optimize(&mut func);
 
         assert!(func.blocks[body].instructions.contains(&mul_inst));
