@@ -316,7 +316,7 @@ impl Assembler {
         name = "evm_ir_pipeline",
         level = "debug",
         skip_all,
-        fields(module = %self.program.name()),
+        fields(program = %self.program.name()),
     )]
     pub(in crate::backend::evm) fn prepare(&mut self) -> PreparedAssembly {
         solar_interface::enter(|| self.prepare_inner())

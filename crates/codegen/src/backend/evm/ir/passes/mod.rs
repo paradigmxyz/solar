@@ -144,7 +144,7 @@ pub fn lookup_pass(name: &str) -> Option<&'static PassInfo> {
     name = "evm_ir_pass",
     level = "debug",
     skip_all,
-    fields(module = %module.name(), pass = pass.name),
+    fields(pass = pass.name),
 )]
 pub fn run_pass(module: &mut Module, pass: &PassInfo, options: PassOptions) -> bool {
     let timer = PassTimer::new(options.time_passes);

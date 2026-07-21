@@ -5,7 +5,6 @@ use crate::backend::evm::{
     opcode as op,
 };
 use alloy_primitives::U256;
-use solar_interface::Symbol;
 use std::fmt;
 use tracing::trace;
 
@@ -22,12 +21,11 @@ pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
         }
         trace!(
             target: TRACE_TARGET,
-            module = %module.name,
             block = block.label,
             instructions = ?PatternSequence(&block.instructions).to_string(),
-            "evm_ir_peephole_input"
+            "input"
         );
-        changed |= optimize(&mut block.instructions, &mut scratch, module.name, block.label) != 0;
+        changed |= optimize(&mut block.instructions, &mut scratch, block.label) != 0;
     }
     changed
 }
@@ -35,7 +33,6 @@ pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
 fn optimize(
     instructions: &mut Vec<Instruction>,
     scratch: &mut Vec<Instruction>,
-    module: Symbol,
     block: u32,
 ) -> usize {
     scratch.clear();
@@ -44,14 +41,14 @@ fn optimize(
     let mut rewrites = 0;
     for inst in scratch.drain(..) {
         instructions.push(inst);
-        while try_peephole(instructions, module, block) {
+        while try_peephole(instructions, block) {
             rewrites += 1;
         }
     }
     rewrites
 }
 
-fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32) -> bool {
+fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
     // `PUSH x PUSH 0 OP -> PUSH 0`.
     // `PUSH x PUSH 1 EXP -> PUSH 1`.
     if let [.., lhs, pushed, instruction] = instructions.as_slice()
@@ -65,10 +62,10 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
                 op::MUL | op::DIV | op::SDIV | op::MOD | op::SMOD | op::AND | op::GT
             )
         {
-            return rewrite(instructions, 3, Edit::RemoveFirstKeepOne, module, block);
+            return rewrite(instructions, 3, Edit::RemoveFirstKeepOne, block);
         }
         if value == U256::ONE && opcode == op::EXP {
-            return rewrite(instructions, 3, Edit::RemoveFirstKeepOne, module, block);
+            return rewrite(instructions, 3, Edit::RemoveFirstKeepOne, block);
         }
     }
 
@@ -84,21 +81,19 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
         if value.is_zero() {
             return match opcode {
                 op::ADD | op::OR | op::XOR | op::SHL | op::SHR | op::SAR => {
-                    rewrite(instructions, 2, Edit::Keep(0), module, block)
+                    rewrite(instructions, 2, Edit::Keep(0), block)
                 }
-                op::EQ => {
-                    rewrite(instructions, 2, Edit::RemoveFirstOverwrite(op::ISZERO), module, block)
-                }
+                op::EQ => rewrite(instructions, 2, Edit::RemoveFirstOverwrite(op::ISZERO), block),
                 op::MUL | op::DIV | op::SDIV | op::MOD | op::SMOD | op::AND | op::GT => {
-                    rewrite(instructions, 2, Edit::SwapOverwrite(op::POP), module, block)
+                    rewrite(instructions, 2, Edit::SwapOverwrite(op::POP), block)
                 }
                 _ => false,
             };
         }
         if value == U256::ONE {
             return match opcode {
-                op::MUL => rewrite(instructions, 2, Edit::Keep(0), module, block),
-                op::EXP => rewrite(instructions, 2, Edit::SwapOverwrite(op::POP), module, block),
+                op::MUL => rewrite(instructions, 2, Edit::Keep(0), block),
+                op::EXP => rewrite(instructions, 2, Edit::SwapOverwrite(op::POP), block),
                 _ => false,
             };
         }
@@ -109,7 +104,7 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
         && is_removable_push(pushed)
         && raw_opcode(pop) == Some(op::POP)
     {
-        return rewrite(instructions, 2, Edit::Keep(0), module, block);
+        return rewrite(instructions, 2, Edit::Keep(0), block);
     }
 
     // `NOT NOT -> ∅`, `DUPn POP -> ∅`, or `SWAPn SWAPn -> ∅`.
@@ -120,7 +115,7 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
             || (b == op::POP && (op::DUP1..=op::DUP16).contains(&a))
             || (a == b && (op::SWAP1..=op::SWAP16).contains(&a)))
     {
-        return rewrite(instructions, 2, Edit::Keep(0), module, block);
+        return rewrite(instructions, 2, Edit::Keep(0), block);
     }
 
     // `ISZERO ISZERO ISZERO -> ISZERO`.
@@ -129,7 +124,7 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
         && raw_opcode(second) == Some(op::ISZERO)
         && raw_opcode(third) == Some(op::ISZERO)
     {
-        return rewrite(instructions, 3, Edit::OverwriteOne(op::ISZERO), module, block);
+        return rewrite(instructions, 3, Edit::OverwriteOne(op::ISZERO), block);
     }
 
     // `DUP2 OP SWAP1 POP -> OP`.
@@ -141,7 +136,7 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
         && raw_opcode(pop) == Some(op::POP)
     {
         if matches!(binop, op::ADD | op::MUL | op::AND | op::OR | op::XOR | op::EQ) {
-            return rewrite(instructions, 4, Edit::OverwriteOne(binop), module, block);
+            return rewrite(instructions, 4, Edit::OverwriteOne(binop), block);
         }
         if matches!(
             binop,
@@ -162,7 +157,7 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
                 | op::SAR
                 | op::KECCAK256
         ) {
-            return rewrite(instructions, 4, Edit::OverwriteTwo(binop), module, block);
+            return rewrite(instructions, 4, Edit::OverwriteTwo(binop), block);
         }
     }
 
@@ -173,7 +168,7 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
         && matches!(opcode, op::MSTORE | op::MSTORE8 | op::SSTORE | op::TSTORE | op::LOG0)
         && raw_opcode(pop) == Some(op::POP)
     {
-        return rewrite(instructions, 3, Edit::OverwriteTwo(opcode), module, block);
+        return rewrite(instructions, 3, Edit::OverwriteTwo(opcode), block);
     }
 
     // `SWAPn POP*n SWAP1 POP -> SWAP(n+1) POP*(n+1)`.
@@ -190,13 +185,7 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
             && raw_opcode(&instructions[instructions.len() - 1]) == Some(op::POP)
         {
             let merged_depth = depth + 1;
-            return rewrite(
-                instructions,
-                input_len,
-                Edit::MergeSwapPop(merged_depth as u8),
-                module,
-                block,
-            );
+            return rewrite(instructions, input_len, Edit::MergeSwapPop(merged_depth as u8), block);
         }
     }
 
@@ -210,7 +199,7 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
         && raw_opcode(store_b) == Some(op::MSTORE)
         && a == b
     {
-        return rewrite(instructions, 6, Edit::Keep(3), module, block);
+        return rewrite(instructions, 6, Edit::Keep(3), block);
     }
 
     // `DUP1 PUSH x MSTORE POP PUSH x MLOAD -> DUP1 PUSH x MSTORE`.
@@ -223,7 +212,7 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
         && raw_opcode(load) == Some(op::MLOAD)
         && a == b
     {
-        return rewrite(instructions, 6, Edit::Keep(3), module, block);
+        return rewrite(instructions, 6, Edit::Keep(3), block);
     }
 
     // `ISZERO ISZERO PUSH_REF JUMPI -> PUSH_REF JUMPI`.
@@ -233,7 +222,7 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
         && is_block_push(target)
         && raw_opcode(jump) == Some(op::JUMPI)
     {
-        return rewrite(instructions, 4, Edit::DropDoubleIszero, module, block);
+        return rewrite(instructions, 4, Edit::DropDoubleIszero, block);
     }
 
     // `EQ ISZERO PUSH_REF JUMPI -> SUB PUSH_REF JUMPI`.
@@ -243,7 +232,7 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
         && is_block_push(target)
         && raw_opcode(jump) == Some(op::JUMPI)
     {
-        return rewrite(instructions, 4, Edit::EqIszeroJumpi, module, block);
+        return rewrite(instructions, 4, Edit::EqIszeroJumpi, block);
     }
 
     false
@@ -251,13 +240,7 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
 
 // Keep trace formatting out of the hot matcher's stack frame.
 #[inline(never)]
-fn rewrite(
-    instructions: &mut Vec<Instruction>,
-    skip: usize,
-    edit: Edit,
-    module: Symbol,
-    block: u32,
-) -> bool {
+fn rewrite(instructions: &mut Vec<Instruction>, skip: usize, edit: Edit, block: u32) -> bool {
     let start = instructions.len() - skip;
     let input = tracing::enabled!(target: TRACE_TARGET, tracing::Level::TRACE)
         .then(|| InstructionSequence(&instructions[start..]).to_string());
@@ -266,11 +249,10 @@ fn rewrite(
         let output = InstructionSequence(&instructions[start..]).to_string();
         trace!(
             target: TRACE_TARGET,
-            module = %module,
             block,
             input = ?input,
             output = ?output,
-            "evm_ir_peephole_rewrite"
+            "rewrite"
         );
     }
     true

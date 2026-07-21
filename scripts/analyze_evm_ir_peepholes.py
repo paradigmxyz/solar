@@ -91,15 +91,17 @@ def analyze(args: argparse.Namespace) -> int:
     with open(args.log) as log:
         for raw_line in log:
             line = ANSI_RE.sub("", raw_line)
-            if "evm_ir_peephole_rewrite" in line:
+            if "solar::codegen::evm_ir::peephole: rewrite" in line:
                 module_match = re.search(r"evm_codegen\{module=([^}]+)\}", line)
-                module = module_match.group(1) if module_match else field(line, "module") or "unknown"
+                if module_match is None:
+                    module_match = re.search(r"evm_ir_pipeline\{program=([^}]+)\}", line)
+                module = module_match.group(1) if module_match else "unknown"
                 input_sequence = field(line, "input") or ""
                 output_sequence = field(line, "output") or ""
                 rewrite = (input_sequence, output_sequence)
                 rewrites[rewrite] += 1
                 rewrite_modules.setdefault(rewrite, Counter())[module] += 1
-            elif "evm_ir_peephole_input" in line:
+            elif "solar::codegen::evm_ir::peephole: input" in line:
                 blocks += 1
                 instructions = (field(line, "instructions") or "").split(",")
                 instructions = [instruction for instruction in instructions if instruction]
