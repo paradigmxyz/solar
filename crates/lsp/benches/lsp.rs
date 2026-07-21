@@ -223,7 +223,7 @@ fn project_analysis(c: &mut Criterion) {
     assert_clean(&analysis);
 
     let mut group = c.benchmark_group("lsp/project-analysis");
-    group.bench_function(UNIFAP_PROJECT, |b| {
+    group.bench_function(BenchmarkId::from_parameter(UNIFAP_PROJECT), |b| {
         b.iter_batched(
             || project.clone(),
             |project| black_box(project.analyze()),
@@ -248,7 +248,7 @@ fn project_analysis_after_edit(c: &mut Criterion) {
     assert_clean(&analysis);
 
     let mut group = c.benchmark_group("lsp/project-analysis-after-edit");
-    group.bench_function(UNIFAP_PROJECT, |b| {
+    group.bench_function(BenchmarkId::from_parameter(UNIFAP_PROJECT), |b| {
         b.iter_batched(
             || {
                 let mut project = project.clone();
@@ -278,7 +278,7 @@ fn project_edit_application(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("lsp/project-edit-application");
     group.throughput(Throughput::Elements(1));
-    group.bench_function(UNIFAP_PROJECT, |b| {
+    group.bench_function(BenchmarkId::from_parameter(UNIFAP_PROJECT), |b| {
         b.iter_batched(
             || document_change.clone(),
             |change| black_box(change.apply()),
