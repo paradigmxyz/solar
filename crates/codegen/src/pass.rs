@@ -25,7 +25,7 @@ use crate::{
         JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, LowerAbiEncodePass,
         LowerAbiPass, LowerAggregatesPass, LowerAllocPass, LowerDispatchPass, LowerEvmShapedPass,
         LowerMappingSlotsPass, LowerMemoryObjectsPass, LowerSlicesPass, MemoryDsePass,
-        OutlineRevertsPass, PrePass, PureEvalPass, SccpTransformPass, StaticAllocPass,
+        OutlineRevertsPass, PrePass, PureEvalPass, SccpTransformPass, SroaPass, StaticAllocPass,
         StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
     },
 };
@@ -159,6 +159,9 @@ declare_passes! {
     /// Place provably local allocations at static frame addresses.
     pub(crate) const STATIC_ALLOC_PASS -> "static-alloc" = StaticAllocPass;
 
+    /// Scalar-replace non-escaping memory-object allocations.
+    pub const SROA_PASS -> "sroa" = SroaPass::default();
+
     /// Dead Code Elimination (fixed-point).
     pub(crate) const DCE_PASS -> "dce" = DcePass;
 
@@ -237,6 +240,7 @@ pub const PASS_REGISTRY: &[PassInfo] = &[
     FRAME_SLOT_PROMOTION_PASS,
     MEMORY_DSE_PASS,
     STATIC_ALLOC_PASS,
+    SROA_PASS,
     STORAGE_PROMOTION_PASS,
     LOWER_ABI_PASS,
     LOWER_DISPATCH_PASS,
@@ -279,6 +283,7 @@ pub const DEFAULT_PIPELINE: &[PassInfo] = &[
     CHECK_ELIM_PASS,
     JUMP_THREADING_PASS,
     CFG_SIMPLIFY_PASS,
+    SROA_PASS,
     MEMORY_DSE_PASS,
     // Keep allocation semantic through the optimization pipeline. The EVM
     // backend chooses static placement only after exact spill and helper-frame
@@ -307,6 +312,7 @@ pub const DEFAULT_CLEANUP_PIPELINE: &[PassInfo] = &[
     JUMP_THREADING_PASS,
     CFG_SIMPLIFY_PASS,
     FRAME_SLOT_PROMOTION_PASS,
+    SROA_PASS,
     MEMORY_DSE_PASS,
     ADCE_PASS,
     DCE_PASS,

@@ -1,0 +1,7 @@
+// === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (after sroa,dce) ===
+@module Sroa
+fn @local_struct(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v7 = add arg0, arg1
+    ret v7
+}
