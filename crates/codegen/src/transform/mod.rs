@@ -3,6 +3,7 @@
 mod adce;
 mod cfg_simplify;
 mod check_elim;
+mod copy_elision;
 mod cse;
 mod dce;
 mod frame_promotion;
@@ -38,6 +39,7 @@ mod utils;
 pub(crate) use adce::AdcePass;
 pub(crate) use cfg_simplify::{CfgSimplifyPass, FunctionDcePass};
 pub(crate) use check_elim::CheckElimPass;
+pub(crate) use copy_elision::CopyElisionPass;
 pub(crate) use cse::CsePass;
 pub(crate) use dce::{DcePass, DeadCodeEliminator};
 pub(crate) use frame_promotion::FrameSlotPromotionPass;

@@ -20,13 +20,13 @@ use crate::{
     mir::{Function, MirPhase, Module, validate},
     timing::PassTimer,
     transform::{
-        AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
-        FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
-        JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, LowerAbiEncodePass,
-        LowerAbiPass, LowerAggregatesPass, LowerAllocPass, LowerDispatchPass, LowerEvmShapedPass,
-        LowerMappingSlotsPass, LowerMemoryObjectsPass, LowerSlicesPass, MemoryDsePass,
-        OutlineRevertsPass, PrePass, PureEvalPass, SccpTransformPass, SroaPass, StaticAllocPass,
-        StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
+        AdcePass, CfgSimplifyPass, CheckElimPass, CopyElisionPass, CsePass, DcePass,
+        FrameSlotPromotionPass, FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass,
+        InstSimplifyPass, JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass,
+        LowerAbiEncodePass, LowerAbiPass, LowerAggregatesPass, LowerAllocPass, LowerDispatchPass,
+        LowerEvmShapedPass, LowerMappingSlotsPass, LowerMemoryObjectsPass, LowerSlicesPass,
+        MemoryDsePass, OutlineRevertsPass, PrePass, PureEvalPass, SccpTransformPass, SroaPass,
+        StaticAllocPass, StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
     },
 };
 use solar_data_structures::map::FxHashMap;
@@ -162,6 +162,9 @@ declare_passes! {
     /// Scalar-replace non-escaping memory-object allocations.
     pub const SROA_PASS -> "sroa" = SroaPass::default();
 
+    /// Elide copies into write-only memory allocations.
+    pub const COPY_ELISION_PASS -> "copy-elision" = CopyElisionPass::default();
+
     /// Dead Code Elimination (fixed-point).
     pub(crate) const DCE_PASS -> "dce" = DcePass;
 
@@ -241,6 +244,7 @@ pub const PASS_REGISTRY: &[PassInfo] = &[
     MEMORY_DSE_PASS,
     STATIC_ALLOC_PASS,
     SROA_PASS,
+    COPY_ELISION_PASS,
     STORAGE_PROMOTION_PASS,
     LOWER_ABI_PASS,
     LOWER_DISPATCH_PASS,
@@ -284,6 +288,7 @@ pub const DEFAULT_PIPELINE: &[PassInfo] = &[
     JUMP_THREADING_PASS,
     CFG_SIMPLIFY_PASS,
     SROA_PASS,
+    COPY_ELISION_PASS,
     MEMORY_DSE_PASS,
     // Keep allocation semantic through the optimization pipeline. The EVM
     // backend chooses static placement only after exact spill and helper-frame
@@ -313,6 +318,7 @@ pub const DEFAULT_CLEANUP_PIPELINE: &[PassInfo] = &[
     CFG_SIMPLIFY_PASS,
     FRAME_SLOT_PROMOTION_PASS,
     SROA_PASS,
+    COPY_ELISION_PASS,
     MEMORY_DSE_PASS,
     ADCE_PASS,
     DCE_PASS,

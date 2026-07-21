@@ -1,0 +1,15 @@
+// === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (after copy-elision,dce) ===
+@module CopyElision
+fn @unread(arg0: u256) -> u256 {
+  bb0 (entry):
+    ret arg0
+}
+
+fn @read(arg0: u256) -> u256 {
+  bb0 (entry):
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v1 = memory_object_data memorybytes, v0
+    calldatacopy v1, 4, 32
+    v2 = mload v1
+    ret v2
+}
