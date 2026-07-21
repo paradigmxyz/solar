@@ -352,7 +352,7 @@ impl fmt::Display for InstructionSequence<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (index, inst) in self.0.iter().enumerate() {
             if index != 0 {
-                f.write_str(",")?;
+                f.write_str(" ")?;
             }
             if inst.is_deferred_push() {
                 f.write_str("PUSH_DEFERRED")?;
