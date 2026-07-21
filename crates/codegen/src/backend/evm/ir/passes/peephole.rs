@@ -19,12 +19,6 @@ pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
         }) {
             continue;
         }
-        trace!(
-            target: TRACE_TARGET,
-            block = block.label,
-            instructions = ?PatternSequence(&block.instructions).to_string(),
-            "input"
-        );
         changed |= optimize(&mut block.instructions, &mut scratch, block.label) != 0;
     }
     changed
@@ -243,15 +237,14 @@ fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
 fn rewrite(instructions: &mut Vec<Instruction>, skip: usize, edit: Edit, block: u32) -> bool {
     let start = instructions.len() - skip;
     let input = tracing::enabled!(target: TRACE_TARGET, tracing::Level::TRACE)
-        .then(|| InstructionSequence(&instructions[start..]).to_string());
+        .then(|| instructions[start..].to_vec());
     edit.apply(instructions, start);
     if let Some(input) = input {
-        let output = InstructionSequence(&instructions[start..]).to_string();
         trace!(
             target: TRACE_TARGET,
             block,
-            input = ?input,
-            output = ?output,
+            input = %format_args!("\"{}\"", InstructionSequence(&input)),
+            output = %format_args!("\"{}\"", InstructionSequence(&instructions[start..])),
             "rewrite"
         );
     }
@@ -346,7 +339,6 @@ fn is_removable_push(inst: &Instruction) -> bool {
 }
 
 struct InstructionSequence<'a>(&'a [Instruction]);
-struct PatternSequence<'a>(&'a [Instruction]);
 
 impl fmt::Display for InstructionSequence<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -355,45 +347,13 @@ impl fmt::Display for InstructionSequence<'_> {
                 f.write_str(" ")?;
             }
             if inst.is_deferred_push() {
-                f.write_str("PUSH_DEFERRED")?;
+                f.write_str("push_deferred")?;
             } else if inst.is_immutable_push() {
-                f.write_str("PUSH_IMMUTABLE")?;
+                f.write_str("push_immutable")?;
             } else if let Some(value) = push_value(inst) {
-                if value.is_zero() {
-                    f.write_str("PUSH 0")?;
-                } else if value == U256::ONE {
-                    f.write_str("PUSH 1")?;
-                } else {
-                    write!(f, "PUSH {value:#x}")?;
-                }
+                write!(f, "push {value:#x}")?;
             } else if inst.is_encoded_push() {
-                f.write_str("PUSH_REF")?;
-            } else if let Some(mnemonic) = op::mnemonic(inst.opcode) {
-                f.write_str(mnemonic)?;
-            } else {
-                write!(f, "0x{:02x}", inst.opcode)?;
-            }
-        }
-        Ok(())
-    }
-}
-
-impl fmt::Display for PatternSequence<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (index, inst) in self.0.iter().enumerate() {
-            if index != 0 {
-                f.write_str(",")?;
-            }
-            if let Some(value) = push_value(inst) {
-                if value.is_zero() {
-                    f.write_str("PUSH 0")?;
-                } else if value == U256::ONE {
-                    f.write_str("PUSH 1")?;
-                } else {
-                    f.write_str("PUSH")?;
-                }
-            } else if inst.is_encoded_push() {
-                f.write_str("PUSH_REF")?;
+                f.write_str("push_ref")?;
             } else if let Some(mnemonic) = op::mnemonic(inst.opcode) {
                 f.write_str(mnemonic)?;
             } else {
