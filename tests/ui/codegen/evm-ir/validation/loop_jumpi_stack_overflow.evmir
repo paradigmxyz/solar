@@ -1,9 +1,0 @@
-//@ failure-status: 1
-@module module
-
-bb0 (entry):
-  push 0
-  push 1
-  jumpi bb0, bb1
-bb1:
-  stop

@@ -1,4 +1,0 @@
-error: EVM IR verification failed: block 0: `jumpi` grows the stack to 1025 words, exceeding the limit of 1024
-
-error: aborting due to 1 previous error
-

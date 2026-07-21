@@ -2,15 +2,11 @@
 
 use super::*;
 use crate::backend::evm::{op, stack::MAX_STACK_DEPTH};
-use solar_data_structures::{
-    bit_set::DenseBitSet,
-    index::{IndexVec, index_vec},
-    map::FxHashSet,
-};
+use solar_data_structures::{index::IndexVec, map::FxHashSet};
 use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
 use std::fmt;
 
-/// Stateful EVM IR verifier.
+/// EVM IR verifier.
 struct Verifier<'a> {
     dcx: &'a DiagCtxt,
 }
@@ -211,16 +207,13 @@ impl<'a> Verifier<'a> {
     /// Checks physical stack operations along generated direct control-flow edges.
     fn verify_stack_ops(&self, module: &Module) {
         let Some(entry) = module.entry_block else { return };
-        let mut entry_depths: IndexVec<BlockId, Option<DepthRange>> =
-            index_vec![None; module.blocks.len()];
-        entry_depths[entry] = Some(DepthRange::ZERO);
+        let mut entry_depths = IndexVec::<BlockId, _>::from_vec(vec![None; module.blocks.len()]);
+        entry_depths[entry] = Some(0);
         let mut pending = vec![entry];
-        let mut invalid = DenseBitSet::new_empty(module.blocks.len());
         while let Some(block_id) = pending.pop() {
-            if invalid.contains(block_id) {
-                continue;
-            }
             let block = &module.blocks[block_id];
+            let term =
+                block.terminator.as_ref().expect("terminator must exist after shape validation");
             let mut stack = entry_depths[block_id].unwrap();
             let mut physical_targets = Vec::new();
             let mut valid = true;
@@ -249,13 +242,13 @@ impl<'a> Verifier<'a> {
                     physical_targets.push((target, stack));
                 }
             }
-            if valid && let Some(term) = &block.terminator {
+            if valid {
                 let next = Self::next_block(module, block_id);
                 let mut pushes_target = false;
                 term.kind.visit_label_targets(next, |_| pushes_target = true);
                 if pushes_target
                     && self
-                        .ensure_stack_limit(block_id, terminator_name(&term.kind), stack.max + 1)
+                        .ensure_stack_limit(block_id, terminator_name(&term.kind), stack + 1)
                         .is_err()
                 {
                     valid = false;
@@ -267,44 +260,26 @@ impl<'a> Verifier<'a> {
                         .apply_effect(block_id, terminator_name(&term.kind), effect, &mut stack)
                         .is_ok();
                 }
-                if valid
-                    && matches!(term.kind, TerminatorKind::Op(op::JUMP))
-                    && let Some(target) =
-                        block.instructions.last().and_then(Instruction::pushed_block)
-                {
-                    physical_targets.push((target, stack));
-                }
             }
             if !valid {
-                invalid.insert(block_id);
                 continue;
             }
-            let Some(term) = &block.terminator else { continue };
             term.kind.visit_targets(|target| physical_targets.push((target, stack)));
             for (target, depth) in physical_targets {
-                Self::propagate_depth(target, depth, &mut entry_depths, &mut pending, &invalid);
+                Self::propagate_depth(target, depth, &mut entry_depths, &mut pending);
             }
         }
     }
 
     fn propagate_depth(
         target: BlockId,
-        depth: DepthRange,
-        entry_depths: &mut IndexVec<BlockId, Option<DepthRange>>,
+        depth: usize,
+        entry_depths: &mut IndexVec<BlockId, Option<usize>>,
         pending: &mut Vec<BlockId>,
-        invalid: &DenseBitSet<BlockId>,
     ) {
-        if invalid.contains(target) {
-            return;
-        }
-        let updated = match &mut entry_depths[target] {
-            Some(previous) => previous.include(depth),
-            slot @ None => {
-                *slot = Some(depth);
-                true
-            }
-        };
-        if updated {
+        let slot = &mut entry_depths[target];
+        if slot.is_none() {
+            *slot = Some(depth);
             pending.push(target);
         }
     }
@@ -314,60 +289,60 @@ impl<'a> Verifier<'a> {
         block_id: BlockId,
         name: impl fmt::Display,
         effect: StackEffect,
-        stack: &mut DepthRange,
+        stack: &mut usize,
     ) -> Result<(), ErrorGuaranteed> {
         let inputs = usize::from(effect.inputs);
-        if !stack.ensure_depth(inputs) {
+        if *stack < inputs {
             return Err(self.error_in_block(
                 block_id,
                 format_args!(
                     "`{name}` consumes {} stack words but only {} are available",
-                    effect.inputs, stack.min
+                    effect.inputs, *stack
                 ),
             ));
         }
-        stack.apply(inputs, usize::from(effect.outputs));
-        self.ensure_stack_limit(block_id, name, stack.max)
+        *stack = *stack - inputs + usize::from(effect.outputs);
+        self.ensure_stack_limit(block_id, name, *stack)
     }
 
     fn apply_physical_stack_op(
         &self,
         block_id: BlockId,
         opcode: u8,
-        stack: &mut DepthRange,
+        stack: &mut usize,
     ) -> Result<(), ErrorGuaranteed> {
         let name = match opcode {
             op::DUP1..=op::DUP16 => {
                 let n = opcode - op::DUP1 + 1;
-                if !stack.ensure_depth(usize::from(n)) {
+                if *stack < usize::from(n) {
                     return Err(self.error_in_block(
                         block_id,
-                        format_args!("`dup{n}` reaches depth {n} but the stack has {}", stack.min),
+                        format_args!("`dup{n}` reaches depth {n} but the stack has {}", *stack),
                     ));
                 }
-                stack.apply(0, 1);
+                *stack += 1;
                 "dup"
             }
             op::SWAP1..=op::SWAP16 => {
                 let n = opcode - op::SWAP1 + 1;
-                if !stack.ensure_depth(usize::from(n) + 1) {
+                if *stack < usize::from(n) + 1 {
                     return Err(self.error_in_block(
                         block_id,
-                        format_args!("`swap{n}` reaches depth {n} but the stack has {}", stack.min),
+                        format_args!("`swap{n}` reaches depth {n} but the stack has {}", *stack),
                     ));
                 }
                 "swap"
             }
             op::POP => {
-                if !stack.ensure_depth(1) {
+                if *stack == 0 {
                     return Err(self.error_in_block(block_id, "`pop` on an empty stack"));
                 }
-                stack.apply(1, 0);
+                *stack -= 1;
                 "pop"
             }
             _ => unreachable!("checked physical stack opcode"),
         };
-        self.ensure_stack_limit(block_id, name, stack.max)
+        self.ensure_stack_limit(block_id, name, *stack)
     }
 
     fn ensure_stack_limit(
@@ -395,34 +370,6 @@ impl<'a> Verifier<'a> {
     fn next_block(module: &Module, block: BlockId) -> Option<BlockId> {
         let next = block.index() + 1;
         (next < module.blocks.len()).then(|| BlockId::from_usize(next))
-    }
-}
-
-#[derive(Clone, Copy)]
-struct DepthRange {
-    min: usize,
-    max: usize,
-}
-
-impl DepthRange {
-    const ZERO: Self = Self { min: 0, max: 0 };
-
-    fn ensure_depth(&self, depth: usize) -> bool {
-        self.min >= depth
-    }
-
-    fn apply(&mut self, inputs: usize, outputs: usize) {
-        self.min = self.min - inputs + outputs;
-        self.max = self.max - inputs + outputs;
-    }
-
-    fn include(&mut self, other: Self) -> bool {
-        let min = self.min.min(other.min);
-        let max = self.max.max(other.max);
-        let changed = min != self.min || max != self.max;
-        self.min = min;
-        self.max = max;
-        changed
     }
 }
 
