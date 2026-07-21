@@ -1,0 +1,16 @@
+// === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/jump.evmir (after peephole) ===
+@module module
+bb0 (entry):
+  push 1
+  push bb2
+  jumpi
+  stop
+bb1:
+  push 1
+  push 2
+  sub
+  push bb2
+  jumpi
+  stop
+bb2:
+  stop

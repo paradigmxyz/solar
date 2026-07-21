@@ -1,0 +1,128 @@
+// === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/dup2_binop_pop.evmir (after peephole) ===
+@module module
+bb0 (entry):
+  push 1
+  push 2
+  add
+  stop
+bb1:
+  push 1
+  push 2
+  mul
+  stop
+bb2:
+  push 1
+  push 2
+  and
+  stop
+bb3:
+  push 1
+  push 2
+  or
+  stop
+bb4:
+  push 1
+  push 2
+  xor
+  stop
+bb5:
+  push 1
+  push 2
+  eq
+  stop
+bb6:
+  push 1
+  push 2
+  swap1
+  sub
+  stop
+bb7:
+  push 1
+  push 2
+  swap1
+  div
+  stop
+bb8:
+  push 1
+  push 2
+  swap1
+  sdiv
+  stop
+bb9:
+  push 1
+  push 2
+  swap1
+  mod
+  stop
+bb10:
+  push 1
+  push 2
+  swap1
+  smod
+  stop
+bb11:
+  push 1
+  push 2
+  swap1
+  exp
+  stop
+bb12:
+  push 1
+  push 2
+  swap1
+  signextend
+  stop
+bb13:
+  push 1
+  push 2
+  swap1
+  lt
+  stop
+bb14:
+  push 1
+  push 2
+  swap1
+  gt
+  stop
+bb15:
+  push 1
+  push 2
+  swap1
+  slt
+  stop
+bb16:
+  push 1
+  push 2
+  swap1
+  sgt
+  stop
+bb17:
+  push 1
+  push 2
+  swap1
+  byte
+  stop
+bb18:
+  push 1
+  push 2
+  swap1
+  shl
+  stop
+bb19:
+  push 1
+  push 2
+  swap1
+  shr
+  stop
+bb20:
+  push 1
+  push 2
+  swap1
+  sar
+  stop
+bb21:
+  push 1
+  push 2
+  swap1
+  keccak256
+  stop
