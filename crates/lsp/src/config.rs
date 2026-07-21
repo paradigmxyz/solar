@@ -1,14 +1,15 @@
 use crate::{
+    commands,
     diagnostics::DiagnosticOwner,
     flycheck::{FlycheckConfig, FlycheckInitializationOptions},
     workspace::{Workspace, WorkspacePathIndex, manifest::ProjectManifest},
 };
 use lsp_types::{
-    CompletionOptions, DeclarationCapability, DocumentLinkOptions, HoverProviderCapability,
-    ImplementationProviderCapability, InitializeParams, OneOf, RenameOptions, SaveOptions,
-    ServerCapabilities, SignatureHelpOptions, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TextDocumentSyncOptions, TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability,
-    WorkDoneProgressOptions,
+    CompletionOptions, DeclarationCapability, DocumentLinkOptions, ExecuteCommandOptions,
+    HoverProviderCapability, ImplementationProviderCapability, InitializeParams, OneOf,
+    RenameOptions, SaveOptions, ServerCapabilities, SignatureHelpOptions,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+    TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WorkDoneProgressOptions,
 };
 use solar_interface::data_structures::map::FxHashSet;
 use std::{
@@ -257,6 +258,10 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
                 resolve_provider: Some(false),
                 work_done_progress_options: WorkDoneProgressOptions::default(),
             }),
+            execute_command_provider: Some(ExecuteCommandOptions {
+                commands: commands::ALL.into_iter().map(str::to_owned).collect(),
+                work_done_progress_options: WorkDoneProgressOptions::default(),
+            }),
             document_symbol_provider: Some(OneOf::Left(true)),
             document_highlight_provider: Some(OneOf::Left(true)),
             hover_provider: Some(HoverProviderCapability::Simple(true)),
@@ -394,6 +399,19 @@ mod tests {
             panic!("expected save options");
         };
         assert_eq!(save_options.include_text, Some(false));
+    }
+
+    #[test]
+    fn negotiate_capabilities_advertises_cache_commands() {
+        let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
+
+        assert_eq!(
+            capabilities.execute_command_provider,
+            Some(ExecuteCommandOptions {
+                commands: vec!["solar.clearCache".into(), "solar.reindex".into()],
+                work_done_progress_options: WorkDoneProgressOptions::default(),
+            })
+        );
     }
 
     #[test]
