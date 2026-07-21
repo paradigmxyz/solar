@@ -3,7 +3,7 @@
 use super::PassOptions;
 use crate::backend::evm::{
     ir::{Instruction, Module, PushValue},
-    opcode as op,
+    op,
 };
 use alloy_primitives::U256;
 

@@ -1,7 +1,7 @@
 //! EVM IR verifier.
 
 use super::*;
-use crate::backend::evm::opcode as op;
+use crate::backend::evm::op;
 use solar_data_structures::map::FxHashSet;
 use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
 use std::fmt;

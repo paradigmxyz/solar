@@ -1,7 +1,7 @@
 //! EVM IR text formatting.
 
 use super::*;
-use crate::backend::evm::opcode as op;
+use crate::backend::evm::op;
 use solar_data_structures::fmt::FmtIteratorExt;
 
 impl Module {

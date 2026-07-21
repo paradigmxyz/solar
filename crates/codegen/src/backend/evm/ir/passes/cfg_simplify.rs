@@ -3,7 +3,7 @@
 use super::utils::retain_blocks;
 use crate::backend::evm::{
     ir::{BlockId, Module, PushValue, Terminator, TerminatorKind},
-    opcode as op,
+    op,
 };
 use solar_data_structures::bit_set::DenseBitSet;
 

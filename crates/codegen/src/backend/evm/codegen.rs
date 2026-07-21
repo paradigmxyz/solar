@@ -7,10 +7,8 @@
 //! - EVM IR optimization, relocation, and byte encoding
 
 use super::{
-    assembler::{
-        Assembler, AssemblerConfig, DeferredConst, ImmutableRef, Label, PreparedAssembly, op,
-    },
-    ir,
+    assembler::{Assembler, AssemblerConfig, DeferredConst, ImmutableRef, Label, PreparedAssembly},
+    ir, op,
     stack::{
         MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
     },

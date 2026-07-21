@@ -11,7 +11,7 @@
 use super::utils::{is_evm_terminal, remap_block_order};
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind},
-    opcode as op,
+    op,
 };
 use alloy_primitives::U256;
 use solar_data_structures::bit_set::DenseBitSet;

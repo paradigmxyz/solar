@@ -2,7 +2,7 @@
 
 use crate::backend::evm::{
     ir::{BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
-    opcode as op,
+    op,
 };
 use alloy_primitives::U256;
 use solar_data_structures::bit_set::DenseBitSet;

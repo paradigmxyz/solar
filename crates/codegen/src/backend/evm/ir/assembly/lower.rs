@@ -4,7 +4,7 @@ use super::{AsmInst, Program};
 use crate::backend::evm::{
     assembler::{Assembler, Label},
     ir::{self, BlockId},
-    opcode as op,
+    op,
 };
 use solar_data_structures::bit_set::DenseBitSet;
 

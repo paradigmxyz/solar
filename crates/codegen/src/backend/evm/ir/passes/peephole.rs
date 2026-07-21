@@ -2,7 +2,7 @@
 
 use crate::backend::evm::{
     ir::{Instruction, Module, PushValue},
-    opcode as op,
+    op,
 };
 use alloy_primitives::U256;
 use std::fmt;

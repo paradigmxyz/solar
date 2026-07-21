@@ -7,15 +7,16 @@
 //! - Byte emission.
 
 use crate::{
-    backend::evm::ir::{self, assembly},
+    backend::evm::{
+        ir::{self, assembly},
+        op,
+    },
     mir::IMMUTABLE_WORD_SIZE,
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use solar_interface::{diagnostics::DiagCtxt, sym};
-
-pub(crate) use super::opcode as op;
 
 const EVM_WORD_BYTES: usize = 32;
 

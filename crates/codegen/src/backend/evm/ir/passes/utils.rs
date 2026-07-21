@@ -6,7 +6,7 @@
 
 use crate::backend::evm::{
     ir::{Block, BlockId, Module, PushValue, TerminatorKind},
-    opcode as op,
+    op,
 };
 use solar_data_structures::index::IndexVec;
 

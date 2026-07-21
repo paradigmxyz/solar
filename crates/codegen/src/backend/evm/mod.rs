@@ -12,7 +12,7 @@ pub use codegen::{EvmArtifact, EvmCodegen, EvmCodegenConfig};
 
 pub mod ir;
 
-pub(crate) mod opcode;
+pub(crate) mod op;
 
 pub(crate) mod assembler;
 

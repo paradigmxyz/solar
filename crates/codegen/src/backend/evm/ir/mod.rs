@@ -10,6 +10,7 @@
 //! stream. The parser/printer at the bottom of the file provide a text format for
 //! tests and debugging; the IR itself is not defined by that serialization.
 
+use super::op;
 use alloy_primitives::U256;
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
 use solar_interface::Symbol;
@@ -190,7 +191,7 @@ impl Instruction {
 
     fn encoded_push(value: PushValue, encoding: u8) -> Self {
         Self {
-            opcode: super::opcode::PUSH32,
+            opcode: op::PUSH32,
             encoding,
             value: Some(value),
             metadata: Metadata { stack: Some(StackEffect::new(0, 1)) },
@@ -226,7 +227,7 @@ impl Instruction {
             encoding if encoding == Self::ENCODED_PUSH | Self::IMMUTABLE => {
                 f.write_str("push_immutable")
             }
-            _ => super::opcode::fmt(self.opcode, f),
+            _ => op::fmt(self.opcode, f),
         })
     }
 
@@ -263,9 +264,7 @@ impl Instruction {
         !self.is_encoded_push()
             && matches!(
                 self.opcode,
-                super::opcode::POP
-                    | super::opcode::DUP1..=super::opcode::DUP16
-                    | super::opcode::SWAP1..=super::opcode::SWAP16
+                op::POP | op::DUP1..=op::DUP16 | op::SWAP1..=op::SWAP16
             )
     }
 }
@@ -370,7 +369,7 @@ impl StackEffect {
 pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> StackEffect {
     if inst.is_encoded_push() {
         StackEffect::new(0, 1)
-    } else if let Some((inputs, outputs)) = super::opcode::stack_io(inst.opcode) {
+    } else if let Some((inputs, outputs)) = op::stack_io(inst.opcode) {
         StackEffect::new(inputs, outputs)
     } else {
         StackEffect::new(0, 0)
@@ -381,7 +380,7 @@ fn default_terminator_stack_effect(kind: &TerminatorKind) -> StackEffect {
     match kind {
         TerminatorKind::JumpI { .. } => StackEffect::new(1, 0),
         TerminatorKind::Jump(_) => StackEffect::new(0, 0),
-        TerminatorKind::Op(opcode) => super::opcode::stack_io(*opcode)
+        TerminatorKind::Op(opcode) => op::stack_io(*opcode)
             .map(|(inputs, outputs)| StackEffect::new(inputs, outputs))
             .unwrap_or_else(|| StackEffect::new(0, 0)),
     }

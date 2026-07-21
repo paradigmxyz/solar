@@ -2,7 +2,7 @@
 
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
-    opcode as op,
+    op,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
