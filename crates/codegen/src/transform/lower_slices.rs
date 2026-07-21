@@ -58,6 +58,17 @@ fn value_slice_location(func: &Function, value: ValueId) -> Option<SliceLocation
     }
 }
 
+/// The pointer type for a slice parameter's leading word. Only calldata and
+/// memory slices are ever parameters; returndata is a volatile in-body buffer
+/// and never reaches a function signature.
+fn slice_param_ptr_type(location: SliceLocation) -> MirType {
+    match location {
+        SliceLocation::Memory => MirType::MemPtr,
+        SliceLocation::Calldata => MirType::CalldataPtr,
+        SliceLocation::Returndata => unreachable!("returndata slices are never parameters"),
+    }
+}
+
 /// Allocates a word-typed instruction and its result value, returning both.
 fn new_word_inst(func: &mut Function, kind: InstKind) -> (InstId, ValueId) {
     let inst = func.alloc_inst(Instruction::new(kind, Some(MirType::uint256())));
@@ -263,10 +274,7 @@ impl LowerSlicesPass {
                 ParamRepr::CompactCalldata => new_params.push(MirType::uint256()),
                 ParamRepr::Pair => {
                     let MirType::Slice(location) = ty else { unreachable!() };
-                    new_params.push(match location {
-                        SliceLocation::Memory => MirType::MemPtr,
-                        SliceLocation::Calldata => MirType::CalldataPtr,
-                    });
+                    new_params.push(slice_param_ptr_type(location));
                     new_params.push(MirType::uint256());
                     next_index += 1;
                 }
@@ -305,10 +313,7 @@ impl LowerSlicesPass {
                     compact_heads.insert(slice_arg, head);
                 }
                 ParamRepr::Pair => {
-                    let ptr_ty = match location {
-                        SliceLocation::Memory => MirType::MemPtr,
-                        SliceLocation::Calldata => MirType::CalldataPtr,
-                    };
+                    let ptr_ty = slice_param_ptr_type(location);
                     let ptr = builder
                         .func_mut()
                         .alloc_value(Value::Arg { index: physical_index, ty: ptr_ty });

@@ -1,0 +1,12 @@
+// === ROOT/tests/ui/codegen/mir/lower-slices/returndata_slice.mir (after lower-slices) ===
+@module ReturndataSlice
+fn @copy_returndata() -> memptr {
+  bb0 (entry):
+    v0 = returndatasize
+    v4 = add v0, 32
+    v5 = alloc memorybytes, exact, uninitialized, infallible, v4
+    set_memory_object_len memorybytes, v5, v0
+    v6 = memory_object_data memorybytes, v5
+    returndatacopy v6, 0, v0
+    ret v5
+}

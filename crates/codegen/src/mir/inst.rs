@@ -1275,6 +1275,7 @@ impl InstKind {
             Self::CalldataSize => "calldatasize",
             Self::MakeSlice { location: SliceLocation::Memory, .. } => "make_memory_slice",
             Self::MakeSlice { location: SliceLocation::Calldata, .. } => "make_calldata_slice",
+            Self::MakeSlice { location: SliceLocation::Returndata, .. } => "make_returndata_slice",
             Self::SlicePtr(_) => "slice_ptr",
             Self::SliceLen(_) => "slice_len",
             Self::CodeSize => "codesize",

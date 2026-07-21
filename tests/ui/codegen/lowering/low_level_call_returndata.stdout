@@ -30,44 +30,47 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) {
     v13 = call v12, arg0, 0, v10, v11, 0, 0
     mstore 128, v13
     v14 = returndatasize
-    v15 = add v14, 31
-    v16 = not 31
-    v17 = and v15, v16
-    v18 = add v17, 32
-    v19 = alloc memorybytes, exact, uninitialized, infallible, v18
-    set_memory_object_len memorybytes, v19, v14
-    v20 = memory_object_data memorybytes, v19
-    returndatacopy v20, 0, v14
-    mstore 160, v19
-    v21 = mload 128
-    br v21, bb7, bb8
+    v15 = make_returndata_slice 0, v14
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = add v17, 31
+    v19 = not 31
+    v20 = and v18, v19
+    v21 = add v20, 32
+    v22 = alloc memorybytes, exact, uninitialized, infallible, v21
+    set_memory_object_len memorybytes, v22, v17
+    v23 = memory_object_data memorybytes, v22
+    returndatacopy v23, v16, v17
+    mstore 160, v22
+    v24 = mload 128
+    br v24, bb7, bb8
   bb7:
-    v22 = mload 160
-    v23 = mload v22
-    v24 = eq v23, 0
-    br v24, bb10, bb9
-  bb8:
-    v35 = phi [bb6: 0], [bb10: v34]
-    v36 = iszero v35
-    br v36, bb15, bb16
-  bb9:
     v25 = mload 160
-    v26 = memory_object_len memorybytes, v25
-    v27 = lt v26, 32
-    br v27, bb11, bb12
+    v26 = mload v25
+    v27 = eq v26, 0
+    br v27, bb10, bb9
+  bb8:
+    v38 = phi [bb6: 0], [bb10: v37]
+    v39 = iszero v38
+    br v39, bb15, bb16
+  bb9:
+    v28 = mload 160
+    v29 = memory_object_len memorybytes, v28
+    v30 = lt v29, 32
+    br v30, bb11, bb12
   bb10:
-    v34 = phi [bb7: 1], [bb14: v31]
+    v37 = phi [bb7: 1], [bb14: v34]
     jump bb8
   bb11:
     revert 0, 0
   bb12:
-    v28 = memory_object_data memorybytes, v25
-    v29 = mload v28
-    v30 = iszero v29
-    v31 = iszero v30
-    v32 = eq v29, v31
+    v31 = memory_object_data memorybytes, v28
+    v32 = mload v31
     v33 = iszero v32
-    br v33, bb13, bb14
+    v34 = iszero v33
+    v35 = eq v32, v34
+    v36 = iszero v35
+    br v36, bb13, bb14
   bb13:
     revert 0, 0
   bb14:
@@ -114,31 +117,34 @@ fn @balanceOf(arg0: address) {
     v12 = staticcall v11, arg0, v9, v10, 0, 0
     mstore 160, v12
     v13 = returndatasize
-    v14 = add v13, 31
-    v15 = not 31
-    v16 = and v14, v15
-    v17 = add v16, 32
-    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
-    set_memory_object_len memorybytes, v18, v13
-    v19 = memory_object_data memorybytes, v18
-    returndatacopy v19, 0, v13
-    mstore 192, v18
-    v20 = mload 160
-    v21 = iszero v20
-    br v21, bb5, bb6
+    v14 = make_returndata_slice 0, v13
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = add v16, 31
+    v18 = not 31
+    v19 = and v17, v18
+    v20 = add v19, 32
+    v21 = alloc memorybytes, exact, uninitialized, infallible, v20
+    set_memory_object_len memorybytes, v21, v16
+    v22 = memory_object_data memorybytes, v21
+    returndatacopy v22, v15, v16
+    mstore 192, v21
+    v23 = mload 160
+    v24 = iszero v23
+    br v24, bb5, bb6
   bb5:
     revert 0, 0
   bb6:
-    v22 = mload 192
-    v23 = memory_object_len memorybytes, v22
-    v24 = lt v23, 32
-    br v24, bb7, bb8
+    v25 = mload 192
+    v26 = memory_object_len memorybytes, v25
+    v27 = lt v26, 32
+    br v27, bb7, bb8
   bb7:
     revert 0, 0
   bb8:
-    v25 = memory_object_data memorybytes, v22
-    v26 = mload v25
-    mstore 128, v26
+    v28 = memory_object_data memorybytes, v25
+    v29 = mload v28
+    mstore 128, v29
     returndata 128, 32
 }
 
@@ -176,23 +182,26 @@ fn @forward(arg0: address, arg1: memorybytes) {
     v18 = call v17, arg0, 0, v15, v16, 0, 0
     mstore 160, v18
     v19 = returndatasize
-    v20 = add v19, 31
-    v21 = not 31
-    v22 = and v20, v21
-    v23 = add v22, 32
-    v24 = alloc memorybytes, exact, uninitialized, infallible, v23
-    set_memory_object_len memorybytes, v24, v19
-    v25 = memory_object_data memorybytes, v24
-    returndatacopy v25, 0, v19
-    mstore 192, v24
-    v26 = mload 160
-    v27 = iszero v26
-    br v27, bb5, bb6
+    v20 = make_returndata_slice 0, v19
+    v21 = slice_ptr v20
+    v22 = slice_len v20
+    v23 = add v22, 31
+    v24 = not 31
+    v25 = and v23, v24
+    v26 = add v25, 32
+    v27 = alloc memorybytes, exact, uninitialized, infallible, v26
+    set_memory_object_len memorybytes, v27, v22
+    v28 = memory_object_data memorybytes, v27
+    returndatacopy v28, v21, v22
+    mstore 192, v27
+    v29 = mload 160
+    v30 = iszero v29
+    br v30, bb5, bb6
   bb5:
     revert 0, 0
   bb6:
-    v28 = mload 192
-    internal_call @__ret_bytes, 0, v28
+    v31 = mload 192
+    internal_call @__ret_bytes, 0, v31
     invalid
 }
 

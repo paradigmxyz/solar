@@ -297,7 +297,10 @@ fn encode_dynamic_body(
             let size = encode_tuple(builder, &values, fields, dest, scratch);
             builder.add(dest, size)
         }
-        AbiType::DynamicArray { location: SliceLocation::Calldata, .. } => {
+        AbiType::DynamicArray {
+            location: SliceLocation::Calldata | SliceLocation::Returndata,
+            ..
+        } => {
             unreachable!("non-word calldata arrays are materialized before ABI encoding")
         }
         AbiType::Word => unreachable!("word ABI values are static"),
@@ -383,7 +386,7 @@ fn encode_word_array(
 ) -> ValueId {
     let len = match location {
         SliceLocation::Memory => builder.memory_object_len(value, MemoryObjectKind::DynamicArray),
-        SliceLocation::Calldata => builder.slice_len(value),
+        SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
     };
     builder.mstore(dest, len);
     let word = builder.imm_u64(32);
@@ -391,13 +394,10 @@ fn encode_word_array(
     let data_dest = builder.add(dest, word);
     let data_source = match location {
         SliceLocation::Memory => builder.memory_object_data(value, MemoryObjectKind::DynamicArray),
-        SliceLocation::Calldata => builder.slice_ptr(value),
+        SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, bytes);
-    match location {
-        SliceLocation::Memory => builder.mcopy(data_dest, data_source, bytes),
-        SliceLocation::Calldata => builder.calldatacopy(data_dest, data_source, bytes),
-    }
+    copy_slice_data(builder, location, data_dest, data_source, bytes);
     tail
 }
 
@@ -409,7 +409,7 @@ fn encode_bytes(
 ) -> ValueId {
     let len = match location {
         SliceLocation::Memory => builder.memory_object_len(value, MemoryObjectKind::Bytes),
-        SliceLocation::Calldata => builder.slice_len(value),
+        SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
     };
     builder.mstore(dest, len);
 
@@ -435,14 +435,28 @@ fn encode_bytes(
     builder.switch_to_block(copy_block);
     let data_source = match location {
         SliceLocation::Memory => builder.memory_object_data(value, MemoryObjectKind::Bytes),
-        SliceLocation::Calldata => builder.slice_ptr(value),
+        SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, padded);
-    match location {
-        SliceLocation::Memory => builder.mcopy(data_dest, data_source, len),
-        SliceLocation::Calldata => builder.calldatacopy(data_dest, data_source, len),
-    }
+    copy_slice_data(builder, location, data_dest, data_source, len);
     tail
+}
+
+/// Copies `size` bytes of a slice's data from its address space into memory at
+/// `dest`. Memory-to-memory uses `mcopy`; calldata and returndata slices copy
+/// from their own buffers with `calldatacopy`/`returndatacopy`.
+fn copy_slice_data(
+    builder: &mut FunctionBuilder<'_>,
+    location: SliceLocation,
+    dest: ValueId,
+    source: ValueId,
+    size: ValueId,
+) {
+    match location {
+        SliceLocation::Memory => builder.mcopy(dest, source, size),
+        SliceLocation::Calldata => builder.calldatacopy(dest, source, size),
+        SliceLocation::Returndata => builder.returndatacopy(dest, source, size),
+    }
 }
 
 fn scratch_slot(

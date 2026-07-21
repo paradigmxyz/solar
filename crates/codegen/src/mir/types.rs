@@ -9,6 +9,12 @@ pub enum SliceLocation {
     Memory,
     /// Call input data.
     Calldata,
+    /// The most recent external call's return data. Unlike memory and
+    /// calldata, this buffer is volatile: any subsequent call, create, or
+    /// low-level `.call` overwrites it, so a returndata slice is only valid
+    /// until the next such instruction and must be materialized into memory
+    /// before it can be retained.
+    Returndata,
 }
 
 /// The semantic shape carried by a one-word memory-object reference.
@@ -115,6 +121,7 @@ impl fmt::Display for SliceLocation {
         match self {
             Self::Memory => write!(f, "memory"),
             Self::Calldata => write!(f, "calldata"),
+            Self::Returndata => write!(f, "returndata"),
         }
     }
 }

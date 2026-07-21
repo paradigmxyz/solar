@@ -1,7 +1,7 @@
 //! Bytes and string lowering helpers.
 
 use super::{Lowerer, checked_arith::PanicCode};
-use crate::mir::{FunctionBuilder, MemoryObjectKind, ValueId};
+use crate::mir::{FunctionBuilder, MemoryObjectKind, SliceLocation, ValueId};
 use alloy_primitives::{U256, keccak256};
 use solar_ast::LitKind;
 use solar_interface::{Symbol, kw, sym};
@@ -835,11 +835,38 @@ impl<'gcx> Lowerer<'gcx> {
     /// Must be emitted directly after the call instruction: the EVM return
     /// buffer is only invalidated by another external call, so reading it here
     /// is safe.
+    /// The most recent external call's return data as a logical returndata
+    /// slice covering the whole buffer, `(0, returndatasize)`.
+    ///
+    /// The buffer is volatile: any subsequent call, create, or low-level
+    /// `.call` overwrites it. A returndata slice must therefore be consumed —
+    /// materialized into memory via [`Self::materialize_returndata_slice`] —
+    /// before any such instruction, and must not be retained across one.
+    pub(super) fn returndata_slice(&mut self, builder: &mut FunctionBuilder<'_>) -> ValueId {
+        let zero = builder.imm_u64(0);
+        let size = builder.returndatasize();
+        builder.make_slice(zero, size, SliceLocation::Returndata)
+    }
+
     pub(super) fn materialize_returndata_bytes(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
     ) -> ValueId {
-        let size = builder.returndatasize();
+        let slice = self.returndata_slice(builder);
+        self.materialize_returndata_slice(builder, slice)
+    }
+
+    /// Copies a returndata slice into a fresh `[length][data]` memory bytes
+    /// object. `lower-slices` folds the slice's `(offset, len)` projections back
+    /// to the underlying `returndatasize`/offset, so the emitted code is a
+    /// single `returndatacopy` behind an aligned allocation.
+    pub(super) fn materialize_returndata_slice(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slice: ValueId,
+    ) -> ValueId {
+        let offset = builder.slice_ptr(slice);
+        let size = builder.slice_len(slice);
         // total = 32 (length word) + ceil32(size), keeping the free memory
         // pointer word-aligned. With empty returndata this degenerates to a
         // 32-byte allocation holding a zero length.
@@ -852,8 +879,7 @@ impl<'gcx> Lowerer<'gcx> {
         let ptr = self.allocate_memory_object_dynamic(builder, total, MemoryObjectKind::Bytes);
         builder.set_memory_object_len(ptr, size, MemoryObjectKind::Bytes);
         let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-        let zero = builder.imm_u64(0);
-        builder.returndatacopy(data_ptr, zero, size);
+        builder.returndatacopy(data_ptr, offset, size);
         ptr
     }
 

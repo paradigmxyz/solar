@@ -481,6 +481,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 sym::calldataptr => MirType::CalldataPtr,
                 sym::memoryslice => MirType::Slice(SliceLocation::Memory),
                 sym::calldataslice => MirType::Slice(SliceLocation::Calldata),
+                sym::returndataslice => MirType::Slice(SliceLocation::Returndata),
                 kw::Function => MirType::Function,
                 sym::void => MirType::Void,
                 _ => return Err(self.parser.error(format!("unknown type `{id}`"))),
@@ -1386,14 +1387,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             kw::Calldatacopy => inst!(CalldataCopy(a, b, c)),
 
             // Slices.
-            sym::make_memory_slice | sym::make_calldata_slice => {
+            sym::make_memory_slice | sym::make_calldata_slice | sym::make_returndata_slice => {
                 let ptr = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
                 let len = self.parse_value(builder)?;
                 let location = if mnemonic == sym::make_memory_slice {
                     SliceLocation::Memory
-                } else {
+                } else if mnemonic == sym::make_calldata_slice {
                     SliceLocation::Calldata
+                } else {
+                    SliceLocation::Returndata
                 };
                 (InstKind::MakeSlice { ptr, len, location }, Some(MirType::Slice(location)))
             }

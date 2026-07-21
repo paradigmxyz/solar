@@ -113,14 +113,10 @@ impl fmt::Display for AbiType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Word => write!(f, "word"),
-            Self::Bytes(SliceLocation::Memory) => write!(f, "memory_bytes"),
-            Self::Bytes(SliceLocation::Calldata) => write!(f, "calldata_bytes"),
-            Self::DynamicArray { element, location: SliceLocation::Memory } => {
-                write!(f, "memory_array<{element}>")
-            }
-            Self::DynamicArray { element, location: SliceLocation::Calldata } => {
-                write!(f, "calldata_array<{element}>")
-            }
+            // ABI values live in calldata (inputs) or memory (outputs); the
+            // location's own `Display` yields the `memory`/`calldata` prefix.
+            Self::Bytes(location) => write!(f, "{location}_bytes"),
+            Self::DynamicArray { element, location } => write!(f, "{location}_array<{element}>"),
             Self::FixedArray { element, len } => write!(f, "array<{len}, {element}>"),
             Self::Tuple(fields) => {
                 write!(f, "tuple<")?;

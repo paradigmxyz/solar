@@ -1214,7 +1214,9 @@ impl AliasAnalysis {
         match &func.instructions[*inst_id].kind {
             InstKind::MakeSlice { ptr, location, .. } => match location {
                 SliceLocation::Memory => self.memory_address_with_depth(func, *ptr, depth + 1),
-                SliceLocation::Calldata => None,
+                // Calldata and returndata pointers index their own address
+                // spaces, not memory, so they carry no memory provenance.
+                SliceLocation::Calldata | SliceLocation::Returndata => None,
             },
             InstKind::AbiEncode { .. } => Some(if self.allocation_is_dynamic(*inst_id) {
                 MemoryAddress {
@@ -1463,9 +1465,14 @@ impl AliasAnalysis {
 
     fn abi_type_reads_memory(ty: &AbiType) -> bool {
         match ty {
+            // Calldata and returndata ABI values read their own buffers, not
+            // memory (returndata does not occur as an ABI type in practice).
             AbiType::Word
-            | AbiType::Bytes(SliceLocation::Calldata)
-            | AbiType::DynamicArray { location: SliceLocation::Calldata, .. } => false,
+            | AbiType::Bytes(SliceLocation::Calldata | SliceLocation::Returndata)
+            | AbiType::DynamicArray {
+                location: SliceLocation::Calldata | SliceLocation::Returndata,
+                ..
+            } => false,
             AbiType::Bytes(SliceLocation::Memory)
             | AbiType::DynamicArray { location: SliceLocation::Memory, .. }
             | AbiType::FixedArray { .. }
