@@ -31,6 +31,7 @@ DEFAULT_RUST_LOG = (
 )
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 STACK_OP_RE = re.compile(r"^(?:DUP|SWAP)\d+$|^POP$", re.IGNORECASE)
+EXACT_PUSH_RE = re.compile(r"^PUSH\d+\((0x[0-9a-f]+)\)$", re.IGNORECASE)
 
 
 def field(line: str, name: str) -> str | None:
@@ -68,11 +69,16 @@ def markdown_table(headers: list[str], rows: list[list[object]]) -> None:
     print()
 
 
+def normalize_instruction(instruction: str) -> str:
+    match = EXACT_PUSH_RE.match(instruction)
+    if match is None:
+        return instruction
+    return "PUSH1" if int(match.group(1), 16) == 1 else "PUSH"
+
+
 def analyze(args: argparse.Namespace) -> int:
-    rules: set[str] = set()
-    hits: Counter[str] = Counter()
-    rule_modules: dict[str, Counter[str]] = {}
-    rewrites: Counter[tuple[str, str, str]] = Counter()
+    rewrites: Counter[tuple[str, str]] = Counter()
+    rewrite_modules: dict[tuple[str, str], Counter[str]] = {}
     ngrams: Counter[tuple[str, ...]] = Counter()
     mir_round_runs: Counter[int] = Counter()
     mir_round_changed: Counter[int] = Counter()
@@ -82,17 +88,14 @@ def analyze(args: argparse.Namespace) -> int:
     with open(args.log) as log:
         for raw_line in log:
             line = ANSI_RE.sub("", raw_line)
-            if "evm_ir_peephole_rules" in line:
-                rules.update(filter(None, (field(line, "rules") or "").split(",")))
-            elif "evm_ir_peephole_rewrite" in line:
-                rule = field(line, "rule") or "unknown"
+            if "evm_ir_peephole_rewrite" in line:
                 module_match = re.search(r"evm_codegen\{module=([^}]+)\}", line)
                 module = module_match.group(1) if module_match else field(line, "module") or "unknown"
                 input_sequence = field(line, "input") or ""
                 output_sequence = field(line, "output") or ""
-                hits[rule] += 1
-                rule_modules.setdefault(rule, Counter())[module] += 1
-                rewrites[(rule, input_sequence, output_sequence)] += 1
+                rewrite = (input_sequence, output_sequence)
+                rewrites[rewrite] += 1
+                rewrite_modules.setdefault(rewrite, Counter())[module] += 1
             elif "evm_ir_peephole_input" in line:
                 blocks += 1
                 instructions = (field(line, "instructions") or "").split(",")
@@ -106,25 +109,28 @@ def analyze(args: argparse.Namespace) -> int:
                 mir_round_changed[round_number] += simplified != 0
                 mir_round_simplified[round_number] += simplified
 
-    if not rules and not hits and blocks == 0:
+    if not rewrites and blocks == 0:
         print("No EVM IR peephole trace events found", file=sys.stderr)
         return 1
 
-    print(f"Analyzed {blocks:,} eligible input blocks and {sum(hits.values()):,} rewrites.\n")
+    total_rewrites = sum(rewrites.values())
+    print(f"Analyzed {blocks:,} eligible input blocks and {total_rewrites:,} rewrites.\n")
     markdown_table(
-        ["Rule", "Hits", "Share", "Top modules"],
+        ["Input → Output", "Hits", "Share", "Top modules"],
         [
             [
-                rule,
-                hits[rule],
-                f"{hits[rule] / sum(hits.values()):.1%}" if hits else "-",
+                f"{input_sequence or '∅'} → {output_sequence or '∅'}",
+                count,
+                f"{count / total_rewrites:.1%}" if total_rewrites else "-",
                 ", ".join(
                     f"{module} ({count})"
-                    for module, count in rule_modules.get(rule, Counter()).most_common(3)
+                    for module, count in rewrite_modules.get(
+                        (input_sequence, output_sequence), Counter()
+                    ).most_common(3)
                 )
                 or "-",
             ]
-            for rule in sorted(rules | hits.keys(), key=lambda rule: (-hits[rule], rule))
+            for (input_sequence, output_sequence), count in rewrites.most_common(args.top)
         ],
     )
 
@@ -138,17 +144,10 @@ def analyze(args: argparse.Namespace) -> int:
             ],
         )
 
-    print("<details>\n<summary>Exact rewrite patterns</summary>\n")
-    markdown_table(
-        ["Rule", "Input", "Output", "Hits"],
-        [
-            [rule, input_sequence or "∅", output_sequence or "∅", count]
-            for (rule, input_sequence, output_sequence), count in rewrites.most_common()
-        ],
-    )
-    print("</details>\n")
-
-    rewritten_inputs = {tuple(input_sequence.split(",")) for _, input_sequence, _ in rewrites}
+    rewritten_inputs = {
+        tuple(normalize_instruction(instruction) for instruction in input_sequence.split(","))
+        for input_sequence, _ in rewrites
+    }
 
     def overlaps_rewrite(pattern: tuple[str, ...]) -> bool:
         def contains(sequence: tuple[str, ...], subsequence: tuple[str, ...]) -> bool:
