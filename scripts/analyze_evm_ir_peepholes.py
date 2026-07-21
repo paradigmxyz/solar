@@ -54,14 +54,22 @@ def capture(args: argparse.Namespace) -> int:
     with path.open(mode) as output:
         marker = f"# command: {' '.join(command)}\n"
         output.write(marker)
-    print(marker, end="", file=sys.stderr)
-    env = {
-        **os.environ,
-        "NO_COLOR": "1",
-        "RUST_LOG": args.rust_log,
-        "SOLAR_LOG_FILE": str(path.resolve()),
-    }
-    return subprocess.run(command, cwd=args.cwd, env=env).returncode
+        output.flush()
+        print(marker, end="", file=sys.stderr)
+        env = {**os.environ, "NO_COLOR": "1", "RUST_LOG": args.rust_log}
+        process = subprocess.Popen(
+            command,
+            cwd=args.cwd,
+            env=env,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+        )
+        assert process.stderr is not None
+        for line in process.stderr:
+            output.write(line)
+            sys.stderr.write(line)
+        return process.wait()
 
 
 def markdown_table(headers: list[str], rows: list[list[object]]) -> None:

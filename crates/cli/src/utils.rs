@@ -5,10 +5,7 @@ use solar_interface::diagnostics::DiagCtxt;
 #[cfg(feature = "tracing")]
 use solar_sema::ast::Either;
 #[cfg(feature = "tracing")]
-use std::{
-    fs::{File, OpenOptions},
-    io,
-};
+use std::io;
 
 #[cfg(feature = "mimalloc")]
 use mimalloc as _;
@@ -59,20 +56,16 @@ pub enum LogDestination {
     Stdout,
     /// [`io::stderr`].
     Stderr,
-    /// An explicitly configured append-only log file.
-    #[cfg(feature = "tracing")]
-    File(File),
 }
 
 #[cfg(feature = "tracing")]
 impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for LogDestination {
-    type Writer = Either<Either<io::Stdout, io::Stderr>, &'a File>;
+    type Writer = Either<io::Stdout, io::Stderr>;
 
     fn make_writer(&'a self) -> Self::Writer {
         match self {
-            Self::Stdout => Either::Left(Either::Left(io::stdout())),
-            Self::Stderr => Either::Left(Either::Right(io::stderr())),
-            Self::File(file) => Either::Right(file),
+            Self::Stdout => Either::Left(io::stdout()),
+            Self::Stderr => Either::Right(io::stderr()),
         }
     }
 }
@@ -92,11 +85,6 @@ pub fn init_logger(dst: LogDestination) -> impl Sized {
                 "`SOLAR_PROFILE` is set, but \"tracing\" support was not enabled at compile time";
             DiagCtxt::new_early().warn(msg).emit();
         }
-        if std::env::var_os("SOLAR_LOG_FILE").is_some() {
-            let msg =
-                "`SOLAR_LOG_FILE` is set, but \"tracing\" support was not enabled at compile time";
-            DiagCtxt::new_early().warn(msg).emit();
-        }
     }
 
     #[cfg(feature = "tracing")]
@@ -107,17 +95,8 @@ pub fn init_logger(dst: LogDestination) -> impl Sized {
 }
 
 #[cfg(feature = "tracing")]
-fn try_init_logger(mut dst: LogDestination) -> Result<impl Sized, String> {
+fn try_init_logger(dst: LogDestination) -> Result<impl Sized, String> {
     use tracing_subscriber::prelude::*;
-
-    if let Some(path) = std::env::var_os("SOLAR_LOG_FILE") {
-        let file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&path)
-            .map_err(|e| format!("failed to open `{}`: {e}", path.display()))?;
-        dst = LogDestination::File(file);
-    }
 
     let (profile_layer, guard) = match std::env::var("SOLAR_PROFILE").as_deref() {
         Ok("chrome") => {
