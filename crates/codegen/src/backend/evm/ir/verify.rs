@@ -10,6 +10,8 @@ use solar_data_structures::{
 use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
 use std::fmt;
 
+const MAX_STACK_STATES_PER_BLOCK: usize = MAX_STACK_DEPTH + 1;
+
 /// Stateful EVM IR verifier.
 struct Verifier<'a> {
     dcx: &'a DiagCtxt,
@@ -322,25 +324,38 @@ impl<'a> Verifier<'a> {
             let Some(term) = &block.terminator else { continue };
             term.kind.visit_targets(|target| physical_targets.push((target, stack.clone())));
             for (target, target_stack) in physical_targets {
-                Self::propagate_stack(
+                self.propagate_stack(
                     target,
                     target_stack,
                     &mut entry_stacks,
                     &mut pending,
-                    &invalid,
+                    &mut invalid,
                 );
             }
         }
     }
 
     fn propagate_stack(
+        &self,
         target: BlockId,
         stack: ModelStack,
         entry_stacks: &mut IndexVec<BlockId, FxHashSet<ModelStack>>,
         pending: &mut Vec<(BlockId, ModelStack)>,
-        invalid: &DenseBitSet<BlockId>,
+        invalid: &mut DenseBitSet<BlockId>,
     ) {
         if invalid.contains(target) {
+            return;
+        }
+        if !entry_stacks[target].contains(&stack)
+            && entry_stacks[target].len() >= MAX_STACK_STATES_PER_BLOCK
+        {
+            self.error_in_block(
+                target,
+                format_args!(
+                    "stack analysis exceeds the limit of {MAX_STACK_STATES_PER_BLOCK} states"
+                ),
+            );
+            invalid.insert(target);
             return;
         }
         if entry_stacks[target].insert(stack.clone()) {
