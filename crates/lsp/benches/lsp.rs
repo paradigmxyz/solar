@@ -217,10 +217,30 @@ fn assert_clean(analysis: &solar_lsp::BenchmarkAnalysis) {
     assert_eq!(analysis.diagnostic_count(), 0, "{}", analysis.diagnostic_fingerprint());
 }
 
-fn project_analysis(c: &mut Criterion) {
+fn unifap_benches(c: &mut Criterion) {
     let project = unifap_project();
+    let edit = project
+        .replacement_edit(UNIFAP_PAIR, "MINIMUM_LIQUIDITY = 1e3", "MINIMUM_LIQUIDITY = 1e4")
+        .expect("the edit anchor should be unique");
+    let document_change =
+        project.document_change(&edit).expect("the benchmark document change should be prepared");
+    let requests = unifap_requests(&project);
+
     let analysis = project.clone().analyze();
     assert_clean(&analysis);
+    for (name, request) in &requests {
+        assert_unifap_response(name, analysis.execute(request));
+    }
+
+    {
+        let mut edited_project = project.clone();
+        edited_project.apply_edit(&edit).expect("the benchmark edit should apply");
+        edited_project
+            .unique_anchor(UNIFAP_PAIR, "MINIMUM_LIQUIDITY = 1e4")
+            .expect("the edited source should contain the replacement");
+        let edited_analysis = edited_project.analyze();
+        assert_clean(&edited_analysis);
+    }
 
     let mut group = c.benchmark_group("lsp/project-analysis");
     group.bench_function(BenchmarkId::from_parameter(UNIFAP_PROJECT), |b| {
@@ -231,21 +251,6 @@ fn project_analysis(c: &mut Criterion) {
         );
     });
     group.finish();
-}
-
-fn project_analysis_after_edit(c: &mut Criterion) {
-    let project = unifap_project();
-    let edit = project
-        .replacement_edit(UNIFAP_PAIR, "MINIMUM_LIQUIDITY = 1e3", "MINIMUM_LIQUIDITY = 1e4")
-        .expect("the edit anchor should be unique");
-
-    let mut preflight = project.clone();
-    preflight.apply_edit(&edit).expect("the benchmark edit should apply");
-    preflight
-        .unique_anchor(UNIFAP_PAIR, "MINIMUM_LIQUIDITY = 1e4")
-        .expect("the edited source should contain the replacement");
-    let analysis = preflight.analyze();
-    assert_clean(&analysis);
 
     let mut group = c.benchmark_group("lsp/project-analysis-after-edit");
     group.bench_function(BenchmarkId::from_parameter(UNIFAP_PROJECT), |b| {
@@ -260,21 +265,6 @@ fn project_analysis_after_edit(c: &mut Criterion) {
         );
     });
     group.finish();
-}
-
-fn project_edit_application(c: &mut Criterion) {
-    let project = unifap_project();
-    let edit = project
-        .replacement_edit(UNIFAP_PAIR, "MINIMUM_LIQUIDITY = 1e3", "MINIMUM_LIQUIDITY = 1e4")
-        .expect("the edit anchor should be unique");
-
-    let mut preflight = project.clone();
-    preflight.apply_edit(&edit).expect("the benchmark edit should apply");
-    preflight
-        .unique_anchor(UNIFAP_PAIR, "MINIMUM_LIQUIDITY = 1e4")
-        .expect("the edited source should contain the replacement");
-    let document_change =
-        project.document_change(&edit).expect("the benchmark document change should be prepared");
 
     let mut group = c.benchmark_group("lsp/project-edit-application");
     group.throughput(Throughput::Elements(1));
@@ -286,16 +276,6 @@ fn project_edit_application(c: &mut Criterion) {
         );
     });
     group.finish();
-}
-
-fn symbol_table_queries(c: &mut Criterion) {
-    let project = unifap_project();
-    let requests = unifap_requests(&project);
-    let analysis = project.analyze();
-    assert_clean(&analysis);
-    for (name, request) in &requests {
-        assert_unifap_response(name, analysis.execute(request));
-    }
 
     let mut group = c.benchmark_group("lsp/symbol-table-queries/unifap-v2");
     group.throughput(Throughput::Elements(1));
@@ -307,13 +287,5 @@ fn symbol_table_queries(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(
-    benches,
-    analysis_build,
-    burst_hover,
-    project_analysis,
-    project_analysis_after_edit,
-    project_edit_application,
-    symbol_table_queries
-);
+criterion_group!(benches, analysis_build, burst_hover, unifap_benches);
 criterion_main!(benches);
