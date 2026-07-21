@@ -13,4 +13,7 @@ bb0 (entry):
   pop
   pop
   pop
+  push 17
+  push 18
+  and
   stop

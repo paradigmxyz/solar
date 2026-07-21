@@ -25,4 +25,8 @@ bb0 (entry):
   pop
   swap1
   pop
+  push 17
+  push 18
+  swap1
+  and
   stop

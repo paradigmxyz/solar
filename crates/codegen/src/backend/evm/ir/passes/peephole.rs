@@ -121,6 +121,15 @@ fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
         return rewrite(instructions, 3, Edit::OverwriteOne(op::ISZERO), block);
     }
 
+    // `SWAP1 COMMUTATIVE_OP -> COMMUTATIVE_OP`.
+    if let [.., swap, instruction] = instructions.as_slice()
+        && raw_opcode(swap) == Some(op::SWAP1)
+        && let Some(opcode) = raw_opcode(instruction)
+        && is_commutative(opcode)
+    {
+        return rewrite(instructions, 2, Edit::RemoveFirstKeepOne, block);
+    }
+
     // `DUP2 OP SWAP1 POP -> OP`.
     // `DUP2 OP SWAP1 POP -> SWAP1 OP`.
     if let [.., dup, binop, swap, pop] = instructions.as_slice()
@@ -129,7 +138,7 @@ fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
         && raw_opcode(swap) == Some(op::SWAP1)
         && raw_opcode(pop) == Some(op::POP)
     {
-        if matches!(binop, op::ADD | op::MUL | op::AND | op::OR | op::XOR | op::EQ) {
+        if is_commutative(binop) {
             return rewrite(instructions, 4, Edit::OverwriteOne(binop), block);
         }
         if matches!(
@@ -318,6 +327,10 @@ fn overwrite_raw(inst: &mut Instruction, opcode: u8) {
 
 fn raw_opcode(inst: &Instruction) -> Option<u8> {
     (!inst.is_encoded_push()).then_some(inst.opcode)
+}
+
+const fn is_commutative(opcode: u8) -> bool {
+    matches!(opcode, op::ADD | op::MUL | op::AND | op::OR | op::XOR | op::EQ)
 }
 
 fn push_value(inst: &Instruction) -> Option<U256> {
