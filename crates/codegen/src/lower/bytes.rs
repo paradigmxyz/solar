@@ -259,56 +259,6 @@ impl<'gcx> Lowerer<'gcx> {
         ptr
     }
 
-    /// Copies a calldata bytes/string SLICE `base[start:end]` into Solidity's
-    /// memory bytes layout (`[length][data...]`). `slice` describes `base`;
-    /// `start`/`end` default to `0` and `base.length`.
-    pub(super) fn materialize_calldata_slice(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        slice: ValueId,
-        start: Option<ValueId>,
-        end: Option<ValueId>,
-    ) -> ValueId {
-        let base_len = builder.slice_len(slice);
-        let base_data_pos = builder.slice_ptr(slice);
-        let word_size = builder.imm_u64(32);
-
-        let start = match start {
-            Some(s) => s,
-            None => builder.imm_u64(0),
-        };
-        let end = match end {
-            Some(e) => e,
-            None => base_len,
-        };
-        let len = builder.sub(end, start);
-        let slice_pos = builder.add(base_data_pos, start);
-
-        let thirty_one = builder.imm_u64(31);
-        let rounded = builder.add(len, thirty_one);
-        let rounded_overflow = builder.lt(rounded, len);
-        self.emit_panic_if(builder, rounded_overflow, PanicCode::MemoryAllocationOverflow);
-        let mask = builder.not(thirty_one);
-        let padded = builder.and(rounded, mask);
-        let is_empty = builder.iszero(padded);
-        let data_size = builder.select(is_empty, word_size, padded);
-        let total_size = builder.add(word_size, data_size);
-        let total_overflow = builder.lt(total_size, data_size);
-        self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
-
-        let ptr = self.allocate_memory_object_dynamic(builder, total_size, MemoryObjectKind::Bytes);
-        builder.set_memory_object_len(ptr, len, MemoryObjectKind::Bytes);
-
-        let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-        let zero = builder.imm_u64(0);
-        let last_word_offset = builder.sub(data_size, word_size);
-        let last_word = builder.add(data_ptr, last_word_offset);
-        builder.mstore(last_word, zero);
-
-        builder.calldatacopy(data_ptr, slice_pos, len);
-        ptr
-    }
-
     pub(super) fn var_expects_memory_bytes_value(&self, var: &hir::Variable<'_>) -> bool {
         matches!(
             var.ty.kind,
