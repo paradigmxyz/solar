@@ -319,10 +319,6 @@ impl Assembler {
         fields(program = %self.program.name()),
     )]
     pub(in crate::backend::evm) fn prepare(&mut self) -> PreparedAssembly {
-        solar_interface::enter(|| self.prepare_inner())
-    }
-
-    fn prepare_inner(&mut self) -> PreparedAssembly {
         let Some((mut ir_program, mut labels)) = self.finish_evm_ir() else {
             return PreparedAssembly::default();
         };
