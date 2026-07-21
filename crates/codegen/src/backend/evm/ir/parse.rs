@@ -4,9 +4,9 @@ use super::*;
 use crate::backend::evm::opcode as op;
 use solar_ast::{
     Arena,
-    token::{BinOpToken, Delimiter, TokenKind},
+    token::{Delimiter, TokenKind},
 };
-use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
+use solar_data_structures::map::FxHashMap;
 use solar_interface::{Result, Session, Span, Symbol, kw, source_map::SourceFile, sym};
 use solar_parse::{PErr, PResult};
 
@@ -21,8 +21,6 @@ struct ParsedBlockHeader {
     label: Symbol,
     entry: bool,
     hotness: Hotness,
-    /// Incoming stack-word names from an `(in %a, %b)` signature, top first.
-    entry_stack: Vec<Symbol>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -32,24 +30,18 @@ struct BlockLabel {
     reference_span: Option<Span>,
 }
 
-struct Parser<'sess, 'ast, 'src> {
+struct Parser<'sess, 'ast> {
     parser: crate::ir_parse::Parser<'sess, 'ast>,
-    source: &'src SourceFile,
     block_labels: FxHashMap<Symbol, BlockLabel>,
     block_order: Vec<BlockId>,
-    value_labels: FxHashMap<Symbol, ValueId>,
-    defined_values: GrowableBitSet<ValueId>,
 }
 
-impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
-    fn new(sess: &'sess Session, arena: &'ast Arena, source: &'src SourceFile) -> Self {
+impl<'sess, 'ast> Parser<'sess, 'ast> {
+    fn new(sess: &'sess Session, arena: &'ast Arena, source: &SourceFile) -> Self {
         Self {
             parser: crate::ir_parse::Parser::new(sess, arena, source),
-            source,
             block_labels: FxHashMap::default(),
             block_order: Vec::new(),
-            value_labels: FxHashMap::default(),
-            defined_values: GrowableBitSet::new_empty(),
         }
     }
 
@@ -72,11 +64,6 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                     module.entry_block = Some(block_id);
                 }
                 module.blocks[block_id].metadata.hotness = header.hotness;
-                let mut entry_stack = Vec::with_capacity(header.entry_stack.len());
-                for name in &header.entry_stack {
-                    entry_stack.push(self.value_id(module, *name));
-                }
-                module.blocks[block_id].entry_stack = entry_stack;
                 current_block = Some(block_id);
                 continue;
             }
@@ -112,29 +99,9 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
             self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
         }
 
-        // Optional incoming stack signature: `(in %a, %b)`.
-        let mut entry_stack = Vec::new();
-        if self.parser.check(TokenKind::OpenDelim(Delimiter::Parenthesis))
-            && self.parser.look_ahead(1).is_keyword(kw::In)
-        {
-            self.parser.bump();
-            self.parser.bump();
-            loop {
-                if self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
-                    break;
-                }
-                entry_stack.push(self.parse_value_name()?);
-                if self.parser.eat(TokenKind::Comma) {
-                    continue;
-                }
-                self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
-                break;
-            }
-        }
-
         self.parser.expect(TokenKind::Colon)?;
 
-        Ok(Some(ParsedBlockHeader { label, entry, hotness, entry_stack }))
+        Ok(Some(ParsedBlockHeader { label, entry, hotness }))
     }
 
     fn current_block_label(&self) -> PResult<'sess, Option<Symbol>> {
@@ -212,12 +179,8 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
             )));
         }
 
-        let result = self.try_parse_result(module)?;
         let mnemonic = self.parser.parse_ident()?;
         if let Some(kind) = self.parse_terminator_kind(mnemonic, module)? {
-            if result.is_some() {
-                return Err(self.parser.error("terminator cannot produce a result"));
-            }
             let metadata = self.parse_metadata()?;
             module.blocks[block].terminator = Some(Terminator { kind, metadata });
             return Ok(());
@@ -234,52 +197,12 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                 0,
             ),
         };
-        let encoded_push = encoding & Instruction::ENCODED_PUSH != 0;
-        let has_operands = encoded_push
-            || match op::stack_io(opcode) {
-                Some((inputs, _)) => inputs > 0 && (result.is_some() || self.operand_starts_here()),
-                None => self.operand_starts_here(),
-            };
-        let operands =
-            if has_operands { self.parse_operand_list(module)? } else { SmallVec::new() };
+        let value = (encoding & Instruction::ENCODED_PUSH != 0)
+            .then(|| self.parse_push_value(module))
+            .transpose()?;
         let metadata = self.parse_metadata()?;
-        module.blocks[block].instructions.push(Instruction {
-            result,
-            opcode,
-            encoding,
-            operands,
-            metadata,
-        });
+        module.blocks[block].instructions.push(Instruction { opcode, encoding, value, metadata });
         Ok(())
-    }
-
-    fn try_parse_result(&mut self, module: &mut Module) -> PResult<'sess, Option<ValueId>> {
-        if !self.parser.check(TokenKind::BinOp(BinOpToken::Percent))
-            || !matches!(
-                self.parser.look_ahead(1).kind,
-                TokenKind::Ident(_) | TokenKind::Literal(..)
-            )
-            || self.parser.look_ahead(2).kind != TokenKind::Eq
-        {
-            return Ok(None);
-        }
-        let name = self.parse_value_name()?;
-        self.parser.bump();
-        let value = self.value_id(module, name);
-        if !self.defined_values.insert(value) {
-            return Err(self.parser.error(format!("duplicate value `%{name}`")));
-        }
-        Ok(Some(value))
-    }
-
-    fn parse_value_name(&mut self) -> PResult<'sess, Symbol> {
-        self.parser.expect(TokenKind::BinOp(BinOpToken::Percent))?;
-        let name = match self.parser.token().kind {
-            TokenKind::Ident(symbol) | TokenKind::Literal(_, symbol) => symbol,
-            _ => return Err(self.parser.error("expected value name")),
-        };
-        self.parser.bump();
-        Ok(name)
     }
 
     fn parse_terminator_kind(
@@ -288,62 +211,19 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         module: &mut Module,
     ) -> PResult<'sess, Option<TerminatorKind>> {
         let kind = match mnemonic {
-            sym::jump if !self.operand_starts_here() => TerminatorKind::RawOpcode(op::JUMP),
+            sym::jump if !self.block_ref_starts_here()? => TerminatorKind::Op(op::JUMP),
             sym::jump => TerminatorKind::Jump(self.parse_block_ref(module)?),
-            sym::br => {
-                let condition = self.parse_operand(module)?;
-                self.parser.expect(TokenKind::Comma)?;
+            sym::jumpi if self.block_ref_starts_here()? => {
                 let then_block = self.parse_block_ref(module)?;
                 self.parser.expect(TokenKind::Comma)?;
                 let else_block = self.parse_block_ref(module)?;
-                TerminatorKind::Branch { condition, then_block, else_block }
+                TerminatorKind::JumpI { then_block, else_block }
             }
-            kw::Switch => {
-                let value = self.parse_operand(module)?;
-                self.parser.expect(TokenKind::Comma)?;
-                self.parser.expect_keyword(kw::Default)?;
-                let default = self.parse_block_ref(module)?;
-                self.parser.expect(TokenKind::Comma)?;
-                self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
-                let mut cases = Vec::new();
-                if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
-                    loop {
-                        let case = self.parse_operand(module)?;
-                        self.parser.expect(TokenKind::FatArrow)?;
-                        let target = self.parse_block_ref(module)?;
-                        cases.push((case, target));
-                        if self.parser.eat(TokenKind::Comma) {
-                            continue;
-                        }
-                        self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
-                        break;
-                    }
-                }
-                TerminatorKind::Switch { value, default, cases }
-            }
-            kw::Return if !self.operand_starts_here() => TerminatorKind::RawOpcode(op::RETURN),
-            kw::Return => {
-                let offset = self.parse_operand(module)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let size = self.parse_operand(module)?;
-                TerminatorKind::Return { offset, size }
-            }
-            kw::Revert if !self.operand_starts_here() => TerminatorKind::RawOpcode(op::REVERT),
-            kw::Revert => {
-                let offset = self.parse_operand(module)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let size = self.parse_operand(module)?;
-                TerminatorKind::Revert { offset, size }
-            }
-            kw::Stop => TerminatorKind::Stop,
-            kw::Invalid => TerminatorKind::Invalid,
-            kw::Selfdestruct if !self.operand_starts_here() => {
-                TerminatorKind::RawOpcode(op::SELFDESTRUCT)
-            }
-            kw::Selfdestruct => {
-                let recipient = self.parse_operand(module)?;
-                TerminatorKind::SelfDestruct { recipient }
-            }
+            kw::Return => TerminatorKind::Op(op::RETURN),
+            kw::Revert => TerminatorKind::Op(op::REVERT),
+            kw::Stop => TerminatorKind::Op(op::STOP),
+            kw::Invalid => TerminatorKind::Op(op::INVALID),
+            kw::Selfdestruct => TerminatorKind::Op(op::SELFDESTRUCT),
             sym::terminal => {
                 let opcode = if matches!(self.parser.token().kind, TokenKind::Literal(..)) {
                     let opcode = self.parser.parse_uint()?;
@@ -360,48 +240,30 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
                     };
                     opcode
                 };
-                TerminatorKind::RawOpcode(opcode)
+                TerminatorKind::Op(opcode)
             }
             sym::raw => {
                 let opcode = self.parser.parse_uint()?;
                 let Ok(opcode) = u8::try_from(opcode) else {
                     return Err(self.parser.error("raw opcode must fit in one byte"));
                 };
-                TerminatorKind::RawOpcode(opcode)
+                TerminatorKind::Op(opcode)
             }
             _ => return Ok(None),
         };
         Ok(Some(kind))
     }
 
-    fn parse_operand_list(
-        &mut self,
-        module: &mut Module,
-    ) -> PResult<'sess, SmallVec<[Operand; 1]>> {
-        let mut operands = SmallVec::new();
-        loop {
-            operands.push(self.parse_operand(module)?);
-            if !self.parser.eat(TokenKind::Comma) {
-                break;
-            }
-        }
-        Ok(operands)
-    }
-
-    fn parse_operand(&mut self, module: &mut Module) -> PResult<'sess, Operand> {
-        if self.parser.check(TokenKind::BinOp(BinOpToken::Percent)) {
-            let name = self.parse_value_name()?;
-            return Ok(Operand::Value(self.value_id(module, name)));
-        }
+    fn parse_push_value(&mut self, module: &mut Module) -> PResult<'sess, PushValue> {
         if matches!(self.parser.token().kind, TokenKind::Literal(..)) {
-            return Ok(Operand::Immediate(self.parser.parse_uint()?));
+            return Ok(PushValue::Immediate(self.parser.parse_uint()?));
         }
         if let Some(label) = self.current_block_label()? {
             let span = self.parser.token().span;
             self.parser.bump();
-            return Ok(Operand::Block(self.block_id(module, label, span)?));
+            return Ok(PushValue::Block(self.block_id(module, label, span)?));
         }
-        Err(self.parser.error("expected operand"))
+        Err(self.parser.error("expected push value"))
     }
 
     fn parse_block_ref(&mut self, module: &mut Module) -> PResult<'sess, BlockId> {
@@ -427,15 +289,12 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
             let key = self.parser.parse_ident()?;
             if key == sym::stack {
                 self.parser.expect(TokenKind::Eq)?;
-                let inputs = self.parse_u16()?;
+                let inputs = self.parse_u8()?;
                 self.parser.expect(TokenKind::Arrow)?;
-                let outputs = self.parse_u16()?;
+                let outputs = self.parse_u8()?;
                 metadata.stack = Some(StackEffect::new(inputs, outputs));
             } else if self.parser.eat(TokenKind::Eq) {
-                let value = self.parse_metadata_value()?;
-                metadata.attrs.push(MetadataItem { key, value: Some(value) });
-            } else {
-                metadata.attrs.push(MetadataItem { key, value: None });
+                self.skip_metadata_value()?;
             }
 
             if self.parser.eat(TokenKind::Comma) {
@@ -447,57 +306,35 @@ impl<'sess, 'ast, 'src> Parser<'sess, 'ast, 'src> {
         Ok(metadata)
     }
 
-    fn parse_metadata_value(&mut self) -> PResult<'sess, Symbol> {
-        let start = self.parser.token().span.lo();
-        let mut end = start;
+    fn skip_metadata_value(&mut self) -> PResult<'sess, ()> {
+        let mut has_value = false;
         while !self.parser.is_eof()
             && !self.parser.check(TokenKind::Comma)
             && !self.parser.check(TokenKind::CloseDelim(Delimiter::Parenthesis))
         {
-            end = self.parser.token().span.hi();
+            has_value = true;
             self.parser.bump();
         }
-        let start = (start - self.source.start_pos).to_usize();
-        let end = (end - self.source.start_pos).to_usize();
-        let value = self.source.src[start..end].trim();
-        if value.is_empty() {
+        if !has_value {
             return Err(self.parser.error("expected metadata value"));
         }
-        Ok(Symbol::intern(value))
+        Ok(())
     }
 
-    fn parse_u16(&mut self) -> PResult<'sess, u16> {
+    fn parse_u8(&mut self) -> PResult<'sess, u8> {
         let value = self.parser.parse_uint()?;
         value
             .try_into()
-            .map_err(|_| self.parser.error(format!("integer `{value}` does not fit in u16")))
+            .map_err(|_| self.parser.error(format!("integer `{value}` does not fit in u8")))
     }
 
-    fn operand_starts_here(&self) -> bool {
-        match self.parser.token().kind {
-            TokenKind::Literal(..) => true,
-            TokenKind::BinOp(BinOpToken::Percent) => {
-                self.parser.look_ahead(2).kind != TokenKind::Eq
-            }
-            TokenKind::Ident(symbol) => {
-                symbol.as_str().starts_with("bb")
-                    && !matches!(
-                        self.parser.look_ahead(1).kind,
-                        TokenKind::Colon
-                            | TokenKind::OpenDelim(Delimiter::Parenthesis | Delimiter::Bracket)
-                    )
-            }
-            _ => false,
-        }
-    }
-
-    fn value_id(&mut self, module: &mut Module, name: Symbol) -> ValueId {
-        if let Some(value) = self.value_labels.get(&name).copied() {
-            return value;
-        }
-        let value = module.add_value(name);
-        self.value_labels.insert(name, value);
-        value
+    fn block_ref_starts_here(&self) -> PResult<'sess, bool> {
+        Ok(self.current_block_label()?.is_some()
+            && !matches!(
+                self.parser.look_ahead(1).kind,
+                TokenKind::Colon
+                    | TokenKind::OpenDelim(Delimiter::Parenthesis | Delimiter::Bracket)
+            ))
     }
 }
 
@@ -566,7 +403,7 @@ mod tests {
     #[test]
     fn parser_does_not_treat_newlines_as_syntax() {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        let input = "@module m bb0 (entry): %a = push 1 %b = push 2 %c = add %a, %b jump bb1 bb1 [cold]: jump";
+        let input = "@module m bb0 (entry): push 1 push 2 add jump bb1 bb1 [cold]: jump";
         sess.enter(|| {
             let module = parse_module(&sess, input).unwrap();
             assert_data_eq!(
@@ -574,9 +411,9 @@ mod tests {
                 str![[r#"
 @module m
 bb0 (entry):
-  %a = push 1
-  %b = push 2
-  %c = add %a, %b
+  push 1
+  push 2
+  add
   jump bb1
 bb1 [cold]:
   jump
@@ -621,7 +458,8 @@ error: instruction after terminator in block `bb0`
 @module m
 
 bb0 (entry):
-  %v0 = add 1 !meta(foo= )
+  push 1
+  add !meta(foo= )
 ";
         let source = sess
             .source_map()
@@ -632,10 +470,10 @@ bb0 (entry):
             sess.emitted_diagnostics().unwrap().to_string(),
             str![[r#"
 error: expected metadata value
-  ╭▸ <empty-metadata.evmir>:5:26
+  ╭▸ <empty-metadata.evmir>:6:18
   │
-5 │   %v0 = add 1 !meta(foo= )
-  ╰╴                         ━
+6 │   add !meta(foo= )
+  ╰╴                 ━
 
 
 "#]]

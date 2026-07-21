@@ -2,23 +2,16 @@
 //!
 //! Physical block reordering must preserve block identity from the perspective
 //! of the rest of the IR. The helpers here rebuild block storage and remap every
-//! entry, operand, and terminator reference together.
+//! entry, push, and terminator reference together.
 
 use crate::backend::evm::{
-    ir::{Block, BlockId, Module, Operand, TerminatorKind},
+    ir::{Block, BlockId, Module, PushValue, TerminatorKind},
     opcode as op,
 };
 use solar_data_structures::index::IndexVec;
 
 pub(super) fn is_evm_terminal(kind: &TerminatorKind) -> bool {
-    matches!(
-        kind,
-        TerminatorKind::Return { .. }
-            | TerminatorKind::Revert { .. }
-            | TerminatorKind::Stop
-            | TerminatorKind::Invalid
-            | TerminatorKind::SelfDestruct { .. }
-    ) || matches!(kind, TerminatorKind::RawOpcode(opcode) if op::is_terminal(*opcode))
+    matches!(kind, TerminatorKind::Op(opcode) if op::is_terminal(*opcode))
 }
 
 pub(in crate::backend::evm::ir) fn remap_block_order(module: &mut Module, order: &[BlockId]) {
@@ -48,8 +41,8 @@ fn remap_blocks(module: &mut Module, order: &[BlockId]) {
         module.entry_block.map(|block| remap[block.index()].expect("entry block must be retained"));
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
-            for operand in &mut inst.operands {
-                remap_operand_blocks(operand, &remap);
+            if let Some(PushValue::Block(block)) = &mut inst.value {
+                *block = remap[block.index()].expect("referenced block must be retained");
             }
         }
         if let Some(term) = &mut block.terminator {
@@ -58,15 +51,8 @@ fn remap_blocks(module: &mut Module, order: &[BlockId]) {
     }
 }
 
-fn remap_operand_blocks(operand: &mut Operand, remap: &[Option<BlockId>]) {
-    if let Operand::Block(block) = operand {
-        *block = remap[block.index()].expect("referenced block must be retained");
-    }
-}
-
 fn remap_terminator_blocks(kind: &mut TerminatorKind, remap: &[Option<BlockId>]) {
     kind.visit_targets_mut(|target| {
         *target = remap[target.index()].expect("terminator target must be retained");
     });
-    kind.visit_operands_mut(|operand| remap_operand_blocks(operand, remap));
 }

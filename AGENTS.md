@@ -44,17 +44,16 @@ Pipeline: Lexing -> Parsing -> Semantic Analysis -> MIR -> EVM backend -> byteco
   mem2reg/frame-slot promotion, inlining, CSE/GVN/PRE, SCCP, LICM, and loop
   analysis.
 - **EVM IR** is the lower, Machine-IR-like backend layer. It comes after
-  function calls have been lowered away and is intentionally untyped: values are
-  EVM stack words, not Solidity or MIR typed values. It models asm-like basic
-  blocks with opcode-like instructions, explicit physical stack operations
+  function calls and virtual values have been lowered away. It models asm-like
+  basic blocks with opcode-like instructions, explicit physical stack operations
   (`dupN`, `swapN`, `pop`), and explicit terminators such as jumps, returns,
   reverts, and stops. Use it for target-specific CFG simplification, terminal
   block deduplication and tail merging, cold/revert-path handling, backend
-  peepholes, computation and constant outlining, stack scheduling, block
-  layout, and address-sensitive code placement.
-- Stack scheduling belongs at EVM IR: materialize virtual stack-word operands
-  into `dupN`/`swapN`/`pop` there, then run backend passes over the scheduled
-  machine-like form before final assembly.
+  peepholes, computation and constant outlining, block layout, and
+  address-sensitive code placement.
+- Stack scheduling belongs in the MIR-to-EVM lowering boundary. Keep MIR value
+  identities and virtual stack layouts in the scheduler's private representation,
+  materialize `dupN`/`swapN`/`pop`, and emit already-scheduled EVM IR directly.
 - Keep the assembler primitive. Lower block EVM IR once into a compact stream
   containing only opcodes, label definitions/references, deferred pushes, and
   immutable placeholders. The assembler resolves deferred values, computes the

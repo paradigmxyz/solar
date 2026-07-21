@@ -2,7 +2,7 @@
 
 use super::PassOptions;
 use crate::backend::evm::{
-    ir::{Instruction, Module, Operand},
+    ir::{Instruction, Module, PushValue},
     opcode as op,
 };
 use alloy_primitives::U256;
@@ -61,21 +61,18 @@ pub(super) fn run(module: &mut Module, options: PassOptions) -> bool {
 }
 
 fn immediate(inst: &Instruction) -> Option<U256> {
-    if inst.result.is_some()
-        || !inst.is_encoded_push()
-        || inst.is_deferred_push()
-        || inst.is_immutable_push()
+    if !inst.is_encoded_push() || inst.deferred_push().is_some() || inst.immutable_push().is_some()
     {
         return None;
     }
-    match inst.operands.as_slice() {
-        [Operand::Immediate(value)] => Some(*value),
+    match &inst.value {
+        Some(PushValue::Immediate(value)) => Some(*value),
         _ => None,
     }
 }
 
 fn push(value: U256) -> Instruction {
-    Instruction::push(Operand::Immediate(value))
+    Instruction::push_value(value)
 }
 
 fn select(value: U256, options: PassOptions) -> CompactPush {

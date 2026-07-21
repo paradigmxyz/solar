@@ -1,0 +1,3 @@
+error: EVM IR verification failed: block 0: `push` has stack effect 0->0, expected 0->1
+
+error: aborting due to 1 previous error

@@ -9,7 +9,7 @@
 //! interrupt hot code.
 
 use super::utils::{is_evm_terminal, remap_block_order};
-use crate::backend::evm::ir::{Block, BlockId, Instruction, Module, Operand, TerminatorKind};
+use crate::backend::evm::ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind};
 use alloy_primitives::U256;
 use solar_data_structures::bit_set::DenseBitSet;
 
@@ -180,27 +180,18 @@ fn block_reference_counts(module: &Module, order: &[BlockId], references: &mut [
     for (position, &block_id) in order.iter().enumerate() {
         let block = &module.blocks[block_id];
         for inst in &block.instructions {
-            for operand in &inst.operands {
-                count_block_operand(operand, references);
+            if let Some(PushValue::Block(block)) = &inst.value {
+                references[block.index()] += 1;
             }
         }
-        if let Some(term) = &block.terminator {
-            if !matches!(
+        if let Some(term) = &block.terminator
+            && !matches!(
                 &term.kind,
                 TerminatorKind::Jump(target) if order.get(position + 1) == Some(target)
-            ) {
-                term.kind.visit_targets(|target| references[target.index()] += 1);
-            }
-            term.kind.visit_operands(|operand| {
-                count_block_operand(operand, references);
-            });
+            )
+        {
+            term.kind.visit_targets(|target| references[target.index()] += 1);
         }
-    }
-}
-
-fn count_block_operand(operand: &Operand, references: &mut [usize]) {
-    if let Operand::Block(block) = operand {
-        references[block.index()] += 1;
     }
 }
 
@@ -223,14 +214,14 @@ fn estimated_block_size(
 }
 
 fn estimated_instruction_size(inst: &Instruction, options: super::PassOptions) -> usize {
-    if inst.is_immutable_push() {
+    if inst.immutable_push().is_some() {
         33
-    } else if inst.is_deferred_push() {
+    } else if inst.deferred_push().is_some() {
         3
     } else if inst.is_encoded_push() {
-        match inst.operands.as_slice() {
-            [Operand::Immediate(value)] => push_len(*value, options),
-            [Operand::Block(_)] => 3,
+        match &inst.value {
+            Some(PushValue::Immediate(value)) => push_len(*value, options),
+            Some(PushValue::Block(_)) => 3,
             _ => 1,
         }
     } else {
@@ -241,25 +232,20 @@ fn estimated_instruction_size(inst: &Instruction, options: super::PassOptions) -
 fn estimated_terminator_size(
     kind: &TerminatorKind,
     next: Option<BlockId>,
-    options: super::PassOptions,
+    _options: super::PassOptions,
 ) -> usize {
     match kind {
         TerminatorKind::Jump(target) => usize::from(Some(*target) != next) * 4,
-        TerminatorKind::Stop => usize::from(next.is_some()),
-        TerminatorKind::Invalid | TerminatorKind::RawOpcode(_) => 1,
-        TerminatorKind::Return { offset, size } | TerminatorKind::Revert { offset, size } => {
-            operand_push_size(offset, options) + operand_push_size(size, options) + 1
+        TerminatorKind::JumpI { then_block, else_block } => {
+            if Some(*else_block) == next {
+                4
+            } else if Some(*then_block) == next {
+                5
+            } else {
+                8
+            }
         }
-        TerminatorKind::SelfDestruct { recipient } => operand_push_size(recipient, options) + 1,
-        TerminatorKind::Branch { .. } | TerminatorKind::Switch { .. } => 0,
-    }
-}
-
-fn operand_push_size(operand: &Operand, options: super::PassOptions) -> usize {
-    match operand {
-        Operand::Immediate(value) => push_len(*value, options),
-        Operand::Block(_) => 3,
-        Operand::Value(_) => 0,
+        TerminatorKind::Op(_) => 1,
     }
 }
 

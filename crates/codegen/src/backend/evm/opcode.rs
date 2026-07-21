@@ -85,7 +85,7 @@ macro_rules! opcodes {
 
         /// Returns the number of stack items consumed and produced by an opcode.
         #[must_use]
-        pub(crate) const fn stack_io(opcode: u8) -> Option<(u16, u16)> {
+        pub(crate) const fn stack_io(opcode: u8) -> Option<(u8, u8)> {
             match opcode {
                 $($opcode => opcode_stack_io!($inputs, $outputs),)*
                 _ => None,
@@ -278,13 +278,6 @@ pub(crate) const fn push(width: u8) -> u8 {
 pub(crate) const fn dup(n: u8) -> u8 {
     debug_assert!(n >= 1 && n <= 16);
     DUP1 + n - 1
-}
-
-/// Returns the SWAP opcode for the given depth (1-16).
-#[must_use]
-pub(crate) const fn swap(n: u8) -> u8 {
-    debug_assert!(n >= 1 && n <= 16);
-    SWAP1 + n - 1
 }
 
 /// Returns whether an opcode halts or unconditionally transfers control.

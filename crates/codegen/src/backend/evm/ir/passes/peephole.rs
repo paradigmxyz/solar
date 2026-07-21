@@ -1,7 +1,7 @@
 //! Local peephole optimization over scheduled EVM IR.
 
 use crate::backend::evm::{
-    ir::{Instruction, Module, Operand},
+    ir::{Instruction, Module, PushValue},
     opcode as op,
 };
 use alloy_primitives::U256;
@@ -11,11 +11,6 @@ pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
-        if block.instructions.iter().any(|inst| {
-            inst.result.is_some() || (!inst.is_encoded_push() && !inst.operands.is_empty())
-        }) {
-            continue;
-        }
         changed |= optimize(&mut block.instructions, &mut scratch) != 0;
     }
     changed
@@ -196,7 +191,7 @@ fn raw(opcode: u8) -> Instruction {
 }
 
 fn push(value: U256) -> Instruction {
-    Instruction::push(Operand::Immediate(value))
+    Instruction::push_value(value)
 }
 
 fn raw_opcode(inst: &Instruction) -> Option<u8> {
@@ -204,21 +199,22 @@ fn raw_opcode(inst: &Instruction) -> Option<u8> {
 }
 
 fn push_value(inst: &Instruction) -> Option<U256> {
-    if !inst.is_encoded_push() || inst.is_deferred_push() || inst.is_immutable_push() {
+    if !inst.is_encoded_push() || inst.deferred_push().is_some() || inst.immutable_push().is_some()
+    {
         return None;
     }
-    match inst.operands.as_slice() {
-        [Operand::Immediate(value)] => Some(*value),
+    match &inst.value {
+        Some(PushValue::Immediate(value)) => Some(*value),
         _ => None,
     }
 }
 
 fn is_block_push(inst: &Instruction) -> bool {
-    inst.is_encoded_push() && matches!(inst.operands.as_slice(), [Operand::Block(_)])
+    inst.is_encoded_push() && matches!(inst.value, Some(PushValue::Block(_)))
 }
 
 fn is_removable_push(inst: &Instruction) -> bool {
-    inst.is_encoded_push() && !inst.is_deferred_push()
+    inst.is_encoded_push() && inst.deferred_push().is_none()
 }
 
 struct Rewrite {
