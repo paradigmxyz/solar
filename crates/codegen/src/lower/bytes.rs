@@ -346,7 +346,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> ValueId {
-        if let Some((slice, false)) = self.calldata_dyn_slice(builder, expr) {
+        if let Some((slice, false)) = self.calldata_bytes_source(builder, expr) {
             if let Some(ty) = self.get_expr_type(expr) {
                 return self.materialize_calldata_dyn_array_for_ty(builder, ty, slice);
             }

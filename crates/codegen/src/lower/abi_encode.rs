@@ -486,7 +486,7 @@ impl<'gcx> Lowerer<'gcx> {
         expr: &solar_sema::hir::Expr<'_>,
         ty: Ty<'gcx>,
     ) -> ValueId {
-        if let Some((slice, is_bytes)) = self.calldata_dyn_slice(builder, expr) {
+        if let Some((slice, is_bytes)) = self.calldata_bytes_source(builder, expr) {
             return if is_bytes {
                 self.materialize_calldata_bytes(builder, slice)
             } else {

@@ -493,6 +493,23 @@ impl<'gcx> Lowerer<'gcx> {
 
             ExprKind::Slice(base, start, end) => {
                 if let Some((slice, is_bytes)) = self.calldata_bytes_source(builder, base) {
+                    // A slice of a calldata array whose elements are dynamic
+                    // keeps element offset words relative to the original
+                    // array base, which the slice value does not carry, so a
+                    // rebuild would read from the wrong positions. Reject
+                    // rather than miscompile.
+                    if !is_bytes
+                        && let Some(ty) = self.get_expr_type(base)
+                        && let TyKind::DynArray(elem) = ty.peel_refs().kind
+                        && !self.abi_is_word_element(elem)
+                    {
+                        return self.err_value(
+                            builder,
+                            expr.span,
+                            "codegen does not support slicing a calldata array of dynamic \
+                             elements yet",
+                        );
+                    }
                     let base_ptr = builder.slice_ptr(slice);
                     let base_len = builder.slice_len(slice);
                     let start_val = start

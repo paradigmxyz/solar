@@ -1,0 +1,55 @@
+// === ROOT/tests/ui/codegen/lowering/calldata_array_subslice.sol:CalldataArraySubslice ===
+@module CalldataArraySubslice
+fn @word(arg0: calldataslice) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v3 = slice_ptr arg0
+    v4 = slice_len arg0
+    v5 = lt v4, 1
+    br v5, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v6 = sub v4, 1
+    v7 = mul 1, 32
+    v8 = add v3, v7
+    v9 = make_calldata_slice v8, v6
+    v10 = slice_len v9
+    v11 = slice_ptr v9
+    v12 = shr 251, v10
+    br v12, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v13 = mul v10, 32
+    v14 = add 32, v13
+    v15 = alloc memoryarray<1>, exact, uninitialized, infallible, v14
+    set_memory_object_len memoryarray, v15, v10
+    v16 = memory_object_data memoryarray, v15
+    calldatacopy v16, v11, v13
+    v17 = alloc raw, exact, uninitialized, infallible, 32
+    v18 = add v17, 32
+    v19 = sub v18, v17
+    mstore v17, v19
+    v20 = memory_object_len memoryarray, v15
+    mstore v18, v20
+    v21 = mul v20, 32
+    v22 = add v18, 32
+    v23 = memory_object_data memoryarray, v15
+    v24 = add v22, v21
+    mcopy v22, v23, v21
+    v25 = sub v24, v17
+    returndata v17, v25
+}
+
