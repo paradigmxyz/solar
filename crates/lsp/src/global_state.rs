@@ -358,11 +358,7 @@ impl GlobalStateSnapshot {
         let workspace_path_index = WorkspacePathIndex::new(&workspaces);
         let mut batches = workspaces
             .iter()
-            .map(|workspace| AnalysisBatch {
-                opts: workspace.compile_opts().clone(),
-                files: Vec::new(),
-                seen_paths: FxHashSet::default(),
-            })
+            .map(|workspace| AnalysisBatch::new(workspace.compile_opts().clone()))
             .collect::<Vec<_>>();
         let source_map = SourceMap::empty();
 
@@ -443,6 +439,20 @@ struct AnalysisBatch {
 }
 
 impl AnalysisBatch {
+    fn new(opts: CompileOpts) -> Self {
+        Self { opts, files: Vec::new(), seen_paths: FxHashSet::default() }
+    }
+
+    #[cfg(any(test, feature = "bench"))]
+    fn from_files(opts: CompileOpts, files: impl IntoIterator<Item = (PathBuf, String)>) -> Self {
+        let mut batch = Self::new(opts);
+        for (path, contents) in files {
+            batch.push_file(path, contents);
+        }
+        batch.finish();
+        batch
+    }
+
     fn push_file(&mut self, path: PathBuf, contents: String) {
         if self.seen_paths.insert(path.clone()) {
             self.files.push((path, contents));
@@ -454,15 +464,39 @@ impl AnalysisBatch {
     }
 }
 
+#[cfg(test)]
+mod analysis_batch_tests {
+    use super::*;
+
+    #[test]
+    fn from_files_tracks_unique_sorted_paths() {
+        let a = PathBuf::from("a.sol");
+        let b = PathBuf::from("b.sol");
+        let batch = AnalysisBatch::from_files(
+            CompileOpts::default(),
+            [
+                (b.clone(), "contract B {}".into()),
+                (a.clone(), "contract A {}".into()),
+                (b.clone(), "contract Duplicate {}".into()),
+            ],
+        );
+
+        assert_eq!(batch.files.len(), 2);
+        assert_eq!(batch.files[0], (a.clone(), "contract A {}".into()));
+        assert_eq!(batch.files[1], (b.clone(), "contract B {}".into()));
+        assert_eq!(batch.seen_paths, FxHashSet::from_iter([a, b]));
+    }
+}
+
 fn analyze(batch: AnalysisBatch) -> AnalysisResult {
     analyze_with_source_map(batch, Arc::new(SourceMap::empty()))
 }
 
 fn analyze_with_source_map(batch: AnalysisBatch, source_map: Arc<SourceMap>) -> AnalysisResult {
     let (emitter, diag_buffer) = InMemoryEmitter::new();
-    let document_link_sources =
-        batch.files.iter().map(|(path, _)| path.clone()).collect::<FxHashSet<_>>();
-    let mut opts = batch.opts;
+    let AnalysisBatch { mut opts, files, seen_paths: document_link_sources } = batch;
+    debug_assert_eq!(files.len(), document_link_sources.len());
+    debug_assert!(files.iter().all(|(path, _)| document_link_sources.contains(path)));
     opts.unstable.recover_incomplete_input = true;
     let sess = Session::builder()
         .opts(opts)
@@ -474,8 +508,7 @@ fn analyze_with_source_map(batch: AnalysisBatch, source_map: Arc<SourceMap>) -> 
     compiler.enter_mut(move |compiler| {
         {
             let mut parsing_context = compiler.parse();
-            let files = batch
-                .files
+            let files = files
                 .into_iter()
                 .map(|(path, contents)| {
                     parsing_context

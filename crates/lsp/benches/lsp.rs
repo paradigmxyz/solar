@@ -2,7 +2,7 @@
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use lsp_types::{GotoDefinitionResponse, HoverContents};
-use solar_lsp::{BenchmarkProject, BenchmarkRequest, BenchmarkResponse};
+use solar_lsp::{BenchmarkAnalysis, BenchmarkProject, BenchmarkRequest, BenchmarkResponse};
 use std::{hint::black_box, path::PathBuf};
 
 const ANALYSIS_FUNCTION_COUNTS: [usize; 2] = [64, 256];
@@ -13,6 +13,7 @@ const UNIFAP_PAIR: &str = "src/UnifapV2Pair.sol";
 const UNIFAP_FACTORY: &str = "src/UnifapV2Factory.sol";
 
 struct BenchmarkSource {
+    source: String,
     project: BenchmarkProject,
     hover_positions: Vec<(u32, u32)>,
 }
@@ -37,7 +38,7 @@ impl SourceBuilder {
     }
 
     fn finish(self) -> BenchmarkSource {
-        let project = BenchmarkProject::from_source(self.source);
+        let project = BenchmarkProject::from_source(self.source.clone());
         let hover_positions = self
             .hover_anchors
             .into_iter()
@@ -48,7 +49,7 @@ impl SourceBuilder {
                 (position.line, position.character)
             })
             .collect();
-        BenchmarkSource { project, hover_positions }
+        BenchmarkSource { source: self.source, project, hover_positions }
     }
 }
 
@@ -92,16 +93,16 @@ fn analysis_build(c: &mut Criterion) {
     let mut group = c.benchmark_group("lsp/analysis-build");
     for function_count in ANALYSIS_FUNCTION_COUNTS {
         let fixture = benchmark_source(function_count);
-        let analysis = fixture.project.clone().analyze();
+        let analysis = BenchmarkAnalysis::from_source(fixture.source.clone());
         assert_clean(&analysis);
-        group.throughput(Throughput::Bytes(fixture.project.source_bytes() as u64));
+        group.throughput(Throughput::Bytes(fixture.source.len() as u64));
         group.bench_with_input(
             BenchmarkId::from_parameter(function_count),
-            &fixture.project,
-            |b, project| {
+            &fixture.source,
+            |b, source| {
                 b.iter_batched(
-                    || project.clone(),
-                    |project| black_box(project.analyze()),
+                    || source.clone(),
+                    |source| black_box(BenchmarkAnalysis::from_source(black_box(source))),
                     BatchSize::PerIteration,
                 );
             },
@@ -234,37 +235,64 @@ fn project_analysis(c: &mut Criterion) {
     group.finish();
 }
 
-fn project_reanalysis_after_change(c: &mut Criterion) {
+fn project_analysis_after_edit(c: &mut Criterion) {
     let project = unifap_project();
     let edit = project
         .replacement_edit(UNIFAP_PAIR, "MINIMUM_LIQUIDITY = 1e3", "MINIMUM_LIQUIDITY = 1e4")
         .expect("the edit anchor should be unique");
-    let source_bytes = project.source_bytes() as u64;
 
     let mut preflight = project.clone();
     preflight.apply_edit(&edit).expect("the benchmark edit should apply");
+    let source_bytes = preflight.source_bytes() as u64;
     preflight
         .unique_anchor(UNIFAP_PAIR, "MINIMUM_LIQUIDITY = 1e4")
         .expect("the edited source should contain the replacement");
     let analysis = preflight.analyze();
     assert_clean(&analysis);
 
-    let mut group = c.benchmark_group("lsp/project-reanalysis-after-change");
+    let mut group = c.benchmark_group("lsp/project-analysis-after-edit");
     group.throughput(Throughput::Bytes(source_bytes));
     group.bench_function(UNIFAP_PROJECT, |b| {
         b.iter_batched(
-            || project.clone(),
-            |mut project| {
-                project.apply_edit(black_box(&edit)).expect("the benchmark edit should apply");
-                black_box(project.analyze())
+            || {
+                let mut project = project.clone();
+                project.apply_edit(&edit).expect("the benchmark edit should apply");
+                project
             },
+            |project| black_box(project.analyze()),
             BatchSize::PerIteration,
         );
     });
     group.finish();
 }
 
-fn project_requests(c: &mut Criterion) {
+fn project_edit_application(c: &mut Criterion) {
+    let project = unifap_project();
+    let edit = project
+        .replacement_edit(UNIFAP_PAIR, "MINIMUM_LIQUIDITY = 1e3", "MINIMUM_LIQUIDITY = 1e4")
+        .expect("the edit anchor should be unique");
+
+    let mut preflight = project.clone();
+    preflight.apply_edit(&edit).expect("the benchmark edit should apply");
+    preflight
+        .unique_anchor(UNIFAP_PAIR, "MINIMUM_LIQUIDITY = 1e4")
+        .expect("the edited source should contain the replacement");
+    let document_change =
+        project.document_change(&edit).expect("the benchmark document change should be prepared");
+
+    let mut group = c.benchmark_group("lsp/project-edit-application");
+    group.throughput(Throughput::Elements(1));
+    group.bench_function(UNIFAP_PROJECT, |b| {
+        b.iter_batched(
+            || document_change.clone(),
+            |change| black_box(change.apply()),
+            BatchSize::PerIteration,
+        );
+    });
+    group.finish();
+}
+
+fn symbol_table_queries(c: &mut Criterion) {
     let project = unifap_project();
     let requests = unifap_requests(&project);
     let analysis = project.analyze();
@@ -273,7 +301,7 @@ fn project_requests(c: &mut Criterion) {
         assert_unifap_response(name, analysis.execute(request));
     }
 
-    let mut group = c.benchmark_group("lsp/project-requests/unifap-v2");
+    let mut group = c.benchmark_group("lsp/symbol-table-queries/unifap-v2");
     group.throughput(Throughput::Elements(1));
     for (name, request) in &requests {
         group.bench_with_input(BenchmarkId::from_parameter(name), request, |b, request| {
@@ -283,12 +311,40 @@ fn project_requests(c: &mut Criterion) {
     group.finish();
 }
 
+fn workspace_symbol_scaling(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lsp/workspace-symbols");
+    for function_count in ANALYSIS_FUNCTION_COUNTS {
+        let analysis = benchmark_source(function_count).project.analyze();
+        assert_clean(&analysis);
+        let exact_query = format!("function_{:04}", function_count - 1);
+        for (case, query, expected) in
+            [("all", "function_", function_count), ("exact", exact_query.as_str(), 1)]
+        {
+            let request = BenchmarkRequest::WorkspaceSymbols { query: query.into() };
+            let BenchmarkResponse::WorkspaceSymbols(symbols) = analysis.execute(&request) else {
+                panic!("workspace-symbols benchmark returned the wrong response type")
+            };
+            assert_eq!(symbols.len(), expected);
+
+            group.throughput(Throughput::Elements(expected as u64));
+            group.bench_with_input(
+                BenchmarkId::new(case, function_count),
+                &request,
+                |b, request| b.iter(|| black_box(analysis.execute(black_box(request)))),
+            );
+        }
+    }
+    group.finish();
+}
+
 criterion_group!(
     benches,
     analysis_build,
     burst_hover,
     project_analysis,
-    project_reanalysis_after_change,
-    project_requests
+    project_analysis_after_edit,
+    project_edit_application,
+    symbol_table_queries,
+    workspace_symbol_scaling
 );
 criterion_main!(benches);

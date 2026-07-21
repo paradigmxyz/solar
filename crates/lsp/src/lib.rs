@@ -44,8 +44,8 @@ mod workspace;
 #[cfg(feature = "bench")]
 #[doc(hidden)]
 pub use global_state::benchmark::{
-    BenchmarkAnalysis, BenchmarkEdit, BenchmarkError, BenchmarkProject, BenchmarkRequest,
-    BenchmarkResponse,
+    BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkEdit, BenchmarkError, BenchmarkProject,
+    BenchmarkRequest, BenchmarkResponse,
 };
 
 #[cfg(test)]

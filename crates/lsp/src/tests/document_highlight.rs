@@ -7,7 +7,6 @@ use lsp_types::{
 };
 use snapbox::str;
 use solar_config::CompileOpts;
-use solar_interface::data_structures::map::FxHashSet;
 use std::{
     future::Future,
     sync::atomic::Ordering,
@@ -253,20 +252,18 @@ fn waits_for_current_analysis_before_returning_highlights() {
         "#,
     );
     let path = project.path("/Highlights.sol");
-    let old_tables = analyze(AnalysisBatch {
-        opts: CompileOpts::default(),
-        files: vec![(path.clone(), project.read_file("/Highlights.sol"))],
-        seen_paths: FxHashSet::default(),
-    })
+    let old_tables = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(path.clone(), project.read_file("/Highlights.sol"))],
+    ))
     .symbol_tables;
-    let new_tables = analyze(AnalysisBatch {
-        opts: CompileOpts::default(),
-        files: vec![(
+    let new_tables = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(
             path.clone(),
             "contract C {\n    uint256 placeholder;\n    uint256 value;\n    function write() external {\n        value = 1;\n    }\n}\n".into(),
         )],
-        seen_paths: FxHashSet::default(),
-    })
+    ))
     .symbol_tables;
     let uri = Url::from_file_path(path).unwrap();
     let params = DocumentHighlightParams {

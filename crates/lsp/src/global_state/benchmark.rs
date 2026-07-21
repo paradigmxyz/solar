@@ -1,6 +1,6 @@
 //! Benchmark-only, in-memory LSP analysis support.
 
-use super::{AnalysisBatch, DiagnosticMap, SymbolTables, analyze_with_source_map};
+use super::{AnalysisBatch, DiagnosticMap, SymbolTables, analyze, analyze_with_source_map};
 use crate::{project_fixture::ProjectFixture, utils::apply_document_changes, workspace::Workspace};
 use crop::Rope;
 use lsp_types::{
@@ -164,8 +164,15 @@ impl BenchmarkProject {
             loader_sources.insert(path.normalize(), source.clone());
             files.push((path.clone(), source));
         }
-        for include_path in &opts.include_paths {
-            collect_dependency_sources(file_loader, include_path, &mut loader_sources)?;
+        let mut dependency_roots = opts.include_paths.clone();
+        for remapping in &opts.import_remappings {
+            let target = Path::new(&remapping.path);
+            let target =
+                if target.is_absolute() { target.to_path_buf() } else { root.join(target) };
+            dependency_roots.push(target);
+        }
+        for dependency_root in deduplicate_dependency_roots(dependency_roots) {
+            collect_dependency_sources(file_loader, &dependency_root, &mut loader_sources)?;
         }
         if files.is_empty() {
             return Err(BenchmarkError::new(format!(
@@ -173,6 +180,7 @@ impl BenchmarkProject {
                 root.display()
             )));
         }
+        files.sort_by(|(lhs, _), (rhs, _)| lhs.cmp(rhs));
 
         let root = root.normalize();
         let loader = InMemoryFileLoader::new(root.clone(), loader_sources);
@@ -186,7 +194,14 @@ impl BenchmarkProject {
 
     /// The total number of bytes in all prepared primary and dependency sources.
     pub fn source_bytes(&self) -> usize {
-        self.loader.sources.values().map(String::len).sum()
+        let mut bytes = self.loader.corpus.sources.values().map(String::len).sum::<usize>();
+        for (path, source) in &self.loader.overlays {
+            if let Some(original) = self.loader.corpus.sources.get(path) {
+                bytes -= original.len();
+            }
+            bytes += source.len();
+        }
+        bytes
     }
 
     /// Resolve a unique source substring to its LSP URI and UTF-16 position.
@@ -236,19 +251,38 @@ impl BenchmarkProject {
 
     /// Apply an edit with the same UTF-16 range logic used by document-change notifications.
     pub fn apply_edit(&mut self, edit: &BenchmarkEdit) -> Result<(), BenchmarkError> {
-        let (_, source) =
-            self.files.iter_mut().find(|(path, _)| path == &edit.path).ok_or_else(|| {
+        let index =
+            self.files.binary_search_by(|(path, _)| path.cmp(&edit.path)).map_err(|_| {
                 BenchmarkError::new(format!(
                     "benchmark edit targets unknown source `{}`",
                     edit.path.display()
                 ))
             })?;
+        let source = &mut self.files[index].1;
         let updated =
             apply_document_changes(&Rope::from(source.as_str()), vec![edit.change.clone()])
                 .to_string();
         *source = updated.clone();
-        self.loader.sources.insert(edit.path.clone(), updated);
+        self.loader.overlays.insert(edit.path.clone(), updated);
         Ok(())
+    }
+
+    /// Prepare one production document change without including project harness conversions.
+    pub fn document_change(
+        &self,
+        edit: &BenchmarkEdit,
+    ) -> Result<BenchmarkDocumentChange, BenchmarkError> {
+        let index =
+            self.files.binary_search_by(|(path, _)| path.cmp(&edit.path)).map_err(|_| {
+                BenchmarkError::new(format!(
+                    "benchmark edit targets unknown source `{}`",
+                    edit.path.display()
+                ))
+            })?;
+        Ok(BenchmarkDocumentChange {
+            contents: Rope::from(self.files[index].1.as_str()),
+            changes: vec![edit.change.clone()],
+        })
     }
 
     /// Consume this prepared project and run the production compiler analysis pipeline.
@@ -257,10 +291,7 @@ impl BenchmarkProject {
         let default_uri = files.first().and_then(|(path, _)| Url::from_file_path(path).ok());
         let source_map = Arc::new(SourceMap::empty());
         source_map.set_file_loader(loader);
-        let result = analyze_with_source_map(
-            AnalysisBatch { opts, files, seen_paths: FxHashSet::default() },
-            source_map,
-        );
+        let result = analyze_with_source_map(AnalysisBatch::from_files(opts, files), source_map);
         BenchmarkAnalysis {
             root,
             diagnostics: result.diagnostics,
@@ -290,6 +321,23 @@ impl BenchmarkProject {
 pub struct BenchmarkEdit {
     path: PathBuf,
     change: TextDocumentContentChangeEvent,
+}
+
+/// An opaque document change input using the same Rope path as production notifications.
+#[doc(hidden)]
+#[derive(Clone)]
+pub struct BenchmarkDocumentChange {
+    contents: Rope,
+    changes: Vec<TextDocumentContentChangeEvent>,
+}
+
+impl BenchmarkDocumentChange {
+    /// Apply this prepared document change and return the edited document.
+    #[inline(never)]
+    pub fn apply(self) -> Self {
+        let Self { contents, changes } = self;
+        Self { contents: apply_document_changes(&contents, changes), changes: Vec::new() }
+    }
 }
 
 /// A synchronous LSP query against an analyzed benchmark project.
@@ -322,9 +370,20 @@ pub struct BenchmarkAnalysis {
 }
 
 impl BenchmarkAnalysis {
-    /// Analyze one in-memory Solidity source without touching the filesystem.
+    /// Analyze one in-memory Solidity source with the historical benchmark workload.
     pub fn from_source(source: String) -> Self {
-        BenchmarkProject::from_source(source).analyze()
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches");
+        let path = root.join("benchmark.sol");
+        let uri = Url::from_file_path(&path).expect("benchmark path should be a file URL");
+        let mut batch = AnalysisBatch::new(CompileOpts::default());
+        batch.push_file(path, source);
+        let result = analyze(batch);
+        Self {
+            root,
+            diagnostics: result.diagnostics,
+            symbol_tables: result.symbol_tables,
+            default_uri: Some(uri),
+        }
     }
 
     /// The number of diagnostics emitted for this analysis.
@@ -384,6 +443,11 @@ impl BenchmarkAnalysis {
 #[derive(Clone)]
 struct InMemoryFileLoader {
     root: PathBuf,
+    corpus: Arc<InMemoryCorpus>,
+    overlays: FxHashMap<PathBuf, String>,
+}
+
+struct InMemoryCorpus {
     sources: FxHashMap<PathBuf, String>,
     directories: FxHashSet<PathBuf>,
 }
@@ -402,11 +466,15 @@ impl InMemoryFileLoader {
                 current = directory.parent();
             }
         }
-        Self { root, sources, directories }
+        Self {
+            root,
+            corpus: Arc::new(InMemoryCorpus { sources, directories }),
+            overlays: FxHashMap::default(),
+        }
     }
 
     fn normalized(&self, path: &Path) -> PathBuf {
-        self.root.join(path).normalize()
+        if path.is_absolute() { path.normalize() } else { self.root.join(path).normalize() }
     }
 
     fn not_found(path: &Path) -> io::Error {
@@ -420,7 +488,10 @@ impl InMemoryFileLoader {
 impl FileLoader for InMemoryFileLoader {
     fn canonicalize_path(&self, path: &Path) -> io::Result<PathBuf> {
         let path = self.normalized(path);
-        if self.sources.contains_key(&path) || self.directories.contains(&path) {
+        if self.overlays.contains_key(&path)
+            || self.corpus.sources.contains_key(&path)
+            || self.corpus.directories.contains(&path)
+        {
             Ok(path)
         } else {
             Err(Self::not_found(&path))
@@ -436,7 +507,11 @@ impl FileLoader for InMemoryFileLoader {
 
     fn load_file(&self, path: &Path) -> io::Result<String> {
         let path = self.normalized(path);
-        self.sources.get(&path).cloned().ok_or_else(|| Self::not_found(&path))
+        self.overlays
+            .get(&path)
+            .or_else(|| self.corpus.sources.get(&path))
+            .cloned()
+            .ok_or_else(|| Self::not_found(&path))
     }
 
     fn load_binary_file(&self, path: &Path) -> io::Result<Vec<u8>> {
@@ -526,6 +601,19 @@ fn collect_dependency_sources(
     collect_dependency_sources_inner(file_loader, path, sources, &mut directory_stack)
 }
 
+fn deduplicate_dependency_roots(mut roots: Vec<PathBuf>) -> Vec<PathBuf> {
+    roots.iter_mut().for_each(|path| *path = path.normalize());
+    roots.sort();
+
+    let mut deduplicated = Vec::<PathBuf>::new();
+    for root in roots {
+        if !deduplicated.iter().any(|parent| root.starts_with(parent)) {
+            deduplicated.push(root);
+        }
+    }
+    deduplicated
+}
+
 fn collect_dependency_sources_inner(
     file_loader: &dyn FileLoader,
     path: &Path,
@@ -595,9 +683,10 @@ fn diagnostic_line(root: &Path, uri: &Url, diagnostic: &Diagnostic) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     #[cfg(unix)]
-    use std::{fs, os::unix::fs::symlink};
+    use std::os::unix::fs::symlink;
 
     #[cfg(unix)]
     #[test]
@@ -621,6 +710,23 @@ mod tests {
     }
 
     #[test]
+    fn dependency_roots_are_normalized_and_covered_children_are_removed() {
+        let root = PathBuf::from("/workspace");
+        let roots = vec![
+            root.join("vendor/package"),
+            root.join("lib/package/src"),
+            root.join("lib/./package"),
+            root.join("lib"),
+            root.join("vendor/package"),
+        ];
+
+        assert_eq!(
+            deduplicate_dependency_roots(roots),
+            [root.join("lib"), root.join("vendor/package")]
+        );
+    }
+
+    #[test]
     fn anchors_use_utf16_positions_and_require_uniqueness() {
         let project = BenchmarkProject::from_source("contract C { string s = \"中😀x\"; }".into());
         let (_, position) = project.unique_anchor("benchmark.sol", "x").unwrap();
@@ -640,6 +746,68 @@ mod tests {
     }
 
     #[test]
+    fn cloned_projects_share_prepared_loader_sources() {
+        let project = BenchmarkProject::from_source("contract C { uint x; }".into());
+        let cloned = project.clone();
+
+        assert!(Arc::ptr_eq(&project.loader.corpus, &cloned.loader.corpus));
+    }
+
+    #[test]
+    fn editing_a_clone_does_not_change_the_original_project() {
+        let project = BenchmarkProject::from_source("contract C { uint x; }".into());
+        let edit = project.replacement_edit("benchmark.sol", "uint x", "address x").unwrap();
+        let mut edited = project.clone();
+        edited.apply_edit(&edit).unwrap();
+
+        assert_eq!(project.source(Path::new("benchmark.sol")).unwrap().1, "contract C { uint x; }");
+        assert_eq!(
+            edited.source(Path::new("benchmark.sol")).unwrap().1,
+            "contract C { address x; }"
+        );
+        assert_eq!(
+            project.loader.load_file(Path::new("benchmark.sol")).unwrap(),
+            "contract C { uint x; }"
+        );
+        assert_eq!(
+            edited.loader.load_file(Path::new("benchmark.sol")).unwrap(),
+            "contract C { address x; }"
+        );
+    }
+
+    #[test]
+    fn edited_sources_are_loaded_from_the_project_overlay() {
+        let mut project = BenchmarkProject::from_source("contract C { uint x; }".into());
+        let edit = project.replacement_edit("benchmark.sol", "uint x", "address x").unwrap();
+        project.apply_edit(&edit).unwrap();
+
+        assert_eq!(
+            project.loader.load_file(Path::new("benchmark.sol")).unwrap(),
+            "contract C { address x; }"
+        );
+    }
+
+    #[test]
+    fn document_changes_use_the_production_rope_path() {
+        let project = BenchmarkProject::from_source("contract C { uint x; }".into());
+        let edit = project.replacement_edit("benchmark.sol", "uint x", "address value").unwrap();
+
+        let changed = project.document_change(&edit).unwrap().apply();
+
+        assert_eq!(changed.contents.to_string(), "contract C { address value; }");
+    }
+
+    #[test]
+    fn source_bytes_include_edit_overlays() {
+        let mut project = BenchmarkProject::from_source("contract C { uint x; }".into());
+        let original_bytes = project.source_bytes();
+        let edit = project.replacement_edit("benchmark.sol", "uint x", "address value").unwrap();
+        project.apply_edit(&edit).unwrap();
+
+        assert_eq!(project.source_bytes(), original_bytes + "address value".len() - "uint x".len());
+    }
+
+    #[test]
     fn foundry_benchmark_corpus_resolves_from_memory() {
         let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../..")
@@ -655,6 +823,36 @@ mod tests {
             analysis.execute(&BenchmarkRequest::Hover { uri: hover.0, position: hover.1 }),
             BenchmarkResponse::Hover(Some(_))
         ));
+    }
+
+    #[test]
+    fn foundry_benchmark_corpus_loads_explicit_remapping_targets() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("vendor/dep/src")).unwrap();
+        fs::write(
+            root.join("foundry.toml"),
+            r#"
+                [profile.default]
+                src = "src"
+                libs = []
+                auto_detect_remappings = false
+                remappings = ["@dep/=vendor/dep/src/"]
+            "#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("src/Main.sol"),
+            "import \"@dep/Dependency.sol\"; contract Main is Dependency {}",
+        )
+        .unwrap();
+        fs::write(root.join("vendor/dep/src/Dependency.sol"), "contract Dependency {}").unwrap();
+
+        let project = BenchmarkProject::from_foundry_manifest(root.join("foundry.toml")).unwrap();
+        let analysis = project.analyze();
+
+        assert_eq!(analysis.diagnostic_count(), 0, "{}", analysis.diagnostic_fingerprint());
     }
 
     #[test]
