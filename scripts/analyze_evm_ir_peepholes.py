@@ -31,7 +31,7 @@ DEFAULT_RUST_LOG = (
 )
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 STACK_OP_RE = re.compile(r"^(?:DUP|SWAP)\d+$|^POP$", re.IGNORECASE)
-EXACT_PUSH_RE = re.compile(r"^PUSH\d+\((0x[0-9a-f]+)\)$", re.IGNORECASE)
+EXACT_PUSH_RE = re.compile(r"^PUSH (0x[0-9a-f]+|[0-9]+)$", re.IGNORECASE)
 
 
 def field(line: str, name: str) -> str | None:
@@ -73,7 +73,10 @@ def normalize_instruction(instruction: str) -> str:
     match = EXACT_PUSH_RE.match(instruction)
     if match is None:
         return instruction
-    return "PUSH1" if int(match.group(1), 16) == 1 else "PUSH"
+    value = int(match.group(1), 0)
+    if value < 2:
+        return f"PUSH {value}"
+    return "PUSH"
 
 
 def analyze(args: argparse.Namespace) -> int:

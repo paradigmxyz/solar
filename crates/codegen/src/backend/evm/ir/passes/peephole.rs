@@ -24,7 +24,7 @@ pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
             target: TRACE_TARGET,
             module = %module.name,
             block = block.label,
-            instructions = %PatternSequence(&block.instructions),
+            instructions = ?PatternSequence(&block.instructions).to_string(),
             "evm_ir_peephole_input"
         );
         changed |= optimize(&mut block.instructions, &mut scratch, module.name, block.label) != 0;
@@ -54,8 +54,8 @@ fn optimize(
 fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32) -> bool {
     let stack = InstStack::new(instructions);
 
-    // `PUSH PUSH0 OP -> PUSH0`.
-    // `PUSH PUSH1 EXP -> PUSH1`.
+    // `PUSH x PUSH 0 OP -> PUSH 0`.
+    // `PUSH x PUSH 1 EXP -> PUSH 1`.
     if stack.len() >= 3
         && let Some(opcode) = raw_opcode(&stack[0])
         && let Some(value) = push_value(&stack[1])
@@ -74,11 +74,11 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
         }
     }
 
-    // `PUSH0 OP -> ∅`.
-    // `PUSH0 EQ -> ISZERO`.
-    // `PUSH0 OP -> POP PUSH0`.
-    // `PUSH1 MUL -> ∅`.
-    // `PUSH1 EXP -> POP PUSH1`.
+    // `PUSH 0 OP -> ∅`.
+    // `PUSH 0 EQ -> ISZERO`.
+    // `PUSH 0 OP -> POP PUSH 0`.
+    // `PUSH 1 MUL -> ∅`.
+    // `PUSH 1 EXP -> POP PUSH 1`.
     if stack.len() >= 2
         && let Some(opcode) = raw_opcode(&stack[0])
         && let Some(value) = push_value(&stack[1])
@@ -106,7 +106,7 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
         }
     }
 
-    // `PUSH POP -> ∅`.
+    // `PUSH x POP -> ∅`.
     if stack.len() >= 2 && raw_opcode(&stack[0]) == Some(op::POP) && is_removable_push(&stack[1]) {
         return rewrite(instructions, 2, Edit::Keep(0), module, block);
     }
@@ -200,7 +200,7 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
         }
     }
 
-    // `DUP1 PUSH(x) MSTORE DUP1 PUSH(x) MSTORE -> DUP1 PUSH(x) MSTORE`.
+    // `DUP1 PUSH x MSTORE DUP1 PUSH x MSTORE -> DUP1 PUSH x MSTORE`.
     if stack.len() >= 6
         && raw_opcode(&stack[0]) == Some(op::MSTORE)
         && let Some(a) = push_value(&stack[1])
@@ -213,7 +213,7 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
         return rewrite(instructions, 6, Edit::Keep(3), module, block);
     }
 
-    // `DUP1 PUSH(x) MSTORE POP PUSH(x) MLOAD -> DUP1 PUSH(x) MSTORE`.
+    // `DUP1 PUSH x MSTORE POP PUSH x MLOAD -> DUP1 PUSH x MSTORE`.
     if stack.len() >= 6
         && raw_opcode(&stack[0]) == Some(op::MLOAD)
         && let Some(a) = push_value(&stack[1])
@@ -263,12 +263,13 @@ fn rewrite(
         .then(|| InstructionSequence(&instructions[start..]).to_string());
     edit.apply(instructions, start);
     if let Some(input) = input {
+        let output = InstructionSequence(&instructions[start..]).to_string();
         trace!(
             target: TRACE_TARGET,
             module = %module,
             block,
-            input,
-            output = %InstructionSequence(&instructions[start..]),
+            input = ?input,
+            output = ?output,
             "evm_ir_peephole_rewrite"
         );
     }
@@ -377,9 +378,11 @@ impl fmt::Display for InstructionSequence<'_> {
                 f.write_str("PUSH_IMMUTABLE")?;
             } else if let Some(value) = push_value(inst) {
                 if value.is_zero() {
-                    f.write_str("PUSH0")?;
+                    f.write_str("PUSH 0")?;
+                } else if value == U256::ONE {
+                    f.write_str("PUSH 1")?;
                 } else {
-                    write!(f, "PUSH{}({value:#x})", value.byte_len())?;
+                    write!(f, "PUSH {value:#x}")?;
                 }
             } else if inst.is_encoded_push() {
                 f.write_str("PUSH_REF")?;
@@ -401,9 +404,9 @@ impl fmt::Display for PatternSequence<'_> {
             }
             if let Some(value) = push_value(inst) {
                 if value.is_zero() {
-                    f.write_str("PUSH0")?;
+                    f.write_str("PUSH 0")?;
                 } else if value == U256::ONE {
-                    f.write_str("PUSH1")?;
+                    f.write_str("PUSH 1")?;
                 } else {
                     f.write_str("PUSH")?;
                 }
