@@ -696,6 +696,16 @@ impl AliasAnalysis {
 
     /// Computes a location relationship without function-specific provenance.
     #[must_use]
+    /// An allocation-site base as `(site, is_loop_instance)`, or `None` for a
+    /// non-allocation base.
+    fn allocation_base(base: MemoryBase) -> Option<(InstId, bool)> {
+        match base {
+            MemoryBase::Allocation(id) => Some((id, false)),
+            MemoryBase::DynamicAllocation(id) => Some((id, true)),
+            _ => None,
+        }
+    }
+
     pub fn alias_locations(first: Location, second: Location) -> AliasResult {
         match (first, second) {
             (Location::Memory(first), Location::Memory(second)) => {
@@ -1030,17 +1040,29 @@ impl AliasAnalysis {
         {
             return AliasResult::NoAlias;
         }
-        if matches!(first.address.base, MemoryBase::DynamicAllocation(_))
-            || matches!(second.address.base, MemoryBase::DynamicAllocation(_))
-        {
-            return AliasResult::MayAlias;
+        // Two accesses based on distinct allocation sites never overlap: each
+        // `alloc` bumps the free-memory pointer into a fresh region, even
+        // across loop iterations, so a loop-instance allocation is still
+        // disjoint from every other allocation site. Two accesses to the same
+        // loop-instance allocation may hit the same or different instances, so
+        // they stay `MayAlias`; a dynamic allocation against a
+        // non-allocation base is likewise `MayAlias`.
+        let first_alloc = Self::allocation_base(first.address.base);
+        let second_alloc = Self::allocation_base(second.address.base);
+        match (first_alloc, second_alloc) {
+            (Some((a, a_dynamic)), Some((b, b_dynamic))) => {
+                if a != b {
+                    return AliasResult::NoAlias;
+                }
+                if a_dynamic || b_dynamic {
+                    return AliasResult::MayAlias;
+                }
+                // Same unique static allocation: compare offsets below.
+            }
+            (Some((_, true)), _) | (_, Some((_, true))) => return AliasResult::MayAlias,
+            _ => {}
         }
         if first.address.base != second.address.base {
-            if matches!(first.address.base, MemoryBase::Allocation(_))
-                && matches!(second.address.base, MemoryBase::Allocation(_))
-            {
-                return AliasResult::NoAlias;
-            }
             return AliasResult::MayAlias;
         }
         match (first.size, second.size) {
@@ -1664,6 +1686,38 @@ mod tests {
         assert!(matches!(address.base, MemoryBase::DynamicAllocation(_)));
         let location = MemoryLocation::new(address, LocationSize::Const(32));
         assert_eq!(aa.memory_alias(location, location), AliasResult::MayAlias);
+    }
+
+    #[test]
+    fn distinct_loop_allocations_do_not_alias() {
+        let mut func = function();
+        let (first, second) = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let condition = builder.add_param(MirType::Bool);
+            let header = builder.create_block();
+            let exit = builder.create_block();
+            builder.jump(header);
+            builder.switch_to_block(header);
+            let size = builder.imm_u64(32);
+            // Two distinct allocation sites inside the same loop: each bumps the
+            // free-memory pointer, so their regions never overlap.
+            let first = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
+            let second = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
+            builder.branch(condition, header, exit);
+            builder.switch_to_block(exit);
+            builder.stop();
+            (first, second)
+        };
+
+        let aa = AliasAnalysis::new(&func);
+        let location = |value| {
+            MemoryLocation::new(aa.memory_address(&func, value).unwrap(), LocationSize::Const(32))
+        };
+        assert!(matches!(location(first).address.base, MemoryBase::DynamicAllocation(_)));
+        assert!(matches!(location(second).address.base, MemoryBase::DynamicAllocation(_)));
+        assert_eq!(aa.memory_alias(location(first), location(second)), AliasResult::NoAlias);
+        // The same loop allocation still may hit different instances.
+        assert_eq!(aa.memory_alias(location(first), location(first)), AliasResult::MayAlias);
     }
 
     #[test]
