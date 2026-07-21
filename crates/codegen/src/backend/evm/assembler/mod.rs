@@ -646,6 +646,10 @@ mod tests {
         })
     }
 
+    fn assemble(assembler: &mut Assembler) -> AssembledCode {
+        solar_interface::enter(|| assembler.assemble())
+    }
+
     #[test]
     fn opcode_mnemonics_round_trip() {
         for opcode in 0..=u8::MAX {
@@ -703,7 +707,7 @@ mod tests {
         let large = U256::from(1u64 << 31);
 
         asm.emit_push(large);
-        let first = asm.assemble();
+        let first = assemble(&mut asm);
 
         assert_data_eq!(
             disassemble(&first.bytecode),
@@ -716,7 +720,7 @@ PUSH4 0x80000000
         assert_eq!(asm.push_values.len(), 0);
 
         asm.emit_push(U256::from(2));
-        let second = asm.assemble();
+        let second = assemble(&mut asm);
 
         assert_data_eq!(
             disassemble(&second.bytecode),
@@ -736,7 +740,7 @@ PUSH1 0x02
         });
 
         asm.emit_push(U256::ZERO);
-        let result = asm.assemble();
+        let result = assemble(&mut asm);
 
         assert_data_eq!(
             disassemble(&result.bytecode),
@@ -756,7 +760,7 @@ PUSH0
         });
 
         asm.emit_push(U256::ZERO);
-        let result = asm.assemble();
+        let result = assemble(&mut asm);
 
         assert_data_eq!(
             disassemble(&result.bytecode),
@@ -791,7 +795,7 @@ PUSH1 0x00
         unoptimized.emit_push(U256::MAX);
 
         assert_data_eq!(
-            disassemble(&size_optimized.assemble().bytecode),
+            disassemble(&assemble(&mut size_optimized).bytecode),
             str![[r#"
 PUSH0
 NOT
@@ -799,7 +803,7 @@ NOT
 "#]]
         );
         assert_data_eq!(
-            disassemble(&gas_optimized.assemble().bytecode),
+            disassemble(&assemble(&mut gas_optimized).bytecode),
             str![[r#"
 PUSH0
 NOT
@@ -807,7 +811,7 @@ NOT
 "#]]
         );
         assert_data_eq!(
-            disassemble(&unoptimized.assemble().bytecode),
+            disassemble(&assemble(&mut unoptimized).bytecode),
             str![[r#"
 PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
@@ -824,7 +828,7 @@ PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
         });
 
         asm.emit_push(U256::MAX);
-        let result = asm.assemble();
+        let result = assemble(&mut asm);
 
         assert_data_eq!(
             disassemble(&result.bytecode),
@@ -845,7 +849,7 @@ NOT
         asm.emit_op(op::ADD);
         asm.emit_op(op::STOP);
 
-        let result = asm.assemble();
+        let result = assemble(&mut asm);
 
         assert_data_eq!(
             disassemble(&result.bytecode),
@@ -875,7 +879,7 @@ ADD
         asm.define_label(end_label);
         asm.emit_op(op::STOP);
 
-        let result = asm.assemble();
+        let result = assemble(&mut asm);
 
         assert_data_eq!(
             disassemble(&result.bytecode),
@@ -912,7 +916,7 @@ JUMPDEST
         asm.define_label(second);
         asm.emit_op(op::STOP);
 
-        let result = asm.assemble();
+        let result = assemble(&mut asm);
 
         assert_data_eq!(
             disassemble(&result.bytecode),
@@ -953,7 +957,7 @@ JUMPDEST
         asm.define_label(hot);
         asm.emit_op(op::STOP);
 
-        let result = asm.assemble();
+        let result = assemble(&mut asm);
 
         assert_data_eq!(
             disassemble(&result.bytecode),
@@ -989,7 +993,7 @@ REVERT
         asm.emit_op(op::REVERT);
         asm.define_label(eof);
 
-        let result = asm.assemble();
+        let result = assemble(&mut asm);
 
         assert_data_eq!(
             disassemble(&result.bytecode),
@@ -1024,7 +1028,7 @@ REVERT
             asm.emit_op(op::REVERT);
         }
 
-        let result = asm.assemble();
+        let result = assemble(&mut asm);
 
         assert_data_eq!(
             disassemble(&result.bytecode),
@@ -1056,7 +1060,7 @@ REVERT
         asm.define_label(default);
         asm.emit_op(op::STOP);
 
-        let result = asm.assemble();
+        let result = assemble(&mut asm);
 
         assert_data_eq!(
             disassemble(&result.bytecode),
@@ -1084,7 +1088,7 @@ INVALID
         asm.emit_push(U256::ZERO);
         asm.emit_op(op::REVERT);
 
-        let result = asm.assemble();
+        let result = assemble(&mut asm);
 
         assert_data_eq!(
             disassemble(&result.bytecode),
@@ -1105,7 +1109,7 @@ REVERT
         asm.emit_push(U256::MAX);
         asm.emit_op(op::STOP);
 
-        let result = asm.assemble();
+        let result = assemble(&mut asm);
 
         assert_data_eq!(
             disassemble(&result.bytecode),
@@ -1125,7 +1129,7 @@ NOT
         asm.emit_push(mask);
         asm.emit_op(op::STOP);
 
-        let result = asm.assemble();
+        let result = assemble(&mut asm);
 
         assert_data_eq!(
             disassemble(&result.bytecode),
@@ -1146,7 +1150,7 @@ SHR
         asm.emit_push(!U256::from(31));
         asm.emit_op(op::STOP);
 
-        let result = asm.assemble();
+        let result = assemble(&mut asm);
 
         assert_data_eq!(
             disassemble(&result.bytecode),
@@ -1165,7 +1169,7 @@ NOT
         asm.emit_push(!U256::from(255));
         asm.emit_op(op::STOP);
 
-        let result = asm.assemble();
+        let result = assemble(&mut asm);
 
         assert_data_eq!(
             disassemble(&result.bytecode),
@@ -1185,7 +1189,7 @@ NOT
         asm.emit_push(selector);
         asm.emit_op(op::STOP);
 
-        let result = asm.assemble();
+        let result = assemble(&mut asm);
 
         assert_data_eq!(
             disassemble(&result.bytecode),
@@ -1207,7 +1211,7 @@ SHL
         asm.emit_push(value);
         asm.emit_op(op::STOP);
 
-        let result = asm.assemble();
+        let result = assemble(&mut asm);
 
         assert_data_eq!(
             disassemble(&result.bytecode),
