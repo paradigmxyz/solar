@@ -33,7 +33,7 @@ use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
 };
-use solar_interface::sym;
+use solar_interface::{Span, sym};
 use solar_sema::{Gcx, hir::StateMutability};
 use std::sync::Arc;
 
@@ -612,6 +612,12 @@ pub struct EvmCodegen<'gcx> {
     /// return.
     emitting_dispatch_entry: bool,
     capture_evm_ir: bool,
+    /// Instructions that survive MIR lowering and the word-based backend cannot
+    /// emit — an unsupported high-level construct rather than a miscompile. Each
+    /// is a `(span, message)` the caller turns into a diagnostic instead of the
+    /// backend panicking. Populated after the lowering passes and, when
+    /// non-empty, generation is skipped for the affected module.
+    unsupported: Vec<(Option<Span>, String)>,
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -652,6 +658,43 @@ impl<'gcx> EvmCodegen<'gcx> {
             in_internal_function: false,
             emitting_dispatch_entry: false,
             capture_evm_ir: false,
+            unsupported: Vec::new(),
+        }
+    }
+
+    /// Drains the unsupported-construct diagnostics collected during lowering.
+    /// The caller emits these against its diagnostic context, turning a
+    /// construct the backend cannot lower into a clean error rather than a
+    /// panic.
+    pub fn take_unsupported(&mut self) -> Vec<(Option<Span>, String)> {
+        std::mem::take(&mut self.unsupported)
+    }
+
+    /// Records any instruction that survives MIR lowering but the word-based
+    /// backend cannot emit — chiefly logical slices whose aggregate use slice
+    /// lowering could not fold. When this finds anything the module is left
+    /// ungenerated so the caller reports it instead of the backend panicking.
+    ///
+    /// Only live instructions — those still in a block — are checked, since the
+    /// instruction arena retains folded-away slices the backend never emits.
+    fn collect_unsupported(&mut self, module: &Module) {
+        'func: for func in module.functions.iter() {
+            for block in func.blocks.iter() {
+                for &inst_id in &block.instructions {
+                    let inst = &func.instructions[inst_id];
+                    let message = match inst.kind {
+                        InstKind::MakeSlice { .. }
+                        | InstKind::SlicePtr(_)
+                        | InstKind::SliceLen(_) => {
+                            "codegen does not support this calldata-slice usage yet"
+                        }
+                        _ => continue,
+                    };
+                    self.unsupported.push((inst.metadata.source_span(), message.to_string()));
+                    // One diagnostic per function is enough to explain the bail.
+                    continue 'func;
+                }
+            }
         }
     }
 
@@ -746,6 +789,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             return EvmArtifact::default();
         }
         self.run_optimization_passes(module);
+        if !self.unsupported.is_empty() {
+            return EvmArtifact::default();
+        }
         // First generate the runtime code
         let mut runtime_code = self.generate_runtime_code(module);
         if let Some(evm_ir) = &mut runtime_code.evm_ir {
@@ -1053,6 +1099,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             run_pass(self.gcx, module, &crate::pass::DCE_PASS);
         }
         run_pass(self.gcx, module, &crate::pass::LOWER_SLICES_PASS);
+        // A logical slice still live in a block after slice lowering is an
+        // aggregate use it could not fold — an unsupported pattern, not a
+        // miscompile. Record it and stop before the later phase transitions, so
+        // the module is skipped and the caller reports it rather than an
+        // `evm-shaped` phase-boundary check or the emitter panicking on it.
+        self.collect_unsupported(module);
+        if !self.unsupported.is_empty() {
+            return;
+        }
         if !self.gcx.sess.opts.unstable.no_mir_dispatch {
             run_pass(self.gcx, module, &crate::pass::LOWER_DISPATCH_PASS);
         }
