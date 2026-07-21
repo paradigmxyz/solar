@@ -847,31 +847,44 @@ impl InstSimplifier {
         func: &mut Function,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> usize {
-        let mut rewrites = Vec::new();
+        let externally_terminating =
+            func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback;
+        let mut branch_rewrites = Vec::new();
+        let mut empty_returns = Vec::new();
         for block_id in func.blocks.indices() {
-            let Some(Terminator::Branch { condition, .. }) = func.blocks[block_id].terminator
-            else {
-                continue;
-            };
-            let condition = mir_utils::resolve_replacement(condition, replacements);
-            if let Some(inner) = Self::iszero_operand(func, condition) {
-                rewrites.push((
-                    block_id,
-                    mir_utils::resolve_replacement(inner, replacements),
-                    true,
-                ));
-            } else if let Some(inner) = Self::nonzero_test_operand(func, condition) {
-                // `branch gt(x, 0)` / `branch lt(0, x)` test exactly `x != 0`,
-                // which is what `branch x` already does.
-                rewrites.push((
-                    block_id,
-                    mir_utils::resolve_replacement(inner, replacements),
-                    false,
-                ));
+            match func.blocks[block_id].terminator {
+                Some(Terminator::Branch { condition, .. }) => {
+                    let condition = mir_utils::resolve_replacement(condition, replacements);
+                    if let Some(inner) = Self::iszero_operand(func, condition) {
+                        branch_rewrites.push((
+                            block_id,
+                            mir_utils::resolve_replacement(inner, replacements),
+                            true,
+                        ));
+                    } else if let Some(inner) = Self::nonzero_test_operand(func, condition) {
+                        // `branch gt(x, 0)` / `branch lt(0, x)` test exactly `x != 0`,
+                        // which is what `branch x` already does.
+                        branch_rewrites.push((
+                            block_id,
+                            mir_utils::resolve_replacement(inner, replacements),
+                            false,
+                        ));
+                    }
+                }
+                Some(Terminator::ReturnData { size, .. })
+                    if externally_terminating
+                        && Self::is_zero(
+                            func,
+                            mir_utils::resolve_replacement(size, replacements),
+                        ) =>
+                {
+                    empty_returns.push(block_id);
+                }
+                _ => {}
             }
         }
 
-        for (block_id, inner, swap) in rewrites.iter().copied() {
+        for (block_id, inner, swap) in branch_rewrites.iter().copied() {
             {
                 let Some(Terminator::Branch { condition, then_block, else_block }) =
                     &mut func.blocks[block_id].terminator
@@ -884,8 +897,11 @@ impl InstSimplifier {
                 }
             }
         }
+        for &block_id in &empty_returns {
+            func.blocks[block_id].terminator = Some(Terminator::Stop);
+        }
 
-        rewrites.len()
+        branch_rewrites.len() + empty_returns.len()
     }
 
     /// Returns `x` when `value` computes `gt(x, 0)` or `lt(0, x)`, both of
