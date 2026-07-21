@@ -1594,6 +1594,21 @@ impl<'gcx> Lowerer<'gcx> {
             return self.lower_inline_void_call(builder, func_id, arg_vals);
         }
 
+        // A `bytes`/`string` calldata slice return crosses the internal-call
+        // boundary as an `(offset, length)` pair, which slice lowering does not
+        // expand on the return side; a real `internal_call` would leave a slice
+        // the backend cannot lower. Inline the callee instead so its named slice
+        // return is reconstructed at the call site (where it folds away). This
+        // is the `bytes calldata` helper idiom (`_emptyData`, `emptySignature`).
+        if self.returns_calldata_slice(func) {
+            return self.lower_calldata_slice_return_call(
+                builder,
+                func_id,
+                arg_vals,
+                has_storage_ref_param,
+            );
+        }
+
         // The SSA inline path (`lower_library_body_simple`) only models a
         // straight-line body that ends in a `return`. Anything else — a loop, an
         // `if`, a multi-statement control flow — is lowered as a real
@@ -1642,6 +1657,72 @@ impl<'gcx> Lowerer<'gcx> {
         self.exit_inline();
 
         result
+    }
+
+    /// Whether every return of `func` is a `bytes`/`string` calldata slice.
+    fn returns_calldata_slice(&self, func: &hir::Function<'_>) -> bool {
+        !func.returns.is_empty()
+            && func
+                .returns
+                .iter()
+                .all(|&id| Self::calldata_dynamic_var_kind(self.gcx.hir.variable(id)).is_some())
+    }
+
+    /// A body whose statements are straight-line — declarations, expressions,
+    /// assembly, and returns, with no statement-level control flow. Reading a
+    /// named return from `locals` after such a body observes its final value
+    /// with no branch merge to reconstruct, so inlining it is sound.
+    fn is_straight_line_body(body: &hir::Block<'_>) -> bool {
+        body.stmts.iter().all(|stmt| {
+            matches!(
+                stmt.kind,
+                hir::StmtKind::DeclSingle(_)
+                    | hir::StmtKind::Expr(_)
+                    | hir::StmtKind::AssemblyBlock(_)
+                    | hir::StmtKind::Return(_)
+            )
+        })
+    }
+
+    /// Lowers a call to an internal function that returns a calldata slice by
+    /// inlining its straight-line body, so the returned slice is a `make_slice`
+    /// at the call site. A callee that cannot be inlined — a storage-reference
+    /// parameter, a non-straight-line body, or recursion — is reported instead
+    /// of lowered to a slice the backend cannot handle.
+    fn lower_calldata_slice_return_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func_id: hir::FunctionId,
+        arg_vals: Vec<ValueId>,
+        has_storage_ref_param: bool,
+    ) -> ValueId {
+        let func = self.gcx.hir.function(func_id);
+        let inlinable = !has_storage_ref_param
+            && func.body.as_ref().is_some_and(Self::is_straight_line_body)
+            && !self.function_is_recursive(func_id);
+        if inlinable && self.try_enter_inline(func_id) {
+            let saved_locals = std::mem::take(&mut self.locals);
+            for (i, &param_id) in func.parameters.iter().enumerate() {
+                if let Some(&arg_val) = arg_vals.get(i) {
+                    self.locals.insert(param_id, arg_val);
+                }
+            }
+            let result = if let Some(body) = &func.body {
+                self.lower_library_body_simple(builder, body, func)
+            } else {
+                builder.imm_u64(0)
+            };
+            self.locals = saved_locals;
+            self.exit_inline();
+            return result;
+        }
+        let guar = self
+            .gcx
+            .dcx()
+            .err("returning a `bytes`/`string` calldata slice from this internal function is not yet supported in codegen")
+            .span(func.span)
+            .emit();
+        builder.error_value(guar)
     }
 
     fn lower_internal_call_fallback(
@@ -2085,6 +2166,18 @@ impl<'gcx> Lowerer<'gcx> {
                     return self.lower_internal_call_fallback(builder, func_id, arg_vals);
                 }
                 return self.lower_inline_void_call(builder, func_id, arg_vals);
+            }
+
+            // A library helper returning a calldata slice must inline for the
+            // same reason an internal one does (the fallback would leave a slice
+            // the backend cannot lower); non-inlinable shapes are reported.
+            if self.returns_calldata_slice(func) {
+                return self.lower_calldata_slice_return_call(
+                    builder,
+                    func_id,
+                    arg_vals,
+                    has_storage_ref_param,
+                );
             }
 
             if size_mode

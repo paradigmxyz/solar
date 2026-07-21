@@ -1,0 +1,13 @@
+error: returning a `bytes`/`string` calldata slice from this internal function is not yet supported in codegen
+   ╭▸ ROOT/tests/ui/codegen/lowering/calldata_slice_return_unsupported.sol:LL:CC
+   │
+LL │ ┏     function decode(bytes calldata data)
+LL │ ┃         internal
+LL │ ┃         pure
+LL │ ┃         returns (bytes calldata head)
+   ‡ ┃
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error: aborting due to 1 previous error
+

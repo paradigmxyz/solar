@@ -1715,6 +1715,14 @@ impl<'gcx> Lowerer<'gcx> {
             }
             return;
         }
+        // A Yul component assignment (`s.offset := ...`, `s.length := ...`,
+        // `p.slot := ...`) mutates the base variable, so it too must be tracked
+        // as reassigned; otherwise a slice rebuilt in one branch would leak into
+        // a sibling arm instead of merging through the variable's slot.
+        if let hir::ExprKind::YulMember(base, _) = &expr.kind {
+            self.mark_assigned_var(base);
+            return;
+        }
         if let Some(var_id) = self.ident_variable(expr) {
             self.assigned_vars.insert(var_id);
         }

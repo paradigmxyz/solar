@@ -1,0 +1,110 @@
+// === ROOT/tests/ui/codegen/lowering/calldata_slice_yul_bounds.sol:CalldataSliceYulBounds ===
+@module CalldataSliceYulBounds
+fn @_empty() -> memorybytes {
+  bb0 (entry):
+    v0 = internal_frame_addr 96
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = make_calldata_slice 0, 0
+    v2 = internal_frame_addr 96
+    v3 = mload v2 !metadata(memory=internal_frame)
+    ret v3
+}
+
+fn @emptyLen() {
+  bb0 (entry):
+    mstore 128, 0
+    v0 = make_calldata_slice 0, 0
+    v1 = slice_len v0
+    mstore 128, v1
+    returndata 128, 32
+}
+
+fn @_sink(arg0: calldataslice) -> u256 {
+  bb0 (entry):
+    v0 = internal_frame_addr 128
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = slice_len arg0
+    ret v1
+}
+
+fn @trimLen(arg0: calldataslice) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v3 = slice_ptr arg0
+    v4 = slice_len arg0
+    mstore 160, v3
+    mstore 192, v4
+    v5 = slice_ptr arg0
+    v6 = add v5, 4
+    v7 = mload 160
+    v8 = mload 192
+    v9 = make_calldata_slice v7, v8
+    v10 = slice_len v9
+    v11 = make_calldata_slice v6, v10
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    mstore 160, v12
+    mstore 192, v13
+    v14 = slice_len arg0
+    v15 = sub v14, 4
+    v16 = mload 160
+    v17 = mload 192
+    v18 = make_calldata_slice v16, v17
+    v19 = slice_ptr v18
+    v20 = make_calldata_slice v19, v15
+    v21 = slice_ptr v20
+    v22 = slice_len v20
+    mstore 160, v21
+    mstore 192, v22
+    v23 = mload 160
+    v24 = mload 192
+    v25 = make_calldata_slice v23, v24
+    v26 = slice_len v25
+    mstore 128, v26
+    returndata 128, 32
+}
+
+fn @conditional(arg0: calldataslice) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v3 = slice_ptr arg0
+    v4 = slice_len arg0
+    mstore 160, v3
+    mstore 192, v4
+    v5 = slice_len arg0
+    v6 = gt v5, 32
+    br v6, bb3, bb4
+  bb3:
+    v7 = mload 160
+    v8 = mload 192
+    v9 = make_calldata_slice v7, v8
+    v10 = slice_ptr v9
+    v11 = make_calldata_slice v10, 32
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    mstore 160, v12
+    mstore 192, v13
+    jump bb4
+  bb4:
+    v14 = mload 160
+    v15 = mload 192
+    v16 = make_calldata_slice v14, v15
+    v17 = slice_len v16
+    mstore 128, v17
+    returndata 128, 32
+}
+

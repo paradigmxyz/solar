@@ -736,8 +736,19 @@ impl<'gcx> Lowerer<'gcx> {
                 format!("unsupported Yul member `.{}`", member.name),
             );
         };
+        // Read the current calldata slice through its own storage: a
+        // reassignable slice lives in a two-word slot, so reading `locals`
+        // instead would observe a stale value that misses branch merges.
         let calldata_slice = Self::calldata_dynamic_var_kind(self.gcx.hir.variable(var_id))
-            .and_then(|_| self.locals.get(&var_id).copied());
+            .and_then(|_| {
+                if self.is_slice_slot_local(&var_id)
+                    && let Some(offset) = self.get_local_memory_offset(&var_id)
+                {
+                    Some(self.load_slice_slot(builder, offset, crate::mir::SliceLocation::Calldata))
+                } else {
+                    self.locals.get(&var_id).copied()
+                }
+            });
 
         match member.name {
             sym::slot => {
@@ -1436,6 +1447,65 @@ impl<'gcx> Lowerer<'gcx> {
                 {
                     self.locals.insert(*var_id, rhs);
                     self.storage_ref_locals.insert(*var_id);
+                    return;
+                }
+                // `d.offset := x` / `d.length := x` on a `bytes`/`string` calldata
+                // slice rewrites one component of its `(offset, length)` pair. The
+                // slice is reconstructed and rebound so later reads and calls see
+                // the update; this is the `bytes calldata` empty/sub-slice idiom
+                // (`data.length := 0`) used to build calldata slices in assembly.
+                if matches!(member.name, sym::offset | sym::length)
+                    && let Some(var_id) = self.ident_variable(base)
+                    && Self::calldata_dynamic_var_kind(self.gcx.hir.variable(var_id)).is_some()
+                {
+                    // A reassignable slice lives in a two-word slot; a
+                    // straight-line one in `locals`. Read the current slice
+                    // through its own storage so the untouched component is
+                    // preserved, and write the rebuilt slice back the same way —
+                    // a slot store is a conditional `mstore` that merges across
+                    // control flow, where a bare `locals` update would leak a
+                    // branch's value into its siblings.
+                    let slot = self
+                        .is_slice_slot_local(&var_id)
+                        .then(|| self.get_local_memory_offset(&var_id))
+                        .flatten();
+                    // Only an existing calldata slice contributes the untouched
+                    // component. A freshly declared slice is seeded with a
+                    // placeholder zero word, not a slice, so projecting it would
+                    // build a `slice_ptr`/`slice_len` of a non-slice value that
+                    // never folds; treat that as an unset `0` instead.
+                    let current = if let Some(offset) = slot {
+                        Some(self.load_slice_slot(
+                            builder,
+                            offset,
+                            crate::mir::SliceLocation::Calldata,
+                        ))
+                    } else {
+                        self.locals
+                            .get(&var_id)
+                            .copied()
+                            .filter(|&slice| Self::value_is_calldata_slice(builder, slice))
+                    };
+                    let ptr = if member.name == sym::offset {
+                        rhs
+                    } else if let Some(slice) = current {
+                        builder.slice_ptr(slice)
+                    } else {
+                        builder.imm_u64(0)
+                    };
+                    let len = if member.name == sym::length {
+                        rhs
+                    } else if let Some(slice) = current {
+                        builder.slice_len(slice)
+                    } else {
+                        builder.imm_u64(0)
+                    };
+                    let slice = builder.make_slice(ptr, len, crate::mir::SliceLocation::Calldata);
+                    if let Some(offset) = slot {
+                        self.store_slice_slot(builder, offset, slice);
+                    } else {
+                        self.locals.insert(var_id, slice);
+                    }
                     return;
                 }
                 self.gcx
