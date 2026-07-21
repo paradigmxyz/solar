@@ -789,7 +789,7 @@ PUSH1 0x02
             disassemble(&asm.assemble().bytecode),
             str![[r#"
 PUSH1 0x01
-PUSH1 0x05
+PUSH1 0x06
 MUL
 PUSH1 0x0e
 ADD
@@ -800,10 +800,10 @@ JUMPDEST
 INVALID
 STOP
 JUMPDEST
-PUSH2 0x0009
+PUSH3 0x000009
 JUMP
 JUMPDEST
-PUSH2 0x000b
+PUSH3 0x00000b
 JUMP
 
 "#]]

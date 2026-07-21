@@ -3,7 +3,9 @@
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 
-const LABEL_PUSH_LEN: usize = 3;
+// Ordinary label pushes relax after layout. Use their minimum possible size so
+// fixed-width tables are selected for size only when they beat the best case.
+const LABEL_PUSH_LEN: usize = 2;
 const JUMPDEST_LEN: usize = 1;
 const DEFAULT_JUMP_LEN: usize = LABEL_PUSH_LEN + 1;
 
@@ -15,10 +17,12 @@ const MOD_GAS: usize = 5;
 const MUL_GAS: usize = 5;
 const JUMPDEST_GAS: usize = 1;
 
-const INDEXED_JUMP_STUB_LEN: usize = 5;
-const INDEXED_JUMP_BASE_LEN: usize = 8;
+const INDEXED_JUMP_STUB_LEN: usize = 6;
+const INDEXED_JUMP_BASE_LEN: usize = 7;
+const INDEXED_JUMP_GUARD_LEN: usize = 1;
 const MIN_BUCKET_CASES: usize = 8;
 const MAX_DENSE_RANGE: usize = 4096;
+const MAX_BUCKET_CANDIDATES: usize = 33;
 
 /// Selected control-flow shape for a switch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -39,22 +43,21 @@ pub(super) fn select_switch_plan(
     optimization: OptimizationMode,
     evm_version: EvmVersion,
 ) -> SwitchPlan {
+    debug_assert!(values.windows(2).all(|values| values[0] < values[1]));
     if values.len() <= 1 || optimization == OptimizationMode::None {
         return SwitchPlan::Linear;
     }
 
     let mut best = (lowering_cost(values, values.len(), evm_version), SwitchPlan::Linear);
     if optimization == OptimizationMode::Gas {
-        for leaf_size in 1..values.len() {
+        for leaf_size in binary_leaf_sizes(values.len()) {
             let cost = lowering_cost(values, leaf_size, evm_version);
             if cost.gas_key() < best.0.gas_key() {
                 best = (cost, SwitchPlan::Binary { leaf_size });
             }
         }
         if values.len() >= MIN_BUCKET_CASES {
-            let first_bucket_count = (values.len() * 3 / 4).max(2);
-            let last_bucket_count = values.len() * 5 / 4;
-            for bucket_count in first_bucket_count..=last_bucket_count {
+            for bucket_count in bucket_count_candidates(values.len()) {
                 let cost = bucket_lowering_cost(values, bucket_count, evm_version);
                 if cost.gas_key() < best.0.gas_key() {
                     best = (cost, SwitchPlan::Buckets { bucket_count });
@@ -112,9 +115,49 @@ fn lowering_cost(values: &[U256], leaf_size: usize, evm_version: EvmVersion) -> 
     let right = lowering_cost(&values[mid..], leaf_size, evm_version);
     LoweringCost {
         code_size: split.code_size + JUMPDEST_LEN + left.code_size + right.code_size,
-        hit_gas_sum: split.gas * values.len() + left.hit_gas_sum + right.hit_gas_sum,
-        miss_gas: split.gas + left.miss_gas.max(right.miss_gas),
+        hit_gas_sum: split.gas * values.len()
+            + left.hit_gas_sum
+            + mid * JUMPDEST_GAS
+            + right.hit_gas_sum,
+        miss_gas: split.gas + (left.miss_gas + JUMPDEST_GAS).max(right.miss_gas),
     }
+}
+
+fn binary_leaf_sizes(len: usize) -> Vec<usize> {
+    let mut pending = vec![len];
+    let mut sizes = Vec::new();
+    while let Some(len) = pending.pop() {
+        if len <= 1 {
+            continue;
+        }
+        let mid = len / 2;
+        for child in [mid, len - mid] {
+            if child > 0 && child < len && !sizes.contains(&child) {
+                sizes.push(child);
+                pending.push(child);
+            }
+        }
+    }
+    sizes.sort_unstable();
+    sizes
+}
+
+fn bucket_count_candidates(len: usize) -> Vec<usize> {
+    let first = (len.saturating_mul(3) / 4).max(2);
+    let last = len.saturating_mul(5) / 4;
+    let count = last - first + 1;
+    if count <= MAX_BUCKET_CANDIDATES {
+        return (first..=last).collect();
+    }
+
+    let span = last - first;
+    let denominator = MAX_BUCKET_CANDIDATES - 1;
+    let mut candidates = (0..MAX_BUCKET_CANDIDATES)
+        .map(|index| first + span.saturating_mul(index) / denominator)
+        .collect::<Vec<_>>();
+    candidates.sort_unstable();
+    candidates.dedup();
+    candidates
 }
 
 fn bucket_lowering_cost(
@@ -142,6 +185,7 @@ fn bucket_lowering_cost(
     let mut cost = LoweringCost {
         code_size: hash_len
             + INDEXED_JUMP_BASE_LEN
+            + INDEXED_JUMP_GUARD_LEN
             + bucket_count * INDEXED_JUMP_STUB_LEN
             + bucket_count * (JUMPDEST_LEN + DEFAULT_JUMP_LEN),
         hit_gas_sum: dispatch_gas * values.len(),
@@ -196,6 +240,7 @@ fn dense_lowering_cost(
                 + DEFAULT_JUMP_LEN
                 + JUMPDEST_LEN
                 + INDEXED_JUMP_BASE_LEN
+                + INDEXED_JUMP_GUARD_LEN
                 + range * INDEXED_JUMP_STUB_LEN,
             hit_gas_sum: hit_gas * values.len(),
             miss_gas,
@@ -263,6 +308,20 @@ mod tests {
     }
 
     #[test]
+    fn accounts_for_taken_binary_split_labels() {
+        let values = (0..7).map(|value| U256::from(1 + value * 7919)).collect::<Vec<_>>();
+        assert_eq!(
+            select_switch_plan(&values, OptimizationMode::Gas, EvmVersion::Cancun),
+            SwitchPlan::Binary { leaf_size: 4 }
+        );
+    }
+
+    #[test]
+    fn bounds_bucket_search_for_large_switches() {
+        assert!(bucket_count_candidates(10_000).len() <= MAX_BUCKET_CANDIDATES);
+    }
+
+    #[test]
     fn preserves_linear_shape_outside_gas_mode() {
         let sparse = (0..64).map(|value| U256::from(value * 7919)).collect::<Vec<_>>();
         assert_eq!(
@@ -286,10 +345,18 @@ mod tests {
 
     #[test]
     fn selects_dense_table_for_compact_ranges() {
-        let values = values(8);
+        let values = values(24);
         assert_eq!(
             select_switch_plan(&values, OptimizationMode::Size, EvmVersion::Cancun),
-            SwitchPlan::Dense { low: U256::ZERO, range: 8 }
+            SwitchPlan::Dense { low: U256::ZERO, range: 24 }
+        );
+    }
+
+    #[test]
+    fn rejects_larger_dense_table_for_small_compact_ranges() {
+        assert_eq!(
+            select_switch_plan(&values(8), OptimizationMode::Size, EvmVersion::Cancun),
+            SwitchPlan::Linear
         );
     }
 }

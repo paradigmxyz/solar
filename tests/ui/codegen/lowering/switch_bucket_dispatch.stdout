@@ -20,8 +20,6 @@ bb0 (entry):
   swap1
   mod
   indexed_jump bb3, bb75, bb75, bb6, bb75, bb8, bb75, bb10, bb75, bb75, bb13, bb14, bb75, bb16, bb75, bb18, bb19, bb20, bb21, bb75, bb75, bb24, bb25, bb26, bb75, bb75, bb29, bb30, bb31, bb32, bb33, bb75, bb35, bb36, bb37, bb75, bb39, bb75, bb75, bb42
-bb76:
-  stop
 bb3:
   dup1
   push 0xcbf99d38
@@ -167,3 +165,5 @@ bb42:
   dup1
   push 0x1f49dbe7
   jump bb77
+bb76:
+  stop

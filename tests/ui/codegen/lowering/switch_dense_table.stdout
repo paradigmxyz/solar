@@ -34,14 +34,14 @@ bb0 (entry):
   swap1
   sub
   dup1
-  push 8
+  push 24
   gt
   push bb7
   jumpi
   pop
   push 255
-  jump bb18
-bb18:
+  jump bb34
+bb34:
   push 0
   sstore
   stop
@@ -50,28 +50,76 @@ bb4 [cold]:
   dup1
   revert
 bb7:
-  indexed_jump bb10, bb11, bb12, bb13, bb14, bb15, bb16, bb17
+  indexed_jump bb10, bb11, bb12, bb13, bb14, bb15, bb16, bb17, bb18, bb19, bb20, bb21, bb22, bb23, bb24, bb25, bb26, bb27, bb28, bb29, bb30, bb31, bb32, bb33
 bb10:
   push 10
-  jump bb18
+  jump bb34
 bb11:
   push 11
-  jump bb18
+  jump bb34
 bb12:
   push 12
-  jump bb18
+  jump bb34
 bb13:
   push 13
-  jump bb18
+  jump bb34
 bb14:
   push 14
-  jump bb18
+  jump bb34
 bb15:
   push 15
-  jump bb18
+  jump bb34
 bb16:
   push 16
-  jump bb18
+  jump bb34
 bb17:
   push 17
-  jump bb18
+  jump bb34
+bb18:
+  push 18
+  jump bb34
+bb19:
+  push 19
+  jump bb34
+bb20:
+  push 20
+  jump bb34
+bb21:
+  push 21
+  jump bb34
+bb22:
+  push 22
+  jump bb34
+bb23:
+  push 23
+  jump bb34
+bb24:
+  push 24
+  jump bb34
+bb25:
+  push 25
+  jump bb34
+bb26:
+  push 26
+  jump bb34
+bb27:
+  push 27
+  jump bb34
+bb28:
+  push 28
+  jump bb34
+bb29:
+  push 29
+  jump bb34
+bb30:
+  push 30
+  jump bb34
+bb31:
+  push 31
+  jump bb34
+bb32:
+  push 32
+  jump bb34
+bb33:
+  push 33
+  jump bb34

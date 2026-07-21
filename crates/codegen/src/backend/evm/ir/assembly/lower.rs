@@ -8,8 +8,10 @@ use crate::backend::evm::{
 };
 use solar_data_structures::bit_set::DenseBitSet;
 
-const INDEXED_JUMP_TARGET_WIDTH: u8 = 2;
-const INDEXED_JUMP_STUB_LEN: usize = 5;
+// Three bytes cover initcode permitted by current block gas limits, including
+// pre-Shanghai versions without EIP-3860's explicit initcode size cap.
+const INDEXED_JUMP_TARGET_WIDTH: u8 = 3;
+const INDEXED_JUMP_STUB_LEN: usize = 6;
 
 /// Lowers finalized EVM IR into the linear label-bearing assembly stream.
 pub(in crate::backend::evm) fn lower_evm_ir(

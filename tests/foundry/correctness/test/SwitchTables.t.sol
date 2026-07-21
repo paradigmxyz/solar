@@ -15,6 +15,22 @@ contract SwitchTables {
             case 15 { result := 105 }
             case 16 { result := 106 }
             case 17 { result := 107 }
+            case 18 { result := 108 }
+            case 19 { result := 109 }
+            case 20 { result := 110 }
+            case 21 { result := 111 }
+            case 22 { result := 112 }
+            case 23 { result := 113 }
+            case 24 { result := 114 }
+            case 25 { result := 115 }
+            case 26 { result := 116 }
+            case 27 { result := 117 }
+            case 28 { result := 118 }
+            case 29 { result := 119 }
+            case 30 { result := 120 }
+            case 31 { result := 121 }
+            case 32 { result := 122 }
+            case 33 { result := 123 }
             default { result := 999 }
         }
     }
@@ -158,22 +174,84 @@ contract SwitchTablesTest {
     function testBucketDispatch() public {
         tables.f00();
         assert(tables.value() == 0);
+        tables.f01();
+        assert(tables.value() == 1);
+        tables.f02();
+        assert(tables.value() == 2);
+        tables.f03();
+        assert(tables.value() == 3);
+        tables.f04();
+        assert(tables.value() == 4);
+        tables.f05();
+        assert(tables.value() == 5);
+        tables.f06();
+        assert(tables.value() == 6);
         tables.f07();
         assert(tables.value() == 7);
+        tables.f08();
+        assert(tables.value() == 8);
+        tables.f09();
+        assert(tables.value() == 9);
+        tables.f10();
+        assert(tables.value() == 10);
+        tables.f11();
+        assert(tables.value() == 11);
+        tables.f12();
+        assert(tables.value() == 12);
+        tables.f13();
+        assert(tables.value() == 13);
+        tables.f14();
+        assert(tables.value() == 14);
+        tables.f15();
+        assert(tables.value() == 15);
+        tables.f16();
+        assert(tables.value() == 16);
+        tables.f17();
+        assert(tables.value() == 17);
+        tables.f18();
+        assert(tables.value() == 18);
+        tables.f19();
+        assert(tables.value() == 19);
+        tables.f20();
+        assert(tables.value() == 20);
+        tables.f21();
+        assert(tables.value() == 21);
+        tables.f22();
+        assert(tables.value() == 22);
+        tables.f23();
+        assert(tables.value() == 23);
+        tables.f24();
+        assert(tables.value() == 24);
+        tables.f25();
+        assert(tables.value() == 25);
+        tables.f26();
+        assert(tables.value() == 26);
+        tables.f27();
+        assert(tables.value() == 27);
+        tables.f28();
+        assert(tables.value() == 28);
+        tables.f29();
+        assert(tables.value() == 29);
+        tables.f30();
+        assert(tables.value() == 30);
         tables.f31();
         assert(tables.value() == 31);
     }
 
     function testBucketDispatchMiss() public {
-        (bool success,) = address(tables).call(hex"ffffffff");
-        assert(!success);
+        (bool firstBucket,) = address(tables).call(hex"00000000");
+        assert(!firstBucket);
+        (bool lastBucket,) = address(tables).call(hex"00000027");
+        assert(!lastBucket);
+        (bool interiorBucket,) = address(tables).call(hex"ffffffff");
+        assert(!interiorBucket);
     }
 
     function testDenseSwitch() public view {
         assert(tables.dense(9) == 999);
         assert(tables.dense(10) == 100);
-        assert(tables.dense(14) == 104);
-        assert(tables.dense(17) == 107);
-        assert(tables.dense(18) == 999);
+        assert(tables.dense(21) == 111);
+        assert(tables.dense(33) == 123);
+        assert(tables.dense(34) == 999);
     }
 }

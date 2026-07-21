@@ -246,7 +246,7 @@ fn estimated_terminator_size(
                 8
             }
         }
-        TerminatorKind::IndexedJump(targets) => 8 + targets.len() * 5,
+        TerminatorKind::IndexedJump(targets) => 7 + targets.len() * 6,
         TerminatorKind::Op(_) => 1,
     }
 }
