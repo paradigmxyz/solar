@@ -18,5 +18,7 @@ pub(crate) mod assembler;
 
 pub(crate) mod stack;
 
+mod switch;
+
 #[cfg(test)]
 pub(crate) mod test_utils;

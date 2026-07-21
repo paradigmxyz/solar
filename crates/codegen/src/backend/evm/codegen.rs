@@ -12,6 +12,7 @@ use super::{
     stack::{
         MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
     },
+    switch::{SwitchPlan, select_switch_plan},
 };
 use crate::{
     IMMUTABLE_SCRATCH_BASE, MULTI_RETURN_BUFFER_PTR_SLOT,
@@ -38,7 +39,6 @@ const INTERNAL_FRAME_PTR_SLOT: u64 = 0xa0;
 const LOW_MEMORY_START: u64 = 0x80;
 const CONSTRUCTOR_FREE_MEMORY_START: u64 = 0x4000;
 const CONSTRUCTOR_SPILL_BASE: u64 = 0x1000;
-const LINEAR_SELECTOR_DISPATCH_THRESHOLD: usize = 64;
 const STACK_PHI_LAYOUT_LIMIT: usize = 8;
 const GLOBAL_STACK_LAYOUT_LIMIT: usize = 8;
 const GLOBAL_STACK_MAX_ARGS: usize = 3;
@@ -137,6 +137,13 @@ enum StackPush {
 struct SelectorDispatchEntry {
     selector: u32,
     label: Label,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct MirSwitchEntry {
+    value: U256,
+    value_id: ValueId,
+    target: BlockId,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -645,6 +652,8 @@ pub struct EvmCodegen {
     emitting_dispatch_entry: bool,
     /// Optimization mode for MIR and EVM IR passes.
     optimization: OptimizationMode,
+    /// EVM version used by target-aware lowering decisions.
+    evm_version: EvmVersion,
     /// Print MIR after each pass before bytecode generation.
     mir_print_after_each: bool,
     time_passes: bool,
@@ -686,6 +695,7 @@ impl EvmCodegen {
             in_internal_function: false,
             emitting_dispatch_entry: false,
             optimization: config.optimization,
+            evm_version: config.evm_version,
             mir_print_after_each: config.mir_print_after_each,
             time_passes: config.time_passes,
             mir_dispatch: config.mir_dispatch,
@@ -1430,10 +1440,19 @@ impl EvmCodegen {
         fallback_label: Option<Label>,
         revert_label: Label,
     ) {
-        if selectors.len() <= LINEAR_SELECTOR_DISPATCH_THRESHOLD {
-            self.emit_linear_selector_dispatch(selectors, fallback_label, revert_label);
-        } else {
-            self.emit_binary_selector_dispatch(selectors, fallback_label, revert_label);
+        let values: Vec<_> = selectors.iter().map(|entry| U256::from(entry.selector)).collect();
+        match select_switch_plan(&values, self.optimization, self.evm_version) {
+            SwitchPlan::Linear => {
+                self.emit_linear_selector_dispatch(selectors, fallback_label, revert_label);
+            }
+            SwitchPlan::Binary { leaf_size } => {
+                self.emit_binary_selector_dispatch(
+                    selectors,
+                    fallback_label,
+                    revert_label,
+                    leaf_size,
+                );
+            }
         }
     }
 
@@ -1454,8 +1473,9 @@ impl EvmCodegen {
         selectors: &[SelectorDispatchEntry],
         fallback_label: Option<Label>,
         revert_label: Label,
+        leaf_size: usize,
     ) {
-        if selectors.len() <= LINEAR_SELECTOR_DISPATCH_THRESHOLD {
+        if selectors.len() <= leaf_size {
             self.emit_linear_selector_dispatch(selectors, fallback_label, revert_label);
             return;
         }
@@ -1471,16 +1491,30 @@ impl EvmCodegen {
         self.asm.emit_push_label(left_label);
         self.asm.emit_op(op::JUMPI);
 
-        self.emit_binary_selector_dispatch(&selectors[mid..], fallback_label, revert_label);
+        self.emit_binary_selector_dispatch(
+            &selectors[mid..],
+            fallback_label,
+            revert_label,
+            leaf_size,
+        );
 
         self.asm.define_label(left_label);
-        self.emit_binary_selector_dispatch(&selectors[..mid], fallback_label, revert_label);
+        self.emit_binary_selector_dispatch(
+            &selectors[..mid],
+            fallback_label,
+            revert_label,
+            leaf_size,
+        );
     }
 
     fn emit_selector_eq_jump(&mut self, entry: SelectorDispatchEntry) {
         self.asm.emit_op(op::dup(1));
-        self.asm.emit_push(U256::from(entry.selector));
-        self.asm.emit_op(op::EQ);
+        if entry.selector == 0 && self.optimization != OptimizationMode::None {
+            self.asm.emit_op(op::ISZERO);
+        } else {
+            self.asm.emit_push(U256::from(entry.selector));
+            self.asm.emit_op(op::EQ);
+        }
         self.asm.emit_push_label(entry.label);
         self.asm.emit_op(op::JUMPI);
     }
@@ -4805,6 +4839,103 @@ impl EvmCodegen {
         }
     }
 
+    fn constant_switch_entries(
+        &self,
+        func: &Function,
+        cases: &[(ValueId, BlockId)],
+    ) -> Option<Vec<MirSwitchEntry>> {
+        let mut entries = cases
+            .iter()
+            .map(|&(value_id, target)| {
+                let value = func.value(value_id).as_immediate()?.as_u256()?;
+                Some(MirSwitchEntry { value, value_id, target })
+            })
+            .collect::<Option<Vec<_>>>()?;
+        entries.sort_unstable_by_key(|entry| entry.value);
+        if entries.windows(2).any(|entries| entries[0].value == entries[1].value) {
+            return None;
+        }
+        Some(entries)
+    }
+
+    fn emit_linear_mir_switch(&mut self, func: &Function, cases: &[(ValueId, BlockId)]) {
+        for &(value_id, target) in cases {
+            let value = func.value(value_id).as_immediate().and_then(|value| value.as_u256());
+            self.emit_mir_switch_eq_jump(func, value_id, value, target);
+        }
+    }
+
+    fn emit_binary_mir_switch(
+        &mut self,
+        func: &Function,
+        entries: &[MirSwitchEntry],
+        default: BlockId,
+        can_fallthrough: bool,
+        leaf_size: usize,
+    ) {
+        if entries.len() <= leaf_size {
+            for entry in entries {
+                self.emit_mir_switch_eq_jump(func, entry.value_id, Some(entry.value), entry.target);
+            }
+            self.emit_mir_switch_default(default, can_fallthrough);
+            return;
+        }
+
+        let mid = entries.len() / 2;
+        let left_label = self.asm.new_label();
+        let entry_stack = self.scheduler.stack.clone();
+
+        // With the pivot on top, GT computes `pivot > selector`.
+        self.asm.emit_op(op::DUP1);
+        self.scheduler.stack.dup(1);
+        self.emit_operand(func, entries[mid].value_id);
+        self.asm.emit_op(op::GT);
+        self.scheduler.instruction_executed_untracked(2);
+        self.asm.emit_push_label(left_label);
+        self.asm.emit_op(op::JUMPI);
+        self.scheduler.instruction_executed(1, None);
+
+        self.emit_binary_mir_switch(func, &entries[mid..], default, false, leaf_size);
+
+        self.asm.define_label(left_label);
+        self.scheduler.stack = entry_stack;
+        self.emit_binary_mir_switch(func, &entries[..mid], default, can_fallthrough, leaf_size);
+    }
+
+    fn emit_mir_switch_eq_jump(
+        &mut self,
+        func: &Function,
+        value_id: ValueId,
+        value: Option<U256>,
+        target: BlockId,
+    ) {
+        self.asm.emit_op(op::DUP1);
+        self.scheduler.stack.dup(1);
+        if value.is_some_and(|value| value.is_zero()) && self.optimization != OptimizationMode::None
+        {
+            self.asm.emit_op(op::ISZERO);
+            self.scheduler.instruction_executed_untracked(1);
+        } else {
+            self.emit_operand(func, value_id);
+            self.asm.emit_op(op::EQ);
+            self.scheduler.instruction_executed_untracked(2);
+        }
+        self.asm.emit_push_label(self.block_labels[&target]);
+        self.asm.emit_op(op::JUMPI);
+        self.scheduler.instruction_executed(1, None);
+    }
+
+    fn emit_mir_switch_default(&mut self, default: BlockId, can_fallthrough: bool) {
+        if !self.emitting_dispatch_entry {
+            self.asm.emit_op(op::POP);
+            self.scheduler.stack.pop();
+        }
+        if !can_fallthrough {
+            self.asm.emit_push_label(self.block_labels[&default]);
+            self.asm.emit_op(op::JUMP);
+        }
+    }
+
     /// Generates bytecode for a terminator.
     fn generate_terminator(
         &mut self,
@@ -4922,6 +5053,12 @@ impl EvmCodegen {
             }
 
             Terminator::Switch { value, default, cases } => {
+                let constant_entries = self.constant_switch_entries(func, cases);
+                let plan = constant_entries.as_ref().map_or(SwitchPlan::Linear, |entries| {
+                    let values: Vec<_> = entries.iter().map(|entry| entry.value).collect();
+                    select_switch_plan(&values, self.optimization, self.evm_version)
+                });
+
                 if self.emitting_dispatch_entry {
                     // The dispatch entry's selector switch mirrors the backend
                     // dispatcher's shape: the just-computed selector stays on
@@ -4950,26 +5087,20 @@ impl EvmCodegen {
                     self.emit_value(func, *value);
                 }
 
-                for (case_val, target) in cases {
-                    // DUP the value, compare, jump if equal
-                    self.asm.emit_op(op::DUP1);
-                    self.scheduler.stack.dup(1);
-                    self.emit_operand(func, *case_val);
-                    self.asm.emit_op(op::EQ);
-                    self.scheduler.instruction_executed_untracked(2);
-                    self.asm.emit_push_label(self.block_labels[target]);
-                    self.asm.emit_op(op::JUMPI);
-                    self.scheduler.instruction_executed(1, None); // JUMPI consumes condition
-                }
-
-                if !self.emitting_dispatch_entry {
-                    // Pop the value before the default edge.
-                    self.asm.emit_op(op::POP);
-                    self.scheduler.stack.pop();
-                }
-                if Some(*default) != fallthrough {
-                    self.asm.emit_push_label(self.block_labels[default]);
-                    self.asm.emit_op(op::JUMP);
+                match (plan, constant_entries) {
+                    (SwitchPlan::Binary { leaf_size }, Some(entries)) => {
+                        self.emit_binary_mir_switch(
+                            func,
+                            &entries,
+                            *default,
+                            fallthrough == Some(*default),
+                            leaf_size,
+                        );
+                    }
+                    _ => {
+                        self.emit_linear_mir_switch(func, cases);
+                        self.emit_mir_switch_default(*default, fallthrough == Some(*default));
+                    }
                 }
             }
 
