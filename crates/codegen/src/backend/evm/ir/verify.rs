@@ -91,6 +91,21 @@ impl<'a> Verifier<'a> {
                 );
                 return;
             };
+            if inst.opcode != op::PUSH32 {
+                self.error_in_block(block_id, "encoded push must use the `PUSH32` opcode");
+            }
+            match inst.encoding {
+                Instruction::ENCODED_PUSH => {}
+                encoding if encoding == Instruction::ENCODED_PUSH | Instruction::DEFERRED => {
+                    self.verify_assembly_id(block_id, inst, value, "deferred constant");
+                }
+                encoding if encoding == Instruction::ENCODED_PUSH | Instruction::IMMUTABLE => {
+                    self.verify_assembly_id(block_id, inst, value, "immutable");
+                }
+                _ => {
+                    self.error_in_block(block_id, "invalid encoded push kind");
+                }
+            };
             if let PushValue::Block(target) = value
                 && !self.block_exists(module, *target)
             {
@@ -127,6 +142,25 @@ impl<'a> Verifier<'a> {
                 );
             }
             _ => {}
+        }
+    }
+
+    fn verify_assembly_id(
+        &self,
+        block_id: BlockId,
+        inst: &Instruction,
+        value: &PushValue,
+        name: &str,
+    ) {
+        let PushValue::Immediate(value) = value else {
+            self.error_in_block(
+                block_id,
+                format_args!("`{}` must carry an immediate {name} ID", inst.mnemonic()),
+            );
+            return;
+        };
+        if u32::try_from(*value).ok().is_none_or(|value| value > assembly::AsmInst::PAYLOAD_MASK) {
+            self.error_in_block(block_id, format_args!("{name} ID exceeds the assembler limit"));
         }
     }
 

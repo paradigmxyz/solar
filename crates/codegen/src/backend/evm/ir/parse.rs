@@ -186,22 +186,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return Ok(());
         }
 
-        let (opcode, encoding) = match mnemonic {
-            sym::push => (op::PUSH32, Instruction::ENCODED_PUSH),
-            sym::push_deferred => (op::PUSH32, Instruction::ENCODED_PUSH | Instruction::DEFERRED),
-            sym::push_immutable => (op::PUSH32, Instruction::ENCODED_PUSH | Instruction::IMMUTABLE),
-            _ => (
-                op::from_ir_symbol(mnemonic).ok_or_else(|| {
-                    self.parser.error(format!("unknown instruction opcode `{mnemonic}`"))
-                })?,
-                0,
-            ),
+        let mut inst = match mnemonic {
+            sym::push => match self.parse_push_value(module)? {
+                PushValue::Immediate(value) => Instruction::push_value(value),
+                PushValue::Block(block) => Instruction::push_block(block),
+            },
+            sym::push_deferred => {
+                let id = self.parse_assembly_id("deferred constant")?;
+                Instruction::push_deferred(assembly::DeferredConst::from_usize(id as usize))
+            }
+            sym::push_immutable => {
+                Instruction::push_immutable(self.parse_assembly_id("immutable")?)
+            }
+            _ => Instruction::opcode(op::from_ir_symbol(mnemonic).ok_or_else(|| {
+                self.parser.error(format!("unknown instruction opcode `{mnemonic}`"))
+            })?),
         };
-        let value = (encoding & Instruction::ENCODED_PUSH != 0)
-            .then(|| self.parse_push_value(module))
-            .transpose()?;
-        let metadata = self.parse_metadata()?;
-        module.blocks[block].instructions.push(Instruction { opcode, encoding, value, metadata });
+        inst.metadata = self.parse_metadata()?;
+        module.blocks[block].instructions.push(inst);
         Ok(())
     }
 
@@ -264,6 +266,22 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return Ok(PushValue::Block(self.block_id(module, label, span)?));
         }
         Err(self.parser.error("expected push value"))
+    }
+
+    fn parse_assembly_id(&mut self, name: &str) -> PResult<'sess, u32> {
+        let span = self.parser.token().span;
+        let value = self.parser.parse_uint()?;
+        let Ok(value) = u32::try_from(value) else {
+            return Err(self
+                .parser
+                .error_at(span, format!("{name} ID exceeds the assembler limit")));
+        };
+        if value > assembly::AsmInst::PAYLOAD_MASK {
+            return Err(self
+                .parser
+                .error_at(span, format!("{name} ID exceeds the assembler limit")));
+        }
+        Ok(value)
     }
 
     fn parse_block_ref(&mut self, module: &mut Module) -> PResult<'sess, BlockId> {
@@ -474,6 +492,58 @@ error: expected metadata value
   │
 6 │   add !meta(foo= )
   ╰╴                 ━
+
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn parser_rejects_invalid_special_pushes() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.dcx.set_flags(|flags| flags.track_diagnostics = false);
+        let cases = [
+            ("deferred-block.evmir", "push_deferred bb1"),
+            ("immutable-block.evmir", "push_immutable bb1"),
+            ("deferred-overflow.evmir", "push_deferred 0x10000000"),
+            ("immutable-overflow.evmir", "push_immutable 0x10000000"),
+        ];
+        sess.enter(|| {
+            for (name, instruction) in cases {
+                let input = format!("@module m\n\nbb0 (entry):\n  {instruction}\n  stop\n");
+                let source = sess
+                    .source_map()
+                    .new_source_file(FileName::Custom(name.into()), input)
+                    .unwrap();
+                assert!(Module::parse(&sess, &source).is_err());
+            }
+        });
+        assert_data_eq!(
+            sess.emitted_diagnostics().unwrap().to_string(),
+            str![[r#"
+error: expected integer literal
+  ╭▸ <deferred-block.evmir>:4:17
+  │
+4 │   push_deferred bb1
+  ╰╴                ━━━
+
+error: expected integer literal
+  ╭▸ <immutable-block.evmir>:4:18
+  │
+4 │   push_immutable bb1
+  ╰╴                 ━━━
+
+error: deferred constant ID exceeds the assembler limit
+  ╭▸ <deferred-overflow.evmir>:4:17
+  │
+4 │   push_deferred 0x10000000
+  ╰╴                ━━━━━━━━━━
+
+error: immutable ID exceeds the assembler limit
+  ╭▸ <immutable-overflow.evmir>:4:18
+  │
+4 │   push_immutable 0x10000000
+  ╰╴                 ━━━━━━━━━━
 
 
 "#]]

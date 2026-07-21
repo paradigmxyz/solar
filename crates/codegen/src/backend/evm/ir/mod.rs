@@ -177,6 +177,10 @@ impl Instruction {
     /// Creates an encoded deferred push instruction.
     #[must_use]
     pub(in crate::backend::evm) fn push_deferred(id: assembly::DeferredConst) -> Self {
+        assert!(
+            id.index() <= assembly::AsmInst::PAYLOAD_MASK as usize,
+            "deferred constant ID overflow"
+        );
         Self::encoded_push(
             PushValue::Immediate(U256::from(id.index())),
             Self::ENCODED_PUSH | Self::DEFERRED,
@@ -185,8 +189,12 @@ impl Instruction {
 
     /// Creates an encoded immutable push instruction.
     #[must_use]
-    pub(in crate::backend::evm) fn push_immutable(value: U256) -> Self {
-        Self::encoded_push(PushValue::Immediate(value), Self::ENCODED_PUSH | Self::IMMUTABLE)
+    pub(in crate::backend::evm) fn push_immutable(id: u32) -> Self {
+        assert!(id <= assembly::AsmInst::PAYLOAD_MASK, "immutable ID overflow");
+        Self::encoded_push(
+            PushValue::Immediate(U256::from(id)),
+            Self::ENCODED_PUSH | Self::IMMUTABLE,
+        )
     }
 
     fn encoded_push(value: PushValue, encoding: u8) -> Self {

@@ -189,7 +189,7 @@ impl Assembler {
 
     /// Emits a `PUSH32` zero placeholder for the immutable identified by `id`.
     pub(crate) fn emit_push_immutable(&mut self, id: u32) {
-        self.push_ir_instruction(ir::Instruction::push_immutable(U256::from(id)));
+        self.push_ir_instruction(ir::Instruction::push_immutable(id));
     }
 
     /// Defines a label and emits a `JUMPDEST` at the current position.

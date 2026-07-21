@@ -107,6 +107,8 @@ fn is_empty_revert(module: &Module, block: BlockId) -> bool {
 
 fn is_zero_push(inst: &Instruction) -> bool {
     (inst.is_encoded_push()
+        && inst.deferred_push().is_none()
+        && inst.immutable_push().is_none()
         && matches!(inst.value, Some(PushValue::Immediate(value)) if value == U256::ZERO))
         || (inst.opcode == op::PUSH0 && !inst.is_encoded_push())
 }
