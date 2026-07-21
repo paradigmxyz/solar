@@ -310,7 +310,9 @@ fn display_inst_kind<'a>(
     }
 
     fmt::from_fn(move |f| match kind {
-        InstKind::LoadImmutable(offset) => write!(f, "loadimmutable {offset}"),
+        InstKind::LoadImmutable { id, ty } => {
+            write!(f, "loadimmutable {}, {ty}", id.index())
+        }
         InstKind::InternalCall { function, args, returns } => {
             write!(f, "internal_call {}, {returns}", display_function_ref(*function, funcs))?;
             if !args.is_empty() {

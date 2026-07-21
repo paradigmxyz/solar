@@ -46,7 +46,8 @@
 use crate::{
     analysis::CfgInfo,
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, MirType, Value, ValueId, utils as mir_utils,
+        BlockId, Function, Immediate, ImmutableId, InstId, InstKind, MirType, Value, ValueId,
+        utils as mir_utils,
     },
     pass::FunctionPass,
 };
@@ -117,7 +118,7 @@ enum ExprKind {
     CalldataLoad(ClassId),
     BlockHash(ClassId),
     BlobHash(ClassId),
-    LoadImmutable(u32),
+    LoadImmutable(ImmutableId, MirType),
     Phi(BlockId, Vec<(BlockId, ClassId)>),
 }
 
@@ -348,7 +349,7 @@ impl GlobalValueNumberer {
             InstKind::BlockHash(a) => ExprKind::BlockHash(class(a)),
             InstKind::BlobHash(a) => ExprKind::BlobHash(class(a)),
             // Immutable reads are constant once the runtime code is patched.
-            InstKind::LoadImmutable(offset) => ExprKind::LoadImmutable(offset),
+            InstKind::LoadImmutable { id, ty } => ExprKind::LoadImmutable(id, ty),
             // Everything else (memory, storage, environment reads, calls,
             // gas/msize/returndatasize, keccak) never merges in this pass.
             _ => return None,

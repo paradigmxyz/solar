@@ -1,6 +1,6 @@
 //! MIR instructions.
 
-use super::{BlockId, Function, FunctionId, MirType, Value, ValueId};
+use super::{BlockId, Function, FunctionId, ImmutableId, MirType, Value, ValueId};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_interface::Span;
@@ -486,12 +486,12 @@ pub(crate) enum InstKind {
     ExtCodeCopy(ValueId, ValueId, ValueId, ValueId),
     /// Get external code hash: `extcodehash(addr)`
     ExtCodeHash(ValueId),
-    /// Read an immutable word identified by its byte offset: `loadimmutable <offset>`
+    /// Read a typed immutable identified by its module index: `loadimmutable <id>, <type>`
     ///
-    /// In runtime code this assembles to a `PUSH32` placeholder that the
+    /// In runtime code this assembles to a typed `PUSH<N>` placeholder that the
     /// constructor patches with the staged value before returning the runtime
     /// code. In constructor code it reads the staged scratch word instead.
-    LoadImmutable(u32),
+    LoadImmutable { id: ImmutableId, ty: MirType },
 
     // Return data operations
     /// Get return data size: `returndatasize()`
@@ -756,7 +756,7 @@ impl InstKind {
             | Self::CalldataSize
             | Self::InternalFrameAddr(_)
             | Self::CodeSize
-            | Self::LoadImmutable(_)
+            | Self::LoadImmutable { .. }
             | Self::ReturnDataSize
             | Self::Caller
             | Self::CallValue
@@ -905,7 +905,7 @@ impl InstKind {
             | Self::CalldataSize
             | Self::InternalFrameAddr(_)
             | Self::CodeSize
-            | Self::LoadImmutable(_)
+            | Self::LoadImmutable { .. }
             | Self::ReturnDataSize
             | Self::Caller
             | Self::CallValue
@@ -1016,7 +1016,7 @@ impl InstKind {
             Self::CalldataSize => "calldatasize",
             Self::CodeSize => "codesize",
             Self::CodeCopy(_, _, _) => "codecopy",
-            Self::LoadImmutable(_) => "loadimmutable",
+            Self::LoadImmutable { .. } => "loadimmutable",
             Self::ExtCodeSize(_) => "extcodesize",
             Self::ExtCodeCopy(_, _, _, _) => "extcodecopy",
             Self::ExtCodeHash(_) => "extcodehash",
@@ -1130,7 +1130,7 @@ impl InstKind {
             | Self::MappingSlotCalldata(_, _)
             | Self::CalldataSize
             | Self::CodeSize
-            | Self::LoadImmutable(_)
+            | Self::LoadImmutable { .. }
             | Self::ExtCodeSize(_)
             | Self::ExtCodeHash(_)
             | Self::ReturnDataSize

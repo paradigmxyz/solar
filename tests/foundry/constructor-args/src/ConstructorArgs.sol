@@ -18,3 +18,20 @@ contract ConstructorArgs {
         return owner;
     }
 }
+
+type Tiny is uint16;
+
+contract ImmutableArgs {
+    uint8 public immutable tiny;
+    int16 public immutable signed;
+    bytes3 public immutable fixedBytes = bytes3(uint24(0xABCDEF));
+    address public immutable account;
+    Tiny public immutable userDefined;
+
+    constructor(uint8 tiny_, int16 signed_, address account_, Tiny userDefined_) {
+        tiny = tiny_;
+        signed = signed_;
+        account = account_;
+        userDefined = userDefined_;
+    }
+}

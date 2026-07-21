@@ -19,7 +19,10 @@ use crate::{
         CallGraphInfo, CfgInfo, CopyDest, CopySource, Liveness, Loop, LoopAnalyzer, ParallelCopy,
         PhiEliminator,
     },
-    mir::{BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Terminator, ValueId},
+    mir::{
+        BlockId, Function, FunctionId, IMMUTABLE_SCRATCH_WORD_SIZE, ImmutableEncoding, ImmutableId,
+        InstId, InstKind, MirType, Module, Terminator, ValueId,
+    },
     pass::{PipelineOptions, run_default_pipeline, run_pass},
 };
 use alloy_primitives::U256;
@@ -625,7 +628,7 @@ pub struct EvmCodegen {
     /// Calldata words physically identical to arguments in the active global
     /// layout, adopted after their final validation use.
     global_stack_aliases: FxHashMap<ValueId, ValueId>,
-    /// Immutable `PUSH32` placeholders in the last assembled runtime code.
+    /// Immutable `PUSH<N>` placeholders in the last assembled runtime code.
     runtime_immutable_refs: Vec<ImmutableRef>,
     /// Whether we're currently generating constructor code.
     /// When true, LoadArg uses CODECOPY from the end of code instead of CALLDATALOAD.
@@ -790,12 +793,7 @@ impl EvmCodegen {
         // immutable placeholders with the staged scratch words before
         // returning. Copy to offset 0 unless that would overwrite the scratch
         // words before the patch loop reads them.
-        let copy_base = if !immutable_refs.is_empty() && runtime_len as u64 > IMMUTABLE_SCRATCH_BASE
-        {
-            IMMUTABLE_SCRATCH_BASE + module.immutable_data_len() as u64
-        } else {
-            0
-        };
+        let copy_base = Self::runtime_copy_base(module, runtime_len, &immutable_refs);
 
         // Generate constructor initialization and the deployment postlude as
         // one control-flow graph and optimize it once. Constructor arguments
@@ -834,7 +832,7 @@ impl EvmCodegen {
         // PUSH<n> offset        ; where runtime starts
         // PUSH<n> copy_base     ; memory destination
         // CODECOPY              ; copy runtime to memory
-        // [immutable patches]   ; patch staged words into the PUSH32 placeholders
+        // [immutable patches]   ; patch staged words into the PUSH<N> placeholders
         // PUSH<n> copy_base     ; memory offset
         // RETURN                ; return the runtime code
         if let Some(evm_ir) = &mut deploy_code.evm_ir {
@@ -862,8 +860,29 @@ impl EvmCodegen {
         }
     }
 
+    fn runtime_copy_base(
+        module: &Module,
+        runtime_len: usize,
+        immutable_refs: &[ImmutableRef],
+    ) -> u64 {
+        let patched_end = immutable_refs.iter().fold(runtime_len, |end, immutable_ref| {
+            end.max(
+                immutable_ref
+                    .code_offset
+                    .checked_add(IMMUTABLE_SCRATCH_WORD_SIZE + 1)
+                    .expect("immutable patch offset overflow"),
+            )
+        });
+        if !immutable_refs.is_empty() && patched_end as u64 > IMMUTABLE_SCRATCH_BASE {
+            IMMUTABLE_SCRATCH_BASE + module.immutable_data_len() as u64
+        } else {
+            0
+        }
+    }
+
     fn emit_deployment_postlude(
         &mut self,
+        module: &Module,
         runtime_offset: DeferredConst,
         runtime_len: usize,
         copy_base: u64,
@@ -876,18 +895,82 @@ impl EvmCodegen {
         self.asm.emit_push(U256::from(copy_base));
         self.asm.emit_op(op::CODECOPY);
 
-        // Patch each `PUSH32` placeholder with its staged immutable word.
-        // The placeholder data starts one byte after the PUSH32 opcode.
+        // Patch each `PUSH<N>` placeholder with its staged immutable value.
         for r in immutable_refs {
-            self.asm.emit_push(U256::from(IMMUTABLE_SCRATCH_BASE + u64::from(r.id)));
-            self.asm.emit_op(op::MLOAD);
-            self.asm.emit_push(U256::from(copy_base + r.code_offset as u64 + 1));
-            self.asm.emit_op(op::MSTORE);
+            let encoding = module.immutable_type(r.id).immutable_encoding();
+            debug_assert_eq!(encoding.type_size(), r.type_size);
+            self.emit_immutable_patch(copy_base, *r, encoding);
         }
 
         // Return the patched runtime code; the DUP'd length is still on the stack.
         self.asm.emit_push(U256::from(copy_base));
         self.asm.emit_op(op::RETURN);
+    }
+
+    fn emit_immutable_patch(
+        &mut self,
+        copy_base: u64,
+        immutable_ref: ImmutableRef,
+        encoding: ImmutableEncoding,
+    ) {
+        let byte_width = immutable_ref.type_size.bytes();
+        let destination = copy_base + immutable_ref.code_offset as u64 + 1;
+
+        self.asm.emit_push(U256::from(IMMUTABLE_SCRATCH_BASE + immutable_ref.id.scratch_offset()));
+        self.asm.emit_op(op::MLOAD);
+
+        if byte_width < 32 {
+            let trailing_bits = usize::from(32 - byte_width) * 8;
+            match encoding {
+                ImmutableEncoding::LeftAligned(_) => {
+                    self.asm.emit_push(U256::MAX << trailing_bits);
+                    self.asm.emit_op(op::AND);
+                }
+                ImmutableEncoding::Unsigned(_) | ImmutableEncoding::Signed(_) => {
+                    self.asm.emit_push(U256::from(trailing_bits));
+                    self.asm.emit_op(op::SHL);
+                }
+            }
+
+            // Preserve the runtime bytes following the short placeholder. An
+            // unaligned MLOAD/MSTORE pair works even across word boundaries.
+            self.asm.emit_push(U256::from(destination));
+            self.asm.emit_op(op::MLOAD);
+            self.asm.emit_push(U256::MAX >> (usize::from(byte_width) * 8));
+            self.asm.emit_op(op::AND);
+            self.asm.emit_op(op::OR);
+        }
+
+        self.asm.emit_push(U256::from(destination));
+        self.asm.emit_op(op::MSTORE);
+    }
+
+    fn emit_load_immutable(&mut self, id: ImmutableId, ty: MirType) {
+        if self.in_constructor {
+            // The running constructor's own placeholders are never patched.
+            self.asm.emit_push(U256::from(IMMUTABLE_SCRATCH_BASE + id.scratch_offset()));
+            self.asm.emit_op(op::MLOAD);
+            return;
+        }
+
+        let encoding = ty.immutable_encoding();
+        let type_size = encoding.type_size();
+        let byte_width = type_size.bytes();
+        self.asm.emit_push_immutable(id, type_size);
+        if byte_width == 32 {
+            return;
+        }
+        match encoding {
+            ImmutableEncoding::Unsigned(_) => {}
+            ImmutableEncoding::Signed(_) => {
+                self.asm.emit_push(U256::from(byte_width - 1));
+                self.asm.emit_op(op::SIGNEXTEND);
+            }
+            ImmutableEncoding::LeftAligned(_) => {
+                self.asm.emit_push(U256::from((32 - byte_width) * 8));
+                self.asm.emit_op(op::SHL);
+            }
+        }
     }
 
     /// Generates constructor code that runs during deployment.
@@ -1021,7 +1104,13 @@ impl EvmCodegen {
             None
         };
 
-        self.emit_deployment_postlude(runtime_offset, runtime_len, copy_base, immutable_refs);
+        self.emit_deployment_postlude(
+            module,
+            runtime_offset,
+            runtime_len,
+            copy_base,
+            immutable_refs,
+        );
         PreparedDeploymentPrefix {
             assembly: self.asm.prepare(),
             constructor_arg_offset,
@@ -3010,15 +3099,8 @@ impl EvmCodegen {
                 self.asm.emit_op(op::CODESIZE);
                 self.scheduler.instruction_executed(0, result_value);
             }
-            InstKind::LoadImmutable(offset) => {
-                if self.in_constructor {
-                    // The running constructor's own placeholders are never
-                    // patched; read the staged scratch word instead.
-                    self.asm.emit_push(U256::from(IMMUTABLE_SCRATCH_BASE + u64::from(*offset)));
-                    self.asm.emit_op(op::MLOAD);
-                } else {
-                    self.asm.emit_push_immutable(*offset);
-                }
+            InstKind::LoadImmutable { id, ty } => {
+                self.emit_load_immutable(*id, *ty);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::ReturnDataSize => {
@@ -4206,18 +4288,8 @@ impl EvmCodegen {
                             self.asm.emit_op(op::GAS);
                             self.scheduler.stack.push(val);
                         }
-                        crate::mir::InstKind::LoadImmutable(offset) => {
-                            // Same emission as the scheduled path: a patched
-                            // placeholder at runtime, the staged scratch word
-                            // inside the running constructor.
-                            if self.in_constructor {
-                                self.asm.emit_push(U256::from(
-                                    IMMUTABLE_SCRATCH_BASE + u64::from(*offset),
-                                ));
-                                self.asm.emit_op(op::MLOAD);
-                            } else {
-                                self.asm.emit_push_immutable(*offset);
-                            }
+                        crate::mir::InstKind::LoadImmutable { id, ty } => {
+                            self.emit_load_immutable(*id, *ty);
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::CallValue => {
@@ -5048,12 +5120,37 @@ impl crate::backend::Backend for EvmCodegen {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{backend::evm::test_utils::disassemble, lower, mir::FunctionBuilder};
+    use crate::{
+        backend::evm::test_utils::disassemble,
+        lower,
+        mir::{FunctionBuilder, TypeSize},
+    };
     use snapbox::assert_data_eq;
     use solar_config::{CompileOpts, UnstableOpts};
     use solar_interface::{Ident, Session, kw, sym};
     use solar_sema::{Compiler, hir::Visibility};
     use std::{ops::ControlFlow, path::PathBuf};
+
+    #[test]
+    fn short_immutable_patch_does_not_overlap_scratch() {
+        let mut module = Module::new(Ident::with_dummy_span(sym::Test));
+        let id = module.add_immutable(MirType::UInt(TypeSize::new_int_bits(8)));
+        let runtime_len = IMMUTABLE_SCRATCH_BASE as usize;
+
+        let full_word = ImmutableRef {
+            id,
+            code_offset: runtime_len - 33,
+            type_size: TypeSize::new_int_bits(256),
+        };
+        assert_eq!(EvmCodegen::runtime_copy_base(&module, runtime_len, &[full_word]), 0);
+
+        let short =
+            ImmutableRef { id, code_offset: runtime_len - 2, type_size: TypeSize::new_int_bits(8) };
+        assert_eq!(
+            EvmCodegen::runtime_copy_base(&module, runtime_len, &[short]),
+            IMMUTABLE_SCRATCH_BASE + IMMUTABLE_SCRATCH_WORD_SIZE as u64
+        );
+    }
 
     #[test]
     fn constructor_success_jumps_to_deployment_postlude() {

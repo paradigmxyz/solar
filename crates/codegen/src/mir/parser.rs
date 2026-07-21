@@ -29,10 +29,11 @@
 //! - Phi nodes are represented only as phi *instructions* (`InstKind::Phi`).
 
 use super::{
-    BlockId, EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
-    InstructionMetadata, MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
+    BlockId, EffectKind, Function, FunctionBuilder, FunctionId, ImmutableId, InstId, InstKind,
+    Instruction, InstructionMetadata, MemoryRegion, Module, StorageAlias, Terminator, Value,
+    ValueId,
 };
-use crate::mir::MirType;
+use crate::mir::{MirType, TypeSize};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_ast::{
@@ -200,9 +201,40 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             function_refs
                 .extend(self.function_refs.drain(..).map(|reference| (function, reference)));
         }
+        self.reconstruct_immutables(&mut module)?;
         self.resolve_function_refs(&mut module, function_refs)?;
 
         Ok(module)
+    }
+
+    fn reconstruct_immutables(&self, module: &mut Module) -> PResult<'sess, ()> {
+        let mut types = FxHashMap::default();
+        for (_, function) in module.iter_functions() {
+            for inst in &function.instructions {
+                let InstKind::LoadImmutable { id, ty } = inst.kind else { continue };
+                if let Some(previous) = types.insert(id, ty)
+                    && previous != ty
+                {
+                    return Err(self.parser.error(format!(
+                        "immutable {} has conflicting types `{previous}` and `{ty}`",
+                        id.index()
+                    )));
+                }
+            }
+        }
+
+        let mut types: Vec<_> = types.into_iter().collect();
+        types.sort_unstable_by_key(|(id, _)| id.index());
+        for (expected, (id, ty)) in types.into_iter().enumerate() {
+            if id.index() != expected {
+                return Err(self
+                    .parser
+                    .error(format!("expected immutable ID {expected}, found {}", id.index())));
+            }
+            let allocated = module.add_immutable(ty);
+            debug_assert_eq!(allocated, id);
+        }
+        Ok(())
     }
 
     fn resolve_function_refs(
@@ -443,16 +475,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let ty = if let Some(rest) = id_str.strip_prefix('u') {
             let bits: u16 =
                 rest.parse().map_err(|_| self.parser.error(format!("invalid u-type `{id}`")))?;
-            MirType::UInt(bits)
+            let size = TypeSize::try_new_int_bits(bits)
+                .filter(|size| size.bits_raw() != 0)
+                .ok_or_else(|| self.parser.error(format!("invalid u-type `{id}`")))?;
+            MirType::UInt(size)
         } else if let Some(rest) = id_str.strip_prefix('i') {
             let bits: u16 =
                 rest.parse().map_err(|_| self.parser.error(format!("invalid i-type `{id}`")))?;
-            MirType::Int(bits)
+            let size = TypeSize::try_new_int_bits(bits)
+                .filter(|size| size.bits_raw() != 0)
+                .ok_or_else(|| self.parser.error(format!("invalid i-type `{id}`")))?;
+            MirType::Int(size)
         } else if let Some(rest) = id_str.strip_prefix("bytes") {
             let n: u8 = rest
                 .parse()
                 .map_err(|_| self.parser.error(format!("invalid bytes type `{id}`")))?;
-            MirType::FixedBytes(n)
+            let size = TypeSize::try_new_fb_bytes(n)
+                .ok_or_else(|| self.parser.error(format!("invalid bytes type `{id}`")))?;
+            MirType::FixedBytes(size)
         } else {
             match id {
                 kw::Bool => MirType::Bool,
@@ -921,6 +961,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             .map_err(|_| self.parser.error(format!("integer `{value}` does not fit in u32")))
     }
 
+    fn u256_to_immutable_id(&self, value: U256) -> PResult<'sess, ImmutableId> {
+        let value = self.u256_to_u32(value)?;
+        if value == u32::MAX {
+            return Err(self
+                .parser
+                .error(format!("integer `{value}` does not fit in immutable ID")));
+        }
+        Ok(ImmutableId::new(value as usize))
+    }
+
     fn u256_to_u16(&self, value: U256) -> PResult<'sess, u16> {
         value
             .try_into()
@@ -1014,9 +1064,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             kw::Codesize => unit!(CodeSize => MirType::uint256()),
             kw::Codecopy => inst!(CodeCopy(a, b, c)),
             kw::Loadimmutable => {
-                let offset = self.parser.parse_uint()?;
-                let offset = self.u256_to_u32(offset)?;
-                (InstKind::LoadImmutable(offset), Some(MirType::uint256()))
+                let id = self.parser.parse_uint()?;
+                let id = self.u256_to_immutable_id(id)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let ty = self.parse_type()?;
+                (InstKind::LoadImmutable { id, ty }, Some(ty))
             }
             kw::Extcodesize => inst!(ExtCodeSize(a) => MirType::uint256()),
             kw::Extcodecopy => inst!(ExtCodeCopy(a, b, c, d)),
@@ -1040,9 +1092,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             kw::Gas => unit!(Gas => MirType::uint256()),
             kw::Basefee => unit!(BaseFee => MirType::uint256()),
             kw::Blobbasefee => unit!(BlobBaseFee => MirType::uint256()),
-            kw::Blockhash => inst!(BlockHash(a) => MirType::FixedBytes(32)),
+            kw::Blockhash => inst!(BlockHash(a) => MirType::bytes32()),
             kw::Balance => inst!(Balance(a) => MirType::uint256()),
-            kw::Blobhash => inst!(BlobHash(a) => MirType::FixedBytes(32)),
+            kw::Blobhash => inst!(BlobHash(a) => MirType::bytes32()),
 
             // Hashing.
             kw::Keccak256 => inst!(Keccak256(a, b) => MirType::bytes32()),

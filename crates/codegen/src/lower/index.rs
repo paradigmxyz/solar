@@ -1,7 +1,7 @@
 //! Index expression lowering.
 
 use super::Lowerer;
-use crate::mir::{FunctionBuilder, ValueId};
+use crate::mir::{FunctionBuilder, TypeSize, ValueId};
 use alloy_primitives::U256;
 use solar_sema::{
     hir::{self, ElementaryType},
@@ -102,7 +102,7 @@ impl<'gcx> Lowerer<'gcx> {
             let eight = builder.imm_u64(8);
             let shift = builder.mul(index_val, eight);
             let shifted = builder.shl(shift, base_val);
-            return self.clean_fixed_bytes(builder, shifted, 1);
+            return self.clean_fixed_bytes(builder, shifted, TypeSize::new_fb_bytes(1));
         }
 
         let base_val = self.lower_expr(builder, base);

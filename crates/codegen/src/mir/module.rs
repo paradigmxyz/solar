@@ -1,21 +1,22 @@
 //! MIR module (top-level container).
 
-use super::{Function, FunctionId};
+use super::{Function, FunctionId, ImmutableId, MirType};
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
 };
 use solar_interface::{Ident, Symbol, sym};
 
-/// Current immutable staging and placeholder width.
-///
-/// TODO: Support immutable references with byte widths `<= 32` instead of
-/// forcing every immutable through a full `PUSH32`/word patch. Solidity's
-/// standard JSON format permits shorter immutable reference lengths, and solc
-/// can emit `PUSH<N>` for small immutable types. Doing that here requires
-/// carrying the byte width through MIR, assembler immutable refs, and the
-/// constructor patch loop instead of blindly patching with `MSTORE`.
-pub(crate) const IMMUTABLE_WORD_SIZE: usize = 32;
+/// One staged immutable value occupies one EVM word in constructor scratch memory.
+pub(crate) const IMMUTABLE_SCRATCH_WORD_SIZE: usize = 32;
+
+impl ImmutableId {
+    /// Returns this immutable's byte offset in the constructor scratch area.
+    #[must_use]
+    pub(crate) fn scratch_offset(self) -> u64 {
+        self.index() as u64 * IMMUTABLE_SCRATCH_WORD_SIZE as u64
+    }
+}
 
 /// The lowering phase a [`Module`] is in.
 ///
@@ -89,8 +90,8 @@ pub struct Module {
     pub(crate) name: Ident,
     /// All functions in this module.
     pub(crate) functions: IndexVec<FunctionId, Function>,
-    /// Size of the constructor scratch area used to stage immutables.
-    immutable_data_len: usize,
+    /// Immutable types indexed by their stable MIR identifiers.
+    immutables: IndexVec<ImmutableId, MirType>,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
     /// Whether optimization passes should favor bytecode size over runtime
@@ -115,7 +116,7 @@ impl Module {
         Self {
             name,
             functions: IndexVec::new(),
-            immutable_data_len: 0,
+            immutables: IndexVec::new(),
             is_interface: false,
             optimize_for_size: false,
             phase: MirPhase::Built,
@@ -152,16 +153,28 @@ impl Module {
         &mut self.functions[id]
     }
 
-    /// Reserves one word in the constructor's immutable staging area.
-    pub(crate) fn add_immutable(&mut self) {
-        self.immutable_data_len += IMMUTABLE_WORD_SIZE;
+    /// Adds an immutable and returns its stable identifier.
+    pub(crate) fn add_immutable(&mut self, ty: MirType) -> ImmutableId {
+        self.immutables.push(ty)
+    }
+
+    /// Returns an immutable's MIR type.
+    #[must_use]
+    pub(crate) fn immutable_type(&self, id: ImmutableId) -> MirType {
+        self.immutables[id]
+    }
+
+    /// Returns an immutable's MIR type if the identifier is allocated.
+    #[must_use]
+    pub(crate) fn get_immutable_type(&self, id: ImmutableId) -> Option<MirType> {
+        self.immutables.get(id).copied()
     }
 
     /// Returns the size in bytes of the constructor scratch area that stages
     /// immutable words before they are patched into the runtime code.
     #[must_use]
     pub(crate) fn immutable_data_len(&self) -> usize {
-        self.immutable_data_len
+        self.immutables.len() * IMMUTABLE_SCRATCH_WORD_SIZE
     }
 
     /// Returns an iterator over all functions.

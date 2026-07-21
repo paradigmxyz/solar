@@ -5,7 +5,7 @@
 use solar_data_structures::newtype_index;
 
 mod types;
-pub(crate) use types::MirType;
+pub(crate) use types::{ImmutableEncoding, MirType, TypeSize};
 
 mod value;
 pub(crate) use value::{Immediate, Value};
@@ -23,7 +23,7 @@ pub(crate) use function::{Function, FunctionAttributes};
 
 mod module;
 pub use module::Module;
-pub(crate) use module::{IMMUTABLE_WORD_SIZE, MirPhase};
+pub(crate) use module::{IMMUTABLE_SCRATCH_WORD_SIZE, MirPhase};
 
 mod builder;
 pub(crate) use builder::FunctionBuilder;
@@ -51,6 +51,9 @@ newtype_index! {
 
     /// A unique identifier for a function in the MIR.
     pub(crate) struct FunctionId;
+
+    /// A unique identifier for an immutable in the MIR module.
+    pub(crate) struct ImmutableId;
 }
 
 /// Property tests verifying that the MIR printer/parser pair is self-consistent.

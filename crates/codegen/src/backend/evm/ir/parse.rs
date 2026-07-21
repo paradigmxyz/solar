@@ -196,7 +196,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 Instruction::push_deferred(assembly::DeferredConst::from_usize(id as usize))
             }
             sym::push_immutable => {
-                Instruction::push_immutable(self.parse_assembly_id("immutable")?)
+                let id = self.parse_immutable_id()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let width = self.parse_u8()?;
+                let type_size = TypeSize::try_new_fb_bytes(width).ok_or_else(|| {
+                    self.parser.error("immutable width must be between 1 and 32 bytes")
+                })?;
+                Instruction::push_immutable(id, type_size)
             }
             _ => Instruction::opcode(op::from_ir_symbol(mnemonic).ok_or_else(|| {
                 self.parser.error(format!("unknown instruction opcode `{mnemonic}`"))
@@ -282,6 +288,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 .error_at(span, format!("{name} ID exceeds the assembler limit")));
         }
         Ok(value)
+    }
+
+    fn parse_immutable_id(&mut self) -> PResult<'sess, ImmutableId> {
+        let span = self.parser.token().span;
+        let value = self.parser.parse_uint()?;
+        let Ok(value) = u32::try_from(value) else {
+            return Err(self.parser.error_at(span, "immutable ID exceeds the index limit"));
+        };
+        if value == u32::MAX {
+            return Err(self.parser.error_at(span, "immutable ID exceeds the index limit"));
+        }
+        Ok(ImmutableId::new(value as usize))
     }
 
     fn parse_block_ref(&mut self, module: &mut Module) -> PResult<'sess, BlockId> {
@@ -506,7 +524,7 @@ error: expected metadata value
             ("deferred-block.evmir", "push_deferred bb1"),
             ("immutable-block.evmir", "push_immutable bb1"),
             ("deferred-overflow.evmir", "push_deferred 0x10000000"),
-            ("immutable-overflow.evmir", "push_immutable 0x10000000"),
+            ("immutable-overflow.evmir", "push_immutable 0xffffffff, 32"),
         ];
         sess.enter(|| {
             for (name, instruction) in cases {
@@ -539,10 +557,10 @@ error: deferred constant ID exceeds the assembler limit
 4 │   push_deferred 0x10000000
   ╰╴                ━━━━━━━━━━
 
-error: immutable ID exceeds the assembler limit
+error: immutable ID exceeds the index limit
   ╭▸ <immutable-overflow.evmir>:4:18
   │
-4 │   push_immutable 0x10000000
+4 │   push_immutable 0xffffffff, 32
   ╰╴                 ━━━━━━━━━━
 
 

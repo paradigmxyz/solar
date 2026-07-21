@@ -11,6 +11,7 @@
 //! tests and debugging; the IR itself is not defined by that serialization.
 
 use super::op;
+use crate::mir::{ImmutableId, TypeSize};
 use alloy_primitives::U256;
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
 use solar_parse::lexer::is_ident;
@@ -188,14 +189,15 @@ impl Instruction {
         )
     }
 
-    /// Creates an encoded immutable push instruction.
+    /// Creates an encoded immutable push instruction with a fixed immediate width.
     #[must_use]
-    pub(in crate::backend::evm) fn push_immutable(id: u32) -> Self {
-        assert!(id <= assembly::AsmInst::PAYLOAD_MASK, "immutable ID overflow");
-        Self::encoded_push(
-            PushValue::Immediate(U256::from(id)),
+    pub(in crate::backend::evm) fn push_immutable(id: ImmutableId, type_size: TypeSize) -> Self {
+        let mut inst = Self::encoded_push(
+            PushValue::Immediate(U256::from(id.index())),
             Self::ENCODED_PUSH | Self::IMMUTABLE,
-        )
+        );
+        inst.opcode = op::push(type_size.bytes());
+        inst
     }
 
     fn encoded_push(value: PushValue, encoding: u8) -> Self {
@@ -260,11 +262,24 @@ impl Instruction {
 
     /// Returns the immutable identifier carried by this push instruction, if any.
     #[must_use]
-    pub(in crate::backend::evm) const fn immutable_push(&self) -> Option<U256> {
+    pub(in crate::backend::evm) fn immutable_push(&self) -> Option<ImmutableId> {
         if self.encoding & Self::IMMUTABLE == 0 {
             return None;
         }
-        self.pushed_value()
+        let value = self.pushed_value().expect("immutable push must carry an immediate");
+        Some(ImmutableId::new(
+            usize::try_from(value).expect("validated immutable ID must fit usize"),
+        ))
+    }
+
+    /// Returns the immutable placeholder's type size, if this is an immutable push.
+    #[must_use]
+    pub(in crate::backend::evm) fn immutable_type_size(&self) -> Option<TypeSize> {
+        if self.encoding & Self::IMMUTABLE == 0 {
+            return None;
+        }
+        let width = self.opcode.checked_sub(op::PUSH1)? + 1;
+        TypeSize::try_new_fb_bytes(width)
     }
 
     /// Returns whether this instruction materializes a physical EVM stack op.

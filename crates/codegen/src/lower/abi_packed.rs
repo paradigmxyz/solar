@@ -1,7 +1,7 @@
 //! ABI packed encoding lowering helpers.
 
 use super::Lowerer;
-use crate::mir::{FunctionBuilder, Value, ValueId};
+use crate::mir::{FunctionBuilder, TypeSize, Value, ValueId};
 use alloy_primitives::U256;
 use solar_ast::{ElementaryType, LitKind};
 use solar_interface::{Symbol, sym};
@@ -15,7 +15,7 @@ enum PackedAbiArg {
     /// Compile-time literal bytes, packed without padding.
     Bytes(Vec<u8>),
     /// A single value occupying the top `size` bytes of its word.
-    Value { value: ValueId, size: usize, left_aligned: bool },
+    Value { value: ValueId, size: TypeSize, left_aligned: bool },
     /// A memory `bytes`/`string` pointer (`[length][data...]`) whose data is
     /// copied without padding.
     DynamicBytes(ValueId),
@@ -143,7 +143,7 @@ impl<'gcx> Lowerer<'gcx> {
                 continue;
             }
 
-            let size = self.get_packed_size_from_expr(arg);
+            let size = self.get_packed_type_size_from_expr(arg);
             let left_aligned = self.expr_is_fixed_bytes(arg);
             let value = self.lower_expr(builder, arg);
             packed_args.push(PackedAbiArg::Value { value, size, left_aligned });
@@ -158,9 +158,9 @@ impl<'gcx> Lowerer<'gcx> {
         })
     }
 
-    pub(super) fn fixed_bytes_width_of_expr(&self, expr: &hir::Expr<'_>) -> Option<u8> {
+    pub(super) fn fixed_bytes_width_of_expr(&self, expr: &hir::Expr<'_>) -> Option<TypeSize> {
         match self.get_expr_type(expr)?.peel_refs().kind {
-            TyKind::Elementary(ElementaryType::FixedBytes(n)) => Some(n.bytes()),
+            TyKind::Elementary(ElementaryType::FixedBytes(size)) => Some(size),
             _ => None,
         }
     }
@@ -221,13 +221,14 @@ impl<'gcx> Lowerer<'gcx> {
                         offset += chunk.len() as u64;
                     }
                 }
-                &PackedAbiArg::Value { value, size, .. } if size >= 32 => {
+                &PackedAbiArg::Value { value, size, .. } if size.bytes() >= 32 => {
                     // Full 32 bytes - use MSTORE
                     let dest = self.offset_ptr(builder, base, offset);
                     builder.mstore(dest, value);
-                    offset += size as u64;
+                    offset += u64::from(size.bytes());
                 }
                 &PackedAbiArg::Value { value, size, left_aligned } => {
+                    let size = usize::from(size.bytes());
                     // Less than 32 bytes: the word's top `size` bytes are
                     // written. Fixed-bytes values are already left-aligned;
                     // every other value type is right-aligned and shifts up.
@@ -308,7 +309,8 @@ impl<'gcx> Lowerer<'gcx> {
                     len += bytes.len();
                     consumed += 1;
                 }
-                &PackedAbiArg::Value { value, size, left_aligned: false } if size < 32 => {
+                &PackedAbiArg::Value { value, size, left_aligned: false } if size.bytes() < 32 => {
+                    let size = usize::from(size.bytes());
                     if size == 0 {
                         consumed += 1;
                         continue;
@@ -367,7 +369,7 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 PackedAbiArg::Value { size, .. } => {
                     max_write = max_write.max(offset + 32);
-                    offset += *size;
+                    offset += usize::from(size.bytes());
                 }
                 PackedAbiArg::DynamicBytes(_) => return None,
             }
@@ -395,15 +397,12 @@ impl<'gcx> Lowerer<'gcx> {
                     len += bytes.len();
                     consumed += 1;
                 }
-                PackedAbiArg::Value { size, left_aligned: false, .. } if *size < 32 => {
-                    if *size == 0 {
-                        consumed += 1;
-                        continue;
-                    }
-                    if len + *size > 32 {
+                PackedAbiArg::Value { size, left_aligned: false, .. } if size.bytes() < 32 => {
+                    let size = usize::from(size.bytes());
+                    if len + size > 32 {
                         break;
                     }
-                    len += *size;
+                    len += size;
                     consumed += 1;
                     has_value = true;
                 }
@@ -445,41 +444,47 @@ impl<'gcx> Lowerer<'gcx> {
             .filter(|_| member.name == name)
     }
 
-    /// Gets the packed size in bytes for an expression (used by abi.encodePacked).
-    fn get_packed_size_from_expr(&self, expr: &hir::Expr<'_>) -> usize {
+    /// Gets the packed type size for an expression used by `abi.encodePacked`.
+    fn get_packed_type_size_from_expr(&self, expr: &hir::Expr<'_>) -> TypeSize {
         if let ExprKind::Lit(lit) = &expr.kind {
             return match &lit.kind {
-                LitKind::Str(_, bytes, _) => bytes.as_byte_str().len(),
-                LitKind::Address(_) => 20,
-                LitKind::Bool(_) => 1,
-                LitKind::Number(_) | LitKind::Rational(_) | LitKind::Err(_) => 32,
+                LitKind::Str(..) => TypeSize::new_int_bits(256),
+                LitKind::Address(_) => TypeSize::new_int_bits(160),
+                LitKind::Bool(_) => TypeSize::new_int_bits(8),
+                LitKind::Number(_) | LitKind::Rational(_) | LitKind::Err(_) => {
+                    TypeSize::new_int_bits(256)
+                }
             };
         }
 
-        self.get_expr_type(expr).map(|ty| self.get_packed_size_from_ty(ty)).unwrap_or(32)
+        self.get_expr_type(expr)
+            .map(|ty| self.get_packed_type_size_from_ty(ty))
+            .unwrap_or_else(|| TypeSize::new_int_bits(256))
     }
 
-    /// Gets the packed size from a sema type.
-    fn get_packed_size_from_ty(&self, ty: Ty<'gcx>) -> usize {
+    /// Gets the packed size from a semantic type.
+    fn get_packed_type_size_from_ty(&self, ty: Ty<'gcx>) -> TypeSize {
         match ty.peel_refs().kind {
             TyKind::Elementary(elem) => match elem {
-                ElementaryType::FixedBytes(size) => size.bytes() as usize,
-                ElementaryType::Address(_) => 20,
-                ElementaryType::Bool => 1,
-                ElementaryType::Int(size) | ElementaryType::UInt(size) => size.bytes() as usize,
+                ElementaryType::FixedBytes(size) => size,
+                ElementaryType::Address(_) => TypeSize::new_int_bits(160),
+                ElementaryType::Bool => TypeSize::new_int_bits(8),
+                ElementaryType::Int(size) | ElementaryType::UInt(size) => {
+                    TypeSize::new_int_bits(size.bits())
+                }
                 // Dynamic - handled specially.
-                ElementaryType::String | ElementaryType::Bytes => 32,
+                ElementaryType::String | ElementaryType::Bytes => TypeSize::new_int_bits(256),
                 ElementaryType::Fixed(size, _) | ElementaryType::UFixed(size, _) => {
-                    size.bytes() as usize
+                    TypeSize::new_int_bits(size.bits())
                 }
             },
-            TyKind::StringLiteral(_, size) => size.bytes() as usize,
-            TyKind::IntLiteral(..) => 32,
-            TyKind::Contract(_) | TyKind::Super(_) => 20,
-            TyKind::Enum(_) => 1,
-            TyKind::Udvt(inner, _) => self.get_packed_size_from_ty(inner),
-            TyKind::Ref(inner, _) => self.get_packed_size_from_ty(inner),
-            _ => 32,
+            TyKind::StringLiteral(_, size) => TypeSize::new_int_bits(size.bits()),
+            TyKind::IntLiteral(..) => TypeSize::new_int_bits(256),
+            TyKind::Contract(_) | TyKind::Super(_) => TypeSize::new_int_bits(160),
+            TyKind::Enum(_) => TypeSize::new_int_bits(8),
+            TyKind::Udvt(inner, _) => self.get_packed_type_size_from_ty(inner),
+            TyKind::Ref(inner, _) => self.get_packed_type_size_from_ty(inner),
+            _ => TypeSize::new_int_bits(256),
         }
     }
 }

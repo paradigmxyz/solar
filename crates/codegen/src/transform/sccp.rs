@@ -16,7 +16,8 @@
 
 use crate::{
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId,
+        BlockId, Function, Immediate, InstId, InstKind, MirType, Terminator, TypeSize, Value,
+        ValueId,
         utils::{self as mir_utils, repair_reachability_phis},
     },
     pass::FunctionPass,
@@ -754,17 +755,19 @@ impl SccpPass {
 fn immediate_for_type(ty: Option<MirType>, value: U256) -> Immediate {
     match ty {
         Some(MirType::Bool) if value <= U256::from(1) => Immediate::Bool(!value.is_zero()),
-        Some(MirType::UInt(bits)) if fits_unsigned(value, bits) => Immediate::UInt(value, bits),
-        Some(MirType::Int(bits)) if fits_signed(value, bits) => Immediate::Int(value, bits),
+        Some(MirType::UInt(size)) if fits_unsigned(value, size) => Immediate::UInt(value, size),
+        Some(MirType::Int(size)) if fits_signed(value, size) => Immediate::Int(value, size),
         _ => Immediate::uint256(value),
     }
 }
 
-fn fits_unsigned(value: U256, bits: u16) -> bool {
+fn fits_unsigned(value: U256, size: TypeSize) -> bool {
+    let bits = size.bits();
     bits >= 256 || value.bit_len() <= usize::from(bits)
 }
 
-fn fits_signed(value: U256, bits: u16) -> bool {
+fn fits_signed(value: U256, size: TypeSize) -> bool {
+    let bits = size.bits();
     if bits >= 256 || bits == 0 {
         return bits >= 256;
     }
@@ -781,10 +784,13 @@ mod tests {
     #[test]
     fn immediate_for_type_preserves_result_types() {
         let one = U256::from(1);
+        let i256 = TypeSize::new_int_bits(256);
+        let i64 = TypeSize::new_int_bits(64);
+        let i8 = TypeSize::new_int_bits(8);
         assert_eq!(immediate_for_type(Some(MirType::Bool), one), Immediate::Bool(true));
         assert_eq!(immediate_for_type(Some(MirType::Bool), U256::ZERO), Immediate::Bool(false));
-        assert_eq!(immediate_for_type(Some(MirType::Int(256)), one), Immediate::Int(one, 256));
-        assert_eq!(immediate_for_type(Some(MirType::UInt(64)), one), Immediate::UInt(one, 64));
+        assert_eq!(immediate_for_type(Some(MirType::Int(i256)), one), Immediate::Int(one, i256));
+        assert_eq!(immediate_for_type(Some(MirType::UInt(i64)), one), Immediate::UInt(one, i64));
         // Non-integer payloads and missing types fall back to uint256.
         assert_eq!(immediate_for_type(Some(MirType::Address), one), Immediate::uint256(one));
         assert_eq!(immediate_for_type(None, one), Immediate::uint256(one));
@@ -793,19 +799,19 @@ mod tests {
         assert_eq!(immediate_for_type(Some(MirType::Bool), two), Immediate::uint256(two));
         // Out-of-range values fall back to uint256 instead of lying about the width.
         let wide = U256::from(0x1ff);
-        assert_eq!(immediate_for_type(Some(MirType::UInt(8)), wide), Immediate::uint256(wide));
-        assert_eq!(immediate_for_type(Some(MirType::Int(8)), wide), Immediate::uint256(wide));
+        assert_eq!(immediate_for_type(Some(MirType::UInt(i8)), wide), Immediate::uint256(wide));
+        assert_eq!(immediate_for_type(Some(MirType::Int(i8)), wide), Immediate::uint256(wide));
         // Negative values are representable when the upper bits match the sign bit.
         let minus_one = U256::MAX;
         assert_eq!(
-            immediate_for_type(Some(MirType::Int(8)), minus_one),
-            Immediate::Int(minus_one, 8)
+            immediate_for_type(Some(MirType::Int(i8)), minus_one),
+            Immediate::Int(minus_one, i8)
         );
         let i8_min = U256::MAX - U256::from(0x7f);
-        assert_eq!(immediate_for_type(Some(MirType::Int(8)), i8_min), Immediate::Int(i8_min, 8));
+        assert_eq!(immediate_for_type(Some(MirType::Int(i8)), i8_min), Immediate::Int(i8_min, i8));
         let i8_under = i8_min - U256::from(1);
         assert_eq!(
-            immediate_for_type(Some(MirType::Int(8)), i8_under),
+            immediate_for_type(Some(MirType::Int(i8)), i8_under),
             Immediate::uint256(i8_under)
         );
     }

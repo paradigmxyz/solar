@@ -525,8 +525,12 @@ fn estimate_inst_cost(kind: &InstKind) -> MirCost {
         | InstKind::ReturnDataCopy(..) => (12, 1),
         InstKind::MSize | InstKind::CodeSize | InstKind::ReturnDataSize => (2, 1),
         InstKind::InternalFrameAddr(_) => (6, 3),
-        // PUSH32 placeholder patched at deploy time.
-        InstKind::LoadImmutable(_) => (3, 33),
+        // Typed PUSH<N> placeholder patched at deploy time.
+        InstKind::LoadImmutable { ty, .. } => {
+            let encoding = ty.immutable_encoding();
+            let width = usize::from(encoding.type_size().bytes());
+            if encoding.needs_runtime_normalization() { (9, width + 4) } else { (3, width + 1) }
+        }
         InstKind::ExtCodeSize(..)
         | InstKind::ExtCodeHash(..)
         | InstKind::Balance(..)
@@ -837,7 +841,7 @@ impl<'a> InlineCloner<'a> {
                 InstKind::InternalFrameAddr(self.frame_base + local_offset)
             }
             InstKind::CodeSize => InstKind::CodeSize,
-            InstKind::LoadImmutable(offset) => InstKind::LoadImmutable(offset),
+            InstKind::LoadImmutable { id, ty } => InstKind::LoadImmutable { id, ty },
             InstKind::CodeCopy(a, b, c) => {
                 InstKind::CodeCopy(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
             }

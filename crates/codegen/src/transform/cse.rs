@@ -38,8 +38,8 @@
 use crate::{
     analysis::{CfgInfo, DominatorTree},
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, Instruction, MemoryRegion, MirType,
-        StorageAlias, Value, ValueId, utils as mir_utils,
+        BlockId, Function, Immediate, ImmutableId, InstId, InstKind, Instruction, MemoryRegion,
+        MirType, StorageAlias, Value, ValueId, utils as mir_utils,
     },
     pass::FunctionPass,
 };
@@ -111,7 +111,7 @@ enum ExprKey {
     Balance(OperandKey),
     SelfBalance,
     BlobHash(OperandKey),
-    LoadImmutable(u32),
+    LoadImmutable(ImmutableId, MirType),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -651,7 +651,7 @@ impl CommonSubexprEliminator {
             InstKind::BlockHash(a) => Some(ExprKey::BlockHash(operand(*a))),
             InstKind::BlobHash(a) => Some(ExprKey::BlobHash(operand(*a))),
             // Immutable reads are constant once the runtime code is patched.
-            InstKind::LoadImmutable(offset) => Some(ExprKey::LoadImmutable(*offset)),
+            InstKind::LoadImmutable { id, ty } => Some(ExprKey::LoadImmutable(*id, *ty)),
 
             InstKind::Select(condition, then_value, else_value) => Some(ExprKey::Select(
                 operand(*condition),

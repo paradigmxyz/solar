@@ -1,5 +1,5 @@
 use super::Lowerer;
-use crate::mir::{FunctionBuilder, ValueId};
+use crate::mir::{FunctionBuilder, TypeSize, ValueId};
 use alloy_primitives::U256;
 use solar_interface::Span;
 use solar_sema::{
@@ -13,18 +13,18 @@ use solar_sema::{
 pub(super) struct StorageLocation {
     pub(super) slot: u64,
     pub(super) offset: u8,
-    pub(super) size: u8,
+    pub(super) size: TypeSize,
 }
 
 impl StorageLocation {
-    const WORD_SIZE: u8 = 32;
+    const WORD_SIZE: TypeSize = TypeSize::new_int_bits(256);
 
     const fn full_word(slot: u64) -> Self {
         Self { slot, offset: 0, size: Self::WORD_SIZE }
     }
 
     const fn is_packed(self) -> bool {
-        self.offset != 0 || self.size != Self::WORD_SIZE
+        self.offset != 0 || self.size.bits() != Self::WORD_SIZE.bits()
     }
 }
 
@@ -38,7 +38,8 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(size) = self.packed_storage_size(ty)
             && size < StorageLocation::WORD_SIZE
         {
-            if self.next_storage_offset + size > StorageLocation::WORD_SIZE {
+            let bytes = size.bytes();
+            if self.next_storage_offset + bytes > StorageLocation::WORD_SIZE.bytes() {
                 self.next_storage_slot += 1;
                 self.next_storage_offset = 0;
             }
@@ -47,8 +48,8 @@ impl<'gcx> Lowerer<'gcx> {
                 offset: self.next_storage_offset,
                 size,
             };
-            self.next_storage_offset += size;
-            if self.next_storage_offset == StorageLocation::WORD_SIZE {
+            self.next_storage_offset += bytes;
+            if self.next_storage_offset == StorageLocation::WORD_SIZE.bytes() {
                 self.next_storage_slot += 1;
                 self.next_storage_offset = 0;
             }
@@ -66,10 +67,10 @@ impl<'gcx> Lowerer<'gcx> {
         StorageLocation::full_word(slot)
     }
 
-    /// Returns the byte width for scalar types that this lowering can safely pack.
-    fn packed_storage_size(&self, ty: Ty<'gcx>) -> Option<u8> {
+    /// Returns the size of scalar types that this lowering can safely pack.
+    fn packed_storage_size(&self, ty: Ty<'gcx>) -> Option<TypeSize> {
         match ty.peel_refs().kind {
-            TyKind::Elementary(ElementaryType::Bool) => Some(1),
+            TyKind::Elementary(ElementaryType::Bool) => Some(TypeSize::new_int_bits(8)),
             TyKind::Udvt(inner, _) => self.packed_storage_size(inner),
             _ => None,
         }
@@ -158,11 +159,11 @@ impl<'gcx> Lowerer<'gcx> {
         builder.sstore(slot, updated);
     }
 
-    fn packed_storage_mask(size: u8) -> U256 {
+    fn packed_storage_mask(size: TypeSize) -> U256 {
         if size >= StorageLocation::WORD_SIZE {
             U256::MAX
         } else {
-            (U256::from(1) << (usize::from(size) * 8)) - U256::from(1)
+            (U256::from(1) << size.bits()) - U256::from(1)
         }
     }
 

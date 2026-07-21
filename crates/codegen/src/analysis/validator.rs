@@ -88,8 +88,28 @@ impl<'a> Validator<'a> {
 
     fn validate_function(&mut self, module: &Module, func: &Function) {
         self.validate_function_body(func);
+        self.validate_immutables(module, func);
         self.validate_calls(module, func);
         self.validate_function_phase(module, func);
+    }
+
+    fn validate_immutables(&mut self, module: &Module, func: &Function) {
+        for (inst, instruction) in func.instructions.iter_enumerated() {
+            let InstKind::LoadImmutable { id, ty } = instruction.kind else { continue };
+            match module.get_immutable_type(id) {
+                Some(expected) if expected != ty => self.emit(format_args!(
+                    "inst{} loads immutable {} as `{ty}`, expected `{expected}`",
+                    inst.index(),
+                    id.index()
+                )),
+                None => self.emit(format_args!(
+                    "inst{} loads nonexistent immutable {}",
+                    inst.index(),
+                    id.index()
+                )),
+                _ => {}
+            }
+        }
     }
 
     fn validate_function_body(&mut self, func: &Function) {
