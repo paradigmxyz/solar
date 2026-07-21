@@ -55,9 +55,9 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
     // `PUSH x PUSH 0 OP -> PUSH 0`.
     // `PUSH x PUSH 1 EXP -> PUSH 1`.
     if let [.., lhs, pushed, instruction] = instructions.as_slice()
-        && let Some(opcode) = raw_opcode(instruction)
-        && let Some(value) = push_value(pushed)
         && is_removable_push(lhs)
+        && let Some(value) = push_value(pushed)
+        && let Some(opcode) = raw_opcode(instruction)
     {
         if value.is_zero()
             && matches!(
@@ -78,8 +78,8 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
     // `PUSH 1 MUL -> ∅`.
     // `PUSH 1 EXP -> POP PUSH 1`.
     if let [.., pushed, instruction] = instructions.as_slice()
-        && let Some(opcode) = raw_opcode(instruction)
         && let Some(value) = push_value(pushed)
+        && let Some(opcode) = raw_opcode(instruction)
     {
         if value.is_zero() {
             return match opcode {
@@ -106,8 +106,8 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
 
     // `PUSH x POP -> ∅`.
     if let [.., pushed, pop] = instructions.as_slice()
-        && raw_opcode(pop) == Some(op::POP)
         && is_removable_push(pushed)
+        && raw_opcode(pop) == Some(op::POP)
     {
         return rewrite(instructions, 2, Edit::Keep(0), module, block);
     }
@@ -177,29 +177,26 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
     }
 
     // `SWAPn POP*n SWAP1 POP -> SWAP(n+1) POP*(n+1)`.
-    if let [.., swap, pop] = instructions.as_slice()
-        && raw_opcode(swap) == Some(op::SWAP1)
-        && raw_opcode(pop) == Some(op::POP)
-    {
-        for depth in 1..16 {
-            let input_len = depth + 3;
-            let Some(start) = instructions.len().checked_sub(input_len) else {
-                break;
-            };
-            if raw_opcode(&instructions[start]) == Some(op::swap(depth as u8))
-                && instructions[start + 1..instructions.len() - 2]
-                    .iter()
-                    .all(|inst| raw_opcode(inst) == Some(op::POP))
-            {
-                let merged_depth = depth + 1;
-                return rewrite(
-                    instructions,
-                    input_len,
-                    Edit::MergeSwapPop(merged_depth as u8),
-                    module,
-                    block,
-                );
-            }
+    for depth in 1..16 {
+        let input_len = depth + 3;
+        let Some(start) = instructions.len().checked_sub(input_len) else {
+            break;
+        };
+        if raw_opcode(&instructions[start]) == Some(op::swap(depth as u8))
+            && instructions[start + 1..instructions.len() - 2]
+                .iter()
+                .all(|inst| raw_opcode(inst) == Some(op::POP))
+            && raw_opcode(&instructions[instructions.len() - 2]) == Some(op::SWAP1)
+            && raw_opcode(&instructions[instructions.len() - 1]) == Some(op::POP)
+        {
+            let merged_depth = depth + 1;
+            return rewrite(
+                instructions,
+                input_len,
+                Edit::MergeSwapPop(merged_depth as u8),
+                module,
+                block,
+            );
         }
     }
 
