@@ -1,0 +1,9 @@
+// === ROOT/tests/ui/codegen/evm-ir/none/indexed_jump.evmir (after none) ===
+@module indexed
+bb0 (entry):
+  push 1
+  indexed_jump bb1, bb2
+bb1:
+  stop
+bb2:
+  invalid

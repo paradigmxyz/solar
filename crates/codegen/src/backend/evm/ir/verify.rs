@@ -166,6 +166,9 @@ impl<'a> Verifier<'a> {
     }
 
     fn verify_terminator_shape(&self, block_id: BlockId, term: &Terminator) {
+        if matches!(&term.kind, TerminatorKind::IndexedJump(targets) if targets.is_empty()) {
+            self.error_in_block(block_id, "`indexed_jump` must have at least one target");
+        }
         if let TerminatorKind::Op(opcode) = &term.kind
             && !op::is_terminal(*opcode)
         {
@@ -374,6 +377,7 @@ fn terminator_name(kind: &TerminatorKind) -> &'static str {
     match kind {
         TerminatorKind::Jump(_) => "jump",
         TerminatorKind::JumpI { .. } => "jumpi",
+        TerminatorKind::IndexedJump(_) => "indexed_jump",
         TerminatorKind::Op(opcode) => op::mnemonic(*opcode).unwrap_or("terminal"),
     }
 }

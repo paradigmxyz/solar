@@ -1007,6 +1007,7 @@ symbols! {
         global,
         heap,
         hir,
+        indexed_jump,
         interfaceId,
         internal_call,
         internal_frame,

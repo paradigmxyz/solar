@@ -30,6 +30,10 @@ impl Program {
         self.push(AsmInst::push_label(label));
     }
 
+    pub(in crate::backend::evm) fn push_label_fixed(&mut self, label: Label, width: u8) {
+        self.push(AsmInst::push_label_fixed(label, width));
+    }
+
     pub(in crate::backend::evm) fn define_label(&mut self, label: Label) {
         self.push(AsmInst::label(label));
     }

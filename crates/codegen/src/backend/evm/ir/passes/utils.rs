@@ -11,7 +11,8 @@ use crate::backend::evm::{
 use solar_data_structures::index::IndexVec;
 
 pub(super) fn is_evm_terminal(kind: &TerminatorKind) -> bool {
-    matches!(kind, TerminatorKind::Op(opcode) if op::is_terminal(*opcode))
+    matches!(kind, TerminatorKind::IndexedJump(_))
+        || matches!(kind, TerminatorKind::Op(opcode) if op::is_terminal(*opcode))
 }
 
 pub(in crate::backend::evm::ir) fn remap_block_order(module: &mut Module, order: &[BlockId]) {

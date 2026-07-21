@@ -8,6 +8,9 @@ use crate::backend::evm::{
 };
 use solar_data_structures::bit_set::DenseBitSet;
 
+const INDEXED_JUMP_TARGET_WIDTH: u8 = 2;
+const INDEXED_JUMP_STUB_LEN: usize = 5;
+
 /// Lowers finalized EVM IR into the linear label-bearing assembly stream.
 pub(in crate::backend::evm) fn lower_evm_ir(
     module: &ir::Module,
@@ -17,6 +20,7 @@ pub(in crate::backend::evm) fn lower_evm_ir(
     allocate_referenced_labels(module, labels, assembler);
 
     let mut program = Program::default();
+    let mut indexed_jump_tables = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
         let original = block.label as usize;
         if let Some(label) = labels.get(original).copied().flatten() {
@@ -28,7 +32,31 @@ pub(in crate::backend::evm) fn lower_evm_ir(
         }
 
         if let Some(terminator) = &block.terminator {
-            lower_terminator(&mut program, block_id, &terminator.kind, module, labels, assembler);
+            lower_terminator(
+                &mut program,
+                block_id,
+                &terminator.kind,
+                module,
+                labels,
+                assembler,
+                &mut indexed_jump_tables,
+            );
+        }
+    }
+    if !indexed_jump_tables.is_empty() {
+        // A final fallthrough `stop` may have been elided before the out-of-line
+        // tables were known. Keep ordinary execution out of the table stubs.
+        program.push_op(op::STOP);
+    }
+    for (table, targets) in indexed_jump_tables {
+        for (index, target) in targets.into_iter().enumerate() {
+            if index == 0 {
+                program.define_label(table);
+            } else {
+                program.push_op(op::JUMPDEST);
+            }
+            program.push_label_fixed(target, INDEXED_JUMP_TARGET_WIDTH);
+            program.push_op(op::JUMP);
         }
     }
     program
@@ -96,6 +124,7 @@ fn lower_terminator(
     module: &ir::Module,
     labels: &mut Vec<Option<Label>>,
     assembler: &mut Assembler,
+    indexed_jump_tables: &mut Vec<(Label, Vec<Label>)>,
 ) {
     match kind {
         ir::TerminatorKind::Jump(target) => {
@@ -125,6 +154,24 @@ fn lower_terminator(
                 program.push_label(else_label);
                 program.push_op(op::JUMP);
             }
+        }
+        ir::TerminatorKind::IndexedJump(targets) => {
+            let table = assembler.new_label();
+            program.push(
+                AsmInst::push_inline(INDEXED_JUMP_STUB_LEN as u32)
+                    .expect("indexed jump stub length must fit inline"),
+            );
+            program.push_op(op::MUL);
+            program.push_label(table);
+            program.push_op(op::ADD);
+            program.push_op(op::JUMP);
+            indexed_jump_tables.push((
+                table,
+                targets
+                    .iter()
+                    .map(|&target| label_for_block(module, target, labels, assembler))
+                    .collect(),
+            ));
         }
         ir::TerminatorKind::Op(opcode) => {
             if *opcode != op::STOP || next_block(module, block_id).is_some() {

@@ -63,6 +63,18 @@ fn display_terminator<'a>(module: &'a Module, term: &'a Terminator) -> impl fmt:
                     display_block_id(module, *else_block)
                 )?;
             }
+            TerminatorKind::IndexedJump(targets) => {
+                write!(f, "indexed_jump ")?;
+                write!(
+                    f,
+                    "{}",
+                    targets.iter().format_with(", ", |f, target| write!(
+                        f,
+                        "{}",
+                        display_block_id(module, *target)
+                    ))
+                )?;
+            }
             TerminatorKind::Op(opcode) => {
                 if let Some(mnemonic) = op::mnemonic(*opcode) {
                     write!(f, "{mnemonic}")?;

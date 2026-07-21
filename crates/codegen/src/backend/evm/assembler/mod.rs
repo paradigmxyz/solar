@@ -97,6 +97,8 @@ pub(crate) struct Assembler {
     label_relocations: Vec<(ir::BlockId, usize, Label)>,
     /// Unresolved deferred constants emitted as push operands.
     deferred_relocations: Vec<(ir::BlockId, usize, DeferredConst)>,
+    /// Indexed jumps whose possible targets are assembler labels.
+    indexed_jump_relocations: Vec<(ir::BlockId, Vec<Label>)>,
     /// Interned push immediates too large for inline storage.
     push_values: LocalInterner<U256, PushValueId>,
     /// Next label ID.
@@ -126,6 +128,7 @@ impl Assembler {
             cold_labels: GrowableBitSet::new_empty(),
             label_relocations: Vec::new(),
             deferred_relocations: Vec::new(),
+            indexed_jump_relocations: Vec::new(),
             push_values: LocalInterner::new(),
             next_label: IdCounter::new(),
             next_deferred: IdCounter::new(),
@@ -142,6 +145,7 @@ impl Assembler {
         self.cold_labels.clear();
         self.label_relocations.clear();
         self.deferred_relocations.clear();
+        self.indexed_jump_relocations.clear();
         self.push_values.clear();
         self.next_label.clear();
         self.next_deferred.clear();
@@ -173,6 +177,13 @@ impl Assembler {
         let (block, instruction) =
             self.push_ir_instruction(ir::Instruction::push_value(U256::ZERO));
         self.label_relocations.push((block, instruction, label));
+    }
+
+    /// Terminates the current block with an indexed jump to one of `targets`.
+    pub(crate) fn emit_indexed_jump(&mut self, targets: Vec<Label>) {
+        assert!(!targets.is_empty(), "indexed jump must have at least one target");
+        let block = self.current_block();
+        self.indexed_jump_relocations.push((block, targets));
     }
 
     /// Emits a push instruction for a deferred constant.
@@ -265,10 +276,23 @@ impl Assembler {
         for (block, instruction, id) in self.deferred_relocations.drain(..) {
             module.blocks[block].instructions[instruction] = ir::Instruction::push_deferred(id);
         }
+        Self::finalize_evm_ir(&mut module);
+        for (block, targets) in self.indexed_jump_relocations.drain(..) {
+            let targets = targets
+                .into_iter()
+                .map(|label| {
+                    self.label_blocks
+                        .get(&label)
+                        .copied()
+                        .unwrap_or_else(|| panic!("label {label:?} was never defined"))
+                })
+                .collect::<Vec<_>>()
+                .into_boxed_slice();
+            module.blocks[block].terminator =
+                Some(ir::Terminator::new(ir::TerminatorKind::IndexedJump(targets)));
+        }
         self.label_blocks.clear();
         self.cold_labels.clear();
-
-        Self::finalize_evm_ir(&mut module);
         Some((module, std::mem::take(&mut self.block_labels)))
     }
 
@@ -402,11 +426,14 @@ impl Assembler {
 
         // Label-free constructor and deployment snippets need neither offset
         // discovery nor push-width relaxation.
-        if !program
-            .instructions
-            .iter()
-            .any(|inst| matches!(inst.kind(), AsmInstKind::Label(_) | AsmInstKind::PushLabel(_)))
-        {
+        if !program.instructions.iter().any(|inst| {
+            matches!(
+                inst.kind(),
+                AsmInstKind::Label(_)
+                    | AsmInstKind::PushLabel(_)
+                    | AsmInstKind::PushLabelFixed(_, _)
+            )
+        }) {
             let mut result =
                 self.emit_bytecode(&program, FxHashMap::default(), &FxHashMap::default());
             result.evm_ir = evm_ir;
@@ -467,6 +494,9 @@ impl Assembler {
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
                     offset += out.fixed_push_len(width);
                 }
+                AsmInstKind::PushLabelFixed(_, width) => {
+                    offset += out.fixed_push_len(width);
+                }
                 AsmInstKind::PushDeferred(_) => {
                     unreachable!("deferred constants must be resolved before assembly");
                 }
@@ -520,6 +550,17 @@ impl Assembler {
                         .copied()
                         .unwrap_or_else(|| panic!("label {label:?} was never defined"));
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
+                    out.emit_push_fixed_width(U256::from(target_offset), width);
+                }
+                AsmInstKind::PushLabelFixed(label, width) => {
+                    let target_offset = label_offsets
+                        .get(&label)
+                        .copied()
+                        .unwrap_or_else(|| panic!("label {label:?} was never defined"));
+                    assert!(
+                        out.push_width(U256::from(target_offset)) <= width,
+                        "label {label:?} does not fit PUSH{width}"
+                    );
                     out.emit_push_fixed_width(U256::from(target_offset), width);
                 }
                 AsmInstKind::PushDeferred(_) => {
@@ -722,6 +763,48 @@ PUSH4 0x80000000
             disassemble(&second.bytecode),
             str![[r#"
 PUSH1 0x02
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn indexed_jump_uses_out_of_line_fixed_stride_table() {
+        let mut asm = Assembler::with_config(AssemblerConfig {
+            evm_version: EvmVersion::Shanghai,
+            optimization: OptimizationMode::None,
+            ..AssemblerConfig::default()
+        });
+        let left = asm.new_label();
+        let right = asm.new_label();
+
+        asm.emit_push(U256::from(1));
+        asm.emit_indexed_jump(vec![left, right]);
+        asm.define_label(left);
+        asm.emit_op(op::STOP);
+        asm.define_label(right);
+        asm.emit_op(op::INVALID);
+
+        assert_data_eq!(
+            disassemble(&asm.assemble().bytecode),
+            str![[r#"
+PUSH1 0x01
+PUSH1 0x05
+MUL
+PUSH1 0x0e
+ADD
+JUMP
+JUMPDEST
+STOP
+JUMPDEST
+INVALID
+STOP
+JUMPDEST
+PUSH2 0x0009
+JUMP
+JUMPDEST
+PUSH2 0x000b
+JUMP
 
 "#]]
         );

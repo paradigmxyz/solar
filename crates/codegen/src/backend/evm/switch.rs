@@ -11,6 +11,14 @@ const VERY_LOW_GAS: usize = 3;
 const JUMP_GAS: usize = 8;
 const JUMPI_GAS: usize = 10;
 const DEFAULT_JUMP_GAS: usize = VERY_LOW_GAS + JUMP_GAS;
+const MOD_GAS: usize = 5;
+const MUL_GAS: usize = 5;
+const JUMPDEST_GAS: usize = 1;
+
+const INDEXED_JUMP_STUB_LEN: usize = 5;
+const INDEXED_JUMP_BASE_LEN: usize = 8;
+const MIN_BUCKET_CASES: usize = 8;
+const MAX_DENSE_RANGE: usize = 4096;
 
 /// Selected control-flow shape for a switch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -19,6 +27,10 @@ pub(super) enum SwitchPlan {
     Linear,
     /// Recursively split sorted cases, using linear leaves of at most this size.
     Binary { leaf_size: usize },
+    /// Dispatch by `value % bucket_count`, then linearly scan one bucket.
+    Buckets { bucket_count: usize },
+    /// Bounds-check `value - low` and dispatch through a dense target table.
+    Dense { low: U256, range: usize },
 }
 
 /// Selects the cheapest supported switch shape for the optimization objective.
@@ -27,15 +39,37 @@ pub(super) fn select_switch_plan(
     optimization: OptimizationMode,
     evm_version: EvmVersion,
 ) -> SwitchPlan {
-    if values.len() <= 1 || optimization != OptimizationMode::Gas {
+    if values.len() <= 1 || optimization == OptimizationMode::None {
         return SwitchPlan::Linear;
     }
 
     let mut best = (lowering_cost(values, values.len(), evm_version), SwitchPlan::Linear);
-    for leaf_size in 1..values.len() {
-        let cost = lowering_cost(values, leaf_size, evm_version);
-        if cost.gas_key() < best.0.gas_key() {
-            best = (cost, SwitchPlan::Binary { leaf_size });
+    if optimization == OptimizationMode::Gas {
+        for leaf_size in 1..values.len() {
+            let cost = lowering_cost(values, leaf_size, evm_version);
+            if cost.gas_key() < best.0.gas_key() {
+                best = (cost, SwitchPlan::Binary { leaf_size });
+            }
+        }
+        if values.len() >= MIN_BUCKET_CASES {
+            let first_bucket_count = (values.len() * 3 / 4).max(2);
+            let last_bucket_count = values.len() * 5 / 4;
+            for bucket_count in first_bucket_count..=last_bucket_count {
+                let cost = bucket_lowering_cost(values, bucket_count, evm_version);
+                if cost.gas_key() < best.0.gas_key() {
+                    best = (cost, SwitchPlan::Buckets { bucket_count });
+                }
+            }
+        }
+    }
+    if let Some((low, range, cost)) = dense_lowering_cost(values, evm_version) {
+        let better = match optimization {
+            OptimizationMode::Gas => cost.gas_key() < best.0.gas_key(),
+            OptimizationMode::Size => cost.size_key() < best.0.size_key(),
+            _ => false,
+        };
+        if better {
+            best = (cost, SwitchPlan::Dense { low, range });
         }
     }
     best.1
@@ -51,6 +85,10 @@ struct LoweringCost {
 impl LoweringCost {
     fn gas_key(self) -> (usize, usize, usize) {
         (self.hit_gas_sum, self.miss_gas, self.code_size)
+    }
+
+    fn size_key(self) -> (usize, usize, usize) {
+        (self.code_size, self.hit_gas_sum, self.miss_gas)
     }
 }
 
@@ -77,6 +115,96 @@ fn lowering_cost(values: &[U256], leaf_size: usize, evm_version: EvmVersion) -> 
         hit_gas_sum: split.gas * values.len() + left.hit_gas_sum + right.hit_gas_sum,
         miss_gas: split.gas + left.miss_gas.max(right.miss_gas),
     }
+}
+
+fn bucket_lowering_cost(
+    values: &[U256],
+    bucket_count: usize,
+    evm_version: EvmVersion,
+) -> LoweringCost {
+    let mut buckets = vec![Vec::new(); bucket_count];
+    for &value in values {
+        buckets[bucket_index(value, bucket_count)].push(value);
+    }
+
+    let hash_len = 1 + push_len(U256::from(bucket_count), evm_version) + 1 + 1;
+    let hash_gas = VERY_LOW_GAS * 3 + MOD_GAS;
+    let indexed_jump_gas = VERY_LOW_GAS
+        + MUL_GAS
+        + VERY_LOW_GAS
+        + VERY_LOW_GAS
+        + JUMP_GAS
+        + JUMPDEST_GAS
+        + VERY_LOW_GAS
+        + JUMP_GAS
+        + JUMPDEST_GAS;
+    let dispatch_gas = hash_gas + indexed_jump_gas;
+    let mut cost = LoweringCost {
+        code_size: hash_len
+            + INDEXED_JUMP_BASE_LEN
+            + bucket_count * INDEXED_JUMP_STUB_LEN
+            + bucket_count * (JUMPDEST_LEN + DEFAULT_JUMP_LEN),
+        hit_gas_sum: dispatch_gas * values.len(),
+        miss_gas: dispatch_gas + DEFAULT_JUMP_GAS,
+    };
+
+    for bucket in buckets {
+        let mut path_gas = 0;
+        for value in bucket {
+            let test = equality_test_cost(value, evm_version);
+            cost.code_size += test.code_size;
+            path_gas += test.gas;
+            cost.hit_gas_sum += path_gas;
+        }
+        cost.miss_gas = cost.miss_gas.max(dispatch_gas + path_gas + DEFAULT_JUMP_GAS);
+    }
+    cost
+}
+
+fn dense_lowering_cost(
+    values: &[U256],
+    evm_version: EvmVersion,
+) -> Option<(U256, usize, LoweringCost)> {
+    let low = *values.first()?;
+    let high = *values.last()?;
+    let range = usize::try_from(high - low).ok()?.checked_add(1)?;
+    if range > MAX_DENSE_RANGE {
+        return None;
+    }
+
+    let normalize_len = usize::from(!low.is_zero()) * (push_len(low, evm_version) + 2);
+    let normalize_gas = usize::from(!low.is_zero()) * VERY_LOW_GAS * 3;
+    let bounds_len = 1 + push_len(U256::from(range), evm_version) + 1 + 1 + LABEL_PUSH_LEN + 1;
+    let bounds_gas = VERY_LOW_GAS * 5 + JUMPI_GAS;
+    let indexed_jump_gas = VERY_LOW_GAS
+        + MUL_GAS
+        + VERY_LOW_GAS
+        + VERY_LOW_GAS
+        + JUMP_GAS
+        + JUMPDEST_GAS
+        + VERY_LOW_GAS
+        + JUMP_GAS;
+    let hit_gas = normalize_gas + bounds_gas + JUMPDEST_GAS + indexed_jump_gas;
+    let miss_gas = normalize_gas + bounds_gas + 2 + DEFAULT_JUMP_GAS;
+    Some((
+        low,
+        range,
+        LoweringCost {
+            code_size: normalize_len
+                + bounds_len
+                + 1
+                + DEFAULT_JUMP_LEN
+                + JUMPDEST_LEN
+                + INDEXED_JUMP_BASE_LEN
+                + range * INDEXED_JUMP_STUB_LEN,
+            hit_gas_sum: hit_gas * values.len(),
+            miss_gas,
+        },
+    ))
+}
+
+pub(super) fn bucket_index(value: U256, bucket_count: usize) -> usize {
+    usize::try_from(value % U256::from(bucket_count)).expect("bucket index must fit usize")
 }
 
 #[derive(Clone, Copy)]
@@ -127,19 +255,41 @@ mod tests {
 
     #[test]
     fn selects_profitable_binary_leaf_size() {
+        let values = (0..5).map(|value| U256::from(value * 7919)).collect::<Vec<_>>();
         assert_eq!(
-            select_switch_plan(&values(5), OptimizationMode::Gas, EvmVersion::Cancun),
+            select_switch_plan(&values, OptimizationMode::Gas, EvmVersion::Cancun),
             SwitchPlan::Binary { leaf_size: 3 }
         );
     }
 
     #[test]
     fn preserves_linear_shape_outside_gas_mode() {
-        for optimization in [OptimizationMode::None, OptimizationMode::Size] {
-            assert_eq!(
-                select_switch_plan(&values(64), optimization, EvmVersion::Cancun),
-                SwitchPlan::Linear
-            );
-        }
+        let sparse = (0..64).map(|value| U256::from(value * 7919)).collect::<Vec<_>>();
+        assert_eq!(
+            select_switch_plan(&sparse, OptimizationMode::None, EvmVersion::Cancun),
+            SwitchPlan::Linear
+        );
+        assert_eq!(
+            select_switch_plan(&sparse, OptimizationMode::Size, EvmVersion::Cancun),
+            SwitchPlan::Linear
+        );
+    }
+
+    #[test]
+    fn selects_buckets_for_large_sparse_switches() {
+        let values = (0..32).map(|value| U256::from(value * 7919)).collect::<Vec<_>>();
+        assert!(matches!(
+            select_switch_plan(&values, OptimizationMode::Gas, EvmVersion::Cancun),
+            SwitchPlan::Buckets { .. }
+        ));
+    }
+
+    #[test]
+    fn selects_dense_table_for_compact_ranges() {
+        let values = values(8);
+        assert_eq!(
+            select_switch_plan(&values, OptimizationMode::Size, EvmVersion::Cancun),
+            SwitchPlan::Dense { low: U256::ZERO, range: 8 }
+        );
     }
 }
