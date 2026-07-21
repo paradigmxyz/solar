@@ -2,10 +2,8 @@
 @module module
 
 bb0 (entry):
-  push bb1
-  dup1
-  jumpi
-  stop
+  push 0
+  push 1
+  jumpi bb0, bb1
 bb1:
-  pop
   stop
