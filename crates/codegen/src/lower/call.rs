@@ -1914,7 +1914,6 @@ impl<'gcx> Lowerer<'gcx> {
 
         let saved_locals = std::mem::take(&mut self.locals);
         let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
-        let saved_next_local_memory_offset = self.next_local_memory_offset;
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
 
         if let Some(body) = body {
@@ -1934,9 +1933,13 @@ impl<'gcx> Lowerer<'gcx> {
             self.in_unchecked_block = saved_in_unchecked_block;
         }
 
+        // Keep `next_local_memory_offset`: the body's local slots stay part of
+        // the enclosing function's frame. Rolling the offset back would place
+        // the backend's cross-block spill area — which starts at the frame's
+        // final high-water mark — inside this region, so a caller value
+        // spilled across the inlined body would be clobbered by its locals.
         self.locals = saved_locals;
         self.local_memory_slots = saved_local_memory_slots;
-        self.next_local_memory_offset = saved_next_local_memory_offset;
         self.assigned_vars = saved_assigned_vars;
         self.exit_inline();
 
@@ -2301,7 +2304,6 @@ impl<'gcx> Lowerer<'gcx> {
             // Save current locals
             let saved_locals = std::mem::take(&mut self.locals);
             let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
-            let saved_next_local_memory_offset = self.next_local_memory_offset;
             let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
 
             if let Some(body) = &func.body {
@@ -2322,10 +2324,11 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.imm_u64(0)
             };
 
-            // Restore locals
+            // Restore locals. `next_local_memory_offset` is kept: any slot the
+            // body allocated stays part of the enclosing frame, clear of the
+            // backend's cross-block spill area.
             self.locals = saved_locals;
             self.local_memory_slots = saved_local_memory_slots;
-            self.next_local_memory_offset = saved_next_local_memory_offset;
             self.assigned_vars = saved_assigned_vars;
 
             // Exit inline tracking
