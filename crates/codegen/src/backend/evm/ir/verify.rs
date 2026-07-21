@@ -11,6 +11,8 @@ use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
 use std::fmt;
 
 const MAX_STACK_STATES_PER_BLOCK: usize = MAX_STACK_DEPTH + 1;
+const MAX_STACK_STATES: usize = 1 << 16;
+const MAX_STACK_WORDS: usize = 1 << 20;
 
 /// Stateful EVM IR verifier.
 struct Verifier<'a> {
@@ -220,6 +222,7 @@ impl<'a> Verifier<'a> {
         entry_stacks[entry].insert(entry_stack.clone());
         let mut pending = vec![(entry, entry_stack)];
         let mut invalid = DenseBitSet::new_empty(module.blocks.len());
+        let mut budget = AnalysisBudget::default();
         while let Some((block_id, mut stack)) = pending.pop() {
             if invalid.contains(block_id) {
                 continue;
@@ -324,43 +327,41 @@ impl<'a> Verifier<'a> {
             let Some(term) = &block.terminator else { continue };
             term.kind.visit_targets(|target| physical_targets.push((target, stack.clone())));
             for (target, target_stack) in physical_targets {
-                self.propagate_stack(
+                if !Self::propagate_stack(
                     target,
                     target_stack,
                     &mut entry_stacks,
                     &mut pending,
-                    &mut invalid,
-                );
+                    &invalid,
+                    &mut budget,
+                ) {
+                    return;
+                }
             }
         }
     }
 
     fn propagate_stack(
-        &self,
         target: BlockId,
         stack: ModelStack,
         entry_stacks: &mut IndexVec<BlockId, FxHashSet<ModelStack>>,
         pending: &mut Vec<(BlockId, ModelStack)>,
-        invalid: &mut DenseBitSet<BlockId>,
-    ) {
+        invalid: &DenseBitSet<BlockId>,
+        budget: &mut AnalysisBudget,
+    ) -> bool {
         if invalid.contains(target) {
-            return;
+            return true;
         }
-        if !entry_stacks[target].contains(&stack)
-            && entry_stacks[target].len() >= MAX_STACK_STATES_PER_BLOCK
-        {
-            self.error_in_block(
-                target,
-                format_args!(
-                    "stack analysis exceeds the limit of {MAX_STACK_STATES_PER_BLOCK} states"
-                ),
-            );
-            invalid.insert(target);
-            return;
+        if entry_stacks[target].contains(&stack) {
+            return true;
+        }
+        if !budget.reserve(entry_stacks[target].len(), stack.depth()) {
+            return false;
         }
         if entry_stacks[target].insert(stack.clone()) {
             pending.push((target, stack));
         }
+        true
     }
 
     fn apply_effect(
@@ -505,6 +506,28 @@ enum StackWord {
     Block(BlockId),
 }
 
+/// Bounds path-sensitive stack validation without making exhaustion an IR error.
+#[derive(Default)]
+struct AnalysisBudget {
+    states: usize,
+    words: usize,
+}
+
+impl AnalysisBudget {
+    fn reserve(&mut self, block_states: usize, stack_depth: usize) -> bool {
+        if block_states >= MAX_STACK_STATES_PER_BLOCK || self.states >= MAX_STACK_STATES {
+            return false;
+        }
+        let Some(words) = self.words.checked_add(stack_depth) else { return false };
+        if words > MAX_STACK_WORDS {
+            return false;
+        }
+        self.states += 1;
+        self.words = words;
+        true
+    }
+}
+
 fn terminator_name(kind: &TerminatorKind) -> &'static str {
     match kind {
         TerminatorKind::Jump(_) => "jump",
@@ -515,4 +538,22 @@ fn terminator_name(kind: &TerminatorKind) -> &'static str {
 
 pub(super) fn validate(dcx: &DiagCtxt, module: &Module) {
     Verifier::new(dcx).verify_module(module);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stack_analysis_budget_is_bounded() {
+        let mut budget = AnalysisBudget::default();
+        assert!(!budget.reserve(MAX_STACK_STATES_PER_BLOCK, 1));
+
+        budget.states = MAX_STACK_STATES;
+        assert!(!budget.reserve(0, 1));
+
+        budget.states = 0;
+        budget.words = MAX_STACK_WORDS;
+        assert!(!budget.reserve(0, 1));
+    }
 }
