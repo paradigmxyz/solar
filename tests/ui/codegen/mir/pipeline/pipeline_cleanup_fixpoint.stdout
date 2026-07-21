@@ -1,13 +1,27 @@
-// === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup_fixpoint.mir (after pipeline-default) ===
-@module PipelineCleanupFixpoint
-@phase optimized
-fn @fold_phi_after_promotion(arg0: bool) -> u256 {
-  bb0 (entry):
-    ret 1
-  bb1:
-    invalid
-  bb2:
-    invalid
-  bb3:
-    invalid
-}
+- // === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup_fixpoint.mir (before pipeline-default) ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup_fixpoint.mir (after pipeline-default) ===
+  @module PipelineCleanupFixpoint
++ @phase optimized
+  fn @fold_phi_after_promotion(arg0: bool) -> u256 {
+    bb0 (entry):
+-     v0 = internal_frame_addr 128
+-     mstore v0, 1
+-     br arg0, bb1, bb2
++     ret 1
+    bb1:
+-     v1 = internal_frame_addr 128
+-     mstore v1, 1
+-     jump bb3
++     invalid
+    bb2:
+-     v2 = internal_frame_addr 128
+-     mstore v2, 1
+-     jump bb3
++     invalid
+    bb3:
+-     v3 = internal_frame_addr 128
+-     v4 = mload v3
+-     ret v4
++     invalid
+  }
+  

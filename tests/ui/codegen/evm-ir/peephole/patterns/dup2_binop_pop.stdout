@@ -1,124 +1,196 @@
-// === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/dup2_binop_pop.evmir (after peephole) ===
-@module module
-bb0 (entry):
-  push 1
-  push 2
-  add
-  stop
-bb1:
-  push 1
-  push 2
-  mul
-  stop
-bb2:
-  push 1
-  push 2
-  and
-  stop
-bb3:
-  push 1
-  push 2
-  or
-  stop
-bb4:
-  push 1
-  push 2
-  xor
-  stop
-bb5:
-  push 1
-  push 2
-  eq
-  stop
-bb6:
-  push 1
-  push 2
-  swap1
-  sub
-  stop
-bb7:
-  push 1
-  push 2
-  swap1
-  div
-  stop
-bb8:
-  push 1
-  push 2
-  swap1
-  sdiv
-  stop
-bb9:
-  push 1
-  push 2
-  swap1
-  mod
-  stop
-bb10:
-  push 1
-  push 2
-  swap1
-  smod
-  stop
-bb11:
-  push 1
-  push 2
-  swap1
-  exp
-  stop
-bb12:
-  push 1
-  push 2
-  swap1
-  signextend
-  stop
-bb13:
-  push 1
-  push 2
-  gt
-  stop
-bb14:
-  push 1
-  push 2
-  lt
-  stop
-bb15:
-  push 1
-  push 2
-  sgt
-  stop
-bb16:
-  push 1
-  push 2
-  slt
-  stop
-bb17:
-  push 1
-  push 2
-  swap1
-  byte
-  stop
-bb18:
-  push 1
-  push 2
-  swap1
-  shl
-  stop
-bb19:
-  push 1
-  push 2
-  swap1
-  shr
-  stop
-bb20:
-  push 1
-  push 2
-  swap1
-  sar
-  stop
-bb21:
-  push 1
-  push 2
-  swap1
-  keccak256
-  stop
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/dup2_binop_pop.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/dup2_binop_pop.evmir (after peephole) ===
+  @module module
+  bb0 (entry):
+    push 1
+    push 2
+-   dup2
+    add
+-   swap1
+-   pop
+    stop
+  bb1:
+    push 1
+    push 2
+-   dup2
+    mul
+-   swap1
+-   pop
+    stop
+  bb2:
+    push 1
+    push 2
+-   dup2
+    and
+-   swap1
+-   pop
+    stop
+  bb3:
+    push 1
+    push 2
+-   dup2
+    or
+-   swap1
+-   pop
+    stop
+  bb4:
+    push 1
+    push 2
+-   dup2
+    xor
+-   swap1
+-   pop
+    stop
+  bb5:
+    push 1
+    push 2
+-   dup2
+    eq
+-   swap1
+-   pop
+    stop
+  bb6:
+    push 1
+    push 2
+-   dup2
+-   sub
+    swap1
+-   pop
++   sub
+    stop
+  bb7:
+    push 1
+    push 2
+-   dup2
+-   div
+    swap1
+-   pop
++   div
+    stop
+  bb8:
+    push 1
+    push 2
+-   dup2
+-   sdiv
+    swap1
+-   pop
++   sdiv
+    stop
+  bb9:
+    push 1
+    push 2
+-   dup2
+-   mod
+    swap1
+-   pop
++   mod
+    stop
+  bb10:
+    push 1
+    push 2
+-   dup2
+-   smod
+    swap1
+-   pop
++   smod
+    stop
+  bb11:
+    push 1
+    push 2
+-   dup2
+-   exp
+    swap1
+-   pop
++   exp
+    stop
+  bb12:
+    push 1
+    push 2
+-   dup2
+-   signextend
+    swap1
+-   pop
++   signextend
+    stop
+  bb13:
+    push 1
+    push 2
+-   dup2
+-   lt
+-   swap1
+-   pop
++   gt
+    stop
+  bb14:
+    push 1
+    push 2
+-   dup2
+-   gt
+-   swap1
+-   pop
++   lt
+    stop
+  bb15:
+    push 1
+    push 2
+-   dup2
+-   slt
+-   swap1
+-   pop
++   sgt
+    stop
+  bb16:
+    push 1
+    push 2
+-   dup2
+-   sgt
+-   swap1
+-   pop
++   slt
+    stop
+  bb17:
+    push 1
+    push 2
+-   dup2
+-   byte
+    swap1
+-   pop
++   byte
+    stop
+  bb18:
+    push 1
+    push 2
+-   dup2
+-   shl
+    swap1
+-   pop
++   shl
+    stop
+  bb19:
+    push 1
+    push 2
+-   dup2
+-   shr
+    swap1
+-   pop
++   shr
+    stop
+  bb20:
+    push 1
+    push 2
+-   dup2
+-   sar
+    swap1
+-   pop
++   sar
+    stop
+  bb21:
+    push 1
+    push 2
+-   dup2
+-   keccak256
+    swap1
+-   pop
++   keccak256
+    stop
+  

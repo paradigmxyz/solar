@@ -1,24 +1,29 @@
-// === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_keccak_fold.mir (after memory-dse) ===
-@module MemoryDseKeccakFold
-fn @fold_constant_scratch_keccak() -> bytes32 {
-  bb0 (entry):
-    mstore 0, 7
-    mstore 32, 5
-    ret 0xeddb6698d7c569ff62ff64f1f1492bf14a54594835ba0faac91f84b4f5d81460
-}
-
-fn @keep_dynamic_word(arg0: u256) -> bytes32 {
-  bb0 (entry):
-    mstore 0, arg0
-    mstore 32, 5
-    v0 = keccak256 0, 64
-    ret v0
-}
-
-fn @keep_after_memory_clobber() -> bytes32 {
-  bb0 (entry):
-    mstore 32, 5
-    calldatacopy 0, 0, 32
-    v0 = keccak256 0, 64
-    ret v0
-}
+- // === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_keccak_fold.mir (before memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_keccak_fold.mir (after memory-dse) ===
+  @module MemoryDseKeccakFold
+  fn @fold_constant_scratch_keccak() -> bytes32 {
+    bb0 (entry):
+      mstore 0, 7
+      mstore 32, 5
+-     v0 = keccak256 0, 64
+-     ret v0
++     ret 0xeddb6698d7c569ff62ff64f1f1492bf14a54594835ba0faac91f84b4f5d81460
+  }
+  
+  fn @keep_dynamic_word(arg0: u256) -> bytes32 {
+    bb0 (entry):
+      mstore 0, arg0
+      mstore 32, 5
+      v0 = keccak256 0, 64
+      ret v0
+  }
+  
+  fn @keep_after_memory_clobber() -> bytes32 {
+    bb0 (entry):
+-     mstore 0, 7
+      mstore 32, 5
+      calldatacopy 0, 0, 32
+      v0 = keccak256 0, 64
+      ret v0
+  }
+  

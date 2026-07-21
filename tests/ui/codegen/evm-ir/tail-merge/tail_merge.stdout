@@ -1,37 +1,58 @@
-// === ROOT/tests/ui/codegen/evm-ir/tail-merge/tail_merge.evmir (after tail-merge) ===
-@module module
-bb0 (entry):
-  push 1
-  push bb1
-  jumpi
-  jump bb2
-bb1 [cold]:
-  push 11
-  jump bb9
-bb2 [cold]:
-  push 99
-  jump bb9
-bb3:
-  push 77
-  push 66
-  jump bb8
-bb6 [cold]:
-  push 111
-  jump bb10
-bb7:
-  push 999
-  jump bb10
-bb8:
-  push 33
-  push 44
-  push 55
-  revert
-bb9 [cold]:
-  push 22
-  jump bb8
-bb10:
-  push 222
-  push 333
-  push 444
-  push 555
-  revert
+- // === ROOT/tests/ui/codegen/evm-ir/tail-merge/tail_merge.evmir (before tail-merge) ===
++ // === ROOT/tests/ui/codegen/evm-ir/tail-merge/tail_merge.evmir (after tail-merge) ===
+  @module module
+  bb0 (entry):
+    push 1
+    push bb1
+    jumpi
+    jump bb2
+  bb1 [cold]:
+    push 11
+-   push 22
+-   push 33
+-   push 44
+-   push 55
+-   revert
++   jump bb9
+  bb2 [cold]:
+    push 99
+-   push 22
+-   push 33
+-   push 44
+-   push 55
+-   revert
++   jump bb9
+  bb3:
+    push 77
+    push 66
+-   push 33
+-   push 44
+-   push 55
+-   revert
++   jump bb8
+  bb6 [cold]:
+    push 111
+-   push 222
+-   push 333
+-   push 444
+-   push 555
+-   revert
++   jump bb10
+  bb7:
+    push 999
++   jump bb10
++ bb8:
++   push 33
++   push 44
++   push 55
++   revert
++ bb9 [cold]:
++   push 22
++   jump bb8
++ bb10:
+    push 222
+    push 333
+    push 444
+    push 555
+    revert
+  

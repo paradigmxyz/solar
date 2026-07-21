@@ -1,25 +1,33 @@
-// === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_phi_forwarders.mir (after cfg-simplify) ===
-@module CfgSimplifyPhiForwarders
-fn @keep_conflicting_diamond(arg0: bool) -> u256 {
-  bb0 (entry):
-    br arg0, bb3, bb2
-  bb1:
-    invalid
-  bb2:
-    jump bb3
-  bb3:
-    v0 = phi [bb0: 1], [bb2: 2]
-    ret v0
-}
-
-fn @fold_equal_value_diamond(arg0: bool) -> u256 {
-  bb0 (entry):
-    br arg0, bb3, bb2
-  bb1:
-    invalid
-  bb2:
-    jump bb3
-  bb3:
-    v0 = phi [bb0: 7], [bb2: 7]
-    ret v0
-}
+- // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_phi_forwarders.mir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_phi_forwarders.mir (after cfg-simplify) ===
+  @module CfgSimplifyPhiForwarders
+  fn @keep_conflicting_diamond(arg0: bool) -> u256 {
+    bb0 (entry):
+-     br arg0, bb1, bb2
++     br arg0, bb3, bb2
+    bb1:
+-     jump bb3
++     invalid
+    bb2:
+      jump bb3
+    bb3:
+-     v0 = phi [bb1: 1], [bb2: 2]
++     v0 = phi [bb0: 1], [bb2: 2]
+      ret v0
+  }
+  
+  fn @fold_equal_value_diamond(arg0: bool) -> u256 {
+    bb0 (entry):
+-     br arg0, bb1, bb2
++     br arg0, bb3, bb2
+    bb1:
+-     jump bb3
++     invalid
+    bb2:
+      jump bb3
+    bb3:
+-     v0 = phi [bb1: 7], [bb2: 7]
++     v0 = phi [bb0: 7], [bb2: 7]
+      ret v0
+  }
+  

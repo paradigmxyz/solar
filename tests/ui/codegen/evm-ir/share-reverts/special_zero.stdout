@@ -1,24 +1,26 @@
-// === ROOT/tests/ui/codegen/evm-ir/share-reverts/special_zero.evmir (after share-reverts) ===
-@module module
-bb0 (entry):
-  push 1
-  iszero
-  push bb2
-  jumpi
-  jump bb1
-bb1 [cold]:
-  push_deferred 0
-  dup1
-  revert
-bb2:
-  push 1
-  iszero
-  push bb4
-  jumpi
-  jump bb3
-bb3 [cold]:
-  push_immutable 0
-  dup1
-  revert
-bb4:
-  stop
+- // === ROOT/tests/ui/codegen/evm-ir/share-reverts/special_zero.evmir (before share-reverts) ===
++ // === ROOT/tests/ui/codegen/evm-ir/share-reverts/special_zero.evmir (after share-reverts) ===
+  @module module
+  bb0 (entry):
+    push 1
+    iszero
+    push bb2
+    jumpi
+    jump bb1
+  bb1 [cold]:
+    push_deferred 0
+    dup1
+    revert
+  bb2:
+    push 1
+    iszero
+    push bb4
+    jumpi
+    jump bb3
+  bb3 [cold]:
+    push_immutable 0
+    dup1
+    revert
+  bb4:
+    stop
+  

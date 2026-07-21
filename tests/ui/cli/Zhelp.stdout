@@ -43,7 +43,7 @@ Options:
           Print resolved NatSpec docs as diagnostics for UI tests
 
       -Zmir-print-after-each
-          Print MIR after every MIR optimization pass during codegen
+          Print a MIR diff for every MIR optimization pass during codegen
 
       -Ztime-passes
           Print the time spent in each MIR and EVM IR pass

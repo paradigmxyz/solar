@@ -1,25 +1,28 @@
-// === ROOT/tests/ui/codegen/mir/lowering/lower_abi_then_dispatch.mir (after lower-abi,lower-dispatch) ===
-@module LowerAbiThenDispatch
-@phase dispatch
-fn @get() {
-  bb0 (entry):
-    mstore 128, arg0
-    returndata 128, 32
-}
-
-fn @entry() {
-  bb0 (entry):
-    v0 = callvalue
-    br v0, bb4, bb1
-  bb1:
-    v1 = calldatasize
-    br v1, bb2, bb4
-  bb2:
-    v2 = calldataload 0
-    v3 = shr 224, v2
-    switch v3, default bb4, [0x9507d39a => bb3]
-  bb3:
-    tail_call @get
-  bb4:
-    revert 0, 0
-}
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_then_dispatch.mir (before lower-abi,lower-dispatch) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_then_dispatch.mir (after lower-abi,lower-dispatch) ===
+  @module LowerAbiThenDispatch
+- fn @get(arg0: u256) {
++ @phase dispatch
++ fn @get() {
+    bb0 (entry):
+      mstore 128, arg0
+      returndata 128, 32
++ }
++ 
++ fn @entry() {
++   bb0 (entry):
++     v0 = callvalue
++     br v0, bb4, bb1
++   bb1:
++     v1 = calldatasize
++     br v1, bb2, bb4
++   bb2:
++     v2 = calldataload 0
++     v3 = shr 224, v2
++     switch v3, default bb4, [0x9507d39a => bb3]
++   bb3:
++     tail_call @get
++   bb4:
++     revert 0, 0
+  }
+  

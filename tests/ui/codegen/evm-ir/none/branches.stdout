@@ -1,26 +1,28 @@
-// === ROOT/tests/ui/codegen/evm-ir/none/branches.evmir (after none) ===
-@module module
-bb0 (entry):
-  push 0
-  calldataload
-  dup1
-  push 1
-  eq
-  jumpi bb1, bb5
-bb1:
-  pop
-  jump bb4
-bb2:
-  pop
-  push 0xbeef
-  selfdestruct
-bb3 [cold]:
-  pop
-  invalid
-bb4:
-  stop
-bb5:
-  dup1
-  push 2
-  eq
-  jumpi bb2, bb3
+- // === ROOT/tests/ui/codegen/evm-ir/none/branches.evmir (before none) ===
++ // === ROOT/tests/ui/codegen/evm-ir/none/branches.evmir (after none) ===
+  @module module
+  bb0 (entry):
+    push 0
+    calldataload
+    dup1
+    push 1
+    eq
+    jumpi bb1, bb5
+  bb1:
+    pop
+    jump bb4
+  bb2:
+    pop
+    push 0xbeef
+    selfdestruct
+  bb3 [cold]:
+    pop
+    invalid
+  bb4:
+    stop
+  bb5:
+    dup1
+    push 2
+    eq
+    jumpi bb2, bb3
+  

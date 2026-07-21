@@ -1,46 +1,51 @@
-// === ROOT/tests/ui/codegen/mir/licm/licm_multi_latch.mir (after licm) ===
-@module LicmMultiLatch
-fn @multi_latch_mixed_step() -> u256 {
-  bb0 (entry):
-    v4 = calldataload 0
-    jump bb1
-  bb1:
-    v0 = phi [bb0: 0], [bb3: v5], [bb4: v6]
-    v1 = lt v0, 10
-    br v1, bb2, bb5
-  bb2:
-    v2 = mul v0, 32
-    mstore v2, 1
-    v3 = mload 288
-    br v4, bb3, bb4
-  bb3:
-    v5 = add v0, 1
-    jump bb1
-  bb4:
-    v6 = add v0, 7
-    jump bb1
-  bb5:
-    ret v3
-}
-
-fn @multi_latch_same_value() -> u256 {
-  bb0 (entry):
-    v3 = mload 320
-    v5 = calldataload 0
-    jump bb1
-  bb1:
-    v0 = phi [bb0: 0], [bb3: v4], [bb4: v4]
-    v1 = lt v0, 10
-    br v1, bb2, bb5
-  bb2:
-    v2 = mul v0, 32
-    mstore v2, 1
-    v4 = add v0, 1
-    br v5, bb3, bb4
-  bb3:
-    jump bb1
-  bb4:
-    jump bb1
-  bb5:
-    ret v3
-}
+- // === ROOT/tests/ui/codegen/mir/licm/licm_multi_latch.mir (before licm) ===
++ // === ROOT/tests/ui/codegen/mir/licm/licm_multi_latch.mir (after licm) ===
+  @module LicmMultiLatch
+  fn @multi_latch_mixed_step() -> u256 {
+    bb0 (entry):
++     v4 = calldataload 0
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb3: v5], [bb4: v6]
+      v1 = lt v0, 10
+      br v1, bb2, bb5
+    bb2:
+      v2 = mul v0, 32
+      mstore v2, 1
+      v3 = mload 288
+-     v4 = calldataload 0
+      br v4, bb3, bb4
+    bb3:
+      v5 = add v0, 1
+      jump bb1
+    bb4:
+      v6 = add v0, 7
+      jump bb1
+    bb5:
+      ret v3
+  }
+  
+  fn @multi_latch_same_value() -> u256 {
+    bb0 (entry):
++     v3 = mload 320
++     v5 = calldataload 0
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb3: v4], [bb4: v4]
+      v1 = lt v0, 10
+      br v1, bb2, bb5
+    bb2:
+      v2 = mul v0, 32
+      mstore v2, 1
+-     v3 = mload 320
+      v4 = add v0, 1
+-     v5 = calldataload 0
+      br v5, bb3, bb4
+    bb3:
+      jump bb1
+    bb4:
+      jump bb1
+    bb5:
+      ret v3
+  }
+  

@@ -65,7 +65,7 @@ pub struct EvmCodegenConfig {
     pub(crate) evm_version: EvmVersion,
     /// Optimization mode for MIR and EVM IR passes.
     pub(crate) optimization: OptimizationMode,
-    /// Print MIR after each pass before bytecode generation.
+    /// Print a MIR diff for each pass before bytecode generation.
     pub(crate) mir_print_after_each: bool,
     /// Print the time spent in each MIR and EVM IR pass.
     pub(crate) time_passes: bool,
@@ -645,7 +645,7 @@ pub struct EvmCodegen {
     emitting_dispatch_entry: bool,
     /// Optimization mode for MIR and EVM IR passes.
     optimization: OptimizationMode,
-    /// Print MIR after each pass before bytecode generation.
+    /// Print a MIR diff for each pass before bytecode generation.
     mir_print_after_each: bool,
     time_passes: bool,
     mir_dispatch: bool,

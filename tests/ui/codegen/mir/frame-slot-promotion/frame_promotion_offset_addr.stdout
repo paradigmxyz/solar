@@ -1,6 +1,15 @@
-// === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_offset_addr.mir (after frame-slot-promotion,dce) ===
-@module FramePromotionOffsetAddr
-fn @offset_addr() -> u256 {
-  bb0 (entry):
-    ret 99
-}
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_offset_addr.mir (before frame-slot-promotion,dce) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_offset_addr.mir (after frame-slot-promotion,dce) ===
+  @module FramePromotionOffsetAddr
+  fn @offset_addr() -> u256 {
+    bb0 (entry):
+-     v0 = internal_frame_addr 128
+-     v1 = add v0, 32
+-     mstore v1, 99
+-     v2 = internal_frame_addr 128
+-     v3 = add v2, 32
+-     v4 = mload v3
+-     ret v4
++     ret 99
+  }
+  
