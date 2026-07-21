@@ -54,6 +54,8 @@ fn optimize(
 fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32) -> bool {
     let stack = InstStack::new(instructions);
 
+    // `PUSH PUSH0 OP -> PUSH0`.
+    // `PUSH PUSH1 EXP -> PUSH1`.
     if stack.len() >= 3
         && let Some(opcode) = raw_opcode(&stack[0])
         && let Some(value) = push_value(&stack[1])
@@ -65,15 +67,18 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
                 op::MUL | op::DIV | op::SDIV | op::MOD | op::SMOD | op::AND | op::GT
             )
         {
-            // `PUSH PUSH0 OP -> PUSH0`.
             return rewrite(instructions, 3, Edit::RemoveFirstKeepOne, module, block);
         }
         if value == U256::ONE && opcode == op::EXP {
-            // `PUSH PUSH1 EXP -> PUSH1`.
             return rewrite(instructions, 3, Edit::RemoveFirstKeepOne, module, block);
         }
     }
 
+    // `PUSH0 OP -> ∅`.
+    // `PUSH0 EQ -> ISZERO`.
+    // `PUSH0 OP -> POP PUSH0`.
+    // `PUSH1 MUL -> ∅`.
+    // `PUSH1 EXP -> POP PUSH1`.
     if stack.len() >= 2
         && let Some(opcode) = raw_opcode(&stack[0])
         && let Some(value) = push_value(&stack[1])
@@ -81,15 +86,12 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
         if value.is_zero() {
             return match opcode {
                 op::ADD | op::OR | op::XOR | op::SHL | op::SHR | op::SAR => {
-                    // `PUSH0 OP -> ∅`.
                     rewrite(instructions, 2, Edit::Keep(0), module, block)
                 }
                 op::EQ => {
-                    // `PUSH0 EQ -> ISZERO`.
                     rewrite(instructions, 2, Edit::RemoveFirstOverwrite(op::ISZERO), module, block)
                 }
                 op::MUL | op::DIV | op::SDIV | op::MOD | op::SMOD | op::AND | op::GT => {
-                    // `PUSH0 OP -> POP PUSH0`.
                     rewrite(instructions, 2, Edit::SwapOverwrite(op::POP), module, block)
                 }
                 _ => false,
@@ -97,24 +99,19 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
         }
         if value == U256::ONE {
             return match opcode {
-                op::MUL => {
-                    // `PUSH1 MUL -> ∅`.
-                    rewrite(instructions, 2, Edit::Keep(0), module, block)
-                }
-                op::EXP => {
-                    // `PUSH1 EXP -> POP PUSH1`.
-                    rewrite(instructions, 2, Edit::SwapOverwrite(op::POP), module, block)
-                }
+                op::MUL => rewrite(instructions, 2, Edit::Keep(0), module, block),
+                op::EXP => rewrite(instructions, 2, Edit::SwapOverwrite(op::POP), module, block),
                 _ => false,
             };
         }
     }
 
+    // `PUSH POP -> ∅`.
     if stack.len() >= 2 && raw_opcode(&stack[0]) == Some(op::POP) && is_removable_push(&stack[1]) {
-        // `PUSH POP -> ∅`.
         return rewrite(instructions, 2, Edit::Keep(0), module, block);
     }
 
+    // `NOT NOT -> ∅`, `DUPn POP -> ∅`, or `SWAPn SWAPn -> ∅`.
     if stack.len() >= 2
         && let Some(b) = raw_opcode(&stack[0])
         && let Some(a) = raw_opcode(&stack[1])
@@ -122,19 +119,20 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
             || (b == op::POP && (op::DUP1..=op::DUP16).contains(&a))
             || (a == b && (op::SWAP1..=op::SWAP16).contains(&a)))
     {
-        // `NOT NOT -> ∅`, `DUPn POP -> ∅`, or `SWAPn SWAPn -> ∅`.
         return rewrite(instructions, 2, Edit::Keep(0), module, block);
     }
 
+    // `ISZERO ISZERO ISZERO -> ISZERO`.
     if stack.len() >= 3
         && raw_opcode(&stack[0]) == Some(op::ISZERO)
         && raw_opcode(&stack[1]) == Some(op::ISZERO)
         && raw_opcode(&stack[2]) == Some(op::ISZERO)
     {
-        // `ISZERO ISZERO ISZERO -> ISZERO`.
         return rewrite(instructions, 3, Edit::OverwriteOne(op::ISZERO), module, block);
     }
 
+    // `DUP2 OP SWAP1 POP -> OP`.
+    // `DUP2 OP SWAP1 POP -> SWAP1 OP`.
     if stack.len() >= 4
         && raw_opcode(&stack[0]) == Some(op::POP)
         && raw_opcode(&stack[1]) == Some(op::SWAP1)
@@ -142,7 +140,6 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
         && raw_opcode(&stack[3]) == Some(op::DUP2)
     {
         if matches!(binop, op::ADD | op::MUL | op::AND | op::OR | op::XOR | op::EQ) {
-            // `DUP2 OP SWAP1 POP -> OP`.
             return rewrite(instructions, 4, Edit::OverwriteOne(binop), module, block);
         }
         if matches!(
@@ -164,21 +161,21 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
                 | op::SAR
                 | op::KECCAK256
         ) {
-            // `DUP2 OP SWAP1 POP -> SWAP1 OP`.
             return rewrite(instructions, 4, Edit::OverwriteTwo(binop), module, block);
         }
     }
 
+    // `DUP2 SINK POP -> SWAP1 SINK`.
     if stack.len() >= 3
         && raw_opcode(&stack[0]) == Some(op::POP)
         && let Some(opcode) = raw_opcode(&stack[1])
         && matches!(opcode, op::MSTORE | op::MSTORE8 | op::SSTORE | op::TSTORE | op::LOG0)
         && raw_opcode(&stack[2]) == Some(op::DUP2)
     {
-        // `DUP2 SINK POP -> SWAP1 SINK`.
         return rewrite(instructions, 3, Edit::OverwriteTwo(opcode), module, block);
     }
 
+    // `SWAPn POP*n SWAP1 POP -> SWAP(n+1) POP*(n+1)`.
     if stack.len() >= 4
         && raw_opcode(&stack[0]) == Some(op::POP)
         && raw_opcode(&stack[1]) == Some(op::SWAP1)
@@ -192,7 +189,6 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
                 && raw_opcode(&stack[previous]) == Some(op::swap(depth as u8))
             {
                 let depth = depth + 1;
-                // `SWAPn POP*n SWAP1 POP -> SWAP(n+1) POP*(n+1)`.
                 return rewrite(
                     instructions,
                     depth + 2,
@@ -204,6 +200,7 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
         }
     }
 
+    // `DUP1 PUSH(x) MSTORE DUP1 PUSH(x) MSTORE -> DUP1 PUSH(x) MSTORE`.
     if stack.len() >= 6
         && raw_opcode(&stack[0]) == Some(op::MSTORE)
         && let Some(a) = push_value(&stack[1])
@@ -213,10 +210,10 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
         && raw_opcode(&stack[5]) == Some(op::DUP1)
         && a == b
     {
-        // `DUP1 PUSH(x) MSTORE DUP1 PUSH(x) MSTORE -> DUP1 PUSH(x) MSTORE`.
         return rewrite(instructions, 6, Edit::Keep(3), module, block);
     }
 
+    // `DUP1 PUSH(x) MSTORE POP PUSH(x) MLOAD -> DUP1 PUSH(x) MSTORE`.
     if stack.len() >= 6
         && raw_opcode(&stack[0]) == Some(op::MLOAD)
         && let Some(a) = push_value(&stack[1])
@@ -226,27 +223,26 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
         && raw_opcode(&stack[5]) == Some(op::DUP1)
         && a == b
     {
-        // `DUP1 PUSH(x) MSTORE POP PUSH(x) MLOAD -> DUP1 PUSH(x) MSTORE`.
         return rewrite(instructions, 6, Edit::Keep(3), module, block);
     }
 
+    // `ISZERO ISZERO PUSH_REF JUMPI -> PUSH_REF JUMPI`.
     if stack.len() >= 4
         && raw_opcode(&stack[0]) == Some(op::JUMPI)
         && is_block_push(&stack[1])
         && raw_opcode(&stack[2]) == Some(op::ISZERO)
         && raw_opcode(&stack[3]) == Some(op::ISZERO)
     {
-        // `ISZERO ISZERO PUSH_REF JUMPI -> PUSH_REF JUMPI`.
         return rewrite(instructions, 4, Edit::DropDoubleIszero, module, block);
     }
 
+    // `EQ ISZERO PUSH_REF JUMPI -> SUB PUSH_REF JUMPI`.
     if stack.len() >= 4
         && raw_opcode(&stack[0]) == Some(op::JUMPI)
         && is_block_push(&stack[1])
         && raw_opcode(&stack[2]) == Some(op::ISZERO)
         && raw_opcode(&stack[3]) == Some(op::EQ)
     {
-        // `EQ ISZERO PUSH_REF JUMPI -> SUB PUSH_REF JUMPI`.
         return rewrite(instructions, 4, Edit::EqIszeroJumpi, module, block);
     }
 
