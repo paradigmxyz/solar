@@ -1,59 +1,141 @@
-- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_inner_counter.mir (before frame-slot-promotion,cfg-simplify,dce) ===
-+ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_inner_counter.mir (after frame-slot-promotion,cfg-simplify,dce) ===
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_inner_counter.mir (before frame-slot-promotion) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_inner_counter.mir (after frame-slot-promotion) ===
+  @module NestedCounter
+  fn @nested(arg0: u256, arg1: u256) -> u256 {
+    bb0 (entry):
+      v0 = internal_frame_addr 128
+-     mstore v0, 0
+      v1 = internal_frame_addr 160
+-     mstore v1, 0
+      jump bb1
+    bb1:
++     v23 = phi [bb0: 0], [bb5: v24]
++     v25 = phi [bb0: 0], [bb5: v19]
+      v2 = internal_frame_addr 160
+-     v3 = mload v2
+-     v4 = lt v3, arg0
++     v4 = lt v25, arg0
+      br v4, bb2, bb6
+    bb2:
+      v5 = internal_frame_addr 192
+-     mstore v5, 0
+      jump bb3
+    bb3:
++     v24 = phi [bb2: v23], [bb4: v11]
++     v26 = phi [bb2: 0], [bb4: v15]
+      v6 = internal_frame_addr 192
+-     v7 = mload v6
+-     v8 = lt v7, arg1
++     v8 = lt v26, arg1
+      br v8, bb4, bb5
+    bb4:
+      v9 = internal_frame_addr 128
+-     v10 = mload v9
+-     v11 = add v10, 1
++     v11 = add v24, 1
+      v12 = internal_frame_addr 128
+-     mstore v12, v11
+      v13 = internal_frame_addr 192
+-     v14 = mload v13
+-     v15 = add v14, 1
++     v15 = add v26, 1
+      v16 = internal_frame_addr 192
+-     mstore v16, v15
+      jump bb3
+    bb5:
+      v17 = internal_frame_addr 160
+-     v18 = mload v17
+-     v19 = add v18, 1
++     v19 = add v25, 1
+      v20 = internal_frame_addr 160
+-     mstore v20, v19
+      jump bb1
+    bb6:
+      v21 = internal_frame_addr 128
+-     v22 = mload v21
+-     ret v22
++     ret v23
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_inner_counter.mir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_inner_counter.mir (after cfg-simplify) ===
+  @module NestedCounter
+  fn @nested(arg0: u256, arg1: u256) -> u256 {
+    bb0 (entry):
+      v0 = internal_frame_addr 128
+      v1 = internal_frame_addr 160
+      jump bb1
+    bb1:
+      v23 = phi [bb0: 0], [bb5: v24]
+      v25 = phi [bb0: 0], [bb5: v19]
+      v2 = internal_frame_addr 160
+      v4 = lt v25, arg0
+      br v4, bb2, bb6
+    bb2:
+      v5 = internal_frame_addr 192
+      jump bb3
+    bb3:
+      v24 = phi [bb2: v23], [bb4: v11]
+      v26 = phi [bb2: 0], [bb4: v15]
+      v6 = internal_frame_addr 192
+      v8 = lt v26, arg1
+      br v8, bb4, bb5
+    bb4:
+      v9 = internal_frame_addr 128
+      v11 = add v24, 1
+      v12 = internal_frame_addr 128
+      v13 = internal_frame_addr 192
+      v15 = add v26, 1
+      v16 = internal_frame_addr 192
+      jump bb3
+    bb5:
+      v17 = internal_frame_addr 160
+      v19 = add v25, 1
+      v20 = internal_frame_addr 160
+      jump bb1
+    bb6:
+      v21 = internal_frame_addr 128
+      ret v23
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_inner_counter.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_inner_counter.mir (after dce) ===
   @module NestedCounter
   fn @nested(arg0: u256, arg1: u256) -> u256 {
     bb0 (entry):
 -     v0 = internal_frame_addr 128
--     mstore v0, 0
 -     v1 = internal_frame_addr 160
--     mstore v1, 0
       jump bb1
     bb1:
+      v23 = phi [bb0: 0], [bb5: v24]
+      v25 = phi [bb0: 0], [bb5: v19]
 -     v2 = internal_frame_addr 160
--     v3 = mload v2
--     v4 = lt v3, arg0
-+     v23 = phi [bb0: 0], [bb5: v24]
-+     v25 = phi [bb0: 0], [bb5: v19]
-+     v4 = lt v25, arg0
+      v4 = lt v25, arg0
       br v4, bb2, bb6
     bb2:
 -     v5 = internal_frame_addr 192
--     mstore v5, 0
       jump bb3
     bb3:
+      v24 = phi [bb2: v23], [bb4: v11]
+      v26 = phi [bb2: 0], [bb4: v15]
 -     v6 = internal_frame_addr 192
--     v7 = mload v6
--     v8 = lt v7, arg1
-+     v24 = phi [bb2: v23], [bb4: v11]
-+     v26 = phi [bb2: 0], [bb4: v15]
-+     v8 = lt v26, arg1
+      v8 = lt v26, arg1
       br v8, bb4, bb5
     bb4:
 -     v9 = internal_frame_addr 128
--     v10 = mload v9
--     v11 = add v10, 1
+      v11 = add v24, 1
 -     v12 = internal_frame_addr 128
--     mstore v12, v11
 -     v13 = internal_frame_addr 192
--     v14 = mload v13
--     v15 = add v14, 1
+      v15 = add v26, 1
 -     v16 = internal_frame_addr 192
--     mstore v16, v15
-+     v11 = add v24, 1
-+     v15 = add v26, 1
       jump bb3
     bb5:
 -     v17 = internal_frame_addr 160
--     v18 = mload v17
--     v19 = add v18, 1
+      v19 = add v25, 1
 -     v20 = internal_frame_addr 160
--     mstore v20, v19
-+     v19 = add v25, 1
       jump bb1
     bb6:
 -     v21 = internal_frame_addr 128
--     v22 = mload v21
--     ret v22
-+     ret v23
+      ret v23
   }
   

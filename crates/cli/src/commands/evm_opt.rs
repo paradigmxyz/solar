@@ -1,9 +1,10 @@
-//! The `solar evm-opt` subcommand — run EVM backend IR passes and print a diff
-//! of the EVM IR before and after the passes.
+//! The `solar evm-opt` subcommand — run EVM backend IR passes and print the
+//! resulting EVM IR.
 //!
 //! This is the backend-IR equivalent of `solar mir-opt`. It currently accepts
-//! EVM IR files (`.evmir`) and prints a line-oriented diff of the canonical
-//! parser/printer output.
+//! EVM IR files (`.evmir`) and prints the canonical parser/printer output. With
+//! `-Zpass-diff`, it instead prints a line-oriented before-and-after diff for
+//! each pass.
 
 use super::print_pass_diff;
 use clap::ValueHint;
@@ -21,10 +22,11 @@ pub(crate) struct EvmOptArgs {
         visible_alias = "pass",
         value_name = "NAMES",
         value_delimiter = ',',
-        value_parser = parse_pass
+        value_parser = parse_pass,
+        default_value = "none"
     )]
-    passes: Option<Vec<Option<&'static ir::PassInfo>>>,
-    /// If true, print an EVM IR diff for every pass; otherwise only for the full pipeline.
+    passes: Vec<Option<&'static ir::PassInfo>>,
+    /// If true, print EVM IR after every pass; otherwise only after the last.
     #[arg(long)]
     print_after_each: bool,
     /// Path to input file. Extension determines whether it's .evmir.
@@ -72,39 +74,30 @@ fn print_module(module: &ir::Module, name: &str, after: &str) {
 
 fn run_pipeline(sess: &Session, module: &mut ir::Module, name: &str, args: &EvmOptArgs) {
     let dcx = &sess.dcx;
-    let Some(passes) = &args.passes else {
-        ir::validate(dcx, module);
-        if dcx.has_errors().is_ok() {
-            print_module(module, name, "none");
-        }
-        return;
-    };
     let options = ir::PassOptions {
         time_passes: sess.opts.unstable.time_passes,
         evm_version: sess.opts.evm_version,
         optimization: sess.opts.optimization,
     };
-    let pipeline_label = selected_pass_list_label(passes, ",");
-    let mut before = module.to_text().to_string();
-    for (index, &pass) in passes.iter().enumerate() {
+    let pipeline_label = selected_pass_list_label(&args.passes, ",");
+    for (index, &pass) in args.passes.iter().enumerate() {
+        let before = sess.opts.unstable.pass_diff.then(|| module.to_text().to_string());
         if let Some(pass) = pass {
             ir::run_pass(module, pass, options);
         }
-        if args.print_after_each || index + 1 == passes.len() {
+        if before.is_some() || args.print_after_each || index + 1 == args.passes.len() {
             ir::validate(dcx, module);
             if dcx.has_errors().is_err() {
                 break;
             }
-            if args.print_after_each {
+            if let Some(before) = before {
                 let after = module.to_text().to_string();
                 print_pass_diff(name, pass_label(pass), &before, &after);
-                before = after;
+            } else {
+                let label = if args.print_after_each { pass_label(pass) } else { &pipeline_label };
+                print_module(module, name, label);
             }
         }
-    }
-    if !args.print_after_each && dcx.has_errors().is_ok() {
-        let after = module.to_text().to_string();
-        print_pass_diff(name, &pipeline_label, &before, &after);
     }
 }
 

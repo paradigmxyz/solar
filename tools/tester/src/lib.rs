@@ -125,17 +125,21 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
             program: cmd.into(),
             args: {
                 let mut args: Vec<OsString> =
-                    ["-j1", "--error-format=rustc-json", "-Zui-testing", "-Zparse-yul"]
-                        .into_iter()
-                        .map(Into::into)
-                        .collect();
+                    ["-j1", "--error-format=rustc-json"].into_iter().map(Into::into).collect();
                 match mode {
-                    Mode::Mir => args.push("mir-opt".into()),
-                    Mode::EvmIr => args.push("evm-opt".into()),
+                    Mode::Mir => args.extend(
+                        ["mir-opt", "-Zui-testing", "-Zparse-yul", "-Zpass-diff"].map(Into::into),
+                    ),
+                    Mode::EvmIr => args.extend(
+                        ["evm-opt", "-Zui-testing", "-Zparse-yul", "-Zpass-diff"].map(Into::into),
+                    ),
                     Mode::StandardJson => {
-                        args.extend(["--standard-json".into(), "--pretty-json".into()]);
+                        args.extend(
+                            ["-Zui-testing", "-Zparse-yul", "--standard-json", "--pretty-json"]
+                                .map(Into::into),
+                        );
                     }
-                    _ => {}
+                    _ => args.extend(["-Zui-testing", "-Zparse-yul"].map(Into::into)),
                 }
                 if mode.is_solc() {
                     args.push("--stop-after=parsing".into());

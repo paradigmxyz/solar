@@ -4,8 +4,9 @@
 *.mir linguist-language=Rust
 *.evmir linguist-language=Assembly
 /tests/ui/codegen/mir/**/*.stdout linguist-language=Diff whitespace=-trailing-space
+/tests/ui/codegen/mir/pipeline/**/*.stdout linguist-language=Rust whitespace=trailing-space
+/tests/ui/codegen/mir/pipeline/pipeline.stdout linguist-language=Diff whitespace=-trailing-space
 /tests/ui/codegen/evm-ir/**/*.stdout linguist-language=Diff whitespace=-trailing-space
-/tests/ui/codegen/evm-ir/none/**/*.stdout linguist-language=Assembly whitespace=-trailing-space
 /testdata/* linguist-vendored
 /testdata/**/* linguist-vendored
 /tests/foundry/** linguist-vendored

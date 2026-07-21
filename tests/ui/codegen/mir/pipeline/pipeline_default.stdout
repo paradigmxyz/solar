@@ -1,18 +1,12 @@
-- // === ROOT/tests/ui/codegen/mir/pipeline/pipeline_default.mir (before pipeline-default) ===
-+ // === ROOT/tests/ui/codegen/mir/pipeline/pipeline_default.mir (after pipeline-default) ===
-  @module PipelineDefault
-+ @phase optimized
-  fn @noisy(arg0: u256) -> u256 {
-    bb0 (entry):
-      v0 = add arg0, 1
--     v1 = mul arg0, arg0
--     jump bb1
-+     ret v0
-    bb1:
--     jump bb2
-+     invalid
-    bb2:
--     ret v0
-+     invalid
-  }
-  
+// === ROOT/tests/ui/codegen/mir/pipeline/pipeline_default.mir (after pipeline-default) ===
+@module PipelineDefault
+@phase optimized
+fn @noisy(arg0: u256) -> u256 {
+  bb0 (entry):
+    v0 = add arg0, 1
+    ret v0
+  bb1:
+    invalid
+  bb2:
+    invalid
+}

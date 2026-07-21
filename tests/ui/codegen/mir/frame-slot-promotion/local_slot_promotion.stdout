@@ -1,30 +1,52 @@
-- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion.mir (before frame-slot-promotion,dce) ===
-+ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion.mir (after frame-slot-promotion,dce) ===
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion.mir (before frame-slot-promotion) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion.mir (after frame-slot-promotion) ===
+  @module LocalSlotPromotion
+  fn @promote_loop_carried_slot(arg0: u256) -> u256 {
+    bb0 (entry):
+      v0 = internal_frame_addr 128
+-     mstore v0, 0
+      jump bb1
+    bb1:
++     v10 = phi [bb0: 0], [bb2: v6]
+      v1 = internal_frame_addr 128
+-     v2 = mload v1
+-     v3 = lt v2, arg0
++     v3 = lt v10, arg0
+      br v3, bb2, bb3
+    bb2:
+      v4 = internal_frame_addr 128
+-     v5 = mload v4
+-     v6 = add v5, 1
++     v6 = add v10, 1
+      v7 = internal_frame_addr 128
+-     mstore v7, v6
+      jump bb1
+    bb3:
+      v8 = internal_frame_addr 128
+-     v9 = mload v8
+-     ret v9
++     ret v10
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion.mir (after dce) ===
   @module LocalSlotPromotion
   fn @promote_loop_carried_slot(arg0: u256) -> u256 {
     bb0 (entry):
 -     v0 = internal_frame_addr 128
--     mstore v0, 0
       jump bb1
     bb1:
+      v10 = phi [bb0: 0], [bb2: v6]
 -     v1 = internal_frame_addr 128
--     v2 = mload v1
--     v3 = lt v2, arg0
-+     v10 = phi [bb0: 0], [bb2: v6]
-+     v3 = lt v10, arg0
+      v3 = lt v10, arg0
       br v3, bb2, bb3
     bb2:
 -     v4 = internal_frame_addr 128
--     v5 = mload v4
--     v6 = add v5, 1
+      v6 = add v10, 1
 -     v7 = internal_frame_addr 128
--     mstore v7, v6
-+     v6 = add v10, 1
       jump bb1
     bb3:
 -     v8 = internal_frame_addr 128
--     v9 = mload v8
--     ret v9
-+     ret v10
+      ret v10
   }
   
