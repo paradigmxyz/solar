@@ -1,0 +1,24 @@
+//@compile-flags: --pass block-layout
+@module module
+
+bb0 (entry):
+  push bb3
+  pop
+  push bb3
+  pop
+  push 1
+  jumpi bb2, bb1
+bb1:
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0xffffffffffff
+  stop
+bb2:
+  stop
+bb3:
+  invalid

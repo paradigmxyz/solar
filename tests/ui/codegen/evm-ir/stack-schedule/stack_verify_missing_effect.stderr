@@ -1,6 +1,0 @@
-error: EVM IR verification failed: block 0: operand-cleared instruction `op_0c` must declare an explicit stack effect
-
-error: EVM IR verification failed: block 0: operand-cleared instruction `op_0d` must declare an explicit stack effect
-
-error: aborting due to 2 previous errors
-

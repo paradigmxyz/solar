@@ -6,8 +6,8 @@
 bb0 (entry):
   jump bb2
 bb1 [cold]:
-  %offset = push 0
-  %size = push 0
-  revert %offset, %size
+  push 0
+  push 0
+  revert
 bb2:
   stop

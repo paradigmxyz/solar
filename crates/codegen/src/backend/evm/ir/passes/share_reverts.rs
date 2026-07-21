@@ -1,8 +1,8 @@
 //! Share adjacent empty revert paths in physically laid-out EVM IR.
 
 use crate::backend::evm::{
-    ir::{BlockId, Instruction, Module, Operand, Terminator, TerminatorKind},
-    opcode as op,
+    ir::{BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
+    op,
 };
 use alloy_primitives::U256;
 use solar_data_structures::bit_set::DenseBitSet;
@@ -34,8 +34,8 @@ pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
         if jumpi.opcode != op::JUMPI || jumpi.is_encoded_push() {
             continue;
         }
-        let continuation = match target.operands.as_slice() {
-            [Operand::Block(continuation)] => *continuation,
+        let continuation = match &target.value {
+            Some(PushValue::Block(continuation)) => *continuation,
             _ => continue,
         };
         if !target.is_encoded_push() {
@@ -44,7 +44,7 @@ pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
         if revert.index() != block_id.index() + 1 || continuation.index() != revert.index() + 1 {
             continue;
         }
-        *target = Instruction::push(Operand::Block(shared));
+        *target = Instruction::push_block(shared);
         block.terminator = Some(Terminator::new(TerminatorKind::Jump(continuation)));
         let condition_end = block.instructions.len() - 2;
         match block.instructions.get(condition_end.wrapping_sub(1)).map(|inst| inst.opcode) {
@@ -80,8 +80,7 @@ fn preserves_shared_revert_low_address(module: &Module, shared: BlockId) -> bool
         references += block
             .instructions
             .iter()
-            .flat_map(|inst| &inst.operands)
-            .filter(|operand| matches!(operand, Operand::Block(target) if *target == shared))
+            .filter(|inst| matches!(inst.value, Some(PushValue::Block(target)) if target == shared))
             .count();
         total += block_size(block);
         if block_id == shared {
@@ -102,12 +101,14 @@ fn is_empty_revert(module: &Module, block: BlockId) -> bool {
         && !dup.is_encoded_push()
         && matches!(
             block.terminator.as_ref().map(|term| &term.kind),
-            Some(TerminatorKind::RawOpcode(op::REVERT))
+            Some(TerminatorKind::Op(op::REVERT))
         )
 }
 
 fn is_zero_push(inst: &Instruction) -> bool {
     (inst.is_encoded_push()
-        && matches!(inst.operands.as_slice(), [Operand::Immediate(value)] if *value == U256::ZERO))
+        && inst.deferred_push().is_none()
+        && inst.immutable_push().is_none()
+        && matches!(inst.value, Some(PushValue::Immediate(value)) if value == U256::ZERO))
         || (inst.opcode == op::PUSH0 && !inst.is_encoded_push())
 }

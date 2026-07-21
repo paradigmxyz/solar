@@ -1,19 +1,18 @@
 //! EVM backend IR.
 //!
 //! This module defines the target-specific Machine-IR-like boundary between
-//! MIR lowering and final EVM assembly. EVM IR is intentionally untyped: values
-//! are EVM stack words, not Solidity or MIR values with a `crate::mir::MirType`.
-//! It models backend basic blocks, opcode-like instructions, explicit physical
-//! stack operations, terminators, and metadata. All backend optimization and
-//! layout decisions remain here. After block layout, it lowers once to the
-//! assembler's primitive label-bearing encoding stream. The parser/printer at
-//! the bottom of the file provide a text format for tests and debugging; the IR
-//! itself is not defined by that serialization.
+//! MIR lowering and final EVM assembly. It contains only scheduled machine
+//! instructions: MIR value identities and virtual stack operands remain private
+//! to the stack scheduler. EVM IR models backend basic blocks, opcode-like
+//! instructions, explicit physical stack operations, terminators, and metadata.
+//! All backend optimization and layout decisions remain here. After block
+//! layout, it lowers once to the assembler's primitive label-bearing encoding
+//! stream. The parser/printer at the bottom of the file provide a text format for
+//! tests and debugging; the IR itself is not defined by that serialization.
 
+use super::op;
 use alloy_primitives::U256;
-use smallvec::{SmallVec, smallvec};
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
-use solar_interface::Symbol;
 use solar_parse::lexer::is_ident;
 
 mod display;
@@ -25,7 +24,7 @@ pub(in crate::backend::evm) mod assembly;
 
 pub use passes::{PASS_REGISTRY, PassInfo, PassOptions, lookup_pass, run_pass};
 
-pub(crate) use passes::{DEFAULT_PIPELINE, STACK_SCHEDULE_PASS};
+pub(crate) use passes::DEFAULT_PIPELINE;
 
 /// Validates the invariants of an EVM IR module.
 pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
@@ -35,22 +34,17 @@ pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
 newtype_index! {
     /// A unique identifier for a basic block in EVM IR.
     pub(crate) struct BlockId;
-
-    /// A unique identifier for an untyped stack word in EVM IR.
-    pub(crate) struct ValueId;
 }
 
 /// An EVM IR module.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Module {
     /// Program name used by tools and diagnostics.
-    pub(crate) name: Symbol,
+    pub(crate) name: String,
     /// Basic blocks in layout order.
     pub(crate) blocks: IndexVec<BlockId, Block>,
     /// The entry block, if one has been created.
     pub(crate) entry_block: Option<BlockId>,
-    /// Untyped stack words known to this program.
-    pub(crate) values: IndexVec<ValueId, Value>,
 }
 
 impl Module {
@@ -64,21 +58,23 @@ impl Module {
 
     /// Creates an empty EVM IR program.
     #[must_use]
-    pub(crate) fn new(name: Symbol) -> Self {
-        assert!(is_ident(name.as_str()), "invalid EVM IR program name `{name}`");
-        Self { name, blocks: IndexVec::new(), entry_block: None, values: IndexVec::new() }
+    pub(crate) fn new(name: impl Into<String>) -> Self {
+        let name = name.into();
+        assert!(is_ident(&name), "invalid EVM IR program name `{name}`");
+        Self { name, blocks: IndexVec::new(), entry_block: None }
     }
 
     /// Changes the program name.
-    pub(crate) fn set_name(&mut self, name: Symbol) {
-        assert!(is_ident(name.as_str()), "invalid EVM IR program name `{name}`");
+    pub(crate) fn set_name(&mut self, name: impl Into<String>) {
+        let name = name.into();
+        assert!(is_ident(&name), "invalid EVM IR program name `{name}`");
         self.name = name;
     }
 
     /// Returns the program name.
     #[must_use]
     pub fn name(&self) -> &str {
-        self.name.as_str()
+        &self.name
     }
 
     /// Adds a block to the program.
@@ -89,18 +85,6 @@ impl Module {
         }
         id
     }
-
-    /// Allocates a named untyped stack word.
-    pub(crate) fn add_value(&mut self, name: Symbol) -> ValueId {
-        assert!(is_ident(name.as_str()), "invalid EVM IR value name `%{name}`");
-        self.values.push(Value { name })
-    }
-
-    /// Returns the value for the given ID.
-    #[must_use]
-    pub(crate) fn value(&self, id: ValueId) -> &Value {
-        &self.values[id]
-    }
 }
 
 /// A basic block in EVM IR.
@@ -109,20 +93,12 @@ pub(crate) struct Block {
     /// Stable textual label for this block.
     pub(crate) label: u32,
     /// Block metadata. The hot/cold field is present before it is consumed by
-    /// layout or scheduling so fixtures can pin the format early.
+    /// layout so fixtures can pin the format early.
     pub(crate) metadata: BlockMetadata,
     /// Non-terminating EVM backend instructions.
     pub(crate) instructions: Vec<Instruction>,
     /// Optional control-flow terminator.
     pub(crate) terminator: Option<Terminator>,
-    /// Values present on the stack at block entry, top first.
-    ///
-    /// This is the block's incoming stack-word signature: values produced by a
-    /// predecessor and consumed here. It is empty for the entry block and for
-    /// blocks that begin from a clean stack. Stack scheduling seeds its model
-    /// stack from this so blocks that consume predecessor values can be
-    /// scheduled instead of bailing.
-    pub(crate) entry_stack: Vec<ValueId>,
 }
 
 impl Block {
@@ -134,7 +110,6 @@ impl Block {
             metadata: BlockMetadata::default(),
             instructions: Vec::new(),
             terminator: None,
-            entry_stack: Vec::new(),
         }
     }
 }
@@ -142,7 +117,7 @@ impl Block {
 /// Block-level metadata.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct BlockMetadata {
-    /// Estimated block hotness for future layout and scheduling decisions.
+    /// Estimated block hotness for layout decisions.
     pub(crate) hotness: Hotness,
 }
 
@@ -164,24 +139,15 @@ impl Hotness {
     }
 }
 
-/// A named untyped stack word.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct Value {
-    /// Stable textual stack-word name, without the leading `%`.
-    pub(crate) name: Symbol,
-}
-
-/// A non-terminating untyped backend instruction.
+/// A non-terminating scheduled EVM instruction.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Instruction {
-    /// Optional stack word produced by this instruction.
-    pub(crate) result: Option<ValueId>,
     /// Raw EVM opcode byte.
     pub(crate) opcode: u8,
     /// Internal encoding flags for instructions resolved during assembly.
     encoding: u8,
-    /// Instruction operands.
-    pub(crate) operands: SmallVec<[Operand; 1]>,
+    /// Encoded value carried by a push instruction.
+    value: Option<PushValue>,
     /// Instruction metadata.
     pub(crate) metadata: Metadata,
 }
@@ -194,40 +160,68 @@ impl Instruction {
     /// Creates an instruction for an EVM opcode.
     #[must_use]
     pub(crate) fn opcode(opcode: u8) -> Self {
-        Self {
-            result: None,
-            opcode,
-            encoding: 0,
-            operands: SmallVec::new(),
-            metadata: Metadata::EMPTY,
-        }
+        Self { opcode, encoding: 0, value: None, metadata: Metadata::EMPTY }
     }
 
-    /// Creates an encoded push instruction.
+    /// Creates an encoded immediate push instruction.
     #[must_use]
-    pub(crate) fn push(operand: Operand) -> Self {
-        Self::encoded_push(operand, Self::ENCODED_PUSH)
+    pub(crate) fn push_value(value: U256) -> Self {
+        Self::encoded_push(PushValue::Immediate(value), Self::ENCODED_PUSH)
+    }
+
+    /// Creates an encoded block-address push instruction.
+    #[must_use]
+    pub(crate) fn push_block(block: BlockId) -> Self {
+        Self::encoded_push(PushValue::Block(block), Self::ENCODED_PUSH)
     }
 
     /// Creates an encoded deferred push instruction.
     #[must_use]
-    pub(crate) fn push_deferred(operand: Operand) -> Self {
-        Self::encoded_push(operand, Self::ENCODED_PUSH | Self::DEFERRED)
+    pub(in crate::backend::evm) fn push_deferred(id: assembly::DeferredConst) -> Self {
+        assert!(
+            id.index() <= assembly::AsmInst::PAYLOAD_MASK as usize,
+            "deferred constant ID overflow"
+        );
+        Self::encoded_push(
+            PushValue::Immediate(U256::from(id.index())),
+            Self::ENCODED_PUSH | Self::DEFERRED,
+        )
     }
 
     /// Creates an encoded immutable push instruction.
     #[must_use]
-    pub(crate) fn push_immutable(operand: Operand) -> Self {
-        Self::encoded_push(operand, Self::ENCODED_PUSH | Self::IMMUTABLE)
+    pub(in crate::backend::evm) fn push_immutable(id: u32) -> Self {
+        assert!(id <= assembly::AsmInst::PAYLOAD_MASK, "immutable ID overflow");
+        Self::encoded_push(
+            PushValue::Immediate(U256::from(id)),
+            Self::ENCODED_PUSH | Self::IMMUTABLE,
+        )
     }
 
-    fn encoded_push(operand: Operand, encoding: u8) -> Self {
+    fn encoded_push(value: PushValue, encoding: u8) -> Self {
         Self {
-            result: None,
-            opcode: super::opcode::PUSH32,
+            opcode: op::PUSH32,
             encoding,
-            operands: smallvec![operand],
-            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), attrs: Vec::new() },
+            value: Some(value),
+            metadata: Metadata { stack: Some(StackEffect::new(0, 1)) },
+        }
+    }
+
+    /// Returns the immediate carried by this push instruction, if any.
+    #[must_use]
+    pub(in crate::backend::evm) const fn pushed_value(&self) -> Option<U256> {
+        match self.value {
+            Some(PushValue::Immediate(value)) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Returns the block carried by this push instruction, if any.
+    #[must_use]
+    pub(in crate::backend::evm) const fn pushed_block(&self) -> Option<BlockId> {
+        match self.value {
+            Some(PushValue::Block(block)) => Some(block),
+            _ => None,
         }
     }
 
@@ -242,7 +236,7 @@ impl Instruction {
             encoding if encoding == Self::ENCODED_PUSH | Self::IMMUTABLE => {
                 f.write_str("push_immutable")
             }
-            _ => super::opcode::fmt(self.opcode, f),
+            _ => op::fmt(self.opcode, f),
         })
     }
 
@@ -252,16 +246,25 @@ impl Instruction {
         self.encoding & Self::ENCODED_PUSH != 0
     }
 
-    /// Returns whether this is a deferred push.
+    /// Returns the deferred constant referenced by this push instruction, if any.
     #[must_use]
-    pub(crate) const fn is_deferred_push(&self) -> bool {
-        self.encoding & Self::DEFERRED != 0
+    pub(in crate::backend::evm) fn deferred_push(&self) -> Option<assembly::DeferredConst> {
+        if self.encoding & Self::DEFERRED == 0 {
+            return None;
+        }
+        let value = self.pushed_value().expect("deferred push must carry an immediate");
+        Some(assembly::DeferredConst::from_usize(
+            usize::try_from(value).expect("deferred constant ID must fit usize"),
+        ))
     }
 
-    /// Returns whether this is an immutable push.
+    /// Returns the immutable identifier carried by this push instruction, if any.
     #[must_use]
-    pub(crate) const fn is_immutable_push(&self) -> bool {
-        self.encoding & Self::IMMUTABLE != 0
+    pub(in crate::backend::evm) const fn immutable_push(&self) -> Option<U256> {
+        if self.encoding & Self::IMMUTABLE == 0 {
+            return None;
+        }
+        self.pushed_value()
     }
 
     /// Returns whether this instruction materializes a physical EVM stack op.
@@ -270,9 +273,7 @@ impl Instruction {
         !self.is_encoded_push()
             && matches!(
                 self.opcode,
-                super::opcode::POP
-                    | super::opcode::DUP1..=super::opcode::DUP16
-                    | super::opcode::SWAP1..=super::opcode::SWAP16
+                op::POP | op::DUP1..=op::DUP16 | op::SWAP1..=op::SWAP16
             )
     }
 }
@@ -300,48 +301,14 @@ pub(crate) enum TerminatorKind {
     /// Unconditional jump.
     Jump(BlockId),
     /// Conditional branch.
-    Branch {
-        /// Branch condition.
-        condition: Operand,
+    JumpI {
         /// Target when condition is non-zero.
         then_block: BlockId,
         /// Target when condition is zero.
         else_block: BlockId,
     },
-    /// Multi-way branch.
-    Switch {
-        /// Discriminant value.
-        value: Operand,
-        /// Default target.
-        default: BlockId,
-        /// Case value and target pairs.
-        cases: Vec<(Operand, BlockId)>,
-    },
-    /// EVM `RETURN(offset, size)`.
-    Return {
-        /// Memory offset.
-        offset: Operand,
-        /// Byte length.
-        size: Operand,
-    },
-    /// EVM `REVERT(offset, size)`.
-    Revert {
-        /// Memory offset.
-        offset: Operand,
-        /// Byte length.
-        size: Operand,
-    },
-    /// EVM `STOP`.
-    Stop,
-    /// EVM `INVALID`.
-    Invalid,
-    /// EVM `SELFDESTRUCT(recipient)`.
-    SelfDestruct {
-        /// Beneficiary address.
-        recipient: Operand,
-    },
-    /// Raw terminal opcode for already stack-scheduled machine-level code.
-    RawOpcode(u8),
+    /// Terminal EVM opcode.
+    Op(u8),
 }
 
 impl TerminatorKind {
@@ -349,22 +316,37 @@ impl TerminatorKind {
     pub(crate) fn visit_targets(&self, mut visit: impl FnMut(BlockId)) {
         match self {
             Self::Jump(target) => visit(*target),
-            Self::Branch { then_block, else_block, .. } => {
+            Self::JumpI { then_block, else_block } => {
                 visit(*then_block);
                 visit(*else_block);
             }
-            Self::Switch { default, cases, .. } => {
-                visit(*default);
-                for (_, target) in cases {
+            Self::Op(_) => {}
+        }
+    }
+
+    /// Visits block targets that require a physical label in the given layout.
+    pub(crate) fn visit_label_targets(
+        &self,
+        next_block: Option<BlockId>,
+        mut visit: impl FnMut(BlockId),
+    ) {
+        match self {
+            Self::Jump(target) => {
+                if Some(*target) != next_block {
                     visit(*target);
                 }
             }
-            Self::Return { .. }
-            | Self::Revert { .. }
-            | Self::Stop
-            | Self::Invalid
-            | Self::SelfDestruct { .. }
-            | Self::RawOpcode(_) => {}
+            Self::JumpI { then_block, else_block } => {
+                if Some(*else_block) == next_block {
+                    visit(*then_block);
+                } else if Some(*then_block) == next_block {
+                    visit(*else_block);
+                } else {
+                    visit(*then_block);
+                    visit(*else_block);
+                }
+            }
+            Self::Op(_) => {}
         }
     }
 
@@ -372,161 +354,69 @@ impl TerminatorKind {
     pub(crate) fn visit_targets_mut(&mut self, mut visit: impl FnMut(&mut BlockId)) {
         match self {
             Self::Jump(target) => visit(target),
-            Self::Branch { then_block, else_block, .. } => {
+            Self::JumpI { then_block, else_block } => {
                 visit(then_block);
                 visit(else_block);
             }
-            Self::Switch { default, cases, .. } => {
-                visit(default);
-                for (_, target) in cases {
-                    visit(target);
-                }
-            }
-            Self::Return { .. }
-            | Self::Revert { .. }
-            | Self::Stop
-            | Self::Invalid
-            | Self::SelfDestruct { .. }
-            | Self::RawOpcode(_) => {}
+            Self::Op(_) => {}
         }
-    }
-
-    /// Visits every operand.
-    pub(crate) fn visit_operands(&self, mut visit: impl FnMut(&Operand)) {
-        let result = self.try_visit_operands(|operand| {
-            visit(operand);
-            Ok::<(), std::convert::Infallible>(())
-        });
-        match result {
-            Ok(()) => {}
-            Err(never) => match never {},
-        }
-    }
-
-    /// Visits every operand mutably.
-    pub(crate) fn visit_operands_mut(&mut self, mut visit: impl FnMut(&mut Operand)) {
-        match self {
-            Self::Branch { condition, .. } => visit(condition),
-            Self::Switch { value, cases, .. } => {
-                visit(value);
-                for (case, _) in cases {
-                    visit(case);
-                }
-            }
-            Self::Return { offset, size } | Self::Revert { offset, size } => {
-                visit(offset);
-                visit(size);
-            }
-            Self::SelfDestruct { recipient } => visit(recipient),
-            Self::Jump(_) | Self::Stop | Self::Invalid | Self::RawOpcode(_) => {}
-        }
-    }
-
-    /// Visits every operand until the callback returns an error.
-    pub(crate) fn try_visit_operands<E>(
-        &self,
-        mut visit: impl FnMut(&Operand) -> Result<(), E>,
-    ) -> Result<(), E> {
-        match self {
-            Self::Branch { condition, .. } => visit(condition)?,
-            Self::Switch { value, cases, .. } => {
-                visit(value)?;
-                for (case, _) in cases {
-                    visit(case)?;
-                }
-            }
-            Self::Return { offset, size } | Self::Revert { offset, size } => {
-                visit(offset)?;
-                visit(size)?;
-            }
-            Self::SelfDestruct { recipient } => visit(recipient)?,
-            Self::Jump(_) | Self::Stop | Self::Invalid | Self::RawOpcode(_) => {}
-        }
-        Ok(())
     }
 }
 
-/// An instruction or terminator operand.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum Operand {
-    /// Untyped stack-word reference.
-    Value(ValueId),
+/// A value encoded by a push instruction.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum PushValue {
     /// Immediate EVM word.
     Immediate(U256),
     /// Basic block reference.
     Block(BlockId),
 }
 
-/// Generic metadata carried by instructions and terminators.
+/// Metadata carried by instructions and terminators.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Metadata {
     /// Optional stack effect.
     pub(crate) stack: Option<StackEffect>,
-    /// Extra key-value metadata fields, in textual order.
-    pub(crate) attrs: Vec<MetadataItem>,
 }
 
 impl Metadata {
     /// Empty metadata value.
-    pub(crate) const EMPTY: Self = Self { stack: None, attrs: Vec::new() };
-
-    /// Returns whether no metadata fields are present.
-    #[must_use]
-    pub(crate) fn is_empty(&self) -> bool {
-        self.stack.is_none() && self.attrs.is_empty()
-    }
-}
-
-/// A metadata key-value item.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct MetadataItem {
-    /// Metadata key.
-    pub(crate) key: Symbol,
-    /// Metadata value, if the field is not a marker.
-    pub(crate) value: Option<Symbol>,
+    pub(crate) const EMPTY: Self = Self { stack: None };
 }
 
 /// Stack effect metadata for one EVM IR operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct StackEffect {
     /// Number of stack items consumed.
-    pub(crate) inputs: u16,
+    pub(crate) inputs: u8,
     /// Number of stack items produced.
-    pub(crate) outputs: u16,
+    pub(crate) outputs: u8,
 }
 
 impl StackEffect {
     /// Creates a stack effect descriptor.
     #[must_use]
-    pub(crate) const fn new(inputs: u16, outputs: u16) -> Self {
+    pub(crate) const fn new(inputs: u8, outputs: u8) -> Self {
         Self { inputs, outputs }
     }
 }
 
-pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> StackEffect {
+pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> Option<StackEffect> {
     if inst.is_encoded_push() {
-        StackEffect::new(0, 1)
-    } else if let Some((inputs, outputs)) = super::opcode::stack_io(inst.opcode) {
-        StackEffect::new(inputs, outputs)
+        Some(StackEffect::new(0, 1))
+    } else if let Some((inputs, outputs)) = op::stack_io(inst.opcode) {
+        Some(StackEffect::new(inputs, outputs))
     } else {
-        StackEffect::new(
-            inst.operands.len().try_into().unwrap_or(u16::MAX),
-            u16::from(inst.result.is_some()),
-        )
+        None
     }
 }
 
-fn default_terminator_stack_effect(kind: &TerminatorKind) -> StackEffect {
+fn default_terminator_stack_effect(kind: &TerminatorKind) -> Option<StackEffect> {
     match kind {
-        TerminatorKind::Branch { .. } => StackEffect::new(1, 0),
-        TerminatorKind::Switch { .. } => StackEffect::new(1, 0),
-        TerminatorKind::Return { .. } | TerminatorKind::Revert { .. } => StackEffect::new(2, 0),
-        TerminatorKind::SelfDestruct { .. } => StackEffect::new(1, 0),
-        TerminatorKind::Jump(_) | TerminatorKind::Stop | TerminatorKind::Invalid => {
-            StackEffect::new(0, 0)
+        TerminatorKind::JumpI { .. } => Some(StackEffect::new(1, 0)),
+        TerminatorKind::Jump(_) => Some(StackEffect::new(0, 0)),
+        TerminatorKind::Op(opcode) => {
+            op::stack_io(*opcode).map(|(inputs, outputs)| StackEffect::new(inputs, outputs))
         }
-        TerminatorKind::RawOpcode(opcode) => super::opcode::stack_io(*opcode)
-            .map(|(inputs, outputs)| StackEffect::new(inputs, outputs))
-            .unwrap_or_else(|| StackEffect::new(0, 0)),
     }
 }

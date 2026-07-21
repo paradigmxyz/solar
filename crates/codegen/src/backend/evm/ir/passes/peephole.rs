@@ -1,8 +1,8 @@
 //! Local peephole optimization over scheduled EVM IR.
 
 use crate::backend::evm::{
-    ir::{Instruction, Module, Operand},
-    opcode as op,
+    ir::{Instruction, Module, PushValue},
+    op,
 };
 use alloy_primitives::U256;
 use std::fmt;
@@ -14,11 +14,6 @@ pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
-        if block.instructions.iter().any(|inst| {
-            inst.result.is_some() || (!inst.is_encoded_push() && !inst.operands.is_empty())
-        }) {
-            continue;
-        }
         changed |= optimize(&mut block.instructions, &mut scratch, block.label) != 0;
     }
     changed
@@ -330,10 +325,8 @@ impl Edit {
 
 fn overwrite_raw(inst: &mut Instruction, opcode: u8) {
     debug_assert!(raw_opcode(inst).is_some());
-    debug_assert!(inst.result.is_none() && inst.operands.is_empty());
     inst.opcode = opcode;
     inst.metadata.stack = None;
-    inst.metadata.attrs.clear();
 }
 
 fn raw_opcode(inst: &Instruction) -> Option<u8> {
@@ -355,21 +348,22 @@ const fn flipped_comparison(opcode: u8) -> Option<u8> {
 }
 
 fn push_value(inst: &Instruction) -> Option<U256> {
-    if !inst.is_encoded_push() || inst.is_deferred_push() || inst.is_immutable_push() {
+    if !inst.is_encoded_push() || inst.deferred_push().is_some() || inst.immutable_push().is_some()
+    {
         return None;
     }
-    match inst.operands.as_slice() {
-        [Operand::Immediate(value)] => Some(*value),
+    match &inst.value {
+        Some(PushValue::Immediate(value)) => Some(*value),
         _ => None,
     }
 }
 
 fn is_block_push(inst: &Instruction) -> bool {
-    inst.is_encoded_push() && matches!(inst.operands.as_slice(), [Operand::Block(_)])
+    inst.is_encoded_push() && matches!(inst.value, Some(PushValue::Block(_)))
 }
 
 fn is_removable_push(inst: &Instruction) -> bool {
-    inst.is_encoded_push() && !inst.is_deferred_push()
+    inst.is_encoded_push() && inst.deferred_push().is_none()
 }
 
 struct InstructionSequence<'a>(&'a [Instruction]);
@@ -380,9 +374,9 @@ impl fmt::Display for InstructionSequence<'_> {
             if index != 0 {
                 f.write_str(" ")?;
             }
-            if inst.is_deferred_push() {
+            if inst.deferred_push().is_some() {
                 f.write_str("push_deferred")?;
-            } else if inst.is_immutable_push() {
+            } else if inst.immutable_push().is_some() {
                 f.write_str("push_immutable")?;
             } else if let Some(value) = push_value(inst) {
                 write!(f, "push {value:#x}")?;

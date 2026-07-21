@@ -2,8 +2,8 @@
 
 use super::utils::retain_blocks;
 use crate::backend::evm::{
-    ir::{BlockId, Module, Operand, Terminator, TerminatorKind},
-    opcode as op,
+    ir::{BlockId, Module, PushValue, Terminator, TerminatorKind},
+    op,
 };
 use solar_data_structures::bit_set::DenseBitSet;
 
@@ -75,7 +75,7 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
             continue;
         };
         block.instructions.truncate(at);
-        block.terminator = Some(Terminator::new(TerminatorKind::RawOpcode(opcode)));
+        block.terminator = Some(Terminator::new(TerminatorKind::Op(opcode)));
         changed = true;
     }
     changed
@@ -84,7 +84,7 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
 fn redirect_jump_thunks(module: &mut Module, thunks: &mut Vec<Option<BlockId>>) -> bool {
     thunks.clear();
     thunks.extend(module.blocks.iter().map(|block| {
-        if block.instructions.is_empty() && block.entry_stack.is_empty() {
+        if block.instructions.is_empty() {
             match block.terminator.as_ref().map(|term| &term.kind) {
                 Some(TerminatorKind::Jump(target)) => Some(*target),
                 _ => None,
@@ -117,8 +117,10 @@ fn redirect_jump_thunks(module: &mut Module, thunks: &mut Vec<Option<BlockId>>) 
     }
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
-            for operand in &mut inst.operands {
-                redirect_operand(operand, &resolve, &mut changed);
+            if let Some(PushValue::Block(block)) = &mut inst.value {
+                let resolved = resolve(*block);
+                changed |= resolved != *block;
+                *block = resolved;
             }
         }
         if let Some(term) = &mut block.terminator {
@@ -127,23 +129,9 @@ fn redirect_jump_thunks(module: &mut Module, thunks: &mut Vec<Option<BlockId>>) 
                 changed |= resolved != *target;
                 *target = resolved;
             });
-            term.kind
-                .visit_operands_mut(|operand| redirect_operand(operand, &resolve, &mut changed));
         }
     }
     changed
-}
-
-fn redirect_operand(
-    operand: &mut Operand,
-    resolve: &impl Fn(BlockId) -> BlockId,
-    changed: &mut bool,
-) {
-    if let Operand::Block(block) = operand {
-        let target = resolve(*block);
-        *changed |= target != *block;
-        *block = target;
-    }
 }
 
 fn remove_unreachable_blocks(
@@ -166,19 +154,12 @@ fn remove_unreachable_blocks(
         }
         let block = &module.blocks[block_id];
         for inst in &block.instructions {
-            for operand in &inst.operands {
-                if let Operand::Block(target) = operand {
-                    pending.push(*target);
-                }
+            if let Some(PushValue::Block(target)) = &inst.value {
+                pending.push(*target);
             }
         }
         if let Some(term) = &block.terminator {
             term.kind.visit_targets(|target| pending.push(target));
-            term.kind.visit_operands(|operand| {
-                if let Operand::Block(target) = operand {
-                    pending.push(*target);
-                }
-            });
         }
     }
     if reachable.count() == module.blocks.len() {
@@ -200,15 +181,12 @@ fn coalesce_blocks(
     references.resize(module.blocks.len(), 0);
     for block in &module.blocks {
         for inst in &block.instructions {
-            for operand in &inst.operands {
-                count_operand(operand, references);
+            if let Some(PushValue::Block(target)) = &inst.value {
+                references[target.index()] += 1;
             }
         }
         if let Some(term) = &block.terminator {
             term.kind.visit_targets(|target| references[target.index()] += 1);
-            term.kind.visit_operands(|operand| {
-                count_operand(operand, references);
-            });
         }
     }
 
@@ -228,7 +206,6 @@ fn coalesce_blocks(
             if target == predecessor
                 || Some(target) == module.entry_block
                 || references[target.index()] != 1
-                || !module.blocks[target].entry_stack.is_empty()
                 || !retained.contains(target)
             {
                 break;
@@ -248,10 +225,4 @@ fn coalesce_blocks(
     order.extend(retained.iter());
     retain_blocks(module, order);
     true
-}
-
-fn count_operand(operand: &Operand, references: &mut [usize]) {
-    if let Operand::Block(target) = operand {
-        references[target.index()] += 1;
-    }
 }

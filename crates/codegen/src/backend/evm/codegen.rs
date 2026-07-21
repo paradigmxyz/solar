@@ -7,10 +7,8 @@
 //! - EVM IR optimization, relocation, and byte encoding
 
 use super::{
-    assembler::{
-        Assembler, AssemblerConfig, DeferredConst, ImmutableRef, Label, PreparedAssembly, op,
-    },
-    ir,
+    assembler::{Assembler, AssemblerConfig, DeferredConst, ImmutableRef, Label, PreparedAssembly},
+    ir, op,
     stack::{
         MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
     },
@@ -73,8 +71,6 @@ pub struct EvmCodegenConfig {
     pub(crate) time_passes: bool,
     /// Lower dispatch/ABI as MIR phases and consume them here.
     pub(crate) mir_dispatch: bool,
-    /// Run the experimental EVM IR `StackSchedule` pass before assembly.
-    pub(crate) evm_ir_stack_schedule: bool,
     /// Capture final EVM IR immediately before assembly.
     pub capture_evm_ir: bool,
 }
@@ -89,9 +85,6 @@ impl EvmCodegenConfig {
             mir_print_after_each: sess.opts.unstable.mir_print_after_each,
             time_passes: sess.opts.unstable.time_passes,
             mir_dispatch: !sess.opts.unstable.no_mir_dispatch,
-            // Keep the experimental EVM IR stack scheduler off in every default
-            // compilation path so produced bytecode is unchanged.
-            evm_ir_stack_schedule: false,
             capture_evm_ir: false,
         }
     }
@@ -101,7 +94,6 @@ impl EvmCodegenConfig {
             evm_version: self.evm_version,
             optimization: self.optimization,
             time_passes: self.time_passes,
-            evm_ir_stack_schedule: self.evm_ir_stack_schedule,
             capture_evm_ir: self.capture_evm_ir,
         }
     }
@@ -789,7 +781,7 @@ impl EvmCodegen {
         // First generate the runtime code
         let mut runtime_code = self.generate_runtime_code(module);
         if let Some(evm_ir) = &mut runtime_code.evm_ir {
-            evm_ir.set_name(sym::runtime);
+            evm_ir.set_name("runtime");
         }
         let runtime_len = runtime_code.bytecode.len();
         let immutable_refs = std::mem::take(&mut self.runtime_immutable_refs);
@@ -846,7 +838,7 @@ impl EvmCodegen {
         // PUSH<n> copy_base     ; memory offset
         // RETURN                ; return the runtime code
         if let Some(evm_ir) = &mut deploy_code.evm_ir {
-            evm_ir.set_name(sym::deployment);
+            evm_ir.set_name("deployment");
         }
 
         let mut deploy_bytecode = deploy_code.bytecode;
@@ -5198,15 +5190,6 @@ REVERT
 
     /// Helper to compile Solidity source to bytecode, returning Result.
     fn compile_source(source: &str) -> Result<Vec<u8>, String> {
-        compile_source_with_stack_schedule(source, false)
-    }
-
-    /// Compiles Solidity source to runtime bytecode, optionally enabling the
-    /// experimental EVM IR `StackSchedule` bridge pass.
-    fn compile_source_with_stack_schedule(
-        source: &str,
-        evm_ir_stack_schedule: bool,
-    ) -> Result<Vec<u8>, String> {
         let opts = CompileOpts {
             unstable: UnstableOpts { codegen: true, ..Default::default() },
             ..Default::default()
@@ -5243,9 +5226,7 @@ REVERT
             for (contract_id, contract) in gcx.hir.contracts_enumerated() {
                 if contract.name.name == sym::Test {
                     let mut module = lower::lower_contract(gcx, contract_id);
-                    let config =
-                        EvmCodegenConfig { evm_ir_stack_schedule, ..EvmCodegenConfig::from(gcx) };
-                    let mut codegen = EvmCodegen::new(config);
+                    let mut codegen = EvmCodegen::new(EvmCodegenConfig::from(gcx));
                     let bytecode = codegen.generate_deployment_artifact(&mut module).runtime;
                     return Ok(bytecode);
                 }
@@ -5349,68 +5330,6 @@ REVERT
         assert!(result.is_ok(), "Compilation failed: {:?}", result.err());
         let bytecode = result.unwrap();
         assert!(!bytecode.is_empty(), "Bytecode should not be empty");
-    }
-
-    /// Differential check for the experimental EVM IR `StackSchedule` flag:
-    /// for each sample contract, compiling with `evm_ir_stack_schedule`
-    /// OFF (the default) and ON must produce byte-for-byte identical runtime
-    /// bytecode. The scheduler receives operand-cleared IR, where the pass is a
-    /// verified near no-op, and assembly guards the scheduled module behind the
-    /// verifier oracle and a code-equality check — so turning the flag on can
-    /// never diverge or produce invalid code.
-    #[test]
-    fn stack_schedule_flag_is_bytecode_neutral() {
-        let samples = [
-            // Simple storage read + conditional store.
-            r#"
-                // SPDX-License-Identifier: MIT
-                pragma solidity ^0.8.0;
-                contract Test {
-                    uint256 public value;
-                    function test() public {
-                        uint256 v = value;
-                        if (v != 0) value = v - 1;
-                    }
-                }
-            "#,
-            // Phi merge whose result is used after the if/else.
-            r#"
-                // SPDX-License-Identifier: MIT
-                pragma solidity ^0.8.0;
-                contract Test {
-                    uint256 public totalSupply;
-                    function mint() external returns (uint256 liquidity) {
-                        if (totalSupply == 0) {
-                            liquidity = 1;
-                        } else {
-                            liquidity = 2;
-                        }
-                        totalSupply += liquidity;
-                    }
-                }
-            "#,
-            // A small loop with arithmetic, exercising multiple blocks.
-            r#"
-                // SPDX-License-Identifier: MIT
-                pragma solidity ^0.8.0;
-                contract Test {
-                    function sum(uint256 n) public pure returns (uint256 acc) {
-                        for (uint256 i = 0; i < n; i++) {
-                            acc += i;
-                        }
-                    }
-                }
-            "#,
-        ];
-
-        for source in samples {
-            let off = compile_source_with_stack_schedule(source, false);
-            let on = compile_source_with_stack_schedule(source, true);
-            let off = off.expect("baseline compilation should succeed");
-            let on = on.expect("stack-schedule compilation should succeed");
-            assert!(!off.is_empty(), "baseline bytecode should not be empty");
-            assert_data_eq!(disassemble(&off), disassemble(&on));
-        }
     }
 
     #[test]

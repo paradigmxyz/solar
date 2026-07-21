@@ -5,15 +5,14 @@
 //! - `EvmCodegen`: The main EVM code generator
 //! - `ir`: Machine-level EVM instructions and block metadata
 //! - `Assembler`: Final relocation and byte encoding
-//! - `stack`: Stack scheduling for DUP/SWAP generation
+//! - `stack`: MIR-to-EVM stack scheduling for DUP/SWAP generation
 
 mod codegen;
 pub use codegen::{EvmArtifact, EvmCodegen, EvmCodegenConfig};
 
 pub mod ir;
-mod stack_schedule;
 
-pub(crate) mod opcode;
+pub(crate) mod op;
 
 pub(crate) mod assembler;
 

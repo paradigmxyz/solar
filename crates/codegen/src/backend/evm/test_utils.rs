@@ -1,4 +1,4 @@
-use super::opcode as op;
+use super::op;
 use std::fmt::Write;
 
 pub(crate) fn disassemble(bytecode: &[u8]) -> String {

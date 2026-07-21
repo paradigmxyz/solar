@@ -159,11 +159,9 @@ impl RunState {
 }
 
 fn is_candidate(block: &Block) -> bool {
-    block.entry_stack.is_empty()
-        && block.instructions.iter().all(|inst| inst.result.is_none())
-        && block.terminator.as_ref().is_some_and(|term| {
-            is_evm_terminal(&term.kind) || matches!(term.kind, TerminatorKind::Jump(_))
-        })
+    block.terminator.as_ref().is_some_and(|term| {
+        is_evm_terminal(&term.kind) || matches!(term.kind, TerminatorKind::Jump(_))
+    })
 }
 
 fn common_suffix(a: &Block, b: &Block) -> usize {
@@ -176,7 +174,7 @@ fn common_suffix(a: &Block, b: &Block) -> usize {
 }
 
 fn machine_instructions_equal(a: &Instruction, b: &Instruction) -> bool {
-    a.opcode == b.opcode && a.encoding == b.encoding && a.operands == b.operands
+    a.opcode == b.opcode && a.encoding == b.encoding && a.value == b.value
 }
 
 fn suffix_lower_bound(block: &Block, common: usize) -> usize {

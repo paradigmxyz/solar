@@ -1,25 +1,17 @@
 //! EVM IR verifier.
 
 use super::*;
-use crate::backend::evm::opcode as op;
-use solar_data_structures::{
-    bit_set::{DenseBitSet, GrowableBitSet},
-    index::IndexVec,
-    map::FxHashSet,
-};
-use solar_interface::{
-    diagnostics::{DiagCtxt, ErrorGuaranteed},
-    kw, sym,
-};
+use crate::backend::evm::{op, stack::MAX_STACK_DEPTH};
+use solar_data_structures::{index::IndexVec, map::FxHashSet};
+use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
 use std::fmt;
 
-/// Stateful EVM IR verifier.
+/// EVM IR verifier.
 struct Verifier<'a> {
     dcx: &'a DiagCtxt,
 }
 
 impl<'a> Verifier<'a> {
-    /// Creates a verifier that emits findings into `dcx`.
     const fn new(dcx: &'a DiagCtxt) -> Self {
         Self { dcx }
     }
@@ -36,27 +28,21 @@ impl<'a> Verifier<'a> {
         self.error(format_args!("block {}: {msg}", block.index()))
     }
 
-    /// Verifies basic EVM IR invariants.
     fn verify_module(&self, module: &Module) {
         let errors_before = self.dcx.err_count();
-        if !solar_parse::lexer::is_ident(module.name.as_str()) {
-            self.error(format_args!("invalid program name `{}`", module.name));
-        }
         if module.blocks.is_empty() {
             self.error("program has no blocks");
             return;
         }
-        let entry = match module.entry_block {
-            Some(entry) if self.block_exists(module, entry) => Some(entry),
+        match module.entry_block {
+            Some(entry) if self.block_exists(module, entry) => {}
             Some(entry) => {
                 self.error(format_args!("entry block `{}` is out of range", entry.index()));
-                None
             }
             None => {
                 self.error("program has no entry block");
-                None
             }
-        };
+        }
 
         let mut labels = FxHashSet::default();
         for (block_id, block) in module.blocks.iter_enumerated() {
@@ -66,52 +52,14 @@ impl<'a> Verifier<'a> {
                     format_args!("duplicate block label `bb{}`", block.label),
                 );
             }
-            if block.terminator.is_none() {
-                self.error_in_block(block_id, "missing terminator");
-            }
-        }
-
-        let mut value_names = FxHashSet::default();
-        for (_, value) in module.values.iter_enumerated() {
-            if !solar_parse::lexer::is_ident(value.name.as_str()) {
-                self.error(format_args!("invalid value name `%{}`", value.name));
-            }
-            if !value_names.insert(value.name) {
-                self.error(format_args!("duplicate value name `%{}`", value.name));
-            }
-        }
-
-        let mut defined_values = DenseBitSet::new_empty(module.values.len());
-        for (block_id, block) in module.blocks.iter_enumerated() {
             for inst in &block.instructions {
-                self.verify_instruction_shape(block_id, inst);
-                if let Some(result) = inst.result {
-                    if !self.value_exists(module, result) {
-                        self.error_in_block(
-                            block_id,
-                            format_args!("result value `{}` is out of range", result.index()),
-                        );
-                    } else if !defined_values.insert(result) {
-                        self.error_in_block(
-                            block_id,
-                            format_args!(
-                                "value `%{}` is defined more than once",
-                                module.value(result).name
-                            ),
-                        );
-                    }
-                }
-                for operand in &inst.operands {
-                    self.verify_operand(block_id, module, operand);
-                }
-                self.verify_metadata_is_untyped(block_id, &inst.metadata);
+                self.verify_instruction_shape(block_id, module, inst);
             }
-            let Some(term) = &block.terminator else { continue };
-            self.verify_terminator_shape(block_id, &term.kind);
-            term.kind.visit_operands(|operand| {
-                self.verify_operand(block_id, module, operand);
-            });
-            self.verify_metadata_is_untyped(block_id, &term.metadata);
+            let Some(term) = &block.terminator else {
+                self.error_in_block(block_id, "missing terminator");
+                continue;
+            };
+            self.verify_terminator_shape(block_id, term);
             term.kind.visit_targets(|target| {
                 if !self.block_exists(module, target) {
                     self.error_in_block(
@@ -122,475 +70,61 @@ impl<'a> Verifier<'a> {
             });
         }
 
-        for (block_id, block) in module.blocks.iter_enumerated() {
-            for &value in &block.entry_stack {
-                if !self.value_exists(module, value) {
-                    self.error_in_block(
-                        block_id,
-                        format_args!("entry stack value `{}` is out of range", value.index()),
-                    );
-                } else if !defined_values.contains(value) {
-                    self.error_in_block(
-                        block_id,
-                        format_args!(
-                            "entry stack value `%{}` is never defined",
-                            module.value(value).name
-                        ),
-                    );
-                }
+        if self.dcx.err_count() == errors_before {
+            self.verify_stack_ops(module);
+        }
+    }
+
+    fn verify_instruction_shape(&self, block_id: BlockId, module: &Module, inst: &Instruction) {
+        if inst.is_encoded_push() {
+            let Some(value) = &inst.value else {
+                self.error_in_block(
+                    block_id,
+                    format_args!("`{}` must carry a value", inst.mnemonic()),
+                );
+                return;
+            };
+            if inst.opcode != op::PUSH32 {
+                self.error_in_block(block_id, "encoded push must use the `PUSH32` opcode");
             }
-            for inst in &block.instructions {
-                for operand in &inst.operands {
-                    self.verify_value_defined(block_id, module, operand, &defined_values);
+            match inst.encoding {
+                Instruction::ENCODED_PUSH => {}
+                encoding if encoding == Instruction::ENCODED_PUSH | Instruction::DEFERRED => {
+                    self.verify_assembly_id(block_id, inst, value, "deferred constant");
                 }
-            }
-            let Some(term) = &block.terminator else { continue };
-            term.kind.visit_operands(|operand| {
-                self.verify_value_defined(block_id, module, operand, &defined_values);
-            });
-        }
-
-        if entry.is_some() && self.dcx.err_count() == errors_before {
-            self.verify_stack_consistency(module);
-        }
-    }
-}
-
-pub(super) fn validate(dcx: &DiagCtxt, module: &Module) {
-    Verifier::new(dcx).verify_module(module);
-}
-
-/// One abstract stack word tracked by the consistency simulator.
-///
-/// Words carry their value identity when known so cross-block edges can compare
-/// the exact words a predecessor leaves with those a successor declares. Words
-/// produced by `push` or by an extra output of a multi-result op have no SSA
-/// name and are modeled as [`AbstractWord::Unknown`]; two `Unknown` words are
-/// never considered equal across an edge.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum AbstractWord {
-    /// A word with a known SSA value identity.
-    Value(ValueId),
-    /// An anonymous word (a `push` immediate or a synthesized output) whose
-    /// identity is not an SSA value.
-    Unknown,
-}
-
-/// An abstract model stack: known words (top first) over an optional implicit
-/// floor of predecessor-inherited words.
-///
-/// EVM basic blocks share one runtime stack. A block that is reachable from
-/// predecessors may consume words those predecessors left below the portion the
-/// block declares as its `entry_stack`. The production backend exploits this:
-/// it does not declare an `entry_stack` and models opcodes as stack-neutral,
-/// relying on physical `push`/`dup`/`swap`/`pop` to thread an implicitly
-/// inherited stack between blocks. To stay sound without rejecting that
-/// convention, non-entry blocks model an **unbounded floor** of unknown words
-/// below `words`: an op that reaches past the known words draws fresh
-/// [`AbstractWord::Unknown`] floor words instead of underflowing.
-///
-/// The entry block has no predecessors, so its floor is empty (`infinite_floor`
-/// is `false`) and physical-op underflow is a real error and is rejected.
-struct ModelStack {
-    /// Known words, index 0 is the top of stack.
-    words: Vec<AbstractWord>,
-    /// Whether unknown words may be drawn from below `words`.
-    infinite_floor: bool,
-}
-
-impl ModelStack {
-    fn len(&self) -> usize {
-        self.words.len()
-    }
-
-    /// Ensures at least `depth` words are modeled, materializing implicit floor
-    /// words when allowed. Returns `false` if the stack is genuinely too shallow.
-    fn ensure_depth(&mut self, depth: usize) -> bool {
-        if self.words.len() >= depth {
-            return true;
-        }
-        if !self.infinite_floor {
-            return false;
-        }
-        while self.words.len() < depth {
-            self.words.push(AbstractWord::Unknown);
-        }
-        true
-    }
-
-    fn push(&mut self, word: AbstractWord) {
-        self.words.insert(0, word);
-    }
-
-    fn contains(&self, word: AbstractWord) -> bool {
-        // A live word may be sitting in the implicit floor; over-approximate by
-        // treating any value as reachable when a floor is present.
-        self.words.contains(&word) || self.infinite_floor
-    }
-}
-
-/// Simulates each block's stack and checks cross-block edge consistency.
-///
-/// For every block we start from its declared `entry_stack` (top first), apply
-/// each instruction's stack effect to a `ModelStack` of word identities, apply
-/// the terminator's effect, and record the resulting exit stack. Physical stack
-/// ops (`dupN`/`swapN`/`pop`) are applied precisely; on the entry block (which
-/// has no implicit floor) underflows and out-of-range depths are rejected.
-///
-/// Then, for every CFG edge `pred -> succ`, the successor's declared
-/// `entry_stack` must be a **prefix** of the predecessor's exit stack (both top
-/// first): the words a successor declares as incoming are exactly the top `k`
-/// words the predecessor leaves, in order. The predecessor may leave additional
-/// words below them — a successor only names the prefix it consumes. The entry
-/// block must start from an empty stack.
-impl Verifier<'_> {
-    fn verify_stack_consistency(&self, module: &Module) {
-        if let Some(entry) = module.entry_block
-            && !module.blocks[entry].entry_stack.is_empty()
-        {
-            self.error_in_block(entry, "entry block must start from an empty stack");
-        }
-
-        let mut exit_stacks: IndexVec<BlockId, Option<Vec<AbstractWord>>> =
-            IndexVec::with_capacity(module.blocks.len());
-        for (block_id, block) in module.blocks.iter_enumerated() {
-            let is_entry = module.entry_block == Some(block_id);
-            exit_stacks.push(self.simulate_block(module, block_id, block, is_entry).ok());
-        }
-
-        for (block_id, block) in module.blocks.iter_enumerated() {
-            let Some(exit) = &exit_stacks[block_id] else { continue };
-            let term = block.terminator.as_ref().expect("checked above");
-            term.kind.visit_targets(|succ| {
-                let succ_entry: Vec<AbstractWord> = module.blocks[succ]
-                    .entry_stack
-                    .iter()
-                    .map(|&value| AbstractWord::Value(value))
-                    .collect();
-                if !exit.starts_with(&succ_entry) {
-                    self.error_in_block(
-                        block_id,
-                        format_args!(
-                            "stack on edge to `{}` is inconsistent: successor declares incoming \
-                                             stack [{}] but predecessor leaves [{}]",
-                            format_args!("bb{}", module.blocks[succ].label),
-                            self.format_entry_stack(module, &module.blocks[succ].entry_stack),
-                            self.format_abstract_stack(module, exit),
-                        ),
-                    );
+                encoding if encoding == Instruction::ENCODED_PUSH | Instruction::IMMUTABLE => {
+                    self.verify_assembly_id(block_id, inst, value, "immutable");
                 }
-            });
-        }
-    }
-
-    /// Computes a block's exit stack, rejecting any entry-block physical-stack-op
-    /// underflow or out-of-range depth and any reference to a word not live on the
-    /// model stack.
-    fn simulate_block(
-        &self,
-        module: &Module,
-        block_id: BlockId,
-        block: &Block,
-        is_entry: bool,
-    ) -> Result<Vec<AbstractWord>, ErrorGuaranteed> {
-        let mut stack = ModelStack {
-            words: block.entry_stack.iter().map(|&value| AbstractWord::Value(value)).collect(),
-            infinite_floor: !is_entry,
-        };
-
-        for inst in &block.instructions {
-            self.simulate_instruction(module, block_id, inst, &mut stack)?;
-        }
-
-        let term = block.terminator.as_ref().expect("checked above");
-        self.simulate_terminator(module, block_id, &term.kind, &mut stack)?;
-        Ok(stack.words)
-    }
-
-    fn simulate_instruction(
-        &self,
-        module: &Module,
-        block_id: BlockId,
-        inst: &Instruction,
-        stack: &mut ModelStack,
-    ) -> Result<(), ErrorGuaranteed> {
-        if inst.is_physical_stack_op() {
-            self.apply_physical_stack_op(block_id, inst.opcode, stack)
-        } else if inst.is_encoded_push() {
-            // An encoded `push` adds one word: its SSA result if it has one,
-            // otherwise an anonymous immediate word.
-            stack.push(self.result_word(inst));
-            Ok(())
-        } else if !inst.operands.is_empty() {
-            // Unscheduled op: its value operands are still present, so they must
-            // be live on the model stack. They are not consumed (the operands
-            // sit on the stack until scheduling clears them); the result, if
-            // any, is pushed on top.
-            for operand in &inst.operands {
-                if let Operand::Value(value) = operand
-                    && !stack.contains(AbstractWord::Value(*value))
-                {
-                    return Err(self.error_in_block(
-                        block_id,
-                        format_args!(
-                            "operand `%{}` of `{}` is not live on the stack",
-                            module.value(*value).name,
-                            inst.mnemonic()
-                        ),
-                    ));
+                _ => {
+                    self.error_in_block(block_id, "invalid encoded push kind");
                 }
+            };
+            if let PushValue::Block(target) = value
+                && !self.block_exists(module, *target)
+            {
+                self.error_in_block(
+                    block_id,
+                    format_args!("push target block `{}` is out of range", target.index()),
+                );
             }
-            if inst.result.is_some() {
-                stack.push(self.result_word(inst));
-            }
-            Ok(())
         } else {
-            // Scheduled op: operands cleared. Pop its declared inputs and push
-            // its outputs.
-            let effect =
-                inst.metadata.stack.unwrap_or_else(|| default_instruction_stack_effect(inst));
-            self.apply_effect(block_id, inst, effect, stack)
-        }
-    }
-
-    fn apply_effect(
-        &self,
-        block_id: BlockId,
-        inst: &Instruction,
-        effect: StackEffect,
-        stack: &mut ModelStack,
-    ) -> Result<(), ErrorGuaranteed> {
-        let inputs = usize::from(effect.inputs);
-        if !stack.ensure_depth(inputs) {
-            return Err(self.error_in_block(
-                block_id,
-                format_args!(
-                    "`{}` consumes {} stack words but only {} are available",
-                    inst.mnemonic(),
-                    effect.inputs,
-                    stack.len()
-                ),
-            ));
-        }
-        stack.words.drain(0..inputs);
-        for index in 0..effect.outputs {
-            let word = if index == 0 { self.result_word(inst) } else { AbstractWord::Unknown };
-            stack.push(word);
-        }
-        Ok(())
-    }
-
-    fn apply_physical_stack_op(
-        &self,
-        block_id: BlockId,
-        opcode: u8,
-        stack: &mut ModelStack,
-    ) -> Result<(), ErrorGuaranteed> {
-        match opcode {
-            op::DUP1..=op::DUP16 => {
-                let n = opcode - op::DUP1 + 1;
-                let depth = usize::from(n);
-                if !stack.ensure_depth(depth) {
-                    return Err(self.error_in_block(
-                        block_id,
-                        format_args!(
-                            "`dup{n}` reaches depth {n} but the stack has {}",
-                            stack.len()
-                        ),
-                    ));
-                }
-                let word = stack.words[depth - 1];
-                stack.push(word);
+            if inst.value.is_some() {
+                self.error_in_block(block_id, "only `push` instructions can carry a value");
             }
-            op::SWAP1..=op::SWAP16 => {
-                let n = opcode - op::SWAP1 + 1;
-                let depth = usize::from(n);
-                if !stack.ensure_depth(depth + 1) {
-                    return Err(self.error_in_block(
-                        block_id,
-                        format_args!(
-                            "`swap{n}` reaches depth {n} but the stack has {}",
-                            stack.len()
-                        ),
-                    ));
-                }
-                stack.words.swap(0, depth);
-            }
-            op::POP => {
-                if !stack.ensure_depth(1) {
-                    return Err(self.error_in_block(block_id, "`pop` on an empty stack"));
-                }
-                stack.words.remove(0);
-            }
-            _ => unreachable!("checked physical stack opcode"),
-        }
-        Ok(())
-    }
-
-    fn simulate_terminator(
-        &self,
-        module: &Module,
-        block_id: BlockId,
-        kind: &TerminatorKind,
-        stack: &mut ModelStack,
-    ) -> Result<(), ErrorGuaranteed> {
-        // A terminator that still carries value operands is unscheduled: those
-        // operands must be live. We still apply the terminator's stack effect to the
-        // abstract exit stack: even in virtual form, branch/switch/return/revert
-        // consume their operand words at runtime, so successors must not be allowed
-        // to claim those consumed words as incoming stack values.
-        let mut result = Ok(());
-        kind.visit_operands(|operand| {
-            if let Operand::Value(value) = operand
-                && !stack.contains(AbstractWord::Value(*value))
-            {
-                result = Err(self.error_in_block(
-                    block_id,
-                    format_args!(
-                        "terminator operand `%{}` is not live on the stack",
-                        module.value(*value).name
-                    ),
-                ));
-            }
-        });
-        result?;
-
-        self.apply_terminator_effect(block_id, kind, stack)
-    }
-
-    fn apply_terminator_effect(
-        &self,
-        block_id: BlockId,
-        kind: &TerminatorKind,
-        stack: &mut ModelStack,
-    ) -> Result<(), ErrorGuaranteed> {
-        let mut consumed = GrowableBitSet::new_empty();
-        kind.try_visit_operands(|operand| {
-            if let Operand::Value(value) = operand
-                && consumed.insert(*value)
-            {
-                self.consume_stack_value(block_id, kind, *value, stack)?;
-            }
-            Ok::<(), ErrorGuaranteed>(())
-        })?;
-
-        let effect = default_terminator_stack_effect(kind);
-        let remaining_inputs = usize::from(effect.inputs).saturating_sub(consumed.len());
-        if !stack.ensure_depth(remaining_inputs) {
-            return Err(self.error_in_block(
-                block_id,
-                format_args!(
-                    "`{}` consumes {} stack words but only {} are available",
-                    self.terminator_name(kind),
-                    effect.inputs,
-                    stack.len()
-                ),
-            ));
-        }
-        stack.words.drain(0..remaining_inputs);
-        Ok(())
-    }
-
-    fn consume_stack_value(
-        &self,
-        block_id: BlockId,
-        kind: &TerminatorKind,
-        value: ValueId,
-        stack: &mut ModelStack,
-    ) -> Result<(), ErrorGuaranteed> {
-        let needle = AbstractWord::Value(value);
-        let Some(index) = stack.words.iter().position(|word| *word == needle) else {
-            return Err(self.error_in_block(
-                block_id,
-                format_args!(
-                    "`{}` consumes an operand that is not live on the stack",
-                    self.terminator_name(kind)
-                ),
-            ));
-        };
-        stack.words.remove(index);
-        Ok(())
-    }
-
-    fn terminator_name(&self, kind: &TerminatorKind) -> &'static str {
-        match kind {
-            TerminatorKind::Jump(_) => "jump",
-            TerminatorKind::Branch { .. } => "br",
-            TerminatorKind::Switch { .. } => "switch",
-            TerminatorKind::Return { .. } => "return",
-            TerminatorKind::Revert { .. } => "revert",
-            TerminatorKind::Stop => "stop",
-            TerminatorKind::Invalid => "invalid",
-            TerminatorKind::SelfDestruct { .. } => "selfdestruct",
-            TerminatorKind::RawOpcode(_) => "terminal",
-        }
-    }
-
-    /// The word a result-producing instruction leaves on top.
-    fn result_word(&self, inst: &Instruction) -> AbstractWord {
-        inst.result.map(AbstractWord::Value).unwrap_or(AbstractWord::Unknown)
-    }
-
-    fn format_entry_stack<'a>(
-        &self,
-        module: &'a Module,
-        stack: &'a [ValueId],
-    ) -> impl fmt::Display + 'a {
-        fmt::from_fn(move |f| {
-            for (index, &value) in stack.iter().enumerate() {
-                if index != 0 {
-                    f.write_str(", ")?;
-                }
-                write!(f, "%{}", module.value(value).name)?;
-            }
-            Ok(())
-        })
-    }
-
-    fn format_abstract_stack<'a>(
-        &self,
-        module: &'a Module,
-        stack: &'a [AbstractWord],
-    ) -> impl fmt::Display + 'a {
-        fmt::from_fn(move |f| {
-            for (index, word) in stack.iter().enumerate() {
-                if index != 0 {
-                    f.write_str(", ")?;
-                }
-                match word {
-                    AbstractWord::Value(value) => write!(f, "%{}", module.value(*value).name)?,
-                    AbstractWord::Unknown => f.write_str("<word>")?,
-                }
-            }
-            Ok(())
-        })
-    }
-
-    fn verify_instruction_shape(&self, block_id: BlockId, inst: &Instruction) {
-        if inst.is_physical_stack_op() {
-            let expected = default_instruction_stack_effect(inst);
-            if inst.result.is_some() {
+            if (op::PUSH1..=op::PUSH32).contains(&inst.opcode) {
                 self.error_in_block(
                     block_id,
-                    format_args!(
-                        "physical stack op `{}` cannot define an SSA value",
-                        inst.mnemonic()
-                    ),
+                    format_args!("`{}` must carry an encoded push value", inst.mnemonic()),
                 );
             }
-            if !inst.operands.is_empty() {
-                self.error_in_block(
-                    block_id,
-                    format_args!("physical stack op `{}` cannot have operands", inst.mnemonic()),
-                );
-            }
-            if let Some(effect) = inst.metadata.stack
-                && effect != expected
-            {
+        }
+
+        match (inst.metadata.stack, default_instruction_stack_effect(inst)) {
+            (Some(effect), Some(expected)) if effect != expected => {
                 self.error_in_block(
                     block_id,
                     format_args!(
-                        "physical stack op `{}` has stack effect {}->{}, expected {}->{}",
+                        "`{}` has stack effect {}->{}, expected {}->{}",
                         inst.mnemonic(),
                         effect.inputs,
                         effect.outputs,
@@ -599,119 +133,230 @@ impl Verifier<'_> {
                     ),
                 );
             }
-        } else if inst.is_encoded_push() {
-            if inst.operands.len() != 1 {
-                self.error_in_block(
-                    block_id,
-                    format_args!("`{}` must have one operand", inst.mnemonic()),
-                );
-            } else if matches!(inst.operands[0], Operand::Value(_)) {
-                self.error_in_block(
-                    block_id,
-                    format_args!("`{}` cannot take a stack value operand", inst.mnemonic()),
-                );
-            }
-        } else {
-            if inst.operands.is_empty()
-                && inst.metadata.stack.is_none()
-                && op::stack_io(inst.opcode).is_none()
-            {
+            (None, None) => {
                 self.error_in_block(
                     block_id,
                     format_args!(
-                        "operand-cleared instruction `{}` must declare an explicit stack effect",
+                        "instruction `{}` must declare an explicit stack effect",
                         inst.mnemonic()
                     ),
-                );
-            }
-            for operand in &inst.operands {
-                if !matches!(operand, Operand::Value(_)) {
-                    self.error_in_block(
-                        block_id,
-                        "non-`push` instruction operands must be stack values",
-                    );
-                }
-            }
-        }
-    }
-
-    fn verify_terminator_shape(&self, block_id: BlockId, kind: &TerminatorKind) {
-        match kind {
-            TerminatorKind::Branch { condition, .. } => {
-                self.verify_stack_value_operand(block_id, condition, "branch condition")
-            }
-            TerminatorKind::Switch { value, cases, .. } => {
-                self.verify_stack_value_operand(block_id, value, "switch value");
-                for (case, _) in cases {
-                    if !matches!(case, Operand::Immediate(_)) {
-                        self.error_in_block(block_id, "switch case values must be immediates");
-                    }
-                }
-            }
-            TerminatorKind::Return { offset, size } | TerminatorKind::Revert { offset, size } => {
-                self.verify_stack_value_operand(block_id, offset, "memory offset");
-                self.verify_stack_value_operand(block_id, size, "memory size");
-            }
-            TerminatorKind::SelfDestruct { recipient } => {
-                self.verify_stack_value_operand(block_id, recipient, "selfdestruct recipient")
-            }
-            TerminatorKind::Jump(_)
-            | TerminatorKind::Stop
-            | TerminatorKind::Invalid
-            | TerminatorKind::RawOpcode(_) => {}
-        }
-    }
-
-    fn verify_stack_value_operand(&self, block_id: BlockId, operand: &Operand, what: &str) {
-        if !matches!(operand, Operand::Value(_)) {
-            self.error_in_block(block_id, format_args!("{what} must be a stack value"));
-        }
-    }
-
-    fn verify_metadata_is_untyped(&self, block_id: BlockId, metadata: &Metadata) {
-        for item in &metadata.attrs {
-            if matches!(item.key, kw::Type | sym::mir_type | sym::result_ty | sym::ty) {
-                self.error_in_block(
-                    block_id,
-                    format_args!("EVM IR is untyped; metadata key `{}` is not allowed", item.key),
-                );
-            }
-        }
-    }
-
-    fn verify_operand(&self, block_id: BlockId, module: &Module, operand: &Operand) {
-        match operand {
-            Operand::Value(value) if !self.value_exists(module, *value) => {
-                self.error_in_block(
-                    block_id,
-                    format_args!("value `{}` is out of range", value.index()),
-                );
-            }
-            Operand::Block(block) if !self.block_exists(module, *block) => {
-                self.error_in_block(
-                    block_id,
-                    format_args!("block `{}` is out of range", block.index()),
                 );
             }
             _ => {}
         }
     }
 
-    fn verify_value_defined(
+    fn verify_assembly_id(
         &self,
         block_id: BlockId,
-        module: &Module,
-        operand: &Operand,
-        defined_values: &DenseBitSet<ValueId>,
+        inst: &Instruction,
+        value: &PushValue,
+        name: &str,
     ) {
-        if let Operand::Value(value) = operand
-            && self.value_exists(module, *value)
-            && !defined_values.contains(*value)
+        let PushValue::Immediate(value) = value else {
+            self.error_in_block(
+                block_id,
+                format_args!("`{}` must carry an immediate {name} ID", inst.mnemonic()),
+            );
+            return;
+        };
+        if u32::try_from(*value).ok().is_none_or(|value| value > assembly::AsmInst::PAYLOAD_MASK) {
+            self.error_in_block(block_id, format_args!("{name} ID exceeds the assembler limit"));
+        }
+    }
+
+    fn verify_terminator_shape(&self, block_id: BlockId, term: &Terminator) {
+        if let TerminatorKind::Op(opcode) = &term.kind
+            && !op::is_terminal(*opcode)
         {
             self.error_in_block(
                 block_id,
-                format_args!("value `%{}` is used but never defined", module.value(*value).name),
+                format_args!("terminator opcode `0x{opcode:02x}` is not terminal"),
             );
+        }
+        match (term.metadata.stack, default_terminator_stack_effect(&term.kind)) {
+            (Some(effect), Some(expected)) if effect != expected => {
+                self.error_in_block(
+                    block_id,
+                    format_args!(
+                        "`{}` has stack effect {}->{}, expected {}->{}",
+                        terminator_name(&term.kind),
+                        effect.inputs,
+                        effect.outputs,
+                        expected.inputs,
+                        expected.outputs
+                    ),
+                );
+            }
+            (None, None) => {
+                self.error_in_block(
+                    block_id,
+                    format_args!(
+                        "terminator `{}` must declare an explicit stack effect",
+                        terminator_name(&term.kind)
+                    ),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    /// Checks physical stack operations along generated direct control-flow edges.
+    fn verify_stack_ops(&self, module: &Module) {
+        let Some(entry) = module.entry_block else { return };
+        let mut entry_depths = IndexVec::<BlockId, _>::from_vec(vec![None; module.blocks.len()]);
+        entry_depths[entry] = Some(0);
+        let mut pending = vec![entry];
+        while let Some(block_id) = pending.pop() {
+            let block = &module.blocks[block_id];
+            let term =
+                block.terminator.as_ref().expect("terminator must exist after shape validation");
+            let mut stack = entry_depths[block_id].unwrap();
+            let mut physical_targets = Vec::new();
+            let mut valid = true;
+            for (index, inst) in block.instructions.iter().enumerate() {
+                if inst.is_physical_stack_op() {
+                    if self.apply_physical_stack_op(block_id, inst.opcode, &mut stack).is_err() {
+                        valid = false;
+                        break;
+                    }
+                } else {
+                    let effect = inst
+                        .metadata
+                        .stack
+                        .or_else(|| default_instruction_stack_effect(inst))
+                        .expect("instruction stack effect must be known after shape validation");
+                    if self.apply_effect(block_id, inst.mnemonic(), effect, &mut stack).is_err() {
+                        valid = false;
+                        break;
+                    }
+                }
+                if inst.opcode == op::JUMPI
+                    && let Some(target) = index
+                        .checked_sub(1)
+                        .and_then(|index| block.instructions[index].pushed_block())
+                {
+                    physical_targets.push((target, stack));
+                }
+            }
+            if valid {
+                let next = Self::next_block(module, block_id);
+                let mut pushes_target = false;
+                term.kind.visit_label_targets(next, |_| pushes_target = true);
+                if pushes_target
+                    && self
+                        .ensure_stack_limit(block_id, terminator_name(&term.kind), stack + 1)
+                        .is_err()
+                {
+                    valid = false;
+                } else {
+                    let effect = default_terminator_stack_effect(&term.kind)
+                        .or(term.metadata.stack)
+                        .expect("terminator stack effect must be known after shape validation");
+                    valid = self
+                        .apply_effect(block_id, terminator_name(&term.kind), effect, &mut stack)
+                        .is_ok();
+                }
+            }
+            if !valid {
+                continue;
+            }
+            term.kind.visit_targets(|target| physical_targets.push((target, stack)));
+            for (target, depth) in physical_targets {
+                Self::propagate_depth(target, depth, &mut entry_depths, &mut pending);
+            }
+        }
+    }
+
+    fn propagate_depth(
+        target: BlockId,
+        depth: usize,
+        entry_depths: &mut IndexVec<BlockId, Option<usize>>,
+        pending: &mut Vec<BlockId>,
+    ) {
+        let slot = &mut entry_depths[target];
+        if slot.is_none() {
+            *slot = Some(depth);
+            pending.push(target);
+        }
+    }
+
+    fn apply_effect(
+        &self,
+        block_id: BlockId,
+        name: impl fmt::Display,
+        effect: StackEffect,
+        stack: &mut usize,
+    ) -> Result<(), ErrorGuaranteed> {
+        let inputs = usize::from(effect.inputs);
+        if *stack < inputs {
+            return Err(self.error_in_block(
+                block_id,
+                format_args!(
+                    "`{name}` consumes {} stack words but only {} are available",
+                    effect.inputs, *stack
+                ),
+            ));
+        }
+        *stack = *stack - inputs + usize::from(effect.outputs);
+        self.ensure_stack_limit(block_id, name, *stack)
+    }
+
+    fn apply_physical_stack_op(
+        &self,
+        block_id: BlockId,
+        opcode: u8,
+        stack: &mut usize,
+    ) -> Result<(), ErrorGuaranteed> {
+        let name = match opcode {
+            op::DUP1..=op::DUP16 => {
+                let n = opcode - op::DUP1 + 1;
+                if *stack < usize::from(n) {
+                    return Err(self.error_in_block(
+                        block_id,
+                        format_args!("`dup{n}` reaches depth {n} but the stack has {}", *stack),
+                    ));
+                }
+                *stack += 1;
+                "dup"
+            }
+            op::SWAP1..=op::SWAP16 => {
+                let n = opcode - op::SWAP1 + 1;
+                if *stack < usize::from(n) + 1 {
+                    return Err(self.error_in_block(
+                        block_id,
+                        format_args!("`swap{n}` reaches depth {n} but the stack has {}", *stack),
+                    ));
+                }
+                "swap"
+            }
+            op::POP => {
+                if *stack == 0 {
+                    return Err(self.error_in_block(block_id, "`pop` on an empty stack"));
+                }
+                *stack -= 1;
+                "pop"
+            }
+            _ => unreachable!("checked physical stack opcode"),
+        };
+        self.ensure_stack_limit(block_id, name, *stack)
+    }
+
+    fn ensure_stack_limit(
+        &self,
+        block_id: BlockId,
+        name: impl fmt::Display,
+        depth: usize,
+    ) -> Result<(), ErrorGuaranteed> {
+        if depth > MAX_STACK_DEPTH {
+            Err(self.error_in_block(
+                block_id,
+                format_args!(
+                    "`{name}` grows the stack to {depth} words, exceeding the limit of {MAX_STACK_DEPTH}"
+                ),
+            ))
+        } else {
+            Ok(())
         }
     }
 
@@ -719,7 +364,20 @@ impl Verifier<'_> {
         block.index() < module.blocks.len()
     }
 
-    fn value_exists(&self, module: &Module, value: ValueId) -> bool {
-        value.index() < module.values.len()
+    fn next_block(module: &Module, block: BlockId) -> Option<BlockId> {
+        let next = block.index() + 1;
+        (next < module.blocks.len()).then(|| BlockId::from_usize(next))
     }
+}
+
+fn terminator_name(kind: &TerminatorKind) -> &'static str {
+    match kind {
+        TerminatorKind::Jump(_) => "jump",
+        TerminatorKind::JumpI { .. } => "jumpi",
+        TerminatorKind::Op(opcode) => op::mnemonic(*opcode).unwrap_or("terminal"),
+    }
+}
+
+pub(super) fn validate(dcx: &DiagCtxt, module: &Module) {
+    Verifier::new(dcx).verify_module(module);
 }
