@@ -492,7 +492,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Slice(base, start, end) => {
-                if let Some((slice, is_bytes)) = self.calldata_dyn_slice(builder, base) {
+                if let Some((slice, is_bytes)) = self.calldata_bytes_source(builder, base) {
                     let base_ptr = builder.slice_ptr(slice);
                     let base_len = builder.slice_len(slice);
                     let start_val = start
@@ -660,7 +660,14 @@ impl<'gcx> Lowerer<'gcx> {
         match builtin {
             Builtin::MsgSender => builder.caller(),
             Builtin::MsgValue => builder.callvalue(),
-            Builtin::MsgData => builder.imm_u64(0),
+            Builtin::MsgData => {
+                // `msg.data` is the whole calldata as a lazy calldata slice;
+                // `.length`, indexing, slicing, and materialization consume it
+                // through the shared calldata-slice paths.
+                let zero = builder.imm_u64(0);
+                let size = builder.calldatasize();
+                builder.make_slice(zero, size, crate::mir::SliceLocation::Calldata)
+            }
             Builtin::BlockTimestamp => {
                 let inst = builder.func_mut().alloc_inst(crate::mir::Instruction::new(
                     crate::mir::InstKind::Timestamp,
@@ -933,8 +940,9 @@ impl<'gcx> Lowerer<'gcx> {
             });
         }
 
-        // Calldata dynamic array/bytes carry their decoded length in the slice.
-        if let Some((slice, _)) = self.calldata_dyn_slice(builder, base) {
+        // Calldata dynamic array/bytes (and `msg.data`) carry their length in
+        // the slice.
+        if let Some((slice, _)) = self.calldata_bytes_source(builder, base) {
             return Some(builder.slice_len(slice));
         }
 
@@ -1682,6 +1690,29 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let elem_slots = builder.imm_u64(elem_slots);
         builder.mul(index_val, elem_slots)
+    }
+
+    /// Whether an expression is `msg.data`.
+    pub(super) fn expr_is_msg_data(&self, expr: &hir::Expr<'_>) -> bool {
+        matches!(self.resolved_builtin_member(expr), Some(Builtin::MsgData))
+    }
+
+    /// Resolves a calldata bytes/array base to its logical slice: an
+    /// `argN`-bound calldata dynamic parameter, or `msg.data` (bytes).
+    /// Returns the slice and whether it is bytes/string.
+    pub(super) fn calldata_bytes_source(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        base: &hir::Expr<'_>,
+    ) -> Option<(ValueId, bool)> {
+        if let Some(found) = self.calldata_dyn_slice(builder, base) {
+            return Some(found);
+        }
+        if self.expr_is_msg_data(base) {
+            let slice = self.lower_expr(builder, base);
+            return Some((slice, true));
+        }
+        None
     }
 
     /// Checks if an expression is a dynamically-sized calldata parameter (dynamic array or
