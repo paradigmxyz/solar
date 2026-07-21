@@ -20,11 +20,11 @@ pub(in crate::backend::evm) fn lower_evm_ir(
     for (block_id, block) in module.blocks.iter_enumerated() {
         let original = block.label as usize;
         if let Some(label) = labels.get(original).copied().flatten() {
-            program.instructions.push(AsmInst::label(label));
+            program.define_label(label);
         }
 
         for inst in &block.instructions {
-            program.instructions.push(lower_instruction(inst, module, labels, assembler));
+            program.push(lower_instruction(inst, module, labels, assembler));
         }
 
         if let Some(terminator) = &block.terminator {
@@ -114,32 +114,32 @@ fn lower_terminator(
                 return;
             }
             let label = label_for_block(module, *target, labels, assembler);
-            program.instructions.push(AsmInst::push_label(label));
-            program.instructions.push(AsmInst::op(op::JUMP));
+            program.push_label(label);
+            program.push_op(op::JUMP);
         }
         ir::TerminatorKind::JumpI { then_block, else_block } => {
             let next = next_block(module, block_id);
             if next == Some(*else_block) {
                 let label = label_for_block(module, *then_block, labels, assembler);
-                program.instructions.push(AsmInst::push_label(label));
-                program.instructions.push(AsmInst::op(op::JUMPI));
+                program.push_label(label);
+                program.push_op(op::JUMPI);
             } else if next == Some(*then_block) {
-                program.instructions.push(AsmInst::op(op::ISZERO));
+                program.push_op(op::ISZERO);
                 let label = label_for_block(module, *else_block, labels, assembler);
-                program.instructions.push(AsmInst::push_label(label));
-                program.instructions.push(AsmInst::op(op::JUMPI));
+                program.push_label(label);
+                program.push_op(op::JUMPI);
             } else {
                 let then_label = label_for_block(module, *then_block, labels, assembler);
-                program.instructions.push(AsmInst::push_label(then_label));
-                program.instructions.push(AsmInst::op(op::JUMPI));
+                program.push_label(then_label);
+                program.push_op(op::JUMPI);
                 let else_label = label_for_block(module, *else_block, labels, assembler);
-                program.instructions.push(AsmInst::push_label(else_label));
-                program.instructions.push(AsmInst::op(op::JUMP));
+                program.push_label(else_label);
+                program.push_op(op::JUMP);
             }
         }
         ir::TerminatorKind::Op(opcode) => {
             if *opcode != op::STOP || next_block(module, block_id).is_some() {
-                program.instructions.push(AsmInst::op(*opcode));
+                program.push_op(*opcode);
             }
         }
     }
