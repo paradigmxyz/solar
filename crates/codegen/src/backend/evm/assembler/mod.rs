@@ -292,6 +292,11 @@ impl Assembler {
                 (ir::TerminatorKind::Jump(*target), 2)
             } else if let Some(last) = block.instructions.last()
                 && !last.is_encoded_push()
+                && last.opcode == op::STOP
+            {
+                (ir::TerminatorKind::Stop, 1)
+            } else if let Some(last) = block.instructions.last()
+                && !last.is_encoded_push()
                 && op::is_terminal(last.opcode)
             {
                 (ir::TerminatorKind::RawOpcode(last.opcode), 1)
@@ -885,7 +890,6 @@ NOT
 PUSH1 0x2a
 PUSH1 0x0a
 ADD
-STOP
 
 "#]]
         );
@@ -920,7 +924,6 @@ JUMPI
 PUSH0
 JUMP
 JUMPDEST
-STOP
 
 "#]]
         );
@@ -963,7 +966,6 @@ PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 PUSH19 0x01000000000000000000000000000000000000
 JUMPDEST
-STOP
 
 "#]]
         );
@@ -1147,7 +1149,6 @@ REVERT
             str![[r#"
 PUSH0
 NOT
-STOP
 
 "#]]
         );
@@ -1170,7 +1171,6 @@ PUSH0
 NOT
 PUSH1 0x60
 SHR
-STOP
 
 "#]]
         );
@@ -1190,7 +1190,6 @@ STOP
             str![[r#"
 PUSH1 0x1f
 NOT
-STOP
 
 "#]]
         );
@@ -1210,7 +1209,6 @@ STOP
             str![[r#"
 PUSH1 0xff
 NOT
-STOP
 
 "#]]
         );
@@ -1232,7 +1230,6 @@ STOP
 PUSH4 0x35ea6a75
 PUSH1 0xe0
 SHL
-STOP
 
 "#]]
         );
@@ -1255,7 +1252,6 @@ STOP
 PUSH17 0x4d616368696e652066696e69736865643a
 PUSH1 0x78
 SHL
-STOP
 
 "#]]
         );
