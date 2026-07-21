@@ -882,6 +882,8 @@ impl InstSimplifier {
         func: &mut Function,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> usize {
+        let externally_terminating =
+            func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback;
         let mut rewrites = 0;
         for block_id in func.blocks.indices() {
             loop {
@@ -900,7 +902,6 @@ impl InstSimplifier {
                     break;
                 };
                 let inner = mir_utils::resolve_replacement(inner, replacements);
-
                 let Some(Terminator::Branch { condition, then_block, else_block }) =
                     &mut func.blocks[block_id].terminator
                 else {
@@ -919,6 +920,14 @@ impl InstSimplifier {
                     swap,
                     "mir_inst_simplify"
                 );
+            }
+
+            if externally_terminating
+                && let Some(Terminator::ReturnData { size, .. }) = func.blocks[block_id].terminator
+                && Self::is_zero(func, mir_utils::resolve_replacement(size, replacements))
+            {
+                func.blocks[block_id].terminator = Some(Terminator::Stop);
+                rewrites += 1;
             }
         }
 
