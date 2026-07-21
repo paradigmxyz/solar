@@ -52,14 +52,12 @@ fn optimize(
 }
 
 fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32) -> bool {
-    let stack = InstStack::new(instructions);
-
     // `PUSH x PUSH 0 OP -> PUSH 0`.
     // `PUSH x PUSH 1 EXP -> PUSH 1`.
-    if stack.len() >= 3
-        && let Some(opcode) = raw_opcode(&stack[0])
-        && let Some(value) = push_value(&stack[1])
-        && is_removable_push(&stack[2])
+    if let [.., lhs, pushed, instruction] = instructions.as_slice()
+        && let Some(opcode) = raw_opcode(instruction)
+        && let Some(value) = push_value(pushed)
+        && is_removable_push(lhs)
     {
         if value.is_zero()
             && matches!(
@@ -79,9 +77,9 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
     // `PUSH 0 OP -> POP PUSH 0`.
     // `PUSH 1 MUL -> ∅`.
     // `PUSH 1 EXP -> POP PUSH 1`.
-    if stack.len() >= 2
-        && let Some(opcode) = raw_opcode(&stack[0])
-        && let Some(value) = push_value(&stack[1])
+    if let [.., pushed, instruction] = instructions.as_slice()
+        && let Some(opcode) = raw_opcode(instruction)
+        && let Some(value) = push_value(pushed)
     {
         if value.is_zero() {
             return match opcode {
@@ -107,14 +105,17 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
     }
 
     // `PUSH x POP -> ∅`.
-    if stack.len() >= 2 && raw_opcode(&stack[0]) == Some(op::POP) && is_removable_push(&stack[1]) {
+    if let [.., pushed, pop] = instructions.as_slice()
+        && raw_opcode(pop) == Some(op::POP)
+        && is_removable_push(pushed)
+    {
         return rewrite(instructions, 2, Edit::Keep(0), module, block);
     }
 
     // `NOT NOT -> ∅`, `DUPn POP -> ∅`, or `SWAPn SWAPn -> ∅`.
-    if stack.len() >= 2
-        && let Some(b) = raw_opcode(&stack[0])
-        && let Some(a) = raw_opcode(&stack[1])
+    if let [.., first, second] = instructions.as_slice()
+        && let Some(a) = raw_opcode(first)
+        && let Some(b) = raw_opcode(second)
         && ((a, b) == (op::NOT, op::NOT)
             || (b == op::POP && (op::DUP1..=op::DUP16).contains(&a))
             || (a == b && (op::SWAP1..=op::SWAP16).contains(&a)))
@@ -123,21 +124,21 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
     }
 
     // `ISZERO ISZERO ISZERO -> ISZERO`.
-    if stack.len() >= 3
-        && raw_opcode(&stack[0]) == Some(op::ISZERO)
-        && raw_opcode(&stack[1]) == Some(op::ISZERO)
-        && raw_opcode(&stack[2]) == Some(op::ISZERO)
+    if let [.., first, second, third] = instructions.as_slice()
+        && raw_opcode(first) == Some(op::ISZERO)
+        && raw_opcode(second) == Some(op::ISZERO)
+        && raw_opcode(third) == Some(op::ISZERO)
     {
         return rewrite(instructions, 3, Edit::OverwriteOne(op::ISZERO), module, block);
     }
 
     // `DUP2 OP SWAP1 POP -> OP`.
     // `DUP2 OP SWAP1 POP -> SWAP1 OP`.
-    if stack.len() >= 4
-        && raw_opcode(&stack[0]) == Some(op::POP)
-        && raw_opcode(&stack[1]) == Some(op::SWAP1)
-        && let Some(binop) = raw_opcode(&stack[2])
-        && raw_opcode(&stack[3]) == Some(op::DUP2)
+    if let [.., dup, binop, swap, pop] = instructions.as_slice()
+        && raw_opcode(dup) == Some(op::DUP2)
+        && let Some(binop) = raw_opcode(binop)
+        && raw_opcode(swap) == Some(op::SWAP1)
+        && raw_opcode(pop) == Some(op::POP)
     {
         if matches!(binop, op::ADD | op::MUL | op::AND | op::OR | op::XOR | op::EQ) {
             return rewrite(instructions, 4, Edit::OverwriteOne(binop), module, block);
@@ -166,33 +167,35 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
     }
 
     // `DUP2 SINK POP -> SWAP1 SINK`.
-    if stack.len() >= 3
-        && raw_opcode(&stack[0]) == Some(op::POP)
-        && let Some(opcode) = raw_opcode(&stack[1])
+    if let [.., dup, sink, pop] = instructions.as_slice()
+        && raw_opcode(dup) == Some(op::DUP2)
+        && let Some(opcode) = raw_opcode(sink)
         && matches!(opcode, op::MSTORE | op::MSTORE8 | op::SSTORE | op::TSTORE | op::LOG0)
-        && raw_opcode(&stack[2]) == Some(op::DUP2)
+        && raw_opcode(pop) == Some(op::POP)
     {
         return rewrite(instructions, 3, Edit::OverwriteTwo(opcode), module, block);
     }
 
     // `SWAPn POP*n SWAP1 POP -> SWAP(n+1) POP*(n+1)`.
-    if stack.len() >= 4
-        && raw_opcode(&stack[0]) == Some(op::POP)
-        && raw_opcode(&stack[1]) == Some(op::SWAP1)
+    if let [.., swap, pop] = instructions.as_slice()
+        && raw_opcode(swap) == Some(op::SWAP1)
+        && raw_opcode(pop) == Some(op::POP)
     {
         for depth in 1..16 {
-            let previous = depth + 2;
-            if stack.len() <= previous {
+            let input_len = depth + 3;
+            let Some(start) = instructions.len().checked_sub(input_len) else {
                 break;
-            }
-            if (2..previous).all(|index| raw_opcode(&stack[index]) == Some(op::POP))
-                && raw_opcode(&stack[previous]) == Some(op::swap(depth as u8))
+            };
+            if raw_opcode(&instructions[start]) == Some(op::swap(depth as u8))
+                && instructions[start + 1..instructions.len() - 2]
+                    .iter()
+                    .all(|inst| raw_opcode(inst) == Some(op::POP))
             {
-                let depth = depth + 1;
+                let merged_depth = depth + 1;
                 return rewrite(
                     instructions,
-                    depth + 2,
-                    Edit::MergeSwapPop(depth as u8),
+                    input_len,
+                    Edit::MergeSwapPop(merged_depth as u8),
                     module,
                     block,
                 );
@@ -201,47 +204,47 @@ fn try_peephole(instructions: &mut Vec<Instruction>, module: Symbol, block: u32)
     }
 
     // `DUP1 PUSH x MSTORE DUP1 PUSH x MSTORE -> DUP1 PUSH x MSTORE`.
-    if stack.len() >= 6
-        && raw_opcode(&stack[0]) == Some(op::MSTORE)
-        && let Some(a) = push_value(&stack[1])
-        && raw_opcode(&stack[2]) == Some(op::DUP1)
-        && raw_opcode(&stack[3]) == Some(op::MSTORE)
-        && let Some(b) = push_value(&stack[4])
-        && raw_opcode(&stack[5]) == Some(op::DUP1)
+    if let [.., dup_a, push_a, store_a, dup_b, push_b, store_b] = instructions.as_slice()
+        && raw_opcode(dup_a) == Some(op::DUP1)
+        && let Some(a) = push_value(push_a)
+        && raw_opcode(store_a) == Some(op::MSTORE)
+        && raw_opcode(dup_b) == Some(op::DUP1)
+        && let Some(b) = push_value(push_b)
+        && raw_opcode(store_b) == Some(op::MSTORE)
         && a == b
     {
         return rewrite(instructions, 6, Edit::Keep(3), module, block);
     }
 
     // `DUP1 PUSH x MSTORE POP PUSH x MLOAD -> DUP1 PUSH x MSTORE`.
-    if stack.len() >= 6
-        && raw_opcode(&stack[0]) == Some(op::MLOAD)
-        && let Some(a) = push_value(&stack[1])
-        && raw_opcode(&stack[2]) == Some(op::POP)
-        && raw_opcode(&stack[3]) == Some(op::MSTORE)
-        && let Some(b) = push_value(&stack[4])
-        && raw_opcode(&stack[5]) == Some(op::DUP1)
+    if let [.., dup, pushed, store, pop, loaded, load] = instructions.as_slice()
+        && raw_opcode(dup) == Some(op::DUP1)
+        && let Some(a) = push_value(pushed)
+        && raw_opcode(store) == Some(op::MSTORE)
+        && raw_opcode(pop) == Some(op::POP)
+        && let Some(b) = push_value(loaded)
+        && raw_opcode(load) == Some(op::MLOAD)
         && a == b
     {
         return rewrite(instructions, 6, Edit::Keep(3), module, block);
     }
 
     // `ISZERO ISZERO PUSH_REF JUMPI -> PUSH_REF JUMPI`.
-    if stack.len() >= 4
-        && raw_opcode(&stack[0]) == Some(op::JUMPI)
-        && is_block_push(&stack[1])
-        && raw_opcode(&stack[2]) == Some(op::ISZERO)
-        && raw_opcode(&stack[3]) == Some(op::ISZERO)
+    if let [.., first, second, target, jump] = instructions.as_slice()
+        && raw_opcode(first) == Some(op::ISZERO)
+        && raw_opcode(second) == Some(op::ISZERO)
+        && is_block_push(target)
+        && raw_opcode(jump) == Some(op::JUMPI)
     {
         return rewrite(instructions, 4, Edit::DropDoubleIszero, module, block);
     }
 
     // `EQ ISZERO PUSH_REF JUMPI -> SUB PUSH_REF JUMPI`.
-    if stack.len() >= 4
-        && raw_opcode(&stack[0]) == Some(op::JUMPI)
-        && is_block_push(&stack[1])
-        && raw_opcode(&stack[2]) == Some(op::ISZERO)
-        && raw_opcode(&stack[3]) == Some(op::EQ)
+    if let [.., eq, iszero, target, jump] = instructions.as_slice()
+        && raw_opcode(eq) == Some(op::EQ)
+        && raw_opcode(iszero) == Some(op::ISZERO)
+        && is_block_push(target)
+        && raw_opcode(jump) == Some(op::JUMPI)
     {
         return rewrite(instructions, 4, Edit::EqIszeroJumpi, module, block);
     }
@@ -419,28 +422,5 @@ impl fmt::Display for PatternSequence<'_> {
             }
         }
         Ok(())
-    }
-}
-
-#[derive(Clone, Copy)]
-struct InstStack<'a> {
-    instructions: &'a [Instruction],
-}
-
-impl<'a> InstStack<'a> {
-    fn new(instructions: &'a [Instruction]) -> Self {
-        Self { instructions }
-    }
-
-    fn len(self) -> usize {
-        self.instructions.len()
-    }
-}
-
-impl std::ops::Index<usize> for InstStack<'_> {
-    type Output = Instruction;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.instructions[self.instructions.len() - 1 - index]
     }
 }
