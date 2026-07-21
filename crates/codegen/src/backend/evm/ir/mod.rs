@@ -323,6 +323,32 @@ impl TerminatorKind {
         }
     }
 
+    /// Visits block targets that require a physical label in the given layout.
+    pub(crate) fn visit_label_targets(
+        &self,
+        next_block: Option<BlockId>,
+        mut visit: impl FnMut(BlockId),
+    ) {
+        match self {
+            Self::Jump(target) => {
+                if Some(*target) != next_block {
+                    visit(*target);
+                }
+            }
+            Self::JumpI { then_block, else_block } => {
+                if Some(*else_block) == next_block {
+                    visit(*then_block);
+                } else if Some(*then_block) == next_block {
+                    visit(*else_block);
+                } else {
+                    visit(*then_block);
+                    visit(*else_block);
+                }
+            }
+            Self::Op(_) => {}
+        }
+    }
+
     /// Visits every basic block target mutably.
     pub(crate) fn visit_targets_mut(&mut self, mut visit: impl FnMut(&mut BlockId)) {
         match self {

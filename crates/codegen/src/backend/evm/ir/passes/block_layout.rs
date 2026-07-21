@@ -187,13 +187,10 @@ fn block_reference_counts(module: &Module, order: &[BlockId], references: &mut [
                 references[block.index()] += 1;
             }
         }
-        if let Some(term) = &block.terminator
-            && !matches!(
-                &term.kind,
-                TerminatorKind::Jump(target) if order.get(position + 1) == Some(target)
-            )
-        {
-            term.kind.visit_targets(|target| references[target.index()] += 1);
+        if let Some(term) = &block.terminator {
+            term.kind.visit_label_targets(order.get(position + 1).copied(), |target| {
+                references[target.index()] += 1;
+            });
         }
     }
 }

@@ -48,20 +48,9 @@ fn allocate_referenced_labels(
         }
         if let Some(terminator) = &block.terminator {
             let next = next_block(module, block_id);
-            match &terminator.kind {
-                ir::TerminatorKind::Jump(target) if next != Some(*target) => {
-                    referenced.insert(*target);
-                }
-                ir::TerminatorKind::JumpI { then_block, else_block } => {
-                    if next != Some(*then_block) {
-                        referenced.insert(*then_block);
-                    }
-                    if next != Some(*else_block) {
-                        referenced.insert(*else_block);
-                    }
-                }
-                _ => {}
-            }
+            terminator.kind.visit_label_targets(next, |target| {
+                referenced.insert(target);
+            });
         }
     }
     for (block_id, block) in module.blocks.iter_enumerated() {
