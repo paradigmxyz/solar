@@ -167,6 +167,24 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    /// Lowers an `abi.encodeWithSelector` selector argument as a left-aligned
+    /// selector word. Sema can type a bare number literal as an integer, whose
+    /// lowering is right-aligned; `bytes4`-typed values are already aligned by
+    /// their producers.
+    pub(super) fn lower_selector_word(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> ValueId {
+        if let ExprKind::Lit(lit) = &expr.kind
+            && let LitKind::Number(n) = &lit.kind
+            && self.fixed_bytes_width_of_expr(expr).is_none()
+        {
+            return builder.imm_u256(*n << 224);
+        }
+        self.lower_expr(builder, expr)
+    }
+
     pub(super) fn expr_is_calldata_dynamic_bytes(&self, expr: &hir::Expr<'_>) -> bool {
         let Some(ty) = self.get_expr_type(expr) else { return false };
         match ty.kind {

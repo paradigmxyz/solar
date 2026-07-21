@@ -389,7 +389,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Materializes a calldata value whose ABI body starts at the absolute
     /// calldata position `pos`.
-    fn materialize_calldata_value_at(
+    pub(super) fn materialize_calldata_value_at(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         ty: Ty<'gcx>,
@@ -902,8 +902,7 @@ impl<'gcx> Lowerer<'gcx> {
                 sym::encodeWithSelector => {
                     let mut exprs = args.exprs();
                     if let Some(selector_expr) = exprs.next() {
-                        // `bytes4` values are left-aligned words.
-                        let selector = self.lower_expr(builder, selector_expr);
+                        let selector = self.lower_selector_word(builder, selector_expr);
                         let arg_exprs: Vec<_> = exprs.collect();
                         if let Some(payload) =
                             self.abi_encode_call_payload(builder, Some(selector), &arg_exprs)

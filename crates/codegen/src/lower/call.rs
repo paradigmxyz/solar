@@ -522,8 +522,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // value: `[length][selector + ABI tuple encoding]`.
                 let mut exprs = args.exprs();
                 if let Some(selector_expr) = exprs.next() {
-                    // `bytes4` values are left-aligned words.
-                    let selector = self.lower_expr(builder, selector_expr);
+                    let selector = self.lower_selector_word(builder, selector_expr);
                     let arg_exprs: Vec<_> = exprs.collect();
                     if let Some((data, len)) =
                         self.abi_encode_call_payload(builder, Some(selector), &arg_exprs)

@@ -883,7 +883,26 @@ impl<'gcx> Lowerer<'gcx> {
                 // Storage-reference parameters (a `mapping`, or a struct/array in
                 // `storage` — legal for library functions) travel as their slot:
                 // one plain word, never field-expanded from calldata.
-                if decodes_abi_params
+                if uses_external_abi
+                    && !self.param_is_storage_ref(param_id)
+                    && matches!(param_ty.peel_refs().kind, TyKind::Struct(_))
+                    && self.abi_is_dynamic(param_ty)
+                {
+                    // A struct with a dynamic member is dynamically encoded:
+                    // its single head slot holds the offset from the args
+                    // start, and every field — including nested dynamic
+                    // offsets relative to the struct's own base — lives in
+                    // the tail. Rebuild it recursively into memory.
+                    let offset = builder.add_param(MirType::uint256());
+                    let limit = builder.imm_u64(0xffff_ffff_ffff_ffff);
+                    let out_of_range = builder.gt(offset, limit);
+                    self.emit_abi_decode_revert_if(&mut builder, out_of_range);
+                    let four = builder.imm_u64(4);
+                    let base = builder.add(four, offset);
+                    let struct_ptr =
+                        self.materialize_calldata_value_at(&mut builder, param_ty, base);
+                    self.locals.insert(param_id, struct_ptr);
+                } else if decodes_abi_params
                     && !self.param_is_storage_ref(param_id)
                     && let TyKind::Struct(struct_id) = param_ty.peel_refs().kind
                 {

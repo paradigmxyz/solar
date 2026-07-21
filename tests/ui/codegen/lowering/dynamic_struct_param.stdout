@@ -1,0 +1,143 @@
+// === ROOT/tests/ui/codegen/lowering/dynamic_struct_param.sol:DynamicStructParam ===
+@module DynamicStructParam
+fn @init(arg0: u256, arg1: address) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = gt arg0, 0xffffffffffffffff
+    br v3, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v4 = add 4, arg0
+    v5 = alloc raw, exact, uninitialized, infallible, 128
+    v6 = calldataload v4
+    mstore v5, v6
+    v7 = add v4, 32
+    v8 = calldataload v7
+    v9 = add v5, 32
+    mstore v9, v8
+    v10 = add v4, 64
+    v11 = calldataload v10
+    v12 = add v4, v11
+    v13 = calldataload v12
+    v14 = add v13, 31
+    v15 = lt v14, v13
+    br v15, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v16 = not 31
+    v17 = and v14, v16
+    v18 = iszero v17
+    v19 = select v18, 32, v17
+    v20 = add 32, v19
+    v21 = lt v20, v19
+    br v21, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v22 = alloc memorybytes, exact, uninitialized, infallible, v20
+    mstore v22, v13
+    v23 = add v22, 32
+    v24 = sub v19, 32
+    v25 = add v23, v24
+    mstore v25, 0
+    v26 = add v12, 32
+    calldatacopy v23, v26, v13
+    v27 = add v5, 64
+    mstore v27, v22
+    v28 = add v4, 96
+    v29 = calldataload v28
+    v30 = add v4, v29
+    v31 = calldataload v30
+    v32 = add v31, 31
+    v33 = lt v32, v31
+    br v33, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    v34 = not 31
+    v35 = and v32, v34
+    v36 = iszero v35
+    v37 = select v36, 32, v35
+    v38 = add 32, v37
+    v39 = lt v38, v37
+    br v39, bb11, bb12
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    v40 = alloc memorybytes, exact, uninitialized, infallible, v38
+    mstore v40, v31
+    v41 = add v40, 32
+    v42 = sub v37, 32
+    v43 = add v41, v42
+    mstore v43, 0
+    v44 = add v30, 32
+    calldatacopy v41, v44, v31
+    v45 = add v5, 96
+    mstore v45, v40
+    v46 = calldataload 36
+    v47 = and v46, 0xffffffffffffffffffffffffffffffffffffffff
+    v48 = eq v46, v47
+    br v48, bb14, bb13
+  bb13:
+    revert 0, 0
+  bb14:
+    mstore 128, 0
+    v49 = memory_object_field_addr memorystruct<4>, v5, 1
+    v50 = mload v49
+    v51 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v52 = add v50, v51
+    v53 = gt v52, 0xffffffffffffffffffffffffffffffffffffffff
+    br v53, bb15, bb16
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb16:
+    mstore 128, v52
+    returndata 128, 32
+}
+
+fn @flat(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v4 = memory_object_field_addr memorystruct<2>, v3, 0
+    mstore v4, arg0
+    v5 = calldataload 36
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
+    v7 = eq v5, v6
+    br v7, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v8 = memory_object_field_addr memorystruct<2>, v3, 1
+    mstore v8, arg1
+    mstore 128, 0
+    v9 = memory_object_field_addr memorystruct<2>, v3, 0
+    v10 = mload v9
+    mstore 128, v10
+    returndata 128, 32
+}
+

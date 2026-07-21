@@ -1976,7 +1976,11 @@ impl<'gcx> Lowerer<'gcx> {
         ptr
     }
 
-    fn emit_abi_decode_revert_if(&mut self, builder: &mut FunctionBuilder<'_>, cond: ValueId) {
+    pub(super) fn emit_abi_decode_revert_if(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        cond: ValueId,
+    ) {
         let revert_block = builder.create_block();
         let continue_block = builder.create_block();
         builder.branch(cond, revert_block, continue_block);
