@@ -523,14 +523,10 @@ impl<'gcx> Lowerer<'gcx> {
                     let ptr = builder.add(base_ptr, offset);
                     return builder.make_slice(ptr, len, crate::mir::SliceLocation::Calldata);
                 }
-                let base_val = self.lower_expr(builder, base);
-                let start_val = start
-                    .map(|s| self.lower_expr(builder, s))
-                    .unwrap_or_else(|| builder.imm_u64(0));
-                let _end_val = end.map(|e| self.lower_expr(builder, e));
-                let offset_32 = builder.imm_u64(32);
-                let byte_offset = builder.mul(start_val, offset_32);
-                builder.add(base_val, byte_offset)
+                // Solidity only permits slicing calldata arrays, so a base that
+                // is not a calldata slice is unreachable in valid input.
+                // Reject rather than emit raw pointer arithmetic.
+                self.err_value(builder, expr.span, "codegen only supports slicing calldata arrays")
             }
 
             ExprKind::Type(_ty) => builder.imm_u64(0),
@@ -1712,7 +1708,20 @@ impl<'gcx> Lowerer<'gcx> {
             let slice = self.lower_expr(builder, base);
             return Some((slice, true));
         }
-        None
+        // Any other calldata dynamic bytes/array expression (for example a
+        // chained slice `x[1:][2:]`) whose lowering is itself a calldata
+        // slice value.
+        let ty = self.get_expr_type(base)?;
+        if !matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Calldata) | TyKind::Slice(_))
+        {
+            return None;
+        }
+        // `expr_is_calldata_dynamic_bytes` looks through a slice type to its
+        // element, so it distinguishes a byte-strided bytes slice from a
+        // word-strided array slice.
+        let is_bytes = self.expr_is_calldata_dynamic_bytes(base);
+        let value = self.lower_expr(builder, base);
+        Self::value_is_calldata_slice(builder, value).then_some((value, is_bytes))
     }
 
     /// Checks if an expression is a dynamically-sized calldata parameter (dynamic array or
