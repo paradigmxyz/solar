@@ -43,4 +43,43 @@ contract CalldataSliceControlFlow {
     function _sum(bytes calldata a, bytes calldata b) internal pure returns (uint256) {
         return a.length * 1000 + b.length;
     }
+
+    // An explicit `return` under control flow: the body inlines with an inline
+    // exit block, each `return` storing to the return slot and jumping there.
+    // CDCF-LABEL: fn @explicitTrim
+    // CDCF-NOT: internal_call
+    function explicitTrim(bytes calldata x) external pure returns (uint256) {
+        return _explicitTrim(x).length;
+    }
+
+    function _explicitTrim(bytes calldata x) internal pure returns (bytes calldata) {
+        if (x.length > 4) return x[4:];
+        return x;
+    }
+
+    // Destructuring a multi-slice return: the inlined callee delivers both
+    // slices directly to the bindings, bypassing the one-word-per-value
+    // multi-return buffer that cannot carry a two-word slice.
+    // CDCF-LABEL: fn @headTail
+    // CDCF-NOT: internal_call
+    function headTail(bytes calldata x) external pure returns (uint256 hl, uint256 tl) {
+        (bytes calldata head, bytes calldata tail) = _split(x);
+        hl = head.length;
+        tl = tail.length;
+    }
+
+    function _split(bytes calldata x)
+        internal
+        pure
+        returns (bytes calldata head, bytes calldata tail)
+    {
+        head = x;
+        tail = x[x.length:];
+        if (x.length > 8) {
+            assembly {
+                tail.offset := add(x.offset, 8)
+                tail.length := sub(x.length, 8)
+            }
+        }
+    }
 }

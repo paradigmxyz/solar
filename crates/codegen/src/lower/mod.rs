@@ -63,6 +63,18 @@ enum AbiParamSource {
     ConstructorMemory,
 }
 
+/// Where an inlined callee's `return` statements deliver their values: each
+/// value is stored into the matching return variable's local slot, then control
+/// jumps to `exit_block`, where the call site reads the slots back.
+#[derive(Clone)]
+struct InlineReturnCtx {
+    /// Join block the call site continues from after the inlined body.
+    exit_block: BlockId,
+    /// The callee's return variables, in declaration order. Each has a local
+    /// slot allocated before the body is lowered.
+    return_vars: Vec<VariableId>,
+}
+
 /// Lowering context for converting HIR to MIR.
 pub(crate) struct Lowerer<'gcx> {
     /// The global context.
@@ -94,6 +106,15 @@ pub(crate) struct Lowerer<'gcx> {
     /// both words, so every CFG join reads one merged representation while
     /// the value stays a lazy slice.
     slice_slot_locals: FxHashSet<VariableId>,
+    /// Active inline-return target. While a callee body is being inlined at a
+    /// call site, an explicit `return` stores its values into the callee's
+    /// return-variable slots and jumps here, instead of terminating the
+    /// enclosing MIR function.
+    inline_returns: Option<InlineReturnCtx>,
+    /// Return values of the most recently inlined multi-return callee whose
+    /// returns cannot ride the one-word-per-value multi-return buffer
+    /// (calldata slices). Destructuring consumes them directly.
+    pending_inline_returns: Option<Vec<ValueId>>,
     /// Next available memory offset for locals.
     next_local_memory_offset: u64,
     /// Bytecodes of other contracts (for `new` expressions).
@@ -186,6 +207,8 @@ impl<'gcx> Lowerer<'gcx> {
             locals: FxHashMap::default(),
             local_memory_slots: FxHashMap::default(),
             slice_slot_locals: FxHashSet::default(),
+            inline_returns: None,
+            pending_inline_returns: None,
             next_local_memory_offset: EvmMemoryLayout::HEAP_START,
             contract_bytecodes: FxHashMap::default(),
             loop_stack: Vec::new(),
@@ -616,6 +639,8 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
         let saved_next_local_memory_offset = self.next_local_memory_offset;
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
+        let saved_inline_returns = self.inline_returns.take();
+        let saved_pending_inline_returns = self.pending_inline_returns.take();
         let saved_current_contract_id = self.current_contract_id;
         let saved_lowering_constructor = self.lowering_constructor;
         let saved_lowering_internal_function = self.lowering_internal_function;
@@ -633,6 +658,8 @@ impl<'gcx> Lowerer<'gcx> {
         self.slice_slot_locals = saved_slice_slot_locals;
         self.next_local_memory_offset = saved_next_local_memory_offset;
         self.assigned_vars = saved_assigned_vars;
+        self.inline_returns = saved_inline_returns;
+        self.pending_inline_returns = saved_pending_inline_returns;
         self.current_contract_id = saved_current_contract_id;
         self.lowering_constructor = saved_lowering_constructor;
         self.lowering_internal_function = saved_lowering_internal_function;
@@ -772,6 +799,8 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
         let saved_next_local_memory_offset = self.next_local_memory_offset;
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
+        let saved_inline_returns = self.inline_returns.take();
+        let saved_pending_inline_returns = self.pending_inline_returns.take();
         let saved_current_contract_id = self.current_contract_id;
         let saved_lowering_constructor = self.lowering_constructor;
         let saved_lowering_internal_function = self.lowering_internal_function;
@@ -787,6 +816,8 @@ impl<'gcx> Lowerer<'gcx> {
         self.slice_slot_locals = saved_slice_slot_locals;
         self.next_local_memory_offset = saved_next_local_memory_offset;
         self.assigned_vars = saved_assigned_vars;
+        self.inline_returns = saved_inline_returns;
+        self.pending_inline_returns = saved_pending_inline_returns;
         self.current_contract_id = saved_current_contract_id;
         self.lowering_constructor = saved_lowering_constructor;
         self.lowering_internal_function = saved_lowering_internal_function;

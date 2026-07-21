@@ -2,22 +2,22 @@
 //@check-fail
 
 contract CalldataSliceReturnUnsupported {
-    // A calldata slice returned from an internal function is inlined at the call
-    // site so it folds away: a straight-line body, or a control-flow body whose
-    // returns are implicit named ones, both inline. A control-flow body with an
-    // explicit `return` cannot — full block lowering would turn the `return`
-    // into a terminator that returns from the caller — so it is reported rather
-    // than lowered to a slice the backend cannot handle.
-    function decode(bytes calldata data) //~ ERROR: returning a `bytes`/`string` calldata slice from this internal function is not yet supported in codegen
+    // A calldata slice returned from an internal function is inlined at the
+    // call site so it folds away — straight-line bodies, control flow, explicit
+    // returns, and multiple returns all inline. Recursion is the shape that
+    // cannot: inlining would not terminate, and a real `internal_call` would
+    // hand back a slice the word-based backend cannot lower, so it is reported.
+    function peel(bytes calldata data) //~ ERROR: returning a `bytes`/`string` calldata slice from this internal function is not yet supported in codegen
+        //~^ ERROR: returning a `bytes`/`string` calldata slice from this internal function is not yet supported in codegen
         internal
         pure
         returns (bytes calldata)
     {
-        if (data.length > 32) return data[32:];
-        return data;
+        if (data.length < 2) return data;
+        return peel(data[1:]);
     }
 
     function use(bytes calldata data) external pure {
-        decode(data);
+        peel(data);
     }
 }

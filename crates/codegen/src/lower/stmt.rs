@@ -466,7 +466,22 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Snapshot every bound tail value before storing any local. This keeps
         // the unbumped return buffer independent of subsequent memory writes.
+        let init_delivers_pending = self.is_slice_multi_return_call(init);
+        self.pending_inline_returns = None;
         let first_val = self.lower_expr(builder, init);
+        // An inlined multi-return callee with calldata-slice returns delivers
+        // its values directly — a slice cannot ride the one-word-per-value
+        // buffer — so bind them here instead of reading the buffer.
+        if init_delivers_pending && let Some(values) = self.pending_inline_returns.take() {
+            for (i, var_id_opt) in var_ids.iter().enumerate() {
+                if let Some(var_id) = var_id_opt {
+                    let val = values.get(i).copied().unwrap_or(first_val);
+                    self.bind_local_value(builder, *var_id, val);
+                }
+            }
+            return;
+        }
+        self.pending_inline_returns = None;
         let tail_base = var_ids.iter().skip(1).any(Option::is_some).then(|| {
             let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
             builder.mload(ptr_slot)
@@ -494,6 +509,32 @@ impl<'gcx> Lowerer<'gcx> {
                 let offset_val = self.local_memory_addr(builder, offset);
                 builder.mstore(offset_val, val.expect("bound variable has a value"));
             }
+        }
+    }
+
+    /// Binds a lowered value to a freshly declared local, mirroring
+    /// single-declaration lowering: a reassigned local gets a memory slot (two
+    /// words for a calldata slice), everything else stays an SSA value.
+    fn bind_local_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        var_id: hir::VariableId,
+        val: ValueId,
+    ) {
+        let var = self.gcx.hir.variable(var_id);
+        if Self::calldata_dynamic_var_kind(var).is_some() {
+            if self.is_var_assigned(&var_id) {
+                let offset = self.alloc_local_slice_memory(var_id);
+                self.store_slice_slot(builder, offset, val);
+            } else {
+                self.locals.insert(var_id, val);
+            }
+        } else if self.is_var_assigned(&var_id) {
+            let offset = self.alloc_local_memory(var_id);
+            let addr = self.local_memory_addr(builder, offset);
+            builder.mstore(addr, val);
+        } else {
+            self.locals.insert(var_id, val);
         }
     }
 
@@ -538,7 +579,22 @@ impl<'gcx> Lowerer<'gcx> {
         // Snapshot every tail value before assigning the first lvalue. Mapping
         // and other complex lvalues may use scratch memory while computing
         // their destination and must not corrupt later tuple elements.
+        let rhs_delivers_pending = self.is_slice_multi_return_call(rhs);
+        self.pending_inline_returns = None;
         let first_val = self.lower_expr(builder, rhs);
+        // An inlined multi-return callee with calldata-slice returns delivers
+        // its values directly; assign them through the regular lvalue path,
+        // which routes slice-slot locals through their two-word slots.
+        if rhs_delivers_pending && let Some(values) = self.pending_inline_returns.take() {
+            for (i, &elem) in elements.iter().enumerate() {
+                if let Some(elem) = elem {
+                    let val = values.get(i).copied().unwrap_or(first_val);
+                    self.lower_assign(builder, elem, val);
+                }
+            }
+            return;
+        }
+        self.pending_inline_returns = None;
         let tail_base = elements.iter().skip(1).any(Option::is_some).then(|| {
             let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
             builder.mload(ptr_slot)
@@ -825,6 +881,14 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Lowers a return statement.
     fn lower_return(&mut self, builder: &mut FunctionBuilder<'_>, value: Option<&hir::Expr<'_>>) {
+        // A `return` inside a body being inlined delivers its values to the
+        // call site: store them into the callee's return-variable slots and
+        // jump to the inline exit block. This must precede the external check —
+        // the inlined body may live inside a public function's lowering.
+        if let Some(ctx) = self.inline_returns.clone() {
+            self.lower_inline_return(builder, &ctx, value);
+            return;
+        }
         let external = builder.func().is_public() && !self.lowering_internal_function;
         if external {
             let items = self.gather_return_items(builder, value);
@@ -869,6 +933,61 @@ impl<'gcx> Lowerer<'gcx> {
         } else {
             builder.ret([]);
         }
+    }
+
+    /// Delivers an inlined body's `return` values to its call site: each value
+    /// is stored into the matching return variable's slot (two words for a
+    /// calldata slice, one otherwise) and control jumps to the inline exit
+    /// block, where [`super::Lowerer::inline_slice_return_body`] reads the
+    /// slots back.
+    fn lower_inline_return(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ctx: &crate::lower::InlineReturnCtx,
+        value: Option<&hir::Expr<'_>>,
+    ) {
+        let n = ctx.return_vars.len();
+        let mut values = Vec::with_capacity(n);
+        if let Some(expr) = value {
+            if let hir::ExprKind::Tuple(elements) = &expr.kind {
+                for elem in elements.iter().flatten() {
+                    values.push(self.lower_expr(builder, elem));
+                }
+            } else {
+                self.pending_inline_returns = None;
+                let first = self.lower_expr(builder, expr);
+                if n > 1 {
+                    // A forwarded multi-return call: an inlined slice-returning
+                    // callee leaves its values pending; anything else staged
+                    // the tail in the multi-return buffer.
+                    if let Some(pending) = self.pending_inline_returns.take() {
+                        values = pending;
+                    } else {
+                        values.push(first);
+                        let base = self.multi_return_buffer_base(builder);
+                        for i in 1..n {
+                            values.push(self.load_multi_return_value(builder, base, i));
+                        }
+                    }
+                } else {
+                    values.push(first);
+                }
+            }
+        }
+        for (i, &ret_id) in ctx.return_vars.iter().enumerate() {
+            let Some(&val) = values.get(i) else { continue };
+            if let Some(offset) = self.get_local_memory_offset(&ret_id) {
+                if self.is_slice_slot_local(&ret_id) {
+                    self.store_slice_slot(builder, offset, val);
+                } else {
+                    let addr = self.local_memory_addr(builder, offset);
+                    builder.mstore(addr, val);
+                }
+            } else {
+                self.locals.insert(ret_id, val);
+            }
+        }
+        builder.jump(ctx.exit_block);
     }
 
     /// Gets the tuple arity if this is a ternary expression with tuple branches.
