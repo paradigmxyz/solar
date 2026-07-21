@@ -1,0 +1,39 @@
+// === ROOT/tests/ui/codegen/lowering/nested_static_struct_param.sol:NestedStaticStructParam ===
+@module NestedStaticStructParam
+fn @take(arg0: u256, arg1: u256, arg2: u256, arg3: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 96
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v4 = memory_object_field_addr memorystruct<3>, v3, 0
+    mstore v4, arg0
+    v5 = alloc raw, exact, uninitialized, infallible, 64
+    v6 = calldataload 36
+    mstore v5, v6
+    v7 = add 36, 32
+    v8 = calldataload v7
+    v9 = add v5, 32
+    mstore v9, v8
+    v10 = memory_object_field_addr memorystruct<3>, v3, 1
+    mstore v10, v5
+    v11 = memory_object_field_addr memorystruct<3>, v3, 2
+    mstore v11, arg3
+    mstore 128, 0
+    mstore 160, 0
+    v12 = memory_object_field_addr memorystruct<3>, v3, 1
+    v13 = mload v12
+    v14 = memory_object_field_addr memorystruct<2>, v13, 1
+    v15 = mload v14
+    v16 = memory_object_field_addr memorystruct<3>, v3, 2
+    v17 = mload v16
+    mstore 128, v15
+    v18 = add 128, 32
+    mstore v18, v17
+    returndata 128, 64
+}
+

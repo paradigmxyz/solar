@@ -2349,9 +2349,26 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
 
-        if let Some(ty) = self.get_expr_type(base)
-            && let solar_sema::ty::TyKind::Struct(struct_id) = ty.kind
-        {
+        // A struct value or a struct reference reached by field access (for
+        // example `outer.inner`). A calldata struct parameter is decoded to a
+        // memory pointer in the prologue, so its nested struct fields are
+        // memory pointers too and read through memory field addressing.
+        // Storage bases are handled by earlier member paths.
+        let struct_id = self.get_expr_type(base).and_then(|ty| {
+            let inner = match ty.kind {
+                solar_sema::ty::TyKind::Struct(_) => ty,
+                solar_sema::ty::TyKind::Ref(
+                    inner,
+                    solar_ast::DataLocation::Memory | solar_ast::DataLocation::Calldata,
+                ) => inner,
+                _ => return None,
+            };
+            match inner.kind {
+                solar_sema::ty::TyKind::Struct(id) => Some(id),
+                _ => None,
+            }
+        });
+        if let Some(struct_id) = struct_id {
             let strukt = self.gcx.hir.strukt(struct_id);
             for (i, &field_id) in strukt.fields.iter().enumerate() {
                 let field = self.gcx.hir.variable(field_id);

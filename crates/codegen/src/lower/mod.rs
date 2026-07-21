@@ -940,8 +940,56 @@ impl<'gcx> Lowerer<'gcx> {
                         MemoryObjectKind::Struct,
                     );
 
+                    // Runtime calls read the inline head after the selector;
+                    // constructors read the argument blob at the heap start.
+                    let (agg_source, agg_args_base) = if self.lowering_constructor {
+                        (bytes::AbiSource::Memory, EvmMemoryLayout::HEAP_START)
+                    } else {
+                        (bytes::AbiSource::Calldata, 4)
+                    };
+
                     // Add MIR params for each struct field (they come from calldata)
                     for (field_idx, &field_id) in field_ids.iter().enumerate() {
+                        let sema_field_ty = field_tys.get(field_idx).copied();
+
+                        // A nested static aggregate (struct or fixed array)
+                        // occupies several inline head words and is stored as a
+                        // pointer to its own allocation. Consume its head words
+                        // so following fields slot correctly and rebuild it
+                        // recursively from the head region.
+                        if let Some(field_ty) = sema_field_ty
+                            && matches!(
+                                field_ty.peel_refs().kind,
+                                TyKind::Struct(_) | TyKind::Array(..) | TyKind::Tuple(_)
+                            )
+                        {
+                            // Struct field types carry a storage location ref;
+                            // peel it so head sizing sees the value type
+                            // instead of collapsing to one slot.
+                            let field_ty = field_ty.peel_refs();
+                            let first_word = builder.func().params.len() as u64;
+                            let head_words =
+                                self.abi_head_size(field_ty) / EvmMemoryLayout::WORD_SIZE;
+                            for _ in 0..head_words {
+                                builder.add_param(MirType::uint256());
+                            }
+                            let pos = builder
+                                .imm_u64(agg_args_base + first_word * EvmMemoryLayout::WORD_SIZE);
+                            let field_ptr = self.materialize_calldata_value_at(
+                                &mut builder,
+                                agg_source,
+                                field_ty,
+                                pos,
+                            );
+                            let field_addr = builder.memory_object_field_addr(
+                                struct_ptr,
+                                crate::mir::MemoryObjectLayout::structure(num_fields as u64),
+                                field_idx as u64,
+                            );
+                            builder.mstore(field_addr, field_ptr);
+                            continue;
+                        }
+
                         let arg_index = builder.func().params.len() as u64;
                         let field_ty = MirType::uint256();
                         let field_val = builder.add_param(field_ty);
