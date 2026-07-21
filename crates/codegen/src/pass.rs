@@ -1,10 +1,9 @@
 //! Pass infrastructure for MIR transformations and analyses.
 //!
-//! Inspired by LLVM/MLIR pass infrastructure:
-//! - **Analysis passes** (`AnalysisPass`) are read-only and produce a cached result. They take
-//!   `&Function` and store their result in `AnalysisManager`.
-//! - **Module passes** (`ModulePass`) modify the IR at module scope. Function-local passes can
-//!   implement `FunctionPass` and are automatically applied to each function.
+//! Transformation pipelines follow rustc MIR's pass-manager shape: passes
+//! implement a trait and pipelines are slices of trait-object references.
+//! Analyses retain their LLVM/MLIR-style cache: read-only [`AnalysisPass`]es
+//! produce results cached in an [`AnalysisManager`].
 //!
 //! # Usage
 //!
@@ -36,7 +35,7 @@ use solar_sema::Gcx;
 use std::any::{Any, TypeId};
 
 /// Registry entry for a MIR transform pass.
-pub struct PassInfo {
+pub(crate) struct PassInfo {
     pass: PassFactory<Module>,
     /// Earliest [`MirPhase`] this pass may run on.
     min_phase: MirPhase,

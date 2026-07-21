@@ -82,7 +82,11 @@ impl<'gcx, M> PassManager<'gcx, M> {
 
     /// Runs a sequence of passes in order.
     pub(crate) fn run_passes(&self, module: &mut M, passes: &[&(dyn Pass<M> + 'static)]) -> bool {
-        passes.iter().fold(false, |changed, &pass| self.run_pass(module, pass) | changed)
+        let mut changed = false;
+        for &pass in passes {
+            changed |= self.run_pass(module, pass);
+        }
+        changed
     }
 }
 
