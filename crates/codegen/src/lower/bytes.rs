@@ -383,7 +383,13 @@ impl<'gcx> Lowerer<'gcx> {
         {
             let data_pos = builder.slice_ptr(slice);
             let len = builder.slice_len(slice);
-            return self.materialize_calldata_nested_array(builder, AbiSource::Calldata, elem, data_pos, len);
+            return self.materialize_calldata_nested_array(
+                builder,
+                AbiSource::Calldata,
+                elem,
+                data_pos,
+                len,
+            );
         }
         self.materialize_calldata_dyn_array(builder, slice)
     }
@@ -444,16 +450,30 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::DynArray(elem) | TyKind::Slice(elem) => {
                 self.materialize_calldata_dynamic_array_at(builder, source, elem, pos)
             }
-            TyKind::Array(elem, len) => {
-                self.materialize_calldata_fixed_array_at(builder, source, elem, len.to::<u64>(), pos)
-            }
+            TyKind::Array(elem, len) => self.materialize_calldata_fixed_array_at(
+                builder,
+                source,
+                elem,
+                len.to::<u64>(),
+                pos,
+            ),
             TyKind::Struct(id) => {
                 let fields = self.gcx.struct_field_types(id).to_vec();
                 self.materialize_calldata_fields_at(builder, source, &fields, pos)
             }
-            TyKind::Tuple(fields) => self.materialize_calldata_fields_at(builder, source, fields, pos),
-            TyKind::Udvt(inner, _) => self.materialize_calldata_value_at(builder, source, inner, pos),
-            _ => self.abi_load(builder, source, pos),
+            TyKind::Tuple(fields) => {
+                self.materialize_calldata_fields_at(builder, source, fields, pos)
+            }
+            TyKind::Udvt(inner, _) => {
+                self.materialize_calldata_value_at(builder, source, inner, pos)
+            }
+            _ => {
+                // A value-typed leaf: solc reverts on a dirty narrow value
+                // decoded from calldata, so validate before storing it.
+                let word = self.abi_load(builder, source, pos);
+                self.emit_abi_field_clean_check(builder, ty, word);
+                word
+            }
         }
     }
 

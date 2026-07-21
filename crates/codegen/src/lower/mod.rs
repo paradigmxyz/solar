@@ -44,6 +44,19 @@ pub(crate) struct LoopContext {
     pub continue_target: BlockId,
 }
 
+/// Clean-word validator for a value type decoded from ABI calldata.
+#[derive(Clone, Copy)]
+enum AbiWordValidator {
+    /// The word must equal itself masked with the given mask.
+    Mask(U256),
+    /// The word must equal `signextend(byte_index, word)`.
+    SignExtend(u64),
+    /// The word must equal `iszero(iszero(word))`.
+    Bool,
+    /// The word must be less than the member count.
+    EnumRange(u64),
+}
+
 #[derive(Clone, Copy)]
 enum AbiParamSource {
     ExternalCalldata,
@@ -1264,6 +1277,93 @@ impl<'gcx> Lowerer<'gcx> {
     /// `Arg` values of external functions are canonical (this validation is
     /// what establishes that invariant), so the validator itself must read the
     /// unvalidated word opaquely or it would be folded away.
+    /// Selects the clean-word validator for a value type decoded from ABI
+    /// calldata, if it has one. Value types narrower than a word must equal
+    /// their canonical form; wider or reference types have no word validator.
+    fn abi_word_validator(&self, ty: Ty<'gcx>) -> Option<AbiWordValidator> {
+        let ty = match ty.kind {
+            TyKind::Udvt(underlying, _) => underlying,
+            _ => ty,
+        };
+        Some(match ty.kind {
+            TyKind::Elementary(elem) => match elem {
+                ElementaryType::UInt(size) => {
+                    let bits = size.bits();
+                    if bits >= 256 {
+                        return None;
+                    }
+                    AbiWordValidator::Mask(U256::MAX >> (256 - usize::from(bits)))
+                }
+                ElementaryType::Int(size) => {
+                    let bits = size.bits();
+                    if bits >= 256 {
+                        return None;
+                    }
+                    AbiWordValidator::SignExtend(u64::from(bits / 8) - 1)
+                }
+                ElementaryType::Address(_) => AbiWordValidator::Mask(U256::MAX >> 96),
+                ElementaryType::Bool => AbiWordValidator::Bool,
+                ElementaryType::FixedBytes(size) => {
+                    let bytes = size.bytes();
+                    if bytes >= 32 {
+                        return None;
+                    }
+                    AbiWordValidator::Mask(U256::MAX << (256 - 8 * usize::from(bytes)))
+                }
+                _ => return None,
+            },
+            TyKind::Contract(_) => AbiWordValidator::Mask(U256::MAX >> 96),
+            TyKind::Enum(enum_id) => {
+                AbiWordValidator::EnumRange(self.gcx.hir.enumm(enum_id).variants.len() as u64)
+            }
+            _ => return None,
+        })
+    }
+
+    /// Reverts when `word` is not the canonical encoding for `validator`.
+    fn emit_abi_word_clean_check(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        word: ValueId,
+        validator: AbiWordValidator,
+    ) {
+        let ok = match validator {
+            AbiWordValidator::Mask(mask) => {
+                let mask = builder.imm_u256(mask);
+                let canonical = builder.and(word, mask);
+                builder.eq(word, canonical)
+            }
+            AbiWordValidator::SignExtend(byte_index) => {
+                let byte_index = builder.imm_u64(byte_index);
+                let canonical = builder.signextend(byte_index, word);
+                builder.eq(word, canonical)
+            }
+            AbiWordValidator::Bool => {
+                let is_zero = builder.iszero(word);
+                let canonical = builder.iszero(is_zero);
+                builder.eq(word, canonical)
+            }
+            AbiWordValidator::EnumRange(count) => {
+                let count = builder.imm_u64(count);
+                builder.lt(word, count)
+            }
+        };
+        Self::emit_revert_unless(builder, ok);
+    }
+
+    /// Validates a value-typed field decoded from ABI calldata at `word`. A
+    /// dirty narrow value reverts, matching solc's decode.
+    pub(super) fn emit_abi_field_clean_check(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: Ty<'gcx>,
+        word: ValueId,
+    ) {
+        if let Some(validator) = self.abi_word_validator(ty) {
+            self.emit_abi_word_clean_check(builder, word, validator);
+        }
+    }
+
     fn emit_abi_param_validation(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -1271,54 +1371,8 @@ impl<'gcx> Lowerer<'gcx> {
         hir_ty: &hir::Type<'_>,
         source: AbiParamSource,
     ) {
-        enum Validator {
-            /// The word must equal itself masked with the given mask.
-            Mask(U256),
-            /// The word must equal `signextend(byte_index, word)`.
-            SignExtend(u64),
-            /// The word must equal `iszero(iszero(word))`.
-            Bool,
-            /// The word must be less than the member count.
-            EnumRange(u64),
-        }
-
-        let mut ty = self.gcx.type_of_hir_ty(hir_ty);
-        if let TyKind::Udvt(underlying, _) = ty.kind {
-            ty = underlying;
-        }
-        let validator = match ty.kind {
-            TyKind::Elementary(elem) => match elem {
-                ElementaryType::UInt(size) => {
-                    let bits = size.bits();
-                    if bits >= 256 {
-                        return;
-                    }
-                    Validator::Mask(U256::MAX >> (256 - usize::from(bits)))
-                }
-                ElementaryType::Int(size) => {
-                    let bits = size.bits();
-                    if bits >= 256 {
-                        return;
-                    }
-                    Validator::SignExtend(u64::from(bits / 8) - 1)
-                }
-                ElementaryType::Address(_) => Validator::Mask(U256::MAX >> 96),
-                ElementaryType::Bool => Validator::Bool,
-                ElementaryType::FixedBytes(size) => {
-                    let bytes = size.bytes();
-                    if bytes >= 32 {
-                        return;
-                    }
-                    Validator::Mask(U256::MAX << (256 - 8 * usize::from(bytes)))
-                }
-                _ => return,
-            },
-            TyKind::Contract(_) => Validator::Mask(U256::MAX >> 96),
-            TyKind::Enum(enum_id) => {
-                Validator::EnumRange(self.gcx.hir.enumm(enum_id).variants.len() as u64)
-            }
-            _ => return,
-        };
+        let ty = self.gcx.type_of_hir_ty(hir_ty);
+        let Some(validator) = self.abi_word_validator(ty) else { return };
 
         let word = match source {
             AbiParamSource::ExternalCalldata => {
@@ -1333,28 +1387,7 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.mload(offset)
             }
         };
-        let ok = match validator {
-            Validator::Mask(mask) => {
-                let mask = builder.imm_u256(mask);
-                let canonical = builder.and(word, mask);
-                builder.eq(word, canonical)
-            }
-            Validator::SignExtend(byte_index) => {
-                let byte_index = builder.imm_u64(byte_index);
-                let canonical = builder.signextend(byte_index, word);
-                builder.eq(word, canonical)
-            }
-            Validator::Bool => {
-                let is_zero = builder.iszero(word);
-                let canonical = builder.iszero(is_zero);
-                builder.eq(word, canonical)
-            }
-            Validator::EnumRange(count) => {
-                let count = builder.imm_u64(count);
-                builder.lt(word, count)
-            }
-        };
-        Self::emit_revert_unless(builder, ok);
+        self.emit_abi_word_clean_check(builder, word, validator);
     }
 
     /// Branches to a plain `revert(0, 0)` when `cond` is zero, then continues
