@@ -7,8 +7,8 @@
 
 use crate::{
     mir::{
-        BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, MirType, Module,
-        SliceLocation, Value, ValueId,
+        BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction, MirType,
+        Module, SliceLocation, Value, ValueId,
     },
     pass::ModulePass,
 };
@@ -43,11 +43,157 @@ pub struct LowerSlicesPass {
     stats: LowerSlicesStats,
 }
 
+/// The slice location of a value, if it is slice-typed. A `select`/`phi`
+/// result is always word-typed by construction, so slice aggregate uses are
+/// recognized from their operands rather than the result type.
+fn value_slice_location(func: &Function, value: ValueId) -> Option<SliceLocation> {
+    let ty = match func.value(value) {
+        Value::Arg { ty, .. } | Value::Undef(ty) => Some(*ty),
+        Value::Inst(inst) => func.instructions[*inst].result_ty,
+        Value::Immediate(_) | Value::Error(_) => None,
+    };
+    match ty {
+        Some(MirType::Slice(location)) => Some(location),
+        _ => None,
+    }
+}
+
+/// Allocates a word-typed instruction and its result value, returning both.
+fn new_word_inst(func: &mut Function, kind: InstKind) -> (InstId, ValueId) {
+    let inst = func.alloc_inst(Instruction::new(kind, Some(MirType::uint256())));
+    let value = func.alloc_value(Value::Inst(inst));
+    (inst, value)
+}
+
+/// Allocates a `make_slice` instruction and its slice-typed result value.
+fn new_slice_inst(
+    func: &mut Function,
+    ptr: ValueId,
+    len: ValueId,
+    location: SliceLocation,
+) -> (InstId, ValueId) {
+    let inst = func.alloc_inst(Instruction::new(
+        InstKind::MakeSlice { ptr, len, location },
+        Some(MirType::Slice(location)),
+    ));
+    let value = func.alloc_value(Value::Inst(inst));
+    (inst, value)
+}
+
 impl LowerSlicesPass {
     /// Returns statistics for the most recent run.
     #[must_use]
     pub const fn stats(&self) -> &LowerSlicesStats {
         &self.stats
+    }
+
+    /// Rewrites slice-typed `select` and `phi` into paired pointer/length
+    /// operations over a `make_slice`, so no two-word slice value survives an
+    /// aggregate use. Each operand slice is then consumed only by projections
+    /// and folds away in `lower_projections`.
+    fn split_slice_aggregates(&mut self, func: &mut Function) -> bool {
+        let mut changed = false;
+        let mut replacements = FxHashMap::default();
+
+        // Selects: rewrite in place within their block.
+        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
+        for block_id in &block_ids {
+            let insts = std::mem::take(&mut func.blocks[*block_id].instructions);
+            let mut out = Vec::with_capacity(insts.len());
+            for inst_id in insts {
+                if let InstKind::Select(cond, a, b) = func.instructions[inst_id].kind
+                    && let Some(location) = value_slice_location(func, a)
+                {
+                    let old = func.inst_result_value(inst_id).expect("select has a result");
+                    let (ia, pa) = new_word_inst(func, InstKind::SlicePtr(a));
+                    let (ib, pb) = new_word_inst(func, InstKind::SlicePtr(b));
+                    let (ila, la) = new_word_inst(func, InstKind::SliceLen(a));
+                    let (ilb, lb) = new_word_inst(func, InstKind::SliceLen(b));
+                    let (isp, sp) = new_word_inst(func, InstKind::Select(cond, pa, pb));
+                    let (isl, sl) = new_word_inst(func, InstKind::Select(cond, la, lb));
+                    let (ims, new_slice) = new_slice_inst(func, sp, sl, location);
+                    out.extend([ia, ib, ila, ilb, isp, isl, ims]);
+                    replacements.insert(old, new_slice);
+                    self.stats.slices += 1;
+                    changed = true;
+                    continue;
+                }
+                out.push(inst_id);
+            }
+            func.blocks[*block_id].instructions = out;
+        }
+
+        // Phis: project each incoming slice in its predecessor, phi the
+        // pointer and length words, and rebuild the slice after the phis.
+        for block_id in &block_ids {
+            let block_id = *block_id;
+            // Collect the leading slice phis before mutating, since forming the
+            // paired words allocates instructions and values.
+            let mut slice_phis: Vec<(InstId, Vec<(BlockId, ValueId)>, SliceLocation)> = Vec::new();
+            for &inst_id in &func.blocks[block_id].instructions {
+                match &func.instructions[inst_id].kind {
+                    InstKind::Phi(incoming) => {
+                        if let Some(location) = incoming
+                            .first()
+                            .and_then(|(_, value)| value_slice_location(func, *value))
+                        {
+                            slice_phis.push((inst_id, incoming.clone(), location));
+                        }
+                    }
+                    _ => break,
+                }
+            }
+            let mut splits: Vec<(InstId, InstId, InstId, InstId)> = Vec::new();
+            for (inst_id, incoming, location) in slice_phis {
+                let mut ptr_incoming = Vec::with_capacity(incoming.len());
+                let mut len_incoming = Vec::with_capacity(incoming.len());
+                for (pred, value) in incoming {
+                    let (pi, pv) = new_word_inst(func, InstKind::SlicePtr(value));
+                    let (li, lv) = new_word_inst(func, InstKind::SliceLen(value));
+                    func.blocks[pred].instructions.push(pi);
+                    func.blocks[pred].instructions.push(li);
+                    ptr_incoming.push((pred, pv));
+                    len_incoming.push((pred, lv));
+                }
+                let (ptr_phi, sp) = new_word_inst(func, InstKind::Phi(ptr_incoming));
+                let (len_phi, sl) = new_word_inst(func, InstKind::Phi(len_incoming));
+                let (make, new_slice) = new_slice_inst(func, sp, sl, location);
+                let old = func.inst_result_value(inst_id).expect("phi has a result");
+                replacements.insert(old, new_slice);
+                splits.push((inst_id, ptr_phi, len_phi, make));
+                self.stats.slices += 1;
+                changed = true;
+            }
+            if splits.is_empty() {
+                continue;
+            }
+            let split_map: FxHashMap<InstId, (InstId, InstId, InstId)> =
+                splits.iter().map(|&(old, sp, sl, ms)| (old, (sp, sl, ms))).collect();
+            let mut phis = Vec::new();
+            let mut makes = Vec::new();
+            let mut rest = Vec::new();
+            for &inst_id in &func.blocks[block_id].instructions {
+                if matches!(func.instructions[inst_id].kind, InstKind::Phi(_)) {
+                    if let Some(&(sp, sl, ms)) = split_map.get(&inst_id) {
+                        phis.push(sp);
+                        phis.push(sl);
+                        makes.push(ms);
+                    } else {
+                        phis.push(inst_id);
+                    }
+                } else {
+                    rest.push(inst_id);
+                }
+            }
+            phis.extend(makes);
+            phis.extend(rest);
+            func.blocks[block_id].instructions = phis;
+        }
+
+        if changed {
+            func.replace_uses_canonicalized(&replacements);
+        }
+        changed
     }
 
     fn expand_call_args(
@@ -440,6 +586,12 @@ impl ModulePass for LowerSlicesPass {
             })
             .collect();
         let mut changed = false;
+        for func in module.functions.iter_mut() {
+            // Eliminate slice-typed `select`/`phi` first, so every remaining
+            // slice is a `make_slice` result or a projection that the later
+            // stages can expand or fold.
+            changed |= self.split_slice_aggregates(func);
+        }
         for func in module.functions.iter_mut() {
             changed |= self.expand_call_args(func, &signatures);
         }
