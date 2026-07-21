@@ -3,8 +3,6 @@
 
 bb0 (entry):
   push bb1
-  dup1
-  pop
   jump
 bb1:
   pop

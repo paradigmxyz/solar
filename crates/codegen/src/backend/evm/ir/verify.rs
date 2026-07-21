@@ -10,10 +10,6 @@ use solar_data_structures::{
 use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
 use std::fmt;
 
-const MAX_STACK_STATES_PER_BLOCK: usize = MAX_STACK_DEPTH + 1;
-const MAX_STACK_STATES: usize = 1 << 16;
-const MAX_STACK_WORDS: usize = 1 << 20;
-
 /// Stateful EVM IR verifier.
 struct Verifier<'a> {
     dcx: &'a DiagCtxt,
@@ -212,28 +208,23 @@ impl<'a> Verifier<'a> {
         }
     }
 
-    /// Checks physical stack operations along every direct path from the entry block.
-    /// Distinct states preserve the correlation between indirect targets and stack contents.
+    /// Checks physical stack operations along generated direct control-flow edges.
     fn verify_stack_ops(&self, module: &Module) {
         let Some(entry) = module.entry_block else { return };
-        let mut entry_stacks: IndexVec<BlockId, FxHashSet<ModelStack>> =
-            index_vec![FxHashSet::default(); module.blocks.len()];
-        let entry_stack = ModelStack::default();
-        entry_stacks[entry].insert(entry_stack.clone());
-        let mut pending = vec![(entry, entry_stack)];
+        let mut entry_depths: IndexVec<BlockId, Option<DepthRange>> =
+            index_vec![None; module.blocks.len()];
+        entry_depths[entry] = Some(DepthRange::ZERO);
+        let mut pending = vec![entry];
         let mut invalid = DenseBitSet::new_empty(module.blocks.len());
-        let mut budget = AnalysisBudget::default();
-        while let Some((block_id, mut stack)) = pending.pop() {
+        while let Some(block_id) = pending.pop() {
             if invalid.contains(block_id) {
                 continue;
             }
             let block = &module.blocks[block_id];
+            let mut stack = entry_depths[block_id].unwrap();
             let mut physical_targets = Vec::new();
             let mut valid = true;
-            for inst in &block.instructions {
-                let is_jump =
-                    !inst.is_encoded_push() && matches!(inst.opcode, op::JUMP | op::JUMPI);
-                let jump_target = is_jump.then(|| stack.top());
+            for (index, inst) in block.instructions.iter().enumerate() {
                 if inst.is_physical_stack_op() {
                     if self.apply_physical_stack_op(block_id, inst.opcode, &mut stack).is_err() {
                         valid = false;
@@ -250,44 +241,21 @@ impl<'a> Verifier<'a> {
                         break;
                     }
                 }
-                if let Some(target) = inst.pushed_block() {
-                    stack.set_top_block(target);
-                }
-                if let Some(target) = jump_target {
-                    let Some(target) = target else {
-                        unreachable!("jump underflow must fail before target validation")
-                    };
-                    match target {
-                        StackWord::Block(target) => {
-                            physical_targets.push((target, stack.clone()));
-                        }
-                        StackWord::Unknown => {
-                            self.error_in_block(
-                                block_id,
-                                format_args!(
-                                    "`{}` destination is not a known block address",
-                                    inst.mnemonic()
-                                ),
-                            );
-                            valid = false;
-                            break;
-                        }
-                    }
+                if inst.opcode == op::JUMPI
+                    && let Some(target) = index
+                        .checked_sub(1)
+                        .and_then(|index| block.instructions[index].pushed_block())
+                {
+                    physical_targets.push((target, stack));
                 }
             }
             if valid && let Some(term) = &block.terminator {
-                let is_jump = matches!(term.kind, TerminatorKind::Op(op::JUMP));
-                let jump_target = is_jump.then(|| stack.top());
                 let next = Self::next_block(module, block_id);
                 let mut pushes_target = false;
                 term.kind.visit_label_targets(next, |_| pushes_target = true);
                 if pushes_target
                     && self
-                        .ensure_stack_limit(
-                            block_id,
-                            terminator_name(&term.kind),
-                            stack.depth() + 1,
-                        )
+                        .ensure_stack_limit(block_id, terminator_name(&term.kind), stack.max + 1)
                         .is_err()
                 {
                     valid = false;
@@ -299,25 +267,12 @@ impl<'a> Verifier<'a> {
                         .apply_effect(block_id, terminator_name(&term.kind), effect, &mut stack)
                         .is_ok();
                 }
-                if valid && let Some(target) = jump_target {
-                    let Some(target) = target else {
-                        unreachable!("jump underflow must fail before target validation")
-                    };
-                    match target {
-                        StackWord::Block(target) => {
-                            physical_targets.push((target, stack.clone()));
-                        }
-                        StackWord::Unknown => {
-                            self.error_in_block(
-                                block_id,
-                                format_args!(
-                                    "`{}` destination is not a known block address",
-                                    terminator_name(&term.kind)
-                                ),
-                            );
-                            valid = false;
-                        }
-                    }
+                if valid
+                    && matches!(term.kind, TerminatorKind::Op(op::JUMP))
+                    && let Some(target) =
+                        block.instructions.last().and_then(Instruction::pushed_block)
+                {
+                    physical_targets.push((target, stack));
                 }
             }
             if !valid {
@@ -325,43 +280,33 @@ impl<'a> Verifier<'a> {
                 continue;
             }
             let Some(term) = &block.terminator else { continue };
-            term.kind.visit_targets(|target| physical_targets.push((target, stack.clone())));
-            for (target, target_stack) in physical_targets {
-                if !Self::propagate_stack(
-                    target,
-                    target_stack,
-                    &mut entry_stacks,
-                    &mut pending,
-                    &invalid,
-                    &mut budget,
-                ) {
-                    return;
-                }
+            term.kind.visit_targets(|target| physical_targets.push((target, stack)));
+            for (target, depth) in physical_targets {
+                Self::propagate_depth(target, depth, &mut entry_depths, &mut pending, &invalid);
             }
         }
     }
 
-    fn propagate_stack(
+    fn propagate_depth(
         target: BlockId,
-        stack: ModelStack,
-        entry_stacks: &mut IndexVec<BlockId, FxHashSet<ModelStack>>,
-        pending: &mut Vec<(BlockId, ModelStack)>,
+        depth: DepthRange,
+        entry_depths: &mut IndexVec<BlockId, Option<DepthRange>>,
+        pending: &mut Vec<BlockId>,
         invalid: &DenseBitSet<BlockId>,
-        budget: &mut AnalysisBudget,
-    ) -> bool {
+    ) {
         if invalid.contains(target) {
-            return true;
+            return;
         }
-        if entry_stacks[target].contains(&stack) {
-            return true;
+        let updated = match &mut entry_depths[target] {
+            Some(previous) => previous.include(depth),
+            slot @ None => {
+                *slot = Some(depth);
+                true
+            }
+        };
+        if updated {
+            pending.push(target);
         }
-        if !budget.reserve(entry_stacks[target].len(), stack.depth()) {
-            return false;
-        }
-        if entry_stacks[target].insert(stack.clone()) {
-            pending.push((target, stack));
-        }
-        true
     }
 
     fn apply_effect(
@@ -369,7 +314,7 @@ impl<'a> Verifier<'a> {
         block_id: BlockId,
         name: impl fmt::Display,
         effect: StackEffect,
-        stack: &mut ModelStack,
+        stack: &mut DepthRange,
     ) -> Result<(), ErrorGuaranteed> {
         let inputs = usize::from(effect.inputs);
         if !stack.ensure_depth(inputs) {
@@ -377,20 +322,19 @@ impl<'a> Verifier<'a> {
                 block_id,
                 format_args!(
                     "`{name}` consumes {} stack words but only {} are available",
-                    effect.inputs,
-                    stack.depth()
+                    effect.inputs, stack.min
                 ),
             ));
         }
         stack.apply(inputs, usize::from(effect.outputs));
-        self.ensure_stack_limit(block_id, name, stack.depth())
+        self.ensure_stack_limit(block_id, name, stack.max)
     }
 
     fn apply_physical_stack_op(
         &self,
         block_id: BlockId,
         opcode: u8,
-        stack: &mut ModelStack,
+        stack: &mut DepthRange,
     ) -> Result<(), ErrorGuaranteed> {
         let name = match opcode {
             op::DUP1..=op::DUP16 => {
@@ -398,13 +342,10 @@ impl<'a> Verifier<'a> {
                 if !stack.ensure_depth(usize::from(n)) {
                     return Err(self.error_in_block(
                         block_id,
-                        format_args!(
-                            "`dup{n}` reaches depth {n} but the stack has {}",
-                            stack.depth()
-                        ),
+                        format_args!("`dup{n}` reaches depth {n} but the stack has {}", stack.min),
                     ));
                 }
-                stack.dup(usize::from(n));
+                stack.apply(0, 1);
                 "dup"
             }
             op::SWAP1..=op::SWAP16 => {
@@ -412,25 +353,21 @@ impl<'a> Verifier<'a> {
                 if !stack.ensure_depth(usize::from(n) + 1) {
                     return Err(self.error_in_block(
                         block_id,
-                        format_args!(
-                            "`swap{n}` reaches depth {n} but the stack has {}",
-                            stack.depth()
-                        ),
+                        format_args!("`swap{n}` reaches depth {n} but the stack has {}", stack.min),
                     ));
                 }
-                stack.swap(usize::from(n));
                 "swap"
             }
             op::POP => {
                 if !stack.ensure_depth(1) {
                     return Err(self.error_in_block(block_id, "`pop` on an empty stack"));
                 }
-                stack.pop();
+                stack.apply(1, 0);
                 "pop"
             }
             _ => unreachable!("checked physical stack opcode"),
         };
-        self.ensure_stack_limit(block_id, name, stack.depth())
+        self.ensure_stack_limit(block_id, name, stack.max)
     }
 
     fn ensure_stack_limit(
@@ -461,70 +398,31 @@ impl<'a> Verifier<'a> {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-struct ModelStack {
-    words: Vec<StackWord>,
+#[derive(Clone, Copy)]
+struct DepthRange {
+    min: usize,
+    max: usize,
 }
 
-impl ModelStack {
-    fn ensure_depth(&self, depth: usize) -> bool {
-        self.depth() >= depth
-    }
+impl DepthRange {
+    const ZERO: Self = Self { min: 0, max: 0 };
 
-    fn depth(&self) -> usize {
-        self.words.len()
+    fn ensure_depth(&self, depth: usize) -> bool {
+        self.min >= depth
     }
 
     fn apply(&mut self, inputs: usize, outputs: usize) {
-        self.words.splice(0..inputs, std::iter::repeat_n(StackWord::Unknown, outputs));
+        self.min = self.min - inputs + outputs;
+        self.max = self.max - inputs + outputs;
     }
 
-    fn dup(&mut self, depth: usize) {
-        self.words.insert(0, self.words[depth - 1]);
-    }
-
-    fn swap(&mut self, depth: usize) {
-        self.words.swap(0, depth);
-    }
-
-    fn pop(&mut self) {
-        self.words.remove(0);
-    }
-
-    fn set_top_block(&mut self, block: BlockId) {
-        self.words[0] = StackWord::Block(block);
-    }
-
-    fn top(&self) -> Option<StackWord> {
-        self.words.first().copied()
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum StackWord {
-    Unknown,
-    Block(BlockId),
-}
-
-/// Bounds path-sensitive stack validation without making exhaustion an IR error.
-#[derive(Default)]
-struct AnalysisBudget {
-    states: usize,
-    words: usize,
-}
-
-impl AnalysisBudget {
-    fn reserve(&mut self, block_states: usize, stack_depth: usize) -> bool {
-        if block_states >= MAX_STACK_STATES_PER_BLOCK || self.states >= MAX_STACK_STATES {
-            return false;
-        }
-        let Some(words) = self.words.checked_add(stack_depth) else { return false };
-        if words > MAX_STACK_WORDS {
-            return false;
-        }
-        self.states += 1;
-        self.words = words;
-        true
+    fn include(&mut self, other: Self) -> bool {
+        let min = self.min.min(other.min);
+        let max = self.max.max(other.max);
+        let changed = min != self.min || max != self.max;
+        self.min = min;
+        self.max = max;
+        changed
     }
 }
 
@@ -538,22 +436,4 @@ fn terminator_name(kind: &TerminatorKind) -> &'static str {
 
 pub(super) fn validate(dcx: &DiagCtxt, module: &Module) {
     Verifier::new(dcx).verify_module(module);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn stack_analysis_budget_is_bounded() {
-        let mut budget = AnalysisBudget::default();
-        assert!(!budget.reserve(MAX_STACK_STATES_PER_BLOCK, 1));
-
-        budget.states = MAX_STACK_STATES;
-        assert!(!budget.reserve(0, 1));
-
-        budget.states = 0;
-        budget.words = MAX_STACK_WORDS;
-        assert!(!budget.reserve(0, 1));
-    }
 }
