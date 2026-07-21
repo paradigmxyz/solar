@@ -37,3 +37,27 @@ bb5:
   swap1
   eq
   stop
+bb6:
+  push 1
+  push 2
+  swap1
+  lt
+  stop
+bb7:
+  push 1
+  push 2
+  swap1
+  gt
+  stop
+bb8:
+  push 1
+  push 2
+  swap1
+  slt
+  stop
+bb9:
+  push 1
+  push 2
+  swap1
+  sgt
+  stop

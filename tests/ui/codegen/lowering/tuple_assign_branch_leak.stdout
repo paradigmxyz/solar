@@ -31,8 +31,7 @@ bb5:
   swap1
   sub
   push 64
-  swap1
-  slt
+  sgt
   push 36
   calldataload
   swap1
@@ -79,8 +78,7 @@ bb5:
   dup1
   push 544
   mstore
-  swap1
-  lt
+  gt
   swap1
   pop
   push bb26
@@ -97,8 +95,7 @@ bb5:
   dup1
   push 480
   mstore
-  swap1
-  lt
+  gt
   push 36
   calldataload
   swap1
@@ -121,8 +118,7 @@ bb5:
   dup1
   push 480
   mstore
-  swap1
-  lt
+  gt
   push 36
   calldataload
   swap1
@@ -160,8 +156,7 @@ bb5:
   dup1
   push 608
   mstore
-  swap1
-  lt
+  gt
   push bb26
   jumpi
   push 192
@@ -180,8 +175,7 @@ bb5:
   dup1
   push 576
   mstore
-  swap1
-  lt
+  gt
   push bb26
   jumpi
   push 640
@@ -253,8 +247,7 @@ bb18:
   dup1
   push 672
   mstore
-  swap1
-  lt
+  gt
   iszero
   push bb17
   jumpi
@@ -279,8 +272,7 @@ bb19:
   push 672
   mstore
   dup2
-  swap1
-  lt
+  gt
   push bb26
   jumpi
   push 2

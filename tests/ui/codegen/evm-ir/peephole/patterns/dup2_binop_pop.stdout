@@ -75,26 +75,22 @@ bb12:
 bb13:
   push 1
   push 2
-  swap1
-  lt
+  gt
   stop
 bb14:
   push 1
   push 2
-  swap1
-  gt
+  lt
   stop
 bb15:
   push 1
   push 2
-  swap1
-  slt
+  sgt
   stop
 bb16:
   push 1
   push 2
-  swap1
-  sgt
+  slt
   stop
 bb17:
   push 1

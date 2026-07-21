@@ -2,7 +2,7 @@
 // === deployment ===
 @module deployment
 bb0 (entry):
-  push 591
+  push 571
   dup1
   push 10
   push 0
@@ -55,8 +55,7 @@ bb5:
   swap1
   sub
   push 640
-  swap1
-  slt
+  sgt
   push bb4
   jumpi
   push 36
@@ -69,8 +68,7 @@ bb5:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb27
   jumpi
   push 68
@@ -86,8 +84,7 @@ bb5:
   dup1
   push 160
   mstore
-  swap1
-  lt
+  gt
   push bb27
   jumpi
   push 100
@@ -103,8 +100,7 @@ bb5:
   dup1
   push 192
   mstore
-  swap1
-  lt
+  gt
   push bb27
   jumpi
   push 132
@@ -120,8 +116,7 @@ bb5:
   dup1
   push 224
   mstore
-  swap1
-  lt
+  gt
   push bb27
   jumpi
   push 164
@@ -137,8 +132,7 @@ bb5:
   dup1
   push 256
   mstore
-  swap1
-  lt
+  gt
   push bb27
   jumpi
   push 196
@@ -154,8 +148,7 @@ bb5:
   dup1
   push 288
   mstore
-  swap1
-  lt
+  gt
   push bb27
   jumpi
   push 228
@@ -171,8 +164,7 @@ bb5:
   dup1
   push 320
   mstore
-  swap1
-  lt
+  gt
   push bb27
   jumpi
   push 260
@@ -188,8 +180,7 @@ bb5:
   dup1
   push 352
   mstore
-  swap1
-  lt
+  gt
   push bb27
   jumpi
   push 292
@@ -205,8 +196,7 @@ bb5:
   dup1
   push 384
   mstore
-  swap1
-  lt
+  gt
   push bb27
   jumpi
   push 324
@@ -222,8 +212,7 @@ bb5:
   dup1
   push 416
   mstore
-  swap1
-  lt
+  gt
   push bb27
   jumpi
   push 356
@@ -239,8 +228,7 @@ bb5:
   dup1
   push 448
   mstore
-  swap1
-  lt
+  gt
   push bb27
   jumpi
   push 388
@@ -256,8 +244,7 @@ bb5:
   dup1
   push 480
   mstore
-  swap1
-  lt
+  gt
   push bb27
   jumpi
   push 420
@@ -273,8 +260,7 @@ bb5:
   dup1
   push 512
   mstore
-  swap1
-  lt
+  gt
   push bb27
   jumpi
   push 452
@@ -290,8 +276,7 @@ bb5:
   dup1
   push 544
   mstore
-  swap1
-  lt
+  gt
   push bb27
   jumpi
   push 484
@@ -307,8 +292,7 @@ bb5:
   dup1
   push 576
   mstore
-  swap1
-  lt
+  gt
   push bb27
   jumpi
   push 516
@@ -324,8 +308,7 @@ bb5:
   dup1
   push 608
   mstore
-  swap1
-  lt
+  gt
   push bb27
   jumpi
   push 548
@@ -341,8 +324,7 @@ bb5:
   dup1
   push 640
   mstore
-  swap1
-  lt
+  gt
   push bb27
   jumpi
   push 580
@@ -358,8 +340,7 @@ bb5:
   dup1
   push 672
   mstore
-  swap1
-  lt
+  gt
   push bb27
   jumpi
   push 612
@@ -375,8 +356,7 @@ bb5:
   dup1
   push 704
   mstore
-  swap1
-  lt
+  gt
   push bb27
   jumpi
   push 736

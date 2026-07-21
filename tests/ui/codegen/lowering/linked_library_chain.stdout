@@ -26,8 +26,7 @@ bb0 (entry):
   swap1
   sub
   push 64
-  swap1
-  slt
+  sgt
   push bb4
   jumpi
   push 4
@@ -116,8 +115,7 @@ bb0 (entry):
   swap1
   sub
   push 64
-  swap1
-  slt
+  sgt
   push bb4
   jumpi
   push 0
@@ -224,8 +222,7 @@ bb0 (entry):
   swap1
   sub
   push 32
-  swap1
-  slt
+  sgt
   push bb4
   jumpi
   push 0

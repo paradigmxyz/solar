@@ -132,6 +132,15 @@ fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
         return rewrite(instructions, 2, Edit::RemoveFirstKeepOne, block);
     }
 
+    // `SWAP1 LT -> GT`, `SWAP1 GT -> LT`, `SWAP1 SLT -> SGT`, or `SWAP1 SGT -> SLT`.
+    if let [.., swap, comparison] = instructions.as_slice()
+        && raw_opcode(swap) == Some(op::SWAP1)
+        && let Some(comparison) = raw_opcode(comparison)
+        && let Some(flipped) = flipped_comparison(comparison)
+    {
+        return rewrite(instructions, 2, Edit::RemoveFirstOverwrite(flipped), block);
+    }
+
     // `DUP2 OP SWAP1 POP -> OP`.
     // `DUP2 OP SWAP1 POP -> SWAP1 OP`.
     if let [.., dup, binop, swap, pop] = instructions.as_slice()
@@ -333,6 +342,16 @@ fn raw_opcode(inst: &Instruction) -> Option<u8> {
 
 const fn is_commutative(opcode: u8) -> bool {
     matches!(opcode, op::ADD | op::MUL | op::AND | op::OR | op::XOR | op::EQ)
+}
+
+const fn flipped_comparison(opcode: u8) -> Option<u8> {
+    match opcode {
+        op::LT => Some(op::GT),
+        op::GT => Some(op::LT),
+        op::SLT => Some(op::SGT),
+        op::SGT => Some(op::SLT),
+        _ => None,
+    }
 }
 
 fn push_value(inst: &Instruction) -> Option<U256> {

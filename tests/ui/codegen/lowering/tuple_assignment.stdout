@@ -53,8 +53,7 @@ bb7:
   swap1
   sub
   push 64
-  swap1
-  slt
+  sgt
   push bb6
   jumpi
   push 4
@@ -89,8 +88,7 @@ bb7:
   dup1
   push 160
   mstore
-  swap1
-  lt
+  gt
   swap1
   pop
   push bb13
@@ -133,8 +131,7 @@ bb7:
   dup1
   push 192
   mstore
-  swap1
-  lt
+  gt
   swap1
   pop
   push bb13
@@ -216,8 +213,7 @@ bb14:
   swap1
   sub
   push 64
-  swap1
-  slt
+  sgt
   push bb6
   jumpi
   push 36

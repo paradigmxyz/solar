@@ -145,8 +145,7 @@ bb9:
   swap1
   sub
   push 32
-  swap1
-  slt
+  sgt
   push bb8
   jumpi
   push bb38
@@ -198,8 +197,7 @@ bb14:
   swap1
   sub
   push 32
-  swap1
-  slt
+  sgt
   push bb8
   jumpi
   push bb39
@@ -217,8 +215,7 @@ bb19:
   swap1
   sub
   push 32
-  swap1
-  slt
+  sgt
   push bb8
   jumpi
   push bb40
@@ -236,8 +233,7 @@ bb24:
   swap1
   sub
   push 32
-  swap1
-  slt
+  sgt
   push bb8
   jumpi
   push bb41
@@ -248,8 +244,7 @@ bb29:
   swap1
   sub
   push 32
-  swap1
-  slt
+  sgt
   push bb8
   jumpi
   push bb42

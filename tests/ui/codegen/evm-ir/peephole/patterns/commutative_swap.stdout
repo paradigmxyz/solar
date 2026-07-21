@@ -30,3 +30,23 @@ bb5:
   push 2
   eq
   stop
+bb6:
+  push 1
+  push 2
+  gt
+  stop
+bb7:
+  push 1
+  push 2
+  lt
+  stop
+bb8:
+  push 1
+  push 2
+  sgt
+  stop
+bb9:
+  push 1
+  push 2
+  slt
+  stop

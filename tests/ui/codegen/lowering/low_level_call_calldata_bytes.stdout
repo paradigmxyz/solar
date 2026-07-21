@@ -48,8 +48,7 @@ bb6:
   swap1
   sub
   push 64
-  swap1
-  slt
+  sgt
   push bb5
   jumpi
   push 4
@@ -87,8 +86,7 @@ bb23:
   dup1
   push 192
   mstore
-  swap1
-  lt
+  gt
   swap1
   pop
   swap1
@@ -99,8 +97,7 @@ bb13:
   swap1
   sub
   push 64
-  swap1
-  slt
+  sgt
   push bb5
   jumpi
   push 4
@@ -242,8 +239,7 @@ bb22:
   dup1
   push 224
   mstore
-  swap1
-  lt
+  gt
   swap1
   pop
   swap1

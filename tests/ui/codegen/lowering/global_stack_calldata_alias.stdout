@@ -43,8 +43,7 @@ bb5:
   swap1
   sub
   push 64
-  swap1
-  slt
+  sgt
   push 36
   calldataload
   swap1

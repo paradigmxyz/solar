@@ -58,8 +58,7 @@ bb7:
   swap1
   sub
   push 32
-  swap1
-  slt
+  sgt
   push bb5
   jumpi
   push 0
@@ -92,8 +91,7 @@ bb7:
   mstore
   push 4
   calldataload
-  swap1
-  lt
+  gt
   push bb64
   jumpi
   push 256
@@ -274,8 +272,7 @@ bb7:
   dup1
   push 928
   mstore
-  swap1
-  lt
+  gt
   push bb64
   jumpi
   push 0x500
@@ -294,8 +291,7 @@ bb7:
   dup1
   push 0x420
   mstore
-  swap1
-  lt
+  gt
   push bb64
   jumpi
   push 0x440
@@ -348,8 +344,7 @@ bb11:
   dup1
   push 288
   mstore
-  swap1
-  lt
+  gt
   push bb64
   jumpi
   push 7
@@ -448,8 +443,7 @@ bb41:
   push 96
   add
   mload
-  swap1
-  lt
+  gt
   swap1
   pop
   push bb64
@@ -515,8 +509,7 @@ bb52:
   push 320
   add
   mstore
-  swap1
-  lt
+  gt
   push bb64
   jumpi
   push 160
@@ -594,8 +587,7 @@ bb52:
   push 96
   add
   mload
-  swap1
-  lt
+  gt
   swap2
   pop
   pop
@@ -713,8 +705,7 @@ bb74:
   push 96
   add
   mload
-  swap1
-  lt
+  gt
   push bb64
   jumpi
   push 160
@@ -794,8 +785,7 @@ bb74:
   push 224
   add
   mstore
-  swap1
-  lt
+  gt
   push bb64
   jumpi
   push 0
@@ -940,8 +930,7 @@ bb77:
   push 224
   add
   mstore
-  swap1
-  lt
+  gt
   push bb64
   jumpi
   push 160
@@ -1024,8 +1013,7 @@ bb78:
   dup1
   push 224
   mstore
-  swap1
-  lt
+  gt
   push bb64
   jumpi
   push 448
@@ -1044,8 +1032,7 @@ bb78:
   dup1
   push 320
   mstore
-  swap1
-  lt
+  gt
   push bb64
   jumpi
   push 480
@@ -1064,8 +1051,7 @@ bb78:
   dup1
   push 352
   mstore
-  swap1
-  lt
+  gt
   push bb64
   jumpi
   push 544
@@ -1136,8 +1122,7 @@ bb80:
   push 448
   add
   mstore
-  swap1
-  lt
+  gt
   push bb64
   jumpi
   push 0
@@ -1198,8 +1183,7 @@ bb80:
   push 416
   add
   mstore
-  swap1
-  lt
+  gt
   push bb64
   jumpi
   push 160
@@ -1287,8 +1271,7 @@ bb82:
   push 288
   add
   mstore
-  swap1
-  lt
+  gt
   push bb64
   jumpi
   push bb81
@@ -1368,8 +1351,7 @@ bb84:
   push 96
   add
   mload
-  swap1
-  lt
+  gt
   swap1
   pop
   push bb64
@@ -1406,8 +1388,7 @@ bb85:
   push bb84
   jump bb69
 bb86:
-  swap1
-  lt
+  gt
   push bb64
   jumpi
   push 160

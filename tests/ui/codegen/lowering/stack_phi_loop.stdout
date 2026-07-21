@@ -41,8 +41,7 @@ bb7:
   swap1
   sub
   push 64
-  swap1
-  slt
+  sgt
   push bb6
   jumpi
   push 36
@@ -157,8 +156,7 @@ bb17:
   dup1
   push 256
   mstore
-  swap1
-  lt
+  gt
   push bb47
   jumpi
   push 320
@@ -177,8 +175,7 @@ bb17:
   dup1
   push 288
   mstore
-  swap1
-  lt
+  gt
   iszero
   push bb16
   jumpi
@@ -201,8 +198,7 @@ bb21:
   swap1
   sub
   push 64
-  swap1
-  slt
+  sgt
   push bb6
   jumpi
   push 0
@@ -324,8 +320,7 @@ bb31:
   dup1
   push 256
   mstore
-  swap1
-  lt
+  gt
   push bb47
   jumpi
   push 416
@@ -344,8 +339,7 @@ bb31:
   dup1
   push 352
   mstore
-  swap1
-  lt
+  gt
   iszero
   push bb30
   jumpi
@@ -356,8 +350,7 @@ bb34:
   swap1
   sub
   push 64
-  swap1
-  slt
+  sgt
   push bb6
   jumpi
   push 0
@@ -444,8 +437,7 @@ bb43:
   dup1
   push 256
   mstore
-  swap1
-  lt
+  gt
   push bb47
   jumpi
   push 1
@@ -460,8 +452,7 @@ bb43:
   dup1
   push 320
   mstore
-  swap1
-  lt
+  gt
   push bb47
   jumpi
   push 384
@@ -480,8 +471,7 @@ bb43:
   dup1
   push 288
   mstore
-  swap1
-  lt
+  gt
   iszero
   push bb42
   jumpi
