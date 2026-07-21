@@ -307,18 +307,18 @@ impl Default for PipelineOptions {
 }
 
 /// Runs a named MIR pass over a module.
+#[tracing::instrument(
+    name = "mir_pass",
+    level = "debug",
+    skip_all,
+    fields(module = %module.name, pass = pass.name),
+)]
 pub fn run_pass(module: &mut Module, pass: &PassInfo, options: PipelineOptions) -> bool {
     // Passes declare which phases they operate on; the manager enforces it so a
     // pipeline entry cannot silently corrupt a module in the wrong phase.
     if !pass.admits(module) {
         return false;
     }
-    let _guard = tracing::debug_span!(
-        "mir_pass",
-        module = %module.name,
-        pass = pass.name,
-    )
-    .entered();
     if options.validate_after_each {
         validate_module_after_pass(module, "input");
     }
@@ -349,8 +349,13 @@ fn run_pipeline(module: &mut Module, passes: &[PassInfo], options: PipelineOptio
 /// This is a phase transition: the module comes out in `MirPhase::Optimized`.
 /// Ad-hoc pass lists run through `run_pipeline`, such as `solar mir-opt`
 /// invocations, deliberately do not advance the phase.
+#[tracing::instrument(
+    name = "mir_pipeline",
+    level = "debug",
+    skip_all,
+    fields(module = %module.name),
+)]
 pub fn run_default_pipeline(module: &mut Module, options: PipelineOptions) -> bool {
-    let _guard = tracing::debug_span!("mir_pipeline", module = %module.name).entered();
     let mut changed = run_pipeline(module, DEFAULT_PIPELINE, options);
     changed |=
         run_cleanup_pipeline_to_fixpoint(module, DEFAULT_CLEANUP_PIPELINE, options, "cleanup");
