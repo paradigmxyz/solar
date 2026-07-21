@@ -47,15 +47,13 @@ bb9:
   dup3
   add
   dup2
-  dup2
+  swap1
   mstore
-  pop
   push 31
   dup2
   add
   push 31
   not
-  swap1
   and
   push 64
   dup4
@@ -66,9 +64,8 @@ bb9:
   dup2
   add
   push 0
-  dup2
+  swap1
   mstore
-  pop
   push 32
   push 288
   mload
@@ -82,7 +79,6 @@ bb9:
   swap1
   pop
   push 64
-  swap1
   add
   dup2
   return
@@ -149,8 +145,7 @@ bb9:
   swap1
   sub
   push 32
-  swap1
-  slt
+  sgt
   push bb8
   jumpi
   push bb38
@@ -202,8 +197,7 @@ bb14:
   swap1
   sub
   push 32
-  swap1
-  slt
+  sgt
   push bb8
   jumpi
   push bb39
@@ -221,8 +215,7 @@ bb19:
   swap1
   sub
   push 32
-  swap1
-  slt
+  sgt
   push bb8
   jumpi
   push bb40
@@ -240,8 +233,7 @@ bb24:
   swap1
   sub
   push 32
-  swap1
-  slt
+  sgt
   push bb8
   jumpi
   push bb41
@@ -252,8 +244,7 @@ bb29:
   swap1
   sub
   push 32
-  swap1
-  slt
+  sgt
   push bb8
   jumpi
   push bb42

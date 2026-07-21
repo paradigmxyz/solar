@@ -1,0 +1,51 @@
+// === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/constant_rhs.evmir (after peephole) ===
+@module module
+bb0 (entry):
+  push 2
+  stop
+bb1:
+  push 2
+  stop
+bb2:
+  push 2
+  stop
+bb3:
+  push 2
+  stop
+bb4:
+  push 2
+  stop
+bb5:
+  push 2
+  stop
+bb6:
+  push 2
+  iszero
+  stop
+bb7:
+  push 0
+  stop
+bb8:
+  push 0
+  stop
+bb9:
+  push 0
+  stop
+bb10:
+  push 0
+  stop
+bb11:
+  push 0
+  stop
+bb12:
+  push 0
+  stop
+bb13:
+  push 0
+  stop
+bb14:
+  push 2
+  stop
+bb15:
+  push 1
+  stop

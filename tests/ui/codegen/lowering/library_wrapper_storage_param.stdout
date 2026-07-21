@@ -44,8 +44,7 @@ bb5:
   swap1
   sub
   push 128
-  swap1
-  slt
+  sgt
   push bb4
   jumpi
   push 2
@@ -141,8 +140,7 @@ bb5:
   dup1
   push 192
   mstore
-  swap1
-  lt
+  gt
   push bb11
   jumpi
   push 256

@@ -769,6 +769,12 @@ impl EvmCodegen {
         (artifact.deployment, artifact.runtime)
     }
 
+    #[tracing::instrument(
+        name = "evm_codegen",
+        level = "debug",
+        skip_all,
+        fields(module = %module.name),
+    )]
     fn generate_deployment_artifact(&mut self, module: &mut Module) -> EvmArtifact {
         if module.is_interface {
             return EvmArtifact::default();
@@ -4792,6 +4798,15 @@ impl EvmCodegen {
         self.asm.emit_op(op::JUMP);
     }
 
+    fn emit_external_stop(&mut self) {
+        if let Some(exit) = self.constructor_exit {
+            self.asm.emit_push_label(exit);
+            self.asm.emit_op(op::JUMP);
+        } else {
+            self.asm.emit_op(op::STOP);
+        }
+    }
+
     /// Generates bytecode for a terminator.
     fn generate_terminator(
         &mut self,
@@ -4967,9 +4982,7 @@ impl EvmCodegen {
                 }
 
                 assert!(values.is_empty(), "external ABI returns with values must use ReturnData");
-                self.asm.emit_push(U256::ZERO);
-                self.asm.emit_push(U256::ZERO);
-                self.asm.emit_op(op::RETURN);
+                self.emit_external_stop();
             }
 
             Terminator::Revert { offset, size } => {
@@ -4990,11 +5003,8 @@ impl EvmCodegen {
             Terminator::Stop => {
                 if self.in_internal_function {
                     self.emit_internal_return(func, &[]);
-                } else if let Some(exit) = self.constructor_exit {
-                    self.asm.emit_push_label(exit);
-                    self.asm.emit_op(op::JUMP);
                 } else {
-                    self.asm.emit_op(op::STOP);
+                    self.emit_external_stop();
                 }
             }
 
@@ -5044,7 +5054,7 @@ mod tests {
     use snapbox::assert_data_eq;
     use solar_config::{CompileOpts, UnstableOpts};
     use solar_interface::{Ident, Session, kw, sym};
-    use solar_sema::Compiler;
+    use solar_sema::{Compiler, hir::Visibility};
     use std::{ops::ControlFlow, path::PathBuf};
 
     #[test]
@@ -5102,6 +5112,18 @@ REVERT
 
 "#]]
         );
+    }
+
+    #[test]
+    fn empty_external_return_falls_off_end() {
+        let mut function = Function::new(Ident::with_dummy_span(sym::Test));
+        function.attributes.visibility = Visibility::External;
+        FunctionBuilder::new(&mut function).ret(Vec::new());
+
+        let mut codegen = EvmCodegen::new(EvmCodegenConfig::default());
+        codegen.generate_function_body(&function);
+
+        assert!(codegen.asm.assemble().bytecode.is_empty());
     }
 
     #[test]

@@ -307,6 +307,12 @@ impl Default for PipelineOptions {
 }
 
 /// Runs a named MIR pass over a module.
+#[tracing::instrument(
+    name = "mir_pass",
+    level = "debug",
+    skip_all,
+    fields(module = %module.name, pass = pass.name),
+)]
 pub fn run_pass(module: &mut Module, pass: &PassInfo, options: PipelineOptions) -> bool {
     // Passes declare which phases they operate on; the manager enforces it so a
     // pipeline entry cannot silently corrupt a module in the wrong phase.
@@ -343,6 +349,12 @@ fn run_pipeline(module: &mut Module, passes: &[PassInfo], options: PipelineOptio
 /// This is a phase transition: the module comes out in `MirPhase::Optimized`.
 /// Ad-hoc pass lists run through `run_pipeline`, such as `solar mir-opt`
 /// invocations, deliberately do not advance the phase.
+#[tracing::instrument(
+    name = "mir_pipeline",
+    level = "debug",
+    skip_all,
+    fields(module = %module.name),
+)]
 pub fn run_default_pipeline(module: &mut Module, options: PipelineOptions) -> bool {
     let mut changed = run_pipeline(module, DEFAULT_PIPELINE, options);
     changed |=

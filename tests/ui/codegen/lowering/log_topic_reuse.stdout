@@ -44,8 +44,7 @@ bb7:
   swap1
   sub
   push 32
-  swap1
-  slt
+  sgt
   push bb5
   jumpi
   push 4

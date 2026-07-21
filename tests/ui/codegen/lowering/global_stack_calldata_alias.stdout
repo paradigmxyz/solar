@@ -43,8 +43,7 @@ bb5:
   swap1
   sub
   push 64
-  swap1
-  slt
+  sgt
   push 36
   calldataload
   swap1
@@ -204,7 +203,6 @@ bb18:
   jump bb26
 bb21:
   push 5
-  swap1
   sub
   push bb25
   jumpi

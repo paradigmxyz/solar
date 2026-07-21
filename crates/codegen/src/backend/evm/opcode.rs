@@ -280,6 +280,13 @@ pub(crate) const fn dup(n: u8) -> u8 {
     DUP1 + n - 1
 }
 
+/// Returns the SWAP opcode for the given depth (1-16).
+#[must_use]
+pub(crate) const fn swap(n: u8) -> u8 {
+    debug_assert!(n >= 1 && n <= 16);
+    SWAP1 + n - 1
+}
+
 /// Returns whether an opcode halts or unconditionally transfers control.
 #[must_use]
 pub(crate) const fn is_terminal(op: u8) -> bool {

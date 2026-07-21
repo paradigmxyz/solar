@@ -29,6 +29,16 @@ fn @remove_zero_length_copies(arg0: u256) -> u256 {
     ret arg0
 }
 
+fn @stop_zero_length_external_return(arg0: u256) {
+  bb0 (entry):
+    stop
+}
+
+fn @preserve_zero_length_internal_return(arg0: u256) {
+  bb0 (entry):
+    returndata arg0, 0
+}
+
 fn @fold_modular_helpers(arg0: u256) -> u256 {
   bb0 (entry):
     ret 0

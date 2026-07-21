@@ -5,11 +5,16 @@ use crate::{
     config::negotiate_capabilities,
     test_support::{MarkedProject, TestProject},
 };
-use async_lsp::ClientSocket;
+use async_lsp::{ClientSocket, router::Router};
 use lsp_types::{
-    DocumentSymbol, SymbolKind, WatchKind, WorkspaceSymbol, notification::Notification,
+    Diagnostic, DidChangeTextDocumentParams, DidSaveTextDocumentParams, DocumentSymbol, Position,
+    Range, SymbolKind, TextDocumentContentChangeEvent, TextDocumentIdentifier,
+    VersionedTextDocumentIdentifier, WatchKind, WorkspaceSymbol, notification,
+    notification::Notification,
 };
 use std::{path::Path, time::Duration};
+use tokio::sync::mpsc;
+use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 mod completion;
 mod document_highlight;
@@ -24,6 +29,8 @@ mod signature_help;
 mod support;
 mod type_definition;
 
+const ASYNC_TEST_TIMEOUT: Duration = Duration::from_secs(5);
+
 fn snapshot(project: &TestProject) -> GlobalStateSnapshot {
     snapshot_with_config(project.config(), project.vfs())
 }
@@ -36,10 +43,367 @@ fn snapshot_with_config(config: Config, vfs: Vfs) -> GlobalStateSnapshot {
         config: Arc::new(config),
         analysis_version: Arc::new(AtomicUsize::new(1)),
         published_analysis_version,
+        analysis_commit: Arc::new(Default::default()),
         flycheck_versions: Arc::new(Default::default()),
         symbol_tables: Arc::new(Default::default()),
         diagnostics: Arc::new(Default::default()),
     }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn clearing_analysis_cache_publishes_an_empty_current_snapshot() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Cached.sol
+        contract Cached {}
+        "#,
+    );
+    let mut batches = snapshot(&project).analysis_batches(Vec::new());
+    let old_tables = analyze(batches.pop().unwrap()).symbol_tables;
+    assert!(!old_tables.workspace_symbols("").is_empty());
+
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    *state.symbol_tables.write() = old_tables;
+    let uri = Url::from_file_path(project.path("/Cached.sol")).unwrap();
+    let owner = flycheck_owner(project.root());
+    let compiler_diagnostic = diagnostic("compiler");
+    let flycheck_diagnostic = diagnostic("flycheck");
+    let mut state_snapshot = state.snapshot();
+    state_snapshot.publish_diagnostics(
+        DiagnosticOwner::Compiler,
+        DiagnosticMap::from_iter([(uri.clone(), vec![compiler_diagnostic])]),
+    );
+    state_snapshot.publish_diagnostics(
+        owner,
+        DiagnosticMap::from_iter([(uri.clone(), vec![flycheck_diagnostic])]),
+    );
+
+    state.clear_analysis_cache();
+
+    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("cleared analysis should be published")
+        .unwrap();
+    assert!(tables.read().workspace_symbols("").is_empty());
+    assert!(state.analysis_cache_invalidated());
+
+    let probe_owner =
+        DiagnosticOwner::Flycheck { id: "probe".into(), workspace: project.root().into() };
+    let batches = state.diagnostics.write().replace_and_publish_batches(
+        probe_owner,
+        DiagnosticMap::from_iter([(uri, vec![diagnostic("probe")])]),
+    );
+    assert_eq!(batches.len(), 1);
+    let mut messages =
+        batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>();
+    messages.sort_unstable();
+    assert_eq!(messages, ["flycheck", "probe"]);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn clearing_analysis_cache_publishes_compiler_diagnostic_removals() {
+    let (server_main, client_socket) = async_lsp::MainLoop::new_server(|_| Router::new(()));
+    let (notifications_tx, mut notifications_rx) = mpsc::unbounded_channel();
+    let (client_main, _server_socket) = async_lsp::MainLoop::new_client(move |_| {
+        let mut router = Router::new(notifications_tx);
+        router.notification::<notification::PublishDiagnostics>(|notifications, params| {
+            notifications.send(params).unwrap();
+            ControlFlow::Continue(())
+        });
+        router
+    });
+
+    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
+    let (server_rx, server_tx) = tokio::io::split(server_stream);
+    let server_task =
+        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
+    let (client_rx, client_tx) = tokio::io::split(client_stream);
+    let client_task =
+        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+
+    let mut state = GlobalState::new(client_socket);
+    let compiler_only = Url::parse("file:///workspace/CompilerOnly.sol").unwrap();
+    let shared = Url::parse("file:///workspace/Shared.sol").unwrap();
+    let owner = flycheck_owner("/workspace");
+    let mut snapshot = state.snapshot();
+    snapshot.publish_diagnostics(
+        DiagnosticOwner::Compiler,
+        DiagnosticMap::from_iter([
+            (compiler_only.clone(), vec![diagnostic("compiler only")]),
+            (shared.clone(), vec![diagnostic("compiler shared")]),
+        ]),
+    );
+    snapshot.publish_diagnostics(
+        owner,
+        DiagnosticMap::from_iter([(shared.clone(), vec![diagnostic("flycheck")])]),
+    );
+    for _ in 0..3 {
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, notifications_rx.recv())
+            .await
+            .expect("seed diagnostics should be published")
+            .expect("diagnostic channel should stay open");
+    }
+
+    state.clear_analysis_cache();
+
+    let mut cleared = Vec::new();
+    for _ in 0..2 {
+        cleared.push(
+            tokio::time::timeout(ASYNC_TEST_TIMEOUT, notifications_rx.recv())
+                .await
+                .expect("cleared diagnostics should be published")
+                .expect("diagnostic channel should stay open"),
+        );
+    }
+    cleared.sort_by(|lhs, rhs| lhs.uri.as_str().cmp(rhs.uri.as_str()));
+    assert_eq!(cleared[0].uri, compiler_only);
+    assert!(cleared[0].diagnostics.is_empty());
+    assert_eq!(cleared[1].uri, shared);
+    assert_eq!(
+        cleared[1]
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>(),
+        ["flycheck"]
+    );
+
+    server_task.abort();
+    client_task.abort();
+    let _ = server_task.await;
+    let _ = client_task.await;
+}
+
+#[test]
+fn clearing_analysis_cache_rejects_older_analysis_results() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Stale.sol
+        contract Stale {}
+        "#,
+    );
+    let mut batches = snapshot(&project).analysis_batches(Vec::new());
+    let mut stale_result = analyze(batches.pop().unwrap());
+    let uri = Url::from_file_path(project.path("/Stale.sol")).unwrap();
+    stale_result.diagnostics.insert(uri.clone(), vec![diagnostic("stale compiler")]);
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.mark_analysis_pending_for_test();
+    let mut stale_snapshot = state.snapshot();
+
+    state.clear_analysis_cache();
+
+    assert!(!stale_snapshot.publish_analysis(1, stale_result));
+    assert!(state.symbol_tables.read().workspace_symbols("").is_empty());
+    let probe_owner =
+        DiagnosticOwner::Flycheck { id: "probe".into(), workspace: project.root().into() };
+    let batches = state.diagnostics.write().replace_and_publish_batches(
+        probe_owner,
+        DiagnosticMap::from_iter([(uri, vec![diagnostic("probe")])]),
+    );
+    assert_eq!(
+        batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>(),
+        ["probe"]
+    );
+}
+
+#[test]
+fn reindex_if_invalidated_is_a_no_op_for_a_current_cache() {
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    let version = state.analysis_version.load(Ordering::Acquire);
+
+    state.reindex_if_invalidated();
+
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), version);
+    assert!(!state.analysis_cache_invalidated());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn failed_current_analysis_unblocks_waiters_and_invalidates_cache() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Old.sol
+        contract Old {}
+        "#,
+    );
+    let mut batches = snapshot(&project).analysis_batches(Vec::new());
+    let old_tables = analyze(batches.pop().unwrap()).symbol_tables;
+    let uri = Url::from_file_path(project.path("/Old.sol")).unwrap();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    *state.symbol_tables.write() = old_tables;
+    state.snapshot().publish_diagnostics(
+        DiagnosticOwner::Compiler,
+        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("old compiler")])]),
+    );
+
+    let version = state.begin_analysis(AnalysisMode::Recompute, Vec::new()).unwrap();
+    let task = tokio::spawn(async { panic!("test analysis failure") });
+    state.monitor_analysis_task(version, task);
+
+    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("failed analysis should release waiters")
+        .unwrap();
+    assert!(tables.read().workspace_symbols("Old").iter().any(|symbol| symbol.name == "Old"));
+    assert!(state.analysis_cache_invalidated());
+
+    let probe_owner =
+        DiagnosticOwner::Flycheck { id: "probe".into(), workspace: project.root().into() };
+    let batches = state.diagnostics.write().replace_and_publish_batches(
+        probe_owner,
+        DiagnosticMap::from_iter([(uri, vec![diagnostic("probe")])]),
+    );
+    let mut messages =
+        batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>();
+    messages.sort_unstable();
+    assert_eq!(messages, ["old compiler", "probe"]);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn cancelled_current_analysis_unblocks_waiters_and_invalidates_cache() {
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+
+    let version = state.begin_analysis(AnalysisMode::Recompute, Vec::new()).unwrap();
+    let task = tokio::spawn(std::future::pending::<()>());
+    task.abort();
+    state.monitor_analysis_task(version, task);
+
+    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("cancelled analysis should release waiters")
+        .unwrap();
+    assert!(tables.read().workspace_symbols("").is_empty());
+    assert!(state.analysis_cache_invalidated());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn reindex_rediscovers_disk_files_without_preclearing_the_old_index() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Old.sol
+        contract Old {}
+        "#,
+    );
+    let config = project.config();
+    let mut batches = snapshot_with_config(config.clone(), Vfs::default()).analysis_batches(vec![]);
+    let old_tables = analyze(batches.pop().unwrap()).symbol_tables;
+    project.remove_file("/src/Old.sol");
+    project.write_file("/src/New.sol", "contract New {}");
+
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+    *state.symbol_tables.write() = old_tables;
+    let tables = state.symbol_tables.clone();
+    {
+        let current_tables = tables.write();
+
+        state.reindex();
+
+        assert!(current_tables.workspace_symbols("Old").iter().any(|symbol| symbol.name == "Old"));
+        assert!(current_tables.workspace_symbols("New").is_empty());
+    }
+
+    let new_tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("reindex should finish")
+        .unwrap();
+    let new_tables = new_tables.read();
+    assert!(new_tables.workspace_symbols("Old").is_empty());
+    assert!(new_tables.workspace_symbols("New").iter().any(|symbol| symbol.name == "New"));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn save_after_clear_rediscovers_disk_files_and_preserves_vfs_overlays() {
+    let mut project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Open.sol
+        contract DiskVersion {}
+        "#,
+    );
+    project.open_file("/src/Open.sol", "contract Unsaved {}");
+    let config = project.config();
+    project.write_file("/src/New.sol", "contract New {}");
+
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+    state.vfs = Arc::new(RwLock::new(project.vfs()));
+    state.clear_analysis_cache();
+
+    let result = crate::handlers::did_save_text_document(
+        &mut state,
+        DidSaveTextDocumentParams {
+            text_document: TextDocumentIdentifier::new(
+                Url::from_file_path(project.path("/src/Open.sol")).unwrap(),
+            ),
+            text: None,
+        },
+    );
+    assert!(matches!(result, ControlFlow::Continue(())));
+
+    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("save should rebuild an invalidated cache")
+        .unwrap();
+    let tables = tables.read();
+    assert!(tables.workspace_symbols("DiskVersion").is_empty());
+    assert!(tables.workspace_symbols("Unsaved").iter().any(|symbol| symbol.name == "Unsaved"));
+    assert!(tables.workspace_symbols("New").iter().any(|symbol| symbol.name == "New"));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn no_op_change_after_clear_recovers_the_invalidated_cache() {
+    let mut project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Open.sol
+        contract DiskVersion {}
+        "#,
+    );
+    project.open_file("/src/Open.sol", "contract Unsaved {}");
+    let config = project.config();
+    project.write_file("/src/New.sol", "contract New {}");
+    let uri = Url::from_file_path(project.path("/src/Open.sol")).unwrap();
+
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+    state.vfs = Arc::new(RwLock::new(project.vfs()));
+    state.clear_analysis_cache();
+
+    let result = crate::handlers::did_change_text_document(
+        &mut state,
+        DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier::new(uri, 1),
+            content_changes: vec![TextDocumentContentChangeEvent {
+                range: Some(Range::new(Position::new(0, 0), Position::new(0, 0))),
+                range_length: Some(0),
+                text: String::new(),
+            }],
+        },
+    );
+    assert!(matches!(result, ControlFlow::Continue(())));
+
+    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("no-op change should rebuild an invalidated cache")
+        .unwrap();
+    let tables = tables.read();
+    assert!(tables.workspace_symbols("DiskVersion").is_empty());
+    assert!(tables.workspace_symbols("Unsaved").iter().any(|symbol| symbol.name == "Unsaved"));
+    assert!(tables.workspace_symbols("New").iter().any(|symbol| symbol.name == "New"));
+}
+
+fn diagnostic(message: &str) -> Diagnostic {
+    Diagnostic::new_simple(Range::new(Position::new(0, 0), Position::new(0, 1)), message.into())
 }
 
 fn flycheck_owner(workspace: impl Into<PathBuf>) -> DiagnosticOwner {
@@ -102,8 +466,8 @@ fn clearing_removed_flychecks_stales_removed_owner_results() {
     assert!(!snapshot.is_current_flycheck(&owner, 0));
 }
 
-#[test]
-fn clearing_removed_file_diagnostics_stales_matching_flycheck_owner_only() {
+#[tokio::test(flavor = "current_thread")]
+async fn recomputing_for_removed_files_stales_matching_flycheck_owner_only() {
     let project = TestProject::from_fixture(
         r#"
         //- /first/foundry.toml
@@ -125,17 +489,42 @@ fn clearing_removed_file_diagnostics_stales_matching_flycheck_owner_only() {
     config.rediscover_workspaces();
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.config = Arc::new(config);
-    let snapshot = state.snapshot();
+    let mut snapshot = state.snapshot();
     let first_owner = flycheck_owner(project.path("/first"));
     let second_owner = flycheck_owner(project.path("/second"));
 
     assert!(snapshot.is_current_flycheck(&first_owner, 0));
     assert!(snapshot.is_current_flycheck(&second_owner, 0));
 
-    state.clear_removed_file_diagnostics([project.path("/first/src/Deleted.sol")]);
+    let deleted_path = project.path("/first/src/Deleted.sol");
+    state.recompute_for_file_changes(vec![deleted_path.clone()], vec![deleted_path.clone()], false);
 
     assert!(!snapshot.is_current_flycheck(&first_owner, 0));
     assert!(snapshot.is_current_flycheck(&second_owner, 0));
+
+    let uri = Url::from_file_path(deleted_path).unwrap();
+    snapshot.publish_flycheck_diagnostics(
+        first_owner,
+        0,
+        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("stale")])]),
+    );
+    snapshot.publish_flycheck_diagnostics(
+        second_owner.clone(),
+        0,
+        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("current")])]),
+    );
+    let batches = state.diagnostics.write().replace_and_publish_batches(
+        second_owner,
+        DiagnosticMap::from_iter([(uri, vec![diagnostic("current")])]),
+    );
+    assert_eq!(
+        batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>(),
+        ["current"]
+    );
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("file-change analysis should finish")
+        .unwrap();
 }
 
 #[test]

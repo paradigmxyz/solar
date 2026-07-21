@@ -25,9 +25,12 @@ pub(crate) fn did_open_text_document(
             Some(Rope::from(params.text_document.text)),
             Some(params.text_document.version),
         );
-        if vfs.mark_clean() {
-            drop(vfs);
+        let changed = vfs.mark_clean();
+        drop(vfs);
+        if changed {
             state.recompute();
+        } else {
+            state.reindex_if_invalidated();
         }
     }
 
@@ -57,6 +60,8 @@ pub(crate) fn did_change_text_document(
         );
         if changed {
             state.recompute();
+        } else {
+            state.reindex_if_invalidated();
         }
     }
 
@@ -84,6 +89,7 @@ pub(crate) fn did_save_text_document(
     state: &mut GlobalState,
     params: DidSaveTextDocumentParams,
 ) -> NotifyResult {
+    state.reindex_if_invalidated();
     if let Ok(path) = params.text_document.uri.to_file_path() {
         state.run_flychecks_on_save(path);
     }
@@ -97,8 +103,7 @@ pub(crate) fn did_change_configuration(
 ) -> NotifyResult {
     // As stated in https://github.com/microsoft/language-server-protocol/issues/676,
     // this notification's parameters should be ignored and the actual config queried separately.
-    rediscover_workspaces(state);
-    state.recompute();
+    state.reindex();
     ControlFlow::Continue(())
 }
 
@@ -132,12 +137,8 @@ pub(crate) fn did_change_watched_files(
         }
     }
 
-    if should_rediscover {
-        rediscover_workspaces(state);
-    }
-    state.clear_removed_file_diagnostics(removed_paths);
     if should_rediscover || !disk_paths.is_empty() {
-        state.recompute_with_disk_files(disk_paths);
+        state.recompute_for_file_changes(disk_paths, removed_paths, should_rediscover);
     }
 
     ControlFlow::Continue(())
@@ -159,13 +160,7 @@ pub(crate) fn did_change_workspace_folders(
     let added = params.event.added.into_iter().filter_map(|it| it.uri.to_file_path().ok());
     config.add_workspaces(added);
 
-    rediscover_workspaces(state);
-    state.recompute();
+    state.reindex();
 
     ControlFlow::Continue(())
-}
-
-fn rediscover_workspaces(state: &mut GlobalState) {
-    let removed_owners = Arc::make_mut(&mut state.config).rediscover_workspaces();
-    state.clear_removed_flycheck_diagnostics(removed_owners);
 }

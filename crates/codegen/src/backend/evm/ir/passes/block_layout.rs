@@ -9,7 +9,10 @@
 //! interrupt hot code.
 
 use super::utils::{is_evm_terminal, remap_block_order};
-use crate::backend::evm::ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind};
+use crate::backend::evm::{
+    ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind},
+    opcode as op,
+};
 use alloy_primitives::U256;
 use solar_data_structures::bit_set::DenseBitSet;
 
@@ -236,6 +239,7 @@ fn estimated_terminator_size(
 ) -> usize {
     match kind {
         TerminatorKind::Jump(target) => usize::from(Some(*target) != next) * 4,
+        TerminatorKind::Op(op::STOP) => usize::from(next.is_some()),
         TerminatorKind::JumpI { then_block, else_block } => {
             if Some(*else_block) == next {
                 4

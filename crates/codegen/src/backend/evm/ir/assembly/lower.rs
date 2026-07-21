@@ -138,7 +138,9 @@ fn lower_terminator(
             }
         }
         ir::TerminatorKind::Op(opcode) => {
-            program.instructions.push(AsmInst::op(*opcode));
+            if *opcode != op::STOP || next_block(module, block_id).is_some() {
+                program.instructions.push(AsmInst::op(*opcode));
+            }
         }
     }
 }
@@ -201,7 +203,6 @@ mod tests {
                 AsmInstKind::Op(op::JUMPI),
                 AsmInstKind::Op(op::STOP),
                 AsmInstKind::Label(_),
-                AsmInstKind::Op(op::STOP),
             ]
         ));
     }

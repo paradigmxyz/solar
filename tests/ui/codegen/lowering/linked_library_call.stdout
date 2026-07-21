@@ -25,8 +25,7 @@ bb0 (entry):
   swap1
   sub
   push 96
-  swap1
-  slt
+  sgt
   push bb4
   jumpi
   push 36
@@ -141,8 +140,7 @@ bb0 (entry):
   swap1
   sub
   push 64
-  swap1
-  slt
+  sgt
   push bb4
   jumpi
   push 4
@@ -177,27 +175,24 @@ bb0 (entry):
   mload
   add
   push 0
-  dup2
+  swap1
   mstore
-  pop
   push 36
   push 160
   mload
   add
   push 4
   calldataload
-  dup2
+  swap1
   mstore
-  pop
   push 68
   push 160
   mload
   add
   push 36
   calldataload
-  dup2
+  swap1
   mstore
-  pop
   gas
   push 32
   push 0

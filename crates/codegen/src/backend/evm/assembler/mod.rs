@@ -286,6 +286,11 @@ impl Assembler {
                 (ir::TerminatorKind::Jump(target), 2)
             } else if let Some(last) = block.instructions.last()
                 && !last.is_encoded_push()
+                && last.opcode == op::STOP
+            {
+                (ir::TerminatorKind::Op(op::STOP), 1)
+            } else if let Some(last) = block.instructions.last()
+                && !last.is_encoded_push()
                 && op::is_terminal(last.opcode)
             {
                 (ir::TerminatorKind::Op(last.opcode), 1)
@@ -306,6 +311,12 @@ impl Assembler {
         result
     }
 
+    #[tracing::instrument(
+        name = "evm_ir_pipeline",
+        level = "debug",
+        skip_all,
+        fields(program = %self.program.name()),
+    )]
     pub(in crate::backend::evm) fn prepare(&mut self) -> PreparedAssembly {
         solar_interface::enter(|| self.prepare_inner())
     }
@@ -701,7 +712,6 @@ mod tests {
             disassemble(&first.bytecode),
             str![[r#"
 PUSH4 0x80000000
-STOP
 
 "#]]
         );
@@ -715,7 +725,6 @@ STOP
             disassemble(&second.bytecode),
             str![[r#"
 PUSH1 0x02
-STOP
 
 "#]]
         );
@@ -736,7 +745,6 @@ STOP
             disassemble(&result.bytecode),
             str![[r#"
 PUSH0
-STOP
 
 "#]]
         );
@@ -757,7 +765,6 @@ STOP
             disassemble(&result.bytecode),
             str![[r#"
 PUSH1 0x00
-STOP
 
 "#]]
         );
@@ -791,7 +798,6 @@ STOP
             str![[r#"
 PUSH0
 NOT
-STOP
 
 "#]]
         );
@@ -800,7 +806,6 @@ STOP
             str![[r#"
 PUSH0
 NOT
-STOP
 
 "#]]
         );
@@ -808,7 +813,6 @@ STOP
             disassemble(&unoptimized.assemble().bytecode),
             str![[r#"
 PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-STOP
 
 "#]]
         );
@@ -830,7 +834,6 @@ STOP
             str![[r#"
 PUSH1 0x00
 NOT
-STOP
 
 "#]]
         );
@@ -853,7 +856,6 @@ STOP
 PUSH1 0x2a
 PUSH1 0x0a
 ADD
-STOP
 
 "#]]
         );
@@ -888,7 +890,6 @@ JUMPI
 PUSH0
 JUMP
 JUMPDEST
-STOP
 
 "#]]
         );
@@ -931,7 +932,6 @@ PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 PUSH19 0x01000000000000000000000000000000000000
 JUMPDEST
-STOP
 
 "#]]
         );
@@ -1115,7 +1115,6 @@ REVERT
             str![[r#"
 PUSH0
 NOT
-STOP
 
 "#]]
         );
@@ -1138,7 +1137,6 @@ PUSH0
 NOT
 PUSH1 0x60
 SHR
-STOP
 
 "#]]
         );
@@ -1158,7 +1156,6 @@ STOP
             str![[r#"
 PUSH1 0x1f
 NOT
-STOP
 
 "#]]
         );
@@ -1178,7 +1175,6 @@ STOP
             str![[r#"
 PUSH1 0xff
 NOT
-STOP
 
 "#]]
         );
@@ -1200,7 +1196,6 @@ STOP
 PUSH4 0x35ea6a75
 PUSH1 0xe0
 SHL
-STOP
 
 "#]]
         );
@@ -1223,7 +1218,6 @@ STOP
 PUSH17 0x4d616368696e652066696e69736865643a
 PUSH1 0x78
 SHL
-STOP
 
 "#]]
         );
