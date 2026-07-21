@@ -35,6 +35,49 @@ contract SwitchTables {
         }
     }
 
+    function sparse(uint256 key) external pure returns (uint256) {
+        return sparseInternal(key);
+    }
+
+    function sparseInternal(uint256 key) internal pure returns (uint256 result) {
+        assembly {
+            switch key
+            case 0xcbf99d38 { result := 200 }
+            case 0x87d912cb { result := 201 }
+            case 0x920f5c73 { result := 202 }
+            case 0x41052a0d { result := 203 }
+            case 0x7238232f { result := 204 }
+            case 0x905f7d67 { result := 205 }
+            case 0x3b88f6c2 { result := 206 }
+            case 0xaa66aa63 { result := 207 }
+            case 0x24a75cfd { result := 208 }
+            case 0x98e9a73d { result := 209 }
+            case 0xebd25c8f { result := 210 }
+            case 0x8a67ee70 { result := 211 }
+            case 0xc43b1a78 { result := 212 }
+            case 0xebbd40a9 { result := 213 }
+            case 0x1eb6457a { result := 214 }
+            case 0xdca2fb5a { result := 215 }
+            case 0x67e648b5 { result := 216 }
+            case 0xe6e0ae36 { result := 217 }
+            case 0xcba58af7 { result := 218 }
+            case 0x6d4975a2 { result := 219 }
+            case 0x8dc714ba { result := 220 }
+            case 0x54eaadab { result := 221 }
+            case 0x10c772cc { result := 222 }
+            case 0x4e580bc4 { result := 223 }
+            case 0x965a68f5 { result := 224 }
+            case 0xd758c88e { result := 225 }
+            case 0x6d738a50 { result := 226 }
+            case 0xf02a00c9 { result := 227 }
+            case 0x40bcff2a { result := 228 }
+            case 0x5fb43592 { result := 229 }
+            case 0x3d492ec4 { result := 230 }
+            case 0x1f49dbe7 { result := 231 }
+            default { result := 999 }
+        }
+    }
+
     function f00() external {
         value = 0;
     }
@@ -253,5 +296,12 @@ contract SwitchTablesTest {
         assert(tables.dense(21) == 111);
         assert(tables.dense(33) == 123);
         assert(tables.dense(34) == 999);
+    }
+
+    function testSparseInternalSwitch() public view {
+        assert(tables.sparse(0xcbf99d38) == 200);
+        assert(tables.sparse(0x67e648b5) == 216);
+        assert(tables.sparse(0x1f49dbe7) == 231);
+        assert(tables.sparse(1) == 999);
     }
 }

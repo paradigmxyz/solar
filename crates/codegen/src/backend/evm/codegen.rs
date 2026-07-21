@@ -4997,9 +4997,18 @@ impl EvmCodegen {
             buckets[bucket_index(entry.value, bucket_count)].push(entry);
         }
         let default_label = self.block_labels[&default];
+        let empty_label = (!self.emitting_dispatch_entry
+            && buckets.iter().any(|bucket| bucket.is_empty()))
+        .then(|| self.asm.new_label());
         let bucket_labels: Vec<_> = buckets
             .iter()
-            .map(|bucket| if bucket.is_empty() { default_label } else { self.asm.new_label() })
+            .map(|bucket| {
+                if bucket.is_empty() {
+                    empty_label.unwrap_or(default_label)
+                } else {
+                    self.asm.new_label()
+                }
+            })
             .collect();
 
         self.asm.emit_op(op::DUP1);
@@ -5014,6 +5023,11 @@ impl EvmCodegen {
         self.scheduler.stack.pop();
 
         let entry_stack = self.scheduler.stack.clone();
+        if let Some(empty_label) = empty_label {
+            self.asm.define_label(empty_label);
+            self.scheduler.stack = entry_stack.clone();
+            self.emit_mir_switch_default(default, false);
+        }
         let last_bucket = buckets.iter().rposition(|bucket| !bucket.is_empty()).unwrap();
         for (index, (label, bucket)) in bucket_labels.into_iter().zip(buckets).enumerate() {
             if bucket.is_empty() {

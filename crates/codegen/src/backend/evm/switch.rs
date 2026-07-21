@@ -13,6 +13,7 @@ const VERY_LOW_GAS: usize = 3;
 const JUMP_GAS: usize = 8;
 const JUMPI_GAS: usize = 10;
 const DEFAULT_JUMP_GAS: usize = VERY_LOW_GAS + JUMP_GAS;
+const POP_GAS: usize = 2;
 const MOD_GAS: usize = 5;
 const MUL_GAS: usize = 5;
 const JUMPDEST_GAS: usize = 1;
@@ -198,6 +199,11 @@ fn bucket_lowering_cost(
         bucket_path_gas[index] += test.gas;
         cost.hit_gas_sum += bucket_path_gas[index];
         cost.miss_gas = cost.miss_gas.max(dispatch_gas + bucket_path_gas[index] + DEFAULT_JUMP_GAS);
+    }
+    if bucket_path_gas.contains(&0) {
+        // One shared JUMPDEST, POP, and default jump for ordinary MIR switches.
+        cost.code_size += JUMPDEST_LEN + 1 + DEFAULT_JUMP_LEN;
+        cost.miss_gas = cost.miss_gas.max(dispatch_gas + POP_GAS + DEFAULT_JUMP_GAS);
     }
     cost
 }
