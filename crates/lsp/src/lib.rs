@@ -28,6 +28,7 @@ mod global_state;
 mod handlers;
 mod hover;
 mod inlay_hints;
+mod natspec_completion;
 mod override_index;
 mod proto;
 mod rename;

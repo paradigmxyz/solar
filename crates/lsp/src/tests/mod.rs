@@ -235,7 +235,7 @@ async fn failed_current_analysis_unblocks_waiters_and_invalidates_cache() {
         DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("old compiler")])]),
     );
 
-    let version = state.begin_analysis(AnalysisMode::Recompute, Vec::new()).unwrap();
+    let version = state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
     let task = tokio::spawn(async { panic!("test analysis failure") });
     state.monitor_analysis_task(version, task);
 
@@ -245,6 +245,7 @@ async fn failed_current_analysis_unblocks_waiters_and_invalidates_cache() {
         .unwrap();
     assert!(tables.read().workspace_symbols("Old").iter().any(|symbol| symbol.name == "Old"));
     assert!(state.analysis_cache_invalidated());
+    assert!(!state.natspec_semantics_are_usable());
 
     let probe_owner =
         DiagnosticOwner::Flycheck { id: "probe".into(), workspace: project.root().into() };
@@ -262,7 +263,7 @@ async fn failed_current_analysis_unblocks_waiters_and_invalidates_cache() {
 async fn cancelled_current_analysis_unblocks_waiters_and_invalidates_cache() {
     let mut state = GlobalState::new(ClientSocket::new_closed());
 
-    let version = state.begin_analysis(AnalysisMode::Recompute, Vec::new()).unwrap();
+    let version = state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
     let task = tokio::spawn(std::future::pending::<()>());
     task.abort();
     state.monitor_analysis_task(version, task);
@@ -425,6 +426,69 @@ fn watched_file_registration_watches_solidity_and_foundry_manifests() {
             ],
         }))
     );
+}
+
+#[test]
+fn pending_missing_source_does_not_reuse_unknown_natspec_semantics() {
+    let project = TestProject::new();
+    let state = GlobalState::new(ClientSocket::new_closed());
+
+    state.mark_source_analysis_pending_for_test(project.path("/Missing.sol"));
+
+    assert!(!state.natspec_semantics_are_usable());
+}
+
+#[test]
+fn pending_context_change_invalidates_natspec_semantics() {
+    let state = GlobalState::new(ClientSocket::new_closed());
+    state.mark_context_analysis_pending_for_test();
+
+    assert!(!state.natspec_semantics_are_usable());
+}
+
+#[test]
+fn publishing_an_epoch_retains_later_pending_source_changes() {
+    let project = TestProject::new();
+    let mut snapshot = snapshot(&project);
+    let published_path = project.path("/Published.sol");
+    let later_path = project.path("/Later.sol");
+    snapshot
+        .analysis_commit
+        .lock()
+        .natspec_pending_source_changes
+        .extend([(published_path.clone(), 1), (later_path.clone(), 2)]);
+
+    assert!(snapshot.publish_symbol_tables(1, SymbolTables::default()));
+
+    let commit = snapshot.analysis_commit.lock();
+    assert_eq!(commit.natspec_symbol_tables_version, 1);
+    assert!(!commit.natspec_pending_source_changes.contains_key(&published_path));
+    assert_eq!(commit.natspec_pending_source_changes.get(&later_path), Some(&2));
+}
+
+#[test]
+fn beginning_analysis_epoch_waits_for_analysis_commit() {
+    let state = GlobalState::new(ClientSocket::new_closed());
+    let commit = state.analysis_commit.lock();
+    let (started_tx, started_rx) = std::sync::mpsc::channel();
+    let (finished_tx, finished_rx) = std::sync::mpsc::channel();
+
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
+            started_tx.send(()).unwrap();
+            state.mark_analysis_pending_for_test();
+            finished_tx.send(()).unwrap();
+        });
+        started_rx.recv().unwrap();
+        let finished_while_locked = finished_rx.recv_timeout(Duration::from_millis(100)).is_ok();
+        drop(commit);
+        if !finished_while_locked {
+            finished_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("analysis epoch should begin after commit unlocks");
+        }
+        assert!(!finished_while_locked, "analysis epoch bypassed analysis commit");
+    });
 }
 
 #[test]

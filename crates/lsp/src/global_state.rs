@@ -51,6 +51,10 @@ enum AnalysisMode {
 #[derive(Default)]
 struct AnalysisCommitState {
     cache_invalidated: bool,
+    /// Last version that actually replaced the symbol tables.
+    natspec_symbol_tables_version: usize,
+    natspec_pending_source_changes: FxHashMap<PathBuf, usize>,
+    natspec_context_change_version: usize,
 }
 
 pub(crate) struct GlobalState {
@@ -134,12 +138,13 @@ impl GlobalState {
     /// enable incremental parsing and analysis in Solar using e.g. [`salsa`].
     ///
     /// [`salsa`]: https://docs.rs/salsa/latest/salsa/
-    pub(crate) fn recompute(&mut self) {
-        self.recompute_with_disk_files(Vec::new());
+    pub(crate) fn recompute_with_disk_files(&mut self, disk_paths: Vec<PathBuf>) {
+        let changed_paths = disk_paths.clone();
+        self.request_analysis(AnalysisMode::Recompute, disk_paths, Vec::new(), changed_paths);
     }
 
-    pub(crate) fn recompute_with_disk_files(&mut self, disk_paths: Vec<PathBuf>) {
-        self.request_analysis(AnalysisMode::Recompute, disk_paths, Vec::new());
+    pub(crate) fn recompute_after_source_changes(&mut self, changed_paths: Vec<PathBuf>) {
+        self.request_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), changed_paths);
     }
 
     pub(crate) fn recompute_for_file_changes(
@@ -148,17 +153,18 @@ impl GlobalState {
         removed_paths: Vec<PathBuf>,
         force_rediscover: bool,
     ) {
+        let changed_paths = disk_paths.clone();
         let mode =
             if force_rediscover { AnalysisMode::Rediscover } else { AnalysisMode::Recompute };
-        self.request_analysis(mode, disk_paths, removed_paths);
+        self.request_analysis(mode, disk_paths, removed_paths, changed_paths);
     }
 
     pub(crate) fn reindex(&mut self) {
-        self.request_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new());
+        self.request_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), Vec::new());
     }
 
     pub(crate) fn reindex_if_invalidated(&mut self) {
-        self.request_analysis(AnalysisMode::IfInvalidated, Vec::new(), Vec::new());
+        self.request_analysis(AnalysisMode::IfInvalidated, Vec::new(), Vec::new(), Vec::new());
     }
 
     pub(crate) fn clear_analysis_cache(&mut self) {
@@ -175,6 +181,9 @@ impl GlobalState {
             publish_diagnostic_batches(&mut self.client, batches);
 
             commit.cache_invalidated = true;
+            commit.natspec_symbol_tables_version = version;
+            commit.natspec_pending_source_changes.retain(|_, changed| *changed > version);
+            commit.natspec_context_change_version = version;
             self.published_analysis_version.send_replace(version);
             old_symbol_tables
         };
@@ -191,9 +200,10 @@ impl GlobalState {
         mode: AnalysisMode,
         disk_paths: Vec<PathBuf>,
         removed_paths: Vec<PathBuf>,
+        changed_paths: Vec<PathBuf>,
     ) {
         let removed_uris = self.prepare_removed_file_diagnostics(removed_paths);
-        let Some(version) = self.begin_analysis(mode, removed_uris) else {
+        let Some(version) = self.begin_analysis(mode, removed_uris, changed_paths) else {
             return;
         };
         let task = self.spawn_with_snapshot(move |mut snapshot| {
@@ -234,7 +244,12 @@ impl GlobalState {
         self.monitor_analysis_task(version, task);
     }
 
-    fn begin_analysis(&mut self, mode: AnalysisMode, removed_uris: Vec<Url>) -> Option<usize> {
+    fn begin_analysis(
+        &mut self,
+        mode: AnalysisMode,
+        removed_uris: Vec<Url>,
+        changed_paths: Vec<PathBuf>,
+    ) -> Option<usize> {
         let (version, rediscover) = {
             let analysis_commit = self.analysis_commit.clone();
             let mut commit = analysis_commit.lock();
@@ -243,10 +258,11 @@ impl GlobalState {
             }
 
             let invalidated = mem::take(&mut commit.cache_invalidated);
-            let version = self.analysis_version.fetch_add(1, Ordering::AcqRel) + 1;
+            let rediscover = matches!(mode, AnalysisMode::Rediscover) || invalidated;
+            let version = self.begin_analysis_epoch(&mut commit, changed_paths, rediscover);
             let batches = self.diagnostics.write().clear_uris_and_publish_batches(removed_uris);
             publish_diagnostic_batches(&mut self.client, batches);
-            (version, matches!(mode, AnalysisMode::Rediscover) || invalidated)
+            (version, rediscover)
         };
 
         if rediscover {
@@ -258,6 +274,22 @@ impl GlobalState {
     fn rediscover_workspaces(&mut self) {
         let removed_owners = Arc::make_mut(&mut self.config).rediscover_workspaces();
         self.clear_removed_flycheck_diagnostics(removed_owners);
+    }
+
+    fn begin_analysis_epoch(
+        &self,
+        commit: &mut AnalysisCommitState,
+        changed_paths: Vec<PathBuf>,
+        context_changed: bool,
+    ) -> usize {
+        let version = self.analysis_version.fetch_add(1, Ordering::AcqRel) + 1;
+        if context_changed {
+            commit.natspec_context_change_version = version;
+        }
+        for path in changed_paths {
+            commit.natspec_pending_source_changes.insert(path, version);
+        }
+        version
     }
 
     /// Waits for analysis results at least as new as the latest version requested before this call.
@@ -275,9 +307,62 @@ impl GlobalState {
         }
     }
 
+    pub(crate) fn natspec_semantics_are_usable(&self) -> bool {
+        let (analysis_version, symbol_tables_version, context_change_version, pending_paths) = {
+            let commit = self.analysis_commit.lock();
+            (
+                self.analysis_version.load(Ordering::Acquire),
+                commit.natspec_symbol_tables_version,
+                commit.natspec_context_change_version,
+                commit.natspec_pending_source_changes.keys().cloned().collect::<Vec<_>>(),
+            )
+        };
+        if symbol_tables_version >= analysis_version {
+            return true;
+        }
+        if context_change_version > symbol_tables_version {
+            return false;
+        }
+
+        for path in pending_paths {
+            let Ok(uri) = Url::from_file_path(&path) else { return false };
+            let analyzed =
+                self.symbol_tables.read().natspec_source_fingerprint(&uri).map(str::to_owned);
+            let vfs_path = crate::vfs::VfsPath::from(path.clone());
+            let open_contents = self.vfs.read().get_file_contents(&vfs_path).cloned();
+            let current = open_contents
+                .map(|contents| contents.to_string())
+                .or_else(|| self.sess.source_map().file_loader().load_file(&path).ok());
+            let current =
+                current.as_deref().map(crate::natspec_completion::source_syntax_fingerprint);
+            if !matches!((analyzed.as_deref(), current.as_deref()),
+                (Some(analyzed), Some(current)) if analyzed == current
+            ) {
+                return false;
+            }
+        }
+        true
+    }
+
     #[cfg(test)]
     pub(crate) fn mark_analysis_pending_for_test(&self) {
-        self.analysis_version.fetch_add(1, Ordering::AcqRel);
+        let analysis_commit = self.analysis_commit.clone();
+        let mut commit = analysis_commit.lock();
+        self.begin_analysis_epoch(&mut commit, Vec::new(), false);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn mark_source_analysis_pending_for_test(&self, path: PathBuf) {
+        let analysis_commit = self.analysis_commit.clone();
+        let mut commit = analysis_commit.lock();
+        self.begin_analysis_epoch(&mut commit, vec![path], false);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn mark_context_analysis_pending_for_test(&self) {
+        let analysis_commit = self.analysis_commit.clone();
+        let mut commit = analysis_commit.lock();
+        self.begin_analysis_epoch(&mut commit, Vec::new(), true);
     }
 
     pub(crate) fn run_flychecks_on_save(&mut self, path: PathBuf) {
@@ -513,13 +598,15 @@ impl GlobalStateSnapshot {
     fn publish_analysis(&mut self, version: usize, result: AnalysisResult) -> bool {
         let old_symbol_tables = {
             let analysis_commit = self.analysis_commit.clone();
-            let _commit = analysis_commit.lock();
+            let mut commit = analysis_commit.lock();
             if !self.is_current(version) {
                 return false;
             }
 
             let old_symbol_tables =
                 mem::replace(&mut *self.symbol_tables.write(), result.symbol_tables);
+            commit.natspec_symbol_tables_version = version;
+            commit.natspec_pending_source_changes.retain(|_, changed| *changed > version);
             let batches = self
                 .diagnostics
                 .write()
@@ -549,6 +636,7 @@ impl GlobalStateSnapshot {
 
         tracing::warn!(%error, version, "analysis task failed");
         commit.cache_invalidated = true;
+        commit.natspec_context_change_version = commit.natspec_context_change_version.max(version);
         self.published_analysis_version.send_replace(version);
     }
 
