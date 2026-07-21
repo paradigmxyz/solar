@@ -13,7 +13,6 @@
 use super::op;
 use alloy_primitives::U256;
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
-use solar_interface::Symbol;
 use solar_parse::lexer::is_ident;
 
 mod display;
@@ -41,7 +40,7 @@ newtype_index! {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Module {
     /// Program name used by tools and diagnostics.
-    pub(crate) name: Symbol,
+    pub(crate) name: String,
     /// Basic blocks in layout order.
     pub(crate) blocks: IndexVec<BlockId, Block>,
     /// The entry block, if one has been created.
@@ -59,21 +58,23 @@ impl Module {
 
     /// Creates an empty EVM IR program.
     #[must_use]
-    pub(crate) fn new(name: Symbol) -> Self {
-        assert!(is_ident(name.as_str()), "invalid EVM IR program name `{name}`");
+    pub(crate) fn new(name: impl Into<String>) -> Self {
+        let name = name.into();
+        assert!(is_ident(&name), "invalid EVM IR program name `{name}`");
         Self { name, blocks: IndexVec::new(), entry_block: None }
     }
 
     /// Changes the program name.
-    pub(crate) fn set_name(&mut self, name: Symbol) {
-        assert!(is_ident(name.as_str()), "invalid EVM IR program name `{name}`");
+    pub(crate) fn set_name(&mut self, name: impl Into<String>) {
+        let name = name.into();
+        assert!(is_ident(&name), "invalid EVM IR program name `{name}`");
         self.name = name;
     }
 
     /// Returns the program name.
     #[must_use]
     pub fn name(&self) -> &str {
-        self.name.as_str()
+        &self.name
     }
 
     /// Adds a block to the program.

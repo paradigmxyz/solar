@@ -781,7 +781,7 @@ impl EvmCodegen {
         // First generate the runtime code
         let mut runtime_code = self.generate_runtime_code(module);
         if let Some(evm_ir) = &mut runtime_code.evm_ir {
-            evm_ir.set_name(sym::runtime);
+            evm_ir.set_name("runtime");
         }
         let runtime_len = runtime_code.bytecode.len();
         let immutable_refs = std::mem::take(&mut self.runtime_immutable_refs);
@@ -838,7 +838,7 @@ impl EvmCodegen {
         // PUSH<n> copy_base     ; memory offset
         // RETURN                ; return the runtime code
         if let Some(evm_ir) = &mut deploy_code.evm_ir {
-            evm_ir.set_name(sym::deployment);
+            evm_ir.set_name("deployment");
         }
 
         let mut deploy_bytecode = deploy_code.bytecode;

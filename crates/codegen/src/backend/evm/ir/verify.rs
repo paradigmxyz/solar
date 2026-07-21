@@ -30,9 +30,6 @@ impl<'a> Verifier<'a> {
 
     fn verify_module(&self, module: &Module) {
         let errors_before = self.dcx.err_count();
-        if !solar_parse::lexer::is_ident(module.name.as_str()) {
-            self.error(format_args!("invalid program name `{}`", module.name));
-        }
         if module.blocks.is_empty() {
             self.error("program has no blocks");
             return;
