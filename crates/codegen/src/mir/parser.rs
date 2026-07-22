@@ -1572,7 +1572,7 @@ fn @f() {
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
 error: unknown MIR phase `shiny`
-  ╭▸ <test13.mir>:2:8
+  ╭▸ <test15.mir>:2:8
   │
 2 │ @phase shiny
   ╰╴       ━━━━━
