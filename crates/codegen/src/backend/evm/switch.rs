@@ -22,6 +22,8 @@ const JUMPDEST_GAS: usize = 1;
 const INDEXED_JUMP_BASE_LEN: usize = 7;
 const INDEXED_JUMP_GUARD_LEN: usize = 1;
 const MIN_BUCKET_CASES: usize = 8;
+// Bound table footprint and the number of bucket blocks processed by EVM IR passes.
+const MAX_BUCKET_CASES: usize = 64;
 const MAX_DENSE_RANGE: usize = 4096;
 const MAX_BUCKET_CANDIDATES: usize = 33;
 
@@ -58,7 +60,7 @@ pub(super) fn select_switch_plan(
                 best = (cost, SwitchPlan::Binary { leaf_size });
             }
         }
-        if values.len() >= MIN_BUCKET_CASES {
+        if (MIN_BUCKET_CASES..=MAX_BUCKET_CASES).contains(&values.len()) {
             for bucket_count in bucket_count_candidates(values.len()) {
                 let cost =
                     bucket_lowering_cost(values, bucket_count, evm_version, needs_empty_cleanup);
@@ -380,6 +382,15 @@ mod tests {
         assert!(matches!(
             select_switch_plan(&values, OptimizationMode::Gas, EvmVersion::Cancun, true),
             SwitchPlan::Buckets { .. }
+        ));
+    }
+
+    #[test]
+    fn bounds_bucket_table_fanout() {
+        let values = (0..100).map(|value| U256::from(value * 7919)).collect::<Vec<_>>();
+        assert!(matches!(
+            select_switch_plan(&values, OptimizationMode::Gas, EvmVersion::Cancun, true),
+            SwitchPlan::Binary { .. }
         ));
     }
 
