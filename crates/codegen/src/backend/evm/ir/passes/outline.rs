@@ -6,14 +6,14 @@ use crate::backend::evm::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_sema::Gcx;
 use std::hash::{Hash, Hasher};
 
 const MIN_CLOSED_RUN: usize = 4;
 
 type BlockEdits = SmallVec<[(usize, usize, BlockId); 1]>;
-type OutlineEdits = IndexVec<BlockId, BlockEdits>;
+type OutlineEdits = FxHashMap<BlockId, BlockEdits>;
 
 pub(super) fn run(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
@@ -52,16 +52,16 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
         let first = sites[0];
         (std::cmp::Reverse(key.0.len()), first.block.index(), first.start)
     });
-    let mut claimed: IndexVec<BlockId, _> = module
-        .blocks
-        .iter()
-        .map(|block| DenseBitSet::new_empty(block.instructions.len()))
-        .collect();
+    let mut claimed = FxHashMap::<BlockId, DenseBitSet<usize>>::default();
     let mut chosen = Vec::new();
     for (_, sites) in groups {
         let mut free = SmallVec::<[Site; 2]>::new();
         for site in sites {
-            if !claimed[site.block].contains_any(site.start..site.start + site.len) {
+            let instruction_count = module.blocks[site.block].instructions.len();
+            let claimed = claimed
+                .entry(site.block)
+                .or_insert_with(|| DenseBitSet::new_empty(instruction_count));
+            if !claimed.contains_any(site.start..site.start + site.len) {
                 free.push(site);
             }
         }
@@ -78,7 +78,10 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
             continue;
         }
         for site in &free {
-            claimed[site.block].insert_range(site.start..site.start + site.len);
+            claimed
+                .get_mut(&site.block)
+                .expect("candidate block has a claimed-site set")
+                .insert_range(site.start..site.start + site.len);
         }
         chosen.push(ChosenGroup { body, sites: free, height: first.height });
     }
@@ -96,11 +99,10 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
         stub.terminator = Some(Terminator::new(TerminatorKind::Op(op::JUMP)));
         stubs.push(module.add_block(stub));
     }
-    let original_blocks = claimed.len();
-    let mut edits = IndexVec::from_vec(vec![BlockEdits::new(); original_blocks]);
+    let mut edits = OutlineEdits::default();
     for (group, stub) in chosen.into_iter().zip(stubs) {
         for site in group.sites {
-            edits[site.block].push((site.start, site.len, stub));
+            edits.entry(site.block).or_default().push((site.start, site.len, stub));
         }
     }
     apply_outline_edits(module, edits, state);
@@ -137,8 +139,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     }
     values.sort_unstable();
 
-    let original_blocks = module.blocks.len();
-    let mut edits = IndexVec::from_vec(vec![BlockEdits::new(); original_blocks]);
+    let mut edits = OutlineEdits::default();
     for value in values {
         let mut stub = Block::new(state.next_label(module));
         stub.instructions.push(Instruction::push_value(value));
@@ -146,7 +147,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
         stub.terminator = Some(Terminator::new(TerminatorKind::Op(op::JUMP)));
         let stub = module.add_block(stub);
         for &(block, index) in &sites[&value] {
-            edits[block].push((index, 1, stub));
+            edits.entry(block).or_default().push((index, 1, stub));
         }
     }
     apply_outline_edits(module, edits, state);
@@ -154,10 +155,12 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
 }
 
 fn apply_outline_edits(module: &mut Module, mut edits: OutlineEdits, state: &mut RunState) {
-    for block in edits.indices() {
-        let edits = &mut edits[block];
-        edits.sort_unstable_by_key(|(start, _, _)| std::cmp::Reverse(*start));
-        for &(start, len, stub) in edits.iter() {
+    let mut blocks: Vec<_> = edits.keys().copied().collect();
+    blocks.sort_unstable();
+    for block in blocks {
+        let block_edits = edits.get_mut(&block).expect("edit block came from the map");
+        block_edits.sort_unstable_by_key(|(start, _, _)| std::cmp::Reverse(*start));
+        for &(start, len, stub) in block_edits.iter() {
             split_outline_site(module, block, start, len, stub, state);
         }
     }

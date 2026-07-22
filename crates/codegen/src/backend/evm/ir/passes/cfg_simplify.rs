@@ -5,7 +5,7 @@ use crate::backend::evm::{
     ir::{BlockId, Module, PushValue, Terminator, TerminatorKind},
     op,
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
 pub(super) fn run(_gcx: Gcx<'_>, module: &mut Module) -> bool {
@@ -31,7 +31,7 @@ pub(super) fn run(_gcx: Gcx<'_>, module: &mut Module) -> bool {
 }
 
 struct RunState {
-    thunks: IndexVec<BlockId, Option<BlockId>>,
+    thunks: FxHashMap<BlockId, BlockId>,
     reachable: DenseBitSet<BlockId>,
     pending: Vec<BlockId>,
     references: IndexVec<BlockId, usize>,
@@ -42,7 +42,7 @@ struct RunState {
 impl Default for RunState {
     fn default() -> Self {
         Self {
-            thunks: IndexVec::new(),
+            thunks: FxHashMap::default(),
             reachable: DenseBitSet::new_empty(0),
             pending: Vec::new(),
             references: IndexVec::new(),
@@ -54,7 +54,6 @@ impl Default for RunState {
 
 impl RunState {
     fn reserve(&mut self, blocks: usize) {
-        reserve_to(self.thunks.as_mut_vec(), blocks);
         reserve_to(&mut self.pending, blocks);
         reserve_to(self.references.as_mut_vec(), blocks);
         reserve_to(&mut self.order, blocks);
@@ -82,29 +81,25 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
     changed
 }
 
-fn redirect_jump_thunks(
-    module: &mut Module,
-    thunks: &mut IndexVec<BlockId, Option<BlockId>>,
-) -> bool {
+fn redirect_jump_thunks(module: &mut Module, thunks: &mut FxHashMap<BlockId, BlockId>) -> bool {
     thunks.clear();
-    thunks.extend(module.blocks.iter().map(|block| {
-        if block.instructions.is_empty() {
-            match block.terminator.as_ref().map(|term| &term.kind) {
-                Some(TerminatorKind::Jump(target)) => Some(*target),
-                _ => None,
-            }
-        } else {
-            None
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        if block.instructions.is_empty()
+            && let Some(TerminatorKind::Jump(target)) =
+                block.terminator.as_ref().map(|term| &term.kind)
+        {
+            thunks.insert(block_id, *target);
         }
-    }));
-    if thunks.iter().all(Option::is_none) {
+    }
+    if thunks.is_empty() {
         return false;
     }
 
+    let block_count = module.blocks.len();
     let resolve = |start: BlockId| {
         let mut target = start;
-        for _ in 0..thunks.len() {
-            let Some(next) = thunks[target] else { break };
+        for _ in 0..block_count {
+            let Some(&next) = thunks.get(&target) else { break };
             if next == start {
                 return start;
             }

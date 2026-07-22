@@ -296,6 +296,10 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 
 - **Typed index collections**: Use `IndexVec<I, T>` for every collection indexed by an `I` index
   type, including local variables.
+- **Sparse index maps**: Audit every `IndexVec<I, T>` for default or sentinel entries, not only
+  `Option<T>` and its `None` sentinel. Empty collections, zero counts, maximum IDs, and other
+  distinguished values can also indicate sparse storage. When most entries are expected to hold
+  the sentinel, use `FxHashMap<I, T>` and omit them instead.
 - **Index sets**: Never use `Vec<bool>`; a bitset is always the more compact representation. Prefer
   fixed dense or mixed bitsets for compact, stable domains and growable bitsets when new indices
   may be allocated while the set is live. Use hash sets for sparse sets, especially when there are
