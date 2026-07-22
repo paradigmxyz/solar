@@ -490,6 +490,10 @@ pub(crate) fn syntax_fingerprint(source: &str) -> Box<str> {
 mod tests {
     use super::*;
 
+    fn test_uri() -> Url {
+        Url::from_file_path(std::env::temp_dir().join("Completion.sol")).unwrap()
+    }
+
     fn uri_path(uri: &Url) -> PathBuf {
         uri.to_file_path().unwrap()
     }
@@ -539,7 +543,7 @@ mod tests {
 
     #[test]
     fn extending_empty_and_nonempty_semantics_becomes_ambiguous() {
-        let uri = Url::parse("file:///Completion.sol").unwrap();
+        let uri = test_uri();
         let key = DeclarationKey {
             path: DeclarationPath::Source { item_ordinal: 0 },
             kind: TargetKind::Variable,
@@ -569,7 +573,7 @@ mod tests {
 
     #[test]
     fn extending_with_a_new_file_preserves_its_syntax_fingerprint() {
-        let uri = Url::parse("file:///Completion.sol").unwrap();
+        let uri = test_uri();
         let key = DeclarationKey {
             path: DeclarationPath::Source { item_ordinal: 0 },
             kind: TargetKind::Variable,
@@ -599,7 +603,7 @@ mod tests {
 
     #[test]
     fn equivalent_file_uri_retrieves_semantics() {
-        let uri = Url::from_file_path(std::env::temp_dir().join("Completion.sol")).unwrap();
+        let uri = test_uri();
         let equivalent_uri =
             Url::parse(&uri.as_str().replacen("Completion.sol", "%43ompletion.sol", 1)).unwrap();
         let key = DeclarationKey {
@@ -635,7 +639,7 @@ mod tests {
 
     #[test]
     fn extending_identical_sources_keeps_fingerprint_lazy() {
-        let uri = Url::parse("file:///Completion.sol").unwrap();
+        let uri = test_uri();
         let path = uri_path(&uri);
         let mut index = NatSpecCompletionIndex {
             by_file: [(path.clone(), IndexedFile::new(Arc::new("contract C {}".into())))]
@@ -663,7 +667,7 @@ mod tests {
 
     #[test]
     fn missing_semantics_do_not_compute_source_fingerprint() {
-        let uri = Url::parse("file:///Completion.sol").unwrap();
+        let uri = test_uri();
         let path = uri_path(&uri);
         let key = DeclarationKey {
             path: DeclarationPath::Source { item_ordinal: 0 },
