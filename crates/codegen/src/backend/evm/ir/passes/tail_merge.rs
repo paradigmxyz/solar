@@ -5,8 +5,9 @@ use crate::backend::evm::ir::{
     Block, BlockId, Hotness, Instruction, Module, Terminator, TerminatorKind,
 };
 use solar_data_structures::map::FxHashMap;
+use solar_sema::Gcx;
 
-pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
+pub(super) fn run(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
     state.plan_merges(module);
     if state.merges.is_empty() {

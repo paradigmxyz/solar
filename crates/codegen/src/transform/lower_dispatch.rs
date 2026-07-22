@@ -241,7 +241,7 @@ fn load_selector(builder: &mut FunctionBuilder<'_>) -> ValueId {
 }
 
 impl ModulePass for LowerDispatchPass {
-    fn run(&mut self, module: &mut Module) -> bool {
+    fn run(&mut self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         Self::run(self, module)
     }
 }

@@ -15,36 +15,40 @@ use crate::{
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_sema::Gcx;
 
-/// Configuration for MIR-level internal-call inlining.
-#[derive(Clone, Debug)]
-pub(crate) struct MirInlineConfig {
+/// Module-level MIR internal-call inliner.
+///
+/// This pass clones small internal/private callees into their callers. Each
+/// inline expansion gets a fresh internal-frame range so copied local slots do
+/// not overlap caller locals.
+pub(crate) struct MirInliner {
     /// Maximum instruction count for ordinary inline candidates.
-    pub max_instructions: usize,
+    max_instructions: usize,
     /// Hard sanity limit for single-call-site callees. These bypass the normal
     /// size and block caps because function DCE removes their original body.
-    pub max_single_call_sanity_instructions: usize,
+    max_single_call_sanity_instructions: usize,
     /// Maximum number of blocks to clone from one callee.
-    pub max_blocks: usize,
+    max_blocks: usize,
     /// Whether a single call site may use the larger threshold.
-    pub inline_single_call: bool,
+    inline_single_call: bool,
     /// Maximum estimated runtime bytecode growth for a cold call site.
-    pub max_cold_code_growth: usize,
+    max_cold_code_growth: usize,
     /// Maximum estimated runtime bytecode growth for a call site inside a loop.
-    pub max_hot_code_growth: usize,
+    max_hot_code_growth: usize,
     /// Maximum number of instructions a single caller may gain from inlining
     /// multi-use callees, bounding total code growth per function.
-    pub max_caller_inlined_instructions: usize,
+    max_caller_inlined_instructions: usize,
     /// Minimum estimated internal-call protocol gas saved before inlining.
-    pub min_call_savings: u64,
+    min_call_savings: u64,
     /// Size-aware backstop: once a module's estimated runtime bytecode reaches
     /// this many bytes, stop inlining (which grows code) so the contract stays
     /// under the EIP-170 deployable-code limit. Small contracts never reach it
     /// and inline normally.
-    pub max_module_code_size: usize,
+    max_module_code_size: usize,
 }
 
-impl Default for MirInlineConfig {
+impl Default for MirInliner {
     fn default() -> Self {
         Self {
             max_instructions: 96,
@@ -66,12 +70,12 @@ impl Default for MirInlineConfig {
     }
 }
 
-impl MirInlineConfig {
-    /// Configuration for `-O size`: a module budget of zero disables all MIR
+impl MirInliner {
+    /// Creates the `-O size` inliner: a module budget of zero disables all MIR
     /// inlining, which only ever grows emitted code on real contracts (both
     /// multi-use duplication and the cascades that single-call inlining sets
     /// off were measured to increase size). Lowering-time inlining of tiny
-    /// single-return helpers is deliberately kept: solar's internal-call
+    /// single-return helpers is deliberately kept: the compiler's internal-call
     /// protocol (memory frame setup) costs more bytes than those bodies, so
     /// sharing them was measured to *increase* code size as well.
     #[must_use]
@@ -112,42 +116,21 @@ struct MirInlineSummary {
     no_inline: bool,
 }
 
-/// Module-level MIR internal-call inliner.
-///
-/// This pass clones small internal/private callees into their callers. Each
-/// inline expansion gets a fresh internal-frame range so copied local slots do
-/// not overlap caller locals.
-pub(crate) struct MirInliner {
-    config: MirInlineConfig,
-}
-
 /// Module pass for metadata-backed MIR inlining.
 pub(crate) struct InlinePass;
 
 impl ModulePass for InlinePass {
-    fn run(&mut self, module: &mut Module) -> bool {
-        let config = if module.optimize_for_size {
-            MirInlineConfig::for_size()
+    fn run(&mut self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        let mut inliner = if gcx.sess.opts.optimization == solar_config::OptimizationMode::Size {
+            MirInliner::for_size()
         } else {
-            MirInlineConfig::default()
+            MirInliner::default()
         };
-        MirInliner::new(config).run(module).inlined != 0
-    }
-}
-
-impl Default for MirInliner {
-    fn default() -> Self {
-        Self::new(MirInlineConfig::default())
+        inliner.run(module).inlined != 0
     }
 }
 
 impl MirInliner {
-    /// Creates a new MIR inliner with the given configuration.
-    #[must_use]
-    pub(crate) fn new(config: MirInlineConfig) -> Self {
-        Self { config }
-    }
-
     /// Runs the inliner over the whole module.
     pub(crate) fn run(&mut self, module: &mut Module) -> MirInlineStats {
         let mut stats = MirInlineStats::default();
@@ -182,9 +165,9 @@ impl MirInliner {
                 let call_count = call_counts.get(&site.callee).copied().unwrap_or_default();
                 let grew_too_much = summaries.get(&caller_id).is_some_and(|s| {
                     s.instruction_count.saturating_sub(base_instructions)
-                        > self.config.max_caller_inlined_instructions
+                        > self.max_caller_inlined_instructions
                 });
-                if module_code_size >= self.config.max_module_code_size
+                if module_code_size >= self.max_module_code_size
                     || grew_too_much
                     || recursive_functions.contains(site.callee)
                     || !self.is_inlineable(caller_id, site, summary, call_count)
@@ -315,7 +298,7 @@ impl MirInliner {
         summary: MirInlineSummary,
         call_count: usize,
     ) -> bool {
-        let single_call = self.config.inline_single_call && call_count == 1;
+        let single_call = self.inline_single_call && call_count == 1;
 
         // `no_inline` prevents cloning a shared helper into every caller; with
         // a single call site there is nothing to duplicate, and absorbing the
@@ -332,11 +315,11 @@ impl MirInliner {
         }
 
         if single_call {
-            if summary.instruction_count > self.config.max_single_call_sanity_instructions {
+            if summary.instruction_count > self.max_single_call_sanity_instructions {
                 return false;
             }
-        } else if summary.block_count > self.config.max_blocks
-            || summary.instruction_count > self.config.max_instructions
+        } else if summary.block_count > self.max_blocks
+            || summary.instruction_count > self.max_instructions
         {
             return false;
         }
@@ -357,17 +340,14 @@ impl MirInliner {
         }
 
         let code_growth = estimated_inline_code_growth(summary, site, single_call);
-        let max_growth = if site.loop_depth > 0 {
-            self.config.max_hot_code_growth
-        } else {
-            self.config.max_cold_code_growth
-        };
+        let max_growth =
+            if site.loop_depth > 0 { self.max_hot_code_growth } else { self.max_cold_code_growth };
         if code_growth > max_growth {
             return false;
         }
 
         let savings = estimated_internal_call_savings(site, summary);
-        savings >= self.config.min_call_savings
+        savings >= self.min_call_savings
     }
 }
 
