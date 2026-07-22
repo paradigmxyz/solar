@@ -1,15 +1,13 @@
 {
   "file_types": {
     "Rust": [
-      "mir",
-      "**/tests/ui/codegen/mir/pipeline/{check_elim_pipeline_*,fresh_array_bounds_pipeline,pipeline_*,pre_pingpong_pipeline}.stdout"
+      "mir"
     ],
     "Assembly": [
       "evmir"
     ],
     "Diff": [
-      "**/tests/ui/codegen/mir/{adce,cfg-simplify,check-elim,cse,dce,frame-slot-promotion,gvn,indvar-simplify,inline,inst-simplify,jump-threading,licm,load-pre,loop-canonicalize,lower-mapping-slots,lowering,memory-dse,none,outline-reverts,pre,pure-eval,sccp,storage-dse,storage-load-cse,storage-promotion,validation}/**/*.stdout",
-      "**/tests/ui/codegen/mir/pipeline/pipeline.stdout",
+      "**/tests/ui/codegen/mir/**/*.stdout",
       "**/tests/ui/codegen/evm-ir/**/*.stdout"
     ]
   },
