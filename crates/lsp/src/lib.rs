@@ -100,6 +100,7 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
         .notification::<notif::DidOpenTextDocument>(handlers::did_open_text_document)
         .notification::<notif::DidCloseTextDocument>(handlers::did_close_text_document)
         .notification::<notif::DidChangeTextDocument>(handlers::did_change_text_document)
+        .notification::<notif::WillSaveTextDocument>(handlers::will_save_text_document)
         .notification::<notif::DidSaveTextDocument>(handlers::did_save_text_document)
         .notification::<notif::DidChangeConfiguration>(handlers::did_change_configuration);
 
@@ -153,8 +154,9 @@ mod tests {
         DocumentLinkParams, DocumentSymbolParams, ExecuteCommandParams, FileChangeType, FileEvent,
         FormattingOptions, HoverParams, InitializeParams, InitializedParams, NumberOrString,
         PartialResultParams, Position, SignatureHelpParams, TextDocumentIdentifier,
-        TextDocumentPositionParams, WorkDoneProgressParams, WorkspaceClientCapabilities,
-        notification as notif, notification::Notification, request, request::Request,
+        TextDocumentPositionParams, TextDocumentSaveReason, WillSaveTextDocumentParams,
+        WorkDoneProgressParams, WorkspaceClientCapabilities, notification as notif,
+        notification::Notification, request, request::Request,
     };
     use solar_interface::data_structures::sync::RwLock;
     use std::{
@@ -243,6 +245,24 @@ mod tests {
         };
         let notification = serde_json::from_value::<AnyNotification>(serde_json::json!({
             "method": notif::DidSaveTextDocument::METHOD,
+            "params": params,
+        }))
+        .unwrap();
+
+        assert!(matches!(router.notify(notification), ControlFlow::Continue(())));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_will_save_notifications() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let params = WillSaveTextDocumentParams {
+            text_document: TextDocumentIdentifier {
+                uri: lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
+            },
+            reason: TextDocumentSaveReason::MANUAL,
+        };
+        let notification = serde_json::from_value::<AnyNotification>(serde_json::json!({
+            "method": notif::WillSaveTextDocument::METHOD,
             "params": params,
         }))
         .unwrap();

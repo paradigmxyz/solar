@@ -3,16 +3,15 @@ use crop::Rope;
 use lsp_types::{
     DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
     DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DidSaveTextDocumentParams, FileChangeType,
+    DidSaveTextDocumentParams, FileChangeType, WillSaveTextDocumentParams,
 };
 use std::{ops::ControlFlow, sync::Arc};
-use tracing::{error, info};
+use tracing::{debug, error};
 
 pub(crate) fn did_open_text_document(
     state: &mut GlobalState,
     params: DidOpenTextDocumentParams,
 ) -> NotifyResult {
-    info!("config: {:?}", state.config);
     if let Some(path) = proto::vfs_path(&params.text_document.uri) {
         let disk_path = path.as_path().map(ToOwned::to_owned);
         let already_exists = state.vfs.read().exists(&path);
@@ -84,6 +83,18 @@ pub(crate) fn did_close_text_document(
         state.recompute_with_disk_files(disk_path.into_iter().collect());
     }
 
+    ControlFlow::Continue(())
+}
+
+pub(crate) fn will_save_text_document(
+    _: &mut GlobalState,
+    params: WillSaveTextDocumentParams,
+) -> NotifyResult {
+    debug!(
+        uri = %params.text_document.uri,
+        reason = ?params.reason,
+        "text document will save"
+    );
     ControlFlow::Continue(())
 }
 
