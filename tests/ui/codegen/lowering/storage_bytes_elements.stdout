@@ -216,10 +216,8 @@ fn @hashB() {
   bb0 (entry):
     mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
-    v1 = memory_object_len memorybytes, v0
-    v2 = memory_object_data memorybytes, v0
-    v3 = keccak256 v2, v1
-    mstore 128, v3
+    v1 = keccak256_bytes v0
+    mstore 128, v1
     returndata 128, 32
 }
 

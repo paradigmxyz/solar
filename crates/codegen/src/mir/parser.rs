@@ -1438,6 +1438,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
             // Hashing.
             kw::Keccak256 => inst!(Keccak256(a, b) => MirType::bytes32()),
+            sym::keccak256_bytes => inst!(Keccak256Bytes(a) => MirType::bytes32()),
             sym::mapping_slot => inst!(MappingSlot(key, slot) => MirType::bytes32()),
             sym::mapping_slot_memory => {
                 inst!(MappingSlotMemory(key, slot) => MirType::bytes32())

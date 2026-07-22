@@ -551,6 +551,7 @@ impl<'a> Validator<'a> {
                             | InstKind::MemoryObjectData(_, _)
                             | InstKind::MemoryObjectFieldAddr { .. }
                             | InstKind::MemoryObjectElementAddr { .. }
+                            | InstKind::Keccak256Bytes(_)
                     ) || inst
                         .result_ty
                         .is_some_and(|ty| matches!(ty, crate::mir::MirType::MemoryObject(_)));

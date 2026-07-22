@@ -526,6 +526,7 @@ impl CommonSubexprEliminator {
             kind,
             InstKind::MLoad(_)
                 | InstKind::Keccak256(_, _)
+                | InstKind::Keccak256Bytes(_)
                 | InstKind::MappingSlotMemory(_, _)
                 | InstKind::SLoad(_)
                 | InstKind::TLoad(_)
@@ -702,6 +703,14 @@ impl CommonSubexprEliminator {
                 let size =
                     func.value_u64(size).map_or(LocationSize::Dynamic(size), LocationSize::Const);
                 let key = self.memory_range_key(func, inst_id, value(*offset), size)?;
+                Some(ExprKey::Keccak256(key))
+            }
+            // A whole-object hash reads the length word and the data, so its
+            // range is the object with an unknown extent: any overlapping
+            // write conservatively invalidates the cached hash.
+            InstKind::Keccak256Bytes(object) => {
+                let key =
+                    self.memory_range_key(func, inst_id, value(*object), LocationSize::Unknown)?;
                 Some(ExprKey::Keccak256(key))
             }
             InstKind::MappingSlot(key, slot) => {

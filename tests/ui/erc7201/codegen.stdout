@@ -22,14 +22,12 @@ fn @memoryParam() {
     v1 = memory_object_data memorybytes, v0
     v2 = add v1, 0
     mstore v2, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
-    v3 = memory_object_len memorybytes, v0
-    v4 = memory_object_data memorybytes, v0
-    v5 = keccak256 v4, v3
-    v6 = sub v5, 1
-    mstore 0, v6 !metadata(memory=scratch)
-    v7 = keccak256 0, 32 !metadata(memory=scratch)
-    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    mstore 128, v8
+    v3 = keccak256_bytes v0
+    v4 = sub v3, 1
+    mstore 0, v4 !metadata(memory=scratch)
+    v5 = keccak256 0, 32 !metadata(memory=scratch)
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    mstore 128, v6
     returndata 128, 32
 }
 
@@ -72,14 +70,12 @@ fn @calldataParam(arg0: calldataslice) {
     mstore v15, 0
     v16 = slice_ptr arg0
     calldatacopy v13, v16, v3
-    v17 = memory_object_len memorybytes, v12
-    v18 = memory_object_data memorybytes, v12
-    v19 = keccak256 v18, v17
-    v20 = sub v19, 1
-    mstore 0, v20 !metadata(memory=scratch)
-    v21 = keccak256 0, 32 !metadata(memory=scratch)
-    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    mstore 128, v22
+    v17 = keccak256_bytes v12
+    v18 = sub v17, 1
+    mstore 0, v18 !metadata(memory=scratch)
+    v19 = keccak256 0, 32 !metadata(memory=scratch)
+    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    mstore 128, v20
     returndata 128, 32
 }
 
@@ -87,14 +83,12 @@ fn @storageValue() {
   bb0 (entry):
     mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
-    v1 = memory_object_len memorybytes, v0
-    v2 = memory_object_data memorybytes, v0
-    v3 = keccak256 v2, v1
-    v4 = sub v3, 1
-    mstore 0, v4 !metadata(memory=scratch)
-    v5 = keccak256 0, 32 !metadata(memory=scratch)
-    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    mstore 128, v6
+    v1 = keccak256_bytes v0
+    v2 = sub v1, 1
+    mstore 0, v2 !metadata(memory=scratch)
+    v3 = keccak256 0, 32 !metadata(memory=scratch)
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    mstore 128, v4
     returndata 128, 32
 }
 

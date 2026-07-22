@@ -553,6 +553,8 @@ fn estimate_inst_cost(kind: &InstKind) -> MirCost {
         | InstKind::BlockHash(..)
         | InstKind::BlobHash(..)
         | InstKind::Keccak256(..) => (30, 1),
+        // Expands to length load + data pointer + physical keccak.
+        InstKind::Keccak256Bytes(_) => (36, 5),
         InstKind::MappingSlot(..) => (36, 3),
         InstKind::MappingSlotMemory(..) => (60, 8),
         InstKind::MappingSlotCalldata(..) => (63, 9),
@@ -954,6 +956,7 @@ impl<'a> InlineCloner<'a> {
             InstKind::BaseFee => InstKind::BaseFee,
             InstKind::BlobBaseFee => InstKind::BlobBaseFee,
             InstKind::BlobHash(a) => InstKind::BlobHash(self.clone_value(a)?),
+            InstKind::Keccak256Bytes(object) => InstKind::Keccak256Bytes(self.clone_value(object)?),
             InstKind::Keccak256(a, b) => {
                 InstKind::Keccak256(self.clone_value(a)?, self.clone_value(b)?)
             }

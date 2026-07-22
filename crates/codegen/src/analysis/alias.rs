@@ -668,6 +668,7 @@ impl AliasAnalysis {
             | InstKind::CodeCopy(dest, _, _)
             | InstKind::ReturnDataCopy(dest, _, _)
             | InstKind::Keccak256(dest, _)
+            | InstKind::Keccak256Bytes(dest)
             | InstKind::Log0(dest, _) => operand != *dest,
             InstKind::ExtCodeCopy(_, dest, _, _) => operand != *dest,
             InstKind::Log1(address, _, _)
@@ -891,6 +892,9 @@ impl AliasAnalysis {
             }
             InstKind::Keccak256(address, size) | InstKind::Log0(address, size) => {
                 read_memory(&mut effects, address, SizeOperand::Value(size));
+            }
+            InstKind::Keccak256Bytes(object) => {
+                read_memory(&mut effects, object, SizeOperand::Unknown);
             }
             InstKind::Log1(address, size, _)
             | InstKind::Log2(address, size, _, _)

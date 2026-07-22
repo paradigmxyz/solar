@@ -3459,7 +3459,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             | InstKind::SetMemoryObjectLen(_, _, _)
             | InstKind::MemoryObjectData(_, _)
             | InstKind::MemoryObjectFieldAddr { .. }
-            | InstKind::MemoryObjectElementAddr { .. } => {
+            | InstKind::MemoryObjectElementAddr { .. }
+            | InstKind::Keccak256Bytes(_) => {
                 unreachable!("memory-object instructions must be lowered before EVM codegen")
             }
 

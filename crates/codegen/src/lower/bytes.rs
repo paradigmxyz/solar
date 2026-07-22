@@ -1062,17 +1062,15 @@ impl<'gcx> Lowerer<'gcx> {
         if self.expr_is_calldata_dynamic_bytes(inner) {
             let slice = self.lower_expr(builder, inner);
             let ptr = self.materialize_calldata_bytes(builder, slice);
-            let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
-            let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-            return Some(builder.keccak256(data, len));
+            return Some(builder.keccak256_bytes(ptr));
         }
 
         // Memory and storage values lower to a memory `[length][data...]`
-        // pointer; hash the data that follows the length word.
+        // object; hash its contents through the object reference, so the
+        // optimizer sees one whole-object read instead of separate length and
+        // data projections.
         let ptr = self.lower_expr(builder, inner);
-        let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
-        let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-        Some(builder.keccak256(data, len))
+        Some(builder.keccak256_bytes(ptr))
     }
 
     /// Whether lowering `expr` yields a memory `bytes`/`string` pointer

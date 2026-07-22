@@ -710,6 +710,14 @@ pub(crate) enum InstKind {
     // Hashing
     /// Keccak256 hash: `keccak256(offset, size)`
     Keccak256(ValueId, ValueId),
+    /// Keccak256 hash of a `memorybytes` object's contents:
+    /// `keccak256_bytes(object)`.
+    ///
+    /// Consumes the object reference directly, so the optimizer sees one
+    /// whole-object read instead of separate length and data-pointer
+    /// projections. `lower-memory-objects` expands it into those projections
+    /// and a physical `keccak256`.
+    Keccak256Bytes(ValueId),
     /// Hash a fixed-width mapping key and its parent slot.
     ///
     /// The temporary scratch memory used by its late lowering is not an
@@ -862,6 +870,7 @@ impl InstKind {
             | Self::Balance(a)
             | Self::BlockHash(a)
             | Self::BlobHash(a)
+            | Self::Keccak256Bytes(a)
             | Self::MemoryObjectLen(a, _)
             | Self::MemoryObjectData(a, _)
             | Self::MemoryObjectFieldAddr { object: a, .. } => {
@@ -1063,6 +1072,7 @@ impl InstKind {
             | Self::BlockHash(a)
             | Self::BlobHash(a)
             | Self::SlicePtr(a)
+            | Self::Keccak256Bytes(a)
             | Self::SliceLen(a)
             | Self::MemoryObjectLen(a, _)
             | Self::MemoryObjectData(a, _)
@@ -1250,6 +1260,7 @@ impl InstKind {
             Self::BlobBaseFee => "blobbasefee",
             Self::BlobHash(_) => "blobhash",
             Self::Keccak256(_, _) => "keccak256",
+            Self::Keccak256Bytes(_) => "keccak256_bytes",
             Self::MappingSlot(_, _) => "mapping_slot",
             Self::MappingSlotMemory(_, _) => "mapping_slot_memory",
             Self::MappingSlotCalldata(_, _) => "mapping_slot_calldata",
@@ -1333,6 +1344,7 @@ impl InstKind {
             | Self::Fmp
             | Self::MSize
             | Self::Keccak256(_, _)
+            | Self::Keccak256Bytes(_)
             | Self::MappingSlotMemory(_, _) => EffectKind::MemoryRead,
             Self::SLoad(_) => EffectKind::StorageRead,
             Self::SStore(_, _) | Self::MemoryToStorage { .. } | Self::ClearStorage { .. } => {

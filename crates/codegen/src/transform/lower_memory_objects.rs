@@ -62,6 +62,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         | InstKind::MemoryObjectData(_, _)
                         | InstKind::MemoryObjectFieldAddr { .. }
                         | InstKind::MemoryObjectElementAddr { .. }
+                        | InstKind::Keccak256Bytes(_)
                         | InstKind::Alloc { kind: AllocationKind::Object(_), .. }
                 )
         });
@@ -132,6 +133,18 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         let offset = builder.imm_u64(offset);
                         builder.func_mut().instructions[inst].kind = InstKind::Add(object, offset);
                     }
+                    stats.accesses += 1;
+                }
+                InstKind::Keccak256Bytes(object) => {
+                    let kind = crate::mir::MemoryObjectKind::Bytes;
+                    let Some(length_offset) = P::object_length_offset(kind) else {
+                        builder.func_mut().blocks[block].instructions.push(inst);
+                        continue;
+                    };
+                    let length_address = offset_address(&mut builder, object, length_offset);
+                    let len = builder.mload(length_address);
+                    let data = offset_address(&mut builder, object, P::object_data_offset(kind));
+                    builder.func_mut().instructions[inst].kind = InstKind::Keccak256(data, len);
                     stats.accesses += 1;
                 }
                 InstKind::MemoryObjectElementAddr { object, layout, index } => {

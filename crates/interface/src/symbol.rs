@@ -1024,6 +1024,7 @@ symbols! {
         internal_frame_addr,
         jump,
         jumpi,
+        keccak256_bytes,
         layout,
         length,
         log,
