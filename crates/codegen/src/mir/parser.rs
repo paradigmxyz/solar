@@ -1420,13 +1420,13 @@ immutables:
   owner: address
 
 fn @constructor(arg0: u8) {
-  bb0 (entry):
+  bb0:
     storeimmutable count, arg0
     stop
 }
 
 fn @get() -> u8 {
-  bb0 (entry):
+  bb0:
     v0 = loadimmutable count
     ret v0
 }
