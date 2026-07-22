@@ -53,7 +53,7 @@ struct AnalysisCommitState {
     cache_invalidated: bool,
     /// Last version that actually replaced the symbol tables.
     natspec_symbol_tables_version: usize,
-    natspec_pending_source_changes: FxHashMap<PathBuf, usize>,
+    natspec_pending_source_changes: FxHashSet<PathBuf>,
     natspec_context_change_version: usize,
 }
 
@@ -182,7 +182,7 @@ impl GlobalState {
 
             commit.cache_invalidated = true;
             commit.natspec_symbol_tables_version = version;
-            commit.natspec_pending_source_changes.retain(|_, changed| *changed > version);
+            commit.natspec_pending_source_changes.clear();
             commit.natspec_context_change_version = version;
             self.published_analysis_version.send_replace(version);
             old_symbol_tables
@@ -286,9 +286,7 @@ impl GlobalState {
         if context_changed {
             commit.natspec_context_change_version = version;
         }
-        for path in changed_paths {
-            commit.natspec_pending_source_changes.insert(path, version);
-        }
+        commit.natspec_pending_source_changes.extend(changed_paths);
         version
     }
 
@@ -307,14 +305,15 @@ impl GlobalState {
         }
     }
 
-    pub(crate) fn natspec_semantics_are_usable(&self) -> bool {
+    pub(crate) fn natspec_semantics_are_usable(&self, request_uri: &Url) -> bool {
+        let request_path = request_uri.to_file_path().ok();
         let (analysis_version, symbol_tables_version, context_change_version, pending_paths) = {
             let commit = self.analysis_commit.lock();
             (
                 self.analysis_version.load(Ordering::Acquire),
                 commit.natspec_symbol_tables_version,
                 commit.natspec_context_change_version,
-                commit.natspec_pending_source_changes.keys().cloned().collect::<Vec<_>>(),
+                commit.natspec_pending_source_changes.iter().cloned().collect::<Vec<_>>(),
             )
         };
         if symbol_tables_version >= analysis_version {
@@ -325,6 +324,9 @@ impl GlobalState {
         }
 
         for path in pending_paths {
+            if request_path.as_deref() == Some(path.as_path()) {
+                continue;
+            }
             let Ok(uri) = Url::from_file_path(&path) else { return false };
             let analyzed =
                 self.symbol_tables.read().natspec_source_fingerprint(&uri).map(str::to_owned);
@@ -606,7 +608,7 @@ impl GlobalStateSnapshot {
             let old_symbol_tables =
                 mem::replace(&mut *self.symbol_tables.write(), result.symbol_tables);
             commit.natspec_symbol_tables_version = version;
-            commit.natspec_pending_source_changes.retain(|_, changed| *changed > version);
+            commit.natspec_pending_source_changes.clear();
             let batches = self
                 .diagnostics
                 .write()

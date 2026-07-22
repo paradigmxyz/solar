@@ -7,12 +7,14 @@ use crate::{
 };
 use async_lsp::{ClientSocket, router::Router};
 use lsp_types::{
-    Diagnostic, DidChangeTextDocumentParams, DidSaveTextDocumentParams, DocumentSymbol, Position,
-    Range, SymbolKind, TextDocumentContentChangeEvent, TextDocumentIdentifier,
+    Diagnostic, DidChangeConfigurationParams, DidChangeTextDocumentParams,
+    DidChangeWatchedFilesParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    DidSaveTextDocumentParams, DocumentSymbol, FileChangeType, FileEvent, Position, Range,
+    SymbolKind, TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
     VersionedTextDocumentIdentifier, WatchKind, WorkspaceSymbol, notification,
     notification::Notification,
 };
-use std::{path::Path, time::Duration};
+use std::{path::Path, sync::mpsc as std_mpsc, time::Duration};
 use tokio::sync::mpsc;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
@@ -48,6 +50,53 @@ fn snapshot_with_config(config: Config, vfs: Vfs) -> GlobalStateSnapshot {
         symbol_tables: Arc::new(Default::default()),
         diagnostics: Arc::new(Default::default()),
     }
+}
+
+fn pause_blocking_pool() -> (std_mpsc::Sender<()>, tokio::task::JoinHandle<()>) {
+    let (started_tx, started_rx) = std_mpsc::channel();
+    let (release_tx, release_rx) = std_mpsc::channel();
+    let task = tokio::task::spawn_blocking(move || {
+        started_tx.send(()).unwrap();
+        release_rx.recv().unwrap();
+    });
+    started_rx
+        .recv_timeout(ASYNC_TEST_TIMEOUT)
+        .expect("blocking worker should start before analysis is requested");
+    (release_tx, task)
+}
+
+fn assert_source_notification_tracks_until_publish(
+    project: &TestProject,
+    path: &Path,
+    notify: impl FnOnce(&mut GlobalState),
+) {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .max_blocking_threads(1)
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(project.config());
+        state.vfs = Arc::new(RwLock::new(project.vfs()));
+        let (release_worker, worker) = pause_blocking_pool();
+
+        notify(&mut state);
+
+        assert!(state.analysis_commit.lock().natspec_pending_source_changes.contains(path));
+        let changed_uri = Url::from_file_path(path).unwrap();
+        let other_uri = Url::from_file_path(project.path("/OtherRequest.sol")).unwrap();
+        assert!(state.natspec_semantics_are_usable(&changed_uri));
+        assert!(!state.natspec_semantics_are_usable(&other_uri));
+        release_worker.send(()).unwrap();
+        worker.await.unwrap();
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+            .await
+            .expect("source analysis should finish")
+            .unwrap();
+        assert!(state.analysis_commit.lock().natspec_pending_source_changes.is_empty());
+        assert!(state.natspec_semantics_are_usable(&other_uri));
+    });
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -218,7 +267,7 @@ fn reindex_if_invalidated_is_a_no_op_for_a_current_cache() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn failed_current_analysis_unblocks_waiters_and_invalidates_cache() {
+async fn failed_current_analysis_recovers_after_save() {
     let project = TestProject::from_fixture(
         r#"
         //- /Old.sol
@@ -229,6 +278,7 @@ async fn failed_current_analysis_unblocks_waiters_and_invalidates_cache() {
     let old_tables = analyze(batches.pop().unwrap()).symbol_tables;
     let uri = Url::from_file_path(project.path("/Old.sol")).unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(project.config());
     *state.symbol_tables.write() = old_tables;
     state.snapshot().publish_diagnostics(
         DiagnosticOwner::Compiler,
@@ -245,23 +295,52 @@ async fn failed_current_analysis_unblocks_waiters_and_invalidates_cache() {
         .unwrap();
     assert!(tables.read().workspace_symbols("Old").iter().any(|symbol| symbol.name == "Old"));
     assert!(state.analysis_cache_invalidated());
-    assert!(!state.natspec_semantics_are_usable());
+    assert!(!state.natspec_semantics_are_usable(&uri));
 
     let probe_owner =
         DiagnosticOwner::Flycheck { id: "probe".into(), workspace: project.root().into() };
     let batches = state.diagnostics.write().replace_and_publish_batches(
         probe_owner,
-        DiagnosticMap::from_iter([(uri, vec![diagnostic("probe")])]),
+        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("probe")])]),
     );
     let mut messages =
         batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>();
     messages.sort_unstable();
     assert_eq!(messages, ["old compiler", "probe"]);
+
+    project.write_file("/Old.sol", "contract Recovered {}");
+
+    let result = crate::handlers::did_save_text_document(
+        &mut state,
+        DidSaveTextDocumentParams {
+            text_document: TextDocumentIdentifier::new(uri.clone()),
+            text: None,
+        },
+    );
+    assert!(matches!(result, ControlFlow::Continue(())));
+    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("save should recover failed analysis")
+        .unwrap();
+    let tables = tables.read();
+    assert!(tables.workspace_symbols("Old").is_empty());
+    assert!(tables.workspace_symbols("Recovered").iter().any(|symbol| symbol.name == "Recovered"));
+    drop(tables);
+    assert!(!state.analysis_cache_invalidated());
+    assert!(state.natspec_semantics_are_usable(&uri));
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn cancelled_current_analysis_unblocks_waiters_and_invalidates_cache() {
+async fn cancelled_current_analysis_recovers_after_save() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Recovered.sol
+        contract Recovered {}
+        "#,
+    );
+    let uri = Url::from_file_path(project.path("/Recovered.sol")).unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(project.config());
 
     let version = state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
     let task = tokio::spawn(std::future::pending::<()>());
@@ -274,6 +353,29 @@ async fn cancelled_current_analysis_unblocks_waiters_and_invalidates_cache() {
         .unwrap();
     assert!(tables.read().workspace_symbols("").is_empty());
     assert!(state.analysis_cache_invalidated());
+    assert!(!state.natspec_semantics_are_usable(&uri));
+
+    let result = crate::handlers::did_save_text_document(
+        &mut state,
+        DidSaveTextDocumentParams {
+            text_document: TextDocumentIdentifier::new(uri.clone()),
+            text: None,
+        },
+    );
+    assert!(matches!(result, ControlFlow::Continue(())));
+    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("save should recover cancelled analysis")
+        .unwrap();
+    assert!(
+        tables
+            .read()
+            .workspace_symbols("Recovered")
+            .iter()
+            .any(|symbol| symbol.name == "Recovered")
+    );
+    assert!(!state.analysis_cache_invalidated());
+    assert!(state.natspec_semantics_are_usable(&uri));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -429,41 +531,218 @@ fn watched_file_registration_watches_solidity_and_foundry_manifests() {
 }
 
 #[test]
-fn pending_missing_source_does_not_reuse_unknown_natspec_semantics() {
+fn did_open_tracks_the_source_until_analysis_publishes() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Request.sol
+        contract Request {}
+        "#,
+    );
+    let path = project.path("/Request.sol");
+    let uri = Url::from_file_path(&path).unwrap();
+    let contents = project.read_file("/Request.sol");
+
+    assert_source_notification_tracks_until_publish(&project, &path, |state| {
+        let result = crate::handlers::did_open_text_document(
+            state,
+            DidOpenTextDocumentParams {
+                text_document: TextDocumentItem::new(uri, "solidity".into(), 1, contents),
+            },
+        );
+        assert!(matches!(result, ControlFlow::Continue(())));
+    });
+}
+
+#[test]
+fn did_close_tracks_the_source_until_analysis_publishes() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Request.sol open
+        contract Request {}
+        "#,
+    );
+    let path = project.path("/Request.sol");
+    let uri = Url::from_file_path(&path).unwrap();
+
+    assert_source_notification_tracks_until_publish(&project, &path, |state| {
+        let result = crate::handlers::did_close_text_document(
+            state,
+            DidCloseTextDocumentParams { text_document: TextDocumentIdentifier::new(uri) },
+        );
+        assert!(matches!(result, ControlFlow::Continue(())));
+    });
+}
+
+#[test]
+fn watched_solidity_change_tracks_the_source_until_analysis_publishes() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Request.sol
+        contract Request {}
+        "#,
+    );
+    let path = project.path("/Request.sol");
+    let uri = Url::from_file_path(&path).unwrap();
+
+    assert_source_notification_tracks_until_publish(&project, &path, |state| {
+        let result = crate::handlers::did_change_watched_files(
+            state,
+            DidChangeWatchedFilesParams {
+                changes: vec![FileEvent { uri, typ: FileChangeType::CHANGED }],
+            },
+        );
+        assert!(matches!(result, ControlFlow::Continue(())));
+    });
+}
+
+#[test]
+fn did_change_tracks_the_request_source_until_analysis_publishes() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .max_blocking_threads(1)
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Request.sol open
+            contract Before {}
+
+            //- /Other.sol open
+            contract Other {}
+            "#,
+        );
+        let mut batches = snapshot(&project).analysis_batches(Vec::new());
+        let old_result = analyze(batches.pop().unwrap());
+        assert!(old_result.diagnostics.is_empty(), "{:#?}", old_result.diagnostics);
+        assert!(batches.is_empty());
+
+        let request_path = project.path("/Request.sol");
+        let request_uri = Url::from_file_path(&request_path).unwrap();
+        let other_uri = Url::from_file_path(project.path("/Other.sol")).unwrap();
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(project.config());
+        state.vfs = Arc::new(RwLock::new(project.vfs()));
+        *state.symbol_tables.write() = old_result.symbol_tables;
+        let (release_worker, worker) = pause_blocking_pool();
+
+        let result = crate::handlers::did_change_text_document(
+            &mut state,
+            DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(request_uri.clone(), 1),
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "contract After {}".into(),
+                }],
+            },
+        );
+
+        assert!(matches!(result, ControlFlow::Continue(())));
+        assert!(
+            state.analysis_commit.lock().natspec_pending_source_changes.contains(&request_path)
+        );
+        assert!(state.natspec_semantics_are_usable(&request_uri));
+        assert!(!state.natspec_semantics_are_usable(&other_uri));
+
+        release_worker.send(()).unwrap();
+        worker.await.unwrap();
+        let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+            .await
+            .expect("changed-source analysis should finish")
+            .unwrap();
+        let tables = tables.read();
+        assert!(tables.workspace_symbols("Before").is_empty());
+        assert!(tables.workspace_symbols("After").iter().any(|symbol| symbol.name == "After"));
+        drop(tables);
+        assert!(state.analysis_commit.lock().natspec_pending_source_changes.is_empty());
+        assert!(state.natspec_semantics_are_usable(&other_uri));
+    });
+}
+
+#[test]
+fn configuration_change_invalidates_natspec_context_until_analysis_publishes() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .max_blocking_threads(1)
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        let request_uri = Url::parse("file:///Request.sol").unwrap();
+        let (release_worker, worker) = pause_blocking_pool();
+
+        let result = crate::handlers::did_change_configuration(
+            &mut state,
+            DidChangeConfigurationParams { settings: serde_json::Value::Null },
+        );
+
+        assert!(matches!(result, ControlFlow::Continue(())));
+        assert!(!state.natspec_semantics_are_usable(&request_uri));
+
+        release_worker.send(()).unwrap();
+        worker.await.unwrap();
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+            .await
+            .expect("configuration-change analysis should finish")
+            .unwrap();
+        assert!(state.natspec_semantics_are_usable(&request_uri));
+    });
+}
+
+#[test]
+fn pending_request_source_defers_to_target_specific_natspec_lookup() {
     let project = TestProject::new();
     let state = GlobalState::new(ClientSocket::new_closed());
+    let path = project.path("/Request.sol");
+    let uri = Url::from_file_path(&path).unwrap();
+    let equivalent_uri =
+        Url::parse(&uri.as_str().replacen("Request.sol", "%52equest.sol", 1)).unwrap();
+
+    state.mark_source_analysis_pending_for_test(path);
+
+    assert_ne!(uri, equivalent_uri);
+    assert_eq!(uri.to_file_path(), equivalent_uri.to_file_path());
+    assert!(state.natspec_semantics_are_usable(&equivalent_uri));
+}
+
+#[test]
+fn pending_other_source_does_not_reuse_unknown_natspec_semantics() {
+    let project = TestProject::new();
+    let state = GlobalState::new(ClientSocket::new_closed());
+    let request_uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
 
     state.mark_source_analysis_pending_for_test(project.path("/Missing.sol"));
 
-    assert!(!state.natspec_semantics_are_usable());
+    assert!(!state.natspec_semantics_are_usable(&request_uri));
 }
 
 #[test]
 fn pending_context_change_invalidates_natspec_semantics() {
     let state = GlobalState::new(ClientSocket::new_closed());
+    let uri = Url::parse("file:///Request.sol").unwrap();
     state.mark_context_analysis_pending_for_test();
 
-    assert!(!state.natspec_semantics_are_usable());
+    assert!(!state.natspec_semantics_are_usable(&uri));
 }
 
 #[test]
-fn publishing_an_epoch_retains_later_pending_source_changes() {
+fn publishing_current_epoch_clears_pending_source_changes() {
     let project = TestProject::new();
     let mut snapshot = snapshot(&project);
-    let published_path = project.path("/Published.sol");
-    let later_path = project.path("/Later.sol");
+    let first_path = project.path("/First.sol");
+    let second_path = project.path("/Second.sol");
     snapshot
         .analysis_commit
         .lock()
         .natspec_pending_source_changes
-        .extend([(published_path.clone(), 1), (later_path.clone(), 2)]);
+        .extend([first_path, second_path]);
 
     assert!(snapshot.publish_symbol_tables(1, SymbolTables::default()));
 
     let commit = snapshot.analysis_commit.lock();
     assert_eq!(commit.natspec_symbol_tables_version, 1);
-    assert!(!commit.natspec_pending_source_changes.contains_key(&published_path));
-    assert_eq!(commit.natspec_pending_source_changes.get(&later_path), Some(&2));
+    assert!(commit.natspec_pending_source_changes.is_empty());
 }
 
 #[test]

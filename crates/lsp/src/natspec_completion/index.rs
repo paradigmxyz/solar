@@ -12,7 +12,11 @@ use solar_sema::{
     Gcx,
     hir::{self, ItemId},
 };
-use std::fmt::Write;
+use std::{
+    fmt::Write,
+    path::PathBuf,
+    sync::{Arc, OnceLock},
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum DeclarationPath {
@@ -100,57 +104,113 @@ enum IndexedSemantics {
 pub(crate) struct NatSpecCompletionIndex {
     // The source fingerprint ignores all trivia, including NatSpec comments. Keep indexed values
     // independent of documentation text so trivia-only edits can safely reuse this data.
-    by_file: FxHashMap<Url, IndexedFile>,
+    by_file: FxHashMap<PathBuf, IndexedFile>,
 }
 
 #[derive(Clone, Debug, Default)]
 struct IndexedFile {
-    syntax_fingerprint: Option<Box<str>>,
+    source: Option<Arc<String>>,
+    syntax_fingerprint: OnceLock<Box<str>>,
     entries: FxHashMap<DeclarationKey, IndexedSemantics>,
+}
+
+impl IndexedFile {
+    fn new(source: Arc<String>) -> Self {
+        Self { source: Some(source), ..Self::default() }
+    }
+
+    fn syntax_fingerprint(&self) -> Option<&str> {
+        let source = self.source.as_deref()?;
+        Some(self.syntax_fingerprint.get_or_init(|| syntax_fingerprint(source)))
+    }
+
+    fn has_same_syntax(&self, other: &Self) -> bool {
+        match (&self.source, &other.source) {
+            (Some(current), Some(incoming)) => {
+                Arc::ptr_eq(current, incoming)
+                    || current == incoming
+                    || self.syntax_fingerprint() == other.syntax_fingerprint()
+            }
+            (None, None) => true,
+            (Some(_), None) | (None, Some(_)) => false,
+        }
+    }
+
+    fn mark_source_ambiguous(&mut self) {
+        self.source = None;
+        self.syntax_fingerprint = OnceLock::new();
+    }
+}
+
+struct SemanticItem {
+    item_id: ItemId,
+    semantics: NatSpecTargetSemantics,
 }
 
 impl NatSpecCompletionIndex {
     pub(crate) fn build(gcx: Gcx<'_>) -> Self {
         let mut index = Self::default();
-        let mut hir_items_by_source =
-            FxHashMap::<hir::SourceId, FxHashMap<Span, Vec<ItemId>>>::default();
-        for item_id in gcx.hir.item_ids() {
-            let item = gcx.hir.item(item_id);
-            hir_items_by_source
-                .entry(item.source())
-                .or_default()
-                .entry(item.span())
-                .or_default()
-                .push(item_id);
+        let mut semantic_items_by_source =
+            FxHashMap::<hir::SourceId, FxHashMap<Span, Vec<SemanticItem>>>::default();
+
+        for source in gcx.hir.sources() {
+            for &item_id in source.items {
+                if let ItemId::Contract(contract_id) = item_id {
+                    for &contract_item_id in gcx.hir.contract(contract_id).items {
+                        collect_semantic_item(gcx, &mut semantic_items_by_source, contract_item_id);
+                    }
+                } else {
+                    collect_semantic_item(gcx, &mut semantic_items_by_source, item_id);
+                }
+            }
         }
 
         for (source_id, source) in gcx.sources.iter_enumerated() {
             let Some(path) = source.file.name.as_real() else { continue };
-            let Ok(uri) = Url::from_file_path(path) else { continue };
             let Some(ast) = &source.ast else { continue };
-            index.by_file.insert(
-                uri.clone(),
-                IndexedFile {
-                    syntax_fingerprint: Some(syntax_fingerprint(&source.file.src)),
-                    entries: FxHashMap::default(),
-                },
-            );
-            let Some(hir_items) = hir_items_by_source.get(&source_id) else { continue };
+            let mut indexed_file = IndexedFile::new(source.file.src.clone());
+            if let Some(semantic_items) = semantic_items_by_source.get_mut(&source_id) {
+                let mut remaining = semantic_items.values().map(Vec::len).sum::<usize>();
 
-            for (item_ordinal, item) in ast.items.iter().enumerate() {
-                let path = DeclarationPath::Source { item_ordinal };
-                index.add_ast_item(gcx, &uri, &source.file, path, item, hir_items);
+                'source_items: for (item_ordinal, item) in ast.items.iter().enumerate() {
+                    let path = DeclarationPath::Source { item_ordinal };
+                    remaining -= usize::from(Self::add_ast_item(
+                        &mut indexed_file.entries,
+                        gcx,
+                        &source.file,
+                        path,
+                        item,
+                        semantic_items,
+                    ));
+                    if remaining == 0 {
+                        break;
+                    }
 
-                let ItemKind::Contract(contract) = &item.kind else { continue };
-                for (contract_item_ordinal, contract_item) in contract.body.iter().enumerate() {
-                    let path = DeclarationPath::Contract {
-                        contract_ordinal: item_ordinal,
-                        contract_name: Box::from(contract.name.as_str()),
-                        item_ordinal: contract_item_ordinal,
-                    };
-                    index.add_ast_item(gcx, &uri, &source.file, path, contract_item, hir_items);
+                    let ItemKind::Contract(contract) = &item.kind else { continue };
+                    for (contract_item_ordinal, contract_item) in contract.body.iter().enumerate() {
+                        if !semantic_items.contains_key(&contract_item.span) {
+                            continue;
+                        }
+                        let path = DeclarationPath::Contract {
+                            contract_ordinal: item_ordinal,
+                            contract_name: Box::from(contract.name.as_str()),
+                            item_ordinal: contract_item_ordinal,
+                        };
+                        remaining -= usize::from(Self::add_ast_item(
+                            &mut indexed_file.entries,
+                            gcx,
+                            &source.file,
+                            path,
+                            contract_item,
+                            semantic_items,
+                        ));
+                        if remaining == 0 {
+                            break 'source_items;
+                        }
+                    }
                 }
             }
+            index.by_file.insert(path.to_path_buf(), indexed_file);
         }
         index
     }
@@ -164,8 +224,8 @@ impl NatSpecCompletionIndex {
                 }
                 Entry::Occupied(mut entry) => {
                     let current = entry.get_mut();
-                    if current.syntax_fingerprint != incoming.syntax_fingerprint {
-                        current.syntax_fingerprint = None;
+                    if !current.has_same_syntax(&incoming) {
+                        current.mark_source_ambiguous();
                     }
                     let current_keys = current.entries.keys().cloned().collect::<FxHashSet<_>>();
                     let incoming_keys = incoming.entries.keys().cloned().collect::<FxHashSet<_>>();
@@ -186,51 +246,80 @@ impl NatSpecCompletionIndex {
         source_fingerprint: &str,
         key: &DeclarationKey,
     ) -> Option<&NatSpecTargetSemantics> {
-        let file = self.by_file.get(uri)?;
-        if file.syntax_fingerprint.as_deref() != Some(source_fingerprint) {
+        let path = uri.to_file_path().ok()?;
+        let file = self.by_file.get(&path)?;
+        let IndexedSemantics::Unique(semantics) = file.entries.get(key)? else { return None };
+        if file.syntax_fingerprint() != Some(source_fingerprint) {
             return None;
         }
-        match file.entries.get(key)? {
-            IndexedSemantics::Unique(semantics) => Some(semantics),
-            IndexedSemantics::Ambiguous => None,
-        }
+        Some(semantics)
     }
 
     pub(crate) fn source_fingerprint(&self, uri: &Url) -> Option<&str> {
-        self.by_file.get(uri)?.syntax_fingerprint.as_deref()
+        let path = uri.to_file_path().ok()?;
+        self.by_file.get(&path)?.syntax_fingerprint()
     }
 
     fn add_ast_item(
-        &mut self,
+        entries: &mut FxHashMap<DeclarationKey, IndexedSemantics>,
         gcx: Gcx<'_>,
-        uri: &Url,
         file: &SourceFile,
         path: DeclarationPath,
         ast_item: &ast::Item<'_>,
-        hir_items: &FxHashMap<Span, Vec<ItemId>>,
-    ) {
-        let Some(key) = DeclarationKey::from_ast(file, path, ast_item) else { return };
-        let Some(item_id) =
-            hir_items.get(&ast_item.span).and_then(|items| find_hir_item(gcx, items, ast_item))
-        else {
-            return;
+        semantic_items: &mut FxHashMap<Span, Vec<SemanticItem>>,
+    ) -> bool {
+        let Some(items) = semantic_items.get_mut(&ast_item.span) else { return false };
+        let Some(index) = find_hir_item(gcx, items, ast_item) else { return false };
+        let Some(key) = DeclarationKey::from_ast(file, path, ast_item) else {
+            return false;
         };
-        let semantics = target_semantics(gcx, item_id);
-        if semantics.is_empty() {
-            return;
-        }
-        merge_entry(
-            &mut self.by_file.entry(uri.clone()).or_default().entries,
-            key,
-            IndexedSemantics::Unique(semantics),
-        );
+        let semantic_item = items.swap_remove(index);
+        merge_entry(entries, key, IndexedSemantics::Unique(semantic_item.semantics));
+        true
     }
 }
 
-fn find_hir_item(gcx: Gcx<'_>, items: &[ItemId], ast_item: &ast::Item<'_>) -> Option<ItemId> {
+fn collect_semantic_item(
+    gcx: Gcx<'_>,
+    semantic_items_by_source: &mut FxHashMap<hir::SourceId, FxHashMap<Span, Vec<SemanticItem>>>,
+    item_id: ItemId,
+) {
+    let eligible = match item_id {
+        ItemId::Function(id) => {
+            let function = gcx.hir.function(id);
+            function.contract.is_some_and(|contract| !gcx.hir.contract(contract).bases.is_empty())
+                && !function.is_yul
+                && !function.is_getter()
+                && !gcx.base_override_items(item_id).is_empty()
+        }
+        ItemId::Variable(id) => {
+            let variable = gcx.hir.variable(id);
+            variable.parent.is_none() && variable.getter.is_some()
+        }
+        _ => false,
+    };
+    if !eligible {
+        return;
+    }
+
+    let semantics = target_semantics(gcx, item_id);
+    if semantics.is_empty() {
+        return;
+    }
+    let item = gcx.hir.item(item_id);
+    semantic_items_by_source
+        .entry(item.source())
+        .or_default()
+        .entry(item.span())
+        .or_default()
+        .push(SemanticItem { item_id, semantics });
+}
+
+fn find_hir_item(gcx: Gcx<'_>, items: &[SemanticItem], ast_item: &ast::Item<'_>) -> Option<usize> {
     let target_kind = TargetKind::from_ast(ast_item)?;
     let target_name = ast_item.name().map(|name| name.name);
-    items.iter().copied().find(|&item_id| {
+    items.iter().position(|item| {
+        let item_id = item.item_id;
         if hir_target_kind(gcx, item_id) != Some(target_kind)
             || gcx.hir.item(item_id).name().map(|name| name.name) != target_name
         {
@@ -401,6 +490,10 @@ pub(crate) fn syntax_fingerprint(source: &str) -> Box<str> {
 mod tests {
     use super::*;
 
+    fn uri_path(uri: &Url) -> PathBuf {
+        uri.to_file_path().unwrap()
+    }
+
     #[test]
     fn token_fingerprint_ignores_trivia_but_preserves_literal_contents() {
         let compact =
@@ -457,22 +550,21 @@ mod tests {
             getter_returns: vec![Some("result".into())],
             inheritdoc_contracts: Vec::new(),
         };
-        let empty_file = IndexedFile {
-            syntax_fingerprint: Some(Box::from("source")),
-            entries: FxHashMap::default(),
-        };
+        let empty_file = IndexedFile::new(Arc::new("source".into()));
         let populated_file = IndexedFile {
-            syntax_fingerprint: Some(Box::from("source")),
+            source: Some(Arc::new("source".into())),
             entries: [(key.clone(), IndexedSemantics::Unique(semantics))].into_iter().collect(),
+            ..IndexedFile::default()
         };
+        let path = uri_path(&uri);
         let mut index =
-            NatSpecCompletionIndex { by_file: [(uri.clone(), empty_file)].into_iter().collect() };
+            NatSpecCompletionIndex { by_file: [(path.clone(), empty_file)].into_iter().collect() };
 
         index.extend(NatSpecCompletionIndex {
-            by_file: [(uri.clone(), populated_file)].into_iter().collect(),
+            by_file: [(path, populated_file)].into_iter().collect(),
         });
 
-        assert_eq!(index.get(&uri, "source", &key), None);
+        assert_eq!(index.get(&uri, &syntax_fingerprint("source"), &key), None);
     }
 
     #[test]
@@ -488,19 +580,104 @@ mod tests {
             NatSpecTargetSemantics { getter_returns: vec![None], inheritdoc_contracts: Vec::new() };
         let mut incoming = NatSpecCompletionIndex::default();
         incoming.by_file.insert(
-            uri.clone(),
+            uri_path(&uri),
             IndexedFile {
-                syntax_fingerprint: Some(Box::from("source")),
+                source: Some(Arc::new("source".into())),
                 entries: [(key.clone(), IndexedSemantics::Unique(semantics.clone()))]
                     .into_iter()
                     .collect(),
+                ..IndexedFile::default()
             },
         );
 
         let mut index = NatSpecCompletionIndex::default();
         index.extend(incoming);
 
-        assert_eq!(index.get(&uri, "source", &key), Some(&semantics));
+        assert_eq!(index.get(&uri, &syntax_fingerprint("source"), &key), Some(&semantics));
         assert_eq!(index.get(&uri, "stale", &key), None);
+    }
+
+    #[test]
+    fn equivalent_file_uri_retrieves_semantics() {
+        let uri = Url::from_file_path(std::env::temp_dir().join("Completion.sol")).unwrap();
+        let equivalent_uri =
+            Url::parse(&uri.as_str().replacen("Completion.sol", "%43ompletion.sol", 1)).unwrap();
+        let key = DeclarationKey {
+            path: DeclarationPath::Source { item_ordinal: 0 },
+            kind: TargetKind::Variable,
+            name: Some(Box::from("value")),
+            header_fingerprint: Box::from("header"),
+        };
+        let semantics =
+            NatSpecTargetSemantics { getter_returns: vec![None], inheritdoc_contracts: Vec::new() };
+        let index = NatSpecCompletionIndex {
+            by_file: [(
+                uri_path(&uri),
+                IndexedFile {
+                    source: Some(Arc::new("source".into())),
+                    entries: [(key.clone(), IndexedSemantics::Unique(semantics.clone()))]
+                        .into_iter()
+                        .collect(),
+                    ..IndexedFile::default()
+                },
+            )]
+            .into_iter()
+            .collect(),
+        };
+
+        assert_ne!(uri, equivalent_uri);
+        assert_eq!(uri.to_file_path(), equivalent_uri.to_file_path());
+        assert_eq!(
+            index.get(&equivalent_uri, &syntax_fingerprint("source"), &key),
+            Some(&semantics)
+        );
+    }
+
+    #[test]
+    fn extending_identical_sources_keeps_fingerprint_lazy() {
+        let uri = Url::parse("file:///Completion.sol").unwrap();
+        let path = uri_path(&uri);
+        let mut index = NatSpecCompletionIndex {
+            by_file: [(path.clone(), IndexedFile::new(Arc::new("contract C {}".into())))]
+                .into_iter()
+                .collect(),
+        };
+
+        index.extend(NatSpecCompletionIndex {
+            by_file: [(path.clone(), IndexedFile::new(Arc::new("contract C {}".into())))]
+                .into_iter()
+                .collect(),
+        });
+
+        assert!(index.by_file[&path].syntax_fingerprint.get().is_none());
+    }
+
+    #[test]
+    fn source_fingerprint_is_computed_lazily() {
+        let file = IndexedFile::new(Arc::new("contract C {}".into()));
+
+        assert!(file.syntax_fingerprint.get().is_none());
+        assert_eq!(file.syntax_fingerprint(), Some(syntax_fingerprint("contract C {}").as_ref()));
+        assert!(file.syntax_fingerprint.get().is_some());
+    }
+
+    #[test]
+    fn missing_semantics_do_not_compute_source_fingerprint() {
+        let uri = Url::parse("file:///Completion.sol").unwrap();
+        let path = uri_path(&uri);
+        let key = DeclarationKey {
+            path: DeclarationPath::Source { item_ordinal: 0 },
+            kind: TargetKind::Variable,
+            name: Some(Box::from("value")),
+            header_fingerprint: Box::from("header"),
+        };
+        let index = NatSpecCompletionIndex {
+            by_file: [(path.clone(), IndexedFile::new(Arc::new("contract C {}".into())))]
+                .into_iter()
+                .collect(),
+        };
+
+        assert_eq!(index.get(&uri, "unused", &key), None);
+        assert!(index.by_file[&path].syntax_fingerprint.get().is_none());
     }
 }

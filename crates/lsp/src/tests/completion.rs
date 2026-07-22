@@ -525,6 +525,45 @@ new_text:
 }
 
 #[test]
+fn completes_inheritdoc_for_overridden_fallback() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Completion.sol open
+        contract Base { fallback() external virtual {} }
+        contract Child is Base {
+            ///$1
+            fallback() external override {}
+        }
+        "#,
+        "/Completion.sol",
+    );
+
+    fixture.check_completion_details(
+        "$1",
+        str![[r#"
+label=NatSpec fallback documentation
+kind=Snippet
+detail=fallback
+sort_text=0
+text_edit=edit 2:4-2:7
+insert_text_format=Snippet
+new_text:
+/// $1$0
+
+label=NatSpec @inheritdoc Base
+kind=Snippet
+detail=Inherit documentation from Base
+sort_text=1:Base
+text_edit=edit 2:4-2:7
+insert_text_format=Snippet
+new_text:
+/// @inheritdoc Base$0
+
+"#]],
+    );
+}
+
+#[test]
 fn completes_inheritdoc_with_a_named_import_alias() {
     let fixture = RequestFixture::new_in_batches(
         r#"
@@ -720,6 +759,55 @@ kind=Snippet
 detail=contract OpenVault
 sort_text=0
 text_edit=edit 2:0-2:3
+insert_text_format=Snippet
+new_text:
+/**
+ * @title $1
+ * @author $2
+ * @notice $3$0
+ */
+
+"#]],
+    );
+}
+
+#[test]
+fn falls_back_to_ordinary_completion_after_closed_block_natspec() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Completion.sol open
+        /** docs */ contract C { function f() external pure { ret$1urn; } }
+        "#,
+        "/Completion.sol",
+    );
+
+    fixture.check_completion(
+        "$1",
+        str![[r#"
+revert Function
+
+"#]],
+    );
+}
+
+#[test]
+fn completes_closed_block_natspec_before_same_line_declaration() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Completion.sol open
+        /**$1 */ contract C {}
+        "#,
+        "/Completion.sol",
+    );
+
+    fixture.check_completion_details(
+        "$1",
+        str![[r#"
+label=NatSpec contract documentation
+kind=Snippet
+detail=contract C
+sort_text=0
+text_edit=edit 0:0-0:6
 insert_text_format=Snippet
 new_text:
 /**
@@ -932,6 +1020,92 @@ new_text:
 /// @notice $1
     /// @return amount $2
     /// @return owner $3$0
+
+"#]],
+    );
+}
+
+#[test]
+fn pending_unclosed_block_keeps_getter_semantics() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Completion.sol open
+        contract C {
+            struct Record {
+                uint256 amount;
+                address owner;
+            }
+            // $1
+            Record public record;
+        }
+        "#,
+        "/Completion.sol",
+    );
+    let changed = fixture.project_contents("/Completion.sol").replace("// ", "/**");
+
+    fixture.check_completion_details_after_change(
+        "$1",
+        "/Completion.sol",
+        &changed,
+        str![[r#"
+label=NatSpec public state variable documentation
+kind=Snippet
+detail=public state variable record
+sort_text=0
+text_edit=edit 5:4-5:7
+insert_text_format=Snippet
+new_text:
+/**
+     * @notice $1
+     * @return amount $2
+     * @return owner $3$0
+     */
+
+"#]],
+    );
+}
+
+#[test]
+fn pending_unclosed_block_keeps_inheritdoc_semantics() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Completion.sol open
+        interface Base { function value() external; }
+        contract Child is Base {
+            // $1
+            function value() external override {}
+        }
+        "#,
+        "/Completion.sol",
+    );
+    let changed = fixture.project_contents("/Completion.sol").replace("// ", "/**");
+
+    fixture.check_completion_details_after_change(
+        "$1",
+        "/Completion.sol",
+        &changed,
+        str![[r#"
+label=NatSpec function documentation
+kind=Snippet
+detail=function value
+sort_text=0
+text_edit=edit 2:4-2:7
+insert_text_format=Snippet
+new_text:
+/**
+     * $1$0
+     */
+
+label=NatSpec @inheritdoc Base
+kind=Snippet
+detail=Inherit documentation from Base
+sort_text=1:Base
+text_edit=edit 2:4-2:7
+insert_text_format=Snippet
+new_text:
+/**
+     * @inheritdoc Base$0
+     */
 
 "#]],
     );

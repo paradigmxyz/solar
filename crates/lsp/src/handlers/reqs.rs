@@ -533,7 +533,7 @@ pub(crate) fn completion(
             NatSpecCompletionResult::Claimed(target) => {
                 let items = target.map_or_else(Vec::new, |target| {
                     let semantics = state
-                        .natspec_semantics_are_usable()
+                        .natspec_semantics_are_usable(&params.text_document.uri)
                         .then(|| {
                             state
                                 .symbol_tables

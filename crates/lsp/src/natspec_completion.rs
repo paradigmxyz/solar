@@ -397,13 +397,13 @@ fn comment_candidate(source: &str, cursor: usize) -> CandidateResult {
     }
 
     if terminated {
-        if cursor > block_end || !empty_block_comment(source, marker_start, block_end) {
+        if cursor > block_end {
+            return CandidateResult::NotApplicable;
+        }
+        if !empty_block_comment(source, marker_start, block_end) {
             return CandidateResult::Invalid;
         }
         let (edit_range, additional_edit_range) = if block_end <= line_end {
-            if !source[block_end..line_end].trim_ascii().is_empty() {
-                return CandidateResult::Invalid;
-            }
             (marker_start..block_end, None)
         } else {
             (marker_start..line_end, Some(line_end..block_end))
