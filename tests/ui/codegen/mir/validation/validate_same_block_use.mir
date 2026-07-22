@@ -5,13 +5,13 @@
 // deliberately loose SSA rules.
 @module ValidateSameBlockUse
 fn @acyclic() -> u256 {
-  bb0 (entry):
+  bb0:
     v0 = add v1, 1
     v1 = add 2, 3
     ret v0
 }
 fn @cyclic(arg0: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v0 = add v1, 1

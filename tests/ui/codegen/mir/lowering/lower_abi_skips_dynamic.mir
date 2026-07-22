@@ -4,6 +4,6 @@
 // phase transition is all-or-nothing and the module does not advance to `abi`.
 @module LowerAbiSkipsDynamic
 fn @givesBytes(arg0: u256) -> memptr [selector=0x0dead001] {
-  bb0 (entry):
+  bb0:
     ret arg0
 }

@@ -31,9 +31,7 @@ pub(super) fn run(gcx: Gcx<'_>, module: &mut Module) -> bool {
         }
     }
 
-    if let Some(entry) = module.entry_block {
-        append_layout_trace(module, entry, &mut state.placed, &mut state.order);
-    }
+    append_layout_trace(module, BlockId::ENTRY, &mut state.placed, &mut state.order);
     for cold in [false, true] {
         for block in module.blocks.indices() {
             if state.predecessor_counts[block.index()] == 0

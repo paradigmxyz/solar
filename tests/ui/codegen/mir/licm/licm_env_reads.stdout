@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/licm/licm_env_reads.mir (after licm) ===
   @module LicmEnvReads
   fn @keep_balance_with_call() -> u256 {
-    bb0 (entry):
+    bb0:
       jump bb1
     bb1:
       br 1, bb2, bb3
@@ -16,7 +16,7 @@
   }
   
   fn @hoist_balance_without_calls() -> u256 {
-    bb0 (entry):
+    bb0:
 +     v0 = balance 0xbeef
 +     v1 = mul v0, 3
       jump bb1
@@ -31,7 +31,7 @@
   }
   
   fn @keep_extcodesize_with_create() -> u256 {
-    bb0 (entry):
+    bb0:
       jump bb1
     bb1:
       br 1, bb2, bb3
@@ -45,7 +45,7 @@
   }
   
   fn @keep_returndatasize_with_staticcall() -> u256 {
-    bb0 (entry):
+    bb0:
       jump bb1
     bb1:
       br 1, bb2, bb3
@@ -59,7 +59,7 @@
   }
   
   fn @keep_msize() -> u256 {
-    bb0 (entry):
+    bb0:
       jump bb1
     bb1:
       br 1, bb2, bb3

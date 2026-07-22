@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/pure-eval/pure_eval_loop.mir (after pure-eval) ===
   @module PureEvalLoop
   fn @bounded_loop() -> u256 {
-    bb0 (entry):
+    bb0:
 -     jump bb1
 +     ret 3
     bb1:
@@ -19,7 +19,7 @@
   }
   
   fn @with_arg(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, 1
       ret v0
   }

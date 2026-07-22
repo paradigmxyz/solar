@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/terminal_dedup.evmir (before terminal-dedup) ===
 + // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/terminal_dedup.evmir (after terminal-dedup) ===
   @module module
-  bb0 (entry):
+  bb0:
     push 1
     jumpi bb1, bb2
   bb1 [cold]:

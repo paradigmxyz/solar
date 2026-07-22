@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/pre/pre_join_shapes.mir (after pre) ===
   @module JoinShapes
   fn @duplicate_pred_edges(arg0: u256, arg1: u256, arg2: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       switch arg1, default bb1, [1 => bb2, 2 => bb3]
     bb1:
       v0 = add arg0, 7
@@ -21,7 +21,7 @@
   }
   
   fn @self_loop_join(arg0: u256, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       switch arg1, default bb3, [1 => bb1, 2 => bb2]
     bb1:
       v0 = add arg0, 7
@@ -44,7 +44,7 @@
   }
   
   fn @outer_phi_operand(arg0: u256, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       jump bb1
     bb1:
       v0 = phi [bb0: arg0], [bb6: v5]

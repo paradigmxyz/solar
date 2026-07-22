@@ -7,7 +7,7 @@
 // Panic(0x11) check — no `lt` after `add v, 1` and only one panic block —
 // while the unguarded accumulator check on `s += i` must survive.
 fn @sum(arg0: u256) {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     jump bb1
   bb1:

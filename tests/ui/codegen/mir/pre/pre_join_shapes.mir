@@ -4,7 +4,7 @@
 // bb2 reaches the join through two switch edges: the phi must keep one
 // incoming entry per unique predecessor.
 fn @duplicate_pred_edges(arg0: u256, arg1: u256, arg2: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     switch arg1, default bb1, [1 => bb2, 2 => bb3]
   bb1:
     v3 = add arg0, 7
@@ -22,7 +22,7 @@ fn @duplicate_pred_edges(arg0: u256, arg1: u256, arg2: u256) -> u256 {
 // The join is its own predecessor: the backedge incoming becomes the phi
 // itself, which is correct because the expression is loop-invariant.
 fn @self_loop_join(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     switch arg1, default bb3, [1 => bb1, 2 => bb2]
   bb1:
     v2 = add arg0, 7
@@ -43,7 +43,7 @@ fn @self_loop_join(arg0: u256, arg1: u256) -> u256 {
 // The join expression's operand is a phi defined in an enclosing header
 // block, not in the join itself: it must not be translated per predecessor.
 fn @outer_phi_operand(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v2 = phi [bb0: arg0], [bb6: v20]
