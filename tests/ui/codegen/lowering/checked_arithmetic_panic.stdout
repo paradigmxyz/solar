@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/checked_arithmetic_panic.sol:CheckedArithmeticPanic ===
 @module CheckedArithmeticPanic
 fn @add(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -23,7 +23,7 @@ fn @add(arg0: u256, arg1: u256) {
 }
 
 fn @sub(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -45,7 +45,7 @@ fn @sub(arg0: u256, arg1: u256) {
 }
 
 fn @mul(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -71,7 +71,7 @@ fn @mul(arg0: u256, arg1: u256) {
 }
 
 fn @div_zero(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -92,7 +92,7 @@ fn @div_zero(arg0: u256, arg1: u256) {
 }
 
 fn @pow(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -175,7 +175,7 @@ fn @pow(arg0: u256, arg1: u256) {
 }
 
 fn @signed_add(arg0: i256, arg1: i256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -199,7 +199,7 @@ fn @signed_add(arg0: i256, arg1: i256) {
 }
 
 fn @signed_neg(arg0: i256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -221,7 +221,7 @@ fn @signed_neg(arg0: i256) {
 }
 
 fn @narrow_add(arg0: u8, arg1: u8) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -257,7 +257,7 @@ fn @narrow_add(arg0: u8, arg1: u8) {
 }
 
 fn @unchecked_add(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -272,7 +272,7 @@ fn @unchecked_add(arg0: u256, arg1: u256) {
 }
 
 fn @unchecked_neg(arg0: i256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -287,7 +287,7 @@ fn @unchecked_neg(arg0: i256) {
 }
 
 fn @unchecked_pow(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -302,7 +302,7 @@ fn @unchecked_pow(arg0: u256, arg1: u256) {
 }
 
 fn @unchecked_call(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -324,7 +324,7 @@ fn @unchecked_call(arg0: u256, arg1: u256) {
 }
 
 fn @checked_inner(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v0 = internal_frame_addr 160
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = add arg0, arg1

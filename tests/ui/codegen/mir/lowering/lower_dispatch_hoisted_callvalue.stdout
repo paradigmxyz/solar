@@ -4,17 +4,17 @@
 - @phase abi
 + @phase dispatch
   fn @a() {
-    bb0 (entry):
+    bb0:
       stop
   }
   
   fn @b() {
-    bb0 (entry):
+    bb0:
       stop
 + }
 + 
 + fn @entry() {
-+   bb0 (entry):
++   bb0:
 +     v0 = callvalue
 +     br v0, bb5, bb1
 +   bb1:

@@ -128,10 +128,6 @@ impl CheckEliminator {
     /// branches.
     pub(crate) fn run(&mut self, func: &mut Function) -> usize {
         self.stats = CheckElimStats::default();
-        if func.blocks.is_empty() {
-            return 0;
-        }
-
         let cfg = CfgInfo::new(func);
 
         // Predecessors recomputed from reachable terminators: facts must only
@@ -174,7 +170,7 @@ impl CheckEliminator {
         }
 
         let mut folds = Vec::new();
-        let mut stack = vec![Walk::Enter(func.entry_block)];
+        let mut stack = vec![Walk::Enter(BlockId::ENTRY)];
         while let Some(item) = stack.pop() {
             match item {
                 Walk::Exit { range_mark, relation_mark } => {
@@ -602,11 +598,6 @@ fn dominating_edge_fact(
     preds: &IndexVec<BlockId, Vec<BlockId>>,
     block: BlockId,
 ) -> Option<(ValueId, bool)> {
-    // The entry executes before any branch, so no edge fact holds on it even
-    // if malformed input gives it a predecessor.
-    if block == func.entry_block {
-        return None;
-    }
     let preds = &preds[block];
     let (&first, rest) = preds.split_first()?;
     if rest.iter().any(|&pred| pred != first) {

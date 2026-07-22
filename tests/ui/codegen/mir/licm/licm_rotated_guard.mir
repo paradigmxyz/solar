@@ -6,7 +6,7 @@
 // stay in the loop.
 @module LicmRotatedGuard
 fn @rotated_guard_overlap() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v9]
@@ -25,7 +25,7 @@ fn @rotated_guard_overlap() -> u256 {
 // Self-loop do-while variant of the same off-by-one: guard on the pre-increment
 // phi at the bottom of the single-block loop. The body runs with v1 = 0..10.
 fn @dowhile_latch_guard_overlap() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb1: v9]
@@ -43,7 +43,7 @@ fn @dowhile_latch_guard_overlap() -> u256 {
 // only executes after the bound check passed and the store range is exactly
 // The range is [0, 320), so the mload at 320 is genuinely disjoint and is hoisted.
 fn @top_tested_control() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v9]
@@ -63,7 +63,7 @@ fn @top_tested_control() -> u256 {
 // iteration, so their range is widened one stride to [0, 352); a load one
 // stride further is still provably disjoint and may be hoisted.
 fn @disjoint_past_widened_range() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v9]

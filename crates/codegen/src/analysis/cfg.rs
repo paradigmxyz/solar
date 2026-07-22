@@ -19,7 +19,6 @@ use solar_data_structures::{
 /// Control-flow facts for one MIR function.
 #[derive(Clone, Debug)]
 pub(crate) struct CfgInfo {
-    entry_block: BlockId,
     successors: IndexVec<BlockId, SmallVec<[BlockId; 2]>>,
     reachable: OnceCell<DenseBitSet<BlockId>>,
     rpo: OnceCell<Vec<BlockId>>,
@@ -39,7 +38,6 @@ impl CfgInfo {
             })
             .collect();
         Self {
-            entry_block: func.entry_block,
             successors,
             reachable: OnceCell::new(),
             rpo: OnceCell::new(),
@@ -60,7 +58,7 @@ impl CfgInfo {
         self.reachable.get_or_init(|| {
             let mut reachable = DenseBitSet::new_empty(self.successors.len());
             let mut stack = Vec::new();
-            stack.push(self.entry_block);
+            stack.push(BlockId::ENTRY);
             while let Some(block) = stack.pop() {
                 if reachable.insert(block) {
                     stack.extend(self.successors[block].iter().copied());
@@ -82,8 +80,8 @@ impl CfgInfo {
         self.rpo.get_or_init(|| {
             let mut reachable = DenseBitSet::new_empty(self.successors.len());
             let mut rpo = Vec::with_capacity(self.successors.len());
-            let mut stack = vec![(self.entry_block, 0usize)];
-            reachable.insert(self.entry_block);
+            let mut stack = vec![(BlockId::ENTRY, 0usize)];
+            reachable.insert(BlockId::ENTRY);
             while let Some((block, next)) = stack.last_mut() {
                 if let Some(&succ) = self.successors[*block].get(*next) {
                     *next += 1;
@@ -104,8 +102,7 @@ impl CfgInfo {
     /// Returns immediate-dominator information.
     #[must_use]
     pub(crate) fn dominators(&self) -> &DominatorTree {
-        self.dominators
-            .get_or_init(|| DominatorTree::compute(self.entry_block, &self.successors, self.rpo()))
+        self.dominators.get_or_init(|| DominatorTree::compute(&self.successors, self.rpo()))
     }
 
     /// Returns block-to-block reachability through at least one CFG edge.
@@ -140,11 +137,7 @@ pub(crate) struct DominatorTree {
 }
 
 impl DominatorTree {
-    fn compute(
-        entry_block: BlockId,
-        successors: &IndexVec<BlockId, SmallVec<[BlockId; 2]>>,
-        rpo: &[BlockId],
-    ) -> Self {
+    fn compute(successors: &IndexVec<BlockId, SmallVec<[BlockId; 2]>>, rpo: &[BlockId]) -> Self {
         let block_count = successors.len();
         let mut predecessors = index_vec![Vec::new(); block_count];
         for (block, block_successors) in successors.iter_enumerated() {
@@ -158,16 +151,17 @@ impl DominatorTree {
         }
 
         let mut idoms = index_vec![None; block_count];
-        idoms[entry_block] = Some(entry_block);
+        idoms[BlockId::ENTRY] = Some(BlockId::ENTRY);
         let mut changed = true;
         while changed {
             changed = false;
             for &block in rpo {
-                if block == entry_block {
+                let block_predecessors = &predecessors[block];
+                if block_predecessors.is_empty() {
                     continue;
                 }
                 let mut new_idom: Option<BlockId> = None;
-                for &pred in &predecessors[block] {
+                for &pred in block_predecessors {
                     if idoms[pred].is_none() {
                         continue;
                     }
@@ -187,10 +181,9 @@ impl DominatorTree {
 
         let mut children = index_vec![Vec::new(); block_count];
         for (block, idom) in idoms.iter_enumerated() {
-            if block == entry_block {
-                continue;
-            }
-            if let Some(idom) = *idom {
+            if let Some(idom) = *idom
+                && idom != block
+            {
                 children[idom].push(block);
             }
         }

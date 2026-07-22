@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/internal_loop_call.sol:C ===
 @module C
 fn @sumTo(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v0 = internal_frame_addr 128
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = internal_frame_addr 160
@@ -51,7 +51,7 @@ fn @sumTo(arg0: u256) -> u256 {
 }
 
 fn @run(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32

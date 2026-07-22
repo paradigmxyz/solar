@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/gvn/gvn_phi.mir (after gvn) ===
   @module GvnPhi
   fn @congruent_phis_collapse(arg0: u256, arg1: u256, arg2: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       br arg2, bb1, bb2
     bb1:
       jump bb3
@@ -17,7 +17,7 @@
   }
   
   fn @phi_of_same_folds_to_dominating_operand(arg0: u256, arg1: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, 1
       br arg1, bb1, bb2
     bb1:
@@ -32,7 +32,7 @@
   }
   
   fn @phi_of_congruent_incoming(arg0: u256, arg1: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, 1
       br arg1, bb1, bb2
     bb1:
@@ -47,7 +47,7 @@
   }
   
   fn @phi_of_equal_immediates(arg0: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       br arg0, bb1, bb2
     bb1:
       jump bb3
@@ -60,7 +60,7 @@
   }
   
   fn @lockstep_loop_phis_stay(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v3]

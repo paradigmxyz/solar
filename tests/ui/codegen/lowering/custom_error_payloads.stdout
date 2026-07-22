@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/custom_error_payloads.sol:CustomErrorPayloads ===
 @module CustomErrorPayloads
 fn @revert_empty() {
-  bb0 (entry):
+  bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 4
     mstore 64, v1 !metadata(memory=scratch)
@@ -12,7 +12,7 @@ fn @revert_empty() {
 }
 
 fn @revert_args() {
-  bb0 (entry):
+  bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 64
     mstore 64, v1 !metadata(memory=scratch)
@@ -53,7 +53,7 @@ fn @revert_args() {
 }
 
 fn @require_empty(arg0: bool) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -84,7 +84,7 @@ fn @require_empty(arg0: bool) {
 }
 
 fn @require_named(arg0: bool) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32

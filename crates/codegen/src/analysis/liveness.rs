@@ -464,7 +464,7 @@ mod tests {
         b.ret([sum]);
 
         let liveness = Liveness::compute(&func);
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
 
         // x and one are used by add, so live-in to entry.
         assert!(liveness.live_in(entry).contains(x));
@@ -512,7 +512,7 @@ mod tests {
         assert!(liveness.live_in(then_bb).contains(x));
         assert!(liveness.live_in(else_bb).contains(x));
         // x must be live-out of entry (flows to successors).
-        assert!(liveness.live_out(func.entry_block).contains(x));
+        assert!(liveness.live_out(BlockId::ENTRY).contains(x));
         // v_then must be live-out of then_bb (used in merge's ret).
         assert!(liveness.live_out(then_bb).contains(v_then));
         // v_else should NOT be live-out of else_bb (merge returns v_then, not v_else).
@@ -573,7 +573,7 @@ mod tests {
         b.ret([x]);
 
         let liveness = Liveness::compute(&func);
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
 
         assert!(liveness.live_in(entry).contains(x));
         // dead instruction result must not be live-out.
@@ -591,7 +591,7 @@ mod tests {
         b.ret([y]);
 
         let liveness = Liveness::compute(&func);
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
 
         assert!(!liveness.live_in(entry).contains(_x), "unused param not live");
         assert!(liveness.live_in(entry).contains(y), "used param is live");
@@ -622,7 +622,7 @@ mod tests {
 
         assert!(liveness.live_in(left).contains(x));
         assert!(liveness.live_in(right).contains(x));
-        assert!(liveness.live_out(func.entry_block).contains(x));
+        assert!(liveness.live_out(BlockId::ENTRY).contains(x));
     }
 
     #[test]
@@ -632,8 +632,8 @@ mod tests {
         b.stop();
 
         let liveness = Liveness::compute(&func);
-        assert_eq!(liveness.live_in(func.entry_block).count(), 0);
-        assert_eq!(liveness.live_out(func.entry_block).count(), 0);
+        assert_eq!(liveness.live_in(BlockId::ENTRY).count(), 0);
+        assert_eq!(liveness.live_out(BlockId::ENTRY).count(), 0);
     }
 
     #[test]
@@ -648,7 +648,7 @@ mod tests {
         b.ret([loaded]);
 
         let liveness = Liveness::compute(&func);
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
 
         // Before sstore (inst 0): slot and val must be live.
         let info_0 = liveness.live_at_inst(&func, entry, 0);
@@ -673,7 +673,7 @@ mod tests {
         b.ret([v3]);
 
         let liveness = Liveness::compute(&func);
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
 
         // Before add (inst 0): v0 and v1 are live.
         let info_0 = liveness.live_at_inst(&func, entry, 0);
@@ -709,7 +709,7 @@ mod tests {
         b.ret([v2]);
 
         let liveness = Liveness::compute(&func);
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
 
         // v0 and v1 are dead after the add (inst 0) — their last use is at inst 0.
         assert!(liveness.is_dead_after(v0, entry, 0), "v0 dead after add");
@@ -730,7 +730,7 @@ mod tests {
         b.ret([v3]);
 
         let liveness = Liveness::compute(&func);
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
 
         // v0 last used at inst 1 (mul).
         assert_eq!(liveness.last_use_in_block(v0, entry), Some(Some(1)));

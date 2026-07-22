@@ -6,6 +6,6 @@
 @module PhaseExplicitBuilt
 @phase built
 fn @f() {
-  bb0 (entry):
+  bb0:
     stop
 }
