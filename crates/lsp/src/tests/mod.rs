@@ -1299,11 +1299,10 @@ fn analyze_builds_declaration_symbol_table() {
     );
     let path = project.path("/Symbols.sol");
     let uri = Url::from_file_path(&path).unwrap();
-    let result = analyze(AnalysisBatch {
-        opts: CompileOpts::default(),
-        files: vec![(path, project.read_file("/Symbols.sol"))],
-        seen_paths: FxHashSet::default(),
-    });
+    let result = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(path, project.read_file("/Symbols.sol"))],
+    ));
 
     assert!(result.diagnostics.is_empty());
 
@@ -1381,11 +1380,10 @@ fn analyze_builds_lsp_symbol_responses() {
     );
     let path = project.path("/Symbols.sol");
     let uri = Url::from_file_path(&path).unwrap();
-    let result = analyze(AnalysisBatch {
-        opts: CompileOpts::default(),
-        files: vec![(path, project.read_file("/Symbols.sol"))],
-        seen_paths: FxHashSet::default(),
-    });
+    let result = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(path, project.read_file("/Symbols.sol"))],
+    ));
 
     assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
 

@@ -1,8 +1,8 @@
 //! Outline repeated closed computations and large immediate pushes.
 
 use crate::backend::evm::{
-    ir::{Block, BlockId, Instruction, Module, Operand, Terminator, TerminatorKind},
-    opcode as op,
+    ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
+    op,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -20,9 +20,6 @@ pub(super) fn run(module: &mut Module, options: super::PassOptions) -> bool {
 fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> bool {
     let mut candidates = FxHashMap::<MachineInstSlice<'_>, SmallVec<[Site; 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
-        if !block.entry_stack.is_empty() {
-            continue;
-        }
         for start in 0..block.instructions.len() {
             let mut height = 0i32;
             for end in start..block.instructions.len() {
@@ -92,7 +89,7 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
         if group.height == 1 {
             stub.instructions.push(Instruction::opcode(op::SWAP1));
         }
-        stub.terminator = Some(Terminator::new(TerminatorKind::RawOpcode(op::JUMP)));
+        stub.terminator = Some(Terminator::new(TerminatorKind::Op(op::JUMP)));
         stubs.push(module.add_block(stub));
     }
     let original_blocks = claimed.len();
@@ -115,9 +112,9 @@ fn outline_repeated_pushes(
     for (block_id, block) in module.blocks.iter_enumerated() {
         for (index, inst) in block.instructions.iter().enumerate() {
             if inst.is_encoded_push()
-                && !inst.is_deferred_push()
-                && !inst.is_immutable_push()
-                && let [Operand::Immediate(value)] = inst.operands.as_slice()
+                && inst.deferred_push().is_none()
+                && inst.immutable_push().is_none()
+                && let Some(PushValue::Immediate(value)) = &inst.value
             {
                 sites.entry(*value).or_default().push((block_id, index));
             }
@@ -144,9 +141,9 @@ fn outline_repeated_pushes(
     let mut edits = vec![SmallVec::<[_; 1]>::new(); original_blocks];
     for value in values {
         let mut stub = Block::new(state.next_label(module));
-        stub.instructions.push(Instruction::push(Operand::Immediate(value)));
+        stub.instructions.push(Instruction::push_value(value));
         stub.instructions.push(Instruction::opcode(op::SWAP1));
-        stub.terminator = Some(Terminator::new(TerminatorKind::RawOpcode(op::JUMP)));
+        stub.terminator = Some(Terminator::new(TerminatorKind::Op(op::JUMP)));
         let stub = module.add_block(stub);
         for &(block, index) in &sites[&value] {
             edits[block.index()].push((index, 1, stub));
@@ -184,14 +181,11 @@ fn split_outline_site(
     module.blocks[block].instructions.truncate(start);
     continuation.terminator = module.blocks[block].terminator.take();
     let continuation = module.add_block(continuation);
-    module.blocks[block].instructions.push(Instruction::push(Operand::Block(continuation)));
+    module.blocks[block].instructions.push(Instruction::push_block(continuation));
     module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(stub)));
 }
 
 fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
-    if inst.result.is_some() {
-        return None;
-    }
     if inst.is_encoded_push() {
         return Some((0, 0, 1));
     }
@@ -250,7 +244,7 @@ impl PartialEq for MachineInstSlice<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.0.len() == other.0.len()
             && self.0.iter().zip(other.0).all(|(a, b)| {
-                a.opcode == b.opcode && a.encoding == b.encoding && a.operands == b.operands
+                a.opcode == b.opcode && a.encoding == b.encoding && a.value == b.value
             })
     }
 }
@@ -263,7 +257,7 @@ impl Hash for MachineInstSlice<'_> {
         for inst in self.0 {
             inst.opcode.hash(state);
             inst.encoding.hash(state);
-            inst.operands.hash(state);
+            inst.value.hash(state);
         }
     }
 }

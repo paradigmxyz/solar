@@ -1712,6 +1712,7 @@ impl<'gcx> Visit<'gcx> for BytecodeDependencyCollector<'_, 'gcx> {
 }
 
 /// Lowers a contract from HIR to MIR with pre-compiled bytecodes available for `new` expressions.
+#[tracing::instrument(name = "mir_lower_contract", level = "debug", skip_all, fields(?contract_id))]
 pub fn lower_contract_with_bytecodes(
     gcx: Gcx<'_>,
     contract_id: ContractId,

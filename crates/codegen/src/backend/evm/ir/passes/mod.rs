@@ -15,7 +15,7 @@ mod terminal_dedup;
 pub(super) mod utils;
 
 use super::Module;
-use crate::{backend::evm::stack_schedule, timing::PassTimer};
+use crate::timing::PassTimer;
 use solar_config::{EvmVersion, OptimizationMode};
 
 type PassRunner = fn(&mut Module, PassOptions) -> bool;
@@ -53,9 +53,6 @@ macro_rules! declare_passes {
 }
 
 declare_passes! {
-    /// Materialize virtual instruction operands with physical stack operations.
-    pub(crate) const STACK_SCHEDULE_PASS -> "stack-schedule" = run_stack_schedule;
-
     /// Simplify local instruction sequences in scheduled EVM IR.
     pub(crate) const PEEPHOLE_PASS -> "peephole" = peephole::run;
 
@@ -94,7 +91,6 @@ pub struct PassOptions {
 
 /// All EVM IR passes exposed by `solar evm-opt`.
 pub const PASS_REGISTRY: &[PassInfo] = &[
-    STACK_SCHEDULE_PASS,
     PEEPHOLE_PASS,
     SHARE_REVERTS_PASS,
     COMPACT_PUSHES_PASS,
@@ -140,13 +136,15 @@ pub fn lookup_pass(name: &str) -> Option<&'static PassInfo> {
 }
 
 /// Runs a named EVM IR pass over a module.
+#[tracing::instrument(
+    name = "evm_ir_pass",
+    level = "debug",
+    skip_all,
+    fields(pass = pass.name),
+)]
 pub fn run_pass(module: &mut Module, pass: &PassInfo, options: PassOptions) -> bool {
     let timer = PassTimer::new(options.time_passes);
     let changed = (pass.run_pass)(module, options);
     timer.finish("EVM IR", module.name(), pass.name, changed);
     changed
-}
-
-fn run_stack_schedule(module: &mut Module, _options: PassOptions) -> bool {
-    stack_schedule::schedule_stack_ops(module)
 }

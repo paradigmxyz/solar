@@ -15,7 +15,7 @@ mod scheduler;
 pub(crate) mod shuffler;
 mod spill;
 
-pub(crate) use model::{MAX_STACK_ACCESS, StackModel, StackOp};
+pub(crate) use model::{MAX_STACK_ACCESS, MAX_STACK_DEPTH, StackModel, StackOp};
 pub(crate) use scheduler::{ScheduledOp, StackScheduler};
 pub(crate) use shuffler::TargetSlot;
 pub(crate) use spill::SpillSlot;

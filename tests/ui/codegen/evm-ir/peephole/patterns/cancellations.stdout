@@ -1,0 +1,63 @@
+// === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/cancellations.evmir (after peephole) ===
+@module module
+bb0 (entry):
+  push 1
+  stop
+bb1:
+  push 1
+  stop
+bb2:
+  push 1
+  push 2
+  push 3
+  stop
+bb3:
+  push 1
+  push 2
+  stop
+bb4:
+  push 1
+  push 2
+  push 3
+  stop
+bb5:
+  push 1
+  iszero
+  stop
+bb6:
+  push 1
+  push 2
+  push 3
+  push 4
+  push 5
+  push 6
+  push 7
+  push 8
+  push 9
+  push 10
+  push 11
+  push 12
+  push 13
+  push 14
+  push 15
+  push 16
+  stop
+bb7:
+  push 1
+  push 2
+  push 3
+  push 4
+  push 5
+  push 6
+  push 7
+  push 8
+  push 9
+  push 10
+  push 11
+  push 12
+  push 13
+  push 14
+  push 15
+  push 16
+  push 17
+  stop

@@ -10,7 +10,6 @@ use lsp_types::{
 };
 use snapbox::str;
 use solar_config::CompileOpts;
-use solar_interface::data_structures::map::FxHashSet;
 use std::{
     future::Future,
     sync::atomic::Ordering,
@@ -84,11 +83,10 @@ fn equivalent_percent_encoded_uri_returns_document_links() {
         "#,
     );
     let path = project.path("/Imports.sol");
-    let tables = analyze(AnalysisBatch {
-        opts: CompileOpts::default(),
-        files: vec![(path.clone(), project.read_file("/Imports.sol"))],
-        seen_paths: FxHashSet::default(),
-    })
+    let tables = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(path.clone(), project.read_file("/Imports.sol"))],
+    ))
     .symbol_tables;
     let canonical_uri = Url::from_file_path(&path).unwrap();
     let encoded_uri =
@@ -189,17 +187,15 @@ fn waits_for_current_analysis_before_returning_document_links() {
         "#,
     );
     let path = project.path("/Imports.sol");
-    let old_tables = analyze(AnalysisBatch {
-        opts: CompileOpts::default(),
-        files: vec![(path.clone(), project.read_file("/Imports.sol"))],
-        seen_paths: FxHashSet::default(),
-    })
+    let old_tables = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(path.clone(), project.read_file("/Imports.sol"))],
+    ))
     .symbol_tables;
-    let new_tables = analyze(AnalysisBatch {
-        opts: CompileOpts::default(),
-        files: vec![(path.clone(), "import \"./New.sol\";".into())],
-        seen_paths: FxHashSet::default(),
-    })
+    let new_tables = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(path.clone(), "import \"./New.sol\";".into())],
+    ))
     .symbol_tables;
     let uri = Url::from_file_path(path).unwrap();
     let params = DocumentLinkParams {

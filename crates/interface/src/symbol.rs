@@ -1012,6 +1012,7 @@ symbols! {
         internal_frame,
         internal_frame_addr,
         jump,
+        jumpi,
         layout,
         length,
         log,

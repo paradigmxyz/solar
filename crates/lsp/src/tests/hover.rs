@@ -7,7 +7,6 @@ use lsp_types::{
 };
 use snapbox::str;
 use solar_config::CompileOpts;
-use solar_interface::data_structures::map::FxHashSet;
 use std::task::{Context, Poll, Waker};
 
 #[test]
@@ -1026,17 +1025,15 @@ fn waits_for_latest_analysis_before_returning_hover() {
         "#,
     );
     let path = project.path("/Fresh.sol");
-    let old_tables = analyze(AnalysisBatch {
-        opts: CompileOpts::default(),
-        files: vec![(path.clone(), project.read_file("/Fresh.sol"))],
-        seen_paths: FxHashSet::default(),
-    })
+    let old_tables = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(path.clone(), project.read_file("/Fresh.sol"))],
+    ))
     .symbol_tables;
-    let new_tables = analyze(AnalysisBatch {
-        opts: CompileOpts::default(),
-        files: vec![(path.clone(), "contract C {\n    address newValue;\n}\n".into())],
-        seen_paths: FxHashSet::default(),
-    })
+    let new_tables = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(path.clone(), "contract C {\n    address newValue;\n}\n".into())],
+    ))
     .symbol_tables;
     let uri = Url::from_file_path(path).unwrap();
     let params = HoverParams {

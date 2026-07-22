@@ -45,8 +45,7 @@ bb5:
   swap1
   sub
   push 64
-  swap1
-  slt
+  sgt
   push bb4
   jumpi
   push 64
@@ -120,7 +119,6 @@ bb5:
   add
   push 31
   not
-  swap1
   and
   push 64
   mload
@@ -170,10 +168,9 @@ bb5:
   dup2
   and
   eq
-  swap2
+  swap3
   pop
   pop
-  swap1
   pop
   iszero
   push bb4
@@ -214,8 +211,7 @@ bb9:
   mstore
   mload
   mload
-  swap1
-  lt
+  gt
   push bb13
   jumpi
   push 416
@@ -241,7 +237,6 @@ bb9:
   dup1
   push 800
   mstore
-  swap1
   eq
   swap2
   pop
@@ -308,9 +303,8 @@ bb9:
   dup1
   push 256
   mstore
-  dup2
+  swap1
   sstore
-  pop
   push 256
   mload
   dup1
@@ -385,10 +379,9 @@ bb13:
   swap2
   pop
   dup2
-  swap2
+  swap3
   pop
   pop
-  swap1
   pop
   push bb20
   jumpi
@@ -421,7 +414,6 @@ bb13:
   dup1
   push 352
   mstore
-  swap1
   eq
   or
   swap1
@@ -560,8 +552,7 @@ bb6:
   swap1
   sub
   push 32
-  swap1
-  slt
+  sgt
   push bb5
   jumpi
   push 4
@@ -599,8 +590,7 @@ bb10:
   swap1
   sub
   push 128
-  swap1
-  slt
+  sgt
   push bb5
   jumpi
   push 100
@@ -699,12 +689,10 @@ bb10:
   dup1
   push 192
   mstore
-  swap1
-  lt
-  swap2
+  gt
+  swap3
   pop
   pop
-  swap1
   pop
   push bb18
   jumpi
@@ -746,8 +734,7 @@ bb10:
   dup1
   push 320
   mstore
-  swap1
-  lt
+  gt
   swap1
   pop
   push bb18
@@ -780,9 +767,8 @@ bb10:
   dup2
   add
   push 0
-  dup2
+  swap1
   mstore
-  pop
   push 36
   push 68
   calldataload
@@ -818,24 +804,21 @@ bb10:
   dup1
   push 224
   mstore
-  dup2
+  swap1
   mstore
-  pop
   push 64
   dup2
   add
   dup4
-  dup2
+  swap1
   mstore
-  pop
   push 96
   dup2
   add
   push 100
   calldataload
-  dup2
+  swap1
   mstore
-  pop
   push 384
   mload
   dup1
@@ -860,24 +843,21 @@ bb10:
   add
   push 4
   calldataload
-  dup2
+  swap1
   mstore
-  pop
   push 260
   dup3
   add
   push 100
   calldataload
-  dup2
+  swap1
   mstore
-  pop
   push 196
   dup3
   add
   push 160
-  dup2
+  swap1
   mstore
-  pop
   push 224
   mload
   dup1
@@ -897,9 +877,8 @@ bb10:
   dup1
   push 448
   mstore
-  dup2
+  swap1
   mstore
-  pop
   push 324
   dup4
   add
@@ -913,7 +892,6 @@ bb10:
   mcopy
   pop
   push 192
-  swap1
   add
   push 228
   dup4
@@ -936,7 +914,6 @@ bb10:
   add
   push 31
   not
-  swap1
   and
   push 288
   mload
@@ -953,7 +930,6 @@ bb10:
   swap3
   pop
   push 32
-  swap1
   add
   dup3
   dup3
@@ -962,13 +938,11 @@ bb10:
   pop
   pop
   push 32
-  swap1
   add
   push 288
   mload
   add
   push 4
-  swap1
   add
   gas
   push 32
@@ -995,10 +969,9 @@ bb10:
   push 0x1000000000000000000000000000000000000001
   gas
   delegatecall
-  swap2
+  swap3
   pop
   pop
-  swap1
   pop
   iszero
   push bb19

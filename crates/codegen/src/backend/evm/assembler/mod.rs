@@ -7,15 +7,16 @@
 //! - Byte emission.
 
 use crate::{
-    backend::evm::ir::{self, assembly},
+    backend::evm::{
+        ir::{self, assembly},
+        op,
+    },
     mir::IMMUTABLE_WORD_SIZE,
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
-use solar_interface::{diagnostics::DiagCtxt, sym};
-
-pub(crate) use super::opcode as op;
+use solar_interface::diagnostics::DiagCtxt;
 
 const EVM_WORD_BYTES: usize = 32;
 
@@ -73,8 +74,6 @@ pub(crate) struct AssemblerConfig {
     pub optimization: OptimizationMode,
     /// Print the time spent in each EVM IR pass.
     pub time_passes: bool,
-    /// Run the experimental EVM IR `StackSchedule` pass before assembly.
-    pub evm_ir_stack_schedule: bool,
     /// Capture the final EVM IR without running additional passes.
     pub capture_evm_ir: bool,
 }
@@ -166,20 +165,20 @@ impl Assembler {
 
     /// Emits a push instruction with an immediate value.
     pub(crate) fn emit_push(&mut self, value: U256) {
-        self.push_ir_instruction(ir::Instruction::push(ir::Operand::Immediate(value)));
+        self.push_ir_instruction(ir::Instruction::push_value(value));
     }
 
     /// Emits a push instruction that will be resolved to a label's offset.
     pub(crate) fn emit_push_label(&mut self, label: Label) {
         let (block, instruction) =
-            self.push_ir_instruction(ir::Instruction::push(ir::Operand::Immediate(U256::ZERO)));
+            self.push_ir_instruction(ir::Instruction::push_value(U256::ZERO));
         self.label_relocations.push((block, instruction, label));
     }
 
     /// Emits a push instruction for a deferred constant.
     pub(crate) fn emit_push_deferred(&mut self, id: DeferredConst) {
         let (block, instruction) =
-            self.push_ir_instruction(ir::Instruction::push(ir::Operand::Immediate(U256::ZERO)));
+            self.push_ir_instruction(ir::Instruction::push_value(U256::ZERO));
         self.deferred_relocations.push((block, instruction, id));
     }
 
@@ -190,9 +189,7 @@ impl Assembler {
 
     /// Emits a `PUSH32` zero placeholder for the immutable identified by `id`.
     pub(crate) fn emit_push_immutable(&mut self, id: u32) {
-        self.push_ir_instruction(ir::Instruction::push_immutable(ir::Operand::Immediate(
-            U256::from(id),
-        )));
+        self.push_ir_instruction(ir::Instruction::push_immutable(id));
     }
 
     /// Defines a label and emits a `JUMPDEST` at the current position.
@@ -216,7 +213,7 @@ impl Assembler {
     }
 
     fn new_ir_module() -> ir::Module {
-        ir::Module { name: sym::asm, ..ir::Module::default() }
+        ir::Module::new("asm")
     }
 
     fn current_block(&mut self) -> ir::BlockId {
@@ -263,12 +260,10 @@ impl Assembler {
                 .get(&label)
                 .copied()
                 .unwrap_or_else(|| panic!("label {label:?} was never defined"));
-            module.blocks[block].instructions[instruction] =
-                ir::Instruction::push(ir::Operand::Block(target));
+            module.blocks[block].instructions[instruction] = ir::Instruction::push_block(target);
         }
         for (block, instruction, id) in self.deferred_relocations.drain(..) {
-            module.blocks[block].instructions[instruction] =
-                ir::Instruction::push_deferred(ir::Operand::Immediate(U256::from(id.index())));
+            module.blocks[block].instructions[instruction] = ir::Instruction::push_deferred(id);
         }
         self.label_blocks.clear();
         self.cold_labels.clear();
@@ -286,22 +281,22 @@ impl Assembler {
             let (kind, remove) = if let [.., push, jump] = block.instructions.as_slice()
                 && !jump.is_encoded_push()
                 && jump.opcode == op::JUMP
-                && let [ir::Operand::Block(target)] = push.operands.as_slice()
+                && let Some(target) = push.pushed_block()
                 && push.is_encoded_push()
             {
-                (ir::TerminatorKind::Jump(*target), 2)
+                (ir::TerminatorKind::Jump(target), 2)
             } else if let Some(last) = block.instructions.last()
                 && !last.is_encoded_push()
                 && last.opcode == op::STOP
             {
-                (ir::TerminatorKind::Stop, 1)
+                (ir::TerminatorKind::Op(op::STOP), 1)
             } else if let Some(last) = block.instructions.last()
                 && !last.is_encoded_push()
                 && op::is_terminal(last.opcode)
             {
-                (ir::TerminatorKind::RawOpcode(last.opcode), 1)
+                (ir::TerminatorKind::Op(last.opcode), 1)
             } else {
-                (next.map_or(ir::TerminatorKind::Stop, ir::TerminatorKind::Jump), 0)
+                (next.map_or(ir::TerminatorKind::Op(op::STOP), ir::TerminatorKind::Jump), 0)
             };
             block.instructions.truncate(block.instructions.len() - remove);
             block.terminator = Some(ir::Terminator::new(kind));
@@ -317,11 +312,13 @@ impl Assembler {
         result
     }
 
+    #[tracing::instrument(
+        name = "evm_ir_pipeline",
+        level = "debug",
+        skip_all,
+        fields(program = %self.program.name()),
+    )]
     pub(in crate::backend::evm) fn prepare(&mut self) -> PreparedAssembly {
-        solar_interface::enter(|| self.prepare_inner())
-    }
-
-    fn prepare_inner(&mut self) -> PreparedAssembly {
         let Some((mut ir_program, mut labels)) = self.finish_evm_ir() else {
             return PreparedAssembly::default();
         };
@@ -335,15 +332,6 @@ impl Assembler {
         };
         if self.config.optimization != OptimizationMode::None {
             let input_is_valid = cfg!(debug_assertions) && is_valid_evm_ir(&ir_program);
-            if self.config.evm_ir_stack_schedule {
-                let mut scheduled = ir_program.clone();
-                if ir::run_pass(&mut scheduled, &ir::STACK_SCHEDULE_PASS, pass_options)
-                    && is_valid_evm_ir(&scheduled)
-                    && modules_have_equal_code(&ir_program, &scheduled)
-                {
-                    ir_program = scheduled;
-                }
-            }
             for pass in ir::DEFAULT_PIPELINE {
                 ir::run_pass(&mut ir_program, pass, pass_options);
             }
@@ -367,17 +355,9 @@ impl Assembler {
     ) {
         for block in &mut module.blocks {
             for inst in &mut block.instructions {
-                if !inst.is_deferred_push() {
-                    continue;
-                }
-                let [ir::Operand::Immediate(id)] = inst.operands.as_slice() else {
-                    unreachable!("deferred push must have one immediate operand")
-                };
-                let id = DeferredConst::from_usize(
-                    usize::try_from(*id).expect("deferred constant ID must fit usize"),
-                );
+                let Some(id) = inst.deferred_push() else { continue };
                 if let Some(&value) = values.get(&id) {
-                    *inst = ir::Instruction::push(ir::Operand::Immediate(value));
+                    *inst = ir::Instruction::push_value(value);
                 }
             }
         }
@@ -409,17 +389,11 @@ impl Assembler {
             let mut module = module.clone();
             for block in &mut module.blocks {
                 for inst in &mut block.instructions {
-                    if inst.is_deferred_push() {
-                        let [ir::Operand::Immediate(id)] = inst.operands.as_slice() else {
-                            unreachable!("deferred push must have one immediate operand")
-                        };
-                        let id = DeferredConst::from_usize(
-                            usize::try_from(*id).expect("deferred constant ID must fit usize"),
-                        );
+                    if let Some(id) = inst.deferred_push() {
                         let value = self.deferred_values.get(&id).copied().unwrap_or_else(|| {
                             panic!("deferred constant {id:?} was never resolved")
                         });
-                        *inst = ir::Instruction::push(ir::Operand::Immediate(value));
+                        *inst = ir::Instruction::push_value(value);
                     }
                 }
             }
@@ -568,17 +542,6 @@ impl Assembler {
     fn push_width(value: U256) -> u8 {
         value.byte_len() as u8
     }
-}
-
-fn modules_have_equal_code(before: &ir::Module, after: &ir::Module) -> bool {
-    before.entry_block == after.entry_block
-        && before.blocks.len() == after.blocks.len()
-        && before.blocks.iter().zip(after.blocks.iter()).all(|(a, b)| {
-            a.label == b.label
-                && a.metadata == b.metadata
-                && a.instructions == b.instructions
-                && a.terminator == b.terminator
-        })
 }
 
 fn is_valid_evm_ir(module: &ir::Module) -> bool {

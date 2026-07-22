@@ -43,8 +43,7 @@ bb5:
   swap1
   sub
   push 96
-  swap1
-  slt
+  sgt
   push bb4
   jumpi
   push 36
@@ -191,8 +190,7 @@ bb5:
   swap1
   sub
   push 64
-  swap1
-  slt
+  sgt
   push bb4
   jumpi
   push 4

@@ -16,3 +16,21 @@ pub(in crate::backend::evm) use lower::lower_evm_ir;
 pub(in crate::backend::evm) struct Program {
     pub(in crate::backend::evm) instructions: Vec<AsmInst>,
 }
+
+impl Program {
+    pub(in crate::backend::evm) fn push(&mut self, inst: AsmInst) {
+        self.instructions.push(inst);
+    }
+
+    pub(in crate::backend::evm) fn push_op(&mut self, opcode: u8) {
+        self.push(AsmInst::op(opcode));
+    }
+
+    pub(in crate::backend::evm) fn push_label(&mut self, label: Label) {
+        self.push(AsmInst::push_label(label));
+    }
+
+    pub(in crate::backend::evm) fn define_label(&mut self, label: Label) {
+        self.push(AsmInst::label(label));
+    }
+}

@@ -12,7 +12,6 @@ use lsp_types::{
 };
 use snapbox::{IntoData, assert_data_eq};
 use solar_config::CompileOpts;
-use solar_interface::data_structures::map::FxHashSet;
 use std::{
     fmt::Write as _,
     future::Future,
@@ -38,11 +37,7 @@ impl RequestFixture {
         let marked = MarkedProject::from_fixture(fixture);
         let contents = marked.project().read_file(path);
         let path = marked.project().path(path);
-        let result = analyze(AnalysisBatch {
-            opts: CompileOpts::default(),
-            files: vec![(path, contents)],
-            seen_paths: FxHashSet::default(),
-        });
+        let result = analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, contents)]));
         Self { marked, result }
     }
 
@@ -76,11 +71,8 @@ impl RequestFixture {
                 .filter(|(open_path, _)| open_path == path)
                 .map_or_else(|| marked.project().read_file(path), |(_, contents)| contents.clone());
             let path = marked.project().path(path);
-            let batch = analyze(AnalysisBatch {
-                opts: CompileOpts::default(),
-                files: vec![(path, contents)],
-                seen_paths: FxHashSet::default(),
-            });
+            let batch =
+                analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, contents)]));
             result.symbol_tables.extend(batch.symbol_tables);
             for (uri, mut diagnostics) in batch.diagnostics {
                 result.diagnostics.entry(uri).or_default().append(&mut diagnostics);
@@ -415,11 +407,10 @@ impl RequestFixture {
     ) {
         let path = self.marked.project().path(path);
         let uri = Url::from_file_path(&path).unwrap();
-        let result = analyze(AnalysisBatch {
-            opts: CompileOpts::default(),
-            files: vec![(path.clone(), changed_contents.to_string())],
-            seen_paths: FxHashSet::default(),
-        });
+        let result = analyze(AnalysisBatch::from_files(
+            CompileOpts::default(),
+            [(path.clone(), changed_contents.to_string())],
+        ));
         assert!(!result.diagnostics.is_empty(), "changed source should fail analysis");
 
         let mut state = self.state();
