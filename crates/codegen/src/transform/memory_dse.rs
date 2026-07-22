@@ -143,7 +143,13 @@ impl MemoryStoreEliminator {
 
     fn run_with_scratch(&mut self, func: &mut Function, scratch: &mut BlockScratch) -> usize {
         self.eliminated_count = 0;
-        self.alias = Some(AliasAnalysis::new(func));
+        // Reuse one provenance snapshot across fixpoint iterations: removing
+        // stores keeps the allocation facts conservative, so only the
+        // value-address memo is dropped per iteration.
+        match &self.alias {
+            Some(alias) => alias.clear_cached_addresses(),
+            None => self.alias = Some(AliasAnalysis::new(func)),
+        }
 
         let needs_inst_results = func.blocks.iter().any(|block| {
             block.instructions.iter().any(|&inst_id| {

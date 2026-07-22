@@ -396,7 +396,11 @@ impl PointerProvenance {
 /// transform mutates definitions or CFG edges.
 #[derive(Debug)]
 pub(crate) struct AliasAnalysis {
-    provenance: PointerProvenance,
+    /// Pointer-provenance facts, built on first use: many pass invocations
+    /// construct the analysis but never issue a memory query (pure or
+    /// memory-free functions), so the block scans and the FMP dataflow are
+    /// deferred until a query actually needs them.
+    provenance: std::cell::OnceCell<PointerProvenance>,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
 }
 
@@ -418,20 +422,29 @@ impl AliasAnalysis {
 
     /// Drops value-address memoization after instruction operands are rewritten.
     pub(crate) fn clear_cached_addresses(&self) {
-        self.provenance.addresses.borrow_mut().clear();
-        self.provenance.visiting.borrow_mut().clear();
+        if let Some(provenance) = self.provenance.get() {
+            provenance.addresses.borrow_mut().clear();
+            provenance.visiting.borrow_mut().clear();
+        }
     }
 
     fn with_optional_summaries(
-        func: &Function,
+        _func: &Function,
         call_summaries: Option<Arc<MemoryCallSummaries>>,
     ) -> Self {
-        let provenance = PointerProvenance::new(
-            func,
-            call_summaries.as_deref(),
-            Self::instruction_may_reset_fmp_with_summaries,
-        );
-        Self { provenance, call_summaries }
+        Self { provenance: std::cell::OnceCell::new(), call_summaries }
+    }
+
+    /// The lazily built provenance snapshot for `func`. Every query passes the
+    /// same function the analysis was created for.
+    fn provenance(&self, func: &Function) -> &PointerProvenance {
+        self.provenance.get_or_init(|| {
+            PointerProvenance::new(
+                func,
+                self.call_summaries.as_deref(),
+                Self::instruction_may_reset_fmp_with_summaries,
+            )
+        })
     }
 
     /// Canonicalizes a MIR value used as a memory address.
@@ -1100,13 +1113,13 @@ impl AliasAnalysis {
         value: ValueId,
         depth: usize,
     ) -> Option<MemoryAddress> {
-        if let Some(cached) = self.provenance.addresses.borrow().get(&value).copied() {
+        if let Some(cached) = self.provenance(func).addresses.borrow().get(&value).copied() {
             return cached;
         }
         if depth > 8 {
             return Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0)));
         }
-        if !self.provenance.visiting.borrow_mut().insert(value) {
+        if !self.provenance(func).visiting.borrow_mut().insert(value) {
             return Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0)));
         }
         let address = (|| match func.value(value) {
@@ -1124,13 +1137,13 @@ impl AliasAnalysis {
             Value::Undef(_) | Value::Error(_) => None,
             Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
                 InstKind::InternalFrameAddr(offset) => Some(MemoryAddress::internal_frame(offset)),
-                InstKind::Alloc { .. } => Some(if self.allocation_is_dynamic(*inst_id) {
+                InstKind::Alloc { .. } => Some(if self.allocation_is_dynamic(func, *inst_id) {
                     MemoryAddress {
                         region: MemoryRegion::Heap,
                         base: MemoryBase::DynamicAllocation(*inst_id),
                         offset: 0,
                     }
-                } else if self.allocation_has_unique_provenance(*inst_id) {
+                } else if self.allocation_has_unique_provenance(func, *inst_id) {
                     MemoryAddress {
                         region: MemoryRegion::Heap,
                         base: MemoryBase::Allocation(*inst_id),
@@ -1178,8 +1191,8 @@ impl AliasAnalysis {
                 _ => Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0))),
             },
         })();
-        self.provenance.visiting.borrow_mut().remove(&value);
-        self.provenance.addresses.borrow_mut().insert(value, address);
+        self.provenance(func).visiting.borrow_mut().remove(&value);
+        self.provenance(func).addresses.borrow_mut().insert(value, address);
         address
     }
 
@@ -1221,13 +1234,13 @@ impl AliasAnalysis {
                 // spaces, not memory, so they carry no memory provenance.
                 SliceLocation::Calldata | SliceLocation::Returndata => None,
             },
-            InstKind::AbiEncode { .. } => Some(if self.allocation_is_dynamic(*inst_id) {
+            InstKind::AbiEncode { .. } => Some(if self.allocation_is_dynamic(func, *inst_id) {
                 MemoryAddress {
                     region: MemoryRegion::Heap,
                     base: MemoryBase::DynamicAllocation(*inst_id),
                     offset: 0,
                 }
-            } else if self.allocation_has_unique_provenance(*inst_id) {
+            } else if self.allocation_has_unique_provenance(func, *inst_id) {
                 MemoryAddress {
                     region: MemoryRegion::Heap,
                     base: MemoryBase::Allocation(*inst_id),
@@ -1334,12 +1347,12 @@ impl AliasAnalysis {
         }
     }
 
-    fn allocation_has_unique_provenance(&self, target: InstId) -> bool {
-        self.provenance.allocations.get(&target).is_some_and(|facts| facts.unique)
+    fn allocation_has_unique_provenance(&self, func: &Function, target: InstId) -> bool {
+        self.provenance(func).allocations.get(&target).is_some_and(|facts| facts.unique)
     }
 
-    fn allocation_is_dynamic(&self, target: InstId) -> bool {
-        self.provenance.allocations.get(&target).is_some_and(|facts| facts.dynamic)
+    fn allocation_is_dynamic(&self, func: &Function, target: InstId) -> bool {
+        self.provenance(func).allocations.get(&target).is_some_and(|facts| facts.dynamic)
     }
 
     /// Returns whether an instruction may recycle or arbitrarily replace the FMP.

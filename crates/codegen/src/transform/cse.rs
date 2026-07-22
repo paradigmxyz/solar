@@ -211,18 +211,22 @@ impl CommonSubexprEliminator {
     fn run_with_cfg(&mut self, func: &mut Function, cfg: &CfgInfo) -> usize {
         self.eliminated_count = 0;
 
+        // One provenance snapshot per run: eliminating expressions only removes
+        // instructions, which keeps the allocation facts conservative. Only the
+        // value-address memo can go stale, so it is dropped between phases and
+        // blocks instead of recomputing the whole analysis each time.
         self.refresh_alias(func);
         self.sink_redundant_phi_expressions(func, cfg);
 
         // Neither the global nor the local pass allocates values, so the map stays valid.
         let inst_results = func.inst_results();
-        self.refresh_alias(func);
+        self.alias().clear_cached_addresses();
         self.process_global_pure(func, &inst_results, cfg);
 
         // Process each block independently (local CSE)
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         for block_id in block_ids {
-            self.refresh_alias(func);
+            self.alias().clear_cached_addresses();
             self.process_block(func, block_id, &inst_results);
         }
 
