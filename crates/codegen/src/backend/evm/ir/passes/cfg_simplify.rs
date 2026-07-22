@@ -5,10 +5,7 @@ use crate::backend::evm::{
     ir::{BlockId, Module, PushValue, Terminator, TerminatorKind},
     op,
 };
-use solar_data_structures::{
-    bit_set::DenseBitSet,
-    index::{Idx, IndexVec},
-};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;
 
 pub(super) fn run(_gcx: Gcx<'_>, module: &mut Module) -> bool {
@@ -57,21 +54,15 @@ impl Default for RunState {
 
 impl RunState {
     fn reserve(&mut self, blocks: usize) {
-        reserve_index_vec_to(&mut self.thunks, blocks);
+        reserve_to(self.thunks.as_mut_vec(), blocks);
         reserve_to(&mut self.pending, blocks);
-        reserve_index_vec_to(&mut self.references, blocks);
+        reserve_to(self.references.as_mut_vec(), blocks);
         reserve_to(&mut self.order, blocks);
     }
 }
 
 fn reserve_to<T>(values: &mut Vec<T>, capacity: usize) {
     if values.capacity() < capacity {
-        values.reserve(capacity - values.len());
-    }
-}
-
-fn reserve_index_vec_to<I: Idx, T>(values: &mut IndexVec<I, T>, capacity: usize) {
-    if values.as_vec().capacity() < capacity {
         values.reserve(capacity - values.len());
     }
 }
