@@ -2,13 +2,13 @@
 + // === ROOT/tests/ui/codegen/mir/none/identity.mir (after none) ===
   @module Identity
   fn @add(arg0: u256, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, arg1
       ret v0
   }
   
   fn @double(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, arg0
       ret v0
   }

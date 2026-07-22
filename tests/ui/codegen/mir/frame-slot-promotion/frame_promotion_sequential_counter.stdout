@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (after frame-slot-promotion) ===
   @module SequentialCounter
   fn @sequential(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = internal_frame_addr 128
 -     mstore v0, 0
       v1 = internal_frame_addr 160
@@ -67,7 +67,7 @@
 + // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (after cfg-simplify) ===
   @module SequentialCounter
   fn @sequential(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = internal_frame_addr 128
       v1 = internal_frame_addr 160
       jump bb1
@@ -111,7 +111,7 @@
 + // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (after dce) ===
   @module SequentialCounter
   fn @sequential(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = internal_frame_addr 128
 -     v1 = internal_frame_addr 160
       jump bb1

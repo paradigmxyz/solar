@@ -739,7 +739,7 @@ impl<'a> InlineCloner<'a> {
             self.caller.blocks[caller_block].terminator = Some(term);
         }
 
-        Some(self.block_map[&self.callee.entry_block])
+        Some(self.block_map[&BlockId::ENTRY])
     }
 
     fn clone_value(&mut self, value: ValueId) -> Option<ValueId> {

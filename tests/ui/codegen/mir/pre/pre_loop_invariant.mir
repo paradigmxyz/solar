@@ -4,7 +4,7 @@
 // hoisted out of the loop and the header gets a phi.
 @module LoopInvariant
 fn @hoist_header_expr(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v2 = phi [bb0: arg0], [bb2: v5]
@@ -20,7 +20,7 @@ fn @hoist_header_expr(arg0: u256, arg1: u256) -> u256 {
 }
 
 fn @hoist_header_expr_two_latches(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v2 = phi [bb0: arg0], [bb3: v5], [bb4: v8]

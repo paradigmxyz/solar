@@ -1,5 +1,5 @@
 //@ failure-status: 1
 @module module
 
-bb0 (entry):
+bb0:
   return !meta(stack=0->0)

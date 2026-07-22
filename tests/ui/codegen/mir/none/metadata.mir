@@ -1,7 +1,7 @@
 //@compile-flags: --passes none
 @module Metadata
 fn @metadata(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = sload 7 !metadata(storage=slot(7), loop_depth=2, hir=42, span=1..5)
     v2 = mload 64 !metadata(memory=scratch, unchecked)
     v3 = add v1, v2

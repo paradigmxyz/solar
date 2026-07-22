@@ -1,7 +1,7 @@
 //@compile-flags: --pipeline-default
 @module PipelineDefault
 fn @noisy(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = add arg0, 1
     v2 = mul arg0, arg0
     jump bb1

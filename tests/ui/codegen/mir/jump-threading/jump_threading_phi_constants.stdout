@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/jump-threading/jump_threading_phi_constants.mir (after jump-threading) ===
   @module JumpThreadingPhiConstants
   fn @thread_branch_on_phi_constant(arg0: bool) -> u256 {
-    bb0 (entry):
+    bb0:
 -     br arg0, bb1, bb2
 +     br arg0, bb5, bb4
     bb1:
@@ -22,7 +22,7 @@
   }
   
   fn @thread_switch_on_phi_constant(arg0: bool) -> u256 {
-    bb0 (entry):
+    bb0:
 -     br arg0, bb1, bb2
 +     br arg0, bb4, bb5
     bb1:
@@ -44,7 +44,7 @@
   }
   
   fn @keep_unknown_phi(arg0: bool, arg1: u256, arg2: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       br arg0, bb1, bb2
     bb1:
       jump bb3
@@ -60,7 +60,7 @@
   }
   
   fn @keep_phi_used_in_successor(arg0: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       br arg0, bb1, bb2
     bb1:
       jump bb3

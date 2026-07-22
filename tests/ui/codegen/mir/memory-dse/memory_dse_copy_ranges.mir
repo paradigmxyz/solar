@@ -3,7 +3,7 @@
 
 // A full-word copy write to the same range makes the prior store dead.
 fn @remove_store_overwritten_by_codecopy() -> u256 {
-  bb0 (entry):
+  bb0:
     mstore 0, 1
     codecopy 0, 0, 64
     ret 0
@@ -11,7 +11,7 @@ fn @remove_store_overwritten_by_codecopy() -> u256 {
 
 // A partial disjoint copy range must not kill the store read from the next word.
 fn @keep_store_after_partial_copy() -> u256 {
-  bb0 (entry):
+  bb0:
     mstore 32, 1
     codecopy 0, 0, 32
     v2 = mload 32
@@ -21,7 +21,7 @@ fn @keep_store_after_partial_copy() -> u256 {
 // Updating the free-memory pointer at 0x40 and zeroing the data area do not
 // clobber the fresh allocation length word at the old FMP.
 fn @forward_fresh_array_length() -> u256 {
-  bb0 (entry):
+  bb0:
     v0 = mload 64
     mstore v0, 3
     v1 = add v0, 128

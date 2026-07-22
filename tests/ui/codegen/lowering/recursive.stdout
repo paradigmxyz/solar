@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/recursive.sol:Recursive ===
 @module Recursive
 fn @fact(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -43,7 +43,7 @@ fn @fact(arg0: u256) {
 }
 
 fn @fact(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v0 = internal_frame_addr 128
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = gt arg0, 1
@@ -77,7 +77,7 @@ fn @fact(arg0: u256) -> u256 {
 }
 
 fn @fib(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -124,7 +124,7 @@ fn @fib(arg0: u256) {
 }
 
 fn @fib(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v0 = internal_frame_addr 128
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = gt arg0, 1
@@ -163,7 +163,7 @@ fn @fib(arg0: u256) -> u256 {
 }
 
 fn @isEven(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -192,7 +192,7 @@ fn @isEven(arg0: u256) {
 }
 
 fn @isOdd(arg0: u256) -> bool {
-  bb0 (entry):
+  bb0:
     v0 = internal_frame_addr 128
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = eq arg0, 0
@@ -213,7 +213,7 @@ fn @isOdd(arg0: u256) -> bool {
 }
 
 fn @isEven(arg0: u256) -> bool {
-  bb0 (entry):
+  bb0:
     v0 = internal_frame_addr 128
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = eq arg0, 0
@@ -234,7 +234,7 @@ fn @isEven(arg0: u256) -> bool {
 }
 
 fn @isOdd(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32

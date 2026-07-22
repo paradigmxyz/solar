@@ -1,7 +1,7 @@
 //@compile-flags: --pass inst-simplify
 @module InstSimplify
 fn @strength_reduce_arithmetic(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = mul arg0, 32
     v2 = div v1, 8
     v3 = mod arg0, 16
@@ -18,7 +18,7 @@ fn @strength_reduce_arithmetic(arg0: u256) -> u256 {
 }
 
 fn @simplify_booleans(arg0: bool, arg1: u256, arg2: u256) -> (bool, bool, u256, bool, bool) {
-  bb0 (entry):
+  bb0:
     v3 = eq arg0, true
     v4 = eq arg0, false
     v5 = select true, arg1, arg2
@@ -28,7 +28,7 @@ fn @simplify_booleans(arg0: bool, arg1: u256, arg2: u256) -> (bool, bool, u256, 
 }
 
 fn @remove_zero_length_copies(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     mcopy 64, 96, 0
     calldatacopy 128, 0, 0
     codecopy 160, 0, 0
@@ -37,18 +37,18 @@ fn @remove_zero_length_copies(arg0: u256) -> u256 {
 }
 
 fn @stop_zero_length_external_return(arg0: u256) [selector=0x01020304] {
-  bb0 (entry):
+  bb0:
     v1 = xor arg0, arg0
     returndata arg0, v1
 }
 
 fn @preserve_zero_length_internal_return(arg0: u256) {
-  bb0 (entry):
+  bb0:
     returndata arg0, 0
 }
 
 fn @fold_modular_helpers(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = addmod arg0, 0, 0
     v2 = mulmod arg0, 0, 97
     v3 = add v1, v2
@@ -56,7 +56,7 @@ fn @fold_modular_helpers(arg0: u256) -> u256 {
 }
 
 fn @complete_word_identities(arg0: u256, arg1: bool) -> (u256, u256, bool, bool, bool, u256, u256, u256, u256) {
-  bb0 (entry):
+  bb0:
     v2 = or arg0, 115792089237316195423570985008687907853269984665640564039457584007913129639935
     v3 = xor arg0, 115792089237316195423570985008687907853269984665640564039457584007913129639935
     v4 = iszero arg1
@@ -71,7 +71,7 @@ fn @complete_word_identities(arg0: u256, arg1: bool) -> (u256, u256, bool, bool,
 }
 
 fn @complete_exact_identities(arg0: u256, arg1: bool) -> (u256, u256, u256, u256, bool, bool, bool, bool, u256, u256) {
-  bb0 (entry):
+  bb0:
     v2 = not arg0
     v3 = and arg0, v2
     v4 = or arg0, v2
@@ -86,7 +86,7 @@ fn @complete_exact_identities(arg0: u256, arg1: bool) -> (u256, u256, u256, u256
 }
 
 fn @fold_modular_mod_one(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v2 = addmod arg0, arg1, 1
     v3 = mulmod arg0, arg1, 1
     v4 = add v2, v3
@@ -94,20 +94,20 @@ fn @fold_modular_mod_one(arg0: u256, arg1: u256) -> u256 {
 }
 
 fn @keep_exp_zero_base_with_unknown_exponent(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = exp 0, arg0
     ret v1
 }
 
 fn @fold_wide_modular_constants() -> (u256, u256) {
-  bb0 (entry):
+  bb0:
     v0 = addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 3
     v1 = mulmod 0x100000000000000000000000000000000, 0x100000000000000000000000000000000, 7
     ret v0, v1
 }
 
 fn @fold_constant_ops() -> (u256, u256, u256, u256, u256, u256, u256, u256, u256, bool, bool, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256) {
-  bb0 (entry):
+  bb0:
     v1 = add 7, 5
     v2 = sub 7, 9
     v3 = mul 6, 7

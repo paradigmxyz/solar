@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/recursive_memory_return.sol:C ===
 @module C
 fn @build(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -76,7 +76,7 @@ fn @build(arg0: u256) {
 }
 
 fn @build(arg0: u256) -> memptr {
-  bb0 (entry):
+  bb0:
     v0 = internal_frame_addr 128
     v1 = mload 64 !metadata(memory=scratch)
     v2 = add v1, 64
@@ -131,7 +131,7 @@ fn @build(arg0: u256) -> memptr {
 }
 
 fn @mkArr(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -245,7 +245,7 @@ fn @mkArr(arg0: u256) {
 }
 
 fn @fillImpl(arg0: memptr, arg1: u256) -> memptr {
-  bb0 (entry):
+  bb0:
     v0 = internal_frame_addr 160
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = mload arg0
@@ -291,7 +291,7 @@ fn @fillImpl(arg0: memptr, arg1: u256) -> memptr {
 }
 
 fn @squares(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_packed_mixed.sol:AbiEncodePackedMixed ===
 @module AbiEncodePackedMixed
 fn @fixedBytesArg(arg0: u256, arg1: address, arg2: bytes2) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
@@ -37,7 +37,7 @@ fn @fixedBytesArg(arg0: u256, arg1: address, arg2: bytes2) {
 }
 
 fn @dynamicArg(arg0: bytes32, arg1: memptr) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -73,7 +73,7 @@ fn @dynamicArg(arg0: bytes32, arg1: memptr) {
 }
 
 fn @materialized(arg0: u16, arg1: memptr, arg2: bool) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
@@ -135,7 +135,7 @@ fn @materialized(arg0: u16, arg1: memptr, arg2: bool) {
 }
 
 fn @__ret_bytes(arg0: memptr) {
-  bb0 (entry):
+  bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, 32
     v1 = mload arg0

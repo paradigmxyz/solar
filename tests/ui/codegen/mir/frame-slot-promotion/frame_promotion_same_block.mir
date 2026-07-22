@@ -1,7 +1,7 @@
 //@compile-flags: --passes frame-slot-promotion,dce
 @module FramePromotionSameBlock
 fn @same_block() -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = internal_frame_addr 128
     mstore v1, 7
     v2 = internal_frame_addr 128

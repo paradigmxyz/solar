@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/yul_local_phi.sol:YulLocalPhi ===
 @module YulLocalPhi
 fn @branchLocal(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32

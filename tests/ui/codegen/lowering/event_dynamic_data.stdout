@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/event_dynamic_data.sol:EventDynamicData ===
 @module EventDynamicData
 fn @text(arg0: memptr) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -56,7 +56,7 @@ fn @text(arg0: memptr) {
 }
 
 fn @literal() {
-  bb0 (entry):
+  bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 64
     mstore 64, v1 !metadata(memory=scratch)
@@ -98,7 +98,7 @@ fn @literal() {
 }
 
 fn @blob(arg0: memptr) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_push_pop.sol:StorageBytesPushPop ===
 @module StorageBytesPushPop
 fn @_anonymous() {
-  bb0 (entry):
+  bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     v1 = mload v0
     v2 = add v1, 1
@@ -204,7 +204,7 @@ fn @_anonymous() {
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memptr {
-  bb0 (entry):
+  bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
     v2 = eq v1, 1
@@ -254,7 +254,7 @@ fn @__load_storage_bytes(arg0: u256) -> memptr {
 }
 
 fn @pushValue(arg0: bytes1) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -373,7 +373,7 @@ fn @pushValue(arg0: bytes1) {
 }
 
 fn @pushZero() {
-  bb0 (entry):
+  bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     v1 = mload v0
     v2 = add v1, 1
@@ -477,7 +477,7 @@ fn @pushZero() {
 }
 
 fn @popValue() {
-  bb0 (entry):
+  bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     v1 = mload v0
     br v1, bb2, bb1
@@ -577,7 +577,7 @@ fn @popValue() {
 }
 
 fn @get() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
     internal_call @__ret_bytes, 0, v0
@@ -585,7 +585,7 @@ fn @get() {
 }
 
 fn @__ret_bytes(arg0: memptr) {
-  bb0 (entry):
+  bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, 32
     v1 = mload arg0

@@ -1,7 +1,7 @@
 //@compile-flags: --passes frame-slot-promotion,dce
 @module LocalSlotPromotion
 fn @promote_loop_carried_slot(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = internal_frame_addr 128
     mstore v1, 0
     jump bb1

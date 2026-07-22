@@ -62,7 +62,6 @@ impl ModulePass for StaticAllocPass {
 
 fn is_entry(func: &Function) -> bool {
     !func.attributes.is_constructor
-        && !func.blocks.is_empty()
         && (func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback)
 }
 

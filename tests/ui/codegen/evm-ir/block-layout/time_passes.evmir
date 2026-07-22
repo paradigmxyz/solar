@@ -3,7 +3,7 @@
 @module module
 
 
-bb0 (entry):
+bb0:
   jump bb2
 bb1 [cold]:
   push 0
