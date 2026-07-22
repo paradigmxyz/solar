@@ -69,18 +69,17 @@ impl Liveness {
         }
 
         // Initialize per-block liveness
-        let mut block_liveness: IndexVec<BlockId, BlockLiveness> = (0..num_blocks)
-            .map(|_| BlockLiveness {
+        let mut block_liveness = index_vec![
+            BlockLiveness {
                 live_in: LiveSet::with_capacity(num_values),
                 live_out: LiveSet::with_capacity(num_values),
-            })
-            .collect();
+            };
+            num_blocks
+        ];
 
         // Compute local def/use sets for each block
-        let mut block_defs: IndexVec<BlockId, LiveSet> =
-            (0..num_blocks).map(|_| LiveSet::with_capacity(num_values)).collect();
-        let mut block_uses: IndexVec<BlockId, LiveSet> =
-            (0..num_blocks).map(|_| LiveSet::with_capacity(num_values)).collect();
+        let mut block_defs = index_vec![LiveSet::with_capacity(num_values); num_blocks];
+        let mut block_uses = index_vec![LiveSet::with_capacity(num_values); num_blocks];
 
         let mut operand_buf = SmallVec::<[ValueId; 8]>::new();
 
@@ -233,12 +232,13 @@ impl Liveness {
             }
         }
 
-        let block_liveness: IndexVec<BlockId, _> = (0..func.blocks.len())
-            .map(|_| BlockLiveness {
+        let block_liveness = index_vec![
+            BlockLiveness {
                 live_in: LiveSet::new_empty(),
                 live_out: LiveSet::new_empty(),
-            })
-            .collect();
+            };
+            func.blocks.len()
+        ];
         let mut last_use_in_block = FxHashMap::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
             if let Some(term) = &block.terminator {

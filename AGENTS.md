@@ -295,7 +295,8 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 ## Notes
 
 - **Typed index collections**: Use `IndexVec<I, T>` for every collection indexed by an `I` index
-  type, including local variables.
+  type, including local variables; if code repeatedly indexes a collection with `x.index()`, it is
+  probably using the wrong collection type.
 - **Sparse index maps**: Audit every `IndexVec<I, T>` for default or sentinel entries, not only
   `Option<T>` and its `None` sentinel. Empty collections, zero counts, maximum IDs, and other
   distinguished values can also indicate sparse storage. When most entries are expected to hold

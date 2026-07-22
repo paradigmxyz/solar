@@ -3,16 +3,19 @@
 use crate::mir::{BasicBlock, BlockId, Function, InstKind, Terminator, ValueId};
 use alloy_primitives::U256;
 use smallvec::smallvec;
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    index::{IndexVec, index_vec},
+    map::FxHashMap,
+};
 
 pub(crate) fn remap_block_order(
     func: &mut Function,
     order: &[BlockId],
 ) -> IndexVec<BlockId, BlockId> {
     debug_assert_eq!(order.len(), func.blocks.len());
-    let mut remap = IndexVec::from_vec(vec![BlockId::from_usize(0); order.len()]);
-    let mut old_blocks: IndexVec<BlockId, Option<BasicBlock>> =
-        std::mem::take(&mut func.blocks).into_iter().map(Some).collect();
+    let mut remap = index_vec![BlockId::from_usize(0); order.len()];
+    let mut old_blocks =
+        std::mem::take(&mut func.blocks).into_iter().map(Some).collect::<IndexVec<BlockId, _>>();
     let mut blocks = IndexVec::with_capacity(old_blocks.len());
     for &old_block in order {
         let block = old_blocks[old_block].take().expect("duplicate block in order");
