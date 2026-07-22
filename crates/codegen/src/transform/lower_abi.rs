@@ -32,7 +32,7 @@
 //! advance, so an `abi`-phase module always means every external function is
 //! a wrapper.
 //!
-//! Together with [`super::LowerDispatchPass`], which routes a selector switch
+//! Together with [`super::lower_dispatch::LowerDispatch`], which routes a selector switch
 //! to these argument-free wrappers, this moves dispatch and ABI handling out of
 //! the backend. Both passes run in the codegen pipeline; a module where this
 //! pass bails keeps its phase and is dispatched by the backend instead.
@@ -45,9 +45,9 @@ use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::{Ident, Symbol};
 
 /// ABI phase lowering pass.
-pub(crate) struct LowerAbiPass;
+pub(crate) struct LowerAbi;
 
-impl MirPass for LowerAbiPass {
+impl MirPass for LowerAbi {
     fn name(&self) -> &'static str {
         "lower-abi"
     }
@@ -56,38 +56,38 @@ impl MirPass for LowerAbiPass {
         module.phase <= MirPhase::Optimized
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        LowerAbi::default().run(module)
-    }
-
     fn is_required(&self) -> bool {
         true
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        LowerAbiCx::default().run(module)
     }
 }
 
 /// Statistics from ABI wrapper lowering.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct LowerAbiStats {
+struct LowerAbiStats {
     /// Number of external functions wrapped.
-    pub wrapped: usize,
+    wrapped: usize,
     /// Number of external functions with returns, which the wrappers cannot
     /// encode yet. Any non-zero count makes the whole pass bail: the phase
     /// transition is all-or-nothing.
-    pub skipped_dynamic: usize,
+    skipped_dynamic: usize,
     /// Number of internal call sites retargeted from a wrapped function to its
     /// extracted body.
-    pub retargeted_calls: usize,
+    retargeted_calls: usize,
     /// Number of wrappers that received a prologue callvalue check because
     /// the dispatch entry cannot hoist one.
-    pub injected_checks: usize,
+    injected_checks: usize,
 }
 
 #[derive(Debug, Default)]
-struct LowerAbi {
+struct LowerAbiCx {
     stats: LowerAbiStats,
 }
 
-impl LowerAbi {
+impl LowerAbiCx {
     fn run(&mut self, module: &mut Module) -> bool {
         self.stats = LowerAbiStats::default();
 
@@ -101,7 +101,7 @@ impl LowerAbi {
         // must not revisit them.
         let mut targets = Vec::new();
         let mut internally_called = DenseBitSet::new_empty(module.functions.len());
-        let mut callvalue = super::DispatchCallvalue::default();
+        let mut callvalue = super::utils::DispatchCallvalue::default();
         for (id, func) in module.functions.iter_enumerated() {
             callvalue.observe(func);
             if is_wrappable_external(func) {
@@ -146,7 +146,7 @@ impl LowerAbi {
                 body_of_wrapper.insert(id, body_id);
             }
             self.stats.wrapped += 1;
-            if !hoist_callvalue && super::rejects_callvalue(module.function(id)) {
+            if !hoist_callvalue && super::utils::rejects_callvalue(module.function(id)) {
                 Self::inject_callvalue_check(module.function_mut(id));
                 self.stats.injected_checks += 1;
             }

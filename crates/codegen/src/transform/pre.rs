@@ -45,9 +45,9 @@ use solar_data_structures::{
 use std::cmp::Ordering;
 
 /// Function pass for pure expression PRE.
-pub(crate) struct PrePass;
+pub(crate) struct Pre;
 
-impl MirPass for PrePass {
+impl MirPass for Pre {
     fn name(&self) -> &'static str {
         "pre"
     }
@@ -61,23 +61,23 @@ const MAX_INSERTIONS_PER_REWRITE: usize = 2;
 
 /// Statistics for pure expression PRE.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct PreStats {
+struct PreStats {
     /// Number of join-block expressions replaced by PRE phis.
-    pub expressions_eliminated: usize,
+    expressions_eliminated: usize,
     /// Number of predecessor computations inserted.
-    pub expressions_inserted: usize,
+    expressions_inserted: usize,
 }
 
 impl PreStats {
     /// Returns the total number of MIR edits made by this pass.
-    pub(crate) const fn total(self) -> usize {
+    const fn total(self) -> usize {
         self.expressions_eliminated + self.expressions_inserted
     }
 }
 
 /// Partial redundancy eliminator for pure expressions.
 #[derive(Debug, Default)]
-pub(crate) struct PartialRedundancyEliminator {
+struct PartialRedundancyEliminator {
     stats: PreStats,
 }
 
@@ -129,12 +129,12 @@ struct PreCandidate {
 
 impl PartialRedundancyEliminator {
     /// Creates a new PRE pass.
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     /// Runs PRE to a fixed point.
-    pub(crate) fn run(&mut self, func: &mut Function) -> PreStats {
+    fn run(&mut self, func: &mut Function) -> PreStats {
         self.stats = PreStats::default();
         repair_reachability_phis(func);
 

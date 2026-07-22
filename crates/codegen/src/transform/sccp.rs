@@ -31,15 +31,15 @@ use solar_data_structures::{
 use std::collections::VecDeque;
 
 /// Function pass for sparse conditional constant propagation.
-pub(crate) struct SccpTransformPass;
+pub(crate) struct Sccp;
 
-impl MirPass for SccpTransformPass {
+impl MirPass for Sccp {
     fn name(&self) -> &'static str {
         "sccp"
     }
 
     fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| SccpPass::new().run(func) != 0)
+        run_function_pass(module, |func| SccpCx::new().run(func) != 0)
     }
 }
 
@@ -74,33 +74,33 @@ impl LatticeValue {
 
 /// SCCP statistics.
 #[derive(Debug, Default, Clone)]
-pub(crate) struct SccpStats {
+struct SccpStats {
     /// Number of instructions replaced with constants.
-    pub(crate) constants_folded: usize,
+    constants_folded: usize,
     /// Number of branches replaced with unconditional jumps.
-    pub branches_folded: usize,
+    branches_folded: usize,
     /// Number of switches replaced with unconditional jumps.
-    pub switches_folded: usize,
+    switches_folded: usize,
     /// Number of unreachable blocks emptied and marked invalid.
-    pub blocks_invalidated: usize,
+    blocks_invalidated: usize,
 }
 
 /// Sparse Conditional Constant Propagation pass.
 #[derive(Debug, Default)]
-pub(crate) struct SccpPass {
+struct SccpCx {
     /// Statistics from the last run.
-    pub stats: SccpStats,
+    stats: SccpStats,
 }
 
-impl SccpPass {
+impl SccpCx {
     /// Creates a new SCCP pass.
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     /// Runs SCCP on a function. Returns the total number of mutations,
     /// including unreachable-block cleanup and phi repairs.
-    pub(crate) fn run(&mut self, func: &mut Function) -> usize {
+    fn run(&mut self, func: &mut Function) -> usize {
         self.stats = SccpStats::default();
 
         let num_values = func.values.len();

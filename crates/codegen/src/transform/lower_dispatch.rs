@@ -8,15 +8,15 @@
 //! The synthesized `entry` function loads the 4-byte selector
 //! (`calldataload(0) >> 224`) and switches on it to one argument-free
 //! `internal_call` per external wrapper, defaulting to a `revert`. It is meant
-//! to run after [`super::LowerAbiPass`], which turns external functions into the
+//! to run after [`super::lower_abi::LowerAbi`], which turns external functions into the
 //! argument-free self-decoding wrappers this switch routes to; that is why it
 //! only routes selector-bearing functions that take no MIR arguments.
 //!
 //! It requires the `abi` phase: it routes to the argument-free wrappers that
-//! [`super::LowerAbiPass`] produces, so it bails on `built`/`optimized` modules
+//! [`super::lower_abi::LowerAbi`] produces, so it bails on `built`/`optimized` modules
 //! rather than half-dispatching argument-taking functions.
 //!
-//! This pass runs after [`super::LowerAbiPass`] in the codegen pipeline. The
+//! This pass runs after [`super::lower_abi::LowerAbi`] in the codegen pipeline. The
 //! backend consumes the resulting `dispatch`-or-later module and uses its
 //! `entry` function instead of synthesizing a dispatcher.
 
@@ -27,9 +27,9 @@ use crate::{
 use solar_interface::{Ident, sym};
 
 /// Dispatch phase lowering pass.
-pub(crate) struct LowerDispatchPass;
+pub(crate) struct LowerDispatch;
 
-impl MirPass for LowerDispatchPass {
+impl MirPass for LowerDispatch {
     fn name(&self) -> &'static str {
         "lower-dispatch"
     }
@@ -38,28 +38,28 @@ impl MirPass for LowerDispatchPass {
         module.phase == MirPhase::Abi
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        LowerDispatch::default().run(module)
-    }
-
     fn is_required(&self) -> bool {
         true
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        LowerDispatchCx::default().run(module)
     }
 }
 
 /// Statistics from dispatch lowering.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct LowerDispatchStats {
+struct LowerDispatchStats {
     /// Number of selector cases routed by the synthesized `entry` function.
-    pub routed: usize,
+    routed: usize,
 }
 
 #[derive(Debug, Default)]
-struct LowerDispatch {
+struct LowerDispatchCx {
     stats: LowerDispatchStats,
 }
 
-impl LowerDispatch {
+impl LowerDispatchCx {
     fn run(&mut self, module: &mut Module) -> bool {
         // Idempotent: only build the dispatcher once.
         if module.phase >= MirPhase::Dispatch {
@@ -81,7 +81,7 @@ impl LowerDispatch {
         let mut routes: Vec<(u32, FunctionId)> = Vec::new();
         let mut receive = None;
         let mut fallback = None;
-        let mut callvalue = super::DispatchCallvalue::default();
+        let mut callvalue = super::utils::DispatchCallvalue::default();
         for (id, func) in module.functions.iter_enumerated() {
             callvalue.observe(func);
             if func.attributes.is_receive && receive.is_none() {
@@ -142,7 +142,7 @@ impl LowerDispatch {
         hoist_callvalue: bool,
     ) {
         let fallback_rejects =
-            fallback.is_some_and(|id| super::rejects_callvalue(module.function(id)));
+            fallback.is_some_and(|id| super::utils::rejects_callvalue(module.function(id)));
 
         let mut entry = Function::new(Ident::with_dummy_span(sym::entry));
         {

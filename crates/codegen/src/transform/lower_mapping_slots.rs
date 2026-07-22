@@ -12,11 +12,15 @@ use crate::{
 use solar_data_structures::map::FxHashMap;
 
 /// Lowers mapping-slot hash builtins after mapping-aware CSE.
-pub(crate) struct LowerMappingSlotsPass;
+pub(crate) struct LowerMappingSlots;
 
-impl MirPass for LowerMappingSlotsPass {
+impl MirPass for LowerMappingSlots {
     fn name(&self) -> &'static str {
         "lower-mapping-slots"
+    }
+
+    fn is_required(&self) -> bool {
+        true
     }
 
     fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
@@ -66,10 +70,6 @@ impl MirPass for LowerMappingSlotsPass {
             func.replace_uses_canonicalized(&replacements);
             true
         })
-    }
-
-    fn is_required(&self) -> bool {
-        true
     }
 }
 

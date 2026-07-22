@@ -5,7 +5,7 @@ use solar_sema::hir::StateMutability;
 
 /// Whether an external entry must reject nonzero callvalue, mirroring the
 /// backend dispatcher's rule.
-pub(crate) fn rejects_callvalue(func: &Function) -> bool {
+pub(super) fn rejects_callvalue(func: &Function) -> bool {
     matches!(
         func.attributes.state_mutability,
         StateMutability::NonPayable | StateMutability::View | StateMutability::Pure
@@ -15,9 +15,9 @@ pub(crate) fn rejects_callvalue(func: &Function) -> bool {
 /// Incremental form of the shared dispatch callvalue-hoisting predicate:
 /// every external entry (selector-bearing, receive, or fallback) rejects value.
 ///
-/// `LowerAbiPass` and `LowerDispatchPass` both use this while performing their
+/// `LowerAbi` and `LowerDispatch` both use this while performing their
 /// existing module scans, so they must observe every function and agree.
-pub(crate) struct DispatchCallvalue {
+pub(super) struct DispatchCallvalue {
     any: bool,
     all_reject: bool,
 }
@@ -29,7 +29,7 @@ impl Default for DispatchCallvalue {
 }
 
 impl DispatchCallvalue {
-    pub(crate) fn observe(&mut self, func: &Function) {
+    pub(super) fn observe(&mut self, func: &Function) {
         let external =
             func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback;
         if !external || func.attributes.is_constructor {
@@ -39,7 +39,7 @@ impl DispatchCallvalue {
         self.all_reject &= rejects_callvalue(func);
     }
 
-    pub(crate) const fn hoists(&self) -> bool {
+    pub(super) const fn hoists(&self) -> bool {
         self.any && self.all_reject
     }
 }

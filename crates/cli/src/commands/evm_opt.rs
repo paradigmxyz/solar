@@ -42,8 +42,17 @@ fn parse_pass(name: &str) -> Result<Option<&'static dyn ir::EvmPass>, String> {
 
 fn after_help() -> String {
     format!(
-        "Passes:\n  {}\n  none\n\nInput formats:\n  *.evmir  EVM IR",
-        ir::PASS_REGISTRY.iter().map(|pass| pass.name()).collect::<Vec<_>>().join("\n  "),
+        "\
+Passes:
+  {}
+  none
+
+Input formats:
+  *.evmir  EVM IR",
+        ir::PASS_REGISTRY.iter().map(|pass| pass.name()).collect::<Vec<_>>().join(
+            "
+  ",
+        ),
     )
 }
 

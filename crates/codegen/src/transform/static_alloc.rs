@@ -33,9 +33,9 @@ use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Pass that places provably local fmp-bump allocations statically.
-pub(crate) struct StaticAllocPass;
+pub(crate) struct StaticAlloc;
 
-impl MirPass for StaticAllocPass {
+impl MirPass for StaticAlloc {
     fn name(&self) -> &'static str {
         "static-alloc"
     }

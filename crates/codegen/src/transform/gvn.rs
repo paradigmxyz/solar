@@ -54,9 +54,9 @@ use crate::{
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Function pass for congruence-class global value numbering.
-pub(crate) struct GvnPass;
+pub(crate) struct Gvn;
 
-impl MirPass for GvnPass {
+impl MirPass for Gvn {
     fn name(&self) -> &'static str {
         "gvn"
     }
@@ -76,9 +76,9 @@ type ClassId = ValueId;
 
 /// Congruence-class global value numbering pass.
 #[derive(Debug, Default)]
-pub(crate) struct GlobalValueNumberer {
+struct GlobalValueNumberer {
     /// Number of instructions folded onto a congruent leader.
-    pub eliminated_count: usize,
+    eliminated_count: usize,
 }
 
 /// A hash-consing key for one instruction: its expression over operand
@@ -136,13 +136,13 @@ struct ReplaceCtx<'a> {
 
 impl GlobalValueNumberer {
     /// Creates a new GVN pass.
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     /// Runs GVN on a function to a fixed point of number-then-replace rounds.
     /// Returns the number of instructions eliminated.
-    pub(crate) fn run(&mut self, func: &mut Function) -> usize {
+    fn run(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
         for _ in 0..MAX_ROUNDS {
             if !self.run_round(func) {

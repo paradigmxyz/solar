@@ -52,7 +52,11 @@ Default cleanup fixpoint:
 Input formats:
   *.sol  Solidity contract — lowered through the normal compiler pipeline
   *.mir  Textual MIR — parsed directly via solar_codegen::mir::Module::parse",
-            display_pass_list(PASS_REGISTRY, "\n  "),
+            display_pass_list(
+                PASS_REGISTRY,
+                "
+  ",
+            ),
             display_pass_list(DEFAULT_PIPELINE, " → "),
             display_pass_list(DEFAULT_CLEANUP_PIPELINE, " → ")
         )

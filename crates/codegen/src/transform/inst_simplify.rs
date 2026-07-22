@@ -22,9 +22,9 @@ use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Function pass for local instruction simplification.
-pub(crate) struct InstSimplifyPass;
+pub(crate) struct InstSimplify;
 
-impl MirPass for InstSimplifyPass {
+impl MirPass for InstSimplify {
     fn name(&self) -> &'static str {
         "inst-simplify"
     }
@@ -36,9 +36,9 @@ impl MirPass for InstSimplifyPass {
 
 /// Local MIR instruction simplification pass.
 #[derive(Debug, Default)]
-pub(crate) struct InstSimplifier {
+struct InstSimplifier {
     /// Number of instructions simplified in the last run.
-    pub simplified_count: usize,
+    simplified_count: usize,
 }
 
 struct RunState {
@@ -59,7 +59,7 @@ impl RunState {
 
 impl InstSimplifier {
     /// Creates a new instruction simplifier.
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
@@ -152,7 +152,7 @@ impl InstSimplifier {
     }
 
     /// Runs instruction simplification until no more changes are found.
-    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+    fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
         let mut state = RunState::new(func);
         for round in 1.. {

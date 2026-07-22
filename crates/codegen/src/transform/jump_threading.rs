@@ -24,9 +24,9 @@ use crate::{
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Function pass for jump threading.
-pub(crate) struct JumpThreadingPass;
+pub(crate) struct JumpThreading;
 
-impl MirPass for JumpThreadingPass {
+impl MirPass for JumpThreading {
     fn name(&self) -> &'static str {
         "jump-threading"
     }
@@ -40,42 +40,42 @@ impl MirPass for JumpThreadingPass {
 
 /// Statistics from jump threading optimization.
 #[derive(Debug, Default, Clone)]
-pub(crate) struct JumpThreadingStats {
+struct JumpThreadingStats {
     /// Number of unconditional jumps threaded.
-    pub jumps_threaded: usize,
+    jumps_threaded: usize,
     /// Number of conditional branch targets threaded.
-    pub branches_threaded: usize,
+    branches_threaded: usize,
     /// Number of switch case targets threaded.
-    pub switches_threaded: usize,
+    switches_threaded: usize,
     /// Estimated gas saved (8 gas per eliminated jump).
-    pub gas_saved: usize,
+    gas_saved: usize,
 }
 
 impl JumpThreadingStats {
     /// Returns the total number of threading operations performed.
     #[must_use]
-    pub(crate) fn total_threaded(&self) -> usize {
+    fn total_threaded(&self) -> usize {
         self.jumps_threaded + self.branches_threaded + self.switches_threaded
     }
 }
 
 /// Jump threading optimization pass.
 #[derive(Debug, Default)]
-pub(crate) struct JumpThreader {
+struct JumpThreader {
     /// Statistics from the last run.
-    pub stats: JumpThreadingStats,
+    stats: JumpThreadingStats,
 }
 
 impl JumpThreader {
     /// Creates a new jump threader.
     #[must_use]
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     /// Runs jump threading on a function.
     /// Returns the number of threading operations performed.
-    pub(crate) fn run(&mut self, func: &mut Function) -> usize {
+    fn run(&mut self, func: &mut Function) -> usize {
         self.stats = JumpThreadingStats::default();
         let mut changed = 0;
 
@@ -105,7 +105,7 @@ impl JumpThreader {
     }
 
     /// Runs jump threading iteratively until no more changes.
-    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> JumpThreadingStats {
+    fn run_to_fixpoint(&mut self, func: &mut Function) -> JumpThreadingStats {
         let mut total_stats = JumpThreadingStats::default();
         loop {
             let changed = self.run(func);

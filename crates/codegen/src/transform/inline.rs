@@ -18,9 +18,9 @@ use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_sema::Gcx;
 
 /// Module pass for metadata-backed MIR inlining.
-pub(crate) struct InlinePass;
+pub(crate) struct Inline;
 
-impl MirPass for InlinePass {
+impl MirPass for Inline {
     fn name(&self) -> &'static str {
         "inline"
     }
@@ -40,7 +40,7 @@ impl MirPass for InlinePass {
 /// This pass clones small internal/private callees into their callers. Each
 /// inline expansion gets a fresh internal-frame range so copied local slots do
 /// not overlap caller locals.
-pub(crate) struct MirInliner {
+struct MirInliner {
     /// Maximum instruction count for ordinary inline candidates.
     max_instructions: usize,
     /// Hard sanity limit for single-call-site callees. These bypass the normal
@@ -97,20 +97,20 @@ impl MirInliner {
     /// protocol (memory frame setup) costs more bytes than those bodies, so
     /// sharing them was measured to *increase* code size as well.
     #[must_use]
-    pub(crate) fn for_size() -> Self {
+    fn for_size() -> Self {
         Self { max_module_code_size: 0, ..Self::default() }
     }
 }
 
 /// Statistics for MIR-level inlining.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct MirInlineStats {
+struct MirInlineStats {
     /// Number of internal call sites considered.
-    pub call_sites: usize,
+    call_sites: usize,
     /// Number of call sites inlined.
-    pub inlined: usize,
+    inlined: usize,
     /// Number of call sites skipped because the callee was not inlineable.
-    pub skipped: usize,
+    skipped: usize,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -136,7 +136,7 @@ struct MirInlineSummary {
 
 impl MirInliner {
     /// Runs the inliner over the whole module.
-    pub(crate) fn run(&mut self, module: &mut Module) -> MirInlineStats {
+    fn run(&mut self, module: &mut Module) -> MirInlineStats {
         let mut stats = MirInlineStats::default();
         let mut summaries = self.summarize_module(module);
         let mut call_counts = self.call_counts(module);

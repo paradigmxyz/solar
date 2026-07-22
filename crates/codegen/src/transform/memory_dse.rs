@@ -21,9 +21,9 @@ use solar_data_structures::{
 };
 
 /// Function pass for local dead memory-store elimination.
-pub(crate) struct MemoryDsePass;
+pub(crate) struct MemoryDse;
 
-impl MirPass for MemoryDsePass {
+impl MirPass for MemoryDse {
     fn name(&self) -> &'static str {
         "memory-dse"
     }
@@ -35,9 +35,9 @@ impl MirPass for MemoryDsePass {
 
 /// Local dead memory optimization pass.
 #[derive(Debug, Default)]
-pub(crate) struct MemoryStoreEliminator {
+struct MemoryStoreEliminator {
     /// Number of memory instructions eliminated.
-    pub eliminated_count: usize,
+    eliminated_count: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -133,7 +133,7 @@ impl BlockScratch {
 
 impl MemoryStoreEliminator {
     /// Creates a new memory optimization pass.
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
@@ -386,7 +386,7 @@ impl MemoryStoreEliminator {
     }
 
     /// Runs local memory optimization until no more instructions can be eliminated.
-    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+    fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
         let mut scratch = BlockScratch::new(func);
         loop {

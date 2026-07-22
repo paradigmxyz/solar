@@ -27,9 +27,9 @@ use solar_data_structures::{
 };
 
 /// Function pass for internal-frame scalar promotion.
-pub(crate) struct FrameSlotPromotionPass;
+pub(crate) struct FrameSlotPromotion;
 
-impl MirPass for FrameSlotPromotionPass {
+impl MirPass for FrameSlotPromotion {
     fn name(&self) -> &'static str {
         "frame-slot-promotion"
     }
@@ -47,20 +47,20 @@ const LOW_MEMORY_START: u64 = 0x80;
 
 /// Statistics for one frame promotion run.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct FramePromotionStats {
+struct FramePromotionStats {
     /// Number of distinct compiler-local slots promoted.
-    pub slots_promoted: usize,
+    slots_promoted: usize,
     /// Number of local-slot loads replaced by SSA values.
-    pub loads_promoted: usize,
+    loads_promoted: usize,
     /// Number of local-slot stores removed.
-    pub stores_promoted: usize,
+    stores_promoted: usize,
     /// Number of phi nodes inserted.
-    pub phis_inserted: usize,
+    phis_inserted: usize,
 }
 
 /// A compiler-owned memory slot promoted to SSA.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub(crate) enum PromotedSlot {
+enum PromotedSlot {
     /// Slot addressed relative to the internal-call frame pointer.
     InternalFrame(u64),
     /// Slot addressed in the external entry's compiler-owned low-memory locals.
@@ -69,33 +69,33 @@ pub(crate) enum PromotedSlot {
 
 /// Per-slot information produced by frame-slot promotion.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct PromotedSlotSummary {
+struct PromotedSlotSummary {
     /// Promoted compiler-owned slot.
-    pub slot: PromotedSlot,
+    slot: PromotedSlot,
     /// Blocks where the slot had an upward-exposed load before promotion.
-    pub(crate) use_blocks: Vec<BlockId>,
+    use_blocks: Vec<BlockId>,
     /// Blocks where the slot was defined before promotion.
-    pub def_blocks: Vec<BlockId>,
+    def_blocks: Vec<BlockId>,
     /// Blocks where SSA phis were inserted.
-    pub phi_blocks: Vec<BlockId>,
+    phi_blocks: Vec<BlockId>,
     /// SSA phi values inserted for this slot.
-    pub phi_values: Vec<ValueId>,
+    phi_values: Vec<ValueId>,
     /// Number of loads replaced by SSA values.
-    pub loads_promoted: usize,
+    loads_promoted: usize,
     /// Number of stores removed.
-    pub stores_promoted: usize,
+    stores_promoted: usize,
 }
 
 impl FramePromotionStats {
     /// Returns the total number of MIR edits made by this pass.
-    pub(crate) const fn total(self) -> usize {
+    const fn total(self) -> usize {
         self.loads_promoted + self.stores_promoted + self.phis_inserted
     }
 }
 
 /// Promotes non-escaping compiler-local slots to SSA values.
 #[derive(Debug, Default)]
-pub(crate) struct FrameSlotPromoter {
+struct FrameSlotPromoter {
     stats: FramePromotionStats,
     summaries: Vec<PromotedSlotSummary>,
 }
@@ -204,12 +204,12 @@ fn sorted_blocks(blocks: &DenseBitSet<BlockId>) -> Vec<BlockId> {
 
 impl FrameSlotPromoter {
     /// Creates a new compiler-local-slot promoter.
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     /// Runs compiler-local-slot promotion on a function.
-    pub(crate) fn run(&mut self, func: &mut Function) -> FramePromotionStats {
+    fn run(&mut self, func: &mut Function) -> FramePromotionStats {
         self.stats = FramePromotionStats::default();
         self.summaries.clear();
 

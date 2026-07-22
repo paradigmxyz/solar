@@ -41,23 +41,13 @@ pub trait MirPass: Sync {
         true
     }
 
-    /// Returns whether this pass can be overridden by pass-selection options.
-    fn can_be_overridden(&self) -> bool {
-        true
-    }
-
-    /// Runs the pass and returns whether it changed MIR.
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
-
-    /// Returns whether MIR printing is enabled for this pass.
-    fn is_mir_dump_enabled(&self) -> bool {
-        true
-    }
-
     /// Returns whether this pass must run independently of the optimization level.
     fn is_required(&self) -> bool {
         false
     }
+
+    /// Runs the pass and returns whether it changed MIR.
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
 }
 
 /// Whether to allow non-required optimizations.
@@ -90,10 +80,6 @@ pub(crate) fn should_run_pass<P>(
 where
     P: MirPass + ?Sized,
 {
-    if !pass.can_be_overridden() {
-        return pass.is_enabled(gcx, module);
-    }
-
     let suppressed = !pass.is_required() && matches!(optimizations, Optimizations::Suppressed);
     !suppressed && pass.is_enabled(gcx, module)
 }
@@ -142,10 +128,7 @@ fn run_passes_inner(
         if validate_each && cfg!(debug_assertions) {
             validate_module_after_pass(module, pass_name);
         }
-        if pass.is_mir_dump_enabled()
-            && gcx.sess.opts.unstable.print_after_each
-            && !gcx.sess.opts.unstable.pass_diff
-        {
+        if gcx.sess.opts.unstable.print_after_each && !gcx.sess.opts.unstable.pass_diff {
             println!("// === {} (after {pass_name}) ===", module.name);
             print!("{}", module.to_text());
         }

@@ -11,23 +11,23 @@ use crate::{
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Function pass for straight-line storage-load CSE.
-pub(crate) struct StorageLoadCsePass;
+pub(crate) struct StorageLoadCse;
 
-impl MirPass for StorageLoadCsePass {
+impl MirPass for StorageLoadCse {
     fn name(&self) -> &'static str {
         "storage-load-cse"
     }
 
     fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| StorageLoadCse::new().run_to_fixpoint(func) != 0)
+        run_function_pass(module, |func| StorageLoadCseCx::new().run_to_fixpoint(func) != 0)
     }
 }
 
 /// Local storage load CSE pass.
 #[derive(Debug, Default)]
-pub(crate) struct StorageLoadCse {
+struct StorageLoadCseCx {
     /// Number of storage loads eliminated.
-    pub eliminated_count: usize,
+    eliminated_count: usize,
 }
 
 struct RunState {
@@ -46,9 +46,9 @@ impl RunState {
     }
 }
 
-impl StorageLoadCse {
+impl StorageLoadCseCx {
     /// Creates a new storage-load CSE pass.
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
@@ -80,7 +80,7 @@ impl StorageLoadCse {
     }
 
     /// Runs storage-load CSE to a fixed point.
-    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+    fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
         let mut state = RunState::new(func);
         loop {

@@ -22,9 +22,9 @@ use crate::{
 use solar_data_structures::bit_set::DenseBitSet;
 
 /// Function pass for loop canonicalization.
-pub(crate) struct LoopCanonicalizePass;
+pub(crate) struct LoopCanonicalize;
 
-impl MirPass for LoopCanonicalizePass {
+impl MirPass for LoopCanonicalize {
     fn name(&self) -> &'static str {
         "loop-canonicalize"
     }
@@ -36,38 +36,38 @@ impl MirPass for LoopCanonicalizePass {
 
 /// Statistics from loop canonicalization.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct LoopCanonicalizeStats {
+struct LoopCanonicalizeStats {
     /// Number of preheader blocks inserted.
-    pub preheaders_inserted: usize,
+    preheaders_inserted: usize,
     /// Number of header phi nodes rewritten to use a preheader incoming value.
-    pub header_phis_rewritten: usize,
+    header_phis_rewritten: usize,
     /// Number of new preheader phi nodes inserted.
-    pub preheader_phis_inserted: usize,
+    preheader_phis_inserted: usize,
 }
 
 impl LoopCanonicalizeStats {
     /// Returns total canonicalization changes performed.
     #[must_use]
-    pub(crate) const fn total(&self) -> usize {
+    const fn total(&self) -> usize {
         self.preheaders_inserted + self.header_phis_rewritten + self.preheader_phis_inserted
     }
 }
 
 /// Canonicalizes natural loops into a form expected by loop optimizers.
 #[derive(Debug, Default)]
-pub(crate) struct LoopCanonicalizer {
+struct LoopCanonicalizer {
     stats: LoopCanonicalizeStats,
 }
 
 impl LoopCanonicalizer {
     /// Creates a new loop canonicalizer.
     #[must_use]
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     /// Runs loop canonicalization to a fixed point.
-    pub(crate) fn run(&mut self, func: &mut Function) -> &LoopCanonicalizeStats {
+    fn run(&mut self, func: &mut Function) -> &LoopCanonicalizeStats {
         self.stats = LoopCanonicalizeStats::default();
 
         loop {

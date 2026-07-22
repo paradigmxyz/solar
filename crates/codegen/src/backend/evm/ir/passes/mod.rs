@@ -28,18 +28,13 @@ pub trait EvmPass: Sync {
         true
     }
 
-    /// Returns whether this pass can be overridden by pass-selection options.
-    fn can_be_overridden(&self) -> bool {
-        true
-    }
-
-    /// Runs the pass and returns whether it changed EVM IR.
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
-
     /// Returns whether this pass must run independently of the optimization level.
     fn is_required(&self) -> bool {
         false
     }
+
+    /// Runs the pass and returns whether it changed EVM IR.
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
 }
 
 macro_rules! declare_passes {
@@ -108,10 +103,6 @@ pub(super) fn should_run_pass<P>(
 where
     P: EvmPass + ?Sized,
 {
-    if !pass.can_be_overridden() {
-        return pass.is_enabled(gcx, module);
-    }
-
     let suppressed = !pass.is_required() && matches!(optimizations, Optimizations::Suppressed);
     !suppressed && pass.is_enabled(gcx, module)
 }

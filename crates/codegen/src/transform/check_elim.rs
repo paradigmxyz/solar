@@ -35,9 +35,9 @@ use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 /// Function pass for range-based overflow-check elimination.
-pub(crate) struct CheckElimPass;
+pub(crate) struct CheckElim;
 
-impl MirPass for CheckElimPass {
+impl MirPass for CheckElim {
     fn name(&self) -> &'static str {
         "check-elim"
     }
@@ -52,9 +52,9 @@ const MAX_DEPTH: usize = 12;
 
 /// Statistics from check elimination.
 #[derive(Debug, Default, Clone)]
-pub(crate) struct CheckElimStats {
+struct CheckElimStats {
     /// Number of branches folded to unconditional jumps.
-    pub branches_folded: usize,
+    branches_folded: usize,
 }
 
 /// An inclusive unsigned 256-bit interval.
@@ -110,9 +110,9 @@ fn ordered(a: ValueId, b: ValueId) -> (ValueId, ValueId) {
 
 /// Range-based overflow-check eliminator.
 #[derive(Default)]
-pub(crate) struct CheckEliminator {
+struct CheckEliminator {
     /// Statistics from the last run.
-    pub stats: CheckElimStats,
+    stats: CheckElimStats,
     ranges: FxHashMap<ValueId, Range>,
     relations: FxHashSet<Relation>,
     range_undo: Vec<(ValueId, Option<Range>)>,
@@ -122,13 +122,13 @@ pub(crate) struct CheckEliminator {
 impl CheckEliminator {
     /// Creates a new check eliminator.
     #[must_use]
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     /// Runs check elimination on a function. Returns the number of folded
     /// branches.
-    pub(crate) fn run(&mut self, func: &mut Function) -> usize {
+    fn run(&mut self, func: &mut Function) -> usize {
         self.stats = CheckElimStats::default();
         let cfg = CfgInfo::new(func);
 

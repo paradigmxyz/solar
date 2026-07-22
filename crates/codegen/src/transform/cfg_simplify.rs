@@ -25,9 +25,9 @@ use crate::{
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 
 /// Function pass for CFG simplification.
-pub(crate) struct CfgSimplifyPass;
+pub(crate) struct CfgSimplify;
 
-impl MirPass for CfgSimplifyPass {
+impl MirPass for CfgSimplify {
     fn name(&self) -> &'static str {
         "cfg-simplify"
     }
@@ -38,9 +38,9 @@ impl MirPass for CfgSimplifyPass {
 }
 
 /// Module pass for dead internal function elimination.
-pub(crate) struct FunctionDcePass;
+pub(crate) struct FunctionDce;
 
-impl MirPass for FunctionDcePass {
+impl MirPass for FunctionDce {
     fn name(&self) -> &'static str {
         "function-dce"
     }
@@ -88,27 +88,27 @@ enum CanonOperand {
 
 /// Statistics from CFG simplification.
 #[derive(Debug, Default, Clone)]
-pub(crate) struct CfgSimplifyStats {
+struct CfgSimplifyStats {
     /// Number of blocks merged.
-    pub blocks_merged: usize,
+    blocks_merged: usize,
     /// Number of empty blocks eliminated.
-    pub empty_blocks_eliminated: usize,
+    empty_blocks_eliminated: usize,
     /// Number of degenerate terminators simplified.
-    pub terminators_simplified: usize,
+    terminators_simplified: usize,
     /// Number of trivial phi nodes replaced by their unique incoming value.
-    pub trivial_phis_simplified: usize,
+    trivial_phis_simplified: usize,
     /// Number of identical terminal blocks merged into one shared block.
-    pub terminal_blocks_deduplicated: usize,
+    terminal_blocks_deduplicated: usize,
     /// Number of dead functions eliminated.
-    pub dead_functions_eliminated: usize,
+    dead_functions_eliminated: usize,
     /// Estimated gas saved (8 gas per eliminated jump).
-    pub gas_saved: usize,
+    gas_saved: usize,
 }
 
 impl CfgSimplifyStats {
     /// Returns total optimizations performed.
     #[must_use]
-    pub(crate) fn total(&self) -> usize {
+    fn total(&self) -> usize {
         self.blocks_merged
             + self.empty_blocks_eliminated
             + self.terminators_simplified
@@ -118,7 +118,7 @@ impl CfgSimplifyStats {
     }
 
     /// Combines stats from another run.
-    pub(crate) fn combine(&mut self, other: &Self) {
+    fn combine(&mut self, other: &Self) {
         self.blocks_merged += other.blocks_merged;
         self.empty_blocks_eliminated += other.empty_blocks_eliminated;
         self.terminators_simplified += other.terminators_simplified;
@@ -131,21 +131,21 @@ impl CfgSimplifyStats {
 
 /// CFG simplification pass for a single function.
 #[derive(Debug, Default)]
-pub(crate) struct CfgSimplifier {
+struct CfgSimplifier {
     /// Statistics from the last run.
-    pub stats: CfgSimplifyStats,
+    stats: CfgSimplifyStats,
 }
 
 impl CfgSimplifier {
     /// Creates a new CFG simplifier.
     #[must_use]
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     /// Runs CFG simplification on a function.
     /// Returns the number of optimizations performed.
-    pub(crate) fn run(&mut self, func: &mut Function) -> usize {
+    fn run(&mut self, func: &mut Function) -> usize {
         self.stats = CfgSimplifyStats::default();
 
         self.simplify_degenerate_terminators(func);
@@ -361,7 +361,7 @@ impl CfgSimplifier {
     }
 
     /// Runs CFG simplification iteratively until no more changes.
-    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> CfgSimplifyStats {
+    fn run_to_fixpoint(&mut self, func: &mut Function) -> CfgSimplifyStats {
         let mut total_stats = CfgSimplifyStats::default();
         loop {
             let changed = self.run(func);
@@ -664,21 +664,21 @@ impl CfgSimplifier {
 
 /// Dead function elimination pass for a module.
 #[derive(Debug, Default)]
-pub(crate) struct DeadFunctionEliminator {
+struct DeadFunctionEliminator {
     /// Statistics from the last run.
-    pub stats: CfgSimplifyStats,
+    stats: CfgSimplifyStats,
 }
 
 impl DeadFunctionEliminator {
     /// Creates a new dead function eliminator.
     #[must_use]
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     /// Runs dead function elimination on a module.
     /// Returns the number of functions eliminated.
-    pub(crate) fn run(&mut self, module: &mut Module) -> usize {
+    fn run(&mut self, module: &mut Module) -> usize {
         self.stats = CfgSimplifyStats::default();
 
         let call_graph = CallGraphInfo::new(module);

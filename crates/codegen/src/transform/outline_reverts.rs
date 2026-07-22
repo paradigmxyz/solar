@@ -25,36 +25,36 @@ use solar_data_structures::map::FxHashMap;
 use solar_interface::{Ident, Symbol};
 
 /// Revert-block outlining pass.
-pub(crate) struct OutlineRevertsPass;
+pub(crate) struct OutlineReverts;
 
-impl MirPass for OutlineRevertsPass {
+impl MirPass for OutlineReverts {
     fn name(&self) -> &'static str {
         "outline-reverts"
     }
 
     fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        OutlineReverts::default().run(module)
+        OutlineRevertsCx::default().run(module)
     }
 }
 
 /// Statistics from revert-block outlining.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct OutlineRevertsStats {
+struct OutlineRevertsStats {
     /// Number of blocks rewritten into tail calls.
-    pub outlined: usize,
+    outlined: usize,
     /// Number of shared helpers synthesized.
-    pub helpers: usize,
+    helpers: usize,
 }
 
 #[derive(Debug, Default)]
-struct OutlineReverts {
+struct OutlineRevertsCx {
     stats: OutlineRevertsStats,
 }
 
 /// A constant revert block: `mstore(offset, value)*` then `revert(offset, size)`.
 type RevertShape = (SmallVec<[(U256, U256); 2]>, U256, U256);
 
-impl OutlineReverts {
+impl OutlineRevertsCx {
     fn run(&mut self, module: &mut Module) -> bool {
         // Collect every constant revert block, keyed by shape.
         let mut shapes: FxHashMap<RevertShape, Vec<(usize, usize)>> = FxHashMap::default();

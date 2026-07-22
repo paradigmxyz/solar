@@ -12,9 +12,9 @@ use crate::{
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Function pass for dead code elimination.
-pub(crate) struct DcePass;
+pub(crate) struct Dce;
 
-impl MirPass for DcePass {
+impl MirPass for Dce {
     fn name(&self) -> &'static str {
         "dce"
     }
@@ -38,14 +38,14 @@ impl MirPass for DcePass {
 ///
 /// Side-effect instructions (SSTORE, MSTORE, CALL, LOG, etc.) are always kept.
 #[derive(Debug, Default)]
-pub(crate) struct DeadCodeEliminator {
+struct DeadCodeEliminator {
     /// Number of instructions eliminated in the last run.
-    pub eliminated_count: usize,
+    eliminated_count: usize,
 }
 
 impl DeadCodeEliminator {
     /// Creates a new dead code eliminator.
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
@@ -76,7 +76,7 @@ impl DeadCodeEliminator {
     }
 
     /// Runs dead code elimination iteratively until no more changes.
-    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+    fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total_eliminated = 0;
         let inst_to_value = func.inst_results();
         loop {

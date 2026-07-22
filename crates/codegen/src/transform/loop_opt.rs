@@ -23,9 +23,9 @@ use arrayvec::ArrayVec;
 use solar_data_structures::bit_set::DenseBitSet;
 
 /// Function pass for loop-invariant code motion.
-pub(crate) struct LicmPass;
+pub(crate) struct Licm;
 
-impl MirPass for LicmPass {
+impl MirPass for Licm {
     fn name(&self) -> &'static str {
         "licm"
     }
@@ -59,7 +59,7 @@ struct LoopOptContext<'a> {
 
 /// Loop optimizer.
 #[derive(Debug)]
-pub(crate) struct LoopOptimizer {
+struct LoopOptimizer {
     /// Minimum estimated gas saved per iteration before an instruction is considered a LICM root.
     min_licm_profit: u16,
     /// Maximum number of instructions hoisted from one loop.
@@ -79,9 +79,9 @@ impl Default for LoopOptimizer {
 
 /// Statistics from loop optimization.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct LoopOptStats {
+struct LoopOptStats {
     /// Number of instructions hoisted out of loops.
-    pub instructions_hoisted: usize,
+    instructions_hoisted: usize,
 }
 
 impl LoopOptimizer {
@@ -90,7 +90,7 @@ impl LoopOptimizer {
     }
 
     /// Runs loop-invariant code motion on a function.
-    pub(crate) fn optimize(&mut self, func: &mut Function) -> &LoopOptStats {
+    fn optimize(&mut self, func: &mut Function) -> &LoopOptStats {
         self.stats = LoopOptStats::default();
         func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
 

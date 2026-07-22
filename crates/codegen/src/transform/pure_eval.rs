@@ -14,9 +14,9 @@ use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
 
 /// Function pass for bounded pure MIR evaluation.
-pub(crate) struct PureEvalPass;
+pub(crate) struct PureEval;
 
-impl MirPass for PureEvalPass {
+impl MirPass for PureEval {
     fn name(&self) -> &'static str {
         "pure-eval"
     }
@@ -34,14 +34,14 @@ const DEFAULT_FUEL: usize = 10_000;
 
 /// Statistics from bounded pure evaluation.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct PureEvalStats {
+struct PureEvalStats {
     /// Number of functions folded to constant returns.
-    pub functions_folded: usize,
+    functions_folded: usize,
 }
 
 /// Bounded pure MIR evaluator.
 #[derive(Debug)]
-pub(crate) struct PureEvaluator {
+struct PureEvaluator {
     fuel: usize,
     stats: PureEvalStats,
 }
@@ -55,12 +55,12 @@ impl Default for PureEvaluator {
 impl PureEvaluator {
     /// Creates a new evaluator with the default fuel.
     #[must_use]
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     /// Runs the evaluator on one function.
-    pub(crate) fn run(&mut self, func: &mut Function) -> &PureEvalStats {
+    fn run(&mut self, func: &mut Function) -> &PureEvalStats {
         self.stats = PureEvalStats::default();
         if !func.params.is_empty() || !self.is_side_effect_free(func) {
             return &self.stats;

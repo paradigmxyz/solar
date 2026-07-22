@@ -25,21 +25,19 @@ pub use crate::pass_manager::{MirPass, Optimizations, run_passes, run_passes_no_
 use crate::{
     mir::{Function, MirPhase, Module},
     transform::{
-        AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
-        FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
-        JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, LowerAbiPass,
-        LowerDispatchPass, LowerEvmShapedPass, LowerMappingSlotsPass, MemoryDsePass,
-        OutlineRevertsPass, PrePass, PureEvalPass, SccpTransformPass, StaticAllocPass,
-        StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
+        adce, cfg_simplify, check_elim, cse, dce, frame_promotion, gvn, indvar_simplify, inline,
+        inst_simplify, jump_threading, load_pre, loop_canonicalize, loop_opt, lower_abi,
+        lower_dispatch, lower_evm_shaped, lower_mapping_slots, memory_dse, outline_reverts, pre,
+        pure_eval, sccp, static_alloc, storage_dse, storage_load_cse, storage_promotion,
     },
 };
 use solar_data_structures::map::FxHashMap;
 use std::any::{Any, TypeId};
 
 macro_rules! declare_passes {
-    ($($vis:vis const $const_name:ident = $pass:ident;)+) => {
+    ($($vis:vis const $const_name:ident = $module:ident::$pass:ident;)+) => {
         $(
-            $vis const $const_name: $pass = $pass;
+            $vis const $const_name: $module::$pass = $module::$pass;
         )+
 
         /// All known MIR passes exposed to `solar mir-opt`.
@@ -48,34 +46,34 @@ macro_rules! declare_passes {
 }
 
 declare_passes! {
-    pub(crate) const INLINE_PASS = InlinePass;
-    pub(crate) const OUTLINE_REVERTS_PASS = OutlineRevertsPass;
-    pub(crate) const FUNCTION_DCE_PASS = FunctionDcePass;
-    pub(crate) const SCCP_PASS = SccpTransformPass;
-    pub(crate) const PURE_EVAL_PASS = PureEvalPass;
-    pub(crate) const INST_SIMPLIFY_PASS = InstSimplifyPass;
-    pub(crate) const CSE_PASS = CsePass;
-    pub(crate) const PRE_PASS = PrePass;
-    pub(crate) const GVN_PASS = GvnPass;
-    pub(crate) const STORAGE_LOAD_CSE_PASS = StorageLoadCsePass;
-    pub(crate) const STORAGE_DSE_PASS = StorageDsePass;
-    pub(crate) const LOAD_PRE_PASS = LoadPrePass;
-    pub(crate) const LOOP_CANONICALIZE_PASS = LoopCanonicalizePass;
-    pub(crate) const INDVAR_SIMPLIFY_PASS = IndVarSimplifyPass;
-    pub(crate) const STORAGE_PROMOTION_PASS = StorageScalarPromotionPass;
-    pub(crate) const LICM_PASS = LicmPass;
-    pub(crate) const CHECK_ELIM_PASS = CheckElimPass;
-    pub(crate) const JUMP_THREADING_PASS = JumpThreadingPass;
-    pub(crate) const CFG_SIMPLIFY_PASS = CfgSimplifyPass;
-    pub(crate) const FRAME_SLOT_PROMOTION_PASS = FrameSlotPromotionPass;
-    pub(crate) const MEMORY_DSE_PASS = MemoryDsePass;
-    pub(crate) const STATIC_ALLOC_PASS = StaticAllocPass;
-    pub(crate) const DCE_PASS = DcePass;
-    pub(crate) const ADCE_PASS = AdcePass;
-    pub(crate) const LOWER_ABI_PASS = LowerAbiPass;
-    pub(crate) const LOWER_DISPATCH_PASS = LowerDispatchPass;
-    pub(crate) const LOWER_EVM_SHAPED_PASS = LowerEvmShapedPass;
-    pub(crate) const LOWER_MAPPING_SLOTS_PASS = LowerMappingSlotsPass;
+    pub(crate) const INLINE_PASS = inline::Inline;
+    pub(crate) const OUTLINE_REVERTS_PASS = outline_reverts::OutlineReverts;
+    pub(crate) const FUNCTION_DCE_PASS = cfg_simplify::FunctionDce;
+    pub(crate) const SCCP_PASS = sccp::Sccp;
+    pub(crate) const PURE_EVAL_PASS = pure_eval::PureEval;
+    pub(crate) const INST_SIMPLIFY_PASS = inst_simplify::InstSimplify;
+    pub(crate) const CSE_PASS = cse::Cse;
+    pub(crate) const PRE_PASS = pre::Pre;
+    pub(crate) const GVN_PASS = gvn::Gvn;
+    pub(crate) const STORAGE_LOAD_CSE_PASS = storage_load_cse::StorageLoadCse;
+    pub(crate) const STORAGE_DSE_PASS = storage_dse::StorageDse;
+    pub(crate) const LOAD_PRE_PASS = load_pre::LoadPre;
+    pub(crate) const LOOP_CANONICALIZE_PASS = loop_canonicalize::LoopCanonicalize;
+    pub(crate) const INDVAR_SIMPLIFY_PASS = indvar_simplify::IndVarSimplify;
+    pub(crate) const STORAGE_PROMOTION_PASS = storage_promotion::StorageScalarPromotion;
+    pub(crate) const LICM_PASS = loop_opt::Licm;
+    pub(crate) const CHECK_ELIM_PASS = check_elim::CheckElim;
+    pub(crate) const JUMP_THREADING_PASS = jump_threading::JumpThreading;
+    pub(crate) const CFG_SIMPLIFY_PASS = cfg_simplify::CfgSimplify;
+    pub(crate) const FRAME_SLOT_PROMOTION_PASS = frame_promotion::FrameSlotPromotion;
+    pub(crate) const MEMORY_DSE_PASS = memory_dse::MemoryDse;
+    pub(crate) const STATIC_ALLOC_PASS = static_alloc::StaticAlloc;
+    pub(crate) const DCE_PASS = dce::Dce;
+    pub(crate) const ADCE_PASS = adce::Adce;
+    pub(crate) const LOWER_ABI_PASS = lower_abi::LowerAbi;
+    pub(crate) const LOWER_DISPATCH_PASS = lower_dispatch::LowerDispatch;
+    pub(crate) const LOWER_EVM_SHAPED_PASS = lower_evm_shaped::LowerEvmShaped;
+    pub(crate) const LOWER_MAPPING_SLOTS_PASS = lower_mapping_slots::LowerMappingSlots;
 }
 
 /// Finds a pass in the global MIR pass registry by command-line name.

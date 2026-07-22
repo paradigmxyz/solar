@@ -51,9 +51,9 @@ use solar_data_structures::{
 use std::cmp::Ordering;
 
 /// Function pass for local common subexpression elimination.
-pub(crate) struct CsePass;
+pub(crate) struct Cse;
 
-impl MirPass for CsePass {
+impl MirPass for Cse {
     fn name(&self) -> &'static str {
         "cse"
     }
@@ -65,9 +65,9 @@ impl MirPass for CsePass {
 
 /// Common Subexpression Elimination pass.
 #[derive(Debug, Default)]
-pub(crate) struct CommonSubexprEliminator {
+struct CommonSubexprEliminator {
     /// Number of instructions eliminated.
-    pub eliminated_count: usize,
+    eliminated_count: usize,
 }
 
 /// A normalized expression key for CSE lookup.
@@ -183,7 +183,7 @@ struct PhiSinkContext<'a> {
 
 impl CommonSubexprEliminator {
     /// Creates a new CSE pass.
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
@@ -206,7 +206,7 @@ impl CommonSubexprEliminator {
     }
 
     /// Runs CSE iteratively until no more changes.
-    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+    fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
         let cfg = CfgInfo::new(func);
         loop {
