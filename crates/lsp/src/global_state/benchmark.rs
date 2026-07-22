@@ -8,7 +8,7 @@ use lsp_types::{
     TextDocumentContentChangeEvent, Url, WorkspaceSymbol,
 };
 use normalize_path::NormalizePath;
-use solar_config::CompileOpts;
+use solar_config::{CompileOpts, Threads};
 use solar_interface::{
     data_structures::map::{FxHashMap, FxHashSet},
     source_map::{FileLoader, SourceMap},
@@ -287,7 +287,8 @@ impl BenchmarkProject {
 
     /// Consume this prepared project and run the production compiler analysis pipeline.
     pub fn analyze(self) -> BenchmarkAnalysis {
-        let Self { root, opts, files, loader, markers: _ } = self;
+        let Self { root, mut opts, files, loader, markers: _ } = self;
+        opts.threads = Threads::resolve(1);
         let default_uri = files.first().and_then(|(path, _)| Url::from_file_path(path).ok());
         let source_map = Arc::new(SourceMap::empty());
         source_map.set_file_loader(loader);
@@ -375,7 +376,8 @@ impl BenchmarkAnalysis {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches");
         let path = root.join("benchmark.sol");
         let uri = Url::from_file_path(&path).expect("benchmark path should be a file URL");
-        let mut batch = AnalysisBatch::new(CompileOpts::default());
+        let opts = CompileOpts { threads: Threads::resolve(1), ..Default::default() };
+        let mut batch = AnalysisBatch::new(opts);
         batch.push_file(path, source);
         let result = analyze(batch);
         Self {
