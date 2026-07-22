@@ -7,8 +7,8 @@
 
 use crate::global_state::GlobalState;
 use async_lsp::{
-    ClientSocket, client_monitor::ClientProcessMonitorLayer, concurrency::ConcurrencyLayer,
-    router::Router, server::LifecycleLayer, tracing::TracingLayer,
+    ClientSocket, client_monitor::ClientProcessMonitorLayer, router::Router,
+    server::LifecycleLayer, tracing::TracingLayer,
 };
 #[cfg(test)]
 use criterion as _;
@@ -32,6 +32,7 @@ mod natspec_completion;
 mod override_index;
 mod proto;
 mod rename;
+mod request_cancellation;
 mod serde;
 mod signature_help;
 mod symbols;
@@ -50,7 +51,10 @@ mod test_support;
 pub(crate) type NotifyResult = ControlFlow<async_lsp::Result<()>>;
 
 fn new_router(client: ClientSocket) -> Router<GlobalState> {
-    let this = GlobalState::new(client);
+    new_router_with_state(GlobalState::new(client))
+}
+
+fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
     let mut router = Router::new(this);
 
     // Lifecycle
@@ -96,6 +100,10 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
     router
 }
 
+fn request_layer() -> request_cancellation::RequestCancellationLayer {
+    request_cancellation::RequestCancellationLayer
+}
+
 /// Start the LSP server over stdin/stdout.
 ///
 /// This future is long running and will not stop until the server exits.
@@ -116,8 +124,7 @@ pub async fn run_server_stdio(_args: LspArgs) -> async_lsp::Result<()> {
         ServiceBuilder::new()
             .layer(TracingLayer::default())
             .layer(LifecycleLayer::default())
-            // TODO: infer concurrency
-            .layer(ConcurrencyLayer::new(2.try_into().unwrap()))
+            .layer(request_layer())
             .layer(ClientProcessMonitorLayer::new(client.clone()))
             .service(new_router(client))
     });
@@ -128,20 +135,78 @@ pub async fn run_server_stdio(_args: LspArgs) -> async_lsp::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_lsp::{AnyNotification, AnyRequest, LanguageServer, LspService, router::Router};
+    use crate::test_support::TestProject;
+    use async_lsp::{
+        AnyEvent, AnyNotification, AnyRequest, LanguageServer, LspService, ResponseError,
+        router::Router,
+    };
     use lsp_types::{
+        CancelParams, CompletionParams, CompletionResponse,
         DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
         DidSaveTextDocumentParams, DocumentFormattingParams, DocumentHighlightParams,
-        DocumentLinkParams, ExecuteCommandParams, FileChangeType, FileEvent, FormattingOptions,
-        HoverParams, InitializeParams, InitializedParams, PartialResultParams, Position,
-        SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams,
-        WorkDoneProgressParams, WorkspaceClientCapabilities, notification as notif,
-        notification::Notification, request, request::Request,
+        DocumentLinkParams, DocumentSymbolParams, ExecuteCommandParams, FileChangeType, FileEvent,
+        FormattingOptions, HoverParams, InitializeParams, InitializedParams, NumberOrString,
+        PartialResultParams, Position, SignatureHelpParams, TextDocumentIdentifier,
+        TextDocumentPositionParams, WorkDoneProgressParams, WorkspaceClientCapabilities,
+        notification as notif, notification::Notification, request, request::Request,
     };
-    use std::ops::ControlFlow;
-    use tokio::sync::oneshot;
+    use solar_interface::data_structures::sync::RwLock;
+    use std::{
+        future::Future,
+        ops::ControlFlow,
+        pin::Pin,
+        sync::Arc,
+        task::{Context, Poll, Waker},
+        time::Duration,
+    };
+    use tokio::sync::{mpsc, oneshot};
     use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
     use tower::Service;
+
+    struct ObservedRouter {
+        inner: Router<GlobalState>,
+        accepted: mpsc::UnboundedSender<String>,
+    }
+
+    impl Service<AnyRequest> for ObservedRouter {
+        type Response = serde_json::Value;
+        type Error = ResponseError;
+        type Future = <Router<GlobalState> as Service<AnyRequest>>::Future;
+
+        fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+            self.inner.poll_ready(cx)
+        }
+
+        fn call(&mut self, request: AnyRequest) -> Self::Future {
+            self.accepted.send(request.method.clone()).unwrap();
+            self.inner.call(request)
+        }
+    }
+
+    impl LspService for ObservedRouter {
+        fn notify(&mut self, notification: AnyNotification) -> ControlFlow<async_lsp::Result<()>> {
+            self.inner.notify(notification)
+        }
+
+        fn emit(&mut self, event: AnyEvent) -> ControlFlow<async_lsp::Result<()>> {
+            self.inner.emit(event)
+        }
+    }
+
+    fn assert_request_cancelled<T>(result: async_lsp::Result<T>) {
+        let Err(error) = result else { panic!("expected request cancellation") };
+        let async_lsp::Error::Response(error) = error else {
+            panic!("expected request cancellation, got {error:?}");
+        };
+        assert_eq!(error.code, async_lsp::ErrorCode::REQUEST_CANCELLED);
+    }
+
+    fn start_request<F: Future>(future: F) -> Pin<Box<F>> {
+        let mut future = Box::pin(future);
+        let mut cx = Context::from_waker(Waker::noop());
+        assert!(future.as_mut().poll(&mut cx).is_pending());
+        future
+    }
 
     #[tokio::test(flavor = "current_thread")]
     async fn router_handles_watched_file_changes() {
@@ -376,6 +441,105 @@ mod tests {
 
         assert_eq!(error.code, async_lsp::ErrorCode::REQUEST_FAILED);
         assert!(!error.message.ends_with('.'));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn pending_analysis_requests_do_not_block_completion_or_cancellation() {
+        const TIMEOUT: Duration = Duration::from_secs(1);
+
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Completion.sol open
+            ///
+            contract C {}
+            "#,
+        );
+        let uri = lsp_types::Url::from_file_path(project.path("/Completion.sol")).unwrap();
+        let vfs = project.vfs();
+        let mut config = project.config();
+        config.enable_completion_snippets();
+        let (accepted_tx, mut accepted_rx) = mpsc::unbounded_channel();
+
+        let (server_main, _client) = async_lsp::MainLoop::new_server(move |client| {
+            let mut state = GlobalState::new(client);
+            state.vfs = Arc::new(RwLock::new(vfs));
+            state.config = Arc::new(config);
+            state.mark_analysis_pending_for_test();
+            let router =
+                ObservedRouter { inner: new_router_with_state(state), accepted: accepted_tx };
+            ServiceBuilder::new().layer(request_layer()).service(router)
+        });
+        let (client_main, mut server) = async_lsp::MainLoop::new_client(|_| Router::new(()));
+
+        let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
+        let (server_rx, server_tx) = tokio::io::split(server_stream);
+        let (server_rx, server_tx) = (server_rx.compat(), server_tx.compat_write());
+        let server_main =
+            tokio::spawn(async move { server_main.run_buffered(server_rx, server_tx).await });
+        let (client_rx, client_tx) = tokio::io::split(client_stream);
+        let (client_rx, client_tx) = (client_rx.compat(), client_tx.compat_write());
+        let client_main =
+            tokio::spawn(async move { client_main.run_buffered(client_rx, client_tx).await });
+
+        let document_symbols =
+            start_request(server.request::<request::DocumentSymbolRequest>(DocumentSymbolParams {
+                text_document: TextDocumentIdentifier::new(uri.clone()),
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
+            }));
+        assert_eq!(
+            tokio::time::timeout(TIMEOUT, accepted_rx.recv()).await.unwrap().unwrap(),
+            request::DocumentSymbolRequest::METHOD
+        );
+
+        let document_links =
+            start_request(server.request::<request::DocumentLinkRequest>(DocumentLinkParams {
+                text_document: TextDocumentIdentifier::new(uri.clone()),
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
+            }));
+        assert_eq!(
+            tokio::time::timeout(TIMEOUT, accepted_rx.recv()).await.unwrap().unwrap(),
+            request::DocumentLinkRequest::METHOD
+        );
+
+        let completion_params = CompletionParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier::new(uri),
+                position: Position::new(0, 3),
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+            context: None,
+        };
+        let completion = start_request(server.request::<request::Completion>(completion_params));
+        server.notify::<notif::Cancel>(CancelParams { id: NumberOrString::Number(0) }).unwrap();
+        server.notify::<notif::Cancel>(CancelParams { id: NumberOrString::Number(1) }).unwrap();
+
+        let response = tokio::time::timeout(TIMEOUT, completion)
+            .await
+            .expect("completion should not wait for analysis")
+            .unwrap();
+        let Some(CompletionResponse::Array(items)) = response else {
+            panic!("expected completion items, got {response:?}");
+        };
+        assert!(items.iter().any(|item| item.label == "NatSpec contract documentation"));
+
+        assert_request_cancelled(
+            tokio::time::timeout(TIMEOUT, document_symbols)
+                .await
+                .expect("document symbols should be cancelled"),
+        );
+        assert_request_cancelled(
+            tokio::time::timeout(TIMEOUT, document_links)
+                .await
+                .expect("document links should be cancelled"),
+        );
+
+        server.shutdown(()).await.unwrap();
+        server.exit(()).unwrap();
+        assert!(server_main.await.unwrap().is_ok());
+        assert!(matches!(client_main.await.unwrap(), Err(async_lsp::Error::Eof)));
     }
 
     #[tokio::test(flavor = "current_thread")]
