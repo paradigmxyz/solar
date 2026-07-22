@@ -10,6 +10,23 @@ use crate::{
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
+/// Function pass for straight-line storage-load CSE.
+pub(crate) struct StorageLoadCsePass;
+
+impl MirPass for StorageLoadCsePass {
+    fn name(&self) -> &'static str {
+        "storage-load-cse"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| StorageLoadCse::new().run_to_fixpoint(func) != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
 /// Local storage load CSE pass.
 #[derive(Debug, Default)]
 pub(crate) struct StorageLoadCse {
@@ -30,23 +47,6 @@ impl RunState {
             dead: DenseBitSet::new_empty(func.instructions.len()),
             cached_loads: FxHashMap::default(),
         }
-    }
-}
-
-/// Function pass for straight-line storage-load CSE.
-pub(crate) struct StorageLoadCsePass;
-
-impl MirPass for StorageLoadCsePass {
-    fn name(&self) -> &'static str {
-        "storage-load-cse"
-    }
-
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| StorageLoadCse::new().run_to_fixpoint(func) != 0)
-    }
-
-    fn is_required(&self) -> bool {
-        false
     }
 }
 

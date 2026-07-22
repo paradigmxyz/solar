@@ -44,6 +44,23 @@ use solar_data_structures::{
 };
 use std::cmp::Ordering;
 
+/// Function pass for pure expression PRE.
+pub(crate) struct PrePass;
+
+impl MirPass for PrePass {
+    fn name(&self) -> &'static str {
+        "pre"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| PartialRedundancyEliminator::new().run(func).total() != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
 const MAX_INSERTIONS_PER_REWRITE: usize = 2;
 
 /// Statistics for pure expression PRE.
@@ -66,23 +83,6 @@ impl PreStats {
 #[derive(Debug, Default)]
 pub(crate) struct PartialRedundancyEliminator {
     stats: PreStats,
-}
-
-/// Function pass for pure expression PRE.
-pub(crate) struct PrePass;
-
-impl MirPass for PrePass {
-    fn name(&self) -> &'static str {
-        "pre"
-    }
-
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| PartialRedundancyEliminator::new().run(func).total() != 0)
-    }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

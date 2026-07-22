@@ -8,10 +8,6 @@ use crate::backend::evm::{
 use alloy_primitives::U256;
 use solar_sema::Gcx;
 
-const EVM_WORD_BYTES: usize = 32;
-const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
-const MIN_COMPACT_MASK_WIDTH: u8 = 5;
-
 pub(super) struct CompactPushes;
 
 impl EvmPass for CompactPushes {
@@ -27,6 +23,10 @@ impl EvmPass for CompactPushes {
         false
     }
 }
+
+const EVM_WORD_BYTES: usize = 32;
+const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
+const MIN_COMPACT_MASK_WIDTH: u8 = 5;
 
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut changed = false;

@@ -50,13 +50,6 @@ use solar_data_structures::{
 };
 use std::cmp::Ordering;
 
-/// Common Subexpression Elimination pass.
-#[derive(Debug, Default)]
-pub(crate) struct CommonSubexprEliminator {
-    /// Number of instructions eliminated.
-    pub eliminated_count: usize,
-}
-
 /// Function pass for local common subexpression elimination.
 pub(crate) struct CsePass;
 
@@ -72,6 +65,13 @@ impl MirPass for CsePass {
     fn is_required(&self) -> bool {
         false
     }
+}
+
+/// Common Subexpression Elimination pass.
+#[derive(Debug, Default)]
+pub(crate) struct CommonSubexprEliminator {
+    /// Number of instructions eliminated.
+    pub eliminated_count: usize,
 }
 
 /// A normalized expression key for CSE lookup.

@@ -25,25 +25,6 @@ use crate::{
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
 
-const LOW_MEMORY_START: u64 = 0x80;
-
-/// Statistics from storage scalar promotion.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct StoragePromotionStats {
-    /// Number of loops promoted.
-    pub loops_promoted: usize,
-    /// Number of storage loads rewritten to memory loads.
-    pub loads_promoted: usize,
-    /// Number of storage stores rewritten to memory stores.
-    pub stores_promoted: usize,
-}
-
-/// Promotes loop-carried storage values to memory-backed scalars.
-#[derive(Debug, Default)]
-pub(crate) struct StorageScalarPromoter {
-    stats: StoragePromotionStats,
-}
-
 /// Function pass for loop-carried storage scalar promotion.
 pub(crate) struct StorageScalarPromotionPass;
 
@@ -63,6 +44,25 @@ impl MirPass for StorageScalarPromotionPass {
     fn is_required(&self) -> bool {
         false
     }
+}
+
+const LOW_MEMORY_START: u64 = 0x80;
+
+/// Statistics from storage scalar promotion.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct StoragePromotionStats {
+    /// Number of loops promoted.
+    pub loops_promoted: usize,
+    /// Number of storage loads rewritten to memory loads.
+    pub loads_promoted: usize,
+    /// Number of storage stores rewritten to memory stores.
+    pub stores_promoted: usize,
+}
+
+/// Promotes loop-carried storage values to memory-backed scalars.
+#[derive(Debug, Default)]
+pub(crate) struct StorageScalarPromoter {
+    stats: StoragePromotionStats,
 }
 
 #[derive(Clone, Debug)]

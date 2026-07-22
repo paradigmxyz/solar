@@ -30,6 +30,23 @@ use crate::{
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
 
+/// Function pass for induction-variable simplification and strength reduction.
+pub(crate) struct IndVarSimplifyPass;
+
+impl MirPass for IndVarSimplifyPass {
+    fn name(&self) -> &'static str {
+        "indvar-simplify"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| IndVarSimplifier::new().run(func).total() != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
 /// Statistics from induction-variable simplification.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct IndVarSimplifyStats {
@@ -51,23 +68,6 @@ impl IndVarSimplifyStats {
 #[derive(Debug, Default)]
 pub(crate) struct IndVarSimplifier {
     stats: IndVarSimplifyStats,
-}
-
-/// Function pass for induction-variable simplification and strength reduction.
-pub(crate) struct IndVarSimplifyPass;
-
-impl MirPass for IndVarSimplifyPass {
-    fn name(&self) -> &'static str {
-        "indvar-simplify"
-    }
-
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| IndVarSimplifier::new().run(func).total() != 0)
-    }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

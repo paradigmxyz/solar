@@ -22,6 +22,25 @@ use alloy_primitives::U256;
 use arrayvec::ArrayVec;
 use solar_data_structures::bit_set::DenseBitSet;
 
+/// Function pass for loop-invariant code motion.
+pub(crate) struct LicmPass;
+
+impl MirPass for LicmPass {
+    fn name(&self) -> &'static str {
+        "licm"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| {
+            LoopOptimizer::with_limits(3, 8).optimize(func).instructions_hoisted != 0
+        })
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum StorageSpace {
     Persistent,
@@ -67,25 +86,6 @@ impl Default for LoopOptimizer {
 pub(crate) struct LoopOptStats {
     /// Number of instructions hoisted out of loops.
     pub instructions_hoisted: usize,
-}
-
-/// Function pass for loop-invariant code motion.
-pub(crate) struct LicmPass;
-
-impl MirPass for LicmPass {
-    fn name(&self) -> &'static str {
-        "licm"
-    }
-
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| {
-            LoopOptimizer::with_limits(3, 8).optimize(func).instructions_hoisted != 0
-        })
-    }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 impl LoopOptimizer {

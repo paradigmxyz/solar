@@ -45,6 +45,27 @@ use crate::{
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::{Ident, Symbol};
 
+/// ABI phase lowering pass.
+pub(crate) struct LowerAbiPass;
+
+impl MirPass for LowerAbiPass {
+    fn name(&self) -> &'static str {
+        "lower-abi"
+    }
+
+    fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        module.phase <= MirPhase::Optimized
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        LowerAbi::default().run(module)
+    }
+
+    fn is_required(&self) -> bool {
+        true
+    }
+}
+
 /// Statistics from ABI wrapper lowering.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct LowerAbiStats {
@@ -61,9 +82,6 @@ pub(crate) struct LowerAbiStats {
     /// the dispatch entry cannot hoist one.
     pub injected_checks: usize,
 }
-
-/// ABI phase lowering pass.
-pub(crate) struct LowerAbiPass;
 
 #[derive(Debug, Default)]
 struct LowerAbi {
@@ -213,24 +231,6 @@ impl LowerAbi {
         let zero = builder.imm_u64(0);
         builder.revert(zero, zero);
         func.entry_block = guard;
-    }
-}
-
-impl MirPass for LowerAbiPass {
-    fn name(&self) -> &'static str {
-        "lower-abi"
-    }
-
-    fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        module.phase <= MirPhase::Optimized
-    }
-
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        LowerAbi::default().run(module)
-    }
-
-    fn is_required(&self) -> bool {
-        true
     }
 }
 

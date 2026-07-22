@@ -20,13 +20,6 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 
-/// Local dead memory optimization pass.
-#[derive(Debug, Default)]
-pub(crate) struct MemoryStoreEliminator {
-    /// Number of memory instructions eliminated.
-    pub eliminated_count: usize,
-}
-
 /// Function pass for local dead memory-store elimination.
 pub(crate) struct MemoryDsePass;
 
@@ -42,6 +35,13 @@ impl MirPass for MemoryDsePass {
     fn is_required(&self) -> bool {
         false
     }
+}
+
+/// Local dead memory optimization pass.
+#[derive(Debug, Default)]
+pub(crate) struct MemoryStoreEliminator {
+    /// Number of memory instructions eliminated.
+    pub eliminated_count: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

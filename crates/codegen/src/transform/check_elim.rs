@@ -34,16 +34,6 @@ use crate::{
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
-/// Maximum recursion depth when evaluating value ranges and conditions.
-const MAX_DEPTH: usize = 12;
-
-/// Statistics from check elimination.
-#[derive(Debug, Default, Clone)]
-pub(crate) struct CheckElimStats {
-    /// Number of branches folded to unconditional jumps.
-    pub branches_folded: usize,
-}
-
 /// Function pass for range-based overflow-check elimination.
 pub(crate) struct CheckElimPass;
 
@@ -59,6 +49,16 @@ impl MirPass for CheckElimPass {
     fn is_required(&self) -> bool {
         false
     }
+}
+
+/// Maximum recursion depth when evaluating value ranges and conditions.
+const MAX_DEPTH: usize = 12;
+
+/// Statistics from check elimination.
+#[derive(Debug, Default, Clone)]
+pub(crate) struct CheckElimStats {
+    /// Number of branches folded to unconditional jumps.
+    pub branches_folded: usize,
 }
 
 /// An inclusive unsigned 256-bit interval.

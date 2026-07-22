@@ -24,6 +24,40 @@ use crate::{
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
+/// Function pass for CFG simplification.
+pub(crate) struct CfgSimplifyPass;
+
+impl MirPass for CfgSimplifyPass {
+    fn name(&self) -> &'static str {
+        "cfg-simplify"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| CfgSimplifier::new().run_to_fixpoint(func).total() != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
+/// Module pass for dead internal function elimination.
+pub(crate) struct FunctionDcePass;
+
+impl MirPass for FunctionDcePass {
+    fn name(&self) -> &'static str {
+        "function-dce"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        DeadFunctionEliminator::new().run(module) != 0
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
 /// Alpha-equivalence key for a terminal block used by
 /// [`CfgSimplifier::deduplicate_terminal_blocks`].
 #[derive(Debug, PartialEq)]
@@ -108,23 +142,6 @@ impl CfgSimplifyStats {
 pub(crate) struct CfgSimplifier {
     /// Statistics from the last run.
     pub stats: CfgSimplifyStats,
-}
-
-/// Function pass for CFG simplification.
-pub(crate) struct CfgSimplifyPass;
-
-impl MirPass for CfgSimplifyPass {
-    fn name(&self) -> &'static str {
-        "cfg-simplify"
-    }
-
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| CfgSimplifier::new().run_to_fixpoint(func).total() != 0)
-    }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 impl CfgSimplifier {
@@ -661,23 +678,6 @@ impl CfgSimplifier {
 pub(crate) struct DeadFunctionEliminator {
     /// Statistics from the last run.
     pub stats: CfgSimplifyStats,
-}
-
-/// Module pass for dead internal function elimination.
-pub(crate) struct FunctionDcePass;
-
-impl MirPass for FunctionDcePass {
-    fn name(&self) -> &'static str {
-        "function-dce"
-    }
-
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        DeadFunctionEliminator::new().run(module) != 0
-    }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 impl DeadFunctionEliminator {

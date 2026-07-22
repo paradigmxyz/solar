@@ -14,6 +14,23 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 
+/// Function pass for local dead storage-store elimination.
+pub(crate) struct StorageDsePass;
+
+impl MirPass for StorageDsePass {
+    fn name(&self) -> &'static str {
+        "storage-dse"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| StorageStoreEliminator::new().run_to_fixpoint(func) != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
 /// Local dead storage-store elimination pass.
 #[derive(Debug, Default)]
 pub(crate) struct StorageStoreEliminator {
@@ -34,23 +51,6 @@ impl RunState {
             stored_values: FxHashMap::default(),
             dead: DenseBitSet::new_empty(func.instructions.len()),
         }
-    }
-}
-
-/// Function pass for local dead storage-store elimination.
-pub(crate) struct StorageDsePass;
-
-impl MirPass for StorageDsePass {
-    fn name(&self) -> &'static str {
-        "storage-dse"
-    }
-
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| StorageStoreEliminator::new().run_to_fixpoint(func) != 0)
-    }
-
-    fn is_required(&self) -> bool {
-        false
     }
 }
 

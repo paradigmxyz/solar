@@ -10,12 +10,6 @@ use crate::backend::evm::ir::{Block, BlockId, Module, PushValue, Terminator, Ter
 use solar_data_structures::map::{FxHashMap, StdEntry};
 use solar_sema::Gcx;
 
-#[derive(Default)]
-struct RunState {
-    canonical: FxHashMap<TerminalBlockKey, BlockId>,
-    redirects: Vec<(BlockId, BlockId)>,
-}
-
 pub(super) struct TerminalDedup;
 
 impl EvmPass for TerminalDedup {
@@ -30,6 +24,12 @@ impl EvmPass for TerminalDedup {
     fn is_required(&self) -> bool {
         false
     }
+}
+
+#[derive(Default)]
+struct RunState {
+    canonical: FxHashMap<TerminalBlockKey, BlockId>,
+    redirects: Vec<(BlockId, BlockId)>,
 }
 
 fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {

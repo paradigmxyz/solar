@@ -21,6 +21,23 @@ use crate::{
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
+/// Function pass for local instruction simplification.
+pub(crate) struct InstSimplifyPass;
+
+impl MirPass for InstSimplifyPass {
+    fn name(&self) -> &'static str {
+        "inst-simplify"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| InstSimplifier::new().run_to_fixpoint(func) != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
 /// Local MIR instruction simplification pass.
 #[derive(Debug, Default)]
 pub(crate) struct InstSimplifier {
@@ -41,23 +58,6 @@ impl RunState {
             replacements: FxHashMap::default(),
             dead: DenseBitSet::new_empty(func.instructions.len()),
         }
-    }
-}
-
-/// Function pass for local instruction simplification.
-pub(crate) struct InstSimplifyPass;
-
-impl MirPass for InstSimplifyPass {
-    fn name(&self) -> &'static str {
-        "inst-simplify"
-    }
-
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| InstSimplifier::new().run_to_fixpoint(func) != 0)
-    }
-
-    fn is_required(&self) -> bool {
-        false
     }
 }
 

@@ -11,21 +11,6 @@ use crate::{
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
-/// Dead Code Elimination pass.
-///
-/// Removes instructions that:
-/// 1. Have a result that is never used
-/// 2. Have no side effects
-/// 3. Are in unreachable blocks
-/// 4. Are instructions after a terminator (unreachable code)
-///
-/// Side-effect instructions (SSTORE, MSTORE, CALL, LOG, etc.) are always kept.
-#[derive(Debug, Default)]
-pub(crate) struct DeadCodeEliminator {
-    /// Number of instructions eliminated in the last run.
-    pub eliminated_count: usize,
-}
-
 /// Function pass for dead code elimination.
 pub(crate) struct DcePass;
 
@@ -45,6 +30,21 @@ impl MirPass for DcePass {
     fn is_required(&self) -> bool {
         false
     }
+}
+
+/// Dead Code Elimination pass.
+///
+/// Removes instructions that:
+/// 1. Have a result that is never used
+/// 2. Have no side effects
+/// 3. Are in unreachable blocks
+/// 4. Are instructions after a terminator (unreachable code)
+///
+/// Side-effect instructions (SSTORE, MSTORE, CALL, LOG, etc.) are always kept.
+#[derive(Debug, Default)]
+pub(crate) struct DeadCodeEliminator {
+    /// Number of instructions eliminated in the last run.
+    pub eliminated_count: usize,
 }
 
 impl DeadCodeEliminator {

@@ -17,6 +17,28 @@ use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_sema::Gcx;
 
+/// Module pass for metadata-backed MIR inlining.
+pub(crate) struct InlinePass;
+
+impl MirPass for InlinePass {
+    fn name(&self) -> &'static str {
+        "inline"
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        let mut inliner = if gcx.sess.opts.optimization == solar_config::OptimizationMode::Size {
+            MirInliner::for_size()
+        } else {
+            MirInliner::default()
+        };
+        inliner.run(module).inlined != 0
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
 /// Module-level MIR internal-call inliner.
 ///
 /// This pass clones small internal/private callees into their callers. Each
@@ -114,28 +136,6 @@ struct MirInlineSummary {
     is_entry_point: bool,
     is_constructor: bool,
     no_inline: bool,
-}
-
-/// Module pass for metadata-backed MIR inlining.
-pub(crate) struct InlinePass;
-
-impl MirPass for InlinePass {
-    fn name(&self) -> &'static str {
-        "inline"
-    }
-
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let mut inliner = if gcx.sess.opts.optimization == solar_config::OptimizationMode::Size {
-            MirInliner::for_size()
-        } else {
-            MirInliner::default()
-        };
-        inliner.run(module).inlined != 0
-    }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 impl MirInliner {

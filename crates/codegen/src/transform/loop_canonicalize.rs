@@ -21,6 +21,23 @@ use crate::{
 };
 use solar_data_structures::bit_set::DenseBitSet;
 
+/// Function pass for loop canonicalization.
+pub(crate) struct LoopCanonicalizePass;
+
+impl MirPass for LoopCanonicalizePass {
+    fn name(&self) -> &'static str {
+        "loop-canonicalize"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| LoopCanonicalizer::new().run(func).total() != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
 /// Statistics from loop canonicalization.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct LoopCanonicalizeStats {
@@ -44,23 +61,6 @@ impl LoopCanonicalizeStats {
 #[derive(Debug, Default)]
 pub(crate) struct LoopCanonicalizer {
     stats: LoopCanonicalizeStats,
-}
-
-/// Function pass for loop canonicalization.
-pub(crate) struct LoopCanonicalizePass;
-
-impl MirPass for LoopCanonicalizePass {
-    fn name(&self) -> &'static str {
-        "loop-canonicalize"
-    }
-
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| LoopCanonicalizer::new().run(func).total() != 0)
-    }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 impl LoopCanonicalizer {

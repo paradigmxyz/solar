@@ -11,8 +11,6 @@ use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_sema::Gcx;
 use std::hash::{Hash, Hasher};
 
-const MIN_CLOSED_RUN: usize = 4;
-
 pub(super) struct Outline;
 
 impl EvmPass for Outline {
@@ -28,6 +26,8 @@ impl EvmPass for Outline {
         false
     }
 }
+
+const MIN_CLOSED_RUN: usize = 4;
 
 fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();

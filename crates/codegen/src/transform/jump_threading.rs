@@ -23,6 +23,25 @@ use crate::{
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
+/// Function pass for jump threading.
+pub(crate) struct JumpThreadingPass;
+
+impl MirPass for JumpThreadingPass {
+    fn name(&self) -> &'static str {
+        "jump-threading"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| {
+            JumpThreader::new().run_to_fixpoint(func).total_threaded() != 0
+        })
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
 /// Statistics from jump threading optimization.
 #[derive(Debug, Default, Clone)]
 pub(crate) struct JumpThreadingStats {
@@ -49,25 +68,6 @@ impl JumpThreadingStats {
 pub(crate) struct JumpThreader {
     /// Statistics from the last run.
     pub stats: JumpThreadingStats,
-}
-
-/// Function pass for jump threading.
-pub(crate) struct JumpThreadingPass;
-
-impl MirPass for JumpThreadingPass {
-    fn name(&self) -> &'static str {
-        "jump-threading"
-    }
-
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| {
-            JumpThreader::new().run_to_fixpoint(func).total_threaded() != 0
-        })
-    }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 impl JumpThreader {

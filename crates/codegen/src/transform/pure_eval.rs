@@ -13,22 +13,6 @@ use crate::{
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
 
-const DEFAULT_FUEL: usize = 10_000;
-
-/// Statistics from bounded pure evaluation.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct PureEvalStats {
-    /// Number of functions folded to constant returns.
-    pub functions_folded: usize,
-}
-
-/// Bounded pure MIR evaluator.
-#[derive(Debug)]
-pub(crate) struct PureEvaluator {
-    fuel: usize,
-    stats: PureEvalStats,
-}
-
 /// Function pass for bounded pure MIR evaluation.
 pub(crate) struct PureEvalPass;
 
@@ -48,6 +32,22 @@ impl MirPass for PureEvalPass {
     fn is_required(&self) -> bool {
         false
     }
+}
+
+const DEFAULT_FUEL: usize = 10_000;
+
+/// Statistics from bounded pure evaluation.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct PureEvalStats {
+    /// Number of functions folded to constant returns.
+    pub functions_folded: usize,
+}
+
+/// Bounded pure MIR evaluator.
+#[derive(Debug)]
+pub(crate) struct PureEvaluator {
+    fuel: usize,
+    stats: PureEvalStats,
 }
 
 impl Default for PureEvaluator {

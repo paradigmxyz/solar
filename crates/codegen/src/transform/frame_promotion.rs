@@ -26,6 +26,27 @@ use solar_data_structures::{
     map::FxHashMap,
 };
 
+/// Function pass for internal-frame scalar promotion.
+pub(crate) struct FrameSlotPromotionPass;
+
+impl MirPass for FrameSlotPromotionPass {
+    fn name(&self) -> &'static str {
+        "frame-slot-promotion"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| {
+            let changed = FrameSlotPromoter::new().run(func).total() != 0;
+            repair_reachability_phis(func);
+            changed
+        })
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
 const LOW_MEMORY_START: u64 = 0x80;
 
 /// Statistics for one frame promotion run.
@@ -81,27 +102,6 @@ impl FramePromotionStats {
 pub(crate) struct FrameSlotPromoter {
     stats: FramePromotionStats,
     summaries: Vec<PromotedSlotSummary>,
-}
-
-/// Function pass for internal-frame scalar promotion.
-pub(crate) struct FrameSlotPromotionPass;
-
-impl MirPass for FrameSlotPromotionPass {
-    fn name(&self) -> &'static str {
-        "frame-slot-promotion"
-    }
-
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| {
-            let changed = FrameSlotPromoter::new().run(func).total() != 0;
-            repair_reachability_phis(func);
-            changed
-        })
-    }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

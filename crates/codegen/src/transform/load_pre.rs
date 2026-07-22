@@ -87,6 +87,23 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 
+/// Function pass for load PRE.
+pub(crate) struct LoadPrePass;
+
+impl MirPass for LoadPrePass {
+    fn name(&self) -> &'static str {
+        "load-pre"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| LoadRedundancyEliminator::new().run(func).total() != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
 /// Statistics for load PRE.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct LoadPreStats {
@@ -107,23 +124,6 @@ impl LoadPreStats {
 #[derive(Debug, Default)]
 pub(crate) struct LoadRedundancyEliminator {
     stats: LoadPreStats,
-}
-
-/// Function pass for load PRE.
-pub(crate) struct LoadPrePass;
-
-impl MirPass for LoadPrePass {
-    fn name(&self) -> &'static str {
-        "load-pre"
-    }
-
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| LoadRedundancyEliminator::new().run(func).total() != 0)
-    }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 /// A normalized key for a state-dependent read.

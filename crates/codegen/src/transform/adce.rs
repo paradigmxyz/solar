@@ -14,6 +14,27 @@ use crate::{
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
+/// Function pass for aggressive dead-code elimination.
+pub(crate) struct AdcePass;
+
+impl MirPass for AdcePass {
+    fn name(&self) -> &'static str {
+        "adce"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| {
+            let changed = AggressiveDeadCodeEliminator::new().run(func).total() != 0;
+            repair_reachability_phis(func);
+            changed
+        })
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
 /// Statistics for aggressive dead-code elimination.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct AdceStats {
@@ -34,27 +55,6 @@ impl AdceStats {
 #[derive(Debug, Default)]
 pub(crate) struct AggressiveDeadCodeEliminator {
     stats: AdceStats,
-}
-
-/// Function pass for aggressive dead-code elimination.
-pub(crate) struct AdcePass;
-
-impl MirPass for AdcePass {
-    fn name(&self) -> &'static str {
-        "adce"
-    }
-
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| {
-            let changed = AggressiveDeadCodeEliminator::new().run(func).total() != 0;
-            repair_reachability_phis(func);
-            changed
-        })
-    }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 #[derive(Debug)]

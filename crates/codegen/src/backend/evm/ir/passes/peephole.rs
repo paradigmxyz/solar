@@ -10,8 +10,6 @@ use solar_sema::Gcx;
 use std::fmt;
 use tracing::trace;
 
-const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
-
 pub(super) struct Peephole;
 
 impl EvmPass for Peephole {
@@ -27,6 +25,8 @@ impl EvmPass for Peephole {
         false
     }
 }
+
+const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
 fn optimize_module(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut changed = false;

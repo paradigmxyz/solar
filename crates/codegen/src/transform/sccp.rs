@@ -30,6 +30,23 @@ use solar_data_structures::{
 };
 use std::collections::VecDeque;
 
+/// Function pass for sparse conditional constant propagation.
+pub(crate) struct SccpTransformPass;
+
+impl MirPass for SccpTransformPass {
+    fn name(&self) -> &'static str {
+        "sccp"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| SccpPass::new().run(func) != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
 /// Lattice element for a single SSA value.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum LatticeValue {
@@ -77,23 +94,6 @@ pub(crate) struct SccpStats {
 pub(crate) struct SccpPass {
     /// Statistics from the last run.
     pub stats: SccpStats,
-}
-
-/// Function pass for sparse conditional constant propagation.
-pub(crate) struct SccpTransformPass;
-
-impl MirPass for SccpTransformPass {
-    fn name(&self) -> &'static str {
-        "sccp"
-    }
-
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| SccpPass::new().run(func) != 0)
-    }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 impl SccpPass {

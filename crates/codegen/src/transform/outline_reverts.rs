@@ -24,6 +24,23 @@ use smallvec::SmallVec;
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{Ident, Symbol};
 
+/// Revert-block outlining pass.
+pub(crate) struct OutlineRevertsPass;
+
+impl MirPass for OutlineRevertsPass {
+    fn name(&self) -> &'static str {
+        "outline-reverts"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        OutlineReverts::default().run(module)
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
 /// Statistics from revert-block outlining.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct OutlineRevertsStats {
@@ -32,9 +49,6 @@ pub(crate) struct OutlineRevertsStats {
     /// Number of shared helpers synthesized.
     pub helpers: usize,
 }
-
-/// Revert-block outlining pass.
-pub(crate) struct OutlineRevertsPass;
 
 #[derive(Debug, Default)]
 struct OutlineReverts {
@@ -102,20 +116,6 @@ impl OutlineReverts {
             builder.revert(offset, size);
         }
         module.add_function(func)
-    }
-}
-
-impl MirPass for OutlineRevertsPass {
-    fn name(&self) -> &'static str {
-        "outline-reverts"
-    }
-
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        OutlineReverts::default().run(module)
-    }
-
-    fn is_required(&self) -> bool {
-        false
     }
 }
 

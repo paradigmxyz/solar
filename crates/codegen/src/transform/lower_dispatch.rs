@@ -26,15 +26,33 @@ use crate::{
 };
 use solar_interface::{Ident, sym};
 
+/// Dispatch phase lowering pass.
+pub(crate) struct LowerDispatchPass;
+
+impl MirPass for LowerDispatchPass {
+    fn name(&self) -> &'static str {
+        "lower-dispatch"
+    }
+
+    fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        module.phase == MirPhase::Abi
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        LowerDispatch::default().run(module)
+    }
+
+    fn is_required(&self) -> bool {
+        true
+    }
+}
+
 /// Statistics from dispatch lowering.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct LowerDispatchStats {
     /// Number of selector cases routed by the synthesized `entry` function.
     pub routed: usize,
 }
-
-/// Dispatch phase lowering pass.
-pub(crate) struct LowerDispatchPass;
 
 #[derive(Debug, Default)]
 struct LowerDispatch {
@@ -240,22 +258,4 @@ fn load_selector(builder: &mut FunctionBuilder<'_>) -> ValueId {
     let word = builder.calldataload(zero);
     let shift = builder.imm_u64(224);
     builder.shr(shift, word)
-}
-
-impl MirPass for LowerDispatchPass {
-    fn name(&self) -> &'static str {
-        "lower-dispatch"
-    }
-
-    fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        module.phase == MirPhase::Abi
-    }
-
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        LowerDispatch::default().run(module)
-    }
-
-    fn is_required(&self) -> bool {
-        true
-    }
 }

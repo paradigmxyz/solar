@@ -53,21 +53,6 @@ use crate::{
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
-/// Hard cap on value-numbering sweeps per round.
-const MAX_VN_SWEEPS: usize = 10;
-/// Hard cap on whole-pass rounds (number, then replace) per function.
-const MAX_ROUNDS: usize = 4;
-
-/// A value number, named by its congruence-class representative.
-type ClassId = ValueId;
-
-/// Congruence-class global value numbering pass.
-#[derive(Debug, Default)]
-pub(crate) struct GlobalValueNumberer {
-    /// Number of instructions folded onto a congruent leader.
-    pub eliminated_count: usize,
-}
-
 /// Function pass for congruence-class global value numbering.
 pub(crate) struct GvnPass;
 
@@ -83,6 +68,21 @@ impl MirPass for GvnPass {
     fn is_required(&self) -> bool {
         false
     }
+}
+
+/// Hard cap on value-numbering sweeps per round.
+const MAX_VN_SWEEPS: usize = 10;
+/// Hard cap on whole-pass rounds (number, then replace) per function.
+const MAX_ROUNDS: usize = 4;
+
+/// A value number, named by its congruence-class representative.
+type ClassId = ValueId;
+
+/// Congruence-class global value numbering pass.
+#[derive(Debug, Default)]
+pub(crate) struct GlobalValueNumberer {
+    /// Number of instructions folded onto a congruent leader.
+    pub eliminated_count: usize,
 }
 
 /// A hash-consing key for one instruction: its expression over operand
