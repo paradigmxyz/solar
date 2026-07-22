@@ -2,8 +2,8 @@
 //!
 //! Transformation pipelines follow rustc MIR's pass-manager shape: passes
 //! implement a trait and pipelines are slices of trait-object references.
-//! Analyses retain their LLVM/MLIR-style cache: read-only [`AnalysisPass`]es
-//! produce results cached in an [`AnalysisManager`].
+//! Analyses retain their LLVM/MLIR-style cache: read-only `AnalysisPass`es
+//! produce results cached in an `AnalysisManager`.
 //!
 //! # Usage
 //!
