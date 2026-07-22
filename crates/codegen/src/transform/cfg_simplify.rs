@@ -659,7 +659,7 @@ pub(crate) struct DeadFunctionEliminator {
 pub(crate) struct FunctionDcePass;
 
 impl ModulePass for FunctionDcePass {
-    fn run(&mut self, module: &mut Module) -> bool {
+    fn run(&mut self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         DeadFunctionEliminator::new().run(module) != 0
     }
 }

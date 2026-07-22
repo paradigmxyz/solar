@@ -23,7 +23,7 @@ mod verify;
 
 pub(in crate::backend::evm) mod assembly;
 
-pub use passes::{PASS_REGISTRY, PassInfo, PassOptions, lookup_pass, run_pass};
+pub use passes::{PASS_REGISTRY, PassInfo, lookup_pass, run_pass};
 
 pub(crate) use passes::DEFAULT_PIPELINE;
 

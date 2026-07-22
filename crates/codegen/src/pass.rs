@@ -13,7 +13,7 @@
 //! let mut am = AnalysisManager::new();
 //! let liveness = am.get_or_compute(&LivenessAnalysis, &func);
 //!
-//! let changed = run_pass(&mut module, &DCE_PASS, PipelineOptions::default());
+//! let changed = run_pass(gcx, &mut module, &DCE_PASS);
 //! ```
 
 use crate::{
@@ -30,9 +30,10 @@ use crate::{
 };
 use solar_data_structures::map::FxHashMap;
 use solar_interface::diagnostics::DiagCtxt;
+use solar_sema::Gcx;
 use std::any::{Any, TypeId};
 
-type PassRunner = fn(&mut Module) -> bool;
+type PassRunner = fn(Gcx<'_>, &mut Module) -> bool;
 
 /// Registry entry for a MIR transform pass.
 #[derive(Clone, Copy, Debug)]
@@ -84,7 +85,7 @@ macro_rules! declare_passes {
             $vis const $const_name: PassInfo = PassInfo::new(
                 $name,
                 concat!($($description, "\n"),+).trim_ascii(),
-                |module| ModulePass::run(&mut $pass, module),
+                |gcx, module| ModulePass::run(&mut $pass, gcx, module),
             );
         )+
     };
@@ -289,27 +290,6 @@ pub const DEFAULT_CLEANUP_PIPELINE: &[PassInfo] = &[
 
 const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
 
-/// Options for running a MIR pass pipeline.
-#[derive(Clone, Copy, Debug)]
-pub struct PipelineOptions {
-    /// Print the full module after every pass in the pipeline.
-    pub print_after_each: bool,
-    /// Print the time spent in each pass.
-    pub time_passes: bool,
-    /// Validate MIR after every pass.
-    pub(crate) validate_after_each: bool,
-}
-
-impl Default for PipelineOptions {
-    fn default() -> Self {
-        Self {
-            print_after_each: false,
-            time_passes: false,
-            validate_after_each: cfg!(debug_assertions),
-        }
-    }
-}
-
 /// Runs a named MIR pass over a module.
 #[tracing::instrument(
     name = "mir_pass",
@@ -317,30 +297,30 @@ impl Default for PipelineOptions {
     skip_all,
     fields(module = %module.name, pass = pass.name),
 )]
-pub fn run_pass(module: &mut Module, pass: &PassInfo, options: PipelineOptions) -> bool {
+pub fn run_pass(gcx: solar_sema::Gcx<'_>, module: &mut Module, pass: &PassInfo) -> bool {
     // Passes declare which phases they operate on; the manager enforces it so a
     // pipeline entry cannot silently corrupt a module in the wrong phase.
     if !pass.admits(module) {
         return false;
     }
-    if options.validate_after_each {
+    if cfg!(debug_assertions) {
         validate_module_after_pass(module, "input");
     }
-    let timer = PassTimer::new(options.time_passes);
-    let changed = (pass.run_pass)(module);
+    let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
+    let changed = (pass.run_pass)(gcx, module);
     timer.finish("MIR", module.name, pass.name, changed);
-    if options.validate_after_each {
+    if cfg!(debug_assertions) {
         validate_module_after_pass(module, pass.name);
     }
     changed
 }
 
 /// Runs a named MIR pass pipeline over a module.
-fn run_pipeline(module: &mut Module, passes: &[PassInfo], options: PipelineOptions) -> bool {
+fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, passes: &[PassInfo]) -> bool {
     let mut changed = false;
     for pass in passes {
-        changed |= run_pass(module, pass, options);
-        if options.print_after_each {
+        changed |= run_pass(gcx, module, pass);
+        if gcx.sess.opts.unstable.print_after_each {
             println!("// === {} (after {}) ===", module.name, pass.name);
             print!("{}", module.to_text());
         }
@@ -359,27 +339,26 @@ fn run_pipeline(module: &mut Module, passes: &[PassInfo], options: PipelineOptio
     skip_all,
     fields(module = %module.name),
 )]
-pub fn run_default_pipeline(module: &mut Module, options: PipelineOptions) -> bool {
-    let mut changed = run_pipeline(module, DEFAULT_PIPELINE, options);
-    changed |=
-        run_cleanup_pipeline_to_fixpoint(module, DEFAULT_CLEANUP_PIPELINE, options, "cleanup");
+pub fn run_default_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+    let mut changed = run_pipeline(gcx, module, DEFAULT_PIPELINE);
+    changed |= run_cleanup_pipeline_to_fixpoint(gcx, module, DEFAULT_CLEANUP_PIPELINE, "cleanup");
     module.advance_phase(crate::mir::MirPhase::Optimized);
     changed
 }
 
 fn run_cleanup_pipeline_to_fixpoint(
+    gcx: solar_sema::Gcx<'_>,
     module: &mut Module,
     passes: &[PassInfo],
-    options: PipelineOptions,
     label: &str,
 ) -> bool {
     let mut changed = false;
     for round in 1..=DEFAULT_CLEANUP_MAX_ROUNDS {
         let mut round_changed = false;
         for pass in passes {
-            let pass_changed = run_pass(module, pass, options);
+            let pass_changed = run_pass(gcx, module, pass);
             round_changed |= pass_changed;
-            if options.print_after_each {
+            if gcx.sess.opts.unstable.print_after_each {
                 println!("// === {} (after {label}-{round}:{}) ===", module.name, pass.name);
                 print!("{}", module.to_text());
             }
@@ -423,7 +402,7 @@ pub(crate) trait ModulePass {
     /// Runs the transformation on the given module.
     ///
     /// Returns true if the transform changed MIR.
-    fn run(&mut self, module: &mut Module) -> bool;
+    fn run(&mut self, gcx: Gcx<'_>, module: &mut Module) -> bool;
 }
 
 /// A transformation pass that mutates one function at a time.
@@ -433,7 +412,7 @@ pub(crate) trait FunctionPass {
 }
 
 impl<T: FunctionPass> ModulePass for T {
-    fn run(&mut self, module: &mut Module) -> bool {
+    fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
         let mut changed = false;
         for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
             changed |= self.run_on_function(func);

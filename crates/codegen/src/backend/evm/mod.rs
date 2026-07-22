@@ -11,7 +11,7 @@
 pub(super) const EVM_WORD_BYTES: usize = 32;
 
 mod codegen;
-pub use codegen::{EvmArtifact, EvmCodegen, EvmCodegenConfig};
+pub use codegen::{EvmArtifact, EvmCodegen};
 
 pub mod ir;
 

@@ -24,10 +24,7 @@ mod analysis;
 mod immutable;
 
 pub mod backend;
-pub use backend::{
-    Backend,
-    evm::{EvmCodegen, EvmCodegenConfig},
-};
+pub use backend::{Backend, evm::EvmCodegen};
 mod ir_parse;
 
 pub mod lower;
