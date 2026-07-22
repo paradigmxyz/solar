@@ -3,10 +3,10 @@ use crop::Rope;
 use lsp_types::{
     DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
     DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DidSaveTextDocumentParams, FileChangeType,
+    DidSaveTextDocumentParams, FileChangeType, WillSaveTextDocumentParams,
 };
 use std::{ops::ControlFlow, sync::Arc};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 pub(crate) fn did_open_text_document(
     state: &mut GlobalState,
@@ -84,6 +84,18 @@ pub(crate) fn did_close_text_document(
         state.recompute_with_disk_files(disk_path.into_iter().collect());
     }
 
+    ControlFlow::Continue(())
+}
+
+pub(crate) fn will_save_text_document(
+    _: &mut GlobalState,
+    params: WillSaveTextDocumentParams,
+) -> NotifyResult {
+    debug!(
+        uri = %params.text_document.uri,
+        reason = ?params.reason,
+        "text document will save"
+    );
     ControlFlow::Continue(())
 }
 
