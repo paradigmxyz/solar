@@ -1353,12 +1353,10 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::Elementary(elem) => match elem {
                 ElementaryType::Bool => MirType::Bool,
                 ElementaryType::Address(_) => MirType::Address,
-                ElementaryType::Int(size) => MirType::Int(TypeSize::new_int_bits(size.bits())),
-                ElementaryType::UInt(size) => MirType::UInt(TypeSize::new_int_bits(size.bits())),
-                ElementaryType::Fixed(size, _) => MirType::Int(TypeSize::new_int_bits(size.bits())),
-                ElementaryType::UFixed(size, _) => {
-                    MirType::UInt(TypeSize::new_int_bits(size.bits()))
-                }
+                ElementaryType::Int(size) => MirType::Int(size),
+                ElementaryType::UInt(size) => MirType::UInt(size),
+                ElementaryType::Fixed(size, _) => MirType::Int(size),
+                ElementaryType::UFixed(size, _) => MirType::UInt(size),
                 ElementaryType::FixedBytes(size) => MirType::FixedBytes(size),
                 ElementaryType::String | ElementaryType::Bytes => MirType::MemPtr,
             },
