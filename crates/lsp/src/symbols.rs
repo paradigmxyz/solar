@@ -31,6 +31,7 @@ use std::{
 use crate::{
     document_links::DocumentLinkIndex,
     inlay_hints::InlayHintIndex,
+    natspec_completion::{DeclarationKey, NatSpecCompletionIndex, NatSpecTargetSemantics},
     override_index::OverrideFamilyIndex,
     proto,
     rename::{
@@ -61,6 +62,7 @@ pub(crate) struct SymbolTables {
     rename: RenameIndex,
     document_links: DocumentLinkIndex,
     inlay_hints: InlayHintIndex,
+    natspec_completion: NatSpecCompletionIndex,
     signature_help: SignatureHelpIndex,
 }
 
@@ -288,6 +290,7 @@ impl SymbolTables {
         tables.build_references(gcx, &item_symbols);
         tables.document_links = DocumentLinkIndex::build(gcx, document_link_sources);
         tables.inlay_hints = InlayHintIndex::build(gcx);
+        tables.natspec_completion = NatSpecCompletionIndex::build(gcx);
         tables.signature_help = SignatureHelpIndex::build(gcx);
         tables.rebuild_indexes();
         tables
@@ -320,6 +323,7 @@ impl SymbolTables {
         }
         self.document_links.extend(other.document_links);
         self.inlay_hints.extend(other.inlay_hints);
+        self.natspec_completion.extend(other.natspec_completion);
         self.signature_help.extend(other.signature_help);
 
         let symbol_offset = self.declarations.len();
@@ -376,6 +380,19 @@ impl SymbolTables {
 
     pub(crate) fn document_links(&self, path: &Path) -> Vec<lsp_types::DocumentLink> {
         self.document_links.links(path)
+    }
+
+    pub(crate) fn natspec_semantics(
+        &self,
+        uri: &Url,
+        source_fingerprint: &str,
+        key: &DeclarationKey,
+    ) -> Option<&NatSpecTargetSemantics> {
+        self.natspec_completion.get(uri, source_fingerprint, key)
+    }
+
+    pub(crate) fn natspec_source_fingerprint(&self, uri: &Url) -> Option<&str> {
+        self.natspec_completion.source_fingerprint(uri)
     }
 
     pub(crate) fn signature_help(

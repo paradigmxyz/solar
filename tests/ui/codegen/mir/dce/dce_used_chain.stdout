@@ -1,8 +1,10 @@
-// === ROOT/tests/ui/codegen/mir/dce/dce_used_chain.mir (after dce) ===
-@module DceUsedChain
-fn @used_chain(arg0: u256) -> u256 {
-  bb0 (entry):
-    v0 = add arg0, 1
-    v1 = mul v0, 2
-    ret v1
-}
+- // === ROOT/tests/ui/codegen/mir/dce/dce_used_chain.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/dce/dce_used_chain.mir (after dce) ===
+  @module DceUsedChain
+  fn @used_chain(arg0: u256) -> u256 {
+    bb0 (entry):
+      v0 = add arg0, 1
+      v1 = mul v0, 2
+      ret v1
+  }
+  

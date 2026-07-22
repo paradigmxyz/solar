@@ -1,51 +1,85 @@
-// === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/constant_rhs.evmir (after peephole) ===
-@module module
-bb0 (entry):
-  push 2
-  stop
-bb1:
-  push 2
-  stop
-bb2:
-  push 2
-  stop
-bb3:
-  push 2
-  stop
-bb4:
-  push 2
-  stop
-bb5:
-  push 2
-  stop
-bb6:
-  push 2
-  iszero
-  stop
-bb7:
-  push 0
-  stop
-bb8:
-  push 0
-  stop
-bb9:
-  push 0
-  stop
-bb10:
-  push 0
-  stop
-bb11:
-  push 0
-  stop
-bb12:
-  push 0
-  stop
-bb13:
-  push 0
-  stop
-bb14:
-  push 2
-  stop
-bb15:
-  push 1
-  stop
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/constant_rhs.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/constant_rhs.evmir (after peephole) ===
+  @module module
+  bb0 (entry):
+    push 2
+-   push 0
+-   add
+    stop
+  bb1:
+    push 2
+-   push 0
+-   or
+    stop
+  bb2:
+    push 2
+-   push 0
+-   xor
+    stop
+  bb3:
+    push 2
+-   push 0
+-   shl
+    stop
+  bb4:
+    push 2
+-   push 0
+-   shr
+    stop
+  bb5:
+    push 2
+-   push 0
+-   sar
+    stop
+  bb6:
+    push 2
+-   push 0
+-   eq
++   iszero
+    stop
+  bb7:
+-   push 2
+    push 0
+-   mul
+    stop
+  bb8:
+-   push 2
+    push 0
+-   div
+    stop
+  bb9:
+-   push 2
+    push 0
+-   sdiv
+    stop
+  bb10:
+-   push 2
+    push 0
+-   mod
+    stop
+  bb11:
+-   push 2
+    push 0
+-   smod
+    stop
+  bb12:
+-   push 2
+    push 0
+-   and
+    stop
+  bb13:
+-   push 2
+    push 0
+-   gt
+    stop
+  bb14:
+    push 2
+-   push 1
+-   mul
+    stop
+  bb15:
+-   push 2
+    push 1
+-   exp
+    stop
+  

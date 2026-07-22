@@ -1,14 +1,22 @@
-// === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/memory.evmir (after peephole) ===
-@module module
-bb0 (entry):
-  push 1
-  dup1
-  push 32
-  mstore
-  stop
-bb1:
-  push 1
-  dup1
-  push 32
-  mstore
-  stop
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/memory.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/memory.evmir (after peephole) ===
+  @module module
+  bb0 (entry):
+    push 1
+    dup1
+    push 32
+    mstore
+-   dup1
+-   push 32
+-   mstore
+    stop
+  bb1:
+    push 1
+    dup1
+    push 32
+    mstore
+-   pop
+-   push 32
+-   mload
+    stop
+  

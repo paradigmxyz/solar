@@ -1,7 +1,32 @@
-// === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_same_block.mir (after frame-slot-promotion,dce) ===
-@module FramePromotionSameBlock
-fn @same_block() -> u256 {
-  bb0 (entry):
-    v3 = add 7, 1
-    ret v3
-}
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_same_block.mir (before frame-slot-promotion) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_same_block.mir (after frame-slot-promotion) ===
+  @module FramePromotionSameBlock
+  fn @same_block() -> u256 {
+    bb0 (entry):
+      v0 = internal_frame_addr 128
+-     mstore v0, 7
+      v1 = internal_frame_addr 128
+-     v2 = mload v1
+-     v3 = add v2, 1
++     v3 = add 7, 1
+      v4 = internal_frame_addr 128
+-     mstore v4, v3
+      v5 = internal_frame_addr 128
+-     v6 = mload v5
+-     ret v6
++     ret v3
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_same_block.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_same_block.mir (after dce) ===
+  @module FramePromotionSameBlock
+  fn @same_block() -> u256 {
+    bb0 (entry):
+-     v0 = internal_frame_addr 128
+-     v1 = internal_frame_addr 128
+      v3 = add 7, 1
+-     v4 = internal_frame_addr 128
+-     v5 = internal_frame_addr 128
+      ret v3
+  }
+  

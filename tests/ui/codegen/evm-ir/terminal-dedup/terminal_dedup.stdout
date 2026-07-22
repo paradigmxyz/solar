@@ -1,14 +1,20 @@
-// === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/terminal_dedup.evmir (after terminal-dedup) ===
-@module module
-bb0 (entry):
-  push 1
-  jumpi bb1, bb2
-bb1 [cold]:
-  push 64
-  push 32
-  push 0
-  revert
-bb2 [cold]:
-  jump bb1
-bb3:
-  stop
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/terminal_dedup.evmir (before terminal-dedup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/terminal_dedup.evmir (after terminal-dedup) ===
+  @module module
+  bb0 (entry):
+    push 1
+    jumpi bb1, bb2
+  bb1 [cold]:
+    push 64
+    push 32
+    push 0
+    revert
+  bb2 [cold]:
+-   push 64
+-   push 32
+-   push 0
+-   revert
++   jump bb1
+  bb3:
+    stop
+  

@@ -49,7 +49,10 @@ pub(crate) fn checked_text_range(
 fn checked_byte_position(rope: &Rope, position: lsp_types::Position) -> Option<usize> {
     let line_index = usize::try_from(position.line).ok()?;
     if line_index >= rope.line_len() {
-        return None;
+        let is_trailing_line = line_index == rope.line_len()
+            && position.character == 0
+            && (rope.byte_len() == 0 || rope.byte(rope.byte_len() - 1) == b'\n');
+        return is_trailing_line.then_some(rope.byte_len());
     }
 
     let line_start = rope.byte_of_line(line_index);
@@ -69,6 +72,19 @@ fn checked_byte_position(rope: &Rope, position: lsp_types::Position) -> Option<u
         byte += ch.len_utf8();
     }
     (utf16 == target).then_some(line_start + byte)
+}
+
+/// Converts a byte offset into an LSP UTF-16 position.
+pub(crate) fn position_at_byte(rope: &Rope, byte: usize) -> Option<lsp_types::Position> {
+    if byte > rope.byte_len() || !rope.is_char_boundary(byte) {
+        return None;
+    }
+    let line = rope.line_of_byte(byte);
+    let line_start = rope.byte_of_line(line);
+    let character = rope.utf16_code_unit_of_byte(byte) - rope.utf16_code_unit_of_byte(line_start);
+    let position =
+        lsp_types::Position::new(u32::try_from(line).ok()?, u32::try_from(character).ok()?);
+    (checked_byte_position(rope, position) == Some(byte)).then_some(position)
 }
 
 // TODO: track `None`s here as they shouldn't happen?
@@ -152,7 +168,7 @@ fn severity(level: Level) -> lsp_types::DiagnosticSeverity {
 
 #[cfg(test)]
 mod tests {
-    use super::checked_text_range;
+    use super::{checked_text_range, position_at_byte};
     use crop::Rope;
     use lsp_types::{Position, Range};
 
@@ -175,5 +191,42 @@ mod tests {
             checked_text_range(&rope, Range::new(Position::new(1, 0), Position::new(1, 0)),)
                 .is_none()
         );
+    }
+
+    #[test]
+    fn checked_text_range_rejects_positions_inside_crlf() {
+        let rope = Rope::from("value\r\nnext");
+        assert!(
+            checked_text_range(&rope, Range::new(Position::new(0, 6), Position::new(0, 6)))
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn position_at_byte_round_trips_utf16_positions_across_crlf() {
+        let rope = Rope::from("a😀中\r\nvalue");
+        for position in
+            [Position::new(0, 0), Position::new(0, 1), Position::new(0, 3), Position::new(1, 5)]
+        {
+            let byte = checked_text_range(&rope, Range::new(position, position)).unwrap().start;
+            assert_eq!(position_at_byte(&rope, byte), Some(position));
+        }
+        assert!(position_at_byte(&rope, 2).is_none());
+        assert!(position_at_byte(&rope, 9).is_none());
+        assert!(position_at_byte(&rope, rope.byte_len() + 1).is_none());
+    }
+
+    #[test]
+    fn position_conversions_accept_empty_and_trailing_lines() {
+        for (source, position) in [
+            ("", Position::new(0, 0)),
+            ("value\n", Position::new(1, 0)),
+            ("value\r\n", Position::new(1, 0)),
+        ] {
+            let rope = Rope::from(source);
+            let range = Range::new(position, position);
+            assert_eq!(checked_text_range(&rope, range), Some(rope.byte_len()..rope.byte_len()));
+            assert_eq!(position_at_byte(&rope, rope.byte_len()), Some(position));
+        }
     }
 }

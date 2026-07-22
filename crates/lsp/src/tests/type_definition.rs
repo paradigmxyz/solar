@@ -7,7 +7,6 @@ use lsp_types::{
 };
 use snapbox::str;
 use solar_config::CompileOpts;
-use solar_interface::data_structures::map::FxHashSet;
 use std::{
     future::Future,
     sync::atomic::Ordering,
@@ -371,20 +370,18 @@ fn waits_for_current_analysis_before_returning_type_definitions() {
         "#,
     );
     let path = project.path("/Types.sol");
-    let old_tables = analyze(AnalysisBatch {
-        opts: CompileOpts::default(),
-        files: vec![(path.clone(), project.read_file("/Types.sol"))],
-        seen_paths: FxHashSet::default(),
-    })
+    let old_tables = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(path.clone(), project.read_file("/Types.sol"))],
+    ))
     .symbol_tables;
-    let new_tables = analyze(AnalysisBatch {
-        opts: CompileOpts::default(),
-        files: vec![(
+    let new_tables = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(
             path.clone(),
             "contract C {\n    struct Placeholder { uint256 value; }\n    struct NewType { uint256 value; }\n    NewType value;\n}\n".into(),
         )],
-        seen_paths: FxHashSet::default(),
-    })
+    ))
     .symbol_tables;
     let uri = Url::from_file_path(path).unwrap();
     let params = GotoDefinitionParams {

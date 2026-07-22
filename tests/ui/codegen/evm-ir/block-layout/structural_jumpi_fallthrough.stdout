@@ -1,23 +1,27 @@
-// === ROOT/tests/ui/codegen/evm-ir/block-layout/structural_jumpi_fallthrough.evmir (after block-layout) ===
-@module module
-bb0 (entry):
-  push bb3
-  pop
-  push bb3
-  pop
-  push 1
-  jumpi bb2, bb1
-bb1:
-  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-  push 0xffffffffffff
-  stop
-bb3:
-  invalid
-bb2:
-  stop
+- // === ROOT/tests/ui/codegen/evm-ir/block-layout/structural_jumpi_fallthrough.evmir (before block-layout) ===
++ // === ROOT/tests/ui/codegen/evm-ir/block-layout/structural_jumpi_fallthrough.evmir (after block-layout) ===
+  @module module
+  bb0 (entry):
+    push bb3
+    pop
+    push bb3
+    pop
+    push 1
+    jumpi bb2, bb1
+  bb1:
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    push 0xffffffffffff
+    stop
+- bb2:
+-   stop
+  bb3:
+    invalid
++ bb2:
++   stop
+  
