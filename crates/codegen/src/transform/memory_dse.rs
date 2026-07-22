@@ -9,10 +9,10 @@
 use crate::{
     analysis::CfgInfo,
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, Terminator, Value, ValueId,
+        BlockId, Function, Immediate, InstId, InstKind, Module, Terminator, Value, ValueId,
         utils as mir_utils,
     },
-    pass::FunctionPass,
+    pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::{U256, keccak256};
 use solar_data_structures::{
@@ -30,9 +30,17 @@ pub(crate) struct MemoryStoreEliminator {
 /// Function pass for local dead memory-store elimination.
 pub(crate) struct MemoryDsePass;
 
-impl FunctionPass for MemoryDsePass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        MemoryStoreEliminator::new().run_to_fixpoint(func) != 0
+impl MirPass for MemoryDsePass {
+    fn name(&self) -> &'static str {
+        "memory-dse"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| MemoryStoreEliminator::new().run_to_fixpoint(func) != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

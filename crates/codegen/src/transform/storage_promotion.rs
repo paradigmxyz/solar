@@ -17,10 +17,10 @@
 use crate::{
     analysis::{Loop, LoopAnalyzer},
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, StorageAlias,
+        BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, StorageAlias,
         Terminator, Value, ValueId, utils as mir_utils,
     },
-    pass::FunctionPass,
+    pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
@@ -47,11 +47,21 @@ pub(crate) struct StorageScalarPromoter {
 /// Function pass for loop-carried storage scalar promotion.
 pub(crate) struct StorageScalarPromotionPass;
 
-impl FunctionPass for StorageScalarPromotionPass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        let mut promoter = StorageScalarPromoter::new();
-        let stats = promoter.run(func);
-        stats.loops_promoted + stats.loads_promoted + stats.stores_promoted != 0
+impl MirPass for StorageScalarPromotionPass {
+    fn name(&self) -> &'static str {
+        "storage-promotion"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| {
+            let mut promoter = StorageScalarPromoter::new();
+            let stats = promoter.run(func);
+            stats.loops_promoted + stats.loads_promoted + stats.stores_promoted != 0
+        })
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

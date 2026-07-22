@@ -46,9 +46,10 @@
 use crate::{
     analysis::CfgInfo,
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, MirType, Value, ValueId, utils as mir_utils,
+        BlockId, Function, Immediate, InstId, InstKind, MirType, Module, Value, ValueId,
+        utils as mir_utils,
     },
-    pass::FunctionPass,
+    pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
@@ -70,9 +71,17 @@ pub(crate) struct GlobalValueNumberer {
 /// Function pass for congruence-class global value numbering.
 pub(crate) struct GvnPass;
 
-impl FunctionPass for GvnPass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        GlobalValueNumberer::new().run(func) != 0
+impl MirPass for GvnPass {
+    fn name(&self) -> &'static str {
+        "gvn"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| GlobalValueNumberer::new().run(func) != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

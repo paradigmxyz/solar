@@ -20,7 +20,7 @@ use crate::{
         BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
         Terminator, Value, ValueId, utils::repair_reachability_phis,
     },
-    pass::{FunctionPass, ModulePass},
+    pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
@@ -113,9 +113,17 @@ pub(crate) struct CfgSimplifier {
 /// Function pass for CFG simplification.
 pub(crate) struct CfgSimplifyPass;
 
-impl FunctionPass for CfgSimplifyPass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        CfgSimplifier::new().run_to_fixpoint(func).total() != 0
+impl MirPass for CfgSimplifyPass {
+    fn name(&self) -> &'static str {
+        "cfg-simplify"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| CfgSimplifier::new().run_to_fixpoint(func).total() != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 
@@ -658,9 +666,17 @@ pub(crate) struct DeadFunctionEliminator {
 /// Module pass for dead internal function elimination.
 pub(crate) struct FunctionDcePass;
 
-impl ModulePass for FunctionDcePass {
-    fn run(&mut self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+impl MirPass for FunctionDcePass {
+    fn name(&self) -> &'static str {
+        "function-dce"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         DeadFunctionEliminator::new().run(module) != 0
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

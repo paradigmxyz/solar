@@ -5,8 +5,8 @@
 
 use crate::{
     analysis::Liveness,
-    mir::{BlockId, Function, InstId, InstKind, StorageAlias, ValueId, utils as mir_utils},
-    pass::{AnalysisManager, FunctionPass, LivenessAnalysis},
+    mir::{BlockId, Function, InstId, InstKind, Module, StorageAlias, ValueId, utils as mir_utils},
+    pass::{AnalysisManager, LivenessAnalysis, MirPass, run_function_pass},
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
@@ -36,9 +36,17 @@ impl RunState {
 /// Function pass for straight-line storage-load CSE.
 pub(crate) struct StorageLoadCsePass;
 
-impl FunctionPass for StorageLoadCsePass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        StorageLoadCse::new().run_to_fixpoint(func) != 0
+impl MirPass for StorageLoadCsePass {
+    fn name(&self) -> &'static str {
+        "storage-load-cse"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| StorageLoadCse::new().run_to_fixpoint(func) != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

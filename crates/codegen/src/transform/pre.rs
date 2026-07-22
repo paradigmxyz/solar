@@ -33,10 +33,10 @@ use crate::{
     analysis::{CfgInfo, DominatorTree},
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, InstructionMetadata, MirType,
-        Terminator, Value, ValueId,
+        Module, Terminator, Value, ValueId,
         utils::{repair_reachability_phis, split_edge},
     },
-    pass::FunctionPass,
+    pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -71,9 +71,17 @@ pub(crate) struct PartialRedundancyEliminator {
 /// Function pass for pure expression PRE.
 pub(crate) struct PrePass;
 
-impl FunctionPass for PrePass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        PartialRedundancyEliminator::new().run(func).total() != 0
+impl MirPass for PrePass {
+    fn name(&self) -> &'static str {
+        "pre"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| PartialRedundancyEliminator::new().run(func).total() != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

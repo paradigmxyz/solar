@@ -45,7 +45,7 @@ fn after_help() -> String {
         "Passes:\n  {}\n  {:<20} No transform; validate and print the module\n\nInput formats:\n  *.evmir  EVM IR",
         ir::PASS_REGISTRY
             .iter()
-            .map(|pass| format!("{:<20} {}", pass.name(), pass.description()))
+            .map(|pass| format!("{:<20} {}", pass.name(), ir::pass_description(*pass)))
             .collect::<Vec<_>>()
             .join("\n  "),
         "none",

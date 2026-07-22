@@ -22,10 +22,10 @@
 use crate::{
     analysis::{AffineExpr, Loop, LoopAnalyzer, ScalarEvolution},
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Value, ValueId,
-        utils as mir_utils,
+        BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, Value,
+        ValueId, utils as mir_utils,
     },
-    pass::FunctionPass,
+    pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
@@ -56,9 +56,17 @@ pub(crate) struct IndVarSimplifier {
 /// Function pass for induction-variable simplification and strength reduction.
 pub(crate) struct IndVarSimplifyPass;
 
-impl FunctionPass for IndVarSimplifyPass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        IndVarSimplifier::new().run(func).total() != 0
+impl MirPass for IndVarSimplifyPass {
+    fn name(&self) -> &'static str {
+        "indvar-simplify"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| IndVarSimplifier::new().run(func).total() != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

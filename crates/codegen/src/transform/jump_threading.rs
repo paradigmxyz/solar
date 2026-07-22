@@ -16,9 +16,10 @@
 
 use crate::{
     mir::{
-        BlockId, Function, InstKind, Terminator, Value, ValueId, utils::repair_reachability_phis,
+        BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
+        utils::repair_reachability_phis,
     },
-    pass::FunctionPass,
+    pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
@@ -53,9 +54,19 @@ pub(crate) struct JumpThreader {
 /// Function pass for jump threading.
 pub(crate) struct JumpThreadingPass;
 
-impl FunctionPass for JumpThreadingPass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        JumpThreader::new().run_to_fixpoint(func).total_threaded() != 0
+impl MirPass for JumpThreadingPass {
+    fn name(&self) -> &'static str {
+        "jump-threading"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| {
+            JumpThreader::new().run_to_fixpoint(func).total_threaded() != 0
+        })
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

@@ -21,7 +21,7 @@
 use crate::{
     analysis::CallGraphInfo,
     mir::{Function, InstKind, MirPhase, Module, Terminator},
-    pass::ModulePass,
+    pass::MirPass,
 };
 use solar_data_structures::bit_set::DenseBitSet;
 
@@ -33,12 +33,14 @@ pub(crate) struct LowerEvmShapedStats {
 }
 
 /// EVM-shaped phase lowering pass.
+pub(crate) struct LowerEvmShapedPass;
+
 #[derive(Debug, Default)]
-pub(crate) struct LowerEvmShapedPass {
+struct LowerEvmShaped {
     stats: LowerEvmShapedStats,
 }
 
-impl LowerEvmShapedPass {
+impl LowerEvmShaped {
     fn run(&mut self, module: &mut Module) -> bool {
         self.stats = LowerEvmShapedStats::default();
         if module.phase >= MirPhase::EvmShaped {
@@ -106,9 +108,21 @@ impl LowerEvmShapedPass {
     }
 }
 
-impl ModulePass for LowerEvmShapedPass {
-    fn run(&mut self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        Self::run(self, module)
+impl MirPass for LowerEvmShapedPass {
+    fn name(&self) -> &'static str {
+        "lower-evm-shaped"
+    }
+
+    fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        module.phase == MirPhase::Dispatch
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        LowerEvmShaped::default().run(module)
+    }
+
+    fn is_required(&self) -> bool {
+        true
     }
 }
 

@@ -36,9 +36,6 @@ pub trait MirPass: Sync {
         simplify_pass_type_name(std::any::type_name::<Self>())
     }
 
-    /// Human-readable help text.
-    fn description(&self) -> &'static str;
-
     /// Returns whether this pass is enabled with the current compiler flags and MIR phase.
     fn is_enabled(&self, _gcx: Gcx<'_>, _module: &Module) -> bool {
         true

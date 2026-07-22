@@ -4,8 +4,10 @@
 
 use crate::{
     analysis::CfgInfo,
-    mir::{BlockId, Function, InstId, Terminator, ValueId, utils::repair_reachability_phis},
-    pass::FunctionPass,
+    mir::{
+        BlockId, Function, InstId, Module, Terminator, ValueId, utils::repair_reachability_phis,
+    },
+    pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
@@ -27,11 +29,21 @@ pub(crate) struct DeadCodeEliminator {
 /// Function pass for dead code elimination.
 pub(crate) struct DcePass;
 
-impl FunctionPass for DcePass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        let changed = DeadCodeEliminator::new().run_to_fixpoint(func) != 0;
-        repair_reachability_phis(func);
-        changed
+impl MirPass for DcePass {
+    fn name(&self) -> &'static str {
+        "dce"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| {
+            let changed = DeadCodeEliminator::new().run_to_fixpoint(func) != 0;
+            repair_reachability_phis(func);
+            changed
+        })
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

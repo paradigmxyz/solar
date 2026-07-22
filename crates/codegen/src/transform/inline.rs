@@ -10,7 +10,7 @@ use crate::{
         BlockId, Function, FunctionId as MirFunctionId, Immediate, InstKind, Instruction, MirType,
         Module, Terminator, Value, ValueId,
     },
-    pass::ModulePass,
+    pass::MirPass,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -119,14 +119,22 @@ struct MirInlineSummary {
 /// Module pass for metadata-backed MIR inlining.
 pub(crate) struct InlinePass;
 
-impl ModulePass for InlinePass {
-    fn run(&mut self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+impl MirPass for InlinePass {
+    fn name(&self) -> &'static str {
+        "inline"
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let mut inliner = if gcx.sess.opts.optimization == solar_config::OptimizationMode::Size {
             MirInliner::for_size()
         } else {
             MirInliner::default()
         };
         inliner.run(module).inlined != 0
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

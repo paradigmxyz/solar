@@ -76,10 +76,10 @@ use crate::{
     analysis::{CfgInfo, DominatorTree},
     mir::{
         BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion,
-        MirType, StorageAlias, Terminator, Value, ValueId,
+        MirType, Module, StorageAlias, Terminator, Value, ValueId,
         utils::{self as mir_utils, repair_reachability_phis},
     },
-    pass::FunctionPass,
+    pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -112,9 +112,17 @@ pub(crate) struct LoadRedundancyEliminator {
 /// Function pass for load PRE.
 pub(crate) struct LoadPrePass;
 
-impl FunctionPass for LoadPrePass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        LoadRedundancyEliminator::new().run(func).total() != 0
+impl MirPass for LoadPrePass {
+    fn name(&self) -> &'static str {
+        "load-pre"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| LoadRedundancyEliminator::new().run(func).total() != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

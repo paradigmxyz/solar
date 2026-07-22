@@ -17,7 +17,7 @@
 
 use crate::{
     mir::{Function, FunctionBuilder, InstKind, Module, Terminator, Value},
-    pass::ModulePass,
+    pass::MirPass,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -34,15 +34,17 @@ pub(crate) struct OutlineRevertsStats {
 }
 
 /// Revert-block outlining pass.
+pub(crate) struct OutlineRevertsPass;
+
 #[derive(Debug, Default)]
-pub(crate) struct OutlineRevertsPass {
+struct OutlineReverts {
     stats: OutlineRevertsStats,
 }
 
 /// A constant revert block: `mstore(offset, value)*` then `revert(offset, size)`.
 type RevertShape = (SmallVec<[(U256, U256); 2]>, U256, U256);
 
-impl OutlineRevertsPass {
+impl OutlineReverts {
     fn run(&mut self, module: &mut Module) -> bool {
         // Collect every constant revert block, keyed by shape.
         let mut shapes: FxHashMap<RevertShape, Vec<(usize, usize)>> = FxHashMap::default();
@@ -103,9 +105,17 @@ impl OutlineRevertsPass {
     }
 }
 
-impl ModulePass for OutlineRevertsPass {
-    fn run(&mut self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        Self::run(self, module)
+impl MirPass for OutlineRevertsPass {
+    fn name(&self) -> &'static str {
+        "outline-reverts"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        OutlineReverts::default().run(module)
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

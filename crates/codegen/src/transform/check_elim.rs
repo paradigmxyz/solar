@@ -26,9 +26,10 @@
 use crate::{
     analysis::CfgInfo,
     mir::{
-        BlockId, Function, InstKind, Terminator, Value, ValueId, utils::repair_reachability_phis,
+        BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
+        utils::repair_reachability_phis,
     },
-    pass::FunctionPass,
+    pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -43,12 +44,20 @@ pub(crate) struct CheckElimStats {
     pub branches_folded: usize,
 }
 
-/// Function pass adapter for range-based overflow-check elimination.
+/// Function pass for range-based overflow-check elimination.
 pub(crate) struct CheckElimPass;
 
-impl FunctionPass for CheckElimPass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        CheckEliminator::new().run(func) != 0
+impl MirPass for CheckElimPass {
+    fn name(&self) -> &'static str {
+        "check-elim"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| CheckEliminator::new().run(func) != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

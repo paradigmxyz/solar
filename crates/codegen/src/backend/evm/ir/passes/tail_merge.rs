@@ -1,13 +1,29 @@
 //! Merge profitable suffixes of machine-level terminal blocks.
 
-use super::utils::is_evm_terminal;
+use super::{EvmPass, utils::is_evm_terminal};
 use crate::backend::evm::ir::{
     Block, BlockId, Hotness, Instruction, Module, Terminator, TerminatorKind,
 };
 use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
 
-pub(super) fn run(_gcx: Gcx<'_>, module: &mut Module) -> bool {
+pub(super) struct TailMerge;
+
+impl EvmPass for TailMerge {
+    fn name(&self) -> &'static str {
+        "tail-merge"
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        merge_tails(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
+fn merge_tails(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
     state.plan_merges(module);
     if state.merges.is_empty() {

@@ -6,8 +6,10 @@
 //! and values escaping a candidate dead block all prevent rewriting.
 
 use crate::{
-    mir::{BlockId, Function, InstId, Terminator, ValueId, utils::repair_reachability_phis},
-    pass::FunctionPass,
+    mir::{
+        BlockId, Function, InstId, Module, Terminator, ValueId, utils::repair_reachability_phis,
+    },
+    pass::{MirPass, run_function_pass},
     transform::DeadCodeEliminator,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
@@ -37,11 +39,21 @@ pub(crate) struct AggressiveDeadCodeEliminator {
 /// Function pass for aggressive dead-code elimination.
 pub(crate) struct AdcePass;
 
-impl FunctionPass for AdcePass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        let changed = AggressiveDeadCodeEliminator::new().run(func).total() != 0;
-        repair_reachability_phis(func);
-        changed
+impl MirPass for AdcePass {
+    fn name(&self) -> &'static str {
+        "adce"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| {
+            let changed = AggressiveDeadCodeEliminator::new().run(func).total() != 0;
+            repair_reachability_phis(func);
+            changed
+        })
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

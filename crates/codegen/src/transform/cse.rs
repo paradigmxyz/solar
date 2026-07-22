@@ -38,10 +38,10 @@
 use crate::{
     analysis::{CfgInfo, DominatorTree},
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, Instruction, MemoryRegion, MirType,
+        BlockId, Function, Immediate, InstId, InstKind, Instruction, MemoryRegion, MirType, Module,
         StorageAlias, Value, ValueId, utils as mir_utils,
     },
-    pass::FunctionPass,
+    pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -60,9 +60,17 @@ pub(crate) struct CommonSubexprEliminator {
 /// Function pass for local common subexpression elimination.
 pub(crate) struct CsePass;
 
-impl FunctionPass for CsePass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        CommonSubexprEliminator::new().run_to_fixpoint(func) != 0
+impl MirPass for CsePass {
+    fn name(&self) -> &'static str {
+        "cse"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| CommonSubexprEliminator::new().run_to_fixpoint(func) != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

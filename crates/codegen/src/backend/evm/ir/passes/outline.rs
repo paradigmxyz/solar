@@ -1,5 +1,6 @@
 //! Outline repeated closed computations and large immediate pushes.
 
+use super::EvmPass;
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
     op,
@@ -12,7 +13,23 @@ use std::hash::{Hash, Hasher};
 
 const MIN_CLOSED_RUN: usize = 4;
 
-pub(super) fn run(gcx: Gcx<'_>, module: &mut Module) -> bool {
+pub(super) struct Outline;
+
+impl EvmPass for Outline {
+    fn name(&self) -> &'static str {
+        "outline"
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        outline(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
+fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
     outline_closed_computations(module, &mut state)
         | outline_repeated_pushes(gcx, module, &mut state)

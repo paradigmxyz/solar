@@ -34,206 +34,129 @@ use crate::{
     },
 };
 use solar_data_structures::map::FxHashMap;
-use solar_sema::Gcx;
 use std::any::{Any, TypeId};
-
-/// Registry entry for a MIR transform pass.
-pub(crate) struct PassInfo {
-    name: &'static str,
-    description: &'static str,
-    run_pass: for<'gcx> fn(Gcx<'gcx>, &mut Module) -> bool,
-    /// Earliest [`MirPhase`] this pass may run on.
-    min_phase: MirPhase,
-    /// Latest [`MirPhase`] this pass may run on.
-    max_phase: MirPhase,
-    required: bool,
-}
-
-impl PassInfo {
-    const fn new(
-        name: &'static str,
-        description: &'static str,
-        run_pass: for<'gcx> fn(Gcx<'gcx>, &mut Module) -> bool,
-    ) -> Self {
-        Self {
-            name,
-            description,
-            run_pass,
-            min_phase: MirPhase::Built,
-            max_phase: MirPhase::EvmShaped,
-            required: false,
-        }
-    }
-
-    /// Restricts the phases this pass may run on: the pass manager skips it,
-    /// rather than running it, on modules outside the range.
-    const fn phases(mut self, min: MirPhase, max: MirPhase) -> Self {
-        self.min_phase = min;
-        self.max_phase = max;
-        self
-    }
-
-    /// Marks this pass as required independently of the optimization level.
-    const fn required(mut self, required: bool) -> Self {
-        self.required = required;
-        self
-    }
-
-    /// Whether this pass's declared phase range admits the module's phase.
-    #[must_use]
-    fn admits(&self, module: &Module) -> bool {
-        self.min_phase <= module.phase && module.phase <= self.max_phase
-    }
-}
-
-impl MirPass for PassInfo {
-    fn name(&self) -> &'static str {
-        self.name
-    }
-
-    fn description(&self) -> &'static str {
-        self.description
-    }
-
-    fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
-        self.admits(module)
-    }
-
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        (self.run_pass)(gcx, module)
-    }
-
-    fn is_required(&self) -> bool {
-        self.required
-    }
-}
-
-impl std::fmt::Debug for PassInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PassInfo")
-            .field("name", &self.name)
-            .field("description", &self.description)
-            .finish_non_exhaustive()
-    }
-}
 
 macro_rules! declare_passes {
     ($(
         $(#[doc = $description:literal])+
-        $vis:vis const $const_name:ident -> $name:literal = $pass:expr
-            $(; phases = $min_phase:expr => $max_phase:expr)?
-            $(; required = $required:literal)?;
+        $vis:vis const $const_name:ident = $pass:ident;
     )+) => {
         $(
             $(#[doc = $description])+
-            $vis const $const_name: PassInfo = PassInfo::new(
-                $name,
-                concat!($($description, "\n"),+).trim_ascii(),
-                |gcx, module| ModulePass::run(&mut $pass, gcx, module),
-            )$(.phases($min_phase, $max_phase))?$(.required($required))?;
+            $vis const $const_name: $pass = $pass;
         )+
 
         /// All known MIR passes exposed to `solar mir-opt`.
         pub static PASS_REGISTRY: &[&dyn MirPass] = &[$(&$const_name),+];
+
+        static PASS_DESCRIPTIONS: &[(&dyn MirPass, &str)] = &[
+            $((
+                &$const_name,
+                concat!($($description, "\n"),+).trim_ascii(),
+            )),+
+        ];
     };
 }
 
 declare_passes! {
     /// Internal MIR function inlining.
-    pub(crate) const INLINE_PASS -> "inline" = InlinePass;
+    pub(crate) const INLINE_PASS = InlinePass;
 
     /// Outline duplicate constant revert blocks before backend lowering.
-    pub(crate) const OUTLINE_REVERTS_PASS -> "outline-reverts" = OutlineRevertsPass::default();
+    pub(crate) const OUTLINE_REVERTS_PASS = OutlineRevertsPass;
 
     /// Dead internal function elimination.
-    pub(crate) const FUNCTION_DCE_PASS -> "function-dce" = FunctionDcePass;
+    pub(crate) const FUNCTION_DCE_PASS = FunctionDcePass;
 
     /// Sparse Conditional Constant Propagation.
-    pub(crate) const SCCP_PASS -> "sccp" = SccpTransformPass;
+    pub(crate) const SCCP_PASS = SccpTransformPass;
 
     /// Bounded evaluator for closed pure MIR loops/functions.
-    pub(crate) const PURE_EVAL_PASS -> "pure-eval" = PureEvalPass;
+    pub(crate) const PURE_EVAL_PASS = PureEvalPass;
 
     /// Local MIR instruction simplification.
-    pub(crate) const INST_SIMPLIFY_PASS -> "inst-simplify" = InstSimplifyPass;
+    pub(crate) const INST_SIMPLIFY_PASS = InstSimplifyPass;
 
     /// Common Subexpression Elimination (fixed-point).
-    pub(crate) const CSE_PASS -> "cse" = CsePass;
+    pub(crate) const CSE_PASS = CsePass;
 
     /// Partial redundancy elimination for pure expressions.
-    pub(crate) const PRE_PASS -> "pre" = PrePass;
+    pub(crate) const PRE_PASS = PrePass;
 
     /// Congruence-class global value numbering.
-    pub(crate) const GVN_PASS -> "gvn" = GvnPass;
+    pub(crate) const GVN_PASS = GvnPass;
 
     /// Reuse storage loads across definitely-disjoint stores.
-    pub(crate) const STORAGE_LOAD_CSE_PASS -> "storage-load-cse" = StorageLoadCsePass;
+    pub(crate) const STORAGE_LOAD_CSE_PASS = StorageLoadCsePass;
 
     /// Eliminate overwritten or repeated storage stores.
-    pub(crate) const STORAGE_DSE_PASS -> "storage-dse" = StorageDsePass;
+    pub(crate) const STORAGE_DSE_PASS = StorageDsePass;
 
     /// Availability-dataflow redundancy elimination and PRE for memory-dependent reads.
-    pub(crate) const LOAD_PRE_PASS -> "load-pre" = LoadPrePass;
+    pub(crate) const LOAD_PRE_PASS = LoadPrePass;
 
     /// Canonicalize natural loops with explicit preheaders.
-    pub(crate) const LOOP_CANONICALIZE_PASS -> "loop-canonicalize" = LoopCanonicalizePass;
+    pub(crate) const LOOP_CANONICALIZE_PASS = LoopCanonicalizePass;
 
     /// Strength-reduce affine induction-variable address expressions.
-    pub(crate) const INDVAR_SIMPLIFY_PASS -> "indvar-simplify" = IndVarSimplifyPass;
+    pub(crate) const INDVAR_SIMPLIFY_PASS = IndVarSimplifyPass;
 
     /// Promote simple loop-carried storage updates to memory.
-    pub(crate) const STORAGE_PROMOTION_PASS -> "storage-promotion" = StorageScalarPromotionPass;
+    pub(crate) const STORAGE_PROMOTION_PASS = StorageScalarPromotionPass;
 
     /// Loop-Invariant Code Motion.
-    pub(crate) const LICM_PASS -> "licm" = LicmPass;
+    pub(crate) const LICM_PASS = LicmPass;
 
     /// Range-based elimination of provably dead overflow-check branches.
-    pub(crate) const CHECK_ELIM_PASS -> "check-elim" = CheckElimPass;
+    pub(crate) const CHECK_ELIM_PASS = CheckElimPass;
 
     /// Jump Threading (fixed-point).
-    pub(crate) const JUMP_THREADING_PASS -> "jump-threading" = JumpThreadingPass;
+    pub(crate) const JUMP_THREADING_PASS = JumpThreadingPass;
 
     /// CFG Simplification (fixed-point).
-    pub(crate) const CFG_SIMPLIFY_PASS -> "cfg-simplify" = CfgSimplifyPass;
+    pub(crate) const CFG_SIMPLIFY_PASS = CfgSimplifyPass;
 
     /// Promote non-escaping compiler-local slots to SSA values.
-    pub(crate) const FRAME_SLOT_PROMOTION_PASS -> "frame-slot-promotion" = FrameSlotPromotionPass;
+    pub(crate) const FRAME_SLOT_PROMOTION_PASS = FrameSlotPromotionPass;
 
     /// Local dead memory-store elimination.
-    pub(crate) const MEMORY_DSE_PASS -> "memory-dse" = MemoryDsePass;
+    pub(crate) const MEMORY_DSE_PASS = MemoryDsePass;
 
     /// Place provably local fmp-bump allocations at static frame addresses.
-    pub(crate) const STATIC_ALLOC_PASS -> "static-alloc" = StaticAllocPass;
+    pub(crate) const STATIC_ALLOC_PASS = StaticAllocPass;
 
     /// Dead Code Elimination (fixed-point).
-    pub(crate) const DCE_PASS -> "dce" = DcePass;
+    pub(crate) const DCE_PASS = DcePass;
 
     /// Aggressive dead-code elimination for dead control regions.
-    pub(crate) const ADCE_PASS -> "adce" = AdcePass;
+    pub(crate) const ADCE_PASS = AdcePass;
 
     /// ABI phase lowering: external functions become self-decoding wrappers.
-    pub(crate) const LOWER_ABI_PASS -> "lower-abi" = LowerAbiPass::default();
-        phases = MirPhase::Built => MirPhase::Optimized;
-        required = true;
+    pub(crate) const LOWER_ABI_PASS = LowerAbiPass;
 
     /// Dispatch phase lowering: synthesize the selector-switch `entry` function.
-    pub(crate) const LOWER_DISPATCH_PASS -> "lower-dispatch" = LowerDispatchPass::default();
-        phases = MirPhase::Abi => MirPhase::Abi;
-        required = true;
+    pub(crate) const LOWER_DISPATCH_PASS = LowerDispatchPass;
 
     /// EVM-shape lowering: non-returning internal calls become tail calls.
-    pub(crate) const LOWER_EVM_SHAPED_PASS -> "lower-evm-shaped" = LowerEvmShapedPass::default();
-        phases = MirPhase::Dispatch => MirPhase::Dispatch;
-        required = true;
+    pub(crate) const LOWER_EVM_SHAPED_PASS = LowerEvmShapedPass;
 
     /// Lower mapping-slot hash builtins to memory operations.
-    pub(crate) const LOWER_MAPPING_SLOTS_PASS -> "lower-mapping-slots" = LowerMappingSlotsPass;
-        required = true;
+    pub(crate) const LOWER_MAPPING_SLOTS_PASS = LowerMappingSlotsPass;
 }
 
 /// Finds a pass in the global MIR pass registry by command-line name.
 pub fn lookup_pass(name: &str) -> Option<&'static dyn MirPass> {
     PASS_REGISTRY.iter().copied().find(|pass| pass.name() == name)
+}
+
+/// Returns the human-readable help text for a registered MIR pass.
+pub fn pass_description(pass: &dyn MirPass) -> &'static str {
+    PASS_DESCRIPTIONS
+        .iter()
+        .find_map(|(candidate, description)| {
+            (candidate.name() == pass.name()).then_some(*description)
+        })
+        .unwrap_or("")
 }
 
 /// The canonical MIR optimization pipeline used by EVM codegen.
@@ -352,31 +275,16 @@ pub(crate) trait AnalysisPass {
     fn run(&self, func: &Function) -> Self::Result;
 }
 
-/// A transformation pass that mutates a MIR module.
-///
-/// Module-level passes can inspect or transform more than one function. Function-local passes
-/// should implement [`FunctionPass`] instead and use the blanket [`ModulePass`] implementation.
-pub(crate) trait ModulePass {
-    /// Runs the transformation on the given module.
-    ///
-    /// Returns true if the transform changed MIR.
-    fn run(&mut self, gcx: Gcx<'_>, module: &mut Module) -> bool;
-}
-
-/// A transformation pass that mutates one function at a time.
-pub(crate) trait FunctionPass {
-    /// Runs the transformation on the given function.
-    fn run_on_function(&mut self, func: &mut Function) -> bool;
-}
-
-impl<T: FunctionPass> ModulePass for T {
-    fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let mut changed = false;
-        for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
-            changed |= self.run_on_function(func);
-        }
-        changed
+/// Runs a function-local transform over every bodied function in a module.
+pub(crate) fn run_function_pass(
+    module: &mut Module,
+    mut run: impl FnMut(&mut Function) -> bool,
+) -> bool {
+    let mut changed = false;
+    for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
+        changed |= run(func);
     }
+    changed
 }
 
 /// Manages cached analysis results for a function.

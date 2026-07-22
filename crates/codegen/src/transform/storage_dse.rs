@@ -6,8 +6,8 @@
 //! repeated equal stores when no intervening instruction can clobber storage.
 
 use crate::{
-    mir::{BlockId, Function, InstId, InstKind, StorageAlias, ValueId, utils as mir_utils},
-    pass::FunctionPass,
+    mir::{BlockId, Function, InstId, InstKind, Module, StorageAlias, ValueId, utils as mir_utils},
+    pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -40,9 +40,17 @@ impl RunState {
 /// Function pass for local dead storage-store elimination.
 pub(crate) struct StorageDsePass;
 
-impl FunctionPass for StorageDsePass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        StorageStoreEliminator::new().run_to_fixpoint(func) != 0
+impl MirPass for StorageDsePass {
+    fn name(&self) -> &'static str {
+        "storage-dse"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| StorageStoreEliminator::new().run_to_fixpoint(func) != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

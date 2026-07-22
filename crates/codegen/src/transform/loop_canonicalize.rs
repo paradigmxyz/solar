@@ -14,10 +14,10 @@
 use crate::{
     analysis::LoopAnalyzer,
     mir::{
-        BlockId, Function, InstId, InstKind, Instruction, Terminator, Value, ValueId,
+        BlockId, Function, InstId, InstKind, Instruction, Module, Terminator, Value, ValueId,
         utils::repair_reachability_phis,
     },
-    pass::FunctionPass,
+    pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::bit_set::DenseBitSet;
 
@@ -49,9 +49,17 @@ pub(crate) struct LoopCanonicalizer {
 /// Function pass for loop canonicalization.
 pub(crate) struct LoopCanonicalizePass;
 
-impl FunctionPass for LoopCanonicalizePass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        LoopCanonicalizer::new().run(func).total() != 0
+impl MirPass for LoopCanonicalizePass {
+    fn name(&self) -> &'static str {
+        "loop-canonicalize"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| LoopCanonicalizer::new().run(func).total() != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

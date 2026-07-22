@@ -15,10 +15,11 @@
 use crate::{
     analysis::CfgInfo,
     mir::{
-        BlockId, Function, InstId, InstKind, Instruction, MirType, Terminator, Value, ValueId,
+        BlockId, Function, InstId, InstKind, Instruction, MirType, Module, Terminator, Value,
+        ValueId,
         utils::{self as mir_utils, repair_reachability_phis},
     },
-    pass::FunctionPass,
+    pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -85,11 +86,21 @@ pub(crate) struct FrameSlotPromoter {
 /// Function pass for internal-frame scalar promotion.
 pub(crate) struct FrameSlotPromotionPass;
 
-impl FunctionPass for FrameSlotPromotionPass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        let changed = FrameSlotPromoter::new().run(func).total() != 0;
-        repair_reachability_phis(func);
-        changed
+impl MirPass for FrameSlotPromotionPass {
+    fn name(&self) -> &'static str {
+        "frame-slot-promotion"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| {
+            let changed = FrameSlotPromoter::new().run(func).total() != 0;
+            repair_reachability_phis(func);
+            changed
+        })
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

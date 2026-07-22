@@ -13,10 +13,10 @@
 use crate::{
     analysis::{AffineExpr, Loop, LoopAnalyzer, ScalarEvolution},
     mir::{
-        BlockId, Function, InstId, InstKind, StorageAlias, Terminator, Value, ValueId,
+        BlockId, Function, InstId, InstKind, Module, StorageAlias, Terminator, Value, ValueId,
         utils as mir_utils,
     },
-    pass::FunctionPass,
+    pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::U256;
 use arrayvec::ArrayVec;
@@ -72,9 +72,19 @@ pub(crate) struct LoopOptStats {
 /// Function pass for loop-invariant code motion.
 pub(crate) struct LicmPass;
 
-impl FunctionPass for LicmPass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        LoopOptimizer::with_limits(3, 8).optimize(func).instructions_hoisted != 0
+impl MirPass for LicmPass {
+    fn name(&self) -> &'static str {
+        "licm"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| {
+            LoopOptimizer::with_limits(3, 8).optimize(func).instructions_hoisted != 0
+        })
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

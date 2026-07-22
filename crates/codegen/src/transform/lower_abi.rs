@@ -40,7 +40,7 @@
 
 use crate::{
     mir::{Function, FunctionBuilder, FunctionId, InstKind, MirPhase, Module, Terminator},
-    pass::ModulePass,
+    pass::MirPass,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::{Ident, Symbol};
@@ -63,12 +63,14 @@ pub(crate) struct LowerAbiStats {
 }
 
 /// ABI phase lowering pass.
+pub(crate) struct LowerAbiPass;
+
 #[derive(Debug, Default)]
-pub(crate) struct LowerAbiPass {
+struct LowerAbi {
     stats: LowerAbiStats,
 }
 
-impl LowerAbiPass {
+impl LowerAbi {
     fn run(&mut self, module: &mut Module) -> bool {
         self.stats = LowerAbiStats::default();
 
@@ -214,9 +216,21 @@ impl LowerAbiPass {
     }
 }
 
-impl ModulePass for LowerAbiPass {
-    fn run(&mut self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        Self::run(self, module)
+impl MirPass for LowerAbiPass {
+    fn name(&self) -> &'static str {
+        "lower-abi"
+    }
+
+    fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        module.phase <= MirPhase::Optimized
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        LowerAbi::default().run(module)
+    }
+
+    fn is_required(&self) -> bool {
+        true
     }
 }
 

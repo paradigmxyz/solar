@@ -1,5 +1,6 @@
 //! Share adjacent empty revert paths in physically laid-out EVM IR.
 
+use super::EvmPass;
 use crate::backend::evm::{
     ir::{BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
     op,
@@ -8,7 +9,23 @@ use alloy_primitives::U256;
 use solar_data_structures::bit_set::DenseBitSet;
 use solar_sema::Gcx;
 
-pub(super) fn run(_gcx: Gcx<'_>, module: &mut Module) -> bool {
+pub(super) struct ShareReverts;
+
+impl EvmPass for ShareReverts {
+    fn name(&self) -> &'static str {
+        "share-reverts"
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        share_reverts(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
+fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut empty_reverts = DenseBitSet::new_empty(module.blocks.len());
     for block in module.blocks.indices().filter(|&block| is_empty_revert(module, block)) {
         empty_reverts.insert(block);

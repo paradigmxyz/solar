@@ -6,59 +6,69 @@
 //! after CSE so the remaining pipeline can optimize the concrete memory ops.
 
 use crate::{
-    mir::{BlockId, Function, FunctionBuilder, InstKind},
-    pass::FunctionPass,
+    mir::{BlockId, FunctionBuilder, InstKind, Module},
+    pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::map::FxHashMap;
 
 /// Lowers mapping-slot hash builtins after mapping-aware CSE.
 pub(crate) struct LowerMappingSlotsPass;
 
-impl FunctionPass for LowerMappingSlotsPass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        let has_mapping_slots = func.blocks.iter().any(|block| {
-            block.instructions.iter().any(|&inst_id| {
-                matches!(
-                    func.instructions[inst_id].kind,
-                    InstKind::MappingSlot(_, _)
-                        | InstKind::MappingSlotMemory(_, _)
-                        | InstKind::MappingSlotCalldata(_, _)
-                )
-            })
-        });
-        if !has_mapping_slots {
-            return false;
-        }
+impl MirPass for LowerMappingSlotsPass {
+    fn name(&self) -> &'static str {
+        "lower-mapping-slots"
+    }
 
-        let inst_results = func.inst_results();
-        let mut replacements = FxHashMap::default();
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
-        for block_id in block_ids {
-            let instructions = std::mem::take(&mut func.blocks[block_id].instructions);
-            let mut builder = FunctionBuilder::new(func);
-            builder.switch_to_block(block_id);
-            for inst_id in instructions {
-                let replacement = match builder.func().instructions[inst_id].kind {
-                    InstKind::MappingSlot(key, slot) => {
-                        Some(lower_word_mapping_slot(&mut builder, key, slot))
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| {
+            let has_mapping_slots = func.blocks.iter().any(|block| {
+                block.instructions.iter().any(|&inst_id| {
+                    matches!(
+                        func.instructions[inst_id].kind,
+                        InstKind::MappingSlot(_, _)
+                            | InstKind::MappingSlotMemory(_, _)
+                            | InstKind::MappingSlotCalldata(_, _)
+                    )
+                })
+            });
+            if !has_mapping_slots {
+                return false;
+            }
+
+            let inst_results = func.inst_results();
+            let mut replacements = FxHashMap::default();
+            let block_ids: Vec<BlockId> = func.blocks.indices().collect();
+            for block_id in block_ids {
+                let instructions = std::mem::take(&mut func.blocks[block_id].instructions);
+                let mut builder = FunctionBuilder::new(func);
+                builder.switch_to_block(block_id);
+                for inst_id in instructions {
+                    let replacement = match builder.func().instructions[inst_id].kind {
+                        InstKind::MappingSlot(key, slot) => {
+                            Some(lower_word_mapping_slot(&mut builder, key, slot))
+                        }
+                        InstKind::MappingSlotMemory(key, slot) => {
+                            Some(lower_memory_mapping_slot(&mut builder, key, slot))
+                        }
+                        InstKind::MappingSlotCalldata(key, slot) => {
+                            Some(lower_calldata_mapping_slot(&mut builder, key, slot))
+                        }
+                        _ => {
+                            builder.func_mut().blocks[block_id].instructions.push(inst_id);
+                            None
+                        }
+                    };
+                    if let Some(replacement) = replacement {
+                        replacements.insert(inst_results[&inst_id], replacement);
                     }
-                    InstKind::MappingSlotMemory(key, slot) => {
-                        Some(lower_memory_mapping_slot(&mut builder, key, slot))
-                    }
-                    InstKind::MappingSlotCalldata(key, slot) => {
-                        Some(lower_calldata_mapping_slot(&mut builder, key, slot))
-                    }
-                    _ => {
-                        builder.func_mut().blocks[block_id].instructions.push(inst_id);
-                        None
-                    }
-                };
-                if let Some(replacement) = replacement {
-                    replacements.insert(inst_results[&inst_id], replacement);
                 }
             }
-        }
-        func.replace_uses_canonicalized(&replacements);
+            func.replace_uses_canonicalized(&replacements);
+            true
+        })
+    }
+
+    fn is_required(&self) -> bool {
         true
     }
 }

@@ -22,7 +22,7 @@
 
 use crate::{
     mir::{Function, FunctionBuilder, FunctionId, MirPhase, Module, ValueId},
-    pass::ModulePass,
+    pass::MirPass,
 };
 use solar_interface::{Ident, sym};
 
@@ -34,12 +34,14 @@ pub(crate) struct LowerDispatchStats {
 }
 
 /// Dispatch phase lowering pass.
+pub(crate) struct LowerDispatchPass;
+
 #[derive(Debug, Default)]
-pub(crate) struct LowerDispatchPass {
+struct LowerDispatch {
     stats: LowerDispatchStats,
 }
 
-impl LowerDispatchPass {
+impl LowerDispatch {
     fn run(&mut self, module: &mut Module) -> bool {
         // Idempotent: only build the dispatcher once.
         if module.phase >= MirPhase::Dispatch {
@@ -240,8 +242,20 @@ fn load_selector(builder: &mut FunctionBuilder<'_>) -> ValueId {
     builder.shr(shift, word)
 }
 
-impl ModulePass for LowerDispatchPass {
-    fn run(&mut self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        Self::run(self, module)
+impl MirPass for LowerDispatchPass {
+    fn name(&self) -> &'static str {
+        "lower-dispatch"
+    }
+
+    fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        module.phase == MirPhase::Abi
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        LowerDispatch::default().run(module)
+    }
+
+    fn is_required(&self) -> bool {
+        true
     }
 }

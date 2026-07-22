@@ -12,10 +12,10 @@
 
 use crate::{
     mir::{
-        Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId,
+        Function, Immediate, InstId, InstKind, MirType, Module, Terminator, Value, ValueId,
         utils as mir_utils,
     },
-    pass::FunctionPass,
+    pass::{MirPass, run_function_pass},
     utils::evm_word,
 };
 use alloy_primitives::U256;
@@ -47,9 +47,17 @@ impl RunState {
 /// Function pass for local instruction simplification.
 pub(crate) struct InstSimplifyPass;
 
-impl FunctionPass for InstSimplifyPass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        InstSimplifier::new().run_to_fixpoint(func) != 0
+impl MirPass for InstSimplifyPass {
+    fn name(&self) -> &'static str {
+        "inst-simplify"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| InstSimplifier::new().run_to_fixpoint(func) != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

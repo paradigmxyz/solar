@@ -17,7 +17,7 @@ use solar_codegen::{
     mir::{Module, validate},
     pass::{
         DEFAULT_CLEANUP_PIPELINE, DEFAULT_PIPELINE, MirPass, Optimizations, PASS_REGISTRY,
-        lookup_pass, run_default_pipeline, run_passes,
+        lookup_pass, pass_description, run_default_pipeline, run_passes,
     },
 };
 use solar_config::CompileOpts;
@@ -27,7 +27,7 @@ use std::{ops::ControlFlow, path::Path, process::ExitCode};
 
 fn after_help() -> String {
     fn display_pass_help(pass: &dyn MirPass) -> impl fmt::Display + '_ {
-        fmt::from_fn(move |f| write!(f, "  {:<20} {}", pass.name(), pass.description()))
+        fmt::from_fn(move |f| write!(f, "  {:<20} {}", pass.name(), pass_description(pass)))
     }
 
     fn display_pass_list<'a>(

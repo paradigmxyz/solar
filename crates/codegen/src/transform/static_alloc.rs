@@ -27,7 +27,7 @@
 use crate::{
     analysis::CfgInfo,
     mir::{BlockId, Function, Immediate, InstId, InstKind, Module, Terminator, Value, ValueId},
-    pass::ModulePass,
+    pass::MirPass,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
@@ -35,8 +35,12 @@ use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 /// Pass that places provably local fmp-bump allocations statically.
 pub(crate) struct StaticAllocPass;
 
-impl ModulePass for StaticAllocPass {
-    fn run(&mut self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+impl MirPass for StaticAllocPass {
+    fn name(&self) -> &'static str {
+        "static-alloc"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         // Every entry's locals share the same low-memory region — only one
         // entry runs per call — so the tallest entry's frame top is a shadow
         // the others can grow into without moving the shared static-frame
@@ -57,6 +61,10 @@ impl ModulePass for StaticAllocPass {
             changed |= run_on_entry(func, shadow);
         }
         changed
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

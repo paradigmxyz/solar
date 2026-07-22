@@ -16,10 +16,11 @@
 
 use crate::{
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId,
+        BlockId, Function, Immediate, InstId, InstKind, MirType, Module, Terminator, Value,
+        ValueId,
         utils::{self as mir_utils, repair_reachability_phis},
     },
-    pass::FunctionPass,
+    pass::{MirPass, run_function_pass},
     utils::evm_word,
 };
 use alloy_primitives::U256;
@@ -78,12 +79,20 @@ pub(crate) struct SccpPass {
     pub stats: SccpStats,
 }
 
-/// Function pass adapter for sparse conditional constant propagation.
+/// Function pass for sparse conditional constant propagation.
 pub(crate) struct SccpTransformPass;
 
-impl FunctionPass for SccpTransformPass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        SccpPass::new().run(func) != 0
+impl MirPass for SccpTransformPass {
+    fn name(&self) -> &'static str {
+        "sccp"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| SccpPass::new().run(func) != 0)
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 

@@ -5,7 +5,7 @@
 //! keeps the first body and redirects later copies to it. CFG simplification
 //! then redirects references and removes the temporary jump thunks.
 
-use super::utils::is_evm_terminal;
+use super::{EvmPass, utils::is_evm_terminal};
 use crate::backend::evm::ir::{Block, BlockId, Module, PushValue, Terminator, TerminatorKind};
 use solar_data_structures::map::{FxHashMap, StdEntry};
 use solar_sema::Gcx;
@@ -16,7 +16,23 @@ struct RunState {
     redirects: Vec<(BlockId, BlockId)>,
 }
 
-pub(super) fn run(_gcx: Gcx<'_>, module: &mut Module) -> bool {
+pub(super) struct TerminalDedup;
+
+impl EvmPass for TerminalDedup {
+    fn name(&self) -> &'static str {
+        "terminal-dedup"
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        deduplicate_terminals(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
+
+fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
 
     for block_id in module.blocks.indices() {

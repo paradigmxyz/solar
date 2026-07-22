@@ -6,8 +6,8 @@
 //! normal encoder path.
 
 use crate::{
-    mir::{Function, Immediate, InstKind, Terminator, Value, ValueId},
-    pass::FunctionPass,
+    mir::{Function, Immediate, InstKind, Module, Terminator, Value, ValueId},
+    pass::{MirPass, run_function_pass},
     utils::evm_word,
 };
 use alloy_primitives::U256;
@@ -32,11 +32,21 @@ pub(crate) struct PureEvaluator {
 /// Function pass for bounded pure MIR evaluation.
 pub(crate) struct PureEvalPass;
 
-impl FunctionPass for PureEvalPass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        let changed = PureEvaluator::new().run(func).functions_folded != 0;
-        let repaired = crate::mir::utils::repair_reachability_phis(func);
-        changed || repaired
+impl MirPass for PureEvalPass {
+    fn name(&self) -> &'static str {
+        "pure-eval"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| {
+            let changed = PureEvaluator::new().run(func).functions_folded != 0;
+            let repaired = crate::mir::utils::repair_reachability_phis(func);
+            changed || repaired
+        })
+    }
+
+    fn is_required(&self) -> bool {
+        false
     }
 }
 
