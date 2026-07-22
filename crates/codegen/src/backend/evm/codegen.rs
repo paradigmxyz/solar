@@ -86,7 +86,7 @@ enum StaticCallStackWord {
 
 #[derive(Clone, Debug)]
 struct StackArgRetentionPlan {
-    retained: Vec<bool>,
+    retained: DenseBitSet<usize>,
     drain_ops: Vec<StackOp>,
     shuffle_ops: Vec<StackOp>,
 }
@@ -3910,9 +3910,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             return None;
         }
 
-        let mut retained = vec![false; args.len()];
+        let mut retained = DenseBitSet::new_empty(args.len());
         for &index in retained_indices {
-            retained[index] = true;
+            retained.insert(index);
         }
         Some(StackArgRetentionPlan { retained, drain_ops, shuffle_ops })
     }
@@ -4438,7 +4438,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         if let Some(mask) = &stack_mask {
             for (i, &arg) in args.iter().enumerate() {
                 if mask.contains(i)
-                    && !retention_plan.as_ref().is_some_and(|plan| plan.retained[i])
+                    && !retention_plan.as_ref().is_some_and(|plan| plan.retained.contains(i))
                     && matches!(func.value(arg), crate::mir::Value::Inst(_))
                     && !self.scheduler.spills.is_stored(arg)
                 {
@@ -4455,10 +4455,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             for &op in &plan.drain_ops {
                 self.emit_stack_op(op);
             }
-            debug_assert_eq!(
-                self.scheduler.stack.depth(),
-                plan.retained.iter().filter(|&&retained| retained).count()
-            );
+            debug_assert_eq!(self.scheduler.stack.depth(), plan.retained.count());
         } else {
             self.pop_all_stack_values();
         }
@@ -4470,7 +4467,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         // stores them into its frame before its body runs.
         if let Some(mask) = &stack_mask {
             for (i, &arg) in args.iter().enumerate() {
-                if mask.contains(i) && !retention_plan.as_ref().is_some_and(|plan| plan.retained[i])
+                if mask.contains(i)
+                    && !retention_plan.as_ref().is_some_and(|plan| plan.retained.contains(i))
                 {
                     self.emit_raw_stack_arg(func, arg);
                 }

@@ -16,7 +16,10 @@ use crate::{
     },
 };
 use smallvec::SmallVec;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 use std::{cell::RefCell, collections::VecDeque, sync::Arc};
 
 /// An address space tracked by ModRef analysis.
@@ -342,18 +345,18 @@ impl PointerProvenance {
 
         // `poisoned[block]` means at least one path into the block may have
         // recycled the FMP. The monotone OR lattice handles joins and loops.
-        let mut reachable = vec![false; func.blocks.len()];
-        let mut poisoned = vec![false; func.blocks.len()];
+        let mut reachable = DenseBitSet::new_empty(func.blocks.len());
+        let mut poisoned = DenseBitSet::new_empty(func.blocks.len());
         let mut worklist = VecDeque::from([func.entry_block]);
-        reachable[func.entry_block.index()] = true;
+        reachable.insert(func.entry_block);
         while let Some(block) = worklist.pop_front() {
-            let out = poisoned[block.index()] || block_resets[block.index()];
+            let out = poisoned.contains(block) || block_resets[block.index()];
             let Some(terminator) = &func.blocks[block].terminator else { continue };
             for successor in terminator.successors() {
-                let index = successor.index();
-                let changed = !reachable[index] || (out && !poisoned[index]);
-                reachable[index] = true;
-                poisoned[index] |= out;
+                let mut changed = reachable.insert(successor);
+                if out {
+                    changed |= poisoned.insert(successor);
+                }
                 if changed {
                     worklist.push_back(successor);
                 }
@@ -362,7 +365,7 @@ impl PointerProvenance {
 
         let mut allocations = FxHashMap::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
-            let mut reset = poisoned[block_id.index()];
+            let mut reset = poisoned.contains(block_id);
             for &inst_id in &block.instructions {
                 if matches!(
                     func.instructions[inst_id].kind,
@@ -371,9 +374,9 @@ impl PointerProvenance {
                     allocations.insert(
                         inst_id,
                         AllocationProvenance {
-                            dynamic: cyclic[block_id.index()],
-                            unique: reachable[block_id.index()]
-                                && !cyclic[block_id.index()]
+                            dynamic: cyclic.contains(block_id),
+                            unique: reachable.contains(block_id)
+                                && !cyclic.contains(block_id)
                                 && !reset,
                         },
                     );
@@ -1497,7 +1500,7 @@ impl AliasAnalysis {
     }
 }
 
-fn cyclic_blocks(func: &Function) -> Vec<bool> {
+fn cyclic_blocks(func: &Function) -> DenseBitSet<BlockId> {
     let successors: Vec<Vec<_>> =
         func.blocks
             .iter()
@@ -1517,13 +1520,12 @@ fn cyclic_blocks(func: &Function) -> Vec<bool> {
     // Kosaraju's two linear scans classify all strongly connected components.
     // Doing one reachability search per block made constructing this analysis
     // quadratic on functions with many basic blocks.
-    let mut visited = vec![false; func.blocks.len()];
+    let mut visited = DenseBitSet::new_empty(func.blocks.len());
     let mut finish_order = Vec::with_capacity(func.blocks.len());
     for start in func.blocks.indices() {
-        if visited[start.index()] {
+        if !visited.insert(start) {
             continue;
         }
-        visited[start.index()] = true;
         let mut stack = vec![(start, false)];
         while let Some((block, expanded)) = stack.pop() {
             if expanded {
@@ -1532,26 +1534,25 @@ fn cyclic_blocks(func: &Function) -> Vec<bool> {
             }
             stack.push((block, true));
             for &successor in &successors[block.index()] {
-                if !std::mem::replace(&mut visited[successor.index()], true) {
+                if visited.insert(successor) {
                     stack.push((successor, false));
                 }
             }
         }
     }
 
-    let mut cyclic = vec![false; func.blocks.len()];
-    visited.fill(false);
+    let mut cyclic = DenseBitSet::new_empty(func.blocks.len());
+    visited.clear();
     for start in finish_order.into_iter().rev() {
-        if visited[start.index()] {
+        if !visited.insert(start) {
             continue;
         }
-        visited[start.index()] = true;
         let mut component = Vec::new();
         let mut stack = vec![start];
         while let Some(block) = stack.pop() {
             component.push(block);
             for &predecessor in &predecessors[block.index()] {
-                if !std::mem::replace(&mut visited[predecessor.index()], true) {
+                if visited.insert(predecessor) {
                     stack.push(predecessor);
                 }
             }
@@ -1559,7 +1560,7 @@ fn cyclic_blocks(func: &Function) -> Vec<bool> {
         let is_cycle = component.len() > 1 || successors[start.index()].contains(&start);
         if is_cycle {
             for block in component {
-                cyclic[block.index()] = true;
+                cyclic.insert(block);
             }
         }
     }

@@ -6,46 +6,44 @@
 
 use super::{AddressSpace, AliasAnalysis};
 use crate::mir::{Function, FunctionId, InstKind, Module, Terminator, Value, ValueId};
-use solar_data_structures::{index::IndexVec, map::FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 
 /// Conservative memory effects and pointer captures for one MIR function.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FunctionMemorySummary {
-    reads: [bool; 3],
-    writes: [bool; 3],
+    /// Read address spaces as a bit per [`space_index`].
+    reads: u8,
+    /// Written address spaces as a bit per [`space_index`].
+    writes: u8,
     may_reset_fmp: bool,
-    captures: Vec<bool>,
+    /// Parameters whose pointer value may escape the call.
+    captures: DenseBitSet<usize>,
 }
 
 impl FunctionMemorySummary {
     fn empty(params: usize) -> Self {
-        Self {
-            reads: [false; 3],
-            writes: [false; 3],
-            may_reset_fmp: false,
-            captures: vec![false; params],
-        }
+        Self { reads: 0, writes: 0, may_reset_fmp: false, captures: DenseBitSet::new_empty(params) }
     }
 
     fn conservative(params: usize) -> Self {
         Self {
-            reads: [true; 3],
-            writes: [true; 3],
+            reads: 0b111,
+            writes: 0b111,
             may_reset_fmp: true,
-            captures: vec![true; params],
+            captures: DenseBitSet::new_filled(params),
         }
     }
 
     /// Returns whether the function may read an address space.
     #[must_use]
     pub(crate) const fn reads(&self, space: AddressSpace) -> bool {
-        self.reads[space_index(space)]
+        self.reads & (1 << space_index(space)) != 0
     }
 
     /// Returns whether the function may write an address space.
     #[must_use]
     pub(crate) const fn writes(&self, space: AddressSpace) -> bool {
-        self.writes[space_index(space)]
+        self.writes & (1 << space_index(space)) != 0
     }
 
     /// Returns whether the function may recycle or arbitrarily replace the FMP.
@@ -57,14 +55,12 @@ impl FunctionMemorySummary {
     /// Returns whether a parameter's pointer value may escape the call.
     #[must_use]
     pub(crate) fn captures_param(&self, index: usize) -> bool {
-        self.captures.get(index).copied().unwrap_or(true)
+        index >= self.captures.domain_size() || self.captures.contains(index)
     }
 
     fn merge_effects(&mut self, other: &Self) {
-        for index in 0..3 {
-            self.reads[index] |= other.reads[index];
-            self.writes[index] |= other.writes[index];
-        }
+        self.reads |= other.reads;
+        self.writes |= other.writes;
         self.may_reset_fmp |= other.may_reset_fmp;
     }
 }
@@ -166,8 +162,8 @@ fn local_summary(func: &Function) -> FunctionMemorySummary {
             }
             let effects = aa.instruction_mod_ref(func, inst_id);
             for space in [AddressSpace::Memory, AddressSpace::Storage, AddressSpace::Transient] {
-                summary.reads[space_index(space)] |= effects.reads_space(space);
-                summary.writes[space_index(space)] |= effects.writes_space(space);
+                summary.reads |= (effects.reads_space(space) as u8) << space_index(space);
+                summary.writes |= (effects.writes_space(space) as u8) << space_index(space);
             }
             summary.may_reset_fmp |= aa.instruction_may_reset_fmp(func, inst_id);
 
@@ -190,24 +186,23 @@ fn local_summary(func: &Function) -> FunctionMemorySummary {
     summary
 }
 
-fn capture_sources(summary: &mut FunctionMemorySummary, sources: &FxHashSet<usize>) {
-    for &source in sources {
-        if let Some(captured) = summary.captures.get_mut(source) {
-            *captured = true;
-        }
-    }
+fn capture_sources(summary: &mut FunctionMemorySummary, sources: &DenseBitSet<usize>) {
+    summary.captures.union(sources);
 }
 
 /// Tracks which parameters a value is derived from. Only pointer-preserving
 /// operations propagate sources; loading pointer bits through memory is
 /// deliberately not guessed, and storing a parameter is already a capture.
-fn parameter_sources(func: &Function) -> IndexVec<ValueId, FxHashSet<usize>> {
+fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<usize>> {
+    let params = func.params.len();
     let mut sources = IndexVec::with_capacity(func.values.len());
     for _ in 0..func.values.len() {
-        sources.push(FxHashSet::default());
+        sources.push(DenseBitSet::new_empty(params));
     }
     for (value_id, value) in func.values.iter_enumerated() {
-        if let Value::Arg { index, .. } = value {
+        if let Value::Arg { index, .. } = value
+            && (*index as usize) < params
+        {
             sources[value_id].insert(*index as usize);
         }
     }
@@ -232,13 +227,11 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, FxHashSet<usize>> {
                 }
                 _ => continue,
             };
-            let mut propagated = FxHashSet::default();
+            let mut propagated = DenseBitSet::new_empty(params);
             for operand in operands {
-                propagated.extend(sources[operand].iter().copied());
+                propagated.union(&sources[operand]);
             }
-            let before = sources[value_id].len();
-            sources[value_id].extend(propagated);
-            changed |= sources[value_id].len() != before;
+            changed |= sources[value_id].union(&propagated);
         }
         if !changed {
             break;
