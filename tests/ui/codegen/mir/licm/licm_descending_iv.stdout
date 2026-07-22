@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/licm/licm_descending_iv.mir (after licm) ===
   @module LicmDescendingIv
   fn @keep_mload_descending_iv() -> u256 {
-    bb0 (entry):
+    bb0:
       jump bb1
     bb1:
       v0 = phi [bb0: 64], [bb2: v3]
@@ -20,7 +20,7 @@
   }
   
   fn @hoist_mload_ascending_iv() -> u256 {
-    bb0 (entry):
+    bb0:
 +     v2 = mload 0
       jump bb1
     bb1:

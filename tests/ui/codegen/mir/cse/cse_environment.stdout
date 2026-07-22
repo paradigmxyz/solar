@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/cse/cse_environment.mir (after cse) ===
   @module CseEnvironment
   fn @keep_cheap_nullary_environment_reads(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = caller
       v1 = caller
       v2 = callvalue
@@ -23,7 +23,7 @@
   }
   
   fn @reuse_expensive_environment_reads(arg0: address, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = balance arg0
 -     v1 = balance arg0
       v2 = extcodesize arg0
@@ -52,7 +52,7 @@
   }
   
   fn @invalidate_account_reads_after_call(arg0: address) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = balance arg0
       v1 = extcodehash arg0
       v2 = call 0x186a0, arg0, 0, 0, 0, 0, 0
@@ -66,7 +66,7 @@
   }
   
   fn @keep_gas_uncached() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = gas
       v1 = gas
       v2 = add v0, v1

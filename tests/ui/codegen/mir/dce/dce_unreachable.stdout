@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/dce/dce_unreachable.mir (after dce) ===
   @module DceUnreachable
   fn @skip(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       jump bb2
     bb1:
 -     v0 = add arg0, 1

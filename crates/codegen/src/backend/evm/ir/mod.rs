@@ -37,6 +37,11 @@ newtype_index! {
     pub(crate) struct BlockId;
 }
 
+impl BlockId {
+    /// The first block in every non-empty module.
+    pub(crate) const ENTRY: Self = Self::new(0);
+}
+
 /// An EVM IR module.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Module {
@@ -44,8 +49,6 @@ pub struct Module {
     pub(crate) name: String,
     /// Basic blocks in layout order.
     pub(crate) blocks: IndexVec<BlockId, Block>,
-    /// The entry block, if one has been created.
-    pub(crate) entry_block: Option<BlockId>,
 }
 
 impl Module {
@@ -62,7 +65,7 @@ impl Module {
     pub(crate) fn new(name: impl Into<String>) -> Self {
         let name = name.into();
         assert!(is_ident(&name), "invalid EVM IR program name `{name}`");
-        Self { name, blocks: IndexVec::new(), entry_block: None }
+        Self { name, blocks: IndexVec::new() }
     }
 
     /// Changes the program name.
@@ -80,11 +83,7 @@ impl Module {
 
     /// Adds a block to the program.
     pub(crate) fn add_block(&mut self, block: Block) -> BlockId {
-        let id = self.blocks.push(block);
-        if self.entry_block.is_none() {
-            self.entry_block = Some(id);
-        }
-        id
+        self.blocks.push(block)
     }
 }
 

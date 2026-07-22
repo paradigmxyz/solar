@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:L (runtime) ===
 @module runtime
-bb0 (entry):
+bb0:
   push 896
   push 64
   mstore
@@ -504,7 +504,7 @@ bb19 [cold]:
   jump bb21
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:C (runtime) ===
 @module runtime
-bb0 (entry):
+bb0:
   push 544
   push 64
   mstore

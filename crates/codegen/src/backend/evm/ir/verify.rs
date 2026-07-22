@@ -34,15 +34,6 @@ impl<'a> Verifier<'a> {
             self.error("program has no blocks");
             return;
         }
-        match module.entry_block {
-            Some(entry) if self.block_exists(module, entry) => {}
-            Some(entry) => {
-                self.error(format_args!("entry block `{}` is out of range", entry.index()));
-            }
-            None => {
-                self.error("program has no entry block");
-            }
-        }
 
         let mut labels = FxHashSet::default();
         for (block_id, block) in module.blocks.iter_enumerated() {
@@ -223,10 +214,9 @@ impl<'a> Verifier<'a> {
 
     /// Checks physical stack operations along generated direct control-flow edges.
     fn verify_stack_ops(&self, module: &Module) {
-        let Some(entry) = module.entry_block else { return };
         let mut entry_depths = IndexVec::<BlockId, _>::from_vec(vec![None; module.blocks.len()]);
-        entry_depths[entry] = Some(0);
-        let mut pending = vec![entry];
+        entry_depths[BlockId::ENTRY] = Some(0);
+        let mut pending = vec![BlockId::ENTRY];
         while let Some(block_id) = pending.pop() {
             let block = &module.blocks[block_id];
             let term =

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/evm-ir/share-reverts/special_zero.evmir (before share-reverts) ===
 + // === ROOT/tests/ui/codegen/evm-ir/share-reverts/special_zero.evmir (after share-reverts) ===
   @module module
-  bb0 (entry):
+  bb0:
     push 1
     iszero
     push bb2

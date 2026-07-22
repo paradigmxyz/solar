@@ -165,8 +165,7 @@ impl GlobalStackPlan {
         }
 
         for block_id in func.blocks.indices() {
-            if block_id == func.entry_block
-                || !cfg.is_reachable(block_id)
+            if !cfg.is_reachable(block_id)
                 || func.blocks[block_id].predecessors.is_empty()
                 || stack_phi_plan.entries.contains_key(&block_id)
                 || Self::is_terminal_block(func, block_id)
@@ -731,6 +730,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         if module.is_interface {
             return EvmArtifact::default();
         }
+        if let Some(func) = module.functions.iter().find(|func| func.blocks.is_empty()) {
+            panic!("cannot codegen MIR function `{}` without an entry block", func.name);
+        }
         self.run_optimization_passes(module);
         self.immutable_encodings.clear();
         for (id, immutable) in module.iter_immutables() {
@@ -982,7 +984,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             let call_graph = CallGraphInfo::new(module);
-            let internal_targets = call_graph.reachable_bodies_from(std::iter::once(ctor_id));
+            let internal_targets = call_graph.reachable_callees_from(std::iter::once(ctor_id));
             for func_id in &internal_targets {
                 let label = self.new_function_label(func_id);
                 self.function_labels.insert(func_id, label);
@@ -1172,7 +1174,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
 
         let call_graph = CallGraphInfo::new(module);
-        let internal_targets = call_graph.reachable_bodies_from(
+        let internal_targets = call_graph.reachable_callees_from(
             module.functions.iter_enumerated().filter_map(|(func_id, func)| {
                 (func_id == entry_id || Self::is_external_entry(func)).then_some(func_id)
             }),
@@ -1186,7 +1188,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // Non-recursive internal functions get compile-time-fixed frames.
             if func_id != entry_id
                 && !Self::is_external_entry(func)
-                && Self::has_body(func)
+                && Self::is_runtime_function(func)
                 && !call_graph.is_recursive(func_id)
             {
                 self.static_frame_functions.insert(func_id);
@@ -1200,7 +1202,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 continue;
             }
             let needs_body = Self::is_external_entry(func)
-                || (Self::has_body(func) && internal_targets.contains(func_id));
+                || (Self::is_runtime_function(func) && internal_targets.contains(func_id));
             if needs_body {
                 let label = self.new_function_label(func_id);
                 self.function_labels.insert(func_id, label);
@@ -1233,7 +1235,10 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // Internal-call targets, exactly as in the backend dispatcher path.
         for (func_id, func) in module.functions.iter_enumerated() {
-            if func_id == entry_id || Self::is_external_entry(func) || !Self::has_body(func) {
+            if func_id == entry_id
+                || Self::is_external_entry(func)
+                || !Self::is_runtime_function(func)
+            {
                 continue;
             }
             let Some(&label) = self.function_labels.get(&func_id) else { continue };
@@ -1265,15 +1270,17 @@ impl<'gcx> EvmCodegen<'gcx> {
     ///     else: revert
     /// ```
     fn generate_dispatcher(&mut self, module: &Module) {
-        // Find executable receive and fallback functions. Interface/abstract declarations can
-        // have ABI entries but no MIR body, so they must not participate in runtime dispatch.
-        let receive_idx =
-            module.functions.iter().position(|f| f.attributes.is_receive && Self::has_body(f));
-        let fallback_idx =
-            module.functions.iter().position(|f| f.attributes.is_fallback && Self::has_body(f));
+        let receive_idx = module
+            .functions
+            .iter_enumerated()
+            .find_map(|(func_id, func)| func.attributes.is_receive.then_some(func_id));
+        let fallback_idx = module
+            .functions
+            .iter_enumerated()
+            .find_map(|(func_id, func)| func.attributes.is_fallback.then_some(func_id));
 
         let call_graph = CallGraphInfo::new(module);
-        let internal_targets = call_graph.reachable_bodies_from(
+        let internal_targets = call_graph.reachable_callees_from(
             module
                 .functions
                 .iter_enumerated()
@@ -1287,7 +1294,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             // Non-recursive internal functions get compile-time-fixed frames.
             if !Self::is_external_entry(func)
-                && Self::has_body(func)
+                && Self::is_runtime_function(func)
                 && !call_graph.is_recursive(func_id)
             {
                 self.static_frame_functions.insert(func_id);
@@ -1296,11 +1303,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.compute_stack_arg_masks(module);
 
         // Create labels for externally reachable runtime entry points and internal-call targets.
-        let mut func_labels: Vec<Option<Label>> = Vec::new();
+        let mut func_labels = IndexVec::new();
         for (func_id, func) in module.functions.iter_enumerated() {
             let external = Self::is_external_entry(func);
             let needs_body =
-                external || (Self::has_body(func) && internal_targets.contains(func_id));
+                external || (Self::is_runtime_function(func) && internal_targets.contains(func_id));
             let label = needs_body.then(|| self.new_function_label(func_id));
             if let Some(label) = label {
                 self.function_labels.insert(func_id, label);
@@ -1361,16 +1368,15 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let mut selectors: Vec<_> = module
             .functions
-            .iter()
-            .enumerate()
-            .filter_map(|(i, func)| {
+            .iter_enumerated()
+            .filter_map(|(func_id, func)| {
                 if !Self::is_external_entry(func) {
                     return None;
                 }
                 let selector = func.selector?;
                 Some(SelectorDispatchEntry {
                     selector: u32::from_be_bytes(selector),
-                    label: func_labels[i].expect("selector label missing"),
+                    label: func_labels[func_id].expect("selector label missing"),
                 })
             })
             .collect();
@@ -1385,7 +1391,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !Self::is_external_entry(func) {
                 continue;
             }
-            let Some(label) = func_labels[func_id.index()] else { continue };
+            let Some(label) = func_labels[func_id] else { continue };
             self.asm.define_label(label);
 
             // The dispatcher's shr'd selector is still on the physical stack
@@ -1410,10 +1416,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Define internal-call targets once. Calls jump here and return
         // through the stack-passed return address.
         for (func_id, func) in module.functions.iter_enumerated() {
-            if Self::is_external_entry(func) || !Self::has_body(func) {
+            if Self::is_external_entry(func) || !Self::is_runtime_function(func) {
                 continue;
             }
-            let Some(label) = func_labels[func_id.index()] else { continue };
+            let Some(label) = func_labels[func_id] else { continue };
             self.asm.define_label(label);
             self.emit_stack_arg_prologue(func_id, func);
             self.in_internal_function = true;
@@ -1457,14 +1463,14 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn is_external_entry(func: &Function) -> bool {
-        Self::has_body(func)
+        Self::is_runtime_function(func)
             && (func.selector.is_some()
                 || func.attributes.is_receive
                 || func.attributes.is_fallback)
     }
 
-    fn has_body(func: &Function) -> bool {
-        !func.attributes.is_constructor && !func.blocks.is_empty()
+    fn is_runtime_function(func: &Function) -> bool {
+        !func.attributes.is_constructor
     }
 
     fn emit_selector_dispatch(
@@ -1629,9 +1635,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             preserved_fallthrough = None;
 
             let label = self.block_labels[&block_id];
-            if !entered_by_preserved_fallthrough
-                && (block_id != func.entry_block || !block.predecessors.is_empty())
-            {
+            if !entered_by_preserved_fallthrough && !block.predecessors.is_empty() {
                 self.asm.define_label(label);
             }
 
@@ -1862,11 +1866,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         loop {
             let mut changed = false;
             for (function_id, func) in module.functions.iter_enumerated() {
-                if cold.contains(function_id) || func.blocks.is_empty() {
+                if cold.contains(function_id) {
                     continue;
                 }
                 worklist.clear();
-                worklist.push(func.entry_block);
+                worklist.push(BlockId::ENTRY);
                 visited.clear();
                 let mut saw_exit = false;
                 let mut all_exits_cold = true;
@@ -1991,7 +1995,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut order = Vec::with_capacity(func.blocks.len());
         let mut placed = DenseBitSet::new_empty(func.blocks.len());
 
-        self.append_layout_chain(func, func.entry_block, reachable, &mut placed, &mut order);
+        self.append_layout_chain(func, BlockId::ENTRY, reachable, &mut placed, &mut order);
         for block_id in func.blocks.indices() {
             if reachable.contains(block_id) {
                 self.append_layout_chain(func, block_id, reachable, &mut placed, &mut order);
@@ -5203,7 +5207,7 @@ REVERT
                 let cold_wrapper = module.add_function(cold_wrapper);
 
                 let mut caller = Function::new(Ident::with_dummy_span(sym::Test));
-                let entry = caller.entry_block;
+                let entry = BlockId::ENTRY;
                 let (cold_forwarder, cold_block, hot_block);
                 {
                     let mut builder = FunctionBuilder::new(&mut caller);

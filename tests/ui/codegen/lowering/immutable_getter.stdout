@@ -4,7 +4,7 @@ immutables:
   owner: address
 
 fn @owner() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = loadimmutable owner
     mstore 128, v0
@@ -12,7 +12,7 @@ fn @owner() {
 }
 
 fn @_anonymous(arg0: address) {
-  bb0 (entry):
+  bb0:
     v0 = mload 128
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = eq v0, v1

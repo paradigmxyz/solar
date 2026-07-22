@@ -5,7 +5,7 @@ immutables:
   second: bytes20
 
 fn @constructor(arg0: u8, arg1: bytes20) -> u8 {
-  bb0 (entry):
+  bb0:
     storeimmutable first, arg0
     storeimmutable second, arg1
     v0 = loadimmutable first

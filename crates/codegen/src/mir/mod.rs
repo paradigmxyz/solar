@@ -56,6 +56,11 @@ newtype_index! {
     pub(crate) struct ImmutableId;
 }
 
+impl BlockId {
+    /// The first block in every function.
+    pub(crate) const ENTRY: Self = Self::new(0);
+}
+
 /// Property tests verifying that the MIR printer/parser pair is self-consistent.
 ///
 /// For each fixture under `tests/ui/codegen/`:

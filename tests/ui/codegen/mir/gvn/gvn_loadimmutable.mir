@@ -6,7 +6,7 @@ immutables:
 
 // GVN leaves immutable loads to CSE, which tracks their clobbers.
 fn @same_immutable_stays() -> u256 {
-  bb0 (entry):
+  bb0:
     v0 = loadimmutable first
     v1 = loadimmutable first
     v2 = add v0, v1
@@ -15,7 +15,7 @@ fn @same_immutable_stays() -> u256 {
 
 // Reads of different immutables stay distinct.
 fn @different_immutables_stay(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v0 = loadimmutable first
     v1 = loadimmutable second
     v2 = add v0, v1
@@ -24,7 +24,7 @@ fn @different_immutables_stay(arg0: u256) -> u256 {
 
 // A constructor assignment invalidates an earlier read.
 fn @store_prevents_merge(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = loadimmutable first
     storeimmutable first, arg0
     v2 = loadimmutable first

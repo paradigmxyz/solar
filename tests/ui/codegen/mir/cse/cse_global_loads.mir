@@ -4,7 +4,7 @@ immutables:
   value: u256
 
 fn @dominating_mload(arg0: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     mstore 0, 11
     v1 = mload 0
     br arg0, bb1, bb2
@@ -18,7 +18,7 @@ fn @dominating_mload(arg0: bool) -> u256 {
 }
 
 fn @dominating_sload(arg0: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = sload 0
     br arg0, bb1, bb2
   bb1:
@@ -31,7 +31,7 @@ fn @dominating_sload(arg0: bool) -> u256 {
 }
 
 fn @dominating_loadimmutable(arg0: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = loadimmutable value
     br arg0, bb1, bb2
   bb1:

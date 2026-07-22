@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/indvar-simplify/indvar_simplify.mir (after indvar-simplify) ===
   @module IndVarSimplify
   fn @strength_reduce_shifted_address(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v4]
@@ -22,7 +22,7 @@
   }
   
   fn @strength_reduce_scaled_address_with_offset(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
 +     v6 = add arg0, 4
       jump bb1
     bb1:
@@ -44,7 +44,7 @@
   }
   
   fn @strength_reduce_scale_one_address(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v3]

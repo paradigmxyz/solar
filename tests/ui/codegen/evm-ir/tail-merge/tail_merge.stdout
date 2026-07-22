@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/evm-ir/tail-merge/tail_merge.evmir (before tail-merge) ===
 + // === ROOT/tests/ui/codegen/evm-ir/tail-merge/tail_merge.evmir (after tail-merge) ===
   @module module
-  bb0 (entry):
+  bb0:
     push 1
     push bb1
     jumpi

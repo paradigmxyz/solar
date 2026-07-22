@@ -4,7 +4,7 @@ immutables:
   value: u256
 
 fn @hoist_non_aliasing_mload() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     br true, bb2, bb3
@@ -17,7 +17,7 @@ fn @hoist_non_aliasing_mload() -> u256 {
 }
 
 fn @keep_aliasing_mload() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     br true, bb2, bb3
@@ -30,7 +30,7 @@ fn @keep_aliasing_mload() -> u256 {
 }
 
 fn @hoist_non_aliasing_keccak() -> bytes32 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     br true, bb2, bb3
@@ -43,7 +43,7 @@ fn @hoist_non_aliasing_keccak() -> bytes32 {
 }
 
 fn @keep_aliasing_keccak() -> bytes32 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     br true, bb2, bb3
@@ -56,7 +56,7 @@ fn @keep_aliasing_keccak() -> bytes32 {
 }
 
 fn @hoist_unassigned_immutable() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     br true, bb2, bb3
@@ -69,7 +69,7 @@ fn @hoist_unassigned_immutable() -> u256 {
 }
 
 fn @keep_assigned_immutable() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     br true, bb2, bb3

@@ -414,7 +414,7 @@ pub(crate) trait FunctionPass {
 impl<T: FunctionPass> ModulePass for T {
     fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
         let mut changed = false;
-        for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
+        for func in &mut module.functions {
             changed |= self.run_on_function(func);
         }
         changed

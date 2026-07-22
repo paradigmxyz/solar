@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/pre/pre_split_edges.mir (after pre) ===
   @module SplitEdges
   fn @switch_pred_two_cases(arg0: u256, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       switch arg1, default bb1, [1 => bb2]
     bb1:
       v0 = add arg0, 7
@@ -23,7 +23,7 @@
   }
   
   fn @branch_both_arms_to_join(arg0: u256, arg1: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       br arg1, bb1, bb2
     bb1:
       v0 = add arg0, 7
@@ -42,7 +42,7 @@
   }
   
   fn @self_loop_backedge_insertion(arg0: u256, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       jump bb1
     bb1:
       v0 = add arg0, 7
@@ -65,7 +65,7 @@
   }
   
   fn @hoist_through_branch_preheader(arg0: u256, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = lt arg0, arg1
 -     br v0, bb1, bb4
 +     br v0, bb5, bb4
