@@ -14,8 +14,6 @@ use crate::{
     mir::IMMUTABLE_WORD_SIZE,
 };
 use alloy_primitives::U256;
-#[cfg(test)]
-use solar_config::OptimizationMode;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use solar_interface::diagnostics::DiagCtxt;
 use solar_sema::Gcx;
@@ -615,7 +613,7 @@ mod tests {
     use super::*;
     use crate::backend::evm::test_utils::disassemble;
     use snapbox::{assert_data_eq, str};
-    use solar_config::{CompileOpts, EvmVersion};
+    use solar_config::{CompileOpts, EvmVersion, OptimizationMode};
     use solar_interface::Session;
     use solar_sema::Compiler;
 

@@ -10,8 +10,6 @@ use async_lsp::{
     ClientSocket, client_monitor::ClientProcessMonitorLayer, router::Router,
     server::LifecycleLayer, tracing::TracingLayer,
 };
-#[cfg(test)]
-use criterion as _;
 use lsp_types::{notification as notif, request as req};
 use serde_json as _;
 use solar_config::LspArgs;
@@ -147,6 +145,7 @@ mod tests {
         AnyEvent, AnyNotification, AnyRequest, LanguageServer, LspService, ResponseError,
         router::Router,
     };
+    use criterion as _;
     use lsp_types::{
         CancelParams, CompletionParams, CompletionResponse,
         DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
