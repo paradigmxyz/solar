@@ -1,5 +1,6 @@
 //! Target-aware switch lowering selection.
 
+use super::ir::assembly::INDEXED_JUMP_STUB_LEN;
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 
@@ -18,7 +19,6 @@ const MOD_GAS: usize = 5;
 const MUL_GAS: usize = 5;
 const JUMPDEST_GAS: usize = 1;
 
-const INDEXED_JUMP_STUB_LEN: usize = 6;
 const INDEXED_JUMP_BASE_LEN: usize = 7;
 const INDEXED_JUMP_GUARD_LEN: usize = 1;
 const MIN_BUCKET_CASES: usize = 8;
@@ -255,7 +255,14 @@ fn dense_lowering_cost(
 }
 
 pub(super) fn bucket_index(value: U256, bucket_count: usize) -> usize {
-    usize::try_from(value % U256::from(bucket_count)).expect("bucket index must fit usize")
+    let limbs = value.as_limbs();
+    if limbs[1..].iter().all(|&limb| limb == 0) {
+        return (limbs[0] % bucket_count as u64) as usize;
+    }
+
+    let modulus = bucket_count as u128;
+    limbs.iter().rev().fold(0, |remainder, &limb| ((remainder << 64) | limb as u128) % modulus)
+        as usize
 }
 
 #[derive(Clone, Copy)]
@@ -328,6 +335,18 @@ mod tests {
         assert!(candidates.len() <= MAX_BUCKET_CANDIDATES + 1);
         assert!(candidates.contains(&10_000));
         assert!(bucket_count_candidates(97).contains(&97));
+    }
+
+    #[test]
+    fn computes_bucket_indices_without_wide_division() {
+        for value in [U256::ZERO, U256::from(u64::MAX), U256::MAX] {
+            for bucket_count in [1, 7, 32, 127, usize::MAX] {
+                assert_eq!(
+                    bucket_index(value, bucket_count),
+                    usize::try_from(value % U256::from(bucket_count)).unwrap()
+                );
+            }
+        }
     }
 
     #[test]

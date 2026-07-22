@@ -426,14 +426,11 @@ impl Assembler {
 
         // Label-free constructor and deployment snippets need neither offset
         // discovery nor push-width relaxation.
-        if !program.instructions.iter().any(|inst| {
-            matches!(
-                inst.kind(),
-                AsmInstKind::Label(_)
-                    | AsmInstKind::PushLabel(_)
-                    | AsmInstKind::PushLabelFixed(_, _)
-            )
-        }) {
+        if program.indexed_jump_tables.is_empty()
+            && !program.instructions.iter().any(|inst| {
+                matches!(inst.kind(), AsmInstKind::Label(_) | AsmInstKind::PushLabel(_))
+            })
+        {
             let mut result =
                 self.emit_bytecode(&program, FxHashMap::default(), &FxHashMap::default());
             result.evm_ir = evm_ir;
@@ -494,9 +491,6 @@ impl Assembler {
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
                     offset += out.fixed_push_len(width);
                 }
-                AsmInstKind::PushLabelFixed(_, width) => {
-                    offset += out.fixed_push_len(width);
-                }
                 AsmInstKind::PushDeferred(_) => {
                     unreachable!("deferred constants must be resolved before assembly");
                 }
@@ -509,6 +503,10 @@ impl Assembler {
                     offset += 1;
                 }
             }
+        }
+        for &(label, ref targets) in &program.indexed_jump_tables {
+            label_offsets.insert(label, offset);
+            offset += targets.len() * assembly::INDEXED_JUMP_STUB_LEN;
         }
 
         // Compute new widths based on resolved offsets
@@ -552,17 +550,6 @@ impl Assembler {
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
                     out.emit_push_fixed_width(U256::from(target_offset), width);
                 }
-                AsmInstKind::PushLabelFixed(label, width) => {
-                    let target_offset = label_offsets
-                        .get(&label)
-                        .copied()
-                        .unwrap_or_else(|| panic!("label {label:?} was never defined"));
-                    assert!(
-                        out.push_width(U256::from(target_offset)) <= width,
-                        "label {label:?} does not fit PUSH{width}"
-                    );
-                    out.emit_push_fixed_width(U256::from(target_offset), width);
-                }
                 AsmInstKind::PushDeferred(_) => {
                     unreachable!("deferred constants must be resolved before assembly");
                 }
@@ -572,6 +559,26 @@ impl Assembler {
                 AsmInstKind::Label(_) => {
                     out.emit_op(op::JUMPDEST);
                 }
+            }
+        }
+        for (_, targets) in &program.indexed_jump_tables {
+            for &target in targets {
+                out.emit_op(op::JUMPDEST);
+                let target_offset = label_offsets
+                    .get(&target)
+                    .copied()
+                    .unwrap_or_else(|| panic!("label {target:?} was never defined"));
+                assert!(
+                    out.push_width(U256::from(target_offset))
+                        <= assembly::INDEXED_JUMP_TARGET_WIDTH,
+                    "label {target:?} does not fit PUSH{}",
+                    assembly::INDEXED_JUMP_TARGET_WIDTH
+                );
+                out.emit_push_fixed_width(
+                    U256::from(target_offset),
+                    assembly::INDEXED_JUMP_TARGET_WIDTH,
+                );
+                out.emit_op(op::JUMP);
             }
         }
 
