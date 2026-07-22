@@ -5,10 +5,10 @@
 //! entry, push, and terminator reference together.
 
 use crate::backend::evm::{
-    ir::{Block, BlockId, Module, PushValue, TerminatorKind},
+    ir::{BlockId, Module, PushValue, TerminatorKind},
     op,
 };
-use solar_data_structures::index::IndexVec;
+use solar_data_structures::index::{IndexVec, index_vec};
 
 pub(super) fn is_evm_terminal(kind: &TerminatorKind) -> bool {
     matches!(kind, TerminatorKind::Op(opcode) if op::is_terminal(*opcode))
@@ -25,22 +25,21 @@ pub(super) fn retain_blocks(module: &mut Module, order: &[BlockId]) {
 }
 
 fn remap_blocks(module: &mut Module, order: &[BlockId]) {
-    let mut remap = vec![None; module.blocks.len()];
-    let mut old_blocks: Vec<Option<Block>> =
-        std::mem::take(&mut module.blocks).into_iter().map(Some).collect();
+    let mut remap = index_vec![None; module.blocks.len()];
+    let mut old_blocks =
+        std::mem::take(&mut module.blocks).into_iter().map(Some).collect::<IndexVec<BlockId, _>>();
     let mut blocks = IndexVec::with_capacity(order.len());
     for &old_block in order {
-        let block = old_blocks[old_block.index()]
-            .take()
-            .expect("block order must contain each block exactly once");
+        let block =
+            old_blocks[old_block].take().expect("block order must contain each block exactly once");
         let new_block = blocks.push(block);
-        remap[old_block.index()] = Some(new_block);
+        remap[old_block] = Some(new_block);
     }
     module.blocks = blocks;
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
             if let Some(PushValue::Block(block)) = &mut inst.value {
-                *block = remap[block.index()].expect("referenced block must be retained");
+                *block = remap[*block].expect("referenced block must be retained");
             }
         }
         if let Some(term) = &mut block.terminator {
@@ -49,8 +48,8 @@ fn remap_blocks(module: &mut Module, order: &[BlockId]) {
     }
 }
 
-fn remap_terminator_blocks(kind: &mut TerminatorKind, remap: &[Option<BlockId>]) {
+fn remap_terminator_blocks(kind: &mut TerminatorKind, remap: &IndexVec<BlockId, Option<BlockId>>) {
     kind.visit_targets_mut(|target| {
-        *target = remap[target.index()].expect("terminator target must be retained");
+        *target = remap[*target].expect("terminator target must be retained");
     });
 }

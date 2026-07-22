@@ -3,24 +3,30 @@
 use crate::mir::{BasicBlock, BlockId, Function, InstKind, Terminator, ValueId};
 use alloy_primitives::U256;
 use smallvec::smallvec;
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    index::{IndexVec, index_vec},
+    map::FxHashMap,
+};
 
-pub(crate) fn remap_block_order(func: &mut Function, order: &[BlockId]) -> Vec<BlockId> {
+pub(crate) fn remap_block_order(
+    func: &mut Function,
+    order: &[BlockId],
+) -> IndexVec<BlockId, BlockId> {
     debug_assert_eq!(order.len(), func.blocks.len());
-    let mut remap = vec![BlockId::from_usize(0); order.len()];
-    let mut old_blocks: Vec<Option<BasicBlock>> =
-        std::mem::take(&mut func.blocks).into_iter().map(Some).collect();
+    let mut remap = index_vec![BlockId::from_usize(0); order.len()];
+    let mut old_blocks =
+        std::mem::take(&mut func.blocks).into_iter().map(Some).collect::<IndexVec<BlockId, _>>();
     let mut blocks = IndexVec::with_capacity(old_blocks.len());
     for &old_block in order {
-        let block = old_blocks[old_block.index()].take().expect("duplicate block in order");
-        remap[old_block.index()] = blocks.push(block);
+        let block = old_blocks[old_block].take().expect("duplicate block in order");
+        remap[old_block] = blocks.push(block);
     }
     debug_assert!(old_blocks.into_iter().all(|block| block.is_none()));
     func.blocks = blocks;
 
     for block in &mut func.blocks {
         for predecessor in &mut block.predecessors {
-            *predecessor = remap[predecessor.index()];
+            *predecessor = remap[*predecessor];
         }
         if let Some(terminator) = &mut block.terminator {
             remap_terminator_blocks(terminator, &remap);
@@ -29,15 +35,15 @@ pub(crate) fn remap_block_order(func: &mut Function, order: &[BlockId]) -> Vec<B
     for inst in &mut func.instructions {
         if let InstKind::Phi(incoming) = &mut inst.kind {
             for (block, _) in incoming {
-                *block = remap[block.index()];
+                *block = remap[*block];
             }
         }
     }
     remap
 }
 
-fn remap_terminator_blocks(terminator: &mut Terminator, remap: &[BlockId]) {
-    let remap_block = |block: &mut BlockId| *block = remap[block.index()];
+fn remap_terminator_blocks(terminator: &mut Terminator, remap: &IndexVec<BlockId, BlockId>) {
+    let remap_block = |block: &mut BlockId| *block = remap[*block];
     match terminator {
         Terminator::Jump(target) => remap_block(target),
         Terminator::Branch { then_block, else_block, .. } => {
