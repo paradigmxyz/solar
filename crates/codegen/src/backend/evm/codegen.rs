@@ -992,14 +992,11 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
-        if self.gcx.sess.opts.optimization != OptimizationMode::None {
-            run_default_pipeline(self.gcx, module);
-            // MIR outlining remains profitable even though EVM IR can merge
-            // equivalent terminal blocks: lowering and stack scheduling can
-            // hide their shared semantic shape from the backend passes.
-            run_pass(self.gcx, module, &crate::pass::OUTLINE_REVERTS_PASS);
-        }
-        run_pass(self.gcx, module, &crate::pass::LOWER_MAPPING_SLOTS_PASS);
+        run_default_pipeline(self.gcx, module);
+        // MIR outlining remains profitable even though EVM IR can merge
+        // equivalent terminal blocks: lowering and stack scheduling can
+        // hide their shared semantic shape from the backend passes.
+        run_pass(self.gcx, module, &crate::pass::OUTLINE_REVERTS_PASS);
         // Progressive lowering: materialize ABI wrappers, the dispatcher, and
         // tail-call edges as MIR. Each pass bails without advancing the phase
         // when the module is outside its scope, in which case runtime

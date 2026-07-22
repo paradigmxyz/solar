@@ -64,6 +64,14 @@ impl PassInfo {
         self
     }
 
+    /// Marks this pass as required independently of the optimization level.
+    const fn required(mut self, required: bool) -> Self {
+        if required {
+            self.pass = self.pass.required();
+        }
+        self
+    }
+
     /// Whether this pass's declared phase range admits the module's phase.
     #[must_use]
     fn admits(&self, module: &Module) -> bool {
@@ -80,8 +88,8 @@ impl Pass<Module> for PassInfo {
         self.pass.description()
     }
 
-    fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
-        self.admits(module)
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
+        self.admits(module) && self.pass.is_enabled(gcx, module)
     }
 
     fn run(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
@@ -102,7 +110,8 @@ macro_rules! declare_passes {
     ($(
         $(#[doc = $description:literal])+
         $vis:vis const $const_name:ident -> $name:literal = $pass:expr
-            $(; phases = $min_phase:expr => $max_phase:expr)?;
+            $(; phases = $min_phase:expr => $max_phase:expr)?
+            $(; required = $required:literal)?;
     )+) => {
         $(
             $(#[doc = $description])+
@@ -110,7 +119,7 @@ macro_rules! declare_passes {
                 $name,
                 concat!($($description, "\n"),+).trim_ascii(),
                 |gcx, module| ModulePass::run(&mut $pass, gcx, module),
-            )$(.phases($min_phase, $max_phase))?;
+            )$(.phases($min_phase, $max_phase))?$(.required($required))?;
         )+
 
         /// All known MIR passes exposed to `solar mir-opt`.
@@ -194,17 +203,21 @@ declare_passes! {
     /// ABI phase lowering: external functions become self-decoding wrappers.
     pub(crate) const LOWER_ABI_PASS -> "lower-abi" = LowerAbiPass::default();
         phases = MirPhase::Built => MirPhase::Optimized;
+        required = true;
 
     /// Dispatch phase lowering: synthesize the selector-switch `entry` function.
     pub(crate) const LOWER_DISPATCH_PASS -> "lower-dispatch" = LowerDispatchPass::default();
         phases = MirPhase::Abi => MirPhase::Abi;
+        required = true;
 
     /// EVM-shape lowering: non-returning internal calls become tail calls.
     pub(crate) const LOWER_EVM_SHAPED_PASS -> "lower-evm-shaped" = LowerEvmShapedPass::default();
         phases = MirPhase::Dispatch => MirPhase::Dispatch;
+        required = true;
 
     /// Lower mapping-slot hash builtins to memory operations.
     pub(crate) const LOWER_MAPPING_SLOTS_PASS -> "lower-mapping-slots" = LowerMappingSlotsPass;
+        required = true;
 }
 
 /// Finds a pass in the global MIR pass registry by command-line name.
@@ -281,11 +294,6 @@ pub fn run_pass(gcx: Gcx<'_>, module: &mut Module, pass: &MirPass) -> bool {
 }
 
 fn run_pass_inner(gcx: Gcx<'_>, module: &mut Module, pass: &MirPass) -> bool {
-    // Passes declare which phases they operate on; the manager enforces it so a
-    // pipeline entry cannot silently corrupt a module in the wrong phase.
-    if !pass.is_enabled(gcx, module) {
-        return false;
-    }
     if cfg!(debug_assertions) {
         validate_module_after_pass(module, "input");
     }

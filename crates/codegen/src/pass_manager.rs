@@ -1,5 +1,6 @@
 //! Shared transformation pass infrastructure.
 
+use solar_config::OptimizationMode;
 use solar_sema::Gcx;
 
 /// A transformation pass over `M`.
@@ -23,6 +24,7 @@ pub trait Pass<M>: Sync {
 pub(crate) struct PassFactory<M> {
     name: &'static str,
     description: &'static str,
+    is_enabled: for<'gcx> fn(Gcx<'gcx>, &M) -> bool,
     run: for<'gcx> fn(Gcx<'gcx>, &mut M) -> bool,
 }
 
@@ -33,7 +35,13 @@ impl<M> PassFactory<M> {
         description: &'static str,
         run: for<'gcx> fn(Gcx<'gcx>, &mut M) -> bool,
     ) -> Self {
-        Self { name, description, run }
+        Self { name, description, is_enabled: optimizations_enabled, run }
+    }
+
+    /// Marks this pass as required independently of the optimization level.
+    pub(crate) const fn required(mut self) -> Self {
+        self.is_enabled = always_enabled;
+        self
     }
 }
 
@@ -46,9 +54,21 @@ impl<M> Pass<M> for PassFactory<M> {
         self.description
     }
 
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &M) -> bool {
+        (self.is_enabled)(gcx, module)
+    }
+
     fn run(&self, gcx: Gcx<'_>, module: &mut M) -> bool {
         (self.run)(gcx, module)
     }
+}
+
+fn optimizations_enabled<M>(gcx: Gcx<'_>, _module: &M) -> bool {
+    gcx.sess.opts.optimization != OptimizationMode::None
+}
+
+fn always_enabled<M>(_gcx: Gcx<'_>, _module: &M) -> bool {
+    true
 }
 
 impl<M> std::fmt::Debug for PassFactory<M> {
@@ -77,6 +97,9 @@ impl<'gcx, M> PassManager<'gcx, M> {
 
     /// Runs one pass.
     pub(crate) fn run_pass(&self, module: &mut M, pass: &(dyn Pass<M> + 'static)) -> bool {
+        if !pass.is_enabled(self.gcx, module) {
+            return false;
+        }
         (self.run)(self.gcx, module, pass)
     }
 
