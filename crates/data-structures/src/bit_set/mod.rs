@@ -5,6 +5,7 @@
     clippy::use_self
 )]
 
+use crate::map::FxHashMap;
 use smallvec::SmallVec;
 use std::{
     fmt, iter,
@@ -1647,10 +1648,7 @@ impl<R: BitSetIndex, C: BitSetIndex> fmt::Debug for BitMatrix<R, C> {
 /// sparse representation.
 ///
 /// Initially, every row has no explicit representation. If any bit within a row
-/// is set, the entire row is instantiated as `Some(<DenseBitSet>)`.
-/// Furthermore, any previously uninstantiated rows prior to it will be
-/// instantiated as `None`. Those prior rows may themselves become fully
-/// instantiated later on if any of their bits are set.
+/// is set, the entire row is instantiated as a `DenseBitSet` in a hash map.
 ///
 /// `R` and `C` are index types used to identify rows and columns respectively;
 /// typically newtyped `usize` wrappers, but they can also just be `usize`.
@@ -1661,24 +1659,20 @@ where
     C: BitSetIndex,
 {
     num_columns: usize,
-    rows: Vec<Option<DenseBitSet<C>>>,
-    marker: PhantomData<R>,
+    num_rows: usize,
+    rows: FxHashMap<R, DenseBitSet<C>>,
 }
 
 impl<R: BitSetIndex, C: BitSetIndex> SparseBitMatrix<R, C> {
     /// Creates a new empty sparse bit matrix with no rows or columns.
     pub fn new(num_columns: usize) -> Self {
-        Self { num_columns, rows: Vec::new(), marker: PhantomData }
+        Self { num_columns, num_rows: 0, rows: FxHashMap::default() }
     }
 
     fn ensure_row(&mut self, row: R) -> &mut DenseBitSet<C> {
-        // Instantiate any missing rows up to and including row `row` with an empty `DenseBitSet`.
-        // Then replace row `row` with a full `DenseBitSet` if necessary.
-        let row = row.index();
-        if self.rows.len() <= row {
-            self.rows.resize_with(row + 1, || None);
-        }
-        self.rows[row].get_or_insert_with(|| DenseBitSet::new_empty(self.num_columns))
+        self.num_rows = self.num_rows.max(row.index() + 1);
+        let num_columns = self.num_columns;
+        self.rows.entry(row).or_insert_with(|| DenseBitSet::new_empty(num_columns))
     }
 
     /// Sets the cell at `(row, column)` to true. Put another way, insert
@@ -1695,16 +1689,13 @@ impl<R: BitSetIndex, C: BitSetIndex> SparseBitMatrix<R, C> {
     ///
     /// Returns `true` if this changed the matrix.
     pub fn remove(&mut self, row: R, column: C) -> bool {
-        match self.rows.get_mut(row.index()) {
-            Some(Some(row)) => row.remove(column),
-            _ => false,
-        }
+        self.rows.get_mut(&row).is_some_and(|row| row.remove(column))
     }
 
     /// Sets all columns at `row` to false. Has no effect if `row` does
     /// not exist.
     pub fn clear(&mut self, row: R) {
-        if let Some(Some(row)) = self.rows.get_mut(row.index()) {
+        if let Some(row) = self.rows.get_mut(&row) {
             row.clear();
         }
     }
@@ -1729,15 +1720,11 @@ impl<R: BitSetIndex, C: BitSetIndex> SparseBitMatrix<R, C> {
             return false;
         }
 
-        self.ensure_row(write);
-        let Some((read_row, write_row)) = pick2_mut(&mut self.rows, read.index(), write.index())
-        else {
-            unreachable!()
-        };
-        let (Some(read_row), Some(write_row)) = (read_row.as_ref(), write_row.as_mut()) else {
-            unreachable!()
-        };
-        write_row.union(read_row)
+        let _ = self.ensure_row(write);
+        let mut write_row = self.rows.remove(&write).expect("write row was just instantiated");
+        let changed = write_row.union(self.rows.get(&read).expect("read row was checked above"));
+        self.rows.insert(write, write_row);
+        changed
     }
 
     /// Insert all bits in the given row.
@@ -1746,7 +1733,7 @@ impl<R: BitSetIndex, C: BitSetIndex> SparseBitMatrix<R, C> {
     }
 
     pub fn rows(&self) -> impl Iterator<Item = R> {
-        (0..self.rows.len()).map(R::from_usize)
+        (0..self.num_rows).map(R::from_usize)
     }
 
     /// Iterates through all the columns set to true in a given row of
@@ -1756,7 +1743,7 @@ impl<R: BitSetIndex, C: BitSetIndex> SparseBitMatrix<R, C> {
     }
 
     pub fn row(&self, row: R) -> Option<&DenseBitSet<C>> {
-        self.rows.get(row.index())?.as_ref()
+        self.rows.get(&row)
     }
 
     /// Intersects `row` with `set`. `set` can be either `DenseBitSet` or
@@ -1767,10 +1754,7 @@ impl<R: BitSetIndex, C: BitSetIndex> SparseBitMatrix<R, C> {
     where
         DenseBitSet<C>: BitRelations<Set>,
     {
-        match self.rows.get_mut(row.index()) {
-            Some(Some(row)) => row.intersect(set),
-            _ => false,
-        }
+        self.rows.get_mut(&row).is_some_and(|row| row.intersect(set))
     }
 
     /// Subtracts `set` from `row`. `set` can be either `DenseBitSet` or
@@ -1781,10 +1765,7 @@ impl<R: BitSetIndex, C: BitSetIndex> SparseBitMatrix<R, C> {
     where
         DenseBitSet<C>: BitRelations<Set>,
     {
-        match self.rows.get_mut(row.index()) {
-            Some(Some(row)) => row.subtract(set),
-            _ => false,
-        }
+        self.rows.get_mut(&row).is_some_and(|row| row.subtract(set))
     }
 
     /// Unions `row` with `set`. `set` can be either `DenseBitSet` or
@@ -1825,20 +1806,6 @@ fn chunk_index<T: BitSetIndex>(elem: T) -> usize {
 fn chunk_word_index_and_mask<T: BitSetIndex>(elem: T) -> (usize, Word) {
     let chunk_elem = elem.index() % CHUNK_BITS;
     word_index_and_mask_usize(chunk_elem)
-}
-
-fn pick2_mut<T>(slice: &mut [T], idx_1: usize, idx_2: usize) -> Option<(&mut T, &mut T)> {
-    if idx_1 == idx_2 || idx_1 >= slice.len() || idx_2 >= slice.len() {
-        return None;
-    }
-
-    if idx_1 < idx_2 {
-        let (left, right) = slice.split_at_mut(idx_2);
-        Some((&mut left[idx_1], &mut right[0]))
-    } else {
-        let (left, right) = slice.split_at_mut(idx_1);
-        Some((&mut right[0], &mut left[idx_2]))
-    }
 }
 
 fn clear_excess_bits_in_final_word(domain_size: usize, words: &mut [Word]) {

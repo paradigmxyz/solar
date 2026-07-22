@@ -26,6 +26,7 @@ use alloy_primitives::U256;
 use solar_config::OptimizationMode;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
+    index::IndexVec,
     map::FxHashMap,
 };
 use solar_interface::sym;
@@ -1164,10 +1165,12 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn generate_dispatcher(&mut self, module: &Module) {
         // Find executable receive and fallback functions. Interface/abstract declarations can
         // have ABI entries but no MIR body, so they must not participate in runtime dispatch.
-        let receive_idx =
-            module.functions.iter().position(|f| f.attributes.is_receive && Self::has_body(f));
-        let fallback_idx =
-            module.functions.iter().position(|f| f.attributes.is_fallback && Self::has_body(f));
+        let receive_idx = module.functions.iter_enumerated().find_map(|(func_id, func)| {
+            (func.attributes.is_receive && Self::has_body(func)).then_some(func_id)
+        });
+        let fallback_idx = module.functions.iter_enumerated().find_map(|(func_id, func)| {
+            (func.attributes.is_fallback && Self::has_body(func)).then_some(func_id)
+        });
 
         let call_graph = CallGraphInfo::new(module);
         let internal_targets = call_graph.reachable_bodies_from(
@@ -1193,7 +1196,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.compute_stack_arg_masks(module);
 
         // Create labels for externally reachable runtime entry points and internal-call targets.
-        let mut func_labels: Vec<Option<Label>> = Vec::new();
+        let mut func_labels = IndexVec::<FunctionId, Option<Label>>::new();
         for (func_id, func) in module.functions.iter_enumerated() {
             let external = Self::is_external_entry(func);
             let needs_body =
@@ -1258,16 +1261,15 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let mut selectors: Vec<_> = module
             .functions
-            .iter()
-            .enumerate()
-            .filter_map(|(i, func)| {
+            .iter_enumerated()
+            .filter_map(|(func_id, func)| {
                 if !Self::is_external_entry(func) {
                     return None;
                 }
                 let selector = func.selector?;
                 Some(SelectorDispatchEntry {
                     selector: u32::from_be_bytes(selector),
-                    label: func_labels[i].expect("selector label missing"),
+                    label: func_labels[func_id].expect("selector label missing"),
                 })
             })
             .collect();
@@ -1282,7 +1284,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !Self::is_external_entry(func) {
                 continue;
             }
-            let Some(label) = func_labels[func_id.index()] else { continue };
+            let Some(label) = func_labels[func_id] else { continue };
             self.asm.define_label(label);
 
             // The dispatcher's shr'd selector is still on the physical stack
@@ -1310,7 +1312,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if Self::is_external_entry(func) || !Self::has_body(func) {
                 continue;
             }
-            let Some(label) = func_labels[func_id.index()] else { continue };
+            let Some(label) = func_labels[func_id] else { continue };
             self.asm.define_label(label);
             self.emit_stack_arg_prologue(func_id, func);
             self.in_internal_function = true;

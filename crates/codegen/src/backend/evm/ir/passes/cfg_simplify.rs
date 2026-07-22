@@ -5,7 +5,10 @@ use crate::backend::evm::{
     ir::{BlockId, Module, PushValue, Terminator, TerminatorKind},
     op,
 };
-use solar_data_structures::bit_set::DenseBitSet;
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{Idx, IndexVec},
+};
 use solar_sema::Gcx;
 
 pub(super) fn run(_gcx: Gcx<'_>, module: &mut Module) -> bool {
@@ -31,10 +34,10 @@ pub(super) fn run(_gcx: Gcx<'_>, module: &mut Module) -> bool {
 }
 
 struct RunState {
-    thunks: Vec<Option<BlockId>>,
+    thunks: IndexVec<BlockId, Option<BlockId>>,
     reachable: DenseBitSet<BlockId>,
     pending: Vec<BlockId>,
-    references: Vec<usize>,
+    references: IndexVec<BlockId, usize>,
     retained: DenseBitSet<BlockId>,
     order: Vec<BlockId>,
 }
@@ -42,10 +45,10 @@ struct RunState {
 impl Default for RunState {
     fn default() -> Self {
         Self {
-            thunks: Vec::new(),
+            thunks: IndexVec::new(),
             reachable: DenseBitSet::new_empty(0),
             pending: Vec::new(),
-            references: Vec::new(),
+            references: IndexVec::new(),
             retained: DenseBitSet::new_empty(0),
             order: Vec::new(),
         }
@@ -54,15 +57,21 @@ impl Default for RunState {
 
 impl RunState {
     fn reserve(&mut self, blocks: usize) {
-        reserve_to(&mut self.thunks, blocks);
+        reserve_index_vec_to(&mut self.thunks, blocks);
         reserve_to(&mut self.pending, blocks);
-        reserve_to(&mut self.references, blocks);
+        reserve_index_vec_to(&mut self.references, blocks);
         reserve_to(&mut self.order, blocks);
     }
 }
 
 fn reserve_to<T>(values: &mut Vec<T>, capacity: usize) {
     if values.capacity() < capacity {
+        values.reserve(capacity - values.len());
+    }
+}
+
+fn reserve_index_vec_to<I: Idx, T>(values: &mut IndexVec<I, T>, capacity: usize) {
+    if values.as_vec().capacity() < capacity {
         values.reserve(capacity - values.len());
     }
 }
@@ -82,7 +91,10 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
     changed
 }
 
-fn redirect_jump_thunks(module: &mut Module, thunks: &mut Vec<Option<BlockId>>) -> bool {
+fn redirect_jump_thunks(
+    module: &mut Module,
+    thunks: &mut IndexVec<BlockId, Option<BlockId>>,
+) -> bool {
     thunks.clear();
     thunks.extend(module.blocks.iter().map(|block| {
         if block.instructions.is_empty() {
@@ -101,7 +113,7 @@ fn redirect_jump_thunks(module: &mut Module, thunks: &mut Vec<Option<BlockId>>) 
     let resolve = |start: BlockId| {
         let mut target = start;
         for _ in 0..thunks.len() {
-            let Some(next) = thunks[target.index()] else { break };
+            let Some(next) = thunks[target] else { break };
             if next == start {
                 return start;
             }
@@ -174,7 +186,7 @@ fn remove_unreachable_blocks(
 
 fn coalesce_blocks(
     module: &mut Module,
-    references: &mut Vec<usize>,
+    references: &mut IndexVec<BlockId, usize>,
     retained: &mut DenseBitSet<BlockId>,
     order: &mut Vec<BlockId>,
 ) -> bool {
@@ -183,11 +195,11 @@ fn coalesce_blocks(
     for block in &module.blocks {
         for inst in &block.instructions {
             if let Some(PushValue::Block(target)) = &inst.value {
-                references[target.index()] += 1;
+                references[*target] += 1;
             }
         }
         if let Some(term) = &block.terminator {
-            term.kind.visit_targets(|target| references[target.index()] += 1);
+            term.kind.visit_targets(|target| references[target] += 1);
         }
     }
 
@@ -206,7 +218,7 @@ fn coalesce_blocks(
             let target = *target;
             if target == predecessor
                 || Some(target) == module.entry_block
-                || references[target.index()] != 1
+                || references[target] != 1
                 || !retained.contains(target)
             {
                 break;

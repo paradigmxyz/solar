@@ -348,7 +348,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         };
         for reference in &mut self.function_refs {
             if let FunctionRefTarget::Terminator(block) = &mut reference.target {
-                *block = block_remap[block.index()];
+                *block = block_remap[*block];
             }
         }
 

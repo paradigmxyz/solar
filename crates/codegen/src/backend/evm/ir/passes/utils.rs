@@ -25,24 +25,23 @@ pub(super) fn retain_blocks(module: &mut Module, order: &[BlockId]) {
 }
 
 fn remap_blocks(module: &mut Module, order: &[BlockId]) {
-    let mut remap = vec![None; module.blocks.len()];
-    let mut old_blocks: Vec<Option<Block>> =
+    let mut remap = IndexVec::from_vec(vec![None; module.blocks.len()]);
+    let mut old_blocks: IndexVec<BlockId, Option<Block>> =
         std::mem::take(&mut module.blocks).into_iter().map(Some).collect();
     let mut blocks = IndexVec::with_capacity(order.len());
     for &old_block in order {
-        let block = old_blocks[old_block.index()]
-            .take()
-            .expect("block order must contain each block exactly once");
+        let block =
+            old_blocks[old_block].take().expect("block order must contain each block exactly once");
         let new_block = blocks.push(block);
-        remap[old_block.index()] = Some(new_block);
+        remap[old_block] = Some(new_block);
     }
     module.blocks = blocks;
     module.entry_block =
-        module.entry_block.map(|block| remap[block.index()].expect("entry block must be retained"));
+        module.entry_block.map(|block| remap[block].expect("entry block must be retained"));
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
             if let Some(PushValue::Block(block)) = &mut inst.value {
-                *block = remap[block.index()].expect("referenced block must be retained");
+                *block = remap[*block].expect("referenced block must be retained");
             }
         }
         if let Some(term) = &mut block.terminator {
@@ -51,8 +50,8 @@ fn remap_blocks(module: &mut Module, order: &[BlockId]) {
     }
 }
 
-fn remap_terminator_blocks(kind: &mut TerminatorKind, remap: &[Option<BlockId>]) {
+fn remap_terminator_blocks(kind: &mut TerminatorKind, remap: &IndexVec<BlockId, Option<BlockId>>) {
     kind.visit_targets_mut(|target| {
-        *target = remap[target.index()].expect("terminator target must be retained");
+        *target = remap[*target].expect("terminator target must be retained");
     });
 }
