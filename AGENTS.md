@@ -283,7 +283,7 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 - Put module documentation at the top of the module file with inner doc comments (`//! ...`), not on the `mod` item in the parent module.
 - NEVER put imports inside functions unless required for `#[cfg(...)]` gating. All imports go at the top of the file.
 - Group all `use` imports together. Keep `pub use` imports in a separate group. For local module re-exports, write `mod x;` before `pub use x;`; for re-exporting another module or external crate, use `use x;`, then a blank line, then `pub use y;`, then a blank line before local `mod my_mod; pub use my_mod::*;`.
-- Do not put `#[cfg(test)]` on individual imports. Move test-only imports into the `#[cfg(test)] mod tests` module.
+- Move ordinary test-only imports into the `#[cfg(test)] mod tests` module instead of gating them individually. Keep crate-level dependency anchors such as `#[cfg(test)] use cc as _;` at crate scope.
 - In `Cargo.toml`, generally group optional dependencies for a feature together. Put a comment immediately above the group containing only the feature name, for example `# jit`.
 - Prefer `let Some(x) = x else { return };` / `let Ok(x) = x else { return };` over `match x { Some(x) => x, _ => return }`.
 - Use `let ... else` only for a single early-exit guard. When multiple conditions or patterns gate the same block, prefer a combined `if let` / `let` chain instead of several sequential `let ... else` statements.

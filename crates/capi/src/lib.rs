@@ -14,6 +14,9 @@ use std::{
     ptr,
 };
 
+#[cfg(test)]
+use cc as _;
+
 mod alloc;
 
 type CStyleReadFileCallback = unsafe extern "C" fn(
@@ -144,7 +147,6 @@ unsafe fn take_c_string(ptr: *mut c_char) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cc as _;
 
     #[test]
     fn api_strings_are_available() {
