@@ -23,9 +23,9 @@ use crate::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
         FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
         JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, LowerAbiPass,
-        LowerDispatchPass, LowerEvmShapedPass, LowerMappingSlotsPass, MemoryDsePass,
-        OutlineRevertsPass, PrePass, PureEvalPass, SccpTransformPass, StaticAllocPass,
-        StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
+        LowerDispatchPass, LowerEvmShapedPass, LowerImmutablesPass, LowerMappingSlotsPass,
+        MemoryDsePass, OutlineRevertsPass, PrePass, PureEvalPass, SccpTransformPass,
+        StaticAllocPass, StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
     },
 };
 use solar_data_structures::map::FxHashMap;
@@ -172,6 +172,9 @@ declare_passes! {
     /// EVM-shape lowering: non-returning internal calls become tail calls.
     const LOWER_EVM_SHAPED_PASS_BASE -> "lower-evm-shaped" = LowerEvmShapedPass::default();
 
+    /// Lower immutable assignments to constructor staging memory.
+    pub(crate) const LOWER_IMMUTABLES_PASS -> "lower-immutables" = LowerImmutablesPass;
+
     /// Lower mapping-slot hash builtins to memory operations.
     pub(crate) const LOWER_MAPPING_SLOTS_PASS -> "lower-mapping-slots" = LowerMappingSlotsPass;
 }
@@ -219,6 +222,7 @@ pub const PASS_REGISTRY: &[PassInfo] = &[
     LOWER_ABI_PASS,
     LOWER_DISPATCH_PASS,
     LOWER_EVM_SHAPED_PASS,
+    LOWER_IMMUTABLES_PASS,
     OUTLINE_REVERTS_PASS,
     LOWER_MAPPING_SLOTS_PASS,
 ];

@@ -20,6 +20,7 @@ use crate::{
         CallGraphInfo, CfgInfo, CopyDest, CopySource, Liveness, Loop, LoopAnalyzer, ParallelCopy,
         PhiEliminator,
     },
+    immutable::{IMMUTABLE_STAGING_BASE, immutable_staging_addr, immutable_staging_end},
     mir::{
         BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind, MirType,
         Module, Terminator, ValueId,
@@ -40,8 +41,6 @@ use solar_sema::hir::StateMutability;
 // 0x80 is used as the static ABI return buffer. Keep the internal-call frame
 // pointer in a dedicated low word so frame loads use PUSH1 instead of PUSH2.
 const INTERNAL_FRAME_PTR_SLOT: u64 = 0xa0;
-/// Constructor memory used by the EVM backend to stage immutable words.
-const IMMUTABLE_SCRATCH_BASE: u64 = 0x2000;
 const LOW_MEMORY_START: u64 = 0x80;
 const CONSTRUCTOR_FREE_MEMORY_START: u64 = 0x4000;
 const CONSTRUCTOR_SPILL_BASE: u64 = 0x1000;
@@ -885,15 +884,11 @@ impl EvmCodegen {
                     .expect("immutable patch offset overflow"),
             )
         });
-        if !immutable_refs.is_empty() && patched_end as u64 > IMMUTABLE_SCRATCH_BASE {
-            IMMUTABLE_SCRATCH_BASE + (module.immutable_count() * EVM_WORD_BYTES) as u64
+        if !immutable_refs.is_empty() && patched_end as u64 > IMMUTABLE_STAGING_BASE {
+            immutable_staging_end(module.immutable_count())
         } else {
             0
         }
-    }
-
-    fn immutable_scratch_addr(id: ImmutableId) -> u64 {
-        IMMUTABLE_SCRATCH_BASE + (id.index() * EVM_WORD_BYTES) as u64
     }
 
     fn emit_deployment_postlude(
@@ -932,7 +927,7 @@ impl EvmCodegen {
         let byte_width = immutable_ref.type_size.bytes();
         let destination = copy_base + immutable_ref.code_offset as u64 + 1;
 
-        self.asm.emit_push(U256::from(Self::immutable_scratch_addr(immutable_ref.id)));
+        self.asm.emit_push(U256::from(immutable_staging_addr(immutable_ref.id)));
         self.asm.emit_op(op::MLOAD);
 
         if byte_width < 32 {
@@ -964,7 +959,7 @@ impl EvmCodegen {
     fn emit_load_immutable(&mut self, id: ImmutableId) {
         if self.in_constructor {
             // The running constructor's own placeholders are never patched.
-            self.asm.emit_push(U256::from(Self::immutable_scratch_addr(id)));
+            self.asm.emit_push(U256::from(immutable_staging_addr(id)));
             self.asm.emit_op(op::MLOAD);
             return;
         }
@@ -987,25 +982,6 @@ impl EvmCodegen {
                 self.asm.emit_op(op::SHL);
             }
         }
-    }
-
-    fn emit_store_immutable(
-        &mut self,
-        func: &Function,
-        id: ImmutableId,
-        value: ValueId,
-        liveness: &Liveness,
-        block: BlockId,
-        inst_idx: usize,
-    ) {
-        debug_assert!(self.in_constructor, "immutable stores must execute during construction");
-        self.emit_value(func, value);
-        if !self.block_local_copy_survives(liveness, block, value, 1) {
-            self.spill_top_value_if_live(func, liveness, block, inst_idx, value);
-        }
-        self.asm.emit_push(U256::from(Self::immutable_scratch_addr(id)));
-        self.asm.emit_op(op::MSTORE);
-        self.scheduler.instruction_executed(1, None);
     }
 
     /// Generates constructor code that runs during deployment.
@@ -1193,6 +1169,9 @@ impl EvmCodegen {
             run_pass(module, &crate::pass::LOWER_DISPATCH_PASS, options);
             run_pass(module, &crate::pass::LOWER_EVM_SHAPED_PASS, options);
         }
+        // Preserve semantic immutable assignments through optimization, then
+        // expose their concrete constructor-memory writes to the backend.
+        run_pass(module, &crate::pass::LOWER_IMMUTABLES_PASS, options);
     }
 
     /// Generates runtime bytecode for a module.
@@ -3134,8 +3113,8 @@ impl EvmCodegen {
                 self.asm.emit_op(op::CODESIZE);
                 self.scheduler.instruction_executed(0, result_value);
             }
-            InstKind::StoreImmutable { id, value } => {
-                self.emit_store_immutable(func, *id, *value, liveness, block, inst_idx);
+            InstKind::StoreImmutable { .. } => {
+                unreachable!("immutable stores must be lowered before EVM codegen")
             }
             InstKind::LoadImmutable { id } => {
                 self.emit_load_immutable(*id);
@@ -5176,7 +5155,7 @@ mod tests {
             Ident::with_dummy_span(sym::x),
             MirType::UInt(TypeSize::new_int_bits(8)),
         );
-        let runtime_len = IMMUTABLE_SCRATCH_BASE as usize;
+        let runtime_len = IMMUTABLE_STAGING_BASE as usize;
 
         let full_word = ImmutableRef {
             id,
@@ -5189,7 +5168,7 @@ mod tests {
             ImmutableRef { id, code_offset: runtime_len - 2, type_size: TypeSize::new_int_bits(8) };
         assert_eq!(
             EvmCodegen::runtime_copy_base(&module, runtime_len, &[short]),
-            IMMUTABLE_SCRATCH_BASE + EVM_WORD_BYTES as u64
+            immutable_staging_end(1)
         );
     }
 

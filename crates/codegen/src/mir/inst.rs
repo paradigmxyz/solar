@@ -497,6 +497,7 @@ pub(crate) enum InstKind {
     /// Get external code hash: `extcodehash(addr)`
     ExtCodeHash(ValueId),
     /// Assign an immutable during construction: `storeimmutable <name>, value`.
+    /// Lowered to constructor staging memory after MIR optimization.
     StoreImmutable { id: ImmutableId, value: ValueId },
     /// Read an immutable declared by the module: `loadimmutable <name>`.
     ///

@@ -21,6 +21,7 @@ pub(crate) const MULTI_RETURN_BUFFER_PTR_SLOT: u64 = 0x20;
 pub mod mir;
 
 mod analysis;
+mod immutable;
 
 pub mod backend;
 pub use backend::{
