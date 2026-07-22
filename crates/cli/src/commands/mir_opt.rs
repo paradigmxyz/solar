@@ -79,9 +79,6 @@ pub(crate) struct MirOptArgs {
         conflicts_with = "pipeline_default"
     )]
     passes: Option<Vec<Option<&'static PassInfo>>>,
-    /// If true, print MIR after every pass; otherwise only after the last.
-    #[arg(long)]
-    print_after_each: bool,
     /// Run the same pass pipeline as EvmCodegen::run_optimization_passes.
     #[arg(long, conflicts_with = "passes")]
     pipeline_default: bool,
@@ -125,9 +122,10 @@ fn selected_pass_list_label(passes: &[Option<&PassInfo>], separator: &str) -> St
 /// Runs the pass pipeline on a single module and emits output.
 /// Used for both .sol contracts and .mir input.
 fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: &str, args: &MirOptArgs) {
+    let print_after_each = gcx.sess.opts.unstable.mir_print_after_each;
     if args.pipeline_default {
         run_default_pipeline(gcx, module);
-        if !args.print_after_each {
+        if !print_after_each {
             print_module(module, name, "pipeline-default");
         }
         return;
@@ -143,8 +141,8 @@ fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: &str, args: &MirOptArgs
         if let Some(before) = before {
             let after = module.to_text().to_string();
             print_pass_diff(name, pass_label(pass), &before, &after);
-        } else if args.print_after_each || index + 1 == passes.len() {
-            let label = if args.print_after_each { pass_label(pass) } else { &pipeline_label };
+        } else if print_after_each || index + 1 == passes.len() {
+            let label = if print_after_each { pass_label(pass) } else { &pipeline_label };
             print_module(module, name, label);
         }
     }
@@ -200,7 +198,6 @@ fn process_sol(compiler: &mut CompilerRef<'_>, args: &MirOptArgs) -> solar_inter
 /// Entry point for the `mir-opt` subcommand.
 pub(super) fn run(args: MirOptArgs, mut opts: CompileOpts) -> ExitCode {
     opts.input.push(args.input.clone());
-    opts.unstable.mir_print_after_each = args.print_after_each;
     // Dispatch on input file extension.
     let ext = Path::new(&args.input).extension().and_then(|s| s.to_str()).unwrap_or("");
     let result = match ext {
