@@ -1,6 +1,5 @@
-//@ignore-host: windows
 //@compile-flags: -Zcodegen -Zdump=evm-ir
-//@filecheck: --check-prefix=WIDTH
+//@filecheck:
 
 type Tiny is uint16;
 
@@ -26,13 +25,13 @@ contract ImmutableWidths {
     }
 }
 
-// WIDTH: push_immutable 0, 1
-// WIDTH: push_immutable 1, 2
-// WIDTH-NEXT: push 1
-// WIDTH-NEXT: signextend
-// WIDTH: push_immutable 2, 3
-// WIDTH-NEXT: push 232
-// WIDTH-NEXT: shl
-// WIDTH: push_immutable 3, 20
-// WIDTH: push_immutable 4, 32
-// WIDTH: push_immutable 5, 2
+// CHECK: push_immutable 0, 1
+// CHECK: push_immutable 1, 2
+// CHECK-NEXT: push 1
+// CHECK-NEXT: signextend
+// CHECK: push_immutable 2, 3
+// CHECK-NEXT: push 232
+// CHECK-NEXT: shl
+// CHECK: push_immutable 3, 20
+// CHECK: push_immutable 4, 32
+// CHECK: push_immutable 5, 2
