@@ -1,9 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/immutable_getter.sol:C ===
 @module C
+immutables:
+  owner: address
+
 fn @owner() {
   bb0 (entry):
     mstore 128, 0
-    v0 = loadimmutable 0, address
+    v0 = loadimmutable owner
     mstore 128, v0
     returndata 128, 32
 }
@@ -17,7 +20,7 @@ fn @_anonymous(arg0: address) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 0x2000, arg0
+    storeimmutable owner, arg0
     stop
 }
 

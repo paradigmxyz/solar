@@ -1,5 +1,8 @@
 //@compile-flags: --pass cse
 @module CseGlobalLoads
+immutables:
+  value: u256
+
 fn @dominating_mload(arg0: bool) -> u256 {
   bb0 (entry):
     mstore 0, 11
@@ -24,5 +27,18 @@ fn @dominating_sload(arg0: bool) -> u256 {
   bb2:
     sstore 0, 7
     v3 = sload 0
+    ret v3
+}
+
+fn @dominating_loadimmutable(arg0: bool) -> u256 {
+  bb0 (entry):
+    v1 = loadimmutable value
+    br arg0, bb1, bb2
+  bb1:
+    v2 = loadimmutable value
+    ret v2
+  bb2:
+    storeimmutable value, 7
+    v3 = loadimmutable value
     ret v3
 }

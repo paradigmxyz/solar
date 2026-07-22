@@ -386,6 +386,11 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::LoadImmutable { id, ty }, Some(ty))
     }
 
+    /// Emits a storeimmutable instruction.
+    pub(crate) fn store_immutable(&mut self, id: ImmutableId, value: ValueId) {
+        self.emit_void_inst(InstKind::StoreImmutable { id, value })
+    }
+
     /// Emits an extcodecopy instruction.
     pub(crate) fn extcodecopy(
         &mut self,

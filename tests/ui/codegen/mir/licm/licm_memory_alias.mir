@@ -1,5 +1,8 @@
 //@compile-flags: --pass licm
 @module LicmMemoryAlias
+immutables:
+  value: u256
+
 fn @hoist_non_aliasing_mload() -> u256 {
   bb0 (entry):
     jump bb1
@@ -50,4 +53,31 @@ fn @keep_aliasing_keccak() -> bytes32 {
     jump bb1
   bb3:
     ret v0
+}
+
+fn @hoist_unassigned_immutable() -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    br true, bb2, bb3
+  bb2:
+    v0 = loadimmutable value
+    v1 = mul v0, 2
+    jump bb1
+  bb3:
+    ret v1
+}
+
+fn @keep_assigned_immutable() -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    br true, bb2, bb3
+  bb2:
+    v0 = loadimmutable value
+    v1 = mul v0, 2
+    storeimmutable value, 1
+    jump bb1
+  bb3:
+    ret v1
 }

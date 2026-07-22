@@ -23,13 +23,19 @@ type Tiny is uint16;
 
 contract ImmutableArgs {
     uint8 public immutable tiny;
+    uint8 public immutable reassigned;
     int16 public immutable signed;
     bytes3 public immutable fixedBytes = bytes3(uint24(0xABCDEF));
     address public immutable account;
     Tiny public immutable userDefined;
+    uint8 public observedBeforeReassignment;
 
     constructor(uint8 tiny_, int16 signed_, address account_, Tiny userDefined_) {
         tiny = tiny_;
+        reassigned = tiny_;
+        uint8 previous = reassigned;
+        reassigned = tiny_ + 1;
+        observedBeforeReassignment = previous;
         signed = signed_;
         account = account_;
         userDefined = userDefined_;

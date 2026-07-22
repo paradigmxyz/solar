@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/mir/cse/cse_global_loads.mir (after cse) ===
 @module CseGlobalLoads
+immutables:
+  value: u256
+
 fn @dominating_mload(arg0: bool) -> u256 {
   bb0 (entry):
     mstore 0, 11
@@ -22,5 +25,17 @@ fn @dominating_sload(arg0: bool) -> u256 {
   bb2:
     sstore 0, 7
     v2 = sload 0
+    ret v2
+}
+
+fn @dominating_loadimmutable(arg0: bool) -> u256 {
+  bb0 (entry):
+    v0 = loadimmutable value
+    br arg0, bb1, bb2
+  bb1:
+    ret v0
+  bb2:
+    storeimmutable value, 7
+    v2 = loadimmutable value
     ret v2
 }

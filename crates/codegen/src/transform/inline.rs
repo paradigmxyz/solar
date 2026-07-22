@@ -104,6 +104,7 @@ struct MirInlineSummary {
     has_phi: bool,
     has_external_call: bool,
     has_storage_write: bool,
+    has_immutable_write: bool,
     has_log: bool,
     has_control_flow: bool,
     has_unsupported_terminator: bool,
@@ -348,7 +349,10 @@ impl MirInliner {
         // code-growth check below.
         if !single_call
             && site.loop_depth == 0
-            && (summary.has_storage_write || summary.has_external_call || summary.has_log)
+            && (summary.has_storage_write
+                || summary.has_immutable_write
+                || summary.has_external_call
+                || summary.has_log)
             && summary.estimated_code_size
                 > estimated_internal_call_code_size(site)
                     + estimated_internal_return_code_size(summary, site)
@@ -418,6 +422,7 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
                     summary.has_external_call = true;
                 }
                 InstKind::SStore(..) | InstKind::TStore(..) => summary.has_storage_write = true,
+                InstKind::StoreImmutable { .. } => summary.has_immutable_write = true,
                 InstKind::Log0(..)
                 | InstKind::Log1(..)
                 | InstKind::Log2(..)
@@ -518,6 +523,7 @@ fn estimate_inst_cost(kind: &InstKind) -> MirCost {
         InstKind::AddMod(..) | InstKind::MulMod(..) => (8, 1),
         InstKind::SLoad(..) | InstKind::TLoad(..) => (100, 1),
         InstKind::SStore(..) | InstKind::TStore(..) => (5_000, 1),
+        InstKind::StoreImmutable { .. } => (6, 4),
         InstKind::MCopy(..)
         | InstKind::CalldataCopy(..)
         | InstKind::CodeCopy(..)
@@ -841,6 +847,9 @@ impl<'a> InlineCloner<'a> {
                 InstKind::InternalFrameAddr(self.frame_base + local_offset)
             }
             InstKind::CodeSize => InstKind::CodeSize,
+            InstKind::StoreImmutable { id, value } => {
+                InstKind::StoreImmutable { id, value: self.clone_value(value)? }
+            }
             InstKind::LoadImmutable { id, ty } => InstKind::LoadImmutable { id, ty },
             InstKind::CodeCopy(a, b, c) => {
                 InstKind::CodeCopy(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)

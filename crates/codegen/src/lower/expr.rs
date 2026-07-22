@@ -620,7 +620,7 @@ impl<'gcx> Lowerer<'gcx> {
                     }
 
                     // Check if it's an immutable - load from appended runtime data.
-                    if let Some(&id) = self.immutable_slots.get(var_id) {
+                    if let Some(&id) = self.immutable_ids.get(var_id) {
                         return self.load_immutable_value(builder, id);
                     }
 
@@ -1266,8 +1266,8 @@ impl<'gcx> Lowerer<'gcx> {
                     } else if self.locals.contains_key(var_id) {
                         // Function parameter - update SSA mapping (shouldn't happen normally)
                         self.locals.insert(*var_id, rhs);
-                    } else if let Some(&id) = self.immutable_slots.get(var_id) {
-                        self.store_immutable_value(builder, id, rhs);
+                    } else if let Some(&id) = self.immutable_ids.get(var_id) {
+                        builder.store_immutable(id, rhs);
                     } else if let Some(&location) = self.storage_locations.get(var_id) {
                         let base_slot = location.slot;
                         // Check if this is a struct assignment (memory struct -> storage struct)

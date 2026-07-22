@@ -33,6 +33,8 @@ contract ConstructorArgsTest {
 
     function test_ImmutableArgs() public view {
         assert(immutableArgs.tiny() == 0xAB);
+        assert(immutableArgs.reassigned() == 0xAC);
+        assert(immutableArgs.observedBeforeReassignment() == 0xAB);
         assert(immutableArgs.signed() == -1234);
         assert(immutableArgs.fixedBytes() == 0xABCDEF);
         assert(immutableArgs.account() == TEST_OWNER);

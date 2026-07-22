@@ -13,12 +13,9 @@ mod stmt;
 mod storage;
 mod type_query;
 
-use crate::{
-    IMMUTABLE_SCRATCH_BASE,
-    mir::{
-        BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, ImmutableId, MirType,
-        Module, TypeSize, ValueId,
-    },
+use crate::mir::{
+    BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, ImmutableId, MirType,
+    Module, TypeSize, ValueId,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -67,7 +64,7 @@ pub(crate) struct Lowerer<'gcx> {
     /// Next available byte offset in `next_storage_slot` for packed variables.
     next_storage_offset: u8,
     /// Mapping from HIR immutable variable IDs to MIR immutable IDs.
-    immutable_slots: FxHashMap<VariableId, ImmutableId>,
+    immutable_ids: FxHashMap<VariableId, ImmutableId>,
     /// Mapping from HIR variable IDs to MIR values (for local variables).
     /// For SSA-style immutable variables (function params and non-mutated locals).
     locals: FxHashMap<VariableId, ValueId>,
@@ -162,7 +159,7 @@ impl<'gcx> Lowerer<'gcx> {
             storage_locations: FxHashMap::default(),
             next_storage_slot: 0,
             next_storage_offset: 0,
-            immutable_slots: FxHashMap::default(),
+            immutable_ids: FxHashMap::default(),
             locals: FxHashMap::default(),
             local_memory_slots: FxHashMap::default(),
             next_local_memory_offset: 0x80, // Start after Solidity's scratch space
@@ -260,39 +257,13 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Returns the constructor scratch address for an immutable word.
-    pub(crate) fn immutable_scratch_addr(id: ImmutableId) -> u64 {
-        IMMUTABLE_SCRATCH_BASE + id.scratch_offset()
-    }
-
-    /// Stages an immutable word in constructor memory.
-    pub(crate) fn store_immutable_value(
-        &self,
-        builder: &mut FunctionBuilder<'_>,
-        id: ImmutableId,
-        value: ValueId,
-    ) {
-        let addr = builder.imm_u64(Self::immutable_scratch_addr(id));
-        builder.mstore(addr, value);
-    }
-
-    /// Loads an immutable word.
-    ///
-    /// Runtime code reads a typed `PUSH<N>` placeholder that the constructor patches
-    /// with the staged value before returning the runtime code. The running
-    /// constructor's own placeholders are never patched, so constructor-context
-    /// reads load the staged scratch word instead.
+    /// Loads an immutable value.
     pub(crate) fn load_immutable_value(
         &self,
         builder: &mut FunctionBuilder<'_>,
         id: ImmutableId,
     ) -> ValueId {
-        if self.lowering_constructor {
-            let addr = builder.imm_u64(Self::immutable_scratch_addr(id));
-            builder.mload(addr)
-        } else {
-            builder.load_immutable(id, self.module.immutable_type(id))
-        }
+        builder.load_immutable(id, self.module.immutable_type(id))
     }
 
     /// Registers a contract's bytecode for use in `new` expressions.
@@ -490,8 +461,9 @@ impl<'gcx> Lowerer<'gcx> {
                 // runtime-code `PUSH<N>` placeholders at deploy time.
                 if var.is_state_variable() && var.is_immutable() {
                     let ty = self.lower_type_from_var(var);
-                    let id = self.module.add_immutable(ty);
-                    self.immutable_slots.insert(var_id, id);
+                    let name = var.name.expect("state immutable must be named");
+                    let id = self.module.add_immutable(name, ty);
+                    self.immutable_ids.insert(var_id, id);
                 } else if var.is_state_variable() && !var.is_constant() {
                     let var_ty = self.gcx.type_of_hir_ty(&var.ty);
                     let location = self.allocate_storage_location(var_ty, var.ty.span);
@@ -1305,8 +1277,8 @@ impl<'gcx> Lowerer<'gcx> {
                     && let Some(init) = var.initializer
                 {
                     let init_val = self.lower_expr(builder, init);
-                    if let Some(&offset) = self.immutable_slots.get(&var_id) {
-                        self.store_immutable_value(builder, offset, init_val);
+                    if let Some(&id) = self.immutable_ids.get(&var_id) {
+                        builder.store_immutable(id, init_val);
                     } else if let Some(&location) = self.storage_locations.get(&var_id) {
                         self.store_storage_location(builder, location, init_val);
                     }

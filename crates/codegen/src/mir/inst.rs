@@ -160,6 +160,8 @@ impl MetadataFlags {
             10 => Some(EffectKind::InternalCall),
             11 => Some(EffectKind::Create),
             12 => Some(EffectKind::Log),
+            13 => Some(EffectKind::ImmutableRead),
+            14 => Some(EffectKind::ImmutableWrite),
             _ => unreachable!("invalid packed effect kind"),
         }
     }
@@ -179,6 +181,8 @@ impl MetadataFlags {
             Some(EffectKind::InternalCall) => 10,
             Some(EffectKind::Create) => 11,
             Some(EffectKind::Log) => 12,
+            Some(EffectKind::ImmutableRead) => 13,
+            Some(EffectKind::ImmutableWrite) => 14,
         } << Self::EFFECT_SHIFT;
         self.0 = (self.0 & !Self::EFFECT_MASK) | bits;
     }
@@ -334,6 +338,10 @@ pub(crate) enum EffectKind {
     Create,
     /// Event emission.
     Log,
+    /// Read from an immutable.
+    ImmutableRead,
+    /// Constructor assignment to an immutable.
+    ImmutableWrite,
 }
 
 impl EffectKind {
@@ -353,6 +361,8 @@ impl EffectKind {
             Self::InternalCall => "internal_call",
             Self::Create => "create",
             Self::Log => "log",
+            Self::ImmutableRead => "immutable_read",
+            Self::ImmutableWrite => "immutable_write",
         }
     }
 }
@@ -486,7 +496,9 @@ pub(crate) enum InstKind {
     ExtCodeCopy(ValueId, ValueId, ValueId, ValueId),
     /// Get external code hash: `extcodehash(addr)`
     ExtCodeHash(ValueId),
-    /// Read a typed immutable identified by its module index: `loadimmutable <id>, <type>`
+    /// Assign an immutable during construction: `storeimmutable <name>, value`.
+    StoreImmutable { id: ImmutableId, value: ValueId },
+    /// Read a typed immutable declared by the module: `loadimmutable <name>`.
     ///
     /// In runtime code this assembles to a typed `PUSH<N>` placeholder that the
     /// constructor patches with the staged value before returning the runtime
@@ -668,7 +680,8 @@ impl InstKind {
             | Self::ExtCodeHash(a)
             | Self::Balance(a)
             | Self::BlockHash(a)
-            | Self::BlobHash(a) => {
+            | Self::BlobHash(a)
+            | Self::StoreImmutable { value: a, .. } => {
                 out.push(*a);
             }
 
@@ -831,7 +844,8 @@ impl InstKind {
             | Self::ExtCodeHash(a)
             | Self::Balance(a)
             | Self::BlockHash(a)
-            | Self::BlobHash(a) => f(a),
+            | Self::BlobHash(a)
+            | Self::StoreImmutable { value: a, .. } => f(a),
 
             Self::MCopy(a, b, c)
             | Self::CalldataCopy(a, b, c)
@@ -1016,6 +1030,7 @@ impl InstKind {
             Self::CalldataSize => "calldatasize",
             Self::CodeSize => "codesize",
             Self::CodeCopy(_, _, _) => "codecopy",
+            Self::StoreImmutable { .. } => "storeimmutable",
             Self::LoadImmutable { .. } => "loadimmutable",
             Self::ExtCodeSize(_) => "extcodesize",
             Self::ExtCodeCopy(_, _, _, _) => "extcodecopy",
@@ -1094,6 +1109,8 @@ impl InstKind {
             | Self::CodeCopy(_, _, _)
             | Self::ExtCodeCopy(_, _, _, _)
             | Self::ReturnDataCopy(_, _, _)
+            // Immutable assignment.
+            | Self::StoreImmutable { .. }
         )
     }
 
@@ -1108,6 +1125,7 @@ impl InstKind {
             | Self::CodeCopy(_, _, _)
             | Self::ExtCodeCopy(_, _, _, _)
             | Self::ReturnDataCopy(_, _, _) => EffectKind::MemoryWrite,
+            Self::StoreImmutable { .. } => EffectKind::ImmutableWrite,
             Self::MLoad(_)
             | Self::MSize
             | Self::Keccak256(_, _)
@@ -1130,7 +1148,6 @@ impl InstKind {
             | Self::MappingSlotCalldata(_, _)
             | Self::CalldataSize
             | Self::CodeSize
-            | Self::LoadImmutable { .. }
             | Self::ExtCodeSize(_)
             | Self::ExtCodeHash(_)
             | Self::ReturnDataSize
@@ -1152,6 +1169,7 @@ impl InstKind {
             | Self::BaseFee
             | Self::BlobBaseFee
             | Self::BlobHash(_) => EffectKind::EnvironmentRead,
+            Self::LoadImmutable { .. } => EffectKind::ImmutableRead,
             Self::Add(_, _)
             | Self::MappingSlot(_, _)
             | Self::Sub(_, _)

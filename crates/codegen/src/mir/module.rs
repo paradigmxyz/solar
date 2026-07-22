@@ -7,15 +7,13 @@ use solar_data_structures::{
 };
 use solar_interface::{Ident, Symbol, sym};
 
-/// One staged immutable value occupies one EVM word in constructor scratch memory.
-pub(crate) const IMMUTABLE_SCRATCH_WORD_SIZE: usize = 32;
-
-impl ImmutableId {
-    /// Returns this immutable's byte offset in the constructor scratch area.
-    #[must_use]
-    pub(crate) fn scratch_offset(self) -> u64 {
-        self.index() as u64 * IMMUTABLE_SCRATCH_WORD_SIZE as u64
-    }
+/// A named immutable declared by a MIR module.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Immutable {
+    /// The source-level name used by textual MIR.
+    pub(crate) name: Ident,
+    /// The immutable's MIR type.
+    pub(crate) ty: MirType,
 }
 
 /// The lowering phase a [`Module`] is in.
@@ -90,8 +88,8 @@ pub struct Module {
     pub(crate) name: Ident,
     /// All functions in this module.
     pub(crate) functions: IndexVec<FunctionId, Function>,
-    /// Immutable types indexed by their stable MIR identifiers.
-    immutables: IndexVec<ImmutableId, MirType>,
+    /// Named immutable declarations indexed by their stable MIR identifiers.
+    immutables: IndexVec<ImmutableId, Immutable>,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
     /// Whether optimization passes should favor bytecode size over runtime
@@ -153,28 +151,39 @@ impl Module {
         &mut self.functions[id]
     }
 
-    /// Adds an immutable and returns its stable identifier.
-    pub(crate) fn add_immutable(&mut self, ty: MirType) -> ImmutableId {
-        self.immutables.push(ty)
+    /// Adds a named immutable and returns its stable identifier.
+    pub(crate) fn add_immutable(&mut self, name: Ident, ty: MirType) -> ImmutableId {
+        self.immutables.push(Immutable { name, ty })
+    }
+
+    /// Returns an immutable declaration.
+    #[must_use]
+    pub(crate) fn immutable(&self, id: ImmutableId) -> &Immutable {
+        &self.immutables[id]
+    }
+
+    /// Returns an immutable declaration if the identifier is allocated.
+    #[must_use]
+    pub(crate) fn get_immutable(&self, id: ImmutableId) -> Option<&Immutable> {
+        self.immutables.get(id)
     }
 
     /// Returns an immutable's MIR type.
     #[must_use]
     pub(crate) fn immutable_type(&self, id: ImmutableId) -> MirType {
-        self.immutables[id]
+        self.immutable(id).ty
     }
 
     /// Returns an immutable's MIR type if the identifier is allocated.
     #[must_use]
     pub(crate) fn get_immutable_type(&self, id: ImmutableId) -> Option<MirType> {
-        self.immutables.get(id).copied()
+        self.get_immutable(id).map(|immutable| immutable.ty)
     }
 
-    /// Returns the size in bytes of the constructor scratch area that stages
-    /// immutable words before they are patched into the runtime code.
+    /// Returns the number of immutable declarations.
     #[must_use]
-    pub(crate) fn immutable_data_len(&self) -> usize {
-        self.immutables.len() * IMMUTABLE_SCRATCH_WORD_SIZE
+    pub(crate) fn immutable_count(&self) -> usize {
+        self.immutables.len()
     }
 
     /// Returns an iterator over all functions.
@@ -189,12 +198,19 @@ impl Module {
             if self.phase != MirPhase::default() {
                 writeln!(f, "@phase {}", self.phase.name())?;
             }
+            if !self.immutables.is_empty() {
+                writeln!(f, "immutables:")?;
+                for immutable in &self.immutables {
+                    writeln!(f, "  {}: {}", immutable.name, immutable.ty)?;
+                }
+                writeln!(f)?;
+            }
             write!(
                 f,
                 "{}",
                 self.functions
                     .iter()
-                    .map(|func| super::display::display_function_text(func, Some(&self.functions)))
+                    .map(|func| super::display::display_function_text(func, Some(self)))
                     .format("\n")
             )
         })
@@ -208,7 +224,7 @@ impl Module {
                 "{}",
                 self.functions
                     .iter()
-                    .map(|func| super::display::display_function_dot(func, Some(&self.functions)))
+                    .map(|func| super::display::display_function_dot(func, Some(self)))
                     .format("\n\n")
             )
         })

@@ -157,6 +157,10 @@ enum Clobber {
     Transient(StorageAlias),
     /// An effect that may mutate any transient-storage slot.
     AllTransient,
+    /// An assignment to one immutable.
+    Immutable(ImmutableId),
+    /// An effect that may assign any immutable.
+    AllImmutables,
     /// An effect that may change account balances or deployed code.
     AccountEnvironment,
 }
@@ -486,7 +490,7 @@ impl CommonSubexprEliminator {
     fn is_path_sensitive_expr(key: &ExprKey) -> bool {
         Self::is_memory_expr(key)
             || Self::is_account_environment_expr(key)
-            || matches!(key, ExprKey::SLoad(_) | ExprKey::TLoad(_))
+            || matches!(key, ExprKey::SLoad(_) | ExprKey::TLoad(_) | ExprKey::LoadImmutable(..))
     }
 
     fn is_path_sensitive_kind(kind: &InstKind) -> bool {
@@ -501,6 +505,7 @@ impl CommonSubexprEliminator {
                 | InstKind::ExtCodeHash(_)
                 | InstKind::Balance(_)
                 | InstKind::SelfBalance
+                | InstKind::LoadImmutable { .. }
         )
     }
 
@@ -767,6 +772,7 @@ impl CommonSubexprEliminator {
                     replacements,
                 )));
             }
+            InstKind::StoreImmutable { id, .. } => clobbers.push(Clobber::Immutable(id)),
             _ if kind.may_mutate_memory() => {
                 clobbers.push(Clobber::Memory(None));
                 if Self::may_change_account_environment(kind) {
@@ -777,6 +783,9 @@ impl CommonSubexprEliminator {
                 }
                 if kind.may_mutate_transient_storage() {
                     clobbers.push(Clobber::AllTransient);
+                }
+                if matches!(kind, InstKind::InternalCall { .. }) {
+                    clobbers.push(Clobber::AllImmutables);
                 }
             }
             _ if kind.may_mutate_storage() => clobbers.push(Clobber::AllStorage),
@@ -806,6 +815,14 @@ impl CommonSubexprEliminator {
             }
             Clobber::AllTransient => {
                 expr_cache.retain(|key, _| !matches!(key, ExprKey::TLoad(_)));
+            }
+            Clobber::Immutable(id) => {
+                expr_cache.retain(
+                    |key, _| !matches!(key, ExprKey::LoadImmutable(cached, _) if *cached == id),
+                );
+            }
+            Clobber::AllImmutables => {
+                expr_cache.retain(|key, _| !matches!(key, ExprKey::LoadImmutable(..)));
             }
             Clobber::AccountEnvironment => {
                 expr_cache.retain(|key, _| !Self::is_account_environment_expr(key));

@@ -10,10 +10,6 @@
 extern crate derive_more as _;
 extern crate tracing as _;
 
-/// Constructor scratch memory used to stage immutable words before appending
-/// them to runtime bytecode.
-pub(crate) const IMMUTABLE_SCRATCH_BASE: u64 = 0x2000;
-
 /// Scratch word holding the base of the ephemeral multi-return buffer.
 ///
 /// The returned words themselves live at the current free-memory pointer so

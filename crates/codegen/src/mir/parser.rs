@@ -4,11 +4,14 @@
 //!
 //! ```text
 //! @module Counter
-//! fn @increment() {
+//! immutables:
+//!   initial: u256
+//!
+//! fn @constructor() {
 //!   bb0 (entry):
-//!     v0 = sload 0
+//!     v0 = loadimmutable initial
 //!     v1 = add v0, 1
-//!     sstore 0, v1
+//!     storeimmutable initial, v1
 //!     stop
 //! }
 //! ```
@@ -101,6 +104,8 @@ struct Parser<'sess, 'ast> {
     block_labels: FxHashMap<u32, BlockLabel>,
     block_order: Vec<BlockId>,
     value_labels: FxHashMap<u32, ValueId>,
+    immutable_names: FxHashMap<Symbol, (ImmutableId, MirType)>,
+    immutable_types: Vec<MirType>,
 }
 
 struct PendingFunctionRef {
@@ -131,6 +136,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             block_labels: FxHashMap::default(),
             block_order: Vec::new(),
             value_labels: FxHashMap::default(),
+            immutable_names: FxHashMap::default(),
+            immutable_types: Vec::new(),
         }
     }
 
@@ -195,44 +202,37 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         module.phase = phase;
         let mut function_refs = Vec::new();
 
+        if self.parser.check_keyword(sym::immutables) {
+            self.parse_immutable_declarations(&mut module)?;
+        }
+
         while !self.parser.is_eof() {
             let func = self.parse_function()?;
             let function = module.add_function(func);
             function_refs
                 .extend(self.function_refs.drain(..).map(|reference| (function, reference)));
         }
-        self.reconstruct_immutables(&mut module)?;
         self.resolve_function_refs(&mut module, function_refs)?;
 
         Ok(module)
     }
 
-    fn reconstruct_immutables(&self, module: &mut Module) -> PResult<'sess, ()> {
-        let mut types = FxHashMap::default();
-        for (_, function) in module.iter_functions() {
-            for inst in &function.instructions {
-                let InstKind::LoadImmutable { id, ty } = inst.kind else { continue };
-                if let Some(previous) = types.insert(id, ty)
-                    && previous != ty
-                {
-                    return Err(self.parser.error(format!(
-                        "immutable {} has conflicting types `{previous}` and `{ty}`",
-                        id.index()
-                    )));
-                }
-            }
-        }
-
-        let mut types: Vec<_> = types.into_iter().collect();
-        types.sort_unstable_by_key(|(id, _)| id.index());
-        for (expected, (id, ty)) in types.into_iter().enumerate() {
-            if id.index() != expected {
+    fn parse_immutable_declarations(&mut self, module: &mut Module) -> PResult<'sess, ()> {
+        self.parser.expect_keyword(sym::immutables)?;
+        self.parser.expect(TokenKind::Colon)?;
+        while !self.parser.is_eof() && !self.parser.check_keyword(sym::fn_) {
+            let name_span = self.parser.token().span;
+            let name = self.parser.parse_ident()?;
+            self.parser.expect(TokenKind::Colon)?;
+            let ty = self.parse_type()?;
+            if self.immutable_names.contains_key(&name) {
                 return Err(self
                     .parser
-                    .error(format!("expected immutable ID {expected}, found {}", id.index())));
+                    .error_at(name_span, format!("duplicate immutable declaration `{name}`")));
             }
-            let allocated = module.add_immutable(ty);
-            debug_assert_eq!(allocated, id);
+            let id = module.add_immutable(Ident::new(name, name_span), ty);
+            self.immutable_names.insert(name, (id, ty));
+            self.immutable_types.push(ty);
         }
         Ok(())
     }
@@ -951,6 +951,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::internal_call => EffectKind::InternalCall,
             kw::Create => EffectKind::Create,
             sym::log => EffectKind::Log,
+            sym::immutable_read => EffectKind::ImmutableRead,
+            sym::immutable_write => EffectKind::ImmutableWrite,
             _ => return Err(self.parser.error(format!("unknown effect metadata value `{value}`"))),
         })
     }
@@ -969,6 +971,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 .error(format!("integer `{value}` does not fit in immutable ID")));
         }
         Ok(ImmutableId::new(value as usize))
+    }
+
+    fn parse_immutable_ref(&mut self) -> PResult<'sess, (ImmutableId, Option<MirType>)> {
+        if matches!(self.parser.token().kind, TokenKind::Literal(..)) {
+            let value = self.parser.parse_uint()?;
+            let id = self.u256_to_immutable_id(value)?;
+            return Ok((id, self.immutable_types.get(id.index()).copied()));
+        }
+
+        let span = self.parser.token().span;
+        let name = self.parser.parse_ident()?;
+        self.immutable_names
+            .get(&name)
+            .copied()
+            .ok_or_else(|| {
+                self.parser.error_at(span, format!("unknown immutable declaration `{name}`"))
+            })
+            .map(|(id, ty)| (id, Some(ty)))
     }
 
     fn u256_to_u16(&self, value: U256) -> PResult<'sess, u16> {
@@ -1063,11 +1083,31 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             kw::Calldatacopy => inst!(CalldataCopy(a, b, c)),
             kw::Codesize => unit!(CodeSize => MirType::uint256()),
             kw::Codecopy => inst!(CodeCopy(a, b, c)),
-            kw::Loadimmutable => {
-                let id = self.parser.parse_uint()?;
-                let id = self.u256_to_immutable_id(id)?;
+            sym::storeimmutable => {
+                let (id, _) = self.parse_immutable_ref()?;
                 self.parser.expect(TokenKind::Comma)?;
-                let ty = self.parse_type()?;
+                let value = self.parse_value(builder)?;
+                (InstKind::StoreImmutable { id, value }, None)
+            }
+            kw::Loadimmutable => {
+                let (id, declared_ty) = self.parse_immutable_ref()?;
+                let explicit_ty =
+                    if self.parser.eat(TokenKind::Comma) { Some(self.parse_type()?) } else { None };
+                let ty = match (declared_ty, explicit_ty) {
+                    (Some(declared), Some(explicit)) if declared != explicit => {
+                        return Err(self.parser.error(format!(
+                            "immutable {} has type `{declared}`, not `{explicit}`",
+                            id.index()
+                        )));
+                    }
+                    (Some(declared), _) => declared,
+                    (None, Some(explicit)) => explicit,
+                    (None, None) => {
+                        return Err(self.parser.error(
+                            "an undeclared numeric immutable reference requires an explicit type",
+                        ));
+                    }
+                };
                 (InstKind::LoadImmutable { id, ty }, Some(ty))
             }
             kw::Extcodesize => inst!(ExtCodeSize(a) => MirType::uint256()),
@@ -1424,6 +1464,35 @@ fn @set(arg0: u256) {
             let printed = module.to_text().to_string();
             let module2 = parse_module(sess, &printed).unwrap();
             assert_eq!(module2.functions.len(), 2);
+        });
+    }
+
+    #[test]
+    fn parse_named_immutables() {
+        with_session(|sess| {
+            let src = "\
+@module NamedImmutables
+immutables:
+  count: u8
+  owner: address
+
+fn @constructor(arg0: u8) {
+  bb0 (entry):
+    storeimmutable count, arg0
+    stop
+}
+
+fn @get() -> u8 {
+  bb0 (entry):
+    v0 = loadimmutable count
+    ret v0
+}
+";
+            let module = parse_module(sess, src).unwrap();
+            assert_eq!(module.immutable_count(), 2);
+            assert_data_eq!(module.to_text().to_string(), src);
+            let reparsed = parse_module(sess, &module.to_text().to_string()).unwrap();
+            assert_eq!(reparsed.immutable_count(), 2);
         });
     }
 

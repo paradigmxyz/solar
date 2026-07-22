@@ -6,19 +6,16 @@
 //! - Exact PUSH-width relaxation to a least fixed point.
 //! - Byte emission.
 
-use crate::{
-    backend::evm::{
-        ir::{self, assembly},
-        op,
-    },
-    mir::{ImmutableId, TypeSize},
+use super::{
+    EVM_WORD_BYTES,
+    ir::{self, assembly},
+    op,
 };
+use crate::mir::{ImmutableId, TypeSize};
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use solar_interface::diagnostics::DiagCtxt;
-
-const EVM_WORD_BYTES: usize = 32;
 
 mod id_counter;
 pub(in crate::backend::evm) use id_counter::IdCounter;

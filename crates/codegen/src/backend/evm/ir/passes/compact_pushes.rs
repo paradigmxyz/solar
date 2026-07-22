@@ -2,12 +2,12 @@
 
 use super::PassOptions;
 use crate::backend::evm::{
+    EVM_WORD_BYTES,
     ir::{Instruction, Module, PushValue},
     op,
 };
 use alloy_primitives::U256;
 
-const EVM_WORD_BYTES: usize = 32;
 const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
 const MIN_COMPACT_MASK_WIDTH: u8 = 5;
 
