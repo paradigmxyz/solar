@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageBytesElements ===
 @module StorageBytesElements
 fn @b() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
     internal_call @__ret_bytes, 0, v0
@@ -9,7 +9,7 @@ fn @b() {
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memorybytes {
-  bb0 (entry):
+  bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
     v2 = eq v1, 1
@@ -55,7 +55,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
 }
 
 fn @__ret_bytes(arg0: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = fmp
     mstore v0, 32
     v1 = memory_object_len memorybytes, arg0
@@ -75,7 +75,7 @@ fn @__ret_bytes(arg0: memorybytes) {
 }
 
 fn @init(arg0: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -166,7 +166,7 @@ fn @init(arg0: memorybytes) {
 }
 
 fn @poke() {
-  bb0 (entry):
+  bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
     v2 = eq v1, 1
@@ -213,7 +213,7 @@ fn @poke() {
 }
 
 fn @hashB() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
     v1 = keccak256_bytes v0
@@ -224,7 +224,7 @@ fn @hashB() {
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringConstructor ===
 @module StorageStringConstructor
 fn @name() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
     internal_call @__ret_bytes, 0, v0
@@ -232,7 +232,7 @@ fn @name() {
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memorybytes {
-  bb0 (entry):
+  bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
     v2 = eq v1, 1
@@ -278,7 +278,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
 }
 
 fn @__ret_bytes(arg0: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = fmp
     mstore v0, 32
     v1 = memory_object_len memorybytes, arg0
@@ -298,7 +298,7 @@ fn @__ret_bytes(arg0: memorybytes) {
 }
 
 fn @symbol() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 1
     internal_call @__ret_bytes, 0, v0
@@ -306,7 +306,7 @@ fn @symbol() {
 }
 
 fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = add 128, arg0
     v1 = mload v0
     v2 = add v1, 31
@@ -471,7 +471,7 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringBase ===
 @module StorageStringBase
 fn @name() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
     internal_call @__ret_bytes, 0, v0
@@ -479,7 +479,7 @@ fn @name() {
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memorybytes {
-  bb0 (entry):
+  bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
     v2 = eq v1, 1
@@ -525,7 +525,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
 }
 
 fn @__ret_bytes(arg0: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = fmp
     mstore v0, 32
     v1 = memory_object_len memorybytes, arg0
@@ -545,7 +545,7 @@ fn @__ret_bytes(arg0: memorybytes) {
 }
 
 fn @symbol() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 1
     internal_call @__ret_bytes, 0, v0
@@ -553,7 +553,7 @@ fn @symbol() {
 }
 
 fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = add 128, arg0
     v1 = mload v0
     v2 = add v1, 31
@@ -718,7 +718,7 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringDerived ===
 @module StorageStringDerived
 fn @_anonymous() {
-  bb0 (entry):
+  bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 9
     v1 = memory_object_data memorybytes, v0
@@ -869,7 +869,7 @@ fn @_anonymous() {
 }
 
 fn @name() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
     internal_call @__ret_bytes, 0, v0
@@ -877,7 +877,7 @@ fn @name() {
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memorybytes {
-  bb0 (entry):
+  bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
     v2 = eq v1, 1
@@ -923,7 +923,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
 }
 
 fn @__ret_bytes(arg0: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = fmp
     mstore v0, 32
     v1 = memory_object_len memorybytes, arg0
@@ -943,7 +943,7 @@ fn @__ret_bytes(arg0: memorybytes) {
 }
 
 fn @symbol() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 1
     internal_call @__ret_bytes, 0, v0
@@ -953,7 +953,7 @@ fn @symbol() {
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringImplicitDerived ===
 @module StorageStringImplicitDerived
 fn @constructor() {
-  bb0 (entry):
+  bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 17
     v1 = memory_object_data memorybytes, v0
@@ -1104,7 +1104,7 @@ fn @constructor() {
 }
 
 fn @name() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
     internal_call @__ret_bytes, 0, v0
@@ -1112,7 +1112,7 @@ fn @name() {
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memorybytes {
-  bb0 (entry):
+  bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
     v2 = eq v1, 1
@@ -1158,7 +1158,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
 }
 
 fn @__ret_bytes(arg0: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = fmp
     mstore v0, 32
     v1 = memory_object_len memorybytes, arg0
@@ -1178,7 +1178,7 @@ fn @__ret_bytes(arg0: memorybytes) {
 }
 
 fn @symbol() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 1
     internal_call @__ret_bytes, 0, v0

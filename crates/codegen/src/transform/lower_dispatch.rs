@@ -54,8 +54,8 @@ impl LowerDispatchPass {
             return false;
         }
 
-        // Collect the routable external wrappers: a selector plus a body. After
-        // the ABI phase every such wrapper is argument-free; assert that rather
+        // Collect the routable external wrappers. After the ABI phase every
+        // such wrapper is argument-free; assert that rather
         // than silently skipping, since a leftover argument-taking selector
         // function would mean the ABI invariant was violated.
         let mut routes: Vec<(u32, FunctionId)> = Vec::new();
@@ -64,15 +64,13 @@ impl LowerDispatchPass {
         let mut callvalue = super::DispatchCallvalue::default();
         for (id, func) in module.functions.iter_enumerated() {
             callvalue.observe(func);
-            if func.attributes.is_receive && !func.blocks.is_empty() && receive.is_none() {
+            if func.attributes.is_receive && receive.is_none() {
                 receive = Some(id);
             }
-            if func.attributes.is_fallback && !func.blocks.is_empty() && fallback.is_none() {
+            if func.attributes.is_fallback && fallback.is_none() {
                 fallback = Some(id);
             }
-            if let Some(selector) = func.selector
-                && !func.blocks.is_empty()
-            {
+            if let Some(selector) = func.selector {
                 debug_assert!(
                     func.params.is_empty(),
                     "dispatch after abi phase: selector function `{}` still takes arguments",
@@ -83,10 +81,8 @@ impl LowerDispatchPass {
         }
         routes.sort_by_key(|(selector, _)| *selector);
 
-        // Receive/fallback entries, mirroring the backend dispatcher: only
-        // bodied declarations participate in runtime dispatch. A fallback with
-        // the `fallback(bytes) returns (bytes)` shape takes an argument this
-        // switch cannot supply; bail all-or-nothing rather than half-routing.
+        // A fallback with the `fallback(bytes) returns (bytes)` shape takes an
+        // argument this switch cannot supply; bail all-or-nothing rather than half-routing.
         for id in [receive, fallback].into_iter().flatten() {
             if !module.function(id).params.is_empty() {
                 return false;

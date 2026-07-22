@@ -2,7 +2,7 @@
 @module AbiEncodeMemoryEffects
 
 fn @encode(arg0: memptr) -> memoryslice {
-  bb0 (entry):
+  bb0:
     mstore arg0, 1
     v0 = abi_encode [memory_bytes], args arg0
     ret v0

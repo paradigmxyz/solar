@@ -359,8 +359,8 @@ impl PointerProvenance {
         // recycled the FMP. The monotone OR lattice handles joins and loops.
         let mut reachable = DenseBitSet::new_empty(func.blocks.len());
         let mut poisoned = DenseBitSet::new_empty(func.blocks.len());
-        let mut worklist = VecDeque::from([func.entry_block]);
-        reachable.insert(func.entry_block);
+        let mut worklist = VecDeque::from([BlockId::ENTRY]);
+        reachable.insert(BlockId::ENTRY);
         while let Some(block) = worklist.pop_front() {
             let out = poisoned.contains(block) || block_resets[block.index()];
             let Some(terminator) = &func.blocks[block].terminator else { continue };

@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lower-alloc/lower_alloc.mir (after lower-alloc) ===
   @module LowerAlloc
   fn @operations(arg0: u256) -> memptr {
-    bb0 (entry):
+    bb0:
 -     v0 = fmp
 -     set_fmp v0
 -     v1 = alloc raw, word, uninitialized, infallible, 64

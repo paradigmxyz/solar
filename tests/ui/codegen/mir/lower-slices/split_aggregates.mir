@@ -2,14 +2,14 @@
 @module SplitAggregates
 
 fn @select_slice(arg0: calldataslice, arg1: calldataslice, arg2: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     v3 = select arg2, arg0, arg1
     v4 = slice_len v3
     ret v4
 }
 
 fn @phi_slice(arg0: calldataslice, arg1: calldataslice, arg2: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     br arg2, bb1, bb2
   bb1:
     jump bb3

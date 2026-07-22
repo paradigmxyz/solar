@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/msg_data.sol:MsgData ===
 @module MsgData
 fn @len() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
@@ -11,7 +11,7 @@ fn @len() {
 }
 
 fn @copy() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
@@ -49,7 +49,7 @@ fn @copy() {
 }
 
 fn @__ret_bytes(arg0: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = fmp
     mstore v0, 32
     v1 = memory_object_len memorybytes, arg0
@@ -69,7 +69,7 @@ fn @__ret_bytes(arg0: memorybytes) {
 }
 
 fn @tail(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64

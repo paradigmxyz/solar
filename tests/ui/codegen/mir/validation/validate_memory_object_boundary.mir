@@ -4,7 +4,7 @@
 @phase memory-lowered
 
 fn @object(arg0: memorybytes) -> memorystruct {
-  bb0 (entry):
+  bb0:
     v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v2 = memory_object_len memorybytes, arg0
     set_memory_object_len memorybytes, arg0, v2

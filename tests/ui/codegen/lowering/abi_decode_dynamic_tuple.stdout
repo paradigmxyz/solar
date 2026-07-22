@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_dynamic_tuple.sol:AbiDecodeDynamicTuple ===
 @module AbiDecodeDynamicTuple
 fn @decode(arg0: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -204,7 +204,7 @@ fn @decode(arg0: memorybytes) {
 }
 
 fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
@@ -467,7 +467,7 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) {
 }
 
 fn @decodeBytes(arg0: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -555,7 +555,7 @@ fn @decodeBytes(arg0: memorybytes) {
 }
 
 fn @__ret_bytes(arg0: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = fmp
     mstore v0, 32
     v1 = memory_object_len memorybytes, arg0

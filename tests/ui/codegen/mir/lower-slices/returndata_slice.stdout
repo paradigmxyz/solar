@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lower-slices/returndata_slice.mir (after lower-slices) ===
   @module ReturndataSlice
   fn @copy_returndata() -> memptr {
-    bb0 (entry):
+    bb0:
       v0 = returndatasize
 -     v1 = make_returndata_slice 0, v0
 -     v2 = slice_ptr v1

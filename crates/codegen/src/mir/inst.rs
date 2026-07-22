@@ -1443,7 +1443,7 @@ mod tests {
     #[test]
     fn phi_operands_include_incoming_values() {
         let mut func = Function::new(Ident::DUMMY);
-        let pred_a = func.entry_block;
+        let pred_a = BlockId::ENTRY;
         let pred_b = func.alloc_block();
         let a = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
         let b = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(2))));

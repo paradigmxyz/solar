@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/checked_arithmetic_shapes.sol:CheckedArithmeticShapes ===
 @module CheckedArithmeticShapes
 fn @sadd(arg0: i256, arg1: i256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -25,7 +25,7 @@ fn @sadd(arg0: i256, arg1: i256) {
 }
 
 fn @ssub(arg0: i256, arg1: i256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -49,7 +49,7 @@ fn @ssub(arg0: i256, arg1: i256) {
 }
 
 fn @smul(arg0: i256, arg1: i256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -79,7 +79,7 @@ fn @smul(arg0: i256, arg1: i256) {
 }
 
 fn @sdiv(arg0: i256, arg1: i256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -109,7 +109,7 @@ fn @sdiv(arg0: i256, arg1: i256) {
 }
 
 fn @smod(arg0: i256, arg1: i256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -130,7 +130,7 @@ fn @smod(arg0: i256, arg1: i256) {
 }
 
 fn @neg(arg0: i256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -152,7 +152,7 @@ fn @neg(arg0: i256) {
 }
 
 fn @inc(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -174,7 +174,7 @@ fn @inc(arg0: u256) {
 }
 
 fn @dec(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -196,7 +196,7 @@ fn @dec(arg0: u256) {
 }
 
 fn @uadd128(arg0: u128, arg1: u128) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -232,7 +232,7 @@ fn @uadd128(arg0: u128, arg1: u128) {
 }
 
 fn @umul128(arg0: u128, arg1: u128) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -268,7 +268,7 @@ fn @umul128(arg0: u128, arg1: u128) {
 }
 
 fn @smul128(arg0: i128, arg1: i128) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -306,7 +306,7 @@ fn @smul128(arg0: i128, arg1: i128) {
 }
 
 fn @umul192(arg0: u192, arg1: u192) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64

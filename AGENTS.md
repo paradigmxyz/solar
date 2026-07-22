@@ -298,6 +298,9 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 
 ## Notes
 
+- **Typed index collections**: Use `IndexVec<I, T>` for every collection indexed by an `I` index
+  type, including local variables; if code repeatedly indexes a collection with `x.index()`, it is
+  probably using the wrong collection type.
 - **Index sets**: Never use `Vec<bool>`; a bitset is always the more compact representation. Prefer
   fixed dense or mixed bitsets for compact, stable domains and growable bitsets when new indices
   may be allocated while the set is live. Use hash sets for sparse sets, especially when there are

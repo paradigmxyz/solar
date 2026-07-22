@@ -2,14 +2,14 @@
 + // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (after cse) ===
   @module AggregateEffects
   fn @reads_memory(arg0: memptr) {
-    bb0 (entry):
+    bb0:
       mstore arg0, 7
       memory_to_storage struct<word>, arg0, 0
       stop
   }
   
   fn @overwrites_memory(arg0: memptr) -> u256 {
-    bb0 (entry):
+    bb0:
       mstore arg0, 7
       storage_to_memory struct<word>, 0, arg0
       v0 = mload arg0
@@ -17,7 +17,7 @@
   }
   
   fn @flat_memory_write_is_precise() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = mload 128
       storage_to_memory struct<word>, 0, 256
 -     v1 = mload 128
@@ -27,7 +27,7 @@
   }
   
   fn @nested_memory_write_is_barrier() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = mload 128
       storage_to_memory struct<struct<word>>, 0, 256
       v1 = mload 128
@@ -36,7 +36,7 @@
   }
   
   fn @disjoint_storage() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = sload 0
       clear_storage struct<word, word>, 10
 -     v1 = sload 0
@@ -46,7 +46,7 @@
   }
   
   fn @overlapping_storage() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = sload 0
       clear_storage struct<word, word>, 0
       v1 = sload 0
@@ -55,7 +55,7 @@
   }
   
   fn @observes_storage(arg0: memptr) {
-    bb0 (entry):
+    bb0:
       sstore 0, 1
       storage_to_memory struct<word>, 0, arg0
       sstore 0, 2
@@ -63,7 +63,7 @@
   }
   
   fn @clobbers_stored_value() {
-    bb0 (entry):
+    bb0:
       sstore 0, 1
       clear_storage struct<word>, 0
       sstore 0, 1
@@ -74,14 +74,14 @@
 + // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (after memory-dse) ===
   @module AggregateEffects
   fn @reads_memory(arg0: memptr) {
-    bb0 (entry):
+    bb0:
       mstore arg0, 7
       memory_to_storage struct<word>, arg0, 0
       stop
   }
   
   fn @overwrites_memory(arg0: memptr) -> u256 {
-    bb0 (entry):
+    bb0:
 -     mstore arg0, 7
       storage_to_memory struct<word>, 0, arg0
       v0 = mload arg0
@@ -89,7 +89,7 @@
   }
   
   fn @flat_memory_write_is_precise() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = mload 128
       storage_to_memory struct<word>, 0, 256
       v2 = add v0, v0
@@ -97,7 +97,7 @@
   }
   
   fn @nested_memory_write_is_barrier() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = mload 128
       storage_to_memory struct<struct<word>>, 0, 256
       v1 = mload 128
@@ -106,7 +106,7 @@
   }
   
   fn @disjoint_storage() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = sload 0
       clear_storage struct<word, word>, 10
       v2 = add v0, v0
@@ -114,7 +114,7 @@
   }
   
   fn @overlapping_storage() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = sload 0
       clear_storage struct<word, word>, 0
       v1 = sload 0
@@ -123,7 +123,7 @@
   }
   
   fn @observes_storage(arg0: memptr) {
-    bb0 (entry):
+    bb0:
       sstore 0, 1
       storage_to_memory struct<word>, 0, arg0
       sstore 0, 2
@@ -131,7 +131,7 @@
   }
   
   fn @clobbers_stored_value() {
-    bb0 (entry):
+    bb0:
       sstore 0, 1
       clear_storage struct<word>, 0
       sstore 0, 1
@@ -142,21 +142,21 @@
 + // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (after storage-load-cse) ===
   @module AggregateEffects
   fn @reads_memory(arg0: memptr) {
-    bb0 (entry):
+    bb0:
       mstore arg0, 7
       memory_to_storage struct<word>, arg0, 0
       stop
   }
   
   fn @overwrites_memory(arg0: memptr) -> u256 {
-    bb0 (entry):
+    bb0:
       storage_to_memory struct<word>, 0, arg0
       v0 = mload arg0
       ret v0
   }
   
   fn @flat_memory_write_is_precise() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = mload 128
       storage_to_memory struct<word>, 0, 256
       v2 = add v0, v0
@@ -164,7 +164,7 @@
   }
   
   fn @nested_memory_write_is_barrier() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = mload 128
       storage_to_memory struct<struct<word>>, 0, 256
       v1 = mload 128
@@ -173,7 +173,7 @@
   }
   
   fn @disjoint_storage() -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = sload 0
 +     v0 = sload 0 !metadata(storage=slot(0))
       clear_storage struct<word, word>, 10
@@ -182,7 +182,7 @@
   }
   
   fn @overlapping_storage() -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = sload 0
 +     v0 = sload 0 !metadata(storage=slot(0))
       clear_storage struct<word, word>, 0
@@ -193,7 +193,7 @@
   }
   
   fn @observes_storage(arg0: memptr) {
-    bb0 (entry):
+    bb0:
 -     sstore 0, 1
 +     sstore 0, 1 !metadata(storage=slot(0))
       storage_to_memory struct<word>, 0, arg0
@@ -203,7 +203,7 @@
   }
   
   fn @clobbers_stored_value() {
-    bb0 (entry):
+    bb0:
 -     sstore 0, 1
 +     sstore 0, 1 !metadata(storage=slot(0))
       clear_storage struct<word>, 0
@@ -216,21 +216,21 @@
 + // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (after storage-dse) ===
   @module AggregateEffects
   fn @reads_memory(arg0: memptr) {
-    bb0 (entry):
+    bb0:
       mstore arg0, 7
       memory_to_storage struct<word>, arg0, 0
       stop
   }
   
   fn @overwrites_memory(arg0: memptr) -> u256 {
-    bb0 (entry):
+    bb0:
       storage_to_memory struct<word>, 0, arg0
       v0 = mload arg0
       ret v0
   }
   
   fn @flat_memory_write_is_precise() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = mload 128
       storage_to_memory struct<word>, 0, 256
       v2 = add v0, v0
@@ -238,7 +238,7 @@
   }
   
   fn @nested_memory_write_is_barrier() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = mload 128
       storage_to_memory struct<struct<word>>, 0, 256
       v1 = mload 128
@@ -247,7 +247,7 @@
   }
   
   fn @disjoint_storage() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = sload 0 !metadata(storage=slot(0))
       clear_storage struct<word, word>, 10
       v2 = add v0, v0
@@ -255,7 +255,7 @@
   }
   
   fn @overlapping_storage() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = sload 0 !metadata(storage=slot(0))
       clear_storage struct<word, word>, 0
       v1 = sload 0 !metadata(storage=slot(0))
@@ -264,7 +264,7 @@
   }
   
   fn @observes_storage(arg0: memptr) {
-    bb0 (entry):
+    bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       storage_to_memory struct<word>, 0, arg0
       sstore 0, 2 !metadata(storage=slot(0))
@@ -272,7 +272,7 @@
   }
   
   fn @clobbers_stored_value() {
-    bb0 (entry):
+    bb0:
 -     sstore 0, 1 !metadata(storage=slot(0))
       clear_storage struct<word>, 0
       sstore 0, 1 !metadata(storage=slot(0))
@@ -283,21 +283,21 @@
 + // === ROOT/tests/ui/codegen/mir/pipeline/aggregate_effects.mir (after dce) ===
   @module AggregateEffects
   fn @reads_memory(arg0: memptr) {
-    bb0 (entry):
+    bb0:
       mstore arg0, 7
       memory_to_storage struct<word>, arg0, 0
       stop
   }
   
   fn @overwrites_memory(arg0: memptr) -> u256 {
-    bb0 (entry):
+    bb0:
       storage_to_memory struct<word>, 0, arg0
       v0 = mload arg0
       ret v0
   }
   
   fn @flat_memory_write_is_precise() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = mload 128
       storage_to_memory struct<word>, 0, 256
       v2 = add v0, v0
@@ -305,7 +305,7 @@
   }
   
   fn @nested_memory_write_is_barrier() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = mload 128
       storage_to_memory struct<struct<word>>, 0, 256
       v1 = mload 128
@@ -314,7 +314,7 @@
   }
   
   fn @disjoint_storage() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = sload 0 !metadata(storage=slot(0))
       clear_storage struct<word, word>, 10
       v2 = add v0, v0
@@ -322,7 +322,7 @@
   }
   
   fn @overlapping_storage() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = sload 0 !metadata(storage=slot(0))
       clear_storage struct<word, word>, 0
       v1 = sload 0 !metadata(storage=slot(0))
@@ -331,7 +331,7 @@
   }
   
   fn @observes_storage(arg0: memptr) {
-    bb0 (entry):
+    bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       storage_to_memory struct<word>, 0, arg0
       sstore 0, 2 !metadata(storage=slot(0))
@@ -339,7 +339,7 @@
   }
   
   fn @clobbers_stored_value() {
-    bb0 (entry):
+    bb0:
       clear_storage struct<word>, 0
       sstore 0, 1 !metadata(storage=slot(0))
       stop

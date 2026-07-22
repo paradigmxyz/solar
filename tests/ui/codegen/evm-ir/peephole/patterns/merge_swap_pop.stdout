@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/merge_swap_pop.evmir (before peephole) ===
 + // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/merge_swap_pop.evmir (after peephole) ===
   @module module
-  bb0 (entry):
+  bb0:
     push 1
     push 2
     push 3

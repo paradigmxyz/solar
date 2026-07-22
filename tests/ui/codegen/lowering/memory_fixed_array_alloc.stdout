@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:MemoryFixedArrayAlloc ===
 @module MemoryFixedArrayAlloc
 fn @guardedFix(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -31,7 +31,7 @@ fn @guardedFix(arg0: u256) {
 }
 
 fn @structArr(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -66,7 +66,7 @@ fn @structArr(arg0: u256) {
 }
 
 fn @nested(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -124,7 +124,7 @@ fn @nested(arg0: u256, arg1: u256) {
 }
 
 fn @fmpIntegrity() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     mstore 160, 0
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
@@ -184,7 +184,7 @@ fn @fmpIntegrity() {
 }
 
 fn @literal() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v1 = add v0, 0
@@ -202,7 +202,7 @@ fn @literal() {
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:NamedReturnAndDelete ===
 @module NamedReturnAndDelete
 fn @namedReturn() {
-  bb0 (entry):
+  bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
     mstore v1, 0
@@ -284,7 +284,7 @@ fn @namedReturn() {
 }
 
 fn @deleteInPlace() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     mstore 160, 0
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96

@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/load-pre/load_pre_memory.mir (after load-pre) ===
   @module LoadPreMemory
   fn @mload_full_diamond(arg0: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       br arg0, bb1, bb2
     bb1:
       v0 = mload 128
@@ -16,7 +16,7 @@
   }
   
   fn @mstore_forwarding(arg0: bool, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       br arg0, bb1, bb2
     bb1:
       mstore 128, arg1
@@ -30,7 +30,7 @@
   }
   
   fn @mstore8_overlap_kills(arg0: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = mload 128
       br arg0, bb1, bb2
     bb1:
@@ -46,7 +46,7 @@
   }
   
   fn @mload_partial_rejected(arg0: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       br arg0, bb1, bb2
     bb1:
       v0 = mload 128
@@ -59,7 +59,7 @@
   }
   
   fn @mload_partial_repeated_profitable(arg0: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       br arg0, bb1, bb2
     bb1:
       v0 = mload 128
@@ -77,7 +77,7 @@
   }
   
   fn @mload_partial_two_available(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       switch arg0, default bb3, [1 => bb1, 2 => bb2]
     bb1:
       v0 = mload 128
@@ -93,7 +93,7 @@
   }
   
   fn @mload_loop_header(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = mload 128
       jump bb1
     bb1:
@@ -110,7 +110,7 @@
   }
   
   fn @staticcall_zero_return_preserves_memory(arg0: bool, arg1: address) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = mload 128
       br arg0, bb1, bb2
     bb1:
@@ -127,7 +127,7 @@
   }
   
   fn @msize_blocks_memory(arg0: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       br arg0, bb1, bb2
     bb1:
       v0 = mload 128

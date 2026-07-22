@@ -964,7 +964,7 @@ mod tests {
             func.selector = Some([0, 0, 0, 1]);
         }
 
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
         let header = func.alloc_block();
         let body = func.alloc_block();
         let update = func.alloc_block();
@@ -1017,7 +1017,7 @@ mod tests {
         let mut func = Function::new(Ident::DUMMY);
         func.selector = Some([0, 0, 0, 1]);
 
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
         let header = func.alloc_block();
         let body = func.alloc_block();
         let update = func.alloc_block();
@@ -1067,7 +1067,7 @@ mod tests {
         let mut func = Function::new(Ident::DUMMY);
         func.selector = Some([0, 0, 0, 1]);
 
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
         let header = func.alloc_block();
         let body = func.alloc_block();
         let update = func.alloc_block();
@@ -1102,7 +1102,7 @@ mod tests {
         func.selector = Some([0, 0, 0, 1]);
         func.params.push(MirType::uint256());
 
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
         let header = func.alloc_block();
         let body = func.alloc_block();
         let update = func.alloc_block();
@@ -1143,7 +1143,7 @@ mod tests {
         func.selector = Some([0, 0, 0, 1]);
         func.params.push(MirType::uint256());
 
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
         let header = func.alloc_block();
         let body = func.alloc_block();
         let update = func.alloc_block();
@@ -1232,7 +1232,7 @@ mod tests {
     #[test]
     fn promotes_storage_update_loop_without_preheader_store() {
         let mut test = make_storage_loop_without_init();
-        let entry = test.func.entry_block;
+        let entry = BlockId::ENTRY;
         let mut pass = StorageScalarPromoter::new();
         let stats = pass.run(&mut test.func);
 
@@ -1292,7 +1292,7 @@ mod tests {
     #[test]
     fn promotes_store_only_loop_without_preheader_store() {
         let mut test = make_store_only_loop_without_init();
-        let entry = test.func.entry_block;
+        let entry = BlockId::ENTRY;
         let mut pass = StorageScalarPromoter::new();
         let stats = pass.run(&mut test.func);
 

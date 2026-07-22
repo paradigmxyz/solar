@@ -4,7 +4,7 @@
 - fn @pair(arg0: u256) -> (u256, u256) {
 + @phase abi
 + fn @pair() {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, 1
 -     ret arg0, v0
 +     mstore 128, arg0

@@ -5,18 +5,18 @@
 @module ValidateMemoryBoundary
 @phase evm-shaped
 fn @slice(arg0: memptr, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v2 = make_memory_slice arg0, arg1
     v3 = slice_len v2
     ret v3
 }
 fn @abi(arg0: u256) -> memoryslice {
-  bb0 (entry):
+  bb0:
     v1 = abi_encode [word], args arg0
     ret v1
 }
 fn @aggregate(arg0: u256, arg1: memorystruct) {
-  bb0 (entry):
+  bb0:
     storage_to_memory struct<word>, arg0, arg1
     stop
 }

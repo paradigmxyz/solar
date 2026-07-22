@@ -37,10 +37,8 @@ pub(crate) struct Function {
     pub(crate) values: IndexVec<ValueId, Value>,
     /// All instructions in this function.
     pub(crate) instructions: IndexVec<InstId, Instruction>,
-    /// All basic blocks in this function.
+    /// All basic blocks in this function. This is never empty; block zero is the entry.
     pub(crate) blocks: IndexVec<BlockId, BasicBlock>,
-    /// The entry block.
-    pub(crate) entry_block: BlockId,
 }
 
 impl Function {
@@ -48,7 +46,8 @@ impl Function {
     #[must_use]
     pub(crate) fn new(name: Ident) -> Self {
         let mut blocks = IndexVec::new();
-        let entry_block = blocks.push(BasicBlock::new());
+        let entry = blocks.push(BasicBlock::new());
+        debug_assert_eq!(entry, BlockId::ENTRY);
 
         Self {
             name,
@@ -61,7 +60,6 @@ impl Function {
             values: IndexVec::new(),
             instructions: IndexVec::new(),
             blocks,
-            entry_block,
         }
     }
 

@@ -4,7 +4,7 @@
 // The value-transferring call can change the queried balance between iterations,
 // so neither the balance nor the mul depending on it may be hoisted.
 fn @keep_balance_with_call() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     br true, bb2, bb3
@@ -19,7 +19,7 @@ fn @keep_balance_with_call() -> u256 {
 
 // Without any call or create in the loop the balance is loop-invariant for real.
 fn @hoist_balance_without_calls() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     br true, bb2, bb3
@@ -33,7 +33,7 @@ fn @hoist_balance_without_calls() -> u256 {
 
 // The created contract's constructor can run arbitrary code.
 fn @keep_extcodesize_with_create() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     br true, bb2, bb3
@@ -48,7 +48,7 @@ fn @keep_extcodesize_with_create() -> u256 {
 
 // Every external call, including staticcall, rewrites the return-data buffer.
 fn @keep_returndatasize_with_staticcall() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     br true, bb2, bb3
@@ -63,7 +63,7 @@ fn @keep_returndatasize_with_staticcall() -> u256 {
 
 // msize observes memory expansion and must never move.
 fn @keep_msize() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     br true, bb2, bb3

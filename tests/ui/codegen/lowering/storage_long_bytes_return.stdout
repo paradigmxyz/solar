@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/storage_long_bytes_return.sol:StorageLongBytesReturn ===
 @module StorageLongBytesReturn
 fn @s() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
     internal_call @__ret_bytes, 0, v0
@@ -9,7 +9,7 @@ fn @s() {
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memorybytes {
-  bb0 (entry):
+  bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
     v2 = eq v1, 1
@@ -55,7 +55,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
 }
 
 fn @__ret_bytes(arg0: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = fmp
     mstore v0, 32
     v1 = memory_object_len memorybytes, arg0
@@ -75,7 +75,7 @@ fn @__ret_bytes(arg0: memorybytes) {
 }
 
 fn @b() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 1
     internal_call @__ret_bytes, 0, v0
@@ -83,7 +83,7 @@ fn @b() {
 }
 
 fn @_anonymous() {
-  bb0 (entry):
+  bb0:
     sstore 0, 65 !metadata(storage=slot(0))
     mstore 0, 0 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -98,7 +98,7 @@ fn @_anonymous() {
 }
 
 fn @getS() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
     internal_call @__ret_bytes, 0, v0
@@ -106,7 +106,7 @@ fn @getS() {
 }
 
 fn @getB() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 1
     internal_call @__ret_bytes, 0, v0

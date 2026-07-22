@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/event_dynamic_data.sol:EventDynamicData ===
 @module EventDynamicData
 fn @text(arg0: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -54,7 +54,7 @@ fn @text(arg0: memorybytes) {
 }
 
 fn @literal() {
-  bb0 (entry):
+  bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 5
     v1 = memory_object_data memorybytes, v0
@@ -94,7 +94,7 @@ fn @literal() {
 }
 
 fn @blob(arg0: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32

@@ -2,7 +2,7 @@
 @module MemoryObjectLoadPre
 
 fn @forward_length_across_join(arg0: memorybytes, arg1: bool, arg2: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     br arg1, bb1, bb2
   bb1:
     set_memory_object_len memorybytes, arg0, arg2

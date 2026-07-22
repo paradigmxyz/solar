@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_call.sol:Lib (runtime) ===
 @module runtime
-bb0 (entry):
+bb0:
   push 256
   push 64
   mstore
@@ -115,7 +115,7 @@ bb10 [cold]:
   revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_call.sol:C (runtime) ===
 @module runtime
-bb0 (entry):
+bb0:
   push 256
   push 64
   mstore

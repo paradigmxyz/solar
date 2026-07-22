@@ -1,7 +1,7 @@
 //@compile-flags: --pass licm
 @module LicmV2
 fn @hoist_symbolic_offset_sload(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v7]
@@ -19,7 +19,7 @@ fn @hoist_symbolic_offset_sload(arg0: u256) -> u256 {
 }
 
 fn @keep_aliasing_symbolic_offset_sload(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v7]
@@ -37,7 +37,7 @@ fn @keep_aliasing_symbolic_offset_sload(arg0: u256) -> u256 {
 }
 
 fn @do_not_speculate_symbolic_offset_sload(arg0: u256, arg1: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     br arg1, bb2, bb3
@@ -52,7 +52,7 @@ fn @do_not_speculate_symbolic_offset_sload(arg0: u256, arg1: bool) -> u256 {
 }
 
 fn @hoist_affine_memory_base(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v7]
@@ -70,7 +70,7 @@ fn @hoist_affine_memory_base(arg0: u256) -> u256 {
 }
 
 fn @hoist_unknown_trip_affine_memory_base(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v7]

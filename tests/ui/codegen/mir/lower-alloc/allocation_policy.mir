@@ -11,13 +11,13 @@
 @module AllocationPolicy
 
 fn @checked(arg0: u256) -> memorybytes {
-  bb0 (entry):
+  bb0:
     v1 = alloc memorybytes, word, zeroed, panic, arg0
     ret v1
 }
 
 fn @internal() -> memptr {
-  bb0 (entry):
+  bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     ret v0
 }

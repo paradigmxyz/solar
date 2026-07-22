@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_bytes.sol:AbiEncodeBytes ===
 @module AbiEncodeBytes
 fn @hash3(arg0: u256, arg1: u256, arg2: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
@@ -22,7 +22,7 @@ fn @hash3(arg0: u256, arg1: u256, arg2: u256) {
 }
 
 fn @encode3(arg0: u256, arg1: u256, arg2: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
@@ -47,7 +47,7 @@ fn @encode3(arg0: u256, arg1: u256, arg2: u256) {
 }
 
 fn @__ret_bytes(arg0: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = fmp
     mstore v0, 32
     v1 = memory_object_len memorybytes, arg0
@@ -67,7 +67,7 @@ fn @__ret_bytes(arg0: memorybytes) {
 }
 
 fn @encodeDynamic(arg0: u256, arg1: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -121,7 +121,7 @@ fn @encodeDynamic(arg0: u256, arg1: memorybytes) {
 }
 
 fn @hashDynamic(arg0: u256, arg1: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -171,7 +171,7 @@ fn @hashDynamic(arg0: u256, arg1: memorybytes) {
 }
 
 fn @roundtrip(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32

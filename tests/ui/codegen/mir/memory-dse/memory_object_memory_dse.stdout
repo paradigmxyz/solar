@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (after memory-dse) ===
   @module MemoryObjectMemoryDse
   fn @forward_length(arg0: memorybytes) -> u256 {
-    bb0 (entry):
+    bb0:
       set_memory_object_len memorybytes, arg0, 39
 -     v0 = memory_object_len memorybytes, arg0
 -     ret v0
@@ -10,7 +10,7 @@
   }
   
   fn @keep_length_after_clobber(arg0: memorybytes, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       set_memory_object_len memorybytes, arg0, 39
       mstore arg1, 7
       v0 = memory_object_len memorybytes, arg0
@@ -21,13 +21,13 @@
 + // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (after dce) ===
   @module MemoryObjectMemoryDse
   fn @forward_length(arg0: memorybytes) -> u256 {
-    bb0 (entry):
+    bb0:
       set_memory_object_len memorybytes, arg0, 39
       ret 39
   }
   
   fn @keep_length_after_clobber(arg0: memorybytes, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       set_memory_object_len memorybytes, arg0, 39
       mstore arg1, 7
       v0 = memory_object_len memorybytes, arg0

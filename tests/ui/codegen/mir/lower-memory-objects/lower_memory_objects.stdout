@@ -5,7 +5,7 @@
 - fn @objects(arg0: memorybytes, arg1: memoryarray, arg2: memorystruct, arg3: memoryfixedarray) {
 + @phase memory-lowered
 + fn @objects(arg0: memptr, arg1: memptr, arg2: memptr, arg3: memptr) {
-    bb0 (entry):
+    bb0:
 -     v0 = alloc memorybytes, exact, zeroed, panic, 96
 -     set_memory_object_len memorybytes, v0, 3
 -     v1 = memory_object_len memorybytes, v0

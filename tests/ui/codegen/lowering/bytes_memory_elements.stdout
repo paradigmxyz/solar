@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/bytes_memory_elements.sol:BytesMemoryElements ===
 @module BytesMemoryElements
 fn @alloc() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = add 96, 31
     v1 = lt v0, 96
@@ -51,7 +51,7 @@ fn @alloc() {
 }
 
 fn @literal() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 10
@@ -75,7 +75,7 @@ fn @literal() {
 }
 
 fn @allocDynamic(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -110,7 +110,7 @@ fn @allocDynamic(arg0: u256) {
 }
 
 fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96

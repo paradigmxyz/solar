@@ -6,7 +6,7 @@
 //! normal encoder path.
 
 use crate::{
-    mir::{Function, Immediate, InstKind, Terminator, Value, ValueId},
+    mir::{BlockId, Function, Immediate, InstKind, Terminator, Value, ValueId},
     pass::FunctionPass,
     utils::evm_word,
 };
@@ -75,7 +75,7 @@ impl PureEvaluator {
     /// [`Self::rewrite_to_return`] would produce, so rewriting again would
     /// report a change (and allocate fresh immediates) without progress.
     fn is_already_folded(&self, func: &Function, values: &[U256]) -> bool {
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
         for (block_id, block) in func.blocks.iter_enumerated() {
             if !block.instructions.is_empty() {
                 return false;
@@ -117,7 +117,7 @@ impl PureEvaluator {
             }
         }
 
-        let mut current = func.entry_block;
+        let mut current = BlockId::ENTRY;
         let mut predecessor = None;
         let mut fuel = self.fuel;
         while fuel != 0 {
@@ -235,7 +235,7 @@ impl PureEvaluator {
     }
 
     fn rewrite_to_return(&self, func: &mut Function, values: &[U256]) {
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
         let block_ids: Vec<_> = func.blocks.indices().collect();
         for block_id in block_ids {
             let block = &mut func.blocks[block_id];

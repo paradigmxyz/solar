@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/phase_pass_bounds.mir (after lower-dispatch) ===
   @module PhasePassBounds
   fn @get(arg0: u256) {
-    bb0 (entry):
+    bb0:
       mstore 128, arg0
       returndata 128, 32
   }
@@ -13,7 +13,7 @@
 - fn @get(arg0: u256) {
 + @phase abi
 + fn @get() {
-    bb0 (entry):
+    bb0:
       mstore 128, arg0
       returndata 128, 32
   }
@@ -24,13 +24,13 @@
 - @phase abi
 + @phase dispatch
   fn @get() {
-    bb0 (entry):
+    bb0:
       mstore 128, arg0
       returndata 128, 32
 + }
 + 
 + fn @entry() {
-+   bb0 (entry):
++   bb0:
 +     v0 = callvalue
 +     br v0, bb4, bb1
 +   bb1:
@@ -51,13 +51,13 @@
   @module PhasePassBounds
   @phase dispatch
   fn @get() {
-    bb0 (entry):
+    bb0:
       mstore 128, arg0
       returndata 128, 32
   }
   
   fn @entry() {
-    bb0 (entry):
+    bb0:
       v0 = callvalue
       br v0, bb4, bb1
     bb1:

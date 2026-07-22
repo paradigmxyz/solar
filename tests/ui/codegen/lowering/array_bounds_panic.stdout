@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/array_bounds_panic.sol:ArrayBoundsPanic ===
 @module ArrayBoundsPanic
 fn @memFix(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -33,7 +33,7 @@ fn @memFix(arg0: u256) {
 }
 
 fn @memFixConst() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
@@ -51,7 +51,7 @@ fn @memFixConst() {
 }
 
 fn @memFixConstOob() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
@@ -73,7 +73,7 @@ fn @memFixConstOob() {
 }
 
 fn @memDyn(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -116,7 +116,7 @@ fn @memDyn(arg0: u256, arg1: u256) {
 }
 
 fn @stDyn(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -142,7 +142,7 @@ fn @stDyn(arg0: u256) {
 }
 
 fn @stDynWrite(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -166,7 +166,7 @@ fn @stDynWrite(arg0: u256, arg1: u256) {
 }
 
 fn @stFix(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -189,7 +189,7 @@ fn @stFix(arg0: u256) {
 }
 
 fn @cdDyn(arg0: calldataslice, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -215,7 +215,7 @@ fn @cdDyn(arg0: calldataslice, arg1: u256) {
 }
 
 fn @cdFix(arg0: u256, arg1: u256, arg2: u256, arg3: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 128
@@ -245,7 +245,7 @@ fn @cdFix(arg0: u256, arg1: u256, arg2: u256, arg3: u256) {
 }
 
 fn @cdBytes(arg0: calldataslice, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64

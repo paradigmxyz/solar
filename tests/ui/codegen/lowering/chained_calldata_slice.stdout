@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/chained_calldata_slice.sol:ChainedCalldataSlice ===
 @module ChainedCalldataSlice
 fn @bytesChain(arg0: calldataslice) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -68,7 +68,7 @@ fn @bytesChain(arg0: calldataslice) {
 }
 
 fn @__ret_bytes(arg0: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = fmp
     mstore v0, 32
     v1 = memory_object_len memorybytes, arg0
@@ -88,7 +88,7 @@ fn @__ret_bytes(arg0: memorybytes) {
 }
 
 fn @arrChain(arg0: calldataslice) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32

@@ -99,6 +99,7 @@ impl<'a> Validator<'a> {
         let num_insts = func.instructions.len();
 
         if num_blocks == 0 {
+            self.emit("function has no entry block");
             return;
         }
 
@@ -311,9 +312,9 @@ impl<'a> Validator<'a> {
             }
         }
 
-        // ----- Entry block must have no predecessors -----
-        if !func.blocks[func.entry_block].predecessors.is_empty() {
-            self.emit_at_block("entry block must have no predecessors", func.entry_block);
+        // ----- Entry block invariants -----
+        if !func.blocks[BlockId::ENTRY].predecessors.is_empty() {
+            self.emit_at_block("entry block must have no predecessors", BlockId::ENTRY);
         }
 
         // ----- Use reachability -----
@@ -492,9 +493,9 @@ impl<'a> Validator<'a> {
     /// the phase is a real contract rather than a label.
     fn validate_module_phase(&mut self, module: &Module) {
         // From the `dispatch` phase on, routing is materialized: a module with
-        // bodied selector functions must contain the synthesized `entry`.
+        // selector functions must contain the synthesized `entry`.
         if module.phase >= crate::mir::MirPhase::Dispatch
-            && module.functions.iter().any(|f| f.selector.is_some() && !f.blocks.is_empty())
+            && module.functions.iter().any(|f| f.selector.is_some())
             && !module.functions.iter().any(|f| f.name.name == sym::entry)
         {
             self.emit(format_args!(
@@ -509,7 +510,6 @@ impl<'a> Validator<'a> {
         // function is an argument-free self-decoding wrapper.
         if module.phase >= crate::mir::MirPhase::Abi
             && func.selector.is_some()
-            && !func.blocks.is_empty()
             && !func.params.is_empty()
         {
             self.emit(format_args!(
@@ -682,7 +682,7 @@ error: [bb0] block has no terminator
             }
             // Manually corrupt: replace the terminator with a Jump to a nonexistent block.
             let bad_block = BlockId::from_usize(99);
-            func.blocks[func.entry_block].terminator = Some(Terminator::Jump(bad_block));
+            func.blocks[BlockId::ENTRY].terminator = Some(Terminator::Jump(bad_block));
             Validator::new(&sess.dcx).validate_standalone_function(&func);
             assert!(sess.dcx.has_errors().is_err());
             assert_data_eq!(
@@ -736,7 +736,7 @@ error: [bb0] successor bb1 does not list bb0 as a predecessor
                 b.stop();
             }
             // Add the invalid predecessor to the entry block.
-            func.blocks[func.entry_block].predecessors.push(func.entry_block);
+            func.blocks[BlockId::ENTRY].predecessors.push(BlockId::ENTRY);
             Validator::new(&sess.dcx).validate_standalone_function(&func);
             assert!(sess.dcx.has_errors().is_err());
             assert_data_eq!(
@@ -780,7 +780,25 @@ error: [bb0] entry block must have no predecessors
     }
 
     #[test]
-    fn empty_function_with_just_terminator_is_valid() {
+    fn function_without_entry_block_is_caught() {
+        with_session(|sess| {
+            let mut func = make_func();
+            func.blocks.clear();
+            Validator::new(&sess.dcx).validate_standalone_function(&func);
+            assert!(sess.dcx.has_errors().is_err());
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: function has no entry block
+
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
+    fn entry_with_just_terminator_is_valid() {
         with_session(|sess| {
             let mut func = make_func();
             {

@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lower-alloc/allocation_policy.mir (after lower-alloc) ===
   @module AllocationPolicy
   fn @checked(arg0: u256) -> memorybytes {
-    bb0 (entry):
+    bb0:
 -     v0 = alloc memorybytes, word, zeroed, panic, arg0
 +     v0 = mload 64 !metadata(memory=scratch)
 +     v1 = add arg0, 31
@@ -26,7 +26,7 @@
   }
   
   fn @internal() -> memptr {
-    bb0 (entry):
+    bb0:
 -     v0 = alloc raw, exact, uninitialized, infallible, 32
 +     v0 = mload 64 !metadata(memory=scratch)
 +     v1 = add v0, 32

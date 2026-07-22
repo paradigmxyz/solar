@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_array_subslice.sol:CalldataArraySubslice ===
 @module CalldataArraySubslice
 fn @word(arg0: calldataslice) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32

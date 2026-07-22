@@ -78,7 +78,7 @@ impl LowerEvmShapedPass {
         // frames, so an argument-carrying tail call has no compile-time
         // argument addresses there. Keep those calls ordinary; argument-less
         // rewrites need no frame addressing and stay valid on both paths.
-        let mut constructor_reachable = call_graph.reachable_bodies_from(
+        let mut constructor_reachable = call_graph.reachable_callees_from(
             module
                 .functions
                 .iter_enumerated()
@@ -138,8 +138,8 @@ impl ModulePass for LowerEvmShapedPass {
 /// Whether a function can never return to an internal caller: it has no `ret`
 /// and no `stop` terminator (`stop` is the internal return of a void function).
 fn function_cannot_return(func: &Function) -> bool {
-    !func.blocks.is_empty()
-        && !func.blocks.iter().any(|block| {
-            matches!(block.terminator, Some(Terminator::Return { .. } | Terminator::Stop))
-        })
+    !func
+        .blocks
+        .iter()
+        .any(|block| matches!(block.terminator, Some(Terminator::Return { .. } | Terminator::Stop)))
 }

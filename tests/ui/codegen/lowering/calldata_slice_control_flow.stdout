@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_control_flow.sol:CalldataSliceControlFlow ===
 @module CalldataSliceControlFlow
 fn @trimLen(arg0: calldataslice) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -58,7 +58,7 @@ fn @trimLen(arg0: calldataslice) {
 }
 
 fn @_trim(arg0: calldataslice) -> memorybytes {
-  bb0 (entry):
+  bb0:
     v0 = internal_frame_addr 128
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = internal_frame_addr 128
@@ -82,7 +82,7 @@ fn @_trim(arg0: calldataslice) -> memorybytes {
 }
 
 fn @forward(arg0: calldataslice) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -163,7 +163,7 @@ fn @forward(arg0: calldataslice) {
 }
 
 fn @_sum(arg0: calldataslice, arg1: calldataslice) -> u256 {
-  bb0 (entry):
+  bb0:
     v0 = internal_frame_addr 160
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = slice_len arg0
@@ -192,7 +192,7 @@ fn @_sum(arg0: calldataslice, arg1: calldataslice) -> u256 {
 }
 
 fn @explicitTrim(arg0: calldataslice) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -243,7 +243,7 @@ fn @explicitTrim(arg0: calldataslice) {
 }
 
 fn @_explicitTrim(arg0: calldataslice) -> memorybytes {
-  bb0 (entry):
+  bb0:
     v0 = internal_frame_addr 128
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = slice_len arg0
@@ -268,7 +268,7 @@ fn @_explicitTrim(arg0: calldataslice) -> memorybytes {
 }
 
 fn @headTail(arg0: calldataslice) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -358,7 +358,7 @@ fn @headTail(arg0: calldataslice) {
 }
 
 fn @_split(arg0: calldataslice) -> (memorybytes, memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = internal_frame_addr 160
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = internal_frame_addr 192

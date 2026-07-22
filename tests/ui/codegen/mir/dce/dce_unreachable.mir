@@ -3,7 +3,7 @@
 // DCE should clear bb1's instructions and mark it invalid.
 @module DceUnreachable
 fn @skip(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb2
   bb1:
     v1 = add arg0, 1

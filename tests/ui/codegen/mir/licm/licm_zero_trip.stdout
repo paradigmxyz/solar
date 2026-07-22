@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/licm/licm_zero_trip.mir (after licm) ===
   @module LicmZeroTrip
   fn @keep_sload_zero_trip() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = calldatasize
       jump bb1
     bb1:
@@ -19,7 +19,7 @@
   }
   
   fn @keep_mload_zero_trip() -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = calldatasize
       jump bb1
     bb1:
@@ -35,7 +35,7 @@
   }
   
   fn @hoist_sload_known_trip() -> u256 {
-    bb0 (entry):
+    bb0:
 +     v2 = sload 5 !metadata(storage=slot(5))
       jump bb1
     bb1:
@@ -51,7 +51,7 @@
   }
   
   fn @hoist_mload_dominates_exits() -> u256 {
-    bb0 (entry):
+    bb0:
 -     jump bb1
 -   bb1:
       v0 = mload 64
@@ -65,7 +65,7 @@
   }
   
   fn @keep_mload_msize_in_function() -> u256 {
-    bb0 (entry):
+    bb0:
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v3]

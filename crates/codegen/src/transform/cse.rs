@@ -417,7 +417,7 @@ impl CommonSubexprEliminator {
     }
 
     fn process_global_blocks(&mut self, func: &Function, ctx: &mut GlobalCseContext<'_>) {
-        let mut worklist = vec![(func.entry_block, FxHashMap::default())];
+        let mut worklist = vec![(BlockId::ENTRY, FxHashMap::default())];
         while let Some((block_id, mut cache)) = worklist.pop() {
             for &inst_id in &func.blocks[block_id].instructions {
                 let kind = func.instructions[inst_id].kind.clone();

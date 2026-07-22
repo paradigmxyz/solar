@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_scratch.sol:MultiReturnScratch ===
 @module MultiReturnScratch
 fn @stored(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -17,7 +17,7 @@ fn @stored(arg0: u256) {
 }
 
 fn @triple(arg0: u256) -> (u256, u256, u256) {
-  bb0 (entry):
+  bb0:
     v0 = internal_frame_addr 192
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = internal_frame_addr 224
@@ -49,7 +49,7 @@ fn @triple(arg0: u256) -> (u256, u256, u256) {
 }
 
 fn @assign(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64

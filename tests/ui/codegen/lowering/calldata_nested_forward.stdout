@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_nested_forward.sol:NestedCalldataForward ===
 @module NestedCalldataForward
 fn @forward(arg0: calldataslice, arg1: address) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -115,7 +115,7 @@ fn @forward(arg0: calldataslice, arg1: address) {
 }
 
 fn @forwardStructs(arg0: calldataslice, arg1: address) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64

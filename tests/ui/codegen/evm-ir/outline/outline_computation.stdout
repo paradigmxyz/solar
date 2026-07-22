@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/evm-ir/outline/outline_computation.evmir (before outline) ===
 + // === ROOT/tests/ui/codegen/evm-ir/outline/outline_computation.evmir (after outline) ===
   @module module
-  bb0 (entry):
+  bb0:
 -   push 1
 -   pop
 -   push 1

@@ -14,6 +14,7 @@ use crate::mir::{BlockId, Function, InstId, Terminator, Value, ValueId};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
+    index::{IndexVec, index_vec},
     map::FxHashMap,
 };
 use std::collections::VecDeque;
@@ -41,7 +42,7 @@ struct BlockLiveness {
 #[derive(Debug)]
 pub(crate) struct Liveness {
     /// Per-block liveness information (indexed by block index).
-    block_liveness: Vec<BlockLiveness>,
+    block_liveness: IndexVec<BlockId, BlockLiveness>,
     /// The last use location of each value within each block: (block, instruction index).
     /// The key is (ValueId, BlockId), and value is the instruction index (None = terminator).
     /// This tracks the last use of a value *within* each block where it's used.
@@ -68,23 +69,24 @@ impl Liveness {
         }
 
         // Initialize per-block liveness
-        let mut block_liveness: Vec<BlockLiveness> = (0..num_blocks)
+        let mut block_liveness = (0..num_blocks)
             .map(|_| BlockLiveness {
                 live_in: LiveSet::with_capacity(num_values),
                 live_out: LiveSet::with_capacity(num_values),
             })
-            .collect();
+            .collect::<IndexVec<BlockId, _>>();
 
         // Compute local def/use sets for each block
-        let mut block_defs: Vec<LiveSet> =
-            (0..num_blocks).map(|_| LiveSet::with_capacity(num_values)).collect();
-        let mut block_uses: Vec<LiveSet> =
-            (0..num_blocks).map(|_| LiveSet::with_capacity(num_values)).collect();
+        let mut block_defs = (0..num_blocks)
+            .map(|_| LiveSet::with_capacity(num_values))
+            .collect::<IndexVec<BlockId, _>>();
+        let mut block_uses = (0..num_blocks)
+            .map(|_| LiveSet::with_capacity(num_values))
+            .collect::<IndexVec<BlockId, _>>();
 
         let mut operand_buf = SmallVec::<[ValueId; 8]>::new();
 
         for (block_id, block) in func.blocks.iter_enumerated() {
-            let bidx = block_id.index();
             // Process instructions in forward order to compute upward-exposed uses and defs
             for &inst_id in &block.instructions {
                 let inst = func.instruction(inst_id);
@@ -93,14 +95,14 @@ impl Liveness {
                 operand_buf.clear();
                 inst.kind.collect_operands(&mut operand_buf);
                 for &operand in &operand_buf {
-                    if !block_defs[bidx].contains(operand) {
-                        block_uses[bidx].insert(operand);
+                    if !block_defs[block_id].contains(operand) {
+                        block_uses[block_id].insert(operand);
                     }
                 }
 
                 // Record definition using precomputed map (O(1) instead of O(n)).
                 if let Some(&val_id) = inst_to_value.get(&inst_id) {
-                    block_defs[bidx].insert(val_id);
+                    block_defs[block_id].insert(val_id);
                 }
             }
 
@@ -109,8 +111,8 @@ impl Liveness {
                 operand_buf.clear();
                 collect_terminator_uses(term, &mut operand_buf);
                 for &operand in &operand_buf {
-                    if !block_defs[bidx].contains(operand) {
-                        block_uses[bidx].insert(operand);
+                    if !block_defs[block_id].contains(operand) {
+                        block_uses[block_id].insert(operand);
                     }
                 }
             }
@@ -127,26 +129,25 @@ impl Liveness {
 
         while let Some(block_id) = worklist.pop_front() {
             queued.remove(block_id);
-            let bidx = block_id.index();
             let block = &func.blocks[block_id];
 
             new_live_out.clear();
             let successors =
                 block.terminator.as_ref().map(Terminator::successors).unwrap_or_default();
             for succ in successors {
-                new_live_out.union(&block_liveness[succ.index()].live_in);
+                new_live_out.union(&block_liveness[succ].live_in);
             }
 
             // live_in = use ∪ (live_out - def)
             new_live_in.clone_from(&new_live_out);
-            new_live_in.subtract(&block_defs[bidx]);
-            new_live_in.union(&block_uses[bidx]);
+            new_live_in.subtract(&block_defs[block_id]);
+            new_live_in.union(&block_uses[block_id]);
 
-            if new_live_out != block_liveness[bidx].live_out
-                || new_live_in != block_liveness[bidx].live_in
+            if new_live_out != block_liveness[block_id].live_out
+                || new_live_in != block_liveness[block_id].live_in
             {
-                std::mem::swap(&mut block_liveness[bidx].live_out, &mut new_live_out);
-                std::mem::swap(&mut block_liveness[bidx].live_in, &mut new_live_in);
+                std::mem::swap(&mut block_liveness[block_id].live_out, &mut new_live_out);
+                std::mem::swap(&mut block_liveness[block_id].live_in, &mut new_live_in);
 
                 // Add predecessors to worklist
                 for &pred in &block.predecessors {
@@ -204,15 +205,15 @@ impl Liveness {
             }
         }
 
-        let mut defining_blocks = vec![None; func.instructions.len()];
+        let mut defining_blocks = index_vec![None; func.instructions.len()];
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
-                defining_blocks[inst_id.index()] = Some(block_id);
+                defining_blocks[inst_id] = Some(block_id);
             }
         }
 
         let is_local = |value, block_id| match func.value(value) {
-            Value::Inst(inst_id) => defining_blocks[inst_id.index()] == Some(block_id),
+            Value::Inst(inst_id) => defining_blocks[*inst_id] == Some(block_id),
             Value::Arg { .. } => false,
             Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => true,
         };
@@ -234,12 +235,13 @@ impl Liveness {
             }
         }
 
-        let block_liveness = (0..func.blocks.len())
-            .map(|_| BlockLiveness {
+        let block_liveness = index_vec![
+            BlockLiveness {
                 live_in: LiveSet::new_empty(),
                 live_out: LiveSet::new_empty(),
-            })
-            .collect();
+            };
+            func.blocks.len()
+        ];
         let mut last_use_in_block = FxHashMap::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
             if let Some(term) = &block.terminator {
@@ -264,20 +266,20 @@ impl Liveness {
     /// Returns the values live at the entry of a block.
     #[must_use]
     pub(crate) fn live_in(&self, block: BlockId) -> &LiveSet {
-        &self.block_liveness[block.index()].live_in
+        &self.block_liveness[block].live_in
     }
 
     /// Returns the values live at the exit of a block.
     #[must_use]
     pub(crate) fn live_out(&self, block: BlockId) -> &LiveSet {
-        &self.block_liveness[block.index()].live_out
+        &self.block_liveness[block].live_out
     }
 
     #[cfg(test)]
     fn live_at_inst(&self, func: &Function, block_id: BlockId, inst_idx: usize) -> LivenessInfo {
         let block = &func.blocks[block_id];
         let inst_to_value = func.inst_results();
-        let mut live = self.block_liveness[block_id.index()].live_out.clone();
+        let mut live = self.block_liveness[block_id].live_out.clone();
 
         if let Some(term) = &block.terminator {
             let mut term_uses = SmallVec::<[ValueId; 8]>::new();
@@ -319,7 +321,7 @@ impl Liveness {
         block: BlockId,
         inst_idx: usize,
     ) -> bool {
-        if self.block_liveness[block.index()].live_out.contains(val) {
+        if self.block_liveness[block].live_out.contains(val) {
             return true;
         }
 
@@ -338,7 +340,7 @@ impl Liveness {
     #[must_use]
     pub(crate) fn is_dead_after(&self, val: ValueId, block: BlockId, inst_idx: usize) -> bool {
         // If the value is in live_out, it's used by successor blocks, so it's not dead
-        if self.block_liveness[block.index()].live_out.contains(val) {
+        if self.block_liveness[block].live_out.contains(val) {
             return false;
         }
 
@@ -462,7 +464,7 @@ mod tests {
         b.ret([sum]);
 
         let liveness = Liveness::compute(&func);
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
 
         // x and one are used by add, so live-in to entry.
         assert!(liveness.live_in(entry).contains(x));
@@ -510,7 +512,7 @@ mod tests {
         assert!(liveness.live_in(then_bb).contains(x));
         assert!(liveness.live_in(else_bb).contains(x));
         // x must be live-out of entry (flows to successors).
-        assert!(liveness.live_out(func.entry_block).contains(x));
+        assert!(liveness.live_out(BlockId::ENTRY).contains(x));
         // v_then must be live-out of then_bb (used in merge's ret).
         assert!(liveness.live_out(then_bb).contains(v_then));
         // v_else should NOT be live-out of else_bb (merge returns v_then, not v_else).
@@ -571,7 +573,7 @@ mod tests {
         b.ret([x]);
 
         let liveness = Liveness::compute(&func);
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
 
         assert!(liveness.live_in(entry).contains(x));
         // dead instruction result must not be live-out.
@@ -589,7 +591,7 @@ mod tests {
         b.ret([y]);
 
         let liveness = Liveness::compute(&func);
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
 
         assert!(!liveness.live_in(entry).contains(_x), "unused param not live");
         assert!(liveness.live_in(entry).contains(y), "used param is live");
@@ -620,7 +622,7 @@ mod tests {
 
         assert!(liveness.live_in(left).contains(x));
         assert!(liveness.live_in(right).contains(x));
-        assert!(liveness.live_out(func.entry_block).contains(x));
+        assert!(liveness.live_out(BlockId::ENTRY).contains(x));
     }
 
     #[test]
@@ -630,8 +632,8 @@ mod tests {
         b.stop();
 
         let liveness = Liveness::compute(&func);
-        assert_eq!(liveness.live_in(func.entry_block).count(), 0);
-        assert_eq!(liveness.live_out(func.entry_block).count(), 0);
+        assert_eq!(liveness.live_in(BlockId::ENTRY).count(), 0);
+        assert_eq!(liveness.live_out(BlockId::ENTRY).count(), 0);
     }
 
     #[test]
@@ -646,7 +648,7 @@ mod tests {
         b.ret([loaded]);
 
         let liveness = Liveness::compute(&func);
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
 
         // Before sstore (inst 0): slot and val must be live.
         let info_0 = liveness.live_at_inst(&func, entry, 0);
@@ -671,7 +673,7 @@ mod tests {
         b.ret([v3]);
 
         let liveness = Liveness::compute(&func);
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
 
         // Before add (inst 0): v0 and v1 are live.
         let info_0 = liveness.live_at_inst(&func, entry, 0);
@@ -707,7 +709,7 @@ mod tests {
         b.ret([v2]);
 
         let liveness = Liveness::compute(&func);
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
 
         // v0 and v1 are dead after the add (inst 0) — their last use is at inst 0.
         assert!(liveness.is_dead_after(v0, entry, 0), "v0 dead after add");
@@ -728,7 +730,7 @@ mod tests {
         b.ret([v3]);
 
         let liveness = Liveness::compute(&func);
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
 
         // v0 last used at inst 1 (mul).
         assert_eq!(liveness.last_use_in_block(v0, entry), Some(Some(1)));

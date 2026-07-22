@@ -4,7 +4,7 @@
 - fn @add(arg0: u256, arg1: u256) {
 + @phase abi
 + fn @add() {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, arg1
       mstore 128, v0
       returndata 128, 32
@@ -12,7 +12,7 @@
   
 - fn @flag(arg0: bool) {
 + fn @flag() {
-    bb0 (entry):
+    bb0:
       mstore 128, arg0
       returndata 128, 32
   }

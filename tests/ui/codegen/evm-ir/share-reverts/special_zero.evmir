@@ -1,7 +1,7 @@
 //@compile-flags: --pass share-reverts
 @module module
 
-bb0 (entry):
+bb0:
   push 1
   iszero
   push bb2

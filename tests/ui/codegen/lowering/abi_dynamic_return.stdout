@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/abi_dynamic_return.sol:AbiDynamicReturn ===
 @module AbiDynamicReturn
 fn @bytesLiteral() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 3
@@ -13,7 +13,7 @@ fn @bytesLiteral() {
 }
 
 fn @__ret_bytes(arg0: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = fmp
     mstore v0, 32
     v1 = memory_object_len memorybytes, arg0
@@ -33,7 +33,7 @@ fn @__ret_bytes(arg0: memorybytes) {
 }
 
 fn @stringLiteral() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 5

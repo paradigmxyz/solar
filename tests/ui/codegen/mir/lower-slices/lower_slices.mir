@@ -1,20 +1,20 @@
 //@compile-flags: --passes lower-abi,lower-slices
 @module LowerSlices
 fn @entry(arg0: calldataslice) [selector=0x12345678] {
-  bb0 (entry):
+  bb0:
     v1 = internal_call @len, 1, arg0
     mstore 128, v1
     returndata 128, 32
 }
 
 fn @len(arg0: calldataslice) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = slice_len arg0
     ret v1
 }
 
 fn @tail(arg0: calldataslice, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v2 = slice_ptr arg0
     v3 = slice_len arg0
     v4 = add v2, arg1
@@ -25,13 +25,13 @@ fn @tail(arg0: calldataslice, arg1: u256) -> u256 {
 }
 
 fn @pair_len(arg0: calldataslice) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = slice_len arg0
     ret v1
 }
 
 fn @memory(arg0: memptr, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v2 = make_memory_slice arg0, arg1
     v3 = slice_ptr v2
     v4 = slice_len v2

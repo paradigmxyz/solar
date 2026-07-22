@@ -1,7 +1,7 @@
 //@ failure-status: 1
 @module module
 
-bb0 (entry):
+bb0:
   push 1
   push 2
   swap2

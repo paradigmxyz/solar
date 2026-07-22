@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/internal_void_call.sol:InternalVoidCall ===
 @module InternalVoidCall
 fn @value() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     mstore 128, v0
@@ -9,7 +9,7 @@ fn @value() {
 }
 
 fn @set(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -28,7 +28,7 @@ fn @set(arg0: u256) {
 }
 
 fn @setUnlessZero(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -46,7 +46,7 @@ fn @setUnlessZero(arg0: u256) {
 }
 
 fn @writeIfNonZero(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = eq arg0, 0
     v1 = iszero v0
     br v1, bb1, bb2

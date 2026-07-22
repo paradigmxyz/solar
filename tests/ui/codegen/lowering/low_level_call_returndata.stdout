@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_call_returndata.sol:LowLevelCallReturndata ===
 @module LowLevelCallReturndata
 fn @safeTransfer(arg0: address, arg1: address, arg2: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
@@ -83,7 +83,7 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) {
 }
 
 fn @__revert_error(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 32 !metadata(memory=scratch)
     mstore 36, arg0 !metadata(memory=scratch)
@@ -92,7 +92,7 @@ fn @__revert_error(arg0: u256, arg1: u256) {
 }
 
 fn @balanceOf(arg0: address) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -149,7 +149,7 @@ fn @balanceOf(arg0: address) {
 }
 
 fn @forward(arg0: address, arg1: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -206,7 +206,7 @@ fn @forward(arg0: address, arg1: memorybytes) {
 }
 
 fn @__ret_bytes(arg0: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = fmp
     mstore v0, 32
     v1 = memory_object_len memorybytes, arg0

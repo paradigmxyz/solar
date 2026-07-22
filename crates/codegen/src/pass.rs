@@ -452,7 +452,7 @@ pub(crate) trait FunctionPass {
     /// default preserves the ordinary function-local execution model.
     fn run_on_module(&mut self, module: &mut Module) -> bool {
         let mut changed = false;
-        for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
+        for func in &mut module.functions {
             changed |= self.run_on_function(func);
         }
         changed

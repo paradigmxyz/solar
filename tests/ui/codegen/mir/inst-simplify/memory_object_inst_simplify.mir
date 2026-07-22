@@ -2,7 +2,7 @@
 @module MemoryObjectInstSimplify
 
 fn @fold_identity_projections(arg0: memorystruct, arg1: memoryfixedarray) -> u256 {
-  bb0 (entry):
+  bb0:
     v2 = memory_object_data memorystruct, arg0
     v3 = memory_object_field_addr memorystruct<2>, arg0, 0
     v4 = memory_object_element_addr memoryfixedarray<4, 1>, arg1, 0

@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/cse/cse_allocation_provenance.mir (after cse) ===
   @module CseAllocationProvenance
   fn @fresh(arg0: u256, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, arg0
@@ -15,7 +15,7 @@
   }
   
   fn @reset(arg0: u256, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, arg0
       v1 = mload v0

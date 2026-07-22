@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/gvn/memory_object_gvn.mir (after gvn) ===
   @module MemoryObjectGvn
   fn @reuse_projections(arg0: memorybytes, arg1: memorystruct, arg2: memoryarray, arg3: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = memory_object_data memorybytes, arg0
 -     v1 = memory_object_data memorybytes, arg0
       v2 = memory_object_field_addr memorystruct<3>, arg1, 2

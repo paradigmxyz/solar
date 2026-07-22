@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/library_mapping_storage_param.sol:L (runtime) ===
 // === ROOT/tests/ui/codegen/lowering/library_mapping_storage_param.sol:C (runtime) ===
 @module runtime
-bb0 (entry):
+bb0:
   push 704
   push 64
   mstore

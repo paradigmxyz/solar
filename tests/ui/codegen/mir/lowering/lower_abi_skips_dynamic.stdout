@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_skips_dynamic.mir (after lower-abi) ===
   @module LowerAbiSkipsDynamic
   fn @givesBytes(arg0: memptr) -> memptr {
-    bb0 (entry):
+    bb0:
       ret arg0
   }
   

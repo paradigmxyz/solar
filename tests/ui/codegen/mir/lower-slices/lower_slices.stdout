@@ -4,20 +4,20 @@
 - fn @entry(arg0: calldataslice) {
 + @phase abi
 + fn @entry() {
-    bb0 (entry):
+    bb0:
       v0 = internal_call @len, 1, arg0
       mstore 128, v0
       returndata 128, 32
   }
   
   fn @len(arg0: calldataslice) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = slice_len arg0
       ret v0
   }
   
   fn @tail(arg0: calldataslice, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = slice_ptr arg0
       v1 = slice_len arg0
       v2 = add v0, arg1
@@ -28,13 +28,13 @@
   }
   
   fn @pair_len(arg0: calldataslice) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = slice_len arg0
       ret v0
   }
   
   fn @memory(arg0: memptr, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = make_memory_slice arg0, arg1
       v1 = slice_ptr v0
       v2 = slice_len v0
@@ -47,7 +47,7 @@
   @module LowerSlices
   @phase abi
   fn @entry() {
-    bb0 (entry):
+    bb0:
       v0 = internal_call @len, 1, arg0
       mstore 128, v0
       returndata 128, 32
@@ -55,7 +55,7 @@
   
 - fn @len(arg0: calldataslice) -> u256 {
 + fn @len(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = slice_len arg0
 -     ret v0
 +     v1 = add arg0, 4
@@ -65,7 +65,7 @@
   
 - fn @tail(arg0: calldataslice, arg1: u256) -> u256 {
 + fn @tail(arg0: calldataptr, arg1: u256, arg2: u256) -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = slice_ptr arg0
 -     v1 = slice_len arg0
 -     v2 = add v0, arg1
@@ -80,14 +80,14 @@
   
 - fn @pair_len(arg0: calldataslice) -> u256 {
 + fn @pair_len(arg0: calldataptr, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = slice_len arg0
 -     ret v0
 +     ret arg1
   }
   
   fn @memory(arg0: memptr, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = make_memory_slice arg0, arg1
 -     v1 = slice_ptr v0
 -     v2 = slice_len v0

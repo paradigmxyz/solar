@@ -5,7 +5,7 @@
 //! ```text
 //! @module Counter
 //! fn @increment() {
-//!   bb0 (entry):
+//!   bb0:
 //!     v0 = sload 0
 //!     v1 = add v0, 1
 //!     sstore 0, v1
@@ -61,26 +61,20 @@ pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
 
 #[cfg(test)]
 pub(super) fn parse_module(sess: &Session, input: &str) -> Result<Module> {
-    let id = input.bytes().fold(0u64, |hash, byte| hash.wrapping_mul(31).wrapping_add(byte.into()));
+    let name = format!("test{}.mir", sess.source_map().files().len());
     let file = sess
         .source_map()
-        .new_source_file(
-            solar_interface::source_map::FileName::Custom(format!("mir-test-{id}")),
-            input,
-        )
+        .new_source_file(solar_interface::source_map::FileName::Custom(name), input)
         .unwrap();
     Module::parse(sess, &file)
 }
 
 #[cfg(test)]
 fn parse_function(sess: &Session, input: &str) -> Result<Function> {
-    let id = input.bytes().fold(0u64, |hash, byte| hash.wrapping_mul(31).wrapping_add(byte.into()));
+    let name = format!("test{}.mir", sess.source_map().files().len());
     let source = sess
         .source_map()
-        .new_source_file(
-            solar_interface::source_map::FileName::Custom(format!("mir-function-test-{id}")),
-            input,
-        )
+        .new_source_file(solar_interface::source_map::FileName::Custom(name), input)
         .unwrap();
     let arena = Arena::new();
     let mut p = Parser::new(sess, &arena, &source);
@@ -357,13 +351,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parse_instruction_or_terminator(&mut builder)?;
             }
 
+            if self.block_order.is_empty() {
+                return Err(self.parser.error("function must contain at least one block"));
+            }
             self.reject_unresolved_block_labels()?;
             self.reject_unresolved_value_labels(builder.func())?;
             crate::mir::utils::remap_block_order(builder.func_mut(), &self.block_order)
         };
         for reference in &mut self.function_refs {
             if let FunctionRefTarget::Terminator(block) = &mut reference.target {
-                *block = block_remap[block.index()];
+                *block = block_remap[*block];
             }
         }
 
@@ -378,17 +375,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let Ok(index) = index.parse() else {
             return Ok(None);
         };
-        if !matches!(
-            self.parser.look_ahead(1).kind,
-            TokenKind::Colon | TokenKind::OpenDelim(Delimiter::Parenthesis)
-        ) {
+        if !matches!(self.parser.look_ahead(1).kind, TokenKind::Colon) {
             return Ok(None);
         }
         self.parser.bump();
-        if self.parser.eat(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-            self.parser.expect_keyword(sym::entry)?;
-            self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
-        }
         self.parser.expect(TokenKind::Colon)?;
         Ok(Some(index))
     }
@@ -406,11 +396,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.block_order.push(label.id);
             return Ok(label.id);
         }
-        let id = if self.block_labels.is_empty() {
-            builder.func().entry_block
-        } else {
-            builder.create_block()
-        };
+        let id = if self.block_labels.is_empty() { BlockId::ENTRY } else { builder.create_block() };
         self.block_labels.insert(index, BlockLabel { id, defined: true, reference_span: None });
         self.block_order.push(id);
         Ok(id)
@@ -609,11 +595,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if let Some(label) = self.block_labels.get(&idx) {
             return Ok(label.id);
         }
-        let block = if self.block_labels.is_empty() {
-            builder.func().entry_block
-        } else {
-            builder.create_block()
-        };
+        let block =
+            if self.block_labels.is_empty() { BlockId::ENTRY } else { builder.create_block() };
         self.block_labels
             .insert(idx, BlockLabel { id: block, defined: false, reference_span: Some(span) });
         Ok(block)
@@ -1527,7 +1510,7 @@ mod tests {
     #[test]
     fn parse_module_phase_header() {
         with_session(|sess| {
-            let src = "/// module docs\n@module Phased\n@phase optimized\nfn @f() {\n  bb0 (entry):\n    stop\n}\n";
+            let src = "/// module docs\n@module Phased\n@phase optimized\nfn @f() {\n  bb0:\n    stop\n}\n";
             let module = parse_module(sess, src).unwrap();
             assert_eq!(module.phase, crate::mir::MirPhase::Optimized);
             // Round-trips through the printer.
@@ -1538,7 +1521,7 @@ mod tests {
 @module Phased
 @phase optimized
 fn @f() {
-  bb0 (entry):
+  bb0:
     stop
 }
 
@@ -1548,7 +1531,7 @@ fn @f() {
             assert_eq!(reparsed.phase, crate::mir::MirPhase::Optimized);
 
             // The default phase is not printed, and parses back as built.
-            let src = "@module Fresh\nfn @f() {\n  bb0 (entry):\n    stop\n}\n";
+            let src = "@module Fresh\nfn @f() {\n  bb0:\n    stop\n}\n";
             let module = parse_module(sess, src).unwrap();
             assert_eq!(module.phase, crate::mir::MirPhase::Built);
             assert_data_eq!(
@@ -1556,7 +1539,7 @@ fn @f() {
                 str![[r#"
 @module Fresh
 fn @f() {
-  bb0 (entry):
+  bb0:
     stop
 }
 
@@ -1573,7 +1556,7 @@ fn @f() {
                 crate::mir::MirPhase::EvmShaped,
             ] {
                 let src = format!(
-                    "@module P\n@phase {}\nfn @f() {{\n  bb0 (entry):\n    stop\n}}\n",
+                    "@module P\n@phase {}\nfn @f() {{\n  bb0:\n    stop\n}}\n",
                     phase.name()
                 );
                 let module = parse_module(sess, &src).unwrap();
@@ -1583,13 +1566,13 @@ fn @f() {
             }
 
             // Unknown phase names are rejected.
-            let src = "@module Bogus\n@phase shiny\nfn @f() {\n  bb0 (entry):\n    stop\n}\n";
+            let src = "@module Bogus\n@phase shiny\nfn @f() {\n  bb0:\n    stop\n}\n";
             assert!(parse_module(sess, src).is_err());
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
 error: unknown MIR phase `shiny`
-  ╭▸ <mir-test-15579854765591958512>:2:8
+  ╭▸ <test13.mir>:2:8
   │
 2 │ @phase shiny
   ╰╴       ━━━━━
@@ -1603,14 +1586,14 @@ error: unknown MIR phase `shiny`
     #[test]
     fn parser_does_not_treat_newlines_as_syntax() {
         with_session(|sess| {
-            let src = "@module m fn @f() -> u256 { bb0 (entry): v0 = add 1, 2 ret v0 }";
+            let src = "@module m fn @f() -> u256 { bb0: v0 = add 1, 2 ret v0 }";
             let module = parse_module(sess, src).unwrap();
             assert_data_eq!(
                 module.to_text().to_string(),
                 str![[r#"
 @module m
 fn @f() -> u256 {
-  bb0 (entry):
+  bb0:
     v0 = add 1, 2
     ret v0
 }
@@ -1625,7 +1608,7 @@ fn @f() -> u256 {
         with_session(|sess| {
             let src = "\
 fn @add(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v2 = add arg0, arg1
     ret v2
 }
@@ -1645,7 +1628,7 @@ fn @add(arg0: u256, arg1: u256) -> u256 {
         with_session(|sess| {
             let src = "\
 fn @increment() {
-  bb0 (entry):
+  bb0:
     v0 = sload 0
     v1 = add v0, 1
     sstore 0, v1
@@ -1668,7 +1651,7 @@ fn @increment() {
         with_session(|sess| {
             let src = "\
 fn @max(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v2 = gt arg0, arg1
     br v2, bb1, bb2
   bb1:
@@ -1680,7 +1663,7 @@ fn @max(arg0: u256, arg1: u256) -> u256 {
             let func = parse_function(sess, src).unwrap();
             assert_eq!(func.blocks.len(), 3);
             // bb0 should have 2 successors.
-            assert_eq!(func.blocks[func.entry_block].terminator().unwrap().successors().len(), 2);
+            assert_eq!(func.blocks[BlockId::ENTRY].terminator().unwrap().successors().len(), 2);
         });
     }
 
@@ -1689,7 +1672,7 @@ fn @max(arg0: u256, arg1: u256) -> u256 {
         with_session(|sess| {
             let src = "\
 fn @count_down(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = lt 0, arg0
@@ -1710,7 +1693,7 @@ fn @count_down(arg0: u256) -> u256 {
         with_session(|sess| {
             let src = "\
 fn @do_call(arg0: address, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v2 = call 100, arg0, arg1, 0, 0, 0, 0
     ret v2
 }
@@ -1725,7 +1708,7 @@ fn @do_call(arg0: address, arg1: u256) -> u256 {
         with_session(|sess| {
             let src = "\
 fn @hash() -> u256 {
-  bb0 (entry):
+  bb0:
     mstore 0, 1
     mstore 32, 2
     v1 = keccak256 0, 64
@@ -1743,12 +1726,12 @@ fn @hash() -> u256 {
             let src = "\
 @module Counter
 fn @count() {
-  bb0 (entry):
+  bb0:
     tail_call @set, 1
 }
 
 fn @set(arg0: u256) {
-  bb0 (entry):
+  bb0:
     sstore 0, arg0
     stop
 }
@@ -1774,7 +1757,7 @@ fn @set(arg0: u256) {
         with_session(|sess| {
             let src = "\
 fn @bad() {
-  bb0 (entry):
+  bb0:
     v1 = bogus arg0
     stop
 }
@@ -1784,10 +1767,29 @@ fn @bad() {
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
 error: unknown instruction `bogus`
-  ╭▸ <mir-function-test-13016118735129543399>:3:10
+  ╭▸ <test0.mir>:3:10
   │
 3 │     v1 = bogus arg0
   ╰╴         ━━━━━
+
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
+    fn parse_function_without_blocks_errors() {
+        with_session(|sess| {
+            assert!(parse_function(sess, "fn @bad() {}\n").is_err());
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: function must contain at least one block
+  ╭▸ <test0.mir>:1:12
+  │
+1 │ fn @bad() {}
+  ╰╴           ━
 
 
 "#]]
@@ -1819,7 +1821,7 @@ error: expected identifier
         });
 
         with_session(|sess| {
-            let input = "@module m\nfn @f() {\n  bb0 (entry):\n    %bad\n}\n";
+            let input = "@module m\nfn @f() {\n  bb0:\n    %bad\n}\n";
             let source = sess
                 .source_map()
                 .new_source_file(FileName::Custom("malformed-result.mir".into()), input)
@@ -1840,7 +1842,7 @@ error: expected identifier
         });
 
         with_session(|sess| {
-            let input = "@module m\nfn @f() {\n  bb0 (entry):\n    jump bb9\n}\n";
+            let input = "@module m\nfn @f() {\n  bb0:\n    jump bb9\n}\n";
             let source = sess
                 .source_map()
                 .new_source_file(FileName::Custom("unknown-block.mir".into()), input)
@@ -1865,13 +1867,13 @@ error: unknown block `bb9`
     fn error_snippet_format_is_clang_like() {
         // Verify the precise format users will see, end-to-end.
         with_session(|sess| {
-            let src = "fn @x() -> notatype {\n  bb0 (entry):\n    stop\n}\n";
+            let src = "fn @x() -> notatype {\n  bb0:\n    stop\n}\n";
             assert!(parse_function(sess, src).is_err());
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
 error: unknown type `notatype`
-  ╭▸ <mir-function-test-2067061233293511805>:1:21
+  ╭▸ <test0.mir>:1:21
   │
 1 │ fn @x() -> notatype {
   ╰╴                    ━
@@ -1887,7 +1889,7 @@ error: unknown type `notatype`
         with_session(|sess| {
             for span in ["1..5", "1 .. 5"] {
                 let src = format!(
-                    "@module m\nfn @f() {{\n  bb0 (entry):\n    v0 = sload 0 !metadata(span={span})\n    stop\n}}\n"
+                    "@module m\nfn @f() {{\n  bb0:\n    v0 = sload 0 !metadata(span={span})\n    stop\n}}\n"
                 );
                 let module = parse_module(sess, &src).unwrap();
                 assert_data_eq!(
@@ -1895,7 +1897,7 @@ error: unknown type `notatype`
                     str![[r#"
 @module m
 fn @f() {
-  bb0 (entry):
+  bb0:
     v0 = sload 0 !metadata(span=1..5)
     stop
 }
@@ -1911,13 +1913,13 @@ fn @f() {
         with_session(|sess| {
             let src = "\
 fn @oops() {
-  bb0 (entry):
+  bb0:
     revert 0, 0
 }
 ";
             let func = parse_function(sess, src).unwrap();
             assert!(matches!(
-                func.blocks[func.entry_block].terminator,
+                func.blocks[BlockId::ENTRY].terminator,
                 Some(Terminator::Revert { .. })
             ));
         });
@@ -1928,7 +1930,7 @@ fn @oops() {
         with_session(|sess| {
             let src = "\
 fn @env() -> u256 {
-  bb0 (entry):
+  bb0:
     v0 = caller
     v1 = callvalue
     v2 = gas
@@ -1946,7 +1948,7 @@ fn @env() -> u256 {
         with_session(|sess| {
             let src = "\
 fn @sel(arg0: bool, arg1: u256, arg2: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v3 = select arg0, arg1, arg2
     log1 0, 32, v3
     ret v3
@@ -1962,7 +1964,7 @@ fn @sel(arg0: bool, arg1: u256, arg2: u256) -> u256 {
         with_session(|sess| {
             let src = "\
 fn @diamond(arg0: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     br arg0, bb1, bb2
   bb1:
     jump bb3
@@ -1991,7 +1993,7 @@ fn @diamond(arg0: bool) -> u256 {
         with_session(|sess| {
             let src = "\
 fn @dispatch(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     switch arg0, default bb4, [1 => bb1, 2 => bb2, 3 => bb3]
   bb1:
     ret arg0
@@ -2005,7 +2007,7 @@ fn @dispatch(arg0: u256) -> u256 {
 ";
             let func = parse_function(sess, src).unwrap();
             assert_eq!(func.blocks.len(), 5);
-            let term = func.blocks[func.entry_block].terminator.as_ref().unwrap();
+            let term = func.blocks[BlockId::ENTRY].terminator.as_ref().unwrap();
             if let Terminator::Switch { cases, .. } = term {
                 assert_eq!(cases.len(), 3);
             } else {
@@ -2021,7 +2023,7 @@ fn @dispatch(arg0: u256) -> u256 {
         with_session(|sess| {
             let src = "\
 fn @diamond(arg0: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     br arg0, bb1, bb2
   bb1:
     jump bb3
@@ -2038,7 +2040,7 @@ fn @diamond(arg0: bool) -> u256 {
                 &printed,
                 str![[r#"
 fn @diamond(arg0: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     br arg0, bb1, bb2
   bb1:
     jump bb3

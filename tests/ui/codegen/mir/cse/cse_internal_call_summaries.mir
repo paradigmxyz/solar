@@ -1,7 +1,7 @@
 //@compile-flags: --pass cse
 @module CseInternalCallSummaries
 fn @keep_load_across_reader(arg0: memptr) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = mload arg0
     v2 = internal_call fn3, 1, arg0
     v3 = mload arg0
@@ -11,7 +11,7 @@ fn @keep_load_across_reader(arg0: memptr) -> u256 {
 }
 
 fn @invalidate_load_across_writer(arg0: memptr) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = mload arg0
     internal_call fn4, 0, arg0
     v2 = mload arg0
@@ -20,7 +20,7 @@ fn @invalidate_load_across_writer(arg0: memptr) -> u256 {
 }
 
 fn @preserve_freshness_across_call() -> u256 {
-  bb0 (entry):
+  bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     v1 = mload v0
     internal_call fn5, 0
@@ -32,18 +32,18 @@ fn @preserve_freshness_across_call() -> u256 {
 }
 
 fn @reader(arg0: memptr) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = mload arg0
     ret v1
 }
 
 fn @writer(arg0: memptr) {
-  bb0 (entry):
+  bb0:
     mstore arg0, 9
     ret
 }
 
 fn @noop() {
-  bb0 (entry):
+  bb0:
     ret
 }

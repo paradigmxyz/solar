@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_abi_validation.sol:ConstructorAbiValidation ===
 @module ConstructorAbiValidation
 fn @flag() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
@@ -10,7 +10,7 @@ fn @flag() {
 }
 
 fn @second() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
@@ -20,7 +20,7 @@ fn @second() {
 }
 
 fn @_anonymous(arg0: bool, arg1: u256, arg2: u256) {
-  bb0 (entry):
+  bb0:
     v0 = mload 128
     v1 = iszero v0
     v2 = iszero v1

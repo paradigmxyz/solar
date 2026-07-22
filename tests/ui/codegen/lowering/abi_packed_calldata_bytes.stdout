@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_packed_calldata_bytes.sol:P (runtime) ===
 @module runtime
-bb0 (entry):
+bb0:
   push 384
   push 64
   mstore

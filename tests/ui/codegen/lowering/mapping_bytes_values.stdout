@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/mapping_bytes_values.sol:MappingBytesValues ===
 @module MappingBytesValues
 fn @set(arg0: u256, arg1: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -93,7 +93,7 @@ fn @set(arg0: u256, arg1: memorybytes) {
 }
 
 fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
@@ -186,7 +186,7 @@ fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) {
 }
 
 fn @get(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -202,7 +202,7 @@ fn @get(arg0: u256) {
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memorybytes {
-  bb0 (entry):
+  bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
     v2 = eq v1, 1
@@ -248,7 +248,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
 }
 
 fn @__ret_bytes(arg0: memorybytes) {
-  bb0 (entry):
+  bb0:
     v0 = fmp
     mstore v0, 32
     v1 = memory_object_len memorybytes, arg0
@@ -268,7 +268,7 @@ fn @__ret_bytes(arg0: memorybytes) {
 }
 
 fn @getNested(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64

@@ -3,7 +3,7 @@
 @phase dispatch
 
 fn @objects(arg0: memorybytes, arg1: memoryarray, arg2: memorystruct, arg3: memoryfixedarray) {
-  bb0 (entry):
+  bb0:
     v4 = alloc memorybytes, exact, zeroed, panic, 96
     set_memory_object_len memorybytes, v4, 3
     v5 = memory_object_len memorybytes, v4
