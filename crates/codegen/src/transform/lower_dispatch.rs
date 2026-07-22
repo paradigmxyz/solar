@@ -16,9 +16,9 @@
 //! [`super::LowerAbiPass`] produces, so it bails on `built`/`optimized` modules
 //! rather than half-dispatching argument-taking functions.
 //!
-//! This is opt-in: it is not part of the default pipeline, and the backend does
-//! not consume `dispatch`-phase modules. It is the staging ground for moving the
-//! dispatcher out of the backend.
+//! This pass runs after [`super::LowerAbiPass`] in the codegen pipeline. The
+//! backend consumes the resulting `dispatch`-or-later module and uses its
+//! `entry` function instead of synthesizing a dispatcher.
 
 use crate::{
     mir::{Function, FunctionBuilder, FunctionId, MirPhase, Module, ValueId},

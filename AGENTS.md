@@ -93,13 +93,13 @@ only when not the default). The phases, in order:
   compile-time frame addresses with no return address pushed.
 
 The `lower-abi`, `lower-dispatch`, and `lower-evm-shaped` passes are progressive MIR-to-MIR lowering,
-moving dispatch and ABI handling out of the backend. They run **by default** in
-the codegen pipeline and the backend consumes the `dispatch`-phase module, with
-the MIR `entry` as the runtime prologue and `tail_call` lowered to a jump
-(opt out with `-Zno-mir-dispatch`). A module where `lower-abi` bails — when any
-external function has returns (the wrappers do not implement returndata
-encoding yet), or there is no external interface — keeps its phase and is
-dispatched by the backend. When extending them or adding the next phase, make the transition a
+moving dispatch and ABI handling out of the backend. They run in the codegen
+pipeline and the backend consumes the `dispatch`-or-later module, with the MIR
+`entry` as the runtime prologue and `tail_call` lowered to a jump. A
+module where `lower-abi` bails — when any external function has returns (the
+wrappers do not implement returndata encoding yet), or there is no external
+interface — keeps its phase and is dispatched by the backend. When extending
+them or adding the next phase, make the transition a
 named pass that advances the phase via `Module::advance_phase`, keep it
 conservative (bail rather than miscompile — `lower-abi` skips dynamic types),
 and pin it with `.mir` UI tests under `tests/ui/codegen/mir/`.

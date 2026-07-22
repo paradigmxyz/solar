@@ -28,9 +28,9 @@ pub(crate) const IMMUTABLE_WORD_SIZE: usize = 32;
 /// Optimization runs on the compact high-level form first; the progressive
 /// lowering phases then rewrite high-level constructs into MIR itself instead
 /// of leaving them as backend special cases. The codegen pipeline runs
-/// `lower-abi` and `lower-dispatch` by default and the backend consumes the
-/// `dispatch`-phase module (opt out with `-Zno-mir-dispatch`); a module where
-/// lowering bails keeps its phase and is dispatched by the backend.
+/// `lower-abi` and `lower-dispatch`, and the backend consumes the
+/// `dispatch`-or-later module; a module where lowering bails keeps its phase
+/// and is dispatched by the backend.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MirPhase {
     /// Fresh from HIR lowering: typed values, internal calls by function id,

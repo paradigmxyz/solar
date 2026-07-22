@@ -1004,19 +1004,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         // tail-call edges as MIR. Each pass bails without advancing the phase
         // when the module is outside its scope, in which case runtime
         // generation falls back to the backend dispatcher.
-        if !self.gcx.sess.opts.unstable.no_mir_dispatch {
-            run_passes(
-                self.gcx,
-                module,
-                &[
-                    &crate::pass::LOWER_ABI_PASS,
-                    &crate::pass::LOWER_DISPATCH_PASS,
-                    &crate::pass::LOWER_EVM_SHAPED_PASS,
-                ],
-                None,
-                optimizations,
-            );
-        }
+        run_passes(
+            self.gcx,
+            module,
+            &[
+                &crate::pass::LOWER_ABI_PASS,
+                &crate::pass::LOWER_DISPATCH_PASS,
+                &crate::pass::LOWER_EVM_SHAPED_PASS,
+            ],
+            None,
+            optimizations,
+        );
     }
 
     /// Generates runtime bytecode for a module.

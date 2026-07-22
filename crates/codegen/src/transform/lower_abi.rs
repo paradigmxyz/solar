@@ -34,9 +34,8 @@
 //!
 //! Together with [`super::LowerDispatchPass`], which routes a selector switch
 //! to these argument-free wrappers, this moves dispatch and ABI handling out of
-//! the backend. Both passes run by default in the codegen pipeline (opt out
-//! with `-Zno-mir-dispatch`); a module where this pass bails keeps its phase
-//! and is dispatched by the backend instead.
+//! the backend. Both passes run in the codegen pipeline; a module where this
+//! pass bails keeps its phase and is dispatched by the backend instead.
 
 use crate::{
     mir::{BlockId, Function, FunctionBuilder, FunctionId, InstKind, MirPhase, Module, Terminator},

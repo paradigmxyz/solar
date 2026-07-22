@@ -20,7 +20,7 @@
 
 use crate::{
     analysis::CallGraphInfo,
-    mir::{Function, InstKind, MirPhase, Module, Terminator},
+    mir::{Function, InstKind, MirPhase, Module, Terminator, utils::repair_reachability_phis},
     pass::MirPass,
 };
 use solar_data_structures::bit_set::DenseBitSet;
@@ -92,6 +92,7 @@ impl LowerEvmShaped {
         }
 
         for func in module.functions.iter_mut() {
+            let mut changed = false;
             for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
                 let insts = &func.blocks[block_id].instructions;
                 let Some(position) = insts.iter().position(|&inst_id| {
@@ -118,6 +119,10 @@ impl LowerEvmShaped {
                 func.blocks[block_id].instructions.truncate(position);
                 func.blocks[block_id].terminator = Some(Terminator::TailCall { function, args });
                 self.stats.tail_calls += 1;
+                changed = true;
+            }
+            if changed {
+                repair_reachability_phis(func);
             }
         }
 
