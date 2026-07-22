@@ -344,8 +344,13 @@ impl<'gcx> Assembler<'gcx> {
             debug_assert!(!input_is_valid || is_valid_evm_ir(&ir_program));
         }
 
+        let program = assembly::lower_evm_ir(
+            &mut ir_program,
+            &mut labels,
+            self,
+            self.gcx.sess.opts.evm_version,
+        );
         let evm_ir = capture_evm_ir.then(|| ir_program.clone());
-        let program = assembly::lower_evm_ir(&ir_program, &mut labels, self);
         PreparedAssembly {
             evm_ir,
             program,
@@ -408,11 +413,14 @@ impl<'gcx> Assembler<'gcx> {
 
         // Label-free constructor and deployment snippets need neither offset
         // discovery nor push-width relaxation.
-        if program.indexed_jump_tables.is_empty()
-            && !program.instructions.iter().any(|inst| {
-                matches!(inst.kind(), AsmInstKind::Label(_) | AsmInstKind::PushLabel(_))
-            })
-        {
+        if !program.instructions.iter().any(|inst| {
+            matches!(
+                inst.kind(),
+                AsmInstKind::Label(_)
+                    | AsmInstKind::PushLabel(_)
+                    | AsmInstKind::PushLabelFixed(_, _)
+            )
+        }) {
             let mut result =
                 self.emit_bytecode(&program, FxHashMap::default(), &FxHashMap::default());
             result.evm_ir = evm_ir;
@@ -473,6 +481,9 @@ impl<'gcx> Assembler<'gcx> {
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
                     offset += out.fixed_push_len(width);
                 }
+                AsmInstKind::PushLabelFixed(_, width) => {
+                    offset += out.fixed_push_len(width);
+                }
                 AsmInstKind::PushDeferred(_) => {
                     unreachable!("deferred constants must be resolved before assembly");
                 }
@@ -486,11 +497,6 @@ impl<'gcx> Assembler<'gcx> {
                 }
             }
         }
-        for &(label, ref targets) in &program.indexed_jump_tables {
-            label_offsets.insert(label, offset);
-            offset += targets.len() * assembly::INDEXED_JUMP_STUB_LEN;
-        }
-
         // Compute new widths based on resolved offsets
         for (idx, inst) in program.instructions.iter().enumerate() {
             if let AsmInstKind::PushLabel(label) = inst.kind()
@@ -532,6 +538,13 @@ impl<'gcx> Assembler<'gcx> {
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
                     out.emit_push_fixed_width(U256::from(target_offset), width);
                 }
+                AsmInstKind::PushLabelFixed(label, width) => {
+                    let target_offset = label_offsets
+                        .get(&label)
+                        .copied()
+                        .unwrap_or_else(|| panic!("label {label:?} was never defined"));
+                    out.emit_push_fixed_width(U256::from(target_offset), width);
+                }
                 AsmInstKind::PushDeferred(_) => {
                     unreachable!("deferred constants must be resolved before assembly");
                 }
@@ -543,27 +556,6 @@ impl<'gcx> Assembler<'gcx> {
                 }
             }
         }
-        for (_, targets) in &program.indexed_jump_tables {
-            for &target in targets {
-                out.emit_op(op::JUMPDEST);
-                let target_offset = label_offsets
-                    .get(&target)
-                    .copied()
-                    .unwrap_or_else(|| panic!("label {target:?} was never defined"));
-                assert!(
-                    out.push_width(U256::from(target_offset))
-                        <= assembly::INDEXED_JUMP_TARGET_WIDTH,
-                    "label {target:?} does not fit PUSH{}",
-                    assembly::INDEXED_JUMP_TARGET_WIDTH
-                );
-                out.emit_push_fixed_width(
-                    U256::from(target_offset),
-                    assembly::INDEXED_JUMP_TARGET_WIDTH,
-                );
-                out.emit_op(op::JUMP);
-            }
-        }
-
         out.finish()
     }
 
@@ -769,7 +761,7 @@ PUSH1 0x02
     }
 
     #[test]
-    fn indexed_jump_uses_out_of_line_fixed_stride_table() {
+    fn indexed_jump_uses_reachable_fixed_stride_blocks() {
         with_assembler(opts(EvmVersion::Shanghai, OptimizationMode::None), |mut asm| {
             let left = asm.new_label();
             let right = asm.new_label();
@@ -785,21 +777,20 @@ PUSH1 0x02
                 disassemble(&asm.assemble().bytecode),
                 str![[r#"
 PUSH1 0x01
-PUSH1 0x06
+PUSH1 0x04
 MUL
-PUSH1 0x0e
+PUSH1 0x0d
 ADD
 JUMP
 JUMPDEST
 STOP
 JUMPDEST
 INVALID
-STOP
 JUMPDEST
-PUSH3 0x000009
+PUSH1 0x09
 JUMP
 JUMPDEST
-PUSH3 0x00000b
+PUSH1 0x0b
 JUMP
 
 "#]]

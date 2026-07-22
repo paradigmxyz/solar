@@ -238,7 +238,7 @@ fn estimated_terminator_size(kind: &TerminatorKind, next: Option<BlockId>) -> us
                 8
             }
         }
-        TerminatorKind::IndexedJump(targets) => 8 + targets.len() * 6,
+        TerminatorKind::IndexedJump(targets) => 8 + targets.len() * 5,
         TerminatorKind::Op(_) => 1,
     }
 }

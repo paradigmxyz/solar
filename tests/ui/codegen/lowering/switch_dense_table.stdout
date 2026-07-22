@@ -50,7 +50,7 @@ bb4 [cold]:
   dup1
   revert
 bb7:
-  indexed_jump bb10, bb11, bb12, bb13, bb14, bb15, bb16, bb17, bb18, bb19, bb20, bb21, bb22, bb23, bb24, bb25, bb26, bb27, bb28, bb29, bb30, bb31, bb32, bb33
+  indexed_jump bb35, bb36, bb37, bb38, bb39, bb40, bb41, bb42, bb43, bb44, bb45, bb46, bb47, bb48, bb49, bb50, bb51, bb52, bb53, bb54, bb55, bb56, bb57, bb58
 bb10:
   push 10
   jump bb34
@@ -123,3 +123,51 @@ bb32:
 bb33:
   push 33
   jump bb34
+bb35:
+  jump bb10
+bb36:
+  jump bb11
+bb37:
+  jump bb12
+bb38:
+  jump bb13
+bb39:
+  jump bb14
+bb40:
+  jump bb15
+bb41:
+  jump bb16
+bb42:
+  jump bb17
+bb43:
+  jump bb18
+bb44:
+  jump bb19
+bb45:
+  jump bb20
+bb46:
+  jump bb21
+bb47:
+  jump bb22
+bb48:
+  jump bb23
+bb49:
+  jump bb24
+bb50:
+  jump bb25
+bb51:
+  jump bb26
+bb52:
+  jump bb27
+bb53:
+  jump bb28
+bb54:
+  jump bb29
+bb55:
+  jump bb30
+bb56:
+  jump bb31
+bb57:
+  jump bb32
+bb58:
+  jump bb33

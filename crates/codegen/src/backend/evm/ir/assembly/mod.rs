@@ -11,17 +11,10 @@ pub(in crate::backend::evm) use inst::{AsmIndex, AsmInst, AsmInstKind, PushValue
 pub(crate) use inst::{DeferredConst, Label};
 pub(in crate::backend::evm) use lower::lower_evm_ir;
 
-// Three bytes cover initcode permitted by current block gas limits, including
-// pre-Shanghai versions without EIP-3860's explicit initcode size cap.
-pub(in crate::backend::evm) const INDEXED_JUMP_TARGET_WIDTH: u8 = 3;
-pub(in crate::backend::evm) const INDEXED_JUMP_STUB_LEN: usize =
-    INDEXED_JUMP_TARGET_WIDTH as usize + 3;
-
 /// A compact label-bearing opcode stream ready for relocation and byte encoding.
 #[derive(Clone, Debug, Default)]
 pub(in crate::backend::evm) struct Program {
     pub(in crate::backend::evm) instructions: Vec<AsmInst>,
-    pub(in crate::backend::evm) indexed_jump_tables: Vec<(Label, Box<[Label]>)>,
 }
 
 impl Program {
@@ -35,14 +28,6 @@ impl Program {
 
     pub(in crate::backend::evm) fn push_label(&mut self, label: Label) {
         self.push(AsmInst::push_label(label));
-    }
-
-    pub(in crate::backend::evm) fn push_indexed_jump_table(
-        &mut self,
-        label: Label,
-        targets: Box<[Label]>,
-    ) {
-        self.indexed_jump_tables.push((label, targets));
     }
 
     pub(in crate::backend::evm) fn define_label(&mut self, label: Label) {

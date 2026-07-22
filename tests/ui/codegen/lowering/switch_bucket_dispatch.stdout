@@ -19,7 +19,9 @@ bb0:
   push 40
   swap1
   mod
-  indexed_jump bb3, bb59, bb59, bb4, bb59, bb5, bb59, bb6, bb59, bb59, bb7, bb8, bb59, bb9, bb59, bb10, bb11, bb12, bb13, bb59, bb59, bb14, bb15, bb16, bb59, bb59, bb17, bb18, bb19, bb20, bb21, bb59, bb22, bb23, bb24, bb59, bb25, bb59, bb59, bb26
+  indexed_jump bb62, bb63, bb64, bb65, bb66, bb67, bb68, bb69, bb70, bb71, bb72, bb73, bb74, bb75, bb76, bb77, bb78, bb79, bb80, bb81, bb82, bb83, bb84, bb85, bb86, bb87, bb88, bb89, bb90, bb91, bb92, bb93, bb94, bb95, bb96, bb97, bb98, bb99, bb100, bb101
+bb60:
+  stop
 bb3:
   dup1
   push 0xcbf99d38
@@ -165,5 +167,83 @@ bb26:
   dup1
   push 0x1f49dbe7
   jump bb61
-bb60:
-  stop
+bb62:
+  jump bb3
+bb63:
+  jump bb59
+bb64:
+  jump bb59
+bb65:
+  jump bb4
+bb66:
+  jump bb59
+bb67:
+  jump bb5
+bb68:
+  jump bb59
+bb69:
+  jump bb6
+bb70:
+  jump bb59
+bb71:
+  jump bb59
+bb72:
+  jump bb7
+bb73:
+  jump bb8
+bb74:
+  jump bb59
+bb75:
+  jump bb9
+bb76:
+  jump bb59
+bb77:
+  jump bb10
+bb78:
+  jump bb11
+bb79:
+  jump bb12
+bb80:
+  jump bb13
+bb81:
+  jump bb59
+bb82:
+  jump bb59
+bb83:
+  jump bb14
+bb84:
+  jump bb15
+bb85:
+  jump bb16
+bb86:
+  jump bb59
+bb87:
+  jump bb59
+bb88:
+  jump bb17
+bb89:
+  jump bb18
+bb90:
+  jump bb19
+bb91:
+  jump bb20
+bb92:
+  jump bb21
+bb93:
+  jump bb59
+bb94:
+  jump bb22
+bb95:
+  jump bb23
+bb96:
+  jump bb24
+bb97:
+  jump bb59
+bb98:
+  jump bb25
+bb99:
+  jump bb59
+bb100:
+  jump bb59
+bb101:
+  jump bb26

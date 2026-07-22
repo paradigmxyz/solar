@@ -24,7 +24,7 @@ use crate::{
     pass::{run_default_pipeline, run_pass},
 };
 use alloy_primitives::U256;
-use solar_config::OptimizationMode;
+use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::FxHashMap,
@@ -1374,6 +1374,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         !func.attributes.is_constructor
     }
 
+    fn switch_table_target_width(&self) -> usize {
+        if self.in_constructor && self.gcx.sess.opts.evm_version < EvmVersion::Shanghai {
+            3
+        } else {
+            2
+        }
+    }
+
     fn emit_selector_dispatch(
         &mut self,
         selectors: &[SelectorDispatchEntry],
@@ -1386,6 +1394,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.gcx.sess.opts.optimization,
             self.gcx.sess.opts.evm_version,
             false,
+            self.switch_table_target_width(),
         ) {
             SwitchPlan::Linear => {
                 self.emit_linear_selector_dispatch(selectors, fallback_label, revert_label);
@@ -5192,6 +5201,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         self.gcx.sess.opts.optimization,
                         self.gcx.sess.opts.evm_version,
                         !self.emitting_dispatch_entry,
+                        self.switch_table_target_width(),
                     )
                 });
 
