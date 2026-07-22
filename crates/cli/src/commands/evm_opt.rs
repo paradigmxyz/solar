@@ -2,8 +2,11 @@
 //! resulting EVM IR.
 //!
 //! This is the backend-IR equivalent of `solar mir-opt`. It currently accepts
-//! EVM IR files (`.evmir`) and prints the canonical parser/printer output.
+//! EVM IR files (`.evmir`) and prints the canonical parser/printer output. With
+//! `-Zpass-diff`, it instead prints a line-oriented before-and-after diff for
+//! each pass.
 
+use super::print_pass_diff;
 use clap::ValueHint;
 use solar_codegen::backend::evm::ir;
 use solar_config::CompileOpts;
@@ -78,16 +81,22 @@ fn run_pipeline(sess: &Session, module: &mut ir::Module, name: &str, args: &EvmO
     };
     let pipeline_label = selected_pass_list_label(&args.passes, ",");
     for (index, &pass) in args.passes.iter().enumerate() {
+        let before = sess.opts.unstable.pass_diff.then(|| module.to_text().to_string());
         if let Some(pass) = pass {
             ir::run_pass(module, pass, options);
         }
-        if args.print_after_each || index + 1 == args.passes.len() {
+        if before.is_some() || args.print_after_each || index + 1 == args.passes.len() {
             ir::validate(dcx, module);
             if dcx.has_errors().is_err() {
                 break;
             }
-            let label = if args.print_after_each { pass_label(pass) } else { &pipeline_label };
-            print_module(module, name, label);
+            if let Some(before) = before {
+                let after = module.to_text().to_string();
+                print_pass_diff(name, pass_label(pass), &before, &after);
+            } else {
+                let label = if args.print_after_each { pass_label(pass) } else { &pipeline_label };
+                print_module(module, name, label);
+            }
         }
     }
 }

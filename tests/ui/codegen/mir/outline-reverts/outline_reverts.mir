@@ -46,6 +46,6 @@ fn @third(arg0: u256) {
     returndata 128, 32
 }
 
-// CHECK:     tail_call @__revert_stub0
-// CHECK:     tail_call @__revert_stub0
-// CHECK: fn @__revert_stub0() {
+// CHECK: +     tail_call @__revert_stub0
+// CHECK: +     tail_call @__revert_stub0
+// CHECK: + fn @__revert_stub0() {

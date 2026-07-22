@@ -1,38 +1,65 @@
-// === ROOT/tests/ui/codegen/evm-ir/outline/outline_computation.evmir (after outline) ===
-@module module
-bb0 (entry):
-  push bb3
-  jump bb2
-bb1:
-  push bb4
-  jump bb2
-bb2:
-  push 1
-  pop
-  push 1
-  pop
-  push 1
-  pop
-  push 1
-  pop
-  push 1
-  pop
-  push 1
-  pop
-  push 1
-  pop
-  push 1
-  pop
-  push 1
-  pop
-  push 1
-  pop
-  push 1
-  pop
-  push 1
-  pop
-  jump
-bb3:
-  jump bb1
-bb4:
-  stop
+- // === ROOT/tests/ui/codegen/evm-ir/outline/outline_computation.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/outline_computation.evmir (after outline) ===
+  @module module
+  bb0 (entry):
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   push 1
+-   pop
+-   jump bb1
++   push bb3
++   jump bb2
+  bb1:
++   push bb4
++   jump bb2
++ bb2:
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
++   jump
++ bb3:
++   jump bb1
++ bb4:
+    stop
+  

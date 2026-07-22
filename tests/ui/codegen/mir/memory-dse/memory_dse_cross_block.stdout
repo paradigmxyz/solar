@@ -1,32 +1,39 @@
-// === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_cross_block.mir (after memory-dse) ===
-@module MemoryDseCrossBlock
-fn @remove_store_overwritten_on_unique_edge() -> u256 {
-  bb0 (entry):
-    jump bb1
-  bb1:
-    mstore 128, 2
-    ret 2
-}
-
-fn @keep_store_read_before_successor_overwrite() -> u256 {
-  bb0 (entry):
-    mstore 128, 1
-    jump bb1
-  bb1:
-    v0 = mload 128
-    mstore 128, 2
-    ret v0
-}
-
-fn @keep_store_into_multi_pred_successor(arg0: bool) -> u256 {
-  bb0 (entry):
-    br arg0, bb1, bb2
-  bb1:
-    mstore 128, 1
-    jump bb3
-  bb2:
-    jump bb3
-  bb3:
-    mstore 128, 2
-    ret 2
-}
+- // === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_cross_block.mir (before memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_cross_block.mir (after memory-dse) ===
+  @module MemoryDseCrossBlock
+  fn @remove_store_overwritten_on_unique_edge() -> u256 {
+    bb0 (entry):
+-     mstore 128, 1
+      jump bb1
+    bb1:
+      mstore 128, 2
+-     v0 = mload 128
+-     ret v0
++     ret 2
+  }
+  
+  fn @keep_store_read_before_successor_overwrite() -> u256 {
+    bb0 (entry):
+      mstore 128, 1
+      jump bb1
+    bb1:
+      v0 = mload 128
+      mstore 128, 2
+      ret v0
+  }
+  
+  fn @keep_store_into_multi_pred_successor(arg0: bool) -> u256 {
+    bb0 (entry):
+      br arg0, bb1, bb2
+    bb1:
+      mstore 128, 1
+      jump bb3
+    bb2:
+      jump bb3
+    bb3:
+      mstore 128, 2
+-     v0 = mload 128
+-     ret v0
++     ret 2
+  }
+  

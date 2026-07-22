@@ -1,126 +1,186 @@
-// === ROOT/tests/ui/codegen/mir/sccp/sccp_fold_evm_ops.mir (after sccp) ===
-@module SccpFoldEvmOps
-fn @sdiv_min_by_neg_one() -> bool {
-  bb0 (entry):
-    ret 1
-}
-
-fn @sdiv_truncates_toward_zero() -> bool {
-  bb0 (entry):
-    ret 1
-}
-
-fn @div_by_known_zero(arg0: u256) -> u256 {
-  bb0 (entry):
-    ret 0
-}
-
-fn @mod_by_known_zero(arg0: u256) -> u256 {
-  bb0 (entry):
-    ret 0
-}
-
-fn @sdiv_by_known_zero(arg0: u256) -> u256 {
-  bb0 (entry):
-    ret 0
-}
-
-fn @smod_by_known_zero(arg0: u256) -> u256 {
-  bb0 (entry):
-    ret 0
-}
-
-fn @smod_negative_dividend() -> bool {
-  bb0 (entry):
-    ret 1
-}
-
-fn @smod_positive_dividend() -> bool {
-  bb0 (entry):
-    ret 1
-}
-
-fn @slt_negative() -> bool {
-  bb0 (entry):
-    ret 1
-}
-
-fn @sgt_negative() -> bool {
-  bb0 (entry):
-    ret 0
-}
-
-fn @sar_saturates_negative() -> bool {
-  bb0 (entry):
-    ret 1
-}
-
-fn @sar_saturates_positive() -> u256 {
-  bb0 (entry):
-    ret 0
-}
-
-fn @sar_fills_sign_bits() -> bool {
-  bb0 (entry):
-    ret 1
-}
-
-fn @byte_index_out_of_range() -> u256 {
-  bb0 (entry):
-    ret 0
-}
-
-fn @byte_extracts_big_endian() -> u256 {
-  bb0 (entry):
-    ret 18
-}
-
-fn @signextend_identity_at_31() -> bool {
-  bb0 (entry):
-    ret 1
-}
-
-fn @signextend_byte_zero() -> bool {
-  bb0 (entry):
-    ret 1
-}
-
-fn @addmod_zero_modulus() -> u256 {
-  bb0 (entry):
-    ret 0
-}
-
-fn @addmod_unknown_operands_zero_modulus(arg0: u256) -> u256 {
-  bb0 (entry):
-    ret 0
-}
-
-fn @mulmod_zero_modulus() -> u256 {
-  bb0 (entry):
-    ret 0
-}
-
-fn @addmod_wide_intermediate() -> u256 {
-  bb0 (entry):
-    ret 2
-}
-
-fn @mulmod_wide_intermediate() -> u256 {
-  bb0 (entry):
-    ret 2
-}
-
-fn @select_true_condition() -> u256 {
-  bb0 (entry):
-    ret 11
-}
-
-fn @select_false_condition() -> u256 {
-  bb0 (entry):
-    ret 22
-}
-
-fn @select_equal_arms(arg0: u256) -> u256 {
-  bb0 (entry):
-    ret 7
-}
+- // === ROOT/tests/ui/codegen/mir/sccp/sccp_fold_evm_ops.mir (before sccp) ===
++ // === ROOT/tests/ui/codegen/mir/sccp/sccp_fold_evm_ops.mir (after sccp) ===
+  @module SccpFoldEvmOps
+  fn @sdiv_min_by_neg_one() -> bool {
+    bb0 (entry):
+-     v0 = sdiv 0x8000000000000000000000000000000000000000000000000000000000000000, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     v1 = eq v0, 0x8000000000000000000000000000000000000000000000000000000000000000
+-     ret v1
++     ret 1
+  }
+  
+  fn @sdiv_truncates_toward_zero() -> bool {
+    bb0 (entry):
+-     v0 = sdiv 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 2
+-     v1 = eq v0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
+-     ret v1
++     ret 1
+  }
+  
+  fn @div_by_known_zero(arg0: u256) -> u256 {
+    bb0 (entry):
+-     v0 = div arg0, 0
+-     ret v0
++     ret 0
+  }
+  
+  fn @mod_by_known_zero(arg0: u256) -> u256 {
+    bb0 (entry):
+-     v0 = mod arg0, 0
+-     ret v0
++     ret 0
+  }
+  
+  fn @sdiv_by_known_zero(arg0: u256) -> u256 {
+    bb0 (entry):
+-     v0 = sdiv arg0, 0
+-     ret v0
++     ret 0
+  }
+  
+  fn @smod_by_known_zero(arg0: u256) -> u256 {
+    bb0 (entry):
+-     v0 = smod arg0, 0
+-     ret v0
++     ret 0
+  }
+  
+  fn @smod_negative_dividend() -> bool {
+    bb0 (entry):
+-     v0 = smod 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 3
+-     v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     ret v1
++     ret 1
+  }
+  
+  fn @smod_positive_dividend() -> bool {
+    bb0 (entry):
+-     v0 = smod 7, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
+-     v1 = eq v0, 1
+-     ret v1
++     ret 1
+  }
+  
+  fn @slt_negative() -> bool {
+    bb0 (entry):
+-     v0 = slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
+-     ret v0
++     ret 1
+  }
+  
+  fn @sgt_negative() -> bool {
+    bb0 (entry):
+-     v0 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
+-     ret v0
++     ret 0
+  }
+  
+  fn @sar_saturates_negative() -> bool {
+    bb0 (entry):
+-     v0 = sar 256, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+-     v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     ret v1
++     ret 1
+  }
+  
+  fn @sar_saturates_positive() -> u256 {
+    bb0 (entry):
+-     v0 = sar 300, 7
+-     ret v0
++     ret 0
+  }
+  
+  fn @sar_fills_sign_bits() -> bool {
+    bb0 (entry):
+-     v0 = sar 1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9
+-     v1 = eq v0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc
+-     ret v1
++     ret 1
+  }
+  
+  fn @byte_index_out_of_range() -> u256 {
+    bb0 (entry):
+-     v0 = byte 32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     ret v0
++     ret 0
+  }
+  
+  fn @byte_extracts_big_endian() -> u256 {
+    bb0 (entry):
+-     v0 = byte 30, 0x1234
+-     ret v0
++     ret 18
+  }
+  
+  fn @signextend_identity_at_31() -> bool {
+    bb0 (entry):
+-     v0 = signextend 31, 0x8000000000000000000000000000000000000000000000000000000000000000
+-     v1 = eq v0, 0x8000000000000000000000000000000000000000000000000000000000000000
+-     ret v1
++     ret 1
+  }
+  
+  fn @signextend_byte_zero() -> bool {
+    bb0 (entry):
+-     v0 = signextend 0, 255
+-     v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     ret v1
++     ret 1
+  }
+  
+  fn @addmod_zero_modulus() -> u256 {
+    bb0 (entry):
+-     v0 = addmod 1, 2, 0
+-     ret v0
++     ret 0
+  }
+  
+  fn @addmod_unknown_operands_zero_modulus(arg0: u256) -> u256 {
+    bb0 (entry):
+-     v0 = addmod arg0, arg0, 0
+-     ret v0
++     ret 0
+  }
+  
+  fn @mulmod_zero_modulus() -> u256 {
+    bb0 (entry):
+-     v0 = mulmod 5, 5, 0
+-     ret v0
++     ret 0
+  }
+  
+  fn @addmod_wide_intermediate() -> u256 {
+    bb0 (entry):
+-     v0 = addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 3
+-     ret v0
++     ret 2
+  }
+  
+  fn @mulmod_wide_intermediate() -> u256 {
+    bb0 (entry):
+-     v0 = mulmod 0x100000000000000000000000000000000, 0x100000000000000000000000000000000, 7
+-     ret v0
++     ret 2
+  }
+  
+  fn @select_true_condition() -> u256 {
+    bb0 (entry):
+-     v0 = select 1, 11, 22
+-     ret v0
++     ret 11
+  }
+  
+  fn @select_false_condition() -> u256 {
+    bb0 (entry):
+-     v0 = select 0, 11, 22
+-     ret v0
++     ret 22
+  }
+  
+  fn @select_equal_arms(arg0: u256) -> u256 {
+    bb0 (entry):
+-     v0 = select arg0, 7, 7
+-     ret v0
++     ret 7
+  }
+  

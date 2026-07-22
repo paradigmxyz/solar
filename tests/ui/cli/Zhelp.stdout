@@ -45,6 +45,9 @@ Options:
       -Zmir-print-after-each
           Print MIR after every MIR optimization pass during codegen
 
+      -Zpass-diff
+          Print a before-and-after diff for each pass explicitly selected by `mir-opt` or `evm-opt`
+
       -Ztime-passes
           Print the time spent in each MIR and EVM IR pass
 
