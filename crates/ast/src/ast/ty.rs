@@ -232,10 +232,7 @@ impl TypeSize {
     #[inline]
     #[track_caller]
     pub const fn new_int_bits(bits: u16) -> Self {
-        match Self::try_new_int_bits(bits) {
-            Some(size) => size,
-            None => panic!("invalid integer size"),
-        }
+        Self::try_new_int_bits(bits).expect("invalid integer size")
     }
 
     /// Creates a new `TypeSize` for an integer type from **bits**.
@@ -269,10 +266,7 @@ impl TypeSize {
     #[inline]
     #[track_caller]
     pub const fn new_fb_bytes(bytes: u8) -> Self {
-        match Self::try_new_fb_bytes(bytes) {
-            Some(size) => size,
-            None => panic!("invalid fixed-bytes size"),
-        }
+        Self::try_new_fb_bytes(bytes).expect("invalid fixed-bytes size")
     }
 
     /// Creates a new `TypeSize` for a fixed-bytes type from **bytes**.

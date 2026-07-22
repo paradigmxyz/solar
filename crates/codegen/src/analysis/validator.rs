@@ -93,25 +93,6 @@ impl<'a> Validator<'a> {
         self.validate_function_phase(module, func);
     }
 
-    fn validate_immutables(&mut self, module: &Module, func: &Function) {
-        for (inst, instruction) in func.instructions.iter_enumerated() {
-            let InstKind::LoadImmutable { id, ty } = instruction.kind else { continue };
-            match module.get_immutable_type(id) {
-                Some(expected) if expected != ty => self.emit(format_args!(
-                    "inst{} loads immutable {} as `{ty}`, expected `{expected}`",
-                    inst.index(),
-                    id.index()
-                )),
-                None => self.emit(format_args!(
-                    "inst{} loads nonexistent immutable {}",
-                    inst.index(),
-                    id.index()
-                )),
-                _ => {}
-            }
-        }
-    }
-
     fn validate_function_body(&mut self, func: &Function) {
         let errors_before = self.error_count;
         let num_values = func.values.len();
@@ -452,6 +433,25 @@ impl<'a> Validator<'a> {
         }
     }
 
+    fn validate_immutables(&mut self, module: &Module, func: &Function) {
+        for (inst, instruction) in func.instructions.iter_enumerated() {
+            let InstKind::LoadImmutable { id, ty } = instruction.kind else { continue };
+            match module.get_immutable_type(id) {
+                Some(expected) if expected != ty => self.emit(format_args!(
+                    "inst{} loads immutable {} as `{ty}`, expected `{expected}`",
+                    inst.index(),
+                    id.index()
+                )),
+                None => self.emit(format_args!(
+                    "inst{} loads nonexistent immutable {}",
+                    inst.index(),
+                    id.index()
+                )),
+                _ => {}
+            }
+        }
+    }
+
     /// Validates every function in a module.
     fn validate_module(mut self, module: &Module) {
         self.validate_module_phase(module);
@@ -553,9 +553,7 @@ pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{
-        BasicBlock, Function, FunctionBuilder, FunctionId, MirType, Module, Terminator,
-    };
+    use crate::mir::{Function, FunctionBuilder, FunctionId, MirType, Module, Terminator};
     use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, Ident, Session};
 
@@ -724,11 +722,5 @@ error: [fn0] internal_call targets nonexistent function fn99
 "#]]
             );
         });
-    }
-
-    // Suppress the unused-import warning for `BasicBlock`.
-    #[allow(dead_code)]
-    fn _block_type_reference() -> Option<BasicBlock> {
-        None
     }
 }
