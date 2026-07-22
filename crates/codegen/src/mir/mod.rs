@@ -22,8 +22,8 @@ mod function;
 pub(crate) use function::{Function, FunctionAttributes};
 
 mod module;
-pub use module::Module;
-pub(crate) use module::{IMMUTABLE_WORD_SIZE, MirPhase};
+pub(crate) use module::IMMUTABLE_WORD_SIZE;
+pub use module::{MirPhase, Module};
 
 mod builder;
 pub(crate) use builder::FunctionBuilder;

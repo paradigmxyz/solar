@@ -1,7 +1,7 @@
 //! Pass infrastructure for MIR transformations and analyses.
 //!
 //! Transformation pipelines follow rustc MIR's pass-manager shape: passes
-//! implement a trait and pipelines are slices of trait-object references.
+//! implement [`MirPass`] and pipelines are slices of trait-object references.
 //! Analyses retain their LLVM/MLIR-style cache: read-only [`AnalysisPass`]es
 //! produce results cached in an [`AnalysisManager`].
 //!
@@ -12,14 +12,18 @@
 //! let mut am = AnalysisManager::new();
 //! let liveness = am.get_or_compute(&LivenessAnalysis, &func);
 //!
-//! let changed = run_pass(gcx, &mut module, &DCE_PASS);
+//! let changed = run_passes(
+//!     gcx,
+//!     &mut module,
+//!     &[&DCE_PASS],
+//!     None,
+//!     Optimizations::Allowed,
+//! );
 //! ```
 
-pub use crate::pass_manager::Pass;
+pub use crate::pass_manager::{MirPass, Optimizations, run_passes, run_passes_no_validate};
 use crate::{
-    mir::{Function, MirPhase, Module, validate},
-    pass_manager::{PassFactory, PassManager, find_pass},
-    timing::PassTimer,
+    mir::{Function, MirPhase, Module},
     transform::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
         FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
@@ -30,17 +34,19 @@ use crate::{
     },
 };
 use solar_data_structures::map::FxHashMap;
-use solar_interface::diagnostics::DiagCtxt;
 use solar_sema::Gcx;
 use std::any::{Any, TypeId};
 
 /// Registry entry for a MIR transform pass.
 pub(crate) struct PassInfo {
-    pass: PassFactory<Module>,
+    name: &'static str,
+    description: &'static str,
+    run_pass: for<'gcx> fn(Gcx<'gcx>, &mut Module) -> bool,
     /// Earliest [`MirPhase`] this pass may run on.
     min_phase: MirPhase,
     /// Latest [`MirPhase`] this pass may run on.
     max_phase: MirPhase,
+    required: bool,
 }
 
 impl PassInfo {
@@ -50,9 +56,12 @@ impl PassInfo {
         run_pass: for<'gcx> fn(Gcx<'gcx>, &mut Module) -> bool,
     ) -> Self {
         Self {
-            pass: PassFactory::new(name, description, run_pass),
+            name,
+            description,
+            run_pass,
             min_phase: MirPhase::Built,
             max_phase: MirPhase::EvmShaped,
+            required: false,
         }
     }
 
@@ -66,9 +75,7 @@ impl PassInfo {
 
     /// Marks this pass as required independently of the optimization level.
     const fn required(mut self, required: bool) -> Self {
-        if required {
-            self.pass = self.pass.required();
-        }
+        self.required = required;
         self
     }
 
@@ -79,32 +86,36 @@ impl PassInfo {
     }
 }
 
-impl Pass<Module> for PassInfo {
+impl MirPass for PassInfo {
     fn name(&self) -> &'static str {
-        self.pass.name()
+        self.name
     }
 
     fn description(&self) -> &'static str {
-        self.pass.description()
+        self.description
     }
 
-    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
-        self.admits(module) && self.pass.is_enabled(gcx, module)
+    fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
+        self.admits(module)
     }
 
-    fn run(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        self.pass.run(gcx, module)
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        (self.run_pass)(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        self.required
     }
 }
 
 impl std::fmt::Debug for PassInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.pass.fmt(f)
+        f.debug_struct("PassInfo")
+            .field("name", &self.name)
+            .field("description", &self.description)
+            .finish_non_exhaustive()
     }
 }
-
-/// A dynamically dispatched MIR transformation pass.
-pub type MirPass = dyn Pass<Module>;
 
 macro_rules! declare_passes {
     ($(
@@ -123,7 +134,7 @@ macro_rules! declare_passes {
         )+
 
         /// All known MIR passes exposed to `solar mir-opt`.
-        pub static PASS_REGISTRY: &[&MirPass] = &[$(&$const_name),+];
+        pub static PASS_REGISTRY: &[&dyn MirPass] = &[$(&$const_name),+];
     };
 }
 
@@ -221,12 +232,12 @@ declare_passes! {
 }
 
 /// Finds a pass in the global MIR pass registry by command-line name.
-pub fn lookup_pass(name: &str) -> Option<&'static MirPass> {
-    find_pass(PASS_REGISTRY, name)
+pub fn lookup_pass(name: &str) -> Option<&'static dyn MirPass> {
+    PASS_REGISTRY.iter().copied().find(|pass| pass.name() == name)
 }
 
 /// The canonical MIR optimization pipeline used by EVM codegen.
-pub static DEFAULT_PIPELINE: &[&MirPass] = &[
+pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &INLINE_PASS,
     &FUNCTION_DCE_PASS,
     &SCCP_PASS,
@@ -261,7 +272,7 @@ pub static DEFAULT_PIPELINE: &[&MirPass] = &[
 /// profitability passes such as inlining and storage promotion run once in
 /// [`DEFAULT_PIPELINE`], while this loop cleans up opportunities exposed by
 /// those transforms.
-pub static DEFAULT_CLEANUP_PIPELINE: &[&MirPass] = &[
+pub static DEFAULT_CLEANUP_PIPELINE: &[&dyn MirPass] = &[
     &SCCP_PASS,
     &PURE_EVAL_PASS,
     &INST_SIMPLIFY_PASS,
@@ -282,52 +293,10 @@ pub static DEFAULT_CLEANUP_PIPELINE: &[&MirPass] = &[
 
 const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
 
-/// Runs a named MIR pass over a module.
-#[tracing::instrument(
-    name = "mir_pass",
-    level = "debug",
-    skip_all,
-    fields(module = %module.name, pass = pass.name()),
-)]
-pub fn run_pass(gcx: Gcx<'_>, module: &mut Module, pass: &MirPass) -> bool {
-    PassManager::new(gcx, run_pass_inner).run_pass(module, pass)
-}
-
-fn run_pass_inner(gcx: Gcx<'_>, module: &mut Module, pass: &MirPass) -> bool {
-    if cfg!(debug_assertions) {
-        validate_module_after_pass(module, "input");
-    }
-    let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-    let changed = pass.run(gcx, module);
-    timer.finish("MIR", module.name, pass.name(), changed);
-    if cfg!(debug_assertions) {
-        validate_module_after_pass(module, pass.name());
-    }
-    changed
-}
-
-/// Runs a named MIR pass pipeline over a module.
-fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, passes: &[&MirPass]) -> bool {
-    let manager = PassManager::new(gcx, run_pass_inner);
-    if !gcx.sess.opts.unstable.print_after_each {
-        return manager.run_passes(module, passes);
-    }
-    let mut changed = false;
-    for &pass in passes {
-        changed |= manager.run_pass(module, pass);
-        if gcx.sess.opts.unstable.print_after_each {
-            println!("// === {} (after {}) ===", module.name, pass.name());
-            print!("{}", module.to_text());
-        }
-    }
-    changed
-}
-
 /// Runs the canonical MIR optimization pipeline used by EVM codegen.
 ///
 /// This is a phase transition: the module comes out in `MirPhase::Optimized`.
-/// Ad-hoc pass lists run through `run_pipeline`, such as `solar mir-opt`
-/// invocations, deliberately do not advance the phase.
+/// Ad-hoc `solar mir-opt` pass lists deliberately do not advance the phase.
 #[tracing::instrument(
     name = "mir_pipeline",
     level = "debug",
@@ -335,30 +304,23 @@ fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, passes: &[&MirPass]) -> bool 
     fields(module = %module.name),
 )]
 pub fn run_default_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-    let mut changed = run_pipeline(gcx, module, DEFAULT_PIPELINE);
-    changed |= run_cleanup_pipeline_to_fixpoint(gcx, module, DEFAULT_CLEANUP_PIPELINE, "cleanup");
-    module.advance_phase(crate::mir::MirPhase::Optimized);
+    let optimizations = Optimizations::for_gcx(gcx);
+    let mut changed =
+        run_passes(gcx, module, DEFAULT_PIPELINE, Some(MirPhase::Optimized), optimizations);
+    changed |=
+        run_cleanup_pipeline_to_fixpoint(gcx, module, DEFAULT_CLEANUP_PIPELINE, optimizations);
     changed
 }
 
 fn run_cleanup_pipeline_to_fixpoint(
     gcx: solar_sema::Gcx<'_>,
     module: &mut Module,
-    passes: &[&MirPass],
-    label: &str,
+    passes: &[&dyn MirPass],
+    optimizations: Optimizations,
 ) -> bool {
-    let manager = PassManager::new(gcx, run_pass_inner);
     let mut changed = false;
-    for round in 1..=DEFAULT_CLEANUP_MAX_ROUNDS {
-        let mut round_changed = false;
-        for &pass in passes {
-            let pass_changed = manager.run_pass(module, pass);
-            round_changed |= pass_changed;
-            if gcx.sess.opts.unstable.print_after_each {
-                println!("// === {} (after {label}-{round}:{}) ===", module.name, pass.name());
-                print!("{}", module.to_text());
-            }
-        }
+    for _ in 1..=DEFAULT_CLEANUP_MAX_ROUNDS {
+        let round_changed = run_passes(gcx, module, passes, None, optimizations);
         if !round_changed {
             break;
         }
@@ -446,14 +408,6 @@ impl AnalysisManager {
             Box::new(result)
         });
         self.results[&key].downcast_ref::<A::Result>().unwrap()
-    }
-}
-
-fn validate_module_after_pass(module: &Module, pass_name: &str) {
-    let dcx = DiagCtxt::new_early();
-    validate(&dcx, module);
-    if dcx.has_errors().is_err() {
-        panic!("MIR validation failed after `{pass_name}`");
     }
 }
 

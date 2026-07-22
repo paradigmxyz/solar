@@ -8,7 +8,7 @@
 
 use super::print_pass_diff;
 use clap::ValueHint;
-use solar_codegen::backend::evm::ir;
+use solar_codegen::{backend::evm::ir, pass::Optimizations};
 use solar_config::CompileOpts;
 use solar_sema::Gcx;
 use std::{path::Path, process::ExitCode};
@@ -25,13 +25,13 @@ pub(crate) struct EvmOptArgs {
         value_parser = parse_pass,
         default_value = "none"
     )]
-    passes: Vec<Option<&'static ir::EvmPass>>,
+    passes: Vec<Option<&'static dyn ir::EvmPass>>,
     /// Path to input file. Extension determines whether it's .evmir.
     #[arg(value_hint = ValueHint::FilePath)]
     input: String,
 }
 
-fn parse_pass(name: &str) -> Result<Option<&'static ir::EvmPass>, String> {
+fn parse_pass(name: &str) -> Result<Option<&'static dyn ir::EvmPass>, String> {
     match name {
         "none" => Ok(None),
         other => {
@@ -52,14 +52,14 @@ fn after_help() -> String {
     )
 }
 
-fn pass_label(pass: Option<&ir::EvmPass>) -> &'static str {
+fn pass_label(pass: Option<&dyn ir::EvmPass>) -> &'static str {
     match pass {
         Some(pass) => pass.name(),
         None => "none",
     }
 }
 
-fn selected_pass_list_label(passes: &[Option<&ir::EvmPass>], separator: &str) -> String {
+fn selected_pass_list_label(passes: &[Option<&dyn ir::EvmPass>], separator: &str) -> String {
     passes.iter().copied().map(pass_label).collect::<Vec<_>>().join(separator)
 }
 
@@ -77,7 +77,7 @@ fn run_pipeline(gcx: Gcx<'_>, module: &mut ir::Module, name: &str, args: &EvmOpt
     for (index, &pass) in args.passes.iter().enumerate() {
         let before = sess.opts.unstable.pass_diff.then(|| module.to_text().to_string());
         if let Some(pass) = pass {
-            ir::run_pass(gcx, module, pass);
+            ir::run_passes(gcx, module, &[pass], Optimizations::for_gcx(gcx));
         }
         if before.is_some() || print_after_each || index + 1 == args.passes.len() {
             ir::validate(dcx, module);

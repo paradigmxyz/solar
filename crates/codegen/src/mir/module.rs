@@ -32,7 +32,7 @@ pub(crate) const IMMUTABLE_WORD_SIZE: usize = 32;
 /// `dispatch`-phase module (opt out with `-Zno-mir-dispatch`); a module where
 /// lowering bails keeps its phase and is dispatched by the backend.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum MirPhase {
+pub enum MirPhase {
     /// Fresh from HIR lowering: typed values, internal calls by function id,
     /// dispatch and ABI handling not yet materialized as MIR.
     #[default]
@@ -58,7 +58,7 @@ pub(crate) enum MirPhase {
 impl MirPhase {
     /// Stable textual name, as printed in the module header.
     #[must_use]
-    pub(crate) const fn name(self) -> &'static str {
+    pub const fn name(self) -> &'static str {
         match self {
             Self::Built => "built",
             Self::Optimized => "optimized",

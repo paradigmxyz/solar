@@ -1,122 +1,177 @@
-//! Shared transformation pass infrastructure.
+//! MIR pass execution, following rustc's MIR pass manager.
 
+use crate::{
+    mir::{MirPhase, Module, validate},
+    timing::PassTimer,
+};
 use solar_config::OptimizationMode;
+use solar_interface::diagnostics::DiagCtxt;
 use solar_sema::Gcx;
 
-/// A transformation pass over `M`.
-pub trait Pass<M>: Sync {
+// `foo::Bar<'a>` becomes `Bar`, matching rustc's default MIR pass naming.
+const fn simplify_pass_type_name(name: &'static str) -> &'static str {
+    let bytes = name.as_bytes();
+    let mut i = bytes.len();
+    while i > 0 && bytes[i - 1] != b':' {
+        i -= 1;
+    }
+    let (_, bytes) = bytes.split_at(i);
+
+    let mut i = 0;
+    while i < bytes.len() && bytes[i] != b'<' {
+        i += 1;
+    }
+    let (bytes, _) = bytes.split_at(i);
+
+    match std::str::from_utf8(bytes) {
+        Ok(name) => name,
+        Err(_) => panic!(),
+    }
+}
+
+/// A streamlined trait for a MIR transformation pass.
+pub trait MirPass: Sync {
     /// Command-line and pipeline name.
-    fn name(&self) -> &'static str;
+    fn name(&self) -> &'static str {
+        simplify_pass_type_name(std::any::type_name::<Self>())
+    }
 
     /// Human-readable help text.
     fn description(&self) -> &'static str;
 
-    /// Returns whether this pass accepts the current module state.
-    fn is_enabled(&self, _gcx: Gcx<'_>, _module: &M) -> bool {
+    /// Returns whether this pass is enabled with the current compiler flags and MIR phase.
+    fn is_enabled(&self, _gcx: Gcx<'_>, _module: &Module) -> bool {
         true
     }
 
-    /// Runs the pass and returns whether it changed the module.
-    fn run(&self, gcx: Gcx<'_>, module: &mut M) -> bool;
-}
-
-/// A statically registered pass backed by a factory function.
-pub(crate) struct PassFactory<M> {
-    name: &'static str,
-    description: &'static str,
-    is_enabled: for<'gcx> fn(Gcx<'gcx>, &M) -> bool,
-    run: for<'gcx> fn(Gcx<'gcx>, &mut M) -> bool,
-}
-
-impl<M> PassFactory<M> {
-    /// Creates a pass factory.
-    pub(crate) const fn new(
-        name: &'static str,
-        description: &'static str,
-        run: for<'gcx> fn(Gcx<'gcx>, &mut M) -> bool,
-    ) -> Self {
-        Self { name, description, is_enabled: optimizations_enabled, run }
+    /// Returns whether this pass can be overridden by pass-selection options.
+    fn can_be_overridden(&self) -> bool {
+        true
     }
 
-    /// Marks this pass as required independently of the optimization level.
-    pub(crate) const fn required(mut self) -> Self {
-        self.is_enabled = always_enabled;
-        self
+    /// Runs the pass and returns whether it changed MIR.
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
+
+    /// Returns whether MIR printing is enabled for this pass.
+    fn is_mir_dump_enabled(&self) -> bool {
+        true
     }
+
+    /// Returns whether this pass must run independently of the optimization level.
+    fn is_required(&self) -> bool;
 }
 
-impl<M> Pass<M> for PassFactory<M> {
-    fn name(&self) -> &'static str {
-        self.name
-    }
-
-    fn description(&self) -> &'static str {
-        self.description
-    }
-
-    fn is_enabled(&self, gcx: Gcx<'_>, module: &M) -> bool {
-        (self.is_enabled)(gcx, module)
-    }
-
-    fn run(&self, gcx: Gcx<'_>, module: &mut M) -> bool {
-        (self.run)(gcx, module)
-    }
+/// Whether to allow non-required optimizations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Optimizations {
+    /// Suppress passes that are not required for correctness.
+    Suppressed,
+    /// Allow optimization passes to run.
+    Allowed,
 }
 
-fn optimizations_enabled<M>(gcx: Gcx<'_>, _module: &M) -> bool {
-    gcx.sess.opts.optimization != OptimizationMode::None
-}
-
-fn always_enabled<M>(_gcx: Gcx<'_>, _module: &M) -> bool {
-    true
-}
-
-impl<M> std::fmt::Debug for PassFactory<M> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PassFactory")
-            .field("name", &self.name)
-            .field("description", &self.description)
-            .finish_non_exhaustive()
-    }
-}
-
-/// Runs pass pipelines with IR-specific pass policy supplied by `run`.
-pub(crate) struct PassManager<'gcx, M> {
-    gcx: Gcx<'gcx>,
-    run: for<'a> fn(Gcx<'a>, &mut M, &(dyn Pass<M> + 'static)) -> bool,
-}
-
-impl<'gcx, M> PassManager<'gcx, M> {
-    /// Creates a pass manager.
-    pub(crate) const fn new(
-        gcx: Gcx<'gcx>,
-        run: for<'a> fn(Gcx<'a>, &mut M, &(dyn Pass<M> + 'static)) -> bool,
-    ) -> Self {
-        Self { gcx, run }
-    }
-
-    /// Runs one pass.
-    pub(crate) fn run_pass(&self, module: &mut M, pass: &(dyn Pass<M> + 'static)) -> bool {
-        if !pass.is_enabled(self.gcx, module) {
-            return false;
+impl Optimizations {
+    /// Selects optimization suppression from the global compiler context.
+    pub fn for_gcx(gcx: Gcx<'_>) -> Self {
+        if matches!(gcx.sess.opts.optimization, OptimizationMode::None) {
+            Self::Suppressed
+        } else {
+            Self::Allowed
         }
-        (self.run)(self.gcx, module, pass)
-    }
-
-    /// Runs a sequence of passes in order.
-    pub(crate) fn run_passes(&self, module: &mut M, passes: &[&(dyn Pass<M> + 'static)]) -> bool {
-        let mut changed = false;
-        for &pass in passes {
-            changed |= self.run_pass(module, pass);
-        }
-        changed
     }
 }
 
-/// Finds a pass by its command-line name.
-pub(crate) fn find_pass<'a, M>(
-    passes: &'a [&(dyn Pass<M> + 'static)],
-    name: &str,
-) -> Option<&'a (dyn Pass<M> + 'static)> {
-    passes.iter().copied().find(|pass| pass.name() == name)
+/// Returns whether `pass` should run for this module and optimization mode.
+pub(crate) fn should_run_pass<P>(
+    gcx: Gcx<'_>,
+    module: &Module,
+    pass: &P,
+    optimizations: Optimizations,
+) -> bool
+where
+    P: MirPass + ?Sized,
+{
+    if !pass.can_be_overridden() {
+        return pass.is_enabled(gcx, module);
+    }
+
+    let suppressed = !pass.is_required() && matches!(optimizations, Optimizations::Suppressed);
+    !suppressed && pass.is_enabled(gcx, module)
+}
+
+/// Runs a sequence of MIR passes without validating after each pass.
+pub fn run_passes_no_validate(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    passes: &[&dyn MirPass],
+    phase_change: Option<MirPhase>,
+) -> bool {
+    run_passes_inner(gcx, module, passes, phase_change, false, Optimizations::Allowed)
+}
+
+/// Runs a sequence of MIR passes, then applies `phase_change` when present.
+pub fn run_passes(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    passes: &[&dyn MirPass],
+    phase_change: Option<MirPhase>,
+    optimizations: Optimizations,
+) -> bool {
+    run_passes_inner(gcx, module, passes, phase_change, true, optimizations)
+}
+
+fn run_passes_inner(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    passes: &[&dyn MirPass],
+    phase_change: Option<MirPhase>,
+    validate_each: bool,
+    optimizations: Optimizations,
+) -> bool {
+    let mut changed = false;
+    for pass in passes {
+        let pass_name = pass.name();
+        if !should_run_pass(gcx, module, *pass, optimizations) {
+            continue;
+        }
+
+        let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
+        let pass_changed = pass.run_pass(gcx, module);
+        timer.finish("MIR", module.name, pass_name, pass_changed);
+        changed |= pass_changed;
+
+        if validate_each && cfg!(debug_assertions) {
+            validate_module_after_pass(module, pass_name);
+        }
+        if pass.is_mir_dump_enabled()
+            && gcx.sess.opts.unstable.print_after_each
+            && !gcx.sess.opts.unstable.pass_diff
+        {
+            println!("// === {} (after {pass_name}) ===", module.name);
+            print!("{}", module.to_text());
+        }
+    }
+
+    if let Some(new_phase) = phase_change {
+        assert!(
+            module.phase < new_phase,
+            "invalid MIR phase transition from {} to {}",
+            module.phase.name(),
+            new_phase.name()
+        );
+        module.advance_phase(new_phase);
+        if cfg!(debug_assertions) {
+            validate_module_after_pass(module, new_phase.name());
+        }
+    }
+
+    changed
+}
+
+fn validate_module_after_pass(module: &Module, pass_name: &str) {
+    let dcx = DiagCtxt::new_early();
+    validate(&dcx, module);
+    if dcx.has_errors().is_err() {
+        panic!("MIR validation failed after `{pass_name}`");
+    }
 }

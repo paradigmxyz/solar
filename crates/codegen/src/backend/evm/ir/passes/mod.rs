@@ -15,14 +15,67 @@ mod terminal_dedup;
 pub(super) mod utils;
 
 use super::Module;
-use crate::{
-    pass_manager::{Pass, PassFactory, PassManager, find_pass},
-    timing::PassTimer,
-};
+use crate::{pass::Optimizations, timing::PassTimer};
 use solar_sema::Gcx;
 
-/// A dynamically dispatched EVM IR transformation pass.
-pub type EvmPass = dyn Pass<Module>;
+/// A streamlined trait for an EVM IR transformation pass.
+pub trait EvmPass: Sync {
+    /// Command-line and pipeline name.
+    fn name(&self) -> &'static str;
+
+    /// Human-readable help text.
+    fn description(&self) -> &'static str;
+
+    /// Returns whether this pass is enabled with the current compiler flags.
+    fn is_enabled(&self, _gcx: Gcx<'_>, _module: &Module) -> bool {
+        true
+    }
+
+    /// Returns whether this pass can be overridden by pass-selection options.
+    fn can_be_overridden(&self) -> bool {
+        true
+    }
+
+    /// Runs the pass and returns whether it changed EVM IR.
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
+
+    /// Returns whether this pass must run independently of the optimization level.
+    fn is_required(&self) -> bool;
+}
+
+pub(crate) struct PassInfo {
+    name: &'static str,
+    description: &'static str,
+    run_pass: for<'gcx> fn(Gcx<'gcx>, &mut Module) -> bool,
+}
+
+impl PassInfo {
+    const fn new(
+        name: &'static str,
+        description: &'static str,
+        run_pass: for<'gcx> fn(Gcx<'gcx>, &mut Module) -> bool,
+    ) -> Self {
+        Self { name, description, run_pass }
+    }
+}
+
+impl EvmPass for PassInfo {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    fn description(&self) -> &'static str {
+        self.description
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        (self.run_pass)(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        false
+    }
+}
 
 macro_rules! declare_passes {
     ($(
@@ -31,7 +84,7 @@ macro_rules! declare_passes {
     )+) => {
         $(
             $(#[doc = $description])+
-            $vis const $const_name: PassFactory<Module> = PassFactory::new(
+            $vis const $const_name: PassInfo = PassInfo::new(
                 $name,
                 concat!($($description, "\n"),+).trim_ascii(),
                 $run_pass,
@@ -39,7 +92,7 @@ macro_rules! declare_passes {
         )+
 
         /// All EVM IR passes exposed by `solar evm-opt`.
-        pub static PASS_REGISTRY: &[&EvmPass] = &[$(&$const_name),+];
+        pub static PASS_REGISTRY: &[&dyn EvmPass] = &[$(&$const_name),+];
     };
 }
 
@@ -70,7 +123,7 @@ declare_passes! {
 }
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
-pub(crate) static DEFAULT_PIPELINE: &[&EvmPass] = &[
+pub(crate) static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Normalize and establish the first physical layout.
     &PEEPHOLE_PASS,
     &COMPACT_PUSHES_PASS,
@@ -99,29 +152,60 @@ pub(crate) static DEFAULT_PIPELINE: &[&EvmPass] = &[
 ];
 
 /// Finds a pass in the EVM IR pass registry by command-line name.
-pub fn lookup_pass(name: &str) -> Option<&'static EvmPass> {
-    find_pass(PASS_REGISTRY, name)
+pub fn lookup_pass(name: &str) -> Option<&'static dyn EvmPass> {
+    PASS_REGISTRY.iter().copied().find(|pass| pass.name() == name)
 }
 
-/// Runs a named EVM IR pass over a module.
-#[tracing::instrument(
-    name = "evm_ir_pass",
-    level = "debug",
-    skip_all,
-    fields(pass = pass.name()),
-)]
-pub fn run_pass(gcx: Gcx<'_>, module: &mut Module, pass: &EvmPass) -> bool {
-    PassManager::new(gcx, run_pass_inner).run_pass(module, pass)
-}
+/// Returns whether `pass` should run for this optimization mode.
+pub(super) fn should_run_pass<P>(
+    gcx: Gcx<'_>,
+    module: &Module,
+    pass: &P,
+    optimizations: Optimizations,
+) -> bool
+where
+    P: EvmPass + ?Sized,
+{
+    if !pass.can_be_overridden() {
+        return pass.is_enabled(gcx, module);
+    }
 
-fn run_pass_inner(gcx: Gcx<'_>, module: &mut Module, pass: &EvmPass) -> bool {
-    let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-    let changed = pass.run(gcx, module);
-    timer.finish("EVM IR", module.name(), pass.name(), changed);
-    changed
+    let suppressed = !pass.is_required() && matches!(optimizations, Optimizations::Suppressed);
+    !suppressed && pass.is_enabled(gcx, module)
 }
 
 /// Runs an EVM IR pass pipeline.
-pub(crate) fn run_passes(gcx: Gcx<'_>, module: &mut Module, passes: &[&EvmPass]) -> bool {
-    PassManager::new(gcx, run_pass_inner).run_passes(module, passes)
+pub fn run_passes(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    passes: &[&dyn EvmPass],
+    optimizations: Optimizations,
+) -> bool {
+    run_passes_inner(gcx, module, passes, optimizations)
+}
+
+fn run_passes_inner(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    passes: &[&dyn EvmPass],
+    optimizations: Optimizations,
+) -> bool {
+    let mut changed = false;
+    for pass in passes {
+        let pass_name = pass.name();
+        if !should_run_pass(gcx, module, *pass, optimizations) {
+            continue;
+        }
+
+        let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
+        let pass_changed = pass.run_pass(gcx, module);
+        timer.finish("EVM IR", module.name(), pass_name, pass_changed);
+        changed |= pass_changed;
+
+        if gcx.sess.opts.unstable.print_after_each && !gcx.sess.opts.unstable.pass_diff {
+            println!("// === {} (after {pass_name}) ===", module.name());
+            print!("{}", module.to_text());
+        }
+    }
+    changed
 }
