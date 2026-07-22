@@ -59,17 +59,10 @@ bb7:
   keccak256
   sload
   dup1
-  push 128
-  mstore
   push 0x48257dc961b6f792c2b78a080dacfed693b660960a702de21cee364e20270e2f
   push 0
   push 0
   log2
-  push 128
-  mload
-  dup1
-  push 128
-  mstore
   push 0
   sstore
   stop

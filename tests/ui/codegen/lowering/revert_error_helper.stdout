@@ -297,18 +297,14 @@ bb28 [cold]:
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
   dup2
   mstore
+  swap1
   push 64
-  dup3
   add
-  swap2
-  pop
   push 33
   push 248
   shl
-  dup3
-  mstore
   swap1
-  pop
+  mstore
   push 0x8c379a0
   push 224
   shl

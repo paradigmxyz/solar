@@ -2,7 +2,7 @@
 // === deployment ===
 @module deployment
 bb0 (entry):
-  push 571
+  push 484
   dup1
   push 10
   push 0
@@ -81,9 +81,6 @@ bb5:
   mstore
   push 160
   mload
-  dup1
-  push 160
-  mstore
   gt
   push bb27
   jumpi
@@ -97,9 +94,6 @@ bb5:
   mstore
   push 192
   mload
-  dup1
-  push 192
-  mstore
   gt
   push bb27
   jumpi
@@ -113,9 +107,6 @@ bb5:
   mstore
   push 224
   mload
-  dup1
-  push 224
-  mstore
   gt
   push bb27
   jumpi
@@ -129,9 +120,6 @@ bb5:
   mstore
   push 256
   mload
-  dup1
-  push 256
-  mstore
   gt
   push bb27
   jumpi
@@ -145,9 +133,6 @@ bb5:
   mstore
   push 288
   mload
-  dup1
-  push 288
-  mstore
   gt
   push bb27
   jumpi
@@ -161,9 +146,6 @@ bb5:
   mstore
   push 320
   mload
-  dup1
-  push 320
-  mstore
   gt
   push bb27
   jumpi
@@ -177,9 +159,6 @@ bb5:
   mstore
   push 352
   mload
-  dup1
-  push 352
-  mstore
   gt
   push bb27
   jumpi
@@ -193,9 +172,6 @@ bb5:
   mstore
   push 384
   mload
-  dup1
-  push 384
-  mstore
   gt
   push bb27
   jumpi
@@ -209,9 +185,6 @@ bb5:
   mstore
   push 416
   mload
-  dup1
-  push 416
-  mstore
   gt
   push bb27
   jumpi
@@ -225,9 +198,6 @@ bb5:
   mstore
   push 448
   mload
-  dup1
-  push 448
-  mstore
   gt
   push bb27
   jumpi
@@ -241,9 +211,6 @@ bb5:
   mstore
   push 480
   mload
-  dup1
-  push 480
-  mstore
   gt
   push bb27
   jumpi
@@ -257,9 +224,6 @@ bb5:
   mstore
   push 512
   mload
-  dup1
-  push 512
-  mstore
   gt
   push bb27
   jumpi
@@ -273,9 +237,6 @@ bb5:
   mstore
   push 544
   mload
-  dup1
-  push 544
-  mstore
   gt
   push bb27
   jumpi
@@ -289,9 +250,6 @@ bb5:
   mstore
   push 576
   mload
-  dup1
-  push 576
-  mstore
   gt
   push bb27
   jumpi
@@ -305,9 +263,6 @@ bb5:
   mstore
   push 608
   mload
-  dup1
-  push 608
-  mstore
   gt
   push bb27
   jumpi
@@ -321,9 +276,6 @@ bb5:
   mstore
   push 640
   mload
-  dup1
-  push 640
-  mstore
   gt
   push bb27
   jumpi
@@ -337,9 +289,6 @@ bb5:
   mstore
   push 672
   mload
-  dup1
-  push 672
-  mstore
   gt
   push bb27
   jumpi
@@ -353,9 +302,6 @@ bb5:
   mstore
   push 704
   mload
-  dup1
-  push 704
-  mstore
   gt
   push bb27
   jumpi

@@ -88,6 +88,8 @@ bb13:
   push bb15
   jumpi
   push 0
+  jump bb20
+bb20:
   push 160
   mload
   push 96
@@ -103,9 +105,9 @@ bb7:
   dup1
   push 224
   mstore
-  push bb21
-  jump bb20
-bb20:
+  push bb22
+  jump bb21
+bb21:
   push 160
   mload
   push 64
@@ -127,8 +129,8 @@ bb9:
   dup1
   push 320
   mstore
-  push bb22
-  jump bb20
+  push bb23
+  jump bb21
 bb15:
   push 1
   push 160
@@ -172,9 +174,9 @@ bb16:
   push 160
   add
   mstore
-  push bb23
-  jump bb20
-bb21:
+  push bb24
+  jump bb21
+bb22:
   dup1
   push 224
   mstore
@@ -215,7 +217,7 @@ bb21:
   mstore
   push bb9
   jump bb13
-bb22:
+bb23:
   dup1
   push 320
   mstore
@@ -227,9 +229,6 @@ bb22:
   mstore
   push 224
   mload
-  dup1
-  push 224
-  mstore
   gt
   push bb19
   jumpi
@@ -243,13 +242,7 @@ bb22:
   push 32
   push 128
   return
-bb23:
-  dup1
-  push 160
-  mload
-  push 160
-  add
-  mstore
+bb24:
   dup1
   push 160
   mload
@@ -279,15 +272,12 @@ bb23:
   push 64
   add
   mload
-  dup2
-  lt
+  gt
   push bb19
   jumpi
-  dup1
   push 160
   mload
-  push 96
+  push 192
   add
-  mstore
-  pop
-  jump
+  mload
+  jump bb20

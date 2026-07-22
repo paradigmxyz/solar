@@ -58,67 +58,33 @@ bb5:
   push 36
   calldataload
   dup2
-  dup1
-  push 288
-  mstore
   add
   dup1
-  push 224
+  push 192
   mstore
-  dup2
-  dup1
-  push 288
-  mstore
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
   push bb11
   jumpi
-  push 224
+  push 192
   mload
   dup1
-  push 224
+  push 192
   mstore
   push 160
   mload
   sstore
   push 160
   mload
-  dup1
-  push 160
-  mstore
   sload
   push 4
   calldataload
   sload
-  dup1
-  push 352
-  mstore
   dup2
-  dup1
-  push 320
-  mstore
   add
   dup1
-  push 192
+  push 224
   mstore
-  dup2
-  dup1
-  push 320
-  mstore
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
   push bb11
   jumpi
   push 1
@@ -126,20 +92,14 @@ bb5:
   calldataload
   add
   sload
-  dup1
-  push 384
-  mstore
-  push 192
+  push 224
   mload
   add
   dup1
   push 256
   mstore
-  push 192
+  push 224
   mload
-  dup1
-  push 192
-  mstore
   gt
   push bb11
   jumpi

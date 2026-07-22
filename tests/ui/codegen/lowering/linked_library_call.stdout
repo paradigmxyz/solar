@@ -51,46 +51,29 @@ bb0 (entry):
   push 0
   keccak256
   dup1
-  push 160
+  push 192
   mstore
   sload
   push 68
   calldataload
   dup2
-  dup1
-  push 224
-  mstore
   add
   dup1
-  push 192
+  push 160
   mstore
-  dup2
-  dup1
-  push 224
-  mstore
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
   push bb10
   jumpi
-  push 192
+  push 160
   mload
   dup1
-  push 192
-  mstore
   push 160
+  mstore
+  push 192
   mload
   sstore
-  push 160
+  push 192
   mload
-  dup1
-  push 160
-  mstore
   sload
   push 128
   mstore
@@ -116,7 +99,7 @@ bb10 [cold]:
 // === ROOT/tests/ui/codegen/lowering/linked_library_call.sol:C (runtime) ===
 @module runtime
 bb0 (entry):
-  push 224
+  push 192
   push 64
   mstore
   callvalue
@@ -221,12 +204,12 @@ bb4 [cold]:
 bb10 [cold]:
   returndatasize
   dup1
-  push 192
+  push 160
   mstore
   push 0
   dup1
   returndatacopy
-  push 192
+  push 160
   mload
   push 0
   revert

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_call_calldata_bytes.sol:C (runtime) ===
 @module runtime
 bb0 (entry):
-  push 352
+  push 320
   push 64
   mstore
   callvalue
@@ -62,7 +62,7 @@ bb6:
   sub
   push bb5
   jumpi
-  push bb27
+  push bb25
   jump bb23
 bb23:
   push 0
@@ -77,18 +77,13 @@ bb23:
   push 192
   mstore
   push 31
-  dup2
   add
   dup1
-  push 288
+  push 256
   mstore
-  dup2
-  dup1
   push 192
-  mstore
+  mload
   gt
-  swap1
-  pop
   swap1
   jump
 bb13:
@@ -111,9 +106,26 @@ bb13:
   sub
   push bb5
   jumpi
-  push bb30
+  push bb27
   jump bb23
-bb25:
+bb24:
+  push bb20
+  jumpi
+  push 64
+  mload
+  push 288
+  mload
+  dup2
+  add
+  push 64
+  mstore
+  push 192
+  mload
+  dup1
+  push 192
+  mstore
+  dup2
+  mstore
   push 32
   dup2
   add
@@ -139,10 +151,8 @@ bb25:
   dup4
   calldatacopy
   pop
-  dup2
+  swap1
   mload
-  swap2
-  pop
   gas
   push 0
   push 0
@@ -169,51 +179,21 @@ bb21:
   push 32
   push 128
   return
-bb26:
+bb25:
   push bb20
   jumpi
-  push bb25
-  jump bb24
-bb24:
-  push 64
-  mload
-  push 256
-  mload
-  dup1
-  push 256
-  mstore
-  dup2
-  add
-  push 64
-  mstore
-  push 192
-  mload
-  dup1
-  push 192
-  mstore
-  dup2
-  mstore
-  swap1
-  jump
-bb27:
-  push bb20
-  jumpi
-  push bb26
+  push bb24
   jump bb22
 bb22:
   push 31
   not
-  push 288
+  push 256
   mload
   and
   dup1
-  push 320
-  mstore
   iszero
-  push 320
-  mload
   push 32
-  dup3
+  swap1
   dup3
   dup3
   sub
@@ -224,27 +204,34 @@ bb22:
   dup1
   push 224
   mstore
-  swap1
-  pop
-  dup1
-  push 224
-  mstore
   push 32
-  dup2
   add
   dup1
-  push 256
+  push 288
   mstore
-  dup2
-  dup1
   push 224
-  mstore
+  mload
   gt
   swap1
-  pop
-  swap1
   jump
-bb28:
+bb26:
+  push bb20
+  jumpi
+  push 64
+  mload
+  push 288
+  mload
+  dup2
+  add
+  push 64
+  mstore
+  push 192
+  mload
+  dup1
+  push 192
+  mstore
+  dup2
+  mstore
   push 32
   dup2
   add
@@ -270,10 +257,8 @@ bb28:
   dup4
   calldatacopy
   pop
-  dup2
+  swap1
   mload
-  swap2
-  pop
   gas
   push 0
   push 0
@@ -289,13 +274,8 @@ bb28:
   gas
   delegatecall
   jump bb21
-bb29:
+bb27:
   push bb20
   jumpi
-  push bb28
-  jump bb24
-bb30:
-  push bb20
-  jumpi
-  push bb29
+  push bb26
   jump bb22
