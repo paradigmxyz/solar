@@ -43,7 +43,7 @@ use crate::{
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SymbolTables {
     declarations: IndexVec<SymbolId, DeclarationSymbol>,
-    type_definitions: IndexVec<SymbolId, TypeDefinitionTargets>,
+    type_definitions: FxHashMap<SymbolId, TypeDefinitionTargets>,
     files: FxHashMap<Url, Vec<SymbolId>>,
     file_declaration_positions: FxHashMap<Url, PositionIndex<SymbolId>>,
     workspace_symbol_ids: Vec<SymbolId>,
@@ -313,8 +313,6 @@ impl SymbolTables {
     }
 
     pub(crate) fn extend(&mut self, mut other: Self) {
-        debug_assert_eq!(self.declarations.len(), self.type_definitions.len());
-        debug_assert_eq!(other.declarations.len(), other.type_definitions.len());
         if self.global_completions.is_empty() {
             self.global_completions = std::mem::take(&mut other.global_completions);
         }
@@ -334,10 +332,11 @@ impl SymbolTables {
             declaration.parent =
                 declaration.parent.map(|parent| remap_symbol_id(parent, symbol_offset));
         }
-        for targets in &mut other.type_definitions {
-            for target in targets {
+        for (symbol_id, mut targets) in other.type_definitions.drain() {
+            for target in &mut targets {
                 *target = remap_symbol_id(*target, symbol_offset);
             }
+            self.type_definitions.insert(remap_symbol_id(symbol_id, symbol_offset), targets);
         }
         for scope in &mut other.scopes {
             scope.parent = scope.parent.map(|parent| remap_scope_id(parent, scope_offset));
@@ -357,7 +356,6 @@ impl SymbolTables {
             );
         }
         self.declarations.extend(other.declarations);
-        self.type_definitions.extend(other.type_definitions);
         self.scopes.extend(other.scopes);
         self.receiver_member_completions.extend(
             other
@@ -563,10 +561,12 @@ impl SymbolTables {
         let symbol_ids = self.symbol_ids_at_position(uri, position)?;
         let mut locations = Vec::new();
         for symbol_id in symbol_ids {
-            for &target in &self.type_definitions[symbol_id] {
-                let location = self.selection_location(target);
-                if !locations.contains(&location) {
-                    locations.push(location);
+            if let Some(targets) = self.type_definitions.get(&symbol_id) {
+                for &target in targets {
+                    let location = self.selection_location(target);
+                    if !locations.contains(&location) {
+                        locations.push(location);
+                    }
                 }
             }
         }
@@ -752,9 +752,7 @@ impl SymbolTables {
         self.files.entry(declaration.location.uri.clone()).or_default().push(id);
         self.symbols_by_key.insert(key, id);
         let pushed_id = self.declarations.push(declaration);
-        let type_definition_id = self.type_definitions.push(TypeDefinitionTargets::new());
         debug_assert_eq!(id, pushed_id);
-        debug_assert_eq!(id, type_definition_id);
         id
     }
 
@@ -763,9 +761,7 @@ impl SymbolTables {
         let id = declaration.id;
         self.files.entry(declaration.location.uri.clone()).or_default().push(id);
         let pushed_id = self.declarations.push(declaration);
-        let type_definition_id = self.type_definitions.push(TypeDefinitionTargets::new());
         debug_assert_eq!(id, pushed_id);
-        debug_assert_eq!(id, type_definition_id);
         id
     }
 
@@ -866,6 +862,7 @@ impl SymbolTables {
     }
 
     fn build_type_definitions(&mut self, gcx: Gcx<'_>, item_symbols: &FxHashMap<ItemId, SymbolId>) {
+        self.type_definitions.clear();
         for (&item_id, &symbol_id) in item_symbols {
             let targets = match item_id {
                 ItemId::Contract(_) | ItemId::Struct(_) | ItemId::Enum(_) | ItemId::Udvt(_) => {
@@ -885,7 +882,9 @@ impl SymbolTables {
                 ),
                 ItemId::Error(_) | ItemId::Event(_) => TypeDefinitionTargets::new(),
             };
-            self.type_definitions[symbol_id] = targets;
+            if !targets.is_empty() {
+                self.type_definitions.insert(symbol_id, targets);
+            }
         }
     }
 
