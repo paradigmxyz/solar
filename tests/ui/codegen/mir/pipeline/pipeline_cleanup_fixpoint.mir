@@ -1,7 +1,7 @@
 //@compile-flags: --pipeline-default
 @module PipelineCleanupFixpoint
 fn @fold_phi_after_promotion(arg0: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = internal_frame_addr 128
     mstore v1, 1
     br arg0, bb1, bb2

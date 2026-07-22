@@ -22,7 +22,7 @@ use crate::{
     },
     pass::{MirPass, run_function_pass},
 };
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 
 /// Function pass for CFG simplification.
 pub(crate) struct CfgSimplifyPass;
@@ -172,7 +172,7 @@ impl CfgSimplifier {
         let mut kept: Vec<(BlockId, CanonBlock)> = Vec::new();
         let mut merges: Vec<(BlockId, BlockId)> = Vec::new();
         for block_id in func.blocks.indices() {
-            if block_id == func.entry_block || func.blocks[block_id].predecessors.is_empty() {
+            if func.blocks[block_id].predecessors.is_empty() {
                 continue;
             }
             let Some(canon) = Self::canonicalize_terminal_block(func, block_id, &inst_results)
@@ -405,10 +405,6 @@ impl CfgSimplifier {
             return None;
         }
 
-        if *target == func.entry_block {
-            return None;
-        }
-
         let target_block = &func.blocks[*target];
         if target_block.predecessors.len() != 1 {
             return None;
@@ -494,9 +490,10 @@ impl CfgSimplifier {
         while eliminated {
             eliminated = false;
 
+            let cfg = CfgInfo::new(func);
             let block_ids: Vec<_> = func.blocks.indices().collect();
             for block_id in block_ids {
-                if block_id == func.entry_block {
+                if func.blocks[block_id].predecessors.is_empty() && cfg.is_reachable(block_id) {
                     continue;
                 }
 
@@ -690,16 +687,36 @@ impl DeadFunctionEliminator {
             return 0;
         }
 
-        let dead_functions: Vec<FunctionId> =
-            module.functions.indices().filter(|&id| !reachable.contains(id)).collect();
+        self.stats.dead_functions_eliminated = module.functions.len() - reachable.count();
+        if self.stats.dead_functions_eliminated == 0 {
+            return 0;
+        }
 
-        self.stats.dead_functions_eliminated = dead_functions.len();
+        let mut remap = vec![None; module.functions.len()];
+        let mut old_functions: Vec<_> =
+            std::mem::take(&mut module.functions).into_iter().map(Some).collect();
+        let mut functions = IndexVec::with_capacity(reachable.count());
+        for old_id in reachable {
+            let function =
+                old_functions[old_id.index()].take().expect("reachable function must exist");
+            let new_id = functions.push(function);
+            remap[old_id.index()] = Some(new_id);
+        }
+        module.functions = functions;
 
-        for func_id in &dead_functions {
-            let func = &mut module.functions[*func_id];
-            func.blocks.clear();
-            func.instructions.clear();
-            func.values.clear();
+        for func in &mut module.functions {
+            for inst in &mut func.instructions {
+                if let InstKind::InternalCall { function, .. } = &mut inst.kind {
+                    *function = remap[function.index()]
+                        .expect("reachable function cannot call an eliminated function");
+                }
+            }
+            for block in &mut func.blocks {
+                if let Some(Terminator::TailCall { function, .. }) = &mut block.terminator {
+                    *function = remap[function.index()]
+                        .expect("reachable function cannot tail-call an eliminated function");
+                }
+            }
         }
 
         self.stats.dead_functions_eliminated
@@ -717,8 +734,8 @@ mod tests {
     fn dead_function_elimination_keeps_internal_call_targets() {
         let mut module = Module::new(Ident::DUMMY);
 
-        let live_helper = module.add_function(Function::new(Ident::DUMMY));
         let dead_helper = module.add_function(Function::new(Ident::DUMMY));
+        let live_helper = module.add_function(Function::new(Ident::DUMMY));
 
         let mut entry = Function::new(Ident::DUMMY);
         entry.selector = Some([0, 0, 0, 1]);
@@ -728,7 +745,13 @@ mod tests {
             let value = builder.internal_call(live_helper, Vec::new(), MirType::uint256(), 1);
             builder.ret([value]);
         }
-        let entry = module.add_function(entry);
+        module.add_function(entry);
+
+        let mut tail_entry = Function::new(Ident::DUMMY);
+        tail_entry.selector = Some([0, 0, 0, 2]);
+        tail_entry.attributes.visibility = Visibility::Public;
+        FunctionBuilder::new(&mut tail_entry).tail_call(live_helper, Vec::new());
+        module.add_function(tail_entry);
 
         {
             let mut builder = FunctionBuilder::new(module.function_mut(live_helper));
@@ -744,11 +767,24 @@ mod tests {
         let mut dfe = DeadFunctionEliminator::new();
         assert_eq!(dfe.run(&mut module), 1);
 
-        assert!(!module.function(entry).blocks.is_empty());
-        assert!(!module.function(live_helper).blocks.is_empty());
-        assert!(module.function(dead_helper).blocks.is_empty());
-        assert!(module.function(dead_helper).instructions.is_empty());
-        assert!(module.function(dead_helper).values.is_empty());
+        assert_eq!(module.functions.len(), 3);
+        assert!(module.functions.iter().all(|func| !func.blocks.is_empty()));
+        let live_helper = FunctionId::from_usize(0);
+        let entry = module.function(FunctionId::from_usize(1));
+        let InstKind::InternalCall { function, .. } =
+            &entry.instructions.iter().next().expect("entry call").kind
+        else {
+            panic!("expected internal call");
+        };
+        assert_eq!(*function, live_helper);
+
+        let tail_entry = module.function(FunctionId::from_usize(2));
+        let Some(Terminator::TailCall { function, .. }) =
+            &tail_entry.blocks[BlockId::ENTRY].terminator
+        else {
+            panic!("expected tail call");
+        };
+        assert_eq!(*function, live_helper);
     }
 
     #[test]
@@ -795,7 +831,7 @@ mod tests {
         let InstKind::Phi(incoming) = &func.instructions[phi_inst].kind else {
             panic!("expected phi");
         };
-        assert_eq!(incoming.as_slice(), &[(func.entry_block, value), (direct, other)]);
+        assert_eq!(incoming.as_slice(), &[(BlockId::ENTRY, value), (direct, other)]);
     }
 
     #[test]

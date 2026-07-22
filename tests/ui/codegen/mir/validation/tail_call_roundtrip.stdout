@@ -3,13 +3,13 @@
   @module TailCallRoundtrip
   @phase dispatch
   fn @wrapper(arg0: u256) {
-    bb0 (entry):
+    bb0:
       mstore 128, arg0
       returndata 128, 32
   }
   
   fn @entry() {
-    bb0 (entry):
+    bb0:
       v0 = calldataload 0
       v1 = shr 224, v0
       v2 = eq v1, 0x9507d39a

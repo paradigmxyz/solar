@@ -1,7 +1,7 @@
 //@compile-flags: --pass none
 @module SwitchTest
 fn @dispatch(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     switch arg0, default bb4, [1 => bb1, 2 => bb2, 3 => bb3]
   bb1:
     ret arg0

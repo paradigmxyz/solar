@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/while_empty_body.sol:WhileEmptyBody (creation) ===
 // === deployment ===
 @module deployment
-bb0 (entry):
+bb0:
   push 52
   dup1
   push 9
@@ -12,7 +12,7 @@ bb0 (entry):
 
 // === runtime ===
 @module runtime
-bb0 (entry):
+bb0:
   push 128
   push 64
   mstore

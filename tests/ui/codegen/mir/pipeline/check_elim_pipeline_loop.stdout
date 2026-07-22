@@ -2,7 +2,7 @@
 @module CheckElimPipelineLoop
 @phase optimized
 fn @sum(arg0: u256) {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     jump bb1
   bb1:

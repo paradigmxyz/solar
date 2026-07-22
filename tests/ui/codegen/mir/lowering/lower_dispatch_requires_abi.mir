@@ -3,6 +3,6 @@
 // has typed external arguments, so the pass must leave it untouched.
 @module LowerDispatchRequiresAbi
 fn @takesArg(arg0: u256) -> u256 [selector=0x9a2dbe3f] {
-  bb0 (entry):
+  bb0:
     ret arg0
 }

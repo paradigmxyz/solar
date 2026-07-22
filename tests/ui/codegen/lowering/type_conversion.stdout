@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/type_conversion.sol:TypeConversion ===
 @module TypeConversion
 fn @narrowAddress(arg0: address) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -24,7 +24,7 @@ fn @narrowAddress(arg0: address) {
 }
 
 fn @narrowUint(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -39,7 +39,7 @@ fn @narrowUint(arg0: u256) {
 }
 
 fn @narrowSigned(arg0: i256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32

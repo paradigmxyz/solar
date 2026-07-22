@@ -13,8 +13,7 @@ pub(crate) fn rejects_callvalue(func: &Function) -> bool {
 }
 
 /// Incremental form of the shared dispatch callvalue-hoisting predicate:
-/// every bodied external entry (selector-bearing, receive, or fallback)
-/// rejects value.
+/// every external entry (selector-bearing, receive, or fallback) rejects value.
 ///
 /// `LowerAbiPass` and `LowerDispatchPass` both use this while performing their
 /// existing module scans, so they must observe every function and agree.
@@ -33,7 +32,7 @@ impl DispatchCallvalue {
     pub(crate) fn observe(&mut self, func: &Function) {
         let external =
             func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback;
-        if !external || func.blocks.is_empty() || func.attributes.is_constructor {
+        if !external || func.attributes.is_constructor {
             return;
         }
         self.any = true;

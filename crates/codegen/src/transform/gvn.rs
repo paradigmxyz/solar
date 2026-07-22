@@ -178,7 +178,7 @@ impl GlobalValueNumberer {
             replacements: &mut replacements,
             dead: &mut dead,
         };
-        self.replace_in_block(func, func.entry_block, &mut leaders, &mut ctx);
+        self.replace_in_block(func, BlockId::ENTRY, &mut leaders, &mut ctx);
 
         if replacements.is_empty() {
             return false;

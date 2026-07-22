@@ -125,8 +125,7 @@ impl JumpThreader {
         let mut forwarders = FxHashMap::default();
 
         for (block_id, block) in func.blocks.iter_enumerated() {
-            // Skip the entry block
-            if block_id == func.entry_block {
+            if block.predecessors.is_empty() {
                 continue;
             }
 

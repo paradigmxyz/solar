@@ -979,7 +979,7 @@ impl InstSimplifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{FunctionBuilder, MirType};
+    use crate::mir::{BlockId, FunctionBuilder, MirType};
     use solar_interface::Ident;
 
     fn test_func() -> Function {
@@ -998,7 +998,7 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 1);
 
-        let block = &func.blocks[func.entry_block];
+        let block = &func.blocks[BlockId::ENTRY];
         assert!(block.instructions.is_empty());
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
@@ -1018,7 +1018,7 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 1);
 
-        let block = &func.blocks[func.entry_block];
+        let block = &func.blocks[BlockId::ENTRY];
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
         };
@@ -1036,7 +1036,7 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 1);
 
-        let block = &func.blocks[func.entry_block];
+        let block = &func.blocks[BlockId::ENTRY];
         assert!(block.instructions.is_empty());
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
@@ -1060,7 +1060,7 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 3);
 
-        let block = &func.blocks[func.entry_block];
+        let block = &func.blocks[BlockId::ENTRY];
         assert!(block.instructions.is_empty());
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
@@ -1084,7 +1084,7 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run_to_fixpoint(&mut func), 1);
 
-        let block = &func.blocks[func.entry_block];
+        let block = &func.blocks[BlockId::ENTRY];
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
         };
@@ -1102,7 +1102,7 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 1);
 
-        let block = &func.blocks[func.entry_block];
+        let block = &func.blocks[BlockId::ENTRY];
         assert!(block.instructions.is_empty());
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
@@ -1125,7 +1125,7 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 1);
 
-        let block = &func.blocks[func.entry_block];
+        let block = &func.blocks[BlockId::ENTRY];
         assert_eq!(block.instructions.len(), 1);
         let eq_inst = func.instructions[block.instructions[0]].kind.clone();
         assert!(matches!(eq_inst, InstKind::IsZero(value) if value == arg));
@@ -1143,7 +1143,7 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 1);
 
-        let block = &func.blocks[func.entry_block];
+        let block = &func.blocks[BlockId::ENTRY];
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
         };
@@ -1162,7 +1162,7 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 1);
 
-        let block = &func.blocks[func.entry_block];
+        let block = &func.blocks[BlockId::ENTRY];
         assert_eq!(block.instructions.len(), 1);
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
@@ -1181,7 +1181,7 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 1);
 
-        let block = &func.blocks[func.entry_block];
+        let block = &func.blocks[BlockId::ENTRY];
         assert_eq!(block.instructions.len(), 2);
         let balance_inst = func.instructions[*block.instructions.last().unwrap()].kind.clone();
         assert!(matches!(balance_inst, InstKind::SelfBalance));
@@ -1202,7 +1202,7 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 2);
 
-        let block = &func.blocks[func.entry_block];
+        let block = &func.blocks[BlockId::ENTRY];
         let Some(Terminator::Branch { condition, then_block: new_then, else_block: new_else }) =
             block.terminator
         else {
@@ -1226,7 +1226,7 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run_to_fixpoint(&mut func), 2);
 
-        let block = &func.blocks[func.entry_block];
+        let block = &func.blocks[BlockId::ENTRY];
         assert_eq!(block.instructions.len(), 2);
         let balance_inst = func.instructions[*block.instructions.last().unwrap()].kind.clone();
         assert!(matches!(balance_inst, InstKind::SelfBalance));

@@ -4,7 +4,7 @@
 // duplicate computation into bb4.
 @module DomAvail
 fn @reuse_dominating_def(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     switch arg1, default bb1, [1 => bb2, 2 => bb3]
   bb1:
     v3 = add arg0, 7
@@ -25,7 +25,7 @@ fn @reuse_dominating_def(arg0: u256, arg1: u256) -> u256 {
 // Every predecessor reuses the same def from the shared dominator bb0: the
 // join expression collapses to that value directly, with no phi.
 fn @collapse_to_shared_def(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v2 = add arg0, 7
     switch arg1, default bb1, [1 => bb2]
   bb1:

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/push_pop.evmir (before peephole) ===
 + // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/push_pop.evmir (after peephole) ===
   @module module
-  bb0 (entry):
+  bb0:
 -   push 1
 -   pop
     stop

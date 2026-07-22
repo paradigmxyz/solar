@@ -281,7 +281,7 @@ pub(crate) fn run_function_pass(
     mut run: impl FnMut(&mut Function) -> bool,
 ) -> bool {
     let mut changed = false;
-    for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
+    for func in &mut module.functions {
         changed |= run(func);
     }
     changed

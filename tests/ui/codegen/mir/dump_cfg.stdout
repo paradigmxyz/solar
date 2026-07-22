@@ -3,7 +3,7 @@ digraph "f" {
     node [shape=box, fontname="Courier", fontsize=10];
     edge [fontname="Courier", fontsize=9];
 
-    bb0 [label="bb0 (entry):\l  v0 = calldatasize\l  v1 = sub v0, 4\l  v2 = slt v1, 32\l  br v2, bb1, bb2\l", fillcolor="#e0ffe0", style=filled];
+    bb0 [label="bb0:\l  v0 = calldatasize\l  v1 = sub v0, 4\l  v2 = slt v1, 32\l  br v2, bb1, bb2\l"];
     bb1 [label="bb1:\l  revert 0, 0\l"];
     bb2 [label="bb2:\l  mstore 128, 0\l  v3 = eq arg0, 0\l  br v3, bb3, bb4\l"];
     bb3 [label="bb3:\l  mstore 128, 1\l  returndata 128, 32\l"];

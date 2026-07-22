@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir (after cse) ===
   @module MappingSlotBuiltin
   fn @word(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = mapping_slot arg0, 7
 -     v1 = mapping_slot arg0, 7
 -     v2 = add v0, v1
@@ -11,7 +11,7 @@
   }
   
   fn @word_across_reverting_branch(arg0: u256, arg1: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = mapping_slot arg0, 7
       br arg1, bb1, bb2
     bb1:
@@ -25,7 +25,7 @@
   }
   
   fn @memory(arg0: memptr) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = mapping_slot_memory arg0, 9
       mstore arg0, 1
       v1 = mapping_slot_memory arg0, 9
@@ -34,7 +34,7 @@
   }
   
   fn @calldata(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = mapping_slot_calldata arg0, 11
 -     v1 = mapping_slot_calldata arg0, 11
 -     v2 = add v0, v1
@@ -46,7 +46,7 @@
 + // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir (after lower-mapping-slots) ===
   @module MappingSlotBuiltin
   fn @word(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = mapping_slot arg0, 7
 -     v2 = add v0, v0
 +     mstore 0, arg0 !metadata(memory=scratch)
@@ -57,7 +57,7 @@
   }
   
   fn @word_across_reverting_branch(arg0: u256, arg1: bool) -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = mapping_slot arg0, 7
 +     mstore 0, arg0 !metadata(memory=scratch)
 +     mstore 32, 7 !metadata(memory=scratch)
@@ -73,7 +73,7 @@
   }
   
   fn @memory(arg0: memptr) -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = mapping_slot_memory arg0, 9
 +     v3 = mload arg0
 +     v4 = add arg0, 32
@@ -99,7 +99,7 @@
   }
   
   fn @calldata(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = mapping_slot_calldata arg0, 11
 -     v2 = add v0, v0
 +     v3 = add arg0, 4

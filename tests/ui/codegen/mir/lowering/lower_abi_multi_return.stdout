@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_multi_return.mir (after lower-abi) ===
   @module LowerAbiMultiReturn
   fn @pair(arg0: u256) -> (u256, u256) {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, 1
       ret arg0, v0
   }

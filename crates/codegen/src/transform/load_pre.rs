@@ -399,7 +399,7 @@ impl LoadRedundancyEliminator {
         let mut outs: FxHashMap<BlockId, KeySet> = rpo
             .iter()
             .map(|&block| {
-                let out = if block == func.entry_block {
+                let out = if func.blocks[block].predecessors.is_empty() {
                     gens[&block].clone()
                 } else {
                     KeySet::new_filled(key_count)
@@ -410,23 +410,19 @@ impl LoadRedundancyEliminator {
         loop {
             let mut changed = false;
             for &block in rpo {
-                let in_set = if block == func.entry_block {
-                    KeySet::new_empty(key_count)
-                } else {
-                    let mut acc: Option<KeySet> = None;
-                    for &pred in &func.blocks[block].predecessors {
-                        // Unreachable predecessors never execute and cannot
-                        // contribute a path.
-                        let Some(out) = outs.get(&pred) else { continue };
-                        match &mut acc {
-                            Some(acc) => {
-                                acc.intersect(out);
-                            }
-                            None => acc = Some(out.clone()),
+                let mut acc: Option<KeySet> = None;
+                for &pred in &func.blocks[block].predecessors {
+                    // Unreachable predecessors never execute and cannot
+                    // contribute a path.
+                    let Some(out) = outs.get(&pred) else { continue };
+                    match &mut acc {
+                        Some(acc) => {
+                            acc.intersect(out);
                         }
+                        None => acc = Some(out.clone()),
                     }
-                    acc.unwrap_or_else(|| KeySet::new_empty(key_count))
-                };
+                }
+                let in_set = acc.unwrap_or_else(|| KeySet::new_empty(key_count));
                 let mut out = in_set.clone();
                 if let Some(kill) = kills.get(&block) {
                     out.subtract(kill);

@@ -22,12 +22,10 @@ pub(crate) fn display_function_dot<'a>(
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
             let block_idx = block_id.index();
-            let is_entry = block_id == func.entry_block;
-            let color = if is_entry { ", fillcolor=\"#e0ffe0\", style=filled" } else { "" };
 
             write!(f, "    bb{block_idx} [label=\"")?;
             write_dot_block_label(f, func, funcs, block_id)?;
-            writeln!(f, "\"{color}];")
+            writeln!(f, "\"];")
         })
     }
 
@@ -39,8 +37,7 @@ pub(crate) fn display_function_dot<'a>(
     ) -> fmt::Result {
         let block = &func.blocks[block_id];
         let block_idx = block_id.index();
-        let entry_marker = if block_id == func.entry_block { " (entry)" } else { "" };
-        write!(f, "bb{block_idx}{entry_marker}:\\l")?;
+        write!(f, "bb{block_idx}:\\l")?;
 
         write!(
             f,
@@ -199,8 +196,7 @@ pub(crate) fn display_function_text<'a>(
         block: &'a BasicBlock,
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
-            let entry_marker = if block_id == func.entry_block { " (entry)" } else { "" };
-            writeln!(f, "  bb{}{}:", block_id.index(), entry_marker)?;
+            writeln!(f, "  bb{}:", block_id.index())?;
 
             write!(
                 f,
@@ -545,7 +541,7 @@ mod tests {
                 text,
                 str![[r#"
 fn @display_test(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v0 = add arg0, 1
     ret v0
 }
@@ -560,7 +556,7 @@ digraph "display_test" {
     node [shape=box, fontname="Courier", fontsize=10];
     edge [fontname="Courier", fontsize=9];
 
-    bb0 [label="bb0 (entry):\l  v0 = add arg0, 1\l  ret v0\l", fillcolor="#e0ffe0", style=filled];
+    bb0 [label="bb0:\l  v0 = add arg0, 1\l  ret v0\l"];
 
 }
 
@@ -591,7 +587,7 @@ digraph "display_test" {
                 text,
                 str![[r#"
 fn @display_test(arg0: u256, arg1: bool) {
-  bb0 (entry):
+  bb0:
     br arg1, bb1, bb2
   bb1:
     ret arg0
@@ -609,7 +605,7 @@ digraph "display_test" {
     node [shape=box, fontname="Courier", fontsize=10];
     edge [fontname="Courier", fontsize=9];
 
-    bb0 [label="bb0 (entry):\l  br arg1, bb1, bb2\l", fillcolor="#e0ffe0", style=filled];
+    bb0 [label="bb0:\l  br arg1, bb1, bb2\l"];
     bb1 [label="bb1:\l  ret arg0\l"];
     bb2 [label="bb2:\l  ret arg0\l"];
 
@@ -640,7 +636,7 @@ digraph "display_test" {
                 text,
                 str![[r#"
 fn @display_test(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     sstore arg0, arg1 !metadata(storage=symbolic(arg0))
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     ret v0
@@ -656,7 +652,7 @@ digraph "display_test" {
     node [shape=box, fontname="Courier", fontsize=10];
     edge [fontname="Courier", fontsize=9];
 
-    bb0 [label="bb0 (entry):\l  sstore arg0, arg1\l  v0 = sload arg0\l  ret v0\l", fillcolor="#e0ffe0", style=filled];
+    bb0 [label="bb0:\l  sstore arg0, arg1\l  v0 = sload arg0\l  ret v0\l"];
 
 }
 

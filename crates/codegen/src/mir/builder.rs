@@ -18,8 +18,7 @@ pub(crate) struct FunctionBuilder<'a> {
 impl<'a> FunctionBuilder<'a> {
     /// Creates a new function builder.
     pub(crate) fn new(func: &'a mut Function) -> Self {
-        let entry = func.entry_block;
-        Self { func, current_block: entry }
+        Self { func, current_block: BlockId::ENTRY }
     }
 
     /// Returns the current block.

@@ -145,10 +145,10 @@ impl SccpPass {
         let mut ssa_worklist: VecDeque<ValueId> = VecDeque::new();
 
         // Seed: entry block is executable.
-        executable_blocks.insert(func.entry_block);
+        executable_blocks.insert(BlockId::ENTRY);
         self.evaluate_phis_in_block(
             func,
-            func.entry_block,
+            BlockId::ENTRY,
             &inst_to_value,
             &mut lattice,
             &executable_edges,
@@ -157,7 +157,7 @@ impl SccpPass {
         // Evaluate all instructions in the entry block.
         self.evaluate_block(
             func,
-            func.entry_block,
+            BlockId::ENTRY,
             &inst_to_value,
             &mut lattice,
             &executable_blocks,

@@ -304,6 +304,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
                 TextDocumentSyncOptions {
                     open_close: Some(true),
                     change: Some(TextDocumentSyncKind::INCREMENTAL),
+                    will_save: Some(true),
                     save: Some(TextDocumentSyncSaveOptions::SaveOptions(SaveOptions {
                         include_text: Some(false),
                     })),
@@ -423,6 +424,8 @@ mod tests {
         else {
             panic!("expected text document sync options");
         };
+        assert_eq!(sync_options.will_save, Some(true));
+        assert_eq!(sync_options.will_save_wait_until, None);
         let TextDocumentSyncSaveOptions::SaveOptions(save_options) = sync_options.save.unwrap()
         else {
             panic!("expected save options");

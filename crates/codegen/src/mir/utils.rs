@@ -17,7 +17,6 @@ pub(crate) fn remap_block_order(func: &mut Function, order: &[BlockId]) -> Vec<B
     }
     debug_assert!(old_blocks.into_iter().all(|block| block.is_none()));
     func.blocks = blocks;
-    func.entry_block = remap[func.entry_block.index()];
 
     for block in &mut func.blocks {
         for predecessor in &mut block.predecessors {
@@ -82,11 +81,7 @@ pub(crate) enum StorageAliasScope {
 ///
 /// Self-loops (`pred == succ`) are supported: the new block takes over the
 /// backedge and `succ`'s phis are rekeyed from `pred` to the new block.
-///
-/// `succ` cannot be the entry block, which has no predecessors by definition.
 pub(crate) fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> BlockId {
-    debug_assert_ne!(succ, func.entry_block, "the entry block has no predecessor edges to split");
-
     let new_block = func.blocks.push(BasicBlock {
         instructions: Vec::new(),
         terminator: Some(Terminator::Jump(succ)),

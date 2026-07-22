@@ -464,7 +464,7 @@ mod tests {
     fn test_simple_loop_detection() {
         let mut func = make_test_func();
 
-        let entry = func.entry_block;
+        let entry = BlockId::ENTRY;
         let header = func.alloc_block();
         let body = func.alloc_block();
         let exit = func.alloc_block();

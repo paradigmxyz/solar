@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/evm-ir/block-layout/time_passes.evmir (before block-layout) ===
 + // === ROOT/tests/ui/codegen/evm-ir/block-layout/time_passes.evmir (after block-layout) ===
   @module module
-  bb0 (entry):
+  bb0:
     jump bb2
 + bb2:
 +   stop
