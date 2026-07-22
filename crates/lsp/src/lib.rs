@@ -29,6 +29,9 @@ mod handlers;
 mod hover;
 mod inlay_hints;
 mod override_index;
+#[cfg(any(test, feature = "bench"))]
+#[cfg_attr(all(feature = "bench", not(test)), allow(dead_code))]
+mod project_fixture;
 mod proto;
 mod rename;
 mod serde;
@@ -38,10 +41,13 @@ mod utils;
 mod vfs;
 mod workspace;
 
-/// Benchmark-only access to an opaque LSP analysis snapshot.
+/// Benchmark-only access to prepared LSP projects and opaque analysis snapshots.
 #[cfg(feature = "bench")]
 #[doc(hidden)]
-pub use global_state::benchmark::BenchmarkAnalysis;
+pub use global_state::benchmark::{
+    BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkEdit, BenchmarkError, BenchmarkProject,
+    BenchmarkRequest, BenchmarkResponse,
+};
 
 #[cfg(test)]
 mod test_support;

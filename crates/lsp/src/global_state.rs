@@ -464,11 +464,7 @@ impl GlobalStateSnapshot {
         let workspace_path_index = WorkspacePathIndex::new(&workspaces);
         let mut batches = workspaces
             .iter()
-            .map(|workspace| AnalysisBatch {
-                opts: workspace.compile_opts().clone(),
-                files: Vec::new(),
-                seen_paths: FxHashSet::default(),
-            })
+            .map(|workspace| AnalysisBatch::new(workspace.compile_opts().clone()))
             .collect::<Vec<_>>();
         let source_map = SourceMap::empty();
 
@@ -599,6 +595,20 @@ struct AnalysisBatch {
 }
 
 impl AnalysisBatch {
+    fn new(opts: CompileOpts) -> Self {
+        Self { opts, files: Vec::new(), seen_paths: FxHashSet::default() }
+    }
+
+    #[cfg(any(test, feature = "bench"))]
+    fn from_files(opts: CompileOpts, files: impl IntoIterator<Item = (PathBuf, String)>) -> Self {
+        let mut batch = Self::new(opts);
+        for (path, contents) in files {
+            batch.push_file(path, contents);
+        }
+        batch.finish();
+        batch
+    }
+
     fn push_file(&mut self, path: PathBuf, contents: String) {
         if self.seen_paths.insert(path.clone()) {
             self.files.push((path, contents));
@@ -610,20 +620,51 @@ impl AnalysisBatch {
     }
 }
 
+#[cfg(test)]
+mod analysis_batch_tests {
+    use super::*;
+
+    #[test]
+    fn from_files_tracks_unique_sorted_paths() {
+        let a = PathBuf::from("a.sol");
+        let b = PathBuf::from("b.sol");
+        let batch = AnalysisBatch::from_files(
+            CompileOpts::default(),
+            [
+                (b.clone(), "contract B {}".into()),
+                (a.clone(), "contract A {}".into()),
+                (b.clone(), "contract Duplicate {}".into()),
+            ],
+        );
+
+        assert_eq!(batch.files.len(), 2);
+        assert_eq!(batch.files[0], (a.clone(), "contract A {}".into()));
+        assert_eq!(batch.files[1], (b.clone(), "contract B {}".into()));
+        assert_eq!(batch.seen_paths, FxHashSet::from_iter([a, b]));
+    }
+}
+
 fn analyze(batch: AnalysisBatch) -> AnalysisResult {
+    analyze_with_source_map(batch, Arc::new(SourceMap::empty()))
+}
+
+fn analyze_with_source_map(batch: AnalysisBatch, source_map: Arc<SourceMap>) -> AnalysisResult {
     let (emitter, diag_buffer) = InMemoryEmitter::new();
-    let document_link_sources =
-        batch.files.iter().map(|(path, _)| path.clone()).collect::<FxHashSet<_>>();
-    let mut opts = batch.opts;
+    let AnalysisBatch { mut opts, files, seen_paths: document_link_sources } = batch;
+    debug_assert_eq!(files.len(), document_link_sources.len());
+    debug_assert!(files.iter().all(|(path, _)| document_link_sources.contains(path)));
     opts.unstable.recover_incomplete_input = true;
-    let sess = Session::builder().opts(opts).dcx(DiagCtxt::new(Box::new(emitter))).build();
+    let sess = Session::builder()
+        .opts(opts)
+        .source_map(source_map)
+        .dcx(DiagCtxt::new(Box::new(emitter)))
+        .build();
 
     let mut compiler = Compiler::new(sess);
     compiler.enter_mut(move |compiler| {
         {
             let mut parsing_context = compiler.parse();
-            let files = batch
-                .files
+            let files = files
                 .into_iter()
                 .map(|(path, contents)| {
                     parsing_context
@@ -663,48 +704,10 @@ fn analyze(batch: AnalysisBatch) -> AnalysisResult {
     })
 }
 
-/// Benchmark-only access to a fully analyzed, in-memory source.
-#[cfg(feature = "bench")]
-pub(crate) mod benchmark {
-    use super::{AnalysisBatch, SymbolTables, analyze};
-    use lsp_types::{HoverContents, Position, Url};
-    use solar_config::CompileOpts;
-    use solar_interface::data_structures::map::FxHashSet;
-    use std::path::PathBuf;
-
-    /// An opaque analysis snapshot used by the LSP Criterion benchmarks.
-    #[doc(hidden)]
-    pub struct BenchmarkAnalysis {
-        symbol_tables: SymbolTables,
-        uri: Url,
-    }
-
-    impl BenchmarkAnalysis {
-        /// Analyze one in-memory Solidity source without touching the filesystem.
-        pub fn from_source(source: String) -> Self {
-            let path =
-                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches").join("benchmark.sol");
-            let uri = Url::from_file_path(&path).expect("benchmark path should be a file URL");
-            let result = analyze(AnalysisBatch {
-                opts: CompileOpts::default(),
-                files: vec![(path, source)],
-                seen_paths: FxHashSet::default(),
-            });
-            Self { symbol_tables: result.symbol_tables, uri }
-        }
-
-        /// Resolve one declaration or reference position synchronously.
-        #[inline(never)]
-        pub fn hover(&self, line: u32, character: u32) -> Option<usize> {
-            let hover = std::hint::black_box(
-                self.symbol_tables.hover(&self.uri, Position::new(line, character)),
-            )?;
-            let HoverContents::Markup(content) = hover.contents else { return None };
-            Some(content.value.len())
-        }
-    }
-}
-
+/// Access to prepared, fully analyzed in-memory projects for benchmarks and tests.
+#[cfg(any(test, feature = "bench"))]
+#[cfg_attr(all(test, not(feature = "bench")), allow(dead_code, unreachable_pub))]
+pub(crate) mod benchmark;
 #[cfg(test)]
 #[path = "tests/mod.rs"]
 mod tests;
