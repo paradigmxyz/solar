@@ -605,6 +605,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
 
     /// Emits a PUSH instruction with a specific width.
     fn emit_push_fixed_width(&mut self, value: U256, width: u8) {
+        assert!(self.push_width(value) <= width, "value does not fit fixed PUSH width");
         if width == 0 {
             self.emit_push_zero();
             return;
