@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal_call_frame_dealloc.sol:InternalCallFrameDealloc (runtime) ===
 @module runtime
-bb0 (entry):
+bb0:
   push 352
   push 64
   mstore

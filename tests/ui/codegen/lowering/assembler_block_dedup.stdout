@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/assembler_block_dedup.sol:AssemblerBlockDedup (runtime) ===
 @module runtime
-bb0 (entry):
+bb0:
   push 160
   push 64
   mstore

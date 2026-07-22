@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_sub_guard.mir (after check-elim) ===
   @module CheckElimSubGuard
   fn @fold_sub_after_ge_guard(arg0: u256, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = gt arg1, arg0
       v1 = iszero v0
       v2 = iszero v1
@@ -21,7 +21,7 @@
   }
   
   fn @keep_sub_without_guard(arg0: u256, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = sub arg0, arg1
       v1 = lt arg0, arg1
       br v1, bb1, bb2
@@ -32,7 +32,7 @@
   }
   
   fn @keep_sub_on_other_value(arg0: u256, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = gt arg1, arg0
       br v0, bb1, bb2
     bb1:

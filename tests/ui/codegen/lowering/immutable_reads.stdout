@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/immutable_reads.sol:C ===
 @module C
 fn @start() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = loadimmutable 0
     mstore 128, v0
@@ -9,7 +9,7 @@ fn @start() {
 }
 
 fn @duration() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = loadimmutable 32
     mstore 128, v0
@@ -17,7 +17,7 @@ fn @duration() {
 }
 
 fn @_anonymous(arg0: u256) {
-  bb0 (entry):
+  bb0:
     mstore 0x2000, arg0
     v0 = mload 0x2000
     v1 = add v0, 1
@@ -33,7 +33,7 @@ fn @_anonymous(arg0: u256) {
 }
 
 fn @end() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = loadimmutable 0
     v1 = loadimmutable 32

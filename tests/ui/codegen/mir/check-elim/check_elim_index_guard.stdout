@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_index_guard.mir (after check-elim) ===
   @module CheckElimIndexGuard
   fn @fold_const_len_check(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = lt arg0, 3
       br v0, bb1, bb4
     bb1:
@@ -22,7 +22,7 @@
   }
   
   fn @fold_dyn_len_check(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = sload 0
       v1 = lt arg0, v0
       br v1, bb1, bb4
@@ -43,7 +43,7 @@
   }
   
   fn @keep_weaker_guard(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = lt arg0, 5
       br v0, bb1, bb4
     bb1:

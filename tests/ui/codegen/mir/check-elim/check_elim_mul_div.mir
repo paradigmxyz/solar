@@ -5,7 +5,7 @@
 // product is at most 297 and cannot wrap, so the roundtrip holds and the
 // panic branch folds.
 fn @fold_mul_check_with_bound(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = lt arg0, 100
     br v1, bb1, bb2
   bb1:
@@ -24,7 +24,7 @@ fn @fold_mul_check_with_bound(arg0: u256) -> u256 {
 
 // Without a bound on `arg0` the product can wrap: the check must stay.
 fn @keep_mul_check_without_bound(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = mul arg0, 3
     v2 = div v1, 3
     v3 = eq v2, arg0

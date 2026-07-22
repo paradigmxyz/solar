@@ -1,7 +1,7 @@
 //@compile-flags: --passes frame-slot-promotion
 @module FramePromotionLoadBeforeStore
 fn @load_before_store() -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = internal_frame_addr 128
     v2 = mload v1
     mstore v1, 1

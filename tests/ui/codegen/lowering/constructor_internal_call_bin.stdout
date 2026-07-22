@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_internal_call_bin.sol:ConstructorInternalCallBin (creation) ===
 // === deployment ===
 @module deployment
-bb0 (entry):
+bb0:
   push 0x4000
   push 64
   mstore
@@ -231,7 +231,7 @@ bb9:
 
 // === runtime ===
 @module runtime
-bb0 (entry):
+bb0:
   push 160
   push 64
   mstore

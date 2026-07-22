@@ -12,23 +12,18 @@ impl Module {
             write!(
                 f,
                 "{}",
-                self.blocks.iter_enumerated().format_with("", |f, (block_id, block)| {
-                    write!(f, "{}", display_block(self, block_id, block))
-                })
+                self.blocks
+                    .iter()
+                    .format_with("", |f, block| { write!(f, "{}", display_block(self, block)) })
             )
         })
     }
 }
 
-fn display_block<'a>(
-    module: &'a Module,
-    block_id: BlockId,
-    block: &'a Block,
-) -> impl fmt::Display + 'a {
+fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| {
-        let entry = if module.entry_block == Some(block_id) { " (entry)" } else { "" };
         let cold = if block.metadata.hotness.is_cold() { " [cold]" } else { "" };
-        writeln!(f, "bb{}{}{}:", block.label, entry, cold)?;
+        writeln!(f, "bb{}{}:", block.label, cold)?;
         for inst in &block.instructions {
             writeln!(f, "  {}", display_instruction(module, inst))?;
         }

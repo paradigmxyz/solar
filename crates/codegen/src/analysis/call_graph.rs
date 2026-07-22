@@ -10,7 +10,6 @@ pub(crate) struct CallGraphInfo {
     callees: FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
     reachable_from_entries: DenseBitSet<FunctionId>,
     recursive_functions: DenseBitSet<FunctionId>,
-    has_body: DenseBitSet<FunctionId>,
 }
 
 impl CallGraphInfo {
@@ -20,14 +19,10 @@ impl CallGraphInfo {
         let function_count = module.functions.len();
         let mut callees = FxHashMap::default();
         let mut entry_functions = DenseBitSet::new_empty(function_count);
-        let mut has_body = DenseBitSet::new_empty(function_count);
 
         for (func_id, func) in module.functions.iter_enumerated() {
             if Self::is_entry_function(func) {
                 entry_functions.insert(func_id);
-            }
-            if Self::has_body(func) {
-                has_body.insert(func_id);
             }
 
             let direct_callees = Self::collect_internal_callees(func, function_count);
@@ -40,7 +35,7 @@ impl CallGraphInfo {
             Self::reachable_from_roots_in_graph(&callees, &entry_functions);
         let recursive_functions = Self::recursive_functions_in_graph(&callees, function_count);
 
-        Self { callees, reachable_from_entries, recursive_functions, has_body }
+        Self { callees, reachable_from_entries, recursive_functions }
     }
 
     /// Returns all functions reachable from entry functions.
@@ -55,19 +50,19 @@ impl CallGraphInfo {
         self.recursive_functions.contains(func)
     }
 
-    /// Returns functions reachable from `roots` that have MIR bodies.
+    /// Returns functions reachable from `roots` through MIR call edges.
     #[must_use]
-    pub(crate) fn reachable_bodies_from(
+    pub(crate) fn reachable_callees_from(
         &self,
         roots: impl IntoIterator<Item = FunctionId>,
     ) -> DenseBitSet<FunctionId> {
-        let mut reachable = DenseBitSet::new_empty(self.has_body.domain_size());
+        let mut reachable = DenseBitSet::new_empty(self.reachable_from_entries.domain_size());
         let mut worklist: VecDeque<_> = roots.into_iter().collect();
 
         while let Some(func) = worklist.pop_front() {
             let Some(callees) = self.callees.get(&func) else { continue };
             for callee in callees {
-                if self.has_body.contains(callee) && reachable.insert(callee) {
+                if reachable.insert(callee) {
                     worklist.push_back(callee);
                 }
             }
@@ -98,10 +93,6 @@ impl CallGraphInfo {
             || func.attributes.is_constructor
             || func.attributes.is_fallback
             || func.attributes.is_receive
-    }
-
-    fn has_body(func: &Function) -> bool {
-        !func.blocks.is_empty()
     }
 
     fn reachable_from_roots_in_graph(

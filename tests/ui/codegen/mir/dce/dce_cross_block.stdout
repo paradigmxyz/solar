@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/dce/dce_cross_block.mir (after dce) ===
   @module DceCrossBlock
   fn @cross(arg0: u256, arg1: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, 1
       br arg1, bb1, bb2
     bb1:

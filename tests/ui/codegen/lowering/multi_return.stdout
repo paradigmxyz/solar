@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return.sol:MultiReturn ===
 @module MultiReturn
 fn @div_mod(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -32,7 +32,7 @@ fn @div_mod(arg0: u256, arg1: u256) {
 }
 
 fn @min_max(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -57,7 +57,7 @@ fn @min_max(arg0: u256, arg1: u256) {
 }
 
 fn @triple(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32

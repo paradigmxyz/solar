@@ -1,7 +1,7 @@
 //@compile-flags: --pass cse
 @module CseGlobalClobberPaths
 fn @diamond_sload_clobbered_arm(arg0: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = sload 0
     br arg0, bb1, bb2
   bb1:
@@ -16,7 +16,7 @@ fn @diamond_sload_clobbered_arm(arg0: bool) -> u256 {
 }
 
 fn @diamond_sload_clean_arms(arg0: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = sload 0
     br arg0, bb1, bb2
   bb1:
@@ -30,7 +30,7 @@ fn @diamond_sload_clean_arms(arg0: bool) -> u256 {
 }
 
 fn @diamond_sload_distinct_slot_store(arg0: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = sload 0
     br arg0, bb1, bb2
   bb1:
@@ -45,7 +45,7 @@ fn @diamond_sload_distinct_slot_store(arg0: bool) -> u256 {
 }
 
 fn @loop_sload_clobbered_body(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = sload 0
     jump bb1
   bb1:
@@ -61,7 +61,7 @@ fn @loop_sload_clobbered_body(arg0: u256) -> u256 {
 }
 
 fn @loop_sload_clean_body(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = sload 0
     jump bb1
   bb1:
@@ -76,7 +76,7 @@ fn @loop_sload_clean_body(arg0: u256) -> u256 {
 }
 
 fn @diamond_mload_clobbered_arm(arg0: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     mstore 0, 11
     v1 = mload 0
     br arg0, bb1, bb2
@@ -92,7 +92,7 @@ fn @diamond_mload_clobbered_arm(arg0: bool) -> u256 {
 }
 
 fn @diamond_call_clobbers_account_reads(arg0: bool, arg1: address) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = balance arg1
     v2 = extcodesize arg1
     br arg0, bb1, bb2

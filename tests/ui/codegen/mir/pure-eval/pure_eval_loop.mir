@@ -1,7 +1,7 @@
 //@compile-flags: --pass pure-eval
 @module PureEvalLoop
 fn @bounded_loop() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb2: 3]
@@ -14,7 +14,7 @@ fn @bounded_loop() -> u256 {
 }
 
 fn @with_arg(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v0 = add arg0, 1
     ret v0
 }
