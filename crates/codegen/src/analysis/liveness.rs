@@ -69,17 +69,20 @@ impl Liveness {
         }
 
         // Initialize per-block liveness
-        let mut block_liveness = index_vec![
-            BlockLiveness {
+        let mut block_liveness = (0..num_blocks)
+            .map(|_| BlockLiveness {
                 live_in: LiveSet::with_capacity(num_values),
                 live_out: LiveSet::with_capacity(num_values),
-            };
-            num_blocks
-        ];
+            })
+            .collect::<IndexVec<BlockId, _>>();
 
         // Compute local def/use sets for each block
-        let mut block_defs = index_vec![LiveSet::with_capacity(num_values); num_blocks];
-        let mut block_uses = index_vec![LiveSet::with_capacity(num_values); num_blocks];
+        let mut block_defs = (0..num_blocks)
+            .map(|_| LiveSet::with_capacity(num_values))
+            .collect::<IndexVec<BlockId, _>>();
+        let mut block_uses = (0..num_blocks)
+            .map(|_| LiveSet::with_capacity(num_values))
+            .collect::<IndexVec<BlockId, _>>();
 
         let mut operand_buf = SmallVec::<[ValueId; 8]>::new();
 
