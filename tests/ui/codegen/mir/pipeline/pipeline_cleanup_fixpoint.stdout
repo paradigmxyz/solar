@@ -2,7 +2,7 @@
 @module PipelineCleanupFixpoint
 @phase optimized
 fn @fold_phi_after_promotion(arg0: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     ret 1
   bb1:
     invalid

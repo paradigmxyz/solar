@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/licm/licm_multi_latch.mir (after licm) ===
   @module LicmMultiLatch
   fn @multi_latch_mixed_step() -> u256 {
-    bb0 (entry):
+    bb0:
 +     v4 = calldataload 0
       jump bb1
     bb1:
@@ -26,7 +26,7 @@
   }
   
   fn @multi_latch_same_value() -> u256 {
-    bb0 (entry):
+    bb0:
 +     v3 = mload 320
 +     v5 = calldataload 0
       jump bb1

@@ -1,7 +1,7 @@
 //@compile-flags: --pass storage-promotion
 @module StoragePromotion
 fn @promote_recomputed_offset_slot(arg0: u256) [selector=0x01020304] {
-  bb0 (entry):
+  bb0:
     v1 = add arg0, 1
     sstore v1, 1
     jump bb1
@@ -21,7 +21,7 @@ fn @promote_recomputed_offset_slot(arg0: u256) [selector=0x01020304] {
 }
 
 fn @reject_loop_variant_offset_slot(arg0: u256) [selector=0x01020304] {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v6]
@@ -38,7 +38,7 @@ fn @reject_loop_variant_offset_slot(arg0: u256) [selector=0x01020304] {
 }
 
 fn @promote_store_only_without_initial_load() [selector=0x01020304] {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     br true, bb2, bb4
@@ -52,7 +52,7 @@ fn @promote_store_only_without_initial_load() [selector=0x01020304] {
 }
 
 fn @promote_two_initialized_slots() [selector=0x01020304] {
-  bb0 (entry):
+  bb0:
     sstore 0, 1
     sstore 1, 2
     jump bb1
@@ -73,7 +73,7 @@ fn @promote_two_initialized_slots() [selector=0x01020304] {
 }
 
 fn @promote_without_init_rewrites_successor_phi() -> u256 [selector=0x01020304] {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     br true, bb2, bb4

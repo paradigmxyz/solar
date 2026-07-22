@@ -4,27 +4,27 @@
 - @phase abi
 + @phase dispatch
   fn @pay() {
-    bb0 (entry):
+    bb0:
       stop
   }
   
   fn @nopay() {
-    bb0 (entry):
+    bb0:
       stop
   }
   
   fn @recv() {
-    bb0 (entry):
+    bb0:
       stop
   }
   
   fn @fb() {
-    bb0 (entry):
+    bb0:
       stop
 + }
 + 
 + fn @entry() {
-+   bb0 (entry):
++   bb0:
 +     jump bb1
 +   bb1:
 +     v0 = calldatasize

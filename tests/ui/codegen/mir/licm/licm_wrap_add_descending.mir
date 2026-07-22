@@ -4,7 +4,7 @@
 // trip count, so range reasoning must not prove the mload disjoint.
 @module LicmWrapAddDescending
 fn @wrap_add_descending() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 64], [bb2: v9]

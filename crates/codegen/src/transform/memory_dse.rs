@@ -1431,7 +1431,7 @@ mod tests {
 
         let mut pass = MemoryStoreEliminator::new();
         assert_eq!(pass.run(&mut func), 1);
-        assert_eq!(func.blocks[func.entry_block].instructions.len(), 1);
+        assert_eq!(func.blocks[BlockId::ENTRY].instructions.len(), 1);
     }
 
     #[test]
@@ -1449,7 +1449,7 @@ mod tests {
         let mut pass = MemoryStoreEliminator::new();
         assert_eq!(pass.run(&mut func), 2);
 
-        let block = &func.blocks[func.entry_block];
+        let block = &func.blocks[BlockId::ENTRY];
         assert_eq!(block.instructions.len(), 1);
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
@@ -1475,7 +1475,7 @@ mod tests {
         let mut pass = MemoryStoreEliminator::new();
         assert_eq!(pass.run(&mut func), 1);
         // The keccak and the surviving store remain.
-        assert_eq!(func.blocks[func.entry_block].instructions.len(), 2);
+        assert_eq!(func.blocks[BlockId::ENTRY].instructions.len(), 2);
     }
 
     #[test]
@@ -1496,7 +1496,7 @@ mod tests {
 
         let mut pass = MemoryStoreEliminator::new();
         assert_eq!(pass.run(&mut func), 0);
-        assert_eq!(func.blocks[func.entry_block].instructions.len(), 3);
+        assert_eq!(func.blocks[BlockId::ENTRY].instructions.len(), 3);
     }
 
     #[test]
@@ -1527,7 +1527,7 @@ mod tests {
 
         let mut pass = MemoryStoreEliminator::new();
         assert_eq!(pass.run_to_fixpoint(&mut func), 1);
-        let entry_stores = func.blocks[func.entry_block]
+        let entry_stores = func.blocks[BlockId::ENTRY]
             .instructions
             .iter()
             .filter(|&&id| matches!(func.instructions[id].kind, InstKind::MStore(_, _)))
@@ -1562,7 +1562,7 @@ mod tests {
 
         let mut pass = MemoryStoreEliminator::new();
         assert_eq!(pass.run_to_fixpoint(&mut func), 0);
-        let entry_stores = func.blocks[func.entry_block]
+        let entry_stores = func.blocks[BlockId::ENTRY]
             .instructions
             .iter()
             .filter(|&&id| matches!(func.instructions[id].kind, InstKind::MStore(_, _)))
@@ -1585,7 +1585,7 @@ mod tests {
 
         let mut pass = MemoryStoreEliminator::new();
         assert_eq!(pass.run_to_fixpoint(&mut func), 0);
-        let stores = func.blocks[func.entry_block]
+        let stores = func.blocks[BlockId::ENTRY]
             .instructions
             .iter()
             .filter(|&&id| matches!(func.instructions[id].kind, InstKind::MStore(_, _)))
@@ -1607,7 +1607,7 @@ mod tests {
 
         let mut pass = MemoryStoreEliminator::new();
         assert_eq!(pass.run(&mut func), 0);
-        assert_eq!(func.blocks[func.entry_block].instructions.len(), 3);
+        assert_eq!(func.blocks[BlockId::ENTRY].instructions.len(), 3);
     }
 
     #[test]
@@ -1624,7 +1624,7 @@ mod tests {
 
         let mut pass = MemoryStoreEliminator::new();
         assert_eq!(pass.run(&mut func), 1);
-        assert_eq!(func.blocks[func.entry_block].instructions.len(), 1);
+        assert_eq!(func.blocks[BlockId::ENTRY].instructions.len(), 1);
     }
 
     #[test]
@@ -1643,7 +1643,7 @@ mod tests {
         let mut pass = MemoryStoreEliminator::new();
         assert_eq!(pass.run(&mut func), 1);
 
-        let block = &func.blocks[func.entry_block];
+        let block = &func.blocks[BlockId::ENTRY];
         assert_eq!(block.instructions.len(), 3);
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
@@ -1667,7 +1667,7 @@ mod tests {
 
         let mut pass = MemoryStoreEliminator::new();
         assert_eq!(pass.run(&mut func), 1);
-        assert_eq!(func.blocks[func.entry_block].instructions.len(), 3);
+        assert_eq!(func.blocks[BlockId::ENTRY].instructions.len(), 3);
     }
 
     #[test]
@@ -1681,7 +1681,7 @@ mod tests {
 
         let mut pass = MemoryStoreEliminator::new();
         assert_eq!(pass.run_to_fixpoint(&mut func), 1);
-        assert_eq!(func.blocks[func.entry_block].instructions.len(), 1);
+        assert_eq!(func.blocks[BlockId::ENTRY].instructions.len(), 1);
     }
 
     #[test]
@@ -1752,7 +1752,7 @@ mod tests {
 
         let mut pass = MemoryStoreEliminator::new();
         assert_eq!(pass.run(&mut func), 0);
-        assert_eq!(func.blocks[func.entry_block].instructions.len(), 4);
+        assert_eq!(func.blocks[BlockId::ENTRY].instructions.len(), 4);
     }
 
     #[test]
@@ -1768,7 +1768,7 @@ mod tests {
         let mut pass = MemoryStoreEliminator::new();
         assert_eq!(pass.run(&mut func), 1);
 
-        let block = &func.blocks[func.entry_block];
+        let block = &func.blocks[BlockId::ENTRY];
         assert_eq!(block.instructions.len(), 1);
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
@@ -1791,7 +1791,7 @@ mod tests {
         let mut pass = MemoryStoreEliminator::new();
         assert_eq!(pass.run(&mut func), 1);
 
-        let block = &func.blocks[func.entry_block];
+        let block = &func.blocks[BlockId::ENTRY];
         assert_eq!(block.instructions.len(), 2);
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
@@ -1814,7 +1814,7 @@ mod tests {
 
         let mut pass = MemoryStoreEliminator::new();
         assert_eq!(pass.run(&mut func), 0);
-        assert_eq!(func.blocks[func.entry_block].instructions.len(), 3);
+        assert_eq!(func.blocks[BlockId::ENTRY].instructions.len(), 3);
     }
 
     #[test]
@@ -1830,7 +1830,7 @@ mod tests {
 
         let mut pass = MemoryStoreEliminator::new();
         assert_eq!(pass.run(&mut func), 0);
-        assert_eq!(func.blocks[func.entry_block].instructions.len(), 3);
+        assert_eq!(func.blocks[BlockId::ENTRY].instructions.len(), 3);
     }
 
     #[test]
@@ -1849,7 +1849,7 @@ mod tests {
         let mut pass = MemoryStoreEliminator::new();
         assert_eq!(pass.run(&mut func), 2);
 
-        let block = &func.blocks[func.entry_block];
+        let block = &func.blocks[BlockId::ENTRY];
         assert_eq!(block.instructions.len(), 2);
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");

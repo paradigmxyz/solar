@@ -1,6 +1,6 @@
 //! Machine-level EVM control-flow simplification.
 
-use super::utils::retain_blocks;
+use super::utils::{remap_block_order, retain_blocks};
 use crate::backend::evm::{
     ir::{BlockId, Module, PushValue, Terminator, TerminatorKind},
     op,
@@ -14,7 +14,7 @@ pub(super) fn run(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut changed = false;
     loop {
         let truncated = truncate_after_terminal(module);
-        let redirected = redirect_jump_thunks(module, &mut state.thunks);
+        let redirected = redirect_jump_thunks(module, &mut state.thunks, &mut state.order);
         let swept = remove_unreachable_blocks(
             module,
             &mut state.reachable,
@@ -82,7 +82,11 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
     changed
 }
 
-fn redirect_jump_thunks(module: &mut Module, thunks: &mut Vec<Option<BlockId>>) -> bool {
+fn redirect_jump_thunks(
+    module: &mut Module,
+    thunks: &mut Vec<Option<BlockId>>,
+    order: &mut Vec<BlockId>,
+) -> bool {
     thunks.clear();
     thunks.extend(module.blocks.iter().map(|block| {
         if block.instructions.is_empty() {
@@ -111,11 +115,6 @@ fn redirect_jump_thunks(module: &mut Module, thunks: &mut Vec<Option<BlockId>>) 
     };
 
     let mut changed = false;
-    if let Some(entry) = &mut module.entry_block {
-        let target = resolve(*entry);
-        changed |= target != *entry;
-        *entry = target;
-    }
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
             if let Some(PushValue::Block(block)) = &mut inst.value {
@@ -132,6 +131,14 @@ fn redirect_jump_thunks(module: &mut Module, thunks: &mut Vec<Option<BlockId>>) 
             });
         }
     }
+    let entry = resolve(BlockId::ENTRY);
+    if entry != BlockId::ENTRY {
+        order.clear();
+        order.push(entry);
+        order.extend(module.blocks.indices().filter(|&block| block != entry));
+        remap_block_order(module, order);
+        changed = true;
+    }
     changed
 }
 
@@ -141,14 +148,16 @@ fn remove_unreachable_blocks(
     pending: &mut Vec<BlockId>,
     order: &mut Vec<BlockId>,
 ) -> bool {
-    let Some(entry) = module.entry_block else { return false };
+    if module.blocks.is_empty() {
+        return false;
+    }
     if reachable.domain_size() != module.blocks.len() {
         *reachable = DenseBitSet::new_empty(module.blocks.len());
     } else {
         reachable.clear();
     }
     pending.clear();
-    pending.push(entry);
+    pending.push(BlockId::ENTRY);
     while let Some(block_id) = pending.pop() {
         if !reachable.insert(block_id) {
             continue;
@@ -180,6 +189,10 @@ fn coalesce_blocks(
 ) -> bool {
     references.clear();
     references.resize(module.blocks.len(), 0);
+    // Count the implicit program-entry edge.
+    if let Some(entry_references) = references.first_mut() {
+        *entry_references = 1;
+    }
     for block in &module.blocks {
         for inst in &block.instructions {
             if let Some(PushValue::Block(target)) = &inst.value {
@@ -205,7 +218,6 @@ fn coalesce_blocks(
         {
             let target = *target;
             if target == predecessor
-                || Some(target) == module.entry_block
                 || references[target.index()] != 1
                 || !retained.contains(target)
             {

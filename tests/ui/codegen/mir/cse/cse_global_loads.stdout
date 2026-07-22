@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/cse/cse_global_loads.mir (after cse) ===
   @module CseGlobalLoads
   fn @dominating_mload(arg0: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       mstore 0, 11
       v0 = mload 0
       br arg0, bb1, bb2
@@ -17,7 +17,7 @@
   }
   
   fn @dominating_sload(arg0: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = sload 0
       br arg0, bb1, bb2
     bb1:

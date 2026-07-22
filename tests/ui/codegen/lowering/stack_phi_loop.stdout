@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/stack_phi_loop.sol:StackPhiLoop (runtime) ===
 @module runtime
-bb0 (entry):
+bb0:
   push 576
   push 64
   mstore

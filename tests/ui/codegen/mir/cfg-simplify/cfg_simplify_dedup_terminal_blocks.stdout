@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_dedup_terminal_blocks.mir (after cfg-simplify) ===
   @module CfgDedupTerminalBlocks
   fn @dedup_identical_panics(arg0: u256, arg1: u256) {
-    bb0 (entry):
+    bb0:
       br arg0, bb1, bb2
     bb1:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
@@ -21,7 +21,7 @@
   }
   
   fn @keep_distinct_panic_codes(arg0: u256, arg1: u256) {
-    bb0 (entry):
+    bb0:
       br arg0, bb1, bb2
     bb1:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
@@ -38,7 +38,7 @@
   }
   
   fn @keep_distinct_revert_sizes(arg0: u256, arg1: u256) {
-    bb0 (entry):
+    bb0:
       br arg0, bb1, bb2
     bb1:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
@@ -55,7 +55,7 @@
   }
   
   fn @dedup_local_computations(arg0: u256, arg1: u256) {
-    bb0 (entry):
+    bb0:
       br arg0, bb1, bb2
     bb1:
       v0 = add arg0, 1
@@ -74,7 +74,7 @@
   }
   
   fn @keep_distinct_outside_operands(arg0: u256, arg1: u256) {
-    bb0 (entry):
+    bb0:
       br arg0, bb1, bb2
     bb1:
       mstore 0, arg0

@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/adce/adce_branch_cycle.mir (after adce) ===
   @module AdceBranchCycle
   fn @keeps_branch_cycle(arg0: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       jump bb1
     bb1:
       br arg0, bb2, bb3
@@ -13,7 +13,7 @@
   }
   
   fn @keeps_branch_self_loop(arg0: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       jump bb1
     bb1:
       br arg0, bb1, bb2
@@ -22,7 +22,7 @@
   }
   
   fn @removes_nested_transparent_diamond(arg0: bool, arg1: bool) -> u256 {
-    bb0 (entry):
+    bb0:
 -     br arg0, bb1, bb2
 +     jump bb5
     bb1:

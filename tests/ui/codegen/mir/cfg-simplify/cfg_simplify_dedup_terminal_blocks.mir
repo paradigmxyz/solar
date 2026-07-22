@@ -3,7 +3,7 @@
 
 // Two structurally identical panic blocks collapse into one shared block.
 fn @dedup_identical_panics(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     br arg0, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
@@ -21,7 +21,7 @@ fn @dedup_identical_panics(arg0: u256, arg1: u256) {
 
 // Panic blocks with different panic codes must NOT merge.
 fn @keep_distinct_panic_codes(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     br arg0, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
@@ -39,7 +39,7 @@ fn @keep_distinct_panic_codes(arg0: u256, arg1: u256) {
 
 // Identical instructions but different terminator operands must NOT merge.
 fn @keep_distinct_revert_sizes(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     br arg0, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
@@ -58,7 +58,7 @@ fn @keep_distinct_revert_sizes(arg0: u256, arg1: u256) {
 // Block-local values compare by definition position, so alpha-equivalent
 // computations merge.
 fn @dedup_local_computations(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     br arg0, bb1, bb2
   bb1:
     v10 = add arg0, 1
@@ -76,7 +76,7 @@ fn @dedup_local_computations(arg0: u256, arg1: u256) {
 
 // Blocks reading different outside values must NOT merge.
 fn @keep_distinct_outside_operands(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     br arg0, bb1, bb2
   bb1:
     mstore 0, arg0

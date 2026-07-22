@@ -2,7 +2,7 @@
 @module MemoryDseCrossBlock
 
 fn @remove_store_overwritten_on_unique_edge() -> u256 {
-  bb0 (entry):
+  bb0:
     mstore 128, 1
     jump bb1
   bb1:
@@ -12,7 +12,7 @@ fn @remove_store_overwritten_on_unique_edge() -> u256 {
 }
 
 fn @keep_store_read_before_successor_overwrite() -> u256 {
-  bb0 (entry):
+  bb0:
     mstore 128, 1
     jump bb1
   bb1:
@@ -22,7 +22,7 @@ fn @keep_store_read_before_successor_overwrite() -> u256 {
 }
 
 fn @keep_store_into_multi_pred_successor(arg0: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     br arg0, bb1, bb2
   bb1:
     mstore 128, 1

@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after jump-threading) ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, 1
       v1 = mul arg0, arg0
 -     jump bb1
@@ -17,7 +17,7 @@
 + // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after cfg-simplify) ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, 1
       v1 = mul arg0, arg0
 -     jump bb2
@@ -34,7 +34,7 @@
 + // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after dce) ===
   @module Pipeline
   fn @noisy(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, 1
 -     v1 = mul arg0, arg0
       ret v0

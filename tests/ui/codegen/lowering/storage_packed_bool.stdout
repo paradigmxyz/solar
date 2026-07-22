@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/storage_packed_bool.sol:PackedBool ===
 @module PackedBool
 fn @a() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
@@ -10,7 +10,7 @@ fn @a() {
 }
 
 fn @b() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
@@ -20,7 +20,7 @@ fn @b() {
 }
 
 fn @set(arg0: bool, arg1: bool) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -59,7 +59,7 @@ fn @set(arg0: bool, arg1: bool) {
 }
 
 fn @both() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255

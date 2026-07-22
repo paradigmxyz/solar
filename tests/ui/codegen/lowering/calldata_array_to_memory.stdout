@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_array_to_memory.sol:C (runtime) ===
 @module runtime
-bb0 (entry):
+bb0:
   push 672
   push 64
   mstore

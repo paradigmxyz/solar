@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_equal_store.mir (after memory-dse) ===
   @module MemoryDseEqualStore
   fn @remove_equal_store_after_keccak(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       mstore 128, arg0
       v0 = keccak256 128, 32
 -     mstore 128, arg0
@@ -10,7 +10,7 @@
   }
   
   fn @keep_equal_store_after_copy(arg0: u256, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
 -     mstore 128, arg0
       calldatacopy 128, arg1, 32
       mstore 128, arg0

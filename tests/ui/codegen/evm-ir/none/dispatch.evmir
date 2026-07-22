@@ -1,6 +1,6 @@
 @module module
 
-bb0 (entry):
+bb0:
   push 0
   calldataload !meta(source=dispatch)
   push 0x371303c0

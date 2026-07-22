@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/outline-reverts/outline_reverts.mir (after outline-reverts) ===
   @module OutlineReverts
   fn @first(arg0: u256) {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, 1
       v1 = lt v0, arg0
       br v1, bb1, bb2
@@ -17,7 +17,7 @@
   }
   
   fn @second(arg0: u256) {
-    bb0 (entry):
+    bb0:
       v0 = mul arg0, 2
       v1 = lt v0, arg0
       br v1, bb1, bb2
@@ -32,7 +32,7 @@
   }
   
   fn @third(arg0: u256) {
-    bb0 (entry):
+    bb0:
       v0 = sub arg0, 1
       v1 = gt v0, arg0
       br v1, bb1, bb2
@@ -46,7 +46,7 @@
 + }
 + 
 + fn @__revert_stub0() {
-+   bb0 (entry):
++   bb0:
 +     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
 +     mstore 4, 17 !metadata(memory=scratch)
 +     revert 0, 36

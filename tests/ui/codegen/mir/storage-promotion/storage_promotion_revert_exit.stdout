@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_revert_exit.mir (after storage-promotion) ===
   @module StoragePromotionRevertExit
   fn @promote_checked_sum_loop(arg0: u256) {
-    bb0 (entry):
+    bb0:
 +     v6 = sload 0
 +     mstore 128, v6
 +     mstore 160, 0
@@ -39,7 +39,7 @@
   }
   
   fn @promote_revert_exit_reads_slot(arg0: u256) {
-    bb0 (entry):
+    bb0:
 -     sstore 0, 1
 +     mstore 128, 1
       jump bb1
@@ -67,7 +67,7 @@
   }
   
   fn @reject_revert_exit_with_call(arg0: u256) {
-    bb0 (entry):
+    bb0:
 -     sstore 0, 1
 +     sstore 0, 1 !metadata(storage=slot(0))
       jump bb1

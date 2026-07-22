@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:DataTypes (runtime) ===
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Inner (runtime) ===
 @module runtime
-bb0 (entry):
+bb0:
   push 224
   push 64
   mstore
@@ -90,7 +90,7 @@ bb9 [cold]:
   revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Outer (runtime) ===
 @module runtime
-bb0 (entry):
+bb0:
   push 224
   push 64
   mstore
@@ -197,7 +197,7 @@ bb11 [cold]:
   revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:C (runtime) ===
 @module runtime
-bb0 (entry):
+bb0:
   push 224
   push 64
   mstore

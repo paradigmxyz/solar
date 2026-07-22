@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/internal_call_fallbacks.sol:InternalCallFallbacks ===
 @module InternalCallFallbacks
 fn @recurse(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -16,7 +16,7 @@ fn @recurse(arg0: u256) {
 }
 
 fn @a(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v0 = internal_frame_addr 128
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = eq arg0, 0
@@ -42,7 +42,7 @@ fn @a(arg0: u256) -> u256 {
 }
 
 fn @b(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v0 = internal_frame_addr 128
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = eq arg0, 0
@@ -68,7 +68,7 @@ fn @b(arg0: u256) -> u256 {
 }
 
 fn @multi(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -89,7 +89,7 @@ fn @multi(arg0: u256) {
 }
 
 fn @pair(arg0: u256) -> (u256, u256) {
-  bb0 (entry):
+  bb0:
     v0 = internal_frame_addr 160
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = internal_frame_addr 192

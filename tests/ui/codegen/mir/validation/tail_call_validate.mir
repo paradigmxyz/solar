@@ -5,14 +5,14 @@
 // hand-written MIR is rejected with a diagnostic, not an ICE.
 @module TailCallValidate
 fn @callee(arg0: u256) {
-  bb0 (entry):
+  bb0:
     stop
 }
 fn @wrongArity() {
-  bb0 (entry):
+  bb0:
     tail_call fn0
 }
 fn @unknownTarget() {
-  bb0 (entry):
+  bb0:
     tail_call fn9
 }

@@ -3,7 +3,7 @@
 // v2 is computed in bb1 but never used anywhere. It should be eliminated.
 @module DceCrossBlock
 fn @cross(arg0: u256, arg1: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     v2 = add arg0, 1
     br arg1, bb1, bb2
   bb1:

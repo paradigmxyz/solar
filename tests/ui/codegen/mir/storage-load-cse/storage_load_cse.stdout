@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/storage-load-cse/storage_load_cse.mir (after storage-load-cse) ===
   @module StorageLoadCse
   fn @reuse_across_disjoint_constant_store() -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = sload 0
 -     sstore 1, 9
 -     v1 = sload 0
@@ -14,7 +14,7 @@
   }
   
   fn @keep_after_same_slot_store() -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = sload 0
 -     sstore 0, 9
 -     v1 = sload 0
@@ -26,7 +26,7 @@
   }
   
   fn @keep_after_symbolic_store(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = sload 0
 -     sstore arg0, 9
 -     v1 = sload 0
@@ -38,7 +38,7 @@
   }
   
   fn @reuse_across_disjoint_offset_store(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, 1
 -     v1 = sload v0
 +     v1 = sload v0 !metadata(storage=offset(arg0, 1))
@@ -53,7 +53,7 @@
   }
   
   fn @keep_when_reuse_extends_live_range() -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = sload 0
 -     sstore 1, 9
 -     v1 = sload 0
@@ -64,7 +64,7 @@
   }
   
   fn @replace_uses_after_second_load() -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = sload 0
 -     v1 = sload 0
 -     v2 = add v0, v1

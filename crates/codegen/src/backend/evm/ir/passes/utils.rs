@@ -37,8 +37,6 @@ fn remap_blocks(module: &mut Module, order: &[BlockId]) {
         remap[old_block.index()] = Some(new_block);
     }
     module.blocks = blocks;
-    module.entry_block =
-        module.entry_block.map(|block| remap[block.index()].expect("entry block must be retained"));
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
             if let Some(PushValue::Block(block)) = &mut inst.value {

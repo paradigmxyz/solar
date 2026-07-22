@@ -1,7 +1,7 @@
 //@compile-flags: --pass storage-load-cse
 @module StorageLoadCse
 fn @reuse_across_disjoint_constant_store() -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = sload 0
     sstore 1, 9
     v2 = sload 0
@@ -10,7 +10,7 @@ fn @reuse_across_disjoint_constant_store() -> u256 {
 }
 
 fn @keep_after_same_slot_store() -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = sload 0
     sstore 0, 9
     v2 = sload 0
@@ -19,7 +19,7 @@ fn @keep_after_same_slot_store() -> u256 {
 }
 
 fn @keep_after_symbolic_store(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = sload 0
     sstore arg0, 9
     v2 = sload 0
@@ -28,7 +28,7 @@ fn @keep_after_symbolic_store(arg0: u256) -> u256 {
 }
 
 fn @reuse_across_disjoint_offset_store(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = add arg0, 1
     v2 = sload v1
     v3 = add arg0, 2
@@ -40,7 +40,7 @@ fn @reuse_across_disjoint_offset_store(arg0: u256) -> u256 {
 }
 
 fn @keep_when_reuse_extends_live_range() -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = sload 0
     sstore 1, 9
     v2 = sload 0
@@ -48,7 +48,7 @@ fn @keep_when_reuse_extends_live_range() -> u256 {
 }
 
 fn @replace_uses_after_second_load() -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = sload 0
     v2 = sload 0
     v3 = add v1, v2

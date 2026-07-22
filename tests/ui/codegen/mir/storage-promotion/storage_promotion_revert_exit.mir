@@ -1,7 +1,7 @@
 //@compile-flags: --pass storage-promotion
 @module StoragePromotionRevertExit
 fn @promote_checked_sum_loop(arg0: u256) [selector=0x01020304] {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb3: v2]
@@ -25,7 +25,7 @@ fn @promote_checked_sum_loop(arg0: u256) [selector=0x01020304] {
 }
 
 fn @promote_revert_exit_reads_slot(arg0: u256) [selector=0x01020304] {
-  bb0 (entry):
+  bb0:
     sstore 0, 1
     jump bb1
   bb1:
@@ -47,7 +47,7 @@ fn @promote_revert_exit_reads_slot(arg0: u256) [selector=0x01020304] {
 }
 
 fn @reject_revert_exit_with_call(arg0: u256) [selector=0x01020304] {
-  bb0 (entry):
+  bb0:
     sstore 0, 1
     jump bb1
   bb1:

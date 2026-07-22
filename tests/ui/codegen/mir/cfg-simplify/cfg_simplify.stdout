@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify.mir (after cfg-simplify) ===
   @module CfgSimplify
   fn @sequential(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, 1
 -     jump bb1
 -   bb1:
@@ -18,7 +18,7 @@
   }
   
   fn @branch_forwarder_preserves_successor_order(arg0: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       br arg0, bb1, bb2
     bb1:
       ret 1
@@ -31,7 +31,7 @@
   }
   
   fn @degenerate_branch_refreshes_successors(arg0: bool) -> u256 {
-    bb0 (entry):
+    bb0:
 -     br arg0, bb1, bb1
 -   bb1:
       ret 1
