@@ -37,7 +37,9 @@ pub trait EvmPass: Sync {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
 
     /// Returns whether this pass must run independently of the optimization level.
-    fn is_required(&self) -> bool;
+    fn is_required(&self) -> bool {
+        false
+    }
 }
 
 macro_rules! declare_passes {

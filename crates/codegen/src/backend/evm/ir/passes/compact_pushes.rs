@@ -18,10 +18,6 @@ impl EvmPass for CompactPushes {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         compact_pushes(gcx, module)
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 const EVM_WORD_BYTES: usize = 32;

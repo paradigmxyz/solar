@@ -25,10 +25,6 @@ impl MirPass for StorageDsePass {
     fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         run_function_pass(module, |func| StorageStoreEliminator::new().run_to_fixpoint(func) != 0)
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 /// Local dead storage-store elimination pass.

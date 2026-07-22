@@ -55,10 +55,6 @@ impl MirPass for PrePass {
     fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         run_function_pass(module, |func| PartialRedundancyEliminator::new().run(func).total() != 0)
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 const MAX_INSERTIONS_PER_REWRITE: usize = 2;

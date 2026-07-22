@@ -18,10 +18,6 @@ impl EvmPass for CfgSimplify {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         simplify_cfg(gcx, module)
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {

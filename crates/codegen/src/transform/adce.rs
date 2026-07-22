@@ -29,10 +29,6 @@ impl MirPass for AdcePass {
             changed
         })
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 /// Statistics for aggressive dead-code elimination.

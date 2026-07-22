@@ -32,10 +32,6 @@ impl MirPass for LoopCanonicalizePass {
     fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         run_function_pass(module, |func| LoopCanonicalizer::new().run(func).total() != 0)
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 /// Statistics from loop canonicalization.

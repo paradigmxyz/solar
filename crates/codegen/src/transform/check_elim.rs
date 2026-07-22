@@ -45,10 +45,6 @@ impl MirPass for CheckElimPass {
     fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         run_function_pass(module, |func| CheckEliminator::new().run(func) != 0)
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 /// Maximum recursion depth when evaluating value ranges and conditions.

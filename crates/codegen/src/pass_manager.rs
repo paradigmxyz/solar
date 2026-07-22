@@ -55,7 +55,9 @@ pub trait MirPass: Sync {
     }
 
     /// Returns whether this pass must run independently of the optimization level.
-    fn is_required(&self) -> bool;
+    fn is_required(&self) -> bool {
+        false
+    }
 }
 
 /// Whether to allow non-required optimizations.

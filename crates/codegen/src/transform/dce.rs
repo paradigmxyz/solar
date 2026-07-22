@@ -26,10 +26,6 @@ impl MirPass for DcePass {
             changed
         })
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 /// Dead Code Elimination pass.

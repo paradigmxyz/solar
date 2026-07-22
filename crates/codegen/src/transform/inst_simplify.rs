@@ -32,10 +32,6 @@ impl MirPass for InstSimplifyPass {
     fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         run_function_pass(module, |func| InstSimplifier::new().run_to_fixpoint(func) != 0)
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 /// Local MIR instruction simplification pass.

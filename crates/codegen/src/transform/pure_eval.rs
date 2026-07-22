@@ -28,10 +28,6 @@ impl MirPass for PureEvalPass {
             changed || repaired
         })
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 const DEFAULT_FUEL: usize = 10_000;

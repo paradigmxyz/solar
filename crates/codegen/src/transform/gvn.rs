@@ -64,10 +64,6 @@ impl MirPass for GvnPass {
     fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         run_function_pass(module, |func| GlobalValueNumberer::new().run(func) != 0)
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 /// Hard cap on value-numbering sweeps per round.

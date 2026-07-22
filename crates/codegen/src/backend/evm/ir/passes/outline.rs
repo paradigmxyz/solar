@@ -21,10 +21,6 @@ impl EvmPass for Outline {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         outline(gcx, module)
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 const MIN_CLOSED_RUN: usize = 4;

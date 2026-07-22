@@ -36,10 +36,6 @@ impl MirPass for JumpThreadingPass {
             JumpThreader::new().run_to_fixpoint(func).total_threaded() != 0
         })
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 /// Statistics from jump threading optimization.

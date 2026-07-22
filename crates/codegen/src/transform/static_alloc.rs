@@ -62,10 +62,6 @@ impl MirPass for StaticAllocPass {
         }
         changed
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 fn is_entry(func: &Function) -> bool {

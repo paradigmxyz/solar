@@ -19,10 +19,6 @@ impl EvmPass for ShareReverts {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         share_reverts(gcx, module)
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {

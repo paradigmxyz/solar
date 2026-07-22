@@ -61,10 +61,6 @@ impl MirPass for CsePass {
     fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         run_function_pass(module, |func| CommonSubexprEliminator::new().run_to_fixpoint(func) != 0)
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 /// Common Subexpression Elimination pass.

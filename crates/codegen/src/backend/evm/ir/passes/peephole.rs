@@ -20,10 +20,6 @@ impl EvmPass for Peephole {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         optimize_module(gcx, module)
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";

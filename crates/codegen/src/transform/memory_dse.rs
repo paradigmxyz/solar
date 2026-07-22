@@ -31,10 +31,6 @@ impl MirPass for MemoryDsePass {
     fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         run_function_pass(module, |func| MemoryStoreEliminator::new().run_to_fixpoint(func) != 0)
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 /// Local dead memory optimization pass.

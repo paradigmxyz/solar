@@ -20,10 +20,6 @@ impl EvmPass for TerminalDedup {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         deduplicate_terminals(gcx, module)
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 #[derive(Default)]

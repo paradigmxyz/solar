@@ -41,10 +41,6 @@ impl MirPass for SccpTransformPass {
     fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         run_function_pass(module, |func| SccpPass::new().run(func) != 0)
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 /// Lattice element for a single SSA value.

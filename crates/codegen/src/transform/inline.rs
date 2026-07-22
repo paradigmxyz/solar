@@ -33,10 +33,6 @@ impl MirPass for InlinePass {
         };
         inliner.run(module).inlined != 0
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 /// Module-level MIR internal-call inliner.

@@ -98,10 +98,6 @@ impl MirPass for LoadPrePass {
     fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         run_function_pass(module, |func| LoadRedundancyEliminator::new().run(func).total() != 0)
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 /// Statistics for load PRE.

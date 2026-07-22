@@ -40,10 +40,6 @@ impl MirPass for StorageScalarPromotionPass {
             stats.loops_promoted + stats.loads_promoted + stats.stores_promoted != 0
         })
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 const LOW_MEMORY_START: u64 = 0x80;

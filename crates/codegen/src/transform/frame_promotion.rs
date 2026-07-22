@@ -41,10 +41,6 @@ impl MirPass for FrameSlotPromotionPass {
             changed
         })
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 const LOW_MEMORY_START: u64 = 0x80;

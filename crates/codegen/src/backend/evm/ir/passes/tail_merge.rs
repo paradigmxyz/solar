@@ -17,10 +17,6 @@ impl EvmPass for TailMerge {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         merge_tails(gcx, module)
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 fn merge_tails(_gcx: Gcx<'_>, module: &mut Module) -> bool {

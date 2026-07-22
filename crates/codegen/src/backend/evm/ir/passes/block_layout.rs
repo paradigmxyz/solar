@@ -30,10 +30,6 @@ impl EvmPass for BlockLayout {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         layout_blocks(gcx, module)
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {

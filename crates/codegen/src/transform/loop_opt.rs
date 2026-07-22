@@ -35,10 +35,6 @@ impl MirPass for LicmPass {
             LoopOptimizer::with_limits(3, 8).optimize(func).instructions_hoisted != 0
         })
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

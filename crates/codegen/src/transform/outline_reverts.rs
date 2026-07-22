@@ -35,10 +35,6 @@ impl MirPass for OutlineRevertsPass {
     fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         OutlineReverts::default().run(module)
     }
-
-    fn is_required(&self) -> bool {
-        false
-    }
 }
 
 /// Statistics from revert-block outlining.
