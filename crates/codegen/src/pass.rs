@@ -316,7 +316,7 @@ fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, passes: &[PassInf
     let mut changed = false;
     for pass in passes {
         changed |= run_pass(gcx, module, pass);
-        if gcx.sess.opts.unstable.mir_print_after_each {
+        if gcx.sess.opts.unstable.print_after_each {
             println!("// === {} (after {}) ===", module.name, pass.name);
             print!("{}", module.to_text());
         }
@@ -354,7 +354,7 @@ fn run_cleanup_pipeline_to_fixpoint(
         for pass in passes {
             let pass_changed = run_pass(gcx, module, pass);
             round_changed |= pass_changed;
-            if gcx.sess.opts.unstable.mir_print_after_each {
+            if gcx.sess.opts.unstable.print_after_each {
                 println!("// === {} (after {label}-{round}:{}) ===", module.name, pass.name);
                 print!("{}", module.to_text());
             }

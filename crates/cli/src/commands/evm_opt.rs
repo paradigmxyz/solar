@@ -26,9 +26,6 @@ pub(crate) struct EvmOptArgs {
         default_value = "none"
     )]
     passes: Vec<Option<&'static ir::PassInfo>>,
-    /// If true, print EVM IR after every pass; otherwise only after the last.
-    #[arg(long)]
-    print_after_each: bool,
     /// Path to input file. Extension determines whether it's .evmir.
     #[arg(value_hint = ValueHint::FilePath)]
     input: String,
@@ -75,13 +72,14 @@ fn print_module(module: &ir::Module, name: &str, after: &str) {
 fn run_pipeline(gcx: Gcx<'_>, module: &mut ir::Module, name: &str, args: &EvmOptArgs) {
     let sess = gcx.sess;
     let dcx = &sess.dcx;
+    let print_after_each = sess.opts.unstable.print_after_each;
     let pipeline_label = selected_pass_list_label(&args.passes, ",");
     for (index, &pass) in args.passes.iter().enumerate() {
         let before = sess.opts.unstable.pass_diff.then(|| module.to_text().to_string());
         if let Some(pass) = pass {
             ir::run_pass(gcx, module, pass);
         }
-        if before.is_some() || args.print_after_each || index + 1 == args.passes.len() {
+        if before.is_some() || print_after_each || index + 1 == args.passes.len() {
             ir::validate(dcx, module);
             if dcx.has_errors().is_err() {
                 break;
@@ -90,7 +88,7 @@ fn run_pipeline(gcx: Gcx<'_>, module: &mut ir::Module, name: &str, args: &EvmOpt
                 let after = module.to_text().to_string();
                 print_pass_diff(name, pass_label(pass), &before, &after);
             } else {
-                let label = if args.print_after_each { pass_label(pass) } else { &pipeline_label };
+                let label = if print_after_each { pass_label(pass) } else { &pipeline_label };
                 print_module(module, name, label);
             }
         }
