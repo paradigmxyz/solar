@@ -22,6 +22,7 @@ use crate::{
 };
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
+    index::{IndexVec, index_vec},
     map::FxHashMap,
 };
 
@@ -735,7 +736,7 @@ impl<'a> SlotSsaBuilder<'a> {
         let mut worklist = sorted_blocks(&self.info.def_blocks);
 
         while let Some(block) = worklist.pop() {
-            let Some(frontier) = frontiers.get(&block) else { continue };
+            let Some(frontier) = frontiers.get(block) else { continue };
             for &frontier_block in frontier {
                 if !live_in.contains(frontier_block) || !phi_blocks.insert(frontier_block) {
                     continue;
@@ -747,8 +748,8 @@ impl<'a> SlotSsaBuilder<'a> {
         phi_blocks
     }
 
-    fn compute_dominance_frontiers(&self, func: &Function) -> FxHashMap<BlockId, Vec<BlockId>> {
-        let mut frontiers = FxHashMap::<BlockId, Vec<BlockId>>::default();
+    fn compute_dominance_frontiers(&self, func: &Function) -> IndexVec<BlockId, Vec<BlockId>> {
+        let mut frontiers = index_vec![Vec::new(); func.blocks.len()];
         for block in func.blocks.indices() {
             if !self.cfg.is_reachable(block) {
                 continue;
@@ -767,9 +768,8 @@ impl<'a> SlotSsaBuilder<'a> {
             let Some(idom) = self.cfg.dominators().idom(block) else { continue };
             for mut runner in preds {
                 while runner != idom {
-                    let frontier = frontiers.entry(runner).or_default();
-                    if !frontier.contains(&block) {
-                        frontier.push(block);
+                    if !frontiers[runner].contains(&block) {
+                        frontiers[runner].push(block);
                     }
 
                     let Some(next) = self.cfg.dominators().idom(runner) else { break };
@@ -781,7 +781,7 @@ impl<'a> SlotSsaBuilder<'a> {
             }
         }
 
-        for frontier in frontiers.values_mut() {
+        for frontier in &mut frontiers {
             frontier.sort_by_key(|block| block.index());
         }
         frontiers
