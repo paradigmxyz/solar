@@ -1,68 +1,79 @@
-// === ROOT/tests/ui/codegen/mir/pre/pre.mir (after pre) ===
-@module Pre
-fn @insert_missing_predecessor(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
-    switch arg1, default bb3, [1 => bb1, 2 => bb2]
-  bb1:
-    v0 = add arg0, 7
-    jump bb4
-  bb2:
-    v1 = add 7, arg0
-    jump bb4
-  bb3:
-    v3 = add arg0, 7
-    jump bb4
-  bb4:
-    v4 = phi [bb1: v0], [bb2: v1], [bb3: v3]
-    ret v4
-}
-
-fn @translate_join_phi(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
-  bb0 (entry):
-    switch arg3, default bb3, [1 => bb1, 2 => bb2]
-  bb1:
-    v0 = add arg0, 1
-    jump bb4
-  bb2:
-    v1 = add arg1, 1
-    jump bb4
-  bb3:
-    v4 = add arg2, 1
-    jump bb4
-  bb4:
-    v2 = phi [bb1: arg0], [bb2: arg1], [bb3: arg2]
-    v5 = phi [bb1: v0], [bb2: v1], [bb3: v4]
-    ret v5
-}
-
-fn @two_way_join(arg0: u256, arg1: bool) -> u256 {
-  bb0 (entry):
-    br arg1, bb1, bb2
-  bb1:
-    v0 = add arg0, 1
-    jump bb3
-  bb2:
-    v2 = add arg0, 1
-    jump bb3
-  bb3:
-    v3 = phi [bb1: v0], [bb2: v2]
-    ret v3
-}
-
-fn @split_branch_terminated_pred(arg0: u256, arg1: bool) -> u256 {
-  bb0 (entry):
-    br arg1, bb1, bb2
-  bb1:
-    v0 = add arg0, 1
-    jump bb3
-  bb2:
-    br arg1, bb5, bb4
-  bb3:
-    v3 = phi [bb1: v0], [bb5: v2]
-    ret v3
-  bb4:
-    ret arg0
-  bb5:
-    v2 = add arg0, 1
-    jump bb3
-}
+- // === ROOT/tests/ui/codegen/mir/pre/pre.mir (before pre) ===
++ // === ROOT/tests/ui/codegen/mir/pre/pre.mir (after pre) ===
+  @module Pre
+  fn @insert_missing_predecessor(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      switch arg1, default bb3, [1 => bb1, 2 => bb2]
+    bb1:
+      v0 = add arg0, 7
+      jump bb4
+    bb2:
+      v1 = add 7, arg0
+      jump bb4
+    bb3:
++     v3 = add arg0, 7
+      jump bb4
+    bb4:
+-     v2 = add arg0, 7
+-     ret v2
++     v4 = phi [bb1: v0], [bb2: v1], [bb3: v3]
++     ret v4
+  }
+  
+  fn @translate_join_phi(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+    bb0:
+      switch arg3, default bb3, [1 => bb1, 2 => bb2]
+    bb1:
+      v0 = add arg0, 1
+      jump bb4
+    bb2:
+      v1 = add arg1, 1
+      jump bb4
+    bb3:
++     v4 = add arg2, 1
+      jump bb4
+    bb4:
+      v2 = phi [bb1: arg0], [bb2: arg1], [bb3: arg2]
+-     v3 = add v2, 1
+-     ret v3
++     v5 = phi [bb1: v0], [bb2: v1], [bb3: v4]
++     ret v5
+  }
+  
+  fn @two_way_join(arg0: u256, arg1: bool) -> u256 {
+    bb0:
+      br arg1, bb1, bb2
+    bb1:
+      v0 = add arg0, 1
+      jump bb3
+    bb2:
++     v2 = add arg0, 1
+      jump bb3
+    bb3:
+-     v1 = add arg0, 1
+-     ret v1
++     v3 = phi [bb1: v0], [bb2: v2]
++     ret v3
+  }
+  
+  fn @split_branch_terminated_pred(arg0: u256, arg1: bool) -> u256 {
+    bb0:
+      br arg1, bb1, bb2
+    bb1:
+      v0 = add arg0, 1
+      jump bb3
+    bb2:
+-     br arg1, bb3, bb4
++     br arg1, bb5, bb4
+    bb3:
+-     v1 = add arg0, 1
+-     ret v1
++     v3 = phi [bb1: v0], [bb5: v2]
++     ret v3
+    bb4:
+      ret arg0
++   bb5:
++     v2 = add arg0, 1
++     jump bb3
+  }
+  

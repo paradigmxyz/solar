@@ -2,17 +2,16 @@ use super::super::{AnalysisBatch, AnalysisResult, GlobalState, analyze};
 use crate::test_support::MarkedProject;
 use async_lsp::{ClientSocket, ErrorCode};
 use lsp_types::{
-    CompletionItem, CompletionParams, CompletionResponse, DocumentHighlight, DocumentHighlightKind,
-    DocumentHighlightParams, DocumentLink, DocumentLinkParams, Documentation, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverContents, HoverParams, InlayHint, InlayHintKind,
-    InlayHintLabel, InlayHintParams, Location, MarkupKind, ParameterLabel, PartialResultParams,
-    Position, PrepareRenameResponse, Range, ReferenceContext, ReferenceParams, RenameParams,
-    SignatureHelp, SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams, Url,
-    WorkDoneProgressParams, WorkspaceEdit,
+    CompletionContext, CompletionItem, CompletionParams, CompletionResponse, CompletionTextEdit,
+    CompletionTriggerKind, DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams,
+    DocumentLink, DocumentLinkParams, Documentation, GotoDefinitionParams, GotoDefinitionResponse,
+    Hover, HoverContents, HoverParams, InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams,
+    Location, MarkupKind, ParameterLabel, PartialResultParams, Position, PrepareRenameResponse,
+    Range, ReferenceContext, ReferenceParams, RenameParams, SignatureHelp, SignatureHelpParams,
+    TextDocumentIdentifier, TextDocumentPositionParams, Url, WorkDoneProgressParams, WorkspaceEdit,
 };
 use snapbox::{IntoData, assert_data_eq};
 use solar_config::CompileOpts;
-use solar_interface::data_structures::map::FxHashSet;
 use std::{
     fmt::Write as _,
     future::Future,
@@ -38,11 +37,7 @@ impl RequestFixture {
         let marked = MarkedProject::from_fixture(fixture);
         let contents = marked.project().read_file(path);
         let path = marked.project().path(path);
-        let result = analyze(AnalysisBatch {
-            opts: CompileOpts::default(),
-            files: vec![(path, contents)],
-            seen_paths: FxHashSet::default(),
-        });
+        let result = analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, contents)]));
         Self { marked, result }
     }
 
@@ -76,11 +71,8 @@ impl RequestFixture {
                 .filter(|(open_path, _)| open_path == path)
                 .map_or_else(|| marked.project().read_file(path), |(_, contents)| contents.clone());
             let path = marked.project().path(path);
-            let batch = analyze(AnalysisBatch {
-                opts: CompileOpts::default(),
-                files: vec![(path, contents)],
-                seen_paths: FxHashSet::default(),
-            });
+            let batch =
+                analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, contents)]));
             result.symbol_tables.extend(batch.symbol_tables);
             for (uri, mut diagnostics) in batch.diagnostics {
                 result.diagnostics.entry(uri).or_default().append(&mut diagnostics);
@@ -114,6 +106,143 @@ impl RequestFixture {
             panic!("expected completion array");
         };
         assert_data_eq!(completion_output(&items), expected);
+    }
+
+    pub(super) fn check_completion_details(&self, marker: &str, expected: impl IntoData) {
+        self.check_completion_details_with_snippets(marker, true, expected);
+    }
+
+    pub(super) fn check_completion_details_with_snippets(
+        &self,
+        marker: &str,
+        snippet_support: bool,
+        expected: impl IntoData,
+    ) {
+        let mut state = self.state_with_completion_snippets(snippet_support);
+        let (uri, position) = self.marker_location(marker);
+        let response =
+            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
+                .unwrap()
+                .unwrap();
+        let CompletionResponse::Array(items) = response else {
+            panic!("expected completion array");
+        };
+        assert_data_eq!(completion_details_output(&items), expected);
+    }
+
+    pub(super) fn check_completion_details_with_trigger(
+        &self,
+        marker: &str,
+        trigger_character: &str,
+        expected: impl IntoData,
+    ) {
+        let mut state = self.state_with_completion_snippets(true);
+        let (uri, position) = self.marker_location(marker);
+        let response = expect_ready(crate::handlers::completion(
+            &mut state,
+            completion_params_with_trigger(uri, position, trigger_character),
+        ))
+        .unwrap()
+        .unwrap();
+        let CompletionResponse::Array(items) = response else {
+            panic!("expected completion array");
+        };
+        assert_data_eq!(completion_details_output(&items), expected);
+    }
+
+    pub(super) fn check_completion_details_after_change(
+        &self,
+        marker: &str,
+        path: &str,
+        changed_contents: &str,
+        expected: impl IntoData,
+    ) {
+        let mut state = self.state_with_completion_snippets(true);
+        let path = self.marked.project().path(path);
+        state.mark_source_analysis_pending_for_test(path.clone());
+        let uri = Url::from_file_path(&path).unwrap();
+        state.vfs.write().set_file_contents(
+            crate::vfs::VfsPath::from(path),
+            Some(crop::Rope::from(changed_contents)),
+        );
+        let position = self.marked.marker(marker).position();
+        let response =
+            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
+                .unwrap()
+                .unwrap();
+        let CompletionResponse::Array(items) = response else {
+            panic!("expected completion array");
+        };
+        assert_data_eq!(completion_details_output(&items), expected);
+    }
+
+    pub(super) fn check_completion_details_after_changes(
+        &self,
+        marker: &str,
+        request_path: &str,
+        changes: &[(&str, &str)],
+        expected: impl IntoData,
+    ) {
+        let mut state = self.state_with_completion_snippets(true);
+        for &(path, contents) in changes {
+            let path = self.marked.project().path(path);
+            state.mark_source_analysis_pending_for_test(path.clone());
+            state.vfs.write().set_file_contents(
+                crate::vfs::VfsPath::from(path),
+                Some(crop::Rope::from(contents)),
+            );
+        }
+        let uri = Url::from_file_path(self.marked.project().path(request_path)).unwrap();
+        let position = self.marked.marker(marker).position();
+        let response =
+            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
+                .unwrap()
+                .unwrap();
+        let CompletionResponse::Array(items) = response else {
+            panic!("expected completion array");
+        };
+        assert_data_eq!(completion_details_output(&items), expected);
+    }
+
+    pub(super) fn check_completion_details_after_deleted_source(
+        &self,
+        marker: &str,
+        request_path: &str,
+        deleted_path: &str,
+        expected: impl IntoData,
+    ) {
+        let mut state = self.state_with_completion_snippets(true);
+        let deleted_path = self.marked.project().path(deleted_path);
+        state.mark_source_analysis_pending_for_test(deleted_path.clone());
+        std::fs::remove_file(deleted_path).unwrap();
+        let uri = Url::from_file_path(self.marked.project().path(request_path)).unwrap();
+        let position = self.marked.marker(marker).position();
+        let response =
+            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
+                .unwrap()
+                .unwrap();
+        let CompletionResponse::Array(items) = response else {
+            panic!("expected completion array");
+        };
+        assert_data_eq!(completion_details_output(&items), expected);
+    }
+
+    pub(super) fn check_completion_details_after_context_change(
+        &self,
+        marker: &str,
+        expected: impl IntoData,
+    ) {
+        let mut state = self.state_with_completion_snippets(true);
+        state.mark_context_analysis_pending_for_test();
+        let (uri, position) = self.marker_location(marker);
+        let response =
+            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
+                .unwrap()
+                .unwrap();
+        let CompletionResponse::Array(items) = response else {
+            panic!("expected completion array");
+        };
+        assert_data_eq!(completion_details_output(&items), expected);
     }
 
     pub(super) fn check_goto_definition(&self, marker: &str, expected: impl IntoData) {
@@ -278,11 +407,10 @@ impl RequestFixture {
     ) {
         let path = self.marked.project().path(path);
         let uri = Url::from_file_path(&path).unwrap();
-        let result = analyze(AnalysisBatch {
-            opts: CompileOpts::default(),
-            files: vec![(path.clone(), changed_contents.to_string())],
-            seen_paths: FxHashSet::default(),
-        });
+        let result = analyze(AnalysisBatch::from_files(
+            CompileOpts::default(),
+            [(path.clone(), changed_contents.to_string())],
+        ));
         assert!(!result.diagnostics.is_empty(), "changed source should fail analysis");
 
         let mut state = self.state();
@@ -335,6 +463,14 @@ impl RequestFixture {
 
     fn state(&self) -> GlobalState {
         self.state_with_label_offsets(true)
+    }
+
+    fn state_with_completion_snippets(&self, completion_snippets: bool) -> GlobalState {
+        let mut state = self.state_with_label_offsets(true);
+        if completion_snippets {
+            Arc::make_mut(&mut state.config).enable_completion_snippets();
+        }
+        state
     }
 
     fn state_with_label_offsets(&self, label_offsets: bool) -> GlobalState {
@@ -478,6 +614,62 @@ fn completion_output(items: &[CompletionItem]) -> String {
     output
 }
 
+fn completion_details_output(items: &[CompletionItem]) -> String {
+    let mut output = String::new();
+    for (index, item) in items.iter().enumerate() {
+        let kind = item.kind.map(|kind| format!("{kind:?}")).unwrap_or_else(|| "<none>".into());
+        let insert_text_format = item
+            .insert_text_format
+            .map(|format| format!("{format:?}"))
+            .unwrap_or_else(|| "<none>".into());
+        let (text_edit, new_text) = match &item.text_edit {
+            Some(CompletionTextEdit::Edit(edit)) => {
+                (format!("edit {}", range_output(edit.range)), edit.new_text.as_str())
+            }
+            Some(CompletionTextEdit::InsertAndReplace(edit)) => (
+                format!(
+                    "insert-and-replace insert={} replace={}",
+                    range_output(edit.insert),
+                    range_output(edit.replace)
+                ),
+                edit.new_text.as_str(),
+            ),
+            None => ("<none>".into(), "<none>"),
+        };
+
+        writeln!(output, "label={}", item.label).unwrap();
+        writeln!(output, "kind={kind}").unwrap();
+        writeln!(output, "detail={}", item.detail.as_deref().unwrap_or("<none>")).unwrap();
+        writeln!(output, "sort_text={}", item.sort_text.as_deref().unwrap_or("<none>")).unwrap();
+        writeln!(output, "text_edit={text_edit}").unwrap();
+        if let Some(edits) = &item.additional_text_edits {
+            for edit in edits {
+                writeln!(
+                    output,
+                    "additional_text_edit={} new_text={:?}",
+                    range_output(edit.range),
+                    edit.new_text
+                )
+                .unwrap();
+            }
+        }
+        writeln!(output, "insert_text_format={insert_text_format}").unwrap();
+        writeln!(output, "new_text:").unwrap();
+        writeln!(output, "{new_text}").unwrap();
+        if index + 1 < items.len() {
+            writeln!(output).unwrap();
+        }
+    }
+    output
+}
+
+fn range_output(range: Range) -> String {
+    format!(
+        "{}:{}-{}:{}",
+        range.start.line, range.start.character, range.end.line, range.end.character
+    )
+}
+
 fn inlay_hint_output(hints: &[InlayHint]) -> String {
     let mut output = String::new();
     for hint in hints {
@@ -615,6 +807,20 @@ fn completion_params(uri: Url, position: Position) -> CompletionParams {
         work_done_progress_params: WorkDoneProgressParams::default(),
         partial_result_params: PartialResultParams::default(),
         context: None,
+    }
+}
+
+fn completion_params_with_trigger(
+    uri: Url,
+    position: Position,
+    trigger_character: &str,
+) -> CompletionParams {
+    CompletionParams {
+        context: Some(CompletionContext {
+            trigger_kind: CompletionTriggerKind::TRIGGER_CHARACTER,
+            trigger_character: Some(trigger_character.into()),
+        }),
+        ..completion_params(uri, position)
     }
 }
 

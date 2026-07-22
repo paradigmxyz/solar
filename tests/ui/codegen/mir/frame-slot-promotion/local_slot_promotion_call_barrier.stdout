@@ -1,29 +1,76 @@
-// === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion_call_barrier.mir (after frame-slot-promotion,dce) ===
-@module LocalSlotPromotionCallBarrier
-fn @promote_across_unrelated_staticcall(arg0: address) -> u256 {
-  bb0 (entry):
-    v1 = staticcall 0x186a0, arg0, 0, 0, 0, 0
-    v4 = add 9, v1
-    ret v4
-}
-
-fn @keep_msize_observation() -> u256 {
-  bb0 (entry):
-    v0 = internal_frame_addr 128
-    mstore v0, 9
-    v1 = msize
-    v2 = internal_frame_addr 128
-    v3 = mload v2
-    v4 = add v3, v1
-    ret v4
-}
-
-fn @promote_slot_with_unrelated_frame_hash() -> u256 {
-  bb0 (entry):
-    v1 = internal_frame_addr 192
-    mstore v1, 1
-    v2 = internal_frame_addr 192
-    v3 = keccak256 v2, 32
-    v6 = add 9, v3
-    ret v6
-}
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion_call_barrier.mir (before frame-slot-promotion) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion_call_barrier.mir (after frame-slot-promotion) ===
+  @module LocalSlotPromotionCallBarrier
+  fn @promote_across_unrelated_staticcall(arg0: address) -> u256 {
+    bb0:
+      v0 = internal_frame_addr 128
+-     mstore v0, 9
+      v1 = staticcall 0x186a0, arg0, 0, 0, 0, 0
+      v2 = internal_frame_addr 128
+-     v3 = mload v2
+-     v4 = add v3, v1
++     v4 = add 9, v1
+      ret v4
+  }
+  
+  fn @keep_msize_observation() -> u256 {
+    bb0:
+      v0 = internal_frame_addr 128
+      mstore v0, 9
+      v1 = msize
+      v2 = internal_frame_addr 128
+      v3 = mload v2
+      v4 = add v3, v1
+      ret v4
+  }
+  
+  fn @promote_slot_with_unrelated_frame_hash() -> u256 {
+    bb0:
+      v0 = internal_frame_addr 128
+-     mstore v0, 9
+      v1 = internal_frame_addr 192
+      mstore v1, 1
+      v2 = internal_frame_addr 192
+      v3 = keccak256 v2, 32
+      v4 = internal_frame_addr 128
+-     v5 = mload v4
+-     v6 = add v5, v3
++     v6 = add 9, v3
+      ret v6
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion_call_barrier.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion_call_barrier.mir (after dce) ===
+  @module LocalSlotPromotionCallBarrier
+  fn @promote_across_unrelated_staticcall(arg0: address) -> u256 {
+    bb0:
+-     v0 = internal_frame_addr 128
+      v1 = staticcall 0x186a0, arg0, 0, 0, 0, 0
+-     v2 = internal_frame_addr 128
+      v4 = add 9, v1
+      ret v4
+  }
+  
+  fn @keep_msize_observation() -> u256 {
+    bb0:
+      v0 = internal_frame_addr 128
+      mstore v0, 9
+      v1 = msize
+      v2 = internal_frame_addr 128
+      v3 = mload v2
+      v4 = add v3, v1
+      ret v4
+  }
+  
+  fn @promote_slot_with_unrelated_frame_hash() -> u256 {
+    bb0:
+-     v0 = internal_frame_addr 128
+      v1 = internal_frame_addr 192
+      mstore v1, 1
+      v2 = internal_frame_addr 192
+      v3 = keccak256 v2, 32
+-     v4 = internal_frame_addr 128
+      v6 = add 9, v3
+      ret v6
+  }
+  

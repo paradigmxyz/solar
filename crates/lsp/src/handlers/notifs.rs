@@ -3,17 +3,17 @@ use crop::Rope;
 use lsp_types::{
     DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
     DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DidSaveTextDocumentParams, FileChangeType,
+    DidSaveTextDocumentParams, FileChangeType, WillSaveTextDocumentParams,
 };
 use std::{ops::ControlFlow, sync::Arc};
-use tracing::{error, info};
+use tracing::{debug, error};
 
 pub(crate) fn did_open_text_document(
     state: &mut GlobalState,
     params: DidOpenTextDocumentParams,
 ) -> NotifyResult {
-    info!("config: {:?}", state.config);
     if let Some(path) = proto::vfs_path(&params.text_document.uri) {
+        let disk_path = path.as_path().map(ToOwned::to_owned);
         let already_exists = state.vfs.read().exists(&path);
         if already_exists {
             error!(?path, "duplicate DidOpenTextDocument");
@@ -28,7 +28,7 @@ pub(crate) fn did_open_text_document(
         let changed = vfs.mark_clean();
         drop(vfs);
         if changed {
-            state.recompute();
+            state.recompute_after_source_changes(disk_path.into_iter().collect());
         } else {
             state.reindex_if_invalidated();
         }
@@ -42,6 +42,7 @@ pub(crate) fn did_change_text_document(
     params: DidChangeTextDocumentParams,
 ) -> NotifyResult {
     if let Some(path) = proto::vfs_path(&params.text_document.uri) {
+        let disk_path = path.as_path().map(ToOwned::to_owned);
         let (changed, new_contents) = {
             let _guard = state.vfs.read();
             let Some(contents) = _guard.get_file_contents(&path) else {
@@ -59,7 +60,7 @@ pub(crate) fn did_change_text_document(
             Some(params.text_document.version),
         );
         if changed {
-            state.recompute();
+            state.recompute_after_source_changes(disk_path.into_iter().collect());
         } else {
             state.reindex_if_invalidated();
         }
@@ -82,6 +83,18 @@ pub(crate) fn did_close_text_document(
         state.recompute_with_disk_files(disk_path.into_iter().collect());
     }
 
+    ControlFlow::Continue(())
+}
+
+pub(crate) fn will_save_text_document(
+    _: &mut GlobalState,
+    params: WillSaveTextDocumentParams,
+) -> NotifyResult {
+    debug!(
+        uri = %params.text_document.uri,
+        reason = ?params.reason,
+        "text document will save"
+    );
     ControlFlow::Continue(())
 }
 

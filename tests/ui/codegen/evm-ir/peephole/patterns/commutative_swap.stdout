@@ -1,52 +1,68 @@
-// === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/commutative_swap.evmir (after peephole) ===
-@module module
-bb0 (entry):
-  push 1
-  push 2
-  add
-  stop
-bb1:
-  push 1
-  push 2
-  mul
-  stop
-bb2:
-  push 1
-  push 2
-  and
-  stop
-bb3:
-  push 1
-  push 2
-  or
-  stop
-bb4:
-  push 1
-  push 2
-  xor
-  stop
-bb5:
-  push 1
-  push 2
-  eq
-  stop
-bb6:
-  push 1
-  push 2
-  gt
-  stop
-bb7:
-  push 1
-  push 2
-  lt
-  stop
-bb8:
-  push 1
-  push 2
-  sgt
-  stop
-bb9:
-  push 1
-  push 2
-  slt
-  stop
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/commutative_swap.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/commutative_swap.evmir (after peephole) ===
+  @module module
+  bb0:
+    push 1
+    push 2
+-   swap1
+    add
+    stop
+  bb1:
+    push 1
+    push 2
+-   swap1
+    mul
+    stop
+  bb2:
+    push 1
+    push 2
+-   swap1
+    and
+    stop
+  bb3:
+    push 1
+    push 2
+-   swap1
+    or
+    stop
+  bb4:
+    push 1
+    push 2
+-   swap1
+    xor
+    stop
+  bb5:
+    push 1
+    push 2
+-   swap1
+    eq
+    stop
+  bb6:
+    push 1
+    push 2
+-   swap1
+-   lt
++   gt
+    stop
+  bb7:
+    push 1
+    push 2
+-   swap1
+-   gt
++   lt
+    stop
+  bb8:
+    push 1
+    push 2
+-   swap1
+-   slt
++   sgt
+    stop
+  bb9:
+    push 1
+    push 2
+-   swap1
+-   sgt
++   slt
+    stop
+  

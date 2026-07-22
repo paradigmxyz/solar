@@ -5,6 +5,20 @@ use std::{
 
 pub use fmt::*;
 
+/// Formats a line-oriented diff with the same prefixes as rustc MIR tests.
+pub fn line_diff<'a>(before: &'a str, after: &'a str) -> impl fmt::Display + 'a {
+    from_fn(move |f| {
+        for result in diff::lines(before, after) {
+            match result {
+                diff::Result::Left(line) => writeln!(f, "- {line}")?,
+                diff::Result::Right(line) => writeln!(f, "+ {line}")?,
+                diff::Result::Both(line, _) => writeln!(f, "  {line}")?,
+            }
+        }
+        Ok(())
+    })
+}
+
 /// Creates a formatter from a function.
 pub fn from_fn<F>(f: F) -> FromFn<F>
 where
@@ -155,5 +169,10 @@ mod tests {
         let values = [1, 2, 3];
         let formatted = values.iter().format_with(" | ", |f, value| write!(f, "#{value}"));
         assert_eq!(formatted.to_string(), "#1 | #2 | #3");
+    }
+
+    #[test]
+    fn test_line_diff() {
+        assert_eq!(line_diff("a\nb\n", "a\nc\n").to_string(), "  a\n- b\n+ c\n  \n");
     }
 }

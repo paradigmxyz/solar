@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:Errors (runtime) ===
 @module runtime
-bb0 (entry):
+bb0:
   push 320
   push 64
   mstore
@@ -94,7 +94,7 @@ bb7:
   jump bb9
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:R (runtime) ===
 @module runtime
-bb0 (entry):
+bb0:
   push 352
   push 64
   mstore

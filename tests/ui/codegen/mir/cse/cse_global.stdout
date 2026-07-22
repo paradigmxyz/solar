@@ -1,16 +1,22 @@
-// === ROOT/tests/ui/codegen/mir/cse/cse_global.mir (after cse) ===
-@module CseGlobal
-fn @dominating_pure_expr(arg0: u256, arg1: u256, arg2: bool) -> u256 {
-  bb0 (entry):
-    v0 = add arg0, arg1
-    br arg2, bb1, bb2
-  bb1:
-    v2 = mul v0, 2
-    jump bb3
-  bb2:
-    v4 = mul v0, 3
-    jump bb3
-  bb3:
-    v5 = phi [bb1: v2], [bb2: v4]
-    ret v5
-}
+- // === ROOT/tests/ui/codegen/mir/cse/cse_global.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/cse_global.mir (after cse) ===
+  @module CseGlobal
+  fn @dominating_pure_expr(arg0: u256, arg1: u256, arg2: bool) -> u256 {
+    bb0:
+      v0 = add arg0, arg1
+      br arg2, bb1, bb2
+    bb1:
+-     v1 = add arg0, arg1
+-     v2 = mul v1, 2
++     v2 = mul v0, 2
+      jump bb3
+    bb2:
+-     v3 = add arg1, arg0
+-     v4 = mul v3, 3
++     v4 = mul v0, 3
+      jump bb3
+    bb3:
+      v5 = phi [bb1: v2], [bb2: v4]
+      ret v5
+  }
+  

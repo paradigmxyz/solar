@@ -1,32 +1,35 @@
-// === ROOT/tests/ui/codegen/mir/check-elim/check_elim_mul_div.mir (after check-elim) ===
-@module CheckElimMulDiv
-fn @fold_mul_check_with_bound(arg0: u256) -> u256 {
-  bb0 (entry):
-    v0 = lt arg0, 100
-    br v0, bb1, bb2
-  bb1:
-    v1 = mul arg0, 3
-    v2 = div v1, 3
-    v3 = eq v2, arg0
-    v4 = iszero v3
-    jump bb4
-  bb2:
-    ret 0
-  bb3:
-    revert 0, 0
-  bb4:
-    ret v1
-}
-
-fn @keep_mul_check_without_bound(arg0: u256) -> u256 {
-  bb0 (entry):
-    v0 = mul arg0, 3
-    v1 = div v0, 3
-    v2 = eq v1, arg0
-    v3 = iszero v2
-    br v3, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    ret v0
-}
+- // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_mul_div.mir (before check-elim) ===
++ // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_mul_div.mir (after check-elim) ===
+  @module CheckElimMulDiv
+  fn @fold_mul_check_with_bound(arg0: u256) -> u256 {
+    bb0:
+      v0 = lt arg0, 100
+      br v0, bb1, bb2
+    bb1:
+      v1 = mul arg0, 3
+      v2 = div v1, 3
+      v3 = eq v2, arg0
+      v4 = iszero v3
+-     br v4, bb3, bb4
++     jump bb4
+    bb2:
+      ret 0
+    bb3:
+      revert 0, 0
+    bb4:
+      ret v1
+  }
+  
+  fn @keep_mul_check_without_bound(arg0: u256) -> u256 {
+    bb0:
+      v0 = mul arg0, 3
+      v1 = div v0, 3
+      v2 = eq v1, arg0
+      v3 = iszero v2
+      br v3, bb1, bb2
+    bb1:
+      revert 0, 0
+    bb2:
+      ret v0
+  }
+  

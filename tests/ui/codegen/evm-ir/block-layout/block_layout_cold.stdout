@@ -1,10 +1,14 @@
-// === ROOT/tests/ui/codegen/evm-ir/block-layout/block_layout_cold.evmir (after block-layout) ===
-@module module
-bb0 (entry):
-  jump bb2
-bb2:
-  stop
-bb1 [cold]:
-  push 0
-  push 0
-  revert
+- // === ROOT/tests/ui/codegen/evm-ir/block-layout/block_layout_cold.evmir (before block-layout) ===
++ // === ROOT/tests/ui/codegen/evm-ir/block-layout/block_layout_cold.evmir (after block-layout) ===
+  @module module
+  bb0:
+    jump bb2
++ bb2:
++   stop
+  bb1 [cold]:
+    push 0
+    push 0
+    revert
+- bb2:
+-   stop
+  

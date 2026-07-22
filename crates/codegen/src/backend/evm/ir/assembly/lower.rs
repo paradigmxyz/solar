@@ -12,7 +12,7 @@ use solar_data_structures::bit_set::DenseBitSet;
 pub(in crate::backend::evm) fn lower_evm_ir(
     module: &ir::Module,
     labels: &mut Vec<Option<Label>>,
-    assembler: &mut Assembler,
+    assembler: &mut Assembler<'_>,
 ) -> Program {
     allocate_referenced_labels(module, labels, assembler);
 
@@ -42,7 +42,7 @@ pub(in crate::backend::evm) fn lower_evm_ir(
 fn allocate_referenced_labels(
     module: &ir::Module,
     labels: &mut Vec<Option<Label>>,
-    assembler: &mut Assembler,
+    assembler: &mut Assembler<'_>,
 ) {
     let mut referenced = DenseBitSet::new_empty(module.blocks.len());
     for (block_id, block) in module.blocks.iter_enumerated() {
@@ -75,7 +75,7 @@ fn lower_instruction(
     inst: &ir::Instruction,
     module: &ir::Module,
     labels: &mut Vec<Option<Label>>,
-    assembler: &mut Assembler,
+    assembler: &mut Assembler<'_>,
 ) -> AsmInst {
     if let Some(id) = inst.deferred_push() {
         AsmInst::push_deferred(id)
@@ -100,7 +100,7 @@ fn lower_terminator(
     kind: &ir::TerminatorKind,
     module: &ir::Module,
     labels: &mut Vec<Option<Label>>,
-    assembler: &mut Assembler,
+    assembler: &mut Assembler<'_>,
 ) {
     match kind {
         ir::TerminatorKind::Jump(target) => {
@@ -167,7 +167,7 @@ fn label_for_block(
     module: &ir::Module,
     block: BlockId,
     labels: &mut Vec<Option<Label>>,
-    assembler: &mut Assembler,
+    assembler: &mut Assembler<'_>,
 ) -> Label {
     let original = module.blocks[block].label as usize;
     if original >= labels.len() {
@@ -184,6 +184,8 @@ mod tests {
         ir::{Block, Instruction, Terminator, TerminatorKind},
     };
     use alloy_primitives::U256;
+    use solar_interface::Session;
+    use solar_sema::Compiler;
     #[test]
     fn branch_inverts_when_then_target_falls_through() {
         let mut module = ir::Module::new("module");
@@ -196,21 +198,24 @@ mod tests {
         module.blocks[then_block].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
         module.blocks[else_block].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
 
-        let mut labels = vec![None; 3];
-        let mut assembler = Assembler::new();
-        let program = lower_evm_ir(&module, &mut labels, &mut assembler);
-        let kinds: Vec<_> = program.instructions.iter().map(|inst| inst.kind()).collect();
+        let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
+        compiler.enter(|c| {
+            let mut labels = vec![None; 3];
+            let mut assembler = Assembler::new(c.gcx());
+            let program = lower_evm_ir(&module, &mut labels, &mut assembler);
+            let kinds: Vec<_> = program.instructions.iter().map(|inst| inst.kind()).collect();
 
-        assert!(matches!(
-            kinds.as_slice(),
-            [
-                AsmInstKind::PushInline(1),
-                AsmInstKind::Op(op::ISZERO),
-                AsmInstKind::PushLabel(_),
-                AsmInstKind::Op(op::JUMPI),
-                AsmInstKind::Op(op::STOP),
-                AsmInstKind::Label(_),
-            ]
-        ));
+            assert!(matches!(
+                kinds.as_slice(),
+                [
+                    AsmInstKind::PushInline(1),
+                    AsmInstKind::Op(op::ISZERO),
+                    AsmInstKind::PushLabel(_),
+                    AsmInstKind::Op(op::JUMPI),
+                    AsmInstKind::Op(op::STOP),
+                    AsmInstKind::Label(_),
+                ]
+            ));
+        });
     }
 }

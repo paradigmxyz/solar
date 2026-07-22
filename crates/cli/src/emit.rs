@@ -1,6 +1,6 @@
 use alloy_json_abi::AbiItem;
 use alloy_primitives::Bytes;
-use solar_codegen::{Backend, EvmCodegen, EvmCodegenConfig, backend::evm::ir, lower};
+use solar_codegen::{Backend, EvmCodegen, backend::evm::ir, lower};
 use solar_config::{CompilerOutput, Dump, DumpKind};
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::Result;
@@ -345,9 +345,8 @@ fn ensure_contract_bytecode(
 
     let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, all_bytecodes);
     gcx.dcx().has_errors()?;
-    let mut config = EvmCodegenConfig::from(gcx);
-    config.capture_evm_ir = capture_evm_ir;
-    let mut codegen = EvmCodegen::new(config);
+    let mut codegen = EvmCodegen::new(gcx);
+    codegen.set_capture_evm_ir(capture_evm_ir);
     let artifact = codegen.lower_module(&mut module);
     all_bytecodes.insert(contract_id, artifact.deployment.clone());
     artifacts.insert(

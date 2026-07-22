@@ -1,88 +1,104 @@
-// === ROOT/tests/ui/codegen/mir/licm/licm_v2.mir (after licm) ===
-@module LicmV2
-fn @hoist_symbolic_offset_sload(arg0: u256) -> u256 {
-  bb0 (entry):
-    v2 = add arg0, 1
-    v3 = sload v2 !metadata(storage=offset(arg0, 1))
-    v4 = add arg0, 2
-    jump bb1
-  bb1:
-    v0 = phi [bb0: 0], [bb2: v5]
-    v1 = lt v0, 4
-    br v1, bb2, bb3
-  bb2:
-    sstore v4, 9 !metadata(storage=offset(arg0, 2))
-    v5 = add v0, 1
-    jump bb1
-  bb3:
-    ret v3
-}
-
-fn @keep_aliasing_symbolic_offset_sload(arg0: u256) -> u256 {
-  bb0 (entry):
-    v2 = add arg0, 1
-    v4 = add arg0, 1
-    jump bb1
-  bb1:
-    v0 = phi [bb0: 0], [bb2: v5]
-    v1 = lt v0, 4
-    br v1, bb2, bb3
-  bb2:
-    v3 = sload v2 !metadata(storage=offset(arg0, 1))
-    sstore v4, 9 !metadata(storage=offset(arg0, 1))
-    v5 = add v0, 1
-    jump bb1
-  bb3:
-    ret v3
-}
-
-fn @do_not_speculate_symbolic_offset_sload(arg0: u256, arg1: bool) -> u256 {
-  bb0 (entry):
-    v0 = add arg0, 1
-    v2 = add arg0, 2
-    jump bb1
-  bb1:
-    br arg1, bb2, bb3
-  bb2:
-    v1 = sload v0 !metadata(storage=offset(arg0, 1))
-    sstore v2, 9 !metadata(storage=offset(arg0, 2))
-    jump bb1
-  bb3:
-    ret v1
-}
-
-fn @hoist_affine_memory_base(arg0: u256) -> u256 {
-  bb0 (entry):
-    v2 = add arg0, 32
-    jump bb1
-  bb1:
-    v0 = phi [bb0: 0], [bb2: v5]
-    v1 = lt v0, 4
-    br v1, bb2, bb3
-  bb2:
-    v3 = mul v0, 32
-    v4 = add v2, v3
-    mstore v4, v0
-    v5 = add v0, 1
-    jump bb1
-  bb3:
-    ret 0
-}
-
-fn @hoist_unknown_trip_affine_memory_base(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
-    v2 = add arg0, 32
-    jump bb1
-  bb1:
-    v0 = phi [bb0: 0], [bb2: v5]
-    v1 = lt v0, arg1
-    br v1, bb2, bb3
-  bb2:
-    v3 = mul v0, 32
-    v4 = add v2, v3
-    mstore v4, v0
-    v5 = add v0, 1
-    jump bb1
-  bb3:
-    ret 0
-}
+- // === ROOT/tests/ui/codegen/mir/licm/licm_v2.mir (before licm) ===
++ // === ROOT/tests/ui/codegen/mir/licm/licm_v2.mir (after licm) ===
+  @module LicmV2
+  fn @hoist_symbolic_offset_sload(arg0: u256) -> u256 {
+    bb0:
++     v2 = add arg0, 1
++     v3 = sload v2 !metadata(storage=offset(arg0, 1))
++     v4 = add arg0, 2
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v5]
+      v1 = lt v0, 4
+      br v1, bb2, bb3
+    bb2:
+-     v2 = add arg0, 1
+-     v3 = sload v2
+-     v4 = add arg0, 2
+-     sstore v4, 9
++     sstore v4, 9 !metadata(storage=offset(arg0, 2))
+      v5 = add v0, 1
+      jump bb1
+    bb3:
+      ret v3
+  }
+  
+  fn @keep_aliasing_symbolic_offset_sload(arg0: u256) -> u256 {
+    bb0:
++     v2 = add arg0, 1
++     v4 = add arg0, 1
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v5]
+      v1 = lt v0, 4
+      br v1, bb2, bb3
+    bb2:
+-     v2 = add arg0, 1
+-     v3 = sload v2
+-     v4 = add arg0, 1
+-     sstore v4, 9
++     v3 = sload v2 !metadata(storage=offset(arg0, 1))
++     sstore v4, 9 !metadata(storage=offset(arg0, 1))
+      v5 = add v0, 1
+      jump bb1
+    bb3:
+      ret v3
+  }
+  
+  fn @do_not_speculate_symbolic_offset_sload(arg0: u256, arg1: bool) -> u256 {
+    bb0:
++     v0 = add arg0, 1
++     v2 = add arg0, 2
+      jump bb1
+    bb1:
+      br arg1, bb2, bb3
+    bb2:
+-     v0 = add arg0, 1
+-     v1 = sload v0
+-     v2 = add arg0, 2
+-     sstore v2, 9
++     v1 = sload v0 !metadata(storage=offset(arg0, 1))
++     sstore v2, 9 !metadata(storage=offset(arg0, 2))
+      jump bb1
+    bb3:
+      ret v1
+  }
+  
+  fn @hoist_affine_memory_base(arg0: u256) -> u256 {
+    bb0:
++     v2 = add arg0, 32
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v5]
+      v1 = lt v0, 4
+      br v1, bb2, bb3
+    bb2:
+-     v2 = add arg0, 32
+      v3 = mul v0, 32
+      v4 = add v2, v3
+      mstore v4, v0
+      v5 = add v0, 1
+      jump bb1
+    bb3:
+      ret 0
+  }
+  
+  fn @hoist_unknown_trip_affine_memory_base(arg0: u256, arg1: u256) -> u256 {
+    bb0:
++     v2 = add arg0, 32
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v5]
+      v1 = lt v0, arg1
+      br v1, bb2, bb3
+    bb2:
+-     v2 = add arg0, 32
+      v3 = mul v0, 32
+      v4 = add v2, v3
+      mstore v4, v0
+      v5 = add v0, 1
+      jump bb1
+    bb3:
+      ret 0
+  }
+  

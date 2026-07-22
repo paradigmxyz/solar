@@ -1,6 +1,13 @@
 * text=auto eol=lf
+
 *.sol linguist-language=Solidity
 *.yul linguist-language=Yul
+*.mir linguist-language=Rust
+*.evmir linguist-language=Assembly
+
+/tests/ui/codegen/mir/**/*.stdout linguist-language=Diff whitespace=-trailing-space
+/tests/ui/codegen/evm-ir/**/*.stdout linguist-language=Diff whitespace=-trailing-space
+
 /testdata/* linguist-vendored
 /testdata/**/* linguist-vendored
 /tests/foundry/** linguist-vendored

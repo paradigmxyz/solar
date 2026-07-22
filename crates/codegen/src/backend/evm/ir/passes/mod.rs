@@ -16,9 +16,9 @@ pub(super) mod utils;
 
 use super::Module;
 use crate::timing::PassTimer;
-use solar_config::{EvmVersion, OptimizationMode};
+use solar_sema::Gcx;
 
-type PassRunner = fn(&mut Module, PassOptions) -> bool;
+type PassRunner = fn(Gcx<'_>, &mut Module) -> bool;
 
 /// Registry entry for an EVM IR transform pass.
 #[derive(Clone, Copy, Debug)]
@@ -78,17 +78,6 @@ declare_passes! {
     pub(crate) const BLOCK_LAYOUT_PASS -> "block-layout" = block_layout::run;
 }
 
-/// Options for running an EVM IR pass.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct PassOptions {
-    /// Print the time spent in the pass.
-    pub time_passes: bool,
-    /// EVM version used for target-dependent instruction sizing.
-    pub evm_version: EvmVersion,
-    /// Optimization mode used for profitability decisions.
-    pub optimization: OptimizationMode,
-}
-
 /// All EVM IR passes exposed by `solar evm-opt`.
 pub const PASS_REGISTRY: &[PassInfo] = &[
     PEEPHOLE_PASS,
@@ -142,9 +131,9 @@ pub fn lookup_pass(name: &str) -> Option<&'static PassInfo> {
     skip_all,
     fields(pass = pass.name),
 )]
-pub fn run_pass(module: &mut Module, pass: &PassInfo, options: PassOptions) -> bool {
-    let timer = PassTimer::new(options.time_passes);
-    let changed = (pass.run_pass)(module, options);
+pub fn run_pass(gcx: Gcx<'_>, module: &mut Module, pass: &PassInfo) -> bool {
+    let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
+    let changed = (pass.run_pass)(gcx, module);
     timer.finish("EVM IR", module.name(), pass.name, changed);
     changed
 }

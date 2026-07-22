@@ -1,6 +1,6 @@
 @module indexed
 
-bb0 (entry):
+bb0:
   push 1
   indexed_jump bb1, bb2
 bb1:

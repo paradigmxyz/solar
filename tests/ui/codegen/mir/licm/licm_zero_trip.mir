@@ -4,7 +4,7 @@
 // The bound is unknown, so the loop may run zero times: speculating the sload
 // into the always-executed preheader is a pure gas pessimization.
 fn @keep_sload_zero_trip() -> u256 {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     jump bb1
   bb1:
@@ -22,7 +22,7 @@ fn @keep_sload_zero_trip() -> u256 {
 // Hoisting the mload would unconditionally expand memory to 0x1000000 even
 // when the loop runs zero times (out-of-gas risk).
 fn @keep_mload_zero_trip() -> u256 {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     jump bb1
   bb1:
@@ -40,7 +40,7 @@ fn @keep_mload_zero_trip() -> u256 {
 // A verified trip count of 10 guarantees the body executes, so the sload is
 // still hoisted.
 fn @hoist_sload_known_trip() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v9]
@@ -57,7 +57,7 @@ fn @hoist_sload_known_trip() -> u256 {
 // Do-while shape: the mload's block dominates the loop exit, so it executes
 // whenever the loop is entered and may be hoisted despite the unknown bound.
 fn @hoist_mload_dominates_exits() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v0 = mload 64
@@ -71,7 +71,7 @@ fn @hoist_mload_dominates_exits() -> u256 {
 // The msize after the loop makes any early memory expansion observable;
 // keep the mload in place even though the trip count is known.
 fn @keep_mload_msize_in_function() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v9]

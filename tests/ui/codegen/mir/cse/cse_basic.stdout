@@ -1,8 +1,12 @@
-// === ROOT/tests/ui/codegen/mir/cse/cse_basic.mir (after cse) ===
-@module CseBasic
-fn @redundant_add(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
-    v0 = add arg0, arg1
-    v2 = add v0, v0
-    ret v2
-}
+- // === ROOT/tests/ui/codegen/mir/cse/cse_basic.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/cse_basic.mir (after cse) ===
+  @module CseBasic
+  fn @redundant_add(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = add arg0, arg1
+-     v1 = add arg0, arg1
+-     v2 = add v0, v1
++     v2 = add v0, v0
+      ret v2
+  }
+  

@@ -39,7 +39,7 @@
 //! and is dispatched by the backend instead.
 
 use crate::{
-    mir::{Function, FunctionBuilder, FunctionId, InstKind, MirPhase, Module, Terminator},
+    mir::{BlockId, Function, FunctionBuilder, FunctionId, InstKind, MirPhase, Module, Terminator},
     pass::ModulePass,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
@@ -200,7 +200,7 @@ impl LowerAbiPass {
     /// per-wrapper payable-check shape. Injected after the `.body` copy is
     /// taken: internal callers never pay the check.
     fn inject_callvalue_check(func: &mut Function) {
-        let old_entry = func.entry_block;
+        let old_entry = BlockId::ENTRY;
         let mut builder = FunctionBuilder::new(func);
         let guard = builder.create_block();
         let revert = builder.create_block();
@@ -210,12 +210,16 @@ impl LowerAbiPass {
         builder.switch_to_block(revert);
         let zero = builder.imm_u64(0);
         builder.revert(zero, zero);
-        func.entry_block = guard;
+
+        let order = std::iter::once(guard)
+            .chain(func.blocks.indices().filter(|&block| block != guard))
+            .collect::<Vec<_>>();
+        crate::mir::utils::remap_block_order(func, &order);
     }
 }
 
 impl ModulePass for LowerAbiPass {
-    fn run(&mut self, module: &mut Module) -> bool {
+    fn run(&mut self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         Self::run(self, module)
     }
 }
@@ -223,7 +227,7 @@ impl ModulePass for LowerAbiPass {
 /// An external entry with a body and a selector — the shape a wrapper is built
 /// for. Receive/fallback entries have no selector and are left to the backend.
 fn is_wrappable_external(func: &Function) -> bool {
-    func.selector.is_some() && !func.attributes.is_constructor && !func.blocks.is_empty()
+    func.selector.is_some() && !func.attributes.is_constructor
 }
 
 /// Absorption relies on the fused encode: the body must produce its own

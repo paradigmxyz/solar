@@ -36,7 +36,7 @@ use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 pub(crate) struct StaticAllocPass;
 
 impl ModulePass for StaticAllocPass {
-    fn run(&mut self, module: &mut Module) -> bool {
+    fn run(&mut self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         // Every entry's locals share the same low-memory region — only one
         // entry runs per call — so the tallest entry's frame top is a shadow
         // the others can grow into without moving the shared static-frame
@@ -62,7 +62,6 @@ impl ModulePass for StaticAllocPass {
 
 fn is_entry(func: &Function) -> bool {
     !func.attributes.is_constructor
-        && !func.blocks.is_empty()
         && (func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback)
 }
 

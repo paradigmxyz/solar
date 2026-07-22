@@ -1,32 +1,38 @@
-// === ROOT/tests/ui/codegen/mir/pre/pre_dominator_availability.mir (after pre) ===
-@module DomAvail
-fn @reuse_dominating_def(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
-    switch arg1, default bb1, [1 => bb2, 2 => bb3]
-  bb1:
-    v0 = add arg0, 7
-    jump bb5
-  bb2:
-    v1 = add arg0, 7
-    jump bb5
-  bb3:
-    v2 = add arg0, 7
-    jump bb4
-  bb4:
-    jump bb5
-  bb5:
-    v4 = phi [bb1: v0], [bb2: v1], [bb4: v2]
-    ret v4
-}
-
-fn @collapse_to_shared_def(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
-    v0 = add arg0, 7
-    switch arg1, default bb1, [1 => bb2]
-  bb1:
-    jump bb3
-  bb2:
-    jump bb3
-  bb3:
-    ret v0
-}
+- // === ROOT/tests/ui/codegen/mir/pre/pre_dominator_availability.mir (before pre) ===
++ // === ROOT/tests/ui/codegen/mir/pre/pre_dominator_availability.mir (after pre) ===
+  @module DomAvail
+  fn @reuse_dominating_def(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      switch arg1, default bb1, [1 => bb2, 2 => bb3]
+    bb1:
+      v0 = add arg0, 7
+      jump bb5
+    bb2:
+      v1 = add arg0, 7
+      jump bb5
+    bb3:
+      v2 = add arg0, 7
+      jump bb4
+    bb4:
+      jump bb5
+    bb5:
+-     v3 = add arg0, 7
+-     ret v3
++     v4 = phi [bb1: v0], [bb2: v1], [bb4: v2]
++     ret v4
+  }
+  
+  fn @collapse_to_shared_def(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = add arg0, 7
+      switch arg1, default bb1, [1 => bb2]
+    bb1:
+      jump bb3
+    bb2:
+      jump bb3
+    bb3:
+-     v1 = add arg0, 7
+-     ret v1
++     ret v0
+  }
+  

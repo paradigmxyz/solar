@@ -1,6 +1,6 @@
 @module module
 
-bb0 (entry):
+bb0:
   push 1
   push_deferred 2
   push_deferred 0xfffffff

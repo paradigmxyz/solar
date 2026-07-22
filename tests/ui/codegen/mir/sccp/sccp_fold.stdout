@@ -1,6 +1,11 @@
-// === ROOT/tests/ui/codegen/mir/sccp/sccp_fold.mir (after sccp) ===
-@module SccpFold
-fn @const_chain() -> u256 {
-  bb0 (entry):
-    ret 60
-}
+- // === ROOT/tests/ui/codegen/mir/sccp/sccp_fold.mir (before sccp) ===
++ // === ROOT/tests/ui/codegen/mir/sccp/sccp_fold.mir (after sccp) ===
+  @module SccpFold
+  fn @const_chain() -> u256 {
+    bb0:
+-     v0 = add 10, 20
+-     v1 = mul v0, 2
+-     ret v1
++     ret 60
+  }
+  

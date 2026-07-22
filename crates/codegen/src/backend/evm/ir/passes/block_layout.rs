@@ -14,9 +14,10 @@ use crate::backend::evm::{
     op,
 };
 use alloy_primitives::U256;
-use solar_data_structures::bit_set::DenseBitSet;
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
+use solar_sema::Gcx;
 
-pub(super) fn run(module: &mut Module, options: super::PassOptions) -> bool {
+pub(super) fn run(gcx: Gcx<'_>, module: &mut Module) -> bool {
     if module.blocks.len() <= 1 {
         return false;
     }
@@ -26,16 +27,14 @@ pub(super) fn run(module: &mut Module, options: super::PassOptions) -> bool {
         if let Some(target) = layout_successor(block)
             && target.index() < state.predecessor_counts.len()
         {
-            state.predecessor_counts[target.index()] += 1;
+            state.predecessor_counts[target] += 1;
         }
     }
 
-    if let Some(entry) = module.entry_block {
-        append_layout_trace(module, entry, &mut state.placed, &mut state.order);
-    }
+    append_layout_trace(module, BlockId::ENTRY, &mut state.placed, &mut state.order);
     for cold in [false, true] {
         for block in module.blocks.indices() {
-            if state.predecessor_counts[block.index()] == 0
+            if state.predecessor_counts[block] == 0
                 && is_cold_terminal_block(&module.blocks[block]) == cold
             {
                 append_layout_trace(module, block, &mut state.placed, &mut state.order);
@@ -43,7 +42,7 @@ pub(super) fn run(module: &mut Module, options: super::PassOptions) -> bool {
         }
     }
 
-    pack_hot_terminal_blocks(module, &mut state, options);
+    pack_hot_terminal_blocks(gcx, module, &mut state);
     for cold in [false, true] {
         for block in module.blocks.indices() {
             if is_cold_terminal_block(&module.blocks[block]) == cold {
@@ -60,10 +59,10 @@ pub(super) fn run(module: &mut Module, options: super::PassOptions) -> bool {
 }
 
 struct RunState {
-    predecessor_counts: Vec<usize>,
+    predecessor_counts: IndexVec<BlockId, usize>,
     order: Vec<BlockId>,
     placed: DenseBitSet<BlockId>,
-    references: Vec<usize>,
+    references: IndexVec<BlockId, usize>,
     candidates: Vec<Candidate>,
     picked: DenseBitSet<BlockId>,
     picked_order: Vec<BlockId>,
@@ -72,10 +71,10 @@ struct RunState {
 impl Default for RunState {
     fn default() -> Self {
         Self {
-            predecessor_counts: Vec::new(),
+            predecessor_counts: IndexVec::new(),
             order: Vec::new(),
             placed: DenseBitSet::new_empty(0),
-            references: Vec::new(),
+            references: IndexVec::new(),
             candidates: Vec::new(),
             picked: DenseBitSet::new_empty(0),
             picked_order: Vec::new(),
@@ -112,7 +111,7 @@ struct Candidate {
     references: usize,
 }
 
-fn pack_hot_terminal_blocks(module: &Module, state: &mut RunState, options: super::PassOptions) {
+fn pack_hot_terminal_blocks(gcx: Gcx<'_>, module: &Module, state: &mut RunState) {
     let Some(first_terminal) = state.order.iter().enumerate().position(|(position, &block)| {
         is_physical_terminal_boundary(&module.blocks[block], state.order.get(position + 1).copied())
     }) else {
@@ -125,10 +124,10 @@ fn pack_hot_terminal_blocks(module: &Module, state: &mut RunState, options: supe
         .enumerate()
         .map(|(index, &block)| {
             estimated_block_size(
+                gcx,
                 &module.blocks[block],
                 state.order.get(index + 1).copied(),
-                state.references[block.index()] != 0,
-                options,
+                state.references[block] != 0,
             )
         })
         .sum();
@@ -148,12 +147,12 @@ fn pack_hot_terminal_blocks(module: &Module, state: &mut RunState, options: supe
             continue;
         }
         let size = estimated_block_size(
+            gcx,
             &module.blocks[block],
             state.order.get(position + 1).copied(),
-            state.references[block.index()] != 0,
-            options,
+            state.references[block] != 0,
         );
-        let count = state.references[block.index()];
+        let count = state.references[block];
         if size <= 32 && count >= 2 {
             state.candidates.push(Candidate { block, position, size, references: count });
         }
@@ -179,48 +178,45 @@ fn pack_hot_terminal_blocks(module: &Module, state: &mut RunState, options: supe
     state.order.splice(insert_at..insert_at, state.picked_order.drain(..));
 }
 
-fn block_reference_counts(module: &Module, order: &[BlockId], references: &mut [usize]) {
+fn block_reference_counts(
+    module: &Module,
+    order: &[BlockId],
+    references: &mut IndexVec<BlockId, usize>,
+) {
     for (position, &block_id) in order.iter().enumerate() {
         let block = &module.blocks[block_id];
         for inst in &block.instructions {
             if let Some(PushValue::Block(block)) = &inst.value {
-                references[block.index()] += 1;
+                references[*block] += 1;
             }
         }
         if let Some(term) = &block.terminator {
             term.kind.visit_label_targets(order.get(position + 1).copied(), |target| {
-                references[target.index()] += 1;
+                references[target] += 1;
             });
         }
     }
 }
 
 fn estimated_block_size(
+    gcx: Gcx<'_>,
     block: &Block,
     next: Option<BlockId>,
     addressed: bool,
-    options: super::PassOptions,
 ) -> usize {
     usize::from(addressed)
-        + block
-            .instructions
-            .iter()
-            .map(|inst| estimated_instruction_size(inst, options))
-            .sum::<usize>()
-        + block
-            .terminator
-            .as_ref()
-            .map_or(0, |term| estimated_terminator_size(&term.kind, next, options))
+        + block.instructions.iter().map(|inst| estimated_instruction_size(gcx, inst)).sum::<usize>()
+        + block.terminator.as_ref().map_or(0, |term| estimated_terminator_size(&term.kind, next))
 }
 
-fn estimated_instruction_size(inst: &Instruction, options: super::PassOptions) -> usize {
+fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
     if inst.immutable_push().is_some() {
         33
     } else if inst.deferred_push().is_some() {
         3
     } else if inst.is_encoded_push() {
         match &inst.value {
-            Some(PushValue::Immediate(value)) => push_len(*value, options),
+            Some(PushValue::Immediate(value)) => push_len(gcx, *value),
             Some(PushValue::Block(_)) => 3,
             _ => 1,
         }
@@ -229,11 +225,7 @@ fn estimated_instruction_size(inst: &Instruction, options: super::PassOptions) -
     }
 }
 
-fn estimated_terminator_size(
-    kind: &TerminatorKind,
-    next: Option<BlockId>,
-    _options: super::PassOptions,
-) -> usize {
+fn estimated_terminator_size(kind: &TerminatorKind, next: Option<BlockId>) -> usize {
     match kind {
         TerminatorKind::Jump(target) => usize::from(Some(*target) != next) * 4,
         TerminatorKind::Op(op::STOP) => usize::from(next.is_some()),
@@ -251,9 +243,9 @@ fn estimated_terminator_size(
     }
 }
 
-fn push_len(value: U256, options: super::PassOptions) -> usize {
+fn push_len(gcx: Gcx<'_>, value: U256) -> usize {
     let width = value.byte_len();
-    if width == 0 && !options.evm_version.has_push0() { 2 } else { width + 1 }
+    if width == 0 && !gcx.sess.opts.evm_version.has_push0() { 2 } else { width + 1 }
 }
 
 fn is_terminal_block(block: &Block) -> bool {

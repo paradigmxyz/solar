@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/abi_dynamic_return.sol:AbiDynamicReturn ===
 @module AbiDynamicReturn
 fn @bytesLiteral() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 64
@@ -15,7 +15,7 @@ fn @bytesLiteral() {
 }
 
 fn @__ret_bytes(arg0: memptr) {
-  bb0 (entry):
+  bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, 32
     v1 = mload arg0
@@ -35,7 +35,7 @@ fn @__ret_bytes(arg0: memptr) {
 }
 
 fn @stringLiteral() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 64

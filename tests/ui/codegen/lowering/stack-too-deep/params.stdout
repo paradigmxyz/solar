@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/stack-too-deep/params.sol:StackTooDeepParams (creation) ===
 // === deployment ===
 @module deployment
-bb0 (entry):
+bb0:
   push 571
   dup1
   push 10
@@ -12,7 +12,7 @@ bb0 (entry):
 
 // === runtime ===
 @module runtime
-bb0 (entry):
+bb0:
   push 768
   push 64
   mstore

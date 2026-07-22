@@ -1,18 +1,29 @@
-// === ROOT/tests/ui/codegen/mir/cse/cse_extended_ops.mir (after cse) ===
-@module CseExtendedOps
-fn @extended_pure_ops(arg0: u256, arg1: u256, arg2: bool) -> (u256, u256, u256, u256, u256, bool) {
-  bb0 (entry):
-    v0 = sdiv arg0, arg1
-    v2 = smod arg0, arg1
-    v4 = sar arg1, arg0
-    v6 = signextend arg1, arg0
-    v8 = addmod arg0, arg1, 97
-    v10 = select arg2, arg0, arg1
-    ret v0, v2, v4, v6, v8, v10
-}
-
-fn @calldata_reads(arg0: u256) -> u256 {
-  bb0 (entry):
-    v0 = calldataload arg0
-    ret v0
-}
+- // === ROOT/tests/ui/codegen/mir/cse/cse_extended_ops.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/cse_extended_ops.mir (after cse) ===
+  @module CseExtendedOps
+  fn @extended_pure_ops(arg0: u256, arg1: u256, arg2: bool) -> (u256, u256, u256, u256, u256, bool) {
+    bb0:
+      v0 = sdiv arg0, arg1
+-     v1 = sdiv arg0, arg1
+      v2 = smod arg0, arg1
+-     v3 = smod arg0, arg1
+      v4 = sar arg1, arg0
+-     v5 = sar arg1, arg0
+      v6 = signextend arg1, arg0
+-     v7 = signextend arg1, arg0
+      v8 = addmod arg0, arg1, 97
+-     v9 = addmod arg1, arg0, 97
+      v10 = select arg2, arg0, arg1
+-     v11 = select arg2, arg0, arg1
+-     ret v1, v3, v5, v7, v9, v11
++     ret v0, v2, v4, v6, v8, v10
+  }
+  
+  fn @calldata_reads(arg0: u256) -> u256 {
+    bb0:
+      v0 = calldataload arg0
+-     v1 = calldataload arg0
+-     ret v1
++     ret v0
+  }
+  

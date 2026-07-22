@@ -19,7 +19,6 @@ pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
 #[derive(Clone, Debug)]
 struct ParsedBlockHeader {
     label: Symbol,
-    entry: bool,
     hotness: Hotness,
 }
 
@@ -60,9 +59,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         while !self.parser.is_eof() {
             if let Some(header) = self.try_parse_block_header()? {
                 let block_id = self.define_block(module, header.label)?;
-                if header.entry {
-                    module.entry_block = Some(block_id);
-                }
                 module.blocks[block_id].metadata.hotness = header.hotness;
                 current_block = Some(block_id);
                 continue;
@@ -85,13 +81,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn try_parse_block_header(&mut self) -> PResult<'sess, Option<ParsedBlockHeader>> {
         let Some(label) = self.current_block_label()? else { return Ok(None) };
         self.parser.bump();
-        let entry = self.parser.check(TokenKind::OpenDelim(Delimiter::Parenthesis))
-            && self.parser.look_ahead(1).is_keyword(sym::entry);
-        if entry {
-            self.parser.bump();
-            self.parser.bump();
-            self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
-        }
         let mut hotness = Hotness::Hot;
         if self.parser.eat(TokenKind::OpenDelim(Delimiter::Bracket)) {
             self.parser.expect_keyword(sym::cold)?;
@@ -101,7 +90,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         self.parser.expect(TokenKind::Colon)?;
 
-        Ok(Some(ParsedBlockHeader { label, entry, hotness }))
+        Ok(Some(ParsedBlockHeader { label, hotness }))
     }
 
     fn current_block_label(&self) -> PResult<'sess, Option<Symbol>> {
@@ -357,8 +346,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(self.current_block_label()?.is_some()
             && !matches!(
                 self.parser.look_ahead(1).kind,
-                TokenKind::Colon
-                    | TokenKind::OpenDelim(Delimiter::Parenthesis | Delimiter::Bracket)
+                TokenKind::Colon | TokenKind::OpenDelim(Delimiter::Bracket)
             ))
     }
 }
@@ -371,12 +359,8 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     fn parse_module(sess: &Session, input: &str) -> Result<Module> {
-        let id =
-            input.bytes().fold(0u64, |hash, byte| hash.wrapping_mul(31).wrapping_add(byte.into()));
-        let source = sess
-            .source_map()
-            .new_source_file(FileName::Custom(format!("evmir-test-{id}")), input)
-            .unwrap();
+        let name = format!("test{}.evmir", sess.source_map().files().len());
+        let source = sess.source_map().new_source_file(FileName::Custom(name), input).unwrap();
         Module::parse(sess, &source)
     }
 
@@ -428,14 +412,14 @@ mod tests {
     #[test]
     fn parser_does_not_treat_newlines_as_syntax() {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        let input = "@module m bb0 (entry): push 1 push 2 add jump bb1 bb1 [cold]: jump";
+        let input = "@module m bb0: push 1 push 2 add jump bb1 bb1 [cold]: jump";
         sess.enter(|| {
             let module = parse_module(&sess, input).unwrap();
             assert_data_eq!(
                 module.to_text().to_string(),
                 str![[r#"
 @module m
-bb0 (entry):
+bb0:
   push 1
   push 2
   add
@@ -455,7 +439,7 @@ bb1 [cold]:
         let input = "\
 @module m
 
-bb0 (entry):
+bb0:
   stop
   invalid
 ";
@@ -464,7 +448,7 @@ bb0 (entry):
             sess.emitted_diagnostics().unwrap().to_string(),
             str![[r#"
 error: instruction after terminator in block `bb0`
-  ╭▸ <evmir-test-10709633122247444245>:5:3
+  ╭▸ <test0.evmir>:5:3
   │
 5 │   invalid
   ╰╴  ━━━━━━━
@@ -482,7 +466,7 @@ error: instruction after terminator in block `bb0`
 /// module docs
 @module m
 
-bb0 (entry):
+bb0:
   push 1
   add !meta(foo= )
 ";
@@ -517,7 +501,7 @@ error: expected metadata value
         ];
         sess.enter(|| {
             for (name, instruction) in cases {
-                let input = format!("@module m\n\nbb0 (entry):\n  {instruction}\n  stop\n");
+                let input = format!("@module m\n\nbb0:\n  {instruction}\n  stop\n");
                 let source = sess
                     .source_map()
                     .new_source_file(FileName::Custom(name.into()), input)
@@ -561,7 +545,7 @@ error: immutable ID exceeds the assembler limit
     fn unresolved_block_reports_reference_span() {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
         sess.dcx.set_flags(|flags| flags.track_diagnostics = false);
-        let input = "@module m\n\nbb0 (entry):\n  jump bb9\n";
+        let input = "@module m\n\nbb0:\n  jump bb9\n";
         let source = sess
             .source_map()
             .new_source_file(FileName::Custom("unknown-block.evmir".into()), input)
@@ -585,7 +569,7 @@ error: unknown block `bb9`
     fn parser_rejects_hotness_block_metadata() {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
         sess.dcx.set_flags(|flags| flags.track_diagnostics = false);
-        let input = "@module m\n\nbb0 (entry) [hotness=cold]:\n  stop\n";
+        let input = "@module m\n\nbb0 [hotness=cold]:\n  stop\n";
         let source = sess
             .source_map()
             .new_source_file(FileName::Custom("hotness.evmir".into()), input)
@@ -595,10 +579,10 @@ error: unknown block `bb9`
             sess.emitted_diagnostics().unwrap().to_string(),
             str![[r#"
 error: expected `cold`
-  ╭▸ <hotness.evmir>:3:14
+  ╭▸ <hotness.evmir>:3:6
   │
-3 │ bb0 (entry) [hotness=cold]:
-  ╰╴             ━━━━━━━
+3 │ bb0 [hotness=cold]:
+  ╰╴     ━━━━━━━
 
 
 "#]]

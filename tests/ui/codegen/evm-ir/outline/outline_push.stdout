@@ -1,16 +1,20 @@
-// === ROOT/tests/ui/codegen/evm-ir/outline/outline_push.evmir (after outline) ===
-@module module
-bb0 (entry):
-  push bb3
-  jump bb1
-bb1:
-  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-  swap1
-  jump
-bb2:
-  pop
-  stop
-bb3:
-  pop
-  push bb2
-  jump bb1
+- // === ROOT/tests/ui/codegen/evm-ir/outline/outline_push.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/outline_push.evmir (after outline) ===
+  @module module
+  bb0:
++   push bb3
++   jump bb1
++ bb1:
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++   swap1
++   jump
++ bb2:
+    pop
+-   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-   pop
+    stop
++ bb3:
++   pop
++   push bb2
++   jump bb1
+  

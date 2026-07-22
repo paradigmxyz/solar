@@ -1,28 +1,153 @@
-// === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (after frame-slot-promotion,cfg-simplify,dce) ===
-@module SequentialCounter
-fn @sequential(arg0: u256) -> u256 {
-  bb0 (entry):
-    jump bb1
-  bb1:
-    v27 = phi [bb0: 0], [bb2: v7]
-    v29 = phi [bb0: 0], [bb2: v11]
-    v4 = lt v29, arg0
-    br v4, bb2, bb3
-  bb2:
-    v7 = add v27, 1
-    v11 = add v29, 1
-    jump bb1
-  bb3:
-    jump bb4
-  bb4:
-    v28 = phi [bb3: v27], [bb5: v19]
-    v30 = phi [bb3: 0], [bb5: v23]
-    v16 = lt v30, arg0
-    br v16, bb5, bb6
-  bb5:
-    v19 = add v28, 1
-    v23 = add v30, 1
-    jump bb4
-  bb6:
-    ret v28
-}
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (before frame-slot-promotion) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (after frame-slot-promotion) ===
+  @module SequentialCounter
+  fn @sequential(arg0: u256) -> u256 {
+    bb0:
+      v0 = internal_frame_addr 128
+-     mstore v0, 0
+      v1 = internal_frame_addr 160
+-     mstore v1, 0
+      jump bb1
+    bb1:
++     v27 = phi [bb0: 0], [bb2: v7]
++     v29 = phi [bb0: 0], [bb2: v11]
+      v2 = internal_frame_addr 160
+-     v3 = mload v2
+-     v4 = lt v3, arg0
++     v4 = lt v29, arg0
+      br v4, bb2, bb3
+    bb2:
+      v5 = internal_frame_addr 128
+-     v6 = mload v5
+-     v7 = add v6, 1
++     v7 = add v27, 1
+      v8 = internal_frame_addr 128
+-     mstore v8, v7
+      v9 = internal_frame_addr 160
+-     v10 = mload v9
+-     v11 = add v10, 1
++     v11 = add v29, 1
+      v12 = internal_frame_addr 160
+-     mstore v12, v11
+      jump bb1
+    bb3:
+      v13 = internal_frame_addr 192
+-     mstore v13, 0
+      jump bb4
+    bb4:
++     v28 = phi [bb3: v27], [bb5: v19]
++     v30 = phi [bb3: 0], [bb5: v23]
+      v14 = internal_frame_addr 192
+-     v15 = mload v14
+-     v16 = lt v15, arg0
++     v16 = lt v30, arg0
+      br v16, bb5, bb6
+    bb5:
+      v17 = internal_frame_addr 128
+-     v18 = mload v17
+-     v19 = add v18, 1
++     v19 = add v28, 1
+      v20 = internal_frame_addr 128
+-     mstore v20, v19
+      v21 = internal_frame_addr 192
+-     v22 = mload v21
+-     v23 = add v22, 1
++     v23 = add v30, 1
+      v24 = internal_frame_addr 192
+-     mstore v24, v23
+      jump bb4
+    bb6:
+      v25 = internal_frame_addr 128
+-     v26 = mload v25
+-     ret v26
++     ret v28
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (after cfg-simplify) ===
+  @module SequentialCounter
+  fn @sequential(arg0: u256) -> u256 {
+    bb0:
+      v0 = internal_frame_addr 128
+      v1 = internal_frame_addr 160
+      jump bb1
+    bb1:
+      v27 = phi [bb0: 0], [bb2: v7]
+      v29 = phi [bb0: 0], [bb2: v11]
+      v2 = internal_frame_addr 160
+      v4 = lt v29, arg0
+      br v4, bb2, bb3
+    bb2:
+      v5 = internal_frame_addr 128
+      v7 = add v27, 1
+      v8 = internal_frame_addr 128
+      v9 = internal_frame_addr 160
+      v11 = add v29, 1
+      v12 = internal_frame_addr 160
+      jump bb1
+    bb3:
+      v13 = internal_frame_addr 192
+      jump bb4
+    bb4:
+      v28 = phi [bb3: v27], [bb5: v19]
+      v30 = phi [bb3: 0], [bb5: v23]
+      v14 = internal_frame_addr 192
+      v16 = lt v30, arg0
+      br v16, bb5, bb6
+    bb5:
+      v17 = internal_frame_addr 128
+      v19 = add v28, 1
+      v20 = internal_frame_addr 128
+      v21 = internal_frame_addr 192
+      v23 = add v30, 1
+      v24 = internal_frame_addr 192
+      jump bb4
+    bb6:
+      v25 = internal_frame_addr 128
+      ret v28
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (after dce) ===
+  @module SequentialCounter
+  fn @sequential(arg0: u256) -> u256 {
+    bb0:
+-     v0 = internal_frame_addr 128
+-     v1 = internal_frame_addr 160
+      jump bb1
+    bb1:
+      v27 = phi [bb0: 0], [bb2: v7]
+      v29 = phi [bb0: 0], [bb2: v11]
+-     v2 = internal_frame_addr 160
+      v4 = lt v29, arg0
+      br v4, bb2, bb3
+    bb2:
+-     v5 = internal_frame_addr 128
+      v7 = add v27, 1
+-     v8 = internal_frame_addr 128
+-     v9 = internal_frame_addr 160
+      v11 = add v29, 1
+-     v12 = internal_frame_addr 160
+      jump bb1
+    bb3:
+-     v13 = internal_frame_addr 192
+      jump bb4
+    bb4:
+      v28 = phi [bb3: v27], [bb5: v19]
+      v30 = phi [bb3: 0], [bb5: v23]
+-     v14 = internal_frame_addr 192
+      v16 = lt v30, arg0
+      br v16, bb5, bb6
+    bb5:
+-     v17 = internal_frame_addr 128
+      v19 = add v28, 1
+-     v20 = internal_frame_addr 128
+-     v21 = internal_frame_addr 192
+      v23 = add v30, 1
+-     v24 = internal_frame_addr 192
+      jump bb4
+    bb6:
+-     v25 = internal_frame_addr 128
+      ret v28
+  }
+  

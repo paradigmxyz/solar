@@ -1,49 +1,54 @@
-// === ROOT/tests/ui/codegen/mir/licm/licm_staticcall_storage.mir (after licm) ===
-@module LicmStaticcallStorage
-fn @hoist_sload_with_staticcall() -> u256 {
-  bb0 (entry):
-    v2 = sload 5 !metadata(storage=slot(5))
-    jump bb1
-  bb1:
-    v0 = phi [bb0: 0], [bb2: v4]
-    v1 = lt v0, 10
-    br v1, bb2, bb3
-  bb2:
-    v3 = staticcall 0x3e8, 0xbeef, 0, 0, 0, 0
-    v4 = add v0, 1
-    jump bb1
-  bb3:
-    ret v2
-}
-
-fn @hoist_tload_with_staticcall() -> u256 {
-  bb0 (entry):
-    v2 = tload 5 !metadata(storage=slot(5))
-    jump bb1
-  bb1:
-    v0 = phi [bb0: 0], [bb2: v4]
-    v1 = lt v0, 10
-    br v1, bb2, bb3
-  bb2:
-    v3 = staticcall 0x3e8, 0xbeef, 0, 0, 0, 0
-    v4 = add v0, 1
-    jump bb1
-  bb3:
-    ret v2
-}
-
-fn @keep_sload_with_call() -> u256 {
-  bb0 (entry):
-    jump bb1
-  bb1:
-    v0 = phi [bb0: 0], [bb2: v4]
-    v1 = lt v0, 10
-    br v1, bb2, bb3
-  bb2:
-    v2 = sload 5 !metadata(storage=slot(5))
-    v3 = call 0x3e8, 0xbeef, 0, 0, 0, 0, 0
-    v4 = add v0, 1
-    jump bb1
-  bb3:
-    ret v2
-}
+- // === ROOT/tests/ui/codegen/mir/licm/licm_staticcall_storage.mir (before licm) ===
++ // === ROOT/tests/ui/codegen/mir/licm/licm_staticcall_storage.mir (after licm) ===
+  @module LicmStaticcallStorage
+  fn @hoist_sload_with_staticcall() -> u256 {
+    bb0:
++     v2 = sload 5 !metadata(storage=slot(5))
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v4]
+      v1 = lt v0, 10
+      br v1, bb2, bb3
+    bb2:
+-     v2 = sload 5
+      v3 = staticcall 0x3e8, 0xbeef, 0, 0, 0, 0
+      v4 = add v0, 1
+      jump bb1
+    bb3:
+      ret v2
+  }
+  
+  fn @hoist_tload_with_staticcall() -> u256 {
+    bb0:
++     v2 = tload 5 !metadata(storage=slot(5))
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v4]
+      v1 = lt v0, 10
+      br v1, bb2, bb3
+    bb2:
+-     v2 = tload 5
+      v3 = staticcall 0x3e8, 0xbeef, 0, 0, 0, 0
+      v4 = add v0, 1
+      jump bb1
+    bb3:
+      ret v2
+  }
+  
+  fn @keep_sload_with_call() -> u256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v4]
+      v1 = lt v0, 10
+      br v1, bb2, bb3
+    bb2:
+-     v2 = sload 5
++     v2 = sload 5 !metadata(storage=slot(5))
+      v3 = call 0x3e8, 0xbeef, 0, 0, 0, 0, 0
+      v4 = add v0, 1
+      jump bb1
+    bb3:
+      ret v2
+  }
+  

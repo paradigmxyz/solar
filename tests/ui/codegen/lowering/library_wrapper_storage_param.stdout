@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/library_wrapper_storage_param.sol:DataTypes (runtime) ===
 // === ROOT/tests/ui/codegen/lowering/library_wrapper_storage_param.sol:L (runtime) ===
 @module runtime
-bb0 (entry):
+bb0:
   push 416
   push 64
   mstore

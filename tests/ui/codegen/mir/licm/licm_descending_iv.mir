@@ -6,7 +6,7 @@
 // exits. mstore(i, ...) therefore writes bytes [0, 96), overlapping mload 0's
 // The range [0, 32) overlaps, so the mload must not be hoisted.
 fn @keep_mload_descending_iv() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 64], [bb2: v9]
@@ -25,7 +25,7 @@ fn @keep_mload_descending_iv() -> u256 {
 // Ascending control: i = 64..99, the mstore range [64, 131) really is disjoint
 // from mload 0's [0, 32); hoisting here is correct.
 fn @hoist_mload_ascending_iv() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 64], [bb2: v9]

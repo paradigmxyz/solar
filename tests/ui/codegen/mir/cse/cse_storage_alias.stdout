@@ -1,39 +1,45 @@
-// === ROOT/tests/ui/codegen/mir/cse/cse_storage_alias.mir (after cse) ===
-@module CseStorageAlias
-fn @reuse_sload_after_disjoint_store(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
-    v0 = sload arg0
-    v1 = add arg0, 1
-    sstore v1, arg1
-    v3 = add v0, v0
-    ret v3
-}
-
-fn @keep_sload_after_aliasing_store(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
-    v0 = sload arg0
-    v1 = add arg0, 0
-    sstore v1, arg1
-    v2 = sload arg0
-    v3 = add v0, v2
-    ret v3
-}
-
-fn @reuse_tload_after_disjoint_store(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
-    v0 = tload arg0
-    v1 = add arg0, 1
-    tstore v1, arg1
-    v3 = add v0, v0
-    ret v3
-}
-
-fn @keep_sload_after_external_call(arg0: u256, arg1: address) -> u256 {
-  bb0 (entry):
-    v0 = sload arg0
-    v1 = call 0x186a0, arg1, 0, 0, 0, 0, 0
-    v2 = sload arg0
-    v3 = add v0, v2
-    v4 = add v3, v1
-    ret v4
-}
+- // === ROOT/tests/ui/codegen/mir/cse/cse_storage_alias.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/cse_storage_alias.mir (after cse) ===
+  @module CseStorageAlias
+  fn @reuse_sload_after_disjoint_store(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = sload arg0
+      v1 = add arg0, 1
+      sstore v1, arg1
+-     v2 = sload arg0
+-     v3 = add v0, v2
++     v3 = add v0, v0
+      ret v3
+  }
+  
+  fn @keep_sload_after_aliasing_store(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = sload arg0
+      v1 = add arg0, 0
+      sstore v1, arg1
+      v2 = sload arg0
+      v3 = add v0, v2
+      ret v3
+  }
+  
+  fn @reuse_tload_after_disjoint_store(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = tload arg0
+      v1 = add arg0, 1
+      tstore v1, arg1
+-     v2 = tload arg0
+-     v3 = add v0, v2
++     v3 = add v0, v0
+      ret v3
+  }
+  
+  fn @keep_sload_after_external_call(arg0: u256, arg1: address) -> u256 {
+    bb0:
+      v0 = sload arg0
+      v1 = call 0x186a0, arg1, 0, 0, 0, 0, 0
+      v2 = sload arg0
+      v3 = add v0, v2
+      v4 = add v3, v1
+      ret v4
+  }
+  
