@@ -48,6 +48,7 @@ pub(crate) struct NatSpecCompletionTarget {
     returns: Vec<Option<String>>,
     variable_visibility: Option<ast::Visibility>,
     edit_range: Range,
+    filter_text: String,
     additional_text_edits: Option<Vec<TextEdit>>,
     indent: String,
     eol: String,
@@ -190,6 +191,7 @@ impl NatSpecCompletionTarget {
             kind: Some(CompletionItemKind::SNIPPET),
             detail: Some(detail),
             sort_text: Some(sort_text),
+            filter_text: Some(self.filter_text.clone()),
             text_edit: Some(CompletionTextEdit::Edit(TextEdit {
                 range: self.edit_range,
                 new_text,
@@ -322,6 +324,10 @@ pub(crate) fn target(contents: &Rope, position: Position) -> NatSpecCompletionRe
         CandidateResult::Invalid => return NatSpecCompletionResult::Claimed(None),
         CandidateResult::Candidate(candidate) => candidate,
     };
+    let Some(filter_text) = source.get(candidate.edit_range.start..cursor) else {
+        return NatSpecCompletionResult::Claimed(None);
+    };
+    let filter_text = filter_text.to_owned();
     let source_fingerprint = syntax_fingerprint(&candidate.parse_source);
 
     match parse_target(
@@ -336,6 +342,7 @@ pub(crate) fn target(contents: &Rope, position: Position) -> NatSpecCompletionRe
                 return NatSpecCompletionResult::Claimed(None);
             };
             target.edit_range = edit_range;
+            target.filter_text = filter_text;
             target.source_fingerprint = source_fingerprint;
             target.additional_text_edits = candidate
                 .additional_edit_range
@@ -629,6 +636,7 @@ fn target_from_item(
         returns,
         variable_visibility,
         edit_range: Range::default(),
+        filter_text: String::new(),
         additional_text_edits: None,
         indent: indent.into(),
         eol: eol.into(),
@@ -708,6 +716,28 @@ mod tests {
             panic!("expected a completion text edit");
         };
         assert_eq!(edit.new_text, "/// @title $1\r\n/// @author $2\r\n/// @notice $3$0");
+    }
+
+    #[test]
+    fn uses_comment_markers_as_completion_filter_text() {
+        for (source, position, filter_text) in [
+            ("///\ncontract C {}", Position::new(0, 3), "///"),
+            ("/// \ncontract C {}", Position::new(0, 4), "/// "),
+            ("/** */ contract C {}", Position::new(0, 3), "/**"),
+            ("/** \t*/ contract C {}", Position::new(0, 5), "/** \t"),
+        ] {
+            let contents = Rope::from(source);
+            let NatSpecCompletionResult::Claimed(Some(target)) = target(&contents, position) else {
+                panic!("expected a NatSpec completion target");
+            };
+            let item = target
+                .completion_items(CompletionClientOptions { snippet_support: true }, None)
+                .into_iter()
+                .next()
+                .unwrap();
+
+            assert_eq!(item.filter_text.as_deref(), Some(filter_text));
+        }
     }
 
     #[test]
