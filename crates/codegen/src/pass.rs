@@ -309,13 +309,13 @@ fn run_pass_inner(gcx: Gcx<'_>, module: &mut Module, pass: &MirPass) -> bool {
 /// Runs a named MIR pass pipeline over a module.
 fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, passes: &[&MirPass]) -> bool {
     let manager = PassManager::new(gcx, run_pass_inner);
-    if !gcx.sess.opts.unstable.mir_print_after_each {
+    if !gcx.sess.opts.unstable.print_after_each {
         return manager.run_passes(module, passes);
     }
     let mut changed = false;
     for &pass in passes {
         changed |= manager.run_pass(module, pass);
-        if gcx.sess.opts.unstable.mir_print_after_each {
+        if gcx.sess.opts.unstable.print_after_each {
             println!("// === {} (after {}) ===", module.name, pass.name());
             print!("{}", module.to_text());
         }
@@ -354,7 +354,7 @@ fn run_cleanup_pipeline_to_fixpoint(
         for &pass in passes {
             let pass_changed = manager.run_pass(module, pass);
             round_changed |= pass_changed;
-            if gcx.sess.opts.unstable.mir_print_after_each {
+            if gcx.sess.opts.unstable.print_after_each {
                 println!("// === {} (after {label}-{round}:{}) ===", module.name, pass.name());
                 print!("{}", module.to_text());
             }

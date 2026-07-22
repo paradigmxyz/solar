@@ -14,12 +14,11 @@ use crate::{
     mir::IMMUTABLE_WORD_SIZE,
 };
 use alloy_primitives::U256;
+#[cfg(test)]
+use solar_config::OptimizationMode;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use solar_interface::diagnostics::DiagCtxt;
 use solar_sema::Gcx;
-
-#[cfg(test)]
-use solar_config::OptimizationMode;
 
 const EVM_WORD_BYTES: usize = 32;
 

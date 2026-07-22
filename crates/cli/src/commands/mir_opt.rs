@@ -125,7 +125,7 @@ fn selected_pass_list_label(passes: &[Option<&MirPass>], separator: &str) -> Str
 /// Runs the pass pipeline on a single module and emits output.
 /// Used for both .sol contracts and .mir input.
 fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: &str, args: &MirOptArgs) {
-    let print_after_each = gcx.sess.opts.unstable.mir_print_after_each;
+    let print_after_each = gcx.sess.opts.unstable.print_after_each;
     if args.pipeline_default {
         run_default_pipeline(gcx, module);
         if !print_after_each {
