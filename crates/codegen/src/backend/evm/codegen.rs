@@ -26,7 +26,6 @@ use alloy_primitives::U256;
 use solar_config::OptimizationMode;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
-    index::IndexVec,
     map::FxHashMap,
 };
 use solar_interface::sym;
@@ -1201,7 +1200,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.compute_stack_arg_masks(module);
 
         // Create labels for externally reachable runtime entry points and internal-call targets.
-        let mut func_labels = IndexVec::new();
         for (func_id, func) in module.functions.iter_enumerated() {
             let external = Self::is_external_entry(func);
             let needs_body =
@@ -1210,7 +1208,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             if let Some(label) = label {
                 self.function_labels.insert(func_id, label);
             }
-            func_labels.push(label);
         }
         let revert_label = self.asm.new_label();
         self.asm.mark_label_cold(revert_label);
@@ -1242,10 +1239,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_push_label(has_calldata_label);
             self.asm.emit_op(op::JUMPI);
             if let Some(recv_idx) = receive_idx {
-                self.asm.emit_push_label(func_labels[recv_idx].expect("receive label missing"));
+                self.asm.emit_push_label(self.function_labels[&recv_idx]);
                 self.asm.emit_op(op::JUMP);
             } else if let Some(fb_idx) = fallback_idx {
-                self.asm.emit_push_label(func_labels[fb_idx].expect("fallback label missing"));
+                self.asm.emit_push_label(self.function_labels[&fb_idx]);
                 self.asm.emit_op(op::JUMP);
             }
         } else {
@@ -1274,14 +1271,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let selector = func.selector?;
                 Some(SelectorDispatchEntry {
                     selector: u32::from_be_bytes(selector),
-                    label: func_labels[func_id].expect("selector label missing"),
+                    label: self.function_labels[&func_id],
                 })
             })
             .collect();
         selectors.sort_by_key(|entry| entry.selector);
 
-        let fallback_label =
-            fallback_idx.map(|idx| func_labels[idx].expect("fallback label missing"));
+        let fallback_label = fallback_idx.map(|idx| self.function_labels[&idx]);
         self.emit_selector_dispatch(&selectors, fallback_label, revert_label);
 
         // Define external function entry points.
@@ -1289,7 +1285,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !Self::is_external_entry(func) {
                 continue;
             }
-            let Some(label) = func_labels[func_id] else { continue };
+            let Some(&label) = self.function_labels.get(&func_id) else { continue };
             self.asm.define_label(label);
 
             // The dispatcher's shr'd selector is still on the physical stack
@@ -1317,7 +1313,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if Self::is_external_entry(func) || !Self::is_runtime_function(func) {
                 continue;
             }
-            let Some(label) = func_labels[func_id] else { continue };
+            let Some(&label) = self.function_labels.get(&func_id) else { continue };
             self.asm.define_label(label);
             self.emit_stack_arg_prologue(func_id, func);
             self.in_internal_function = true;
