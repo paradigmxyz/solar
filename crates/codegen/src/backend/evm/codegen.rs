@@ -1111,7 +1111,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         // Preserve semantic immutable assignments through optimization, then
         // expose their concrete constructor-memory writes to the backend.
-        run_pass(module, &crate::pass::LOWER_IMMUTABLES_PASS, options);
+        run_pass(self.gcx, module, &crate::pass::LOWER_IMMUTABLES_PASS);
     }
 
     /// Generates runtime bytecode for a module.

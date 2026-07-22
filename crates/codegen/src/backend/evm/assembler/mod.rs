@@ -718,31 +718,32 @@ mod tests {
 
     #[test]
     fn immutable_push_uses_declared_width() {
-        let mut asm = Assembler::new();
-        let narrow = ImmutableId::new(3);
-        let address = ImmutableId::new(4);
-        let narrow_size = TypeSize::new_int_bits(8);
-        let address_size = TypeSize::new_int_bits(160);
+        with_assembler(CompileOpts::default(), |mut asm| {
+            let narrow = ImmutableId::new(3);
+            let address = ImmutableId::new(4);
+            let narrow_size = TypeSize::new_int_bits(8);
+            let address_size = TypeSize::new_int_bits(160);
 
-        asm.emit_push_immutable(narrow, narrow_size);
-        asm.emit_push_immutable(address, address_size);
-        let result = asm.assemble();
+            asm.emit_push_immutable(narrow, narrow_size);
+            asm.emit_push_immutable(address, address_size);
+            let result = asm.assemble();
 
-        assert_data_eq!(
-            disassemble(&result.bytecode),
-            str![[r#"
+            assert_data_eq!(
+                disassemble(&result.bytecode),
+                str![[r#"
 PUSH1 0x00
 PUSH20 0x0000000000000000000000000000000000000000
 
 "#]]
-        );
-        assert_eq!(
-            result.immutable_refs,
-            [
-                ImmutableRef { id: narrow, code_offset: 0, type_size: narrow_size },
-                ImmutableRef { id: address, code_offset: 2, type_size: address_size },
-            ]
-        );
+            );
+            assert_eq!(
+                result.immutable_refs,
+                [
+                    ImmutableRef { id: narrow, code_offset: 0, type_size: narrow_size },
+                    ImmutableRef { id: address, code_offset: 2, type_size: address_size },
+                ]
+            );
+        });
     }
 
     #[test]
@@ -762,7 +763,7 @@ PUSH4 0x80000000
             );
             assert!(asm.program.blocks.is_empty());
             assert_eq!(asm.push_values.len(), 0);
-        assert_eq!(asm.immutable_pushes.len(), 0);
+            assert_eq!(asm.immutable_pushes.len(), 0);
 
             asm.emit_push(U256::from(2));
             let second = asm.assemble();
