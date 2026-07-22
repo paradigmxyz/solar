@@ -147,22 +147,43 @@ struct GlobalCseContext<'a> {
 /// A single cache-invalidating effect of a side-effecting instruction.
 #[derive(Clone, Copy, Debug)]
 enum Clobber {
-    /// A memory write; `None` clobbers all of memory.
-    Memory(Option<MemRangeKey>),
-    /// A storage write to a possibly-aliasing slot.
-    Storage(StorageAlias),
-    /// An effect that may mutate any storage slot (e.g. a re-entering call).
-    AllStorage,
-    /// A transient-storage write to a possibly-aliasing slot.
-    Transient(StorageAlias),
-    /// An effect that may mutate any transient-storage slot.
-    AllTransient,
-    /// An assignment to one immutable.
-    Immutable(ImmutableId),
-    /// An effect that may assign any immutable.
-    AllImmutables,
+    /// A memory write.
+    Memory(ClobberScope<MemRangeKey>),
+    /// A persistent-storage write.
+    Storage(ClobberScope<StorageAlias>),
+    /// A transient-storage write.
+    Transient(ClobberScope<StorageAlias>),
+    /// An immutable assignment.
+    Immutable(ClobberScope<ImmutableId>),
     /// An effect that may change account balances or deployed code.
     AccountEnvironment,
+}
+
+/// The scope of a cache-invalidating effect.
+#[derive(Clone, Copy, Debug)]
+enum ClobberScope<T> {
+    /// One possibly-aliasing target.
+    Specific(T),
+    /// Every target in the address space.
+    All,
+}
+
+impl<T> From<Option<T>> for ClobberScope<T> {
+    fn from(value: Option<T>) -> Self {
+        match value {
+            Some(value) => Self::Specific(value),
+            None => Self::All,
+        }
+    }
+}
+
+impl<T: Copy> ClobberScope<T> {
+    fn preserves(self, cached: T, may_alias: impl FnOnce(T, T) -> bool) -> bool {
+        match self {
+            Self::Specific(write) => !may_alias(cached, write),
+            Self::All => false,
+        }
+    }
 }
 
 struct PhiExpressionCandidate {
@@ -738,16 +759,15 @@ impl CommonSubexprEliminator {
         match *kind {
             InstKind::MStore(addr, _) => {
                 let addr = mir_utils::resolve_replacement(addr, replacements);
-                clobbers.push(Clobber::Memory(self.memory_range_key(
-                    func,
-                    inst_id,
-                    addr,
-                    Some(32),
-                )));
+                clobbers.push(Clobber::Memory(
+                    self.memory_range_key(func, inst_id, addr, Some(32)).into(),
+                ));
             }
             InstKind::MStore8(addr, _) => {
                 let addr = mir_utils::resolve_replacement(addr, replacements);
-                clobbers.push(Clobber::Memory(self.memory_range_key(func, inst_id, addr, Some(1))));
+                clobbers.push(Clobber::Memory(
+                    self.memory_range_key(func, inst_id, addr, Some(1)).into(),
+                ));
             }
             InstKind::MCopy(dest, _, size)
             | InstKind::CalldataCopy(dest, _, size)
@@ -756,40 +776,43 @@ impl CommonSubexprEliminator {
             | InstKind::ExtCodeCopy(_, dest, _, size) => {
                 let dest = mir_utils::resolve_replacement(dest, replacements);
                 let size = func.value_u64(mir_utils::resolve_replacement(size, replacements));
-                clobbers.push(Clobber::Memory(self.memory_range_key(func, inst_id, dest, size)));
+                clobbers
+                    .push(Clobber::Memory(self.memory_range_key(func, inst_id, dest, size).into()));
             }
             InstKind::SStore(slot, _) => {
-                clobbers.push(Clobber::Storage(func.storage_alias_after_replacements(
-                    inst_id,
-                    slot,
-                    replacements,
+                clobbers.push(Clobber::Storage(ClobberScope::Specific(
+                    func.storage_alias_after_replacements(inst_id, slot, replacements),
                 )));
             }
             InstKind::TStore(slot, _) => {
-                clobbers.push(Clobber::Transient(func.storage_alias_after_replacements(
-                    inst_id,
-                    slot,
-                    replacements,
+                clobbers.push(Clobber::Transient(ClobberScope::Specific(
+                    func.storage_alias_after_replacements(inst_id, slot, replacements),
                 )));
             }
-            InstKind::StoreImmutable { id, .. } => clobbers.push(Clobber::Immutable(id)),
+            InstKind::StoreImmutable { id, .. } => {
+                clobbers.push(Clobber::Immutable(ClobberScope::Specific(id)));
+            }
             _ if kind.may_mutate_memory() => {
-                clobbers.push(Clobber::Memory(None));
+                clobbers.push(Clobber::Memory(ClobberScope::All));
                 if Self::may_change_account_environment(kind) {
                     clobbers.push(Clobber::AccountEnvironment);
                 }
                 if kind.may_mutate_storage() {
-                    clobbers.push(Clobber::AllStorage);
+                    clobbers.push(Clobber::Storage(ClobberScope::All));
                 }
                 if kind.may_mutate_transient_storage() {
-                    clobbers.push(Clobber::AllTransient);
+                    clobbers.push(Clobber::Transient(ClobberScope::All));
                 }
                 if matches!(kind, InstKind::InternalCall { .. }) {
-                    clobbers.push(Clobber::AllImmutables);
+                    clobbers.push(Clobber::Immutable(ClobberScope::All));
                 }
             }
-            _ if kind.may_mutate_storage() => clobbers.push(Clobber::AllStorage),
-            _ if kind.may_mutate_transient_storage() => clobbers.push(Clobber::AllTransient),
+            _ if kind.may_mutate_storage() => {
+                clobbers.push(Clobber::Storage(ClobberScope::All));
+            }
+            _ if kind.may_mutate_transient_storage() => {
+                clobbers.push(Clobber::Transient(ClobberScope::All));
+            }
             _ => {}
         }
     }
@@ -798,31 +821,25 @@ impl CommonSubexprEliminator {
     fn apply_clobber(&self, expr_cache: &mut FxHashMap<ExprKey, ValueId>, clobber: &Clobber) {
         match *clobber {
             Clobber::Memory(write) => self.invalidate_memory(expr_cache, write),
-            Clobber::Storage(alias) => {
+            Clobber::Storage(write) => {
                 expr_cache.retain(|key, _| match key {
-                    ExprKey::SLoad(cached) => !cached.may_alias(alias),
+                    ExprKey::SLoad(cached) => write.preserves(*cached, StorageAlias::may_alias),
                     _ => true,
                 });
             }
-            Clobber::AllStorage => {
-                expr_cache.retain(|key, _| !matches!(key, ExprKey::SLoad(_)));
-            }
-            Clobber::Transient(alias) => {
+            Clobber::Transient(write) => {
                 expr_cache.retain(|key, _| match key {
-                    ExprKey::TLoad(cached) => !cached.may_alias(alias),
+                    ExprKey::TLoad(cached) => write.preserves(*cached, StorageAlias::may_alias),
                     _ => true,
                 });
             }
-            Clobber::AllTransient => {
-                expr_cache.retain(|key, _| !matches!(key, ExprKey::TLoad(_)));
-            }
-            Clobber::Immutable(id) => {
-                expr_cache.retain(
-                    |key, _| !matches!(key, ExprKey::LoadImmutable(cached, _) if *cached == id),
-                );
-            }
-            Clobber::AllImmutables => {
-                expr_cache.retain(|key, _| !matches!(key, ExprKey::LoadImmutable(..)));
+            Clobber::Immutable(write) => {
+                expr_cache.retain(|key, _| match key {
+                    ExprKey::LoadImmutable(cached, _) => {
+                        write.preserves(*cached, |cached, assigned| cached == assigned)
+                    }
+                    _ => true,
+                });
             }
             Clobber::AccountEnvironment => {
                 expr_cache.retain(|key, _| !Self::is_account_environment_expr(key));
@@ -833,11 +850,11 @@ impl CommonSubexprEliminator {
     fn invalidate_memory(
         &self,
         expr_cache: &mut FxHashMap<ExprKey, ValueId>,
-        write: Option<MemRangeKey>,
+        write: ClobberScope<MemRangeKey>,
     ) {
         expr_cache.retain(|key, _| match key {
             ExprKey::MLoad(read) | ExprKey::Keccak256(read) => {
-                write.is_some_and(|write| !Self::memory_ranges_may_alias(*read, write))
+                write.preserves(*read, Self::memory_ranges_may_alias)
             }
             ExprKey::MappingSlotMemory(..) => false,
             _ => true,
