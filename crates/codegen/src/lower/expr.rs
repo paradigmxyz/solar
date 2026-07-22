@@ -40,9 +40,9 @@ impl<'gcx> Lowerer<'gcx> {
                 // integer value, so e.g. `x == 0x11223344` compares correctly.
                 if let LitKind::Number(n) = &lit.kind
                     && let Some(width) = self.fixed_bytes_width_of_expr(expr)
-                    && width.bytes() < 32
+                    && width < 32
                 {
-                    let aligned = *n << (usize::from(32 - width.bytes()) * 8);
+                    let aligned = *n << (usize::from(32 - width) * 8);
                     return builder.imm_u256(aligned);
                 }
                 self.lower_literal(builder, lit)
@@ -113,7 +113,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // left-aligned and must be re-masked to its width: a right shift
                 // moves data below the `N`-byte boundary, which has to be cleared.
                 if let Some(width) = self.fixed_bytes_width_of_expr(expr) {
-                    return self.clean_fixed_bytes(builder, result, width);
+                    return self.clean_fixed_bytes(builder, result, TypeSize::new_fb_bytes(width));
                 }
                 result
             }
@@ -1240,9 +1240,9 @@ impl<'gcx> Lowerer<'gcx> {
             && let LitKind::Number(n) = &lit.kind
             && self.fixed_bytes_width_of_expr(operand).is_none()
             && let Some(width) = self.fixed_bytes_width_of_expr(sibling)
-            && width.bytes() < 32
+            && width < 32
         {
-            return builder.imm_u256(*n << (usize::from(32 - width.bytes()) * 8));
+            return builder.imm_u256(*n << (usize::from(32 - width) * 8));
         }
         self.lower_expr(builder, operand)
     }
@@ -1430,7 +1430,7 @@ impl<'gcx> Lowerer<'gcx> {
                     ElementaryType::UInt(_) | ElementaryType::Int(_) | ElementaryType::Address(_)
                 ) =>
             {
-                let shift_bits = u64::from(32 - width.bytes()) * 8;
+                let shift_bits = u64::from(32 - width) * 8;
                 if shift_bits == 0 {
                     value
                 } else {
