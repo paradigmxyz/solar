@@ -105,7 +105,6 @@ struct Parser<'sess, 'ast> {
     block_order: Vec<BlockId>,
     value_labels: FxHashMap<u32, ValueId>,
     immutable_names: FxHashMap<Symbol, (ImmutableId, MirType)>,
-    immutable_types: Vec<MirType>,
 }
 
 struct PendingFunctionRef {
@@ -137,7 +136,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             block_order: Vec::new(),
             value_labels: FxHashMap::default(),
             immutable_names: FxHashMap::default(),
-            immutable_types: Vec::new(),
         }
     }
 
@@ -232,7 +230,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             let id = module.add_immutable(Ident::new(name, name_span), ty);
             self.immutable_names.insert(name, (id, ty));
-            self.immutable_types.push(ty);
         }
         Ok(())
     }
@@ -963,32 +960,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             .map_err(|_| self.parser.error(format!("integer `{value}` does not fit in u32")))
     }
 
-    fn u256_to_immutable_id(&self, value: U256) -> PResult<'sess, ImmutableId> {
-        let value = self.u256_to_u32(value)?;
-        if value == u32::MAX {
-            return Err(self
-                .parser
-                .error(format!("integer `{value}` does not fit in immutable ID")));
-        }
-        Ok(ImmutableId::new(value as usize))
-    }
-
-    fn parse_immutable_ref(&mut self) -> PResult<'sess, (ImmutableId, Option<MirType>)> {
-        if matches!(self.parser.token().kind, TokenKind::Literal(..)) {
-            let value = self.parser.parse_uint()?;
-            let id = self.u256_to_immutable_id(value)?;
-            return Ok((id, self.immutable_types.get(id.index()).copied()));
-        }
-
+    fn parse_immutable_ref(&mut self) -> PResult<'sess, (ImmutableId, MirType)> {
         let span = self.parser.token().span;
         let name = self.parser.parse_ident()?;
-        self.immutable_names
-            .get(&name)
-            .copied()
-            .ok_or_else(|| {
-                self.parser.error_at(span, format!("unknown immutable declaration `{name}`"))
-            })
-            .map(|(id, ty)| (id, Some(ty)))
+        self.immutable_names.get(&name).copied().ok_or_else(|| {
+            self.parser.error_at(span, format!("unknown immutable declaration `{name}`"))
+        })
     }
 
     fn u256_to_u16(&self, value: U256) -> PResult<'sess, u16> {
@@ -1090,25 +1067,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::StoreImmutable { id, value }, None)
             }
             kw::Loadimmutable => {
-                let (id, declared_ty) = self.parse_immutable_ref()?;
-                let explicit_ty =
-                    if self.parser.eat(TokenKind::Comma) { Some(self.parse_type()?) } else { None };
-                let ty = match (declared_ty, explicit_ty) {
-                    (Some(declared), Some(explicit)) if declared != explicit => {
-                        return Err(self.parser.error(format!(
-                            "immutable {} has type `{declared}`, not `{explicit}`",
-                            id.index()
-                        )));
-                    }
-                    (Some(declared), _) => declared,
-                    (None, Some(explicit)) => explicit,
-                    (None, None) => {
-                        return Err(self.parser.error(
-                            "an undeclared numeric immutable reference requires an explicit type",
-                        ));
-                    }
-                };
-                (InstKind::LoadImmutable { id, ty }, Some(ty))
+                let (id, ty) = self.parse_immutable_ref()?;
+                (InstKind::LoadImmutable { id }, Some(ty))
             }
             kw::Extcodesize => inst!(ExtCodeSize(a) => MirType::uint256()),
             kw::Extcodecopy => inst!(ExtCodeCopy(a, b, c, d)),

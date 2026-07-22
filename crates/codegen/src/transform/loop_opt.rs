@@ -279,7 +279,7 @@ impl LoopOptimizer {
                         StorageSpace::Transient,
                     );
             }
-            InstKind::LoadImmutable { id, .. } => {
+            InstKind::LoadImmutable { id } => {
                 return self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_assign_immutable(func, ctx.loop_data, id);
             }

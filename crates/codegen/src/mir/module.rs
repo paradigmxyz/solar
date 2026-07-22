@@ -186,6 +186,11 @@ impl Module {
         self.immutables.len()
     }
 
+    /// Returns an iterator over all immutable declarations.
+    pub(crate) fn iter_immutables(&self) -> impl Iterator<Item = (ImmutableId, &Immutable)> {
+        self.immutables.iter_enumerated()
+    }
+
     /// Returns an iterator over all functions.
     pub(crate) fn iter_functions(&self) -> impl Iterator<Item = (FunctionId, &Function)> {
         self.functions.iter_enumerated()

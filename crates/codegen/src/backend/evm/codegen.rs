@@ -30,6 +30,7 @@ use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
+    index::IndexVec,
     map::FxHashMap,
 };
 use solar_interface::{Session, sym};
@@ -633,6 +634,8 @@ pub struct EvmCodegen {
     global_stack_aliases: FxHashMap<ValueId, ValueId>,
     /// Immutable `PUSH<N>` placeholders in the last assembled runtime code.
     runtime_immutable_refs: Vec<ImmutableRef>,
+    /// Backend encodings derived from the current module's immutable declarations.
+    immutable_encodings: IndexVec<ImmutableId, ImmutableEncoding>,
     /// Whether we're currently generating constructor code.
     /// When true, LoadArg uses CODECOPY from the end of code instead of CALLDATALOAD.
     in_constructor: bool,
@@ -686,6 +689,7 @@ impl EvmCodegen {
             global_stack_active: false,
             global_stack_aliases: FxHashMap::default(),
             runtime_immutable_refs: Vec::new(),
+            immutable_encodings: IndexVec::new(),
             in_constructor: false,
             constructor_exit: None,
             constructor_param_count: 0,
@@ -784,6 +788,11 @@ impl EvmCodegen {
             return EvmArtifact::default();
         }
         self.run_optimization_passes(module);
+        self.immutable_encodings.clear();
+        for (id, immutable) in module.iter_immutables() {
+            let allocated = self.immutable_encodings.push(immutable.ty.immutable_encoding());
+            debug_assert_eq!(allocated, id);
+        }
         // First generate the runtime code
         let mut runtime_code = self.generate_runtime_code(module);
         if let Some(evm_ir) = &mut runtime_code.evm_ir {
@@ -952,7 +961,7 @@ impl EvmCodegen {
         self.asm.emit_op(op::MSTORE);
     }
 
-    fn emit_load_immutable(&mut self, id: ImmutableId, ty: MirType) {
+    fn emit_load_immutable(&mut self, id: ImmutableId) {
         if self.in_constructor {
             // The running constructor's own placeholders are never patched.
             self.asm.emit_push(U256::from(Self::immutable_scratch_addr(id)));
@@ -960,7 +969,7 @@ impl EvmCodegen {
             return;
         }
 
-        let encoding = ty.immutable_encoding();
+        let encoding = self.immutable_encodings[id];
         let type_size = encoding.type_size();
         let byte_width = type_size.bytes();
         self.asm.emit_push_immutable(id, type_size);
@@ -3128,8 +3137,8 @@ impl EvmCodegen {
             InstKind::StoreImmutable { id, value } => {
                 self.emit_store_immutable(func, *id, *value, liveness, block, inst_idx);
             }
-            InstKind::LoadImmutable { id, ty } => {
-                self.emit_load_immutable(*id, *ty);
+            InstKind::LoadImmutable { id } => {
+                self.emit_load_immutable(*id);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::ReturnDataSize => {
@@ -4317,8 +4326,8 @@ impl EvmCodegen {
                             self.asm.emit_op(op::GAS);
                             self.scheduler.stack.push(val);
                         }
-                        crate::mir::InstKind::LoadImmutable { id, ty } if !self.in_constructor => {
-                            self.emit_load_immutable(*id, *ty);
+                        crate::mir::InstKind::LoadImmutable { id } if !self.in_constructor => {
+                            self.emit_load_immutable(*id);
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::CallValue => {

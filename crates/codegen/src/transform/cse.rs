@@ -111,7 +111,7 @@ enum ExprKey {
     Balance(OperandKey),
     SelfBalance,
     BlobHash(OperandKey),
-    LoadImmutable(ImmutableId, MirType),
+    LoadImmutable(ImmutableId),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -677,7 +677,7 @@ impl CommonSubexprEliminator {
             InstKind::BlockHash(a) => Some(ExprKey::BlockHash(operand(*a))),
             InstKind::BlobHash(a) => Some(ExprKey::BlobHash(operand(*a))),
             // Immutable reads are constant once the runtime code is patched.
-            InstKind::LoadImmutable { id, ty } => Some(ExprKey::LoadImmutable(*id, *ty)),
+            InstKind::LoadImmutable { id } => Some(ExprKey::LoadImmutable(*id)),
 
             InstKind::Select(condition, then_value, else_value) => Some(ExprKey::Select(
                 operand(*condition),
@@ -835,7 +835,7 @@ impl CommonSubexprEliminator {
             }
             Clobber::Immutable(write) => {
                 expr_cache.retain(|key, _| match key {
-                    ExprKey::LoadImmutable(cached, _) => {
+                    ExprKey::LoadImmutable(cached) => {
                         write.preserves(*cached, |cached, assigned| cached == assigned)
                     }
                     _ => true,

@@ -498,12 +498,12 @@ pub(crate) enum InstKind {
     ExtCodeHash(ValueId),
     /// Assign an immutable during construction: `storeimmutable <name>, value`.
     StoreImmutable { id: ImmutableId, value: ValueId },
-    /// Read a typed immutable declared by the module: `loadimmutable <name>`.
+    /// Read an immutable declared by the module: `loadimmutable <name>`.
     ///
     /// In runtime code this assembles to a typed `PUSH<N>` placeholder that the
     /// constructor patches with the staged value before returning the runtime
     /// code. In constructor code it reads the staged scratch word instead.
-    LoadImmutable { id: ImmutableId, ty: MirType },
+    LoadImmutable { id: ImmutableId },
 
     // Return data operations
     /// Get return data size: `returndatasize()`

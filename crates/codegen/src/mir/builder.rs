@@ -383,7 +383,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Emits a loadimmutable instruction.
     pub(crate) fn load_immutable(&mut self, id: ImmutableId, ty: MirType) -> ValueId {
-        self.emit_inst(InstKind::LoadImmutable { id, ty }, Some(ty))
+        self.emit_inst(InstKind::LoadImmutable { id }, Some(ty))
     }
 
     /// Emits a storeimmutable instruction.

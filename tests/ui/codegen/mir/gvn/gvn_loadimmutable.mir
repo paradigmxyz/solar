@@ -4,8 +4,8 @@ immutables:
   first: u256
   second: u256
 
-// Repeated reads of the same immutable are congruent and merge.
-fn @same_immutable_merges() -> u256 {
+// GVN leaves immutable loads to CSE, which tracks their clobbers.
+fn @same_immutable_stays() -> u256 {
   bb0 (entry):
     v0 = loadimmutable first
     v1 = loadimmutable first

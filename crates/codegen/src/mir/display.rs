@@ -315,13 +315,9 @@ fn display_inst_kind<'a>(
             display_immutable_ref(f, *id, module)?;
             write!(f, ", {}", display_val(*value, func))
         }
-        InstKind::LoadImmutable { id, ty } => {
+        InstKind::LoadImmutable { id } => {
             write!(f, "loadimmutable ")?;
-            if module.and_then(|module| module.get_immutable(*id)).is_some() {
-                display_immutable_ref(f, *id, module)
-            } else {
-                write!(f, "{}, {ty}", id.index())
-            }
+            display_immutable_ref(f, *id, module)
         }
         InstKind::InternalCall { function, args, returns } => {
             write!(f, "internal_call {}, {returns}", display_function_ref(*function, module))?;

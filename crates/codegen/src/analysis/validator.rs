@@ -436,19 +436,28 @@ impl<'a> Validator<'a> {
     fn validate_immutables(&mut self, module: &Module, func: &Function) {
         for (inst, instruction) in func.instructions.iter_enumerated() {
             match instruction.kind {
-                InstKind::LoadImmutable { id, ty } => match module.get_immutable_type(id) {
-                    Some(expected) if expected != ty => self.emit(format_args!(
-                        "inst{} loads immutable {} as `{ty}`, expected `{expected}`",
-                        inst.index(),
-                        id.index()
-                    )),
-                    None => self.emit(format_args!(
-                        "inst{} loads nonexistent immutable {}",
-                        inst.index(),
-                        id.index()
-                    )),
-                    _ => {}
-                },
+                InstKind::LoadImmutable { id } => {
+                    match (module.get_immutable_type(id), instruction.result_ty) {
+                        (Some(expected), Some(actual)) if actual != expected => {
+                            self.emit(format_args!(
+                                "inst{} loads immutable {} as `{actual}`, expected `{expected}`",
+                                inst.index(),
+                                id.index(),
+                            ))
+                        }
+                        (Some(_), None) => self.emit(format_args!(
+                            "inst{} loads immutable {} without a result type",
+                            inst.index(),
+                            id.index(),
+                        )),
+                        (None, _) => self.emit(format_args!(
+                            "inst{} loads nonexistent immutable {}",
+                            inst.index(),
+                            id.index()
+                        )),
+                        _ => {}
+                    }
+                }
                 InstKind::StoreImmutable { id, .. } if module.get_immutable(id).is_none() => {
                     self.emit(format_args!(
                         "inst{} stores nonexistent immutable {}",

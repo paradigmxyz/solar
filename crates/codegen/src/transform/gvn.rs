@@ -46,8 +46,7 @@
 use crate::{
     analysis::CfgInfo,
     mir::{
-        BlockId, Function, Immediate, ImmutableId, InstId, InstKind, MirType, Value, ValueId,
-        utils as mir_utils,
+        BlockId, Function, Immediate, InstId, InstKind, MirType, Value, ValueId, utils as mir_utils,
     },
     pass::FunctionPass,
 };
@@ -118,7 +117,6 @@ enum ExprKind {
     CalldataLoad(ClassId),
     BlockHash(ClassId),
     BlobHash(ClassId),
-    LoadImmutable(ImmutableId, MirType),
     Phi(BlockId, Vec<(BlockId, ClassId)>),
 }
 
@@ -128,7 +126,6 @@ struct ReplaceCtx<'a> {
     inst_results: &'a FxHashMap<InstId, ValueId>,
     replacements: &'a mut FxHashMap<ValueId, ValueId>,
     dead: &'a mut DenseBitSet<InstId>,
-    merge_immutable_loads: bool,
 }
 
 impl GlobalValueNumberer {
@@ -153,12 +150,7 @@ impl GlobalValueNumberer {
     fn run_round(&mut self, func: &mut Function) -> bool {
         let cfg = CfgInfo::new(func);
         let inst_results = func.inst_results();
-        let merge_immutable_loads = !func.instructions.iter().any(|inst| {
-            matches!(inst.kind, InstKind::StoreImmutable { .. } | InstKind::InternalCall { .. })
-        });
-        let Some(vn) =
-            Self::compute_value_numbers(func, cfg.rpo(), &inst_results, merge_immutable_loads)
-        else {
+        let Some(vn) = Self::compute_value_numbers(func, cfg.rpo(), &inst_results) else {
             return false;
         };
 
@@ -179,7 +171,6 @@ impl GlobalValueNumberer {
             inst_results: &inst_results,
             replacements: &mut replacements,
             dead: &mut dead,
-            merge_immutable_loads,
         };
         self.replace_in_block(func, func.entry_block, &mut leaders, &mut ctx);
 
@@ -201,7 +192,6 @@ impl GlobalValueNumberer {
         func: &Function,
         rpo: &[BlockId],
         inst_results: &FxHashMap<InstId, ValueId>,
-        merge_immutable_loads: bool,
     ) -> Option<Vec<ClassId>> {
         let mut vn: Vec<ClassId> = func.values.indices().collect();
         let mut immediate_reps: FxHashMap<Immediate, ValueId> = FxHashMap::default();
@@ -226,15 +216,9 @@ impl GlobalValueNumberer {
                     let Some(&result) = inst_results.get(&inst_id) else { continue };
                     let inst = &func.instructions[inst_id];
                     let Some(ty) = inst.result_ty else { continue };
-                    let Some(class) = Self::instruction_class(
-                        block_id,
-                        &inst.kind,
-                        ty,
-                        result,
-                        &vn,
-                        &mut table,
-                        merge_immutable_loads,
-                    ) else {
+                    let Some(class) =
+                        Self::instruction_class(block_id, &inst.kind, ty, result, &vn, &mut table)
+                    else {
                         continue;
                     };
                     if vn[result.index()] != class {
@@ -263,7 +247,6 @@ impl GlobalValueNumberer {
         result: ValueId,
         vn: &[ClassId],
         table: &mut FxHashMap<ExprKey, ClassId>,
-        merge_immutable_loads: bool,
     ) -> Option<ClassId> {
         if let InstKind::Phi(incoming) = kind {
             let Some((&(_, first), rest)) = incoming.split_first() else { return Some(result) };
@@ -275,7 +258,7 @@ impl GlobalValueNumberer {
             let key = ExprKey { kind: ExprKind::Phi(block_id, incoming), ty };
             return Some(*table.entry(key).or_insert(result));
         }
-        let kind = Self::expr_kind(kind, vn, merge_immutable_loads)?;
+        let kind = Self::expr_kind(kind, vn)?;
         Some(*table.entry(ExprKey { kind, ty }).or_insert(result))
     }
 
@@ -299,7 +282,7 @@ impl GlobalValueNumberer {
 
     /// Builds the expression shape over operand classes for pure word ops.
     /// Returns `None` for every other instruction.
-    fn expr_kind(kind: &InstKind, vn: &[ClassId], merge_immutable_loads: bool) -> Option<ExprKind> {
+    fn expr_kind(kind: &InstKind, vn: &[ClassId]) -> Option<ExprKind> {
         let class = |value: ValueId| vn[value.index()];
         let sorted = |a: ValueId, b: ValueId| {
             let (a, b) = (class(a), class(b));
@@ -363,12 +346,9 @@ impl GlobalValueNumberer {
             InstKind::CalldataLoad(a) => ExprKind::CalldataLoad(class(a)),
             InstKind::BlockHash(a) => ExprKind::BlockHash(class(a)),
             InstKind::BlobHash(a) => ExprKind::BlobHash(class(a)),
-            // Immutable reads are constant once the runtime code is patched.
-            InstKind::LoadImmutable { id, ty } if merge_immutable_loads => {
-                ExprKind::LoadImmutable(id, ty)
-            }
             // Everything else (memory, storage, environment reads, calls,
-            // gas/msize/returndatasize, keccak) never merges in this pass.
+            // gas/msize/returndatasize, keccak, immutable reads) never merges
+            // in this pass. CSE handles reads that require clobber tracking.
             _ => return None,
         })
     }
@@ -386,9 +366,7 @@ impl GlobalValueNumberer {
         for &inst_id in &func.blocks[block_id].instructions {
             let Some(&result) = ctx.inst_results.get(&inst_id) else { continue };
             let kind = &func.instructions[inst_id].kind;
-            if !matches!(kind, InstKind::Phi(_))
-                && Self::expr_kind(kind, ctx.vn, ctx.merge_immutable_loads).is_none()
-            {
+            if !matches!(kind, InstKind::Phi(_)) && Self::expr_kind(kind, ctx.vn).is_none() {
                 continue;
             }
             let class = ctx.vn[result.index()];

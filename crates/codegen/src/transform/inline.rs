@@ -200,7 +200,7 @@ impl MirInliner {
                 let caller = module.function_mut(caller_id);
                 if inline_call(caller, site.block, site.inst_index, &callee) {
                     stats.inlined += 1;
-                    let new_summary = summarize_function(module.function(caller_id));
+                    let new_summary = summarize_function(module, module.function(caller_id));
                     module_code_size = module_code_size
                         .saturating_sub(old_size)
                         .saturating_add(new_summary.estimated_code_size);
@@ -220,7 +220,7 @@ impl MirInliner {
         module
             .functions
             .iter_enumerated()
-            .map(|(id, func)| (id, summarize_function(func)))
+            .map(|(id, func)| (id, summarize_function(module, func)))
             .collect()
     }
 
@@ -385,7 +385,7 @@ struct CallSite {
     loop_depth: usize,
 }
 
-fn summarize_function(func: &Function) -> MirInlineSummary {
+fn summarize_function(module: &Module, func: &Function) -> MirInlineSummary {
     let mut summary = MirInlineSummary {
         block_count: func.blocks.len(),
         param_count: func.params.len(),
@@ -408,7 +408,7 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
                 InstKind::MappingSlotCalldata(..) => 9,
                 _ => 1,
             };
-            let inst_cost = estimate_inst_cost(kind);
+            let inst_cost = estimate_inst_cost(module, kind);
             summary.estimated_code_size += inst_cost.code_size;
             summary.estimated_runtime_gas += inst_cost.runtime_gas;
             match kind {
@@ -475,7 +475,7 @@ struct MirCost {
     code_size: usize,
 }
 
-fn estimate_inst_cost(kind: &InstKind) -> MirCost {
+fn estimate_inst_cost(module: &Module, kind: &InstKind) -> MirCost {
     let (runtime_gas, code_size) = match kind {
         InstKind::Add(..)
         | InstKind::Sub(..)
@@ -532,7 +532,8 @@ fn estimate_inst_cost(kind: &InstKind) -> MirCost {
         InstKind::MSize | InstKind::CodeSize | InstKind::ReturnDataSize => (2, 1),
         InstKind::InternalFrameAddr(_) => (6, 3),
         // Typed PUSH<N> placeholder patched at deploy time.
-        InstKind::LoadImmutable { ty, .. } => {
+        InstKind::LoadImmutable { id } => {
+            let ty = module.immutable_type(*id);
             let encoding = ty.immutable_encoding();
             let width = usize::from(encoding.type_size().bytes());
             if encoding.needs_runtime_normalization() { (9, width + 4) } else { (3, width + 1) }
@@ -850,7 +851,7 @@ impl<'a> InlineCloner<'a> {
             InstKind::StoreImmutable { id, value } => {
                 InstKind::StoreImmutable { id, value: self.clone_value(value)? }
             }
-            InstKind::LoadImmutable { id, ty } => InstKind::LoadImmutable { id, ty },
+            InstKind::LoadImmutable { id } => InstKind::LoadImmutable { id },
             InstKind::CodeCopy(a, b, c) => {
                 InstKind::CodeCopy(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
             }
