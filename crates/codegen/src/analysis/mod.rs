@@ -6,13 +6,13 @@
 //! - Loop analysis for detecting and analyzing natural loops
 
 mod alias;
-pub use alias::{
+pub(crate) use alias::{
     Access, AddressSpace, AliasAnalysis, AliasResult, Location, LocationSize, MemoryAddress,
-    MemoryBase, MemoryLocation, ModRef,
+    MemoryLocation, ModRef,
 };
 
 mod memory_summary;
-pub use memory_summary::{FunctionMemorySummary, MemoryCallSummaries};
+pub(crate) use memory_summary::MemoryCallSummaries;
 
 mod cfg;
 pub(crate) use cfg::{CfgInfo, DominatorTree};

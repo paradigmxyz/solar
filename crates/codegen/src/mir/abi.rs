@@ -5,7 +5,7 @@ use std::{fmt, sync::Arc};
 
 /// An interned ABI tuple layout.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct AbiLayout {
+pub(crate) struct AbiLayout {
     /// Types encoded as one ABI tuple.
     pub types: Box<[AbiType]>,
 }
@@ -13,29 +13,29 @@ pub struct AbiLayout {
 impl AbiLayout {
     /// Creates a tuple layout from its element types.
     #[must_use]
-    pub fn new(types: impl Into<Box<[AbiType]>>) -> Self {
+    pub(crate) fn new(types: impl Into<Box<[AbiType]>>) -> Self {
         Self { types: types.into() }
     }
 
     /// Returns the tuple head size in bytes.
     #[must_use]
-    pub fn head_size(&self) -> u64 {
+    pub(crate) fn head_size(&self) -> u64 {
         self.types.iter().map(AbiType::head_size).sum()
     }
 
     /// Returns the number of scratch words required by the encoder.
     #[must_use]
-    pub fn scratch_words(&self) -> u64 {
+    pub(crate) fn scratch_words(&self) -> u64 {
         self.types.iter().map(AbiType::loop_depth).max().unwrap_or(0) * 5
     }
 }
 
 /// Shared reference returned by the module ABI-layout interner.
-pub type AbiLayoutRef = Arc<AbiLayout>;
+pub(crate) type AbiLayoutRef = Arc<AbiLayout>;
 
 /// The ABI-relevant shape and source representation of one value.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum AbiType {
+pub(crate) enum AbiType {
     /// A scalar encoded as one word.
     Word,
     /// A dynamic byte string represented in the given address space.
@@ -61,7 +61,7 @@ pub enum AbiType {
 impl AbiType {
     /// Returns whether the ABI value occupies an offset in its containing head.
     #[must_use]
-    pub fn is_dynamic(&self) -> bool {
+    pub(crate) fn is_dynamic(&self) -> bool {
         match self {
             Self::Word => false,
             Self::Bytes(_) | Self::DynamicArray { .. } => true,
@@ -72,7 +72,7 @@ impl AbiType {
 
     /// Returns the size occupied by this value in its containing tuple head.
     #[must_use]
-    pub fn head_size(&self) -> u64 {
+    pub(crate) fn head_size(&self) -> u64 {
         if self.is_dynamic() {
             return 32;
         }
@@ -85,7 +85,7 @@ impl AbiType {
 
     /// Returns the maximum nested dynamic-array loop depth.
     #[must_use]
-    pub fn loop_depth(&self) -> u64 {
+    pub(crate) fn loop_depth(&self) -> u64 {
         match self {
             Self::DynamicArray { element, .. } if matches!(element.as_ref(), Self::Word) => 0,
             Self::DynamicArray { element, .. } => 1 + element.loop_depth(),

@@ -1,15 +1,19 @@
 //@compile-flags: --pass cse
 //@filecheck: --match-full-lines
-// CHECK-LABEL: fn @fresh(arg0: u256, arg1: u256) -> u256 {
-// CHECK:     [[LOAD:v[0-9]+]] = mload {{v[0-9]+}}
-// CHECK-NOT: mload
-// CHECK:     [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
-// CHECK:     ret [[SUM]]
-// CHECK-LABEL: fn @reset(arg0: u256, arg1: u256) -> u256 {
-// CHECK:     [[FIRST:v[0-9]+]] = mload {{v[0-9]+}}
-// CHECK:     [[SECOND:v[0-9]+]] = mload {{v[0-9]+}}
-// CHECK:     [[SUM:v[0-9]+]] = add [[FIRST]], [[SECOND]]
-// CHECK:     ret [[SUM]]
+// The reload of a fresh (unreused) allocation is CSE'd away in `@fresh`; the
+// diff shows the second `mload` removed and the sum folded to one load.
+// CHECK-LABEL:   fn @fresh(arg0: u256, arg1: u256) -> u256 {
+// CHECK:       [[LOAD:v[0-9]+]] = mload {{v[0-9]+}}
+// CHECK: -     {{v[0-9]+}} = mload {{v[0-9]+}}
+// CHECK: +     [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
+// CHECK:       ret [[SUM]]
+// A reset free-memory pointer reuses the address, so `@reset` keeps both
+// loads: its lines stay unchanged context in the diff.
+// CHECK-LABEL:   fn @reset(arg0: u256, arg1: u256) -> u256 {
+// CHECK:       [[FIRST:v[0-9]+]] = mload {{v[0-9]+}}
+// CHECK:       [[SECOND:v[0-9]+]] = mload {{v[0-9]+}}
+// CHECK:       [[SUM:v[0-9]+]] = add [[FIRST]], [[SECOND]]
+// CHECK:       ret [[SUM]]
 @module CseAllocationProvenance
 fn @fresh(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):

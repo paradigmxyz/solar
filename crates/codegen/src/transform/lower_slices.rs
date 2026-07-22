@@ -17,7 +17,7 @@ use solar_sema::Gcx;
 
 /// Statistics from slice lowering.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct LowerSlicesStats {
+pub(crate) struct LowerSlicesStats {
     /// Slice constructors erased.
     pub slices: usize,
     /// Pointer/length projections resolved.
@@ -39,7 +39,7 @@ enum ParamRepr {
 
 /// Lowers logical slices to the word-based backend convention.
 #[derive(Debug, Default)]
-pub struct LowerSlicesPass {
+pub(crate) struct LowerSlicesPass {
     stats: LowerSlicesStats,
 }
 
@@ -92,12 +92,6 @@ fn new_slice_inst(
 }
 
 impl LowerSlicesPass {
-    /// Returns statistics for the most recent run.
-    #[must_use]
-    pub const fn stats(&self) -> &LowerSlicesStats {
-        &self.stats
-    }
-
     /// Rewrites slice-typed `select` and `phi` into paired pointer/length
     /// operations over a `make_slice`, so no two-word slice value survives an
     /// aggregate use. Each operand slice is then consumed only by projections
@@ -140,7 +134,8 @@ impl LowerSlicesPass {
             let block_id = *block_id;
             // Collect the leading slice phis before mutating, since forming the
             // paired words allocates instructions and values.
-            let mut slice_phis: Vec<(InstId, Vec<(BlockId, ValueId)>, SliceLocation)> = Vec::new();
+            type SlicePhi = (InstId, Vec<(BlockId, ValueId)>, SliceLocation);
+            let mut slice_phis: Vec<SlicePhi> = Vec::new();
             for &inst_id in &func.blocks[block_id].instructions {
                 match &func.instructions[inst_id].kind {
                     InstKind::Phi(incoming) => {

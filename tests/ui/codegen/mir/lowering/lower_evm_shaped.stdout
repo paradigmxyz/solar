@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped.mir (before lower-evm-shaped) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped.mir (after lower-evm-shaped) ===
   @module LowerEvmShaped
-- @phase dispatch
+- @phase memory-lowered
 + @phase evm-shaped
   fn @entry() {
     bb0 (entry):

@@ -162,9 +162,6 @@ bb0 (entry):
   dup1
   push 160
   mstore
-  dup1
-  push 160
-  mstore
   push 32
   mstore
   push 0xed2f0bb8

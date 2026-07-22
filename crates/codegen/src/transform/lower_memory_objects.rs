@@ -10,7 +10,7 @@ use solar_sema::Gcx;
 
 /// Statistics from semantic memory-object lowering.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct LowerMemoryObjectsStats {
+pub(crate) struct LowerMemoryObjectsStats {
     /// Object allocations changed to raw physical allocations.
     pub allocations: usize,
     /// Semantic accesses expanded or erased.
@@ -21,17 +21,11 @@ pub struct LowerMemoryObjectsStats {
 
 /// Lowers semantic object layouts under the selected physical memory policy.
 #[derive(Debug, Default)]
-pub struct LowerMemoryObjectsPass {
+pub(crate) struct LowerMemoryObjectsPass {
     stats: LowerMemoryObjectsStats,
 }
 
-impl LowerMemoryObjectsPass {
-    /// Returns statistics for the most recent run.
-    #[must_use]
-    pub const fn stats(&self) -> &LowerMemoryObjectsStats {
-        &self.stats
-    }
-}
+impl LowerMemoryObjectsPass {}
 
 impl ModulePass for LowerMemoryObjectsPass {
     fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {

@@ -21,7 +21,7 @@ use solar_data_structures::map::FxHashSet;
 
 /// Copy-elision pass over write-only memory allocations.
 #[derive(Debug, Default)]
-pub struct CopyElisionPass {
+pub(crate) struct CopyElisionPass {
     /// Number of write-only allocations eliminated.
     pub eliminated: usize,
 }

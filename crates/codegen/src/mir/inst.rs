@@ -263,7 +263,7 @@ impl StorageAlias {
 
     /// Returns this alias advanced by a constant slot offset.
     #[must_use]
-    pub fn offset_by(self, offset: U256) -> Self {
+    pub(crate) fn offset_by(self, offset: U256) -> Self {
         match self {
             Self::Slot(slot) => Self::Slot(slot.wrapping_add(offset)),
             Self::Symbolic(base) if offset.is_zero() => Self::Symbolic(base),
@@ -368,7 +368,7 @@ impl EffectKind {
 
 /// Alignment applied to an abstract heap allocation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum AllocationAlignment {
+pub(crate) enum AllocationAlignment {
     /// Reserve exactly the requested byte count.
     Exact,
     /// Round the reservation up to an EVM word.
@@ -377,7 +377,7 @@ pub enum AllocationAlignment {
 
 /// Initialization performed for a newly reserved range.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum AllocationInitialization {
+pub(crate) enum AllocationInitialization {
     /// Preserve the range's existing bytes until explicitly overwritten.
     Uninitialized,
     /// Initialize every reserved byte to zero.
@@ -386,7 +386,7 @@ pub enum AllocationInitialization {
 
 /// Failure behavior attached to an allocation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum AllocationFailure {
+pub(crate) enum AllocationFailure {
     /// The producer has already proved the bump valid.
     Infallible,
     /// Revert with the memory-allocation panic when the bump overflows.
@@ -395,7 +395,7 @@ pub enum AllocationFailure {
 
 /// Semantic shape produced by an allocation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum AllocationKind {
+pub(crate) enum AllocationKind {
     /// Untyped compiler scratch or ABI staging memory.
     Raw,
     /// A Solidity memory object whose layout is owned by the memory model.
@@ -405,7 +405,7 @@ pub enum AllocationKind {
 impl AllocationKind {
     /// Returns the MIR result type of this allocation.
     #[must_use]
-    pub const fn result_type(self) -> MirType {
+    pub(crate) const fn result_type(self) -> MirType {
         match self {
             Self::Raw => MirType::MemPtr,
             Self::Object(layout) => MirType::MemoryObject(layout.kind()),
@@ -415,7 +415,7 @@ impl AllocationKind {
 
 /// Semantic allocation policy carried by [`InstKind::Alloc`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct AllocationSemantics {
+pub(crate) struct AllocationSemantics {
     /// Requested alignment.
     pub alignment: AllocationAlignment,
     /// Requested initialization.
@@ -426,7 +426,7 @@ pub struct AllocationSemantics {
 
 impl AllocationSemantics {
     /// Exact-size, uninitialized allocation whose validity is already proven.
-    pub const INTERNAL: Self = Self {
+    pub(crate) const INTERNAL: Self = Self {
         alignment: AllocationAlignment::Exact,
         initialization: AllocationInitialization::Uninitialized,
         failure: AllocationFailure::Infallible,
@@ -436,7 +436,7 @@ impl AllocationSemantics {
     ///
     /// Object lowering includes the header and padding in `size`, so the
     /// allocation must preserve that already-aligned extent exactly.
-    pub const SOLIDITY_ZEROED: Self = Self {
+    pub(crate) const SOLIDITY_ZEROED: Self = Self {
         alignment: AllocationAlignment::Exact,
         initialization: AllocationInitialization::Zeroed,
         failure: AllocationFailure::Panic,
@@ -1163,62 +1163,6 @@ impl InstKind {
             | Self::BaseFee
             | Self::BlobBaseFee => {}
         }
-    }
-
-    /// Returns true if this instruction may mutate persistent storage.
-    #[must_use]
-    pub(crate) const fn may_mutate_storage(&self) -> bool {
-        matches!(
-            self,
-            Self::SStore(_, _)
-                | Self::MemoryToStorage { .. }
-                | Self::ClearStorage { .. }
-                | Self::Call { .. }
-                | Self::DelegateCall { .. }
-                | Self::InternalCall { .. }
-                | Self::Create(_, _, _)
-                | Self::Create2(_, _, _, _)
-        )
-    }
-
-    /// Returns true if this instruction may mutate transient storage.
-    #[must_use]
-    pub(crate) const fn may_mutate_transient_storage(&self) -> bool {
-        matches!(
-            self,
-            Self::TStore(_, _)
-                | Self::Call { .. }
-                | Self::DelegateCall { .. }
-                | Self::InternalCall { .. }
-                | Self::Create(_, _, _)
-                | Self::Create2(_, _, _, _)
-        )
-    }
-
-    /// Returns true if this instruction writes or may write memory.
-    #[must_use]
-    pub(crate) const fn may_mutate_memory(&self) -> bool {
-        matches!(
-            self,
-            Self::MStore(_, _)
-                | Self::MStore8(_, _)
-                | Self::SetFmp(_)
-                | Self::Alloc { .. }
-                | Self::SetMemoryObjectLen(_, _, _)
-                | Self::AbiEncode { .. }
-                | Self::StorageToMemory { .. }
-                | Self::MCopy(_, _, _)
-                | Self::CalldataCopy(_, _, _)
-                | Self::CodeCopy(_, _, _)
-                | Self::ReturnDataCopy(_, _, _)
-                | Self::ExtCodeCopy(_, _, _, _)
-                | Self::Call { .. }
-                | Self::StaticCall { .. }
-                | Self::DelegateCall { .. }
-                | Self::InternalCall { .. }
-                | Self::Create(_, _, _)
-                | Self::Create2(_, _, _, _)
-        )
     }
 
     /// Returns the mnemonic for this instruction.

@@ -1,12 +1,20 @@
-// === ROOT/tests/ui/codegen/mir/lower-slices/returndata_slice.mir (after lower-slices) ===
-@module ReturndataSlice
-fn @copy_returndata() -> memptr {
-  bb0 (entry):
-    v0 = returndatasize
-    v4 = add v0, 32
-    v5 = alloc memorybytes, exact, uninitialized, infallible, v4
-    set_memory_object_len memorybytes, v5, v0
-    v6 = memory_object_data memorybytes, v5
-    returndatacopy v6, 0, v0
-    ret v5
-}
+- // === ROOT/tests/ui/codegen/mir/lower-slices/returndata_slice.mir (before lower-slices) ===
++ // === ROOT/tests/ui/codegen/mir/lower-slices/returndata_slice.mir (after lower-slices) ===
+  @module ReturndataSlice
+  fn @copy_returndata() -> memptr {
+    bb0 (entry):
+      v0 = returndatasize
+-     v1 = make_returndata_slice 0, v0
+-     v2 = slice_ptr v1
+-     v3 = slice_len v1
+-     v4 = add v3, 32
++     v4 = add v0, 32
+      v5 = alloc memorybytes, exact, uninitialized, infallible, v4
+-     set_memory_object_len memorybytes, v5, v3
++     set_memory_object_len memorybytes, v5, v0
+      v6 = memory_object_data memorybytes, v5
+-     returndatacopy v6, v2, v3
++     returndatacopy v6, 0, v0
+      ret v5
+  }
+  

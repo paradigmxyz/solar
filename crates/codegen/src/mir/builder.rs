@@ -335,27 +335,27 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Reads the free-memory pointer.
-    pub fn fmp(&mut self) -> ValueId {
+    pub(crate) fn fmp(&mut self) -> ValueId {
         self.emit_inst(InstKind::Fmp, Some(MirType::MemPtr))
     }
 
     /// Reads the free-memory pointer as the base of a semantic object being built in place.
-    pub fn fmp_object(&mut self, layout: crate::mir::MemoryObjectLayout) -> ValueId {
+    pub(crate) fn fmp_object(&mut self, layout: crate::mir::MemoryObjectLayout) -> ValueId {
         self.emit_inst(InstKind::Fmp, Some(MirType::MemoryObject(layout.kind())))
     }
 
     /// Sets the free-memory pointer.
-    pub fn set_fmp(&mut self, ptr: ValueId) {
+    pub(crate) fn set_fmp(&mut self, ptr: ValueId) {
         self.emit_void_inst(InstKind::SetFmp(ptr))
     }
 
     /// Reserves memory under an explicit semantic policy.
-    pub fn alloc(&mut self, size: ValueId, semantics: AllocationSemantics) -> ValueId {
+    pub(crate) fn alloc(&mut self, size: ValueId, semantics: AllocationSemantics) -> ValueId {
         self.alloc_kind(size, crate::mir::AllocationKind::Raw, semantics)
     }
 
     /// Reserves memory for a semantically shaped object.
-    pub fn alloc_object(
+    pub(crate) fn alloc_object(
         &mut self,
         size: ValueId,
         layout: crate::mir::MemoryObjectLayout,
@@ -365,7 +365,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Reads the logical length of a dynamic memory object.
-    pub fn memory_object_len(
+    pub(crate) fn memory_object_len(
         &mut self,
         object: ValueId,
         kind: crate::mir::MemoryObjectKind,
@@ -374,7 +374,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Sets the logical length of a dynamic memory object.
-    pub fn set_memory_object_len(
+    pub(crate) fn set_memory_object_len(
         &mut self,
         object: ValueId,
         len: ValueId,
@@ -384,7 +384,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Projects an object's data address.
-    pub fn memory_object_data(
+    pub(crate) fn memory_object_data(
         &mut self,
         object: ValueId,
         kind: crate::mir::MemoryObjectKind,
@@ -393,7 +393,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Addresses a direct struct field.
-    pub fn memory_object_field_addr(
+    pub(crate) fn memory_object_field_addr(
         &mut self,
         object: ValueId,
         layout: crate::mir::MemoryObjectLayout,
@@ -406,7 +406,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Addresses an array element.
-    pub fn memory_object_element_addr(
+    pub(crate) fn memory_object_element_addr(
         &mut self,
         object: ValueId,
         layout: crate::mir::MemoryObjectLayout,
@@ -428,7 +428,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// ABI-encodes `args` into a freshly allocated memory slice.
-    pub fn abi_encode(
+    pub(crate) fn abi_encode(
         &mut self,
         layout: crate::mir::AbiLayoutRef,
         selector: Option<ValueId>,
@@ -441,7 +441,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Copies a statically shaped aggregate from storage into memory.
-    pub fn storage_to_memory(
+    pub(crate) fn storage_to_memory(
         &mut self,
         layout: crate::mir::StorageLayoutRef,
         storage: ValueId,
@@ -451,7 +451,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Copies a statically shaped aggregate from memory into storage.
-    pub fn memory_to_storage(
+    pub(crate) fn memory_to_storage(
         &mut self,
         layout: crate::mir::StorageLayoutRef,
         memory: ValueId,
@@ -461,7 +461,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Clears every storage slot occupied by a statically shaped aggregate.
-    pub fn clear_storage(&mut self, layout: crate::mir::StorageLayoutRef, storage: ValueId) {
+    pub(crate) fn clear_storage(&mut self, layout: crate::mir::StorageLayoutRef, storage: ValueId) {
         self.emit_void_inst(InstKind::ClearStorage { storage, layout })
     }
 
@@ -501,17 +501,22 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Constructs a logical `(pointer, length, location)` slice.
-    pub fn make_slice(&mut self, ptr: ValueId, len: ValueId, location: SliceLocation) -> ValueId {
+    pub(crate) fn make_slice(
+        &mut self,
+        ptr: ValueId,
+        len: ValueId,
+        location: SliceLocation,
+    ) -> ValueId {
         self.emit_inst(InstKind::MakeSlice { ptr, len, location }, Some(MirType::Slice(location)))
     }
 
     /// Projects the data pointer from a slice.
-    pub fn slice_ptr(&mut self, slice: ValueId) -> ValueId {
+    pub(crate) fn slice_ptr(&mut self, slice: ValueId) -> ValueId {
         self.emit_inst(InstKind::SlicePtr(slice), Some(MirType::uint256()))
     }
 
     /// Projects the logical length from a slice.
-    pub fn slice_len(&mut self, slice: ValueId) -> ValueId {
+    pub(crate) fn slice_len(&mut self, slice: ValueId) -> ValueId {
         self.emit_inst(InstKind::SliceLen(slice), Some(MirType::uint256()))
     }
 

@@ -798,29 +798,31 @@ PUSH1 0x02
 
     #[test]
     fn deferred_allocations_expand_after_layout() {
-        let mut static_asm = Assembler::new();
-        let static_alloc = static_asm.emit_deferred_alloc();
-        static_asm.set_deferred_alloc_static(static_alloc, U256::from(0xa0));
-        assert_eq!(static_asm.assemble().bytecode, [op::PUSH1, 0xa0]);
+        with_assembler(CompileOpts::default(), |mut static_asm| {
+            let static_alloc = static_asm.emit_deferred_alloc();
+            static_asm.set_deferred_alloc_static(static_alloc, U256::from(0xa0));
+            assert_eq!(static_asm.assemble().bytecode, [op::PUSH1, 0xa0]);
+        });
 
-        let mut dynamic_asm = Assembler::new();
-        let dynamic_alloc = dynamic_asm.emit_deferred_alloc();
-        dynamic_asm.set_deferred_alloc_dynamic(dynamic_alloc, U256::from(0x20));
-        assert_eq!(
-            dynamic_asm.assemble().bytecode,
-            [
-                op::PUSH1,
-                0x40,
-                op::MLOAD,
-                op::DUP1,
-                op::PUSH1,
-                0x20,
-                op::ADD,
-                op::PUSH1,
-                0x40,
-                op::MSTORE,
-            ]
-        );
+        with_assembler(CompileOpts::default(), |mut dynamic_asm| {
+            let dynamic_alloc = dynamic_asm.emit_deferred_alloc();
+            dynamic_asm.set_deferred_alloc_dynamic(dynamic_alloc, U256::from(0x20));
+            assert_eq!(
+                dynamic_asm.assemble().bytecode,
+                [
+                    op::PUSH1,
+                    0x40,
+                    op::MLOAD,
+                    op::DUP1,
+                    op::PUSH1,
+                    0x20,
+                    op::ADD,
+                    op::PUSH1,
+                    0x40,
+                    op::MSTORE,
+                ]
+            );
+        });
     }
 
     #[test]

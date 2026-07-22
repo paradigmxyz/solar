@@ -167,8 +167,6 @@ pub(crate) struct Lowerer<'gcx> {
     pub(crate) struct_storage_base_slots: FxHashMap<VariableId, u64>,
     /// Cached struct field slot offsets: (struct_type_id, field_index) -> slot offset from base.
     pub(crate) struct_field_offsets: FxHashMap<(hir::StructId, usize), u64>,
-    /// Cached struct field memory offsets: (struct_type_id, field_index) -> byte offset from base.
-    pub(crate) struct_field_memory_offsets: FxHashMap<(hir::StructId, usize), u64>,
     /// Interned semantic memory/storage layout for each lowered struct type.
     struct_storage_layouts: FxHashMap<hir::StructId, StorageLayoutRef>,
 }
@@ -229,7 +227,6 @@ impl<'gcx> Lowerer<'gcx> {
             current_return_tys: Vec::new(),
             struct_storage_base_slots: FxHashMap::default(),
             struct_field_offsets: FxHashMap::default(),
-            struct_field_memory_offsets: FxHashMap::default(),
             struct_storage_layouts: FxHashMap::default(),
         }
     }
@@ -283,7 +280,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Allocates a two-word memory slot holding a logical slice as
     /// `[ptr][len]` and returns the base offset.
-    pub fn alloc_local_slice_memory(&mut self, var_id: VariableId) -> u64 {
+    pub(crate) fn alloc_local_slice_memory(&mut self, var_id: VariableId) -> u64 {
         let offset = self.next_local_memory_offset;
         self.next_local_memory_offset += 2 * EvmMemoryLayout::WORD_SIZE;
         self.local_memory_slots.insert(var_id, offset);
@@ -292,7 +289,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Whether `var_id` is a reassignable local whose slot holds a slice.
-    pub fn is_slice_slot_local(&self, var_id: &VariableId) -> bool {
+    pub(crate) fn is_slice_slot_local(&self, var_id: &VariableId) -> bool {
         self.slice_slot_locals.contains(var_id)
     }
 

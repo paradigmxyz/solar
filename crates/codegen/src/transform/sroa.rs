@@ -25,7 +25,7 @@ use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 /// Scalar-replacement-of-aggregates pass for memory objects.
 #[derive(Debug, Default)]
-pub struct SroaPass {
+pub(crate) struct SroaPass {
     /// Number of allocations dissolved.
     pub eliminated: usize,
 }

@@ -138,9 +138,6 @@ bb9:
   dup1
   push 160
   mstore
-  dup1
-  push 160
-  mstore
   push 32
   mstore
   push 0xfaf4836c
@@ -236,9 +233,6 @@ bb0 (entry):
   mstore
   push 64
   mload
-  dup1
-  push 160
-  mstore
   dup1
   push 160
   mstore

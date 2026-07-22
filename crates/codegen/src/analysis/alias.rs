@@ -21,7 +21,7 @@ use std::{cell::RefCell, collections::VecDeque, sync::Arc};
 
 /// An address space tracked by ModRef analysis.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum AddressSpace {
+pub(crate) enum AddressSpace {
     /// EVM linear memory.
     Memory,
     /// Persistent contract storage.
@@ -32,7 +32,7 @@ pub enum AddressSpace {
 
 /// The canonical base of a memory address.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum MemoryBase {
+pub(crate) enum MemoryBase {
     /// An absolute EVM memory address.
     Absolute,
     /// The current function's internal-call frame.
@@ -47,7 +47,7 @@ pub enum MemoryBase {
 
 /// A canonical memory address represented as a base plus byte offset.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct MemoryAddress {
+pub(crate) struct MemoryAddress {
     /// Coarse compiler-owned memory region.
     pub region: MemoryRegion,
     /// Canonical address base.
@@ -59,7 +59,7 @@ pub struct MemoryAddress {
 impl MemoryAddress {
     /// Creates an absolute memory address.
     #[must_use]
-    pub const fn absolute(offset: u64) -> Self {
+    pub(crate) const fn absolute(offset: u64) -> Self {
         let region = if EvmMemoryLayout::is_reserved(offset) {
             MemoryRegion::Scratch
         } else {
@@ -70,19 +70,19 @@ impl MemoryAddress {
 
     /// Creates an address in the current internal-call frame.
     #[must_use]
-    pub const fn internal_frame(offset: u64) -> Self {
+    pub(crate) const fn internal_frame(offset: u64) -> Self {
         Self { region: MemoryRegion::InternalFrame, base: MemoryBase::InternalFrame, offset }
     }
 
     /// Creates a symbolic address.
     #[must_use]
-    pub const fn symbolic(value: ValueId, region: MemoryRegion) -> Self {
+    pub(crate) const fn symbolic(value: ValueId, region: MemoryRegion) -> Self {
         Self { region, base: MemoryBase::Value(value), offset: 0 }
     }
 
     /// Returns the absolute address, if known.
     #[must_use]
-    pub const fn as_absolute(self) -> Option<u64> {
+    pub(crate) const fn as_absolute(self) -> Option<u64> {
         match self.base {
             MemoryBase::Absolute => Some(self.offset),
             MemoryBase::InternalFrame
@@ -94,7 +94,7 @@ impl MemoryAddress {
 
     /// Returns the internal-frame byte offset, if known.
     #[must_use]
-    pub const fn as_internal_frame_offset(self) -> Option<u64> {
+    pub(crate) const fn as_internal_frame_offset(self) -> Option<u64> {
         match self.base {
             MemoryBase::InternalFrame => Some(self.offset),
             MemoryBase::Absolute
@@ -106,14 +106,14 @@ impl MemoryAddress {
 
     /// Returns this address advanced by `offset`, if it fits.
     #[must_use]
-    pub fn checked_add(self, offset: u64) -> Option<Self> {
+    pub(crate) fn checked_add(self, offset: u64) -> Option<Self> {
         Some(Self { offset: self.offset.checked_add(offset)?, ..self })
     }
 }
 
 /// The byte width of a memory location.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum LocationSize {
+pub(crate) enum LocationSize {
     /// A compile-time byte width.
     Const(u64),
     /// A dynamic width represented by a MIR value.
@@ -125,7 +125,7 @@ pub enum LocationSize {
 impl LocationSize {
     /// Returns the constant byte width, if known.
     #[must_use]
-    pub const fn as_const(self) -> Option<u64> {
+    pub(crate) const fn as_const(self) -> Option<u64> {
         match self {
             Self::Const(size) => Some(size),
             Self::Dynamic(_) | Self::Unknown => None,
@@ -135,7 +135,7 @@ impl LocationSize {
 
 /// A canonical memory byte range.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct MemoryLocation {
+pub(crate) struct MemoryLocation {
     /// Start address.
     pub address: MemoryAddress,
     /// Range width.
@@ -145,20 +145,14 @@ pub struct MemoryLocation {
 impl MemoryLocation {
     /// Creates a memory location.
     #[must_use]
-    pub const fn new(address: MemoryAddress, size: LocationSize) -> Self {
+    pub(crate) const fn new(address: MemoryAddress, size: LocationSize) -> Self {
         Self { address, size }
-    }
-
-    /// Returns this location advanced by `offset`, preserving its size.
-    #[must_use]
-    pub fn checked_add(self, offset: u64) -> Option<Self> {
-        Some(Self { address: self.address.checked_add(offset)?, ..self })
     }
 }
 
 /// A location in one of the stateful EVM address spaces.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Location {
+pub(crate) enum Location {
     /// Linear-memory byte range.
     Memory(MemoryLocation),
     /// One persistent storage slot.
@@ -170,7 +164,7 @@ pub enum Location {
 impl Location {
     /// Returns this location's address space.
     #[must_use]
-    pub const fn address_space(self) -> AddressSpace {
+    pub(crate) const fn address_space(self) -> AddressSpace {
         match self {
             Self::Memory(_) => AddressSpace::Memory,
             Self::Storage(_) => AddressSpace::Storage,
@@ -181,7 +175,9 @@ impl Location {
 
 /// Alias relationship between two locations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum AliasResult {
+// LLVM's canonical NoAlias/MayAlias/MustAlias naming.
+#[allow(clippy::enum_variant_names)]
+pub(crate) enum AliasResult {
     /// The locations cannot overlap.
     NoAlias,
     /// The locations may overlap, but the analysis cannot prove how.
@@ -195,14 +191,14 @@ pub enum AliasResult {
 impl AliasResult {
     /// Returns whether the locations may overlap.
     #[must_use]
-    pub const fn may_alias(self) -> bool {
+    pub(crate) const fn may_alias(self) -> bool {
         !matches!(self, Self::NoAlias)
     }
 }
 
 /// One exact or address-space-wide instruction access.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Access {
+pub(crate) enum Access {
     /// Access to one canonical location.
     Location(Location),
     /// Conservative access to an entire address space.
@@ -212,7 +208,7 @@ pub enum Access {
 impl Access {
     /// Returns this access's address space.
     #[must_use]
-    pub const fn address_space(self) -> AddressSpace {
+    pub(crate) const fn address_space(self) -> AddressSpace {
         match self {
             Self::Location(location) => location.address_space(),
             Self::Any(space) => space,
@@ -222,7 +218,7 @@ impl Access {
 
 /// Memory and state accesses performed by one MIR operation.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ModRef {
+pub(crate) struct ModRef {
     reads: SmallVec<[Access; 4]>,
     writes: SmallVec<[Access; 4]>,
     observes_memory_size: bool,
@@ -232,61 +228,55 @@ pub struct ModRef {
 impl ModRef {
     /// Returns exact and address-space-wide reads.
     #[must_use]
-    pub fn reads(&self) -> &[Access] {
+    pub(crate) fn reads(&self) -> &[Access] {
         &self.reads
     }
 
     /// Returns exact and address-space-wide writes.
     #[must_use]
-    pub fn writes(&self) -> &[Access] {
+    pub(crate) fn writes(&self) -> &[Access] {
         &self.writes
     }
 
     /// Returns whether the operation observes the active memory size.
     #[must_use]
-    pub const fn observes_memory_size(&self) -> bool {
+    pub(crate) const fn observes_memory_size(&self) -> bool {
         self.observes_memory_size
     }
 
     /// Returns whether the operation observes remaining gas.
     #[must_use]
-    pub const fn observes_gas(&self) -> bool {
+    pub(crate) const fn observes_gas(&self) -> bool {
         self.observes_gas
     }
 
     /// Returns whether any access reads `space`.
     #[must_use]
-    pub fn reads_space(&self, space: AddressSpace) -> bool {
+    pub(crate) fn reads_space(&self, space: AddressSpace) -> bool {
         self.reads.iter().any(|access| access.address_space() == space)
     }
 
     /// Returns whether an address-space-wide access reads `space`.
     #[must_use]
-    pub fn reads_anywhere(&self, space: AddressSpace) -> bool {
+    pub(crate) fn reads_anywhere(&self, space: AddressSpace) -> bool {
         self.reads.contains(&Access::Any(space))
     }
 
     /// Returns whether any access writes `space`.
     #[must_use]
-    pub fn writes_space(&self, space: AddressSpace) -> bool {
+    pub(crate) fn writes_space(&self, space: AddressSpace) -> bool {
         self.writes.iter().any(|access| access.address_space() == space)
     }
 
     /// Returns whether an address-space-wide access writes `space`.
     #[must_use]
-    pub fn writes_anywhere(&self, space: AddressSpace) -> bool {
+    pub(crate) fn writes_anywhere(&self, space: AddressSpace) -> bool {
         self.writes.contains(&Access::Any(space))
-    }
-
-    /// Returns whether this operation may read `location`.
-    #[must_use]
-    pub fn may_read(&self, aa: &AliasAnalysis, location: Location) -> bool {
-        self.reads.iter().any(|&access| aa.access_may_alias(access, location))
     }
 
     /// Returns whether this operation may write `location`.
     #[must_use]
-    pub fn may_write(&self, aa: &AliasAnalysis, location: Location) -> bool {
+    pub(crate) fn may_write(&self, aa: &AliasAnalysis, location: Location) -> bool {
         self.writes.iter().any(|&access| aa.access_may_alias(access, location))
     }
 
@@ -405,7 +395,7 @@ impl PointerProvenance {
 /// One instance is an immutable snapshot of a function. Recompute it after a
 /// transform mutates definitions or CFG edges.
 #[derive(Debug)]
-pub struct AliasAnalysis {
+pub(crate) struct AliasAnalysis {
     provenance: PointerProvenance,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
 }
@@ -413,13 +403,16 @@ pub struct AliasAnalysis {
 impl AliasAnalysis {
     /// Computes a function-local snapshot with conservative internal calls.
     #[must_use]
-    pub fn new(func: &Function) -> Self {
+    pub(crate) fn new(func: &Function) -> Self {
         Self::with_optional_summaries(func, None)
     }
 
     /// Computes a snapshot using module-level internal-call summaries.
     #[must_use]
-    pub fn with_call_summaries(func: &Function, summaries: Arc<MemoryCallSummaries>) -> Self {
+    pub(crate) fn with_call_summaries(
+        func: &Function,
+        summaries: Arc<MemoryCallSummaries>,
+    ) -> Self {
         Self::with_optional_summaries(func, Some(summaries))
     }
 
@@ -443,13 +436,13 @@ impl AliasAnalysis {
 
     /// Canonicalizes a MIR value used as a memory address.
     #[must_use]
-    pub fn memory_address(&self, func: &Function, value: ValueId) -> Option<MemoryAddress> {
+    pub(crate) fn memory_address(&self, func: &Function, value: ValueId) -> Option<MemoryAddress> {
         self.memory_address_with_depth(func, value, 0)
     }
 
     /// Creates a memory location, using instruction metadata to refine its region.
     #[must_use]
-    pub fn memory_location(
+    pub(crate) fn memory_location(
         &self,
         func: &Function,
         inst_id: InstId,
@@ -467,7 +460,7 @@ impl AliasAnalysis {
 
     /// Returns the physical word holding a semantic memory object's length.
     #[must_use]
-    pub fn memory_object_length_location(
+    pub(crate) fn memory_object_length_location(
         &self,
         func: &Function,
         inst_id: InstId,
@@ -486,7 +479,7 @@ impl AliasAnalysis {
 
     /// Creates a memory location without instruction metadata.
     #[must_use]
-    pub fn bare_memory_location(
+    pub(crate) fn bare_memory_location(
         &self,
         func: &Function,
         address: ValueId,
@@ -497,37 +490,40 @@ impl AliasAnalysis {
 
     /// Converts a MIR size operand to a canonical location size.
     #[must_use]
-    pub fn location_size(&self, func: &Function, value: ValueId) -> LocationSize {
+    pub(crate) fn location_size(&self, func: &Function, value: ValueId) -> LocationSize {
         func.value_u64(value).map_or(LocationSize::Dynamic(value), LocationSize::Const)
     }
 
     /// Returns the canonical storage alias for an instruction operand.
     #[must_use]
-    pub fn storage_alias(&self, func: &Function, inst_id: InstId, slot: ValueId) -> StorageAlias {
+    pub(crate) fn storage_alias(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        slot: ValueId,
+    ) -> StorageAlias {
         Self::storage_alias_at(func, inst_id, slot)
     }
 
     /// Returns a canonical storage alias without pointer-provenance state.
     #[must_use]
-    pub fn storage_alias_at(func: &Function, inst_id: InstId, slot: ValueId) -> StorageAlias {
+    pub(crate) fn storage_alias_at(
+        func: &Function,
+        inst_id: InstId,
+        slot: ValueId,
+    ) -> StorageAlias {
         func.storage_alias(inst_id, slot)
-    }
-
-    /// Canonicalizes a value used as a storage slot without instruction metadata.
-    #[must_use]
-    pub fn storage_alias_for_value(&self, func: &Function, slot: ValueId) -> StorageAlias {
-        Self::storage_alias_for_value_at(func, slot)
     }
 
     /// Canonicalizes a storage-slot value without pointer-provenance state.
     #[must_use]
-    pub fn storage_alias_for_value_at(func: &Function, slot: ValueId) -> StorageAlias {
+    pub(crate) fn storage_alias_for_value_at(func: &Function, slot: ValueId) -> StorageAlias {
         StorageAlias::for_value(func, slot)
     }
 
     /// Returns the canonical storage alias after value replacements.
     #[must_use]
-    pub fn storage_alias_after_replacements(
+    pub(crate) fn storage_alias_after_replacements(
         &self,
         func: &Function,
         inst_id: InstId,
@@ -539,7 +535,7 @@ impl AliasAnalysis {
 
     /// Canonicalizes a replaced storage operand without pointer-provenance state.
     #[must_use]
-    pub fn storage_alias_after_replacements_at(
+    pub(crate) fn storage_alias_after_replacements_at(
         func: &Function,
         inst_id: InstId,
         slot: ValueId,
@@ -554,7 +550,7 @@ impl AliasAnalysis {
     /// returns, and arguments to capturing internal-call parameters escape.
     /// Unsupported uses stay conservative.
     #[must_use]
-    pub fn value_escapes(&self, func: &Function, root: ValueId) -> bool {
+    pub(crate) fn value_escapes(&self, func: &Function, root: ValueId) -> bool {
         let mut derived = FxHashSet::default();
         derived.insert(root);
         loop {
@@ -690,7 +686,7 @@ impl AliasAnalysis {
 
     /// Computes the alias relationship between two locations.
     #[must_use]
-    pub fn alias(&self, first: Location, second: Location) -> AliasResult {
+    pub(crate) fn alias(&self, first: Location, second: Location) -> AliasResult {
         Self::alias_locations(first, second)
     }
 
@@ -706,7 +702,7 @@ impl AliasAnalysis {
         }
     }
 
-    pub fn alias_locations(first: Location, second: Location) -> AliasResult {
+    pub(crate) fn alias_locations(first: Location, second: Location) -> AliasResult {
         match (first, second) {
             (Location::Memory(first), Location::Memory(second)) => {
                 Self::memory_alias_locations(first, second)
@@ -727,13 +723,13 @@ impl AliasAnalysis {
 
     /// Computes the ModRef effects of one instruction.
     #[must_use]
-    pub fn instruction_mod_ref(&self, func: &Function, inst_id: InstId) -> ModRef {
+    pub(crate) fn instruction_mod_ref(&self, func: &Function, inst_id: InstId) -> ModRef {
         self.instruction_mod_ref_with_replacements(func, inst_id, &FxHashMap::default())
     }
 
     /// Computes instruction ModRef effects after applying value replacements.
     #[must_use]
-    pub fn instruction_mod_ref_with_replacements(
+    pub(crate) fn instruction_mod_ref_with_replacements(
         &self,
         func: &Function,
         inst_id: InstId,
@@ -952,7 +948,7 @@ impl AliasAnalysis {
 
     /// Computes ModRef effects of one terminator.
     #[must_use]
-    pub fn terminator_mod_ref(&self, func: &Function, terminator: &Terminator) -> ModRef {
+    pub(crate) fn terminator_mod_ref(&self, func: &Function, terminator: &Terminator) -> ModRef {
         let mut effects = ModRef::default();
         match *terminator {
             Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
@@ -1000,7 +996,7 @@ impl AliasAnalysis {
 
     /// Returns the canonical free-memory-pointer word location.
     #[must_use]
-    pub const fn fmp_location() -> MemoryLocation {
+    pub(crate) const fn fmp_location() -> MemoryLocation {
         MemoryLocation::new(
             MemoryAddress {
                 region: MemoryRegion::Scratch,
@@ -1020,13 +1016,20 @@ impl AliasAnalysis {
 
     /// Computes the alias relationship between two memory ranges.
     #[must_use]
-    pub fn memory_alias(&self, first: MemoryLocation, second: MemoryLocation) -> AliasResult {
+    pub(crate) fn memory_alias(
+        &self,
+        first: MemoryLocation,
+        second: MemoryLocation,
+    ) -> AliasResult {
         Self::memory_alias_locations(first, second)
     }
 
     /// Computes a memory-range relationship after addresses are canonicalized.
     #[must_use]
-    pub fn memory_alias_locations(first: MemoryLocation, second: MemoryLocation) -> AliasResult {
+    pub(crate) fn memory_alias_locations(
+        first: MemoryLocation,
+        second: MemoryLocation,
+    ) -> AliasResult {
         if matches!(first.size, LocationSize::Const(0))
             || matches!(second.size, LocationSize::Const(0))
         {

@@ -18,7 +18,7 @@ use solar_data_structures::map::FxHashSet;
 use solar_sema::Gcx;
 
 /// Lowers `fmp`, `set_fmp`, and `alloc` instructions.
-pub struct LowerAllocPass;
+pub(crate) struct LowerAllocPass;
 
 impl ModulePass for LowerAllocPass {
     fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {

@@ -8,7 +8,7 @@ use solar_sema::Gcx;
 use std::sync::Arc;
 
 /// Lowers aggregate copies and clears after the main optimization pipeline.
-pub struct LowerAggregatesPass;
+pub(crate) struct LowerAggregatesPass;
 
 impl ModulePass for LowerAggregatesPass {
     fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {

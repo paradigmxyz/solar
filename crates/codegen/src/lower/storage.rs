@@ -237,22 +237,6 @@ impl<'gcx> Lowerer<'gcx> {
         layout
     }
 
-    /// Gets the memory byte offset for a struct field.
-    pub(crate) fn get_struct_field_memory_offset(
-        &mut self,
-        struct_id: hir::StructId,
-        field_index: usize,
-    ) -> u64 {
-        if let Some(&offset) = self.struct_field_memory_offsets.get(&(struct_id, field_index)) {
-            return offset;
-        }
-
-        let offset = (field_index as u64) * 32;
-
-        self.struct_field_memory_offsets.insert((struct_id, field_index), offset);
-        offset
-    }
-
     /// Recursively copies a struct from storage to memory.
     /// Allocates nested structs separately and stores their pointers in the parent.
     /// Returns the next memory offset after all fields are copied.

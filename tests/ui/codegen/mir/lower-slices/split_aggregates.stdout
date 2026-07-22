@@ -1,21 +1,32 @@
-// === ROOT/tests/ui/codegen/mir/lower-slices/split_aggregates.mir (after lower-slices) ===
-@module SplitAggregates
-fn @select_slice(arg0: calldataptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: bool) -> u256 {
-  bb0 (entry):
-    v6 = select arg4, arg0, arg2
-    v7 = select arg4, arg1, arg3
-    ret v7
-}
-
-fn @phi_slice(arg0: calldataptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: bool) -> u256 {
-  bb0 (entry):
-    br arg4, bb1, bb2
-  bb1:
-    jump bb3
-  bb2:
-    jump bb3
-  bb3:
-    v6 = phi [bb1: arg0], [bb2: arg2]
-    v7 = phi [bb1: arg1], [bb2: arg3]
-    ret v7
-}
+- // === ROOT/tests/ui/codegen/mir/lower-slices/split_aggregates.mir (before lower-slices) ===
++ // === ROOT/tests/ui/codegen/mir/lower-slices/split_aggregates.mir (after lower-slices) ===
+  @module SplitAggregates
+- fn @select_slice(arg0: calldataslice, arg1: calldataslice, arg2: bool) -> u256 {
++ fn @select_slice(arg0: calldataptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: bool) -> u256 {
+    bb0 (entry):
+-     v0 = select arg2, arg0, arg1
+-     v1 = slice_len v0
+-     ret v1
++     v6 = select arg4, arg0, arg2
++     v7 = select arg4, arg1, arg3
++     ret v7
+  }
+  
+- fn @phi_slice(arg0: calldataslice, arg1: calldataslice, arg2: bool) -> u256 {
++ fn @phi_slice(arg0: calldataptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: bool) -> u256 {
+    bb0 (entry):
+-     br arg2, bb1, bb2
++     br arg4, bb1, bb2
+    bb1:
+      jump bb3
+    bb2:
+      jump bb3
+    bb3:
+-     v0 = phi [bb1: arg0], [bb2: arg1]
+-     v1 = slice_len v0
+-     ret v1
++     v6 = phi [bb1: arg0], [bb2: arg2]
++     v7 = phi [bb1: arg1], [bb2: arg3]
++     ret v7
+  }
+  

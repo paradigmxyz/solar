@@ -10,19 +10,6 @@
 extern crate derive_more as _;
 extern crate tracing as _;
 
-/// Constructor scratch memory used to stage immutable words before appending
-/// them to runtime bytecode.
-pub(crate) const IMMUTABLE_SCRATCH_BASE: u64 = memory::EvmMemoryLayout::IMMUTABLE_SCRATCH_BASE;
-
-/// Scratch word holding the base of the ephemeral multi-return buffer.
-///
-/// The returned words themselves live at the current free-memory pointer so
-/// three-or-more-value returns never overwrite Solidity's `0x40`/`0x60`
-/// reserved words. Consumers must snapshot the buffer before lowering any
-/// lvalue that may reuse this scratch word or the unbumped free memory.
-pub(crate) const MULTI_RETURN_BUFFER_PTR_SLOT: u64 =
-    memory::EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT;
-
 pub mod mir;
 
 pub(crate) mod memory;

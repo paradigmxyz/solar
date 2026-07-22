@@ -4,7 +4,7 @@ use std::fmt;
 
 /// Address space containing a dynamically-sized MIR slice.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum SliceLocation {
+pub(crate) enum SliceLocation {
     /// EVM memory.
     Memory,
     /// Call input data.
@@ -23,7 +23,7 @@ pub enum SliceLocation {
 /// lowering. Keeping the shape in MIR prevents Solidity-compatible headers
 /// and field layouts from being inferred from an untyped pointer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum MemoryObjectKind {
+pub(crate) enum MemoryObjectKind {
     /// Dynamically sized bytes or string data.
     Bytes,
     /// A dynamically sized array.
@@ -40,7 +40,7 @@ pub enum MemoryObjectKind {
 /// memory-layout policy owns the physical word width and dynamic-object
 /// header, so high-level MIR does not bake EVM addresses into object access.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum MemoryObjectLayout {
+pub(crate) enum MemoryObjectLayout {
     /// Dynamically sized bytes or string data.
     Bytes,
     /// A dynamically sized array with the given element stride in words.
@@ -64,23 +64,23 @@ pub enum MemoryObjectLayout {
 
 impl MemoryObjectLayout {
     /// Dynamic array whose direct elements occupy one logical word.
-    pub const WORD_ARRAY: Self = Self::DynamicArray { element_words: 1 };
+    pub(crate) const WORD_ARRAY: Self = Self::DynamicArray { element_words: 1 };
 
     /// Creates a fixed array whose direct elements occupy one logical word.
     #[must_use]
-    pub const fn word_fixed_array(len: u64) -> Self {
+    pub(crate) const fn word_fixed_array(len: u64) -> Self {
         Self::FixedArray { len, element_words: 1 }
     }
 
     /// Creates a direct-field struct layout.
     #[must_use]
-    pub const fn structure(fields: u64) -> Self {
+    pub(crate) const fn structure(fields: u64) -> Self {
         Self::Struct { fields }
     }
 
     /// Returns the nominal object kind represented by this layout.
     #[must_use]
-    pub const fn kind(self) -> MemoryObjectKind {
+    pub(crate) const fn kind(self) -> MemoryObjectKind {
         match self {
             Self::Bytes => MemoryObjectKind::Bytes,
             Self::DynamicArray { .. } => MemoryObjectKind::DynamicArray,
@@ -158,7 +158,7 @@ pub(crate) enum MirType {
 impl MirType {
     /// Returns whether this is a raw address or a semantic memory-object reference.
     #[must_use]
-    pub const fn is_memory_reference(self) -> bool {
+    pub(crate) const fn is_memory_reference(self) -> bool {
         matches!(self, Self::MemPtr | Self::MemoryObject(_))
     }
 

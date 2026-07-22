@@ -8,7 +8,7 @@ mod types;
 pub(crate) use types::{MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation};
 
 mod abi;
-pub use abi::{AbiLayout, AbiLayoutRef, AbiType};
+pub(crate) use abi::{AbiLayout, AbiLayoutRef, AbiType};
 
 mod storage;
 pub use storage::{StorageField, StorageLayout, StorageLayoutRef};

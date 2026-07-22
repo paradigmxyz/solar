@@ -1,8 +1,10 @@
-// === ROOT/tests/ui/codegen/mir/memory-dse/abi_encode_memory_effects.mir (after memory-dse) ===
-@module AbiEncodeMemoryEffects
-fn @encode(arg0: memptr) -> memoryslice {
-  bb0 (entry):
-    mstore arg0, 1
-    v0 = abi_encode [memory_bytes], args arg0
-    ret v0
-}
+- // === ROOT/tests/ui/codegen/mir/memory-dse/abi_encode_memory_effects.mir (before memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/abi_encode_memory_effects.mir (after memory-dse) ===
+  @module AbiEncodeMemoryEffects
+  fn @encode(arg0: memptr) -> memoryslice {
+    bb0 (entry):
+      mstore arg0, 1
+      v0 = abi_encode [memory_bytes], args arg0
+      ret v0
+  }
+  

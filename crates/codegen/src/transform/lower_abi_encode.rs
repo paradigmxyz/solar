@@ -24,7 +24,7 @@ struct AbiValueDest {
 }
 
 /// Lowers `abi_encode` after the main optimization pipeline.
-pub struct LowerAbiEncodePass;
+pub(crate) struct LowerAbiEncodePass;
 
 impl ModulePass for LowerAbiEncodePass {
     fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {

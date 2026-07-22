@@ -10,7 +10,7 @@ use solar_data_structures::{index::IndexVec, map::FxHashSet};
 
 /// Conservative memory effects and pointer captures for one MIR function.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FunctionMemorySummary {
+pub(crate) struct FunctionMemorySummary {
     reads: [bool; 3],
     writes: [bool; 3],
     may_reset_fmp: bool,
@@ -38,25 +38,25 @@ impl FunctionMemorySummary {
 
     /// Returns whether the function may read an address space.
     #[must_use]
-    pub const fn reads(&self, space: AddressSpace) -> bool {
+    pub(crate) const fn reads(&self, space: AddressSpace) -> bool {
         self.reads[space_index(space)]
     }
 
     /// Returns whether the function may write an address space.
     #[must_use]
-    pub const fn writes(&self, space: AddressSpace) -> bool {
+    pub(crate) const fn writes(&self, space: AddressSpace) -> bool {
         self.writes[space_index(space)]
     }
 
     /// Returns whether the function may recycle or arbitrarily replace the FMP.
     #[must_use]
-    pub const fn may_reset_fmp(&self) -> bool {
+    pub(crate) const fn may_reset_fmp(&self) -> bool {
         self.may_reset_fmp
     }
 
     /// Returns whether a parameter's pointer value may escape the call.
     #[must_use]
-    pub fn captures_param(&self, index: usize) -> bool {
+    pub(crate) fn captures_param(&self, index: usize) -> bool {
         self.captures.get(index).copied().unwrap_or(true)
     }
 
@@ -71,14 +71,14 @@ impl FunctionMemorySummary {
 
 /// Cached module-level summaries for all internal-call targets.
 #[derive(Clone, Debug)]
-pub struct MemoryCallSummaries {
+pub(crate) struct MemoryCallSummaries {
     summaries: IndexVec<FunctionId, FunctionMemorySummary>,
 }
 
 impl MemoryCallSummaries {
     /// Computes summaries to a monotone fixpoint over the module call graph.
     #[must_use]
-    pub fn new(module: &Module) -> Self {
+    pub(crate) fn new(module: &Module) -> Self {
         let mut local = IndexVec::with_capacity(module.functions.len());
         for func in &module.functions {
             local.push(local_summary(func));
@@ -137,7 +137,7 @@ impl MemoryCallSummaries {
 
     /// Returns a function summary, if the target belongs to this module.
     #[must_use]
-    pub fn get(&self, function: FunctionId) -> Option<&FunctionMemorySummary> {
+    pub(crate) fn get(&self, function: FunctionId) -> Option<&FunctionMemorySummary> {
         self.summaries.get(function)
     }
 }

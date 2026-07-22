@@ -85,7 +85,12 @@ impl FunctionPass for LicmPass {
 
 impl LoopOptimizer {
     fn with_limits(min_licm_profit: u16, max_licm_hoisted_insts: usize) -> Self {
-        Self { min_licm_profit, max_licm_hoisted_insts, stats: LoopOptStats::default(), alias: None }
+        Self {
+            min_licm_profit,
+            max_licm_hoisted_insts,
+            stats: LoopOptStats::default(),
+            alias: None,
+        }
     }
 
     /// Runs loop-invariant code motion on a function.

@@ -7,9 +7,7 @@
 //! - EVM IR optimization, relocation, and byte encoding
 
 use super::{
-    assembler::{
-        Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label, PreparedAssembly,
-    },
+    assembler::{Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label, PreparedAssembly},
     ir,
     layout::{RelayoutAddress, preserves_push_width},
     op,
@@ -23,7 +21,7 @@ use crate::{
         MemoryCallSummaries, ParallelCopy, PhiEliminator,
     },
     memory::EvmMemoryLayout,
-    mir::{BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Terminator, ValueId},
+    mir::{BlockId, Function, FunctionId, InstId, InstKind, Module, Terminator, ValueId},
     pass::{run_default_pipeline, run_pass},
     transform::{eligible_static_allocations, lower_alloc_except},
 };
@@ -4472,8 +4470,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // stores them into its frame before its body runs.
         if let Some(mask) = &stack_mask {
             for (i, &arg) in args.iter().enumerate() {
-                if mask.contains(i)
-                    && !retention_plan.as_ref().is_some_and(|plan| plan.retained[i])
+                if mask.contains(i) && !retention_plan.as_ref().is_some_and(|plan| plan.retained[i])
                 {
                     self.emit_raw_stack_arg(func, arg);
                 }
@@ -5619,7 +5616,7 @@ REVERT
             let mut function = Function::new(Ident::with_dummy_span(sym::Test));
             function.attributes.visibility = Visibility::External;
             FunctionBuilder::new(&mut function).ret(Vec::new());
-            codegen.generate_function_body(&function);
+            codegen.generate_function_body(FunctionId::from_usize(0), &function);
 
             assert!(codegen.asm.assemble().bytecode.is_empty());
         });
