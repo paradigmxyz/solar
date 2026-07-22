@@ -334,6 +334,18 @@ impl PointerProvenance {
         if func.blocks.is_empty() {
             return Self::default();
         }
+        // The cycle classification, the FMP-reset dataflow, and the
+        // per-instruction reset scan below exist only to classify allocation
+        // sites. A function without allocations gets an empty map either way,
+        // so skip all of it — most small functions (getters, setters, pure
+        // helpers) take this path on every rebuild.
+        let has_allocations = func
+            .instructions
+            .iter()
+            .any(|inst| matches!(inst.kind, InstKind::Alloc { .. } | InstKind::AbiEncode { .. }));
+        if !has_allocations {
+            return Self::default();
+        }
         let cyclic = cyclic_blocks(func);
         let block_resets: Vec<_> = func
             .blocks
