@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/checked_pow_shapes.sol:CheckedPowShapes ===
 @module CheckedPowShapes
 fn @upow(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -84,7 +84,7 @@ fn @upow(arg0: u256, arg1: u256) {
 }
 
 fn @spow(arg0: i256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -210,7 +210,7 @@ fn @spow(arg0: i256, arg1: u256) {
 }
 
 fn @upow8(arg0: u8, arg1: u8) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -321,7 +321,7 @@ fn @upow8(arg0: u8, arg1: u8) {
 }
 
 fn @spow8(arg0: i8, arg1: u8) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -461,7 +461,7 @@ fn @spow8(arg0: i8, arg1: u8) {
 }
 
 fn @const2(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -483,7 +483,7 @@ fn @const2(arg0: u256) {
 }
 
 fn @const10(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -505,7 +505,7 @@ fn @const10(arg0: u256) {
 }
 
 fn @const_neg2(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -639,7 +639,7 @@ fn @const_neg2(arg0: u256) {
 }
 
 fn @unchecked_pow8(arg0: u8, arg1: u8) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64

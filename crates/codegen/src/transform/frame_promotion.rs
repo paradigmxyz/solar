@@ -800,7 +800,7 @@ impl<'a> SlotSsaBuilder<'a> {
         for block in sorted_blocks(&self.phi_blocks) {
             self.create_phi(func, block);
         }
-        self.rename_block(func, func.entry_block, None);
+        self.rename_block(func, BlockId::ENTRY, None);
         !self.failed
     }
 

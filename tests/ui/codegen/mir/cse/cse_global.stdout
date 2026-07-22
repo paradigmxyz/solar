@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/cse/cse_global.mir (after cse) ===
   @module CseGlobal
   fn @dominating_pure_expr(arg0: u256, arg1: u256, arg2: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, arg1
       br arg2, bb1, bb2
     bb1:

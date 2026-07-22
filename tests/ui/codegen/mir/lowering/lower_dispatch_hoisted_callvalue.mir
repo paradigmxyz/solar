@@ -6,10 +6,10 @@
 @module DispatchHoisted
 @phase abi
 fn @a() [selector=0x00000001] {
-  bb0 (entry):
+  bb0:
     stop
 }
 fn @b() [selector=0x00000002] {
-  bb0 (entry):
+  bb0:
     stop
 }

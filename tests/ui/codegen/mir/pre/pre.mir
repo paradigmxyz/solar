@@ -1,7 +1,7 @@
 //@compile-flags: --pass pre
 @module Pre
 fn @insert_missing_predecessor(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     switch arg1, default bb3, [1 => bb1, 2 => bb2]
   bb1:
     v2 = add arg0, 7
@@ -17,7 +17,7 @@ fn @insert_missing_predecessor(arg0: u256, arg1: u256) -> u256 {
 }
 
 fn @translate_join_phi(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     switch arg3, default bb3, [1 => bb1, 2 => bb2]
   bb1:
     v4 = add arg0, 1
@@ -34,7 +34,7 @@ fn @translate_join_phi(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
 }
 
 fn @two_way_join(arg0: u256, arg1: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     br arg1, bb1, bb2
   bb1:
     v2 = add arg0, 1
@@ -47,7 +47,7 @@ fn @two_way_join(arg0: u256, arg1: bool) -> u256 {
 }
 
 fn @split_branch_terminated_pred(arg0: u256, arg1: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     br arg1, bb1, bb2
   bb1:
     v2 = add arg0, 1

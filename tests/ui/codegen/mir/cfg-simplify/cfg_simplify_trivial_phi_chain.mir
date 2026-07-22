@@ -4,7 +4,7 @@
 // through the chain to arg0, not to the deleted intermediate.
 @module CfgSimplifyTrivialPhiChain
 fn @chained_trivial(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: arg0], [bb3: v1]

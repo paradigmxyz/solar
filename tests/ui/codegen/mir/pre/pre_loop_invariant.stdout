@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/pre/pre_loop_invariant.mir (after pre) ===
   @module LoopInvariant
   fn @hoist_header_expr(arg0: u256, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
 +     v5 = add arg0, 7
       jump bb1
     bb1:
@@ -22,7 +22,7 @@
   }
   
   fn @hoist_header_expr_two_latches(arg0: u256, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
 +     v7 = add arg0, 7
       jump bb1
     bb1:

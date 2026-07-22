@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:MemoryFixedArrayAlloc ===
 @module MemoryFixedArrayAlloc
 fn @guardedFix(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -33,7 +33,7 @@ fn @guardedFix(arg0: u256) {
 }
 
 fn @structArr(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -70,7 +70,7 @@ fn @structArr(arg0: u256) {
 }
 
 fn @nested(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -136,7 +136,7 @@ fn @nested(arg0: u256, arg1: u256) {
 }
 
 fn @fmpIntegrity() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     mstore 160, 0
     v0 = mload 64 !metadata(memory=scratch)
@@ -222,7 +222,7 @@ fn @fmpIntegrity() {
 }
 
 fn @literal() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 96
@@ -243,7 +243,7 @@ fn @literal() {
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:NamedReturnAndDelete ===
 @module NamedReturnAndDelete
 fn @namedReturn() {
-  bb0 (entry):
+  bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 96
     mstore 64, v1 !metadata(memory=scratch)
@@ -346,7 +346,7 @@ fn @namedReturn() {
 }
 
 fn @deleteInPlace() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     mstore 160, 0
     v0 = mload 64 !metadata(memory=scratch)

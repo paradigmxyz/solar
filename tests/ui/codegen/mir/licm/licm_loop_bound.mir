@@ -5,7 +5,7 @@
 // in-body `lt v1, 2` has both successors inside the loop and must not be used
 // as a trip count. The mstore really covers [0, 3200) and overlaps mload 64.
 fn @keep_mload_non_exiting_bound() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb4: v9]
@@ -30,7 +30,7 @@ fn @keep_mload_non_exiting_bound() -> u256 {
 // exiting guard may provide the bound (previously hash-order dependent).
 // With bound 100 the mstore range overlaps mload 64, so nothing is hoisted.
 fn @keep_mload_inner_branch_bound() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb4: v9]

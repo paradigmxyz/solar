@@ -6,7 +6,7 @@
 // bb2 reaches the join through two switch cases: both retarget to the same
 // split block, so the join phi gets exactly one new incoming entry.
 fn @switch_pred_two_cases(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     switch arg1, default bb1, [1 => bb2]
   bb1:
     v2 = add arg0, 7
@@ -23,7 +23,7 @@ fn @switch_pred_two_cases(arg0: u256, arg1: u256) -> u256 {
 // bb2 branches to the join on both arms: one logical edge, one split block,
 // one phi entry.
 fn @branch_both_arms_to_join(arg0: u256, arg1: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     br arg1, bb1, bb2
   bb1:
     v2 = add arg0, 7
@@ -39,7 +39,7 @@ fn @branch_both_arms_to_join(arg0: u256, arg1: bool) -> u256 {
 // translation of the expression is not available: the backedge is split and
 // the new block carries the per-iteration recomputation.
 fn @self_loop_backedge_insertion(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v2 = add arg0, 7
@@ -57,7 +57,7 @@ fn @self_loop_backedge_insertion(arg0: u256, arg1: u256) -> u256 {
 // Loop-invariant PRE through a branch-terminated preheader: the entry edge
 // into the header is split and the hoisted computation lands on it.
 fn @hoist_through_branch_preheader(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v2 = lt arg0, arg1
     br v2, bb1, bb4
   bb1:

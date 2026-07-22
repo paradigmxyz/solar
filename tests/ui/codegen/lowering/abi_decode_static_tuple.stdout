@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_static_tuple.sol:AbiDecodeStaticTuple ===
 @module AbiDecodeStaticTuple
 fn @decode(arg0: memptr) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32

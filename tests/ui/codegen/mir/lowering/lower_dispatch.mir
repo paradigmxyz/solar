@@ -6,10 +6,10 @@
 @module LowerDispatch
 @phase abi
 fn @ping() [selector=0x5c36b186] {
-  bb0 (entry):
+  bb0:
     stop
 }
 fn @pong() [selector=0x8d3a3e57] {
-  bb0 (entry):
+  bb0:
     stop
 }
