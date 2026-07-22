@@ -1,9 +1,11 @@
-// === ROOT/tests/ui/codegen/evm-ir/none/indexed_jump.evmir (after none) ===
-@module indexed
-bb0:
-  push 1
-  indexed_jump bb1, bb2
-bb1:
-  stop
-bb2:
-  invalid
+- // === ROOT/tests/ui/codegen/evm-ir/none/indexed_jump.evmir (before none) ===
++ // === ROOT/tests/ui/codegen/evm-ir/none/indexed_jump.evmir (after none) ===
+  @module indexed
+  bb0:
+    push 1
+    indexed_jump bb1, bb2
+  bb1:
+    stop
+  bb2:
+    invalid
+  

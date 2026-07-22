@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/switch_dense_table.sol:SwitchDenseTable (runtime) ===
 @module runtime
-bb0 (entry):
+bb0:
   push 128
   push 64
   mstore
