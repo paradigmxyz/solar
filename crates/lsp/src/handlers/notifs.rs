@@ -14,6 +14,7 @@ pub(crate) fn did_open_text_document(
 ) -> NotifyResult {
     info!("config: {:?}", state.config);
     if let Some(path) = proto::vfs_path(&params.text_document.uri) {
+        let disk_path = path.as_path().map(ToOwned::to_owned);
         let already_exists = state.vfs.read().exists(&path);
         if already_exists {
             error!(?path, "duplicate DidOpenTextDocument");
@@ -28,7 +29,7 @@ pub(crate) fn did_open_text_document(
         let changed = vfs.mark_clean();
         drop(vfs);
         if changed {
-            state.recompute();
+            state.recompute_after_source_changes(disk_path.into_iter().collect());
         } else {
             state.reindex_if_invalidated();
         }
@@ -42,6 +43,7 @@ pub(crate) fn did_change_text_document(
     params: DidChangeTextDocumentParams,
 ) -> NotifyResult {
     if let Some(path) = proto::vfs_path(&params.text_document.uri) {
+        let disk_path = path.as_path().map(ToOwned::to_owned);
         let (changed, new_contents) = {
             let _guard = state.vfs.read();
             let Some(contents) = _guard.get_file_contents(&path) else {
@@ -59,7 +61,7 @@ pub(crate) fn did_change_text_document(
             Some(params.text_document.version),
         );
         if changed {
-            state.recompute();
+            state.recompute_after_source_changes(disk_path.into_iter().collect());
         } else {
             state.reindex_if_invalidated();
         }

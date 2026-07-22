@@ -1,36 +1,43 @@
-// === ROOT/tests/ui/codegen/mir/adce/adce.mir (after adce) ===
-@module Adce
-fn @removes_dead_branch_region(arg0: bool) -> u256 {
-  bb0 (entry):
-    jump bb3
-  bb1:
-    invalid
-  bb2:
-    invalid
-  bb3:
-    ret 7
-}
-
-fn @keeps_effectful_branch_region(arg0: bool) -> u256 {
-  bb0 (entry):
-    br arg0, bb1, bb2
-  bb1:
-    mstore 0, 1
-    jump bb3
-  bb2:
-    jump bb3
-  bb3:
-    ret 7
-}
-
-fn @keeps_phi_target(arg0: bool) -> u256 {
-  bb0 (entry):
-    br arg0, bb1, bb2
-  bb1:
-    jump bb3
-  bb2:
-    jump bb3
-  bb3:
-    v0 = phi [bb1: 1], [bb2: 2]
-    ret v0
-}
+- // === ROOT/tests/ui/codegen/mir/adce/adce.mir (before adce) ===
++ // === ROOT/tests/ui/codegen/mir/adce/adce.mir (after adce) ===
+  @module Adce
+  fn @removes_dead_branch_region(arg0: bool) -> u256 {
+    bb0 (entry):
+-     br arg0, bb1, bb2
+-   bb1:
+-     v0 = add 1, 2
+      jump bb3
++   bb1:
++     invalid
+    bb2:
+-     v1 = mul 3, 4
+-     jump bb3
++     invalid
+    bb3:
+      ret 7
+  }
+  
+  fn @keeps_effectful_branch_region(arg0: bool) -> u256 {
+    bb0 (entry):
+      br arg0, bb1, bb2
+    bb1:
+      mstore 0, 1
+      jump bb3
+    bb2:
+      jump bb3
+    bb3:
+      ret 7
+  }
+  
+  fn @keeps_phi_target(arg0: bool) -> u256 {
+    bb0 (entry):
+      br arg0, bb1, bb2
+    bb1:
+      jump bb3
+    bb2:
+      jump bb3
+    bb3:
+      v0 = phi [bb1: 1], [bb2: 2]
+      ret v0
+  }
+  

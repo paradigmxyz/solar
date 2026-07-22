@@ -1,7 +1,9 @@
-// === ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir (after dce) ===
-@module PhaseHeaderPreserved
-@phase optimized
-fn @f() {
-  bb0 (entry):
-    stop
-}
+- // === ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir (after dce) ===
+  @module PhaseHeaderPreserved
+  @phase optimized
+  fn @f() {
+    bb0 (entry):
+      stop
+  }
+  

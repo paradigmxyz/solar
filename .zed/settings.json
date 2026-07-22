@@ -1,4 +1,16 @@
 {
+  "file_types": {
+    "Rust": [
+      "mir"
+    ],
+    "Assembly": [
+      "evmir"
+    ],
+    "Diff": [
+      "**/tests/ui/codegen/mir/**/*.stdout",
+      "**/tests/ui/codegen/evm-ir/**/*.stdout"
+    ]
+  },
   "lsp": {
     "rust-analyzer": {
       "initialization_options": {

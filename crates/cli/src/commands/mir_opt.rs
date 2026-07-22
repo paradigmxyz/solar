@@ -4,11 +4,13 @@
 //! This is the Solar equivalent of LLVM's `opt`. It accepts either a Solidity
 //! file (`.sol`) — which is parsed, lowered to MIR, and then transformed — or a
 //! textual MIR file (`.mir`) — which is parsed directly. After running the
-//! requested pass pipeline, it prints the resulting MIR.
+//! requested pass pipeline, it prints the resulting MIR. With `-Zpass-diff`,
+//! it instead prints a line-oriented before-and-after diff for each pass.
 //!
 //! It is an unstable, internal tool used by the `Mir` test mode; it is not part
 //! of the stable CLI surface.
 
+use super::print_pass_diff;
 use clap::ValueHint;
 use solar_codegen::{
     lower,
@@ -121,15 +123,15 @@ fn selected_pass_list_label(passes: &[Option<&PassInfo>], separator: &str) -> St
     passes.iter().copied().map(pass_label).format(separator).to_string()
 }
 
-/// Prints a module with a header indicating which pass(es) produced it.
-fn print_module(module: &Module, name: &str, after: &str) {
-    println!("// === {name} (after {after}) ===");
-    print!("{}", module.to_text());
-}
-
 /// Runs the pass pipeline on a single module and emits output.
 /// Used for both .sol contracts and .mir input.
-fn run_pipeline(module: &mut Module, name: &str, args: &MirOptArgs, time_passes: bool) {
+fn run_pipeline(
+    module: &mut Module,
+    name: &str,
+    args: &MirOptArgs,
+    pass_diff: bool,
+    time_passes: bool,
+) {
     if args.pipeline_default {
         let mut options = PipelineOptions::default();
         options.print_after_each = args.print_after_each;
@@ -146,14 +148,24 @@ fn run_pipeline(module: &mut Module, name: &str, args: &MirOptArgs, time_passes:
     options.time_passes = time_passes;
     let pipeline_label = args.pipeline_label(&passes);
     for (index, &pass) in passes.iter().enumerate() {
+        let before = pass_diff.then(|| module.to_text().to_string());
         if let Some(pass) = pass {
             run_pass(module, pass, options);
         }
-        if args.print_after_each || index + 1 == passes.len() {
+        if let Some(before) = before {
+            let after = module.to_text().to_string();
+            print_pass_diff(name, pass_label(pass), &before, &after);
+        } else if args.print_after_each || index + 1 == passes.len() {
             let label = if args.print_after_each { pass_label(pass) } else { &pipeline_label };
             print_module(module, name, label);
         }
     }
+}
+
+/// Prints a module with a header indicating which pass(es) produced it.
+fn print_module(module: &Module, name: &str, after: &str) {
+    println!("// === {name} (after {after}) ===");
+    print!("{}", module.to_text());
 }
 
 /// Process a `.mir` input: read file, parse, run passes, print.
@@ -167,7 +179,13 @@ fn process_mir(sess: &Session, args: &MirOptArgs) -> solar_interface::Result {
     // diagnostic instead of tripping the post-pass validator ICE.
     validate(&sess.dcx, &module);
     if sess.dcx.has_errors().is_ok() {
-        run_pipeline(&mut module, &args.input, args, sess.opts.unstable.time_passes);
+        run_pipeline(
+            &mut module,
+            &args.input,
+            args,
+            sess.opts.unstable.pass_diff,
+            sess.opts.unstable.time_passes,
+        );
     }
     Ok(())
 }
@@ -191,7 +209,13 @@ fn process_sol(compiler: &mut CompilerRef<'_>, args: &MirOptArgs) -> solar_inter
         }
         let mut module = lower::lower_contract(gcx, id);
         let name = gcx.contract_fully_qualified_name(id).to_string();
-        run_pipeline(&mut module, &name, args, gcx.sess.opts.unstable.time_passes);
+        run_pipeline(
+            &mut module,
+            &name,
+            args,
+            gcx.sess.opts.unstable.pass_diff,
+            gcx.sess.opts.unstable.time_passes,
+        );
     }
     Ok(())
 }

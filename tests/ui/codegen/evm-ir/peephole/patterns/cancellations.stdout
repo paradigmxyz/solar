@@ -1,63 +1,81 @@
-// === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/cancellations.evmir (after peephole) ===
-@module module
-bb0 (entry):
-  push 1
-  stop
-bb1:
-  push 1
-  stop
-bb2:
-  push 1
-  push 2
-  push 3
-  stop
-bb3:
-  push 1
-  push 2
-  stop
-bb4:
-  push 1
-  push 2
-  push 3
-  stop
-bb5:
-  push 1
-  iszero
-  stop
-bb6:
-  push 1
-  push 2
-  push 3
-  push 4
-  push 5
-  push 6
-  push 7
-  push 8
-  push 9
-  push 10
-  push 11
-  push 12
-  push 13
-  push 14
-  push 15
-  push 16
-  stop
-bb7:
-  push 1
-  push 2
-  push 3
-  push 4
-  push 5
-  push 6
-  push 7
-  push 8
-  push 9
-  push 10
-  push 11
-  push 12
-  push 13
-  push 14
-  push 15
-  push 16
-  push 17
-  stop
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/cancellations.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/cancellations.evmir (after peephole) ===
+  @module module
+  bb0 (entry):
+    push 1
+-   not
+-   not
+    stop
+  bb1:
+    push 1
+-   dup1
+-   pop
+    stop
+  bb2:
+    push 1
+    push 2
+    push 3
+-   dup3
+-   pop
+    stop
+  bb3:
+    push 1
+    push 2
+-   swap1
+-   swap1
+    stop
+  bb4:
+    push 1
+    push 2
+    push 3
+-   swap2
+-   swap2
+    stop
+  bb5:
+    push 1
+    iszero
+-   iszero
+-   iszero
+    stop
+  bb6:
+    push 1
+    push 2
+    push 3
+    push 4
+    push 5
+    push 6
+    push 7
+    push 8
+    push 9
+    push 10
+    push 11
+    push 12
+    push 13
+    push 14
+    push 15
+    push 16
+-   dup16
+-   pop
+    stop
+  bb7:
+    push 1
+    push 2
+    push 3
+    push 4
+    push 5
+    push 6
+    push 7
+    push 8
+    push 9
+    push 10
+    push 11
+    push 12
+    push 13
+    push 14
+    push 15
+    push 16
+    push 17
+-   swap16
+-   swap16
+    stop
+  

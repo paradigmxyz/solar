@@ -32,7 +32,13 @@ pub(crate) struct Config {
     watched_file_dynamic_registration: bool,
     workspace_edit_document_changes: bool,
     hierarchical_document_symbol_support: bool,
+    completion: CompletionClientOptions,
     signature_help: SignatureHelpClientOptions,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct CompletionClientOptions {
+    pub(crate) snippet_support: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -53,6 +59,15 @@ impl Config {
 
     pub(crate) fn supports_hierarchical_document_symbols(&self) -> bool {
         self.hierarchical_document_symbol_support
+    }
+
+    pub(crate) fn completion_options(&self) -> CompletionClientOptions {
+        self.completion
+    }
+
+    #[cfg(test)]
+    pub(crate) fn enable_completion_snippets(&mut self) {
+        self.completion.snippet_support = true;
     }
 
     pub(crate) fn signature_help_options(&self) -> SignatureHelpClientOptions {
@@ -211,6 +226,15 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
         .and_then(|text_document| text_document.document_symbol.as_ref())
         .and_then(|capabilities| capabilities.hierarchical_document_symbol_support)
         .unwrap_or(false);
+    let completion = CompletionClientOptions {
+        snippet_support: capabilities
+            .text_document
+            .as_ref()
+            .and_then(|text_document| text_document.completion.as_ref())
+            .and_then(|capabilities| capabilities.completion_item.as_ref())
+            .and_then(|capabilities| capabilities.snippet_support)
+            .unwrap_or(false),
+    };
     let signature_information = capabilities
         .text_document
         .as_ref()
@@ -246,7 +270,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
     (
         ServerCapabilities {
             completion_provider: Some(CompletionOptions {
-                trigger_characters: Some(vec![".".to_string()]),
+                trigger_characters: Some(vec![".".into(), "/".into(), "*".into()]),
                 ..Default::default()
             }),
             declaration_provider: Some(DeclarationCapability::Simple(true)),
@@ -295,6 +319,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             watched_file_dynamic_registration,
             workspace_edit_document_changes,
             hierarchical_document_symbol_support,
+            completion,
             signature_help,
             ..Default::default()
         },
@@ -306,6 +331,7 @@ mod tests {
     use super::*;
     use crate::{test_support::TestProject, workspace::WorkspaceKind};
     use lsp_types::{
+        CompletionClientCapabilities, CompletionItemCapability,
         DidChangeWatchedFilesClientCapabilities, DocumentSymbolClientCapabilities, MarkupKind,
         OneOf, ParameterInformationSettings, RenameOptions, SignatureHelpClientCapabilities,
         SignatureInformationSettings, TextDocumentClientCapabilities, TextDocumentSyncCapability,
@@ -355,7 +381,10 @@ mod tests {
         let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
 
         let completion_provider = capabilities.completion_provider.unwrap();
-        assert_eq!(completion_provider.trigger_characters, Some(vec![".".to_string()]));
+        assert_eq!(
+            completion_provider.trigger_characters,
+            Some(vec![".".to_string(), "/".to_string(), "*".to_string()])
+        );
         assert_eq!(capabilities.declaration_provider, Some(DeclarationCapability::Simple(true)));
         assert_eq!(capabilities.definition_provider, Some(OneOf::Left(true)));
         assert_eq!(
@@ -431,6 +460,32 @@ mod tests {
         let (_, config) = negotiate_capabilities(params);
 
         assert!(config.supports_hierarchical_document_symbols());
+    }
+
+    #[test]
+    fn negotiate_capabilities_defaults_completion_snippet_support_to_false() {
+        let (_, config) = negotiate_capabilities(InitializeParams::default());
+
+        assert!(!config.completion_options().snippet_support);
+    }
+
+    #[test]
+    fn negotiate_capabilities_records_completion_snippet_support() {
+        let mut params = InitializeParams::default();
+        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
+            completion: Some(CompletionClientCapabilities {
+                completion_item: Some(CompletionItemCapability {
+                    snippet_support: Some(true),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let (_, config) = negotiate_capabilities(params);
+
+        assert!(config.completion_options().snippet_support);
     }
 
     #[test]

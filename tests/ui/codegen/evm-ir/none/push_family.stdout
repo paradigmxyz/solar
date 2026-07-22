@@ -1,14 +1,16 @@
-// === ROOT/tests/ui/codegen/evm-ir/none/push_family.evmir (after none) ===
-@module module
-bb0 (entry):
-  push 1
-  push_deferred 2
-  push_deferred 0xfffffff
-  push_immutable 3, 1
-  push_immutable 0xfffffff, 32
-  pop
-  pop
-  pop
-  pop
-  pop
-  stop
+- // === ROOT/tests/ui/codegen/evm-ir/none/push_family.evmir (before none) ===
++ // === ROOT/tests/ui/codegen/evm-ir/none/push_family.evmir (after none) ===
+  @module module
+  bb0 (entry):
+    push 1
+    push_deferred 2
+    push_deferred 0xfffffff
+    push_immutable 3, 1
+    push_immutable 0xfffffff, 32
+    pop
+    pop
+    pop
+    pop
+    pop
+    stop
+  

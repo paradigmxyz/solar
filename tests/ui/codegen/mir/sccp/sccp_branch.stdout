@@ -1,10 +1,15 @@
-// === ROOT/tests/ui/codegen/mir/sccp/sccp_branch.mir (after sccp) ===
-@module SccpBranch
-fn @const_branch() -> u256 {
-  bb0 (entry):
-    jump bb1
-  bb1:
-    ret 1
-  bb2:
-    invalid
-}
+- // === ROOT/tests/ui/codegen/mir/sccp/sccp_branch.mir (before sccp) ===
++ // === ROOT/tests/ui/codegen/mir/sccp/sccp_branch.mir (after sccp) ===
+  @module SccpBranch
+  fn @const_branch() -> u256 {
+    bb0 (entry):
+-     v0 = lt 5, 10
+-     br v0, bb1, bb2
++     jump bb1
+    bb1:
+      ret 1
+    bb2:
+-     ret 0
++     invalid
+  }
+  

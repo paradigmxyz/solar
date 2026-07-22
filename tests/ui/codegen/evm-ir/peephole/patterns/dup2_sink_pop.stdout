@@ -1,32 +1,44 @@
-// === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/dup2_sink_pop.evmir (after peephole) ===
-@module module
-bb0 (entry):
-  push 1
-  push 2
-  swap1
-  mstore
-  stop
-bb1:
-  push 1
-  push 2
-  swap1
-  mstore8
-  stop
-bb2:
-  push 1
-  push 2
-  swap1
-  sstore
-  stop
-bb3:
-  push 1
-  push 2
-  swap1
-  tstore
-  stop
-bb4:
-  push 1
-  push 2
-  swap1
-  log0
-  stop
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/dup2_sink_pop.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/dup2_sink_pop.evmir (after peephole) ===
+  @module module
+  bb0 (entry):
+    push 1
+    push 2
+-   dup2
++   swap1
+    mstore
+-   pop
+    stop
+  bb1:
+    push 1
+    push 2
+-   dup2
++   swap1
+    mstore8
+-   pop
+    stop
+  bb2:
+    push 1
+    push 2
+-   dup2
++   swap1
+    sstore
+-   pop
+    stop
+  bb3:
+    push 1
+    push 2
+-   dup2
++   swap1
+    tstore
+-   pop
+    stop
+  bb4:
+    push 1
+    push 2
+-   dup2
++   swap1
+    log0
+-   pop
+    stop
+  
