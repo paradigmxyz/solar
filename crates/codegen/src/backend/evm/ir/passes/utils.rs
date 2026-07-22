@@ -5,10 +5,10 @@
 //! entry, push, and terminator reference together.
 
 use crate::backend::evm::{
-    ir::{Block, BlockId, Module, PushValue, TerminatorKind},
+    ir::{BlockId, Module, PushValue, TerminatorKind},
     op,
 };
-use solar_data_structures::index::IndexVec;
+use solar_data_structures::index::{IndexVec, index_vec};
 
 pub(super) fn is_evm_terminal(kind: &TerminatorKind) -> bool {
     matches!(kind, TerminatorKind::Op(opcode) if op::is_terminal(*opcode))
@@ -25,9 +25,9 @@ pub(super) fn retain_blocks(module: &mut Module, order: &[BlockId]) {
 }
 
 fn remap_blocks(module: &mut Module, order: &[BlockId]) {
-    let mut remap = IndexVec::from_vec(vec![None; module.blocks.len()]);
-    let mut old_blocks: IndexVec<BlockId, Option<Block>> =
-        std::mem::take(&mut module.blocks).into_iter().map(Some).collect();
+    let mut remap = index_vec![None; module.blocks.len()];
+    let mut old_blocks =
+        std::mem::take(&mut module.blocks).into_iter().map(Some).collect::<IndexVec<BlockId, _>>();
     let mut blocks = IndexVec::with_capacity(order.len());
     for &old_block in order {
         let block =

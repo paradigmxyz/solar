@@ -31,7 +31,7 @@ impl CfgInfo {
     /// Snapshots the control-flow graph for `func`.
     #[must_use]
     pub(crate) fn new(func: &Function) -> Self {
-        let successors: IndexVec<BlockId, _> = func
+        let successors = func
             .blocks
             .iter()
             .map(|block| {

@@ -25,7 +25,7 @@ use crate::{
 use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    index::IndexVec,
+    index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
 use std::collections::VecDeque;
@@ -113,7 +113,7 @@ impl SccpPass {
             .collect();
 
         // Initialize lattice: all values start as Top.
-        let mut lattice = IndexVec::<ValueId, _>::from_vec(vec![LatticeValue::Top; num_values]);
+        let mut lattice = index_vec![LatticeValue::Top; num_values];
 
         // Arguments are overdefined (we don't know their runtime values).
         for (vid, val) in func.values.iter_enumerated() {

@@ -1196,7 +1196,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.compute_stack_arg_masks(module);
 
         // Create labels for externally reachable runtime entry points and internal-call targets.
-        let mut func_labels = IndexVec::<FunctionId, Option<Label>>::new();
+        let mut func_labels = IndexVec::new();
         for (func_id, func) in module.functions.iter_enumerated() {
             let external = Self::is_external_entry(func);
             let needs_body =

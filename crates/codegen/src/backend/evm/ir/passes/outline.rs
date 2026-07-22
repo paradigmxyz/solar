@@ -6,7 +6,11 @@ use crate::backend::evm::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+    map::FxHashMap,
+};
 use solar_sema::Gcx;
 use std::hash::{Hash, Hasher};
 
@@ -52,11 +56,11 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
         let first = sites[0];
         (std::cmp::Reverse(key.0.len()), first.block.index(), first.start)
     });
-    let mut claimed: IndexVec<BlockId, _> = module
+    let mut claimed = module
         .blocks
         .iter()
         .map(|block| DenseBitSet::new_empty(block.instructions.len()))
-        .collect();
+        .collect::<IndexVec<BlockId, _>>();
     let mut chosen = Vec::new();
     for (_, sites) in groups {
         let mut free = SmallVec::<[Site; 2]>::new();
@@ -97,7 +101,7 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
         stubs.push(module.add_block(stub));
     }
     let original_blocks = claimed.len();
-    let mut edits = IndexVec::from_vec(vec![BlockEdits::new(); original_blocks]);
+    let mut edits = index_vec![BlockEdits::new(); original_blocks];
     for (group, stub) in chosen.into_iter().zip(stubs) {
         for site in group.sites {
             edits[site.block].push((site.start, site.len, stub));
@@ -138,7 +142,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     values.sort_unstable();
 
     let original_blocks = module.blocks.len();
-    let mut edits = IndexVec::from_vec(vec![BlockEdits::new(); original_blocks]);
+    let mut edits = index_vec![BlockEdits::new(); original_blocks];
     for value in values {
         let mut stub = Block::new(state.next_label(module));
         stub.instructions.push(Instruction::push_value(value));

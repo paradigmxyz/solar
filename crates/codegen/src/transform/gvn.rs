@@ -194,7 +194,7 @@ impl GlobalValueNumberer {
         rpo: &[BlockId],
         inst_results: &FxHashMap<InstId, ValueId>,
     ) -> Option<IndexVec<ValueId, ClassId>> {
-        let mut vn: IndexVec<ValueId, ClassId> = func.values.indices().collect();
+        let mut vn = func.values.indices().collect::<IndexVec<ValueId, _>>();
         let mut immediate_reps: FxHashMap<Immediate, ValueId> = FxHashMap::default();
         let mut arg_reps: FxHashMap<u32, ValueId> = FxHashMap::default();
         for (value_id, value) in func.values.iter_enumerated() {
