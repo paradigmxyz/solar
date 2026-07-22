@@ -42,13 +42,8 @@ fn parse_pass(name: &str) -> Result<Option<&'static dyn ir::EvmPass>, String> {
 
 fn after_help() -> String {
     format!(
-        "Passes:\n  {}\n  {:<20} No transform; validate and print the module\n\nInput formats:\n  *.evmir  EVM IR",
-        ir::PASS_REGISTRY
-            .iter()
-            .map(|pass| format!("{:<20} {}", pass.name(), ir::pass_description(*pass)))
-            .collect::<Vec<_>>()
-            .join("\n  "),
-        "none",
+        "Passes:\n  {}\n  none\n\nInput formats:\n  *.evmir  EVM IR",
+        ir::PASS_REGISTRY.iter().map(|pass| pass.name()).collect::<Vec<_>>().join("\n  "),
     )
 }
 

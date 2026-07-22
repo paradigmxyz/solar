@@ -17,7 +17,7 @@ use solar_codegen::{
     mir::{Module, validate},
     pass::{
         DEFAULT_CLEANUP_PIPELINE, DEFAULT_PIPELINE, MirPass, Optimizations, PASS_REGISTRY,
-        lookup_pass, pass_description, run_default_pipeline, run_passes,
+        lookup_pass, run_default_pipeline, run_passes,
     },
 };
 use solar_config::CompileOpts;
@@ -26,10 +26,6 @@ use solar_sema::{CompilerRef, Gcx};
 use std::{ops::ControlFlow, path::Path, process::ExitCode};
 
 fn after_help() -> String {
-    fn display_pass_help(pass: &dyn MirPass) -> impl fmt::Display + '_ {
-        fmt::from_fn(move |f| write!(f, "  {:<20} {}", pass.name(), pass_description(pass)))
-    }
-
     fn display_pass_list<'a>(
         passes: &'a [&'static dyn MirPass],
         separator: &'a str,
@@ -44,8 +40,8 @@ fn after_help() -> String {
             f,
             "\
 Passes:
-{}
-  {:<20} No transform; just lower/parse and print
+  {}
+  none
 
 Default pipeline:
   {}
@@ -56,8 +52,7 @@ Default cleanup fixpoint:
 Input formats:
   *.sol  Solidity contract — lowered through the normal compiler pipeline
   *.mir  Textual MIR — parsed directly via solar_codegen::mir::Module::parse",
-            PASS_REGISTRY.iter().copied().map(display_pass_help).format("\n"),
-            "none",
+            display_pass_list(PASS_REGISTRY, "\n  "),
             display_pass_list(DEFAULT_PIPELINE, " → "),
             display_pass_list(DEFAULT_CLEANUP_PIPELINE, " → ")
         )

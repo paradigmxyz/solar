@@ -43,50 +43,24 @@ pub trait EvmPass: Sync {
 }
 
 macro_rules! declare_passes {
-    ($(
-        $(#[doc = $description:literal])+
-        $vis:vis const $const_name:ident = $module:ident::$pass:ident;
-    )+) => {
+    ($($vis:vis const $const_name:ident = $module:ident::$pass:ident;)+) => {
         $(
-            $(#[doc = $description])+
             $vis const $const_name: $module::$pass = $module::$pass;
         )+
 
         /// All EVM IR passes exposed by `solar evm-opt`.
         pub static PASS_REGISTRY: &[&dyn EvmPass] = &[$(&$const_name),+];
-
-        static PASS_DESCRIPTIONS: &[(&dyn EvmPass, &str)] = &[
-            $((
-                &$const_name,
-                concat!($($description, "\n"),+).trim_ascii(),
-            )),+
-        ];
     };
 }
 
 declare_passes! {
-    /// Simplify local instruction sequences in scheduled EVM IR.
     const PEEPHOLE_PASS = peephole::Peephole;
-
-    /// Share empty revert blocks and invert their conditional branches.
     const SHARE_REVERTS_PASS = share_reverts::ShareReverts;
-
-    /// Select smaller instruction sequences for large immediate pushes.
     const COMPACT_PUSHES_PASS = compact_pushes::CompactPushes;
-
-    /// Redirect jump thunks, remove unreachable blocks, and coalesce linear control flow.
     const CFG_SIMPLIFY_PASS = cfg_simplify::CfgSimplify;
-
-    /// Outline repeated closed computations and large immediate pushes.
     const OUTLINE_PASS = outline::Outline;
-
-    /// Redirect duplicate terminal block bodies to the first copy.
     const TERMINAL_DEDUP_PASS = terminal_dedup::TerminalDedup;
-
-    /// Merge profitable common suffixes of terminal blocks.
     const TAIL_MERGE_PASS = tail_merge::TailMerge;
-
-    /// Reorder blocks to maximize jumps assembled as physical fallthroughs.
     const BLOCK_LAYOUT_PASS = block_layout::BlockLayout;
 }
 
@@ -122,16 +96,6 @@ pub(crate) static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
 /// Finds a pass in the EVM IR pass registry by command-line name.
 pub fn lookup_pass(name: &str) -> Option<&'static dyn EvmPass> {
     PASS_REGISTRY.iter().copied().find(|pass| pass.name() == name)
-}
-
-/// Returns the human-readable help text for a registered EVM IR pass.
-pub fn pass_description(pass: &dyn EvmPass) -> &'static str {
-    PASS_DESCRIPTIONS
-        .iter()
-        .find_map(|(candidate, description)| {
-            (candidate.name() == pass.name()).then_some(*description)
-        })
-        .unwrap_or("")
 }
 
 /// Returns whether `pass` should run for this optimization mode.
