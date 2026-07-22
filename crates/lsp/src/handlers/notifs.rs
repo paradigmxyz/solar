@@ -6,13 +6,12 @@ use lsp_types::{
     DidSaveTextDocumentParams, FileChangeType, WillSaveTextDocumentParams,
 };
 use std::{ops::ControlFlow, sync::Arc};
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 pub(crate) fn did_open_text_document(
     state: &mut GlobalState,
     params: DidOpenTextDocumentParams,
 ) -> NotifyResult {
-    info!("config: {:?}", state.config);
     if let Some(path) = proto::vfs_path(&params.text_document.uri) {
         let disk_path = path.as_path().map(ToOwned::to_owned);
         let already_exists = state.vfs.read().exists(&path);
