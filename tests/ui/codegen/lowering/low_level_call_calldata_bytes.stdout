@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_call_calldata_bytes.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 352
+  push 480
   push 64
   mstore
   callvalue
@@ -140,23 +140,30 @@ bb25:
   calldatacopy
   pop
   dup2
+  dup1
+  push 352
+  mstore
   mload
   swap2
   pop
   gas
+  dup1
+  push 384
+  mstore
+  dup2
+  push 416
+  mstore
+  dup3
+  push 448
+  mstore
   push 0
   push 0
-  push 64
-  mload
-  mload
-  push 64
-  mload
-  push 32
-  add
+  dup5
+  dup5
   push 0
   push 4
   calldataload
-  gas
+  dup7
   call
   jump bb21
 bb21:
@@ -177,6 +184,9 @@ bb26:
 bb24:
   push 64
   mload
+  dup1
+  push 352
+  mstore
   push 256
   mload
   dup1
@@ -271,22 +281,29 @@ bb28:
   calldatacopy
   pop
   dup2
+  dup1
+  push 352
+  mstore
   mload
   swap2
   pop
   gas
+  dup1
+  push 384
+  mstore
+  dup2
+  push 416
+  mstore
+  dup3
+  push 448
+  mstore
   push 0
   push 0
-  push 64
-  mload
-  mload
-  push 64
-  mload
-  push 32
-  add
+  dup5
+  dup5
   push 4
   calldataload
-  gas
+  dup6
   delegatecall
   jump bb21
 bb29:

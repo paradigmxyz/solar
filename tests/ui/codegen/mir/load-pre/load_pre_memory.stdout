@@ -109,7 +109,7 @@
 +     ret v3
   }
   
-  fn @staticcall_kills_memory(arg0: bool, arg1: address) -> u256 {
+  fn @staticcall_zero_return_preserves_memory(arg0: bool, arg1: address) -> u256 {
     bb0:
       v0 = mload 128
       br arg0, bb1, bb2
@@ -119,8 +119,9 @@
     bb2:
       jump bb3
     bb3:
-      v2 = mload 128
-      ret v2
+-     v2 = mload 128
+-     ret v2
++     ret v0
     bb4:
       ret v0
   }

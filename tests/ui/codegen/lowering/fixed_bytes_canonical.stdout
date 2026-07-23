@@ -30,7 +30,7 @@ fn @fromHex() {
     returndata 128, 32
 }
 
-fn @compareElement(arg0: memptr) {
+fn @compareElement(arg0: memorybytes) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -45,31 +45,29 @@ fn @compareElement(arg0: memptr) {
     v6 = not 31
     v7 = and v5, v6
     v8 = add v7, 32
-    v9 = mload 64 !metadata(memory=scratch)
-    v10 = add v9, v8
-    mstore 64, v10 !metadata(memory=scratch)
-    mstore v9, v4
-    v11 = add v9, 32
-    v12 = add v3, 32
-    calldatacopy v11, v12, v4
+    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
+    set_memory_object_len memorybytes, v9, v4
+    v10 = memory_object_data memorybytes, v9
+    v11 = add v3, 32
+    calldatacopy v10, v11, v4
     mstore 128, 0
-    v13 = mload v9
-    v14 = lt 0, v13
-    br v14, bb4, bb3
+    v12 = memory_object_len memorybytes, v9
+    v13 = lt 0, v12
+    br v13, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v15 = add v9, 32
-    v16 = add v15, 0
-    v17 = mload v16
-    v18 = and v17, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v19 = and 1, 255
-    v20 = shl 248, v19
-    v21 = and v20, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v22 = eq v18, v21
-    mstore 128, v22
+    v14 = memory_object_data memorybytes, v9
+    v15 = add v14, 0
+    v16 = mload v15
+    v17 = and v16, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v18 = and 1, 255
+    v19 = shl 248, v18
+    v20 = and v19, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v21 = eq v17, v20
+    mstore 128, v21
     returndata 128, 32
 }
 

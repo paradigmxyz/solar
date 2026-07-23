@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:Errors (runtime) ===
 @module runtime
 bb0:
-  push 320
+  push 352
   push 64
   mstore
   callvalue
@@ -37,6 +37,9 @@ bb9:
   mstore
   push 64
   mload
+  dup1
+  push 320
+  mstore
   push 32
   dup2
   mstore
@@ -290,6 +293,9 @@ bb43:
 bb29 [cold]:
   push 64
   mload
+  dup1
+  push 160
+  mstore
   push 96
   dup2
   add
@@ -304,18 +310,13 @@ bb29 [cold]:
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
   dup2
   mstore
-  push 64
-  dup3
+  push 32
   add
-  swap2
-  pop
   push 33
   push 248
   shl
-  dup3
-  mstore
   swap1
-  pop
+  mstore
   push 0x8c379a0
   push 224
   shl
@@ -330,6 +331,8 @@ bb29 [cold]:
   push 0
   push 100
   mstore
+  push 32
+  add
   push 33
   dup2
   push 68

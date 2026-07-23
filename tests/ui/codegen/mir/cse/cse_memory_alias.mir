@@ -37,11 +37,21 @@ fn @reuse_keccak_after_disjoint_memory_store(arg0: u256) -> u256 {
     ret v4
 }
 
-fn @keep_mload_after_external_call(arg0: u256) -> u256 {
+fn @reuse_mload_after_disjoint_call_return(arg0: u256) -> u256 {
   bb0:
     v1 = mload 64
     v2 = call 100000, arg0, 0, 0, 0, 96, 32
     v3 = mload 64
+    v4 = add v1, v3
+    v5 = add v4, v2
+    ret v5
+}
+
+fn @keep_mload_after_overlapping_call_return(arg0: u256) -> u256 {
+  bb0:
+    v1 = mload 96
+    v2 = call 100000, arg0, 0, 0, 0, 96, 32
+    v3 = mload 96
     v4 = add v1, v3
     v5 = add v4, v2
     ret v5

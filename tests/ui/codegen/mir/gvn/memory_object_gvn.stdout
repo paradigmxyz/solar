@@ -1,0 +1,22 @@
+- // === ROOT/tests/ui/codegen/mir/gvn/memory_object_gvn.mir (before gvn) ===
++ // === ROOT/tests/ui/codegen/mir/gvn/memory_object_gvn.mir (after gvn) ===
+  @module MemoryObjectGvn
+  fn @reuse_projections(arg0: memorybytes, arg1: memorystruct, arg2: memoryarray, arg3: u256) -> u256 {
+    bb0:
+      v0 = memory_object_data memorybytes, arg0
+-     v1 = memory_object_data memorybytes, arg0
+      v2 = memory_object_field_addr memorystruct<3>, arg1, 2
+-     v3 = memory_object_field_addr memorystruct<3>, arg1, 2
+      v4 = memory_object_element_addr memoryarray<2>, arg2, arg3
+-     v5 = memory_object_element_addr memoryarray<2>, arg2, arg3
+-     v6 = eq v0, v1
+-     v7 = eq v2, v3
+-     v8 = eq v4, v5
++     v6 = eq v0, v0
++     v7 = eq v2, v2
++     v8 = eq v4, v4
+      v9 = add v6, v7
+      v10 = add v9, v8
+      ret v10
+  }
+  
