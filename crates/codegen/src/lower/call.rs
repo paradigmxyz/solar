@@ -1,7 +1,10 @@
 //! Call and member-call lowering.
 
 use super::{Lowerer, checked_arith::PanicCode};
-use crate::mir::{FunctionBuilder, ValueId};
+use crate::{
+    memory::EvmMemoryLayout,
+    mir::{FunctionBuilder, ValueId},
+};
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{LitKind, Span};
 use solar_data_structures::bit_set::GrowableBitSet;
@@ -225,11 +228,7 @@ impl<'gcx> Lowerer<'gcx> {
             .map(|arg| self.lower_expr(builder, arg))
             .unwrap_or_else(|| builder.imm_u64(0));
 
-        let free_ptr_addr = builder.imm_u64(0x40);
-        let ptr = builder.mload(free_ptr_addr);
-        builder.mstore(ptr, len);
-
-        let word_size = builder.imm_u64(32);
+        let word_size = builder.imm_u64(EvmMemoryLayout::DYNAMIC_HEADER_SIZE);
         let data_size = if matches!(
             &ty.kind,
             hir::TypeKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
@@ -253,23 +252,20 @@ impl<'gcx> Lowerer<'gcx> {
         let total_size = builder.add(data_size, word_size);
         let total_overflow = builder.lt(total_size, data_size);
         self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
-        let new_free_ptr = builder.add(ptr, total_size);
-        let bump_overflow = builder.lt(new_free_ptr, ptr);
-        self.emit_panic_if(builder, bump_overflow, PanicCode::MemoryAllocationOverflow);
-        // Solidity caps memory at 2^64 bytes: an allocation past that limit
-        // panics (0x41) rather than running the VM out of gas on a huge size.
-        let mem_limit = builder.imm_u64(0xffff_ffff_ffff_ffff);
-        let over_limit = builder.gt(new_free_ptr, mem_limit);
-        self.emit_panic_if(builder, over_limit, PanicCode::MemoryAllocationOverflow);
-        let free_ptr_addr = builder.imm_u64(0x40);
-        builder.mstore(free_ptr_addr, new_free_ptr);
-
-        // Zero-initialize the data area: memory past the free pointer can be
-        // dirty (keccak staging fast paths write there without bumping it).
-        // `calldatacopy` from the end of calldata writes zeroes.
-        let data_ptr = builder.add(ptr, word_size);
-        let cds = builder.calldatasize();
-        builder.calldatacopy(data_ptr, cds, data_size);
+        let object_layout = if matches!(
+            &ty.kind,
+            hir::TypeKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+        ) {
+            crate::mir::MemoryObjectLayout::Bytes
+        } else {
+            crate::mir::MemoryObjectLayout::DynamicArray { element_words: 1 }
+        };
+        let ptr = builder.alloc_object(
+            total_size,
+            object_layout,
+            crate::mir::AllocationSemantics::SOLIDITY_ZEROED,
+        );
+        builder.set_memory_object_len(ptr, len, object_layout.kind());
 
         ptr
     }
@@ -344,8 +340,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         // Allocate memory for bytecode + constructor args from free memory pointer
-        let free_mem_ptr_slot = builder.imm_u64(0x40);
-        let mem_offset = builder.mload(free_mem_ptr_slot);
+        let mem_offset = builder.fmp();
 
         // Copy bytecode to memory using MSTORE
         // For each 32-byte chunk of bytecode, emit an MSTORE at (mem_offset + offset)
@@ -378,7 +373,7 @@ impl<'gcx> Lowerer<'gcx> {
         let mask = builder.imm_u256(U256::from(!31u64));
         let aligned_size = builder.and(aligned_size, mask);
         let new_free = builder.add(mem_offset, aligned_size);
-        builder.mstore(free_mem_ptr_slot, new_free);
+        builder.set_fmp(new_free);
 
         // Value to send with CREATE/CREATE2 (0 for non-payable, or from value option)
         let value = value_opt.unwrap_or_else(|| builder.imm_u64(0));
@@ -521,6 +516,52 @@ impl<'gcx> Lowerer<'gcx> {
                 // abi.encodePacked: pack values tightly based on their types
                 // Returns bytes memory (length + data)
                 self.lower_abi_encode_packed(builder, args)
+            }
+            Builtin::AbiEncodeWithSelector => {
+                // A selector-prefixed payload adapted to a `bytes memory`
+                // value: `[length][selector + ABI tuple encoding]`.
+                let mut exprs = args.exprs();
+                if let Some(selector_expr) = exprs.next() {
+                    let selector = self.lower_selector_word(builder, selector_expr);
+                    let arg_exprs: Vec<_> = exprs.collect();
+                    if let Some((data, len)) =
+                        self.abi_encode_call_payload(builder, Some(selector), &arg_exprs)
+                    {
+                        let slice =
+                            builder.make_slice(data, len, crate::mir::SliceLocation::Memory);
+                        return self.materialize_memory_slice_bytes(builder, slice);
+                    }
+                }
+                self.err_value(
+                    builder,
+                    args.span,
+                    "codegen does not support these `abi.encodeWithSelector` arguments yet",
+                )
+            }
+            Builtin::AbiEncodeWithSignature => {
+                let mut exprs = args.exprs();
+                if let Some(sig_expr) = exprs.next()
+                    && let hir::ExprKind::Lit(lit) = &sig_expr.kind
+                    && let solar_ast::LitKind::Str(_, sig, _) = &lit.kind
+                {
+                    let hash = alloy_primitives::keccak256(sig.as_byte_str());
+                    let selector =
+                        U256::from(u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]])) << 224;
+                    let selector = builder.imm_u256(selector);
+                    let arg_exprs: Vec<_> = exprs.collect();
+                    if let Some((data, len)) =
+                        self.abi_encode_call_payload(builder, Some(selector), &arg_exprs)
+                    {
+                        let slice =
+                            builder.make_slice(data, len, crate::mir::SliceLocation::Memory);
+                        return self.materialize_memory_slice_bytes(builder, slice);
+                    }
+                }
+                self.err_value(
+                    builder,
+                    args.span,
+                    "codegen does not support these `abi.encodeWithSignature` arguments yet",
+                )
             }
             Builtin::AbiDecode => self.lower_abi_decode(builder, args),
             Builtin::YulAdd
@@ -1197,11 +1238,12 @@ impl<'gcx> Lowerer<'gcx> {
             if let Some((_struct_id, field_count)) = struct_return_info {
                 // For struct returns, reserve a separate output allocation.
                 let struct_size = (field_count as u64) * 32;
-                let free_ptr_addr = builder.imm_u64(0x40);
-                let struct_ptr = builder.mload(free_ptr_addr);
                 let struct_size_val = builder.imm_u64(struct_size);
-                let new_free_ptr = builder.add(struct_ptr, struct_size_val);
-                builder.mstore(free_ptr_addr, new_free_ptr);
+                let struct_ptr = builder.alloc_object(
+                    struct_size_val,
+                    crate::mir::MemoryObjectLayout::Struct { fields: field_count as u64 },
+                    crate::mir::AllocationSemantics::INTERNAL,
+                );
 
                 let ret_size = builder.imm_u64(struct_size);
                 (struct_ptr, ret_size, Some(struct_ptr))
@@ -1523,7 +1565,10 @@ impl<'gcx> Lowerer<'gcx> {
                 {
                     slot
                 } else {
-                    self.lower_expr(builder, arg)
+                    // A `bytes memory` parameter receives one word; an
+                    // ABI-encode payload (a memory slice) materializes first.
+                    let value = self.lower_expr(builder, arg);
+                    self.coerce_memory_slice_value(builder, value)
                 }
             })
             .collect();
@@ -1547,6 +1592,21 @@ impl<'gcx> Lowerer<'gcx> {
                 return self.lower_internal_call_fallback(builder, func_id, arg_vals);
             }
             return self.lower_inline_void_call(builder, func_id, arg_vals);
+        }
+
+        // A `bytes`/`string` calldata slice return crosses the internal-call
+        // boundary as an `(offset, length)` pair, which slice lowering does not
+        // expand on the return side; a real `internal_call` would leave a slice
+        // the backend cannot lower. Inline the callee instead so its named slice
+        // return is reconstructed at the call site (where it folds away). This
+        // is the `bytes calldata` helper idiom (`_emptyData`, `emptySignature`).
+        if self.returns_calldata_slice(func) {
+            return self.lower_calldata_slice_return_call(
+                builder,
+                func_id,
+                arg_vals,
+                has_storage_ref_param,
+            );
         }
 
         // The SSA inline path (`lower_library_body_simple`) only models a
@@ -1597,6 +1657,190 @@ impl<'gcx> Lowerer<'gcx> {
         self.exit_inline();
 
         result
+    }
+
+    /// Whether any return of `func` is a `bytes`/`string`/array calldata
+    /// slice. One such return is enough to force the inline path: a slice
+    /// cannot cross a real `internal_call` boundary.
+    fn returns_calldata_slice(&self, func: &hir::Function<'_>) -> bool {
+        func.returns
+            .iter()
+            .any(|&id| Self::calldata_dynamic_var_kind(self.gcx.hir.variable(id)).is_some())
+    }
+
+    /// Whether `expr` is a direct call to a function with multiple returns of
+    /// which at least one is a calldata slice — the shape whose inlining
+    /// delivers its values through `pending_inline_returns` instead of the
+    /// one-word-per-value multi-return buffer.
+    pub(super) fn is_slice_multi_return_call(&self, expr: &hir::Expr<'_>) -> bool {
+        let ExprKind::Call(callee, ..) = &expr.kind else { return false };
+        let Some(func_id) = self.resolved_function_callee(callee) else { return false };
+        let func = self.gcx.hir.function(func_id);
+        func.returns.len() > 1 && self.returns_calldata_slice(func)
+    }
+
+    /// A body whose statements are straight-line — declarations, expressions,
+    /// assembly, and returns, with no statement-level control flow. Reading a
+    /// named return from `locals` after such a body observes its final value
+    /// with no branch merge to reconstruct, so inlining it is sound.
+    fn is_straight_line_body(body: &hir::Block<'_>) -> bool {
+        body.stmts.iter().all(|stmt| {
+            matches!(
+                stmt.kind,
+                hir::StmtKind::DeclSingle(_)
+                    | hir::StmtKind::Expr(_)
+                    | hir::StmtKind::AssemblyBlock(_)
+                    | hir::StmtKind::Return(_)
+            )
+        })
+    }
+
+    /// Lowers a call to an internal function that returns a calldata slice by
+    /// inlining its body, so the returned slice is a `make_slice` at the call
+    /// site that folds away. A single-return straight-line body inlines through
+    /// the simple-return path; everything else — control flow, explicit
+    /// returns, multiple returns — inlines through full block lowering with an
+    /// inline exit block, each return merging across branches through its
+    /// slot. Multi-return values are left pending for destructuring to consume,
+    /// since a slice cannot ride the one-word-per-value multi-return buffer. A
+    /// callee that cannot be inlined — a storage-reference parameter or
+    /// recursion — is reported instead of lowered to a slice the backend cannot
+    /// handle.
+    fn lower_calldata_slice_return_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func_id: hir::FunctionId,
+        arg_vals: Vec<ValueId>,
+        has_storage_ref_param: bool,
+    ) -> ValueId {
+        let func = self.gcx.hir.function(func_id);
+        if let Some(body) = func.body
+            && !has_storage_ref_param
+            && !self.function_is_recursive(func_id)
+            && self.try_enter_inline(func_id)
+        {
+            if func.returns.len() == 1 && Self::is_straight_line_body(&body) {
+                let saved_locals = std::mem::take(&mut self.locals);
+                let saved_pending = self.pending_inline_returns.take();
+                for (i, &param_id) in func.parameters.iter().enumerate() {
+                    if let Some(&arg_val) = arg_vals.get(i) {
+                        self.locals.insert(param_id, arg_val);
+                    }
+                }
+                let result = self.lower_library_body_simple(builder, &body, func);
+                self.locals = saved_locals;
+                self.pending_inline_returns = saved_pending;
+                self.exit_inline();
+                return result;
+            }
+            let values = self.inline_slice_return_body(builder, func, &body, &arg_vals);
+            self.exit_inline();
+            let first = values.first().copied().unwrap_or_else(|| builder.imm_u64(0));
+            if values.len() > 1 {
+                self.pending_inline_returns = Some(values);
+            }
+            return first;
+        }
+        let guar = self
+            .gcx
+            .dcx()
+            .err("returning a `bytes`/`string` calldata slice from this internal function is not yet supported in codegen")
+            .span(func.span)
+            .emit();
+        builder.error_value(guar)
+    }
+
+    /// Inlines a calldata-slice-returning function through full block lowering.
+    /// Every return variable is given a local slot up front — two words seeded
+    /// with an empty slice for a calldata slice, one zeroed word otherwise — so
+    /// a value assigned on only one branch merges through memory. An explicit
+    /// `return` in the body stores its values into these slots and jumps to the
+    /// inline exit block ([`Self::lower_inline_return`]); implicit named
+    /// returns fall through to the same join. The exit block reads every slot
+    /// back and returns the values in declaration order.
+    fn inline_slice_return_body(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func: &hir::Function<'_>,
+        body: &hir::Block<'_>,
+        arg_vals: &[ValueId],
+    ) -> Vec<ValueId> {
+        let saved_locals = std::mem::take(&mut self.locals);
+        let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
+        let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
+        let saved_slice_slot_locals = std::mem::take(&mut self.slice_slot_locals);
+        let saved_inline_returns = self.inline_returns.take();
+        let saved_pending = self.pending_inline_returns.take();
+
+        self.collect_assigned_vars_block(body);
+
+        for &ret_id in func.returns {
+            if Self::calldata_dynamic_var_kind(self.gcx.hir.variable(ret_id)).is_some() {
+                let offset = self.alloc_local_slice_memory(ret_id);
+                let zero = builder.imm_u64(0);
+                let empty = builder.make_slice(zero, zero, crate::mir::SliceLocation::Calldata);
+                self.store_slice_slot(builder, offset, empty);
+            } else {
+                let offset = self.alloc_local_memory(ret_id);
+                let addr = self.local_memory_addr(builder, offset);
+                let zero = builder.imm_u64(0);
+                builder.mstore(addr, zero);
+            }
+        }
+
+        for (i, &param_id) in func.parameters.iter().enumerate() {
+            if let Some(&arg_val) = arg_vals.get(i) {
+                self.locals.insert(param_id, arg_val);
+            }
+        }
+
+        let exit_block = builder.create_block();
+        self.inline_returns =
+            Some(crate::lower::InlineReturnCtx { exit_block, return_vars: func.returns.to_vec() });
+
+        let saved_in_unchecked_block = self.in_unchecked_block;
+        self.in_unchecked_block = false;
+        self.lower_block(builder, body);
+        self.in_unchecked_block = saved_in_unchecked_block;
+
+        // Implicit fallthrough joins the explicit returns at the exit block.
+        if !builder.func().block(builder.current_block()).is_terminated() {
+            builder.jump(exit_block);
+        }
+        builder.switch_to_block(exit_block);
+
+        // Read every return through its slot before caller state is restored;
+        // the loaded values stay valid afterwards.
+        let values: Vec<ValueId> = func
+            .returns
+            .iter()
+            .map(|&ret_id| {
+                let Some(offset) = self.get_local_memory_offset(&ret_id) else {
+                    return builder.imm_u64(0);
+                };
+                if self.is_slice_slot_local(&ret_id) {
+                    self.load_slice_slot(builder, offset, crate::mir::SliceLocation::Calldata)
+                } else {
+                    let addr = self.local_memory_addr(builder, offset);
+                    builder.mload(addr)
+                }
+            })
+            .collect();
+
+        // Deliberately keep `next_local_memory_offset`: the body's slots —
+        // above all the return slots the loaded values came from — stay part
+        // of the enclosing function's frame. Rolling the offset back would let
+        // later locals and, worse, the backend's cross-block spill area (which
+        // starts at the frame's final high-water mark) reuse addresses whose
+        // stored slices the call site still consumes.
+        self.locals = saved_locals;
+        self.local_memory_slots = saved_local_memory_slots;
+        self.assigned_vars = saved_assigned_vars;
+        self.slice_slot_locals = saved_slice_slot_locals;
+        self.inline_returns = saved_inline_returns;
+        self.pending_inline_returns = saved_pending;
+
+        values
     }
 
     fn lower_internal_call_fallback(
@@ -1685,8 +1929,11 @@ impl<'gcx> Lowerer<'gcx> {
 
         let saved_locals = std::mem::take(&mut self.locals);
         let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
-        let saved_next_local_memory_offset = self.next_local_memory_offset;
         let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
+        // A void body's `return;` keeps its established lowering; the
+        // slice-inline return target must not capture it.
+        let saved_inline_returns = self.inline_returns.take();
+        let saved_pending = self.pending_inline_returns.take();
 
         if let Some(body) = body {
             self.collect_assigned_vars_block(&body);
@@ -1705,10 +1952,16 @@ impl<'gcx> Lowerer<'gcx> {
             self.in_unchecked_block = saved_in_unchecked_block;
         }
 
+        // Keep `next_local_memory_offset`: the body's local slots stay part of
+        // the enclosing function's frame. Rolling the offset back would place
+        // the backend's cross-block spill area — which starts at the frame's
+        // final high-water mark — inside this region, so a caller value
+        // spilled across the inlined body would be clobbered by its locals.
         self.locals = saved_locals;
         self.local_memory_slots = saved_local_memory_slots;
-        self.next_local_memory_offset = saved_next_local_memory_offset;
         self.assigned_vars = saved_assigned_vars;
+        self.inline_returns = saved_inline_returns;
+        self.pending_inline_returns = saved_pending;
         self.exit_inline();
 
         builder.imm_u64(0)
@@ -1845,8 +2098,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Build the calldata at the free pointer; stash its base in scratch
         // (0x20) so it survives the argument stores.
-        let free_ptr_addr = builder.imm_u64(0x40);
-        let calldata_start = builder.mload(free_ptr_addr);
+        let calldata_start = builder.fmp();
         let scratch_calldata = builder.imm_u64(0x20);
         builder.mstore(scratch_calldata, calldata_start);
 
@@ -1860,14 +2112,11 @@ impl<'gcx> Lowerer<'gcx> {
         for (i, (arg_val, slots)) in arg_vals.iter().zip(&arg_slots).enumerate() {
             if let Some(struct_id) = arg_structs[i] {
                 let field_tys = self.gcx.struct_field_types(struct_id);
+                let layout = crate::mir::MemoryObjectLayout::structure(*slots as u64);
                 for field_idx in 0..*slots {
-                    let field_val = if field_idx == 0 {
-                        builder.mload(*arg_val)
-                    } else {
-                        let field_offset = builder.imm_u64(field_idx as u64 * 32);
-                        let field_addr = builder.add(*arg_val, field_offset);
-                        builder.mload(field_addr)
-                    };
+                    let field_addr =
+                        builder.memory_object_field_addr(*arg_val, layout, field_idx as u64);
+                    let field_val = builder.mload(field_addr);
                     match field_tys.get(field_idx).and_then(|&f| self.linked_field_kind(f)) {
                         Some(kind @ (LinkedFieldKind::DynArray | LinkedFieldKind::DynBytes)) => {
                             // `field_val` is the caller-memory pointer of the
@@ -1896,11 +2145,16 @@ impl<'gcx> Lowerer<'gcx> {
         let mut tail_off = builder.imm_u64((head_size_bytes - 4) as u64);
         let word = builder.imm_u64(32);
         for (head_off, src, kind) in pending_tails {
+            let object_kind = match kind {
+                LinkedFieldKind::DynBytes => crate::mir::MemoryObjectKind::Bytes,
+                LinkedFieldKind::DynArray => crate::mir::MemoryObjectKind::DynamicArray,
+                LinkedFieldKind::Value => unreachable!(),
+            };
             let head_addr_off = builder.imm_u64(head_off);
             let head_addr = builder.add(calldata_start, head_addr_off);
             builder.mstore(head_addr, tail_off);
 
-            let len = builder.mload(src);
+            let len = builder.memory_object_len(src, object_kind);
             let byte_len = match kind {
                 LinkedFieldKind::DynBytes => {
                     let thirty_one = builder.imm_u64(31);
@@ -1916,7 +2170,7 @@ impl<'gcx> Lowerer<'gcx> {
             let dst = builder.add(args_base, tail_off);
             builder.mstore(dst, len);
             let dst_data = builder.add(dst, word);
-            let src_data = builder.add(src, word);
+            let src_data = builder.memory_object_data(src, object_kind);
             self.mcopy(builder, dst_data, src_data, byte_len, None);
 
             let advanced = builder.add(word, byte_len);
@@ -1933,7 +2187,7 @@ impl<'gcx> Lowerer<'gcx> {
                 let struct_ptr = builder.add(calldata_start, total_size);
                 let struct_size_val = builder.imm_u64(struct_size);
                 let new_free_ptr = builder.add(struct_ptr, struct_size_val);
-                builder.mstore(free_ptr_addr, new_free_ptr);
+                builder.set_fmp(new_free_ptr);
                 (struct_ptr, builder.imm_u64(struct_size), Some(struct_ptr))
             } else {
                 let ret_offset = if num_returns > 1 { calldata_start } else { builder.imm_u64(0) };
@@ -2041,6 +2295,18 @@ impl<'gcx> Lowerer<'gcx> {
                 return self.lower_inline_void_call(builder, func_id, arg_vals);
             }
 
+            // A library helper returning a calldata slice must inline for the
+            // same reason an internal one does (the fallback would leave a slice
+            // the backend cannot lower); non-inlinable shapes are reported.
+            if self.returns_calldata_slice(func) {
+                return self.lower_calldata_slice_return_call(
+                    builder,
+                    func_id,
+                    arg_vals,
+                    has_storage_ref_param,
+                );
+            }
+
             if size_mode
                 || has_storage_ref_param
                 || !Self::is_simple_return_function(func)
@@ -2059,7 +2325,6 @@ impl<'gcx> Lowerer<'gcx> {
             // Save current locals
             let saved_locals = std::mem::take(&mut self.locals);
             let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
-            let saved_next_local_memory_offset = self.next_local_memory_offset;
             let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
 
             if let Some(body) = &func.body {
@@ -2080,10 +2345,11 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.imm_u64(0)
             };
 
-            // Restore locals
+            // Restore locals. `next_local_memory_offset` is kept: any slot the
+            // body allocated stays part of the enclosing frame, clear of the
+            // backend's cross-block spill area.
             self.locals = saved_locals;
             self.local_memory_slots = saved_local_memory_slots;
-            self.next_local_memory_offset = saved_next_local_memory_offset;
             self.assigned_vars = saved_assigned_vars;
 
             // Exit inline tracking

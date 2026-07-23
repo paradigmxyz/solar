@@ -39,19 +39,10 @@ contract MappingNestedStructCopy {
 
 // STRUCT-LABEL: fn @set
 // STRUCT: = mapping_slot
-// STRUCT: sstore
-// STRUCT: sstore
-// STRUCT: sstore
-// STRUCT: sstore
+// STRUCT: memory_to_storage struct<word, struct<word, word>, word>
 // STRUCT-LABEL: fn @get
 // STRUCT: = mapping_slot
-// STRUCT: = sload
-// STRUCT: = sload
-// STRUCT: = sload
-// STRUCT: = sload
+// STRUCT: storage_to_memory struct<word, struct<word, word>, word>
 // STRUCT-LABEL: fn @clear
 // STRUCT: = mapping_slot
-// STRUCT: sstore
-// STRUCT: sstore
-// STRUCT: sstore
-// STRUCT: sstore
+// STRUCT: clear_storage struct<word, struct<word, word>, word>

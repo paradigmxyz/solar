@@ -35,3 +35,4 @@ contract MultiReturnScratch {
 // ORDER: = add {{.*}}, 64
 // ORDER: = mload
 // ORDER: = mapping_slot
+// ORDER: sstore

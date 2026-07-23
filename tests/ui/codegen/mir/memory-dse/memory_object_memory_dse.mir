@@ -1,0 +1,17 @@
+//@compile-flags: --passes memory-dse,dce
+@module MemoryObjectMemoryDse
+
+fn @forward_length(arg0: memorybytes) -> u256 {
+  bb0:
+    set_memory_object_len memorybytes, arg0, 39
+    v1 = memory_object_len memorybytes, arg0
+    ret v1
+}
+
+fn @keep_length_after_clobber(arg0: memorybytes, arg1: u256) -> u256 {
+  bb0:
+    set_memory_object_len memorybytes, arg0, 39
+    mstore arg1, 7
+    v2 = memory_object_len memorybytes, arg0
+    ret v2
+}

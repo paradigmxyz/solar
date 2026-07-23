@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/tuple_assign_branch_leak.sol:TupleAssignBranchLeak (runtime) ===
 @module runtime
 bb0:
-  push 0x460
+  push 0x4a0
   push 64
   mstore
   callvalue
@@ -128,6 +128,9 @@ bb5:
   mload
   swap1
   pop
+  dup1
+  push 800
+  mstore
   push 32
   dup2
   add
@@ -137,6 +140,9 @@ bb5:
   push 512
   mstore
   swap1
+  mstore
+  dup1
+  push 800
   mstore
   push 32
   mstore
@@ -162,7 +168,7 @@ bb5:
   push 192
   mload
   dup1
-  push 800
+  push 864
   mstore
   push 576
   mload
@@ -212,6 +218,9 @@ bb18:
   mload
   swap1
   pop
+  dup1
+  push 832
+  mstore
   push 32
   dup2
   add
@@ -223,6 +232,9 @@ bb18:
   push 704
   mstore
   swap1
+  mstore
+  dup1
+  push 832
   mstore
   push 32
   mstore
