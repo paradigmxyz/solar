@@ -24,6 +24,8 @@ const MIN_BUCKET_CASES: usize = 8;
 const MAX_BUCKET_CASES: usize = 64;
 const MAX_DENSE_RANGE: usize = 4096;
 const MAX_BUCKET_CANDIDATES: usize = 33;
+// Bound per-switch bytecode growth under the runtime-gas objective.
+const MAX_GAS_CODE_GROWTH: usize = 512;
 
 /// Selected control-flow shape for a switch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -51,11 +53,13 @@ pub(super) fn select_switch_plan(
         return SwitchPlan::Linear;
     }
 
-    let mut best = (lowering_cost(values, values.len(), evm_version), SwitchPlan::Linear);
+    let linear_cost = lowering_cost(values, values.len(), evm_version);
+    let max_gas_code_size = linear_cost.code_size.saturating_add(MAX_GAS_CODE_GROWTH);
+    let mut best = (linear_cost, SwitchPlan::Linear);
     if optimization == OptimizationMode::Gas {
         for leaf_size in binary_leaf_sizes(values.len()) {
             let cost = lowering_cost(values, leaf_size, evm_version);
-            if cost.gas_key() < best.0.gas_key() {
+            if cost.is_better_for_gas_than(best.0, max_gas_code_size) {
                 best = (cost, SwitchPlan::Binary { leaf_size });
             }
         }
@@ -68,7 +72,7 @@ pub(super) fn select_switch_plan(
                     needs_empty_cleanup,
                     table_target_width,
                 );
-                if cost.gas_key() < best.0.gas_key() {
+                if cost.is_better_for_gas_than(best.0, max_gas_code_size) {
                     best = (cost, SwitchPlan::Buckets { bucket_count });
                 }
             }
@@ -76,7 +80,7 @@ pub(super) fn select_switch_plan(
     }
     if let Some((low, range, cost)) = dense_lowering_cost(values, evm_version, table_target_width) {
         let better = match optimization {
-            OptimizationMode::Gas => cost.gas_key() < best.0.gas_key(),
+            OptimizationMode::Gas => cost.is_better_for_gas_than(best.0, max_gas_code_size),
             OptimizationMode::Size => cost.size_key() < best.0.size_key(),
             _ => false,
         };
@@ -95,6 +99,10 @@ struct LoweringCost {
 }
 
 impl LoweringCost {
+    fn is_better_for_gas_than(self, other: Self, max_code_size: usize) -> bool {
+        self.code_size <= max_code_size && self.gas_key() < other.gas_key()
+    }
+
     fn gas_key(self) -> (usize, usize, usize) {
         (self.hit_gas_sum, self.miss_gas, self.code_size)
     }
@@ -421,6 +429,15 @@ mod tests {
             select_switch_plan(&values, OptimizationMode::Size, EvmVersion::Cancun, true, 2),
             SwitchPlan::Dense { low: U256::ZERO, range: 24 }
         );
+    }
+
+    #[test]
+    fn rejects_excessive_gas_optimized_table_growth() {
+        let values = (0..65).map(|value| U256::from(value * 63)).collect::<Vec<_>>();
+        assert!(!matches!(
+            select_switch_plan(&values, OptimizationMode::Gas, EvmVersion::Cancun, true, 2),
+            SwitchPlan::Dense { .. }
+        ));
     }
 
     #[test]
