@@ -9,12 +9,19 @@ use async_lsp::{ClientSocket, router::Router};
 use lsp_types::{
     Diagnostic, DidChangeConfigurationParams, DidChangeTextDocumentParams,
     DidChangeWatchedFilesParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DidSaveTextDocumentParams, DocumentSymbol, FileChangeType, FileEvent, Position, Range,
-    SymbolKind, TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
-    VersionedTextDocumentIdentifier, WatchKind, WorkspaceSymbol, notification,
-    notification::Notification,
+    DidSaveTextDocumentParams, DocumentDiagnosticParams, DocumentDiagnosticReport,
+    DocumentDiagnosticReportResult, DocumentSymbol, FileChangeType, FileEvent, PartialResultParams,
+    Position, Range, SymbolKind, TextDocumentContentChangeEvent, TextDocumentIdentifier,
+    TextDocumentItem, VersionedTextDocumentIdentifier, WatchKind, WorkDoneProgressParams,
+    WorkspaceSymbol, notification, notification::Notification,
 };
-use std::{path::Path, sync::mpsc as std_mpsc, time::Duration};
+use std::{
+    future::Future,
+    path::Path,
+    sync::mpsc as std_mpsc,
+    task::{Context, Poll, Waker},
+    time::Duration,
+};
 use tokio::sync::mpsc;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
@@ -51,6 +58,126 @@ fn snapshot_with_config(config: Config, vfs: Vfs) -> GlobalStateSnapshot {
         symbol_tables: Arc::new(Default::default()),
         diagnostics: Arc::new(Default::default()),
     }
+}
+
+#[test]
+fn document_diagnostic_returns_merged_full_and_unchanged_reports() {
+    let uri = diagnostic_uri();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.snapshot().publish_diagnostics(
+        DiagnosticOwner::Compiler,
+        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("compiler")])]),
+    );
+    state.snapshot().publish_diagnostics(
+        flycheck_owner("/workspace"),
+        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("lint")])]),
+    );
+
+    let response = expect_ready(crate::handlers::document_diagnostic(
+        &mut state,
+        document_diagnostic_params(uri.clone(), None),
+    ));
+    let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(report)) =
+        response.unwrap()
+    else {
+        panic!("first diagnostic pull should return a full report");
+    };
+    assert_eq!(report.related_documents, None);
+    assert_eq!(
+        report
+            .full_document_diagnostic_report
+            .items
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>(),
+        ["compiler", "lint"]
+    );
+    let result_id = report.full_document_diagnostic_report.result_id.unwrap();
+
+    let response = expect_ready(crate::handlers::document_diagnostic(
+        &mut state,
+        document_diagnostic_params(uri, Some(result_id.clone())),
+    ));
+    let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Unchanged(report)) =
+        response.unwrap()
+    else {
+        panic!("unchanged diagnostic pull should return an unchanged report");
+    };
+    assert_eq!(report.related_documents, None);
+    assert_eq!(report.unchanged_document_diagnostic_report.result_id, result_id);
+}
+
+#[test]
+fn document_diagnostic_waits_for_committed_analysis_diagnostics() {
+    let uri = diagnostic_uri();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.mark_analysis_pending_for_test();
+
+    let mut request = std::pin::pin!(crate::handlers::document_diagnostic(
+        &mut state,
+        document_diagnostic_params(uri.clone(), None),
+    ));
+    let waker = Waker::noop();
+    let mut context = Context::from_waker(waker);
+    assert!(request.as_mut().poll(&mut context).is_pending());
+
+    let mut snapshot = state.snapshot();
+    assert!(snapshot.publish_analysis(
+        1,
+        AnalysisResult {
+            diagnostics: DiagnosticMap::from_iter([(uri, vec![diagnostic("current")])]),
+            symbol_tables: SymbolTables::default(),
+        },
+    ));
+
+    let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
+        panic!("diagnostic pull should complete after analysis is published");
+    };
+    let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(report)) =
+        response.unwrap()
+    else {
+        panic!("first diagnostic pull should return a full report");
+    };
+    assert_eq!(report.full_document_diagnostic_report.items, vec![diagnostic("current")]);
+}
+
+#[test]
+fn document_diagnostic_canonicalizes_file_uris() {
+    let canonical_uri = diagnostic_uri();
+    let encoded_uri =
+        Url::parse(&canonical_uri.as_str().replacen("Diagnostics.sol", "%44iagnostics.sol", 1))
+            .expect("encoded URI should be valid");
+    assert_ne!(canonical_uri, encoded_uri);
+    assert_eq!(canonical_uri.to_file_path(), encoded_uri.to_file_path());
+
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.snapshot().publish_diagnostics(
+        DiagnosticOwner::Compiler,
+        DiagnosticMap::from_iter([(canonical_uri.clone(), vec![diagnostic("compiler")])]),
+    );
+
+    let response = expect_ready(crate::handlers::document_diagnostic(
+        &mut state,
+        document_diagnostic_params(encoded_uri, None),
+    ));
+    let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(report)) =
+        response.unwrap()
+    else {
+        panic!("first diagnostic pull should return a full report");
+    };
+    assert_eq!(report.full_document_diagnostic_report.items, vec![diagnostic("compiler")]);
+    let result_id = report.full_document_diagnostic_report.result_id.unwrap();
+
+    let response = expect_ready(crate::handlers::document_diagnostic(
+        &mut state,
+        document_diagnostic_params(canonical_uri, Some(result_id.clone())),
+    ));
+    let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Unchanged(report)) =
+        response.unwrap()
+    else {
+        panic!("equivalent URI should share the cached result ID");
+    };
+    assert_eq!(report.unchanged_document_diagnostic_report.result_id, result_id);
 }
 
 fn pause_blocking_pool() -> (std_mpsc::Sender<()>, tokio::task::JoinHandle<()>) {
@@ -508,6 +635,33 @@ async fn no_op_change_after_clear_recovers_the_invalidated_cache() {
 
 fn diagnostic(message: &str) -> Diagnostic {
     Diagnostic::new_simple(Range::new(Position::new(0, 0), Position::new(0, 1)), message.into())
+}
+
+fn diagnostic_uri() -> Url {
+    Url::from_file_path(std::env::temp_dir().join("Diagnostics.sol")).unwrap()
+}
+
+fn document_diagnostic_params(
+    uri: Url,
+    previous_result_id: Option<String>,
+) -> DocumentDiagnosticParams {
+    DocumentDiagnosticParams {
+        text_document: TextDocumentIdentifier::new(uri),
+        identifier: None,
+        previous_result_id,
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
+    }
+}
+
+fn expect_ready<F: Future>(future: F) -> F::Output {
+    let waker = Waker::noop();
+    let mut context = Context::from_waker(waker);
+    let mut future = std::pin::pin!(future);
+    let Poll::Ready(output) = future.as_mut().poll(&mut context) else {
+        panic!("future should complete immediately");
+    };
+    output
 }
 
 fn flycheck_owner(workspace: impl Into<PathBuf>) -> DiagnosticOwner {
