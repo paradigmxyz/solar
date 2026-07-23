@@ -22,7 +22,8 @@
 
 pub use crate::pass_manager::{MirPass, run_passes, run_passes_no_validate};
 use crate::{
-    mir::{Function, MirPhase, Module},
+    analysis::{AliasAnalysis, CfgInfo, MemoryCallSummaries},
+    mir::{Function, FunctionId, InstId, MirPhase, Module},
     transform::{
         adce, cfg_simplify, check_elim, copy_elision, cse, dce, frame_promotion, gvn,
         indvar_simplify, inline, inst_simplify, jump_threading, load_pre, loop_canonicalize,
@@ -33,7 +34,11 @@ use crate::{
     },
 };
 use solar_data_structures::map::FxHashMap;
-use std::any::{Any, TypeId};
+use std::{
+    any::{Any, TypeId},
+    rc::Rc,
+    sync::Arc,
+};
 
 /// All known MIR passes exposed to `solar mir-opt`.
 pub static ALL_PASSES: &[&dyn MirPass] = &[
@@ -222,11 +227,137 @@ pub(crate) trait AnalysisPass {
 /// Runs a function-local transform over every bodied function in a module.
 pub(crate) fn run_function_pass(
     module: &mut Module,
-    mut run: impl FnMut(&mut Function) -> bool,
+    analyses: &mut ModuleAnalyses,
+    mut run: impl FnMut(&mut Function, &FunctionAnalyses) -> bool,
 ) -> bool {
     let mut changed = false;
-    for func in &mut module.functions {
-        changed |= run(func);
+    for func_id in module.functions.indices() {
+        if module.functions[func_id].blocks.is_empty() {
+            continue;
+        }
+        changed |= run_function_pass_cached(analyses, module, func_id, &mut run);
+    }
+    analyses.preserved_by_pass = true;
+    changed
+}
+
+/// Per-function analysis snapshots handed to a pass run.
+pub(crate) struct FunctionAnalyses {
+    /// Shared alias analysis; provenance and address memos build lazily.
+    pub(crate) alias: Rc<AliasAnalysis>,
+    /// Shared CFG snapshot; RPO, dominators, and reachability build lazily.
+    pub(crate) cfg: Rc<CfgInfo>,
+    /// Module call summaries for passes that consume them.
+    pub(crate) call_summaries: Option<Arc<MemoryCallSummaries>>,
+}
+
+/// Cached per-function analyses shared by every pass in one pipeline run.
+#[doc(hidden)]
+#[derive(Default)]
+pub struct ModuleAnalyses {
+    alias: FxHashMap<FunctionId, Rc<AliasAnalysis>>,
+    cfg: FxHashMap<FunctionId, Rc<CfgInfo>>,
+    call_summaries: Option<Arc<MemoryCallSummaries>>,
+    preserved_by_pass: bool,
+}
+
+impl ModuleAnalyses {
+    pub(crate) fn begin_pass(&mut self) {
+        self.preserved_by_pass = false;
+    }
+
+    pub(crate) fn finish_pass(&mut self, changed: bool) {
+        if changed && !self.preserved_by_pass {
+            self.invalidate_all();
+        }
+    }
+
+    /// Returns the shared alias-analysis snapshot for a function.
+    pub(crate) fn alias(&mut self, func_id: FunctionId) -> Rc<AliasAnalysis> {
+        Rc::clone(self.alias.entry(func_id).or_insert_with(|| Rc::new(AliasAnalysis::empty())))
+    }
+
+    /// Returns the shared CFG snapshot for a function.
+    pub(crate) fn cfg(&mut self, func_id: FunctionId, func: &Function) -> Rc<CfgInfo> {
+        Rc::clone(self.cfg.entry(func_id).or_insert_with(|| Rc::new(CfgInfo::new(func))))
+    }
+
+    fn bundle(&mut self, func_id: FunctionId, func: &Function) -> FunctionAnalyses {
+        FunctionAnalyses {
+            alias: self.alias(func_id),
+            cfg: self.cfg(func_id, func),
+            call_summaries: self.call_summaries.clone(),
+        }
+    }
+
+    /// Provides module call summaries to subsequent pass runs.
+    pub(crate) fn set_call_summaries(&mut self, summaries: Arc<MemoryCallSummaries>) {
+        self.call_summaries = Some(summaries);
+    }
+
+    /// Withdraws module call summaries after the consuming pass completes.
+    pub(crate) fn clear_call_summaries(&mut self) {
+        self.call_summaries = None;
+    }
+
+    fn retain(&mut self, func_id: FunctionId, keep_alias: bool, keep_cfg: bool) {
+        if !keep_alias {
+            self.alias.remove(&func_id);
+        }
+        if !keep_cfg {
+            self.cfg.remove(&func_id);
+        }
+    }
+
+    fn invalidate_all(&mut self) {
+        self.alias.clear();
+        self.cfg.clear();
+        self.call_summaries = None;
+    }
+}
+
+fn cfg_edges(func: &Function) -> Vec<(u32, u32)> {
+    let mut edges = Vec::new();
+    for (block_id, block) in func.blocks.iter_enumerated() {
+        if let Some(terminator) = &block.terminator {
+            for successor in terminator.successors() {
+                edges.push((block_id.index() as u32, successor.index() as u32));
+            }
+        }
+    }
+    edges.sort_unstable();
+    edges
+}
+
+fn verified_preservation(
+    func: &Function,
+    edges_before: &[(u32, u32)],
+    insts_before: usize,
+) -> (bool, bool) {
+    let edges_after = cfg_edges(func);
+    let keep_cfg = edges_after == edges_before;
+    let no_new_side_effects = (insts_before..func.instructions.len())
+        .map(InstId::from_usize)
+        .all(|inst_id| !func.instructions[inst_id].kind.has_side_effects());
+    let keep_alias = no_new_side_effects
+        && (keep_cfg || edges_after.iter().all(|edge| edges_before.binary_search(edge).is_ok()));
+    (keep_alias, keep_cfg)
+}
+
+fn run_function_pass_cached(
+    analyses: &mut ModuleAnalyses,
+    module: &mut Module,
+    func_id: FunctionId,
+    run: &mut impl FnMut(&mut Function, &FunctionAnalyses) -> bool,
+) -> bool {
+    let bundle = analyses.bundle(func_id, &module.functions[func_id]);
+    let func = &mut module.functions[func_id];
+    let edges_before = cfg_edges(func);
+    let insts_before = func.instructions.len();
+    let changed = run(func, &bundle);
+    if changed {
+        let (keep_alias, keep_cfg) = verified_preservation(func, &edges_before, insts_before);
+        analyses.retain(func_id, keep_alias, keep_cfg);
     }
     changed
 }

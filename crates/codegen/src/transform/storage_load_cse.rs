@@ -9,6 +9,7 @@ use crate::{
     pass::{AnalysisManager, LivenessAnalysis, MirPass, run_function_pass},
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use std::rc::Rc;
 
 /// Function pass for straight-line storage-load CSE.
 pub(crate) struct StorageLoadCse;
@@ -18,8 +19,17 @@ impl MirPass for StorageLoadCse {
         "storage-load-cse"
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| StorageLoadCseCx::new().run_to_fixpoint(func) != 0)
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
+            let mut cse = StorageLoadCseCx::new();
+            cse.alias = Some(Rc::clone(&analyses.alias));
+            cse.run_to_fixpoint(func) != 0
+        })
     }
 }
 
@@ -28,7 +38,7 @@ impl MirPass for StorageLoadCse {
 struct StorageLoadCseCx {
     /// Number of storage loads eliminated.
     eliminated_count: usize,
-    alias: Option<AliasAnalysis>,
+    alias: Option<Rc<AliasAnalysis>>,
 }
 
 struct RunState {
@@ -56,7 +66,9 @@ impl StorageLoadCseCx {
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
         self.eliminated_count = 0;
         func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
-        self.alias = Some(AliasAnalysis::new(func));
+        if self.alias.is_none() {
+            self.alias = Some(Rc::new(AliasAnalysis::new(func)));
+        }
 
         let mut analyses = AnalysisManager::new();
         let liveness = analyses.get_or_compute(&LivenessAnalysis, func);

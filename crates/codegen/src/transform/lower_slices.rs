@@ -27,7 +27,12 @@ impl MirPass for LowerSlices {
         true
     }
 
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+    fn run_pass(
+        &self,
+        _gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
         let mut cx = LowerSlicesCx::default();
         cx.run(module)
     }

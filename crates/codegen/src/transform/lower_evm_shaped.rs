@@ -53,7 +53,12 @@ impl MirPass for LowerEvmShaped {
         true
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
         LowerEvmShapedCx::default().run(module)
     }
 }

@@ -52,8 +52,15 @@ impl MirPass for Pre {
         "pre"
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| PartialRedundancyEliminator::new().run(func).total() != 0)
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
+            PartialRedundancyEliminator::new().run(func).total() != 0
+        })
     }
 }
 

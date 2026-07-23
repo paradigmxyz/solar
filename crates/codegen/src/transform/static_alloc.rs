@@ -33,7 +33,12 @@ impl MirPass for StaticAlloc {
         "static-alloc"
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
         // Every entry's locals share the same low-memory region — only one
         // entry runs per call — so the tallest entry's frame top is a shadow
         // the others can grow into without moving the shared static-frame
@@ -70,7 +75,12 @@ impl MirPass for DeferAlloc {
         "defer-alloc"
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
         let summaries = Arc::new(MemoryCallSummaries::new(module));
         let mut candidates = Vec::new();
         for (func_id, func) in module.functions.iter_enumerated() {

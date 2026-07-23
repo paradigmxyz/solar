@@ -19,7 +19,12 @@ impl MirPass for LowerAggregates {
         true
     }
 
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+    fn run_pass(
+        &self,
+        _gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
         let mut changed = false;
         for func in module.functions.iter_mut() {
             changed |= lower_function(func);

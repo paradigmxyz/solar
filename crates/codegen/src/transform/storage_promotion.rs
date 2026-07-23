@@ -34,8 +34,13 @@ impl MirPass for StorageScalarPromotion {
         "storage-promotion"
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| {
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
             let mut promoter = StorageScalarPromoter::new();
             let stats = promoter.run(func);
             stats.loops_promoted + stats.loads_promoted + stats.stores_promoted != 0

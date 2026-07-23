@@ -14,6 +14,7 @@ use solar_data_structures::{
     bit_set::DenseBitSet,
     map::{FxHashMap, FxHashSet},
 };
+use std::rc::Rc;
 
 /// Function pass for local dead storage-store elimination.
 pub(crate) struct StorageDse;
@@ -23,8 +24,17 @@ impl MirPass for StorageDse {
         "storage-dse"
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| StorageStoreEliminator::new().run_to_fixpoint(func) != 0)
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
+            let mut eliminator = StorageStoreEliminator::new();
+            eliminator.alias = Some(Rc::clone(&analyses.alias));
+            eliminator.run_to_fixpoint(func) != 0
+        })
     }
 }
 
@@ -33,7 +43,7 @@ impl MirPass for StorageDse {
 struct StorageStoreEliminator {
     /// Number of storage stores eliminated.
     eliminated_count: usize,
-    alias: Option<AliasAnalysis>,
+    alias: Option<Rc<AliasAnalysis>>,
 }
 
 struct RunState {
@@ -61,7 +71,9 @@ impl StorageStoreEliminator {
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
         self.eliminated_count = 0;
         func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
-        self.alias = Some(AliasAnalysis::new(func));
+        if self.alias.is_none() {
+            self.alias = Some(Rc::new(AliasAnalysis::new(func)));
+        }
 
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         for block_id in block_ids {

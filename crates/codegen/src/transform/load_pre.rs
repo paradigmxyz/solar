@@ -88,6 +88,7 @@ use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
 };
+use std::rc::Rc;
 
 /// Function pass for load PRE.
 pub(crate) struct LoadPre;
@@ -97,8 +98,18 @@ impl MirPass for LoadPre {
         "load-pre"
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| LoadRedundancyEliminator::new().run(func).total() != 0)
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
+            let mut eliminator = LoadRedundancyEliminator::new();
+            eliminator.alias = Some(Rc::clone(&analyses.alias));
+            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+            eliminator.run(func).total() != 0
+        })
     }
 }
 
@@ -121,8 +132,10 @@ impl LoadPreStats {
 /// Dataflow-based redundancy eliminator for memory-dependent reads.
 #[derive(Debug, Default)]
 struct LoadRedundancyEliminator {
+    /// Shared CFG snapshot for the availability dataflow.
+    cfg: Option<Rc<CfgInfo>>,
     stats: LoadPreStats,
-    alias: Option<AliasAnalysis>,
+    alias: Option<Rc<AliasAnalysis>>,
 }
 
 /// A normalized key for a state-dependent read.
@@ -253,7 +266,7 @@ impl LoadPreCostModel {
 struct Analysis {
     keys: Vec<LoadKey>,
     key_index: FxHashMap<LoadKey, usize>,
-    cfg: CfgInfo,
+    cfg: Rc<CfgInfo>,
     /// Per-block keys killed at any point in the block; only blocks that kill
     /// something have an entry.
     kills: FxHashMap<BlockId, KeySet>,
@@ -306,7 +319,9 @@ impl LoadRedundancyEliminator {
     fn run(&mut self, func: &mut Function) -> LoadPreStats {
         self.stats = LoadPreStats::default();
         repair_reachability_phis(func);
-        self.alias = Some(AliasAnalysis::new(func));
+        if self.alias.is_none() {
+            self.alias = Some(Rc::new(AliasAnalysis::new(func)));
+        }
 
         let rewrite_limit = func.instructions.len().saturating_mul(2).max(64);
         let mut rewrites = 0usize;
@@ -342,7 +357,7 @@ impl LoadRedundancyEliminator {
     }
 
     fn compute_analysis(&self, func: &Function) -> Option<Analysis> {
-        let cfg = CfgInfo::new(func);
+        let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
         let rpo = cfg.rpo();
 
         // The key universe: every key genned in a reachable block.

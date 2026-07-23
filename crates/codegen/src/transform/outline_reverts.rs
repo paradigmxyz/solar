@@ -32,7 +32,12 @@ impl MirPass for OutlineReverts {
         "outline-reverts"
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
         OutlineRevertsCx::default().run(module)
     }
 }

@@ -2,6 +2,7 @@
 
 use crate::{
     mir::{MirPhase, Module, validate},
+    pass::ModuleAnalyses,
     timing::PassTimer,
 };
 use solar_config::OptimizationMode;
@@ -47,7 +48,7 @@ pub trait MirPass: Sync {
     }
 
     /// Runs the pass and returns whether it changed MIR.
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool;
 }
 
 /// Runs a sequence of MIR passes without validating after each pass.
@@ -78,15 +79,18 @@ fn run_passes_inner(
     validate_each: bool,
 ) -> bool {
     let mut changed = false;
+    let mut analyses = ModuleAnalyses::default();
     for pass in passes {
         let pass_name = pass.name();
         if !pass.is_enabled(gcx, module) {
             continue;
         }
 
+        analyses.begin_pass();
         let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-        let pass_changed = pass.run_pass(gcx, module);
+        let pass_changed = pass.run_pass(gcx, module, &mut analyses);
         timer.finish("MIR", module.name, pass_name, pass_changed);
+        analyses.finish_pass(pass_changed);
         changed |= pass_changed;
 
         if validate_each && cfg!(debug_assertions) {

@@ -24,6 +24,7 @@ use crate::{
 use alloy_primitives::U256;
 use arrayvec::ArrayVec;
 use solar_data_structures::bit_set::DenseBitSet;
+use std::rc::Rc;
 
 /// Function pass for loop-invariant code motion.
 pub(crate) struct Licm;
@@ -33,9 +34,16 @@ impl MirPass for Licm {
         "licm"
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| {
-            LoopOptimizer::with_limits(3, 8).optimize(func).instructions_hoisted != 0
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
+            let mut optimizer = LoopOptimizer::with_limits(3, 8);
+            optimizer.alias = Some(Rc::clone(&analyses.alias));
+            optimizer.optimize(func).instructions_hoisted != 0
         })
     }
 }
@@ -68,7 +76,7 @@ struct LoopOptimizer {
     /// Maximum number of instructions hoisted from one loop.
     max_licm_hoisted_insts: usize,
     stats: LoopOptStats,
-    alias: Option<AliasAnalysis>,
+    alias: Option<Rc<AliasAnalysis>>,
 }
 
 impl Default for LoopOptimizer {
@@ -103,7 +111,9 @@ impl LoopOptimizer {
     fn optimize(&mut self, func: &mut Function) -> &LoopOptStats {
         self.stats = LoopOptStats::default();
         func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
-        self.alias = Some(AliasAnalysis::new(func));
+        if self.alias.is_none() {
+            self.alias = Some(Rc::new(AliasAnalysis::new(func)));
+        }
 
         let mut analyzer = LoopAnalyzer::new();
         let loop_info = analyzer.analyze(func);

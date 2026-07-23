@@ -31,8 +31,13 @@ impl MirPass for JumpThreading {
         "jump-threading"
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| {
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
             JumpThreader::new().run_to_fixpoint(func).total_threaded() != 0
         })
     }

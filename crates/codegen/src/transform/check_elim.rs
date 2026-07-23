@@ -36,6 +36,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
+use std::rc::Rc;
 
 /// Function pass for range-based overflow-check elimination.
 pub(crate) struct CheckElim;
@@ -45,8 +46,17 @@ impl MirPass for CheckElim {
         "check-elim"
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| CheckEliminator::new().run(func) != 0)
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
+            let mut eliminator = CheckEliminator::new();
+            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+            eliminator.run(func) != 0
+        })
     }
 }
 
@@ -114,6 +124,8 @@ fn ordered(a: ValueId, b: ValueId) -> (ValueId, ValueId) {
 /// Range-based overflow-check eliminator.
 #[derive(Default)]
 struct CheckEliminator {
+    /// Shared CFG snapshot taken at entry, matching the previous fresh build.
+    cfg: Option<Rc<CfgInfo>>,
     /// Statistics from the last run.
     stats: CheckElimStats,
     ranges: FxHashMap<ValueId, Range>,
@@ -133,7 +145,7 @@ impl CheckEliminator {
     /// branches.
     fn run(&mut self, func: &mut Function) -> usize {
         self.stats = CheckElimStats::default();
-        let cfg = CfgInfo::new(func);
+        let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
 
         // Predecessors recomputed from reachable terminators: facts must only
         // come from edges that can actually execute.

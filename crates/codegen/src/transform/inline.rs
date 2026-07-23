@@ -25,7 +25,12 @@ impl MirPass for Inline {
         "inline"
     }
 
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+    fn run_pass(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
         let mut inliner = if gcx.sess.opts.optimization == solar_config::OptimizationMode::Size {
             MirInliner::for_size()
         } else {

@@ -32,8 +32,15 @@ impl MirPass for CfgSimplify {
         "cfg-simplify"
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| CfgSimplifier::new().run_to_fixpoint(func).total() != 0)
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
+            CfgSimplifier::new().run_to_fixpoint(func).total() != 0
+        })
     }
 }
 
@@ -45,7 +52,12 @@ impl MirPass for FunctionDce {
         "function-dce"
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
         DeadFunctionEliminator::new().run(module) != 0
     }
 }

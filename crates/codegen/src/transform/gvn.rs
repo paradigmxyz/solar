@@ -52,6 +52,7 @@ use crate::{
     pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use std::rc::Rc;
 
 /// Function pass for congruence-class global value numbering.
 pub(crate) struct Gvn;
@@ -61,8 +62,17 @@ impl MirPass for Gvn {
         "gvn"
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| GlobalValueNumberer::new().run(func) != 0)
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
+            let mut numberer = GlobalValueNumberer::new();
+            numberer.cfg = Some(Rc::clone(&analyses.cfg));
+            numberer.run(func) != 0
+        })
     }
 }
 
@@ -77,6 +87,9 @@ type ClassId = ValueId;
 /// Congruence-class global value numbering pass.
 #[derive(Debug, Default)]
 struct GlobalValueNumberer {
+    /// Shared CFG snapshot; GVN rounds only replace values, so one snapshot
+    /// serves every round.
+    cfg: Option<Rc<CfgInfo>>,
     /// Number of instructions folded onto a congruent leader.
     eliminated_count: usize,
 }
@@ -160,7 +173,7 @@ impl GlobalValueNumberer {
 
     /// Runs one numbering and replacement round. Returns true if MIR changed.
     fn run_round(&mut self, func: &mut Function) -> bool {
-        let cfg = CfgInfo::new(func);
+        let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
         let inst_results = func.inst_results();
         let Some(vn) = Self::compute_value_numbers(func, cfg.rpo(), &inst_results) else {
             return false;

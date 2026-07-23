@@ -45,14 +45,14 @@ use crate::{
         MemoryObjectLayout, MirType, Module, SliceLocation, StorageAlias, Value, ValueId,
         utils as mir_utils,
     },
-    pass::MirPass,
+    pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::FxHashMap,
 };
-use std::{cmp::Ordering, sync::Arc};
+use std::{cmp::Ordering, rc::Rc, sync::Arc};
 
 /// Function pass for local common subexpression elimination.
 pub(crate) struct Cse;
@@ -62,14 +62,24 @@ impl MirPass for Cse {
         "cse"
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        let summaries = Arc::new(MemoryCallSummaries::new(module));
-        let mut changed = false;
-        for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
-            changed |= CommonSubexprEliminator::with_call_summaries(Arc::clone(&summaries))
-                .run_to_fixpoint(func)
-                != 0;
-        }
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        analyses.set_call_summaries(Arc::new(MemoryCallSummaries::new(module)));
+        let changed = run_function_pass(module, analyses, |func, analyses| {
+            let mut eliminator = match &analyses.call_summaries {
+                Some(summaries) => {
+                    CommonSubexprEliminator::with_call_summaries(Arc::clone(summaries))
+                }
+                None => CommonSubexprEliminator::default(),
+            };
+            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+            eliminator.run_to_fixpoint(func) != 0
+        });
+        analyses.clear_call_summaries();
         changed
     }
 }
@@ -77,6 +87,9 @@ impl MirPass for Cse {
 /// Common Subexpression Elimination pass.
 #[derive(Debug, Default)]
 struct CommonSubexprEliminator {
+    /// Shared CFG snapshot; CSE only removes instructions, so one snapshot
+    /// serves every fixpoint iteration.
+    cfg: Option<Rc<CfgInfo>>,
     /// Number of instructions eliminated.
     eliminated_count: usize,
     alias: Option<AliasAnalysis>,
@@ -231,7 +244,7 @@ impl CommonSubexprEliminator {
     /// Runs CSE iteratively until no more changes.
     fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
-        let cfg = CfgInfo::new(func);
+        let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
         loop {
             let eliminated = self.run_with_cfg(func, &cfg);
             if eliminated == 0 {

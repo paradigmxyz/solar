@@ -33,8 +33,15 @@ impl MirPass for Sroa {
         "sroa"
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| SroaCx::default().run(func))
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
+            SroaCx::default().run(func, &analyses.alias)
+        })
     }
 }
 
@@ -52,7 +59,7 @@ fn is_fixed_aggregate(layout: MemoryObjectLayout) -> bool {
 }
 
 impl SroaCx {
-    fn run(&mut self, func: &mut Function) -> bool {
+    fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
         let mut allocs: Vec<(BlockId, InstId, ValueId)> = Vec::new();
         for block_id in func.blocks.indices() {
             for &inst_id in &func.blocks[block_id].instructions {
@@ -69,11 +76,10 @@ impl SroaCx {
             return false;
         }
 
-        let alias = AliasAnalysis::new(func);
         let inst_results = func.inst_results();
         let mut changed = false;
         for (block_id, alloc_inst, object) in allocs {
-            if let Some(plan) = self.plan(func, &alias, &inst_results, block_id, alloc_inst, object)
+            if let Some(plan) = self.plan(func, alias, &inst_results, block_id, alloc_inst, object)
             {
                 self.apply(func, block_id, plan);
                 self.eliminated += 1;

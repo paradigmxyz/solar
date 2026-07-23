@@ -36,8 +36,13 @@ impl MirPass for FrameSlotPromotion {
         "frame-slot-promotion"
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| {
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
             let changed = FrameSlotPromoter::new().run(func).total() != 0;
             repair_reachability_phis(func);
             changed

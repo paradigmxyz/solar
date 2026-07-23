@@ -27,8 +27,15 @@ impl MirPass for CopyElision {
         "copy-elision"
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| CopyElisionCx::default().run(func))
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
+            CopyElisionCx::default().run(func, &analyses.alias)
+        })
     }
 }
 
@@ -39,7 +46,7 @@ struct CopyElisionCx {
 }
 
 impl CopyElisionCx {
-    fn run(&mut self, func: &mut Function) -> bool {
+    fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
         let allocs: Vec<(InstId, ValueId)> = func
             .instructions
             .iter_enumerated()
@@ -54,7 +61,6 @@ impl CopyElisionCx {
             return false;
         }
 
-        let alias = AliasAnalysis::new(func);
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
         for (alloc_inst, object) in allocs {
             if alias.value_escapes(func, object) {

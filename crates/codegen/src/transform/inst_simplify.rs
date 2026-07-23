@@ -30,8 +30,15 @@ impl MirPass for InstSimplify {
         "inst-simplify"
     }
 
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| InstSimplifier::new().run_to_fixpoint(func) != 0)
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
+            InstSimplifier::new().run_to_fixpoint(func) != 0
+        })
     }
 }
 
