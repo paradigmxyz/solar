@@ -38,14 +38,14 @@ impl MirPass for Dce {
 ///
 /// Side-effect instructions (SSTORE, MSTORE, CALL, LOG, etc.) are always kept.
 #[derive(Debug, Default)]
-struct DeadCodeEliminator {
+pub(crate) struct DeadCodeEliminator {
     /// Number of instructions eliminated in the last run.
     eliminated_count: usize,
 }
 
 impl DeadCodeEliminator {
     /// Creates a new dead code eliminator.
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
@@ -76,7 +76,7 @@ impl DeadCodeEliminator {
     }
 
     /// Runs dead code elimination iteratively until no more changes.
-    fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total_eliminated = 0;
         let inst_to_value = func.inst_results();
         loop {

@@ -10,19 +10,6 @@ use crate::{
 use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
 
-#[derive(Clone, Copy)]
-pub(crate) struct AbiScratch {
-    pub(crate) base: Option<ValueId>,
-    pub(crate) depth: u64,
-}
-
-#[derive(Clone, Copy)]
-struct AbiValueDest {
-    head_addr: ValueId,
-    tuple_base: ValueId,
-    tail: ValueId,
-}
-
 /// Lowers `abi_encode` after the main optimization pipeline.
 pub(crate) struct LowerAbiEncode;
 
@@ -42,6 +29,19 @@ impl MirPass for LowerAbiEncode {
         }
         changed
     }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct AbiScratch {
+    pub(crate) base: Option<ValueId>,
+    pub(crate) depth: u64,
+}
+
+#[derive(Clone, Copy)]
+struct AbiValueDest {
+    head_addr: ValueId,
+    tuple_base: ValueId,
+    tail: ValueId,
 }
 
 fn lower_function(func: &mut Function) -> bool {

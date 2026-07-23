@@ -21,13 +21,12 @@ impl MirPass for Adce {
         "adce"
     }
 
-    fn run_pass(&self, gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        let changed = run_function_pass(module, |func| {
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| {
             let changed = AggressiveDeadCodeEliminator::new().run(func).total() != 0;
             repair_reachability_phis(func);
             changed
-        });
-        changed | super::dce::Dce.run_pass(gcx, module)
+        })
     }
 }
 
@@ -36,12 +35,14 @@ impl MirPass for Adce {
 struct AdceStats {
     /// Number of control terminators replaced with unconditional jumps.
     control_edges_removed: usize,
+    /// Number of instructions removed by cleanup DCE after control rewrites.
+    instructions_removed: usize,
 }
 
 impl AdceStats {
     /// Returns the total number of MIR edits made by this pass.
     const fn total(self) -> usize {
-        self.control_edges_removed
+        self.control_edges_removed + self.instructions_removed
     }
 }
 
@@ -92,6 +93,8 @@ impl AggressiveDeadCodeEliminator {
             repair_reachability_phis(func);
         }
 
+        let removed = super::dce::DeadCodeEliminator::new().run_to_fixpoint(func);
+        self.stats.instructions_removed += removed;
         self.stats
     }
 

@@ -19,10 +19,23 @@ use crate::{
 };
 use solar_data_structures::map::FxHashSet;
 
+/// Copy-elision pass over write-only memory allocations.
+pub(crate) struct CopyElision;
+
+impl MirPass for CopyElision {
+    fn name(&self) -> &'static str {
+        "copy-elision"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| CopyElisionCx::default().run(func))
+    }
+}
+
 #[derive(Debug, Default)]
 struct CopyElisionCx {
     /// Number of write-only allocations eliminated.
-    pub eliminated: usize,
+    eliminated: usize,
 }
 
 impl CopyElisionCx {
@@ -165,18 +178,5 @@ impl CopyElisionCx {
         }
 
         (!writes.is_empty()).then_some(writes)
-    }
-}
-
-/// Copy-elision pass over write-only memory allocations.
-pub(crate) struct CopyElision;
-
-impl MirPass for CopyElision {
-    fn name(&self) -> &'static str {
-        "copy-elision"
-    }
-
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| CopyElisionCx::default().run(func))
     }
 }

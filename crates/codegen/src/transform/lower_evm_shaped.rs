@@ -35,6 +35,18 @@ impl MirPass for LowerEvmShaped {
 
     fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
         module.phase == MirPhase::MemoryLowered
+            && module.functions.iter().all(|func| {
+                func.blocks.iter().all(|block| {
+                    block.instructions.iter().all(|&inst| {
+                        !matches!(
+                            func.instructions[inst].kind,
+                            InstKind::MakeSlice { .. }
+                                | InstKind::SlicePtr(_)
+                                | InstKind::SliceLen(_)
+                        )
+                    })
+                })
+            })
     }
 
     fn is_required(&self) -> bool {

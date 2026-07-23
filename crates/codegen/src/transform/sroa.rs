@@ -25,10 +25,23 @@ use crate::{
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
+/// Scalar-replacement-of-aggregates pass for memory objects.
+pub(crate) struct Sroa;
+
+impl MirPass for Sroa {
+    fn name(&self) -> &'static str {
+        "sroa"
+    }
+
+    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+        run_function_pass(module, |func| SroaCx::default().run(func))
+    }
+}
+
 #[derive(Debug, Default)]
 struct SroaCx {
     /// Number of allocations dissolved.
-    pub eliminated: usize,
+    eliminated: usize,
 }
 
 /// Whether a memory-object layout is a fixed-shape aggregate whose slots are
@@ -189,17 +202,4 @@ impl SroaCx {
 struct Plan {
     replacements: FxHashMap<ValueId, ValueId>,
     dead: FxHashSet<InstId>,
-}
-
-/// Scalar-replacement-of-aggregates pass for memory objects.
-pub(crate) struct Sroa;
-
-impl MirPass for Sroa {
-    fn name(&self) -> &'static str {
-        "sroa"
-    }
-
-    fn run_pass(&self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        run_function_pass(module, |func| SroaCx::default().run(func))
-    }
 }

@@ -35,6 +35,3 @@ pub(crate) mod storage_dse;
 pub(crate) mod storage_load_cse;
 pub(crate) mod storage_promotion;
 mod utils;
-
-pub(crate) use lower_alloc::lower_alloc_except;
-pub(crate) use static_alloc::eligible_static_allocations;

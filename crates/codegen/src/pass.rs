@@ -108,7 +108,28 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &memory_dse::MemoryDse,
     &adce::Adce,
     &dce::Dce,
+    // MIR outlining remains profitable even though EVM IR can merge
+    // equivalent terminal blocks: lowering and stack scheduling can
+    // hide their shared semantic shape from the backend passes.
+    &outline_reverts::OutlineReverts,
+    // Progressive lowering materializes ABI wrappers, the dispatcher, and
+    // tail-call edges as MIR. Each pass bails without advancing the phase
+    // when the module is outside its scope.
+    &lower_abi::LowerAbi,
+    &static_alloc::DeferAlloc,
+    &lower_abi_encode::LowerAbiEncode,
+    &lower_aggregates::LowerAggregates,
+    &inst_simplify::InstSimplify,
+    &cfg_simplify::CfgSimplify,
+    &dce::Dce,
+    &lower_slices::LowerSlices,
+    &lower_dispatch::LowerDispatch,
+    &lower_memory_objects::LowerMemoryObjects,
+    &lower_evm_shaped::LowerEvmShaped,
+    &lower_alloc::LowerAlloc,
 ];
+
+const DEFAULT_LOWERING_PASSES: usize = 12;
 
 /// Cleanup passes rerun after the primary pipeline until no pass changes MIR.
 ///
@@ -151,9 +172,11 @@ const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
     fields(module = %module.name),
 )]
 pub fn run_default_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-    let mut changed = run_passes(gcx, module, DEFAULT_PIPELINE, None);
+    let optimization_end = DEFAULT_PIPELINE.len() - DEFAULT_LOWERING_PASSES;
+    let (optimization_passes, lowering_passes) = DEFAULT_PIPELINE.split_at(optimization_end);
+    let mut changed = run_passes(gcx, module, optimization_passes, Some(MirPhase::Optimized));
     changed |= run_cleanup_pipeline_to_fixpoint(gcx, module, DEFAULT_CLEANUP_PIPELINE);
-    run_passes(gcx, module, &[], Some(MirPhase::Optimized));
+    changed |= run_passes(gcx, module, lowering_passes, None);
     changed
 }
 
@@ -163,7 +186,7 @@ fn run_cleanup_pipeline_to_fixpoint(
     passes: &[&dyn MirPass],
 ) -> bool {
     let mut changed = false;
-    for _ in 1..=DEFAULT_CLEANUP_MAX_ROUNDS {
+    for _ in 0..DEFAULT_CLEANUP_MAX_ROUNDS {
         let round_changed = run_passes(gcx, module, passes, None);
         if !round_changed {
             break;

@@ -8,17 +8,6 @@ use crate::{
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::Gcx;
 
-/// Statistics from semantic memory-object lowering.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct LowerMemoryObjectsStats {
-    /// Object allocations changed to raw physical allocations.
-    pub allocations: usize,
-    /// Semantic accesses expanded or erased.
-    pub accesses: usize,
-    /// Nominal object types erased to physical pointers.
-    pub types: usize,
-}
-
 /// Lowers semantic object layouts under the selected physical memory policy.
 pub(crate) struct LowerMemoryObjects;
 
@@ -45,6 +34,17 @@ impl MirPass for LowerMemoryObjects {
         }
         changed
     }
+}
+
+/// Statistics from semantic memory-object lowering.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct LowerMemoryObjectsStats {
+    /// Object allocations changed to raw physical allocations.
+    allocations: usize,
+    /// Semantic accesses expanded or erased.
+    accesses: usize,
+    /// Nominal object types erased to physical pointers.
+    types: usize,
 }
 
 fn lower_function<P: MemoryLayoutPolicy>(

@@ -100,17 +100,29 @@ impl InstructionMetadata {
     pub(crate) fn set_effect(&mut self, effect: Option<EffectKind>) {
         self.flags.set_effect(effect);
     }
+
+    /// Returns whether final placement of this allocation is deferred to the backend.
+    #[must_use]
+    pub(crate) fn deferred_alloc(&self) -> bool {
+        self.flags.deferred_alloc()
+    }
+
+    /// Defers final placement of this allocation to the backend.
+    pub(crate) fn set_deferred_alloc(&mut self) {
+        self.flags.set_deferred_alloc();
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-struct MetadataFlags(u8);
+struct MetadataFlags(u16);
 
 impl MetadataFlags {
     const EMPTY: Self = Self(0);
-    const MEMORY_MASK: u8 = 0b0000_0111;
-    const EFFECT_MASK: u8 = 0b0111_1000;
-    const EFFECT_SHIFT: u8 = 3;
-    const UNCHECKED: u8 = 0b1000_0000;
+    const MEMORY_MASK: u16 = 0b0000_0111;
+    const EFFECT_MASK: u16 = 0b0111_1000;
+    const EFFECT_SHIFT: u16 = 3;
+    const UNCHECKED: u16 = 0b1000_0000;
+    const DEFERRED_ALLOC: u16 = 0b1_0000_0000;
 
     fn memory_region(self) -> Option<MemoryRegion> {
         match self.0 & Self::MEMORY_MASK {
@@ -146,6 +158,14 @@ impl MetadataFlags {
         } else {
             self.0 &= !Self::UNCHECKED;
         }
+    }
+
+    fn deferred_alloc(self) -> bool {
+        self.0 & Self::DEFERRED_ALLOC != 0
+    }
+
+    fn set_deferred_alloc(&mut self) {
+        self.0 |= Self::DEFERRED_ALLOC;
     }
 
     fn effect(self) -> Option<EffectKind> {

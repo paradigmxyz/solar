@@ -73,7 +73,7 @@ struct LowerAbiStats {
     /// Number of external functions wrapped.
     wrapped: usize,
     /// Number of value-carrying returns fused into `returndata` encoding.
-    pub fused_returns: usize,
+    fused_returns: usize,
     /// Number of external functions with returns, which the wrappers cannot
     /// encode yet. Any non-zero count makes the whole pass bail: the phase
     /// transition is all-or-nothing.
