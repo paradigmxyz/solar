@@ -80,9 +80,7 @@ impl FunctionPass for CsePass {
         analyses: &crate::pass::FunctionAnalyses,
     ) -> bool {
         let mut eliminator = match &analyses.call_summaries {
-            Some(summaries) => {
-                CommonSubexprEliminator::with_call_summaries(Arc::clone(summaries))
-            }
+            Some(summaries) => CommonSubexprEliminator::with_call_summaries(Arc::clone(summaries)),
             None => CommonSubexprEliminator::new(),
         };
         eliminator.cfg = Some(Rc::clone(&analyses.cfg));

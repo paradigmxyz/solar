@@ -42,7 +42,7 @@ use std::{
 type PassRunner = fn(Gcx<'_>, &mut Module, &mut ModuleAnalyses) -> bool;
 
 /// Constructs a function-local pass object; only present for passes declared
-/// `function` in [`declare_passes!`], where the pipeline executor may schedule
+/// `function` in `declare_passes!`, where the pipeline executor may schedule
 /// them function-at-a-time instead of module-at-a-time. The executor builds
 /// each chunk's pass objects once per worker and reuses them across that
 /// worker's functions, so scratch collections held in pass fields amortize

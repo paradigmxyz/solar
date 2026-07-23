@@ -135,7 +135,11 @@ impl DeadCodeEliminator {
     }
 
     /// Finds instructions that are dead (unused result, no side effects).
-    fn find_dead_instructions(&mut self, func: &Function, inst_to_value: &FxHashMap<InstId, ValueId>) {
+    fn find_dead_instructions(
+        &mut self,
+        func: &Function,
+        inst_to_value: &FxHashMap<InstId, ValueId>,
+    ) {
         self.dead.clear();
 
         for (block_id, block) in func.blocks.iter_enumerated() {
