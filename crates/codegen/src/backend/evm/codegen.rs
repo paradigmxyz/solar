@@ -4593,7 +4593,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !preserved.contains(&value)
                 && (!liveness.is_dead_after(value, block, inst_idx) || alias_is_live)
                 && (!Self::is_rematerializable_value(func, value) || carried_arg_is_live)
-                && !self.scheduler.spills.is_reloadable(value)
+                && (!self.scheduler.spills.is_reloadable(value)
+                    || (self.gcx.sess.opts.optimization == OptimizationMode::Size
+                        && self.scheduler.stack.contains(value)))
             {
                 preserved.push(value);
             }

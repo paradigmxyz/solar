@@ -84,8 +84,11 @@
 //! static gas first for `-O gas` and encoded bytes first for `-O size`, followed
 //! by the other metric and action count. Immediate width and `PUSH0`
 //! availability are included in the estimate. Spill reloads are scored, but
-//! planning does not allocate new spill slots. `-O none` bypasses the planner
-//! and retains the straightforward emission path.
+//! planning does not allocate new spill slots. In size mode, a reloadable live
+//! operand that is already resident remains in the preservation set: consuming
+//! it would merely move the cost into a later `MLOAD` and can prevent EVM IR
+//! sharing. Values present only in memory are not duplicated preemptively.
+//! `-O none` bypasses the planner and retains the straightforward emission path.
 //!
 //! Binary lowering may also plan an equivalent reversed operand order. This
 //! covers commutative instructions and comparison pairs such as `LT`/`GT`; the

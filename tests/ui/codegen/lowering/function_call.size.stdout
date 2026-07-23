@@ -1,0 +1,133 @@
+// === ROOT/tests/ui/codegen/lowering/function_call.sol:FunctionCall (runtime) ===
+@module runtime
+bb0:
+  push 480
+  push 64
+  mstore
+  callvalue
+  push bb5
+  jumpi
+  calldatasize
+  iszero
+  push bb5
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x7fdb7587
+  eq
+  push bb6
+  jumpi
+  dup1
+  push 0xd386d5a2
+  eq
+  push bb11
+  jumpi
+  jump bb5
+bb5 [cold]:
+  push 0
+  dup1
+  revert
+bb20 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+bb6:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  sgt
+  push bb5
+  jumpi
+  push 0
+  push 128
+  mstore
+  push 4
+  calldataload
+  push 352
+  mstore
+  push bb8
+  jump bb17
+bb17:
+  push 352
+  mload
+  dup1
+  add
+  dup1
+  push 448
+  mstore
+  push 352
+  mload
+  dup2
+  lt
+  push bb20
+  jumpi
+  dup1
+  push 384
+  mstore
+  pop
+  jump
+bb8:
+  push 384
+  mload
+  dup1
+  push 256
+  mstore
+  jump bb21
+bb21:
+  dup1
+  push 352
+  mstore
+  pop
+  push bb9
+  jump bb17
+bb9:
+  push 384
+  mload
+  dup1
+  push 224
+  mstore
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb11:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 64
+  sgt
+  push bb5
+  jumpi
+  push 0
+  push 128
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  add
+  dup1
+  push 256
+  mstore
+  push 4
+  calldataload
+  dup2
+  lt
+  push bb20
+  jumpi
+  jump bb21
