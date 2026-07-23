@@ -79,7 +79,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_alloc::LowerAlloc,
 ];
 
-/// Finds a pass in the global MIR pass registry by command-line name.
+/// Finds a MIR pass by command-line name.
 pub fn lookup_pass(name: &str) -> Option<&'static dyn MirPass> {
     ALL_PASSES.iter().copied().find(|pass| pass.name() == name)
 }

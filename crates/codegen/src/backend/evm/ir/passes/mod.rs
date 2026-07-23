@@ -1,6 +1,6 @@
 //! EVM IR optimization and layout passes.
 //!
-//! This module owns the pass registry and canonical backend pipeline. Individual
+//! This module owns the pass list and canonical backend pipeline. Individual
 //! transforms live in their own modules so their implementation and invariants
 //! remain local, matching the organization of the MIR transforms.
 
@@ -79,7 +79,7 @@ pub(crate) static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &block_layout::BlockLayout,
 ];
 
-/// Finds a pass in the EVM IR pass registry by command-line name.
+/// Finds an EVM IR pass by command-line name.
 pub fn lookup_pass(name: &str) -> Option<&'static dyn EvmPass> {
     ALL_PASSES.iter().copied().find(|pass| pass.name() == name)
 }
