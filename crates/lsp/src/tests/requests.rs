@@ -5,6 +5,7 @@ use crate::{
 };
 use async_lsp::ClientSocket;
 use lsp_types::{
+    DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
     DocumentSymbolClientCapabilities, DocumentSymbolResponse, InitializeParams,
     PartialResultParams, ReferenceContext, SymbolKind, TextDocumentClientCapabilities,
     TextDocumentIdentifier, Url, WorkDoneProgressParams, WorkspaceSymbolResponse,
@@ -94,6 +95,23 @@ fn workspace_symbol_returns_matching_symbols() {
         panic!("expected workspace symbols");
     };
     assert_eq!(symbols.iter().map(|symbol| symbol.name.as_str()).collect::<Vec<_>>(), ["Other"]);
+}
+
+#[test]
+fn document_diagnostic_skips_analysis_for_non_file_uris() {
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.mark_analysis_pending_for_test();
+
+    let response = expect_ready(document_diagnostic(
+        &mut state,
+        document_diagnostic_params(parse_uri("untitled:Diagnostics.sol"), None),
+    ))
+    .unwrap();
+    let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(report)) = response
+    else {
+        panic!("first diagnostic pull should return a full report");
+    };
+    assert!(report.full_document_diagnostic_report.items.is_empty());
 }
 
 #[test]
@@ -191,6 +209,19 @@ fn rename_params(uri: Url, new_name: &str) -> RenameParams {
 fn document_link_params(uri: Url) -> DocumentLinkParams {
     DocumentLinkParams {
         text_document: TextDocumentIdentifier::new(uri),
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
+    }
+}
+
+fn document_diagnostic_params(
+    uri: Url,
+    previous_result_id: Option<String>,
+) -> DocumentDiagnosticParams {
+    DocumentDiagnosticParams {
+        text_document: TextDocumentIdentifier { uri },
+        identifier: None,
+        previous_result_id,
         work_done_progress_params: WorkDoneProgressParams::default(),
         partial_result_params: PartialResultParams::default(),
     }

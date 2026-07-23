@@ -2,7 +2,7 @@
 
 use super::{LoopContext, Lowerer};
 use crate::{
-    MULTI_RETURN_BUFFER_PTR_SLOT,
+    memory::EvmMemoryLayout,
     mir::{FunctionBuilder, ValueId},
 };
 use alloy_primitives::U256;
@@ -215,9 +215,7 @@ impl<'gcx> Lowerer<'gcx> {
         let is_struct_type = matches!(var_ty.peel_refs().kind, TyKind::Struct(_));
 
         let initial_value = if let Some(init) = var.initializer {
-            if self.memory_backed_calldata_bytes.contains(&var_id)
-                || self.var_expects_memory_bytes_value(var)
-            {
+            if self.var_expects_memory_bytes_value(var) {
                 self.lower_expr_as_memory_bytes(builder, init)
             } else if self.var_expects_memory_dyn_array_value(var) {
                 self.lower_expr_as_memory_dyn_array(builder, init)
@@ -227,7 +225,11 @@ impl<'gcx> Lowerer<'gcx> {
         } else if is_struct_type {
             // Struct without initializer: allocate memory and zero-initialize
             let struct_size = self.memory_struct_size(&var.ty);
-            let struct_ptr = self.allocate_memory(builder, struct_size);
+            let struct_ptr = self.allocate_memory_object(
+                builder,
+                struct_size,
+                crate::mir::MemoryObjectKind::Struct,
+            );
             self.zero_initialize_memory_value(builder, &var.ty, struct_ptr);
             struct_ptr
         } else if self.is_fixed_memory_array_type(&var.ty, var.data_location) {
@@ -245,6 +247,22 @@ impl<'gcx> Lowerer<'gcx> {
             self.is_var_assigned(&var_id) || (has_external_call && !is_struct_type);
 
         if needs_local_memory {
+            if Lowerer::calldata_dynamic_var_kind(var).is_some() {
+                // A rebindable calldata slice local keeps its two words in a
+                // dedicated slot so joins read one merged representation. An
+                // uninitialized one seeds an empty slice, not a zero word, so
+                // the slot store projects a real `make_slice` that folds away
+                // rather than a `slice_ptr`/`slice_len` of a non-slice value.
+                let initial = if var.initializer.is_some() {
+                    initial_value
+                } else {
+                    let zero = builder.imm_u64(0);
+                    builder.make_slice(zero, zero, crate::mir::SliceLocation::Calldata)
+                };
+                let offset = self.alloc_local_slice_memory(var_id);
+                self.store_slice_slot(builder, offset, initial);
+                return;
+            }
             let offset = self.alloc_local_memory(var_id);
             let offset_val = self.local_memory_addr(builder, offset);
             builder.mstore(offset_val, initial_value);
@@ -314,16 +332,20 @@ impl<'gcx> Lowerer<'gcx> {
                 .emit();
             0
         });
-        let ptr = self.allocate_memory(builder, alloc_size);
+        let ptr = self.allocate_memory_object(
+            builder,
+            alloc_size,
+            crate::mir::MemoryObjectKind::FixedArray,
+        );
         for i in 0..len {
             let value = self.zero_memory_field_value_ty(builder, elem_ty, ty.span);
-            if i == 0 {
-                builder.mstore(ptr, value);
-            } else {
-                let offset = builder.imm_u64(i * 32);
-                let addr = builder.add(ptr, offset);
-                builder.mstore(addr, value);
-            }
+            let index = builder.imm_u64(i);
+            let addr = builder.memory_object_element_addr(
+                ptr,
+                crate::mir::MemoryObjectLayout::word_fixed_array(len),
+                index,
+            );
+            builder.mstore(addr, value);
         }
         Some(ptr)
     }
@@ -351,28 +373,43 @@ impl<'gcx> Lowerer<'gcx> {
                         .emit();
                     0
                 });
-                let ptr = self.allocate_memory(builder, alloc_size);
+                let ptr = self.allocate_memory_object(
+                    builder,
+                    alloc_size,
+                    crate::mir::MemoryObjectKind::FixedArray,
+                );
                 for i in 0..len {
                     let value = self.zero_memory_field_value_ty(builder, elem_ty, span);
-                    if i == 0 {
-                        builder.mstore(ptr, value);
-                    } else {
-                        let offset = builder.imm_u64(i * 32);
-                        let addr = builder.add(ptr, offset);
-                        builder.mstore(addr, value);
-                    }
+                    let index = builder.imm_u64(i);
+                    let addr = builder.memory_object_element_addr(
+                        ptr,
+                        crate::mir::MemoryObjectLayout::word_fixed_array(len),
+                        index,
+                    );
+                    builder.mstore(addr, value);
                 }
                 ptr
             }
             TyKind::DynArray(_) => {
-                let ptr = self.allocate_memory(builder, 32);
+                let ptr = self.allocate_memory_object(
+                    builder,
+                    32,
+                    crate::mir::MemoryObjectKind::DynamicArray,
+                );
                 let zero = builder.imm_u256(U256::ZERO);
-                builder.mstore(ptr, zero);
+                builder.set_memory_object_len(
+                    ptr,
+                    zero,
+                    crate::mir::MemoryObjectKind::DynamicArray,
+                );
                 ptr
             }
             TyKind::Struct(_) => {
-                let ptr =
-                    self.allocate_memory(builder, self.calculate_memory_words_for_ty(ty) * 32);
+                let ptr = self.allocate_memory_object(
+                    builder,
+                    self.calculate_memory_words_for_ty(ty) * 32,
+                    crate::mir::MemoryObjectKind::Struct,
+                );
                 self.zero_initialize_memory_ty(builder, ty, ptr, span);
                 ptr
             }
@@ -394,16 +431,11 @@ impl<'gcx> Lowerer<'gcx> {
         };
 
         let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        let layout = crate::mir::MemoryObjectLayout::structure(field_tys.len() as u64);
         for (i, field_ty) in field_tys.into_iter().enumerate() {
             let value = self.zero_memory_field_value_ty(builder, field_ty, span);
-            let field_offset = (i as u64) * 32;
-            if field_offset == 0 {
-                builder.mstore(ptr, value);
-            } else {
-                let offset_val = builder.imm_u64(field_offset);
-                let field_addr = builder.add(ptr, offset_val);
-                builder.mstore(field_addr, value);
-            }
+            let field_addr = builder.memory_object_field_addr(ptr, layout, i as u64);
+            builder.mstore(field_addr, value);
         }
     }
 
@@ -434,9 +466,24 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Snapshot every bound tail value before storing any local. This keeps
         // the unbumped return buffer independent of subsequent memory writes.
+        let init_delivers_pending = self.is_slice_multi_return_call(init);
+        self.pending_inline_returns = None;
         let first_val = self.lower_expr(builder, init);
+        // An inlined multi-return callee with calldata-slice returns delivers
+        // its values directly — a slice cannot ride the one-word-per-value
+        // buffer — so bind them here instead of reading the buffer.
+        if init_delivers_pending && let Some(values) = self.pending_inline_returns.take() {
+            for (i, var_id_opt) in var_ids.iter().enumerate() {
+                if let Some(var_id) = var_id_opt {
+                    let val = values.get(i).copied().unwrap_or(first_val);
+                    self.bind_local_value(builder, *var_id, val);
+                }
+            }
+            return;
+        }
+        self.pending_inline_returns = None;
         let tail_base = var_ids.iter().skip(1).any(Option::is_some).then(|| {
-            let ptr_slot = builder.imm_u64(MULTI_RETURN_BUFFER_PTR_SLOT);
+            let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
             builder.mload(ptr_slot)
         });
         let vals: Vec<Option<ValueId>> = var_ids
@@ -462,6 +509,32 @@ impl<'gcx> Lowerer<'gcx> {
                 let offset_val = self.local_memory_addr(builder, offset);
                 builder.mstore(offset_val, val.expect("bound variable has a value"));
             }
+        }
+    }
+
+    /// Binds a lowered value to a freshly declared local, mirroring
+    /// single-declaration lowering: a reassigned local gets a memory slot (two
+    /// words for a calldata slice), everything else stays an SSA value.
+    fn bind_local_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        var_id: hir::VariableId,
+        val: ValueId,
+    ) {
+        let var = self.gcx.hir.variable(var_id);
+        if Self::calldata_dynamic_var_kind(var).is_some() {
+            if self.is_var_assigned(&var_id) {
+                let offset = self.alloc_local_slice_memory(var_id);
+                self.store_slice_slot(builder, offset, val);
+            } else {
+                self.locals.insert(var_id, val);
+            }
+        } else if self.is_var_assigned(&var_id) {
+            let offset = self.alloc_local_memory(var_id);
+            let addr = self.local_memory_addr(builder, offset);
+            builder.mstore(addr, val);
+        } else {
+            self.locals.insert(var_id, val);
         }
     }
 
@@ -506,9 +579,24 @@ impl<'gcx> Lowerer<'gcx> {
         // Snapshot every tail value before assigning the first lvalue. Mapping
         // and other complex lvalues may use scratch memory while computing
         // their destination and must not corrupt later tuple elements.
+        let rhs_delivers_pending = self.is_slice_multi_return_call(rhs);
+        self.pending_inline_returns = None;
         let first_val = self.lower_expr(builder, rhs);
+        // An inlined multi-return callee with calldata-slice returns delivers
+        // its values directly; assign them through the regular lvalue path,
+        // which routes slice-slot locals through their two-word slots.
+        if rhs_delivers_pending && let Some(values) = self.pending_inline_returns.take() {
+            for (i, &elem) in elements.iter().enumerate() {
+                if let Some(elem) = elem {
+                    let val = values.get(i).copied().unwrap_or(first_val);
+                    self.lower_assign(builder, elem, val);
+                }
+            }
+            return;
+        }
+        self.pending_inline_returns = None;
         let tail_base = elements.iter().skip(1).any(Option::is_some).then(|| {
-            let ptr_slot = builder.imm_u64(MULTI_RETURN_BUFFER_PTR_SLOT);
+            let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
             builder.mload(ptr_slot)
         });
         let vals: Vec<Option<ValueId>> = elements
@@ -533,7 +621,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Stages return values 2..N at the unbumped free-memory pointer and
-    /// publishes the buffer base through [`MULTI_RETURN_BUFFER_PTR_SLOT`].
+    /// publishes the buffer base through the memory policy's scratch slot.
     pub(super) fn stage_multi_return_tail(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -561,14 +649,13 @@ impl<'gcx> Lowerer<'gcx> {
         values: &[ValueId],
         start: usize,
     ) {
-        let free_ptr_slot = builder.imm_u64(0x40);
-        let base = builder.mload(free_ptr_slot);
+        let base = builder.fmp();
         for (i, &value) in values.iter().enumerate().skip(start) {
             let offset = builder.imm_u64(i as u64 * 32);
             let addr = builder.add(base, offset);
             builder.mstore(addr, value);
         }
-        let ptr_slot = builder.imm_u64(MULTI_RETURN_BUFFER_PTR_SLOT);
+        let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
         builder.mstore(ptr_slot, base);
     }
 
@@ -577,7 +664,7 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
     ) -> ValueId {
-        let ptr_slot = builder.imm_u64(MULTI_RETURN_BUFFER_PTR_SLOT);
+        let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
         builder.mload(ptr_slot)
     }
 
@@ -794,6 +881,14 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Lowers a return statement.
     fn lower_return(&mut self, builder: &mut FunctionBuilder<'_>, value: Option<&hir::Expr<'_>>) {
+        // A `return` inside a body being inlined delivers its values to the
+        // call site: store them into the callee's return-variable slots and
+        // jump to the inline exit block. This must precede the external check —
+        // the inlined body may live inside a public function's lowering.
+        if let Some(ctx) = self.inline_returns.clone() {
+            self.lower_inline_return(builder, &ctx, value);
+            return;
+        }
         let external = builder.func().is_public() && !self.lowering_internal_function;
         if external {
             let items = self.gather_return_items(builder, value);
@@ -838,6 +933,61 @@ impl<'gcx> Lowerer<'gcx> {
         } else {
             builder.ret([]);
         }
+    }
+
+    /// Delivers an inlined body's `return` values to its call site: each value
+    /// is stored into the matching return variable's slot (two words for a
+    /// calldata slice, one otherwise) and control jumps to the inline exit
+    /// block, where [`super::Lowerer::inline_slice_return_body`] reads the
+    /// slots back.
+    fn lower_inline_return(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ctx: &crate::lower::InlineReturnCtx,
+        value: Option<&hir::Expr<'_>>,
+    ) {
+        let n = ctx.return_vars.len();
+        let mut values = Vec::with_capacity(n);
+        if let Some(expr) = value {
+            if let hir::ExprKind::Tuple(elements) = &expr.kind {
+                for elem in elements.iter().flatten() {
+                    values.push(self.lower_expr(builder, elem));
+                }
+            } else {
+                self.pending_inline_returns = None;
+                let first = self.lower_expr(builder, expr);
+                if n > 1 {
+                    // A forwarded multi-return call: an inlined slice-returning
+                    // callee leaves its values pending; anything else staged
+                    // the tail in the multi-return buffer.
+                    if let Some(pending) = self.pending_inline_returns.take() {
+                        values = pending;
+                    } else {
+                        values.push(first);
+                        let base = self.multi_return_buffer_base(builder);
+                        for i in 1..n {
+                            values.push(self.load_multi_return_value(builder, base, i));
+                        }
+                    }
+                } else {
+                    values.push(first);
+                }
+            }
+        }
+        for (i, &ret_id) in ctx.return_vars.iter().enumerate() {
+            let Some(&val) = values.get(i) else { continue };
+            if let Some(offset) = self.get_local_memory_offset(&ret_id) {
+                if self.is_slice_slot_local(&ret_id) {
+                    self.store_slice_slot(builder, offset, val);
+                } else {
+                    let addr = self.local_memory_addr(builder, offset);
+                    builder.mstore(addr, val);
+                }
+            } else {
+                self.locals.insert(ret_id, val);
+            }
+        }
+        builder.jump(ctx.exit_block);
     }
 
     /// Gets the tuple arity if this is a ternary expression with tuple branches.

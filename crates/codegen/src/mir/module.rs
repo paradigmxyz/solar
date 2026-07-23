@@ -1,11 +1,12 @@
 //! MIR module (top-level container).
 
-use super::{Function, FunctionId};
+use super::{AbiLayout, AbiLayoutRef, Function, FunctionId, StorageLayout, StorageLayoutRef};
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
 };
 use solar_interface::{Ident, Symbol, sym};
+use std::sync::Arc;
 
 /// Current immutable staging and placeholder width.
 ///
@@ -27,10 +28,10 @@ pub(crate) const IMMUTABLE_WORD_SIZE: usize = 32;
 ///
 /// Optimization runs on the compact high-level form first; the progressive
 /// lowering phases then rewrite high-level constructs into MIR itself instead
-/// of leaving them as backend special cases. The codegen pipeline runs
-/// `lower-abi` and `lower-dispatch` by default and the backend consumes the
-/// `dispatch`-phase module (opt out with `-Zno-mir-dispatch`); a module where
-/// lowering bails keeps its phase and is dispatched by the backend.
+/// of leaving them as backend special cases. The codegen pipeline runs ABI,
+/// dispatch, memory-object, and EVM-shape lowering by default, and the backend
+/// consumes the `evm-shaped` module. A module where ABI/dispatch lowering bails
+/// keeps its earlier phase and uses the backend dispatcher.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum MirPhase {
     /// Fresh from HIR lowering: typed values, internal calls by function id,
@@ -48,6 +49,9 @@ pub(crate) enum MirPhase {
     /// function that routes to the ABI wrappers, instead of being generated
     /// inside the backend.
     Dispatch,
+    /// Semantic memory objects have been lowered to physical pointer and word
+    /// operations. Produced by the `lower-memory-objects` pass.
+    MemoryLowered,
     /// Functions take the shape the backend expects: every call edge either
     /// returns or is an explicit `tail_call` (a call to a callee that cannot
     /// return is rewritten into one, arguments included). Produced by the
@@ -64,6 +68,7 @@ impl MirPhase {
             Self::Optimized => "optimized",
             Self::Abi => "abi",
             Self::Dispatch => "dispatch",
+            Self::MemoryLowered => "memory-lowered",
             Self::EvmShaped => "evm-shaped",
         }
     }
@@ -76,6 +81,7 @@ impl MirPhase {
             sym::optimized => Self::Optimized,
             sym::abi => Self::Abi,
             sym::dispatch => Self::Dispatch,
+            sym::memory_dash_lowered => Self::MemoryLowered,
             sym::evm_dash_shaped => Self::EvmShaped,
             _ => return None,
         })
@@ -89,6 +95,10 @@ pub struct Module {
     pub(crate) name: Ident,
     /// All functions in this module.
     pub(crate) functions: IndexVec<FunctionId, Function>,
+    /// Canonical ABI layouts referenced by semantic encoding operations.
+    pub(crate) abi_layouts: Vec<AbiLayoutRef>,
+    /// Canonical storage layouts referenced by semantic aggregate operations.
+    pub(crate) aggregate_layouts: Vec<StorageLayoutRef>,
     /// Size of the constructor scratch area used to stage immutables.
     immutable_data_len: usize,
     /// Whether this is an interface (no bytecode generation).
@@ -112,6 +122,8 @@ impl Module {
         Self {
             name,
             functions: IndexVec::new(),
+            abi_layouts: Vec::new(),
+            aggregate_layouts: Vec::new(),
             immutable_data_len: 0,
             is_interface: false,
             phase: MirPhase::Built,
@@ -146,6 +158,30 @@ impl Module {
     /// Returns a mutable reference to the function.
     pub(crate) fn function_mut(&mut self, id: FunctionId) -> &mut Function {
         &mut self.functions[id]
+    }
+
+    /// Interns an ABI layout and returns its canonical shared reference.
+    pub(crate) fn intern_abi_layout(&mut self, layout: AbiLayout) -> AbiLayoutRef {
+        if let Some(existing) =
+            self.abi_layouts.iter().find(|existing| existing.as_ref() == &layout)
+        {
+            return Arc::clone(existing);
+        }
+        let layout = Arc::new(layout);
+        self.abi_layouts.push(Arc::clone(&layout));
+        layout
+    }
+
+    /// Interns a storage layout and returns its canonical shared reference.
+    pub(crate) fn intern_storage_layout(&mut self, layout: StorageLayout) -> StorageLayoutRef {
+        if let Some(existing) =
+            self.aggregate_layouts.iter().find(|existing| existing.as_ref() == &layout)
+        {
+            return Arc::clone(existing);
+        }
+        let layout = Arc::new(layout);
+        self.aggregate_layouts.push(Arc::clone(&layout));
+        layout
     }
 
     /// Reserves one word in the constructor's immutable staging area.

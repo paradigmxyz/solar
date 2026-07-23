@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/static_frames.sol:SF (runtime) ===
 @module runtime
 bb0:
-  push 0x680
+  push 0x6a0
   push 64
   mstore
   callvalue
@@ -188,6 +188,9 @@ bb7:
   mstore
   push 64
   mload
+  dup1
+  push 0x520
+  mstore
   push 32
   dup2
   add
@@ -196,6 +199,9 @@ bb7:
   push 0x500
   mstore
   swap1
+  mstore
+  dup1
+  push 0x520
   mstore
   push 32
   mstore

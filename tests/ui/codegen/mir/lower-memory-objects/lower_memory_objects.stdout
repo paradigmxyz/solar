@@ -1,0 +1,32 @@
+- // === ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir (before lower-memory-objects) ===
++ // === ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir (after lower-memory-objects) ===
+  @module LowerMemoryObjects
+- @phase dispatch
+- fn @objects(arg0: memorybytes, arg1: memoryarray, arg2: memorystruct, arg3: memoryfixedarray) {
++ @phase memory-lowered
++ fn @objects(arg0: memptr, arg1: memptr, arg2: memptr, arg3: memptr) {
+    bb0:
+-     v0 = alloc memorybytes, exact, zeroed, panic, 96
+-     set_memory_object_len memorybytes, v0, 3
+-     v1 = memory_object_len memorybytes, v0
+-     v2 = memory_object_data memorybytes, v0
++     v0 = alloc raw, exact, zeroed, panic, 96
++     mstore v0, 3
++     v1 = mload v0
++     v2 = add v0, 32
+      mstore8 v2, v1
+-     v3 = memory_object_field_addr memorystruct<2>, arg2, 1
++     v3 = add arg2, 32
+      mstore v3, v1
+-     v4 = memory_object_element_addr memoryarray<1>, arg1, v1
++     v6 = add arg1, 32
++     v7 = mul v1, 32
++     v4 = add v6, v7
+      mstore v4, v1
+-     v5 = memory_object_element_addr memoryfixedarray<4, 1>, arg3, v1
++     v8 = mul v1, 32
++     v5 = add arg3, v8
+      mstore v5, v1
+      stop
+  }
+  

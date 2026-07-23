@@ -7,8 +7,9 @@ use lsp_types::{
     DocumentLink, DocumentLinkParams, Documentation, GotoDefinitionParams, GotoDefinitionResponse,
     Hover, HoverContents, HoverParams, InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams,
     Location, MarkupKind, ParameterLabel, PartialResultParams, Position, PrepareRenameResponse,
-    Range, ReferenceContext, ReferenceParams, RenameParams, SignatureHelp, SignatureHelpParams,
-    TextDocumentIdentifier, TextDocumentPositionParams, Url, WorkDoneProgressParams, WorkspaceEdit,
+    Range, ReferenceContext, ReferenceParams, RenameParams, SelectionRange, SelectionRangeParams,
+    SignatureHelp, SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams, Url,
+    WorkDoneProgressParams, WorkspaceEdit,
 };
 use snapbox::{IntoData, assert_data_eq};
 use solar_config::CompileOpts;
@@ -372,6 +373,97 @@ impl RequestFixture {
         assert_data_eq!(self.document_links_output(links), expected);
     }
 
+    pub(super) fn check_selection_ranges(&self, markers: &[&str], expected: impl IntoData) {
+        let mut state = self.state();
+        let (params, positions) = self.selection_range_request(markers);
+        let response =
+            block_on(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
+        check_selection_range_response(response, &positions, expected);
+    }
+
+    pub(super) fn check_selection_ranges_at(
+        &self,
+        path: &str,
+        positions: Vec<Position>,
+        normalized_positions: &[Position],
+        expected: impl IntoData,
+    ) {
+        assert_eq!(positions.len(), normalized_positions.len());
+        let mut state = self.state();
+        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
+        let params = selection_range_params(uri, positions);
+        let response =
+            block_on(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
+        check_selection_range_response(response, normalized_positions, expected);
+    }
+
+    pub(super) fn check_selection_ranges_from_disk(
+        &self,
+        markers: &[&str],
+        expected: impl IntoData,
+    ) {
+        let mut state = self.state();
+        let (params, positions) = self.selection_range_request(markers);
+        let response =
+            block_on(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
+        check_selection_range_response(response, &positions, expected);
+    }
+
+    pub(super) fn check_selection_ranges_while_analysis_pending(
+        &self,
+        markers: &[&str],
+        expected: impl IntoData,
+    ) {
+        let mut state = self.state();
+        state.mark_analysis_pending_for_test();
+        let (params, positions) = self.selection_range_request(markers);
+        let response =
+            block_on(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
+        check_selection_range_response(response, &positions, expected);
+    }
+
+    pub(super) fn check_selection_range_uses_blocking_pool(
+        &self,
+        markers: &[&str],
+        expected: impl IntoData,
+    ) {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .max_blocking_threads(1)
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let (release_worker, worker) = super::pause_blocking_pool();
+            let mut state = self.state();
+            let (params, positions) = self.selection_range_request(markers);
+            let mut request = std::pin::pin!(crate::handlers::selection_range(&mut state, params));
+            let waker = Waker::noop();
+            let mut cx = Context::from_waker(waker);
+
+            let is_pending = request.as_mut().poll(&mut cx).is_pending();
+            release_worker.send(()).unwrap();
+            assert!(is_pending);
+            let response = request.await.unwrap().unwrap();
+            worker.await.unwrap();
+            check_selection_range_response(response, &positions, expected);
+        });
+    }
+
+    pub(super) fn check_selection_range_error(
+        &self,
+        path: &str,
+        positions: Vec<Position>,
+        expected: ErrorCode,
+    ) {
+        let mut state = self.state();
+        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
+        let params = selection_range_params(uri, positions);
+        let error = block_on(crate::handlers::selection_range(&mut state, params))
+            .expect_err("selection-range request should fail");
+        assert_eq!(error.code, expected);
+        assert!(!error.message.ends_with('.'));
+    }
+
     pub(super) fn check_signature_help(&self, marker: &str, expected: impl IntoData) {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);
@@ -489,6 +581,27 @@ impl RequestFixture {
         let marker = self.marked.marker(marker);
         let path = self.marked.project().path(marker.path());
         (Url::from_file_path(path).unwrap(), marker.position())
+    }
+
+    fn selection_range_request(&self, markers: &[&str]) -> (SelectionRangeParams, Vec<Position>) {
+        let mut uri = None;
+        let positions = markers
+            .iter()
+            .map(|marker| {
+                let (marker_uri, position) = self.marker_location(marker);
+                if let Some(uri) = &uri {
+                    assert_eq!(uri, &marker_uri, "selection-range markers must be in one document");
+                } else {
+                    uri = Some(marker_uri);
+                }
+                position
+            })
+            .collect::<Vec<_>>();
+        let params = selection_range_params(
+            uri.expect("at least one marker is required"),
+            positions.clone(),
+        );
+        (params, positions)
     }
 
     fn goto_output(&self, response: Option<GotoDefinitionResponse>) -> String {
@@ -668,6 +781,43 @@ fn range_output(range: Range) -> String {
         "{}:{}-{}:{}",
         range.start.line, range.start.character, range.end.line, range.end.character
     )
+}
+
+fn selection_range_output(ranges: &[SelectionRange], positions: &[Position]) -> String {
+    assert_eq!(ranges.len(), positions.len());
+    let mut output = String::new();
+    for (index, (selection, position)) in ranges.iter().zip(positions).enumerate() {
+        writeln!(output, "{index}:").unwrap();
+        assert!(range_contains_position(selection.range, *position));
+        let mut current = Some(selection);
+        while let Some(selection) = current {
+            writeln!(output, "  {}", range_output(selection.range)).unwrap();
+            if let Some(parent) = selection.parent.as_deref() {
+                assert_ne!(parent.range, selection.range);
+                assert!(range_contains_range(parent.range, selection.range));
+            }
+            current = selection.parent.as_deref();
+        }
+    }
+    output
+}
+
+fn check_selection_range_response(
+    response: Vec<SelectionRange>,
+    positions: &[Position],
+    expected: impl IntoData,
+) {
+    assert_eq!(response.len(), positions.len());
+    assert_data_eq!(selection_range_output(&response, positions), expected);
+}
+
+fn range_contains_position(range: Range, position: Position) -> bool {
+    (range.start <= position && position < range.end)
+        || (range.start == position && range.end == position)
+}
+
+fn range_contains_range(outer: Range, inner: Range) -> bool {
+    outer.start <= inner.start && inner.end <= outer.end
 }
 
 fn inlay_hint_output(hints: &[InlayHint]) -> String {
@@ -885,6 +1035,15 @@ fn signature_help_params(uri: Url, position: Position) -> SignatureHelpParams {
         context: None,
         text_document_position_params: text_document_position(uri, position),
         work_done_progress_params: WorkDoneProgressParams::default(),
+    }
+}
+
+fn selection_range_params(uri: Url, positions: Vec<Position>) -> SelectionRangeParams {
+    SelectionRangeParams {
+        text_document: TextDocumentIdentifier { uri },
+        positions,
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
     }
 }
 
