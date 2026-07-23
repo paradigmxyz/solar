@@ -20,12 +20,13 @@ use crate::{
     mir::{Function, MirPhase, Module, validate},
     timing::PassTimer,
     transform::{
-        AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
-        FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
-        JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, LowerAbiPass,
-        LowerDispatchPass, LowerEvmShapedPass, LowerMappingSlotsPass, MemoryDsePass,
-        OutlineRevertsPass, PrePass, PureEvalPass, SccpTransformPass, StaticAllocPass,
-        StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
+        AdcePass, CfgSimplifyPass, CheckElimPass, CopyElisionPass, CsePass, DcePass,
+        FrameSlotPromotionPass, FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass,
+        InstSimplifyPass, JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass,
+        LowerAbiEncodePass, LowerAbiPass, LowerAggregatesPass, LowerAllocPass, LowerDispatchPass,
+        LowerEvmShapedPass, LowerMappingSlotsPass, LowerMemoryObjectsPass, LowerSlicesPass,
+        MemoryDsePass, OutlineRevertsPass, PrePass, PureEvalPass, SccpTransformPass, SroaPass,
+        StaticAllocPass, StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
     },
 };
 use solar_data_structures::map::FxHashMap;
@@ -155,8 +156,14 @@ declare_passes! {
     /// Local dead memory-store elimination.
     pub(crate) const MEMORY_DSE_PASS -> "memory-dse" = MemoryDsePass;
 
-    /// Place provably local fmp-bump allocations at static frame addresses.
+    /// Place provably local allocations at static frame addresses.
     pub(crate) const STATIC_ALLOC_PASS -> "static-alloc" = StaticAllocPass;
+
+    /// Scalar-replace non-escaping memory-object allocations.
+    pub const SROA_PASS -> "sroa" = SroaPass::default();
+
+    /// Elide copies into write-only memory allocations.
+    pub const COPY_ELISION_PASS -> "copy-elision" = CopyElisionPass::default();
 
     /// Dead Code Elimination (fixed-point).
     pub(crate) const DCE_PASS -> "dce" = DcePass;
@@ -175,6 +182,21 @@ declare_passes! {
 
     /// Lower mapping-slot hash builtins to memory operations.
     pub(crate) const LOWER_MAPPING_SLOTS_PASS -> "lower-mapping-slots" = LowerMappingSlotsPass;
+
+    /// Lower semantic ABI encoding to memory and slice operations.
+    pub const LOWER_ABI_ENCODE_PASS -> "lower-abi-encode" = LowerAbiEncodePass;
+
+    /// Lower semantic memory/storage aggregate operations to word operations.
+    pub const LOWER_AGGREGATES_PASS -> "lower-aggregates" = LowerAggregatesPass;
+
+    /// Lower semantic memory-object layouts and accesses to physical words.
+    const LOWER_MEMORY_OBJECTS_PASS_BASE -> "lower-memory-objects" = LowerMemoryObjectsPass::default();
+
+    /// Lower logical slices to their pointer and length words.
+    pub(crate) const LOWER_SLICES_PASS -> "lower-slices" = LowerSlicesPass::default();
+
+    /// Lower abstract allocation operations to free-memory-pointer updates.
+    pub(crate) const LOWER_ALLOC_PASS -> "lower-alloc" = LowerAllocPass;
 }
 
 /// ABI phase lowering with its phase range declared: consumes
@@ -187,10 +209,15 @@ pub(crate) const LOWER_ABI_PASS: PassInfo =
 pub(crate) const LOWER_DISPATCH_PASS: PassInfo =
     LOWER_DISPATCH_PASS_BASE.phases(MirPhase::Abi, MirPhase::Abi);
 
+/// Memory-object phase lowering: consumes up to `dispatch`-phase MIR and, for
+/// a dispatched module, produces the `memory-lowered` phase.
+pub const LOWER_MEMORY_OBJECTS_PASS: PassInfo =
+    LOWER_MEMORY_OBJECTS_PASS_BASE.phases(MirPhase::Built, MirPhase::Dispatch);
+
 /// EVM-shape lowering with its phase range declared: consumes exactly
-/// `dispatch`-phase MIR and produces the `evm-shaped` phase.
+/// `memory-lowered` MIR and produces the `evm-shaped` phase.
 pub(crate) const LOWER_EVM_SHAPED_PASS: PassInfo =
-    LOWER_EVM_SHAPED_PASS_BASE.phases(MirPhase::Dispatch, MirPhase::Dispatch);
+    LOWER_EVM_SHAPED_PASS_BASE.phases(MirPhase::MemoryLowered, MirPhase::MemoryLowered);
 
 /// All known MIR passes exposed to `solar mir-opt`.
 pub const PASS_REGISTRY: &[PassInfo] = &[
@@ -216,12 +243,19 @@ pub const PASS_REGISTRY: &[PassInfo] = &[
     FRAME_SLOT_PROMOTION_PASS,
     MEMORY_DSE_PASS,
     STATIC_ALLOC_PASS,
+    SROA_PASS,
+    COPY_ELISION_PASS,
     STORAGE_PROMOTION_PASS,
     LOWER_ABI_PASS,
     LOWER_DISPATCH_PASS,
     LOWER_EVM_SHAPED_PASS,
     OUTLINE_REVERTS_PASS,
     LOWER_MAPPING_SLOTS_PASS,
+    LOWER_ABI_ENCODE_PASS,
+    LOWER_AGGREGATES_PASS,
+    LOWER_MEMORY_OBJECTS_PASS,
+    LOWER_SLICES_PASS,
+    LOWER_ALLOC_PASS,
 ];
 
 /// Finds a pass in the global MIR pass registry by command-line name.
@@ -253,8 +287,12 @@ pub const DEFAULT_PIPELINE: &[PassInfo] = &[
     CHECK_ELIM_PASS,
     JUMP_THREADING_PASS,
     CFG_SIMPLIFY_PASS,
+    SROA_PASS,
+    COPY_ELISION_PASS,
     MEMORY_DSE_PASS,
-    STATIC_ALLOC_PASS,
+    // Keep allocation semantic through the optimization pipeline. The EVM
+    // backend chooses static placement only after exact spill and helper-frame
+    // addresses are known, then lowers the residual dynamic allocations.
     ADCE_PASS,
     DCE_PASS,
 ];
@@ -279,6 +317,8 @@ pub const DEFAULT_CLEANUP_PIPELINE: &[PassInfo] = &[
     JUMP_THREADING_PASS,
     CFG_SIMPLIFY_PASS,
     FRAME_SLOT_PROMOTION_PASS,
+    SROA_PASS,
+    COPY_ELISION_PASS,
     MEMORY_DSE_PASS,
     ADCE_PASS,
     DCE_PASS,
@@ -348,12 +388,29 @@ fn run_cleanup_pipeline_to_fixpoint(
     passes: &[PassInfo],
     label: &str,
 ) -> bool {
+    // A pass only needs to rerun if the module changed since it last started:
+    // rerunning a deterministic pass on identical input is a no-op. Tracking
+    // that with a change generation keeps exactly the plain round loop's
+    // optimization power — a changing pass is stamped with its *pre-run*
+    // generation, so it always earns one confirming rerun, even when it is
+    // not internally fixpointed — while the pure confirmation reruns of
+    // unchanged passes, which otherwise dominate, are skipped.
+    let mut generation = 0usize;
+    let mut ran_at = vec![usize::MAX; passes.len()];
     let mut changed = false;
     for round in 1..=DEFAULT_CLEANUP_MAX_ROUNDS {
         let mut round_changed = false;
-        for pass in passes {
+        for (index, pass) in passes.iter().enumerate() {
+            if ran_at[index] == generation {
+                continue;
+            }
+            let generation_before = generation;
             let pass_changed = run_pass(gcx, module, pass);
-            round_changed |= pass_changed;
+            if pass_changed {
+                generation += 1;
+                round_changed = true;
+            }
+            ran_at[index] = generation_before;
             if gcx.sess.opts.unstable.print_after_each {
                 println!("// === {} (after {label}-{round}:{}) ===", module.name, pass.name);
                 print!("{}", module.to_text());
@@ -405,15 +462,23 @@ pub(crate) trait ModulePass {
 pub(crate) trait FunctionPass {
     /// Runs the transformation on the given function.
     fn run_on_function(&mut self, func: &mut Function) -> bool;
-}
 
-impl<T: FunctionPass> ModulePass for T {
-    fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+    /// Runs the function pass over a module.
+    ///
+    /// Passes that need module-level summaries may override this hook. The
+    /// default preserves the ordinary function-local execution model.
+    fn run_on_module(&mut self, module: &mut Module) -> bool {
         let mut changed = false;
         for func in &mut module.functions {
             changed |= self.run_on_function(func);
         }
         changed
+    }
+}
+
+impl<T: FunctionPass> ModulePass for T {
+    fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+        self.run_on_module(module)
     }
 }
 

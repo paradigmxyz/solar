@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_packed_calldata_slice.sol:AbiEncodePackedCalldataSlice (runtime) ===
 @module runtime
 bb0:
-  push 384
+  push 480
   push 64
   mstore
   callvalue
@@ -23,25 +23,35 @@ bb0:
   dup1
   push 0x2a5dea89
   eq
-  push bb12
+  push bb15
   jumpi
   jump bb5
 bb5 [cold]:
   push 0
   dup1
   revert
-bb18 [cold]:
+bb24 [cold]:
   push 0x4e487b71
   push 224
   shl
   push 0
   mstore
   push 65
+  jump bb25
+bb25 [cold]:
   push 4
   mstore
   push 36
   push 0
   revert
+bb23 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 50
+  jump bb25
 bb6:
   calldatasize
   push 4
@@ -49,26 +59,55 @@ bb6:
   sub
   push 96
   sgt
+  push 36
+  calldataload
+  push 68
+  calldataload
+  push 4
+  calldataload
+  swap3
+  swap1
+  swap2
+  swap1
   push bb5
   jumpi
   push 0
   push 128
   mstore
   push 36
-  push 4
-  calldataload
+  dup4
   add
-  push 36
+  dup1
+  push 384
+  mstore
+  swap3
+  push 4
+  add
   calldataload
-  push 68
-  calldataload
+  dup3
+  gt
+  swap3
+  pop
+  swap2
+  swap1
+  swap2
+  swap1
+  push bb23
+  jumpi
+  dup1
+  dup3
+  lt
+  push bb23
+  jumpi
+  dup1
+  swap2
   sub
   dup1
   push 160
   mstore
   swap1
-  push 36
-  calldataload
+  push 384
+  mload
   add
   dup1
   push 192
@@ -77,21 +116,18 @@ bb6:
   push 31
   add
   dup1
-  push 256
+  push 320
   mstore
   push 160
   mload
   gt
   swap1
   pop
-  push bb18
+  push bb24
   jumpi
-  push bb21
-  jump bb20
-bb20:
   push 31
   not
-  push 256
+  push 320
   mload
   and
   dup1
@@ -111,14 +147,50 @@ bb20:
   push 32
   add
   dup1
-  push 288
+  push 352
   mstore
   push 224
   mload
   gt
+  push bb24
+  jumpi
+  push 64
+  mload
+  dup1
+  push 256
+  mstore
+  push 352
+  mload
+  add
+  push 64
+  mstore
+  push bb28
+  jump bb27
+bb27:
+  push 160
+  mload
+  dup1
+  push 160
+  mstore
+  push 256
+  mload
+  mstore
+  push 32
+  push 256
+  mload
+  add
+  push 32
+  push 224
+  mload
+  sub
+  dup2
+  add
+  push 0
+  swap1
+  mstore
   swap1
   jump
-bb12:
+bb15:
   calldatasize
   push 4
   swap1
@@ -130,19 +202,30 @@ bb12:
   push 0
   push 128
   mstore
+  push 36
+  push 4
+  calldataload
+  add
+  dup1
+  push 416
+  mstore
   push 4
   push 4
   calldataload
   add
   calldataload
-  push 36
-  push 4
-  calldataload
-  add
-  swap1
+  dup1
+  push 352
+  mstore
   push 36
   calldataload
-  swap1
+  gt
+  push bb23
+  jumpi
+  push 36
+  calldataload
+  push 352
+  mload
   sub
   dup1
   push 160
@@ -158,47 +241,57 @@ bb12:
   push 31
   add
   dup1
-  push 256
+  push 288
   mstore
   push 160
   mload
   gt
   swap1
   pop
-  push bb18
+  push bb24
   jumpi
-  push bb22
-  jump bb20
-bb21:
-  push bb18
-  jumpi
-  push 64
-  mload
+  push 31
+  not
   push 288
   mload
-  dup2
+  and
+  dup1
+  iszero
+  push 32
+  swap1
+  dup3
+  dup3
+  sub
+  mul
+  swap1
+  pop
+  add
+  dup1
+  push 224
+  mstore
+  push 32
+  add
+  dup1
+  push 320
+  mstore
+  push 224
+  mload
+  gt
+  push bb24
+  jumpi
+  push 64
+  mload
+  dup1
+  push 256
+  mstore
+  push 320
+  mload
   add
   push 64
   mstore
-  push 160
-  mload
-  dup1
-  push 160
-  mstore
-  dup2
-  mstore
-  push 32
-  dup2
-  add
-  push 32
-  push 224
-  mload
-  sub
-  dup2
-  add
-  push 0
-  swap1
-  mstore
+  push bb29
+  jump bb27
+bb28:
   push 160
   mload
   dup1
@@ -213,61 +306,41 @@ bb21:
   calldatacopy
   push 64
   mload
-  swap2
+  dup1
+  push 288
+  mstore
+  push 256
+  mload
   mload
   dup1
-  push 320
+  push 416
   mstore
-  dup2
-  dup4
+  dup3
+  dup3
+  dup1
+  push 288
+  mstore
   mcopy
+  swap1
   pop
-  push 320
+  push 416
   mload
-  dup2
-  jump bb19
-bb19:
   add
-  dup2
+  push 288
+  mload
   swap1
   sub
-  swap1
+  push 288
+  jump bb26
+bb26:
+  mload
   keccak256
   push 128
   mstore
   push 32
   push 128
   return
-bb22:
-  push bb18
-  jumpi
-  push 64
-  mload
-  push 288
-  mload
-  dup2
-  add
-  push 64
-  mstore
-  push 160
-  mload
-  dup1
-  push 160
-  mstore
-  dup2
-  mstore
-  push 32
-  dup2
-  add
-  push 32
-  push 224
-  mload
-  sub
-  dup2
-  add
-  push 0
-  swap1
-  mstore
+bb29:
   push 160
   mload
   dup1
@@ -282,30 +355,38 @@ bb22:
   calldatacopy
   push 64
   mload
+  dup1
+  push 384
+  mstore
   push 112
   push 248
   shl
   dup2
   mstore
   push 1
-  dup2
   add
-  swap3
+  push 256
+  mload
   mload
   dup1
-  push 320
+  push 448
   mstore
   dup3
-  dup5
+  dup3
   mcopy
   swap1
   pop
-  swap1
-  push 320
+  push 448
   mload
   add
   push 1
   dup2
   mstore
   push 32
-  jump bb19
+  add
+  push 384
+  mload
+  swap1
+  sub
+  push 384
+  jump bb26

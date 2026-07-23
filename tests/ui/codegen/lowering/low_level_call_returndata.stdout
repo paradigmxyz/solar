@@ -23,62 +23,54 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) {
   bb5:
     revert 0, 0
   bb6:
-    v9 = mload 64 !metadata(memory=scratch)
-    mstore v9, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v10 = add v9, 4
-    mstore v10, arg1
-    v11 = add v10, 32
-    mstore v11, arg2
-    v12 = add 64, 4
-    v13 = add v12, 31
-    v14 = not 31
-    v15 = and v13, v14
-    v16 = add v9, v15
-    mstore 64, v16 !metadata(memory=scratch)
-    v17 = gas
-    v18 = call v17, arg0, 0, v9, v12, 0, 0
-    mstore 128, v18
-    v19 = returndatasize
-    v20 = add v19, 31
-    v21 = not 31
-    v22 = and v20, v21
-    v23 = add v22, 32
-    v24 = mload 64 !metadata(memory=scratch)
-    v25 = add v24, v23
-    mstore 64, v25 !metadata(memory=scratch)
-    mstore v24, v19
-    v26 = add v24, 32
-    returndatacopy v26, 0, v19
-    mstore 160, v24
-    v27 = mload 128
-    br v27, bb7, bb8
+    v9 = abi_encode [word, word], selector 0xa9059cbb00000000000000000000000000000000000000000000000000000000, args arg1, arg2
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = gas
+    v13 = call v12, arg0, 0, v10, v11, 0, 0
+    mstore 128, v13
+    v14 = returndatasize
+    v15 = make_returndata_slice 0, v14
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = add v17, 31
+    v19 = not 31
+    v20 = and v18, v19
+    v21 = add v20, 32
+    v22 = alloc memorybytes, exact, uninitialized, infallible, v21
+    set_memory_object_len memorybytes, v22, v17
+    v23 = memory_object_data memorybytes, v22
+    returndatacopy v23, v16, v17
+    mstore 160, v22
+    v24 = mload 128
+    br v24, bb7, bb8
   bb7:
-    v28 = mload 160
-    v29 = mload v28
-    v30 = eq v29, 0
-    br v30, bb10, bb9
+    v25 = mload 160
+    v26 = mload v25
+    v27 = eq v26, 0
+    br v27, bb10, bb9
   bb8:
-    v41 = phi [bb6: 0], [bb10: v40]
-    v42 = iszero v41
-    br v42, bb15, bb16
+    v38 = phi [bb6: 0], [bb10: v37]
+    v39 = iszero v38
+    br v39, bb15, bb16
   bb9:
-    v31 = mload 160
-    v32 = mload v31
-    v33 = lt v32, 32
-    br v33, bb11, bb12
+    v28 = mload 160
+    v29 = memory_object_len memorybytes, v28
+    v30 = lt v29, 32
+    br v30, bb11, bb12
   bb10:
-    v40 = phi [bb7: 1], [bb14: v37]
+    v37 = phi [bb7: 1], [bb14: v34]
     jump bb8
   bb11:
     revert 0, 0
   bb12:
-    v34 = add v31, 32
-    v35 = mload v34
+    v31 = memory_object_data memorybytes, v28
+    v32 = mload v31
+    v33 = iszero v32
+    v34 = iszero v33
+    v35 = eq v32, v34
     v36 = iszero v35
-    v37 = iszero v36
-    v38 = eq v35, v37
-    v39 = iszero v38
-    br v39, bb13, bb14
+    br v36, bb13, bb14
   bb13:
     revert 0, 0
   bb14:
@@ -118,51 +110,45 @@ fn @balanceOf(arg0: address) {
     mstore 128, 0
     v6 = address
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v8 = mload 64 !metadata(memory=scratch)
-    mstore v8, 0x70a0823100000000000000000000000000000000000000000000000000000000
-    v9 = add v8, 4
-    mstore v9, v7
-    v10 = add 32, 4
-    v11 = add v10, 31
-    v12 = not 31
-    v13 = and v11, v12
-    v14 = add v8, v13
-    mstore 64, v14 !metadata(memory=scratch)
-    v15 = gas
-    v16 = staticcall v15, arg0, v8, v10, 0, 0
-    mstore 160, v16
-    v17 = returndatasize
-    v18 = add v17, 31
-    v19 = not 31
-    v20 = and v18, v19
-    v21 = add v20, 32
-    v22 = mload 64 !metadata(memory=scratch)
-    v23 = add v22, v21
-    mstore 64, v23 !metadata(memory=scratch)
-    mstore v22, v17
-    v24 = add v22, 32
-    returndatacopy v24, 0, v17
-    mstore 192, v22
-    v25 = mload 160
-    v26 = iszero v25
-    br v26, bb5, bb6
+    v8 = abi_encode [word], selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v7
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = gas
+    v12 = staticcall v11, arg0, v9, v10, 0, 0
+    mstore 160, v12
+    v13 = returndatasize
+    v14 = make_returndata_slice 0, v13
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = add v16, 31
+    v18 = not 31
+    v19 = and v17, v18
+    v20 = add v19, 32
+    v21 = alloc memorybytes, exact, uninitialized, infallible, v20
+    set_memory_object_len memorybytes, v21, v16
+    v22 = memory_object_data memorybytes, v21
+    returndatacopy v22, v15, v16
+    mstore 192, v21
+    v23 = mload 160
+    v24 = iszero v23
+    br v24, bb5, bb6
   bb5:
     revert 0, 0
   bb6:
-    v27 = mload 192
-    v28 = mload v27
-    v29 = lt v28, 32
-    br v29, bb7, bb8
+    v25 = mload 192
+    v26 = memory_object_len memorybytes, v25
+    v27 = lt v26, 32
+    br v27, bb7, bb8
   bb7:
     revert 0, 0
   bb8:
-    v30 = add v27, 32
-    v31 = mload v30
-    mstore 128, v31
+    v28 = memory_object_data memorybytes, v25
+    v29 = mload v28
+    mstore 128, v29
     returndata 128, 32
 }
 
-fn @forward(arg0: address, arg1: memptr) {
+fn @forward(arg0: address, arg1: memorybytes) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -184,47 +170,46 @@ fn @forward(arg0: address, arg1: memptr) {
     v9 = not 31
     v10 = and v8, v9
     v11 = add v10, 32
-    v12 = mload 64 !metadata(memory=scratch)
-    v13 = add v12, v11
-    mstore 64, v13 !metadata(memory=scratch)
-    mstore v12, v7
-    v14 = add v12, 32
-    v15 = add v6, 32
-    calldatacopy v14, v15, v7
+    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
+    set_memory_object_len memorybytes, v12, v7
+    v13 = memory_object_data memorybytes, v12
+    v14 = add v6, 32
+    calldatacopy v13, v14, v7
     mstore 128, 0
-    v16 = add v12, 32
-    v17 = mload v12
-    v18 = gas
-    v19 = call v18, arg0, 0, v16, v17, 0, 0
-    mstore 160, v19
-    v20 = returndatasize
-    v21 = add v20, 31
-    v22 = not 31
-    v23 = and v21, v22
-    v24 = add v23, 32
-    v25 = mload 64 !metadata(memory=scratch)
-    v26 = add v25, v24
-    mstore 64, v26 !metadata(memory=scratch)
-    mstore v25, v20
-    v27 = add v25, 32
-    returndatacopy v27, 0, v20
-    mstore 192, v25
-    v28 = mload 160
-    v29 = iszero v28
-    br v29, bb5, bb6
+    v15 = memory_object_data memorybytes, v12
+    v16 = memory_object_len memorybytes, v12
+    v17 = gas
+    v18 = call v17, arg0, 0, v15, v16, 0, 0
+    mstore 160, v18
+    v19 = returndatasize
+    v20 = make_returndata_slice 0, v19
+    v21 = slice_ptr v20
+    v22 = slice_len v20
+    v23 = add v22, 31
+    v24 = not 31
+    v25 = and v23, v24
+    v26 = add v25, 32
+    v27 = alloc memorybytes, exact, uninitialized, infallible, v26
+    set_memory_object_len memorybytes, v27, v22
+    v28 = memory_object_data memorybytes, v27
+    returndatacopy v28, v21, v22
+    mstore 192, v27
+    v29 = mload 160
+    v30 = iszero v29
+    br v30, bb5, bb6
   bb5:
     revert 0, 0
   bb6:
-    v30 = mload 192
-    internal_call @__ret_bytes, 0, v30
+    v31 = mload 192
+    internal_call @__ret_bytes, 0, v31
     invalid
 }
 
-fn @__ret_bytes(arg0: memptr) {
+fn @__ret_bytes(arg0: memorybytes) {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch)
+    v0 = fmp
     mstore v0, 32
-    v1 = mload arg0
+    v1 = memory_object_len memorybytes, arg0
     v2 = add v0, 32
     mstore v2, v1
     v3 = add v1, 31
@@ -234,7 +219,7 @@ fn @__ret_bytes(arg0: memptr) {
     v7 = sub v5, 32
     v8 = add v6, v7
     mstore v8, 0
-    v9 = add arg0, 32
+    v9 = memory_object_data memorybytes, arg0
     mcopy v6, v9, v1
     v10 = add 64, v5
     returndata v0, v10

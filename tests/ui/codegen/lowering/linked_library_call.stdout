@@ -99,7 +99,7 @@ bb10 [cold]:
 // === ROOT/tests/ui/codegen/lowering/linked_library_call.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 192
+  push 224
   push 64
   mstore
   callvalue
@@ -177,13 +177,16 @@ bb0:
   swap1
   mstore
   gas
+  dup1
+  push 192
+  mstore
   push 32
   push 0
   push 100
   push 160
   mload
   push 0x1111111111111111111111111111111111111111
-  gas
+  dup6
   delegatecall
   swap1
   pop

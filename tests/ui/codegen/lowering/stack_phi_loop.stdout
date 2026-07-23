@@ -64,7 +64,7 @@ bb48:
   push 0
   mload
   dup1
-  push 256
+  push 288
   mstore
   pop
   push 0
@@ -81,7 +81,7 @@ bb14:
   push bb17
   jumpi
   dup1
-  push 320
+  push 256
   jump bb49
 bb49:
   mstore
@@ -98,13 +98,13 @@ bb16:
   push 224
   mload
   add
-  push 320
+  push 256
   mload
   push 224
   mload
   push 3
   mul
-  push 256
+  push 288
   mload
   add
   add
@@ -116,7 +116,7 @@ bb17:
   mload
   mul
   dup1
-  push 288
+  push 320
   mstore
   push 3
   swap1
@@ -124,33 +124,36 @@ bb17:
   push 224
   mload
   eq
+  dup2
+  push 256
+  mstore
   swap1
   pop
   iszero
   push bb47
   jumpi
-  push 256
-  mload
   push 288
+  mload
+  push 320
   mload
   add
   dup1
   push 352
   mstore
-  push 288
+  push 320
   mload
   gt
   push bb47
   jumpi
   push 352
   mload
-  push 320
+  push 256
   mload
   add
   dup1
   push 384
   mstore
-  push 320
+  push 256
   mload
   gt
   iszero
@@ -179,7 +182,7 @@ bb21:
   push bb6
   jumpi
   push 0
-  push 352
+  push 384
   mstore
   push 0
   push 288
@@ -188,14 +191,14 @@ bb21:
 bb24:
   push 4
   calldataload
-  push 352
+  push 384
   mload
   lt
   iszero
   push bb26
   jumpi
   push 1
-  push 352
+  push 384
   mload
   add
   dup1
@@ -212,7 +215,7 @@ bb24:
   gt
   push 416
   mload
-  push 352
+  push 384
   mstore
   push 448
   mload
@@ -238,14 +241,14 @@ bb28:
   push bb31
   jumpi
   dup1
-  push 384
+  push 320
   jump bb49
 bb30:
   push 1
   push 256
   mload
   add
-  push 384
+  push 320
   mload
   push 256
   mload
@@ -262,39 +265,42 @@ bb31:
   push 1
   shl
   dup1
-  push 320
+  push 352
   mstore
   push 1
   shr
   push 256
   mload
   eq
+  dup2
+  push 320
+  mstore
   swap1
   pop
   iszero
   push bb47
   jumpi
   push 3
-  push 320
+  push 352
   mload
   add
   dup1
   push 480
   mstore
-  push 320
+  push 352
   mload
   gt
   push bb47
   jumpi
   push 480
   mload
-  push 384
+  push 320
   mload
   add
   dup1
   push 512
   mstore
-  push 384
+  push 320
   mload
   gt
   iszero
@@ -340,6 +346,9 @@ bb41:
   push 36
   calldataload
   gt
+  dup2
+  push 256
+  mstore
   dup3
   push 288
   mstore
@@ -365,8 +374,7 @@ bb42:
   mload
   push 288
   mload
-  push 256
-  mload
+  dup2
   push 352
   mload
   add
