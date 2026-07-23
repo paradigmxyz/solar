@@ -26,6 +26,9 @@ use solar_sema::{CompilerRef, Gcx};
 use std::{ops::ControlFlow, path::Path, process::ExitCode};
 
 fn after_help() -> String {
+    let separator = "
+  ";
+
     fn display_pass_list<'a>(
         passes: &'a [&'static dyn MirPass],
         separator: &'a str,
@@ -52,7 +55,7 @@ Default cleanup fixpoint:
 Input formats:
   *.sol  Solidity contract — lowered through the normal compiler pipeline
   *.mir  Textual MIR — parsed directly via solar_codegen::mir::Module::parse",
-            display_pass_list(ALL_PASSES, "\n  "),
+            display_pass_list(ALL_PASSES, separator),
             display_pass_list(DEFAULT_PIPELINE, " → "),
             display_pass_list(DEFAULT_CLEANUP_PIPELINE, " → ")
         )

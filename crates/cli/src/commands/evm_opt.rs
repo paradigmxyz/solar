@@ -42,6 +42,8 @@ fn parse_pass(name: &str) -> Result<Option<&'static dyn ir::EvmPass>, String> {
 }
 
 fn after_help() -> String {
+    let separator = "
+  ";
     format!(
         "\
 Passes:
@@ -50,7 +52,7 @@ Passes:
 
 Input formats:
   *.evmir  EVM IR",
-        ir::ALL_PASSES.iter().map(|pass| pass.name()).format("\n  ")
+        ir::ALL_PASSES.iter().map(|pass| pass.name()).format(separator)
     )
 }
 
