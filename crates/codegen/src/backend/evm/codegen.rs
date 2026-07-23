@@ -4571,9 +4571,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_value_impl(func, val, false);
     }
 
-    /// Plans operand preparation for operations whose inputs remain valid while
-    /// they are rearranged. Memory-mutating stores/copies and calls keep their
-    /// freshness-aware emitters until the stack model represents value epochs.
+    /// Returns materialization costs for the active argument and spill addressing convention.
     fn operand_cost_model(&self) -> OperandCostModel {
         if self.in_internal_function
             && self
@@ -4586,6 +4584,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Plans operand preparation for operations whose inputs remain valid while
+    /// they are rearranged. Memory-mutating stores/copies and calls keep their
+    /// freshness-aware emitters until the stack model represents value epochs.
     fn plan_operands(
         &self,
         func: &Function,

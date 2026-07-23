@@ -11,10 +11,10 @@
 //!
 //! Operands are supplied deepest-first, matching ordinary push order. Internally
 //! the goal is reversed because [`StackModel`] stores the top at index zero. A
-//! complete state must have that exact goal prefix and retain the requested
-//! preservation multiplicities below the prefix. It must not leave another copy
-//! of a dead operand below the prefix: doing so only defers a `POP`, or a
-//! `SWAP` plus `POP`, to the post-instruction cleanup.
+//! complete state must have that exact goal prefix and retain a requested copy
+//! of each preserved value below the prefix. It must not leave another copy of
+//! a dead operand below the prefix: doing so only defers a `POP`, or a `SWAP`
+//! plus `POP`, to the post-instruction cleanup.
 //!
 //! Plans use one cost and goal model at every tier. Exact prefix checks handle
 //! the cheapest common case. Gas mode also uses allocation-free verified
