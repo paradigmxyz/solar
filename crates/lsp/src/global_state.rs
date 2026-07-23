@@ -2,7 +2,9 @@ use crate::{
     NotifyResult,
     config::{Config, negotiate_capabilities},
     diagnostics::{DiagnosticMap, DiagnosticOwner, DiagnosticStore},
-    flycheck, proto,
+    flycheck,
+    progress::{ProgressCoordinator, ProgressTicket},
+    proto,
     symbols::SymbolTables,
     vfs::Vfs,
     workspace::WorkspacePathIndex,
@@ -47,6 +49,11 @@ enum AnalysisMode {
     IfInvalidated,
 }
 
+enum AnalysisTaskOutcome {
+    Published,
+    Superseded,
+}
+
 /// State serialized with analysis and diagnostic publication.
 #[derive(Default)]
 struct AnalysisCommitState {
@@ -65,6 +72,7 @@ pub(crate) struct GlobalState {
     analysis_version: Arc<AtomicUsize>,
     published_analysis_version: watch::Sender<usize>,
     analysis_commit: Arc<Mutex<AnalysisCommitState>>,
+    analysis_progress: ProgressCoordinator,
     flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
     flycheck_cancels: FxHashMap<DiagnosticOwner, oneshot::Sender<()>>,
     pub(crate) symbol_tables: Arc<RwLock<SymbolTables>>,
@@ -74,6 +82,7 @@ pub(crate) struct GlobalState {
 impl GlobalState {
     pub(crate) fn new(client: ClientSocket) -> Self {
         let (published_analysis_version, _) = watch::channel(0);
+        let analysis_progress = ProgressCoordinator::new(client.clone(), false);
         Self {
             client,
             sess: Session::default(),
@@ -81,6 +90,7 @@ impl GlobalState {
             analysis_version: Arc::new(AtomicUsize::new(0)),
             published_analysis_version,
             analysis_commit: Arc::new(Default::default()),
+            analysis_progress,
             flycheck_versions: Arc::new(Default::default()),
             flycheck_cancels: FxHashMap::default(),
             symbol_tables: Arc::new(Default::default()),
@@ -97,6 +107,7 @@ impl GlobalState {
 
         config.rediscover_workspaces();
 
+        self.analysis_progress.set_enabled(config.supports_work_done_progress());
         self.config = Arc::new(config);
         std::future::ready(Ok(InitializeResult {
             capabilities,
@@ -171,21 +182,29 @@ impl GlobalState {
         let old_symbol_tables = {
             let analysis_commit = self.analysis_commit.clone();
             let mut commit = analysis_commit.lock();
-            let version = self.analysis_version.fetch_add(1, Ordering::AcqRel) + 1;
+            let version = self.next_analysis_version();
+            let symbol_tables = self.symbol_tables.clone();
+            let diagnostics = self.diagnostics.clone();
+            let analysis_version = self.analysis_version.clone();
+            let published_analysis_version = self.published_analysis_version.clone();
+            let mut client = self.client.clone();
 
-            let old_symbol_tables = mem::take(&mut *self.symbol_tables.write());
-            let batches = self
-                .diagnostics
-                .write()
-                .replace_and_publish_batches(DiagnosticOwner::Compiler, DiagnosticMap::default());
-            publish_diagnostic_batches(&mut self.client, batches);
+            self.analysis_progress.finish_active_after("Workspace index cleared", || {
+                let old_symbol_tables = mem::take(&mut *symbol_tables.write());
+                let batches = diagnostics.write().replace_and_publish_batches(
+                    DiagnosticOwner::Compiler,
+                    DiagnosticMap::default(),
+                );
+                publish_diagnostic_batches(&mut client, batches);
 
-            commit.cache_invalidated = true;
-            commit.natspec_symbol_tables_version = version;
-            commit.natspec_pending_source_changes.clear();
-            commit.natspec_context_change_version = version;
-            self.published_analysis_version.send_replace(version);
-            old_symbol_tables
+                commit.cache_invalidated = true;
+                commit.natspec_symbol_tables_version = version;
+                commit.natspec_pending_source_changes.clear();
+                commit.natspec_context_change_version = version;
+                analysis_version.store(version, Ordering::Release);
+                published_analysis_version.send_replace(version);
+                old_symbol_tables
+            })
         };
         drop(old_symbol_tables);
     }
@@ -203,17 +222,21 @@ impl GlobalState {
         changed_paths: Vec<PathBuf>,
     ) {
         let removed_uris = self.prepare_removed_file_diagnostics(removed_paths);
-        let Some(version) = self.begin_analysis(mode, removed_uris, changed_paths) else {
+        let Some((version, progress)) = self.begin_analysis(mode, removed_uris, changed_paths)
+        else {
             return;
         };
+        let worker_progress = progress.clone();
         let task = self.spawn_with_snapshot(move |mut snapshot| {
+            worker_progress.report("Reading workspace sources");
             if !snapshot.is_current(version) {
-                return;
+                return AnalysisTaskOutcome::Superseded;
             }
 
             let batches = snapshot.analysis_batches(disk_paths);
+            worker_progress.report("Analyzing workspace");
             if !snapshot.is_current(version) {
-                return;
+                return AnalysisTaskOutcome::Superseded;
             }
 
             let mut diagnostics = DiagnosticMap::default();
@@ -225,7 +248,7 @@ impl GlobalState {
                 }
 
                 if !snapshot.is_current(version) {
-                    return;
+                    return AnalysisTaskOutcome::Superseded;
                 }
 
                 let result = analyze(batch);
@@ -235,13 +258,18 @@ impl GlobalState {
                 }
 
                 if !snapshot.is_current(version) {
-                    return;
+                    return AnalysisTaskOutcome::Superseded;
                 }
             }
 
-            snapshot.publish_analysis(version, AnalysisResult { diagnostics, symbol_tables });
+            worker_progress.report("Publishing workspace index");
+            if snapshot.publish_analysis(version, AnalysisResult { diagnostics, symbol_tables }) {
+                AnalysisTaskOutcome::Published
+            } else {
+                AnalysisTaskOutcome::Superseded
+            }
         });
-        self.monitor_analysis_task(version, task);
+        self.monitor_analysis_task(version, task, progress);
     }
 
     fn begin_analysis(
@@ -249,8 +277,8 @@ impl GlobalState {
         mode: AnalysisMode,
         removed_uris: Vec<Url>,
         changed_paths: Vec<PathBuf>,
-    ) -> Option<usize> {
-        let (version, rediscover) = {
+    ) -> Option<(usize, ProgressTicket)> {
+        let (version, rediscover, progress) = {
             let analysis_commit = self.analysis_commit.clone();
             let mut commit = analysis_commit.lock();
             if matches!(mode, AnalysisMode::IfInvalidated) && !commit.cache_invalidated {
@@ -259,16 +287,24 @@ impl GlobalState {
 
             let invalidated = mem::take(&mut commit.cache_invalidated);
             let rediscover = matches!(mode, AnalysisMode::Rediscover) || invalidated;
-            let version = self.begin_analysis_epoch(&mut commit, changed_paths, rediscover);
+            let version = self.next_analysis_version();
+            // Retarget progress before publishing the epoch so a delayed create response cannot
+            // end the previous wave after the new analysis becomes current.
+            let progress = self.analysis_progress.start(version);
             let batches = self.diagnostics.write().clear_uris_and_publish_batches(removed_uris);
             publish_diagnostic_batches(&mut self.client, batches);
-            (version, rediscover)
+            self.commit_analysis_epoch(&mut commit, version, changed_paths, rediscover);
+            (version, rediscover, progress)
         };
 
         if rediscover {
             self.rediscover_workspaces();
         }
-        Some(version)
+        Some((version, progress))
+    }
+
+    fn next_analysis_version(&self) -> usize {
+        self.analysis_version.load(Ordering::Relaxed).wrapping_add(1)
     }
 
     fn rediscover_workspaces(&mut self) {
@@ -276,18 +312,30 @@ impl GlobalState {
         self.clear_removed_flycheck_diagnostics(removed_owners);
     }
 
+    #[cfg(test)]
     fn begin_analysis_epoch(
         &self,
         commit: &mut AnalysisCommitState,
         changed_paths: Vec<PathBuf>,
         context_changed: bool,
     ) -> usize {
-        let version = self.analysis_version.fetch_add(1, Ordering::AcqRel) + 1;
+        let version = self.next_analysis_version();
+        self.commit_analysis_epoch(commit, version, changed_paths, context_changed);
+        version
+    }
+
+    fn commit_analysis_epoch(
+        &self,
+        commit: &mut AnalysisCommitState,
+        version: usize,
+        changed_paths: Vec<PathBuf>,
+        context_changed: bool,
+    ) {
         if context_changed {
             commit.natspec_context_change_version = version;
         }
         commit.natspec_pending_source_changes.extend(changed_paths);
-        version
+        self.analysis_version.store(version, Ordering::Release);
     }
 
     /// Waits for analysis results at least as new as the latest version requested before this call.
@@ -474,13 +522,52 @@ impl GlobalState {
         tokio::task::spawn_blocking(move || f(snapshot))
     }
 
-    fn monitor_analysis_task(&self, version: usize, task: JoinHandle<()>) {
+    fn monitor_analysis_task(
+        &self,
+        version: usize,
+        task: JoinHandle<AnalysisTaskOutcome>,
+        progress: ProgressTicket,
+    ) {
         let mut snapshot = self.snapshot();
+        let analysis_version = self.analysis_version.clone();
+        let analysis_commit = self.analysis_commit.clone();
         tokio::spawn(async move {
-            if let Err(error) = task.await {
-                snapshot.handle_analysis_failure(version, error);
+            match task.await {
+                Ok(AnalysisTaskOutcome::Published) => finish_analysis_progress_if_current(
+                    version,
+                    &analysis_version,
+                    &analysis_commit,
+                    &progress,
+                    "Workspace index ready",
+                ),
+                Ok(AnalysisTaskOutcome::Superseded) => {}
+                Err(error) => {
+                    if snapshot.handle_analysis_failure(version, error) {
+                        finish_analysis_progress_if_current(
+                            version,
+                            &analysis_version,
+                            &analysis_commit,
+                            &progress,
+                            "Workspace indexing failed",
+                        );
+                    }
+                }
             }
         });
+    }
+}
+
+fn finish_analysis_progress_if_current(
+    version: usize,
+    analysis_version: &Arc<AtomicUsize>,
+    analysis_commit: &Arc<Mutex<AnalysisCommitState>>,
+    progress: &ProgressTicket,
+    message: &str,
+) {
+    let _commit = analysis_commit.lock();
+    if analysis_version.load(Ordering::Acquire) == version {
+        progress.report(message);
+        progress.finish(message);
     }
 }
 
@@ -625,17 +712,18 @@ impl GlobalStateSnapshot {
         )
     }
 
-    fn handle_analysis_failure(&mut self, version: usize, error: JoinError) {
+    fn handle_analysis_failure(&mut self, version: usize, error: JoinError) -> bool {
         let analysis_commit = self.analysis_commit.clone();
         let mut commit = analysis_commit.lock();
         if !self.is_current(version) {
-            return;
+            return false;
         }
 
         tracing::warn!(%error, version, "analysis task failed");
         commit.cache_invalidated = true;
         commit.natspec_context_change_version = commit.natspec_context_change_version.max(version);
         self.published_analysis_version.send_replace(version);
+        true
     }
 
     fn analysis_workspaces(&self) -> Cow<'_, [crate::workspace::Workspace]> {
