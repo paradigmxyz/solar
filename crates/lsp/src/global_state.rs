@@ -319,7 +319,7 @@ impl GlobalState {
             if let Some(latest_analysis) = latest_analysis {
                 latest_analysis.await?;
             }
-            Ok(diagnostics.write().pull_report(&uri, previous_result_id.as_deref()))
+            Ok(diagnostics.read().pull_report(&uri, previous_result_id.as_deref()))
         }
     }
 
