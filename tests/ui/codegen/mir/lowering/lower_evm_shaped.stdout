@@ -1,10 +1,10 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped.mir (before lower-evm-shaped) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped.mir (after lower-evm-shaped) ===
   @module LowerEvmShaped
-- @phase dispatch
+- @phase memory-lowered
 + @phase evm-shaped
   fn @entry() {
-    bb0 (entry):
+    bb0:
       v0 = calldataload 0
       v1 = shr 224, v0
       switch v1, default bb2, [7 => bb1]
@@ -15,7 +15,7 @@
   }
   
   fn @caller() {
-    bb0 (entry):
+    bb0:
       v0 = calldataload 4
 -     internal_call @fused, 0, v0
 -     stop
@@ -23,13 +23,13 @@
   }
   
   fn @fused(arg0: u256) {
-    bb0 (entry):
+    bb0:
       mstore 128, arg0
       returndata 128, 32
   }
   
   fn @spin(arg0: u256) {
-    bb0 (entry):
+    bb0:
       internal_call @spin, 0, arg0
       revert 0, 0
   }

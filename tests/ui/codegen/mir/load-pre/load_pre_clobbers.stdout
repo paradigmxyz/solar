@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/load-pre/load_pre_clobbers.mir (after load-pre) ===
   @module LoadPreClobbers
   fn @kill_blocks_reuse(arg0: bool, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = sload 5
       br arg0, bb1, bb2
     bb1:
@@ -18,7 +18,7 @@
   }
   
   fn @call_kills_storage(arg0: bool, arg1: address) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = sload 5
       br arg0, bb1, bb2
     bb1:
@@ -34,7 +34,7 @@
   }
   
   fn @staticcall_preserves_storage(arg0: bool, arg1: address) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = sload 5
       br arg0, bb1, bb2
     bb1:
@@ -51,7 +51,7 @@
   }
   
   fn @clobbered_arm_reload_after_store(arg0: bool, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       br arg0, bb1, bb2
     bb1:
       v0 = sload 5
@@ -69,7 +69,7 @@
   }
   
   fn @gas_blocks_rewrite(arg0: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       br arg0, bb1, bb2
     bb1:
       v0 = sload 5

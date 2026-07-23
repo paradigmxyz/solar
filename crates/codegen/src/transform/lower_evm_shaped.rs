@@ -44,6 +44,9 @@ impl LowerEvmShapedPass {
         if module.phase >= MirPhase::EvmShaped {
             return false;
         }
+        if module.phase != MirPhase::MemoryLowered {
+            return false;
+        }
 
         // Dispatch already uses explicit tail calls. Most modules have no
         // resultless internal call left to reshape, so avoid building a call
@@ -71,7 +74,25 @@ impl LowerEvmShapedPass {
             }
         }
 
-        for func in module.functions.iter_mut() {
+        // The deployment path emits constructor-reachable bodies without static
+        // frames, so an argument-carrying tail call has no compile-time
+        // argument addresses there. Keep those calls ordinary; argument-less
+        // rewrites need no frame addressing and stay valid on both paths.
+        let mut constructor_reachable = call_graph.reachable_callees_from(
+            module
+                .functions
+                .iter_enumerated()
+                .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
+        );
+        for (id, func) in module.functions.iter_enumerated() {
+            if func.attributes.is_constructor {
+                constructor_reachable.insert(id);
+            }
+        }
+
+        let function_ids: Vec<_> = module.functions.indices().collect();
+        for func_id in function_ids {
+            let func = &mut module.functions[func_id];
             for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
                 let insts = &func.blocks[block_id].instructions;
                 let Some(position) = insts.iter().position(|&inst_id| {
@@ -79,8 +100,10 @@ impl LowerEvmShapedPass {
                     inst.result_ty.is_none()
                         && matches!(
                             &inst.kind,
-                            InstKind::InternalCall { function, .. }
+                            InstKind::InternalCall { function, args, .. }
                                 if tail_callable.contains(*function)
+                                    && (args.is_empty()
+                                        || !constructor_reachable.contains(func_id))
                         )
                 }) else {
                     continue;
@@ -115,8 +138,8 @@ impl ModulePass for LowerEvmShapedPass {
 /// Whether a function can never return to an internal caller: it has no `ret`
 /// and no `stop` terminator (`stop` is the internal return of a void function).
 fn function_cannot_return(func: &Function) -> bool {
-    !func.blocks.is_empty()
-        && !func.blocks.iter().any(|block| {
-            matches!(block.terminator, Some(Terminator::Return { .. } | Terminator::Stop))
-        })
+    !func
+        .blocks
+        .iter()
+        .any(|block| matches!(block.terminator, Some(Terminator::Return { .. } | Terminator::Stop)))
 }

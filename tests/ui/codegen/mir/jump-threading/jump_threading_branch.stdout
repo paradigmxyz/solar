@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/jump-threading/jump_threading_branch.mir (after jump-threading) ===
   @module ThreadingBranch
   fn @branch_forwarders(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
 -     br arg0, bb1, bb2
 +     br arg0, bb3, bb4
     bb1:

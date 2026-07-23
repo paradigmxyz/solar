@@ -5,9 +5,10 @@ use crate::{
     workspace::{Workspace, WorkspacePathIndex, manifest::ProjectManifest},
 };
 use lsp_types::{
-    CompletionOptions, DeclarationCapability, DocumentLinkOptions, ExecuteCommandOptions,
-    HoverProviderCapability, ImplementationProviderCapability, InitializeParams, OneOf,
-    RenameOptions, SaveOptions, ServerCapabilities, SignatureHelpOptions,
+    CompletionOptions, DeclarationCapability, DiagnosticOptions, DiagnosticServerCapabilities,
+    DocumentLinkOptions, ExecuteCommandOptions, HoverProviderCapability,
+    ImplementationProviderCapability, InitializeParams, OneOf, RenameOptions, SaveOptions,
+    SelectionRangeProviderCapability, ServerCapabilities, SignatureHelpOptions,
     TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
     TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WorkDoneProgressOptions,
 };
@@ -278,6 +279,12 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             implementation_provider: Some(ImplementationProviderCapability::Simple(true)),
             type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(true)),
             document_formatting_provider: Some(OneOf::Left(true)),
+            diagnostic_provider: Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
+                identifier: None,
+                inter_file_dependencies: true,
+                workspace_diagnostics: false,
+                ..Default::default()
+            })),
             document_link_provider: Some(DocumentLinkOptions {
                 resolve_provider: Some(false),
                 work_done_progress_options: WorkDoneProgressOptions::default(),
@@ -291,6 +298,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             hover_provider: Some(HoverProviderCapability::Simple(true)),
             inlay_hint_provider: Some(OneOf::Left(true)),
             references_provider: Some(OneOf::Left(true)),
+            selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
             rename_provider: Some(OneOf::Right(RenameOptions {
                 prepare_provider: Some(true),
                 work_done_progress_options: Default::default(),
@@ -304,6 +312,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
                 TextDocumentSyncOptions {
                     open_close: Some(true),
                     change: Some(TextDocumentSyncKind::INCREMENTAL),
+                    will_save: Some(true),
                     save: Some(TextDocumentSyncSaveOptions::SaveOptions(SaveOptions {
                         include_text: Some(false),
                     })),
@@ -404,6 +413,10 @@ mod tests {
         assert_eq!(capabilities.document_highlight_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.references_provider, Some(OneOf::Left(true)));
         assert_eq!(
+            capabilities.selection_range_provider,
+            Some(SelectionRangeProviderCapability::Simple(true))
+        );
+        assert_eq!(
             capabilities.rename_provider,
             Some(OneOf::Right(RenameOptions {
                 prepare_provider: Some(true),
@@ -423,11 +436,28 @@ mod tests {
         else {
             panic!("expected text document sync options");
         };
+        assert_eq!(sync_options.will_save, Some(true));
+        assert_eq!(sync_options.will_save_wait_until, None);
         let TextDocumentSyncSaveOptions::SaveOptions(save_options) = sync_options.save.unwrap()
         else {
             panic!("expected save options");
         };
         assert_eq!(save_options.include_text, Some(false));
+    }
+
+    #[test]
+    fn negotiate_capabilities_advertises_document_diagnostics() {
+        let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
+
+        assert_eq!(
+            capabilities.diagnostic_provider,
+            Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
+                identifier: None,
+                inter_file_dependencies: true,
+                workspace_diagnostics: false,
+                work_done_progress_options: WorkDoneProgressOptions::default(),
+            }))
+        );
     }
 
     #[test]

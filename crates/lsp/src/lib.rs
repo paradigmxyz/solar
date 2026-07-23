@@ -36,6 +36,7 @@ mod project_fixture;
 mod proto;
 mod rename;
 mod request_cancellation;
+mod selection_range;
 mod serde;
 mod signature_help;
 mod symbols;
@@ -50,6 +51,16 @@ pub use global_state::benchmark::{
     BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkEdit, BenchmarkError, BenchmarkProject,
     BenchmarkRequest, BenchmarkResponse,
 };
+
+/// Runs the selection-range kernel for Criterion benchmarks.
+#[cfg(feature = "bench")]
+#[doc(hidden)]
+pub fn benchmark_selection_ranges(
+    source: String,
+    positions: &[lsp_types::Position],
+) -> Option<Vec<lsp_types::SelectionRange>> {
+    selection_range::selection_ranges(source, positions)
+}
 
 #[cfg(test)]
 mod test_support;
@@ -87,7 +98,9 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
         .request::<req::Rename, _>(handlers::rename)
         .request::<req::SignatureHelpRequest, _>(handlers::signature_help)
         .request::<req::InlayHintRequest, _>(handlers::inlay_hints)
+        .request::<req::SelectionRangeRequest, _>(handlers::selection_range)
         .request::<req::Completion, _>(handlers::completion)
+        .request::<req::DocumentDiagnosticRequest, _>(handlers::document_diagnostic)
         .request::<req::Formatting, _>(handlers::formatting);
 
     // Workspace management
@@ -100,6 +113,7 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
         .notification::<notif::DidOpenTextDocument>(handlers::did_open_text_document)
         .notification::<notif::DidCloseTextDocument>(handlers::did_close_text_document)
         .notification::<notif::DidChangeTextDocument>(handlers::did_change_text_document)
+        .notification::<notif::WillSaveTextDocument>(handlers::will_save_text_document)
         .notification::<notif::DidSaveTextDocument>(handlers::did_save_text_document)
         .notification::<notif::DidChangeConfiguration>(handlers::did_change_configuration);
 
@@ -152,8 +166,9 @@ mod tests {
         DidSaveTextDocumentParams, DocumentFormattingParams, DocumentHighlightParams,
         DocumentLinkParams, DocumentSymbolParams, ExecuteCommandParams, FileChangeType, FileEvent,
         FormattingOptions, HoverParams, InitializeParams, InitializedParams, NumberOrString,
-        PartialResultParams, Position, SignatureHelpParams, TextDocumentIdentifier,
-        TextDocumentPositionParams, WorkDoneProgressParams, WorkspaceClientCapabilities,
+        PartialResultParams, Position, SelectionRangeParams, SignatureHelpParams,
+        TextDocumentIdentifier, TextDocumentPositionParams, TextDocumentSaveReason,
+        WillSaveTextDocumentParams, WorkDoneProgressParams, WorkspaceClientCapabilities,
         notification as notif, notification::Notification, request, request::Request,
     };
     use solar_interface::data_structures::sync::RwLock;
@@ -251,6 +266,24 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_will_save_notifications() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let params = WillSaveTextDocumentParams {
+            text_document: TextDocumentIdentifier {
+                uri: lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
+            },
+            reason: TextDocumentSaveReason::MANUAL,
+        };
+        let notification = serde_json::from_value::<AnyNotification>(serde_json::json!({
+            "method": notif::WillSaveTextDocument::METHOD,
+            "params": params,
+        }))
+        .unwrap();
+
+        assert!(matches!(router.notify(notification), ControlFlow::Continue(())));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
     async fn router_handles_cache_commands() {
         let mut router = new_router(ClientSocket::new_closed());
 
@@ -305,6 +338,71 @@ mod tests {
         let response = router.call(request).await.unwrap();
 
         assert_eq!(response, serde_json::json!([]));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_selection_range_requests() {
+        let project = TestProject::from_fixture("//- /Test.sol open\n");
+        let state = GlobalState::new(ClientSocket::new_closed());
+        *state.vfs.write() = project.vfs();
+        let mut router = new_router_with_state(state);
+        let params = SelectionRangeParams {
+            text_document: TextDocumentIdentifier {
+                uri: lsp_types::Url::from_file_path(project.path("/Test.sol")).unwrap(),
+            },
+            positions: Vec::new(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 1,
+            "method": request::SelectionRangeRequest::METHOD,
+            "params": params,
+        }))
+        .unwrap();
+
+        let response = router.call(request).await.unwrap();
+
+        assert_eq!(response, serde_json::json!([]));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_document_diagnostic_requests() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let uri = lsp_types::Url::parse("untitled:Diagnostics.sol").unwrap();
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 1,
+            "method": request::DocumentDiagnosticRequest::METHOD,
+            "params": {
+                "textDocument": { "uri": uri },
+            },
+        }))
+        .unwrap();
+
+        let response = router.call(request).await.unwrap();
+
+        assert_eq!(response["kind"], "full");
+        assert_eq!(response["items"], serde_json::json!([]));
+        let result_id = response["resultId"].as_str().expect("full report should have a result ID");
+
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 2,
+            "method": request::DocumentDiagnosticRequest::METHOD,
+            "params": {
+                "textDocument": { "uri": uri },
+                "previousResultId": result_id,
+            },
+        }))
+        .unwrap();
+        let response = router.call(request).await.unwrap();
+
+        assert_eq!(
+            response,
+            serde_json::json!({
+                "kind": "unchanged",
+                "resultId": result_id,
+            })
+        );
     }
 
     #[tokio::test(flavor = "current_thread")]

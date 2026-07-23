@@ -1,0 +1,50 @@
+- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/lower_abi_encode.mir (before lower-abi-encode) ===
++ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/lower_abi_encode.mir (after lower-abi-encode) ===
+  @module LowerAbiEncode
+  fn @static(arg0: u256) -> memoryslice {
+    bb0:
+-     v0 = abi_encode [word], selector 0x1234567800000000000000000000000000000000000000000000000000000000, args arg0
+-     ret v0
++     v1 = alloc raw, exact, uninitialized, infallible, 64
++     mstore v1, 0x1234567800000000000000000000000000000000000000000000000000000000
++     v2 = add v1, 4
++     mstore v2, arg0
++     v3 = make_memory_slice v1, 36
++     ret v3
+  }
+  
+  fn @dynamic(arg0: calldataslice) -> memoryslice {
+    bb0:
+-     v0 = abi_encode [calldata_bytes], args arg0
+-     ret v0
++     v1 = fmp
++     v2 = add v1, 32
++     v3 = sub v2, v1
++     mstore v1, v3
++     v4 = slice_len arg0
++     mstore v2, v4
++     v5 = not 31
++     v6 = add v4, 31
++     v7 = and v6, v5
++     v8 = add v2, 32
++     v9 = iszero v7
++     br v9, bb2, bb1
++   bb1:
++     v10 = sub v7, 32
++     v11 = add v8, v10
++     mstore v11, 0
++     jump bb2
++   bb2:
++     v12 = slice_ptr arg0
++     v13 = add v8, v7
++     calldatacopy v8, v12, v4
++     v14 = sub v13, v1
++     v15 = add v14, 0
++     v16 = add v15, 31
++     v17 = not 31
++     v18 = and v16, v17
++     v19 = alloc raw, exact, uninitialized, infallible, v18
++     v20 = make_memory_slice v19, v15
++     ret v20
+  }
+  

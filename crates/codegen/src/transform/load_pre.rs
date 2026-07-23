@@ -73,15 +73,17 @@
 //! 3. A function-size-derived rewrite budget backstops the above.
 
 use crate::{
-    analysis::{CfgInfo, DominatorTree},
+    analysis::{
+        AliasAnalysis, CfgInfo, DominatorTree, Location, LocationSize, MemoryAddress,
+        MemoryLocation,
+    },
     mir::{
-        BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion,
+        BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
         MirType, StorageAlias, Terminator, Value, ValueId,
         utils::{self as mir_utils, repair_reachability_phis},
     },
     pass::FunctionPass,
 };
-use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
@@ -107,6 +109,7 @@ impl LoadPreStats {
 #[derive(Debug, Default)]
 pub(crate) struct LoadRedundancyEliminator {
     stats: LoadPreStats,
+    alias: Option<AliasAnalysis>,
 }
 
 /// Function pass for load PRE.
@@ -124,17 +127,8 @@ enum LoadKey {
     Storage(StorageAlias),
     Transient(StorageAlias),
     /// A 32-byte memory read at a canonical address.
-    Memory(MemAddr),
-    Keccak(MemAddr, KeccakSize),
-}
-
-/// A canonical memory address: an optional symbolic base plus a known offset.
-/// A `None` base is an absolute address.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-struct MemAddr {
-    region: MemoryRegion,
-    base: Option<ValueId>,
-    offset: u64,
+    Memory(MemoryAddress),
+    Keccak(MemoryAddress, KeccakSize),
 }
 
 /// The size of a keccak read: a known constant or the canonical size operand.
@@ -308,6 +302,7 @@ impl LoadRedundancyEliminator {
     pub(crate) fn run(&mut self, func: &mut Function) -> LoadPreStats {
         self.stats = LoadPreStats::default();
         repair_reachability_phis(func);
+        self.alias = Some(AliasAnalysis::new(func));
 
         let rewrite_limit = func.instructions.len().saturating_mul(2).max(64);
         let mut rewrites = 0usize;
@@ -315,7 +310,7 @@ impl LoadRedundancyEliminator {
         let mut inserted_insts = GrowableBitSet::with_capacity(func.instructions.len());
 
         while rewrites < rewrite_limit {
-            let Some(analysis) = Self::compute_analysis(func) else { break };
+            let Some(analysis) = self.compute_analysis(func) else { break };
             let mut cx = CandidateCx {
                 analysis: &analysis,
                 eliminated_keys: &eliminated_keys,
@@ -330,6 +325,7 @@ impl LoadRedundancyEliminator {
             for candidate in batch {
                 self.apply_candidate(func, candidate, &mut eliminated_keys, &mut inserted_insts);
             }
+            self.alias().clear_cached_addresses();
         }
 
         self.stats
@@ -337,7 +333,11 @@ impl LoadRedundancyEliminator {
 
     /// Computes the key universe, the per-block gen/kill summaries, and the
     /// availability fixpoint. Returns `None` if no read is trackable.
-    fn compute_analysis(func: &Function) -> Option<Analysis> {
+    fn alias(&self) -> &AliasAnalysis {
+        self.alias.as_ref().expect("load PRE alias snapshot is initialized")
+    }
+
+    fn compute_analysis(&self, func: &Function) -> Option<Analysis> {
         let cfg = CfgInfo::new(func);
         let rpo = cfg.rpo();
 
@@ -346,7 +346,7 @@ impl LoadRedundancyEliminator {
         let mut key_index: FxHashMap<LoadKey, usize> = FxHashMap::default();
         for &block in rpo {
             for &inst_id in &func.blocks[block].instructions {
-                if let Some((key, _)) = Self::gen_key_value(func, inst_id) {
+                if let Some((key, _)) = self.gen_key_value(func, inst_id) {
                     key_index.entry(key).or_insert_with(|| {
                         keys.push(key);
                         keys.len() - 1
@@ -369,7 +369,7 @@ impl LoadRedundancyEliminator {
             for &inst_id in &func.blocks[block].instructions {
                 if func.instructions[inst_id].kind.has_side_effects() {
                     for (idx, &key) in keys.iter().enumerate() {
-                        if Self::inst_kills_key(func, inst_id, key) {
+                        if self.inst_kills_key(func, inst_id, key) {
                             kill_set.insert(idx);
                             gen_set.remove(idx);
                         }
@@ -378,7 +378,7 @@ impl LoadRedundancyEliminator {
                 // A store both kills aliases and gens its exact key; the gen
                 // wins for the exact key because the slot then holds the
                 // stored value.
-                if let Some((key, _)) = Self::gen_key_value(func, inst_id)
+                if let Some((key, _)) = self.gen_key_value(func, inst_id)
                     && let Some(&idx) = key_index.get(&key)
                 {
                     gen_set.insert(idx);
@@ -395,7 +395,7 @@ impl LoadRedundancyEliminator {
         let mut outs: FxHashMap<BlockId, KeySet> = rpo
             .iter()
             .map(|&block| {
-                let out = if block == func.entry_block {
+                let out = if func.blocks[block].predecessors.is_empty() {
                     gens[&block].clone()
                 } else {
                     KeySet::new_filled(key_count)
@@ -406,23 +406,19 @@ impl LoadRedundancyEliminator {
         loop {
             let mut changed = false;
             for &block in rpo {
-                let in_set = if block == func.entry_block {
-                    KeySet::new_empty(key_count)
-                } else {
-                    let mut acc: Option<KeySet> = None;
-                    for &pred in &func.blocks[block].predecessors {
-                        // Unreachable predecessors never execute and cannot
-                        // contribute a path.
-                        let Some(out) = outs.get(&pred) else { continue };
-                        match &mut acc {
-                            Some(acc) => {
-                                acc.intersect(out);
-                            }
-                            None => acc = Some(out.clone()),
+                let mut acc: Option<KeySet> = None;
+                for &pred in &func.blocks[block].predecessors {
+                    // Unreachable predecessors never execute and cannot
+                    // contribute a path.
+                    let Some(out) = outs.get(&pred) else { continue };
+                    match &mut acc {
+                        Some(acc) => {
+                            acc.intersect(out);
                         }
+                        None => acc = Some(out.clone()),
                     }
-                    acc.unwrap_or_else(|| KeySet::new_empty(key_count))
-                };
+                }
+                let in_set = acc.unwrap_or_else(|| KeySet::new_empty(key_count));
                 let mut out = in_set.clone();
                 if let Some(kill) = kills.get(&block) {
                     out.subtract(kill);
@@ -476,7 +472,7 @@ impl LoadRedundancyEliminator {
                 continue;
             }
 
-            for (inst, key_idx) in Self::first_loads(func, cx.analysis, target) {
+            for (inst, key_idx) in self.first_loads(func, cx.analysis, target) {
                 if batch.len() >= limit {
                     break 'targets;
                 }
@@ -533,14 +529,19 @@ impl LoadRedundancyEliminator {
     /// partial-redundancy insertion moves the read to a predecessor's end, so
     /// it must not cross a `gas` (any space) or `msize` (memory and keccak)
     /// observation in the join prefix.
-    fn first_loads(func: &Function, analysis: &Analysis, target: BlockId) -> Vec<(InstId, usize)> {
+    fn first_loads(
+        &self,
+        func: &Function,
+        analysis: &Analysis,
+        target: BlockId,
+    ) -> Vec<(InstId, usize)> {
         let key_count = analysis.keys.len();
         let mut blocked = KeySet::new_empty(key_count);
         let mut taken = KeySet::new_empty(key_count);
         let mut found = Vec::new();
 
         for &inst_id in &func.blocks[target].instructions {
-            if let Some((key, GenSource::LoadResult)) = Self::gen_key_value(func, inst_id) {
+            if let Some((key, GenSource::LoadResult)) = self.gen_key_value(func, inst_id) {
                 if let Some(&idx) = analysis.key_index.get(&key)
                     && !blocked.contains(idx)
                     && taken.insert(idx)
@@ -566,7 +567,7 @@ impl LoadRedundancyEliminator {
                     // kill here (the value differs from the predecessor-end
                     // state), which the may-alias check already covers.
                     for (idx, &key) in analysis.keys.iter().enumerate() {
-                        if !blocked.contains(idx) && Self::inst_kills_key(func, inst_id, key) {
+                        if !blocked.contains(idx) && self.inst_kills_key(func, inst_id, key) {
                             blocked.insert(idx);
                         }
                     }
@@ -579,6 +580,7 @@ impl LoadRedundancyEliminator {
     }
 
     fn same_key_loads_in_target(
+        &self,
         func: &Function,
         analysis: &Analysis,
         target: BlockId,
@@ -606,12 +608,12 @@ impl LoadRedundancyEliminator {
                 {
                     break;
                 }
-                if kind.has_side_effects() && Self::inst_kills_key(func, inst_id, key) {
+                if kind.has_side_effects() && self.inst_kills_key(func, inst_id, key) {
                     break;
                 }
             }
 
-            if let Some((load_key, GenSource::LoadResult)) = Self::gen_key_value(func, inst_id)
+            if let Some((load_key, GenSource::LoadResult)) = self.gen_key_value(func, inst_id)
                 && load_key == key
                 && let Some(&value) = analysis.inst_results.get(&inst_id)
             {
@@ -635,7 +637,7 @@ impl LoadRedundancyEliminator {
         let result = *cx.analysis.inst_results.get(&inst)?;
         let result_ty = instruction.result_ty?;
         let key = cx.analysis.keys[key_idx];
-        let loads = Self::same_key_loads_in_target(func, cx.analysis, target, inst, key);
+        let loads = self.same_key_loads_in_target(func, cx.analysis, target, inst, key);
         if loads.is_empty() {
             return None;
         }
@@ -775,7 +777,7 @@ impl LoadRedundancyEliminator {
     ) -> Option<ValueId> {
         let key = cx.analysis.keys[key_idx];
         for &inst_id in func.blocks[block].instructions.iter().rev() {
-            if let Some((gen_key, source)) = Self::gen_key_value(func, inst_id)
+            if let Some((gen_key, source)) = self.gen_key_value(func, inst_id)
                 && gen_key == key
             {
                 // A store's exact-key gen wins over its own kill: the slot
@@ -785,7 +787,7 @@ impl LoadRedundancyEliminator {
                     GenSource::Stored(value) => Some(value),
                 };
             }
-            if Self::inst_kills_key(func, inst_id, key) {
+            if self.inst_kills_key(func, inst_id, key) {
                 return None;
             }
         }
@@ -878,28 +880,40 @@ impl LoadRedundancyEliminator {
     // ----- Keys, gens, and kills -----
 
     /// Returns the key an instruction gens and where its value comes from.
-    fn gen_key_value(func: &Function, inst_id: InstId) -> Option<(LoadKey, GenSource)> {
+    fn gen_key_value(&self, func: &Function, inst_id: InstId) -> Option<(LoadKey, GenSource)> {
+        let aa = self.alias();
         match func.instructions[inst_id].kind {
-            InstKind::SLoad(slot) => {
-                Some((LoadKey::Storage(func.storage_alias(inst_id, slot)), GenSource::LoadResult))
-            }
+            InstKind::SLoad(slot) => Some((
+                LoadKey::Storage(aa.storage_alias(func, inst_id, slot)),
+                GenSource::LoadResult,
+            )),
             InstKind::SStore(slot, value) => Some((
-                LoadKey::Storage(func.storage_alias(inst_id, slot)),
+                LoadKey::Storage(aa.storage_alias(func, inst_id, slot)),
                 GenSource::Stored(value),
             )),
-            InstKind::TLoad(slot) => {
-                Some((LoadKey::Transient(func.storage_alias(inst_id, slot)), GenSource::LoadResult))
-            }
+            InstKind::TLoad(slot) => Some((
+                LoadKey::Transient(aa.storage_alias(func, inst_id, slot)),
+                GenSource::LoadResult,
+            )),
             InstKind::TStore(slot, value) => Some((
-                LoadKey::Transient(func.storage_alias(inst_id, slot)),
+                LoadKey::Transient(aa.storage_alias(func, inst_id, slot)),
                 GenSource::Stored(value),
             )),
-            InstKind::MLoad(addr) => Self::mem_addr(func, inst_id, addr)
+            InstKind::MLoad(addr) => self
+                .mem_addr(func, inst_id, addr)
                 .map(|addr| (LoadKey::Memory(addr), GenSource::LoadResult)),
-            InstKind::MStore(addr, value) => Self::mem_addr(func, inst_id, addr)
+            InstKind::Fmp => Some((LoadKey::Memory(Self::fmp_addr()), GenSource::LoadResult)),
+            InstKind::MStore(addr, value) => self
+                .mem_addr(func, inst_id, addr)
+                .map(|addr| (LoadKey::Memory(addr), GenSource::Stored(value))),
+            InstKind::MemoryObjectLen(object, kind) => self
+                .memory_object_addr(func, inst_id, object, kind)
+                .map(|addr| (LoadKey::Memory(addr), GenSource::LoadResult)),
+            InstKind::SetMemoryObjectLen(object, value, kind) => self
+                .memory_object_addr(func, inst_id, object, kind)
                 .map(|addr| (LoadKey::Memory(addr), GenSource::Stored(value))),
             InstKind::Keccak256(offset, size) => {
-                let addr = Self::mem_addr(func, inst_id, offset)?;
+                let addr = self.mem_addr(func, inst_id, offset)?;
                 let size = match func.value_u64(size) {
                     Some(size) => KeccakSize::Const(size),
                     None => KeccakSize::Dyn(size),
@@ -911,129 +925,46 @@ impl LoadRedundancyEliminator {
     }
 
     /// Returns true if an instruction may invalidate the value of `key`.
-    fn inst_kills_key(func: &Function, inst_id: InstId, key: LoadKey) -> bool {
-        let kind = &func.instructions[inst_id].kind;
+    fn inst_kills_key(&self, func: &Function, inst_id: InstId, key: LoadKey) -> bool {
+        let aa = self.alias();
+        let effects = aa.instruction_mod_ref(func, inst_id);
         match key {
-            LoadKey::Storage(alias) => match *kind {
-                InstKind::SStore(slot, _) => func.storage_alias(inst_id, slot).may_alias(alias),
-                // Calls and creates may re-enter and mutate storage;
-                // STATICCALL cannot.
-                _ => kind.may_mutate_storage(),
-            },
-            LoadKey::Transient(alias) => match *kind {
-                InstKind::TStore(slot, _) => func.storage_alias(inst_id, slot).may_alias(alias),
-                _ => kind.may_mutate_transient_storage(),
-            },
-            LoadKey::Memory(addr) => Self::memory_write_clobbers(func, inst_id, addr, Some(32)),
-            LoadKey::Keccak(addr, size) => {
+            LoadKey::Storage(alias) => effects.may_write(aa, Location::Storage(alias)),
+            LoadKey::Transient(alias) => effects.may_write(aa, Location::Transient(alias)),
+            LoadKey::Memory(address) => effects.may_write(
+                aa,
+                Location::Memory(MemoryLocation::new(address, LocationSize::Const(32))),
+            ),
+            LoadKey::Keccak(address, size) => {
                 let size = match size {
-                    KeccakSize::Const(size) => Some(size),
-                    KeccakSize::Dyn(_) => None,
+                    KeccakSize::Const(size) => LocationSize::Const(size),
+                    KeccakSize::Dyn(size) => LocationSize::Dynamic(size),
                 };
-                Self::memory_write_clobbers(func, inst_id, addr, size)
+                effects.may_write(aa, Location::Memory(MemoryLocation::new(address, size)))
             }
         }
     }
 
-    /// Returns true if a memory-writing instruction may overlap the read
-    /// range; reads with an unknown size are clobbered by any write that the
-    /// region split cannot rule out.
-    fn memory_write_clobbers(
+    fn mem_addr(&self, func: &Function, inst_id: InstId, addr: ValueId) -> Option<MemoryAddress> {
+        self.alias()
+            .memory_location(func, inst_id, addr, LocationSize::Const(1))
+            .map(|location| location.address)
+    }
+
+    fn memory_object_addr(
+        &self,
         func: &Function,
         inst_id: InstId,
-        read: MemAddr,
-        read_size: Option<u64>,
-    ) -> bool {
-        let kind = &func.instructions[inst_id].kind;
-        let (dest, write_size) = match *kind {
-            InstKind::MStore(dest, _) => (dest, Some(32)),
-            InstKind::MStore8(dest, _) => (dest, Some(1)),
-            InstKind::MCopy(dest, _, size)
-            | InstKind::CalldataCopy(dest, _, size)
-            | InstKind::CodeCopy(dest, _, size)
-            | InstKind::ReturnDataCopy(dest, _, size) => (dest, func.value_u64(size)),
-            InstKind::ExtCodeCopy(_, dest, _, size) => (dest, func.value_u64(size)),
-            // Every call clobbers tracked memory, including STATICCALL: its
-            // return buffer write is a memory effect even in a static context.
-            _ => return kind.may_mutate_memory(),
-        };
-
-        let write_region = func.instructions[inst_id]
-            .metadata
-            .memory_region()
-            .unwrap_or_else(|| func.memory_region_for_addr(dest));
-        if read.region != MemoryRegion::Unknown
-            && write_region != MemoryRegion::Unknown
-            && read.region != write_region
-        {
-            return false;
-        }
-        let (write_base, write_offset) = Self::memory_addr_base_offset(func, dest);
-        if read.base != write_base {
-            return true;
-        }
-        let (Some(read_size), Some(write_offset), Some(write_size)) =
-            (read_size, write_offset, write_size)
-        else {
-            return true;
-        };
-        mir_utils::ranges_overlap(read.offset, read_size, write_offset, write_size)
+        object: ValueId,
+        kind: MemoryObjectKind,
+    ) -> Option<MemoryAddress> {
+        self.alias()
+            .memory_object_length_location(func, inst_id, object, kind)
+            .map(|location| location.address)
     }
 
-    fn mem_addr(func: &Function, inst_id: InstId, addr: ValueId) -> Option<MemAddr> {
-        let region = func.instructions[inst_id]
-            .metadata
-            .memory_region()
-            .unwrap_or_else(|| func.memory_region_for_addr(addr));
-        let (base, offset) = Self::memory_addr_base_offset(func, addr);
-        Some(MemAddr { region, base, offset: offset? })
-    }
-
-    fn memory_addr_base_offset(func: &Function, addr: ValueId) -> (Option<ValueId>, Option<u64>) {
-        if let Some((base, offset)) = Self::offset_chain(func, addr, 0) {
-            if let Some(offset) = mir_utils::u256_to_u64(offset) {
-                return (Some(base), Some(offset));
-            }
-            return (Some(addr), Some(0));
-        }
-        match func.value(addr) {
-            Value::Immediate(imm) => (None, imm.as_u256().and_then(mir_utils::u256_to_u64)),
-            Value::Arg { .. } | Value::Inst(_) | Value::Undef(_) | Value::Error(_) => {
-                (Some(addr), Some(0))
-            }
-        }
-    }
-
-    /// Splits `value` into a symbolic base plus a constant offset by walking
-    /// constant `add`/`sub` chains, so syntactically different addresses of
-    /// the same location unify.
-    fn offset_chain(func: &Function, value: ValueId, depth: usize) -> Option<(ValueId, U256)> {
-        if depth >= 4 {
-            return None;
-        }
-        match func.value(value) {
-            Value::Immediate(_) => None,
-            Value::Arg { .. } | Value::Undef(_) | Value::Error(_) => Some((value, U256::ZERO)),
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
-                InstKind::Add(a, b) => {
-                    if let Some(offset) = func.value_u256(b) {
-                        let (base, existing) = Self::offset_chain(func, a, depth + 1)?;
-                        Some((base, existing.wrapping_add(offset)))
-                    } else if let Some(offset) = func.value_u256(a) {
-                        let (base, existing) = Self::offset_chain(func, b, depth + 1)?;
-                        Some((base, existing.wrapping_add(offset)))
-                    } else {
-                        Some((value, U256::ZERO))
-                    }
-                }
-                InstKind::Sub(a, b) => {
-                    let offset = func.value_u256(b)?;
-                    let (base, existing) = Self::offset_chain(func, a, depth + 1)?;
-                    Some((base, existing.wrapping_sub(offset)))
-                }
-                _ => Some((value, U256::ZERO)),
-            },
-        }
+    fn fmp_addr() -> MemoryAddress {
+        AliasAnalysis::fmp_location().address
     }
 
     // ----- CFG helpers -----

@@ -7,7 +7,7 @@
 //! Cross-block reservations remain stable for the function, while block-local
 //! offsets are reused.
 
-use crate::mir::ValueId;
+use crate::{memory::EvmMemoryLayout, mir::ValueId};
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 
 /// A slot in memory where a spilled value is stored.
@@ -25,7 +25,9 @@ impl SpillSlot {
     /// offsets relative to their own static memory or frame base.
     #[must_use]
     pub(crate) const fn constructor_byte_offset(&self) -> u32 {
-        0x1000 + self.offset * 32
+        // Stack scheduling is already a physical backend phase, so spill slots
+        // use the absolute area selected by the shared EVM memory policy.
+        (EvmMemoryLayout::SPILL_BASE as u32) + self.offset * (EvmMemoryLayout::WORD_SIZE as u32)
     }
 }
 
@@ -146,6 +148,15 @@ impl SpillManager {
         self.stored.contains(value)
     }
 
+    /// Forgets that already-emitted code stored this value. A value carried on
+    /// the stack across a loop back edge is redefined without a store, so its
+    /// reserved slot no longer holds the current definition: the next
+    /// spill must store it again before any reload can use the slot.
+    pub(crate) fn invalidate_stored(&mut self, value: ValueId) {
+        self.reloadable.remove(value);
+        self.stored.remove(value);
+    }
+
     /// Returns the total size of the spill area in bytes.
     #[must_use]
     pub(crate) fn spill_area_size(&self) -> u32 {
@@ -177,10 +188,10 @@ mod tests {
         assert_eq!(slot0.offset, 0);
         assert_eq!(slot1.offset, 1);
         assert_eq!(slot2.offset, 2);
-        // Spill slots use high memory at 0x1000+
-        assert_eq!(slot0.constructor_byte_offset(), 0x1000);
-        assert_eq!(slot1.constructor_byte_offset(), 0x1000 + 32);
-        assert_eq!(slot2.constructor_byte_offset(), 0x1000 + 64);
+        // Spill slots use the backend spill area from the memory policy.
+        assert_eq!(slot0.constructor_byte_offset(), EvmMemoryLayout::SPILL_BASE as u32);
+        assert_eq!(slot1.constructor_byte_offset(), EvmMemoryLayout::SPILL_BASE as u32 + 32);
+        assert_eq!(slot2.constructor_byte_offset(), EvmMemoryLayout::SPILL_BASE as u32 + 64);
     }
 
     #[test]

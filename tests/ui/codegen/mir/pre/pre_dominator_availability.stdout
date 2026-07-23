@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/pre/pre_dominator_availability.mir (after pre) ===
   @module DomAvail
   fn @reuse_dominating_def(arg0: u256, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       switch arg1, default bb1, [1 => bb2, 2 => bb3]
     bb1:
       v0 = add arg0, 7
@@ -23,7 +23,7 @@
   }
   
   fn @collapse_to_shared_def(arg0: u256, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, 7
       switch arg1, default bb1, [1 => bb2]
     bb1:

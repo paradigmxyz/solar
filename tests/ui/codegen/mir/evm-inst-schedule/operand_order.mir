@@ -1,7 +1,7 @@
 //@ compile-flags: --pass evm-inst-schedule
 @module EvmInstSchedule
 fn @binary_push_order(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v4 = add arg0, arg1
     v5 = mul arg2, arg3
     v6 = sub v4, v5
@@ -9,7 +9,7 @@ fn @binary_push_order(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
 }
 
 fn @read_order(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v2 = calldataload arg0
     v3 = sload arg1
     v4 = sub v2, v3
@@ -17,7 +17,7 @@ fn @read_order(arg0: u256, arg1: u256) -> u256 {
 }
 
 fn @commutative_tree_order(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v2 = add arg0, 31
     v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v4 = add arg1, 64
@@ -28,7 +28,7 @@ fn @commutative_tree_order(arg0: u256, arg1: u256) {
 }
 
 fn @shared_value_order(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v2 = add arg0, 31
     v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v4 = add arg1, 64
@@ -40,7 +40,7 @@ fn @shared_value_order(arg0: u256, arg1: u256) -> u256 {
 }
 
 fn @effect_barriers(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v2 = add arg0, 1
     mstore 0, v2
     v3 = mul arg1, 2

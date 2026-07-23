@@ -9,7 +9,7 @@
 // and dce demonstrates ordinary optimization still works after dispatch.
 @module PhasePassBounds
 fn @get(arg0: u256) [selector=0x9507d39a] {
-  bb0 (entry):
+  bb0:
     mstore 128, arg0
     returndata 128, 32
 }

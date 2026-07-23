@@ -86,16 +86,20 @@ only when not the default). The phases, in order:
   the ABI wrappers through `tail_call` terminators (control transfers and does
   not return, matching the wrappers' external termination). Produced by the
   `lower-dispatch` pass, which requires the `abi` phase.
+- `memory-lowered`: semantic memory-object layouts and accesses have been
+  lowered through the selected memory-layout policy to physical pointer and
+  word operations. Produced by the `lower-memory-objects` pass.
 - `evm-shaped`: every call edge either returns or is an explicit `tail_call`
   (arguments included), the shape the backend expects. Produced by the
   `lower-evm-shaped` pass; argument-carrying tail calls are only formed for
   callees the backend statically frames, so their arguments store at
   compile-time frame addresses with no return address pushed.
 
-The `lower-abi`, `lower-dispatch`, and `lower-evm-shaped` passes are progressive MIR-to-MIR lowering,
-moving dispatch and ABI handling out of the backend. They run **by default** in
-the codegen pipeline and the backend consumes the `dispatch`-phase module, with
-the MIR `entry` as the runtime prologue and `tail_call` lowered to a jump
+The `lower-abi`, `lower-dispatch`, `lower-memory-objects`, and `lower-evm-shaped`
+passes are progressive MIR-to-MIR lowering, moving dispatch, ABI handling, and
+memory layout out of the backend. They run **by default** in the codegen pipeline
+and the backend consumes the `evm-shaped` module, with the MIR `entry` as the
+runtime prologue and `tail_call` lowered to a jump
 (opt out with `-Zno-mir-dispatch`). A module where `lower-abi` bails — when any
 external function has returns (the wrappers do not implement returndata
 encoding yet), or there is no external interface — keeps its phase and is
@@ -294,6 +298,14 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 
 ## Notes
 
+- **Typed index collections**: Use `IndexVec<I, T>` for every collection indexed by an `I` index
+  type, including local variables; if code repeatedly indexes a collection with `x.index()`, it is
+  probably using the wrong collection type.
+- **Sparse index maps**: Audit every `IndexVec<I, T>` for default or sentinel entries, not only
+  `Option<T>` and its `None` sentinel. Empty collections, zero counts, maximum IDs, and other
+  distinguished values can also indicate sparse storage. Measure representative occupancy before
+  converting; a sentinel alone does not make storage sparse. Use `FxHashMap<I, T>` and omit the
+  sentinel only when it dominates enough to justify hashing instead of direct indexing.
 - **Index sets**: Never use `Vec<bool>`; a bitset is always the more compact representation. Prefer
   fixed dense or mixed bitsets for compact, stable domains and growable bitsets when new indices
   may be allocated while the set is live. Use hash sets for sparse sets, especially when there are

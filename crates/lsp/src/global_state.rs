@@ -1,7 +1,7 @@
 use crate::{
     NotifyResult,
     config::{Config, negotiate_capabilities},
-    diagnostics::{DiagnosticMap, DiagnosticOwner, DiagnosticStore},
+    diagnostics::{DiagnosticMap, DiagnosticOwner, DiagnosticStore, PullReport},
     flycheck, proto,
     symbols::SymbolTables,
     vfs::Vfs,
@@ -302,6 +302,24 @@ impl GlobalState {
                 ResponseError::new(async_lsp::ErrorCode::REQUEST_FAILED, "analysis was cancelled")
             })?;
             Ok(symbol_tables)
+        }
+    }
+
+    pub(crate) fn pull_diagnostic_report(
+        &self,
+        uri: Url,
+        previous_result_id: Option<String>,
+    ) -> impl Future<Output = Result<PullReport, ResponseError>> + use<> {
+        let (uri, latest_analysis) = match uri.to_file_path() {
+            Ok(path) => (Url::from_file_path(path).unwrap_or(uri), Some(self.latest_analysis())),
+            Err(()) => (uri, None),
+        };
+        let diagnostics = self.diagnostics.clone();
+        async move {
+            if let Some(latest_analysis) = latest_analysis {
+                latest_analysis.await?;
+            }
+            Ok(diagnostics.read().pull_report(&uri, previous_result_id.as_deref()))
         }
     }
 

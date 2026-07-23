@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/operand_order.mir (after evm-inst-schedule) ===
   @module EvmInstSchedule
   fn @binary_push_order(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = add arg0, arg1
       v1 = mul arg2, arg3
 +     v0 = add arg0, arg1
@@ -11,7 +11,7 @@
   }
   
   fn @read_order(arg0: u256, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = calldataload arg0
       v1 = sload arg1
 +     v0 = calldataload arg0
@@ -20,7 +20,7 @@
   }
   
   fn @commutative_tree_order(arg0: u256, arg1: u256) {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, 31
       v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
       v2 = add arg1, 64
@@ -31,7 +31,7 @@
   }
   
   fn @shared_value_order(arg0: u256, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, 31
       v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
       v2 = add arg1, 64
@@ -43,7 +43,7 @@
   }
   
   fn @effect_barriers(arg0: u256, arg1: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, 1
       mstore 0, v0
       v1 = mul arg1, 2

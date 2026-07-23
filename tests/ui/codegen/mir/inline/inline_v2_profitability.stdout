@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/inline/inline_v2_profitability.mir (after inline) ===
   @module InlineV2Profitability
   fn @single_large_caller(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = internal_call @single_large_callee, 1, arg0
 -     ret v0
 +     jump bb2
@@ -37,7 +37,7 @@
   }
   
   fn @single_large_callee(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
       jump bb1
     bb1:
       jump bb2
@@ -65,13 +65,13 @@
   }
   
   fn @multi_return_caller(arg0: u256) -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = internal_call @multi_return_callee, 2, arg0
 +     jump bb2
 +   bb1:
 +     v5 = phi [bb2: v3]
 +     v6 = phi [bb2: v4]
-+     v7 = mload 64
++     v7 = fmp
 +     v8 = add v7, 32
 +     mstore v8, v6
 +     mstore 32, v7
@@ -86,14 +86,14 @@
   }
   
   fn @multi_return_callee(arg0: u256) -> (u256, u256) {
-    bb0 (entry):
+    bb0:
       v0 = add arg0, 1
       v1 = add arg0, 2
       ret v0, v1
   }
   
   fn @tiny_stateful_caller(arg0: u256, arg1: u256) {
-    bb0 (entry):
+    bb0:
 -     internal_call @tiny_stateful_callee, 0, arg0
 -     internal_call @tiny_stateful_callee, 0, arg1
 +     jump bb2
@@ -110,7 +110,7 @@
   }
   
   fn @tiny_stateful_callee(arg0: u256) {
-    bb0 (entry):
+    bb0:
       sstore 0, arg0
       ret
   }

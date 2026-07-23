@@ -5,14 +5,22 @@
 use solar_data_structures::newtype_index;
 
 mod types;
-pub(crate) use types::MirType;
+pub(crate) use types::{MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation};
+
+mod abi;
+pub(crate) use abi::{AbiLayout, AbiLayoutRef, AbiType};
+
+mod storage;
+pub use storage::{StorageField, StorageLayout, StorageLayoutRef};
 
 mod value;
 pub(crate) use value::{Immediate, Value};
 
 mod inst;
 pub(crate) use inst::{
-    EffectKind, InstKind, Instruction, InstructionMetadata, MemoryRegion, StorageAlias,
+    AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationKind,
+    AllocationSemantics, EffectKind, InstKind, Instruction, InstructionMetadata, MemoryRegion,
+    StorageAlias,
 };
 
 mod block;
@@ -51,6 +59,11 @@ newtype_index! {
 
     /// A unique identifier for a function in the MIR.
     pub(crate) struct FunctionId;
+}
+
+impl BlockId {
+    /// The first block in every function.
+    pub(crate) const ENTRY: Self = Self::new(0);
 }
 
 /// Property tests verifying that the MIR printer/parser pair is self-consistent.

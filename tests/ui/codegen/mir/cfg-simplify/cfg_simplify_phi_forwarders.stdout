@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_phi_forwarders.mir (after cfg-simplify) ===
   @module CfgSimplifyPhiForwarders
   fn @keep_conflicting_diamond(arg0: bool) -> u256 {
-    bb0 (entry):
+    bb0:
 -     br arg0, bb1, bb2
 +     br arg0, bb3, bb2
     bb1:
@@ -17,7 +17,7 @@
   }
   
   fn @fold_equal_value_diamond(arg0: bool) -> u256 {
-    bb0 (entry):
+    bb0:
 -     br arg0, bb1, bb2
 +     br arg0, bb3, bb2
     bb1:

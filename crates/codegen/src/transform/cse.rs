@@ -36,10 +36,14 @@
 //!   (diamond arms, loop bodies), including the child itself when it sits on a cycle
 
 use crate::{
-    analysis::{CfgInfo, DominatorTree},
+    analysis::{
+        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Location, LocationSize,
+        MemoryCallSummaries, MemoryLocation,
+    },
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, Instruction, MemoryRegion, MirType,
-        StorageAlias, Value, ValueId, utils as mir_utils,
+        BlockId, Function, Immediate, InstId, InstKind, Instruction, MemoryObjectKind,
+        MemoryObjectLayout, MirType, Module, SliceLocation, StorageAlias, Value, ValueId,
+        utils as mir_utils,
     },
     pass::FunctionPass,
 };
@@ -48,13 +52,15 @@ use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::FxHashMap,
 };
-use std::cmp::Ordering;
+use std::{cmp::Ordering, sync::Arc};
 
 /// Common Subexpression Elimination pass.
 #[derive(Debug, Default)]
 pub(crate) struct CommonSubexprEliminator {
     /// Number of instructions eliminated.
     pub eliminated_count: usize,
+    alias: Option<AliasAnalysis>,
+    call_summaries: Option<Arc<MemoryCallSummaries>>,
 }
 
 /// Function pass for local common subexpression elimination.
@@ -63,6 +69,17 @@ pub(crate) struct CsePass;
 impl FunctionPass for CsePass {
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         CommonSubexprEliminator::new().run_to_fixpoint(func) != 0
+    }
+
+    fn run_on_module(&mut self, module: &mut Module) -> bool {
+        let summaries = Arc::new(MemoryCallSummaries::new(module));
+        let mut changed = false;
+        for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
+            changed |= CommonSubexprEliminator::with_call_summaries(Arc::clone(&summaries))
+                .run_to_fixpoint(func)
+                != 0;
+        }
+        changed
     }
 }
 
@@ -102,6 +119,12 @@ enum ExprKey {
     MappingSlot(OperandKey, OperandKey),
     MappingSlotMemory(OperandKey, OperandKey),
     MappingSlotCalldata(OperandKey, OperandKey),
+    MakeSlice(OperandKey, OperandKey, SliceLocation),
+    SlicePtr(OperandKey),
+    SliceLen(OperandKey),
+    MemoryObjectData(OperandKey, MemoryObjectKind),
+    MemoryObjectFieldAddr(OperandKey, MemoryObjectLayout, u64),
+    MemoryObjectElementAddr(OperandKey, MemoryObjectLayout, OperandKey),
     SLoad(StorageAlias),
     TLoad(StorageAlias),
     CalldataLoad(OperandKey),
@@ -120,20 +143,7 @@ enum OperandKey {
     Immediate(Immediate),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-struct MemRangeKey {
-    region: MemoryRegion,
-    base: Option<ValueId>,
-    offset: Option<u64>,
-    size: Option<u64>,
-    /// The canonical size operand when `size` is not a known constant.
-    ///
-    /// Participates only in key equality so that reads with different dynamic sizes never
-    /// unify while reads with the same dynamic size operand still do. Aliasing checks ignore
-    /// it: `memory_ranges_may_alias` stays conservative whenever `size` is `None`, so write
-    /// keys can always leave it unset.
-    dyn_size: Option<ValueId>,
-}
+type MemRangeKey = MemoryLocation;
 
 struct GlobalCseContext<'a> {
     dom_tree: &'a DominatorTree,
@@ -183,18 +193,40 @@ impl CommonSubexprEliminator {
         Self::default()
     }
 
+    fn with_call_summaries(summaries: Arc<MemoryCallSummaries>) -> Self {
+        Self { call_summaries: Some(summaries), ..Self::default() }
+    }
+
+    fn refresh_alias(&mut self, func: &Function) {
+        self.alias = Some(match &self.call_summaries {
+            Some(summaries) => AliasAnalysis::with_call_summaries(func, Arc::clone(summaries)),
+            None => AliasAnalysis::new(func),
+        });
+    }
+
+    fn alias(&self) -> &AliasAnalysis {
+        self.alias.as_ref().expect("CSE alias snapshot is initialized")
+    }
+
     fn run_with_cfg(&mut self, func: &mut Function, cfg: &CfgInfo) -> usize {
         self.eliminated_count = 0;
 
+        // One provenance snapshot per run: eliminating expressions only removes
+        // instructions, which keeps the allocation facts conservative. Only the
+        // value-address memo can go stale, so it is dropped between phases and
+        // blocks instead of recomputing the whole analysis each time.
+        self.refresh_alias(func);
         self.sink_redundant_phi_expressions(func, cfg);
 
         // Neither the global nor the local pass allocates values, so the map stays valid.
         let inst_results = func.inst_results();
+        self.alias().clear_cached_addresses();
         self.process_global_pure(func, &inst_results, cfg);
 
         // Process each block independently (local CSE)
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         for block_id in block_ids {
+            self.alias().clear_cached_addresses();
             self.process_block(func, block_id, &inst_results);
         }
 
@@ -385,7 +417,7 @@ impl CommonSubexprEliminator {
     }
 
     fn process_global_blocks(&mut self, func: &Function, ctx: &mut GlobalCseContext<'_>) {
-        let mut worklist = vec![(func.entry_block, FxHashMap::default())];
+        let mut worklist = vec![(BlockId::ENTRY, FxHashMap::default())];
         while let Some((block_id, mut cache)) = worklist.pop() {
             for &inst_id in &func.blocks[block_id].instructions {
                 let kind = func.instructions[inst_id].kind.clone();
@@ -494,6 +526,7 @@ impl CommonSubexprEliminator {
             kind,
             InstKind::MLoad(_)
                 | InstKind::Keccak256(_, _)
+                | InstKind::Keccak256Bytes(_)
                 | InstKind::MappingSlotMemory(_, _)
                 | InstKind::SLoad(_)
                 | InstKind::TLoad(_)
@@ -660,17 +693,24 @@ impl CommonSubexprEliminator {
             )),
 
             InstKind::MLoad(addr) => {
-                let key = self.memory_range_key(func, inst_id, value(*addr), Some(32))?;
+                let key =
+                    self.memory_range_key(func, inst_id, value(*addr), LocationSize::Const(32))?;
                 Some(ExprKey::MLoad(key))
             }
+            InstKind::Fmp => Some(ExprKey::MLoad(Self::fmp_range_key())),
             InstKind::Keccak256(offset, size) => {
                 let size = value(*size);
-                let const_size = func.value_u64(size);
-                let mut key = self.memory_range_key(func, inst_id, value(*offset), const_size)?;
-                if const_size.is_none() {
-                    // Key the dynamic size operand so reads of different lengths never unify.
-                    key.dyn_size = Some(size);
-                }
+                let size =
+                    func.value_u64(size).map_or(LocationSize::Dynamic(size), LocationSize::Const);
+                let key = self.memory_range_key(func, inst_id, value(*offset), size)?;
+                Some(ExprKey::Keccak256(key))
+            }
+            // A whole-object hash reads the length word and the data, so its
+            // range is the object with an unknown extent: any overlapping
+            // write conservatively invalidates the cached hash.
+            InstKind::Keccak256Bytes(object) => {
+                let key =
+                    self.memory_range_key(func, inst_id, value(*object), LocationSize::Unknown)?;
                 Some(ExprKey::Keccak256(key))
             }
             InstKind::MappingSlot(key, slot) => {
@@ -682,17 +722,36 @@ impl CommonSubexprEliminator {
             InstKind::MappingSlotCalldata(key, slot) => {
                 Some(ExprKey::MappingSlotCalldata(operand(*key), operand(*slot)))
             }
+            InstKind::MakeSlice { ptr, len, location } => {
+                Some(ExprKey::MakeSlice(operand(*ptr), operand(*len), *location))
+            }
+            InstKind::SlicePtr(slice) => Some(ExprKey::SlicePtr(operand(*slice))),
+            InstKind::SliceLen(slice) => Some(ExprKey::SliceLen(operand(*slice))),
+            InstKind::MemoryObjectLen(object, kind) => {
+                let key = self.alias().memory_object_length_location(
+                    func,
+                    inst_id,
+                    value(*object),
+                    *kind,
+                )?;
+                Some(ExprKey::MLoad(key))
+            }
+            InstKind::MemoryObjectData(object, kind) => {
+                Some(ExprKey::MemoryObjectData(operand(*object), *kind))
+            }
+            InstKind::MemoryObjectFieldAddr { object, layout, field } => {
+                Some(ExprKey::MemoryObjectFieldAddr(operand(*object), *layout, *field))
+            }
+            InstKind::MemoryObjectElementAddr { object, layout, index } => {
+                Some(ExprKey::MemoryObjectElementAddr(operand(*object), *layout, operand(*index)))
+            }
 
-            InstKind::SLoad(slot) => Some(ExprKey::SLoad(func.storage_alias_after_replacements(
-                inst_id,
-                *slot,
-                replacements,
-            ))),
-            InstKind::TLoad(slot) => Some(ExprKey::TLoad(func.storage_alias_after_replacements(
-                inst_id,
-                *slot,
-                replacements,
-            ))),
+            InstKind::SLoad(slot) => Some(ExprKey::SLoad(
+                self.alias().storage_alias_after_replacements(func, inst_id, *slot, replacements),
+            )),
+            InstKind::TLoad(slot) => Some(ExprKey::TLoad(
+                self.alias().storage_alias_after_replacements(func, inst_id, *slot, replacements),
+            )),
 
             InstKind::SelfBalance => Some(ExprKey::SelfBalance),
 
@@ -730,58 +789,20 @@ impl CommonSubexprEliminator {
         replacements: &FxHashMap<ValueId, ValueId>,
         clobbers: &mut Vec<Clobber>,
     ) {
-        match *kind {
-            InstKind::MStore(addr, _) => {
-                let addr = mir_utils::resolve_replacement(addr, replacements);
-                clobbers.push(Clobber::Memory(self.memory_range_key(
-                    func,
-                    inst_id,
-                    addr,
-                    Some(32),
-                )));
-            }
-            InstKind::MStore8(addr, _) => {
-                let addr = mir_utils::resolve_replacement(addr, replacements);
-                clobbers.push(Clobber::Memory(self.memory_range_key(func, inst_id, addr, Some(1))));
-            }
-            InstKind::MCopy(dest, _, size)
-            | InstKind::CalldataCopy(dest, _, size)
-            | InstKind::CodeCopy(dest, _, size)
-            | InstKind::ReturnDataCopy(dest, _, size)
-            | InstKind::ExtCodeCopy(_, dest, _, size) => {
-                let dest = mir_utils::resolve_replacement(dest, replacements);
-                let size = func.value_u64(mir_utils::resolve_replacement(size, replacements));
-                clobbers.push(Clobber::Memory(self.memory_range_key(func, inst_id, dest, size)));
-            }
-            InstKind::SStore(slot, _) => {
-                clobbers.push(Clobber::Storage(func.storage_alias_after_replacements(
-                    inst_id,
-                    slot,
-                    replacements,
-                )));
-            }
-            InstKind::TStore(slot, _) => {
-                clobbers.push(Clobber::Transient(func.storage_alias_after_replacements(
-                    inst_id,
-                    slot,
-                    replacements,
-                )));
-            }
-            _ if kind.may_mutate_memory() => {
-                clobbers.push(Clobber::Memory(None));
-                if Self::may_change_account_environment(kind) {
-                    clobbers.push(Clobber::AccountEnvironment);
-                }
-                if kind.may_mutate_storage() {
-                    clobbers.push(Clobber::AllStorage);
-                }
-                if kind.may_mutate_transient_storage() {
-                    clobbers.push(Clobber::AllTransient);
-                }
-            }
-            _ if kind.may_mutate_storage() => clobbers.push(Clobber::AllStorage),
-            _ if kind.may_mutate_transient_storage() => clobbers.push(Clobber::AllTransient),
-            _ => {}
+        let effects =
+            self.alias().instruction_mod_ref_with_replacements(func, inst_id, replacements);
+        for &write in effects.writes() {
+            clobbers.push(match write {
+                Access::Location(Location::Memory(location)) => Clobber::Memory(Some(location)),
+                Access::Location(Location::Storage(alias)) => Clobber::Storage(alias),
+                Access::Location(Location::Transient(alias)) => Clobber::Transient(alias),
+                Access::Any(AddressSpace::Memory) => Clobber::Memory(None),
+                Access::Any(AddressSpace::Storage) => Clobber::AllStorage,
+                Access::Any(AddressSpace::Transient) => Clobber::AllTransient,
+            });
+        }
+        if Self::may_change_account_environment(kind) {
+            clobbers.push(Clobber::AccountEnvironment);
         }
     }
 
@@ -791,7 +812,11 @@ impl CommonSubexprEliminator {
             Clobber::Memory(write) => self.invalidate_memory(expr_cache, write),
             Clobber::Storage(alias) => {
                 expr_cache.retain(|key, _| match key {
-                    ExprKey::SLoad(cached) => !cached.may_alias(alias),
+                    ExprKey::SLoad(cached) => !AliasAnalysis::alias_locations(
+                        Location::Storage(*cached),
+                        Location::Storage(alias),
+                    )
+                    .may_alias(),
                     _ => true,
                 });
             }
@@ -800,7 +825,11 @@ impl CommonSubexprEliminator {
             }
             Clobber::Transient(alias) => {
                 expr_cache.retain(|key, _| match key {
-                    ExprKey::TLoad(cached) => !cached.may_alias(alias),
+                    ExprKey::TLoad(cached) => !AliasAnalysis::alias_locations(
+                        Location::Transient(*cached),
+                        Location::Transient(alias),
+                    )
+                    .may_alias(),
                     _ => true,
                 });
             }
@@ -819,9 +848,9 @@ impl CommonSubexprEliminator {
         write: Option<MemRangeKey>,
     ) {
         expr_cache.retain(|key, _| match key {
-            ExprKey::MLoad(read) | ExprKey::Keccak256(read) => {
-                write.is_some_and(|write| !Self::memory_ranges_may_alias(*read, write))
-            }
+            ExprKey::MLoad(read) | ExprKey::Keccak256(read) => write.is_some_and(|write| {
+                !AliasAnalysis::memory_alias_locations(*read, write).may_alias()
+            }),
             ExprKey::MappingSlotMemory(..) => false,
             _ => true,
         });
@@ -843,7 +872,7 @@ impl CommonSubexprEliminator {
 
     /// STATICCALL is excluded: the whole static context forbids value transfers, `SSTORE`,
     /// `CREATE`, and `SELFDESTRUCT`, so balances and deployed code cannot change. Its memory
-    /// clobber (the return buffer write) is handled separately via `may_mutate_memory`.
+    /// clobber (the return buffer write) is represented precisely by ModRef analysis.
     fn may_change_account_environment(kind: &InstKind) -> bool {
         matches!(
             kind,
@@ -907,48 +936,13 @@ impl CommonSubexprEliminator {
         func: &Function,
         inst_id: InstId,
         addr: ValueId,
-        size: Option<u64>,
+        size: LocationSize,
     ) -> Option<MemRangeKey> {
-        let region = func.instructions[inst_id]
-            .metadata
-            .memory_region()
-            .unwrap_or_else(|| func.memory_region_for_addr(addr));
-        let (base, offset) = Self::memory_addr_base_offset(func, addr);
-        Some(MemRangeKey { region, base, offset, size, dyn_size: None })
+        self.alias().memory_location(func, inst_id, addr, size)
     }
 
-    fn memory_addr_base_offset(func: &Function, addr: ValueId) -> (Option<ValueId>, Option<u64>) {
-        if let Some((base, offset)) = Self::offset_value(func, addr, &FxHashMap::default(), 0) {
-            if let (OperandKey::Value(base), Some(offset)) = (base, mir_utils::u256_to_u64(offset))
-            {
-                return (Some(base), Some(offset));
-            }
-            return (Some(addr), Some(0));
-        }
-        match func.value(addr) {
-            Value::Immediate(imm) => (None, imm.as_u256().and_then(mir_utils::u256_to_u64)),
-            Value::Arg { .. } | Value::Inst(_) | Value::Undef(_) | Value::Error(_) => {
-                (Some(addr), Some(0))
-            }
-        }
-    }
-
-    fn memory_ranges_may_alias(read: MemRangeKey, write: MemRangeKey) -> bool {
-        if read.region != MemoryRegion::Unknown
-            && write.region != MemoryRegion::Unknown
-            && read.region != write.region
-        {
-            return false;
-        }
-        if read.base != write.base {
-            return true;
-        }
-        let (Some(read_offset), Some(read_size), Some(write_offset), Some(write_size)) =
-            (read.offset, read.size, write.offset, write.size)
-        else {
-            return true;
-        };
-        mir_utils::ranges_overlap(read_offset, read_size, write_offset, write_size)
+    fn fmp_range_key() -> MemRangeKey {
+        AliasAnalysis::fmp_location()
     }
 
     fn offset_expr_for_add(

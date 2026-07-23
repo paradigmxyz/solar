@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/tuple_assign_branch_leak.sol:TupleAssignBranchLeak (runtime) ===
 @module runtime
-bb0 (entry):
-  push 0x440
+bb0:
+  push 0x460
   push 64
   mstore
   callvalue
@@ -54,31 +54,31 @@ bb5:
   push 192
   mload
   dup1
-  push 480
+  push 512
   mstore
   swap1
   pop
   dup1
-  push 480
+  push 512
   mstore
   push 7
   add
   dup1
-  push 544
+  push 576
   mstore
-  push 480
+  push 512
   mload
   gt
   push bb26
   jumpi
   push 8
-  push 480
+  push 512
   mload
   add
   dup1
-  push 672
+  push 704
   mstore
-  push 544
+  push 576
   mload
   gt
   push 36
@@ -87,18 +87,18 @@ bb5:
   push bb26
   jumpi
   push 9
-  push 480
+  push 512
   mload
   add
   dup1
-  push 512
+  push 544
   mstore
   swap1
   pop
   dup1
-  push 512
-  mstore
   push 544
+  mstore
+  push 576
   mload
   gt
   push 36
@@ -110,48 +110,55 @@ bb5:
   mload
   swap1
   pop
+  dup1
+  push 480
+  mstore
   push 32
-  dup2
   add
-  push 512
+  push 544
   mload
   dup1
-  push 512
+  push 544
   mstore
   swap1
   mstore
+  push 480
+  mload
+  dup1
+  push 480
+  mstore
   push 32
   mstore
-  push 512
+  push 544
   mload
-  push 672
+  push 704
   mload
   add
   dup1
-  push 576
+  push 608
   mstore
-  push 672
+  push 704
   mload
   gt
   push bb26
   jumpi
   push 192
   mload
-  push 576
+  push 608
   mload
   add
   dup1
-  push 608
+  push 640
   mstore
-  push 576
+  push 608
   mload
   gt
   push bb26
   jumpi
-  push 608
+  push 640
   mload
   dup1
-  push 608
+  push 640
   jump bb27
 bb27:
   mstore
@@ -175,36 +182,43 @@ bb17:
   add
   add
   dup1
-  push 736
+  push 768
   jump bb27
 bb18:
   push 64
   mload
   swap1
   pop
+  dup1
+  push 480
+  mstore
   push 32
-  dup2
   add
   push 36
   calldataload
   push 2
   add
   dup1
-  push 704
+  push 736
   mstore
   swap1
   mstore
+  push 480
+  mload
+  dup1
+  push 480
+  mstore
   push 32
   mstore
-  push 704
+  push 736
   mload
-  push 640
+  push 672
   mload
   add
   dup1
-  push 736
+  push 768
   mstore
-  push 640
+  push 672
   mload
   gt
   iszero
@@ -228,7 +242,7 @@ bb19:
   dup2
   add
   dup1
-  push 640
+  push 672
   mstore
   dup2
   gt
@@ -238,7 +252,7 @@ bb19:
   dup2
   add
   dup1
-  push 704
+  push 736
   mstore
   lt
   push 36

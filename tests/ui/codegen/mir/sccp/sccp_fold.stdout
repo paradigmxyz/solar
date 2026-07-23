@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/sccp/sccp_fold.mir (after sccp) ===
   @module SccpFold
   fn @const_chain() -> u256 {
-    bb0 (entry):
+    bb0:
 -     v0 = add 10, 20
 -     v1 = mul v0, 2
 -     ret v1

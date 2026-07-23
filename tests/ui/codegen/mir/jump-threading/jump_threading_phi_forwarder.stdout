@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/jump-threading/jump_threading_phi_forwarder.mir (after jump-threading) ===
   @module JumpThreadingPhiForwarder
   fn @keep_phi_only_block(arg0: bool) -> u256 {
-    bb0 (entry):
+    bb0:
       br arg0, bb1, bb2
     bb1:
       jump bb3

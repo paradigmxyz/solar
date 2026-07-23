@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/licm/licm_memory_alias.mir (after licm) ===
   @module LicmMemoryAlias
   fn @hoist_non_aliasing_mload() -> u256 {
-    bb0 (entry):
+    bb0:
 +     v0 = mload 0
       jump bb1
     bb1:
@@ -16,7 +16,7 @@
   }
   
   fn @keep_aliasing_mload() -> u256 {
-    bb0 (entry):
+    bb0:
       jump bb1
     bb1:
       br 1, bb2, bb3
@@ -29,7 +29,7 @@
   }
   
   fn @hoist_non_aliasing_keccak() -> bytes32 {
-    bb0 (entry):
+    bb0:
 +     v0 = keccak256 0, 32
       jump bb1
     bb1:
@@ -43,7 +43,7 @@
   }
   
   fn @keep_aliasing_keccak() -> bytes32 {
-    bb0 (entry):
+    bb0:
       jump bb1
     bb1:
       br 1, bb2, bb3

@@ -6,7 +6,7 @@
 // `optimized` and the header says so.
 @module PhasePipelineTransition
 fn @f(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v1 = add arg0, 1
     mstore 128, v1
     returndata 128, 32

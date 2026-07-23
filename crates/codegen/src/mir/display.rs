@@ -22,12 +22,10 @@ pub(crate) fn display_function_dot<'a>(
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
             let block_idx = block_id.index();
-            let is_entry = block_id == func.entry_block;
-            let color = if is_entry { ", fillcolor=\"#e0ffe0\", style=filled" } else { "" };
 
             write!(f, "    bb{block_idx} [label=\"")?;
             write_dot_block_label(f, func, funcs, block_id)?;
-            writeln!(f, "\"{color}];")
+            writeln!(f, "\"];")
         })
     }
 
@@ -39,8 +37,7 @@ pub(crate) fn display_function_dot<'a>(
     ) -> fmt::Result {
         let block = &func.blocks[block_id];
         let block_idx = block_id.index();
-        let entry_marker = if block_id == func.entry_block { " (entry)" } else { "" };
-        write!(f, "bb{block_idx}{entry_marker}:\\l")?;
+        write!(f, "bb{block_idx}:\\l")?;
 
         write!(
             f,
@@ -199,8 +196,7 @@ pub(crate) fn display_function_text<'a>(
         block: &'a BasicBlock,
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
-            let entry_marker = if block_id == func.entry_block { " (entry)" } else { "" };
-            writeln!(f, "  bb{}{}:", block_id.index(), entry_marker)?;
+            writeln!(f, "  bb{}:", block_id.index())?;
 
             write!(
                 f,
@@ -311,6 +307,76 @@ fn display_inst_kind<'a>(
 
     fmt::from_fn(move |f| match kind {
         InstKind::LoadImmutable(offset) => write!(f, "loadimmutable {offset}"),
+        InstKind::Alloc { size, kind, semantics } => {
+            let kind = match kind {
+                crate::mir::AllocationKind::Raw => "raw".to_string(),
+                crate::mir::AllocationKind::Object(layout) => layout.to_string(),
+            };
+            let alignment = match semantics.alignment {
+                crate::mir::AllocationAlignment::Exact => "exact",
+                crate::mir::AllocationAlignment::Word => "word",
+            };
+            let initialization = match semantics.initialization {
+                crate::mir::AllocationInitialization::Uninitialized => "uninitialized",
+                crate::mir::AllocationInitialization::Zeroed => "zeroed",
+            };
+            let failure = match semantics.failure {
+                crate::mir::AllocationFailure::Infallible => "infallible",
+                crate::mir::AllocationFailure::Panic => "panic",
+            };
+            write!(
+                f,
+                "alloc {kind}, {alignment}, {initialization}, {failure}, {}",
+                display_val(*size, func)
+            )
+        }
+        InstKind::MemoryObjectFieldAddr { object, layout, field } => {
+            write!(f, "memory_object_field_addr {layout}, {}, {field}", display_val(*object, func))
+        }
+        InstKind::MemoryObjectElementAddr { object, layout, index } => write!(
+            f,
+            "memory_object_element_addr {layout}, {}, {}",
+            display_val(*object, func),
+            display_val(*index, func)
+        ),
+        InstKind::MemoryObjectLen(object, kind) => {
+            write!(f, "memory_object_len {kind}, {}", display_val(*object, func))
+        }
+        InstKind::SetMemoryObjectLen(object, len, kind) => write!(
+            f,
+            "set_memory_object_len {kind}, {}, {}",
+            display_val(*object, func),
+            display_val(*len, func)
+        ),
+        InstKind::MemoryObjectData(object, kind) => {
+            write!(f, "memory_object_data {kind}, {}", display_val(*object, func))
+        }
+        InstKind::AbiEncode { selector, args, layout } => {
+            write!(f, "abi_encode {layout}")?;
+            if let Some(selector) = selector {
+                write!(f, ", selector {}", display_val(*selector, func))?;
+            }
+            if !args.is_empty() {
+                write!(f, ", args ")?;
+                write!(f, "{}", args.iter().map(|arg| display_val(*arg, func)).format(", "))?;
+            }
+            Ok(())
+        }
+        InstKind::StorageToMemory { storage, memory, layout } => write!(
+            f,
+            "storage_to_memory {layout}, {}, {}",
+            display_val(*storage, func),
+            display_val(*memory, func)
+        ),
+        InstKind::MemoryToStorage { memory, storage, layout } => write!(
+            f,
+            "memory_to_storage {layout}, {}, {}",
+            display_val(*memory, func),
+            display_val(*storage, func)
+        ),
+        InstKind::ClearStorage { storage, layout } => {
+            write!(f, "clear_storage {layout}, {}", display_val(*storage, func))
+        }
         InstKind::InternalCall { function, args, returns } => {
             write!(f, "internal_call {}, {returns}", display_function_ref(*function, funcs))?;
             if !args.is_empty() {
@@ -545,7 +611,7 @@ mod tests {
                 text,
                 str![[r#"
 fn @display_test(arg0: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     v0 = add arg0, 1
     ret v0
 }
@@ -560,7 +626,7 @@ digraph "display_test" {
     node [shape=box, fontname="Courier", fontsize=10];
     edge [fontname="Courier", fontsize=9];
 
-    bb0 [label="bb0 (entry):\l  v0 = add arg0, 1\l  ret v0\l", fillcolor="#e0ffe0", style=filled];
+    bb0 [label="bb0:\l  v0 = add arg0, 1\l  ret v0\l"];
 
 }
 
@@ -591,7 +657,7 @@ digraph "display_test" {
                 text,
                 str![[r#"
 fn @display_test(arg0: u256, arg1: bool) {
-  bb0 (entry):
+  bb0:
     br arg1, bb1, bb2
   bb1:
     ret arg0
@@ -609,7 +675,7 @@ digraph "display_test" {
     node [shape=box, fontname="Courier", fontsize=10];
     edge [fontname="Courier", fontsize=9];
 
-    bb0 [label="bb0 (entry):\l  br arg1, bb1, bb2\l", fillcolor="#e0ffe0", style=filled];
+    bb0 [label="bb0:\l  br arg1, bb1, bb2\l"];
     bb1 [label="bb1:\l  ret arg0\l"];
     bb2 [label="bb2:\l  ret arg0\l"];
 
@@ -640,7 +706,7 @@ digraph "display_test" {
                 text,
                 str![[r#"
 fn @display_test(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     sstore arg0, arg1 !metadata(storage=symbolic(arg0))
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     ret v0
@@ -656,7 +722,7 @@ digraph "display_test" {
     node [shape=box, fontname="Courier", fontsize=10];
     edge [fontname="Courier", fontsize=9];
 
-    bb0 [label="bb0 (entry):\l  sstore arg0, arg1\l  v0 = sload arg0\l  ret v0\l", fillcolor="#e0ffe0", style=filled];
+    bb0 [label="bb0:\l  sstore arg0, arg1\l  v0 = sload arg0\l  ret v0\l"];
 
 }
 

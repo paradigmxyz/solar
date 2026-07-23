@@ -1,5 +1,5 @@
 use super::Lowerer;
-use crate::mir::{FunctionBuilder, ValueId};
+use crate::mir::{FunctionBuilder, StorageField, StorageLayout, StorageLayoutRef, ValueId};
 use alloy_primitives::U256;
 use solar_interface::Span;
 use solar_sema::{
@@ -7,6 +7,7 @@ use solar_sema::{
     hir::ElementaryType,
     ty::{Ty, TyKind},
 };
+use std::sync::Arc;
 
 /// Storage position for a state variable.
 #[derive(Clone, Copy, Debug)]
@@ -199,20 +200,41 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Gets the memory byte offset for a struct field.
-    pub(crate) fn get_struct_field_memory_offset(
-        &mut self,
-        struct_id: hir::StructId,
-        field_index: usize,
-    ) -> u64 {
-        if let Some(&offset) = self.struct_field_memory_offsets.get(&(struct_id, field_index)) {
-            return offset;
+    fn storage_field_for_ty(&mut self, ty: Ty<'gcx>) -> StorageField {
+        self.storage_layout_for_ty(ty).map_or(StorageField::Word, StorageField::Aggregate)
+    }
+
+    fn storage_layout_for_ty(&mut self, ty: Ty<'gcx>) -> Option<StorageLayoutRef> {
+        match ty.peel_refs().kind {
+            TyKind::Struct(struct_id) => Some(self.storage_layout_for_struct(struct_id)),
+            TyKind::Array(element, len) => {
+                let Ok(len) = u64::try_from(len) else {
+                    self.gcx
+                        .dcx()
+                        .err("fixed-size storage arrays this large are not supported")
+                        .emit();
+                    return None;
+                };
+                let element = self.storage_field_for_ty(element);
+                Some(self.module.intern_storage_layout(StorageLayout::Array { element, len }))
+            }
+            _ => None,
+        }
+    }
+
+    fn storage_layout_for_struct(&mut self, struct_id: hir::StructId) -> StorageLayoutRef {
+        if let Some(layout) = self.struct_storage_layouts.get(&struct_id) {
+            return Arc::clone(layout);
         }
 
-        let offset = (field_index as u64) * 32;
-
-        self.struct_field_memory_offsets.insert((struct_id, field_index), offset);
-        offset
+        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        let fields = field_tys
+            .into_iter()
+            .map(|field_ty| self.storage_field_for_ty(field_ty))
+            .collect::<Vec<_>>();
+        let layout = self.module.intern_storage_layout(StorageLayout::Struct(fields.into()));
+        self.struct_storage_layouts.insert(struct_id, Arc::clone(&layout));
+        layout
     }
 
     /// Recursively copies a struct from storage to memory.
@@ -239,74 +261,26 @@ impl<'gcx> Lowerer<'gcx> {
         mem_ptr: ValueId,
         mem_offset: u64,
     ) -> u64 {
-        let mut current_slot_offset = 0u64;
-        let mut current_mem_offset = mem_offset;
-
-        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
-        for field_ty in field_tys {
-            if let TyKind::Struct(inner_struct_id) = field_ty.peel_refs().kind {
-                let inner_slot = if current_slot_offset == 0 {
-                    base_slot
-                } else {
-                    let offset = builder.imm_u64(current_slot_offset);
-                    builder.add(base_slot, offset)
-                };
-                let inner_size = self.calculate_memory_words_for_ty(field_ty) * 32;
-                let inner_ptr = self.allocate_memory(builder, inner_size);
-                self.copy_storage_to_memory_at(builder, inner_struct_id, inner_slot, inner_ptr, 0);
-                if current_mem_offset == 0 {
-                    builder.mstore(mem_ptr, inner_ptr);
-                } else {
-                    let offset = builder.imm_u64(current_mem_offset);
-                    let field_addr = builder.add(mem_ptr, offset);
-                    builder.mstore(field_addr, inner_ptr);
-                }
-                current_slot_offset += self.calculate_storage_slots_for_ty(field_ty, Span::DUMMY);
-                current_mem_offset += 32;
-            } else {
-                let slot_val = if current_slot_offset == 0 {
-                    base_slot
-                } else {
-                    let offset = builder.imm_u64(current_slot_offset);
-                    builder.add(base_slot, offset)
-                };
-                let field_val = builder.sload(slot_val);
-
-                if current_mem_offset == 0 {
-                    builder.mstore(mem_ptr, field_val);
-                } else {
-                    let offset_val = builder.imm_u64(current_mem_offset);
-                    let field_addr = builder.add(mem_ptr, offset_val);
-                    builder.mstore(field_addr, field_val);
-                }
-
-                current_slot_offset += 1;
-                current_mem_offset += 32;
-            }
-        }
-
-        current_mem_offset
+        let layout = self.storage_layout_for_struct(struct_id);
+        let memory = if mem_offset == 0 {
+            mem_ptr
+        } else {
+            let offset = builder.imm_u64(mem_offset);
+            builder.add(mem_ptr, offset)
+        };
+        builder.storage_to_memory(Arc::clone(&layout), base_slot, memory);
+        mem_offset + layout.memory_words() * 32
     }
 
     /// Clears every storage slot occupied by a struct at a runtime-computed base slot.
     pub(crate) fn clear_storage_struct_at(
-        &self,
+        &mut self,
         builder: &mut FunctionBuilder<'_>,
         struct_id: hir::StructId,
         base_slot: ValueId,
     ) {
-        let ty = self.gcx.type_of_item(hir::ItemId::Struct(struct_id));
-        let slots = self.calculate_storage_slots_for_ty(ty, Span::DUMMY);
-        let zero = builder.imm_u64(0);
-        for slot_offset in 0..slots {
-            let slot = if slot_offset == 0 {
-                base_slot
-            } else {
-                let offset = builder.imm_u64(slot_offset);
-                builder.add(base_slot, offset)
-            };
-            builder.sstore(slot, zero);
-        }
+        let layout = self.storage_layout_for_struct(struct_id);
+        builder.clear_storage(layout, base_slot);
     }
 
     /// Recursively copies a struct from memory to storage.
@@ -333,51 +307,14 @@ impl<'gcx> Lowerer<'gcx> {
         mem_ptr: ValueId,
         mem_offset: u64,
     ) -> u64 {
-        let mut current_slot_offset = 0u64;
-        let mut current_mem_offset = mem_offset;
-
-        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
-        for field_ty in field_tys {
-            if let TyKind::Struct(inner_struct_id) = field_ty.peel_refs().kind {
-                let inner_slot = if current_slot_offset == 0 {
-                    base_slot
-                } else {
-                    let offset = builder.imm_u64(current_slot_offset);
-                    builder.add(base_slot, offset)
-                };
-                let inner_ptr = if current_mem_offset == 0 {
-                    builder.mload(mem_ptr)
-                } else {
-                    let offset = builder.imm_u64(current_mem_offset);
-                    let field_addr = builder.add(mem_ptr, offset);
-                    builder.mload(field_addr)
-                };
-                self.copy_memory_to_storage_at(builder, inner_struct_id, inner_slot, inner_ptr, 0);
-                current_slot_offset += self.calculate_storage_slots_for_ty(field_ty, Span::DUMMY);
-                current_mem_offset += 32;
-            } else {
-                let slot_val = if current_slot_offset == 0 {
-                    base_slot
-                } else {
-                    let offset = builder.imm_u64(current_slot_offset);
-                    builder.add(base_slot, offset)
-                };
-
-                let field_val = if current_mem_offset == 0 {
-                    builder.mload(mem_ptr)
-                } else {
-                    let offset_val = builder.imm_u64(current_mem_offset);
-                    let field_addr = builder.add(mem_ptr, offset_val);
-                    builder.mload(field_addr)
-                };
-
-                builder.sstore(slot_val, field_val);
-
-                current_slot_offset += 1;
-                current_mem_offset += 32;
-            }
-        }
-
-        current_mem_offset
+        let layout = self.storage_layout_for_struct(struct_id);
+        let memory = if mem_offset == 0 {
+            mem_ptr
+        } else {
+            let offset = builder.imm_u64(mem_offset);
+            builder.add(mem_ptr, offset)
+        };
+        builder.memory_to_storage(Arc::clone(&layout), memory, base_slot);
+        mem_offset + layout.memory_words() * 32
     }
 }

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/memory_allocation_panic.sol:MemoryAllocationPanic ===
 @module MemoryAllocationPanic
 fn @makeBytes(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -10,100 +10,62 @@ fn @makeBytes(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v3 = mload 64 !metadata(memory=scratch)
-    mstore v3, arg0
-    v4 = add arg0, 31
-    v5 = lt v4, arg0
-    br v5, bb3, bb4
+    v3 = add arg0, 31
+    v4 = lt v3, arg0
+    br v4, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v6 = not 31
-    v7 = and v4, v6
-    v8 = add v7, 32
-    v9 = lt v8, v7
-    br v9, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v10 = add v3, v8
-    v11 = lt v10, v3
-    br v11, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v12 = gt v10, 0xffffffffffffffff
-    br v12, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    mstore 64, v10 !metadata(memory=scratch)
-    v13 = add v3, 32
-    v14 = calldatasize
-    calldatacopy v13, v14, v7
-    v15 = mload v3
-    mstore 128, v15
-    returndata 128, 32
-}
-
-fn @makeArray(arg0: u256) {
-  bb0 (entry):
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    br v2, bb1, bb2
-  bb1:
-    revert 0, 0
-  bb2:
-    mstore 128, 0
-    v3 = mload 64 !metadata(memory=scratch)
-    mstore v3, arg0
-    v4 = mul arg0, 32
-    v5 = div v4, 32
-    v6 = eq v5, arg0
-    br v6, bb4, bb3
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    v7 = add v4, 32
-    v8 = lt v7, v4
+    v5 = not 31
+    v6 = and v3, v5
+    v7 = add v6, 32
+    v8 = lt v7, v6
     br v8, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v9 = add v3, v7
-    v10 = lt v9, v3
-    br v10, bb7, bb8
-  bb7:
+    v9 = alloc memorybytes, exact, zeroed, panic, v7
+    set_memory_object_len memorybytes, v9, arg0
+    v10 = mload v9
+    mstore 128, v10
+    returndata 128, 32
+}
+
+fn @makeArray(arg0: u256) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v3 = mul arg0, 32
+    v4 = div v3, 32
+    v5 = eq v4, arg0
+    br v5, bb4, bb3
+  bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb8:
-    v11 = gt v9, 0xffffffffffffffff
-    br v11, bb9, bb10
-  bb9:
+  bb4:
+    v6 = add v3, 32
+    v7 = lt v6, v3
+    br v7, bb5, bb6
+  bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb10:
-    mstore 64, v9 !metadata(memory=scratch)
-    v12 = add v3, 32
-    v13 = calldatasize
-    calldatacopy v12, v13, v4
-    v14 = mload v3
-    mstore 128, v14
+  bb6:
+    v8 = alloc memoryarray<1>, exact, zeroed, panic, v6
+    set_memory_object_len memoryarray, v8, arg0
+    v9 = mload v8
+    mstore 128, v9
     returndata 128, 32
 }
 

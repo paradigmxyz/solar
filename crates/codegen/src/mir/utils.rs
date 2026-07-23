@@ -3,25 +3,30 @@
 use crate::mir::{BasicBlock, BlockId, Function, InstKind, Terminator, ValueId};
 use alloy_primitives::U256;
 use smallvec::smallvec;
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    index::{IndexVec, index_vec},
+    map::FxHashMap,
+};
 
-pub(crate) fn remap_block_order(func: &mut Function, order: &[BlockId]) -> Vec<BlockId> {
+pub(crate) fn remap_block_order(
+    func: &mut Function,
+    order: &[BlockId],
+) -> IndexVec<BlockId, BlockId> {
     debug_assert_eq!(order.len(), func.blocks.len());
-    let mut remap = vec![BlockId::from_usize(0); order.len()];
-    let mut old_blocks: Vec<Option<BasicBlock>> =
-        std::mem::take(&mut func.blocks).into_iter().map(Some).collect();
+    let mut remap = index_vec![BlockId::from_usize(0); order.len()];
+    let mut old_blocks =
+        std::mem::take(&mut func.blocks).into_iter().map(Some).collect::<IndexVec<BlockId, _>>();
     let mut blocks = IndexVec::with_capacity(old_blocks.len());
     for &old_block in order {
-        let block = old_blocks[old_block.index()].take().expect("duplicate block in order");
-        remap[old_block.index()] = blocks.push(block);
+        let block = old_blocks[old_block].take().expect("duplicate block in order");
+        remap[old_block] = blocks.push(block);
     }
     debug_assert!(old_blocks.into_iter().all(|block| block.is_none()));
     func.blocks = blocks;
-    func.entry_block = remap[func.entry_block.index()];
 
     for block in &mut func.blocks {
         for predecessor in &mut block.predecessors {
-            *predecessor = remap[predecessor.index()];
+            *predecessor = remap[*predecessor];
         }
         if let Some(terminator) = &mut block.terminator {
             remap_terminator_blocks(terminator, &remap);
@@ -30,15 +35,15 @@ pub(crate) fn remap_block_order(func: &mut Function, order: &[BlockId]) -> Vec<B
     for inst in &mut func.instructions {
         if let InstKind::Phi(incoming) = &mut inst.kind {
             for (block, _) in incoming {
-                *block = remap[block.index()];
+                *block = remap[*block];
             }
         }
     }
     remap
 }
 
-fn remap_terminator_blocks(terminator: &mut Terminator, remap: &[BlockId]) {
-    let remap_block = |block: &mut BlockId| *block = remap[block.index()];
+fn remap_terminator_blocks(terminator: &mut Terminator, remap: &IndexVec<BlockId, BlockId>) {
+    let remap_block = |block: &mut BlockId| *block = remap[*block];
     match terminator {
         Terminator::Jump(target) => remap_block(target),
         Terminator::Branch { then_block, else_block, .. } => {
@@ -82,11 +87,7 @@ pub(crate) enum StorageAliasScope {
 ///
 /// Self-loops (`pred == succ`) are supported: the new block takes over the
 /// backedge and `succ`'s phis are rekeyed from `pred` to the new block.
-///
-/// `succ` cannot be the entry block, which has no predecessors by definition.
 pub(crate) fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> BlockId {
-    debug_assert_ne!(succ, func.entry_block, "the entry block has no predecessor edges to split");
-
     let new_block = func.blocks.push(BasicBlock {
         instructions: Vec::new(),
         terminator: Some(Terminator::Jump(succ)),
@@ -229,17 +230,6 @@ pub(crate) fn replace_terminator_uses_canonicalized(
 /// Converts a U256 to a u64 when lossless.
 pub(crate) fn u256_to_u64(value: U256) -> Option<u64> {
     value.try_into().ok()
-}
-
-/// Returns true if two possibly-overflowing byte ranges overlap.
-pub(crate) fn ranges_overlap(a_start: u64, a_size: u64, b_start: u64, b_size: u64) -> bool {
-    let Some(a_end) = a_start.checked_add(a_size) else {
-        return true;
-    };
-    let Some(b_end) = b_start.checked_add(b_size) else {
-        return true;
-    };
-    a_start < b_end && b_start < a_end
 }
 
 /// Returns true for instructions whose operands derive memory metadata.

@@ -36,6 +36,102 @@ pub(crate) fn text_range(rope: &Rope, range: lsp_types::Range) -> std::ops::Rang
     start..end
 }
 
+/// Maps between byte offsets and LSP UTF-16 positions for one document.
+pub(crate) struct LspPositionIndex<'a> {
+    rope: &'a Rope,
+    line_starts: Vec<usize>,
+}
+
+impl<'a> LspPositionIndex<'a> {
+    pub(crate) fn new(rope: &'a Rope) -> Self {
+        let mut line_starts = Vec::with_capacity(rope.line_len() + 1);
+        line_starts.push(0);
+
+        let mut bytes = rope.bytes().enumerate().peekable();
+        while let Some((offset, byte)) = bytes.next() {
+            let next_line = match byte {
+                b'\r' => {
+                    let mut next_line = offset + 1;
+                    if bytes.peek().is_some_and(|(_, byte)| *byte == b'\n') {
+                        bytes.next();
+                        next_line += 1;
+                    }
+                    Some(next_line)
+                }
+                b'\n' => Some(offset + 1),
+                _ => None,
+            };
+            if let Some(next_line) = next_line {
+                line_starts.push(next_line);
+            }
+        }
+
+        Self { rope, line_starts }
+    }
+
+    pub(crate) fn checked_text_range(
+        &self,
+        range: lsp_types::Range,
+    ) -> Option<std::ops::Range<usize>> {
+        let start = self.byte_position(range.start)?;
+        let end = self.byte_position(range.end)?;
+        (start <= end).then_some(start..end)
+    }
+
+    fn byte_position(&self, position: lsp_types::Position) -> Option<usize> {
+        let line = usize::try_from(position.line).ok()?;
+        let start = *self.line_starts.get(line)?;
+        let end = self.line_end(line);
+        let target = usize::try_from(position.character).ok()?;
+        let mut utf16 = 0;
+        let mut byte = start;
+        for ch in self.rope.byte_slice(start..end).chars() {
+            if utf16 == target {
+                return Some(byte);
+            }
+            let next = utf16 + ch.len_utf16();
+            if target < next {
+                return None;
+            }
+            utf16 = next;
+            byte += ch.len_utf8();
+        }
+        Some(end)
+    }
+
+    pub(crate) fn position_at_byte(&self, byte: usize) -> Option<lsp_types::Position> {
+        if byte > self.rope.byte_len() || !self.rope.is_char_boundary(byte) {
+            return None;
+        }
+        let line = self.line_starts.partition_point(|&start| start <= byte).checked_sub(1)?;
+        let start = self.line_starts[line];
+        if byte > self.line_end(line) {
+            return None;
+        }
+        let character =
+            self.rope.byte_slice(start..byte).chars().map(|ch| ch.len_utf16()).sum::<usize>();
+        Some(lsp_types::Position::new(u32::try_from(line).ok()?, u32::try_from(character).ok()?))
+    }
+
+    pub(crate) fn byte_len(&self) -> usize {
+        self.rope.byte_len()
+    }
+
+    fn line_end(&self, line: usize) -> usize {
+        let Some(&next_start) = self.line_starts.get(line + 1) else {
+            return self.rope.byte_len();
+        };
+        if self.rope.byte(next_start - 1) == b'\n'
+            && next_start >= 2
+            && self.rope.byte(next_start - 2) == b'\r'
+        {
+            next_start - 2
+        } else {
+            next_start - 1
+        }
+    }
+}
+
 /// Converts an LSP UTF-16 range to a byte range, rejecting invalid positions.
 pub(crate) fn checked_text_range(
     rope: &Rope,
@@ -71,7 +167,7 @@ fn checked_byte_position(rope: &Rope, position: lsp_types::Position) -> Option<u
         utf16 = next;
         byte += ch.len_utf8();
     }
-    (utf16 == target).then_some(line_start + byte)
+    Some(line_start + byte)
 }
 
 /// Converts a byte offset into an LSP UTF-16 position.
@@ -194,12 +290,43 @@ mod tests {
     }
 
     #[test]
-    fn checked_text_range_rejects_positions_inside_crlf() {
+    fn checked_text_range_clamps_columns_past_crlf_line_end() {
         let rope = Rope::from("value\r\nnext");
-        assert!(
-            checked_text_range(&rope, Range::new(Position::new(0, 6), Position::new(0, 6)))
-                .is_none()
+        for character in [6, u32::MAX] {
+            assert_eq!(
+                checked_text_range(
+                    &rope,
+                    Range::new(Position::new(0, character), Position::new(0, character)),
+                ),
+                Some(5..5)
+            );
+        }
+    }
+
+    #[test]
+    fn lsp_position_index_supports_standalone_carriage_returns() {
+        let rope = Rope::from("a😀\rvalue");
+        let index = super::LspPositionIndex::new(&rope);
+        for (position, byte) in
+            [(Position::new(0, 3), 5), (Position::new(1, 0), 6), (Position::new(1, 5), 11)]
+        {
+            let range = Range::new(position, position);
+            assert_eq!(index.checked_text_range(range), Some(byte..byte));
+            assert_eq!(index.position_at_byte(byte), Some(position));
+        }
+        assert!(index.position_at_byte(2).is_none());
+    }
+
+    #[test]
+    fn lsp_position_index_accepts_trailing_carriage_return_line() {
+        let rope = Rope::from("value\r");
+        let index = super::LspPositionIndex::new(&rope);
+        let position = Position::new(1, 0);
+        assert_eq!(
+            index.checked_text_range(Range::new(position, position)),
+            Some(rope.byte_len()..rope.byte_len())
         );
+        assert_eq!(index.position_at_byte(rope.byte_len()), Some(position));
     }
 
     #[test]

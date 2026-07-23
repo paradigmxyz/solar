@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/mapping.sol:Mapping ===
 @module Mapping
 fn @balances(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -17,7 +17,7 @@ fn @balances(arg0: u256) {
 }
 
 fn @allowances(arg0: address, arg1: address) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -48,7 +48,7 @@ fn @allowances(arg0: address, arg1: address) {
 }
 
 fn @set_balance(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -62,7 +62,7 @@ fn @set_balance(arg0: u256, arg1: u256) {
 }
 
 fn @add_balance(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
@@ -86,7 +86,7 @@ fn @add_balance(arg0: u256, arg1: u256) {
 }
 
 fn @approve(arg0: address, arg1: address, arg2: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
@@ -115,7 +115,7 @@ fn @approve(arg0: address, arg1: address, arg2: u256) {
 }
 
 fn @get_allowance(arg0: address, arg1: address) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64

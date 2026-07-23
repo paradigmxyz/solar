@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_named_init.sol:MultiReturnNamedInit ===
 @module MultiReturnNamedInit
-fn @readU64(arg0: memptr, arg1: u256) -> (u64, u256) {
-  bb0 (entry):
+fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) {
+  bb0:
     v0 = internal_frame_addr 192
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = internal_frame_addr 224
@@ -17,17 +17,17 @@ fn @readU64(arg0: memptr, arg1: u256) -> (u64, u256) {
     v6 = lt v5, 8
     br v6, bb4, bb5
   bb2:
-    v36 = internal_frame_addr 192
-    v37 = mload v36 !metadata(memory=internal_frame)
-    v38 = internal_frame_addr 224
-    v39 = mload v38 !metadata(memory=internal_frame)
-    ret v37, v39
+    v35 = internal_frame_addr 192
+    v36 = mload v35 !metadata(memory=internal_frame)
+    v37 = internal_frame_addr 224
+    v38 = mload v37 !metadata(memory=internal_frame)
+    ret v36, v38
   bb3:
-    v31 = internal_frame_addr 256
-    v32 = mload v31 !metadata(memory=internal_frame)
-    v33 = add v32, 1
-    v34 = lt v33, v32
-    br v34, bb10, bb11
+    v30 = internal_frame_addr 256
+    v31 = mload v30 !metadata(memory=internal_frame)
+    v32 = add v31, 1
+    v33 = lt v32, v31
+    br v33, bb10, bb11
   bb4:
     v7 = internal_frame_addr 192
     v8 = mload v7 !metadata(memory=internal_frame)
@@ -36,10 +36,9 @@ fn @readU64(arg0: memptr, arg1: u256) -> (u64, u256) {
     mstore v10, v9 !metadata(memory=internal_frame)
     v11 = internal_frame_addr 224
     v12 = mload v11 !metadata(memory=internal_frame)
-    v13 = add 4, arg0
-    v14 = calldataload v13
-    v15 = lt v12, v14
-    br v15, bb7, bb6
+    v13 = slice_len arg0
+    v14 = lt v12, v13
+    br v14, bb7, bb6
   bb5:
     jump bb2
   bb6:
@@ -47,42 +46,42 @@ fn @readU64(arg0: memptr, arg1: u256) -> (u64, u256) {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb7:
-    v16 = add v13, 32
-    v17 = add v16, v12
-    v18 = calldataload v17
-    v19 = and v18, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v20 = shr 248, v19
-    v21 = and v20, 255
-    v22 = internal_frame_addr 192
-    v23 = mload v22 !metadata(memory=internal_frame)
-    v24 = or v23, v21
-    v25 = internal_frame_addr 192
-    mstore v25, v24 !metadata(memory=internal_frame)
-    v26 = internal_frame_addr 224
-    v27 = mload v26 !metadata(memory=internal_frame)
-    v28 = add v27, 1
-    v29 = lt v28, v27
-    br v29, bb8, bb9
+    v15 = slice_ptr arg0
+    v16 = add v15, v12
+    v17 = calldataload v16
+    v18 = and v17, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v19 = shr 248, v18
+    v20 = and v19, 255
+    v21 = internal_frame_addr 192
+    v22 = mload v21 !metadata(memory=internal_frame)
+    v23 = or v22, v20
+    v24 = internal_frame_addr 192
+    mstore v24, v23 !metadata(memory=internal_frame)
+    v25 = internal_frame_addr 224
+    v26 = mload v25 !metadata(memory=internal_frame)
+    v27 = add v26, 1
+    v28 = lt v27, v26
+    br v28, bb8, bb9
   bb8:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb9:
-    v30 = internal_frame_addr 224
-    mstore v30, v28 !metadata(memory=internal_frame)
+    v29 = internal_frame_addr 224
+    mstore v29, v27 !metadata(memory=internal_frame)
     jump bb3
   bb10:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb11:
-    v35 = internal_frame_addr 256
-    mstore v35, v33 !metadata(memory=internal_frame)
+    v34 = internal_frame_addr 256
+    mstore v34, v32 !metadata(memory=internal_frame)
     jump bb1
 }
 
-fn @readTwice(arg0: memptr) {
-  bb0 (entry):
+fn @readTwice(arg0: calldataslice) {
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
