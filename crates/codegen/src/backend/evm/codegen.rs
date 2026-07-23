@@ -14,7 +14,10 @@ use super::{
     stack::{
         MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
     },
-    switch::{SwitchDefault, SwitchPlan, bucket_index, select_switch_plan},
+    switch::{
+        SwitchDefault, SwitchPlan, bucket_index, select_switch_plan,
+        select_switch_plan_with_linear_values,
+    },
 };
 use crate::{
     analysis::{
@@ -5428,7 +5431,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         &self,
         func: &Function,
         cases: &[(ValueId, BlockId)],
-    ) -> Option<Vec<MirSwitchEntry>> {
+    ) -> Option<(Vec<U256>, Vec<MirSwitchEntry>)> {
         let mut entries = cases
             .iter()
             .map(|&(value_id, target)| {
@@ -5436,11 +5439,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 Some(MirSwitchEntry { value, value_id, target })
             })
             .collect::<Option<Vec<_>>>()?;
+        let linear_values = entries.iter().map(|entry| entry.value).collect();
         entries.sort_unstable_by_key(|entry| entry.value);
         if entries.windows(2).any(|entries| entries[0].value == entries[1].value) {
             return None;
         }
-        Some(entries)
+        Some((linear_values, entries))
     }
 
     fn emit_linear_mir_switch(&mut self, func: &Function, cases: &[(ValueId, BlockId)]) {
@@ -5749,23 +5753,28 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             Terminator::Switch { value, default, cases } => {
                 let constant_entries = self.constant_switch_entries(func, cases);
-                let plan = constant_entries.as_ref().map_or(SwitchPlan::Linear, |entries| {
-                    let values: Vec<_> = entries.iter().map(|entry| entry.value).collect();
-                    let default =
-                        match (self.emitting_dispatch_entry, fallthrough == Some(*default)) {
-                            (true, true) => SwitchDefault::Fallthrough,
-                            (true, false) => SwitchDefault::Jump,
-                            (false, true) => SwitchDefault::CleanupFallthrough,
-                            (false, false) => SwitchDefault::CleanupJump,
-                        };
-                    select_switch_plan(
-                        &values,
-                        self.gcx.sess.opts.optimization,
-                        self.gcx.sess.opts.evm_version,
-                        default,
-                        self.switch_table_target_width(),
-                    )
-                });
+                let plan = constant_entries.as_ref().map_or(
+                    SwitchPlan::Linear,
+                    |(linear_values, entries)| {
+                        let values: Vec<_> = entries.iter().map(|entry| entry.value).collect();
+                        let default =
+                            match (self.emitting_dispatch_entry, fallthrough == Some(*default)) {
+                                (true, true) => SwitchDefault::Fallthrough,
+                                (true, false) => SwitchDefault::Jump,
+                                (false, true) => SwitchDefault::CleanupFallthrough,
+                                (false, false) => SwitchDefault::CleanupJump,
+                            };
+                        select_switch_plan_with_linear_values(
+                            &values,
+                            linear_values,
+                            self.gcx.sess.opts.optimization,
+                            self.gcx.sess.opts.evm_version,
+                            default,
+                            self.switch_table_target_width(),
+                        )
+                    },
+                );
+                let constant_entries = constant_entries.map(|(_, entries)| entries);
 
                 if self.emitting_dispatch_entry {
                     // The dispatch entry's selector switch mirrors the backend

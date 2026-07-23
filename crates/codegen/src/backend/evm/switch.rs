@@ -118,17 +118,40 @@ pub(super) fn select_switch_plan(
     default: SwitchDefault,
     table_target_width: usize,
 ) -> SwitchPlan {
+    select_switch_plan_with_linear_values(
+        values,
+        values,
+        optimization,
+        evm_version,
+        default,
+        table_target_width,
+    )
+}
+
+/// Selects a switch shape while costing the linear plan in its emitted order.
+pub(super) fn select_switch_plan_with_linear_values(
+    values: &[U256],
+    linear_values: &[U256],
+    optimization: OptimizationMode,
+    evm_version: EvmVersion,
+    default: SwitchDefault,
+    table_target_width: usize,
+) -> SwitchPlan {
     debug_assert!(values.windows(2).all(|values| values[0] < values[1]));
+    debug_assert_eq!(values.len(), linear_values.len());
     if values.len() <= 1 || optimization == OptimizationMode::None {
         return SwitchPlan::Linear;
     }
 
-    let linear_cost = lowering_cost(values, values.len(), evm_version, default, table_target_width);
+    let linear_cost =
+        lowering_cost(linear_values, values.len(), evm_version, default, table_target_width);
     let max_gas_code_size = linear_cost.code_size.saturating_add(MAX_GAS_CODE_GROWTH);
     let mut best = (linear_cost, SwitchPlan::Linear);
     if optimization == OptimizationMode::Gas {
+        let explicit_default = default.without_fallthrough();
         for leaf_size in binary_leaf_sizes(values.len()) {
-            let cost = lowering_cost(values, leaf_size, evm_version, default, table_target_width);
+            let cost =
+                lowering_cost(values, leaf_size, evm_version, explicit_default, table_target_width);
             if cost.is_better_for_gas_than(best.0, max_gas_code_size) {
                 best = (cost, SwitchPlan::Binary { leaf_size });
             }
@@ -139,7 +162,7 @@ pub(super) fn select_switch_plan(
                     values,
                     bucket_count,
                     evm_version,
-                    default,
+                    explicit_default,
                     table_target_width,
                 );
                 if cost.is_better_for_gas_than(best.0, max_gas_code_size) {
@@ -208,16 +231,11 @@ fn lowering_cost(
         return cost;
     }
 
+    debug_assert!(!default.can_fallthrough());
     let mid = values.len() / 2;
     let split = ordered_test_cost(values[mid], evm_version, table_target_width);
     let left = lowering_cost(&values[..mid], leaf_size, evm_version, default, table_target_width);
-    let right = lowering_cost(
-        &values[mid..],
-        leaf_size,
-        evm_version,
-        default.without_fallthrough(),
-        table_target_width,
-    );
+    let right = lowering_cost(&values[mid..], leaf_size, evm_version, default, table_target_width);
     LoweringCost {
         code_size: split.code_size + JUMPDEST_LEN + left.code_size + right.code_size,
         max_code_size: split.max_code_size
@@ -277,6 +295,7 @@ fn bucket_lowering_cost(
     default: SwitchDefault,
     table_target_width: usize,
 ) -> LoweringCost {
+    debug_assert!(!default.can_fallthrough());
     let hash_len = 1 + push_len(U256::from(bucket_count), evm_version) + 1 + 1;
     let hash_gas = VERY_LOW_GAS * 3 + MOD_GAS;
     let indexed_jump_gas = VERY_LOW_GAS
@@ -301,26 +320,20 @@ fn bucket_lowering_cost(
     };
 
     let mut bucket_path_gas = vec![0; bucket_count];
-    let fallthrough_bucket = default
-        .can_fallthrough()
-        .then(|| values.iter().map(|&value| bucket_index(value, bucket_count)).max().unwrap());
     for &value in values {
         let index = bucket_index(value, bucket_count);
-        let bucket_default =
-            if fallthrough_bucket == Some(index) { default } else { default.without_fallthrough() };
         let test = equality_test_cost(value, evm_version, table_target_width);
         if bucket_path_gas[index] == 0 {
-            cost.code_size += JUMPDEST_LEN + bucket_default.code_size(evm_version);
+            cost.code_size += JUMPDEST_LEN + default.code_size(evm_version);
             cost.max_code_size +=
-                JUMPDEST_LEN + bucket_default.max_code_size(evm_version, table_target_width);
+                JUMPDEST_LEN + default.max_code_size(evm_version, table_target_width);
         }
         cost.code_size += test.code_size;
         cost.max_code_size += test.max_code_size;
         bucket_path_gas[index] += test.gas;
         cost.hit_gas_sum += bucket_path_gas[index];
-        cost.miss_gas = cost
-            .miss_gas
-            .max(dispatch_gas + bucket_path_gas[index] + bucket_default.gas(evm_version));
+        cost.miss_gas =
+            cost.miss_gas.max(dispatch_gas + bucket_path_gas[index] + default.gas(evm_version));
     }
     if default.needs_value_cleanup() && bucket_path_gas.contains(&0) {
         // One shared JUMPDEST, POP, and default jump for ordinary MIR switches.
@@ -533,25 +546,37 @@ mod tests {
     }
 
     #[test]
-    fn accounts_for_default_fallthrough() {
-        let values = values(8);
-        let explicit = lowering_cost(&values, 2, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2);
-        let fallthrough =
-            lowering_cost(&values, 2, EvmVersion::Cancun, SwitchDefault::CleanupFallthrough, 2);
-        assert_eq!(explicit.code_size, fallthrough.code_size + MIN_DEFAULT_JUMP_LEN);
-        assert_eq!(explicit.max_code_size, fallthrough.max_code_size + max_default_jump_len(2));
+    fn costs_linear_values_in_emitted_order() {
+        let sorted = values(3);
+        let source_order = [U256::from(1), U256::from(2), U256::ZERO];
+        let sorted =
+            lowering_cost(&sorted, sorted.len(), EvmVersion::Cancun, SwitchDefault::CleanupJump, 2);
+        let source_order = lowering_cost(
+            &source_order,
+            source_order.len(),
+            EvmVersion::Cancun,
+            SwitchDefault::CleanupJump,
+            2,
+        );
+        assert_eq!(source_order.code_size, sorted.code_size);
+        assert_eq!(source_order.hit_gas_sum, sorted.hit_gas_sum + 6);
+    }
 
+    #[test]
+    fn accounts_for_linear_default_fallthrough() {
+        let values = values(8);
         let explicit =
-            bucket_lowering_cost(&values, 8, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2);
-        let fallthrough = bucket_lowering_cost(
+            lowering_cost(&values, values.len(), EvmVersion::Cancun, SwitchDefault::CleanupJump, 2);
+        let fallthrough = lowering_cost(
             &values,
-            8,
+            values.len(),
             EvmVersion::Cancun,
             SwitchDefault::CleanupFallthrough,
             2,
         );
         assert_eq!(explicit.code_size, fallthrough.code_size + MIN_DEFAULT_JUMP_LEN);
         assert_eq!(explicit.max_code_size, fallthrough.max_code_size + max_default_jump_len(2));
+        assert_eq!(explicit.miss_gas, fallthrough.miss_gas + DEFAULT_JUMP_GAS);
     }
 
     #[test]
