@@ -15,7 +15,8 @@ mod terminal_dedup;
 pub(super) mod utils;
 
 use super::Module;
-use crate::{pass::Optimizations, timing::PassTimer};
+use crate::timing::PassTimer;
+use solar_config::OptimizationMode;
 use solar_sema::Gcx;
 
 /// A streamlined trait for an EVM IR transformation pass.
@@ -24,8 +25,8 @@ pub trait EvmPass: Sync {
     fn name(&self) -> &'static str;
 
     /// Returns whether this pass is enabled with the current compiler flags.
-    fn is_enabled(&self, _gcx: Gcx<'_>, _module: &Module) -> bool {
-        true
+    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
+        self.is_required() || !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
     }
 
     /// Returns whether this pass must run independently of the optimization level.
@@ -37,96 +38,62 @@ pub trait EvmPass: Sync {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
 }
 
-macro_rules! declare_passes {
-    ($($vis:vis const $const_name:ident = $module:ident::$pass:ident;)+) => {
-        $(
-            $vis const $const_name: $module::$pass = $module::$pass;
-        )+
-
-        /// All EVM IR passes exposed by `solar evm-opt`.
-        pub static PASS_REGISTRY: &[&dyn EvmPass] = &[$(&$const_name),+];
-    };
-}
-
-declare_passes! {
-    const PEEPHOLE_PASS = peephole::Peephole;
-    const SHARE_REVERTS_PASS = share_reverts::ShareReverts;
-    const COMPACT_PUSHES_PASS = compact_pushes::CompactPushes;
-    const CFG_SIMPLIFY_PASS = cfg_simplify::CfgSimplify;
-    const OUTLINE_PASS = outline::Outline;
-    const TERMINAL_DEDUP_PASS = terminal_dedup::TerminalDedup;
-    const TAIL_MERGE_PASS = tail_merge::TailMerge;
-    const BLOCK_LAYOUT_PASS = block_layout::BlockLayout;
-}
+/// All EVM IR passes exposed by `solar evm-opt`.
+pub static ALL_PASSES: &[&dyn EvmPass] = &[
+    &peephole::Peephole,
+    &share_reverts::ShareReverts,
+    &compact_pushes::CompactPushes,
+    &cfg_simplify::CfgSimplify,
+    &outline::Outline,
+    &terminal_dedup::TerminalDedup,
+    &tail_merge::TailMerge,
+    &block_layout::BlockLayout,
+];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
 pub(crate) static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Normalize and establish the first physical layout.
-    &PEEPHOLE_PASS,
-    &COMPACT_PUSHES_PASS,
-    &CFG_SIMPLIFY_PASS,
-    &BLOCK_LAYOUT_PASS,
-    &SHARE_REVERTS_PASS,
+    &peephole::Peephole,
+    &compact_pushes::CompactPushes,
+    &cfg_simplify::CfgSimplify,
+    &block_layout::BlockLayout,
+    &share_reverts::ShareReverts,
     // Simplify and merge the explicit control-flow graph.
-    &CFG_SIMPLIFY_PASS,
-    &TERMINAL_DEDUP_PASS,
-    &CFG_SIMPLIFY_PASS,
-    &TAIL_MERGE_PASS,
-    &CFG_SIMPLIFY_PASS,
-    &TAIL_MERGE_PASS,
-    &CFG_SIMPLIFY_PASS,
+    &cfg_simplify::CfgSimplify,
+    &terminal_dedup::TerminalDedup,
+    &cfg_simplify::CfgSimplify,
+    &tail_merge::TailMerge,
+    &cfg_simplify::CfgSimplify,
+    &tail_merge::TailMerge,
+    &cfg_simplify::CfgSimplify,
     // Outline only after straight-line paths and terminal tails are canonical.
-    &OUTLINE_PASS,
-    &CFG_SIMPLIFY_PASS,
-    &TERMINAL_DEDUP_PASS,
-    &CFG_SIMPLIFY_PASS,
+    &outline::Outline,
+    &cfg_simplify::CfgSimplify,
+    &terminal_dedup::TerminalDedup,
+    &cfg_simplify::CfgSimplify,
     // Pack address-sensitive terminal blocks, then clean up any adjacent
     // revert branch that remains profitable in the final layout.
-    &BLOCK_LAYOUT_PASS,
-    &SHARE_REVERTS_PASS,
-    &CFG_SIMPLIFY_PASS,
-    &BLOCK_LAYOUT_PASS,
+    &block_layout::BlockLayout,
+    &share_reverts::ShareReverts,
+    &cfg_simplify::CfgSimplify,
+    &block_layout::BlockLayout,
 ];
 
 /// Finds a pass in the EVM IR pass registry by command-line name.
 pub fn lookup_pass(name: &str) -> Option<&'static dyn EvmPass> {
-    PASS_REGISTRY.iter().copied().find(|pass| pass.name() == name)
-}
-
-/// Returns whether `pass` should run for this optimization mode.
-pub(super) fn should_run_pass<P>(
-    gcx: Gcx<'_>,
-    module: &Module,
-    pass: &P,
-    optimizations: Optimizations,
-) -> bool
-where
-    P: EvmPass + ?Sized,
-{
-    let suppressed = !pass.is_required() && matches!(optimizations, Optimizations::Suppressed);
-    !suppressed && pass.is_enabled(gcx, module)
+    ALL_PASSES.iter().copied().find(|pass| pass.name() == name)
 }
 
 /// Runs an EVM IR pass pipeline.
-pub fn run_passes(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    passes: &[&dyn EvmPass],
-    optimizations: Optimizations,
-) -> bool {
-    run_passes_inner(gcx, module, passes, optimizations)
+pub fn run_passes(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn EvmPass]) -> bool {
+    run_passes_inner(gcx, module, passes)
 }
 
-fn run_passes_inner(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    passes: &[&dyn EvmPass],
-    optimizations: Optimizations,
-) -> bool {
+fn run_passes_inner(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn EvmPass]) -> bool {
     let mut changed = false;
     for pass in passes {
         let pass_name = pass.name();
-        if !should_run_pass(gcx, module, *pass, optimizations) {
+        if !pass.is_enabled(gcx, module) {
             continue;
         }
 

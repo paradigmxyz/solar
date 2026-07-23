@@ -16,8 +16,8 @@ use solar_codegen::{
     lower,
     mir::{Module, validate},
     pass::{
-        DEFAULT_CLEANUP_PIPELINE, DEFAULT_PIPELINE, MirPass, Optimizations, PASS_REGISTRY,
-        lookup_pass, run_default_pipeline, run_passes,
+        ALL_PASSES, DEFAULT_CLEANUP_PIPELINE, DEFAULT_PIPELINE, MirPass, lookup_pass,
+        run_default_pipeline, run_passes,
     },
 };
 use solar_config::CompileOpts;
@@ -52,11 +52,7 @@ Default cleanup fixpoint:
 Input formats:
   *.sol  Solidity contract — lowered through the normal compiler pipeline
   *.mir  Textual MIR — parsed directly via solar_codegen::mir::Module::parse",
-            display_pass_list(
-                PASS_REGISTRY,
-                "
-  ",
-            ),
+            display_pass_list(ALL_PASSES, "\n  "),
             display_pass_list(DEFAULT_PIPELINE, " → "),
             display_pass_list(DEFAULT_CLEANUP_PIPELINE, " → ")
         )
@@ -138,7 +134,7 @@ fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: &str, args: &MirOptArgs
     for (index, &pass) in passes.iter().enumerate() {
         let before = gcx.sess.opts.unstable.pass_diff.then(|| module.to_text().to_string());
         if let Some(pass) = pass {
-            run_passes(gcx, module, &[pass], None, Optimizations::for_gcx(gcx));
+            run_passes(gcx, module, &[pass], None);
         }
         if let Some(before) = before {
             let after = module.to_text().to_string();

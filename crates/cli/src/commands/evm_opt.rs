@@ -8,7 +8,7 @@
 
 use super::print_pass_diff;
 use clap::ValueHint;
-use solar_codegen::{backend::evm::ir, pass::Optimizations};
+use solar_codegen::backend::evm::ir;
 use solar_config::CompileOpts;
 use solar_sema::Gcx;
 use std::{path::Path, process::ExitCode};
@@ -49,7 +49,7 @@ Passes:
 
 Input formats:
   *.evmir  EVM IR",
-        ir::PASS_REGISTRY.iter().map(|pass| pass.name()).collect::<Vec<_>>().join(
+        ir::ALL_PASSES.iter().map(|pass| pass.name()).collect::<Vec<_>>().join(
             "
   ",
         ),
@@ -81,7 +81,7 @@ fn run_pipeline(gcx: Gcx<'_>, module: &mut ir::Module, name: &str, args: &EvmOpt
     for (index, &pass) in args.passes.iter().enumerate() {
         let before = sess.opts.unstable.pass_diff.then(|| module.to_text().to_string());
         if let Some(pass) = pass {
-            ir::run_passes(gcx, module, &[pass], Optimizations::for_gcx(gcx));
+            ir::run_passes(gcx, module, &[pass]);
         }
         if before.is_some() || print_after_each || index + 1 == args.passes.len() {
             ir::validate(dcx, module);

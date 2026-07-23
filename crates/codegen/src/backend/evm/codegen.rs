@@ -20,7 +20,7 @@ use crate::{
         PhiEliminator,
     },
     mir::{BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Terminator, ValueId},
-    pass::{Optimizations, run_default_pipeline, run_passes},
+    pass::run_default_pipeline,
 };
 use alloy_primitives::U256;
 use solar_config::OptimizationMode;
@@ -994,27 +994,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
-        let optimizations = Optimizations::for_gcx(self.gcx);
         run_default_pipeline(self.gcx, module);
-        // MIR outlining remains profitable even though EVM IR can merge
-        // equivalent terminal blocks: lowering and stack scheduling can
-        // hide their shared semantic shape from the backend passes.
-        run_passes(self.gcx, module, &[&crate::pass::OUTLINE_REVERTS_PASS], None, optimizations);
-        // Progressive lowering: materialize ABI wrappers, the dispatcher, and
-        // tail-call edges as MIR. Each pass bails without advancing the phase
-        // when the module is outside its scope, in which case runtime
-        // generation falls back to the backend dispatcher.
-        run_passes(
-            self.gcx,
-            module,
-            &[
-                &crate::pass::LOWER_ABI_PASS,
-                &crate::pass::LOWER_DISPATCH_PASS,
-                &crate::pass::LOWER_EVM_SHAPED_PASS,
-            ],
-            None,
-            optimizations,
-        );
     }
 
     /// Generates runtime bytecode for a module.

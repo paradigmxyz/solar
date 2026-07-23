@@ -312,12 +312,7 @@ impl<'gcx> Assembler<'gcx> {
         Self::resolve_known_deferred_constants(&mut ir_program, &self.deferred_values);
 
         let input_is_valid = cfg!(debug_assertions) && is_valid_evm_ir(&ir_program);
-        ir::run_passes(
-            self.gcx,
-            &mut ir_program,
-            ir::DEFAULT_PIPELINE,
-            crate::pass::Optimizations::for_gcx(self.gcx),
-        );
+        ir::run_passes(self.gcx, &mut ir_program, ir::DEFAULT_PIPELINE);
         debug_assert!(!input_is_valid || is_valid_evm_ir(&ir_program));
 
         let evm_ir = capture_evm_ir.then(|| ir_program.clone());

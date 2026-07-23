@@ -37,8 +37,8 @@ pub trait MirPass: Sync {
     }
 
     /// Returns whether this pass is enabled with the current compiler flags and MIR phase.
-    fn is_enabled(&self, _gcx: Gcx<'_>, _module: &Module) -> bool {
-        true
+    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
+        self.is_required() || !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
     }
 
     /// Returns whether this pass must run independently of the optimization level.
@@ -50,40 +50,6 @@ pub trait MirPass: Sync {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
 }
 
-/// Whether to allow non-required optimizations.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Optimizations {
-    /// Suppress passes that are not required for correctness.
-    Suppressed,
-    /// Allow optimization passes to run.
-    Allowed,
-}
-
-impl Optimizations {
-    /// Selects optimization suppression from the global compiler context.
-    pub fn for_gcx(gcx: Gcx<'_>) -> Self {
-        if matches!(gcx.sess.opts.optimization, OptimizationMode::None) {
-            Self::Suppressed
-        } else {
-            Self::Allowed
-        }
-    }
-}
-
-/// Returns whether `pass` should run for this module and optimization mode.
-pub(crate) fn should_run_pass<P>(
-    gcx: Gcx<'_>,
-    module: &Module,
-    pass: &P,
-    optimizations: Optimizations,
-) -> bool
-where
-    P: MirPass + ?Sized,
-{
-    let suppressed = !pass.is_required() && matches!(optimizations, Optimizations::Suppressed);
-    !suppressed && pass.is_enabled(gcx, module)
-}
-
 /// Runs a sequence of MIR passes without validating after each pass.
 pub fn run_passes_no_validate(
     gcx: Gcx<'_>,
@@ -91,7 +57,7 @@ pub fn run_passes_no_validate(
     passes: &[&dyn MirPass],
     phase_change: Option<MirPhase>,
 ) -> bool {
-    run_passes_inner(gcx, module, passes, phase_change, false, Optimizations::Allowed)
+    run_passes_inner(gcx, module, passes, phase_change, false)
 }
 
 /// Runs a sequence of MIR passes, then applies `phase_change` when present.
@@ -100,9 +66,8 @@ pub fn run_passes(
     module: &mut Module,
     passes: &[&dyn MirPass],
     phase_change: Option<MirPhase>,
-    optimizations: Optimizations,
 ) -> bool {
-    run_passes_inner(gcx, module, passes, phase_change, true, optimizations)
+    run_passes_inner(gcx, module, passes, phase_change, true)
 }
 
 fn run_passes_inner(
@@ -111,12 +76,11 @@ fn run_passes_inner(
     passes: &[&dyn MirPass],
     phase_change: Option<MirPhase>,
     validate_each: bool,
-    optimizations: Optimizations,
 ) -> bool {
     let mut changed = false;
     for pass in passes {
         let pass_name = pass.name();
-        if !should_run_pass(gcx, module, *pass, optimizations) {
+        if !pass.is_enabled(gcx, module) {
             continue;
         }
 

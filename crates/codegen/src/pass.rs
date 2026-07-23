@@ -15,13 +15,12 @@
 //! let changed = run_passes(
 //!     gcx,
 //!     &mut module,
-//!     &[&DCE_PASS],
+//!     &[&dce::Dce],
 //!     None,
-//!     Optimizations::Allowed,
 //! );
 //! ```
 
-pub use crate::pass_manager::{MirPass, Optimizations, run_passes, run_passes_no_validate};
+pub use crate::pass_manager::{MirPass, run_passes, run_passes_no_validate};
 use crate::{
     mir::{Function, MirPhase, Module},
     transform::{
@@ -34,82 +33,78 @@ use crate::{
 use solar_data_structures::map::FxHashMap;
 use std::any::{Any, TypeId};
 
-macro_rules! declare_passes {
-    ($($vis:vis const $const_name:ident = $module:ident::$pass:ident;)+) => {
-        $(
-            $vis const $const_name: $module::$pass = $module::$pass;
-        )+
-
-        /// All known MIR passes exposed to `solar mir-opt`.
-        pub static PASS_REGISTRY: &[&dyn MirPass] = &[$(&$const_name),+];
-    };
-}
-
-declare_passes! {
-    pub(crate) const INLINE_PASS = inline::Inline;
-    pub(crate) const OUTLINE_REVERTS_PASS = outline_reverts::OutlineReverts;
-    pub(crate) const FUNCTION_DCE_PASS = cfg_simplify::FunctionDce;
-    pub(crate) const SCCP_PASS = sccp::Sccp;
-    pub(crate) const PURE_EVAL_PASS = pure_eval::PureEval;
-    pub(crate) const INST_SIMPLIFY_PASS = inst_simplify::InstSimplify;
-    pub(crate) const CSE_PASS = cse::Cse;
-    pub(crate) const PRE_PASS = pre::Pre;
-    pub(crate) const GVN_PASS = gvn::Gvn;
-    pub(crate) const STORAGE_LOAD_CSE_PASS = storage_load_cse::StorageLoadCse;
-    pub(crate) const STORAGE_DSE_PASS = storage_dse::StorageDse;
-    pub(crate) const LOAD_PRE_PASS = load_pre::LoadPre;
-    pub(crate) const LOOP_CANONICALIZE_PASS = loop_canonicalize::LoopCanonicalize;
-    pub(crate) const INDVAR_SIMPLIFY_PASS = indvar_simplify::IndVarSimplify;
-    pub(crate) const STORAGE_PROMOTION_PASS = storage_promotion::StorageScalarPromotion;
-    pub(crate) const LICM_PASS = loop_opt::Licm;
-    pub(crate) const CHECK_ELIM_PASS = check_elim::CheckElim;
-    pub(crate) const JUMP_THREADING_PASS = jump_threading::JumpThreading;
-    pub(crate) const CFG_SIMPLIFY_PASS = cfg_simplify::CfgSimplify;
-    pub(crate) const FRAME_SLOT_PROMOTION_PASS = frame_promotion::FrameSlotPromotion;
-    pub(crate) const MEMORY_DSE_PASS = memory_dse::MemoryDse;
-    pub(crate) const STATIC_ALLOC_PASS = static_alloc::StaticAlloc;
-    pub(crate) const DCE_PASS = dce::Dce;
-    pub(crate) const ADCE_PASS = adce::Adce;
-    pub(crate) const LOWER_ABI_PASS = lower_abi::LowerAbi;
-    pub(crate) const LOWER_DISPATCH_PASS = lower_dispatch::LowerDispatch;
-    pub(crate) const LOWER_EVM_SHAPED_PASS = lower_evm_shaped::LowerEvmShaped;
-    pub(crate) const LOWER_MAPPING_SLOTS_PASS = lower_mapping_slots::LowerMappingSlots;
-}
+/// All known MIR passes exposed to `solar mir-opt`.
+pub static ALL_PASSES: &[&dyn MirPass] = &[
+    &inline::Inline,
+    &outline_reverts::OutlineReverts,
+    &cfg_simplify::FunctionDce,
+    &sccp::Sccp,
+    &pure_eval::PureEval,
+    &inst_simplify::InstSimplify,
+    &cse::Cse,
+    &pre::Pre,
+    &gvn::Gvn,
+    &storage_load_cse::StorageLoadCse,
+    &storage_dse::StorageDse,
+    &load_pre::LoadPre,
+    &loop_canonicalize::LoopCanonicalize,
+    &indvar_simplify::IndVarSimplify,
+    &storage_promotion::StorageScalarPromotion,
+    &loop_opt::Licm,
+    &check_elim::CheckElim,
+    &jump_threading::JumpThreading,
+    &cfg_simplify::CfgSimplify,
+    &frame_promotion::FrameSlotPromotion,
+    &memory_dse::MemoryDse,
+    &static_alloc::StaticAlloc,
+    &dce::Dce,
+    &adce::Adce,
+    &lower_abi::LowerAbi,
+    &lower_dispatch::LowerDispatch,
+    &lower_evm_shaped::LowerEvmShaped,
+    &lower_mapping_slots::LowerMappingSlots,
+];
 
 /// Finds a pass in the global MIR pass registry by command-line name.
 pub fn lookup_pass(name: &str) -> Option<&'static dyn MirPass> {
-    PASS_REGISTRY.iter().copied().find(|pass| pass.name() == name)
+    ALL_PASSES.iter().copied().find(|pass| pass.name() == name)
 }
 
-/// The canonical MIR optimization pipeline used by EVM codegen.
+/// The canonical MIR pipeline used by EVM codegen.
 pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
-    &INLINE_PASS,
-    &FUNCTION_DCE_PASS,
-    &SCCP_PASS,
-    &PURE_EVAL_PASS,
-    &INST_SIMPLIFY_PASS,
-    &CSE_PASS,
+    &inline::Inline,
+    &cfg_simplify::FunctionDce,
+    &sccp::Sccp,
+    &pure_eval::PureEval,
+    &inst_simplify::InstSimplify,
+    &cse::Cse,
     // Reuse mapping slots before their scratch-memory expansion can obscure
     // the semantic expression from the remaining optimization passes.
-    &LOWER_MAPPING_SLOTS_PASS,
-    &GVN_PASS,
-    &PRE_PASS,
-    &STORAGE_LOAD_CSE_PASS,
-    &STORAGE_DSE_PASS,
-    &LOAD_PRE_PASS,
-    &FRAME_SLOT_PROMOTION_PASS,
-    &LOOP_CANONICALIZE_PASS,
-    &INDVAR_SIMPLIFY_PASS,
-    &STORAGE_PROMOTION_PASS,
-    &LICM_PASS,
-    &CHECK_ELIM_PASS,
-    &JUMP_THREADING_PASS,
-    &CFG_SIMPLIFY_PASS,
-    &MEMORY_DSE_PASS,
-    &STATIC_ALLOC_PASS,
-    &ADCE_PASS,
-    &DCE_PASS,
+    &lower_mapping_slots::LowerMappingSlots,
+    &gvn::Gvn,
+    &pre::Pre,
+    &storage_load_cse::StorageLoadCse,
+    &storage_dse::StorageDse,
+    &load_pre::LoadPre,
+    &frame_promotion::FrameSlotPromotion,
+    &loop_canonicalize::LoopCanonicalize,
+    &indvar_simplify::IndVarSimplify,
+    &storage_promotion::StorageScalarPromotion,
+    &loop_opt::Licm,
+    &check_elim::CheckElim,
+    &jump_threading::JumpThreading,
+    &cfg_simplify::CfgSimplify,
+    &memory_dse::MemoryDse,
+    &static_alloc::StaticAlloc,
+    &adce::Adce,
+    &dce::Dce,
+    &outline_reverts::OutlineReverts,
+    &lower_abi::LowerAbi,
+    &lower_dispatch::LowerDispatch,
+    &lower_evm_shaped::LowerEvmShaped,
 ];
+
+const DEFAULT_LOWERING_PASSES: usize = 4;
 
 /// Cleanup passes rerun after the primary pipeline until no pass changes MIR.
 ///
@@ -118,30 +113,31 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
 /// [`DEFAULT_PIPELINE`], while this loop cleans up opportunities exposed by
 /// those transforms.
 pub static DEFAULT_CLEANUP_PIPELINE: &[&dyn MirPass] = &[
-    &SCCP_PASS,
-    &PURE_EVAL_PASS,
-    &INST_SIMPLIFY_PASS,
-    &CSE_PASS,
-    &GVN_PASS,
-    &PRE_PASS,
-    &STORAGE_LOAD_CSE_PASS,
-    &STORAGE_DSE_PASS,
-    &LOAD_PRE_PASS,
-    &CHECK_ELIM_PASS,
-    &JUMP_THREADING_PASS,
-    &CFG_SIMPLIFY_PASS,
-    &FRAME_SLOT_PROMOTION_PASS,
-    &MEMORY_DSE_PASS,
-    &ADCE_PASS,
-    &DCE_PASS,
+    &sccp::Sccp,
+    &pure_eval::PureEval,
+    &inst_simplify::InstSimplify,
+    &cse::Cse,
+    &gvn::Gvn,
+    &pre::Pre,
+    &storage_load_cse::StorageLoadCse,
+    &storage_dse::StorageDse,
+    &load_pre::LoadPre,
+    &check_elim::CheckElim,
+    &jump_threading::JumpThreading,
+    &cfg_simplify::CfgSimplify,
+    &frame_promotion::FrameSlotPromotion,
+    &memory_dse::MemoryDse,
+    &adce::Adce,
+    &dce::Dce,
 ];
 
 const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
 
-/// Runs the canonical MIR optimization pipeline used by EVM codegen.
+/// Runs the canonical MIR pipeline used by EVM codegen.
 ///
-/// This is a phase transition: the module comes out in `MirPhase::Optimized`.
-/// Ad-hoc `solar mir-opt` pass lists deliberately do not advance the phase.
+/// The optimization prefix advances the module to `MirPhase::Optimized` before
+/// cleanup. The lowering suffix then advances it as far as the module permits.
+/// Ad-hoc `solar mir-opt` pass lists do not advance the phase.
 #[tracing::instrument(
     name = "mir_pipeline",
     level = "debug",
@@ -149,11 +145,11 @@ const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
     fields(module = %module.name),
 )]
 pub fn run_default_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-    let optimizations = Optimizations::for_gcx(gcx);
-    let mut changed =
-        run_passes(gcx, module, DEFAULT_PIPELINE, Some(MirPhase::Optimized), optimizations);
-    changed |=
-        run_cleanup_pipeline_to_fixpoint(gcx, module, DEFAULT_CLEANUP_PIPELINE, optimizations);
+    let optimization_end = DEFAULT_PIPELINE.len() - DEFAULT_LOWERING_PASSES;
+    let (optimization_passes, lowering_passes) = DEFAULT_PIPELINE.split_at(optimization_end);
+    let mut changed = run_passes(gcx, module, optimization_passes, Some(MirPhase::Optimized));
+    changed |= run_cleanup_pipeline_to_fixpoint(gcx, module, DEFAULT_CLEANUP_PIPELINE);
+    changed |= run_passes(gcx, module, lowering_passes, None);
     changed
 }
 
@@ -161,11 +157,10 @@ fn run_cleanup_pipeline_to_fixpoint(
     gcx: solar_sema::Gcx<'_>,
     module: &mut Module,
     passes: &[&dyn MirPass],
-    optimizations: Optimizations,
 ) -> bool {
     let mut changed = false;
     for _ in 1..=DEFAULT_CLEANUP_MAX_ROUNDS {
-        let round_changed = run_passes(gcx, module, passes, None, optimizations);
+        let round_changed = run_passes(gcx, module, passes, None);
         if !round_changed {
             break;
         }
