@@ -36,6 +36,7 @@ mod project_fixture;
 mod proto;
 mod rename;
 mod request_cancellation;
+mod selection_range;
 mod serde;
 mod signature_help;
 mod symbols;
@@ -50,6 +51,16 @@ pub use global_state::benchmark::{
     BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkEdit, BenchmarkError, BenchmarkProject,
     BenchmarkRequest, BenchmarkResponse,
 };
+
+/// Runs the selection-range kernel for Criterion benchmarks.
+#[cfg(feature = "bench")]
+#[doc(hidden)]
+pub fn benchmark_selection_ranges(
+    source: String,
+    positions: &[lsp_types::Position],
+) -> Option<Vec<lsp_types::SelectionRange>> {
+    selection_range::selection_ranges(source, positions)
+}
 
 #[cfg(test)]
 mod test_support;
@@ -87,6 +98,7 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
         .request::<req::Rename, _>(handlers::rename)
         .request::<req::SignatureHelpRequest, _>(handlers::signature_help)
         .request::<req::InlayHintRequest, _>(handlers::inlay_hints)
+        .request::<req::SelectionRangeRequest, _>(handlers::selection_range)
         .request::<req::Completion, _>(handlers::completion)
         .request::<req::DocumentDiagnosticRequest, _>(handlers::document_diagnostic)
         .request::<req::Formatting, _>(handlers::formatting);
@@ -154,10 +166,10 @@ mod tests {
         DidSaveTextDocumentParams, DocumentFormattingParams, DocumentHighlightParams,
         DocumentLinkParams, DocumentSymbolParams, ExecuteCommandParams, FileChangeType, FileEvent,
         FormattingOptions, HoverParams, InitializeParams, InitializedParams, NumberOrString,
-        PartialResultParams, Position, SignatureHelpParams, TextDocumentIdentifier,
-        TextDocumentPositionParams, TextDocumentSaveReason, WillSaveTextDocumentParams,
-        WorkDoneProgressParams, WorkspaceClientCapabilities, notification as notif,
-        notification::Notification, request, request::Request,
+        PartialResultParams, Position, SelectionRangeParams, SignatureHelpParams,
+        TextDocumentIdentifier, TextDocumentPositionParams, TextDocumentSaveReason,
+        WillSaveTextDocumentParams, WorkDoneProgressParams, WorkspaceClientCapabilities,
+        notification as notif, notification::Notification, request, request::Request,
     };
     use solar_interface::data_structures::sync::RwLock;
     use std::{
@@ -319,6 +331,32 @@ mod tests {
         let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
             "id": 1,
             "method": request::DocumentLinkRequest::METHOD,
+            "params": params,
+        }))
+        .unwrap();
+
+        let response = router.call(request).await.unwrap();
+
+        assert_eq!(response, serde_json::json!([]));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_selection_range_requests() {
+        let project = TestProject::from_fixture("//- /Test.sol open\n");
+        let state = GlobalState::new(ClientSocket::new_closed());
+        *state.vfs.write() = project.vfs();
+        let mut router = new_router_with_state(state);
+        let params = SelectionRangeParams {
+            text_document: TextDocumentIdentifier {
+                uri: lsp_types::Url::from_file_path(project.path("/Test.sol")).unwrap(),
+            },
+            positions: Vec::new(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 1,
+            "method": request::SelectionRangeRequest::METHOD,
             "params": params,
         }))
         .unwrap();

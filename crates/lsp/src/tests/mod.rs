@@ -34,6 +34,7 @@ mod implementation;
 mod inlay_hint;
 mod references;
 mod rename;
+mod selection_range;
 mod signature_help;
 mod support;
 mod type_definition;
