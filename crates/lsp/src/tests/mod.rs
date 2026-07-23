@@ -19,9 +19,9 @@ use lsp_types::{
 use std::{
     future::Future,
     path::Path,
-    sync::mpsc as std_mpsc,
+    sync::{Barrier, mpsc as std_mpsc},
     task::{Context, Poll, Waker},
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
@@ -284,6 +284,47 @@ fn pause_blocking_pool() -> (std_mpsc::Sender<()>, tokio::task::JoinHandle<()>) 
     (release_tx, task)
 }
 
+fn assert_analysis_stale_before_diagnostic_publication(
+    mut state: GlobalState,
+    stale_version: usize,
+    advance_epoch: impl FnOnce(&mut GlobalState) + Send + 'static,
+) {
+    let stale_snapshot = state.snapshot();
+    assert!(stale_snapshot.is_current(stale_version));
+
+    let diagnostics = state.diagnostics.clone();
+    let diagnostics_guard = diagnostics.write();
+    let start = Arc::new(Barrier::new(2));
+    let worker_start = start.clone();
+    let (finished_tx, finished_rx) = std_mpsc::sync_channel(1);
+    let worker = std::thread::spawn(move || {
+        worker_start.wait();
+        advance_epoch(&mut state);
+        finished_tx.send(()).unwrap();
+    });
+
+    start.wait();
+    let deadline = Instant::now() + ASYNC_TEST_TIMEOUT;
+    while stale_snapshot.is_current(stale_version) && Instant::now() < deadline {
+        std::thread::yield_now();
+    }
+    let stale_while_diagnostics_locked = !stale_snapshot.is_current(stale_version);
+    let finished_while_diagnostics_locked =
+        !matches!(finished_rx.try_recv(), Err(std_mpsc::TryRecvError::Empty));
+
+    drop(diagnostics_guard);
+    finished_rx
+        .recv_timeout(ASYNC_TEST_TIMEOUT)
+        .expect("epoch advance should finish after diagnostic publication is unblocked");
+    worker.join().unwrap();
+
+    assert!(!finished_while_diagnostics_locked, "diagnostic lock should block publication");
+    assert!(
+        stale_while_diagnostics_locked,
+        "old analysis should be stale before diagnostic publication"
+    );
+}
+
 fn assert_source_notification_tracks_until_publish(
     project: &TestProject,
     path: &Path,
@@ -316,6 +357,42 @@ fn assert_source_notification_tracks_until_publish(
         assert!(state.analysis_commit.lock().natspec_pending_source_changes.is_empty());
         assert!(state.natspec_semantics_are_usable(&other_uri));
     });
+}
+
+#[test]
+fn replacement_analysis_invalidates_old_worker_before_removed_diagnostics_publish() {
+    let uri = diagnostic_uri();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    let (stale_version, _stale_progress) =
+        state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    state.snapshot().publish_diagnostics(
+        DiagnosticOwner::Compiler,
+        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("removed")])]),
+    );
+
+    assert_analysis_stale_before_diagnostic_publication(state, stale_version, move |state| {
+        state
+            .begin_analysis(AnalysisMode::Recompute, vec![uri], Vec::new())
+            .expect("replacement analysis should start");
+    });
+}
+
+#[test]
+fn clearing_analysis_cache_invalidates_old_worker_before_diagnostics_publish() {
+    let uri = diagnostic_uri();
+    let state = GlobalState::new(ClientSocket::new_closed());
+    state.mark_analysis_pending_for_test();
+    let stale_version = state.analysis_version.load(Ordering::Acquire);
+    state.snapshot().publish_diagnostics(
+        DiagnosticOwner::Compiler,
+        DiagnosticMap::from_iter([(uri, vec![diagnostic("cleared")])]),
+    );
+
+    assert_analysis_stale_before_diagnostic_publication(
+        state,
+        stale_version,
+        GlobalState::clear_analysis_cache,
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]

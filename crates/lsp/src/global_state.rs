@@ -180,28 +180,33 @@ impl GlobalState {
 
     pub(crate) fn clear_analysis_cache(&mut self) {
         let old_symbol_tables = {
-            let analysis_commit = self.analysis_commit.clone();
+            let Self {
+                client,
+                symbol_tables,
+                diagnostics,
+                analysis_version,
+                published_analysis_version,
+                analysis_commit,
+                analysis_progress,
+                ..
+            } = self;
             let mut commit = analysis_commit.lock();
-            let version = self.next_analysis_version();
-            let symbol_tables = self.symbol_tables.clone();
-            let diagnostics = self.diagnostics.clone();
-            let analysis_version = self.analysis_version.clone();
-            let published_analysis_version = self.published_analysis_version.clone();
-            let mut client = self.client.clone();
+            let version = analysis_version.load(Ordering::Relaxed).wrapping_add(1);
 
-            self.analysis_progress.finish_active_after("Workspace index cleared", || {
+            analysis_progress.finish_active_after("Workspace index cleared", || {
+                // Invalidate workers before doing the potentially expensive diagnostic publication.
+                analysis_version.store(version, Ordering::Release);
                 let old_symbol_tables = mem::take(&mut *symbol_tables.write());
                 let batches = diagnostics.write().replace_and_publish_batches(
                     DiagnosticOwner::Compiler,
                     DiagnosticMap::default(),
                 );
-                publish_diagnostic_batches(&mut client, batches);
+                publish_diagnostic_batches(client, batches);
 
                 commit.cache_invalidated = true;
                 commit.natspec_symbol_tables_version = version;
                 commit.natspec_pending_source_changes.clear();
                 commit.natspec_context_change_version = version;
-                analysis_version.store(version, Ordering::Release);
                 published_analysis_version.send_replace(version);
                 old_symbol_tables
             })
@@ -291,9 +296,9 @@ impl GlobalState {
             // Retarget progress before publishing the epoch so a delayed create response cannot
             // end the previous wave after the new analysis becomes current.
             let progress = self.analysis_progress.start(version);
+            self.commit_analysis_epoch(&mut commit, version, changed_paths, rediscover);
             let batches = self.diagnostics.write().clear_uris_and_publish_batches(removed_uris);
             publish_diagnostic_batches(&mut self.client, batches);
-            self.commit_analysis_epoch(&mut commit, version, changed_paths, rediscover);
             (version, rediscover, progress)
         };
 
@@ -547,14 +552,12 @@ impl GlobalState {
         progress: ProgressTicket,
     ) {
         let mut snapshot = self.snapshot();
-        let analysis_version = self.analysis_version.clone();
-        let analysis_commit = self.analysis_commit.clone();
         tokio::spawn(async move {
             match task.await {
                 Ok(AnalysisTaskOutcome::Published) => finish_analysis_progress_if_current(
                     version,
-                    &analysis_version,
-                    &analysis_commit,
+                    &snapshot.analysis_version,
+                    &snapshot.analysis_commit,
                     &progress,
                     "Workspace index ready",
                 ),
@@ -563,8 +566,8 @@ impl GlobalState {
                     if snapshot.handle_analysis_failure(version, error) {
                         finish_analysis_progress_if_current(
                             version,
-                            &analysis_version,
-                            &analysis_commit,
+                            &snapshot.analysis_version,
+                            &snapshot.analysis_commit,
                             &progress,
                             "Workspace indexing failed",
                         );

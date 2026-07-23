@@ -155,15 +155,15 @@ impl ProgressTicket {
         Self { guard: None, version }
     }
 
-    pub(crate) fn report(&self, message: impl Into<String>) {
+    pub(crate) fn report(&self, message: &str) {
         if let Some(guard) = &self.guard {
-            guard.report(self.version, message.into());
+            guard.report(self.version, message);
         }
     }
 
-    pub(crate) fn finish(&self, message: impl Into<String>) {
+    pub(crate) fn finish(&self, message: &str) {
         if let Some(guard) = &self.guard {
-            guard.finish(self.version, message.into());
+            guard.finish(self.version, message);
         }
     }
 }
@@ -269,24 +269,25 @@ impl WorkDoneProgressGuard {
 
         state.version = version;
         state.terminal = None;
-        state.message = Some(RESTART_MESSAGE.into());
-        if state.phase == Phase::Begun
-            && !send_progress(
+        if state.phase == Phase::Begun {
+            if !send_progress(
                 &self.client,
                 &self.token,
                 WorkDoneProgress::Report(WorkDoneProgressReport {
                     cancellable: Some(false),
-                    message: state.message.clone(),
+                    message: Some(RESTART_MESSAGE.into()),
                     percentage: None,
                 }),
-            )
-        {
-            self.disable_locked(&mut state, "failed to enqueue replacement report");
+            ) {
+                self.disable_locked(&mut state, "failed to enqueue replacement report");
+            }
+        } else {
+            state.message = Some(RESTART_MESSAGE.into());
         }
         true
     }
 
-    fn report(&self, version: usize, message: String) {
+    fn report(&self, version: usize, message: &str) {
         let mut state = self.state.lock();
         if state.version != version || state.terminal.is_some() {
             return;
@@ -298,34 +299,37 @@ impl WorkDoneProgressGuard {
                 &self.token,
                 WorkDoneProgress::Report(WorkDoneProgressReport {
                     cancellable: Some(false),
-                    message: Some(message),
+                    message: Some(message.into()),
                     percentage: None,
                 }),
             ) {
                 self.disable_locked(&mut state, "failed to enqueue progress report");
             }
         } else if matches!(state.phase, Phase::Delayed | Phase::Creating) {
-            state.message = Some(message);
+            state.message = Some(message.into());
         }
     }
 
-    fn finish(&self, version: usize, message: String) {
+    fn finish(&self, version: usize, message: &str) {
         let mut state = self.state.lock();
         if state.version != version || matches!(state.phase, Phase::Failed | Phase::Ended) {
             return;
         }
 
         match state.phase {
-            Phase::Delayed => state.phase = Phase::Ended,
+            Phase::Delayed => {
+                state.phase = Phase::Ended;
+                state.message = None;
+            }
             Phase::Creating => {
-                state.terminal.get_or_insert(message);
+                state.terminal.get_or_insert_with(|| message.into());
             }
             Phase::Begun => {
                 state.phase = Phase::Ended;
                 if !send_progress(
                     &self.client,
                     &self.token,
-                    WorkDoneProgress::End(WorkDoneProgressEnd { message: Some(message) }),
+                    WorkDoneProgress::End(WorkDoneProgressEnd { message: Some(message.into()) }),
                 ) {
                     self.enabled.store(false, Ordering::Release);
                 }
@@ -347,7 +351,10 @@ impl WorkDoneProgressGuard {
         }
 
         match state.phase {
-            Phase::Delayed => state.phase = Phase::Ended,
+            Phase::Delayed => {
+                state.phase = Phase::Ended;
+                state.message = None;
+            }
             Phase::Creating => {
                 state.message = Some(message.clone());
                 state.terminal = Some(message);
@@ -560,6 +567,39 @@ mod tests {
             .expect("client event channel should stay open")
     }
 
+    #[test]
+    fn creating_ticket_keeps_first_terminal_message() {
+        let guard = WorkDoneProgressGuard::new(
+            ClientSocket::new_closed(),
+            Arc::new(AtomicBool::new(true)),
+            1,
+            Timing { delay: Duration::ZERO, create_timeout: Duration::from_secs(1) },
+        );
+        assert!(guard.mark_creating());
+        guard.finish(1, "first");
+        guard.report(1, "ignored");
+        guard.finish(1, "second");
+
+        assert_eq!(guard.state.lock().terminal.as_deref(), Some("first"));
+    }
+
+    #[test]
+    fn finishing_delayed_ticket_discards_pending_message() {
+        let guard = WorkDoneProgressGuard::new(
+            ClientSocket::new_closed(),
+            Arc::new(AtomicBool::new(true)),
+            1,
+            Timing { delay: Duration::ZERO, create_timeout: Duration::from_secs(1) },
+        );
+        guard.report(1, "pending");
+
+        guard.finish(1, "finished");
+
+        let state = guard.state.lock();
+        assert_eq!(state.phase, Phase::Ended);
+        assert!(state.message.is_none());
+    }
+
     #[tokio::test(flavor = "current_thread")]
     async fn stale_ticket_cannot_finish_newer_work() {
         let coordinator = ProgressCoordinator::with_timing(
@@ -731,7 +771,7 @@ mod tests {
             Timing { delay: Duration::ZERO, create_timeout: Duration::from_secs(1) },
         ));
         assert!(guard.mark_creating());
-        guard.finish(1, "obsolete completion".into());
+        guard.finish(1, "obsolete completion");
 
         let published = Arc::new(AtomicBool::new(false));
         let (publish_started_tx, publish_started_rx) = std_mpsc::channel();
