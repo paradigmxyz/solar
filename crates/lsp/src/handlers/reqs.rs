@@ -12,15 +12,43 @@ use lsp_types::{
     DocumentHighlight, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
     DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse,
     Hover, HoverParams, InlayHint, InlayHintParams, OneOf, OptionalVersionedTextDocumentIdentifier,
-    Position, PrepareRenameResponse, ReferenceParams, RenameParams, SignatureHelp,
-    SignatureHelpParams, TextDocumentEdit, TextDocumentPositionParams, TextEdit, Url,
-    WorkspaceEdit, WorkspaceSymbolParams, WorkspaceSymbolResponse,
-    request::GotoImplementationParams,
+    Position, PrepareRenameResponse, ReferenceParams, RenameParams, SelectionRange,
+    SelectionRangeParams, SignatureHelp, SignatureHelpParams, TextDocumentEdit,
+    TextDocumentPositionParams, TextEdit, Url, WorkspaceEdit, WorkspaceSymbolParams,
+    WorkspaceSymbolResponse, request::GotoImplementationParams,
 };
 use solar_interface::{data_structures::sync::RwLock, source_map::SourceMap};
 use solar_parse::lexer::is_ident;
 use std::{collections::HashMap, future::ready, io, path::Path, sync::Arc};
 use tracing::warn;
+
+pub(crate) fn selection_range(
+    state: &mut GlobalState,
+    params: SelectionRangeParams,
+) -> impl Future<Output = Result<Option<Vec<SelectionRange>>, ResponseError>> + use<> {
+    let vfs = state.vfs.clone();
+    let request = params
+        .text_document
+        .uri
+        .to_file_path()
+        .map_err(|_| request_failed("document URI is not a file"))
+        .map(|path| (VfsPath::from(path.clone()), path, params.positions));
+
+    async move {
+        let (vfs_path, path, positions) = request?;
+        let source =
+            document_contents(&vfs, &vfs_path, &path).await.map_err(document_read_failed)?;
+        let ranges = tokio::task::spawn_blocking(move || {
+            crate::selection_range::selection_ranges(source, &positions)
+        })
+        .await
+        .map_err(selection_range_task_failed)?
+        .ok_or_else(|| {
+            ResponseError::new(ErrorCode::INVALID_PARAMS, "invalid selection range position")
+        })?;
+        Ok(Some(ranges))
+    }
+}
 
 pub(crate) fn formatting(
     state: &mut GlobalState,
@@ -97,8 +125,13 @@ fn rope_to_string(contents: &Rope) -> String {
 }
 
 fn document_read_failed(error: io::Error) -> ResponseError {
-    warn!(%error, "failed to read document for formatting");
+    warn!(%error, "failed to read document");
     request_failed("failed to read document")
+}
+
+fn selection_range_task_failed(error: tokio::task::JoinError) -> ResponseError {
+    warn!(%error, "selection-range task failed");
+    ResponseError::new(ErrorCode::INTERNAL_ERROR, "selection-range task failed")
 }
 
 fn formatter_failed(error: FormatterError) -> ResponseError {
