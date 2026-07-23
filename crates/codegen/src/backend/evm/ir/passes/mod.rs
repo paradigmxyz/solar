@@ -86,10 +86,6 @@ pub fn lookup_pass(name: &str) -> Option<&'static dyn EvmPass> {
 
 /// Runs an EVM IR pass pipeline.
 pub fn run_passes(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn EvmPass]) -> bool {
-    run_passes_inner(gcx, module, passes)
-}
-
-fn run_passes_inner(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn EvmPass]) -> bool {
     let mut changed = false;
     for pass in passes {
         let pass_name = pass.name();
