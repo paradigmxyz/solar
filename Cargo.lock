@@ -3459,6 +3459,7 @@ dependencies = [
  "alloy-primitives",
  "arrayvec",
  "derive_more",
+ "rayon",
  "smallvec",
  "snapbox",
  "solar-ast",

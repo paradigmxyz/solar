@@ -21,7 +21,12 @@ use solar_sema::Gcx;
 pub(crate) struct LowerAllocPass;
 
 impl ModulePass for LowerAllocPass {
-    fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+    fn run(
+        &mut self,
+        _gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
         lower_alloc_except(module, &FxHashSet::default())
     }
 }

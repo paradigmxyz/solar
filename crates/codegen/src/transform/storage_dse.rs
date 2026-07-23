@@ -8,19 +8,20 @@
 use crate::{
     analysis::{Access, AddressSpace, AliasAnalysis, Location, ModRef},
     mir::{BlockId, Function, InstId, InstKind, StorageAlias, ValueId, utils as mir_utils},
-    pass::FunctionPass,
+    pass::{FunctionAnalyses, FunctionPass},
 };
 use solar_data_structures::{
     bit_set::DenseBitSet,
     map::{FxHashMap, FxHashSet},
 };
+use std::rc::Rc;
 
 /// Local dead storage-store elimination pass.
 #[derive(Debug, Default)]
 pub(crate) struct StorageStoreEliminator {
     /// Number of storage stores eliminated.
     pub eliminated_count: usize,
-    alias: Option<AliasAnalysis>,
+    alias: Option<Rc<AliasAnalysis>>,
 }
 
 struct RunState {
@@ -43,6 +44,12 @@ impl RunState {
 pub(crate) struct StorageDsePass;
 
 impl FunctionPass for StorageDsePass {
+    fn run_on_function_cached(&mut self, func: &mut Function, analyses: &FunctionAnalyses) -> bool {
+        let mut eliminator = StorageStoreEliminator::new();
+        eliminator.alias = Some(Rc::clone(&analyses.alias));
+        eliminator.run_to_fixpoint(func) != 0
+    }
+
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         StorageStoreEliminator::new().run_to_fixpoint(func) != 0
     }
@@ -57,7 +64,9 @@ impl StorageStoreEliminator {
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
         self.eliminated_count = 0;
         func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
-        self.alias = Some(AliasAnalysis::new(func));
+        if self.alias.is_none() {
+            self.alias = Some(Rc::new(AliasAnalysis::new(func)));
+        }
 
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         for block_id in block_ids {

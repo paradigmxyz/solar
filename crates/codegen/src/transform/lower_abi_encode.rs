@@ -27,7 +27,12 @@ struct AbiValueDest {
 pub(crate) struct LowerAbiEncodePass;
 
 impl ModulePass for LowerAbiEncodePass {
-    fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+    fn run(
+        &mut self,
+        _gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
         let mut changed = false;
         for func in module.functions.iter_mut() {
             changed |= lower_function(func);

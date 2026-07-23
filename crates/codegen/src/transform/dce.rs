@@ -7,7 +7,7 @@ use crate::{
     mir::{BlockId, Function, InstId, Terminator, ValueId, utils::repair_reachability_phis},
     pass::FunctionPass,
 };
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 
 /// Dead Code Elimination pass.
 ///
@@ -22,14 +22,21 @@ use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 pub(crate) struct DeadCodeEliminator {
     /// Number of instructions eliminated in the last run.
     pub eliminated_count: usize,
+    /// Scratch reused across runs: values used by instructions or terminators.
+    used_values: GrowableBitSet<ValueId>,
+    /// Scratch reused across runs: dead instructions found in one iteration.
+    dead: Vec<(BlockId, InstId)>,
 }
 
 /// Function pass for dead code elimination.
-pub(crate) struct DcePass;
+#[derive(Default)]
+pub(crate) struct DcePass {
+    eliminator: DeadCodeEliminator,
+}
 
 impl FunctionPass for DcePass {
     fn run_on_function(&mut self, func: &mut Function) -> bool {
-        let changed = DeadCodeEliminator::new().run_to_fixpoint(func) != 0;
+        let changed = self.eliminator.run_to_fixpoint(func) != 0;
         repair_reachability_phis(func);
         changed
     }
@@ -52,16 +59,16 @@ impl DeadCodeEliminator {
         self.eliminate_unreachable_blocks(func);
 
         // Phase 2: Find all used values
-        let used_values = self.collect_used_values(func);
+        self.collect_used_values(func);
 
         // Phase 3: Find dead instructions
-        let dead_instructions = self.find_dead_instructions(func, &used_values, inst_to_value);
+        self.find_dead_instructions(func, inst_to_value);
 
         // Remove dead instructions from blocks
-        for (block_id, inst_id) in &dead_instructions {
-            let block = func.block_mut(*block_id);
-            block.instructions.retain(|&id| id != *inst_id);
-            self.eliminated_count += 1;
+        self.eliminated_count += self.dead.len();
+        for &(block_id, inst_id) in &self.dead {
+            let block = func.block_mut(block_id);
+            block.instructions.retain(|&id| id != inst_id);
         }
 
         self.eliminated_count
@@ -103,14 +110,15 @@ impl DeadCodeEliminator {
     }
 
     /// Collects all values that are used (appear in instructions or terminators).
-    fn collect_used_values(&self, func: &Function) -> DenseBitSet<ValueId> {
-        let mut used = DenseBitSet::new_empty(func.values.len());
+    fn collect_used_values(&mut self, func: &Function) {
+        self.used_values.clear();
+        self.used_values.ensure(func.values.len());
 
         // Add values used in terminators
         for (_, block) in func.blocks.iter_enumerated() {
             if let Some(term) = &block.terminator {
                 for operand in term.operands() {
-                    used.insert(operand);
+                    self.used_values.insert(operand);
                 }
             }
         }
@@ -120,22 +128,19 @@ impl DeadCodeEliminator {
             for &inst_id in &block.instructions {
                 let inst = &func.instructions[inst_id];
                 for val in inst.kind.operands() {
-                    used.insert(val);
+                    self.used_values.insert(val);
                 }
             }
         }
-
-        used
     }
 
     /// Finds instructions that are dead (unused result, no side effects).
     fn find_dead_instructions(
-        &self,
+        &mut self,
         func: &Function,
-        used_values: &DenseBitSet<ValueId>,
         inst_to_value: &FxHashMap<InstId, ValueId>,
-    ) -> Vec<(BlockId, InstId)> {
-        let mut dead = Vec::new();
+    ) {
+        self.dead.clear();
 
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
@@ -148,13 +153,11 @@ impl DeadCodeEliminator {
 
                 // O(1) lookup via precomputed map (was O(V) linear scan).
                 if let Some(&result) = inst_to_value.get(&inst_id)
-                    && !used_values.contains(result)
+                    && !self.used_values.contains(result)
                 {
-                    dead.push((block_id, inst_id));
+                    self.dead.push((block_id, inst_id));
                 }
             }
         }
-
-        dead
     }
 }

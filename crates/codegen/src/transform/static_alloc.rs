@@ -29,7 +29,12 @@ use std::sync::Arc;
 pub(crate) struct StaticAllocPass;
 
 impl ModulePass for StaticAllocPass {
-    fn run(&mut self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+    fn run(
+        &mut self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
         // Every entry's locals share the same low-memory region — only one
         // entry runs per call — so the tallest entry's frame top is a shadow
         // the others can grow into without moving the shared static-frame
