@@ -131,7 +131,8 @@ fn lowering_cost(
         let cleanup_len = usize::from(needs_value_cleanup);
         let mut cost = LoweringCost {
             code_size: cleanup_len + MIN_DEFAULT_JUMP_LEN,
-            max_code_size: cleanup_len + max_default_jump_len(table_target_width),
+            max_code_size: cleanup_len
+                + max_default_len(evm_version, needs_value_cleanup, table_target_width),
             ..Default::default()
         };
         let mut path_gas = 0;
@@ -251,8 +252,9 @@ fn bucket_lowering_cost(
         if bucket_path_gas[index] == 0 {
             let cleanup_len = usize::from(needs_value_cleanup);
             cost.code_size += JUMPDEST_LEN + cleanup_len + MIN_DEFAULT_JUMP_LEN;
-            cost.max_code_size +=
-                JUMPDEST_LEN + cleanup_len + max_default_jump_len(table_target_width);
+            cost.max_code_size += JUMPDEST_LEN
+                + cleanup_len
+                + max_default_len(evm_version, needs_value_cleanup, table_target_width);
         }
         cost.code_size += test.code_size;
         cost.max_code_size += test.max_code_size;
@@ -342,6 +344,20 @@ const fn max_label_push_len(target_width: usize) -> usize {
 
 const fn max_default_jump_len(target_width: usize) -> usize {
     max_label_push_len(target_width) + 1
+}
+
+fn max_default_len(
+    evm_version: EvmVersion,
+    needs_value_cleanup: bool,
+    target_width: usize,
+) -> usize {
+    let jump = max_default_jump_len(target_width);
+    if needs_value_cleanup {
+        jump
+    } else {
+        // A selector miss without fallback emits two zero pushes and REVERT.
+        jump.max(push_len(U256::ZERO, evm_version) * 2 + 1)
+    }
 }
 
 pub(super) fn bucket_index(value: U256, bucket_count: usize) -> usize {
@@ -482,6 +498,13 @@ mod tests {
         assert_eq!(max_indexed_jump_base_len(1), INDEXED_JUMP_BASE_LEN);
         assert_eq!(max_indexed_jump_base_len(2), INDEXED_JUMP_BASE_LEN + 1);
         assert_eq!(max_indexed_jump_base_len(3), INDEXED_JUMP_BASE_LEN + 2);
+    }
+
+    #[test]
+    fn accounts_for_pre_shanghai_selector_reverts() {
+        assert_eq!(max_default_len(EvmVersion::Berlin, false, 2), 5);
+        assert_eq!(max_default_len(EvmVersion::Cancun, false, 2), 4);
+        assert_eq!(max_default_len(EvmVersion::Berlin, true, 2), 4);
     }
 
     #[test]
