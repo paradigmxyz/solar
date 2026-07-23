@@ -42,8 +42,11 @@ Options:
       -Zprint-natspec
           Print resolved NatSpec docs as diagnostics for UI tests
 
-      -Zmir-print-after-each
-          Print MIR after every MIR optimization pass during codegen
+      -Zprint-after-each
+          Print MIR or EVM IR after every optimization pass
+
+      -Zpass-diff
+          Print a before-and-after diff for each pass explicitly selected by `mir-opt` or `evm-opt`
 
       -Ztime-passes
           Print the time spent in each MIR and EVM IR pass

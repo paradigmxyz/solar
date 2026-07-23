@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_from_calldata.sol:StorageBytesFromCalldata ===
 @module StorageBytesFromCalldata
 fn @setText(arg0: memptr) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -115,7 +115,7 @@ fn @setText(arg0: memptr) {
 }
 
 fn @setBlob(arg0: memptr) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -229,7 +229,7 @@ fn @setBlob(arg0: memptr) {
 }
 
 fn @getText() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
     internal_call @__ret_bytes, 0, v0
@@ -237,7 +237,7 @@ fn @getText() {
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memptr {
-  bb0 (entry):
+  bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
     v2 = eq v1, 1
@@ -287,7 +287,7 @@ fn @__load_storage_bytes(arg0: u256) -> memptr {
 }
 
 fn @__ret_bytes(arg0: memptr) {
-  bb0 (entry):
+  bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, 32
     v1 = mload arg0
@@ -307,7 +307,7 @@ fn @__ret_bytes(arg0: memptr) {
 }
 
 fn @getBlob() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 1
     internal_call @__ret_bytes, 0, v0

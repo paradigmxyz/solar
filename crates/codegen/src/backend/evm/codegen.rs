@@ -7,7 +7,7 @@
 //! - EVM IR optimization, relocation, and byte encoding
 
 use super::{
-    assembler::{Assembler, AssemblerConfig, DeferredConst, ImmutableRef, Label, PreparedAssembly},
+    assembler::{Assembler, DeferredConst, ImmutableRef, Label, PreparedAssembly},
     ir, op,
     stack::{
         MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
@@ -20,16 +20,16 @@ use crate::{
         PhiEliminator,
     },
     mir::{BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Terminator, ValueId},
-    pass::{PipelineOptions, run_default_pipeline, run_pass},
+    pass::{run_default_pipeline, run_pass},
 };
 use alloy_primitives::U256;
-use solar_config::{EvmVersion, OptimizationMode};
+use solar_config::OptimizationMode;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::FxHashMap,
 };
-use solar_interface::{Session, sym};
-use solar_sema::hir::StateMutability;
+use solar_interface::sym;
+use solar_sema::{Gcx, hir::StateMutability};
 
 // 0x00..0x7f follows Solidity's scratch/free-pointer/zero-slot convention, and
 // 0x80 is used as the static ABI return buffer. Keep the internal-call frame
@@ -56,59 +56,6 @@ struct PreparedDeploymentPrefix {
     assembly: PreparedAssembly,
     constructor_arg_offset: Option<DeferredConst>,
     runtime_offset: DeferredConst,
-}
-
-/// Configuration for the EVM backend.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct EvmCodegenConfig {
-    /// EVM version to target when selecting hardfork-gated opcodes.
-    pub(crate) evm_version: EvmVersion,
-    /// Optimization mode for MIR and EVM IR passes.
-    pub(crate) optimization: OptimizationMode,
-    /// Print MIR after each pass before bytecode generation.
-    pub(crate) mir_print_after_each: bool,
-    /// Print the time spent in each MIR and EVM IR pass.
-    pub(crate) time_passes: bool,
-    /// Lower dispatch/ABI as MIR phases and consume them here.
-    pub(crate) mir_dispatch: bool,
-    /// Capture final EVM IR immediately before assembly.
-    pub capture_evm_ir: bool,
-}
-
-impl EvmCodegenConfig {
-    /// Creates backend configuration from a compiler session.
-    #[must_use]
-    fn from_session(sess: &Session) -> Self {
-        Self {
-            evm_version: sess.opts.evm_version,
-            optimization: sess.opts.optimization,
-            mir_print_after_each: sess.opts.unstable.mir_print_after_each,
-            time_passes: sess.opts.unstable.time_passes,
-            mir_dispatch: !sess.opts.unstable.no_mir_dispatch,
-            capture_evm_ir: false,
-        }
-    }
-
-    fn assembler_config(self) -> AssemblerConfig {
-        AssemblerConfig {
-            evm_version: self.evm_version,
-            optimization: self.optimization,
-            time_passes: self.time_passes,
-            capture_evm_ir: self.capture_evm_ir,
-        }
-    }
-}
-
-impl From<&Session> for EvmCodegenConfig {
-    fn from(sess: &Session) -> Self {
-        Self::from_session(sess)
-    }
-}
-
-impl From<solar_sema::Gcx<'_>> for EvmCodegenConfig {
-    fn from(gcx: solar_sema::Gcx<'_>) -> Self {
-        Self::from_session(gcx.sess)
-    }
 }
 
 /// Describes the stack effect of an EVM instruction.
@@ -212,8 +159,7 @@ impl GlobalStackPlan {
         }
 
         for block_id in func.blocks.indices() {
-            if block_id == func.entry_block
-                || !cfg.is_reachable(block_id)
+            if !cfg.is_reachable(block_id)
                 || func.blocks[block_id].predecessors.is_empty()
                 || stack_phi_plan.entries.contains_key(&block_id)
                 || Self::is_terminal_block(func, block_id)
@@ -559,9 +505,10 @@ impl<'a> StackPhiPlanner<'a> {
 }
 
 /// EVM code generator.
-pub struct EvmCodegen {
+pub struct EvmCodegen<'gcx> {
+    gcx: Gcx<'gcx>,
     /// The assembler for bytecode generation.
-    asm: Assembler,
+    asm: Assembler<'gcx>,
     /// Stack scheduler.
     scheduler: StackScheduler,
     /// Block labels.
@@ -643,21 +590,16 @@ pub struct EvmCodegen {
     /// so the leftover word can neither accumulate nor disturb an internal
     /// return.
     emitting_dispatch_entry: bool,
-    /// Optimization mode for MIR and EVM IR passes.
-    optimization: OptimizationMode,
-    /// Print MIR after each pass before bytecode generation.
-    mir_print_after_each: bool,
-    time_passes: bool,
-    mir_dispatch: bool,
+    capture_evm_ir: bool,
 }
 
-impl EvmCodegen {
+impl<'gcx> EvmCodegen<'gcx> {
     /// Creates a new EVM code generator.
     #[must_use]
-    pub fn new(config: impl Into<EvmCodegenConfig>) -> Self {
-        let config = config.into();
+    pub fn new(gcx: Gcx<'gcx>) -> Self {
         Self {
-            asm: Assembler::with_config(config.assembler_config()),
+            gcx,
+            asm: Assembler::new(gcx),
             scheduler: StackScheduler::new(),
             block_labels: FxHashMap::default(),
             function_labels: FxHashMap::default(),
@@ -685,11 +627,13 @@ impl EvmCodegen {
             constructor_param_count: 0,
             in_internal_function: false,
             emitting_dispatch_entry: false,
-            optimization: config.optimization,
-            mir_print_after_each: config.mir_print_after_each,
-            time_passes: config.time_passes,
-            mir_dispatch: config.mir_dispatch,
+            capture_evm_ir: false,
         }
+    }
+
+    /// Controls whether generated artifacts include final EVM IR.
+    pub fn set_capture_evm_ir(&mut self, capture: bool) {
+        self.capture_evm_ir = capture;
     }
 
     // ==================== Stack-Aware Emitter API ====================
@@ -776,6 +720,9 @@ impl EvmCodegen {
     fn generate_deployment_artifact(&mut self, module: &mut Module) -> EvmArtifact {
         if module.is_interface {
             return EvmArtifact::default();
+        }
+        if let Some(func) = module.functions.iter().find(|func| func.blocks.is_empty()) {
+            panic!("cannot codegen MIR function `{}` without an entry block", func.name);
         }
         self.run_optimization_passes(module);
         // First generate the runtime code
@@ -915,11 +862,12 @@ impl EvmCodegen {
             self.block_labels.clear();
             self.block_copies.clear();
             self.function_labels.clear();
-            self.cold_functions = if matches!(self.optimization, OptimizationMode::None) {
-                DenseBitSet::new_empty(module.functions.len())
-            } else {
-                Self::collect_cold_functions(module)
-            };
+            self.cold_functions =
+                if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+                    DenseBitSet::new_empty(module.functions.len())
+                } else {
+                    Self::collect_cold_functions(module)
+                };
             self.function_static_frame_sizes.clear();
             self.function_spill_sizes.clear();
             self.pending_frame_size_consts.clear();
@@ -942,7 +890,7 @@ impl EvmCodegen {
             }
 
             let call_graph = CallGraphInfo::new(module);
-            let internal_targets = call_graph.reachable_bodies_from(std::iter::once(ctor_id));
+            let internal_targets = call_graph.reachable_callees_from(std::iter::once(ctor_id));
             for func_id in &internal_targets {
                 let label = self.new_function_label(func_id);
                 self.function_labels.insert(func_id, label);
@@ -1023,7 +971,7 @@ impl EvmCodegen {
 
         self.emit_deployment_postlude(runtime_offset, runtime_len, copy_base, immutable_refs);
         PreparedDeploymentPrefix {
-            assembly: self.asm.prepare(),
+            assembly: self.asm.prepare(self.capture_evm_ir),
             constructor_arg_offset,
             runtime_offset,
         }
@@ -1046,28 +994,22 @@ impl EvmCodegen {
 
     /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
-        module.optimize_for_size = self.optimization == OptimizationMode::Size;
-        let options = PipelineOptions {
-            print_after_each: self.mir_print_after_each,
-            time_passes: self.time_passes,
-            ..PipelineOptions::default()
-        };
-        if self.optimization != OptimizationMode::None {
-            run_default_pipeline(module, options);
+        if self.gcx.sess.opts.optimization != OptimizationMode::None {
+            run_default_pipeline(self.gcx, module);
             // MIR outlining remains profitable even though EVM IR can merge
             // equivalent terminal blocks: lowering and stack scheduling can
             // hide their shared semantic shape from the backend passes.
-            run_pass(module, &crate::pass::OUTLINE_REVERTS_PASS, options);
+            run_pass(self.gcx, module, &crate::pass::OUTLINE_REVERTS_PASS);
         }
-        run_pass(module, &crate::pass::LOWER_MAPPING_SLOTS_PASS, options);
+        run_pass(self.gcx, module, &crate::pass::LOWER_MAPPING_SLOTS_PASS);
         // Progressive lowering: materialize ABI wrappers, the dispatcher, and
         // tail-call edges as MIR. Each pass bails without advancing the phase
         // when the module is outside its scope, in which case runtime
         // generation falls back to the backend dispatcher.
-        if self.mir_dispatch {
-            run_pass(module, &crate::pass::LOWER_ABI_PASS, options);
-            run_pass(module, &crate::pass::LOWER_DISPATCH_PASS, options);
-            run_pass(module, &crate::pass::LOWER_EVM_SHAPED_PASS, options);
+        if !self.gcx.sess.opts.unstable.no_mir_dispatch {
+            run_pass(self.gcx, module, &crate::pass::LOWER_ABI_PASS);
+            run_pass(self.gcx, module, &crate::pass::LOWER_DISPATCH_PASS);
+            run_pass(self.gcx, module, &crate::pass::LOWER_EVM_SHAPED_PASS);
         }
     }
 
@@ -1076,7 +1018,7 @@ impl EvmCodegen {
         self.asm.clear();
         self.block_labels.clear();
         self.function_labels.clear();
-        self.cold_functions = if matches!(self.optimization, OptimizationMode::None) {
+        self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             DenseBitSet::new_empty(module.functions.len())
         } else {
             Self::collect_cold_functions(module)
@@ -1105,7 +1047,7 @@ impl EvmCodegen {
             }
         }
 
-        let result = self.asm.assemble();
+        let result = self.asm.assemble_with_evm_ir(self.capture_evm_ir);
         self.runtime_immutable_refs = result.immutable_refs;
         GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir }
     }
@@ -1129,7 +1071,7 @@ impl EvmCodegen {
         };
 
         let call_graph = CallGraphInfo::new(module);
-        let internal_targets = call_graph.reachable_bodies_from(
+        let internal_targets = call_graph.reachable_callees_from(
             module.functions.iter_enumerated().filter_map(|(func_id, func)| {
                 (func_id == entry_id || Self::is_external_entry(func)).then_some(func_id)
             }),
@@ -1143,7 +1085,7 @@ impl EvmCodegen {
             // Non-recursive internal functions get compile-time-fixed frames.
             if func_id != entry_id
                 && !Self::is_external_entry(func)
-                && Self::has_body(func)
+                && Self::is_runtime_function(func)
                 && !call_graph.is_recursive(func_id)
             {
                 self.static_frame_functions.insert(func_id);
@@ -1157,7 +1099,7 @@ impl EvmCodegen {
                 continue;
             }
             let needs_body = Self::is_external_entry(func)
-                || (Self::has_body(func) && internal_targets.contains(func_id));
+                || (Self::is_runtime_function(func) && internal_targets.contains(func_id));
             if needs_body {
                 let label = self.new_function_label(func_id);
                 self.function_labels.insert(func_id, label);
@@ -1190,7 +1132,10 @@ impl EvmCodegen {
 
         // Internal-call targets, exactly as in the backend dispatcher path.
         for (func_id, func) in module.functions.iter_enumerated() {
-            if func_id == entry_id || Self::is_external_entry(func) || !Self::has_body(func) {
+            if func_id == entry_id
+                || Self::is_external_entry(func)
+                || !Self::is_runtime_function(func)
+            {
                 continue;
             }
             let Some(&label) = self.function_labels.get(&func_id) else { continue };
@@ -1222,15 +1167,17 @@ impl EvmCodegen {
     ///     else: revert
     /// ```
     fn generate_dispatcher(&mut self, module: &Module) {
-        // Find executable receive and fallback functions. Interface/abstract declarations can
-        // have ABI entries but no MIR body, so they must not participate in runtime dispatch.
-        let receive_idx =
-            module.functions.iter().position(|f| f.attributes.is_receive && Self::has_body(f));
-        let fallback_idx =
-            module.functions.iter().position(|f| f.attributes.is_fallback && Self::has_body(f));
+        let receive_idx = module
+            .functions
+            .iter_enumerated()
+            .find_map(|(func_id, func)| func.attributes.is_receive.then_some(func_id));
+        let fallback_idx = module
+            .functions
+            .iter_enumerated()
+            .find_map(|(func_id, func)| func.attributes.is_fallback.then_some(func_id));
 
         let call_graph = CallGraphInfo::new(module);
-        let internal_targets = call_graph.reachable_bodies_from(
+        let internal_targets = call_graph.reachable_callees_from(
             module
                 .functions
                 .iter_enumerated()
@@ -1244,7 +1191,7 @@ impl EvmCodegen {
             }
             // Non-recursive internal functions get compile-time-fixed frames.
             if !Self::is_external_entry(func)
-                && Self::has_body(func)
+                && Self::is_runtime_function(func)
                 && !call_graph.is_recursive(func_id)
             {
                 self.static_frame_functions.insert(func_id);
@@ -1253,16 +1200,14 @@ impl EvmCodegen {
         self.compute_stack_arg_masks(module);
 
         // Create labels for externally reachable runtime entry points and internal-call targets.
-        let mut func_labels: Vec<Option<Label>> = Vec::new();
         for (func_id, func) in module.functions.iter_enumerated() {
             let external = Self::is_external_entry(func);
             let needs_body =
-                external || (Self::has_body(func) && internal_targets.contains(func_id));
+                external || (Self::is_runtime_function(func) && internal_targets.contains(func_id));
             let label = needs_body.then(|| self.new_function_label(func_id));
             if let Some(label) = label {
                 self.function_labels.insert(func_id, label);
             }
-            func_labels.push(label);
         }
         let revert_label = self.asm.new_label();
         self.asm.mark_label_cold(revert_label);
@@ -1294,10 +1239,10 @@ impl EvmCodegen {
             self.asm.emit_push_label(has_calldata_label);
             self.asm.emit_op(op::JUMPI);
             if let Some(recv_idx) = receive_idx {
-                self.asm.emit_push_label(func_labels[recv_idx].expect("receive label missing"));
+                self.asm.emit_push_label(self.function_labels[&recv_idx]);
                 self.asm.emit_op(op::JUMP);
             } else if let Some(fb_idx) = fallback_idx {
-                self.asm.emit_push_label(func_labels[fb_idx].expect("fallback label missing"));
+                self.asm.emit_push_label(self.function_labels[&fb_idx]);
                 self.asm.emit_op(op::JUMP);
             }
         } else {
@@ -1318,23 +1263,21 @@ impl EvmCodegen {
 
         let mut selectors: Vec<_> = module
             .functions
-            .iter()
-            .enumerate()
-            .filter_map(|(i, func)| {
+            .iter_enumerated()
+            .filter_map(|(func_id, func)| {
                 if !Self::is_external_entry(func) {
                     return None;
                 }
                 let selector = func.selector?;
                 Some(SelectorDispatchEntry {
                     selector: u32::from_be_bytes(selector),
-                    label: func_labels[i].expect("selector label missing"),
+                    label: self.function_labels[&func_id],
                 })
             })
             .collect();
         selectors.sort_by_key(|entry| entry.selector);
 
-        let fallback_label =
-            fallback_idx.map(|idx| func_labels[idx].expect("fallback label missing"));
+        let fallback_label = fallback_idx.map(|idx| self.function_labels[&idx]);
         self.emit_selector_dispatch(&selectors, fallback_label, revert_label);
 
         // Define external function entry points.
@@ -1342,7 +1285,7 @@ impl EvmCodegen {
             if !Self::is_external_entry(func) {
                 continue;
             }
-            let Some(label) = func_labels[func_id.index()] else { continue };
+            let Some(&label) = self.function_labels.get(&func_id) else { continue };
             self.asm.define_label(label);
 
             // The dispatcher's shr'd selector is still on the physical stack
@@ -1367,10 +1310,10 @@ impl EvmCodegen {
         // Define internal-call targets once. Calls jump here and return
         // through the stack-passed return address.
         for (func_id, func) in module.functions.iter_enumerated() {
-            if Self::is_external_entry(func) || !Self::has_body(func) {
+            if Self::is_external_entry(func) || !Self::is_runtime_function(func) {
                 continue;
             }
-            let Some(label) = func_labels[func_id.index()] else { continue };
+            let Some(&label) = self.function_labels.get(&func_id) else { continue };
             self.asm.define_label(label);
             self.emit_stack_arg_prologue(func_id, func);
             self.in_internal_function = true;
@@ -1414,14 +1357,14 @@ impl EvmCodegen {
     }
 
     fn is_external_entry(func: &Function) -> bool {
-        Self::has_body(func)
+        Self::is_runtime_function(func)
             && (func.selector.is_some()
                 || func.attributes.is_receive
                 || func.attributes.is_fallback)
     }
 
-    fn has_body(func: &Function) -> bool {
-        !func.attributes.is_constructor && !func.blocks.is_empty()
+    fn is_runtime_function(func: &Function) -> bool {
+        !func.attributes.is_constructor
     }
 
     fn emit_selector_dispatch(
@@ -1586,9 +1529,7 @@ impl EvmCodegen {
             preserved_fallthrough = None;
 
             let label = self.block_labels[&block_id];
-            if !entered_by_preserved_fallthrough
-                && (block_id != func.entry_block || !block.predecessors.is_empty())
-            {
+            if !entered_by_preserved_fallthrough && !block.predecessors.is_empty() {
                 self.asm.define_label(label);
             }
 
@@ -1819,11 +1760,11 @@ impl EvmCodegen {
         loop {
             let mut changed = false;
             for (function_id, func) in module.functions.iter_enumerated() {
-                if cold.contains(function_id) || func.blocks.is_empty() {
+                if cold.contains(function_id) {
                     continue;
                 }
                 worklist.clear();
-                worklist.push(func.entry_block);
+                worklist.push(BlockId::ENTRY);
                 visited.clear();
                 let mut saw_exit = false;
                 let mut all_exits_cold = true;
@@ -1885,7 +1826,7 @@ impl EvmCodegen {
                 worklist.push(block_id);
             }
         }
-        if matches!(self.optimization, OptimizationMode::None) {
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             return cold;
         }
 
@@ -1948,7 +1889,7 @@ impl EvmCodegen {
         let mut order = Vec::with_capacity(func.blocks.len());
         let mut placed = DenseBitSet::new_empty(func.blocks.len());
 
-        self.append_layout_chain(func, func.entry_block, reachable, &mut placed, &mut order);
+        self.append_layout_chain(func, BlockId::ENTRY, reachable, &mut placed, &mut order);
         for block_id in func.blocks.indices() {
             if reachable.contains(block_id) {
                 self.append_layout_chain(func, block_id, reachable, &mut placed, &mut order);
@@ -1979,7 +1920,7 @@ impl EvmCodegen {
                     *target
                 }
                 Some(Terminator::Branch { then_block, else_block, .. })
-                    if !matches!(self.optimization, OptimizationMode::None) =>
+                    if !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) =>
                 {
                     match (self.block_is_cold(*then_block), self.block_is_cold(*else_block)) {
                         (true, false) => *else_block,
@@ -5018,12 +4959,6 @@ impl EvmCodegen {
     }
 }
 
-impl Default for EvmCodegen {
-    fn default() -> Self {
-        Self::new(EvmCodegenConfig::default())
-    }
-}
-
 /// The artifact produced by the EVM backend.
 #[derive(Clone, Debug, Default)]
 pub struct EvmArtifact {
@@ -5037,7 +4972,7 @@ pub struct EvmArtifact {
     pub runtime_evm_ir: Option<ir::Module>,
 }
 
-impl crate::backend::Backend for EvmCodegen {
+impl crate::backend::Backend for EvmCodegen<'_> {
     type Output = EvmArtifact;
 
     fn lower_module(&mut self, module: &mut Module) -> EvmArtifact {
@@ -5055,41 +4990,45 @@ mod tests {
     use solar_sema::{Compiler, hir::Visibility};
     use std::{ops::ControlFlow, path::PathBuf};
 
+    fn with_codegen<T: Send>(opts: CompileOpts, f: impl FnOnce(EvmCodegen<'_>) -> T + Send) -> T {
+        let compiler = Compiler::new(Session::builder().opts(opts).build());
+        compiler.enter(|c| f(EvmCodegen::new(c.gcx())))
+    }
+
     #[test]
     fn constructor_success_jumps_to_deployment_postlude() {
-        let mut module = Module::new(Ident::with_dummy_span(sym::Test));
-        let mut constructor = Function::new(Ident::with_dummy_span(kw::Constructor));
-        constructor.attributes.is_constructor = true;
-        {
-            let mut builder = FunctionBuilder::new(&mut constructor);
-            let condition = builder.imm_u64(1);
-            let revert = builder.create_block();
-            let success = builder.create_block();
-            builder.branch(condition, revert, success);
+        with_codegen(CompileOpts::default(), |mut codegen| {
+            let mut module = Module::new(Ident::with_dummy_span(sym::Test));
+            let mut constructor = Function::new(Ident::with_dummy_span(kw::Constructor));
+            constructor.attributes.is_constructor = true;
+            {
+                let mut builder = FunctionBuilder::new(&mut constructor);
+                let condition = builder.imm_u64(1);
+                let revert = builder.create_block();
+                let success = builder.create_block();
+                builder.branch(condition, revert, success);
 
-            builder.switch_to_block(revert);
-            let zero = builder.imm_u64(0);
-            builder.revert(zero, zero);
+                builder.switch_to_block(revert);
+                let zero = builder.imm_u64(0);
+                builder.revert(zero, zero);
 
-            builder.switch_to_block(success);
-            builder.stop();
-        }
-        module.add_function(constructor);
-
-        let mut codegen = EvmCodegen::new(EvmCodegenConfig::default());
-        let prepared = codegen.prepare_deployment_prefix(&module, 0, 0, &[]);
-        let mut deploy_code_len = 0;
-        let deployment = loop {
-            let code = codegen.assemble_deployment_prefix(&prepared, 0, deploy_code_len);
-            if code.bytecode.len() == deploy_code_len {
-                break code;
+                builder.switch_to_block(success);
+                builder.stop();
             }
-            deploy_code_len = code.bytecode.len();
-        };
+            module.add_function(constructor);
+            let prepared = codegen.prepare_deployment_prefix(&module, 0, 0, &[]);
+            let mut deploy_code_len = 0;
+            let deployment = loop {
+                let code = codegen.assemble_deployment_prefix(&prepared, 0, deploy_code_len);
+                if code.bytecode.len() == deploy_code_len {
+                    break code;
+                }
+                deploy_code_len = code.bytecode.len();
+            };
 
-        assert_data_eq!(
-            disassemble(&deployment.bytecode),
-            snapbox::str![[r#"
+            assert_data_eq!(
+                disassemble(&deployment.bytecode),
+                snapbox::str![[r#"
 PUSH2 0x4000
 PUSH1 0x40
 MSTORE
@@ -5109,83 +5048,92 @@ DUP1
 REVERT
 
 "#]]
-        );
+            );
+        });
     }
 
     #[test]
     fn empty_external_return_falls_off_end() {
-        let mut function = Function::new(Ident::with_dummy_span(sym::Test));
-        function.attributes.visibility = Visibility::External;
-        FunctionBuilder::new(&mut function).ret(Vec::new());
+        with_codegen(CompileOpts::default(), |mut codegen| {
+            let mut function = Function::new(Ident::with_dummy_span(sym::Test));
+            function.attributes.visibility = Visibility::External;
+            FunctionBuilder::new(&mut function).ret(Vec::new());
+            codegen.generate_function_body(&function);
 
-        let mut codegen = EvmCodegen::new(EvmCodegenConfig::default());
-        codegen.generate_function_body(&function);
-
-        assert!(codegen.asm.assemble().bytecode.is_empty());
+            assert!(codegen.asm.assemble().bytecode.is_empty());
+        });
     }
 
     #[test]
     fn cold_forwarder_selects_hot_fallthrough() {
-        let mut module = Module::new(Ident::with_dummy_span(sym::Test));
+        let (module, caller_id, entry, cold_forwarder, cold_block, hot_block) =
+            with_codegen(CompileOpts::default(), |mut codegen| {
+                let mut module = Module::new(Ident::with_dummy_span(sym::Test));
 
-        let mut cold_func = Function::new(Ident::with_dummy_span(sym::__revert_error));
-        {
-            let mut builder = FunctionBuilder::new(&mut cold_func);
-            let zero = builder.imm_u64(0);
-            builder.revert(zero, zero);
-        }
-        let cold_func = module.add_function(cold_func);
+                let mut cold_func = Function::new(Ident::with_dummy_span(sym::__revert_error));
+                {
+                    let mut builder = FunctionBuilder::new(&mut cold_func);
+                    let zero = builder.imm_u64(0);
+                    builder.revert(zero, zero);
+                }
+                let cold_func = module.add_function(cold_func);
 
-        let mut cold_wrapper = Function::new(Ident::with_dummy_span(sym::Test));
-        {
-            let mut builder = FunctionBuilder::new(&mut cold_wrapper);
-            builder.internal_call_void(cold_func, Vec::new(), 0);
-            builder.ret(Vec::new());
-        }
-        let cold_wrapper = module.add_function(cold_wrapper);
+                let mut cold_wrapper = Function::new(Ident::with_dummy_span(sym::Test));
+                {
+                    let mut builder = FunctionBuilder::new(&mut cold_wrapper);
+                    builder.internal_call_void(cold_func, Vec::new(), 0);
+                    builder.ret(Vec::new());
+                }
+                let cold_wrapper = module.add_function(cold_wrapper);
 
-        let mut caller = Function::new(Ident::with_dummy_span(sym::Test));
-        let entry = caller.entry_block;
-        let (cold_forwarder, cold_block, hot_block);
-        {
-            let mut builder = FunctionBuilder::new(&mut caller);
-            let condition = builder.add_param(MirType::Bool);
-            cold_forwarder = builder.create_block();
-            cold_block = builder.create_block();
-            hot_block = builder.create_block();
-            builder.branch(condition, cold_forwarder, hot_block);
+                let mut caller = Function::new(Ident::with_dummy_span(sym::Test));
+                let entry = BlockId::ENTRY;
+                let (cold_forwarder, cold_block, hot_block);
+                {
+                    let mut builder = FunctionBuilder::new(&mut caller);
+                    let condition = builder.add_param(MirType::Bool);
+                    cold_forwarder = builder.create_block();
+                    cold_block = builder.create_block();
+                    hot_block = builder.create_block();
+                    builder.branch(condition, cold_forwarder, hot_block);
 
-            builder.switch_to_block(cold_forwarder);
-            builder.jump(cold_block);
+                    builder.switch_to_block(cold_forwarder);
+                    builder.jump(cold_block);
 
-            builder.switch_to_block(cold_block);
-            builder.tail_call(cold_wrapper, Vec::new());
+                    builder.switch_to_block(cold_block);
+                    builder.tail_call(cold_wrapper, Vec::new());
 
-            builder.switch_to_block(hot_block);
-            builder.ret(Vec::new());
-        }
-        let caller = module.add_function(caller);
+                    builder.switch_to_block(hot_block);
+                    builder.ret(Vec::new());
+                }
+                let caller_id = module.add_function(caller);
+                codegen.cold_functions = EvmCodegen::collect_cold_functions(&module);
+                let caller = &module.functions[caller_id];
+                codegen.cold_blocks = codegen.collect_cold_blocks(caller);
 
-        let mut codegen = EvmCodegen::new(EvmCodegenConfig::default());
-        codegen.cold_functions = EvmCodegen::collect_cold_functions(&module);
-        let caller = &module.functions[caller];
-        codegen.cold_blocks = codegen.collect_cold_blocks(caller);
+                assert!(codegen.cold_functions.contains(cold_func));
+                assert!(codegen.cold_functions.contains(cold_wrapper));
+                assert!(codegen.block_aborts(caller, cold_block));
+                assert!(!codegen.block_aborts(caller, cold_forwarder));
+                assert!(codegen.block_is_cold(cold_forwarder));
+                assert_eq!(
+                    codegen.block_layout_order(caller),
+                    [entry, hot_block, cold_forwarder, cold_block]
+                );
 
-        assert!(codegen.cold_functions.contains(cold_func));
-        assert!(codegen.cold_functions.contains(cold_wrapper));
-        assert!(codegen.block_aborts(caller, cold_block));
-        assert!(!codegen.block_aborts(caller, cold_forwarder));
-        assert!(codegen.block_is_cold(cold_forwarder));
-        assert_eq!(
-            codegen.block_layout_order(caller),
-            [entry, hot_block, cold_forwarder, cold_block]
-        );
+                (module, caller_id, entry, cold_forwarder, cold_block, hot_block)
+            });
 
-        codegen.optimization = OptimizationMode::None;
-        assert_eq!(
-            codegen.block_layout_order(caller),
-            [entry, cold_forwarder, cold_block, hot_block]
-        );
+        let opts = CompileOpts { optimization: OptimizationMode::None, ..Default::default() };
+        with_codegen(opts, |mut codegen| {
+            codegen.cold_functions = EvmCodegen::collect_cold_functions(&module);
+            let caller = &module.functions[caller_id];
+            codegen.cold_blocks = codegen.collect_cold_blocks(caller);
+            assert_eq!(
+                codegen.block_layout_order(caller),
+                [entry, cold_forwarder, cold_block, hot_block]
+            );
+        });
     }
 
     /// Helper to compile Solidity source to bytecode, returning Result.
@@ -5226,7 +5174,7 @@ REVERT
             for (contract_id, contract) in gcx.hir.contracts_enumerated() {
                 if contract.name.name == sym::Test {
                     let mut module = lower::lower_contract(gcx, contract_id);
-                    let mut codegen = EvmCodegen::new(EvmCodegenConfig::from(gcx));
+                    let mut codegen = EvmCodegen::new(gcx);
                     let bytecode = codegen.generate_deployment_artifact(&mut module).runtime;
                     return Ok(bytecode);
                 }

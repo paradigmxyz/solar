@@ -363,9 +363,13 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub print_natspec: bool,
 
-    /// Print MIR after every MIR optimization pass during codegen.
+    /// Print MIR or EVM IR after every optimization pass.
     #[cfg_attr(feature = "clap", arg(long))]
-    pub mir_print_after_each: bool,
+    pub print_after_each: bool,
+
+    /// Print a before-and-after diff for each pass explicitly selected by `mir-opt` or `evm-opt`.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub pass_diff: bool,
 
     /// Print the time spent in each MIR and EVM IR pass.
     #[cfg_attr(feature = "clap", arg(long))]

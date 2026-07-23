@@ -1,77 +1,83 @@
-// === ROOT/tests/ui/codegen/mir/licm/licm_zero_trip.mir (after licm) ===
-@module LicmZeroTrip
-fn @keep_sload_zero_trip() -> u256 {
-  bb0 (entry):
-    v0 = calldatasize
-    jump bb1
-  bb1:
-    v1 = phi [bb0: 0], [bb2: v4]
-    v2 = lt v1, v0
-    br v2, bb2, bb3
-  bb2:
-    v3 = sload 5 !metadata(storage=slot(5))
-    v4 = add v1, 1
-    jump bb1
-  bb3:
-    ret v3
-}
-
-fn @keep_mload_zero_trip() -> u256 {
-  bb0 (entry):
-    v0 = calldatasize
-    jump bb1
-  bb1:
-    v1 = phi [bb0: 0], [bb2: v4]
-    v2 = lt v1, v0
-    br v2, bb2, bb3
-  bb2:
-    v3 = mload 0x1000000
-    v4 = add v1, 1
-    jump bb1
-  bb3:
-    ret v3
-}
-
-fn @hoist_sload_known_trip() -> u256 {
-  bb0 (entry):
-    v2 = sload 5 !metadata(storage=slot(5))
-    jump bb1
-  bb1:
-    v0 = phi [bb0: 0], [bb2: v3]
-    v1 = lt v0, 10
-    br v1, bb2, bb3
-  bb2:
-    v3 = add v0, 1
-    jump bb1
-  bb3:
-    ret v2
-}
-
-fn @hoist_mload_dominates_exits() -> u256 {
-  bb0 (entry):
-    v0 = mload 64
-    v1 = calldataload 0
-    jump bb1
-  bb1:
-    v2 = lt v0, v1
-    br v2, bb1, bb2
-  bb2:
-    ret v0
-}
-
-fn @keep_mload_msize_in_function() -> u256 {
-  bb0 (entry):
-    jump bb1
-  bb1:
-    v0 = phi [bb0: 0], [bb2: v3]
-    v1 = lt v0, 10
-    br v1, bb2, bb3
-  bb2:
-    v2 = mload 64
-    v3 = add v0, 1
-    jump bb1
-  bb3:
-    v4 = msize
-    v5 = add v2, v4
-    ret v5
-}
+- // === ROOT/tests/ui/codegen/mir/licm/licm_zero_trip.mir (before licm) ===
++ // === ROOT/tests/ui/codegen/mir/licm/licm_zero_trip.mir (after licm) ===
+  @module LicmZeroTrip
+  fn @keep_sload_zero_trip() -> u256 {
+    bb0:
+      v0 = calldatasize
+      jump bb1
+    bb1:
+      v1 = phi [bb0: 0], [bb2: v4]
+      v2 = lt v1, v0
+      br v2, bb2, bb3
+    bb2:
+-     v3 = sload 5
++     v3 = sload 5 !metadata(storage=slot(5))
+      v4 = add v1, 1
+      jump bb1
+    bb3:
+      ret v3
+  }
+  
+  fn @keep_mload_zero_trip() -> u256 {
+    bb0:
+      v0 = calldatasize
+      jump bb1
+    bb1:
+      v1 = phi [bb0: 0], [bb2: v4]
+      v2 = lt v1, v0
+      br v2, bb2, bb3
+    bb2:
+      v3 = mload 0x1000000
+      v4 = add v1, 1
+      jump bb1
+    bb3:
+      ret v3
+  }
+  
+  fn @hoist_sload_known_trip() -> u256 {
+    bb0:
++     v2 = sload 5 !metadata(storage=slot(5))
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v3]
+      v1 = lt v0, 10
+      br v1, bb2, bb3
+    bb2:
+-     v2 = sload 5
+      v3 = add v0, 1
+      jump bb1
+    bb3:
+      ret v2
+  }
+  
+  fn @hoist_mload_dominates_exits() -> u256 {
+    bb0:
+-     jump bb1
+-   bb1:
+      v0 = mload 64
+      v1 = calldataload 0
++     jump bb1
++   bb1:
+      v2 = lt v0, v1
+      br v2, bb1, bb2
+    bb2:
+      ret v0
+  }
+  
+  fn @keep_mload_msize_in_function() -> u256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v3]
+      v1 = lt v0, 10
+      br v1, bb2, bb3
+    bb2:
+      v2 = mload 64
+      v3 = add v0, 1
+      jump bb1
+    bb3:
+      v4 = msize
+      v5 = add v2, v4
+      ret v5
+  }
+  

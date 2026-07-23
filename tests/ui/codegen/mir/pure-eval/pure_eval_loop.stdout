@@ -1,18 +1,26 @@
-// === ROOT/tests/ui/codegen/mir/pure-eval/pure_eval_loop.mir (after pure-eval) ===
-@module PureEvalLoop
-fn @bounded_loop() -> u256 {
-  bb0 (entry):
-    ret 3
-  bb1:
-    invalid
-  bb2:
-    invalid
-  bb3:
-    invalid
-}
-
-fn @with_arg(arg0: u256) -> u256 {
-  bb0 (entry):
-    v0 = add arg0, 1
-    ret v0
-}
+- // === ROOT/tests/ui/codegen/mir/pure-eval/pure_eval_loop.mir (before pure-eval) ===
++ // === ROOT/tests/ui/codegen/mir/pure-eval/pure_eval_loop.mir (after pure-eval) ===
+  @module PureEvalLoop
+  fn @bounded_loop() -> u256 {
+    bb0:
+-     jump bb1
++     ret 3
+    bb1:
+-     v0 = phi [bb0: 0], [bb2: 3]
+-     v1 = lt v0, 3
+-     br v1, bb2, bb3
++     invalid
+    bb2:
+-     jump bb1
++     invalid
+    bb3:
+-     ret v0
++     invalid
+  }
+  
+  fn @with_arg(arg0: u256) -> u256 {
+    bb0:
+      v0 = add arg0, 1
+      ret v0
+  }
+  

@@ -1,11 +1,11 @@
 use crate::{
     config::{Config, negotiate_capabilities},
+    project_fixture::{FixtureMarker, ProjectFixture},
     vfs::{Vfs, VfsPath},
 };
 use crop::Rope;
-use lsp_types::{InitializeParams, Position, Url, WorkspaceFolder};
+use lsp_types::{InitializeParams, Url, WorkspaceFolder};
 use std::{
-    collections::BTreeMap,
     fs,
     io::Read,
     path::{Path, PathBuf},
@@ -30,13 +30,7 @@ pub(crate) struct TestProject {
 
 pub(crate) struct MarkedProject {
     project: TestProject,
-    markers: BTreeMap<String, Vec<Marker>>,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct Marker {
-    path: String,
-    position: Position,
+    fixture: ProjectFixture,
 }
 
 impl TestProject {
@@ -45,11 +39,15 @@ impl TestProject {
     }
 
     pub(crate) fn from_fixture(fixture: &str) -> Self {
+        Self::from_project_fixture(&ProjectFixture::parse_without_markers(fixture))
+    }
+
+    fn from_project_fixture(fixture: &ProjectFixture) -> Self {
         let mut project = Self::new();
-        for file in parse_fixture(fixture) {
-            project.write_file(&file.path, &file.text);
-            if file.open {
-                project.open_file(&file.path, &file.text);
+        for file in fixture.files() {
+            project.write_file(file.path(), file.text());
+            if file.is_open() {
+                project.open_file(file.path(), file.text());
             }
         }
         project
@@ -146,19 +144,9 @@ impl TestProject {
 
 impl MarkedProject {
     pub(crate) fn from_fixture(fixture: &str) -> Self {
-        let mut project = TestProject::new();
-        let mut markers = BTreeMap::<String, Vec<Marker>>::new();
-        for mut file in parse_fixture(fixture) {
-            let file_markers = strip_markers(&mut file.text);
-            for (name, position) in file_markers {
-                markers.entry(name).or_default().push(Marker { path: file.path.clone(), position });
-            }
-            project.write_file(&file.path, &file.text);
-            if file.open {
-                project.open_file(&file.path, &file.text);
-            }
-        }
-        Self { project, markers }
+        let fixture = ProjectFixture::parse(fixture);
+        let project = TestProject::from_project_fixture(&fixture);
+        Self { project, fixture }
     }
 
     pub(crate) fn project(&self) -> &TestProject {
@@ -169,135 +157,7 @@ impl MarkedProject {
         &mut self.project
     }
 
-    pub(crate) fn marker(&self, name: &str) -> Marker {
-        let name = normalize_marker_name(name);
-        let markers = self.markers.get(name).unwrap_or_else(|| panic!("missing marker `${name}`"));
-        assert_eq!(markers.len(), 1, "marker `${name}` is ambiguous: {markers:?}");
-        markers[0].clone()
+    pub(crate) fn marker(&self, name: &str) -> &FixtureMarker {
+        self.fixture.marker(name)
     }
-}
-
-impl Marker {
-    pub(crate) fn path(&self) -> &str {
-        &self.path
-    }
-
-    pub(crate) fn position(&self) -> Position {
-        self.position
-    }
-}
-
-struct FixtureFile {
-    path: String,
-    text: String,
-    open: bool,
-}
-
-fn parse_fixture(fixture: &str) -> Vec<FixtureFile> {
-    let fixture = trim_indent(fixture);
-    let mut files = Vec::new();
-    let mut current = Option::<FixtureFile>::None;
-
-    for line in fixture.split_inclusive('\n') {
-        let marker_line = line.trim_end_matches(['\r', '\n']).trim_start();
-        if let Some(meta) = marker_line.strip_prefix("//-") {
-            if let Some(file) = current.take() {
-                files.push(finish_file(file));
-            }
-            current = Some(parse_meta(meta.trim()));
-        } else if let Some(file) = &mut current {
-            file.text.push_str(line);
-        } else if !line.trim().is_empty() {
-            panic!("fixture contents before first file marker: {line:?}");
-        }
-    }
-
-    if let Some(file) = current {
-        files.push(finish_file(file));
-    }
-    files
-}
-
-fn finish_file(mut file: FixtureFile) -> FixtureFile {
-    if file.text.ends_with('\n') {
-        file.text.pop();
-        if file.text.ends_with('\r') {
-            file.text.pop();
-        }
-    }
-    file
-}
-
-fn parse_meta(meta: &str) -> FixtureFile {
-    let mut parts = meta.split_whitespace();
-    let path = parts.next().expect("fixture marker must contain a path").to_string();
-    assert!(path.starts_with('/'), "fixture path must start with `/`: {path}");
-
-    let mut open = false;
-    for part in parts {
-        match part {
-            "open" => open = true,
-            other => panic!("unknown fixture option `{other}`"),
-        }
-    }
-
-    FixtureFile { path, text: String::new(), open }
-}
-
-fn strip_markers(text: &mut String) -> Vec<(String, Position)> {
-    let mut stripped = String::with_capacity(text.len());
-    let mut markers = Vec::new();
-    let mut chars = text.chars().peekable();
-    let mut line = 0;
-    let mut character = 0;
-
-    while let Some(ch) = chars.next() {
-        if ch == '$' && chars.peek().is_some_and(|next| next.is_ascii_digit()) {
-            let mut name = String::new();
-            while let Some(next) = chars.peek() {
-                if next.is_ascii_digit() {
-                    name.push(chars.next().unwrap());
-                } else {
-                    break;
-                }
-            }
-            markers.push((name, Position { line, character }));
-            continue;
-        }
-
-        stripped.push(ch);
-        if ch == '\n' {
-            line += 1;
-            character = 0;
-        } else {
-            character += ch.len_utf16() as u32;
-        }
-    }
-
-    *text = stripped;
-    markers
-}
-
-fn normalize_marker_name(name: &str) -> &str {
-    name.strip_prefix('$').unwrap_or(name)
-}
-
-fn trim_indent(text: &str) -> String {
-    let text = text.trim_matches('\n');
-    let indent = text
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .map(|line| line.len() - line.trim_start().len())
-        .min()
-        .unwrap_or(0);
-
-    let mut trimmed = String::new();
-    for line in text.split_inclusive('\n') {
-        if line.trim().is_empty() {
-            trimmed.push_str(line.trim_start());
-        } else {
-            trimmed.push_str(line.get(indent..).unwrap_or(line));
-        }
-    }
-    trimmed
 }

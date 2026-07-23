@@ -8,7 +8,7 @@
 //! - `stack`: MIR-to-EVM stack scheduling for DUP/SWAP generation
 
 mod codegen;
-pub use codegen::{EvmArtifact, EvmCodegen, EvmCodegenConfig};
+pub use codegen::{EvmArtifact, EvmCodegen};
 
 pub mod ir;
 

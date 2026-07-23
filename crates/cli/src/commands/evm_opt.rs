@@ -2,12 +2,15 @@
 //! resulting EVM IR.
 //!
 //! This is the backend-IR equivalent of `solar mir-opt`. It currently accepts
-//! EVM IR files (`.evmir`) and prints the canonical parser/printer output.
+//! EVM IR files (`.evmir`) and prints the canonical parser/printer output. With
+//! `-Zpass-diff`, it instead prints a line-oriented before-and-after diff for
+//! each pass.
 
+use super::print_pass_diff;
 use clap::ValueHint;
 use solar_codegen::backend::evm::ir;
 use solar_config::CompileOpts;
-use solar_interface::Session;
+use solar_sema::Gcx;
 use std::{path::Path, process::ExitCode};
 
 #[derive(clap::Args)]
@@ -23,9 +26,6 @@ pub(crate) struct EvmOptArgs {
         default_value = "none"
     )]
     passes: Vec<Option<&'static ir::PassInfo>>,
-    /// If true, print EVM IR after every pass; otherwise only after the last.
-    #[arg(long)]
-    print_after_each: bool,
     /// Path to input file. Extension determines whether it's .evmir.
     #[arg(value_hint = ValueHint::FilePath)]
     input: String,
@@ -69,30 +69,34 @@ fn print_module(module: &ir::Module, name: &str, after: &str) {
     print!("{}", module.to_text());
 }
 
-fn run_pipeline(sess: &Session, module: &mut ir::Module, name: &str, args: &EvmOptArgs) {
+fn run_pipeline(gcx: Gcx<'_>, module: &mut ir::Module, name: &str, args: &EvmOptArgs) {
+    let sess = gcx.sess;
     let dcx = &sess.dcx;
-    let options = ir::PassOptions {
-        time_passes: sess.opts.unstable.time_passes,
-        evm_version: sess.opts.evm_version,
-        optimization: sess.opts.optimization,
-    };
+    let print_after_each = sess.opts.unstable.print_after_each;
     let pipeline_label = selected_pass_list_label(&args.passes, ",");
     for (index, &pass) in args.passes.iter().enumerate() {
+        let before = sess.opts.unstable.pass_diff.then(|| module.to_text().to_string());
         if let Some(pass) = pass {
-            ir::run_pass(module, pass, options);
+            ir::run_pass(gcx, module, pass);
         }
-        if args.print_after_each || index + 1 == args.passes.len() {
+        if before.is_some() || print_after_each || index + 1 == args.passes.len() {
             ir::validate(dcx, module);
             if dcx.has_errors().is_err() {
                 break;
             }
-            let label = if args.print_after_each { pass_label(pass) } else { &pipeline_label };
-            print_module(module, name, label);
+            if let Some(before) = before {
+                let after = module.to_text().to_string();
+                print_pass_diff(name, pass_label(pass), &before, &after);
+            } else {
+                let label = if print_after_each { pass_label(pass) } else { &pipeline_label };
+                print_module(module, name, label);
+            }
         }
     }
 }
 
-fn process_evmir(sess: &Session, args: &EvmOptArgs) -> solar_interface::Result {
+fn process_evmir(gcx: Gcx<'_>, args: &EvmOptArgs) -> solar_interface::Result {
+    let sess = gcx.sess;
     let source = sess
         .source_map()
         .load_file(Path::new(&args.input))
@@ -100,7 +104,7 @@ fn process_evmir(sess: &Session, args: &EvmOptArgs) -> solar_interface::Result {
     let mut module = ir::Module::parse(sess, &source)?;
     ir::validate(&sess.dcx, &module);
     if sess.dcx.has_errors().is_ok() {
-        run_pipeline(sess, &mut module, &args.input, args);
+        run_pipeline(gcx, &mut module, &args.input, args);
     }
     Ok(())
 }
@@ -108,9 +112,11 @@ fn process_evmir(sess: &Session, args: &EvmOptArgs) -> solar_interface::Result {
 pub(crate) fn run(args: EvmOptArgs, mut opts: CompileOpts) -> ExitCode {
     opts.input.push(args.input.clone());
     let ext = Path::new(&args.input).extension().and_then(|s| s.to_str()).unwrap_or("");
-    let result = super::compile::run_session_with(opts, |sess| match ext {
-        "evmir" => process_evmir(sess, &args),
-        _ => Err(sess
+    let result = super::compile::run_compiler_with(opts, |compiler| match ext {
+        "evmir" => process_evmir(compiler.gcx(), &args),
+        _ => Err(compiler
+            .gcx()
+            .sess
             .dcx
             .err(format!("unsupported input file extension `.{ext}` (expected .evmir)"))
             .emit()),

@@ -8,6 +8,7 @@
 use super::utils::is_evm_terminal;
 use crate::backend::evm::ir::{Block, BlockId, Module, PushValue, Terminator, TerminatorKind};
 use solar_data_structures::map::{FxHashMap, StdEntry};
+use solar_sema::Gcx;
 
 #[derive(Default)]
 struct RunState {
@@ -15,7 +16,7 @@ struct RunState {
     redirects: Vec<(BlockId, BlockId)>,
 }
 
-pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
+pub(super) fn run(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
 
     for block_id in module.blocks.indices() {

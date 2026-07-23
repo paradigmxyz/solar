@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/compound_assign.sol:CompoundAssign ===
 @module CompoundAssign
 fn @value() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     mstore 128, v0
@@ -9,7 +9,7 @@ fn @value() {
 }
 
 fn @add_to_value(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -31,7 +31,7 @@ fn @add_to_value(arg0: u256) {
 }
 
 fn @sub_from_value(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -53,7 +53,7 @@ fn @sub_from_value(arg0: u256) {
 }
 
 fn @mul_value(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
@@ -79,7 +79,7 @@ fn @mul_value(arg0: u256) {
 }
 
 fn @bump_post() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -96,7 +96,7 @@ fn @bump_post() {
 }
 
 fn @bump_pre() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1

@@ -4,7 +4,7 @@
 // STATICCALL cannot write storage, even reentrantly: the sload stays invariant
 // and is hoisted out of this view-heavy loop.
 fn @hoist_sload_with_staticcall() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v9]
@@ -21,7 +21,7 @@ fn @hoist_sload_with_staticcall() -> u256 {
 
 // Transient storage is equally unwritable from a static context.
 fn @hoist_tload_with_staticcall() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v9]
@@ -38,7 +38,7 @@ fn @hoist_tload_with_staticcall() -> u256 {
 
 // A plain call may write any slot; the sload must stay in the loop.
 fn @keep_sload_with_call() -> u256 {
-  bb0 (entry):
+  bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v9]

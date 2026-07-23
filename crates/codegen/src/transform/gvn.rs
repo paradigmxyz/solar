@@ -50,7 +50,7 @@ use crate::{
     },
     pass::FunctionPass,
 };
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 
 /// Hard cap on value-numbering sweeps per round.
 const MAX_VN_SWEEPS: usize = 10;
@@ -122,7 +122,7 @@ enum ExprKind {
 }
 
 struct ReplaceCtx<'a> {
-    vn: &'a [ClassId],
+    vn: &'a IndexVec<ValueId, ClassId>,
     cfg: &'a CfgInfo,
     inst_results: &'a FxHashMap<InstId, ValueId>,
     replacements: &'a mut FxHashMap<ValueId, ValueId>,
@@ -159,7 +159,7 @@ impl GlobalValueNumberer {
         // classes start with a leader. This folds phi-of-same over constants.
         let mut leaders: FxHashMap<ClassId, ValueId> = FxHashMap::default();
         for (value_id, value) in func.values.iter_enumerated() {
-            if !matches!(value, Value::Inst(_)) && vn[value_id.index()] == value_id {
+            if !matches!(value, Value::Inst(_)) && vn[value_id] == value_id {
                 leaders.insert(value_id, value_id);
             }
         }
@@ -173,7 +173,7 @@ impl GlobalValueNumberer {
             replacements: &mut replacements,
             dead: &mut dead,
         };
-        self.replace_in_block(func, func.entry_block, &mut leaders, &mut ctx);
+        self.replace_in_block(func, BlockId::ENTRY, &mut leaders, &mut ctx);
 
         if replacements.is_empty() {
             return false;
@@ -193,17 +193,17 @@ impl GlobalValueNumberer {
         func: &Function,
         rpo: &[BlockId],
         inst_results: &FxHashMap<InstId, ValueId>,
-    ) -> Option<Vec<ClassId>> {
-        let mut vn: Vec<ClassId> = func.values.indices().collect();
+    ) -> Option<IndexVec<ValueId, ClassId>> {
+        let mut vn = func.values.indices().collect::<IndexVec<ValueId, _>>();
         let mut immediate_reps: FxHashMap<Immediate, ValueId> = FxHashMap::default();
         let mut arg_reps: FxHashMap<u32, ValueId> = FxHashMap::default();
         for (value_id, value) in func.values.iter_enumerated() {
             match value {
                 Value::Immediate(imm) => {
-                    vn[value_id.index()] = *immediate_reps.entry(imm.clone()).or_insert(value_id);
+                    vn[value_id] = *immediate_reps.entry(imm.clone()).or_insert(value_id);
                 }
                 Value::Arg { index, .. } => {
-                    vn[value_id.index()] = *arg_reps.entry(*index).or_insert(value_id);
+                    vn[value_id] = *arg_reps.entry(*index).or_insert(value_id);
                 }
                 Value::Inst(_) | Value::Undef(_) | Value::Error(_) => {}
             }
@@ -222,8 +222,8 @@ impl GlobalValueNumberer {
                     else {
                         continue;
                     };
-                    if vn[result.index()] != class {
-                        vn[result.index()] = class;
+                    if vn[result] != class {
+                        vn[result] = class;
                         changed = true;
                     }
                 }
@@ -246,14 +246,14 @@ impl GlobalValueNumberer {
         kind: &InstKind,
         ty: MirType,
         result: ValueId,
-        vn: &[ClassId],
+        vn: &IndexVec<ValueId, ClassId>,
         table: &mut FxHashMap<ExprKey, ClassId>,
     ) -> Option<ClassId> {
         if let InstKind::Phi(incoming) = kind {
             let Some((&(_, first), rest)) = incoming.split_first() else { return Some(result) };
             // Phi-of-same: a phi over one class is that class.
-            if rest.iter().all(|&(_, value)| vn[value.index()] == vn[first.index()]) {
-                return Some(vn[first.index()]);
+            if rest.iter().all(|&(_, value)| vn[value] == vn[first]) {
+                return Some(vn[first]);
             }
             let Some(incoming) = Self::phi_key_incoming(incoming, vn) else { return Some(result) };
             let key = ExprKey { kind: ExprKind::Phi(block_id, incoming), ty };
@@ -267,10 +267,10 @@ impl GlobalValueNumberer {
     /// sorted by predecessor with exact duplicates removed.
     fn phi_key_incoming(
         incoming: &[(BlockId, ValueId)],
-        vn: &[ClassId],
+        vn: &IndexVec<ValueId, ClassId>,
     ) -> Option<Vec<(BlockId, ClassId)>> {
         let mut entries: Vec<(BlockId, ClassId)> =
-            incoming.iter().map(|&(pred, value)| (pred, vn[value.index()])).collect();
+            incoming.iter().map(|&(pred, value)| (pred, vn[value])).collect();
         entries.sort_by_key(|&(pred, class)| (pred.index(), class.index()));
         entries.dedup();
         // A predecessor listed with two distinct classes has no well-defined
@@ -283,8 +283,8 @@ impl GlobalValueNumberer {
 
     /// Builds the expression shape over operand classes for pure word ops.
     /// Returns `None` for every other instruction.
-    fn expr_kind(kind: &InstKind, vn: &[ClassId]) -> Option<ExprKind> {
-        let class = |value: ValueId| vn[value.index()];
+    fn expr_kind(kind: &InstKind, vn: &IndexVec<ValueId, ClassId>) -> Option<ExprKind> {
+        let class = |value: ValueId| vn[value];
         let sorted = |a: ValueId, b: ValueId| {
             let (a, b) = (class(a), class(b));
             if b.index() < a.index() { (b, a) } else { (a, b) }
@@ -371,7 +371,7 @@ impl GlobalValueNumberer {
             if !matches!(kind, InstKind::Phi(_)) && Self::expr_kind(kind, ctx.vn).is_none() {
                 continue;
             }
-            let class = ctx.vn[result.index()];
+            let class = ctx.vn[result];
             if let Some(&leader) = leaders.get(&class) {
                 if leader != result {
                     ctx.replacements.insert(result, leader);

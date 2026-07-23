@@ -5,12 +5,13 @@ use crate::backend::evm::{
     op,
 };
 use alloy_primitives::U256;
+use solar_sema::Gcx;
 use std::fmt;
 use tracing::trace;
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
-pub(super) fn run(module: &mut Module, _options: super::PassOptions) -> bool {
+pub(super) fn run(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {

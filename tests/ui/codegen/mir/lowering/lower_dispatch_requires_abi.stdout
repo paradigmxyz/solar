@@ -1,6 +1,8 @@
-// === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_requires_abi.mir (after lower-dispatch) ===
-@module LowerDispatchRequiresAbi
-fn @takesArg(arg0: u256) -> u256 {
-  bb0 (entry):
-    ret arg0
-}
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_requires_abi.mir (before lower-dispatch) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_requires_abi.mir (after lower-dispatch) ===
+  @module LowerDispatchRequiresAbi
+  fn @takesArg(arg0: u256) -> u256 {
+    bb0:
+      ret arg0
+  }
+  

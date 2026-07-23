@@ -2,6 +2,7 @@ use crate::{
     diagnostics::PullReport,
     formatter::{self, FormatterError},
     global_state::GlobalState,
+    natspec_completion::{self, NatSpecCompletionResult},
     symbols::{CompletionContext, SymbolTables},
     vfs::{Vfs, VfsPath},
 };
@@ -554,7 +555,39 @@ pub(crate) fn completion(
     state: &mut GlobalState,
     params: CompletionParams,
 ) -> impl Future<Output = Result<Option<CompletionResponse>, ResponseError>> + use<> {
+    let trigger_character =
+        params.context.as_ref().and_then(|context| context.trigger_character.as_deref());
     let params = params.text_document_position;
+    let contents = crate::proto::vfs_path(&params.text_document.uri)
+        .and_then(|path| state.vfs.read().get_file_contents(&path).cloned());
+    if let Some(contents) = contents {
+        match natspec_completion::target(&contents, params.position) {
+            NatSpecCompletionResult::Claimed(target) => {
+                let items = target.map_or_else(Vec::new, |target| {
+                    let semantics = state
+                        .natspec_semantics_are_usable(&params.text_document.uri)
+                        .then(|| {
+                            state
+                                .symbol_tables
+                                .read()
+                                .natspec_semantics(
+                                    &params.text_document.uri,
+                                    target.source_fingerprint(),
+                                    target.key(),
+                                )
+                                .cloned()
+                        })
+                        .flatten();
+                    target.completion_items(state.config.completion_options(), semantics.as_ref())
+                });
+                return ready(Ok(Some(CompletionResponse::Array(items))));
+            }
+            NatSpecCompletionResult::NotApplicable => {}
+        }
+    }
+    if matches!(trigger_character, Some("/" | "*")) {
+        return ready(Ok(Some(CompletionResponse::Array(Vec::new()))));
+    }
     let input = completion_input(state, &params.text_document.uri, params.position);
     let context = input.as_ref().map(CompletionInput::context).unwrap_or_default();
     let items = state.symbol_tables.read().completion_items(

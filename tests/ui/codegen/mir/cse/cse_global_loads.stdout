@@ -1,26 +1,32 @@
-// === ROOT/tests/ui/codegen/mir/cse/cse_global_loads.mir (after cse) ===
-@module CseGlobalLoads
-fn @dominating_mload(arg0: bool) -> u256 {
-  bb0 (entry):
-    mstore 0, 11
-    v0 = mload 0
-    br arg0, bb1, bb2
-  bb1:
-    ret v0
-  bb2:
-    mstore 0, 22
-    v2 = mload 0
-    ret v2
-}
-
-fn @dominating_sload(arg0: bool) -> u256 {
-  bb0 (entry):
-    v0 = sload 0
-    br arg0, bb1, bb2
-  bb1:
-    ret v0
-  bb2:
-    sstore 0, 7
-    v2 = sload 0
-    ret v2
-}
+- // === ROOT/tests/ui/codegen/mir/cse/cse_global_loads.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/cse_global_loads.mir (after cse) ===
+  @module CseGlobalLoads
+  fn @dominating_mload(arg0: bool) -> u256 {
+    bb0:
+      mstore 0, 11
+      v0 = mload 0
+      br arg0, bb1, bb2
+    bb1:
+-     v1 = mload 0
+-     ret v1
++     ret v0
+    bb2:
+      mstore 0, 22
+      v2 = mload 0
+      ret v2
+  }
+  
+  fn @dominating_sload(arg0: bool) -> u256 {
+    bb0:
+      v0 = sload 0
+      br arg0, bb1, bb2
+    bb1:
+-     v1 = sload 0
+-     ret v1
++     ret v0
+    bb2:
+      sstore 0, 7
+      v2 = sload 0
+      ret v2
+  }
+  

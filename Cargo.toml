@@ -164,6 +164,7 @@ criterion = { package = "codspeed-criterion-compat", version = "4", default-feat
     "cargo_bench_support",
 ] }
 regex = "1.10"
+diff = "0.1"
 snapbox = { version = "1.2", features = ["json"] }
 tempfile = "3.9"
 

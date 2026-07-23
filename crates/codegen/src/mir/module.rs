@@ -93,9 +93,6 @@ pub struct Module {
     immutable_data_len: usize,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
-    /// Whether optimization passes should favor bytecode size over runtime
-    /// gas (`-O size`): multi-use functions are called rather than inlined.
-    pub(crate) optimize_for_size: bool,
     /// The lowering phase this module is in.
     pub(crate) phase: MirPhase,
 }
@@ -117,7 +114,6 @@ impl Module {
             functions: IndexVec::new(),
             immutable_data_len: 0,
             is_interface: false,
-            optimize_for_size: false,
             phase: MirPhase::Built,
         }
     }

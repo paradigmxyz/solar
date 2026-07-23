@@ -6,7 +6,7 @@
 // loop-carried-only policy (load_pre_memory.mir).
 @module LoadPre
 fn @full_diamond(arg0: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     br arg0, bb1, bb2
   bb1:
     v1 = sload 5
@@ -20,7 +20,7 @@ fn @full_diamond(arg0: bool) -> u256 {
 }
 
 fn @store_forward_arm(arg0: bool, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     br arg0, bb1, bb2
   bb1:
     sstore 5, arg1
@@ -34,7 +34,7 @@ fn @store_forward_arm(arg0: bool, arg1: u256) -> u256 {
 }
 
 fn @partial_insert_diamond(arg0: bool) -> u256 {
-  bb0 (entry):
+  bb0:
     br arg0, bb1, bb2
   bb1:
     v1 = sload 5
@@ -47,7 +47,7 @@ fn @partial_insert_diamond(arg0: bool) -> u256 {
 }
 
 fn @transient_store_forward(arg0: bool, arg1: u256) -> u256 {
-  bb0 (entry):
+  bb0:
     br arg0, bb1, bb2
   bb1:
     tstore 5, arg1

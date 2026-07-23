@@ -1,56 +1,64 @@
-// === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/merge_swap_pop.evmir (after peephole) ===
-@module module
-bb0 (entry):
-  push 1
-  push 2
-  push 3
-  swap2
-  pop
-  pop
-  stop
-bb1:
-  push 1
-  push 2
-  push 3
-  push 4
-  swap3
-  pop
-  pop
-  pop
-  stop
-bb2:
-  push 1
-  push 2
-  push 3
-  push 4
-  push 5
-  push 6
-  push 7
-  push 8
-  push 9
-  push 10
-  push 11
-  push 12
-  push 13
-  push 14
-  push 15
-  push 16
-  push 17
-  swap16
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  stop
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/merge_swap_pop.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/merge_swap_pop.evmir (after peephole) ===
+  @module module
+  bb0:
+    push 1
+    push 2
+    push 3
+-   swap1
++   swap2
+    pop
+-   swap1
+    pop
+    stop
+  bb1:
+    push 1
+    push 2
+    push 3
+    push 4
+-   swap2
++   swap3
+    pop
+    pop
+-   swap1
+    pop
+    stop
+  bb2:
+    push 1
+    push 2
+    push 3
+    push 4
+    push 5
+    push 6
+    push 7
+    push 8
+    push 9
+    push 10
+    push 11
+    push 12
+    push 13
+    push 14
+    push 15
+    push 16
+    push 17
+-   swap15
++   swap16
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+-   swap1
+    pop
+    stop
+  

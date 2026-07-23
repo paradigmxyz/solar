@@ -22,6 +22,7 @@ use crate::{
 };
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
+    index::{IndexVec, index_vec},
     map::FxHashMap,
 };
 
@@ -735,7 +736,7 @@ impl<'a> SlotSsaBuilder<'a> {
         let mut worklist = sorted_blocks(&self.info.def_blocks);
 
         while let Some(block) = worklist.pop() {
-            let Some(frontier) = frontiers.get(block.index()) else { continue };
+            let Some(frontier) = frontiers.get(block) else { continue };
             for &frontier_block in frontier {
                 if !live_in.contains(frontier_block) || !phi_blocks.insert(frontier_block) {
                     continue;
@@ -747,8 +748,8 @@ impl<'a> SlotSsaBuilder<'a> {
         phi_blocks
     }
 
-    fn compute_dominance_frontiers(&self, func: &Function) -> Vec<Vec<BlockId>> {
-        let mut frontiers = vec![Vec::new(); func.blocks.len()];
+    fn compute_dominance_frontiers(&self, func: &Function) -> IndexVec<BlockId, Vec<BlockId>> {
+        let mut frontiers = index_vec![Vec::new(); func.blocks.len()];
         for block in func.blocks.indices() {
             if !self.cfg.is_reachable(block) {
                 continue;
@@ -767,8 +768,8 @@ impl<'a> SlotSsaBuilder<'a> {
             let Some(idom) = self.cfg.dominators().idom(block) else { continue };
             for mut runner in preds {
                 while runner != idom {
-                    if !frontiers[runner.index()].contains(&block) {
-                        frontiers[runner.index()].push(block);
+                    if !frontiers[runner].contains(&block) {
+                        frontiers[runner].push(block);
                     }
 
                     let Some(next) = self.cfg.dominators().idom(runner) else { break };
@@ -799,7 +800,7 @@ impl<'a> SlotSsaBuilder<'a> {
         for block in sorted_blocks(&self.phi_blocks) {
             self.create_phi(func, block);
         }
-        self.rename_block(func, func.entry_block, None);
+        self.rename_block(func, BlockId::ENTRY, None);
         !self.failed
     }
 

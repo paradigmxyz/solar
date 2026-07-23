@@ -5,7 +5,7 @@
 // default pipeline the require guard must fold the subtraction's
 // Panic(0x11) underflow branch.
 fn @guarded(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v5 = gt arg1, arg0
     v6 = iszero v5
@@ -29,7 +29,7 @@ fn @guarded(arg0: u256, arg1: u256) {
 // Negative control: without the require, the underflow check must survive
 // the full pipeline.
 fn @unguarded(arg0: u256, arg1: u256) {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v5 = sub arg0, arg1
     v6 = lt arg0, arg1

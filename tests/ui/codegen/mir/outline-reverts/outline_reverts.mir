@@ -7,7 +7,7 @@
 
 @module OutlineReverts
 fn @first(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v1 = add arg0, 1
     v2 = lt v1, arg0
     br v2, bb1, bb2
@@ -20,7 +20,7 @@ fn @first(arg0: u256) {
     returndata 128, 32
 }
 fn @second(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v1 = mul arg0, 2
     v2 = lt v1, arg0
     br v2, bb1, bb2
@@ -33,7 +33,7 @@ fn @second(arg0: u256) {
     returndata 128, 32
 }
 fn @third(arg0: u256) {
-  bb0 (entry):
+  bb0:
     v1 = sub arg0, 1
     v2 = gt v1, arg0
     br v2, bb1, bb2
@@ -46,6 +46,6 @@ fn @third(arg0: u256) {
     returndata 128, 32
 }
 
-// CHECK:     tail_call @__revert_stub0
-// CHECK:     tail_call @__revert_stub0
-// CHECK: fn @__revert_stub0() {
+// CHECK: +     tail_call @__revert_stub0
+// CHECK: +     tail_call @__revert_stub0
+// CHECK: + fn @__revert_stub0() {

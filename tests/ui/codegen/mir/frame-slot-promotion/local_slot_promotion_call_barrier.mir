@@ -1,7 +1,7 @@
 //@compile-flags: --passes frame-slot-promotion,dce
 @module LocalSlotPromotionCallBarrier
 fn @promote_across_unrelated_staticcall(arg0: address) -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = internal_frame_addr 128
     mstore v1, 9
     v2 = staticcall 100000, arg0, 0, 0, 0, 0
@@ -12,7 +12,7 @@ fn @promote_across_unrelated_staticcall(arg0: address) -> u256 {
 }
 
 fn @keep_msize_observation() -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = internal_frame_addr 128
     mstore v1, 9
     v2 = msize
@@ -23,7 +23,7 @@ fn @keep_msize_observation() -> u256 {
 }
 
 fn @promote_slot_with_unrelated_frame_hash() -> u256 {
-  bb0 (entry):
+  bb0:
     v1 = internal_frame_addr 128
     mstore v1, 9
     v2 = internal_frame_addr 192

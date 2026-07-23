@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/base_constructor.sol:Base ===
 @module Base
 fn @value() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     mstore 128, v0
@@ -9,7 +9,7 @@ fn @value() {
 }
 
 fn @_anonymous(arg0: u256) {
-  bb0 (entry):
+  bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     stop
 }
@@ -17,13 +17,13 @@ fn @_anonymous(arg0: u256) {
 // === ROOT/tests/ui/codegen/lowering/base_constructor.sol:Derived ===
 @module Derived
 fn @_anonymous(arg0: u256) {
-  bb0 (entry):
+  bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     stop
 }
 
 fn @value() {
-  bb0 (entry):
+  bb0:
     mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     mstore 128, v0
