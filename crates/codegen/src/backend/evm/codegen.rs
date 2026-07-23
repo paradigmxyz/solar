@@ -14,7 +14,7 @@ use super::{
     stack::{
         MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
     },
-    switch::{SwitchPlan, bucket_index, select_switch_plan},
+    switch::{SwitchDefault, SwitchPlan, bucket_index, select_switch_plan},
 };
 use crate::{
     analysis::{
@@ -1509,11 +1509,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         revert_label: Label,
     ) {
         let values: Vec<_> = selectors.iter().map(|entry| U256::from(entry.selector)).collect();
+        let default =
+            if fallback_label.is_some() { SwitchDefault::Jump } else { SwitchDefault::Revert };
         match select_switch_plan(
             &values,
             self.gcx.sess.opts.optimization,
             self.gcx.sess.opts.evm_version,
-            false,
+            default,
             self.switch_table_target_width(),
         ) {
             SwitchPlan::Linear => {
@@ -5749,11 +5751,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let constant_entries = self.constant_switch_entries(func, cases);
                 let plan = constant_entries.as_ref().map_or(SwitchPlan::Linear, |entries| {
                     let values: Vec<_> = entries.iter().map(|entry| entry.value).collect();
+                    let default = if self.emitting_dispatch_entry {
+                        SwitchDefault::Jump
+                    } else {
+                        SwitchDefault::CleanupJump
+                    };
                     select_switch_plan(
                         &values,
                         self.gcx.sess.opts.optimization,
                         self.gcx.sess.opts.evm_version,
-                        !self.emitting_dispatch_entry,
+                        default,
                         self.switch_table_target_width(),
                     )
                 });

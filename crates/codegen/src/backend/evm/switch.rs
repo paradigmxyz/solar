@@ -40,12 +40,53 @@ pub(super) enum SwitchPlan {
     Dense { low: U256, range: usize },
 }
 
+/// Emitted switch miss sequence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SwitchDefault {
+    /// Jump to a fallback or default block.
+    Jump,
+    /// Revert inline with an empty payload.
+    Revert,
+    /// Pop the switch value, then jump to the default block.
+    CleanupJump,
+}
+
+impl SwitchDefault {
+    fn code_size(self, evm_version: EvmVersion) -> usize {
+        match self {
+            Self::Jump => MIN_DEFAULT_JUMP_LEN,
+            Self::Revert => push_len(U256::ZERO, evm_version) * 2 + 1,
+            Self::CleanupJump => 1 + MIN_DEFAULT_JUMP_LEN,
+        }
+    }
+
+    fn max_code_size(self, evm_version: EvmVersion, target_width: usize) -> usize {
+        match self {
+            Self::Jump => max_default_jump_len(target_width),
+            Self::Revert => push_len(U256::ZERO, evm_version) * 2 + 1,
+            Self::CleanupJump => 1 + max_default_jump_len(target_width),
+        }
+    }
+
+    const fn gas(self) -> usize {
+        match self {
+            Self::Jump => DEFAULT_JUMP_GAS,
+            Self::Revert => VERY_LOW_GAS * 2,
+            Self::CleanupJump => POP_GAS + DEFAULT_JUMP_GAS,
+        }
+    }
+
+    const fn needs_value_cleanup(self) -> bool {
+        matches!(self, Self::CleanupJump)
+    }
+}
+
 /// Selects the cheapest supported switch shape for the optimization objective.
 pub(super) fn select_switch_plan(
     values: &[U256],
     optimization: OptimizationMode,
     evm_version: EvmVersion,
-    needs_value_cleanup: bool,
+    default: SwitchDefault,
     table_target_width: usize,
 ) -> SwitchPlan {
     debug_assert!(values.windows(2).all(|values| values[0] < values[1]));
@@ -53,19 +94,12 @@ pub(super) fn select_switch_plan(
         return SwitchPlan::Linear;
     }
 
-    let linear_cost =
-        lowering_cost(values, values.len(), evm_version, needs_value_cleanup, table_target_width);
+    let linear_cost = lowering_cost(values, values.len(), evm_version, default, table_target_width);
     let max_gas_code_size = linear_cost.code_size.saturating_add(MAX_GAS_CODE_GROWTH);
     let mut best = (linear_cost, SwitchPlan::Linear);
     if optimization == OptimizationMode::Gas {
         for leaf_size in binary_leaf_sizes(values.len()) {
-            let cost = lowering_cost(
-                values,
-                leaf_size,
-                evm_version,
-                needs_value_cleanup,
-                table_target_width,
-            );
+            let cost = lowering_cost(values, leaf_size, evm_version, default, table_target_width);
             if cost.is_better_for_gas_than(best.0, max_gas_code_size) {
                 best = (cost, SwitchPlan::Binary { leaf_size });
             }
@@ -76,7 +110,7 @@ pub(super) fn select_switch_plan(
                     values,
                     bucket_count,
                     evm_version,
-                    needs_value_cleanup,
+                    default,
                     table_target_width,
                 );
                 if cost.is_better_for_gas_than(best.0, max_gas_code_size) {
@@ -124,15 +158,13 @@ fn lowering_cost(
     values: &[U256],
     leaf_size: usize,
     evm_version: EvmVersion,
-    needs_value_cleanup: bool,
+    default: SwitchDefault,
     table_target_width: usize,
 ) -> LoweringCost {
     if values.len() <= leaf_size {
-        let cleanup_len = usize::from(needs_value_cleanup);
         let mut cost = LoweringCost {
-            code_size: cleanup_len + MIN_DEFAULT_JUMP_LEN,
-            max_code_size: cleanup_len
-                + max_default_len(evm_version, needs_value_cleanup, table_target_width),
+            code_size: default.code_size(evm_version),
+            max_code_size: default.max_code_size(evm_version, table_target_width),
             ..Default::default()
         };
         let mut path_gas = 0;
@@ -143,26 +175,14 @@ fn lowering_cost(
             path_gas += test.gas;
             cost.hit_gas_sum += path_gas;
         }
-        cost.miss_gas = path_gas + usize::from(needs_value_cleanup) * POP_GAS + DEFAULT_JUMP_GAS;
+        cost.miss_gas = path_gas + default.gas();
         return cost;
     }
 
     let mid = values.len() / 2;
     let split = ordered_test_cost(values[mid], evm_version, table_target_width);
-    let left = lowering_cost(
-        &values[..mid],
-        leaf_size,
-        evm_version,
-        needs_value_cleanup,
-        table_target_width,
-    );
-    let right = lowering_cost(
-        &values[mid..],
-        leaf_size,
-        evm_version,
-        needs_value_cleanup,
-        table_target_width,
-    );
+    let left = lowering_cost(&values[..mid], leaf_size, evm_version, default, table_target_width);
+    let right = lowering_cost(&values[mid..], leaf_size, evm_version, default, table_target_width);
     LoweringCost {
         code_size: split.code_size + JUMPDEST_LEN + left.code_size + right.code_size,
         max_code_size: split.max_code_size
@@ -219,7 +239,7 @@ fn bucket_lowering_cost(
     values: &[U256],
     bucket_count: usize,
     evm_version: EvmVersion,
-    needs_value_cleanup: bool,
+    default: SwitchDefault,
     table_target_width: usize,
 ) -> LoweringCost {
     let hash_len = 1 + push_len(U256::from(bucket_count), evm_version) + 1 + 1;
@@ -250,24 +270,17 @@ fn bucket_lowering_cost(
         let index = bucket_index(value, bucket_count);
         let test = equality_test_cost(value, evm_version, table_target_width);
         if bucket_path_gas[index] == 0 {
-            let cleanup_len = usize::from(needs_value_cleanup);
-            cost.code_size += JUMPDEST_LEN + cleanup_len + MIN_DEFAULT_JUMP_LEN;
-            cost.max_code_size += JUMPDEST_LEN
-                + cleanup_len
-                + max_default_len(evm_version, needs_value_cleanup, table_target_width);
+            cost.code_size += JUMPDEST_LEN + default.code_size(evm_version);
+            cost.max_code_size +=
+                JUMPDEST_LEN + default.max_code_size(evm_version, table_target_width);
         }
         cost.code_size += test.code_size;
         cost.max_code_size += test.max_code_size;
         bucket_path_gas[index] += test.gas;
         cost.hit_gas_sum += bucket_path_gas[index];
-        cost.miss_gas = cost.miss_gas.max(
-            dispatch_gas
-                + bucket_path_gas[index]
-                + usize::from(needs_value_cleanup) * POP_GAS
-                + DEFAULT_JUMP_GAS,
-        );
+        cost.miss_gas = cost.miss_gas.max(dispatch_gas + bucket_path_gas[index] + default.gas());
     }
-    if needs_value_cleanup && bucket_path_gas.contains(&0) {
+    if default.needs_value_cleanup() && bucket_path_gas.contains(&0) {
         // One shared JUMPDEST, POP, and default jump for ordinary MIR switches.
         cost.code_size += JUMPDEST_LEN + 1 + MIN_DEFAULT_JUMP_LEN;
         cost.max_code_size += JUMPDEST_LEN + 1 + max_default_jump_len(table_target_width);
@@ -346,20 +359,6 @@ const fn max_default_jump_len(target_width: usize) -> usize {
     max_label_push_len(target_width) + 1
 }
 
-fn max_default_len(
-    evm_version: EvmVersion,
-    needs_value_cleanup: bool,
-    target_width: usize,
-) -> usize {
-    let jump = max_default_jump_len(target_width);
-    if needs_value_cleanup {
-        jump
-    } else {
-        // A selector miss without fallback emits two zero pushes and REVERT.
-        jump.max(push_len(U256::ZERO, evm_version) * 2 + 1)
-    }
-}
-
 pub(super) fn bucket_index(value: U256, bucket_count: usize) -> usize {
     let limbs = value.as_limbs();
     if limbs[1..].iter().all(|&limb| limb == 0) {
@@ -416,7 +415,13 @@ mod tests {
     #[test]
     fn leaves_small_switches_linear() {
         assert_eq!(
-            select_switch_plan(&values(4), OptimizationMode::Gas, EvmVersion::Cancun, true, 2),
+            select_switch_plan(
+                &values(4),
+                OptimizationMode::Gas,
+                EvmVersion::Cancun,
+                SwitchDefault::CleanupJump,
+                2,
+            ),
             SwitchPlan::Linear
         );
     }
@@ -425,7 +430,13 @@ mod tests {
     fn selects_profitable_binary_leaf_size() {
         let values = (0..5).map(|value| U256::from(value * 7919)).collect::<Vec<_>>();
         assert_eq!(
-            select_switch_plan(&values, OptimizationMode::Gas, EvmVersion::Cancun, true, 2),
+            select_switch_plan(
+                &values,
+                OptimizationMode::Gas,
+                EvmVersion::Cancun,
+                SwitchDefault::CleanupJump,
+                2,
+            ),
             SwitchPlan::Binary { leaf_size: 3 }
         );
     }
@@ -434,7 +445,13 @@ mod tests {
     fn accounts_for_taken_binary_split_labels() {
         let values = (0..7).map(|value| U256::from(1 + value * 7919)).collect::<Vec<_>>();
         assert_eq!(
-            select_switch_plan(&values, OptimizationMode::Gas, EvmVersion::Cancun, true, 2),
+            select_switch_plan(
+                &values,
+                OptimizationMode::Gas,
+                EvmVersion::Cancun,
+                SwitchDefault::CleanupJump,
+                2,
+            ),
             SwitchPlan::Binary { leaf_size: 4 }
         );
     }
@@ -462,8 +479,10 @@ mod tests {
     #[test]
     fn accounts_for_linear_value_cleanup() {
         let values = values(4);
-        let with_cleanup = lowering_cost(&values, values.len(), EvmVersion::Cancun, true, 2);
-        let without_cleanup = lowering_cost(&values, values.len(), EvmVersion::Cancun, false, 2);
+        let with_cleanup =
+            lowering_cost(&values, values.len(), EvmVersion::Cancun, SwitchDefault::CleanupJump, 2);
+        let without_cleanup =
+            lowering_cost(&values, values.len(), EvmVersion::Cancun, SwitchDefault::Jump, 2);
         assert_eq!(with_cleanup.code_size, without_cleanup.code_size + 1);
         assert_eq!(with_cleanup.max_code_size, without_cleanup.max_code_size + 1);
         assert_eq!(with_cleanup.hit_gas_sum, without_cleanup.hit_gas_sum);
@@ -473,8 +492,10 @@ mod tests {
     #[test]
     fn accounts_for_bucket_value_cleanup() {
         let values = [U256::ZERO, U256::from(2)];
-        let with_cleanup = bucket_lowering_cost(&values, 4, EvmVersion::Cancun, true, 2);
-        let without_cleanup = bucket_lowering_cost(&values, 4, EvmVersion::Cancun, false, 2);
+        let with_cleanup =
+            bucket_lowering_cost(&values, 4, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2);
+        let without_cleanup =
+            bucket_lowering_cost(&values, 4, EvmVersion::Cancun, SwitchDefault::Jump, 2);
         assert_eq!(
             with_cleanup.code_size,
             without_cleanup.code_size + 2 + JUMPDEST_LEN + 1 + MIN_DEFAULT_JUMP_LEN
@@ -485,8 +506,10 @@ mod tests {
     #[test]
     fn accounts_for_packed_table_target_widths() {
         let values = (0..32).map(|value| U256::from(value * 7919)).collect::<Vec<_>>();
-        let packed = bucket_lowering_cost(&values, 32, EvmVersion::Cancun, true, 2);
-        let wide = bucket_lowering_cost(&values, 32, EvmVersion::Cancun, true, 3);
+        let packed =
+            bucket_lowering_cost(&values, 32, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2);
+        let wide =
+            bucket_lowering_cost(&values, 32, EvmVersion::Cancun, SwitchDefault::CleanupJump, 3);
 
         assert_eq!(wide.code_size, packed.code_size + 32);
         assert_eq!(wide.hit_gas_sum, packed.hit_gas_sum);
@@ -502,20 +525,33 @@ mod tests {
 
     #[test]
     fn accounts_for_pre_shanghai_selector_reverts() {
-        assert_eq!(max_default_len(EvmVersion::Berlin, false, 2), 5);
-        assert_eq!(max_default_len(EvmVersion::Cancun, false, 2), 4);
-        assert_eq!(max_default_len(EvmVersion::Berlin, true, 2), 4);
+        assert_eq!(SwitchDefault::Revert.code_size(EvmVersion::Berlin), 5);
+        assert_eq!(SwitchDefault::Revert.max_code_size(EvmVersion::Berlin, 2), 5);
+        assert_eq!(SwitchDefault::Revert.code_size(EvmVersion::Cancun), 3);
+        assert_eq!(SwitchDefault::Jump.max_code_size(EvmVersion::Berlin, 2), 4);
     }
 
     #[test]
     fn preserves_linear_shape_outside_gas_mode() {
         let sparse = (0..64).map(|value| U256::from(value * 7919)).collect::<Vec<_>>();
         assert_eq!(
-            select_switch_plan(&sparse, OptimizationMode::None, EvmVersion::Cancun, true, 2),
+            select_switch_plan(
+                &sparse,
+                OptimizationMode::None,
+                EvmVersion::Cancun,
+                SwitchDefault::CleanupJump,
+                2,
+            ),
             SwitchPlan::Linear
         );
         assert_eq!(
-            select_switch_plan(&sparse, OptimizationMode::Size, EvmVersion::Cancun, true, 2),
+            select_switch_plan(
+                &sparse,
+                OptimizationMode::Size,
+                EvmVersion::Cancun,
+                SwitchDefault::CleanupJump,
+                2,
+            ),
             SwitchPlan::Linear
         );
     }
@@ -524,7 +560,13 @@ mod tests {
     fn selects_buckets_for_large_sparse_switches() {
         let values = (0..32).map(|value| U256::from(value * 7919)).collect::<Vec<_>>();
         assert!(matches!(
-            select_switch_plan(&values, OptimizationMode::Gas, EvmVersion::Cancun, true, 2),
+            select_switch_plan(
+                &values,
+                OptimizationMode::Gas,
+                EvmVersion::Cancun,
+                SwitchDefault::CleanupJump,
+                2,
+            ),
             SwitchPlan::Buckets { .. }
         ));
     }
@@ -533,7 +575,13 @@ mod tests {
     fn bounds_bucket_table_fanout() {
         let values = (0..100).map(|value| U256::from(value * 7919)).collect::<Vec<_>>();
         assert!(matches!(
-            select_switch_plan(&values, OptimizationMode::Gas, EvmVersion::Cancun, true, 2),
+            select_switch_plan(
+                &values,
+                OptimizationMode::Gas,
+                EvmVersion::Cancun,
+                SwitchDefault::CleanupJump,
+                2,
+            ),
             SwitchPlan::Binary { .. }
         ));
     }
@@ -542,7 +590,13 @@ mod tests {
     fn selects_dense_table_for_compact_ranges() {
         let values = values(24);
         assert_eq!(
-            select_switch_plan(&values, OptimizationMode::Size, EvmVersion::Cancun, true, 2),
+            select_switch_plan(
+                &values,
+                OptimizationMode::Size,
+                EvmVersion::Cancun,
+                SwitchDefault::CleanupJump,
+                2,
+            ),
             SwitchPlan::Dense { low: U256::ZERO, range: 24 }
         );
     }
@@ -550,31 +604,56 @@ mod tests {
     #[test]
     fn rejects_excessive_gas_optimized_table_growth() {
         let values = (0..65).map(|value| U256::from(value * 63)).collect::<Vec<_>>();
-        let plan = select_switch_plan(&values, OptimizationMode::Gas, EvmVersion::Cancun, true, 2);
+        let plan = select_switch_plan(
+            &values,
+            OptimizationMode::Gas,
+            EvmVersion::Cancun,
+            SwitchDefault::CleanupJump,
+            2,
+        );
         let cost = match plan {
-            SwitchPlan::Linear => lowering_cost(&values, values.len(), EvmVersion::Cancun, true, 2),
+            SwitchPlan::Linear => lowering_cost(
+                &values,
+                values.len(),
+                EvmVersion::Cancun,
+                SwitchDefault::CleanupJump,
+                2,
+            ),
             SwitchPlan::Binary { leaf_size } => {
-                lowering_cost(&values, leaf_size, EvmVersion::Cancun, true, 2)
+                lowering_cost(&values, leaf_size, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2)
             }
-            SwitchPlan::Buckets { bucket_count } => {
-                bucket_lowering_cost(&values, bucket_count, EvmVersion::Cancun, true, 2)
-            }
+            SwitchPlan::Buckets { bucket_count } => bucket_lowering_cost(
+                &values,
+                bucket_count,
+                EvmVersion::Cancun,
+                SwitchDefault::CleanupJump,
+                2,
+            ),
             SwitchPlan::Dense { .. } => {
                 dense_lowering_cost(&values, EvmVersion::Cancun, 2).unwrap().2
             }
         };
-        let linear = lowering_cost(&values, values.len(), EvmVersion::Cancun, true, 2);
+        let linear =
+            lowering_cost(&values, values.len(), EvmVersion::Cancun, SwitchDefault::CleanupJump, 2);
         assert!(cost.max_code_size <= linear.code_size + MAX_GAS_CODE_GROWTH);
     }
 
     #[test]
     fn accounts_for_bucket_cleanup_in_growth_limit() {
         let values = (0..51).map(|value| U256::from(value * 257)).collect::<Vec<_>>();
-        let linear = lowering_cost(&values, values.len(), EvmVersion::Cancun, true, 2);
-        let buckets = bucket_lowering_cost(&values, 51, EvmVersion::Cancun, true, 2);
+        let linear =
+            lowering_cost(&values, values.len(), EvmVersion::Cancun, SwitchDefault::CleanupJump, 2);
+        let buckets =
+            bucket_lowering_cost(&values, 51, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2);
         assert!(buckets.max_code_size > linear.code_size + MAX_GAS_CODE_GROWTH);
         assert_ne!(
-            select_switch_plan(&values, OptimizationMode::Gas, EvmVersion::Cancun, true, 2),
+            select_switch_plan(
+                &values,
+                OptimizationMode::Gas,
+                EvmVersion::Cancun,
+                SwitchDefault::CleanupJump,
+                2,
+            ),
             SwitchPlan::Buckets { bucket_count: 51 }
         );
     }
@@ -582,7 +661,13 @@ mod tests {
     #[test]
     fn rejects_larger_dense_table_for_small_compact_ranges() {
         assert_eq!(
-            select_switch_plan(&values(8), OptimizationMode::Size, EvmVersion::Cancun, true, 2),
+            select_switch_plan(
+                &values(8),
+                OptimizationMode::Size,
+                EvmVersion::Cancun,
+                SwitchDefault::CleanupJump,
+                2,
+            ),
             SwitchPlan::Linear
         );
     }
