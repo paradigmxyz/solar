@@ -965,7 +965,9 @@ impl Default for StackScheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{Function, FunctionBuilder, Immediate, InstKind, Instruction, MirType, Value};
+    use crate::mir::{
+        BlockId, Function, FunctionBuilder, Immediate, InstKind, Instruction, MirType, Value,
+    };
     use solar_interface::Ident;
 
     fn make_test_func() -> Function {
@@ -1369,7 +1371,7 @@ mod tests {
         scheduler.stack.push(a);
         scheduler.stack.push(sum);
 
-        let ops = scheduler.drop_dead_values(&liveness, func.entry_block, 0);
+        let ops = scheduler.drop_dead_values(&liveness, BlockId::ENTRY, 0);
 
         assert_eq!(ops, [StackOp::Swap(2), StackOp::Pop, StackOp::Pop]);
         assert!(scheduler.stack.iter().eq([Some(sum), Some(c)]));
