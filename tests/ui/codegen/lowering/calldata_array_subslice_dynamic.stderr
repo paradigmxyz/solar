@@ -1,0 +1,14 @@
+error: codegen does not support slicing a calldata array of dynamic elements yet
+   ╭▸ ROOT/tests/ui/codegen/lowering/calldata_array_subslice_dynamic.sol:LL:CC
+   │
+LL │         return data[1:];
+   ╰╴               ━━━━━━━━
+
+error: codegen does not support slicing a calldata array of dynamic elements yet
+   ╭▸ ROOT/tests/ui/codegen/lowering/calldata_array_subslice_dynamic.sol:LL:CC
+   │
+LL │         return data[1:];
+   ╰╴               ━━━━━━━━
+
+error: aborting due to 2 previous errors
+

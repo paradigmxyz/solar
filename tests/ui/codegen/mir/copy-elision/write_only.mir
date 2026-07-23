@@ -1,0 +1,22 @@
+//@compile-flags: --passes copy-elision,dce
+@module CopyElision
+
+// An allocation filled by a copy but never read is dead: the copy and the
+// allocation are removed.
+fn @unread(arg0: u256) -> u256 {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v1 = memory_object_data memorybytes, v0
+    calldatacopy v1, 4, 32
+    ret arg0
+}
+
+// A read of the allocation keeps every write.
+fn @read(arg0: u256) -> u256 {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v1 = memory_object_data memorybytes, v0
+    calldatacopy v1, 4, 32
+    v2 = mload v1
+    ret v2
+}

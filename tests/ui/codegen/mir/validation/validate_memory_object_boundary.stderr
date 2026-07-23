@@ -1,0 +1,12 @@
+error: [fn0] memory-object signature type `memorybytes` survives the `memory-lowered` phase boundary
+
+error: [fn0] memory-object signature type `memorystruct` survives the `memory-lowered` phase boundary
+
+error: [fn0] [bb0, inst0] memory-object instruction `alloc` survives the `memory-lowered` phase boundary
+
+error: [fn0] [bb0, inst1] memory-object instruction `memory_object_len` survives the `memory-lowered` phase boundary
+
+error: [fn0] [bb0, inst2] memory-object instruction `set_memory_object_len` survives the `memory-lowered` phase boundary
+
+error: aborting due to 5 previous errors
+

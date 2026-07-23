@@ -232,17 +232,6 @@ pub(crate) fn u256_to_u64(value: U256) -> Option<u64> {
     value.try_into().ok()
 }
 
-/// Returns true if two possibly-overflowing byte ranges overlap.
-pub(crate) fn ranges_overlap(a_start: u64, a_size: u64, b_start: u64, b_size: u64) -> bool {
-    let Some(a_end) = a_start.checked_add(a_size) else {
-        return true;
-    };
-    let Some(b_end) = b_start.checked_add(b_size) else {
-        return true;
-    };
-    a_start < b_end && b_start < a_end
-}
-
 /// Returns true for instructions whose operands derive memory metadata.
 pub(crate) fn is_memory_inst(kind: &InstKind) -> bool {
     matches!(

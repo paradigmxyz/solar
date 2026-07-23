@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/tuple_assignment.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 512
+  push 640
   push 64
   mstore
   callvalue
@@ -138,6 +138,9 @@ bb7:
   jumpi
   push 64
   mload
+  dup1
+  push 320
+  mstore
   push 224
   mload
   dup1
@@ -180,23 +183,30 @@ bb7:
   calldatacopy
   pop
   dup2
+  dup1
+  push 320
+  mstore
   mload
   swap2
   pop
   gas
+  dup1
+  push 352
+  mstore
+  dup2
+  push 384
+  mstore
+  dup3
+  push 416
+  mstore
   push 0
   push 0
-  push 64
-  mload
-  mload
-  push 64
-  mload
-  push 32
-  add
+  dup5
+  dup5
   push 0
   push 4
   calldataload
-  gas
+  dup7
   call
   swap3
   pop
@@ -232,6 +242,9 @@ bb18:
 bb17:
   push 64
   mload
+  dup1
+  push 320
+  mstore
   push 32
   add
   push 9

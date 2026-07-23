@@ -1,24 +1,4 @@
 // === ROOT/tests/ui/codegen/lowering/library_mapping_storage_param.sol:L (runtime) ===
-@module runtime
-bb0:
-  push 0
-  push 64
-  mstore
-  calldatasize
-  iszero
-  push bb2
-  jumpi
-  push 0
-  calldataload
-  push 224
-  shr
-  push 0
-  push 0
-  revert
-bb2 [cold]:
-  push 0
-  push 0
-  revert
 // === ROOT/tests/ui/codegen/lowering/library_mapping_storage_param.sol:C (runtime) ===
 @module runtime
 bb0:
