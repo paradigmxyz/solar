@@ -41,10 +41,13 @@ use std::{
 
 type PassRunner = fn(Gcx<'_>, &mut Module, &mut ModuleAnalyses) -> bool;
 
-/// Runs one function-local pass application; only present for passes declared
+/// Constructs a function-local pass object; only present for passes declared
 /// `function` in [`declare_passes!`], where the pipeline executor may schedule
-/// them function-at-a-time instead of module-at-a-time.
-type FunctionPassRunner = fn(&mut Function, &FunctionAnalyses) -> bool;
+/// them function-at-a-time instead of module-at-a-time. The executor builds
+/// each chunk's pass objects once per worker and reuses them across that
+/// worker's functions, so scratch collections held in pass fields amortize
+/// their allocations.
+type MakeFunctionPass = fn() -> Box<dyn FunctionPass + Send>;
 
 /// Registry entry for a MIR transform pass.
 #[derive(Clone, Copy, Debug)]
@@ -58,9 +61,9 @@ pub struct PassInfo {
     /// Latest [`MirPhase`] this pass may run on.
     max_phase: MirPhase,
     run_pass: PassRunner,
-    /// Per-function application for function-local passes; `None` for passes
+    /// Pass-object constructor for function-local passes; `None` for passes
     /// that transform the module as a whole.
-    run_on_function: Option<FunctionPassRunner>,
+    make_function_pass: Option<MakeFunctionPass>,
     /// Whether the pass consumes module call summaries; the chunk executor
     /// computes them once per chunk for such passes.
     wants_call_summaries: bool,
@@ -74,14 +77,14 @@ impl PassInfo {
             min_phase: MirPhase::Built,
             max_phase: MirPhase::EvmShaped,
             run_pass,
-            run_on_function: None,
+            make_function_pass: None,
             wants_call_summaries: false,
         }
     }
 
-    /// Attaches the function-local runner for passes declared `function`.
-    const fn function_runner(mut self, runner: Option<FunctionPassRunner>) -> Self {
-        self.run_on_function = runner;
+    /// Attaches the pass-object constructor for passes declared `function`.
+    const fn function_runner(mut self, make: Option<MakeFunctionPass>) -> Self {
+        self.make_function_pass = make;
         self
     }
 
@@ -111,12 +114,7 @@ macro_rules! function_pass_runner {
         None
     };
     (function $pass:expr) => {
-        Some(
-            (|func: &mut Function, analyses: &FunctionAnalyses| {
-                let pass = &mut $pass;
-                FunctionPass::run_on_function_cached(pass, func, analyses)
-            }) as FunctionPassRunner,
-        )
+        Some((|| Box::new($pass) as Box<dyn FunctionPass + Send>) as MakeFunctionPass)
     };
 }
 
@@ -217,7 +215,7 @@ declare_passes! {
     pub const COPY_ELISION_PASS -> "copy-elision" = function CopyElisionPass::default();
 
     /// Dead Code Elimination (fixed-point).
-    pub(crate) const DCE_PASS -> "dce" = function DcePass;
+    pub(crate) const DCE_PASS -> "dce" = function DcePass::default();
 
     /// Aggressive dead-code elimination for dead control regions.
     pub(crate) const ADCE_PASS -> "adce" = function AdcePass;
@@ -445,7 +443,7 @@ fn run_pipeline_with(
         } else {
             passes[index..]
                 .iter()
-                .take_while(|pass| pass.run_on_function.is_some() && pass.admits(module))
+                .take_while(|pass| pass.make_function_pass.is_some() && pass.admits(module))
                 .count()
         };
         if chunk_len > 1 {
@@ -505,7 +503,7 @@ fn run_cleanup_pipeline_to_fixpoint(
     // equivalent to the module-wide round loop below because function-local
     // passes never read other functions.
     if !wants_pass_major(gcx)
-        && passes.iter().all(|pass| pass.run_on_function.is_some() && pass.admits(module))
+        && passes.iter().all(|pass| pass.make_function_pass.is_some() && pass.admits(module))
     {
         return run_local_chunk(gcx, module, passes, analyses, DEFAULT_CLEANUP_MAX_ROUNDS);
     }
@@ -588,24 +586,23 @@ fn run_local_chunk(
             .par_iter_mut()
             .enumerate()
             .filter(|(_, func)| !func.blocks.is_empty())
-            .filter_map(|(index, func)| {
-                let mut cache = FunctionCache::default();
-                let mut ran_at = vec![usize::MAX; chunk.len()];
-                run_chunk_on_function(func, chunk, &mut cache, &call_summaries, max_rounds, &mut ran_at)
-                    .then(|| FunctionId::from_usize(index))
-            })
+            .map_init(
+                || ChunkWorker::new(chunk),
+                |worker, (index, func)| {
+                    run_chunk_on_function(func, worker, &call_summaries, max_rounds)
+                        .then(|| FunctionId::from_usize(index))
+                },
+            )
+            .filter_map(|id| id)
             .collect();
     } else {
-        let mut ran_at = vec![usize::MAX; chunk.len()];
+        let mut worker = ChunkWorker::new(chunk);
         for func_id in module.functions.indices() {
             let func = &mut module.functions[func_id];
             if func.blocks.is_empty() {
                 continue;
             }
-            ran_at.fill(usize::MAX);
-            let mut cache = FunctionCache::default();
-            if run_chunk_on_function(func, chunk, &mut cache, &call_summaries, max_rounds, &mut ran_at)
-            {
+            if run_chunk_on_function(func, &mut worker, &call_summaries, max_rounds) {
                 changed_ids.push(func_id);
             }
         }
@@ -621,32 +618,53 @@ fn run_local_chunk(
     !changed_ids.is_empty()
 }
 
+/// Per-worker execution state for one chunk: the chunk's pass objects and its
+/// generation table, built once per worker and reused across that worker's
+/// functions so scratch collections held in pass fields amortize their
+/// allocations across the chunk.
+struct ChunkWorker {
+    passes: Vec<Box<dyn FunctionPass + Send>>,
+    ran_at: Vec<usize>,
+}
+
+impl ChunkWorker {
+    fn new(chunk: &[PassInfo]) -> Self {
+        let passes: Vec<_> = chunk
+            .iter()
+            .map(|pass| (pass.make_function_pass.expect("chunk passes are function-local"))())
+            .collect();
+        Self { ran_at: vec![usize::MAX; passes.len()], passes }
+    }
+}
+
 /// Runs every pass of a chunk on one function, iterating to a bounded
 /// fixpoint with the same generation tracking as the module-wide cleanup
 /// loop: a pass reruns only if the function changed since it last started.
 fn run_chunk_on_function(
     func: &mut Function,
-    chunk: &[PassInfo],
-    cache: &mut FunctionCache,
+    worker: &mut ChunkWorker,
     call_summaries: &Option<Arc<MemoryCallSummaries>>,
     max_rounds: usize,
-    ran_at: &mut [usize],
 ) -> bool {
+    let mut cache = FunctionCache::default();
+    worker.ran_at.fill(usize::MAX);
     let mut generation = 0usize;
     let mut changed = false;
     for _round in 1..=max_rounds {
         let mut round_changed = false;
-        for (index, pass) in chunk.iter().enumerate() {
-            if ran_at[index] == generation {
+        for index in 0..worker.passes.len() {
+            if worker.ran_at[index] == generation {
                 continue;
             }
             let generation_before = generation;
-            let run = pass.run_on_function.expect("chunk passes are function-local");
-            if run_function_pass_local(cache, call_summaries, func, run) {
+            let pass = &mut worker.passes[index];
+            if run_function_pass_local(&mut cache, call_summaries, func, |func, bundle| {
+                pass.run_on_function_cached(func, bundle)
+            }) {
                 generation += 1;
                 round_changed = true;
             }
-            ran_at[index] = generation_before;
+            worker.ran_at[index] = generation_before;
         }
         if !round_changed {
             break;
