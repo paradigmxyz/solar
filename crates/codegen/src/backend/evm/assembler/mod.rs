@@ -426,7 +426,7 @@ impl<'gcx> Assembler<'gcx> {
             self,
             self.gcx.sess.opts.evm_version,
         );
-        let evm_ir = capture_evm_ir.then(|| ir_program.clone());
+        let evm_ir = capture_evm_ir.then_some(ir_program);
         PreparedAssembly {
             evm_ir,
             program,
