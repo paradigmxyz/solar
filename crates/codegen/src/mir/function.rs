@@ -1,8 +1,7 @@
 //! MIR functions.
 
 use super::{
-    BasicBlock, BlockId, InstId, InstKind, Instruction, MemoryRegion, MirType, StorageAlias, Value,
-    ValueId,
+    BasicBlock, BlockId, InstId, InstKind, Instruction, MirType, StorageAlias, Value, ValueId,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -90,19 +89,6 @@ impl Function {
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<U256> {
         self.value_u256(super::utils::resolve_replacement(id, replacements))
-    }
-
-    /// Returns the statically known memory region for an address value.
-    #[must_use]
-    pub(crate) fn memory_region_for_addr(&self, addr: ValueId) -> MemoryRegion {
-        match self.value(addr) {
-            Value::Immediate(imm)
-                if imm.as_u256().is_some_and(|value| value < U256::from(0x80)) =>
-            {
-                MemoryRegion::Scratch
-            }
-            _ => MemoryRegion::Unknown,
-        }
     }
 
     /// Returns the instruction for the given ID.

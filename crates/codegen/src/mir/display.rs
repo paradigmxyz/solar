@@ -315,6 +315,76 @@ fn display_inst_kind<'a>(
             write!(f, "loadimmutable ")?;
             display_immutable_ref(f, *id, module)
         }
+        InstKind::Alloc { size, kind, semantics } => {
+            let kind = match kind {
+                crate::mir::AllocationKind::Raw => "raw".to_string(),
+                crate::mir::AllocationKind::Object(layout) => layout.to_string(),
+            };
+            let alignment = match semantics.alignment {
+                crate::mir::AllocationAlignment::Exact => "exact",
+                crate::mir::AllocationAlignment::Word => "word",
+            };
+            let initialization = match semantics.initialization {
+                crate::mir::AllocationInitialization::Uninitialized => "uninitialized",
+                crate::mir::AllocationInitialization::Zeroed => "zeroed",
+            };
+            let failure = match semantics.failure {
+                crate::mir::AllocationFailure::Infallible => "infallible",
+                crate::mir::AllocationFailure::Panic => "panic",
+            };
+            write!(
+                f,
+                "alloc {kind}, {alignment}, {initialization}, {failure}, {}",
+                display_val(*size, func)
+            )
+        }
+        InstKind::MemoryObjectFieldAddr { object, layout, field } => {
+            write!(f, "memory_object_field_addr {layout}, {}, {field}", display_val(*object, func))
+        }
+        InstKind::MemoryObjectElementAddr { object, layout, index } => write!(
+            f,
+            "memory_object_element_addr {layout}, {}, {}",
+            display_val(*object, func),
+            display_val(*index, func)
+        ),
+        InstKind::MemoryObjectLen(object, kind) => {
+            write!(f, "memory_object_len {kind}, {}", display_val(*object, func))
+        }
+        InstKind::SetMemoryObjectLen(object, len, kind) => write!(
+            f,
+            "set_memory_object_len {kind}, {}, {}",
+            display_val(*object, func),
+            display_val(*len, func)
+        ),
+        InstKind::MemoryObjectData(object, kind) => {
+            write!(f, "memory_object_data {kind}, {}", display_val(*object, func))
+        }
+        InstKind::AbiEncode { selector, args, layout } => {
+            write!(f, "abi_encode {layout}")?;
+            if let Some(selector) = selector {
+                write!(f, ", selector {}", display_val(*selector, func))?;
+            }
+            if !args.is_empty() {
+                write!(f, ", args ")?;
+                write!(f, "{}", args.iter().map(|arg| display_val(*arg, func)).format(", "))?;
+            }
+            Ok(())
+        }
+        InstKind::StorageToMemory { storage, memory, layout } => write!(
+            f,
+            "storage_to_memory {layout}, {}, {}",
+            display_val(*storage, func),
+            display_val(*memory, func)
+        ),
+        InstKind::MemoryToStorage { memory, storage, layout } => write!(
+            f,
+            "memory_to_storage {layout}, {}, {}",
+            display_val(*memory, func),
+            display_val(*storage, func)
+        ),
+        InstKind::ClearStorage { storage, layout } => {
+            write!(f, "clear_storage {layout}, {}", display_val(*storage, func))
+        }
         InstKind::InternalCall { function, args, returns } => {
             write!(f, "internal_call {}, {returns}", display_function_ref(*function, module))?;
             if !args.is_empty() {

@@ -13,6 +13,9 @@ newtype_index! {
     /// slot allocation. They must be resolved before assembly.
     pub(crate) struct DeferredConst;
 
+    /// A deferred heap allocation identifier.
+    pub(in crate::backend::evm) struct DeferredAlloc;
+
     /// An interned push immediate identifier.
     pub(in crate::backend::evm) struct PushValueId;
 
@@ -41,6 +44,10 @@ impl AsmIndex for Label {
 
 impl AsmIndex for DeferredConst {
     const NAME: &'static str = "assembler deferred constant index";
+}
+
+impl AsmIndex for DeferredAlloc {
+    const NAME: &'static str = "assembler deferred allocation index";
 }
 
 impl AsmIndex for PushValueId {

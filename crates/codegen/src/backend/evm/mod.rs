@@ -13,6 +13,8 @@ pub(super) const EVM_WORD_BYTES: usize = 32;
 mod codegen;
 pub use codegen::{EvmArtifact, EvmCodegen};
 
+mod layout;
+
 pub mod ir;
 
 pub(crate) mod op;

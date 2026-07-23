@@ -1,7 +1,10 @@
 //! ABI packed encoding lowering helpers.
 
 use super::Lowerer;
-use crate::mir::{FunctionBuilder, Value, ValueId};
+use crate::{
+    memory::EvmMemoryLayout,
+    mir::{FunctionBuilder, MemoryObjectKind, Value, ValueId},
+};
 use alloy_primitives::U256;
 use solar_ast::{ElementaryType, LitKind};
 use solar_interface::{Symbol, sym};
@@ -35,12 +38,11 @@ impl<'gcx> Lowerer<'gcx> {
         // free memory pointer and reserving it afterwards is safe.
         let packed_args = self.collect_packed_abi_args(builder, args);
 
-        let free_mem_ptr_slot = builder.imm_u64(0x40);
-        let ptr = builder.mload(free_mem_ptr_slot);
+        let ptr = builder.fmp_object(crate::mir::MemoryObjectLayout::Bytes);
 
         // Data starts at ptr+32 (leaving room for the length word).
         let thirty_two = builder.imm_u64(32);
-        let data_start = builder.add(ptr, thirty_two);
+        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let (end, static_len) = self.write_packed_abi_args(builder, data_start, &packed_args);
 
         // Finalize the allocation: length word + data padded to a word
@@ -56,9 +58,9 @@ impl<'gcx> Lowerer<'gcx> {
                 (length, builder.add(aligned, thirty_two))
             }
         };
-        builder.mstore(ptr, length);
+        builder.set_memory_object_len(ptr, length, MemoryObjectKind::Bytes);
         let new_free_ptr = builder.add(ptr, total_size);
-        builder.mstore(free_mem_ptr_slot, new_free_ptr);
+        builder.set_fmp(new_free_ptr);
 
         // Return pointer to the bytes value
         ptr
@@ -73,12 +75,12 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> ValueId {
         let packed_args = self.collect_packed_abi_args(builder, args);
 
-        let data_start = if Self::static_packed_max_write(&packed_args).is_some_and(|end| end <= 64)
+        let data_start = if Self::static_packed_max_write(&packed_args)
+            .is_some_and(|end| end <= EvmMemoryLayout::FMP_SLOT as usize)
         {
             builder.imm_u64(0)
         } else {
-            let free_mem_ptr_slot = builder.imm_u64(0x40);
-            builder.mload(free_mem_ptr_slot)
+            builder.fmp()
         };
         let (end, static_len) = self.write_packed_abi_args(builder, data_start, &packed_args);
 
@@ -105,19 +107,13 @@ impl<'gcx> Lowerer<'gcx> {
                 continue;
             }
 
-            // Calldata `bytes`/`string`: copy into a `[len][data]` memory buffer
-            // and pack its data like any other dynamic bytes value.
+            // Calldata `bytes`/`string` (a parameter, `msg.data`, a
+            // `base[low:high]` slice, or a chained slice): copy into a
+            // `[len][data]` memory buffer and pack its data like any other
+            // dynamic bytes value.
             if self.expr_is_calldata_dynamic_bytes(arg) {
-                if let Some((head, _)) = self.calldata_dyn_head(arg) {
-                    let ptr = self.materialize_calldata_bytes(builder, head);
-                    packed_args.push(PackedAbiArg::DynamicBytes(ptr));
-                } else if let ExprKind::Slice(base, low, high) = &arg.kind
-                    && let Some((head, _)) = self.calldata_dyn_head(base)
-                {
-                    // A slice `base[low:high]` of calldata bytes.
-                    let start = (*low).map(|e| self.lower_expr(builder, e));
-                    let end = (*high).map(|e| self.lower_expr(builder, e));
-                    let ptr = self.materialize_calldata_slice(builder, head, start, end);
+                if let Some((slice, _)) = self.calldata_bytes_source(builder, arg) {
+                    let ptr = self.materialize_calldata_bytes(builder, slice);
                     packed_args.push(PackedAbiArg::DynamicBytes(ptr));
                 } else {
                     self.gcx
@@ -163,6 +159,24 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::Elementary(ElementaryType::FixedBytes(n)) => Some(n.bytes()),
             _ => None,
         }
+    }
+
+    /// Lowers an `abi.encodeWithSelector` selector argument as a left-aligned
+    /// selector word. Sema can type a bare number literal as an integer, whose
+    /// lowering is right-aligned; `bytes4`-typed values are already aligned by
+    /// their producers.
+    pub(super) fn lower_selector_word(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> ValueId {
+        if let ExprKind::Lit(lit) = &expr.kind
+            && let LitKind::Number(n) = &lit.kind
+            && self.fixed_bytes_width_of_expr(expr).is_none()
+        {
+            return builder.imm_u256(*n << 224);
+        }
+        self.lower_expr(builder, expr)
     }
 
     pub(super) fn expr_is_calldata_dynamic_bytes(&self, expr: &hir::Expr<'_>) -> bool {
@@ -258,9 +272,8 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 &PackedAbiArg::DynamicBytes(ptr) => {
                     let dest = self.offset_ptr(builder, base, offset);
-                    let len = builder.mload(ptr);
-                    let word = builder.imm_u64(32);
-                    let src = builder.add(ptr, word);
+                    let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
+                    let src = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
                     self.mcopy(builder, dest, src, len, None);
                     base = builder.add(dest, len);
                     offset = 0;

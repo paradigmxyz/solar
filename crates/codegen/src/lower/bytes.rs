@@ -1,7 +1,7 @@
 //! Bytes and string lowering helpers.
 
 use super::{Lowerer, checked_arith::PanicCode};
-use crate::mir::{FunctionBuilder, ValueId};
+use crate::mir::{FunctionBuilder, MemoryObjectKind, SliceLocation, ValueId};
 use alloy_primitives::{U256, keccak256};
 use solar_ast::LitKind;
 use solar_interface::{Symbol, kw, sym};
@@ -11,7 +11,44 @@ use solar_sema::{
     ty::{Ty, TyKind},
 };
 
+/// The ABI-encoded region an argument decode reads from. External calls read
+/// calldata after the selector; constructors read the argument blob CODECOPY'd
+/// into memory at the heap start.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum AbiSource {
+    Calldata,
+    Memory,
+}
+
 impl<'gcx> Lowerer<'gcx> {
+    /// Loads one ABI word from `pos` in the selected source region.
+    fn abi_load(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
+        pos: ValueId,
+    ) -> ValueId {
+        match source {
+            AbiSource::Calldata => builder.calldataload(pos),
+            AbiSource::Memory => builder.mload(pos),
+        }
+    }
+
+    /// Copies `len` bytes from `src` in the selected source region to memory.
+    fn abi_copy(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
+        dst: ValueId,
+        src: ValueId,
+        len: ValueId,
+    ) {
+        match source {
+            AbiSource::Calldata => builder.calldatacopy(dst, src, len),
+            AbiSource::Memory => self.mcopy(builder, dst, src, len, None),
+        }
+    }
+
     /// Lowers a string/bytes literal to Solidity's memory layout
     /// `[length][data...]` and returns the memory pointer. General literal
     /// lowering still returns a word; ABI return encoding needs a real pointer.
@@ -32,12 +69,12 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> ValueId {
         let len = bytes.len();
         let aligned = len.div_ceil(32) * 32;
-        let ptr = self.allocate_memory(builder, (32 + aligned) as u64);
+        let ptr =
+            self.allocate_memory_object(builder, (32 + aligned) as u64, MemoryObjectKind::Bytes);
         let len_val = builder.imm_u64(len as u64);
-        builder.mstore(ptr, len_val);
+        builder.set_memory_object_len(ptr, len_val, MemoryObjectKind::Bytes);
 
-        let word = builder.imm_u64(32);
-        let data_start = builder.add(ptr, word);
+        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         for (i, chunk) in bytes.chunks(32).enumerate() {
             let mut padded = [0u8; 32];
             padded[..chunk.len()].copy_from_slice(chunk);
@@ -60,10 +97,17 @@ impl<'gcx> Lowerer<'gcx> {
         {
             return ptr;
         }
-        if let Some((head, true)) = self.calldata_dyn_head(expr) {
-            return self.materialize_calldata_bytes(builder, head);
+        if self.expr_is_calldata_dynamic_bytes(expr) {
+            let value = self.lower_expr(builder, expr);
+            // A decoded calldata-struct member is already a memory bytes
+            // pointer despite its calldata-located type.
+            if Self::value_is_calldata_slice(builder, value) {
+                return self.materialize_calldata_bytes(builder, value);
+            }
+            return value;
         }
-        self.lower_expr(builder, expr)
+        let value = self.lower_expr(builder, expr);
+        self.coerce_memory_slice_value(builder, value)
     }
 
     /// Copies a calldata `bytes`/`string` parameter into Solidity's memory
@@ -71,21 +115,9 @@ impl<'gcx> Lowerer<'gcx> {
     pub(super) fn materialize_calldata_bytes(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        head: ValueId,
+        slice: ValueId,
     ) -> ValueId {
-        let four = builder.imm_u64(4);
-        let len_pos = builder.add(four, head);
-        self.materialize_calldata_bytes_at(builder, len_pos)
-    }
-
-    /// Copies calldata bytes whose absolute length-word position is `len_pos`
-    /// into Solidity's memory bytes layout.
-    pub(super) fn materialize_calldata_bytes_at(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        len_pos: ValueId,
-    ) -> ValueId {
-        let len = builder.calldataload(len_pos);
+        let len = builder.slice_len(slice);
 
         let word_size = builder.imm_u64(32);
         let thirty_one = builder.imm_u64(31);
@@ -100,7 +132,120 @@ impl<'gcx> Lowerer<'gcx> {
         let total_overflow = builder.lt(total_size, data_size);
         self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
 
-        let ptr = self.allocate_memory_dynamic(builder, total_size);
+        let ptr = self.allocate_memory_object_dynamic(builder, total_size, MemoryObjectKind::Bytes);
+        builder.set_memory_object_len(ptr, len, MemoryObjectKind::Bytes);
+
+        let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+        let zero = builder.imm_u64(0);
+        let last_word_offset = builder.sub(data_size, word_size);
+        let last_word = builder.add(data_ptr, last_word_offset);
+        builder.mstore(last_word, zero);
+
+        let data_pos = builder.slice_ptr(slice);
+        builder.calldatacopy(data_ptr, data_pos, len);
+        ptr
+    }
+
+    /// Whether a lowered value is a logical memory slice (an ABI-encode
+    /// payload) rather than a `[length][data...]` bytes pointer.
+    pub(super) fn value_is_memory_slice(builder: &FunctionBuilder<'_>, value: ValueId) -> bool {
+        use crate::mir::{MirType, SliceLocation};
+        matches!(Self::value_mir_type(builder, value), Some(MirType::Slice(SliceLocation::Memory)))
+    }
+
+    /// Whether a lowered value is a logical calldata slice. A calldata-typed
+    /// expression does not guarantee one: a member of a calldata struct that
+    /// was decoded to memory in the prologue lowers to a memory bytes
+    /// pointer.
+    pub(super) fn value_is_calldata_slice(builder: &FunctionBuilder<'_>, value: ValueId) -> bool {
+        use crate::mir::{MirType, SliceLocation};
+        matches!(
+            Self::value_mir_type(builder, value),
+            Some(MirType::Slice(SliceLocation::Calldata))
+        )
+    }
+
+    /// The MIR type of a lowered value, when it records one.
+    fn value_mir_type(
+        builder: &FunctionBuilder<'_>,
+        value: ValueId,
+    ) -> Option<crate::mir::MirType> {
+        use crate::mir::Value;
+        let func = builder.func();
+        match func.value(value) {
+            Value::Arg { ty, .. } | Value::Undef(ty) => Some(*ty),
+            Value::Inst(inst_id) => func.instructions[*inst_id].result_ty,
+            Value::Immediate(_) | Value::Error(_) => None,
+        }
+    }
+
+    /// Adapts a logical memory slice to Solidity's `[length][data...]` memory
+    /// bytes layout. ABI-encode payloads are memory slices; a `bytes memory`
+    /// consumer needs a real length-prefixed object.
+    pub(super) fn materialize_memory_slice_bytes(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slice: ValueId,
+    ) -> ValueId {
+        let len = builder.slice_len(slice);
+
+        let word_size = builder.imm_u64(32);
+        let thirty_one = builder.imm_u64(31);
+        let rounded = builder.add(len, thirty_one);
+        let rounded_overflow = builder.lt(rounded, len);
+        self.emit_panic_if(builder, rounded_overflow, PanicCode::MemoryAllocationOverflow);
+        let mask = builder.not(thirty_one);
+        let padded = builder.and(rounded, mask);
+        let total_size = builder.add(word_size, padded);
+        let total_overflow = builder.lt(total_size, padded);
+        self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
+
+        let ptr = self.allocate_memory_object_dynamic(builder, total_size, MemoryObjectKind::Bytes);
+        builder.mstore(ptr, len);
+        let data_ptr = builder.add(ptr, word_size);
+        let data_pos = builder.slice_ptr(slice);
+        self.mcopy(builder, data_ptr, data_pos, len, None);
+        ptr
+    }
+
+    /// Coerces a lowered value into a `bytes memory` consumer's shape: a
+    /// logical memory slice materializes as a length-prefixed object, anything
+    /// else already is one word.
+    pub(super) fn coerce_memory_slice_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+    ) -> ValueId {
+        if Self::value_is_memory_slice(builder, value) {
+            return self.materialize_memory_slice_bytes(builder, value);
+        }
+        value
+    }
+
+    /// Copies calldata bytes whose absolute length-word position is `len_pos`
+    /// into Solidity's memory bytes layout.
+    pub(super) fn materialize_calldata_bytes_at(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
+        len_pos: ValueId,
+    ) -> ValueId {
+        let len = self.abi_load(builder, source, len_pos);
+
+        let word_size = builder.imm_u64(32);
+        let thirty_one = builder.imm_u64(31);
+        let rounded = builder.add(len, thirty_one);
+        let rounded_overflow = builder.lt(rounded, len);
+        self.emit_panic_if(builder, rounded_overflow, PanicCode::MemoryAllocationOverflow);
+        let mask = builder.not(thirty_one);
+        let padded = builder.and(rounded, mask);
+        let is_empty = builder.iszero(padded);
+        let data_size = builder.select(is_empty, word_size, padded);
+        let total_size = builder.add(word_size, data_size);
+        let total_overflow = builder.lt(total_size, data_size);
+        self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
+
+        let ptr = self.allocate_memory_object_dynamic(builder, total_size, MemoryObjectKind::Bytes);
         builder.mstore(ptr, len);
 
         let data_ptr = builder.add(ptr, word_size);
@@ -110,59 +255,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(last_word, zero);
 
         let data_pos = builder.add(len_pos, word_size);
-        builder.calldatacopy(data_ptr, data_pos, len);
-        ptr
-    }
-
-    /// Copies a calldata bytes/string SLICE `base[start:end]` into Solidity's
-    /// memory bytes layout (`[length][data...]`). `head` is the ABI head of
-    /// `base`; `start`/`end` default to `0` and `base.length`.
-    pub(super) fn materialize_calldata_slice(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        head: ValueId,
-        start: Option<ValueId>,
-        end: Option<ValueId>,
-    ) -> ValueId {
-        let four = builder.imm_u64(4);
-        let len_pos = builder.add(four, head);
-        let base_len = builder.calldataload(len_pos);
-        let word_size = builder.imm_u64(32);
-        let base_data_pos = builder.add(len_pos, word_size);
-
-        let start = match start {
-            Some(s) => s,
-            None => builder.imm_u64(0),
-        };
-        let end = match end {
-            Some(e) => e,
-            None => base_len,
-        };
-        let len = builder.sub(end, start);
-        let slice_pos = builder.add(base_data_pos, start);
-
-        let thirty_one = builder.imm_u64(31);
-        let rounded = builder.add(len, thirty_one);
-        let rounded_overflow = builder.lt(rounded, len);
-        self.emit_panic_if(builder, rounded_overflow, PanicCode::MemoryAllocationOverflow);
-        let mask = builder.not(thirty_one);
-        let padded = builder.and(rounded, mask);
-        let is_empty = builder.iszero(padded);
-        let data_size = builder.select(is_empty, word_size, padded);
-        let total_size = builder.add(word_size, data_size);
-        let total_overflow = builder.lt(total_size, data_size);
-        self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
-
-        let ptr = self.allocate_memory_dynamic(builder, total_size);
-        builder.mstore(ptr, len);
-
-        let data_ptr = builder.add(ptr, word_size);
-        let zero = builder.imm_u64(0);
-        let last_word_offset = builder.sub(data_size, word_size);
-        let last_word = builder.add(data_ptr, last_word_offset);
-        builder.mstore(last_word, zero);
-
-        builder.calldatacopy(data_ptr, slice_pos, len);
+        self.abi_copy(builder, source, data_ptr, data_pos, len);
         ptr
     }
 
@@ -203,10 +296,11 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> ValueId {
-        if let Some((head, false)) = self.calldata_dyn_head(expr)
-            && let Some(ty) = self.get_expr_type(expr)
-        {
-            return self.materialize_calldata_value(builder, ty, head);
+        if let Some((slice, false)) = self.calldata_bytes_source(builder, expr) {
+            if let Some(ty) = self.get_expr_type(expr) {
+                return self.materialize_calldata_dyn_array_for_ty(builder, ty, slice);
+            }
+            return self.materialize_calldata_dyn_array(builder, slice);
         }
         self.lower_expr(builder, expr)
     }
@@ -216,10 +310,60 @@ impl<'gcx> Lowerer<'gcx> {
     pub(super) fn materialize_calldata_word_array_at(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
         len_pos: ValueId,
     ) -> ValueId {
-        let len = builder.calldataload(len_pos);
+        let len = self.abi_load(builder, source, len_pos);
+        let word_size = builder.imm_u64(32);
+        let data_pos = builder.add(len_pos, word_size);
+        self.copy_calldata_word_array(builder, source, data_pos, len)
+    }
 
+    /// Materializes a calldata dynamic-array slice into memory, rebuilding
+    /// reference/aggregate elements so their memory slots hold memory
+    /// pointers. Word elements copy verbatim.
+    pub(super) fn materialize_calldata_dyn_array_for_ty(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: Ty<'gcx>,
+        slice: ValueId,
+    ) -> ValueId {
+        if let TyKind::DynArray(elem) | TyKind::Slice(elem) = ty.peel_refs().kind
+            && !self.abi_is_word_element(elem)
+        {
+            let data_pos = builder.slice_ptr(slice);
+            let len = builder.slice_len(slice);
+            return self.materialize_calldata_nested_array(
+                builder,
+                AbiSource::Calldata,
+                elem,
+                data_pos,
+                len,
+            );
+        }
+        self.materialize_calldata_dyn_array(builder, slice)
+    }
+
+    /// Copies a single-word calldata array SLICE into memory.
+    pub(super) fn materialize_calldata_dyn_array(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slice: ValueId,
+    ) -> ValueId {
+        let len = builder.slice_len(slice);
+        let data_pos = builder.slice_ptr(slice);
+        self.copy_calldata_word_array(builder, AbiSource::Calldata, data_pos, len)
+    }
+
+    /// Copies `len` calldata words starting at `data_pos` into a fresh memory
+    /// `[length][elems...]` array.
+    fn copy_calldata_word_array(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
+        data_pos: ValueId,
+        len: ValueId,
+    ) -> ValueId {
         let word_size = builder.imm_u64(32);
         // Guard `len * 32` overflow before sizing the allocation.
         let shift = builder.imm_u64(251);
@@ -228,54 +372,58 @@ impl<'gcx> Lowerer<'gcx> {
         let byte_len = builder.mul(len, word_size);
         let total_size = builder.add(word_size, byte_len);
 
-        let ptr = self.allocate_memory_dynamic(builder, total_size);
-        builder.mstore(ptr, len);
-        let data_ptr = builder.add(ptr, word_size);
-        let data_pos = builder.add(len_pos, word_size);
-        builder.calldatacopy(data_ptr, data_pos, byte_len);
+        let ptr = self.allocate_memory_object_dynamic(
+            builder,
+            total_size,
+            MemoryObjectKind::DynamicArray,
+        );
+        builder.set_memory_object_len(ptr, len, MemoryObjectKind::DynamicArray);
+        let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
+        self.abi_copy(builder, source, data_ptr, data_pos, byte_len);
         ptr
-    }
-
-    /// Materializes a top-level calldata dynamic value from its ABI offset.
-    /// Composite values are rebuilt recursively so memory contains pointers,
-    /// not the relative offsets stored in calldata heads.
-    pub(super) fn materialize_calldata_value(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        ty: Ty<'gcx>,
-        head: ValueId,
-    ) -> ValueId {
-        let selector_size = builder.imm_u64(4);
-        let pos = builder.add(selector_size, head);
-        self.materialize_calldata_value_at(builder, ty, pos)
     }
 
     /// Materializes a calldata value whose ABI body starts at the absolute
     /// calldata position `pos`.
-    fn materialize_calldata_value_at(
+    pub(super) fn materialize_calldata_value_at(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
         ty: Ty<'gcx>,
         pos: ValueId,
     ) -> ValueId {
         let ty = ty.peel_refs();
         match ty.kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                self.materialize_calldata_bytes_at(builder, pos)
+                self.materialize_calldata_bytes_at(builder, source, pos)
             }
             TyKind::DynArray(elem) | TyKind::Slice(elem) => {
-                self.materialize_calldata_dynamic_array_at(builder, elem, pos)
+                self.materialize_calldata_dynamic_array_at(builder, source, elem, pos)
             }
-            TyKind::Array(elem, len) => {
-                self.materialize_calldata_fixed_array_at(builder, elem, len.to::<u64>(), pos)
-            }
+            TyKind::Array(elem, len) => self.materialize_calldata_fixed_array_at(
+                builder,
+                source,
+                elem,
+                len.to::<u64>(),
+                pos,
+            ),
             TyKind::Struct(id) => {
                 let fields = self.gcx.struct_field_types(id).to_vec();
-                self.materialize_calldata_fields_at(builder, &fields, pos)
+                self.materialize_calldata_fields_at(builder, source, &fields, pos)
             }
-            TyKind::Tuple(fields) => self.materialize_calldata_fields_at(builder, fields, pos),
-            TyKind::Udvt(inner, _) => self.materialize_calldata_value_at(builder, inner, pos),
-            _ => builder.calldataload(pos),
+            TyKind::Tuple(fields) => {
+                self.materialize_calldata_fields_at(builder, source, fields, pos)
+            }
+            TyKind::Udvt(inner, _) => {
+                self.materialize_calldata_value_at(builder, source, inner, pos)
+            }
+            _ => {
+                // A value-typed leaf: solc reverts on a dirty narrow value
+                // decoded from calldata, so validate before storing it.
+                let word = self.abi_load(builder, source, pos);
+                self.emit_abi_field_clean_check(builder, ty, word);
+                word
+            }
         }
     }
 
@@ -285,14 +433,32 @@ impl<'gcx> Lowerer<'gcx> {
     fn materialize_calldata_dynamic_array_at(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
         elem: Ty<'gcx>,
         len_pos: ValueId,
     ) -> ValueId {
         if self.abi_is_word_element(elem) {
-            return self.materialize_calldata_word_array_at(builder, len_pos);
+            return self.materialize_calldata_word_array_at(builder, source, len_pos);
         }
 
-        let len = builder.calldataload(len_pos);
+        let len = self.abi_load(builder, source, len_pos);
+        let word = builder.imm_u64(32);
+        let data_pos = builder.add(len_pos, word);
+        self.materialize_calldata_nested_array(builder, source, elem, data_pos, len)
+    }
+
+    /// Materializes a calldata dynamic array of reference/aggregate elements
+    /// from its data position and length: per the ABI, element offset words
+    /// start at `data_pos` and are relative to it. Elements rebuild one at a
+    /// time so their memory slots contain memory pointers.
+    pub(super) fn materialize_calldata_nested_array(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
+        elem: Ty<'gcx>,
+        data_pos: ValueId,
+        len: ValueId,
+    ) -> ValueId {
         let word = builder.imm_u64(32);
         let shift = builder.imm_u64(251);
         let too_big = builder.shr(shift, len);
@@ -302,7 +468,11 @@ impl<'gcx> Lowerer<'gcx> {
         let total_overflow = builder.lt(total_size, byte_len);
         self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
 
-        let ptr = self.allocate_memory_dynamic(builder, total_size);
+        let ptr = self.allocate_memory_object_dynamic(
+            builder,
+            total_size,
+            MemoryObjectKind::DynamicArray,
+        );
         builder.mstore(ptr, len);
 
         // Recursive materialization allocates memory and can introduce CFG, so
@@ -311,7 +481,7 @@ impl<'gcx> Lowerer<'gcx> {
         let remaining_slot = scratch;
         let source_slot = self.offset_ptr(builder, scratch, 32);
         let dest_slot = self.offset_ptr(builder, scratch, 64);
-        let tuple_base = builder.add(len_pos, word);
+        let tuple_base = data_pos;
         let dest = builder.add(ptr, word);
         builder.mstore(remaining_slot, len);
         builder.mstore(source_slot, tuple_base);
@@ -329,9 +499,9 @@ impl<'gcx> Lowerer<'gcx> {
         builder.branch(has_next, body_block, done_block);
 
         builder.switch_to_block(body_block);
-        let source = builder.mload(source_slot);
-        let elem_pos = self.calldata_abi_value_pos(builder, elem, source, tuple_base);
-        let value = self.materialize_calldata_value_at(builder, elem, elem_pos);
+        let head_cursor = builder.mload(source_slot);
+        let elem_pos = self.calldata_abi_value_pos(builder, source, elem, head_cursor, tuple_base);
+        let value = self.materialize_calldata_value_at(builder, source, elem, elem_pos);
         let dest = builder.mload(dest_slot);
         builder.mstore(dest, value);
 
@@ -339,9 +509,9 @@ impl<'gcx> Lowerer<'gcx> {
         let remaining = builder.mload(remaining_slot);
         let next_remaining = builder.sub(remaining, one);
         builder.mstore(remaining_slot, next_remaining);
-        let source = builder.mload(source_slot);
+        let head_cursor = builder.mload(source_slot);
         let elem_head_size = builder.imm_u64(self.abi_head_size(elem));
-        let next_source = builder.add(source, elem_head_size);
+        let next_source = builder.add(head_cursor, elem_head_size);
         builder.mstore(source_slot, next_source);
         let dest = builder.mload(dest_slot);
         let next_dest = builder.add(dest, word);
@@ -356,6 +526,7 @@ impl<'gcx> Lowerer<'gcx> {
     fn materialize_calldata_fixed_array_at(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
         elem: Ty<'gcx>,
         len: u64,
         pos: ValueId,
@@ -365,8 +536,8 @@ impl<'gcx> Lowerer<'gcx> {
         let mut head_offset = 0;
         for i in 0..len {
             let head_pos = self.offset_ptr(builder, pos, head_offset);
-            let elem_pos = self.calldata_abi_value_pos(builder, elem, head_pos, pos);
-            let value = self.materialize_calldata_value_at(builder, elem, elem_pos);
+            let elem_pos = self.calldata_abi_value_pos(builder, source, elem, head_pos, pos);
+            let value = self.materialize_calldata_value_at(builder, source, elem, elem_pos);
             let dest = self.offset_ptr(builder, ptr, i * 32);
             builder.mstore(dest, value);
             head_offset += self.abi_head_size(elem);
@@ -379,6 +550,7 @@ impl<'gcx> Lowerer<'gcx> {
     fn materialize_calldata_fields_at(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
         fields: &[Ty<'gcx>],
         pos: ValueId,
     ) -> ValueId {
@@ -387,8 +559,8 @@ impl<'gcx> Lowerer<'gcx> {
         let mut head_offset = 0;
         for (i, &field) in fields.iter().enumerate() {
             let head_pos = self.offset_ptr(builder, pos, head_offset);
-            let field_pos = self.calldata_abi_value_pos(builder, field, head_pos, pos);
-            let value = self.materialize_calldata_value_at(builder, field, field_pos);
+            let field_pos = self.calldata_abi_value_pos(builder, source, field, head_pos, pos);
+            let value = self.materialize_calldata_value_at(builder, source, field, field_pos);
             let dest = self.offset_ptr(builder, ptr, (i as u64) * 32);
             builder.mstore(dest, value);
             head_offset += self.abi_head_size(field);
@@ -401,12 +573,13 @@ impl<'gcx> Lowerer<'gcx> {
     fn calldata_abi_value_pos(
         &self,
         builder: &mut FunctionBuilder<'_>,
+        source: AbiSource,
         ty: Ty<'gcx>,
         head_pos: ValueId,
         tuple_base: ValueId,
     ) -> ValueId {
         if self.abi_is_dynamic(ty) {
-            let offset = builder.calldataload(head_pos);
+            let offset = self.abi_load(builder, source, head_pos);
             builder.add(tuple_base, offset)
         } else {
             head_pos
@@ -414,6 +587,13 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     pub(super) fn lhs_expects_memory_bytes_value(&self, lhs: &hir::Expr<'_>) -> bool {
+        if let ExprKind::Ident(res_slice) = &lhs.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+            && self.gcx.hir.variable(*var_id).data_location
+                == Some(solar_ast::DataLocation::Calldata)
+        {
+            return false;
+        }
         if self.expr_has_bytes_or_string_type(lhs) {
             return true;
         }
@@ -529,7 +709,7 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
     ) -> ValueId {
         let current = self.materialize_storage_bytes(builder, slot);
-        let len = builder.mload(current);
+        let len = builder.memory_object_len(current, MemoryObjectKind::Bytes);
         match method {
             sym::push => {
                 let one = builder.imm_u64(1);
@@ -546,8 +726,7 @@ impl<'gcx> Lowerer<'gcx> {
                         self.bytes1_store_byte(builder, value)
                     })
                     .unwrap_or_else(|| builder.imm_u64(0));
-                let word = builder.imm_u64(32);
-                let data = builder.add(resized, word);
+                let data = builder.memory_object_data(resized, MemoryObjectKind::Bytes);
                 let dst = builder.add(data, len);
                 builder.mstore8(dst, byte);
                 self.copy_memory_bytes_to_storage(builder, slot, resized);
@@ -580,15 +759,15 @@ impl<'gcx> Lowerer<'gcx> {
         let is_empty = builder.iszero(padded);
         let data_size = builder.select(is_empty, word, padded);
         let total = builder.add(word, data_size);
-        let ptr = self.allocate_memory_dynamic(builder, total);
-        builder.mstore(ptr, new_len);
+        let ptr = self.allocate_memory_object_dynamic(builder, total, MemoryObjectKind::Bytes);
+        builder.set_memory_object_len(ptr, new_len, MemoryObjectKind::Bytes);
 
-        let data = builder.add(ptr, word);
+        let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let last_word_off = builder.sub(data_size, word);
         let last_word = builder.add(data, last_word_off);
         builder.mstore(last_word, zero);
 
-        let src_data = builder.add(src, word);
+        let src_data = builder.memory_object_data(src, MemoryObjectKind::Bytes);
         self.mcopy(builder, data, src_data, copy_len, None);
         ptr
     }
@@ -656,11 +835,38 @@ impl<'gcx> Lowerer<'gcx> {
     /// Must be emitted directly after the call instruction: the EVM return
     /// buffer is only invalidated by another external call, so reading it here
     /// is safe.
+    /// The most recent external call's return data as a logical returndata
+    /// slice covering the whole buffer, `(0, returndatasize)`.
+    ///
+    /// The buffer is volatile: any subsequent call, create, or low-level
+    /// `.call` overwrites it. A returndata slice must therefore be consumed —
+    /// materialized into memory via [`Self::materialize_returndata_slice`] —
+    /// before any such instruction, and must not be retained across one.
+    pub(super) fn returndata_slice(&mut self, builder: &mut FunctionBuilder<'_>) -> ValueId {
+        let zero = builder.imm_u64(0);
+        let size = builder.returndatasize();
+        builder.make_slice(zero, size, SliceLocation::Returndata)
+    }
+
     pub(super) fn materialize_returndata_bytes(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
     ) -> ValueId {
-        let size = builder.returndatasize();
+        let slice = self.returndata_slice(builder);
+        self.materialize_returndata_slice(builder, slice)
+    }
+
+    /// Copies a returndata slice into a fresh `[length][data]` memory bytes
+    /// object. `lower-slices` folds the slice's `(offset, len)` projections back
+    /// to the underlying `returndatasize`/offset, so the emitted code is a
+    /// single `returndatacopy` behind an aligned allocation.
+    pub(super) fn materialize_returndata_slice(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slice: ValueId,
+    ) -> ValueId {
+        let offset = builder.slice_ptr(slice);
+        let size = builder.slice_len(slice);
         // total = 32 (length word) + ceil32(size), keeping the free memory
         // pointer word-aligned. With empty returndata this degenerates to a
         // 32-byte allocation holding a zero length.
@@ -670,11 +876,10 @@ impl<'gcx> Lowerer<'gcx> {
         let padded = builder.and(rounded, mask);
         let word = builder.imm_u64(32);
         let total = builder.add(padded, word);
-        let ptr = self.allocate_memory_dynamic(builder, total);
-        builder.mstore(ptr, size);
-        let data_ptr = builder.add(ptr, word);
-        let zero = builder.imm_u64(0);
-        builder.returndatacopy(data_ptr, zero, size);
+        let ptr = self.allocate_memory_object_dynamic(builder, total, MemoryObjectKind::Bytes);
+        builder.set_memory_object_len(ptr, size, MemoryObjectKind::Bytes);
+        let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+        builder.returndatacopy(data_ptr, offset, size);
         ptr
     }
 
@@ -726,9 +931,8 @@ impl<'gcx> Lowerer<'gcx> {
                 sym::encodePacked => {
                     // Returns a `bytes memory` pointer: `[length][data...]`.
                     let ptr = self.lower_abi_encode_packed(builder, args);
-                    let word = builder.imm_u64(32);
-                    let data = builder.add(ptr, word);
-                    let len = builder.mload(ptr);
+                    let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+                    let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
                     return (data, len);
                 }
                 sym::encode => {
@@ -740,8 +944,7 @@ impl<'gcx> Lowerer<'gcx> {
                 sym::encodeWithSelector => {
                     let mut exprs = args.exprs();
                     if let Some(selector_expr) = exprs.next() {
-                        // `bytes4` values are left-aligned words.
-                        let selector = self.lower_expr(builder, selector_expr);
+                        let selector = self.lower_selector_word(builder, selector_expr);
                         let arg_exprs: Vec<_> = exprs.collect();
                         if let Some(payload) =
                             self.abi_encode_call_payload(builder, Some(selector), &arg_exprs)
@@ -788,20 +991,19 @@ impl<'gcx> Lowerer<'gcx> {
         // A `bytes memory` value: `[length][data...]` pointer.
         if self.expr_yields_memory_bytes(expr) {
             let ptr = self.lower_expr(builder, expr);
-            let word = builder.imm_u64(32);
-            let data = builder.add(ptr, word);
-            let len = builder.mload(ptr);
+            let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+            let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
             return (data, len);
         }
 
         // A `bytes`/`string` calldata value: copy it into memory (a low-level
         // call reads its input from memory), then use that region. This arises in
         // proxy fallbacks such as `impl.delegatecall(data)` with `bytes calldata`.
-        if let Some((head, _)) = self.calldata_dyn_head(expr) {
-            let ptr = self.materialize_calldata_bytes(builder, head);
-            let word = builder.imm_u64(32);
-            let len = builder.mload(ptr);
-            let data = builder.add(ptr, word);
+        if self.expr_is_calldata_dynamic_bytes(expr) {
+            let slice = self.lower_expr(builder, expr);
+            let ptr = self.materialize_calldata_bytes(builder, slice);
+            let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
+            let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
             return (data, len);
         }
 
@@ -857,21 +1059,18 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Calldata `bytes`/`string`: copy the data into memory, then hash it
         // (`keccak256` only reads memory).
-        if let Some((head, _)) = self.calldata_dyn_head(inner) {
-            let ptr = self.materialize_calldata_bytes(builder, head);
-            let word = builder.imm_u64(32);
-            let len = builder.mload(ptr);
-            let data = builder.add(ptr, word);
-            return Some(builder.keccak256(data, len));
+        if self.expr_is_calldata_dynamic_bytes(inner) {
+            let slice = self.lower_expr(builder, inner);
+            let ptr = self.materialize_calldata_bytes(builder, slice);
+            return Some(builder.keccak256_bytes(ptr));
         }
 
         // Memory and storage values lower to a memory `[length][data...]`
-        // pointer; hash the data that follows the length word.
+        // object; hash its contents through the object reference, so the
+        // optimizer sees one whole-object read instead of separate length and
+        // data projections.
         let ptr = self.lower_expr(builder, inner);
-        let word = builder.imm_u64(32);
-        let len = builder.mload(ptr);
-        let data = builder.add(ptr, word);
-        Some(builder.keccak256(data, len))
+        Some(builder.keccak256_bytes(ptr))
     }
 
     /// Whether lowering `expr` yields a memory `bytes`/`string` pointer

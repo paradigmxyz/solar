@@ -10,16 +10,14 @@
 //!
 //! 1. copies the original into a fresh internal function `f.body` with its parameter list preserved
 //!    when there are internal callers, and
-//! 2. strips `f`'s MIR parameter list, keeping its selector and its `Value::Arg` entries: in a
-//!    selector-bearing wrapper, `argN` denotes the ABI head word at calldata offset `4 + 32*N`,
-//!    which the backend rematerializes per use as a `calldataload`; the body keeps its fused
-//!    external termination (`RETURN`/`REVERT`/`STOP`).
+//! 2. strips `f`'s MIR parameter list, keeping its selector and its `Value::Arg` entries. Scalar
+//!    arguments remain lazy ABI head words; dynamic calldata arguments remain logical slices until
+//!    `lower-slices` projects their pointer and length. The body keeps its fused external
+//!    termination (`RETURN`/`REVERT`/`STOP`).
 //!
-//! The head-word convention is uniform for every parameter type: the word at
-//! the parameter's fixed calldata offset is the scalar itself for static
-//! types and the head offset for dynamic ones — exactly the word the
-//! external-form body already expects and further decodes itself. Returns
-//! are different: the wrappers do not implement returndata encoding at all,
+//! The wrapper keeps argument materialization lazy so values used after a
+//! branch can still be rematerialized instead of spilled. Returns are
+//! different: the wrappers do not implement returndata encoding at all,
 //! so they rely on the external lowering having fused the encode into the
 //! body (every value-carrying `ret` already rewritten to `returndata`). A
 //! function whose body still carries a live value-`Return` terminator makes
@@ -39,7 +37,11 @@
 //! and is dispatched by the backend instead.
 
 use crate::{
-    mir::{BlockId, Function, FunctionBuilder, FunctionId, InstKind, MirPhase, Module, Terminator},
+    memory::EvmMemoryLayout,
+    mir::{
+        BlockId, Function, FunctionBuilder, FunctionId, InstKind, MirPhase, MirType, Module,
+        Terminator, Value,
+    },
     pass::ModulePass,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
@@ -50,6 +52,8 @@ use solar_interface::{Ident, Symbol};
 pub(crate) struct LowerAbiStats {
     /// Number of external functions wrapped.
     pub wrapped: usize,
+    /// Number of value-carrying returns fused into `returndata` encoding.
+    pub fused_returns: usize,
     /// Number of external functions with returns, which the wrappers cannot
     /// encode yet. Any non-zero count makes the whole pass bail: the phase
     /// transition is all-or-nothing.
@@ -80,6 +84,21 @@ impl LowerAbiPass {
 
         // Snapshot the ids to wrap first; wrapping appends new functions, and we
         // must not revisit them.
+        // Fuse static word returns into `returndata` up front: an external
+        // function that hands plain words back to a caller can encode them
+        // itself, so it no longer forces the whole pass to bail. Dynamic
+        // returns (a memory pointer to bytes/array/struct data) still need an
+        // encoder the wrappers do not have.
+        let wrappable: Vec<FunctionId> = module
+            .functions
+            .iter_enumerated()
+            .filter_map(|(id, func)| is_wrappable_external(func).then_some(id))
+            .collect();
+        for &id in &wrappable {
+            self.stats.fused_returns +=
+                usize::from(fuse_static_word_returns(module.function_mut(id)));
+        }
+
         let mut targets = Vec::new();
         let mut internally_called = DenseBitSet::new_empty(module.functions.len());
         let mut callvalue = super::DispatchCallvalue::default();
@@ -157,17 +176,16 @@ impl LowerAbiPass {
     /// pristine copy for internal callers.
     ///
     /// The original function keeps its selector and loses its MIR parameter
-    /// list, but its `Value::Arg` entries stay in place: in a selector-bearing
-    /// wrapper, `argN` denotes the ABI head word at calldata offset
-    /// `4 + 32*N`, and the backend rematerializes each use as a
-    /// `calldataload` of that offset — the same lazy per-use materialization
-    /// the backend dispatcher path uses, so wrapper arguments never spill.
+    /// list, but its `Value::Arg` entries stay in place. Scalar arguments
+    /// continue to denote ABI head words, while logical calldata slices are
+    /// projected by `lower-slices`; both forms preserve lazy per-use
+    /// rematerialization, so wrapper arguments do not spill.
     /// Materializing the loads as eager MIR instructions instead was measured
     /// to cost real bytes: an instruction result is not rematerializable, so
     /// every multi-use or cross-block argument bought spill traffic the
     /// `Arg` form avoids. The explicit-decode representation returns when
-    /// dynamic types force real decoding (slices); head words do not need it.
-    /// The fused encode and `RETURN` stay intact, and no internal call is
+    /// slices provide explicit high-level decode semantics without changing
+    /// that backend property. The fused encode and `RETURN` stay intact, and no internal call is
     /// introduced on the external path. When the function has internal
     /// callers, a pristine `.body` copy with parameters preserved is appended
     /// and those callers are retargeted to it.
@@ -243,4 +261,60 @@ fn has_live_value_return(func: &Function) -> bool {
     func.blocks.iter().any(|block| {
         matches!(&block.terminator, Some(Terminator::Return { values }) if !values.is_empty())
     })
+}
+
+/// The MIR type a value carries, when it records one.
+fn value_type(func: &Function, value: crate::mir::ValueId) -> Option<MirType> {
+    match func.value(value) {
+        Value::Arg { ty, .. } | Value::Undef(ty) => Some(*ty),
+        Value::Inst(inst) => func.instructions[*inst].result_ty,
+        Value::Immediate(_) => Some(MirType::uint256()),
+        Value::Error(_) => None,
+    }
+}
+
+/// Whether a return value is a plain ABI word — an inline value type rather
+/// than a pointer to dynamically encoded memory. Only these can be encoded by
+/// the fused-return sequence.
+fn is_static_word_return(func: &Function, value: crate::mir::ValueId) -> bool {
+    match value_type(func, value) {
+        Some(
+            MirType::MemPtr
+            | MirType::MemoryObject(_)
+            | MirType::Slice(_)
+            | MirType::StoragePtr
+            | MirType::CalldataPtr,
+        ) => false,
+        Some(_) => true,
+        None => false,
+    }
+}
+
+/// Rewrites each value-carrying `Return` whose values are all plain words into
+/// the fused `returndata` encoding the backend expects: consecutive head words
+/// from the return buffer, then `RETURN`. Returns whether anything changed.
+fn fuse_static_word_returns(func: &mut Function) -> bool {
+    let block_ids: Vec<_> = func.blocks.indices().collect();
+    let mut changed = false;
+    for block_id in block_ids {
+        let Some(Terminator::Return { values }) = &func.blocks[block_id].terminator else {
+            continue;
+        };
+        if values.is_empty() || !values.iter().all(|&v| is_static_word_return(func, v)) {
+            continue;
+        }
+        let values = values.clone();
+        let base = EvmMemoryLayout::HEAP_START;
+        let mut builder = FunctionBuilder::new(func);
+        builder.switch_to_block(block_id);
+        for (index, &value) in values.iter().enumerate() {
+            let addr = builder.imm_u64(base + (index as u64) * EvmMemoryLayout::WORD_SIZE);
+            builder.mstore(addr, value);
+        }
+        let offset = builder.imm_u64(base);
+        let size = builder.imm_u64((values.len() as u64) * EvmMemoryLayout::WORD_SIZE);
+        builder.ret_data(offset, size);
+        changed = true;
+    }
+    changed
 }

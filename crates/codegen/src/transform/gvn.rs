@@ -46,7 +46,8 @@
 use crate::{
     analysis::CfgInfo,
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, MirType, Value, ValueId, utils as mir_utils,
+        BlockId, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout,
+        MirType, Value, ValueId, utils as mir_utils,
     },
     pass::FunctionPass,
 };
@@ -117,6 +118,12 @@ enum ExprKind {
     CalldataLoad(ClassId),
     BlockHash(ClassId),
     BlobHash(ClassId),
+    MakeSlice(ClassId, ClassId, crate::mir::SliceLocation),
+    SlicePtr(ClassId),
+    SliceLen(ClassId),
+    MemoryObjectData(ClassId, MemoryObjectKind),
+    MemoryObjectFieldAddr(ClassId, MemoryObjectLayout, u64),
+    MemoryObjectElementAddr(ClassId, MemoryObjectLayout, ClassId),
     Phi(BlockId, Vec<(BlockId, ClassId)>),
 }
 
@@ -346,6 +353,20 @@ impl GlobalValueNumberer {
             InstKind::CalldataLoad(a) => ExprKind::CalldataLoad(class(a)),
             InstKind::BlockHash(a) => ExprKind::BlockHash(class(a)),
             InstKind::BlobHash(a) => ExprKind::BlobHash(class(a)),
+            InstKind::MakeSlice { ptr, len, location } => {
+                ExprKind::MakeSlice(class(ptr), class(len), location)
+            }
+            InstKind::SlicePtr(slice) => ExprKind::SlicePtr(class(slice)),
+            InstKind::SliceLen(slice) => ExprKind::SliceLen(class(slice)),
+            InstKind::MemoryObjectData(object, kind) => {
+                ExprKind::MemoryObjectData(class(object), kind)
+            }
+            InstKind::MemoryObjectFieldAddr { object, layout, field } => {
+                ExprKind::MemoryObjectFieldAddr(class(object), layout, field)
+            }
+            InstKind::MemoryObjectElementAddr { object, layout, index } => {
+                ExprKind::MemoryObjectElementAddr(class(object), layout, class(index))
+            }
             // Everything else (memory, storage, environment reads, calls,
             // gas/msize/returndatasize, keccak, immutable reads) never merges
             // in this pass. CSE handles reads that require clobber tracking.

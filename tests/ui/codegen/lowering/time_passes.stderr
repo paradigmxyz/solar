@@ -1,5 +1,9 @@
 time: <TIME>	MIR TimePasses lower-mapping-slots changed=false
 time: <TIME>	MIR TimePasses lower-abi changed=true
+time: <TIME>	MIR TimePasses lower-abi-encode changed=false
+time: <TIME>	MIR TimePasses lower-aggregates changed=false
+time: <TIME>	MIR TimePasses lower-slices changed=false
 time: <TIME>	MIR TimePasses lower-dispatch changed=true
+time: <TIME>	MIR TimePasses lower-memory-objects changed=false
 time: <TIME>	MIR TimePasses lower-evm-shaped changed=false
 time: <TIME>	MIR TimePasses lower-immutables changed=false

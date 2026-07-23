@@ -1,0 +1,155 @@
+// === ROOT/tests/ui/codegen/lowering/dynamic_struct_param.sol:DynamicStructParam ===
+@module DynamicStructParam
+fn @init(arg0: u256, arg1: address) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = gt arg0, 0xffffffffffffffff
+    br v3, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v4 = add 4, arg0
+    v5 = alloc raw, exact, uninitialized, infallible, 128
+    v6 = calldataload v4
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = eq v6, v7
+    br v8, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    mstore v5, v6
+    v9 = add v4, 32
+    v10 = calldataload v9
+    v11 = and v10, 255
+    v12 = eq v10, v11
+    br v12, bb8, bb7
+  bb7:
+    revert 0, 0
+  bb8:
+    v13 = add v5, 32
+    mstore v13, v10
+    v14 = add v4, 64
+    v15 = calldataload v14
+    v16 = add v4, v15
+    v17 = calldataload v16
+    v18 = add v17, 31
+    v19 = lt v18, v17
+    br v19, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    v20 = not 31
+    v21 = and v18, v20
+    v22 = iszero v21
+    v23 = select v22, 32, v21
+    v24 = add 32, v23
+    v25 = lt v24, v23
+    br v25, bb11, bb12
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    v26 = alloc memorybytes, exact, uninitialized, infallible, v24
+    mstore v26, v17
+    v27 = add v26, 32
+    v28 = sub v23, 32
+    v29 = add v27, v28
+    mstore v29, 0
+    v30 = add v16, 32
+    calldatacopy v27, v30, v17
+    v31 = add v5, 64
+    mstore v31, v26
+    v32 = add v4, 96
+    v33 = calldataload v32
+    v34 = add v4, v33
+    v35 = calldataload v34
+    v36 = add v35, 31
+    v37 = lt v36, v35
+    br v37, bb13, bb14
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb14:
+    v38 = not 31
+    v39 = and v36, v38
+    v40 = iszero v39
+    v41 = select v40, 32, v39
+    v42 = add 32, v41
+    v43 = lt v42, v41
+    br v43, bb15, bb16
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb16:
+    v44 = alloc memorybytes, exact, uninitialized, infallible, v42
+    mstore v44, v35
+    v45 = add v44, 32
+    v46 = sub v41, 32
+    v47 = add v45, v46
+    mstore v47, 0
+    v48 = add v34, 32
+    calldatacopy v45, v48, v35
+    v49 = add v5, 96
+    mstore v49, v44
+    v50 = calldataload 36
+    v51 = and v50, 0xffffffffffffffffffffffffffffffffffffffff
+    v52 = eq v50, v51
+    br v52, bb18, bb17
+  bb17:
+    revert 0, 0
+  bb18:
+    mstore 128, 0
+    v53 = memory_object_field_addr memorystruct<4>, v5, 1
+    v54 = mload v53
+    v55 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v56 = add v54, v55
+    v57 = gt v56, 0xffffffffffffffffffffffffffffffffffffffff
+    br v57, bb19, bb20
+  bb19:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb20:
+    mstore 128, v56
+    returndata 128, 32
+}
+
+fn @flat(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v4 = memory_object_field_addr memorystruct<2>, v3, 0
+    mstore v4, arg0
+    v5 = calldataload 36
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
+    v7 = eq v5, v6
+    br v7, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v8 = memory_object_field_addr memorystruct<2>, v3, 1
+    mstore v8, arg1
+    mstore 128, 0
+    v9 = memory_object_field_addr memorystruct<2>, v3, 0
+    v10 = mload v9
+    mstore 128, v10
+    returndata 128, 32
+}
+
