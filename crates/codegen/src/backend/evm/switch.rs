@@ -72,8 +72,8 @@ impl SwitchDefault {
             Self::Jump => max_default_jump_len(target_width),
             Self::Revert => push_len(U256::ZERO, evm_version) * 2 + 1,
             Self::CleanupJump => 1 + max_default_jump_len(target_width),
-            Self::Fallthrough => 0,
-            Self::CleanupFallthrough => 1,
+            Self::Fallthrough => max_default_jump_len(target_width),
+            Self::CleanupFallthrough => 1 + max_default_jump_len(target_width),
         }
     }
 
@@ -88,8 +88,8 @@ impl SwitchDefault {
                 }
             }
             Self::CleanupJump => POP_GAS + DEFAULT_JUMP_GAS,
-            Self::Fallthrough => 0,
-            Self::CleanupFallthrough => POP_GAS,
+            Self::Fallthrough => DEFAULT_JUMP_GAS,
+            Self::CleanupFallthrough => POP_GAS + DEFAULT_JUMP_GAS,
         }
     }
 
@@ -186,7 +186,9 @@ pub(super) fn select_switch_plan_with_linear_values(
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct LoweringCost {
+    /// Optimistic size with minimally encoded labels and available fallthroughs.
     code_size: usize,
+    /// Conservative size with widened labels and fallthroughs restored as jumps.
     max_code_size: usize,
     hit_gas_sum: usize,
     miss_gas: usize,
@@ -575,8 +577,8 @@ mod tests {
             2,
         );
         assert_eq!(explicit.code_size, fallthrough.code_size + MIN_DEFAULT_JUMP_LEN);
-        assert_eq!(explicit.max_code_size, fallthrough.max_code_size + max_default_jump_len(2));
-        assert_eq!(explicit.miss_gas, fallthrough.miss_gas + DEFAULT_JUMP_GAS);
+        assert_eq!(explicit.max_code_size, fallthrough.max_code_size);
+        assert_eq!(explicit.miss_gas, fallthrough.miss_gas);
     }
 
     #[test]
