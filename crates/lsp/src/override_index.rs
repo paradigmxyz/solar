@@ -16,7 +16,7 @@ pub(crate) struct OverrideFamilyIndex {
     overridable: Vec<SymbolId>,
     families: IndexVec<SymbolId, SymbolId>,
     canonical: IndexVec<SymbolId, SymbolId>,
-    derived: IndexVec<SymbolId, Vec<SymbolId>>,
+    derived: FxHashMap<SymbolId, Vec<SymbolId>>,
     override_symbols: GrowableBitSet<SymbolId>,
 }
 
@@ -55,7 +55,6 @@ impl OverrideFamilyIndex {
         self.canonical.clear();
         self.canonical.extend(declarations.indices());
         self.derived.clear();
-        self.derived.extend((0..declarations.len()).map(|_| Vec::new()));
         self.override_symbols.clear();
         let mut declarations_by_location = FxHashMap::<_, SymbolId>::default();
         declarations_by_location.reserve(declarations.len());
@@ -87,12 +86,12 @@ impl OverrideFamilyIndex {
             union(&mut self.families, derived, base);
             let derived = self.canonical[derived];
             let base = self.canonical[base];
-            self.derived[base].push(derived);
+            self.derived.entry(base).or_default().push(derived);
             self.override_symbols.insert(derived);
             self.override_symbols.insert(base);
         }
 
-        for derived in &mut self.derived {
+        for derived in self.derived.values_mut() {
             derived.sort_unstable();
             derived.dedup();
         }
@@ -121,12 +120,14 @@ impl OverrideFamilyIndex {
         let mut descendants = DenseBitSet::new_empty(self.canonical.len());
         let Some(&symbol_id) = self.canonical.get(symbol_id) else { return Vec::new() };
         seen.insert(symbol_id);
-        let mut pending = self.derived[symbol_id].clone();
+        let mut pending = self.derived.get(&symbol_id).cloned().unwrap_or_default();
 
         while let Some(symbol_id) = pending.pop() {
             if seen.insert(symbol_id) {
                 descendants.insert(symbol_id);
-                pending.extend(self.derived[symbol_id].iter().copied());
+                if let Some(derived) = self.derived.get(&symbol_id) {
+                    pending.extend(derived.iter().copied());
+                }
             }
         }
         descendants.iter().collect()

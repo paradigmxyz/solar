@@ -17,7 +17,7 @@ use crate::backend::evm::{
     op,
 };
 use alloy_primitives::U256;
-use solar_data_structures::bit_set::DenseBitSet;
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;
 
 pub(super) struct BlockLayout;
@@ -42,14 +42,14 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
         if let Some(target) = layout_successor(block)
             && target.index() < state.predecessor_counts.len()
         {
-            state.predecessor_counts[target.index()] += 1;
+            state.predecessor_counts[target] += 1;
         }
     }
 
     append_layout_trace(module, BlockId::ENTRY, &mut state.placed, &mut state.order);
     for cold in [false, true] {
         for block in module.blocks.indices() {
-            if state.predecessor_counts[block.index()] == 0
+            if state.predecessor_counts[block] == 0
                 && is_cold_terminal_block(&module.blocks[block]) == cold
             {
                 append_layout_trace(module, block, &mut state.placed, &mut state.order);
@@ -74,10 +74,10 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
 }
 
 struct RunState {
-    predecessor_counts: Vec<usize>,
+    predecessor_counts: IndexVec<BlockId, usize>,
     order: Vec<BlockId>,
     placed: DenseBitSet<BlockId>,
-    references: Vec<usize>,
+    references: IndexVec<BlockId, usize>,
     candidates: Vec<Candidate>,
     picked: DenseBitSet<BlockId>,
     picked_order: Vec<BlockId>,
@@ -86,10 +86,10 @@ struct RunState {
 impl Default for RunState {
     fn default() -> Self {
         Self {
-            predecessor_counts: Vec::new(),
+            predecessor_counts: IndexVec::new(),
             order: Vec::new(),
             placed: DenseBitSet::new_empty(0),
-            references: Vec::new(),
+            references: IndexVec::new(),
             candidates: Vec::new(),
             picked: DenseBitSet::new_empty(0),
             picked_order: Vec::new(),
@@ -142,7 +142,7 @@ fn pack_hot_terminal_blocks(gcx: Gcx<'_>, module: &Module, state: &mut RunState)
                 gcx,
                 &module.blocks[block],
                 state.order.get(index + 1).copied(),
-                state.references[block.index()] != 0,
+                state.references[block] != 0,
             )
         })
         .sum();
@@ -165,9 +165,9 @@ fn pack_hot_terminal_blocks(gcx: Gcx<'_>, module: &Module, state: &mut RunState)
             gcx,
             &module.blocks[block],
             state.order.get(position + 1).copied(),
-            state.references[block.index()] != 0,
+            state.references[block] != 0,
         );
-        let count = state.references[block.index()];
+        let count = state.references[block];
         if size <= 32 && count >= 2 {
             state.candidates.push(Candidate { block, position, size, references: count });
         }
@@ -193,17 +193,21 @@ fn pack_hot_terminal_blocks(gcx: Gcx<'_>, module: &Module, state: &mut RunState)
     state.order.splice(insert_at..insert_at, state.picked_order.drain(..));
 }
 
-fn block_reference_counts(module: &Module, order: &[BlockId], references: &mut [usize]) {
+fn block_reference_counts(
+    module: &Module,
+    order: &[BlockId],
+    references: &mut IndexVec<BlockId, usize>,
+) {
     for (position, &block_id) in order.iter().enumerate() {
         let block = &module.blocks[block_id];
         for inst in &block.instructions {
             if let Some(PushValue::Block(block)) = &inst.value {
-                references[block.index()] += 1;
+                references[*block] += 1;
             }
         }
         if let Some(term) = &block.terminator {
             term.kind.visit_label_targets(order.get(position + 1).copied(), |target| {
-                references[target.index()] += 1;
+                references[target] += 1;
             });
         }
     }

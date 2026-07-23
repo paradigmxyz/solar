@@ -32,7 +32,10 @@ use crate::{
     pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    index::{IndexVec, index_vec},
+    map::{FxHashMap, FxHashSet},
+};
 
 /// Function pass for range-based overflow-check elimination.
 pub(crate) struct CheckElim;
@@ -134,10 +137,10 @@ impl CheckEliminator {
 
         // Predecessors recomputed from reachable terminators: facts must only
         // come from edges that can actually execute.
-        let mut preds: Vec<Vec<BlockId>> = vec![Vec::new(); func.blocks.len()];
+        let mut preds = index_vec![Vec::new(); func.blocks.len()];
         for &block in cfg.rpo() {
             for &succ in cfg.successors(block) {
-                preds[succ.index()].push(block);
+                preds[succ].push(block);
             }
         }
 
@@ -164,7 +167,7 @@ impl CheckEliminator {
         &mut self,
         func: &Function,
         cfg: &CfgInfo,
-        preds: &[Vec<BlockId>],
+        preds: &IndexVec<BlockId, Vec<BlockId>>,
     ) -> Vec<(BlockId, BlockId)> {
         enum Walk {
             Enter(BlockId),
@@ -597,10 +600,10 @@ impl CheckEliminator {
 /// the branch condition of its sole predecessor and whether it is true.
 fn dominating_edge_fact(
     func: &Function,
-    preds: &[Vec<BlockId>],
+    preds: &IndexVec<BlockId, Vec<BlockId>>,
     block: BlockId,
 ) -> Option<(ValueId, bool)> {
-    let preds = &preds[block.index()];
+    let preds = &preds[block];
     let (&first, rest) = preds.split_first()?;
     if rest.iter().any(|&pred| pred != first) {
         return None;
