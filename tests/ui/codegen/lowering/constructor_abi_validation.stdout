@@ -29,18 +29,17 @@ fn @_anonymous(arg0: bool, arg1: u256, arg2: u256) {
   bb1:
     revert 0, 0
   bb2:
-    v4 = mload 64 !metadata(memory=scratch)
-    v5 = add v4, 64
-    mstore 64, v5 !metadata(memory=scratch)
-    v6 = mload 160
+    v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v5 = mload 160
+    v6 = iszero v5
     v7 = iszero v6
-    v8 = iszero v7
-    v9 = eq v6, v8
-    br v9, bb4, bb3
+    v8 = eq v5, v7
+    br v8, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    mstore v4, arg1
+    v9 = memory_object_element_addr memoryfixedarray<2, 1>, v4, 0
+    mstore v9, arg1
     v10 = mload 192
     v11 = iszero v10
     v12 = iszero v11
@@ -49,22 +48,21 @@ fn @_anonymous(arg0: bool, arg1: u256, arg2: u256) {
   bb5:
     revert 0, 0
   bb6:
-    v14 = add v4, 32
+    v14 = memory_object_element_addr memoryfixedarray<2, 1>, v4, 1
     mstore v14, arg2
     v15 = sload 0 !metadata(storage=slot(0))
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v17 = and arg0, 255
     v18 = or v16, v17
     sstore 0, v18 !metadata(storage=slot(0))
-    v19 = mul 1, 32
-    v20 = add v4, v19
-    v21 = mload v20
-    v22 = sload 0 !metadata(storage=slot(0))
-    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
-    v24 = and v21, 255
-    v25 = shl 8, v24
-    v26 = or v23, v25
-    sstore 0, v26 !metadata(storage=slot(0))
+    v19 = memory_object_element_addr memoryfixedarray<2, 1>, v4, 1
+    v20 = mload v19
+    v21 = sload 0 !metadata(storage=slot(0))
+    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v23 = and v20, 255
+    v24 = shl 8, v23
+    v25 = or v22, v24
+    sstore 0, v25 !metadata(storage=slot(0))
     stop
 }
 

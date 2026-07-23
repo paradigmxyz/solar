@@ -32,8 +32,8 @@
 use crate::{
     analysis::{CfgInfo, DominatorTree},
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, Instruction, InstructionMetadata, MirType,
-        Terminator, Value, ValueId,
+        BlockId, Function, Immediate, InstId, InstKind, Instruction, InstructionMetadata,
+        MemoryObjectKind, MemoryObjectLayout, MirType, Terminator, Value, ValueId,
         utils::{repair_reachability_phis, split_edge},
     },
     pass::FunctionPass,
@@ -105,6 +105,9 @@ enum ExprKey {
     IsZero(OperandKey),
     Select(OperandKey, OperandKey, OperandKey),
     SignExtend(OperandKey, OperandKey),
+    MemoryObjectData(OperandKey, MemoryObjectKind),
+    MemoryObjectFieldAddr(OperandKey, MemoryObjectLayout, u64),
+    MemoryObjectElementAddr(OperandKey, MemoryObjectLayout, OperandKey),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -539,6 +542,9 @@ impl PartialRedundancyEliminator {
                 | InstKind::IsZero(_)
                 | InstKind::Select(_, _, _)
                 | InstKind::SignExtend(_, _)
+                | InstKind::MemoryObjectData(_, _)
+                | InstKind::MemoryObjectFieldAddr { .. }
+                | InstKind::MemoryObjectElementAddr { .. }
         )
     }
 
@@ -597,6 +603,15 @@ impl PartialRedundancyEliminator {
                 Some(ExprKey::Select(operand(*a), operand(*b), operand(*c)))
             }
             InstKind::SignExtend(a, b) => Some(ExprKey::SignExtend(operand(*a), operand(*b))),
+            InstKind::MemoryObjectData(object, kind) => {
+                Some(ExprKey::MemoryObjectData(operand(*object), *kind))
+            }
+            InstKind::MemoryObjectFieldAddr { object, layout, field } => {
+                Some(ExprKey::MemoryObjectFieldAddr(operand(*object), *layout, *field))
+            }
+            InstKind::MemoryObjectElementAddr { object, layout, index } => {
+                Some(ExprKey::MemoryObjectElementAddr(operand(*object), *layout, operand(*index)))
+            }
             _ => None,
         }
     }

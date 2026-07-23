@@ -71,7 +71,7 @@
 +   bb1:
 +     v5 = phi [bb2: v3]
 +     v6 = phi [bb2: v4]
-+     v7 = mload 64
++     v7 = fmp
 +     v8 = add v7, 32
 +     mstore v8, v6
 +     mstore 32, v7
