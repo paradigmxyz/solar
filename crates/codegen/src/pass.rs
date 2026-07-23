@@ -169,7 +169,8 @@ const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
 ///
 /// The optimization prefix advances the module to `MirPhase::Optimized` before
 /// cleanup. The lowering suffix then advances it as far as the module permits.
-/// Ad-hoc `solar mir-opt` pass lists do not advance the phase.
+/// Modules already past optimization resume at the lowering suffix. Ad-hoc
+/// `solar mir-opt` pass lists do not advance the phase.
 #[tracing::instrument(
     name = "mir_pipeline",
     level = "debug",
@@ -179,8 +180,11 @@ const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
 pub fn run_default_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
     let optimization_end = DEFAULT_PIPELINE.len() - DEFAULT_LOWERING_PASSES;
     let (optimization_passes, lowering_passes) = DEFAULT_PIPELINE.split_at(optimization_end);
-    let mut changed = run_passes(gcx, module, optimization_passes, Some(MirPhase::Optimized));
-    changed |= run_cleanup_pipeline_to_fixpoint(gcx, module, DEFAULT_CLEANUP_PIPELINE);
+    let mut changed = false;
+    if module.phase <= MirPhase::Optimized {
+        changed |= run_passes(gcx, module, optimization_passes, Some(MirPhase::Optimized));
+        changed |= run_cleanup_pipeline_to_fixpoint(gcx, module, DEFAULT_CLEANUP_PIPELINE);
+    }
     changed |= run_passes(gcx, module, lowering_passes, None);
     changed
 }

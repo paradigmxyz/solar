@@ -1,0 +1,24 @@
+// === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (after pipeline-default) ===
+@module PhasePipelineResume
+@phase evm-shaped
+fn @ping() {
+  bb0:
+    stop
+}
+
+fn @entry() {
+  bb0:
+    v0 = callvalue
+    br v0, bb4, bb1
+  bb1:
+    v1 = calldatasize
+    br v1, bb2, bb4
+  bb2:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb4, [0x5c36b186 => bb3]
+  bb3:
+    tail_call @ping
+  bb4:
+    revert 0, 0
+}
