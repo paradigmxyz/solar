@@ -74,25 +74,29 @@ impl FunctionPass for CsePass {
         CommonSubexprEliminator::new().run_to_fixpoint(func) != 0
     }
 
+    fn run_on_function_cached(
+        &mut self,
+        func: &mut Function,
+        analyses: &crate::pass::FunctionAnalyses,
+    ) -> bool {
+        let mut eliminator = match &analyses.call_summaries {
+            Some(summaries) => {
+                CommonSubexprEliminator::with_call_summaries(Arc::clone(summaries))
+            }
+            None => CommonSubexprEliminator::new(),
+        };
+        eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+        eliminator.run_to_fixpoint(func) != 0
+    }
+
     fn run_on_module(
         &mut self,
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        let summaries = Arc::new(MemoryCallSummaries::new(module));
-        let mut changed = false;
-        for func_id in module.functions.indices() {
-            if module.functions[func_id].blocks.is_empty() {
-                continue;
-            }
-            changed |=
-                crate::pass::run_function_pass_cached(analyses, module, func_id, |func, bundle| {
-                    let mut eliminator =
-                        CommonSubexprEliminator::with_call_summaries(Arc::clone(&summaries));
-                    eliminator.cfg = Some(Rc::clone(&bundle.cfg));
-                    eliminator.run_to_fixpoint(func) != 0
-                });
-        }
+        analyses.set_call_summaries(Arc::new(MemoryCallSummaries::new(module)));
+        let changed = crate::pass::run_function_pass_over_module(analyses, module, self);
+        analyses.clear_call_summaries();
         changed
     }
 }
