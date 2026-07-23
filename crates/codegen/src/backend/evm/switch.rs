@@ -13,7 +13,8 @@ const VERY_LOW_GAS: usize = 3;
 const JUMP_GAS: usize = 8;
 const JUMPI_GAS: usize = 10;
 const DEFAULT_JUMP_GAS: usize = VERY_LOW_GAS + JUMP_GAS;
-const POP_GAS: usize = 2;
+const BASE_GAS: usize = 2;
+const POP_GAS: usize = BASE_GAS;
 const MOD_GAS: usize = 5;
 const MUL_GAS: usize = 5;
 const JUMPDEST_GAS: usize = 1;
@@ -49,6 +50,10 @@ pub(super) enum SwitchDefault {
     Revert,
     /// Pop the switch value, then jump to the default block.
     CleanupJump,
+    /// Continue into the default block without emitting an instruction.
+    Fallthrough,
+    /// Pop the switch value, then continue into the default block.
+    CleanupFallthrough,
 }
 
 impl SwitchDefault {
@@ -57,6 +62,8 @@ impl SwitchDefault {
             Self::Jump => MIN_DEFAULT_JUMP_LEN,
             Self::Revert => push_len(U256::ZERO, evm_version) * 2 + 1,
             Self::CleanupJump => 1 + MIN_DEFAULT_JUMP_LEN,
+            Self::Fallthrough => 0,
+            Self::CleanupFallthrough => 1,
         }
     }
 
@@ -65,19 +72,41 @@ impl SwitchDefault {
             Self::Jump => max_default_jump_len(target_width),
             Self::Revert => push_len(U256::ZERO, evm_version) * 2 + 1,
             Self::CleanupJump => 1 + max_default_jump_len(target_width),
+            Self::Fallthrough => 0,
+            Self::CleanupFallthrough => 1,
         }
     }
 
-    const fn gas(self) -> usize {
+    fn gas(self, evm_version: EvmVersion) -> usize {
         match self {
             Self::Jump => DEFAULT_JUMP_GAS,
-            Self::Revert => VERY_LOW_GAS * 2,
+            Self::Revert => {
+                if evm_version.has_push0() {
+                    BASE_GAS * 2
+                } else {
+                    VERY_LOW_GAS * 2
+                }
+            }
             Self::CleanupJump => POP_GAS + DEFAULT_JUMP_GAS,
+            Self::Fallthrough => 0,
+            Self::CleanupFallthrough => POP_GAS,
         }
     }
 
     const fn needs_value_cleanup(self) -> bool {
-        matches!(self, Self::CleanupJump)
+        matches!(self, Self::CleanupJump | Self::CleanupFallthrough)
+    }
+
+    const fn can_fallthrough(self) -> bool {
+        matches!(self, Self::Fallthrough | Self::CleanupFallthrough)
+    }
+
+    const fn without_fallthrough(self) -> Self {
+        match self {
+            Self::Fallthrough => Self::Jump,
+            Self::CleanupFallthrough => Self::CleanupJump,
+            _ => self,
+        }
     }
 }
 
@@ -175,14 +204,20 @@ fn lowering_cost(
             path_gas += test.gas;
             cost.hit_gas_sum += path_gas;
         }
-        cost.miss_gas = path_gas + default.gas();
+        cost.miss_gas = path_gas + default.gas(evm_version);
         return cost;
     }
 
     let mid = values.len() / 2;
     let split = ordered_test_cost(values[mid], evm_version, table_target_width);
     let left = lowering_cost(&values[..mid], leaf_size, evm_version, default, table_target_width);
-    let right = lowering_cost(&values[mid..], leaf_size, evm_version, default, table_target_width);
+    let right = lowering_cost(
+        &values[mid..],
+        leaf_size,
+        evm_version,
+        default.without_fallthrough(),
+        table_target_width,
+    );
     LoweringCost {
         code_size: split.code_size + JUMPDEST_LEN + left.code_size + right.code_size,
         max_code_size: split.max_code_size
@@ -266,25 +301,33 @@ fn bucket_lowering_cost(
     };
 
     let mut bucket_path_gas = vec![0; bucket_count];
+    let fallthrough_bucket = default
+        .can_fallthrough()
+        .then(|| values.iter().map(|&value| bucket_index(value, bucket_count)).max().unwrap());
     for &value in values {
         let index = bucket_index(value, bucket_count);
+        let bucket_default =
+            if fallthrough_bucket == Some(index) { default } else { default.without_fallthrough() };
         let test = equality_test_cost(value, evm_version, table_target_width);
         if bucket_path_gas[index] == 0 {
-            cost.code_size += JUMPDEST_LEN + default.code_size(evm_version);
+            cost.code_size += JUMPDEST_LEN + bucket_default.code_size(evm_version);
             cost.max_code_size +=
-                JUMPDEST_LEN + default.max_code_size(evm_version, table_target_width);
+                JUMPDEST_LEN + bucket_default.max_code_size(evm_version, table_target_width);
         }
         cost.code_size += test.code_size;
         cost.max_code_size += test.max_code_size;
         bucket_path_gas[index] += test.gas;
         cost.hit_gas_sum += bucket_path_gas[index];
-        cost.miss_gas = cost.miss_gas.max(dispatch_gas + bucket_path_gas[index] + default.gas());
+        cost.miss_gas = cost
+            .miss_gas
+            .max(dispatch_gas + bucket_path_gas[index] + bucket_default.gas(evm_version));
     }
     if default.needs_value_cleanup() && bucket_path_gas.contains(&0) {
         // One shared JUMPDEST, POP, and default jump for ordinary MIR switches.
-        cost.code_size += JUMPDEST_LEN + 1 + MIN_DEFAULT_JUMP_LEN;
-        cost.max_code_size += JUMPDEST_LEN + 1 + max_default_jump_len(table_target_width);
-        cost.miss_gas = cost.miss_gas.max(dispatch_gas + POP_GAS + DEFAULT_JUMP_GAS);
+        let default = default.without_fallthrough();
+        cost.code_size += JUMPDEST_LEN + default.code_size(evm_version);
+        cost.max_code_size += JUMPDEST_LEN + default.max_code_size(evm_version, table_target_width);
+        cost.miss_gas = cost.miss_gas.max(dispatch_gas + default.gas(evm_version));
     }
     cost
 }
@@ -490,6 +533,28 @@ mod tests {
     }
 
     #[test]
+    fn accounts_for_default_fallthrough() {
+        let values = values(8);
+        let explicit = lowering_cost(&values, 2, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2);
+        let fallthrough =
+            lowering_cost(&values, 2, EvmVersion::Cancun, SwitchDefault::CleanupFallthrough, 2);
+        assert_eq!(explicit.code_size, fallthrough.code_size + MIN_DEFAULT_JUMP_LEN);
+        assert_eq!(explicit.max_code_size, fallthrough.max_code_size + max_default_jump_len(2));
+
+        let explicit =
+            bucket_lowering_cost(&values, 8, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2);
+        let fallthrough = bucket_lowering_cost(
+            &values,
+            8,
+            EvmVersion::Cancun,
+            SwitchDefault::CleanupFallthrough,
+            2,
+        );
+        assert_eq!(explicit.code_size, fallthrough.code_size + MIN_DEFAULT_JUMP_LEN);
+        assert_eq!(explicit.max_code_size, fallthrough.max_code_size + max_default_jump_len(2));
+    }
+
+    #[test]
     fn accounts_for_bucket_value_cleanup() {
         let values = [U256::ZERO, U256::from(2)];
         let with_cleanup =
@@ -527,7 +592,9 @@ mod tests {
     fn accounts_for_pre_shanghai_selector_reverts() {
         assert_eq!(SwitchDefault::Revert.code_size(EvmVersion::Berlin), 5);
         assert_eq!(SwitchDefault::Revert.max_code_size(EvmVersion::Berlin, 2), 5);
+        assert_eq!(SwitchDefault::Revert.gas(EvmVersion::Berlin), 6);
         assert_eq!(SwitchDefault::Revert.code_size(EvmVersion::Cancun), 3);
+        assert_eq!(SwitchDefault::Revert.gas(EvmVersion::Cancun), 4);
         assert_eq!(SwitchDefault::Jump.max_code_size(EvmVersion::Berlin, 2), 4);
     }
 

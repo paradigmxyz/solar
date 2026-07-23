@@ -5751,11 +5751,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let constant_entries = self.constant_switch_entries(func, cases);
                 let plan = constant_entries.as_ref().map_or(SwitchPlan::Linear, |entries| {
                     let values: Vec<_> = entries.iter().map(|entry| entry.value).collect();
-                    let default = if self.emitting_dispatch_entry {
-                        SwitchDefault::Jump
-                    } else {
-                        SwitchDefault::CleanupJump
-                    };
+                    let default =
+                        match (self.emitting_dispatch_entry, fallthrough == Some(*default)) {
+                            (true, true) => SwitchDefault::Fallthrough,
+                            (true, false) => SwitchDefault::Jump,
+                            (false, true) => SwitchDefault::CleanupFallthrough,
+                            (false, false) => SwitchDefault::CleanupJump,
+                        };
                     select_switch_plan(
                         &values,
                         self.gcx.sess.opts.optimization,
