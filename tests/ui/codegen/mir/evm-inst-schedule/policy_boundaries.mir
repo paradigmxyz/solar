@@ -1,0 +1,160 @@
+//@ compile-flags: --pass evm-inst-schedule
+@module EvmInstSchedulePolicy
+
+// Schedule a complete expression tree in EVM stack-input order.
+fn @deep_dependency_tree(
+  arg0: u256,
+  arg1: u256,
+  arg2: u256,
+  arg3: u256,
+  arg4: u256,
+  arg5: u256
+) -> u256 {
+  bb0:
+    v6 = add arg0, arg1
+    v7 = mul arg2, arg3
+    v8 = sub v6, v7
+    v9 = xor arg4, arg5
+    v10 = div v8, v9
+    ret v10
+}
+
+// Schedule both sides of a write barrier without moving instructions across it.
+fn @independent_barrier_segments(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+  bb0:
+    v4 = add arg0, arg1
+    v5 = mul arg2, arg3
+    v6 = sub v4, v5
+    mstore 0, v6
+    v7 = add arg0, arg2
+    v8 = mul arg1, arg3
+    v9 = div v7, v8
+    ret v9
+}
+
+// A shared result keeps its whole segment in the established order.
+fn @shared_result_rejects_segment(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+  bb0:
+    v4 = add arg0, arg1
+    v5 = mul v4, arg2
+    v6 = sub v4, arg3
+    v7 = div v5, v6
+    ret v7
+}
+
+// Keep producer order when the backend can lower either comparison orientation.
+fn @comparison_producer_order(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> bool {
+  bb0:
+    v4 = sub arg0, arg1
+    v5 = div arg2, arg3
+    v6 = lt v4, v5
+    ret v6
+}
+
+// Multiple return values are terminator roots and follow stack-input order.
+fn @multiple_terminator_roots(
+  arg0: u256,
+  arg1: u256,
+  arg2: u256,
+  arg3: u256
+) -> (u256, u256) {
+  bb0:
+    v4 = add arg0, arg1
+    v5 = mul arg2, arg3
+    ret v4, v5
+}
+
+// Keep a disconnected instruction below the value consumed by the terminator.
+fn @disconnected_root_is_retained(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v2 = mul arg1, 2
+    v3 = add arg0, 1
+    ret v2
+}
+
+// Memory, transient-storage, and environment reads may share one movable segment.
+fn @read_effects_are_movable(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v2 = mload arg0
+    v3 = tload arg1
+    v4 = caller
+    v5 = sub v2, v3
+    v6 = div v5, v4
+    ret v6
+}
+
+// `msize` splits two independently scheduled segments.
+fn @msize_is_a_barrier(
+  arg0: u256,
+  arg1: u256,
+  arg2: u256,
+  arg3: u256
+) -> (u256, u256, u256) {
+  bb0:
+    v4 = add arg0, arg1
+    v5 = mul arg2, arg3
+    v6 = sub v4, v5
+    v7 = msize
+    v8 = add arg0, arg2
+    v9 = mul arg1, arg3
+    v10 = div v8, v9
+    ret v6, v7, v10
+}
+
+// A phi remains at the start of its block even when a later tree consumes it.
+fn @phi_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: bool) -> u256 {
+  bb0:
+    br arg3, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v4 = phi [bb1: arg0], [bb2: arg1]
+    v5 = add arg0, arg1
+    v6 = mul v4, arg2
+    ret v6
+}
+
+// An explicit write effect overrides an opcode's default pure effect.
+fn @metadata_effect_is_a_barrier(
+  arg0: u256,
+  arg1: u256,
+  arg2: u256,
+  arg3: u256
+) -> u256 {
+  bb0:
+    v4 = add arg0, arg1
+    v5 = mul arg2, arg3
+    v6 = sub v4, v5
+    v7 = xor arg0, arg3 !metadata(effect=memory_write)
+    v8 = add arg0, arg2
+    v9 = mul arg1, arg3
+    v10 = div v8, v9
+    ret v10
+}
+
+// Each block starts with empty scheduling scratch state.
+fn @block_local_scratch(
+  arg0: u256,
+  arg1: u256,
+  arg2: u256,
+  arg3: u256
+) -> u256 {
+  bb0:
+    v4 = add arg0, arg1
+    v5 = mul arg2, arg3
+    v6 = sub v4, v5
+    v7 = iszero v6
+    br v7, bb1, bb2
+  bb1:
+    v8 = add arg0, arg2
+    v9 = mul arg1, arg3
+    v10 = div v8, v9
+    ret v10
+  bb2:
+    v11 = add arg0, arg3
+    v12 = mul arg1, arg2
+    v13 = mod v11, v12
+    ret v13
+}

@@ -1,0 +1,138 @@
+- // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/policy_boundaries.mir (before evm-inst-schedule) ===
++ // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/policy_boundaries.mir (after evm-inst-schedule) ===
+  @module EvmInstSchedulePolicy
+  fn @deep_dependency_tree(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256) -> u256 {
+    bb0:
+-     v0 = add arg0, arg1
++     v3 = xor arg4, arg5
+      v1 = mul arg2, arg3
++     v0 = add arg0, arg1
+      v2 = sub v0, v1
+-     v3 = xor arg4, arg5
+      v4 = div v2, v3
+      ret v4
+  }
+  
+  fn @independent_barrier_segments(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+    bb0:
+-     v0 = add arg0, arg1
+      v1 = mul arg2, arg3
++     v0 = add arg0, arg1
+      v2 = sub v0, v1
+      mstore 0, v2
+-     v3 = add arg0, arg2
+      v4 = mul arg1, arg3
++     v3 = add arg0, arg2
+      v5 = div v3, v4
+      ret v5
+  }
+  
+  fn @shared_result_rejects_segment(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+    bb0:
+      v0 = add arg0, arg1
+      v1 = mul v0, arg2
+      v2 = sub v0, arg3
+      v3 = div v1, v2
+      ret v3
+  }
+  
+  fn @comparison_producer_order(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> bool {
+    bb0:
+      v0 = sub arg0, arg1
+      v1 = div arg2, arg3
+      v2 = lt v0, v1
+      ret v2
+  }
+  
+  fn @multiple_terminator_roots(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) {
+    bb0:
+-     v0 = add arg0, arg1
+      v1 = mul arg2, arg3
++     v0 = add arg0, arg1
+      ret v0, v1
+  }
+  
+  fn @disconnected_root_is_retained(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = mul arg1, 2
+      v1 = add arg0, 1
++     v0 = mul arg1, 2
+      ret v0
+  }
+  
+  fn @read_effects_are_movable(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = mload arg0
+-     v1 = tload arg1
+      v2 = caller
++     v1 = tload arg1
++     v0 = mload arg0
+      v3 = sub v0, v1
+      v4 = div v3, v2
+      ret v4
+  }
+  
+  fn @msize_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256) {
+    bb0:
+-     v0 = add arg0, arg1
+      v1 = mul arg2, arg3
++     v0 = add arg0, arg1
+      v2 = sub v0, v1
+      v3 = msize
+-     v4 = add arg0, arg2
+      v5 = mul arg1, arg3
++     v4 = add arg0, arg2
+      v6 = div v4, v5
+      ret v2, v3, v6
+  }
+  
+  fn @phi_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: bool) -> u256 {
+    bb0:
+      br arg3, bb1, bb2
+    bb1:
+      jump bb3
+    bb2:
+      jump bb3
+    bb3:
+      v0 = phi [bb1: arg0], [bb2: arg1]
+      v1 = add arg0, arg1
+      v2 = mul v0, arg2
+      ret v2
+  }
+  
+  fn @metadata_effect_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+    bb0:
+-     v0 = add arg0, arg1
+      v1 = mul arg2, arg3
++     v0 = add arg0, arg1
+      v2 = sub v0, v1
+      v3 = xor arg0, arg3 !metadata(effect=memory_write)
+-     v4 = add arg0, arg2
+      v5 = mul arg1, arg3
++     v4 = add arg0, arg2
+      v6 = div v4, v5
+      ret v6
+  }
+  
+  fn @block_local_scratch(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+    bb0:
+-     v0 = add arg0, arg1
+      v1 = mul arg2, arg3
++     v0 = add arg0, arg1
+      v2 = sub v0, v1
+      v3 = iszero v2
+      br v3, bb1, bb2
+    bb1:
+-     v4 = add arg0, arg2
+      v5 = mul arg1, arg3
++     v4 = add arg0, arg2
+      v6 = div v4, v5
+      ret v6
+    bb2:
+-     v7 = add arg0, arg3
+      v8 = mul arg1, arg2
++     v7 = add arg0, arg3
+      v9 = mod v7, v8
+      ret v9
+  }
+  
