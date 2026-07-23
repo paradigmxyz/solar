@@ -1,4 +1,5 @@
 use crate::{
+    diagnostics::PullReport,
     formatter::{self, FormatterError},
     global_state::GlobalState,
     symbols::{CompletionContext, SymbolTables},
@@ -7,14 +8,16 @@ use crate::{
 use async_lsp::{ErrorCode, ResponseError};
 use crop::Rope;
 use lsp_types::{
-    CompletionParams, CompletionResponse, DocumentChanges, DocumentFormattingParams,
+    CompletionParams, CompletionResponse, DocumentChanges, DocumentDiagnosticParams,
+    DocumentDiagnosticReport, DocumentDiagnosticReportResult, DocumentFormattingParams,
     DocumentHighlight, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
-    DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse,
-    Hover, HoverParams, InlayHint, InlayHintParams, OneOf, OptionalVersionedTextDocumentIdentifier,
-    Position, PrepareRenameResponse, ReferenceParams, RenameParams, SignatureHelp,
-    SignatureHelpParams, TextDocumentEdit, TextDocumentPositionParams, TextEdit, Url,
-    WorkspaceEdit, WorkspaceSymbolParams, WorkspaceSymbolResponse,
-    request::GotoImplementationParams,
+    DocumentSymbolParams, DocumentSymbolResponse, FullDocumentDiagnosticReport,
+    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InlayHint, InlayHintParams,
+    OneOf, OptionalVersionedTextDocumentIdentifier, Position, PrepareRenameResponse,
+    ReferenceParams, RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport,
+    RenameParams, SignatureHelp, SignatureHelpParams, TextDocumentEdit, TextDocumentPositionParams,
+    TextEdit, UnchangedDocumentDiagnosticReport, Url, WorkspaceEdit, WorkspaceSymbolParams,
+    WorkspaceSymbolResponse, request::GotoImplementationParams,
 };
 use solar_interface::{data_structures::sync::RwLock, source_map::SourceMap};
 use solar_parse::lexer::is_ident;
@@ -201,6 +204,35 @@ pub(crate) fn document_links(
         let symbol_tables = latest_analysis.await?;
         let links = symbol_tables.read().document_links(&path);
         Ok(Some(links))
+    }
+}
+
+pub(crate) fn document_diagnostic(
+    state: &mut GlobalState,
+    params: DocumentDiagnosticParams,
+) -> impl Future<Output = Result<DocumentDiagnosticReportResult, ResponseError>> + use<> {
+    let report = state.pull_diagnostic_report(params.text_document.uri, params.previous_result_id);
+    async move {
+        let report = match report.await? {
+            PullReport::Full { result_id, diagnostics } => {
+                DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
+                    related_documents: None,
+                    full_document_diagnostic_report: FullDocumentDiagnosticReport {
+                        result_id: Some(result_id),
+                        items: diagnostics,
+                    },
+                })
+            }
+            PullReport::Unchanged { result_id } => {
+                DocumentDiagnosticReport::Unchanged(RelatedUnchangedDocumentDiagnosticReport {
+                    related_documents: None,
+                    unchanged_document_diagnostic_report: UnchangedDocumentDiagnosticReport {
+                        result_id,
+                    },
+                })
+            }
+        };
+        Ok(DocumentDiagnosticReportResult::Report(report))
     }
 }
 
