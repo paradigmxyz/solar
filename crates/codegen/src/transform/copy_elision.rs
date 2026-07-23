@@ -15,7 +15,7 @@
 use crate::{
     analysis::AliasAnalysis,
     mir::{Function, InstId, InstKind, ValueId},
-    pass::FunctionPass,
+    pass::{FunctionAnalyses, FunctionPass},
 };
 use solar_data_structures::map::FxHashSet;
 
@@ -27,7 +27,7 @@ pub(crate) struct CopyElisionPass {
 }
 
 impl CopyElisionPass {
-    fn run(&mut self, func: &mut Function) -> bool {
+    fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
         let allocs: Vec<(InstId, ValueId)> = func
             .instructions
             .iter_enumerated()
@@ -42,7 +42,6 @@ impl CopyElisionPass {
             return false;
         }
 
-        let alias = AliasAnalysis::new(func);
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
         for (alloc_inst, object) in allocs {
             if alias.value_escapes(func, object) {
@@ -170,8 +169,13 @@ impl CopyElisionPass {
 }
 
 impl FunctionPass for CopyElisionPass {
+    fn run_on_function_cached(&mut self, func: &mut Function, analyses: &FunctionAnalyses) -> bool {
+        self.eliminated = 0;
+        self.run(func, &analyses.alias)
+    }
+
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         self.eliminated = 0;
-        self.run(func)
+        self.run(func, &AliasAnalysis::new(func))
     }
 }

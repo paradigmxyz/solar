@@ -19,7 +19,7 @@
 use crate::{
     analysis::AliasAnalysis,
     mir::{AllocationKind, BlockId, Function, InstId, InstKind, MemoryObjectLayout, ValueId},
-    pass::FunctionPass,
+    pass::{FunctionAnalyses, FunctionPass},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
@@ -38,7 +38,7 @@ fn is_fixed_aggregate(layout: MemoryObjectLayout) -> bool {
 }
 
 impl SroaPass {
-    fn run(&mut self, func: &mut Function) -> bool {
+    fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
         let mut allocs: Vec<(BlockId, InstId, ValueId)> = Vec::new();
         for block_id in func.blocks.indices() {
             for &inst_id in &func.blocks[block_id].instructions {
@@ -55,11 +55,10 @@ impl SroaPass {
             return false;
         }
 
-        let alias = AliasAnalysis::new(func);
         let inst_results = func.inst_results();
         let mut changed = false;
         for (block_id, alloc_inst, object) in allocs {
-            if let Some(plan) = self.plan(func, &alias, &inst_results, block_id, alloc_inst, object)
+            if let Some(plan) = self.plan(func, alias, &inst_results, block_id, alloc_inst, object)
             {
                 self.apply(func, block_id, plan);
                 self.eliminated += 1;
@@ -191,8 +190,13 @@ struct Plan {
 }
 
 impl FunctionPass for SroaPass {
+    fn run_on_function_cached(&mut self, func: &mut Function, analyses: &FunctionAnalyses) -> bool {
+        self.eliminated = 0;
+        self.run(func, &analyses.alias)
+    }
+
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         self.eliminated = 0;
-        self.run(func)
+        self.run(func, &AliasAnalysis::new(func))
     }
 }

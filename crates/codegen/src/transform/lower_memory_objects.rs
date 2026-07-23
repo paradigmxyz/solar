@@ -28,7 +28,12 @@ pub(crate) struct LowerMemoryObjectsPass {
 impl LowerMemoryObjectsPass {}
 
 impl ModulePass for LowerMemoryObjectsPass {
-    fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+    fn run(
+        &mut self,
+        _gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
         self.stats = LowerMemoryObjectsStats::default();
         if module.phase >= MirPhase::MemoryLowered {
             return false;
