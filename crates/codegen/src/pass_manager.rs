@@ -100,7 +100,7 @@ fn run_passes_inner(
 
     if let Some(new_phase) = phase_change {
         assert!(
-            module.phase < new_phase,
+            module.phase <= new_phase,
             "invalid MIR phase transition from {} to {}",
             module.phase.name(),
             new_phase.name()

@@ -21,7 +21,7 @@ pub(crate) struct InstructionMetadata {
     hir_expr: Option<hir::ExprId>,
     /// Loop nesting depth attached by loop-aware analyses.
     pub(crate) loop_depth: u16,
-    /// Packed optional memory region, effect kind, and unchecked flag.
+    /// Packed optional memory region, effect kind, and boolean flags.
     flags: MetadataFlags,
 }
 
