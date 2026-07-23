@@ -217,7 +217,7 @@ fn bucket_lowering_cost(
             + INDEXED_JUMP_BASE_LEN
             + bucket_count * indexed_jump_stub_len(table_target_width),
         max_code_size: hash_len
-            + INDEXED_JUMP_BASE_LEN
+            + max_indexed_jump_base_len(table_target_width)
             + bucket_count * indexed_jump_stub_len(table_target_width),
         hit_gas_sum: dispatch_gas * values.len(),
         miss_gas: dispatch_gas,
@@ -297,7 +297,7 @@ fn dense_lowering_cost(
                 + 1
                 + max_default_jump_len(table_target_width)
                 + JUMPDEST_LEN
-                + INDEXED_JUMP_BASE_LEN
+                + max_indexed_jump_base_len(table_target_width)
                 + range * indexed_jump_stub_len(table_target_width),
             hit_gas_sum: hit_gas * values.len(),
             miss_gas,
@@ -308,6 +308,11 @@ fn dense_lowering_cost(
 const fn indexed_jump_stub_len(target_width: usize) -> usize {
     // JUMPDEST, PUSH<n> target, JUMP.
     target_width + 3
+}
+
+const fn max_indexed_jump_base_len(table_target_width: usize) -> usize {
+    // PUSH1 stub length, MUL, PUSH<n> table, ADD, JUMP.
+    5 + max_label_push_len(table_target_width)
 }
 
 const fn max_label_push_len(target_width: usize) -> usize {
@@ -438,6 +443,13 @@ mod tests {
         assert_eq!(wide.code_size, packed.code_size + 32);
         assert_eq!(wide.hit_gas_sum, packed.hit_gas_sum);
         assert_eq!(wide.miss_gas, packed.miss_gas);
+    }
+
+    #[test]
+    fn accounts_for_indexed_jump_table_label_width() {
+        assert_eq!(max_indexed_jump_base_len(1), INDEXED_JUMP_BASE_LEN);
+        assert_eq!(max_indexed_jump_base_len(2), INDEXED_JUMP_BASE_LEN + 1);
+        assert_eq!(max_indexed_jump_base_len(3), INDEXED_JUMP_BASE_LEN + 2);
     }
 
     #[test]
