@@ -9,6 +9,14 @@
 //!
 //! ## Architecture
 //!
+//! Immediately before this subsystem runs, the late `evm-inst-schedule` MIR pass orders movable,
+//! single-use expression trees in backend consumption order. Effectful instructions, `gas`,
+//! `msize`, phis, and shared results constrain that order; so does producer order for operations
+//! whose lowering already costs both equivalent operand orientations. This shortens avoidable
+//! producer-to-consumer distances without putting physical stack layouts into MIR; liveness is
+//! then recomputed over the selected order and remains the scheduler's source of preservation
+//! requirements.
+//!
 //! The stack subsystem is split by responsibility:
 //!
 //! - [`model`] is the source of truth for the emitted physical stack. Slots are either a known MIR
@@ -29,19 +37,55 @@
 //! selected a stack-resident edge; ordinary edges retain the conservative spill
 //! and reload path.
 //!
+//! ## Design lineage
+//!
+//! The instruction-local boundary and last-use-aware operand preparation are adapted from
+//! [Plank's intra-operation scheduler]. We keep the same useful separation between choosing an
+//! instruction and preparing its operands, but not Plank's unique-value stack invariant, greedy
+//! preparer, or scheduler-owned static allocator. Our representation permits repeated MIR values
+//! and anonymous words, uses bounded A* for ambiguous layouts, and fits the existing direct
+//! MIR-to-EVM lowering and memory conventions. This is an original implementation rather than
+//! vendored Plank code.
+//!
+//! The preceding MIR ordering pass is adapted from [Venom's dependency-first traversal]. Venom
+//! first applies [single-use expansion], then orders both data and effect dependencies with
+//! inter-block stack-order feedback. Our pass is deliberately smaller: it operates within
+//! barrier-delimited basic-block segments, does not introduce assignments, and leaves any segment
+//! with a shared result unchanged.
+//!
+//! [solc's SSA stack layout generator] and [Sonatina's stackify allocator] were evaluated for
+//! control-flow layouts and spill handling. They use whole-function layout machinery, fixed-point
+//! spill discovery, and canonical block-entry stacks. We retain conservative cross-block spills
+//! and add verified edge shuffles only where the current lowering can keep values stack-resident;
+//! importing either allocator would require a separate machine IR and a different calling and
+//! memory model. Fe delegates EVM code generation to Sonatina through its [Sonatina integration],
+//! so it does not add another stack scheduler to adapt.
+//!
+//! [Plank's intra-operation scheduler]: https://github.com/plankevm/plank-monorepo/blob/40c19e2fb71a0cd325c8ca8b58451111118f70b4/plankc/sir/crates/stack-scheduling/src/greedy_intra_op_scheduler/mod.rs
+//! [Venom's dependency-first traversal]: https://github.com/vyperlang/vyper/blob/5ea0f3862020e590232d1c309fd12a110fdb06fd/vyper/venom/passes/dft.py
+//! [single-use expansion]: https://github.com/vyperlang/vyper/blob/5ea0f3862020e590232d1c309fd12a110fdb06fd/vyper/venom/passes/single_use_expansion.py
+//! [solc's SSA stack layout generator]: https://github.com/ethereum/solidity/blob/d8fbf3676eaec2fbd1ae82b2245bff33b6277293/libyul/backends/evm/ssa/StackLayoutGenerator.cpp
+//! [Sonatina's stackify allocator]: https://github.com/fe-lang/sonatina/blob/55ca888f1fc83077e5eee803c0619231e9b50998/crates/codegen/src/stackalloc/stackify/mod.rs
+//! [Sonatina integration]: https://github.com/fe-lang/fe/blob/636607d1a859bb68d88460c5ee63dd9532791aa8/crates/codegen/src/sonatina/mod.rs
+//!
 //! ## Operand planning
 //!
 //! Lowering supplies operands in EVM push order and a liveness-derived set of
 //! values that must survive the instruction. The scheduler performs a bounded
-//! best-first search over physical layouts. Its transitions are `DUP`, `SWAP`,
-//! and sound materializations. A goal is valid only when the exact operand head
-//! is present and every preserved value still has a copy below it.
+//! A* search over physical layouts. Its admissible lower bound counts required
+//! copies and unavoidable rearrangement work. A deterministic goal-directed
+//! walk handles the common unambiguous case only when its cost reaches that
+//! lower bound, which certifies the plan as optimal; ambiguous layouts use the
+//! full queue. Transitions are `DUP`, `SWAP`, and sound materializations. A goal
+//! is valid only when the exact operand head is present and every preserved
+//! value still has a copy below it.
 //!
 //! Plans are compared lexicographically by the selected optimization mode:
-//! static gas first for `-O gas`, encoded bytes first for `-O size`, followed by
-//! spill pressure and action count. Immediate width and `PUSH0` availability are
-//! included in the estimate. `-O none` bypasses the planner and retains the
-//! straightforward emission path.
+//! static gas first for `-O gas` and encoded bytes first for `-O size`, followed
+//! by the other metric and action count. Immediate width and `PUSH0`
+//! availability are included in the estimate. Spill reloads are scored, but
+//! planning does not allocate new spill slots. `-O none` bypasses the planner
+//! and retains the straightforward emission path.
 //!
 //! Binary lowering may also plan an equivalent reversed operand order. This
 //! covers commutative instructions and comparison pairs such as `LT`/`GT`; the
@@ -52,8 +96,10 @@
 //! A plan never mutates the live model while it is being searched. The selected
 //! action list is replayed once, emitted once, and followed by the instruction's
 //! declared stack effect. Anonymous words are not treated as interchangeable
-//! MIR values, and failed bounded searches fall back to the established emitter.
-//! Complete edge shuffles are independently replay-verified and fail closed.
+//! MIR values, and failed bounded local searches fall back to the established
+//! emitter. Complete edge shuffles are independently replay-verified; lowering
+//! checks that an edge is preparable before committing it and treats a later
+//! shuffle failure as an internal invariant violation.
 //!
 //! The local planner is currently used only when operand identities remain
 //! stable during preparation. Memory stores and copies, contract creation, and

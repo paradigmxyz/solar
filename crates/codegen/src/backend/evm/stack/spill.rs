@@ -1,7 +1,11 @@
 //! Spill management for handling >16 live values.
 //!
 //! When more than 16 values are live simultaneously (the maximum accessible
-//! via DUP16/SWAP16), we spill values to memory.
+//! via DUP16/SWAP16), we spill values to memory. Slots are logical word offsets:
+//! lowering places them after the external function's static memory, inside an
+//! internal function's frame, or in the constructor's reserved spill region.
+//! Cross-block reservations remain stable for the function, while block-local
+//! offsets are reused.
 
 use crate::mir::ValueId;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
@@ -14,33 +18,13 @@ pub(crate) struct SpillSlot {
 }
 
 impl SpillSlot {
-    /// Returns the memory offset in bytes for this spill slot.
+    /// Returns this slot's absolute address in the constructor spill region.
+    ///
+    /// Constructor lowering raises the free-memory pointer above the maximum
+    /// address used by this region. Other function kinds resolve logical slot
+    /// offsets relative to their own static memory or frame base.
     #[must_use]
-    pub(crate) const fn byte_offset(&self) -> u32 {
-        // Memory layout in Solidity:
-        // - 0x00-0x3F: Scratch space (used for hashing, CALL address/calldata spills, etc.)
-        // - 0x40-0x5F: Free memory pointer location
-        // - 0x60-0x7F: Zero slot (used for empty dynamic arrays)
-        // - 0x80+: Dynamic allocations (structs, arrays, calldata encoding, etc.)
-        //
-        // IMPORTANT: We CANNOT use:
-        // - 0x00-0x3F: Used as scratch by lower_member_call for CALL address/calldata
-        // - 0x60-0x7F: Used as zero slot
-        // - 0x80-0x????: Dynamic allocations can grow arbitrarily large
-        //
-        // The safest approach is to use a very high memory address that's unlikely to
-        // conflict with normal memory usage. We use 0x1000000 (16MB) as the base.
-        // This wastes some gas on memory expansion but guarantees no conflicts.
-        //
-        // A proper solution would be to allocate spill slots from the heap (update
-        // free memory pointer), but that would require tracking the allocation in MIR.
-        //
-        // We use 0x1000 (4KB) as a compromise - high enough to avoid conflicts with
-        // typical dynamic allocations, but low enough to not cause excessive gas usage.
-        // In practice, most contracts use less than 4KB of dynamic memory.
-        //
-        // A proper solution would be to allocate spill slots from the heap, but that
-        // requires tracking the allocation in MIR.
+    pub(crate) const fn constructor_byte_offset(&self) -> u32 {
         0x1000 + self.offset * 32
     }
 }
@@ -194,9 +178,9 @@ mod tests {
         assert_eq!(slot1.offset, 1);
         assert_eq!(slot2.offset, 2);
         // Spill slots use high memory at 0x1000+
-        assert_eq!(slot0.byte_offset(), 0x1000);
-        assert_eq!(slot1.byte_offset(), 0x1000 + 32);
-        assert_eq!(slot2.byte_offset(), 0x1000 + 64);
+        assert_eq!(slot0.constructor_byte_offset(), 0x1000);
+        assert_eq!(slot1.constructor_byte_offset(), 0x1000 + 32);
+        assert_eq!(slot2.constructor_byte_offset(), 0x1000 + 64);
     }
 
     #[test]

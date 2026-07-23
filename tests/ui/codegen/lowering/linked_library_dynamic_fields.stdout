@@ -80,17 +80,17 @@ bb5:
   mstore
   swap1
   pop
-  push 160
-  push 224
-  mload
-  add
   push 36
   push 68
   calldataload
   add
+  push 160
+  push 224
+  mload
+  add
   dup3
-  dup2
-  dup4
+  dup3
+  dup3
   calldatacopy
   pop
   pop
@@ -132,16 +132,16 @@ bb5:
   mstore
   swap2
   pop
-  push 32
-  dup3
-  add
   push 36
   push 100
   calldataload
   add
-  dup3
-  dup2
+  push 32
   dup4
+  add
+  dup3
+  dup3
+  dup3
   calldatacopy
   pop
   pop
@@ -324,10 +324,10 @@ bb13:
   push 288
   mload
   iszero
-  swap1
   push 288
   mload
   swap1
+  swap2
   div
   push 384
   mload

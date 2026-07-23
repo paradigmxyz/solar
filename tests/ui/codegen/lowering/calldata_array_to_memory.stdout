@@ -278,16 +278,16 @@ bb22:
   mstore
   dup2
   mstore
-  push 32
-  dup2
-  add
   push 36
   push 4
   calldataload
   add
+  push 32
+  dup3
+  add
   dup4
-  dup2
-  dup4
+  dup3
+  dup3
   calldatacopy
   pop
   pop
@@ -361,16 +361,16 @@ bb27:
   mstore
   dup2
   mstore
-  push 32
-  dup2
-  add
   push 36
   push 36
   calldataload
   add
+  push 32
+  dup3
+  add
   dup4
-  dup2
-  dup4
+  dup3
+  dup3
   calldatacopy
   pop
   pop

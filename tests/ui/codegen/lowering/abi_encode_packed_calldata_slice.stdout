@@ -139,10 +139,10 @@ bb12:
   push 4
   calldataload
   add
-  swap1
   push 36
   calldataload
   swap1
+  swap2
   sub
   dup1
   push 160

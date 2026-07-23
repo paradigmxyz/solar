@@ -20,10 +20,10 @@ use crate::{
     mir::{Function, MirPhase, Module, validate},
     timing::PassTimer,
     transform::{
-        AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
-        FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
-        JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, LowerAbiPass,
-        LowerDispatchPass, LowerEvmShapedPass, LowerMappingSlotsPass, MemoryDsePass,
+        AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, EvmInstSchedulePass,
+        FrameSlotPromotionPass, FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass,
+        InstSimplifyPass, JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass,
+        LowerAbiPass, LowerDispatchPass, LowerEvmShapedPass, LowerMappingSlotsPass, MemoryDsePass,
         OutlineRevertsPass, PrePass, PureEvalPass, SccpTransformPass, StaticAllocPass,
         StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
     },
@@ -173,6 +173,9 @@ declare_passes! {
     /// EVM-shape lowering: non-returning internal calls become tail calls.
     const LOWER_EVM_SHAPED_PASS_BASE -> "lower-evm-shaped" = LowerEvmShapedPass::default();
 
+    /// Order single-use, read-only MIR subgraphs for EVM stack locality.
+    pub(crate) const EVM_INST_SCHEDULE_PASS -> "evm-inst-schedule" = EvmInstSchedulePass;
+
     /// Lower mapping-slot hash builtins to memory operations.
     pub(crate) const LOWER_MAPPING_SLOTS_PASS -> "lower-mapping-slots" = LowerMappingSlotsPass;
 }
@@ -220,6 +223,7 @@ pub const PASS_REGISTRY: &[PassInfo] = &[
     LOWER_ABI_PASS,
     LOWER_DISPATCH_PASS,
     LOWER_EVM_SHAPED_PASS,
+    EVM_INST_SCHEDULE_PASS,
     OUTLINE_REVERTS_PASS,
     LOWER_MAPPING_SLOTS_PASS,
 ];

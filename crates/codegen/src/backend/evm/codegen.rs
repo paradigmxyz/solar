@@ -1010,6 +1010,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             run_pass(self.gcx, module, &crate::pass::LOWER_DISPATCH_PASS);
             run_pass(self.gcx, module, &crate::pass::LOWER_EVM_SHAPED_PASS);
         }
+        if self.gcx.sess.opts.optimization != OptimizationMode::None {
+            // Progressive lowering and every generic MIR optimization have finished. Reorder
+            // read-only subgraphs now, immediately before codegen recomputes liveness and starts
+            // physical stack scheduling.
+            run_pass(self.gcx, module, &crate::pass::EVM_INST_SCHEDULE_PASS);
+        }
     }
 
     /// Generates runtime bytecode for a module.
@@ -3731,7 +3737,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 spill_base + func.internal_frame_size + u64::from(slot.offset) * 32,
             );
         } else if self.in_constructor {
-            self.asm.emit_push(U256::from(slot.byte_offset()));
+            self.asm.emit_push(U256::from(slot.constructor_byte_offset()));
         } else {
             // Route the address through a deferred constant and count the
             // reference; `assign_ranked_spill_addrs` renumbers the body's
@@ -4249,10 +4255,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                         }
                         crate::mir::InstKind::MLoad(offset) => {
                             // Note: Re-emitting MLOAD(0x40) is incorrect for struct pointers
-                            // because the free memory pointer changes. However, with spill
-                            // slots now at 0x1000+ (away from dynamic allocations), values
-                            // should be properly spilled and reloaded, so we shouldn't hit
-                            // this path for struct pointers.
+                            // because the free memory pointer changes. Spill regions are kept
+                            // disjoint from dynamic allocations, so values should be properly
+                            // spilled and reloaded and this path should not be reached for struct
+                            // pointers.
                             //
                             // For other MLOAD addresses (reading from constant locations),
                             // re-emit is safe.

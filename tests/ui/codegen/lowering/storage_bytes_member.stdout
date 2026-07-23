@@ -316,9 +316,9 @@ bb20:
   dup1
   push 320
   mstore
-  swap1
   push 32
   swap1
+  swap2
   sub
   add
   push 0
@@ -435,10 +435,10 @@ bb20:
   push 352
   mload
   gt
-  push 0
-  swap1
+  dup1
   swap2
-  dup3
+  push 0
+  swap2
   dup3
   dup3
   sub
@@ -670,9 +670,9 @@ bb33:
   dup1
   push 256
   mstore
-  swap1
   push 32
   swap1
+  swap2
   sub
   add
   push 0
@@ -755,10 +755,10 @@ bb33:
   push 288
   mload
   gt
-  push 0
-  swap1
+  dup1
   swap2
-  dup3
+  push 0
+  swap2
   dup3
   dup3
   sub
@@ -1081,10 +1081,10 @@ bb52:
   push 160
   mload
   and
-  swap1
   push 192
   mload
   swap1
+  swap2
   shl
   or
   push 128
@@ -1127,10 +1127,10 @@ bb59:
   swap1
   swap2
   and
-  swap1
   push 192
   mload
   swap1
+  swap2
   shl
   or
   swap1
