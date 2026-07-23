@@ -7,9 +7,10 @@ use crate::{
 use lsp_types::{
     CompletionOptions, DeclarationCapability, DocumentLinkOptions, ExecuteCommandOptions,
     HoverProviderCapability, ImplementationProviderCapability, InitializeParams, OneOf,
-    RenameOptions, SaveOptions, ServerCapabilities, SignatureHelpOptions,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-    TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WorkDoneProgressOptions,
+    RenameOptions, SaveOptions, SelectionRangeProviderCapability, ServerCapabilities,
+    SignatureHelpOptions, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextDocumentSyncOptions, TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability,
+    WorkDoneProgressOptions,
 };
 use solar_interface::data_structures::map::FxHashSet;
 use std::{
@@ -291,6 +292,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             hover_provider: Some(HoverProviderCapability::Simple(true)),
             inlay_hint_provider: Some(OneOf::Left(true)),
             references_provider: Some(OneOf::Left(true)),
+            selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
             rename_provider: Some(OneOf::Right(RenameOptions {
                 prepare_provider: Some(true),
                 work_done_progress_options: Default::default(),
@@ -404,6 +406,10 @@ mod tests {
         assert_eq!(capabilities.inlay_hint_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.document_highlight_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.references_provider, Some(OneOf::Left(true)));
+        assert_eq!(
+            capabilities.selection_range_provider,
+            Some(SelectionRangeProviderCapability::Simple(true))
+        );
         assert_eq!(
             capabilities.rename_provider,
             Some(OneOf::Right(RenameOptions {
