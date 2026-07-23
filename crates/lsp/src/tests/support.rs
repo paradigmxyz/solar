@@ -377,8 +377,24 @@ impl RequestFixture {
         let mut state = self.state();
         let (params, positions) = self.selection_range_request(markers);
         let response =
-            expect_ready(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
+            block_on(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
         check_selection_range_response(response, &positions, expected);
+    }
+
+    pub(super) fn check_selection_ranges_at(
+        &self,
+        path: &str,
+        positions: Vec<Position>,
+        normalized_positions: &[Position],
+        expected: impl IntoData,
+    ) {
+        assert_eq!(positions.len(), normalized_positions.len());
+        let mut state = self.state();
+        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
+        let params = selection_range_params(uri, positions);
+        let response =
+            block_on(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
+        check_selection_range_response(response, normalized_positions, expected);
     }
 
     pub(super) fn check_selection_ranges_from_disk(
@@ -402,8 +418,35 @@ impl RequestFixture {
         state.mark_analysis_pending_for_test();
         let (params, positions) = self.selection_range_request(markers);
         let response =
-            expect_ready(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
+            block_on(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
         check_selection_range_response(response, &positions, expected);
+    }
+
+    pub(super) fn check_selection_range_uses_blocking_pool(
+        &self,
+        markers: &[&str],
+        expected: impl IntoData,
+    ) {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .max_blocking_threads(1)
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let (release_worker, worker) = super::pause_blocking_pool();
+            let mut state = self.state();
+            let (params, positions) = self.selection_range_request(markers);
+            let mut request = std::pin::pin!(crate::handlers::selection_range(&mut state, params));
+            let waker = Waker::noop();
+            let mut cx = Context::from_waker(waker);
+
+            let is_pending = request.as_mut().poll(&mut cx).is_pending();
+            release_worker.send(()).unwrap();
+            assert!(is_pending);
+            let response = request.await.unwrap().unwrap();
+            worker.await.unwrap();
+            check_selection_range_response(response, &positions, expected);
+        });
     }
 
     pub(super) fn check_selection_range_error(
@@ -415,7 +458,7 @@ impl RequestFixture {
         let mut state = self.state();
         let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
         let params = selection_range_params(uri, positions);
-        let error = expect_ready(crate::handlers::selection_range(&mut state, params))
+        let error = block_on(crate::handlers::selection_range(&mut state, params))
             .expect_err("selection-range request should fail");
         assert_eq!(error.code, expected);
         assert!(!error.message.ends_with('.'));
@@ -769,7 +812,8 @@ fn check_selection_range_response(
 }
 
 fn range_contains_position(range: Range, position: Position) -> bool {
-    range.start <= position && position <= range.end
+    (range.start <= position && position < range.end)
+        || (range.start == position && range.end == position)
 }
 
 fn range_contains_range(outer: Range, inner: Range) -> bool {

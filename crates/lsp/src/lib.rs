@@ -52,6 +52,16 @@ pub use global_state::benchmark::{
     BenchmarkRequest, BenchmarkResponse,
 };
 
+/// Runs the selection-range kernel for Criterion benchmarks.
+#[cfg(feature = "bench")]
+#[doc(hidden)]
+pub fn benchmark_selection_ranges(
+    source: String,
+    positions: &[lsp_types::Position],
+) -> Option<Vec<lsp_types::SelectionRange>> {
+    selection_range::selection_ranges(source, positions)
+}
+
 #[cfg(test)]
 mod test_support;
 

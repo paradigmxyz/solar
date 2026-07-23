@@ -38,10 +38,14 @@ pub(crate) fn selection_range(
         let (vfs_path, path, positions) = request?;
         let source =
             document_contents(&vfs, &vfs_path, &path).await.map_err(document_read_failed)?;
-        let ranges =
-            crate::selection_range::selection_ranges(&source, &positions).ok_or_else(|| {
-                ResponseError::new(ErrorCode::INVALID_PARAMS, "invalid selection range position")
-            })?;
+        let ranges = tokio::task::spawn_blocking(move || {
+            crate::selection_range::selection_ranges(source, &positions)
+        })
+        .await
+        .map_err(selection_range_task_failed)?
+        .ok_or_else(|| {
+            ResponseError::new(ErrorCode::INVALID_PARAMS, "invalid selection range position")
+        })?;
         Ok(Some(ranges))
     }
 }
@@ -123,6 +127,11 @@ fn rope_to_string(contents: &Rope) -> String {
 fn document_read_failed(error: io::Error) -> ResponseError {
     warn!(%error, "failed to read document");
     request_failed("failed to read document")
+}
+
+fn selection_range_task_failed(error: tokio::task::JoinError) -> ResponseError {
+    warn!(%error, "selection-range task failed");
+    ResponseError::new(ErrorCode::INTERNAL_ERROR, "selection-range task failed")
 }
 
 fn formatter_failed(error: FormatterError) -> ResponseError {

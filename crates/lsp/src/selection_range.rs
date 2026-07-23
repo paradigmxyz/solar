@@ -15,29 +15,29 @@ use std::{
 };
 
 pub(crate) fn selection_ranges(
-    source: &str,
+    source: String,
     positions: &[Position],
 ) -> Option<Vec<SelectionRange>> {
-    let rope = Rope::from(source);
+    let rope = Rope::from(source.as_str());
+    let index = proto::LspPositionIndex::new(&rope);
     let cursors = positions
         .iter()
         .map(|&position| {
-            proto::checked_text_range(&rope, Range::new(position, position))
-                .map(|range| range.start)
+            index.checked_text_range(Range::new(position, position)).map(|range| range.start)
         })
         .collect::<Option<Vec<_>>>()?;
     if cursors.is_empty() {
         return Some(Vec::new());
     }
 
-    let candidates = collect_ranges(source);
+    let candidates = collect_ranges(source, &rope);
     cursors
         .into_iter()
-        .map(|cursor| selection_range_for_cursor(&rope, &candidates, cursor))
+        .map(|cursor| selection_range_for_cursor(&index, &candidates, cursor))
         .collect()
 }
 
-fn collect_ranges(source: &str) -> Vec<ByteRange<usize>> {
+fn collect_ranges(source: String, rope: &Rope) -> Vec<ByteRange<usize>> {
     let mut opts = CompileOpts::default();
     opts.unstable.recover_incomplete_input = true;
     let sess = Session::builder().opts(opts).with_silent_emitter(None).single_threaded().build();
@@ -61,14 +61,14 @@ fn collect_ranges(source: &str) -> Vec<ByteRange<usize>> {
         };
         drop(parser);
 
-        let mut collector = RangeCollector::new(sess.source_map(), source);
+        let mut collector = RangeCollector::new(sess.source_map(), rope);
         let _ = collector.visit_source_unit(&source_unit);
         collector.ranges
     })
 }
 
 fn selection_range_for_cursor(
-    rope: &Rope,
+    index: &proto::LspPositionIndex<'_>,
     candidates: &[ByteRange<usize>],
     cursor: usize,
 ) -> Option<SelectionRange> {
@@ -81,15 +81,15 @@ fn selection_range_for_cursor(
         .sort_unstable_by_key(|range| (range.end - range.start, Reverse(range.start), range.end));
     candidates.dedup();
 
-    let document = 0..rope.byte_len();
-    let mut chain = Vec::new();
-    if let Some(mut current) = candidates.first().cloned() {
-        chain.push(current.clone());
-        while let Some(parent) =
-            candidates.iter().find(|candidate| strictly_contains(candidate, &current)).cloned()
-        {
-            chain.push(parent.clone());
-            current = parent;
+    let document = 0..index.byte_len();
+    let mut chain = Vec::with_capacity(candidates.len() + 1);
+    let mut candidates = candidates.into_iter();
+    if let Some(current) = candidates.next() {
+        chain.push(current);
+        for candidate in candidates {
+            if strictly_contains(&candidate, chain.last().unwrap()) {
+                chain.push(candidate);
+            }
         }
     } else {
         chain.push(cursor..cursor);
@@ -98,15 +98,22 @@ fn selection_range_for_cursor(
         chain.push(document);
     }
 
-    let mut parent = None;
-    for range in chain.into_iter().rev() {
-        let range = Range::new(
-            proto::position_at_byte(rope, range.start)?,
-            proto::position_at_byte(rope, range.end)?,
-        );
-        parent = Some(Box::new(SelectionRange { range, parent }));
+    let mut chain = chain.into_iter().rev();
+    let outer = chain.next()?;
+    let mut selection = SelectionRange {
+        range: Range::new(index.position_at_byte(outer.start)?, index.position_at_byte(outer.end)?),
+        parent: None,
+    };
+    for range in chain {
+        selection = SelectionRange {
+            range: Range::new(
+                index.position_at_byte(range.start)?,
+                index.position_at_byte(range.end)?,
+            ),
+            parent: Some(Box::new(selection)),
+        };
     }
-    parent.map(|range| *range)
+    Some(selection)
 }
 
 fn strictly_contains(outer: &ByteRange<usize>, inner: &ByteRange<usize>) -> bool {
@@ -115,13 +122,13 @@ fn strictly_contains(outer: &ByteRange<usize>, inner: &ByteRange<usize>) -> bool
 
 struct RangeCollector<'a> {
     source_map: &'a SourceMap,
-    source: &'a str,
+    rope: &'a Rope,
     ranges: Vec<ByteRange<usize>>,
 }
 
 impl<'a> RangeCollector<'a> {
-    fn new(source_map: &'a SourceMap, source: &'a str) -> Self {
-        Self { source_map, source, ranges: Vec::new() }
+    fn new(source_map: &'a SourceMap, rope: &'a Rope) -> Self {
+        Self { source_map, rope, ranges: Vec::new() }
     }
 
     fn push(&mut self, span: Span) {
@@ -130,9 +137,9 @@ impl<'a> RangeCollector<'a> {
         }
         let Ok(range) = self.source_map.span_to_range(span) else { return };
         if !range.is_empty()
-            && range.end <= self.source.len()
-            && self.source.is_char_boundary(range.start)
-            && self.source.is_char_boundary(range.end)
+            && range.end <= self.rope.byte_len()
+            && self.rope.is_char_boundary(range.start)
+            && self.rope.is_char_boundary(range.end)
         {
             self.ranges.push(range);
         }

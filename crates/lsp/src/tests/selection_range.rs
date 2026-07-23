@@ -143,13 +143,100 @@ fn rejects_invalid_utf16_positions() {
     );
     let valid = Position::new(2, 28);
 
-    for invalid in [Position::new(99, 0), Position::new(2, 13), Position::new(2, 32)] {
+    for invalid in [Position::new(99, 0), Position::new(2, 13)] {
         fixture.check_selection_range_error(
             "/Unicode.sol",
             vec![valid, invalid],
             ErrorCode::INVALID_PARAMS,
         );
     }
+}
+
+#[test]
+fn clamps_positions_past_the_line_end() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Clamp.sol open
+        contract C {}
+        "#,
+        "/Clamp.sol",
+    );
+
+    fixture.check_selection_ranges_at(
+        "/Clamp.sol",
+        vec![Position::new(0, u32::MAX)],
+        &[Position::new(0, 13)],
+        str![[r#"
+0:
+  0:13-0:13
+  0:0-0:13
+
+"#]],
+    );
+}
+
+#[test]
+fn supports_standalone_carriage_return_line_endings() {
+    let fixture = RequestFixture::new(
+        concat!("//- /CarriageReturn.sol open\n", "contract C {}\rcontract D {}"),
+        "/CarriageReturn.sol",
+    );
+
+    fixture.check_selection_ranges_at(
+        "/CarriageReturn.sol",
+        vec![Position::new(1, 9)],
+        &[Position::new(1, 9)],
+        str![[r#"
+0:
+  1:9-1:10
+  1:0-1:13
+  0:0-1:13
+
+"#]],
+    );
+}
+
+#[test]
+fn treats_non_empty_range_ends_as_exclusive() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /ExclusiveEnd.sol open
+        contract C {}$1
+        contract D {}
+        "#,
+        "/ExclusiveEnd.sol",
+    );
+
+    fixture.check_selection_ranges(
+        &["$1"],
+        str![[r#"
+0:
+  0:13-0:13
+  0:0-1:13
+
+"#]],
+    );
+}
+
+#[test]
+fn parses_selection_ranges_on_the_blocking_pool() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Blocking.sol open
+        contract Bl$1ocking {}
+        "#,
+        "/Blocking.sol",
+    );
+
+    fixture.check_selection_range_uses_blocking_pool(
+        &["$1"],
+        str![[r#"
+0:
+  0:9-0:17
+  0:0-0:20
+
+"#]],
+    );
 }
 
 #[test]
