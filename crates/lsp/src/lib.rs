@@ -100,6 +100,7 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
         .request::<req::InlayHintRequest, _>(handlers::inlay_hints)
         .request::<req::SelectionRangeRequest, _>(handlers::selection_range)
         .request::<req::Completion, _>(handlers::completion)
+        .request::<req::DocumentDiagnosticRequest, _>(handlers::document_diagnostic)
         .request::<req::Formatting, _>(handlers::formatting);
 
     // Workspace management
@@ -363,6 +364,45 @@ mod tests {
         let response = router.call(request).await.unwrap();
 
         assert_eq!(response, serde_json::json!([]));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_document_diagnostic_requests() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let uri = lsp_types::Url::parse("untitled:Diagnostics.sol").unwrap();
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 1,
+            "method": request::DocumentDiagnosticRequest::METHOD,
+            "params": {
+                "textDocument": { "uri": uri },
+            },
+        }))
+        .unwrap();
+
+        let response = router.call(request).await.unwrap();
+
+        assert_eq!(response["kind"], "full");
+        assert_eq!(response["items"], serde_json::json!([]));
+        let result_id = response["resultId"].as_str().expect("full report should have a result ID");
+
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 2,
+            "method": request::DocumentDiagnosticRequest::METHOD,
+            "params": {
+                "textDocument": { "uri": uri },
+                "previousResultId": result_id,
+            },
+        }))
+        .unwrap();
+        let response = router.call(request).await.unwrap();
+
+        assert_eq!(
+            response,
+            serde_json::json!({
+                "kind": "unchanged",
+                "resultId": result_id,
+            })
+        );
     }
 
     #[tokio::test(flavor = "current_thread")]
