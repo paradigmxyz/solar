@@ -561,7 +561,12 @@ impl LowerSlicesPass {
 }
 
 impl ModulePass for LowerSlicesPass {
-    fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+    fn run(
+        &mut self,
+        _gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
         self.stats = LowerSlicesStats::default();
         let compact = Self::infer_compact_params(module);
         let signatures: FxHashMap<_, _> = module

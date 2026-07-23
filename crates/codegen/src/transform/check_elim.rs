@@ -28,13 +28,14 @@ use crate::{
     mir::{
         BlockId, Function, InstKind, Terminator, Value, ValueId, utils::repair_reachability_phis,
     },
-    pass::FunctionPass,
+    pass::{FunctionAnalyses, FunctionPass},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
+use std::rc::Rc;
 
 /// Maximum recursion depth when evaluating value ranges and conditions.
 const MAX_DEPTH: usize = 12;
@@ -50,6 +51,12 @@ pub(crate) struct CheckElimStats {
 pub(crate) struct CheckElimPass;
 
 impl FunctionPass for CheckElimPass {
+    fn run_on_function_cached(&mut self, func: &mut Function, analyses: &FunctionAnalyses) -> bool {
+        let mut eliminator = CheckEliminator::new();
+        eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+        eliminator.run(func) != 0
+    }
+
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         CheckEliminator::new().run(func) != 0
     }
@@ -109,6 +116,8 @@ fn ordered(a: ValueId, b: ValueId) -> (ValueId, ValueId) {
 /// Range-based overflow-check eliminator.
 #[derive(Default)]
 pub(crate) struct CheckEliminator {
+    /// Shared CFG snapshot taken at entry, matching the previous fresh build.
+    cfg: Option<Rc<CfgInfo>>,
     /// Statistics from the last run.
     pub stats: CheckElimStats,
     ranges: FxHashMap<ValueId, Range>,
@@ -128,7 +137,10 @@ impl CheckEliminator {
     /// branches.
     pub(crate) fn run(&mut self, func: &mut Function) -> usize {
         self.stats = CheckElimStats::default();
-        let cfg = CfgInfo::new(func);
+        let cfg = match &self.cfg {
+            Some(cfg) => Rc::clone(cfg),
+            None => Rc::new(CfgInfo::new(func)),
+        };
 
         // Predecessors recomputed from reachable terminators: facts must only
         // come from edges that can actually execute.

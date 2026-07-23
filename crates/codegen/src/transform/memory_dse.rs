@@ -16,26 +16,36 @@ use crate::{
         BlockId, Function, Immediate, InstId, InstKind, MemoryObjectKind, Terminator, Value,
         ValueId, utils as mir_utils,
     },
-    pass::FunctionPass,
+    pass::{FunctionAnalyses, FunctionPass},
 };
 use alloy_primitives::{U256, keccak256};
 use solar_data_structures::{
     bit_set::DenseBitSet,
     map::{FxHashMap, FxHashSet},
 };
+use std::rc::Rc;
 
 /// Local dead memory optimization pass.
 #[derive(Debug, Default)]
 pub(crate) struct MemoryStoreEliminator {
+    /// Shared CFG snapshot for the immutable-copy reuse scan.
+    cfg: Option<Rc<CfgInfo>>,
     /// Number of memory instructions eliminated.
     pub eliminated_count: usize,
-    alias: Option<AliasAnalysis>,
+    alias: Option<Rc<AliasAnalysis>>,
 }
 
 /// Function pass for local dead memory-store elimination.
 pub(crate) struct MemoryDsePass;
 
 impl FunctionPass for MemoryDsePass {
+    fn run_on_function_cached(&mut self, func: &mut Function, analyses: &FunctionAnalyses) -> bool {
+        let mut eliminator = MemoryStoreEliminator::new();
+        eliminator.alias = Some(Rc::clone(&analyses.alias));
+        eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+        eliminator.run_to_fixpoint(func) != 0
+    }
+
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         MemoryStoreEliminator::new().run_to_fixpoint(func) != 0
     }
@@ -171,9 +181,8 @@ impl MemoryStoreEliminator {
         // Reuse one provenance snapshot across fixpoint iterations: removing
         // stores keeps the allocation facts conservative, so only the
         // value-address memo is dropped per iteration.
-        match &self.alias {
-            Some(alias) => alias.clear_cached_addresses(),
-            None => self.alias = Some(AliasAnalysis::new(func)),
+        if self.alias.is_none() {
+            self.alias = Some(Rc::new(AliasAnalysis::new(func)));
         }
 
         let needs_inst_results = func.blocks.iter().any(|block| {
@@ -433,6 +442,12 @@ impl MemoryStoreEliminator {
             if eliminated == 0 {
                 break;
             }
+            // Stores were removed: the shared value-address memo may hold
+            // entries for values the next iteration no longer sees; facts stay
+            // conservative, only the memo is dropped.
+            if let Some(alias) = &self.alias {
+                alias.clear_cached_addresses();
+            }
             total += eliminated;
         }
         total
@@ -453,7 +468,10 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        let cfg = CfgInfo::new(func);
+        let cfg = match &self.cfg {
+            Some(cfg) => Rc::clone(cfg),
+            None => Rc::new(CfgInfo::new(func)),
+        };
         let mut cached: FxHashMap<ImmutableCopyKey, CachedImmutableCopy> = FxHashMap::default();
         let mut replacements = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.instructions.len());

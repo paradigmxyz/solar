@@ -52,11 +52,14 @@ use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::FxHashMap,
 };
-use std::{cmp::Ordering, sync::Arc};
+use std::{cmp::Ordering, rc::Rc, sync::Arc};
 
 /// Common Subexpression Elimination pass.
 #[derive(Debug, Default)]
 pub(crate) struct CommonSubexprEliminator {
+    /// Shared CFG snapshot; CSE only removes instructions, so one snapshot
+    /// serves every fixpoint iteration.
+    cfg: Option<Rc<CfgInfo>>,
     /// Number of instructions eliminated.
     pub eliminated_count: usize,
     alias: Option<AliasAnalysis>,
@@ -71,13 +74,24 @@ impl FunctionPass for CsePass {
         CommonSubexprEliminator::new().run_to_fixpoint(func) != 0
     }
 
-    fn run_on_module(&mut self, module: &mut Module) -> bool {
+    fn run_on_module(
+        &mut self,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
         let summaries = Arc::new(MemoryCallSummaries::new(module));
         let mut changed = false;
-        for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
-            changed |= CommonSubexprEliminator::with_call_summaries(Arc::clone(&summaries))
-                .run_to_fixpoint(func)
-                != 0;
+        for func_id in module.functions.indices() {
+            if module.functions[func_id].blocks.is_empty() {
+                continue;
+            }
+            changed |=
+                crate::pass::run_function_pass_cached(analyses, module, func_id, |func, bundle| {
+                    let mut eliminator =
+                        CommonSubexprEliminator::with_call_summaries(Arc::clone(&summaries));
+                    eliminator.cfg = Some(Rc::clone(&bundle.cfg));
+                    eliminator.run_to_fixpoint(func) != 0
+                });
         }
         changed
     }
@@ -236,7 +250,10 @@ impl CommonSubexprEliminator {
     /// Runs CSE iteratively until no more changes.
     pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
-        let cfg = CfgInfo::new(func);
+        let cfg = match &self.cfg {
+            Some(cfg) => Rc::clone(cfg),
+            None => Rc::new(CfgInfo::new(func)),
+        };
         loop {
             let eliminated = self.run_with_cfg(func, &cfg);
             if eliminated == 0 {

@@ -49,9 +49,10 @@ use crate::{
         BlockId, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout,
         MirType, Value, ValueId, utils as mir_utils,
     },
-    pass::FunctionPass,
+    pass::{FunctionAnalyses, FunctionPass},
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use std::rc::Rc;
 
 /// Hard cap on value-numbering sweeps per round.
 const MAX_VN_SWEEPS: usize = 10;
@@ -64,6 +65,9 @@ type ClassId = ValueId;
 /// Congruence-class global value numbering pass.
 #[derive(Debug, Default)]
 pub(crate) struct GlobalValueNumberer {
+    /// Shared CFG snapshot; GVN rounds only replace values, so one snapshot
+    /// serves every round.
+    cfg: Option<Rc<CfgInfo>>,
     /// Number of instructions folded onto a congruent leader.
     pub eliminated_count: usize,
 }
@@ -72,6 +76,12 @@ pub(crate) struct GlobalValueNumberer {
 pub(crate) struct GvnPass;
 
 impl FunctionPass for GvnPass {
+    fn run_on_function_cached(&mut self, func: &mut Function, analyses: &FunctionAnalyses) -> bool {
+        let mut numberer = GlobalValueNumberer::new();
+        numberer.cfg = Some(Rc::clone(&analyses.cfg));
+        numberer.run(func) != 0
+    }
+
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         GlobalValueNumberer::new().run(func) != 0
     }
@@ -156,7 +166,10 @@ impl GlobalValueNumberer {
 
     /// Runs one numbering and replacement round. Returns true if MIR changed.
     fn run_round(&mut self, func: &mut Function) -> bool {
-        let cfg = CfgInfo::new(func);
+        let cfg = match &self.cfg {
+            Some(cfg) => Rc::clone(cfg),
+            None => Rc::new(CfgInfo::new(func)),
+        };
         let inst_results = func.inst_results();
         let Some(vn) = Self::compute_value_numbers(func, cfg.rpo(), &inst_results) else {
             return false;

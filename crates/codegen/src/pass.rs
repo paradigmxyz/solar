@@ -17,7 +17,8 @@
 //! ```
 
 use crate::{
-    mir::{Function, MirPhase, Module, validate},
+    analysis::{AliasAnalysis, CfgInfo},
+    mir::{Function, FunctionId, MirPhase, Module, validate},
     timing::PassTimer,
     transform::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CopyElisionPass, CsePass, DcePass,
@@ -32,9 +33,12 @@ use crate::{
 use solar_data_structures::map::FxHashMap;
 use solar_interface::diagnostics::DiagCtxt;
 use solar_sema::Gcx;
-use std::any::{Any, TypeId};
+use std::{
+    any::{Any, TypeId},
+    rc::Rc,
+};
 
-type PassRunner = fn(Gcx<'_>, &mut Module) -> bool;
+type PassRunner = fn(Gcx<'_>, &mut Module, &mut ModuleAnalyses) -> bool;
 
 /// Registry entry for a MIR transform pass.
 #[derive(Clone, Copy, Debug)]
@@ -86,7 +90,14 @@ macro_rules! declare_passes {
             $vis const $const_name: PassInfo = PassInfo::new(
                 $name,
                 concat!($($description, "\n"),+).trim_ascii(),
-                |gcx, module| ModulePass::run(&mut $pass, gcx, module),
+                |gcx, module, analyses| {
+                    let pass = &mut $pass;
+                    let changed = ModulePass::run(pass, gcx, module, analyses);
+                    if changed && !ModulePass::maintains_analyses(pass) {
+                        analyses.invalidate_all();
+                    }
+                    changed
+                },
             );
         )+
     };
@@ -334,6 +345,17 @@ const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
     fields(module = %module.name, pass = pass.name),
 )]
 pub fn run_pass(gcx: solar_sema::Gcx<'_>, module: &mut Module, pass: &PassInfo) -> bool {
+    run_pass_with(gcx, module, pass, &mut ModuleAnalyses::default())
+}
+
+/// Runs a named MIR pass over a module, sharing cached per-function analyses
+/// with the other passes of one pipeline execution.
+fn run_pass_with(
+    gcx: solar_sema::Gcx<'_>,
+    module: &mut Module,
+    pass: &PassInfo,
+    analyses: &mut ModuleAnalyses,
+) -> bool {
     // Passes declare which phases they operate on; the manager enforces it so a
     // pipeline entry cannot silently corrupt a module in the wrong phase.
     if !pass.admits(module) {
@@ -343,7 +365,7 @@ pub fn run_pass(gcx: solar_sema::Gcx<'_>, module: &mut Module, pass: &PassInfo) 
         validate_module_after_pass(module, "input");
     }
     let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-    let changed = (pass.run_pass)(gcx, module);
+    let changed = (pass.run_pass)(gcx, module, analyses);
     timer.finish("MIR", module.name, pass.name, changed);
     if cfg!(debug_assertions) {
         validate_module_after_pass(module, pass.name);
@@ -351,11 +373,16 @@ pub fn run_pass(gcx: solar_sema::Gcx<'_>, module: &mut Module, pass: &PassInfo) 
     changed
 }
 
-/// Runs a named MIR pass pipeline over a module.
-fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, passes: &[PassInfo]) -> bool {
+/// Runs a pass pipeline with a shared per-function analysis cache.
+fn run_pipeline_with(
+    gcx: solar_sema::Gcx<'_>,
+    module: &mut Module,
+    passes: &[PassInfo],
+    analyses: &mut ModuleAnalyses,
+) -> bool {
     let mut changed = false;
     for pass in passes {
-        changed |= run_pass(gcx, module, pass);
+        changed |= run_pass_with(gcx, module, pass, analyses);
         if gcx.sess.opts.unstable.print_after_each {
             println!("// === {} (after {}) ===", module.name, pass.name);
             print!("{}", module.to_text());
@@ -376,8 +403,17 @@ fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, passes: &[PassInf
     fields(module = %module.name),
 )]
 pub fn run_default_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-    let mut changed = run_pipeline(gcx, module, DEFAULT_PIPELINE);
-    changed |= run_cleanup_pipeline_to_fixpoint(gcx, module, DEFAULT_CLEANUP_PIPELINE, "cleanup");
+    // One analysis cache for the whole pipeline: lazily built per-function
+    // snapshots survive every pass that does not change their function.
+    let mut analyses = ModuleAnalyses::default();
+    let mut changed = run_pipeline_with(gcx, module, DEFAULT_PIPELINE, &mut analyses);
+    changed |= run_cleanup_pipeline_to_fixpoint(
+        gcx,
+        module,
+        DEFAULT_CLEANUP_PIPELINE,
+        "cleanup",
+        &mut analyses,
+    );
     module.advance_phase(crate::mir::MirPhase::Optimized);
     changed
 }
@@ -387,6 +423,7 @@ fn run_cleanup_pipeline_to_fixpoint(
     module: &mut Module,
     passes: &[PassInfo],
     label: &str,
+    analyses: &mut ModuleAnalyses,
 ) -> bool {
     // A pass only needs to rerun if the module changed since it last started:
     // rerunning a deterministic pass on identical input is a no-op. Tracking
@@ -405,7 +442,7 @@ fn run_cleanup_pipeline_to_fixpoint(
                 continue;
             }
             let generation_before = generation;
-            let pass_changed = run_pass(gcx, module, pass);
+            let pass_changed = run_pass_with(gcx, module, pass, analyses);
             if pass_changed {
                 generation += 1;
                 round_changed = true;
@@ -455,7 +492,13 @@ pub(crate) trait ModulePass {
     /// Runs the transformation on the given module.
     ///
     /// Returns true if the transform changed MIR.
-    fn run(&mut self, gcx: Gcx<'_>, module: &mut Module) -> bool;
+    fn run(&mut self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool;
+
+    /// Whether `run` keeps [`ModuleAnalyses`] consistent itself. The pass
+    /// runner invalidates the whole cache after a changing run otherwise.
+    fn maintains_analyses(&self) -> bool {
+        false
+    }
 }
 
 /// A transformation pass that mutates one function at a time.
@@ -463,23 +506,148 @@ pub(crate) trait FunctionPass {
     /// Runs the transformation on the given function.
     fn run_on_function(&mut self, func: &mut Function) -> bool;
 
+    /// Runs the transformation on one function with its cached analyses.
+    ///
+    /// The default ignores the cache; passes that consult alias analysis or
+    /// the CFG snapshot override this and read the shared instances instead of
+    /// building their own, so lazily built provenance, address memos, and
+    /// dominator trees amortize across every pass between two mutations of the
+    /// function.
+    fn run_on_function_cached(&mut self, func: &mut Function, analyses: &FunctionAnalyses) -> bool {
+        let _ = analyses;
+        self.run_on_function(func)
+    }
+
     /// Runs the function pass over a module.
     ///
-    /// Passes that need module-level summaries may override this hook. The
-    /// default preserves the ordinary function-local execution model.
-    fn run_on_module(&mut self, module: &mut Module) -> bool {
+    /// Passes that need module-level summaries may override this hook; an
+    /// override is responsible for invalidating the analyses of each function
+    /// it changes. The default runs function-locally and invalidates the
+    /// changed functions, retaining whichever snapshots the change verifiably
+    /// preserved.
+    fn run_on_module(&mut self, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         let mut changed = false;
-        for func in &mut module.functions {
-            changed |= self.run_on_function(func);
+        for func_id in module.functions.indices() {
+            if module.functions[func_id].blocks.is_empty() {
+                continue;
+            }
+            changed |= run_function_pass_cached(analyses, module, func_id, |func, bundle| {
+                self.run_on_function_cached(func, bundle)
+            });
         }
         changed
     }
 }
 
 impl<T: FunctionPass> ModulePass for T {
-    fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
-        self.run_on_module(module)
+    fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+        self.run_on_module(module, analyses)
     }
+
+    fn maintains_analyses(&self) -> bool {
+        true
+    }
+}
+
+/// Per-function analysis snapshots handed to a pass run.
+pub(crate) struct FunctionAnalyses {
+    /// Shared alias analysis; provenance and address memos build lazily.
+    pub(crate) alias: Rc<AliasAnalysis>,
+    /// Shared CFG snapshot; RPO, dominators, and reachability build lazily.
+    pub(crate) cfg: Rc<CfgInfo>,
+}
+
+/// Cached per-function analyses shared by every pass in one pipeline run.
+///
+/// Entries are handed out as [`Rc`] snapshots and dropped when their function
+/// changes; a pass holding the snapshot across its own mutations relies on the
+/// same conservative-under-removal reasoning it would with a private copy.
+#[derive(Default)]
+pub(crate) struct ModuleAnalyses {
+    alias: FxHashMap<FunctionId, Rc<AliasAnalysis>>,
+    cfg: FxHashMap<FunctionId, Rc<CfgInfo>>,
+}
+
+impl ModuleAnalyses {
+    /// Returns the shared alias-analysis snapshot for a function, creating an
+    /// empty (lazily populated) one on first request.
+    pub(crate) fn alias(&mut self, func_id: FunctionId) -> Rc<AliasAnalysis> {
+        Rc::clone(self.alias.entry(func_id).or_insert_with(|| Rc::new(AliasAnalysis::empty())))
+    }
+
+    /// Returns the shared CFG snapshot for a function.
+    pub(crate) fn cfg(&mut self, func_id: FunctionId, func: &Function) -> Rc<CfgInfo> {
+        Rc::clone(self.cfg.entry(func_id).or_insert_with(|| Rc::new(CfgInfo::new(func))))
+    }
+
+    /// Returns both shared snapshots for one function.
+    pub(crate) fn bundle(&mut self, func_id: FunctionId, func: &Function) -> FunctionAnalyses {
+        FunctionAnalyses { alias: self.alias(func_id), cfg: self.cfg(func_id, func) }
+    }
+
+    /// Drops the analyses a change did not verifiably preserve.
+    fn retain(&mut self, func_id: FunctionId, keep_alias: bool, keep_cfg: bool) {
+        if !keep_alias {
+            self.alias.remove(&func_id);
+        }
+        if !keep_cfg {
+            self.cfg.remove(&func_id);
+        }
+    }
+
+    /// Drops every cached analysis after a module-level transformation.
+    pub(crate) fn invalidate_all(&mut self) {
+        self.alias.clear();
+        self.cfg.clear();
+    }
+}
+
+/// Snapshot of a function's CFG edge set for verified preservation checks.
+fn cfg_edges(func: &Function) -> Vec<(u32, u32)> {
+    let mut edges = Vec::new();
+    for (block_id, block) in func.blocks.iter_enumerated() {
+        if let Some(terminator) = &block.terminator {
+            for successor in terminator.successors() {
+                edges.push((block_id.index() as u32, successor.index() as u32));
+            }
+        }
+    }
+    edges.sort_unstable();
+    edges
+}
+
+/// Runs one function-local pass body with cached analyses and verified
+/// preservation: instead of trusting per-pass declarations, the runner
+/// compares the CFG edge set before and after, and scans instructions the
+/// pass appended for side effects.
+///
+/// - The CFG snapshot survives when the edge set is unchanged.
+/// - The alias snapshot survives when no appended instruction has side effects (removals only leave
+///   its facts conservative) and the edge set did not grow (removed edges only shrink reachability
+///   and cycles, which also leaves the cached facts conservative).
+pub(crate) fn run_function_pass_cached(
+    analyses: &mut ModuleAnalyses,
+    module: &mut Module,
+    func_id: FunctionId,
+    run: impl FnOnce(&mut Function, &FunctionAnalyses) -> bool,
+) -> bool {
+    let bundle = analyses.bundle(func_id, &module.functions[func_id]);
+    let func = &mut module.functions[func_id];
+    let edges_before = cfg_edges(func);
+    let insts_before = func.instructions.len();
+    let changed = run(func, &bundle);
+    if changed {
+        let edges_after = cfg_edges(func);
+        let keep_cfg = edges_after == edges_before;
+        let no_new_side_effects = (insts_before..func.instructions.len()).all(|index| {
+            !func.instructions[crate::mir::InstId::from_usize(index)].kind.has_side_effects()
+        });
+        let keep_alias = no_new_side_effects
+            && (keep_cfg
+                || edges_after.iter().all(|edge| edges_before.binary_search(edge).is_ok()));
+        analyses.retain(func_id, keep_alias, keep_cfg);
+    }
+    changed
 }
 
 /// Manages cached analysis results for a function.

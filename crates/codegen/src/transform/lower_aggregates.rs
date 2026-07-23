@@ -11,7 +11,12 @@ use std::sync::Arc;
 pub(crate) struct LowerAggregatesPass;
 
 impl ModulePass for LowerAggregatesPass {
-    fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+    fn run(
+        &mut self,
+        _gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
         let mut changed = false;
         for func in module.functions.iter_mut() {
             changed |= lower_function(func);

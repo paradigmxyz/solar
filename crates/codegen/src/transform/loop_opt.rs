@@ -19,11 +19,12 @@ use crate::{
         BlockId, Function, InstId, InstKind, StorageAlias, Terminator, Value, ValueId,
         utils as mir_utils,
     },
-    pass::FunctionPass,
+    pass::{FunctionAnalyses, FunctionPass},
 };
 use alloy_primitives::U256;
 use arrayvec::ArrayVec;
 use solar_data_structures::bit_set::DenseBitSet;
+use std::rc::Rc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum StorageSpace {
@@ -53,7 +54,7 @@ pub(crate) struct LoopOptimizer {
     /// Maximum number of instructions hoisted from one loop.
     max_licm_hoisted_insts: usize,
     stats: LoopOptStats,
-    alias: Option<AliasAnalysis>,
+    alias: Option<Rc<AliasAnalysis>>,
 }
 
 impl Default for LoopOptimizer {
@@ -78,6 +79,12 @@ pub(crate) struct LoopOptStats {
 pub(crate) struct LicmPass;
 
 impl FunctionPass for LicmPass {
+    fn run_on_function_cached(&mut self, func: &mut Function, analyses: &FunctionAnalyses) -> bool {
+        let mut optimizer = LoopOptimizer::with_limits(3, 8);
+        optimizer.alias = Some(Rc::clone(&analyses.alias));
+        optimizer.optimize(func).instructions_hoisted != 0
+    }
+
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         LoopOptimizer::with_limits(3, 8).optimize(func).instructions_hoisted != 0
     }
@@ -97,7 +104,9 @@ impl LoopOptimizer {
     pub(crate) fn optimize(&mut self, func: &mut Function) -> &LoopOptStats {
         self.stats = LoopOptStats::default();
         func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
-        self.alias = Some(AliasAnalysis::new(func));
+        if self.alias.is_none() {
+            self.alias = Some(Rc::new(AliasAnalysis::new(func)));
+        }
 
         let mut analyzer = LoopAnalyzer::new();
         let loop_info = analyzer.analyze(func);
