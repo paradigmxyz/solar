@@ -17,8 +17,8 @@
 //! `SWAP` plus `POP`, to the post-instruction cleanup.
 //!
 //! Plans use one cost and goal model at every tier. Exact prefix checks handle
-//! the cheapest common case. Gas mode also uses allocation-free unary and
-//! verified one-action plans before a lower-bound-certified deterministic walk;
+//! the cheapest common case. Gas mode also uses allocation-free verified
+//! one-action and unary plans before a lower-bound-certified deterministic walk;
 //! bounded A* is reserved for layouts where those proofs do not succeed. Size
 //! mode goes from the exact-prefix check to the deterministic/A* path so an
 //! equal-cost local fast-path tie cannot leave a residual stack that costs more
@@ -81,11 +81,11 @@ const MAX_OPERAND_SEARCH_STATES: usize = 4096;
 type PlannedActions = SmallVec<[PlannedAction; 8]>;
 type SearchStack = SmallVec<[Option<ValueId>; 24]>;
 
-/// Stack scheduler that generates stack manipulation operations.
+/// Tracks physical stack state and plans operand preparation.
 pub(crate) struct StackScheduler {
     /// Current stack state.
     pub stack: StackModel,
-    /// Spill manager for values beyond stack depth 16.
+    /// Spill slots and their current reloadability.
     pub spills: SpillManager,
     /// Operations to emit.
     ops: Vec<ScheduledOp>,
@@ -100,7 +100,8 @@ pub(crate) enum ScheduledOp {
     PushImmediate(alloy_primitives::U256),
     /// Load a spilled value from memory.
     LoadSpill(SpillSlot),
-    /// Load a function argument from calldata.
+    /// Load a function argument through the active calling convention.
+    ///
     /// Contains the argument index (0-based).
     LoadArg(u32),
 }
@@ -743,8 +744,7 @@ impl StackScheduler {
         goal: &[ValueId],
         preserve_counts: &FxHashMap<ValueId, usize>,
     ) -> bool {
-        let Some(&top) = stack.first() else { return false };
-        let Some(top) = top else { return false };
+        let Some(&Some(top)) = stack.first() else { return false };
         let required = goal.iter().filter(|&&value| value == top).count()
             + preserve_counts.get(&top).copied().unwrap_or_default();
         let current = stack.iter().filter(|&&slot| slot == Some(top)).count();
@@ -1119,7 +1119,7 @@ impl StackScheduler {
                 }
             }
             crate::mir::Value::Arg { index, .. } => {
-                // It's a function argument, load from calldata
+                // Load the function argument through the active calling convention.
                 self.ops.push(ScheduledOp::LoadArg(*index));
                 self.stack.push(value);
             }

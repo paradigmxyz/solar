@@ -9,13 +9,13 @@
 //!
 //! ## Architecture
 //!
-//! Immediately before this subsystem runs, the late `evm-inst-schedule` MIR pass orders movable,
-//! single-use expression trees in backend consumption order. Effectful instructions, `gas`,
-//! `msize`, phis, and shared results constrain that order; so does producer order for operations
-//! whose lowering already costs both equivalent operand orientations. This shortens avoidable
-//! producer-to-consumer distances without putting physical stack layouts into MIR; liveness is
-//! then recomputed over the selected order and remains the scheduler's source of preservation
-//! requirements.
+//! In optimized builds, the late `evm-inst-schedule` MIR pass runs immediately before this
+//! subsystem and orders movable, single-use expression trees in backend consumption order.
+//! Effectful instructions, `gas`, `msize`, phis, and shared results constrain that order; so does
+//! producer order for operations whose lowering already costs both equivalent operand
+//! orientations. This shortens avoidable producer-to-consumer distances without putting physical
+//! stack layouts into MIR; liveness is then recomputed over the selected order and remains the
+//! scheduler's source of preservation requirements.
 //!
 //! The stack subsystem is split by responsibility:
 //!
@@ -26,8 +26,8 @@
 //!   immediates, arguments, or stored spills. Plans are replayable and are applied to the model
 //!   only when chosen.
 //! - [`shuffler`] canonicalizes complete layouts on selected CFG edges. Its greedy result is
-//!   accepted only if replay reaches the exact target; a bounded exact search handles layouts the
-//!   greedy path cannot arrange.
+//!   accepted only if the modeled stack reaches the exact target; a bounded exact search handles
+//!   layouts the greedy path cannot arrange.
 //! - [`spill`] assigns memory slots. Values visible across blocks receive function-stable
 //!   reservations, while block-local slots are released and reused after the block is emitted.
 //!
@@ -56,7 +56,7 @@
 //! [solc's SSA stack layout generator] and [Sonatina's stackify allocator] were evaluated for
 //! control-flow layouts and spill handling. They use whole-function layout machinery, fixed-point
 //! spill discovery, and canonical block-entry stacks. Sonatina's current operand preparer also
-//! supplies the unary and verified one-action fast-path pattern used here, while its normalized
+//! supplies the verified one-action and unary fast-path pattern used here, while its normalized
 //! search cache and packed state remain coupled to its symbolic stack allocator. We retain
 //! conservative cross-block spills and add verified edge shuffles only where the current lowering
 //! can keep values stack-resident; importing either whole allocator would require a separate
@@ -75,7 +75,7 @@
 //!
 //! Lowering supplies operands in EVM push order and a liveness-derived set of
 //! values that must survive the instruction. An exact-prefix check avoids all
-//! search and allocation. Gas mode then uses unary and verified one-action fast
+//! search and allocation. Gas mode then uses verified one-action and unary fast
 //! paths for common layouts. Longer unambiguous plans use a deterministic walk
 //! only when its cost reaches the admissible lower bound; ambiguous layouts use
 //! bounded A*. These are tiers of the same planner, not sequential optimizers:
@@ -123,9 +123,9 @@
 //! action list is replayed once, emitted once, and followed by the instruction's
 //! declared stack effect. Anonymous words are not treated as interchangeable
 //! MIR values, and failed bounded local searches fall back to the established
-//! emitter. Complete edge shuffles are independently replay-verified; lowering
-//! checks that an edge is preparable before committing it and treats a later
-//! shuffle failure as an internal invariant violation.
+//! emitter. Complete edge shuffles require an exact final layout; lowering checks
+//! that an edge is preparable before committing it and treats a later shuffle
+//! failure as an internal invariant violation.
 //!
 //! The local planner is currently used only when operand identities remain
 //! stable during preparation. Memory stores and copies, contract creation, and

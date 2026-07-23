@@ -2,18 +2,20 @@
 //!
 //! This module converts a source stack layout to a target layout using DUP,
 //! SWAP, and POP operations. A greedy fast path handles ordinary edges; its
-//! result is replay-verified, with a bounded exact search as the fallback.
+//! resulting model is verified against the exact target, with a bounded exact
+//! search as the fallback.
 //!
-//! ## Algorithm Overview
+//! ## Algorithm overview
 //!
 //! The fast path uses a greedy approach with multiplicity tracking:
-//! 1. Count how many copies of each value are needed in the target
-//! 2. DUP values that need multiple copies
-//! 3. SWAP values to correct positions
-//! 4. POP excess values
+//!
+//! 1. Count how many copies of each value are needed in the target.
+//! 2. DUP values that need multiple copies.
+//! 3. SWAP values to correct positions.
+//! 4. POP excess values.
 //!
 //! Swaps between equal tracked values are omitted. A transition is returned only
-//! when replay reaches the exact target.
+//! when the modeled source reaches the exact target.
 
 use super::model::{MAX_STACK_ACCESS, StackModel, StackOp};
 use crate::mir::ValueId;

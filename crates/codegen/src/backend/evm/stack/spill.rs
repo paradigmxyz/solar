@@ -1,7 +1,7 @@
-//! Spill management for handling >16 live values.
+//! Spill-slot management for values preserved in memory.
 //!
-//! When more than 16 values are live simultaneously (the maximum accessible
-//! via DUP16/SWAP16), we spill values to memory. Slots are logical word offsets:
+//! Values that are inaccessible through DUP16/SWAP16 or need a stable
+//! cross-block home can be spilled to memory. Slots are logical word offsets:
 //! lowering places them after the external function's static memory, inside an
 //! internal function's frame, or in the constructor's reserved spill region.
 //! Cross-block reservations remain stable for the function, while block-local
@@ -31,7 +31,7 @@ impl SpillSlot {
     }
 }
 
-/// Manages spill slots for values that cannot fit on the stack.
+/// Manages memory slots for spilled MIR values.
 #[derive(Clone, Debug)]
 pub(crate) struct SpillManager {
     /// Map from value to its spill slot.
@@ -66,6 +66,7 @@ impl SpillManager {
     }
 
     /// Allocates a spill slot for a value.
+    ///
     /// If the value already has a slot, returns the existing one.
     pub(crate) fn allocate(&mut self, value: ValueId) -> SpillSlot {
         if let Some(&slot) = self.slots.get(&value) {
