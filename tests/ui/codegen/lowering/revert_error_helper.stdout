@@ -46,8 +46,8 @@ bb9:
   push 288
   mload
   mload
-  swap1
   push 32
+  dup3
   add
   dup2
   swap1
@@ -59,8 +59,7 @@ bb9:
   not
   and
   push 64
-  push 320
-  mload
+  dup4
   add
   push 32
   dup3
@@ -84,8 +83,7 @@ bb9:
   pop
   push 64
   add
-  push 320
-  mload
+  dup2
   return
 bb5 [cold]:
   push 0
@@ -292,16 +290,15 @@ bb28 [cold]:
   push 160
   mstore
   push 96
+  dup2
   add
   push 64
   mstore
   push 33
-  push 160
-  mload
+  dup2
   mstore
   push 32
-  push 160
-  mload
+  dup2
   add
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
   dup2
@@ -328,8 +325,6 @@ bb28 [cold]:
   push 100
   mstore
   push 32
-  push 160
-  mload
   add
   push 33
   dup2

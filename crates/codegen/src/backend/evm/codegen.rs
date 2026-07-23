@@ -12,8 +12,8 @@ use super::{
     layout::{RelayoutAddress, preserves_push_width},
     op,
     stack::{
-        MAX_STACK_ACCESS, OperandPlan, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler,
-        TargetSlot,
+        MAX_STACK_ACCESS, OperandCostModel, OperandPlan, ScheduledOp, SpillSlot, StackModel,
+        StackOp, StackScheduler, TargetSlot,
     },
 };
 use crate::{
@@ -27,6 +27,7 @@ use crate::{
     transform::{eligible_static_allocations, lower_alloc_except},
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_config::OptimizationMode;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -4573,6 +4574,18 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Plans operand preparation for operations whose inputs remain valid while
     /// they are rearranged. Memory-mutating stores/copies and calls keep their
     /// freshness-aware emitters until the stack model represents value epochs.
+    fn operand_cost_model(&self) -> OperandCostModel {
+        if self.in_internal_function
+            && self
+                .current_internal_function
+                .is_none_or(|func_id| !self.static_frame_functions.contains(func_id))
+        {
+            OperandCostModel::DYNAMIC_FRAME
+        } else {
+            OperandCostModel::DIRECT
+        }
+    }
+
     fn plan_operands(
         &self,
         func: &Function,
@@ -4581,7 +4594,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         block: BlockId,
         inst_idx: usize,
     ) -> Option<OperandPlan> {
-        let mut preserved = Vec::new();
+        let mut preserved = SmallVec::<[ValueId; 8]>::new();
         for &value in operands {
             let alias_is_live = self
                 .global_stack_aliases
@@ -4594,8 +4607,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 && (!liveness.is_dead_after(value, block, inst_idx) || alias_is_live)
                 && (!Self::is_rematerializable_value(func, value) || carried_arg_is_live)
                 && (!self.scheduler.spills.is_reloadable(value)
-                    || (self.gcx.sess.opts.optimization == OptimizationMode::Size
-                        && self.scheduler.stack.contains(value)))
+                    || self.scheduler.stack.contains(value))
             {
                 preserved.push(value);
             }
@@ -4606,6 +4618,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             func,
             self.gcx.sess.opts.optimization,
             self.gcx.sess.opts.evm_version,
+            self.operand_cost_model(),
         )
     }
 
@@ -4996,6 +5009,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut selected =
             self.plan_operands(func, &[b, a], liveness, block, inst_idx).map(|plan| (opcode, plan));
         if a != b
+            && selected.as_ref().is_none_or(|(_, plan)| !plan.is_free())
             && let Some(swapped_opcode) = Self::swapped_binary_opcode(opcode)
             && let Some(swapped) = self.plan_operands(func, &[a, b], liveness, block, inst_idx)
             && selected.as_ref().is_none_or(|(_, current)| {

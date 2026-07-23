@@ -79,18 +79,17 @@ bb7:
   push 160
   mstore
   push 31
+  dup2
   add
   dup1
-  push 256
+  push 192
   mstore
-  push 160
-  mload
-  gt
+  lt
   push bb13
   jumpi
   push 31
   not
-  push 256
+  push 192
   mload
   and
   dup1
@@ -105,25 +104,25 @@ bb7:
   pop
   add
   dup1
-  push 192
+  push 224
   mstore
   push 32
+  dup2
   add
   dup1
-  push 288
+  push 256
   mstore
-  push 192
-  mload
-  gt
+  lt
   push bb13
   jumpi
   push 64
   mload
   dup1
-  push 224
-  mstore
   push 288
+  mstore
+  push 256
   mload
+  dup2
   add
   push 64
   mstore
@@ -132,15 +131,13 @@ bb7:
   dup1
   push 160
   mstore
-  push 224
-  mload
+  dup2
   mstore
   push 32
-  push 224
-  mload
+  dup2
   add
   push 32
-  push 192
+  push 224
   mload
   sub
   dup2
@@ -161,8 +158,7 @@ bb7:
   dup4
   calldatacopy
   pop
-  push 224
-  mload
+  swap1
   mload
   gas
   dup1

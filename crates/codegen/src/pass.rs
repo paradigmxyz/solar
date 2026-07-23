@@ -231,7 +231,7 @@ declare_passes! {
     const LOWER_EVM_SHAPED_PASS_BASE -> "lower-evm-shaped" = module LowerEvmShapedPass::default();
 
     /// Order single-use, read-only MIR subgraphs for EVM stack locality.
-    pub(crate) const EVM_INST_SCHEDULE_PASS -> "evm-inst-schedule" = EvmInstSchedulePass;
+    pub(crate) const EVM_INST_SCHEDULE_PASS -> "evm-inst-schedule" = function EvmInstSchedulePass;
 
     /// Lower mapping-slot hash builtins to memory operations.
     pub(crate) const LOWER_MAPPING_SLOTS_PASS -> "lower-mapping-slots" = function LowerMappingSlotsPass;

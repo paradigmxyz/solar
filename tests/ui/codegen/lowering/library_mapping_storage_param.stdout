@@ -61,11 +61,11 @@ bb0:
   dup1
   push 256
   mstore
+  swap1
+  dup2
   lt
   push bb14
   jumpi
-  push 256
-  mload
   dup1
   push 256
   mstore

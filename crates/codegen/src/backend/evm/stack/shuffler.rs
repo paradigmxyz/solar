@@ -12,7 +12,8 @@
 //! 3. SWAP values to correct positions
 //! 4. POP excess values
 //!
-//! A transition is returned only when replay reaches the exact target.
+//! Swaps between equal tracked values are omitted. A transition is returned only
+//! when replay reaches the exact target.
 
 use super::model::{MAX_STACK_ACCESS, StackModel, StackOp};
 use crate::mir::ValueId;
@@ -217,45 +218,48 @@ impl<'a> StackShuffler<'a> {
                     // Find where the target value currently is
                     if let Some(source_depth) = self.find_value_from(*target_val, target_depth)
                         && source_depth != target_depth
-                        && source_depth < MAX_STACK_ACCESS
+                        && source_depth <= MAX_STACK_ACCESS
                     {
                         // Need to swap
                         if target_depth == 0 {
                             // Simple case: swap to top
                             let swap_n = source_depth as u8;
                             if (1..=16).contains(&swap_n) {
-                                self.ops.push(StackOp::Swap(swap_n));
-                                self.source.swap(0, source_depth);
+                                self.swap(source_depth);
                             }
                         } else {
                             // Need to bring target value to position target_depth
                             // First swap current top to target_depth, then bring value to
                             // top, then swap back
-                            if target_depth < MAX_STACK_ACCESS && source_depth < MAX_STACK_ACCESS {
+                            if target_depth <= MAX_STACK_ACCESS && source_depth <= MAX_STACK_ACCESS
+                            {
                                 // Swap top with target_depth position
                                 let swap1 = target_depth as u8;
                                 if (1..=16).contains(&swap1) {
-                                    self.ops.push(StackOp::Swap(swap1));
-                                    self.source.swap(0, target_depth);
+                                    self.swap(target_depth);
                                 }
 
                                 // Bring the occurrence selected before the first swap to the top.
                                 // Re-searching here could pick an already-fixed duplicate above
                                 // `target_depth` and disturb the prefix.
-                                let swap2 = source_depth as u8;
-                                self.ops.push(StackOp::Swap(swap2));
-                                self.source.swap(0, source_depth);
+                                self.swap(source_depth);
 
                                 // Swap back to put the value at target_depth
                                 if (1..=16).contains(&swap1) {
-                                    self.ops.push(StackOp::Swap(swap1));
-                                    self.source.swap(0, target_depth);
+                                    self.swap(target_depth);
                                 }
                             }
                         }
                     }
                 }
             }
+        }
+    }
+
+    fn swap(&mut self, depth: usize) {
+        if self.source[0] != self.source[depth] {
+            self.ops.push(StackOp::Swap(depth as u8));
+            self.source.swap(0, depth);
         }
     }
 
@@ -441,7 +445,21 @@ mod tests {
 
         let result = StackShuffler::new(&source, &target).shuffle().unwrap();
 
-        assert_eq!(result.ops, [StackOp::Swap(1), StackOp::Swap(2), StackOp::Swap(1)]);
+        assert_eq!(result.ops, [StackOp::Swap(1), StackOp::Swap(2)]);
+        assert_reaches(&source, &target, &result);
+    }
+
+    #[test]
+    fn test_shuffle_uses_swap16() {
+        let values: Vec<_> = (0..=MAX_STACK_ACCESS).map(ValueId::from_usize).collect();
+        let source = make_model(&values.iter().copied().map(Some).collect::<Vec<_>>());
+        let mut target_values = values;
+        target_values.swap(0, MAX_STACK_ACCESS);
+        let target: Vec<_> = target_values.into_iter().map(TargetSlot::Value).collect();
+
+        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
+
+        assert_eq!(result.ops, [StackOp::Swap(MAX_STACK_ACCESS as u8)]);
         assert_reaches(&source, &target, &result);
     }
 

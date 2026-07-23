@@ -48,11 +48,10 @@ bb0:
   mstore
   push 4
   calldataload
-  gt
+  dup2
+  lt
   push bb9
   jumpi
-  push 160
-  mload
   dup1
   push 160
   mstore
@@ -71,6 +70,7 @@ bb9 [cold]:
   shl
   push 0
   mstore
+  pop
   push 17
   push 4
   mstore

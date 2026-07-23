@@ -53,6 +53,7 @@ bb0:
   dup1
   push 192
   mstore
+  dup1
   sload
   push 68
   calldataload
@@ -61,19 +62,16 @@ bb0:
   dup1
   push 160
   mstore
+  swap1
+  dup2
   lt
   push bb10
   jumpi
-  push 160
-  mload
   dup1
   push 160
   mstore
-  push 192
-  mload
+  dup2
   sstore
-  push 192
-  mload
   sload
   push 128
   mstore
@@ -90,6 +88,8 @@ bb10 [cold]:
   shl
   push 0
   mstore
+  pop
+  pop
   push 17
   push 4
   mstore

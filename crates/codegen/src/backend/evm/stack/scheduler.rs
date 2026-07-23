@@ -12,30 +12,43 @@
 //! Operands are supplied deepest-first, matching ordinary push order. Internally
 //! the goal is reversed because [`StackModel`] stores the top at index zero. A
 //! complete state must have that exact goal prefix and retain the requested
-//! preservation multiplicities below the prefix.
+//! preservation multiplicities below the prefix. It must not leave another copy
+//! of a dead operand below the prefix: doing so only defers a `POP`, or a
+//! `SWAP` plus `POP`, to the post-instruction cleanup.
 //!
-//! The search is a bounded A* traversal over modeled stack layouts. It can:
+//! Plans use one cost and goal model at every tier. Exact prefix checks handle
+//! the cheapest common case. Gas mode also uses allocation-free unary and
+//! verified one-action plans before a lower-bound-certified deterministic walk;
+//! bounded A* is reserved for layouts where those proofs do not succeed. Size
+//! mode goes from the exact-prefix check to the deterministic/A* path so an
+//! equal-cost local fast-path tie cannot leave a residual stack that costs more
+//! to clean up after the instruction. The available actions are:
 //!
 //! - use `SWAP1..16` to consume accessible last uses in place;
 //! - use `DUP1..16` when another copy must survive or an operand repeats;
-//! - push an immediate with its hardfork-dependent encoded width;
+//! - in gas mode, pop a redundant top copy when an accessible copy remains;
+//! - push an immediate with its hardfork-dependent encoded width when the displaced copy remains
+//!   live or is also consumed;
 //! - reload a stored spill; and
 //! - reload a function argument using the active calling convention.
 //!
 //! Anonymous stack words remain opaque in the modeled layout. The planner never
-//! claims one as a MIR operand or swaps it as though its identity were known;
-//! known values below one can still be duplicated when they are in reach.
+//! claims one as a MIR operand. It may move one by physical position while
+//! arranging a known value, and known values below one can still be duplicated
+//! when they are in reach.
 //!
-//! Each transition accumulates [`ScheduleCost`]. An admissible lower bound for
-//! missing operand copies makes the search goal-directed without changing the
-//! optimal cost. A deterministic walk tries the lowest-estimate transition first
-//! and is accepted only when its final cost equals that lower bound; otherwise
-//! the full A* queue handles the ambiguous layout. Gas optimization orders plans
-//! by static gas, encoded bytes, and action count. Size optimization orders them
-//! by encoded bytes, static gas, and action count. Equal estimates prefer deeper
-//! states, then queue serials make traversal deterministic. Search stops after
-//! [`MAX_OPERAND_SEARCH_STATES`]; returning `None` delegates to the existing
-//! correctness-oriented emitter.
+//! Each transition accumulates [`ScheduleCost`]. Direct and dynamic-frame loads
+//! have separate costs because the latter also loads the frame pointer and adds
+//! an offset. An admissible lower bound for missing copies and unavoidable
+//! rearrangement proves the deterministic plan when its final cost matches the
+//! bound. Otherwise the A* queue handles the ambiguous layout. Gas optimization
+//! orders plans by static gas, encoded bytes, and action count. Size optimization
+//! orders them by encoded bytes, static gas, and action count. Equal estimates
+//! prefer deeper states, then queue serials make traversal deterministic. Search
+//! stops after [`MAX_OPERAND_SEARCH_STATES`]; returning `None` delegates to the
+//! existing correctness-oriented emitter. “Optimal” here means the least
+//! estimated local preparation cost within this action model, not a
+//! whole-function stack-allocation optimum.
 //!
 //! ## Applying a plan
 //!
@@ -65,6 +78,9 @@ use std::{cmp::Ordering, collections::BinaryHeap};
 
 const MAX_OPERAND_SEARCH_STATES: usize = 4096;
 
+type PlannedActions = SmallVec<[PlannedAction; 8]>;
+type SearchStack = SmallVec<[Option<ValueId>; 24]>;
+
 /// Stack scheduler that generates stack manipulation operations.
 pub(crate) struct StackScheduler {
     /// Current stack state.
@@ -87,6 +103,29 @@ pub(crate) enum ScheduledOp {
     /// Load a function argument from calldata.
     /// Contains the argument index (0-based).
     LoadArg(u32),
+}
+
+/// Cost of materializing a spill or argument under the active frame convention.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct OperandCostModel {
+    load_static_gas: u32,
+    load_encoded_bytes: u32,
+}
+
+impl OperandCostModel {
+    /// A direct address push followed by `MLOAD` or `CALLDATALOAD`.
+    pub(crate) const DIRECT: Self = Self { load_static_gas: 6, load_encoded_bytes: 4 };
+
+    /// A frame-pointer load, offset addition, and final value load.
+    pub(crate) const DYNAMIC_FRAME: Self = Self { load_static_gas: 15, load_encoded_bytes: 7 };
+}
+
+#[derive(Clone, Copy)]
+struct OperandPlanningContext<'a> {
+    func: &'a Function,
+    optimization: OptimizationMode,
+    evm_version: EvmVersion,
+    cost_model: OperandCostModel,
 }
 
 /// Estimated cost of an operand preparation plan.
@@ -113,7 +152,12 @@ impl ScheduleCost {
         self.key(optimization).cmp(&other.key(optimization))
     }
 
-    fn with_op(mut self, op: &ScheduledOp, evm_version: EvmVersion) -> Self {
+    fn with_op(
+        mut self,
+        op: &ScheduledOp,
+        evm_version: EvmVersion,
+        cost_model: OperandCostModel,
+    ) -> Self {
         let (static_gas, encoded_bytes) = match op {
             ScheduledOp::Stack(StackOp::Pop) => (2, 1),
             ScheduledOp::Stack(StackOp::Dup(_) | StackOp::Swap(_)) => (3, 1),
@@ -127,10 +171,9 @@ impl ScheduleCost {
                     (3, (immediate_bytes + 1) as u32)
                 }
             }
-            // A spill or argument load is a PUSH plus MLOAD/CALLDATALOAD. The
-            // address width is finalized later, so use the normal PUSH2-sized
-            // form as a conservative estimate here.
-            ScheduledOp::LoadSpill(_) | ScheduledOp::LoadArg(_) => (6, 4),
+            ScheduledOp::LoadSpill(_) | ScheduledOp::LoadArg(_) => {
+                (cost_model.load_static_gas, cost_model.load_encoded_bytes)
+            }
         };
         self.static_gas += static_gas;
         self.encoded_bytes += encoded_bytes;
@@ -156,7 +199,7 @@ struct PlannedAction {
 /// A complete, replayable operand preparation plan.
 #[derive(Clone, Debug)]
 pub(crate) struct OperandPlan {
-    actions: Vec<PlannedAction>,
+    actions: PlannedActions,
     cost: ScheduleCost,
 }
 
@@ -165,12 +208,17 @@ impl OperandPlan {
     pub(crate) fn cost(&self) -> ScheduleCost {
         self.cost
     }
+
+    /// Returns whether applying this plan emits no preparation operations.
+    pub(crate) fn is_free(&self) -> bool {
+        self.actions.is_empty()
+    }
 }
 
 #[derive(Clone, Debug)]
 struct SearchNode {
-    stack: Vec<Option<ValueId>>,
-    actions: Vec<PlannedAction>,
+    stack: SearchStack,
+    actions: PlannedActions,
     cost: ScheduleCost,
 }
 
@@ -228,48 +276,67 @@ impl StackScheduler {
         func: &Function,
         optimization: OptimizationMode,
         evm_version: EvmVersion,
+        cost_model: OperandCostModel,
     ) -> Option<OperandPlan> {
         if matches!(optimization, OptimizationMode::None) {
             return None;
         }
 
-        let goal: Vec<_> = operands.iter().rev().copied().collect();
+        let goal = operands.iter().rev().copied().collect::<SmallVec<[_; 8]>>();
+        if Self::operand_goal_reached_direct(self.stack.as_slice(), &goal, preserved) {
+            let plan =
+                OperandPlan { actions: PlannedActions::new(), cost: ScheduleCost::default() };
+            return Some(self.verify_operand_plan(plan, &goal, preserved));
+        }
+        // Size mode keeps the established search tie-breaking because equal local costs can leave
+        // residual stacks with different cleanup costs after the instruction.
+        if matches!(optimization, OptimizationMode::Gas) {
+            if let Some(plan) = self.try_single_action_operand_plan(
+                &goal,
+                preserved,
+                func,
+                optimization,
+                evm_version,
+                cost_model,
+            ) {
+                return Some(self.verify_operand_plan(plan, &goal, preserved));
+            }
+            if let [value] = operands
+                && let Some(plan) = self.try_unary_operand_plan(
+                    *value,
+                    preserved.contains(value),
+                    func,
+                    optimization,
+                    evm_version,
+                    cost_model,
+                )
+            {
+                return Some(self.verify_operand_plan(plan, &goal, preserved));
+            }
+        }
+
         let mut preserve_counts = FxHashMap::default();
         for &value in preserved {
             preserve_counts.entry(value).or_insert(1usize);
         }
 
         let start = SearchNode {
-            stack: self.stack.as_slice().to_vec(),
-            actions: Vec::new(),
+            stack: self.stack.as_slice().iter().copied().collect(),
+            actions: PlannedActions::new(),
             cost: ScheduleCost::default(),
         };
-        if Self::operand_goal_reached(&start.stack, &goal, &preserve_counts) {
-            return Some(OperandPlan { actions: start.actions, cost: start.cost });
-        }
-        if let Some(plan) = self.try_goal_directed_operand_plan(
-            start.clone(),
-            &goal,
-            &preserve_counts,
-            func,
-            optimization,
-            evm_version,
-        ) {
-            return Some(plan);
+        let context = OperandPlanningContext { func, optimization, evm_version, cost_model };
+        if let Some(plan) =
+            self.try_goal_directed_operand_plan(start.clone(), &goal, &preserve_counts, context)
+        {
+            return Some(self.verify_operand_plan(plan, &goal, preserved));
         }
 
         let mut queue = BinaryHeap::new();
         let mut visited = FxHashMap::default();
         let mut serial = 0usize;
         let start_key = start.cost.key(optimization);
-        let priority = self.operand_search_priority(
-            &start,
-            &goal,
-            &preserve_counts,
-            func,
-            optimization,
-            evm_version,
-        );
+        let priority = self.operand_search_priority(&start, &goal, &preserve_counts, context);
         visited.insert(start.stack.clone(), start_key);
         queue.push(QueueEntry { priority, key: start_key, serial, node: start });
 
@@ -279,22 +346,17 @@ impl StackScheduler {
                 continue;
             }
             if Self::operand_goal_reached(&node.stack, &goal, &preserve_counts) {
-                return Some(OperandPlan { actions: node.actions, cost: node.cost });
+                let plan = OperandPlan { actions: node.actions, cost: node.cost };
+                return Some(self.verify_operand_plan(plan, &goal, preserved));
             }
             expansions += 1;
             if expansions > MAX_OPERAND_SEARCH_STATES {
                 break;
             }
 
-            for action in self.operand_search_actions(
-                &node.stack,
-                &goal,
-                &preserve_counts,
-                func,
-                optimization,
-                evm_version,
-            ) {
-                let next = Self::apply_planned_action(&node, action, evm_version);
+            for action in self.operand_search_actions(&node.stack, &goal, &preserve_counts, context)
+            {
+                let next = Self::apply_planned_action(&node, action, evm_version, cost_model);
 
                 let key = next.cost.key(optimization);
                 if visited.get(&next.stack).is_some_and(|&old| old <= key) {
@@ -302,14 +364,8 @@ impl StackScheduler {
                 }
                 visited.insert(next.stack.clone(), key);
                 serial += 1;
-                let priority = self.operand_search_priority(
-                    &next,
-                    &goal,
-                    &preserve_counts,
-                    func,
-                    optimization,
-                    evm_version,
-                );
+                let priority =
+                    self.operand_search_priority(&next, &goal, &preserve_counts, context);
                 queue.push(QueueEntry { priority, key, serial, node: next });
             }
         }
@@ -317,53 +373,281 @@ impl StackScheduler {
         None
     }
 
+    /// Replays every accepted planner tier in debug builds, matching the final goal check used by
+    /// the full search.
+    fn verify_operand_plan(
+        &self,
+        plan: OperandPlan,
+        _goal: &[ValueId],
+        _preserved: &[ValueId],
+    ) -> OperandPlan {
+        #[cfg(debug_assertions)]
+        {
+            let mut stack = self.stack.as_slice().to_vec();
+            for action in &plan.actions {
+                match action.op {
+                    ScheduledOp::Stack(StackOp::Swap(depth)) => {
+                        stack.swap(0, usize::from(depth));
+                    }
+                    ScheduledOp::Stack(StackOp::Dup(depth)) => {
+                        let value = stack[usize::from(depth - 1)];
+                        stack.insert(0, value);
+                    }
+                    ScheduledOp::Stack(StackOp::Pop) => {
+                        stack.remove(0);
+                    }
+                    ScheduledOp::PushImmediate(_)
+                    | ScheduledOp::LoadSpill(_)
+                    | ScheduledOp::LoadArg(_) => {
+                        stack.insert(0, action.pushed);
+                    }
+                }
+            }
+            debug_assert!(
+                Self::operand_goal_reached_direct(&stack, _goal, _preserved),
+                "operand plan does not reach its goal: stack={:?}, goal={:?}, \
+                 preserved={:?}, plan={plan:?}",
+                self.stack,
+                _goal,
+                _preserved
+            );
+        }
+        plan
+    }
+
+    fn operand_goal_reached_direct(
+        stack: &[Option<ValueId>],
+        goal: &[ValueId],
+        preserved: &[ValueId],
+    ) -> bool {
+        stack.len() >= goal.len()
+            && stack.iter().zip(goal).all(|(&actual, &expected)| actual == Some(expected))
+            && preserved.iter().all(|value| stack[goal.len()..].contains(&Some(*value)))
+            && stack[goal.len()..].iter().all(|&slot| {
+                slot.is_none_or(|value| !goal.contains(&value) || preserved.contains(&value))
+            })
+    }
+
+    fn operand_goal_reached_with(
+        result_len: usize,
+        goal: &[ValueId],
+        preserved: &[ValueId],
+        mut slot_at: impl FnMut(usize) -> Option<ValueId>,
+    ) -> bool {
+        result_len >= goal.len()
+            && goal.iter().enumerate().all(|(i, &expected)| slot_at(i) == Some(expected))
+            && preserved
+                .iter()
+                .all(|&value| (goal.len()..result_len).any(|i| slot_at(i) == Some(value)))
+            && (goal.len()..result_len).all(|i| {
+                slot_at(i).is_none_or(|value| !goal.contains(&value) || preserved.contains(&value))
+            })
+    }
+
+    fn try_single_action_operand_plan(
+        &self,
+        goal: &[ValueId],
+        preserved: &[ValueId],
+        func: &Function,
+        optimization: OptimizationMode,
+        evm_version: EvmVersion,
+        cost_model: OperandCostModel,
+    ) -> Option<OperandPlan> {
+        let stack = self.stack.as_slice();
+        let mut best = None;
+        let mut consider = |op: ScheduledOp, pushed| {
+            let cost = ScheduleCost::default().with_op(&op, evm_version, cost_model);
+            let plan =
+                OperandPlan { actions: smallvec::smallvec![PlannedAction { op, pushed }], cost };
+            if best
+                .as_ref()
+                .is_none_or(|old: &OperandPlan| plan.cost.cmp_for(old.cost, optimization).is_lt())
+            {
+                best = Some(plan);
+            }
+        };
+
+        if matches!(optimization, OptimizationMode::Gas)
+            && matches!(
+                stack.first(),
+                Some(Some(top))
+                    if stack[1..]
+                        .iter()
+                        .take(MAX_STACK_ACCESS)
+                        .any(|&slot| slot == Some(*top))
+            )
+            && Self::operand_goal_reached_with(stack.len() - 1, goal, preserved, |i| stack[i + 1])
+        {
+            consider(ScheduledOp::Stack(StackOp::Pop), None);
+        }
+
+        let max_swap = stack.len().saturating_sub(1).min(MAX_STACK_ACCESS);
+        for depth in 1..=max_swap {
+            if stack[0] != stack[depth]
+                && (matches!(optimization, OptimizationMode::Gas)
+                    || matches!((stack[0], stack[depth]), (Some(_), Some(_))))
+                && Self::operand_goal_reached_with(stack.len(), goal, preserved, |i| {
+                    if i == 0 {
+                        stack[depth]
+                    } else if i == depth {
+                        stack[0]
+                    } else {
+                        stack[i]
+                    }
+                })
+            {
+                consider(ScheduledOp::Stack(StackOp::Swap(depth as u8)), None);
+            }
+        }
+
+        let max_dup = stack.len().min(MAX_STACK_ACCESS);
+        for depth in 0..max_dup {
+            let Some(value) = stack[depth] else { continue };
+            if Self::operand_goal_reached_with(stack.len() + 1, goal, preserved, |i| {
+                if i == 0 { Some(value) } else { stack[i - 1] }
+            }) {
+                consider(ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8)), Some(value));
+            }
+        }
+
+        if let Some(&value) = goal.first()
+            && Self::operand_goal_reached_with(stack.len() + 1, goal, preserved, |i| {
+                if i == 0 { Some(value) } else { stack[i - 1] }
+            })
+            && let Some(op @ ScheduledOp::PushImmediate(_)) = self.materialize_operand(value, func)
+        {
+            let accessible = stack.iter().take(MAX_STACK_ACCESS).any(|&slot| slot == Some(value));
+            if matches!(optimization, OptimizationMode::Gas) || !accessible {
+                consider(op, Some(value));
+            }
+        }
+
+        best
+    }
+
+    fn try_unary_operand_plan(
+        &self,
+        value: ValueId,
+        preserve: bool,
+        func: &Function,
+        optimization: OptimizationMode,
+        evm_version: EvmVersion,
+        cost_model: OperandCostModel,
+    ) -> Option<OperandPlan> {
+        let stack = self.stack.as_slice();
+        let copies = stack.iter().filter(|&&slot| slot == Some(value)).count();
+        if stack.first() == Some(&Some(value))
+            && ((preserve && stack[1..].contains(&Some(value)))
+                || (!preserve && !stack[1..].contains(&Some(value))))
+        {
+            return Some(OperandPlan {
+                actions: PlannedActions::new(),
+                cost: ScheduleCost::default(),
+            });
+        }
+
+        let mut candidates = SmallVec::<[(ScheduleCost, u8, PlannedActions); 4]>::new();
+        let mut add_candidate = |priority: u8, actions: PlannedActions| {
+            let cost = actions.iter().fold(ScheduleCost::default(), |cost, action| {
+                cost.with_op(&action.op, evm_version, cost_model)
+            });
+            candidates.push((cost, priority, actions));
+        };
+
+        if let Some(depth) = stack.iter().position(|&slot| slot == Some(value)) {
+            if preserve && depth < MAX_STACK_ACCESS {
+                add_candidate(
+                    1,
+                    smallvec::smallvec![PlannedAction {
+                        op: ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8)),
+                        pushed: Some(value),
+                    }],
+                );
+            }
+
+            if depth > 0
+                && depth <= MAX_STACK_ACCESS
+                && stack.first().is_some_and(|&top| top != Some(value))
+                && ((!preserve && copies == 1) || (preserve && copies >= 2))
+            {
+                add_candidate(
+                    0,
+                    smallvec::smallvec![PlannedAction {
+                        op: ScheduledOp::Stack(StackOp::Swap(depth as u8)),
+                        pushed: None,
+                    }],
+                );
+            } else if preserve
+                && copies == 1
+                && depth == MAX_STACK_ACCESS
+                && stack.first().is_some_and(|&top| top != Some(value))
+            {
+                add_candidate(
+                    2,
+                    smallvec::smallvec![
+                        PlannedAction {
+                            op: ScheduledOp::Stack(StackOp::Swap(depth as u8)),
+                            pushed: None,
+                        },
+                        PlannedAction {
+                            op: ScheduledOp::Stack(StackOp::Dup(1)),
+                            pushed: Some(value),
+                        }
+                    ],
+                );
+            }
+        }
+
+        if (preserve || copies == 0)
+            && let Some(materialize) = self.materialize_operand(value, func)
+        {
+            let mut actions =
+                smallvec::smallvec![PlannedAction { op: materialize.clone(), pushed: Some(value) }];
+            if preserve && copies == 0 {
+                let duplicate = ScheduledOp::Stack(StackOp::Dup(1));
+                let duplicate_cost =
+                    ScheduleCost::default().with_op(&duplicate, evm_version, cost_model);
+                let materialize_cost =
+                    ScheduleCost::default().with_op(&materialize, evm_version, cost_model);
+                let op = if materialize_cost.cmp_for(duplicate_cost, optimization).is_lt() {
+                    materialize
+                } else {
+                    duplicate
+                };
+                actions.push(PlannedAction { op, pushed: Some(value) });
+            }
+            add_candidate(3, actions);
+        }
+
+        candidates
+            .into_iter()
+            .min_by(|(a_cost, a_priority, a_actions), (b_cost, b_priority, b_actions)| {
+                a_cost
+                    .cmp_for(*b_cost, optimization)
+                    .then(a_actions.len().cmp(&b_actions.len()))
+                    .then(a_priority.cmp(b_priority))
+            })
+            .map(|(cost, _, actions)| OperandPlan { actions, cost })
+    }
+
     fn try_goal_directed_operand_plan(
         &self,
         mut node: SearchNode,
         goal: &[ValueId],
         preserve_counts: &FxHashMap<ValueId, usize>,
-        func: &Function,
-        optimization: OptimizationMode,
-        evm_version: EvmVersion,
+        context: OperandPlanningContext<'_>,
     ) -> Option<OperandPlan> {
-        let optimal_key = self.operand_search_priority(
-            &node,
-            goal,
-            preserve_counts,
-            func,
-            optimization,
-            evm_version,
-        );
+        let OperandPlanningContext { optimization, evm_version, cost_model, .. } = context;
+        let optimal_key = self.operand_search_priority(&node, goal, preserve_counts, context);
         let max_actions = self
-            .operand_search_lower_bound(
-                &node.stack,
-                goal,
-                preserve_counts,
-                func,
-                optimization,
-                evm_version,
-            )
+            .operand_search_lower_bound(&node.stack, goal, preserve_counts, context)
             .actions as usize;
 
         for _ in 0..max_actions {
             let mut best = None;
-            for action in self.operand_search_actions(
-                &node.stack,
-                goal,
-                preserve_counts,
-                func,
-                optimization,
-                evm_version,
-            ) {
-                let next = Self::apply_planned_action(&node, action, evm_version);
-                let priority = self.operand_search_priority(
-                    &next,
-                    goal,
-                    preserve_counts,
-                    func,
-                    optimization,
-                    evm_version,
-                );
+            for action in self.operand_search_actions(&node.stack, goal, preserve_counts, context) {
+                let next = Self::apply_planned_action(&node, action, evm_version, cost_model);
+                let priority = self.operand_search_priority(&next, goal, preserve_counts, context);
                 if best.as_ref().is_none_or(|(best_priority, _)| priority < *best_priority) {
                     best = Some((priority, next));
                 }
@@ -381,14 +665,19 @@ impl StackScheduler {
         stack: &[Option<ValueId>],
         goal: &[ValueId],
         preserve_counts: &FxHashMap<ValueId, usize>,
-        func: &Function,
-        optimization: OptimizationMode,
-        evm_version: EvmVersion,
-    ) -> Vec<PlannedAction> {
-        let mut actions = Vec::new();
+        context: OperandPlanningContext<'_>,
+    ) -> SmallVec<[PlannedAction; 24]> {
+        let OperandPlanningContext { func, optimization, evm_version, cost_model } = context;
+        let mut actions = SmallVec::<[PlannedAction; 24]>::new();
+        if matches!(optimization, OptimizationMode::Gas)
+            && Self::operand_pop_can_help(stack, goal, preserve_counts)
+        {
+            actions.push(PlannedAction { op: ScheduledOp::Stack(StackOp::Pop), pushed: None });
+        }
+
         let max_swap = stack.len().saturating_sub(1).min(MAX_STACK_ACCESS);
         for depth in 1..=max_swap {
-            if matches!((stack[0], stack[depth]), (Some(a), Some(b)) if a != b) {
+            if stack[0] != stack[depth] {
                 actions.push(PlannedAction {
                     op: ScheduledOp::Stack(StackOp::Swap(depth as u8)),
                     pushed: None,
@@ -402,18 +691,30 @@ impl StackScheduler {
         }
         for (&value, &required) in &required_counts {
             let current = stack.iter().filter(|&&slot| slot == Some(value)).count();
-            if current < required
+            let materialize = self.materialize_operand(value, func);
+            let cheap_surplus_materialization = materialize.as_ref().is_some_and(|op| {
+                let materialize_cost = ScheduleCost::default().with_op(op, evm_version, cost_model);
+                let duplicate_cost = ScheduleCost::default().with_op(
+                    &ScheduledOp::Stack(StackOp::Dup(1)),
+                    evm_version,
+                    cost_model,
+                );
+                materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
+            });
+            let cheap_surplus_copy_can_help = matches!(optimization, OptimizationMode::Gas)
+                && preserve_counts.contains_key(&value)
+                && cheap_surplus_materialization;
+            if (current < required || cheap_surplus_copy_can_help)
                 && let Some(depth) =
                     stack.iter().take(MAX_STACK_ACCESS).position(|&slot| slot == Some(value))
             {
                 let duplicate = ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8));
-                let op = self
-                    .materialize_operand(value, func)
+                let op = materialize
                     .filter(|materialize| {
                         let duplicate_cost =
-                            ScheduleCost::default().with_op(&duplicate, evm_version);
+                            ScheduleCost::default().with_op(&duplicate, evm_version, cost_model);
                         let materialize_cost =
-                            ScheduleCost::default().with_op(materialize, evm_version);
+                            ScheduleCost::default().with_op(materialize, evm_version, cost_model);
                         materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
                     })
                     .unwrap_or(duplicate);
@@ -437,10 +738,25 @@ impl StackScheduler {
         actions
     }
 
+    fn operand_pop_can_help(
+        stack: &[Option<ValueId>],
+        goal: &[ValueId],
+        preserve_counts: &FxHashMap<ValueId, usize>,
+    ) -> bool {
+        let Some(&top) = stack.first() else { return false };
+        let Some(top) = top else { return false };
+        let required = goal.iter().filter(|&&value| value == top).count()
+            + preserve_counts.get(&top).copied().unwrap_or_default();
+        let current = stack.iter().filter(|&&slot| slot == Some(top)).count();
+        current > required
+            && stack[1..].iter().take(MAX_STACK_ACCESS).any(|&slot| slot == Some(top))
+    }
+
     fn apply_planned_action(
         node: &SearchNode,
         action: PlannedAction,
         evm_version: EvmVersion,
+        cost_model: OperandCostModel,
     ) -> SearchNode {
         let mut next = node.clone();
         match &action.op {
@@ -458,7 +774,7 @@ impl StackScheduler {
                 next.stack.insert(0, action.pushed);
             }
         }
-        next.cost = next.cost.with_op(&action.op, evm_version);
+        next.cost = next.cost.with_op(&action.op, evm_version, cost_model);
         next.actions.push(action);
         next
     }
@@ -468,19 +784,11 @@ impl StackScheduler {
         node: &SearchNode,
         goal: &[ValueId],
         preserve_counts: &FxHashMap<ValueId, usize>,
-        func: &Function,
-        optimization: OptimizationMode,
-        evm_version: EvmVersion,
+        context: OperandPlanningContext<'_>,
     ) -> [u32; 3] {
+        let optimization = context.optimization;
         node.cost
-            .plus(self.operand_search_lower_bound(
-                &node.stack,
-                goal,
-                preserve_counts,
-                func,
-                optimization,
-                evm_version,
-            ))
+            .plus(self.operand_search_lower_bound(&node.stack, goal, preserve_counts, context))
             .key(optimization)
     }
 
@@ -489,10 +797,9 @@ impl StackScheduler {
         stack: &[Option<ValueId>],
         goal: &[ValueId],
         preserve_counts: &FxHashMap<ValueId, usize>,
-        func: &Function,
-        optimization: OptimizationMode,
-        evm_version: EvmVersion,
+        context: OperandPlanningContext<'_>,
     ) -> ScheduleCost {
+        let OperandPlanningContext { func, optimization, evm_version, cost_model } = context;
         let mut required_counts = preserve_counts.clone();
         for &value in goal {
             *required_counts.entry(value).or_default() += 1;
@@ -520,9 +827,10 @@ impl StackScheduler {
             let materialize = self.materialize_operand(value, func);
             let first = match (duplicate, materialize.clone()) {
                 (Some(duplicate), Some(materialize)) => {
-                    let duplicate_cost = ScheduleCost::default().with_op(&duplicate, evm_version);
+                    let duplicate_cost =
+                        ScheduleCost::default().with_op(&duplicate, evm_version, cost_model);
                     let materialize_cost =
-                        ScheduleCost::default().with_op(&materialize, evm_version);
+                        ScheduleCost::default().with_op(&materialize, evm_version, cost_model);
                     if duplicate_cost.cmp_for(materialize_cost, optimization).is_le() {
                         duplicate
                     } else {
@@ -532,13 +840,14 @@ impl StackScheduler {
                 (Some(op), None) | (None, Some(op)) => op,
                 (None, None) => continue,
             };
-            remaining = remaining.with_op(&first, evm_version);
+            remaining = remaining.with_op(&first, evm_version, cost_model);
             let subsequent = match materialize {
                 Some(materialize) => {
                     let duplicate = ScheduledOp::Stack(StackOp::Dup(1));
-                    let duplicate_cost = ScheduleCost::default().with_op(&duplicate, evm_version);
+                    let duplicate_cost =
+                        ScheduleCost::default().with_op(&duplicate, evm_version, cost_model);
                     let materialize_cost =
-                        ScheduleCost::default().with_op(&materialize, evm_version);
+                        ScheduleCost::default().with_op(&materialize, evm_version, cost_model);
                     if materialize_cost.cmp_for(duplicate_cost, optimization).is_lt() {
                         materialize
                     } else {
@@ -548,7 +857,7 @@ impl StackScheduler {
                 None => ScheduledOp::Stack(StackOp::Dup(1)),
             };
             for _ in 1..missing {
-                remaining = remaining.with_op(&subsequent, evm_version);
+                remaining = remaining.with_op(&subsequent, evm_version, cost_model);
             }
         }
 
@@ -561,16 +870,34 @@ impl StackScheduler {
                 total_missing,
             )
         {
-            let mut rearrange =
-                ScheduleCost::default().with_op(&ScheduledOp::Stack(StackOp::Swap(1)), evm_version);
+            let mut rearrange = ScheduleCost::default().with_op(
+                &ScheduledOp::Stack(StackOp::Swap(1)),
+                evm_version,
+                cost_model,
+            );
+            if matches!(optimization, OptimizationMode::Gas)
+                && Self::operand_pop_can_help(stack, goal, preserve_counts)
+            {
+                let pop = ScheduleCost::default().with_op(
+                    &ScheduledOp::Stack(StackOp::Pop),
+                    evm_version,
+                    cost_model,
+                );
+                if pop.cmp_for(rearrange, optimization).is_lt() {
+                    rearrange = pop;
+                }
+            }
             for &value in goal {
-                if missing_counts.iter().any(|&(missing, _)| missing == value)
-                    || stack.iter().take(MAX_STACK_ACCESS).any(|&slot| slot == Some(value))
-                {
+                let missing = missing_counts.iter().any(|&(missing, _)| missing == value);
+                let accessible =
+                    stack.iter().take(MAX_STACK_ACCESS).any(|&slot| slot == Some(value));
+                let surplus_copy_can_help = matches!(optimization, OptimizationMode::Gas)
+                    && preserve_counts.contains_key(&value);
+                if (missing || accessible) && !surplus_copy_can_help {
                     continue;
                 }
                 if let Some(op) = self.materialize_operand(value, func) {
-                    let cost = ScheduleCost::default().with_op(&op, evm_version);
+                    let cost = ScheduleCost::default().with_op(&op, evm_version, cost_model);
                     if cost.cmp_for(rearrange, optimization).is_lt() {
                         rearrange = cost;
                     }
@@ -580,7 +907,7 @@ impl StackScheduler {
         } else if !has_missing_copies && !Self::operand_goal_reached(stack, goal, preserve_counts) {
             let mut cheapest = None;
             let mut consider = |op: ScheduledOp| {
-                let cost = ScheduleCost::default().with_op(&op, evm_version);
+                let cost = ScheduleCost::default().with_op(&op, evm_version, cost_model);
                 if cheapest.is_none_or(|old: ScheduleCost| cost.cmp_for(old, optimization).is_lt())
                 {
                     cheapest = Some(cost);
@@ -596,10 +923,19 @@ impl StackScheduler {
             {
                 consider(ScheduledOp::Stack(StackOp::Swap(1)));
             }
+            if matches!(optimization, OptimizationMode::Gas)
+                && Self::operand_pop_can_help(stack, goal, preserve_counts)
+            {
+                consider(ScheduledOp::Stack(StackOp::Pop));
+            }
             for &value in goal {
                 let accessible =
                     stack.iter().take(MAX_STACK_ACCESS).any(|&slot| slot == Some(value));
-                if !accessible && let Some(op) = self.materialize_operand(value, func) {
+                let surplus_copy_can_help = matches!(optimization, OptimizationMode::Gas)
+                    && preserve_counts.contains_key(&value);
+                if (!accessible || surplus_copy_can_help)
+                    && let Some(op) = self.materialize_operand(value, func)
+                {
                     consider(op);
                 }
             }
@@ -693,6 +1029,8 @@ impl StackScheduler {
 
         preserve_counts.iter().all(|(&value, &required)| {
             stack[goal.len()..].iter().filter(|&&slot| slot == Some(value)).count() >= required
+        }) && stack[goal.len()..].iter().all(|&slot| {
+            slot.is_none_or(|value| !goal.contains(&value) || preserve_counts.contains_key(&value))
         })
     }
 
@@ -994,12 +1332,27 @@ mod tests {
         for &value in preserved {
             *preserve_counts.entry(value).or_default() += 1;
         }
-
+        let context = OperandPlanningContext {
+            func,
+            optimization,
+            evm_version,
+            cost_model: OperandCostModel::DIRECT,
+        };
+        if StackScheduler::operand_goal_reached(scheduler.stack.as_slice(), &goal, &preserve_counts)
+        {
+            return Some(OperandPlan {
+                actions: PlannedActions::new(),
+                cost: ScheduleCost::default(),
+            });
+        }
         let start = SearchNode {
-            stack: scheduler.stack.as_slice().to_vec(),
-            actions: Vec::new(),
+            stack: scheduler.stack.as_slice().iter().copied().collect(),
+            actions: PlannedActions::new(),
             cost: ScheduleCost::default(),
         };
+        // Keep the exhaustive test finite while allowing every requested and preserved occurrence
+        // to introduce one positional copy beyond the starting layout.
+        let max_stack_len = start.stack.len() + goal.len() + preserved.len();
         let mut queue = BinaryHeap::new();
         let mut visited = FxHashMap::default();
         let key = start.cost.key(optimization);
@@ -1015,15 +1368,36 @@ mod tests {
                 return Some(OperandPlan { actions: node.actions, cost: node.cost });
             }
 
-            for action in scheduler.operand_search_actions(
-                &node.stack,
-                &goal,
-                &preserve_counts,
-                func,
-                optimization,
-                evm_version,
-            ) {
-                let next = StackScheduler::apply_planned_action(&node, action, evm_version);
+            let mut actions =
+                scheduler.operand_search_actions(&node.stack, &goal, &preserve_counts, context);
+            if matches!(optimization, OptimizationMode::Gas) {
+                for &value in &goal {
+                    let Some(op) = scheduler.materialize_operand(value, func) else { continue };
+                    let materialize_cost =
+                        ScheduleCost::default().with_op(&op, evm_version, OperandCostModel::DIRECT);
+                    let duplicate_cost = ScheduleCost::default().with_op(
+                        &ScheduledOp::Stack(StackOp::Dup(1)),
+                        evm_version,
+                        OperandCostModel::DIRECT,
+                    );
+                    if materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
+                        && !actions.iter().any(|old| old.op == op)
+                    {
+                        actions.push(PlannedAction { op, pushed: Some(value) });
+                    }
+                }
+            }
+
+            for action in actions {
+                let next = StackScheduler::apply_planned_action(
+                    &node,
+                    action,
+                    evm_version,
+                    OperandCostModel::DIRECT,
+                );
+                if next.stack.len() > max_stack_len {
+                    continue;
+                }
                 let key = next.cost.key(optimization);
                 if visited.get(&next.stack).is_some_and(|&old| old <= key) {
                     continue;
@@ -1035,6 +1409,24 @@ mod tests {
         }
 
         None
+    }
+
+    fn sequences<T: Copy>(alphabet: &[T], max_len: usize) -> Vec<Vec<T>> {
+        let mut all = vec![Vec::new()];
+        let mut level = vec![Vec::new()];
+        for _ in 0..max_len {
+            let mut next = Vec::new();
+            for prefix in &level {
+                for &value in alphabet {
+                    let mut sequence = prefix.clone();
+                    sequence.push(value);
+                    next.push(sequence);
+                }
+            }
+            all.extend(next.iter().cloned());
+            level = next;
+        }
+        all
     }
 
     #[test]
@@ -1107,7 +1499,14 @@ mod tests {
         scheduler.stack.push(a);
 
         let plan = scheduler
-            .plan_operands(&[b, a], &[], &func, OptimizationMode::Gas, EvmVersion::Shanghai)
+            .plan_operands(
+                &[b, a],
+                &[],
+                &func,
+                OptimizationMode::Gas,
+                EvmVersion::Shanghai,
+                OperandCostModel::DIRECT,
+            )
             .unwrap();
         assert!(plan.actions.is_empty());
 
@@ -1126,7 +1525,14 @@ mod tests {
         scheduler.stack.push(b);
 
         let plan = scheduler
-            .plan_operands(&[b, a], &[], &func, OptimizationMode::Gas, EvmVersion::Shanghai)
+            .plan_operands(
+                &[b, a],
+                &[],
+                &func,
+                OptimizationMode::Gas,
+                EvmVersion::Shanghai,
+                OperandCostModel::DIRECT,
+            )
             .unwrap();
         assert_eq!(plan.actions.len(), 1);
         assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Swap(1)));
@@ -1134,6 +1540,53 @@ mod tests {
         scheduler.apply_operand_plan(plan);
         assert_eq!(scheduler.stack.top(), Some(a));
         assert_eq!(scheduler.stack.peek(1), Some(b));
+    }
+
+    #[test]
+    fn operand_plan_pops_redundant_top_copy() {
+        let func = make_test_func();
+        let a = ValueId::from_usize(0);
+        let b = ValueId::from_usize(1);
+        let mut scheduler = StackScheduler::new();
+        scheduler.stack.push(b);
+        scheduler.stack.push(a);
+        scheduler.stack.push(b);
+
+        let plan = scheduler
+            .plan_operands(
+                &[b, a],
+                &[],
+                &func,
+                OptimizationMode::Gas,
+                EvmVersion::Shanghai,
+                OperandCostModel::DIRECT,
+            )
+            .unwrap();
+
+        assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Pop));
+    }
+
+    #[test]
+    fn operand_plan_does_not_pop_unique_unrelated_value() {
+        let func = make_test_func();
+        let a = ValueId::from_usize(0);
+        let b = ValueId::from_usize(1);
+        let mut scheduler = StackScheduler::new();
+        scheduler.stack.push(a);
+        scheduler.stack.push(b);
+
+        let plan = scheduler
+            .plan_operands(
+                &[a],
+                &[],
+                &func,
+                OptimizationMode::Gas,
+                EvmVersion::Shanghai,
+                OperandCostModel::DIRECT,
+            )
+            .unwrap();
+
+        assert_ne!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Pop));
     }
 
     #[test]
@@ -1146,7 +1599,14 @@ mod tests {
         scheduler.stack.push(a);
 
         let plan = scheduler
-            .plan_operands(&[b, a], &[a, b], &func, OptimizationMode::Size, EvmVersion::Shanghai)
+            .plan_operands(
+                &[b, a],
+                &[a, b],
+                &func,
+                OptimizationMode::Size,
+                EvmVersion::Shanghai,
+                OperandCostModel::DIRECT,
+            )
             .unwrap();
         scheduler.apply_operand_plan(plan);
         scheduler.instruction_executed(2, None);
@@ -1163,7 +1623,14 @@ mod tests {
         scheduler.stack.push(a);
 
         let plan = scheduler
-            .plan_operands(&[a, a], &[], &func, OptimizationMode::Gas, EvmVersion::Shanghai)
+            .plan_operands(
+                &[a, a],
+                &[],
+                &func,
+                OptimizationMode::Gas,
+                EvmVersion::Shanghai,
+                OperandCostModel::DIRECT,
+            )
             .unwrap();
         scheduler.apply_operand_plan(plan);
 
@@ -1186,6 +1653,7 @@ mod tests {
                 &func,
                 OptimizationMode::Gas,
                 EvmVersion::Shanghai,
+                OperandCostModel::DIRECT,
             )
             .unwrap();
 
@@ -1197,37 +1665,127 @@ mod tests {
     }
 
     #[test]
+    fn operand_plan_does_not_defer_dead_zero_cleanup() {
+        let mut func = Function::new(Ident::DUMMY);
+        let zero =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+        let one =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
+        let two =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(2))));
+        let mut scheduler = StackScheduler::new();
+        scheduler.stack.push(zero);
+        scheduler.stack.push(two);
+        scheduler.stack.push(one);
+
+        let plan = scheduler
+            .plan_operands(
+                &[zero],
+                &[],
+                &func,
+                OptimizationMode::Gas,
+                EvmVersion::Shanghai,
+                OperandCostModel::DIRECT,
+            )
+            .unwrap();
+
+        assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Swap(2)));
+        assert_eq!(plan.cost.static_gas, 3);
+    }
+
+    #[test]
+    fn operand_plan_prefers_push0_for_live_unary_value() {
+        let mut func = Function::new(Ident::DUMMY);
+        let zero =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+        let one =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
+        let mut scheduler = StackScheduler::new();
+        scheduler.stack.push(zero);
+        scheduler.stack.push(one);
+
+        let plan = scheduler
+            .plan_operands(
+                &[zero],
+                &[zero],
+                &func,
+                OptimizationMode::Gas,
+                EvmVersion::Shanghai,
+                OperandCostModel::DIRECT,
+            )
+            .unwrap();
+
+        assert_eq!(plan.actions[0].op, ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO));
+        assert_eq!(plan.cost.static_gas, 2);
+    }
+
+    #[test]
+    fn operand_plan_does_not_defer_multi_operand_cleanup() {
+        let mut func = Function::new(Ident::DUMMY);
+        let zero =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+        let one =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
+        let mut scheduler = StackScheduler::new();
+        scheduler.stack.push(zero);
+
+        let plan = scheduler
+            .plan_operands(
+                &[zero, one],
+                &[one],
+                &func,
+                OptimizationMode::Gas,
+                EvmVersion::Shanghai,
+                OperandCostModel::DIRECT,
+            )
+            .unwrap();
+
+        assert_eq!(plan.cost.static_gas, 9);
+        assert_eq!(plan.actions[1].op, ScheduledOp::Stack(StackOp::Swap(1)));
+    }
+
+    #[test]
+    fn operand_plan_uses_push0_for_live_multi_operand_value() {
+        let mut func = Function::new(Ident::DUMMY);
+        let zero =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+        let one =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
+        let mut scheduler = StackScheduler::new();
+        scheduler.stack.push(zero);
+        scheduler.stack.push(zero);
+
+        let plan = scheduler
+            .plan_operands(
+                &[zero, one, zero],
+                &[zero],
+                &func,
+                OptimizationMode::Gas,
+                EvmVersion::Shanghai,
+                OperandCostModel::DIRECT,
+            )
+            .unwrap();
+
+        assert_eq!(plan.cost.static_gas, 5);
+        assert_eq!(plan.actions[1].op, ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO));
+    }
+
+    #[test]
     fn operand_search_matches_exact_cost_for_small_layouts() {
         let mut func = Function::new(Ident::DUMMY);
         let zero =
             func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
         let one =
             func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
-        let layouts = [
-            vec![],
-            vec![Some(zero)],
-            vec![Some(one)],
-            vec![Some(zero), Some(one)],
-            vec![Some(one), Some(zero)],
-            vec![Some(zero), Some(zero)],
-            vec![Some(one), Some(one)],
-            vec![None, Some(zero)],
-            vec![Some(zero), None],
-            vec![Some(zero), Some(one), Some(zero)],
-            vec![Some(one), Some(zero), Some(one)],
-        ];
-        let operand_sets = [
-            vec![zero],
-            vec![one],
-            vec![zero, zero],
-            vec![zero, one],
-            vec![one, zero],
-            vec![zero, one, zero],
-        ];
-        let preserved_sets = [vec![], vec![zero], vec![one]];
+        let layouts = sequences(&[None, Some(zero), Some(one)], 3);
+        let operand_sets = sequences(&[zero, one], 3);
+        let preserved_sets = [vec![], vec![zero], vec![one], vec![zero, one]];
 
         for layout in layouts {
             for operands in &operand_sets {
+                if operands.is_empty() {
+                    continue;
+                }
                 for preserved in &preserved_sets {
                     if preserved.iter().any(|value| !operands.contains(value)) {
                         continue;
@@ -1257,16 +1815,20 @@ mod tests {
                                 &func,
                                 optimization,
                                 evm_version,
+                                OperandCostModel::DIRECT,
                             );
 
                             match (actual, exact) {
-                                (Some(actual), Some(exact)) => assert_eq!(
-                                    actual.cost.key(optimization),
-                                    exact.cost.key(optimization),
-                                    "layout={layout:?}, operands={operands:?}, \
-                                     preserved={preserved:?}, optimization={optimization:?}, \
-                                     evm_version={evm_version:?}, actual={actual:?}, exact={exact:?}"
-                                ),
+                                (Some(actual), Some(exact)) => {
+                                    assert_eq!(
+                                        actual.cost.key(optimization),
+                                        exact.cost.key(optimization),
+                                        "layout={layout:?}, operands={operands:?}, \
+                                         preserved={preserved:?}, optimization={optimization:?}, \
+                                         evm_version={evm_version:?}, actual={actual:?}, \
+                                         exact={exact:?}"
+                                    );
+                                }
                                 (None, None) => {}
                                 (actual, exact) => panic!(
                                     "plan mismatch for layout={layout:?}, operands={operands:?}, \
@@ -1296,7 +1858,14 @@ mod tests {
         assert_eq!(scheduler.stack.find(target), Some(MAX_STACK_ACCESS));
 
         let plan = scheduler
-            .plan_operands(&[target], &[], &func, OptimizationMode::Gas, EvmVersion::Shanghai)
+            .plan_operands(
+                &[target],
+                &[],
+                &func,
+                OptimizationMode::Gas,
+                EvmVersion::Shanghai,
+                OperandCostModel::DIRECT,
+            )
             .unwrap();
         assert_eq!(plan.actions.len(), 1);
         assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Swap(16)));
@@ -1310,13 +1879,81 @@ mod tests {
         scheduler.stack.push_unknown();
 
         let plan = scheduler
-            .plan_operands(&[value], &[], &func, OptimizationMode::Gas, EvmVersion::Shanghai)
+            .plan_operands(
+                &[value],
+                &[],
+                &func,
+                OptimizationMode::Gas,
+                EvmVersion::Shanghai,
+                OperandCostModel::DIRECT,
+            )
             .unwrap();
         scheduler.apply_operand_plan(plan);
         scheduler.instruction_executed(1, None);
 
         assert_eq!(scheduler.depth(), 1);
         assert!(scheduler.stack.top().is_none());
+    }
+
+    #[test]
+    fn operand_plan_uses_active_frame_reload_cost() {
+        let mut func = make_test_func();
+        let a = ValueId::from_usize(0);
+        let b = ValueId::from_usize(1);
+        let inst = func.alloc_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::uint256())));
+        let value = func.alloc_value(Value::Inst(inst));
+
+        for (cost_model, expected_gas, expected_bytes) in
+            [(OperandCostModel::DIRECT, 6, 4), (OperandCostModel::DYNAMIC_FRAME, 15, 7)]
+        {
+            let mut scheduler = StackScheduler::new();
+            let slot = scheduler.spills.allocate(value);
+            scheduler.spills.mark_reloadable(value);
+
+            let plan = scheduler
+                .plan_operands(
+                    &[value],
+                    &[],
+                    &func,
+                    OptimizationMode::Gas,
+                    EvmVersion::Shanghai,
+                    cost_model,
+                )
+                .unwrap();
+
+            assert_eq!(plan.actions[0].op, ScheduledOp::LoadSpill(slot));
+            assert_eq!(plan.cost.static_gas, expected_gas);
+            assert_eq!(plan.cost.encoded_bytes, expected_bytes);
+        }
+    }
+
+    #[test]
+    fn operand_plan_preserves_resident_reloadable_value() {
+        let mut func = make_test_func();
+        let a = ValueId::from_usize(0);
+        let b = ValueId::from_usize(1);
+        let inst = func.alloc_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::uint256())));
+        let value = func.alloc_value(Value::Inst(inst));
+        let mut scheduler = StackScheduler::new();
+        scheduler.spills.allocate(value);
+        scheduler.spills.mark_reloadable(value);
+        scheduler.stack.push(value);
+
+        let plan = scheduler
+            .plan_operands(
+                &[value],
+                &[value],
+                &func,
+                OptimizationMode::Gas,
+                EvmVersion::Shanghai,
+                OperandCostModel::DIRECT,
+            )
+            .unwrap();
+
+        assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Dup(1)));
+        scheduler.apply_operand_plan(plan);
+        scheduler.instruction_executed(1, None);
+        assert_eq!(scheduler.stack.top(), Some(value));
     }
 
     #[test]
@@ -1331,7 +1968,14 @@ mod tests {
         let mut scheduler = StackScheduler::new();
 
         let plan = scheduler
-            .plan_operands(&operands, &[], &func, OptimizationMode::Gas, EvmVersion::Shanghai)
+            .plan_operands(
+                &operands,
+                &[],
+                &func,
+                OptimizationMode::Gas,
+                EvmVersion::Shanghai,
+                OperandCostModel::DIRECT,
+            )
             .unwrap();
         let ops = scheduler.apply_operand_plan(plan);
 
@@ -1348,7 +1992,14 @@ mod tests {
 
         assert!(
             scheduler
-                .plan_operands(&[value], &[], &func, OptimizationMode::None, EvmVersion::Shanghai,)
+                .plan_operands(
+                    &[value],
+                    &[],
+                    &func,
+                    OptimizationMode::None,
+                    EvmVersion::Shanghai,
+                    OperandCostModel::DIRECT,
+                )
                 .is_none()
         );
     }

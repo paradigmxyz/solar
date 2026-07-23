@@ -22,7 +22,7 @@
 //! movable with a preceding single-use expansion pass; this implementation instead rejects those
 //! segments so the late transform cannot inflate MIR or bytecode.
 //!
-//! [Vyper Venom's DFT pass]: https://github.com/vyperlang/vyper/blob/5ea0f3862020e590232d1c309fd12a110fdb06fd/vyper/venom/passes/dft.py
+//! [Vyper Venom's DFT pass]: https://github.com/vyperlang/vyper/blob/730a2d36f1fca90be059c75681de5c942560ce0b/vyper/venom/passes/dft.py
 
 use crate::{
     mir::{Function, InstId, InstKind, Instruction, Terminator, Value, ValueId},

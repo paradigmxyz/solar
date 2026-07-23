@@ -39,11 +39,11 @@ bb0:
   dup1
   push 160
   mstore
+  swap1
+  dup2
   lt
   push bb9
   jumpi
-  push 160
-  mload
   dup1
   push 160
   mstore
@@ -68,6 +68,7 @@ bb9 [cold]:
   shl
   push 0
   mstore
+  pop
   push 17
   push 4
   mstore
