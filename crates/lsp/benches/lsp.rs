@@ -1,8 +1,11 @@
 #![allow(unused_crate_dependencies)]
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use lsp_types::{GotoDefinitionResponse, HoverContents};
-use solar_lsp::{BenchmarkAnalysis, BenchmarkProject, BenchmarkRequest, BenchmarkResponse};
+use lsp_types::{GotoDefinitionResponse, HoverContents, Position};
+use solar_lsp::{
+    BenchmarkAnalysis, BenchmarkProject, BenchmarkRequest, BenchmarkResponse,
+    benchmark_selection_ranges,
+};
 use std::{hint::black_box, path::PathBuf};
 
 const ANALYSIS_FUNCTION_COUNTS: [usize; 2] = [64, 256];
@@ -11,6 +14,7 @@ const UNIFAP_PROJECT: &str = "unifap-v2";
 const UNIFAP_ROUTER: &str = "src/UnifapV2Router.sol";
 const UNIFAP_PAIR: &str = "src/UnifapV2Pair.sol";
 const UNIFAP_FACTORY: &str = "src/UnifapV2Factory.sol";
+const OPTIMISM_SOURCE: &str = include_str!("../../../testdata/Optimism.sol");
 
 struct BenchmarkSource {
     source: String,
@@ -128,6 +132,27 @@ fn burst_hover(c: &mut Criterion) {
                 black_box(analysis.hover(black_box(line), black_box(character)));
             }
         });
+    });
+    group.finish();
+}
+
+fn selection_range(c: &mut Criterion) {
+    let positions = [Position::new(0, 0)];
+    let ranges = benchmark_selection_ranges(OPTIMISM_SOURCE.to_owned(), &positions)
+        .expect("the benchmark position should be valid");
+    assert_eq!(ranges.len(), positions.len());
+    assert!(ranges[0].range.start <= positions[0] && positions[0] < ranges[0].range.end);
+
+    let mut group = c.benchmark_group("lsp/selection-range");
+    group.throughput(Throughput::Bytes(OPTIMISM_SOURCE.len() as u64));
+    group.bench_function("optimism", |b| {
+        b.iter_batched(
+            || OPTIMISM_SOURCE.to_owned(),
+            |source| {
+                black_box(benchmark_selection_ranges(black_box(source), black_box(&positions)))
+            },
+            BatchSize::PerIteration,
+        );
     });
     group.finish();
 }
@@ -281,5 +306,5 @@ fn unifap_benches(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, analysis_build, burst_hover, unifap_benches);
+criterion_group!(benches, analysis_build, burst_hover, selection_range, unifap_benches);
 criterion_main!(benches);
