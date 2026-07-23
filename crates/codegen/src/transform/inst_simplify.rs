@@ -11,6 +11,7 @@
 //! - preserve boolean-only rewrites behind explicit MIR boolean type checks
 
 use crate::{
+    memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
         Function, Immediate, InstId, InstKind, MirType, Module, Terminator, Value, ValueId,
         utils as mir_utils,
@@ -539,6 +540,22 @@ impl InstSimplifier {
                     .iter()
                     .all(|&(_, value)| Self::same_value(func, resolve(value), first))
                     .then_some(first)
+            }
+            InstKind::MemoryObjectData(object, kind)
+                if EvmMemoryLayout::object_data_offset(*kind) == 0 =>
+            {
+                Some(resolve(*object))
+            }
+            InstKind::MemoryObjectFieldAddr { object, layout, field }
+                if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) =>
+            {
+                Some(resolve(*object))
+            }
+            InstKind::MemoryObjectElementAddr { object, layout, index }
+                if EvmMemoryLayout::object_data_offset(layout.kind()) == 0
+                    && Self::is_zero(func, resolve(*index)) =>
+            {
+                Some(resolve(*object))
             }
             _ => None,
         }

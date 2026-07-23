@@ -5,6 +5,15 @@
 //! - Phi elimination for converting SSA to CSSA
 //! - Loop analysis for detecting and analyzing natural loops
 
+mod alias;
+pub(crate) use alias::{
+    Access, AddressSpace, AliasAnalysis, AliasResult, Location, LocationSize, MemoryAddress,
+    MemoryLocation, ModRef,
+};
+
+mod memory_summary;
+pub(crate) use memory_summary::MemoryCallSummaries;
+
 mod cfg;
 pub(crate) use cfg::{CfgInfo, DominatorTree};
 

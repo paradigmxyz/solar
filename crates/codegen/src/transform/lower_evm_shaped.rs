@@ -34,7 +34,7 @@ impl MirPass for LowerEvmShaped {
     }
 
     fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        module.phase == MirPhase::Dispatch
+        module.phase == MirPhase::MemoryLowered
     }
 
     fn is_required(&self) -> bool {
@@ -64,6 +64,9 @@ impl LowerEvmShapedCx {
         if module.phase >= MirPhase::EvmShaped {
             return false;
         }
+        if module.phase != MirPhase::MemoryLowered {
+            return false;
+        }
 
         // Dispatch already uses explicit tail calls. Most modules have no
         // resultless internal call left to reshape, so avoid building a call
@@ -91,7 +94,25 @@ impl LowerEvmShapedCx {
             }
         }
 
-        for func in module.functions.iter_mut() {
+        // The deployment path emits constructor-reachable bodies without static
+        // frames, so an argument-carrying tail call has no compile-time
+        // argument addresses there. Keep those calls ordinary; argument-less
+        // rewrites need no frame addressing and stay valid on both paths.
+        let mut constructor_reachable = call_graph.reachable_callees_from(
+            module
+                .functions
+                .iter_enumerated()
+                .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
+        );
+        for (id, func) in module.functions.iter_enumerated() {
+            if func.attributes.is_constructor {
+                constructor_reachable.insert(id);
+            }
+        }
+
+        let function_ids: Vec<_> = module.functions.indices().collect();
+        for func_id in function_ids {
+            let func = &mut module.functions[func_id];
             let mut changed = false;
             for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
                 let insts = &func.blocks[block_id].instructions;
@@ -100,8 +121,10 @@ impl LowerEvmShapedCx {
                     inst.result_ty.is_none()
                         && matches!(
                             &inst.kind,
-                            InstKind::InternalCall { function, .. }
+                            InstKind::InternalCall { function, args, .. }
                                 if tail_callable.contains(*function)
+                                    && (args.is_empty()
+                                        || !constructor_reachable.contains(func_id))
                         )
                 }) else {
                     continue;

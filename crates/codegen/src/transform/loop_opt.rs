@@ -11,7 +11,10 @@
 //! - LICM: Avoids recomputing `arr.length` each iteration (MLOAD/SLOAD costs)
 
 use crate::{
-    analysis::{AffineExpr, Loop, LoopAnalyzer, ScalarEvolution},
+    analysis::{
+        AddressSpace, AffineExpr, AliasAnalysis, AliasResult, Location, LocationSize, Loop,
+        LoopAnalyzer, ScalarEvolution,
+    },
     mir::{
         BlockId, Function, InstId, InstKind, Module, StorageAlias, Terminator, Value, ValueId,
         utils as mir_utils,
@@ -65,6 +68,7 @@ struct LoopOptimizer {
     /// Maximum number of instructions hoisted from one loop.
     max_licm_hoisted_insts: usize,
     stats: LoopOptStats,
+    alias: Option<AliasAnalysis>,
 }
 
 impl Default for LoopOptimizer {
@@ -73,6 +77,7 @@ impl Default for LoopOptimizer {
             min_licm_profit: 0,
             max_licm_hoisted_insts: usize::MAX,
             stats: LoopOptStats::default(),
+            alias: None,
         }
     }
 }
@@ -86,13 +91,19 @@ struct LoopOptStats {
 
 impl LoopOptimizer {
     fn with_limits(min_licm_profit: u16, max_licm_hoisted_insts: usize) -> Self {
-        Self { min_licm_profit, max_licm_hoisted_insts, stats: LoopOptStats::default() }
+        Self {
+            min_licm_profit,
+            max_licm_hoisted_insts,
+            stats: LoopOptStats::default(),
+            alias: None,
+        }
     }
 
     /// Runs loop-invariant code motion on a function.
     fn optimize(&mut self, func: &mut Function) -> &LoopOptStats {
         self.stats = LoopOptStats::default();
         func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
+        self.alias = Some(AliasAnalysis::new(func));
 
         let mut analyzer = LoopAnalyzer::new();
         let loop_info = analyzer.analyze(func);
@@ -110,6 +121,10 @@ impl LoopOptimizer {
         }
 
         &self.stats
+    }
+
+    fn alias(&self) -> &AliasAnalysis {
+        self.alias.as_ref().expect("loop optimizer alias snapshot is initialized")
     }
 
     fn apply_licm(&mut self, func: &mut Function, loop_data: &Loop, analyzer: &LoopAnalyzer) {
@@ -272,7 +287,7 @@ impl LoopOptimizer {
             }
             // MSIZE observes every memory expansion, including from other hoisted
             // instructions; never move it.
-            InstKind::MSize => return false,
+            InstKind::MSize | InstKind::Fmp => return false,
             // Environment reads that calls or creates can change: balances move with value
             // transfers, code size/hash change on deploy/selfdestruct, and every external
             // call rewrites the return-data buffer.
@@ -460,32 +475,30 @@ impl LoopOptimizer {
         load_addr: ValueId,
         load_width: Option<u64>,
     ) -> bool {
+        let aa = self.alias();
         for block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 match func.instructions[inst_id].kind {
-                    InstKind::MStore(addr, _)
+                    InstKind::MStore(addr, _) => {
                         if self.memory_ranges_may_alias(
                             func, ctx, load_addr, load_width, addr, 32, block_id,
-                        ) =>
-                    {
-                        return true;
+                        ) {
+                            return true;
+                        }
                     }
-                    InstKind::MStore8(addr, _)
+                    InstKind::MStore8(addr, _) => {
                         if self.memory_ranges_may_alias(
                             func, ctx, load_addr, load_width, addr, 1, block_id,
-                        ) =>
+                        ) {
+                            return true;
+                        }
+                    }
+                    _ if aa
+                        .instruction_mod_ref(func, inst_id)
+                        .writes_space(AddressSpace::Memory) =>
                     {
                         return true;
                     }
-                    InstKind::MCopy(_, _, _)
-                    | InstKind::CalldataCopy(_, _, _)
-                    | InstKind::CodeCopy(_, _, _)
-                    | InstKind::ReturnDataCopy(_, _, _)
-                    | InstKind::ExtCodeCopy(_, _, _, _)
-                    | InstKind::Call { .. }
-                    | InstKind::StaticCall { .. }
-                    | InstKind::DelegateCall { .. }
-                    | InstKind::InternalCall { .. } => return true,
                     InstKind::MSize => return true,
                     _ => {}
                 }
@@ -502,6 +515,7 @@ impl LoopOptimizer {
         load_slot: ValueId,
         space: StorageSpace,
     ) -> bool {
+        let aa = self.alias();
         let Some(load_alias) =
             self.storage_alias_for_loop_value(func, load_inst, load_slot, ctx.loop_data)
         else {
@@ -524,21 +538,27 @@ impl LoopOptimizer {
                         if !self.can_use_storage_alias_for_licm(store_alias, ctx.loop_data) {
                             return true;
                         }
-                        if load_alias.may_alias(store_alias) {
+                        let (load, store) = match space {
+                            StorageSpace::Persistent => {
+                                (Location::Storage(load_alias), Location::Storage(store_alias))
+                            }
+                            StorageSpace::Transient => {
+                                (Location::Transient(load_alias), Location::Transient(store_alias))
+                            }
+                        };
+                        if aa.alias(load, store).may_alias() {
                             return true;
                         }
                     }
-                    // STATICCALL cannot write storage or transient storage, even reentrantly;
-                    // it only clobbers memory (the return buffer).
-                    (
-                        _,
-                        InstKind::Call { .. }
-                        | InstKind::DelegateCall { .. }
-                        | InstKind::InternalCall { .. }
-                        | InstKind::Create(_, _, _)
-                        | InstKind::Create2(_, _, _, _),
-                    ) => return true,
-                    _ => {}
+                    _ => {
+                        let location = match space {
+                            StorageSpace::Persistent => Location::Storage(load_alias),
+                            StorageSpace::Transient => Location::Transient(load_alias),
+                        };
+                        if aa.instruction_mod_ref(func, inst_id).may_write(aa, location) {
+                            return true;
+                        }
+                    }
                 }
             }
         }
@@ -556,28 +576,33 @@ impl LoopOptimizer {
         write_width: u64,
         write_block: BlockId,
     ) -> bool {
-        match (self.const_addr(func, load_addr), load_width, self.const_addr(func, write_addr)) {
-            (Some(load), Some(load_width), Some(write)) => {
-                mir_utils::ranges_overlap(load, load_width, write, write_width)
-            }
-            _ => {
-                let Some(load_width) = load_width else { return true };
-                // The hoist candidate's address is loop-invariant, so its
-                // position never tightens the range.
-                let Some(load) = self.affine_range(func, ctx, load_addr, load_width, None) else {
-                    return true;
-                };
-                let Some(write) =
-                    self.affine_range(func, ctx, write_addr, write_width, Some(write_block))
-                else {
-                    return true;
-                };
-                if load.base != write.base {
-                    return true;
-                }
-                load.start < write.end && write.start < load.end
+        let Some(load_width) = load_width else { return true };
+        let aa = self.alias();
+        if let (Some(load), Some(write)) = (
+            aa.bare_memory_location(func, load_addr, LocationSize::Const(load_width)),
+            aa.bare_memory_location(func, write_addr, LocationSize::Const(write_width)),
+        ) {
+            match aa.memory_alias(load, write) {
+                AliasResult::NoAlias => return false,
+                AliasResult::MustAlias | AliasResult::PartialAlias => return true,
+                AliasResult::MayAlias => {}
             }
         }
+
+        // The hoist candidate's address is loop-invariant, so its position
+        // never tightens the range. Scalar evolution can prove disjointness
+        // for affine loop addresses beyond value-local BasicAA.
+        let Some(load) = self.affine_range(func, ctx, load_addr, load_width, None) else {
+            return true;
+        };
+        let Some(write) = self.affine_range(func, ctx, write_addr, write_width, Some(write_block))
+        else {
+            return true;
+        };
+        if load.base != write.base {
+            return true;
+        }
+        load.start < write.end && write.start < load.end
     }
 
     fn affine_range(
@@ -671,10 +696,7 @@ impl LoopOptimizer {
         value: ValueId,
         loop_data: &Loop,
     ) -> Option<StorageAlias> {
-        let alias = func.instructions[inst_id]
-            .metadata
-            .storage_alias()
-            .unwrap_or_else(|| StorageAlias::for_value(func, value));
+        let alias = self.alias().storage_alias(func, inst_id, value);
         if let Some(base) = alias.symbolic_base()
             && self.value_defined_in_loop(func, base, loop_data)
         {

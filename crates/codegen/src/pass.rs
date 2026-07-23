@@ -2,8 +2,8 @@
 //!
 //! Transformation pipelines follow rustc MIR's pass-manager shape: passes
 //! implement [`MirPass`] and pipelines are slices of trait-object references.
-//! Analyses retain their LLVM/MLIR-style cache: read-only [`AnalysisPass`]es
-//! produce results cached in an [`AnalysisManager`].
+//! Analyses retain their LLVM/MLIR-style cache: read-only `AnalysisPass`es
+//! produce results cached in an `AnalysisManager`.
 //!
 //! # Usage
 //!
@@ -24,10 +24,12 @@ pub use crate::pass_manager::{MirPass, run_passes, run_passes_no_validate};
 use crate::{
     mir::{Function, MirPhase, Module},
     transform::{
-        adce, cfg_simplify, check_elim, cse, dce, frame_promotion, gvn, indvar_simplify, inline,
-        inst_simplify, jump_threading, load_pre, loop_canonicalize, loop_opt, lower_abi,
-        lower_dispatch, lower_evm_shaped, lower_mapping_slots, memory_dse, outline_reverts, pre,
-        pure_eval, sccp, static_alloc, storage_dse, storage_load_cse, storage_promotion,
+        adce, cfg_simplify, check_elim, copy_elision, cse, dce, frame_promotion, gvn,
+        indvar_simplify, inline, inst_simplify, jump_threading, load_pre, loop_canonicalize,
+        loop_opt, lower_abi, lower_abi_encode, lower_aggregates, lower_alloc, lower_dispatch,
+        lower_evm_shaped, lower_mapping_slots, lower_memory_objects, lower_slices, memory_dse,
+        outline_reverts, pre, pure_eval, sccp, sroa, static_alloc, storage_dse, storage_load_cse,
+        storage_promotion,
     },
 };
 use solar_data_structures::map::FxHashMap;
@@ -57,12 +59,19 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &frame_promotion::FrameSlotPromotion,
     &memory_dse::MemoryDse,
     &static_alloc::StaticAlloc,
+    &sroa::Sroa,
+    &copy_elision::CopyElision,
     &dce::Dce,
     &adce::Adce,
     &lower_abi::LowerAbi,
     &lower_dispatch::LowerDispatch,
     &lower_evm_shaped::LowerEvmShaped,
     &lower_mapping_slots::LowerMappingSlots,
+    &lower_abi_encode::LowerAbiEncode,
+    &lower_aggregates::LowerAggregates,
+    &lower_memory_objects::LowerMemoryObjects,
+    &lower_slices::LowerSlices,
+    &lower_alloc::LowerAlloc,
 ];
 
 /// Finds a pass in the global MIR pass registry by command-line name.
@@ -94,17 +103,12 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
+    &sroa::Sroa,
+    &copy_elision::CopyElision,
     &memory_dse::MemoryDse,
-    &static_alloc::StaticAlloc,
     &adce::Adce,
     &dce::Dce,
-    &outline_reverts::OutlineReverts,
-    &lower_abi::LowerAbi,
-    &lower_dispatch::LowerDispatch,
-    &lower_evm_shaped::LowerEvmShaped,
 ];
-
-const DEFAULT_LOWERING_PASSES: usize = 4;
 
 /// Cleanup passes rerun after the primary pipeline until no pass changes MIR.
 ///
@@ -126,6 +130,8 @@ pub static DEFAULT_CLEANUP_PIPELINE: &[&dyn MirPass] = &[
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
     &frame_promotion::FrameSlotPromotion,
+    &sroa::Sroa,
+    &copy_elision::CopyElision,
     &memory_dse::MemoryDse,
     &adce::Adce,
     &dce::Dce,
@@ -145,11 +151,9 @@ const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
     fields(module = %module.name),
 )]
 pub fn run_default_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-    let optimization_end = DEFAULT_PIPELINE.len() - DEFAULT_LOWERING_PASSES;
-    let (optimization_passes, lowering_passes) = DEFAULT_PIPELINE.split_at(optimization_end);
-    let mut changed = run_passes(gcx, module, optimization_passes, Some(MirPhase::Optimized));
+    let mut changed = run_passes(gcx, module, DEFAULT_PIPELINE, None);
     changed |= run_cleanup_pipeline_to_fixpoint(gcx, module, DEFAULT_CLEANUP_PIPELINE);
-    changed |= run_passes(gcx, module, lowering_passes, None);
+    run_passes(gcx, module, &[], Some(MirPhase::Optimized));
     changed
 }
 

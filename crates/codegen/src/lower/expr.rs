@@ -4,14 +4,14 @@ use super::{
     Lowerer,
     checked_arith::{ArithmeticInfo, PanicCode},
 };
-use crate::mir::{FunctionBuilder, MirType, ValueId};
+use crate::mir::{FunctionBuilder, MemoryObjectKind, MirType, ValueId};
 use alloy_primitives::U256;
 use solar_ast::{LitKind, StrKind};
 use solar_interface::{Ident, Span, Symbol, kw, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ElementaryType, ExprKind},
-    ty::TyKind,
+    ty::{Ty, TyKind},
 };
 
 pub(super) struct MappingElementSlot {
@@ -173,7 +173,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Ternary(cond, then_expr, else_expr) => {
-                self.lower_ternary(builder, cond, then_expr, else_expr)
+                self.lower_ternary(builder, expr, cond, then_expr, else_expr)
             }
 
             ExprKind::Call(callee, args, call_opts) => {
@@ -342,12 +342,12 @@ impl<'gcx> Lowerer<'gcx> {
                     && self.is_memory_struct_base(base, struct_id)
                 {
                     let base_val = self.lower_expr(builder, base);
-                    let field_offset = self.get_struct_field_memory_offset(struct_id, field_index);
-                    if field_offset == 0 {
-                        return builder.mload(base_val);
-                    }
-                    let offset_val = builder.imm_u64(field_offset);
-                    let field_addr = builder.add(base_val, offset_val);
+                    let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
+                    let field_addr = builder.memory_object_field_addr(
+                        base_val,
+                        crate::mir::MemoryObjectLayout::structure(fields),
+                        field_index as u64,
+                    );
                     return builder.mload(field_addr);
                 }
 
@@ -355,12 +355,12 @@ impl<'gcx> Lowerer<'gcx> {
                     self.get_memory_struct_field_info(base, *member)
                 {
                     let base_val = self.lower_expr(builder, base);
-                    let field_offset = self.get_struct_field_memory_offset(struct_id, field_index);
-                    if field_offset == 0 {
-                        return builder.mload(base_val);
-                    }
-                    let offset_val = builder.imm_u64(field_offset);
-                    let field_addr = builder.add(base_val, offset_val);
+                    let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
+                    let field_addr = builder.memory_object_field_addr(
+                        base_val,
+                        crate::mir::MemoryObjectLayout::structure(fields),
+                        field_index as u64,
+                    );
                     return builder.mload(field_addr);
                 }
 
@@ -432,7 +432,11 @@ impl<'gcx> Lowerer<'gcx> {
                             .emit();
                         0
                     });
-                let ptr = self.allocate_memory(builder, alloc_size);
+                let ptr = self.allocate_memory_object(
+                    builder,
+                    alloc_size,
+                    crate::mir::MemoryObjectKind::FixedArray,
+                );
                 for (i, elem) in elements.iter().enumerate() {
                     let elem_val = self.lower_expr(builder, elem);
                     let offset_const = builder.imm_u64(i as u64 * 32);
@@ -488,72 +492,58 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Slice(base, start, end) => {
-                if let Some((head, true)) = self.calldata_dyn_head(base) {
-                    let four = builder.imm_u64(4);
-                    let len_pos = builder.add(four, head);
-                    let len = builder.calldataload(len_pos);
-                    let start = start
-                        .map(|expr| self.lower_expr(builder, expr))
+                if let Some((slice, is_bytes)) = self.calldata_bytes_source(builder, base) {
+                    // A slice of a calldata array whose elements are dynamic
+                    // keeps element offset words relative to the original
+                    // array base, which the slice value does not carry, so a
+                    // rebuild would read from the wrong positions. Reject
+                    // rather than miscompile.
+                    if !is_bytes
+                        && let Some(ty) = self.get_expr_type(base)
+                        && let TyKind::DynArray(elem) = ty.peel_refs().kind
+                        && !self.abi_is_word_element(elem)
+                    {
+                        return self.err_value(
+                            builder,
+                            expr.span,
+                            "codegen does not support slicing a calldata array of dynamic \
+                             elements yet",
+                        );
+                    }
+                    let base_ptr = builder.slice_ptr(slice);
+                    let base_len = builder.slice_len(slice);
+                    let start_val = start
+                        .map(|s| self.lower_expr(builder, s))
                         .unwrap_or_else(|| builder.imm_u64(0));
-                    let end = end.map(|expr| self.lower_expr(builder, expr)).unwrap_or(len);
-                    let reversed = builder.gt(start, end);
-                    let past_end = builder.gt(end, len);
-                    let invalid = builder.or(reversed, past_end);
-                    self.emit_abi_decode_revert_if(builder, invalid);
-
-                    let slice_len = builder.sub(end, start);
-                    let thirty_one = builder.imm_u64(31);
-                    let rounded = builder.add(slice_len, thirty_one);
-                    let mask = builder.not(thirty_one);
-                    let padded = builder.and(rounded, mask);
-                    let word = builder.imm_u64(32);
-                    let total = builder.add(word, padded);
-                    let ptr = self.allocate_memory_dynamic(builder, total);
-                    builder.mstore(ptr, slice_len);
-                    let dst = builder.add(ptr, word);
-                    let data = builder.add(len_pos, word);
-                    let src = builder.add(data, start);
-                    builder.calldatacopy(dst, src, slice_len);
-                    return ptr;
+                    let end_val = end.map(|e| self.lower_expr(builder, e)).unwrap_or(base_len);
+                    if end_val != base_len {
+                        let end_out_of_bounds = builder.gt(end_val, base_len);
+                        self.emit_panic_if(
+                            builder,
+                            end_out_of_bounds,
+                            super::checked_arith::PanicCode::ArrayOutOfBounds,
+                        );
+                    }
+                    let backwards = builder.lt(end_val, start_val);
+                    self.emit_panic_if(
+                        builder,
+                        backwards,
+                        super::checked_arith::PanicCode::ArrayOutOfBounds,
+                    );
+                    let len = builder.sub(end_val, start_val);
+                    let offset = if is_bytes {
+                        start_val
+                    } else {
+                        let word = builder.imm_u64(32);
+                        builder.mul(start_val, word)
+                    };
+                    let ptr = builder.add(base_ptr, offset);
+                    return builder.make_slice(ptr, len, crate::mir::SliceLocation::Calldata);
                 }
-                if let Some(var_id) = self.ident_variable(base)
-                    && self.memory_backed_calldata_bytes.contains(&var_id)
-                    && self.expr_has_bytes_or_string_type(base)
-                {
-                    let base_ptr = self.lower_expr(builder, base);
-                    let len = builder.mload(base_ptr);
-                    let start = start
-                        .map(|expr| self.lower_expr(builder, expr))
-                        .unwrap_or_else(|| builder.imm_u64(0));
-                    let end = end.map(|expr| self.lower_expr(builder, expr)).unwrap_or(len);
-                    let reversed = builder.gt(start, end);
-                    let past_end = builder.gt(end, len);
-                    let invalid = builder.or(reversed, past_end);
-                    self.emit_abi_decode_revert_if(builder, invalid);
-
-                    let slice_len = builder.sub(end, start);
-                    let thirty_one = builder.imm_u64(31);
-                    let rounded = builder.add(slice_len, thirty_one);
-                    let mask = builder.not(thirty_one);
-                    let padded = builder.and(rounded, mask);
-                    let word = builder.imm_u64(32);
-                    let total = builder.add(word, padded);
-                    let ptr = self.allocate_memory_dynamic(builder, total);
-                    builder.mstore(ptr, slice_len);
-                    let dst = builder.add(ptr, word);
-                    let data = builder.add(base_ptr, word);
-                    let src = builder.add(data, start);
-                    self.mcopy(builder, dst, src, slice_len, None);
-                    return ptr;
-                }
-                let base_val = self.lower_expr(builder, base);
-                let start_val = start
-                    .map(|s| self.lower_expr(builder, s))
-                    .unwrap_or_else(|| builder.imm_u64(0));
-                let _end_val = end.map(|e| self.lower_expr(builder, e));
-                let offset_32 = builder.imm_u64(32);
-                let byte_offset = builder.mul(start_val, offset_32);
-                builder.add(base_val, byte_offset)
+                // Solidity only permits slicing calldata arrays, so a base that
+                // is not a calldata slice is unreachable in valid input.
+                // Reject rather than emit raw pointer arithmetic.
+                self.err_value(builder, expr.span, "codegen only supports slicing calldata arrays")
             }
 
             ExprKind::Type(_ty) => builder.imm_u64(0),
@@ -608,6 +598,13 @@ impl<'gcx> Lowerer<'gcx> {
 
                     // Check if it's a local variable stored in memory
                     if let Some(offset) = self.get_local_memory_offset(var_id) {
+                        if self.is_slice_slot_local(var_id) {
+                            return self.load_slice_slot(
+                                builder,
+                                offset,
+                                crate::mir::SliceLocation::Calldata,
+                            );
+                        }
                         let offset_val = self.local_memory_addr(builder, offset);
                         return builder.mload(offset_val);
                     }
@@ -634,7 +631,11 @@ impl<'gcx> Lowerer<'gcx> {
                             let total_words = self
                                 .calculate_memory_words_for_ty(self.gcx.type_of_hir_ty(&var.ty));
                             let struct_size = total_words * 32;
-                            let struct_ptr = self.allocate_memory(builder, struct_size);
+                            let struct_ptr = self.allocate_memory_object(
+                                builder,
+                                struct_size,
+                                crate::mir::MemoryObjectKind::Struct,
+                            );
 
                             // Recursively copy all fields (handles nested structs)
                             self.copy_storage_to_memory(builder, *struct_id, slot, struct_ptr, 0);
@@ -672,7 +673,14 @@ impl<'gcx> Lowerer<'gcx> {
         match builtin {
             Builtin::MsgSender => builder.caller(),
             Builtin::MsgValue => builder.callvalue(),
-            Builtin::MsgData => builder.imm_u64(0),
+            Builtin::MsgData => {
+                // `msg.data` is the whole calldata as a lazy calldata slice;
+                // `.length`, indexing, slicing, and materialization consume it
+                // through the shared calldata-slice paths.
+                let zero = builder.imm_u64(0);
+                let size = builder.calldatasize();
+                builder.make_slice(zero, size, crate::mir::SliceLocation::Calldata)
+            }
             Builtin::BlockTimestamp => {
                 let inst = builder.func_mut().alloc_inst(crate::mir::Instruction::new(
                     crate::mir::InstKind::Timestamp,
@@ -728,14 +736,19 @@ impl<'gcx> Lowerer<'gcx> {
                 format!("unsupported Yul member `.{}`", member.name),
             );
         };
-        // For a calldata array/bytes parameter, its lowered value is the ABI
-        // head: the offset (relative to the start of the args, i.e. after the
-        // 4-byte selector) to the length word. So the length word is at calldata
-        // position `4 + head`, and the first element at `4 + head + 32`.
-        let calldata_head = (self.gcx.hir.variable(var_id).data_location
-            == Some(solar_ast::DataLocation::Calldata))
-        .then(|| self.locals.get(&var_id).copied())
-        .flatten();
+        // Read the current calldata slice through its own storage: a
+        // reassignable slice lives in a two-word slot, so reading `locals`
+        // instead would observe a stale value that misses branch merges.
+        let calldata_slice = Self::calldata_dynamic_var_kind(self.gcx.hir.variable(var_id))
+            .and_then(|_| {
+                if self.is_slice_slot_local(&var_id)
+                    && let Some(offset) = self.get_local_memory_offset(&var_id)
+                {
+                    Some(self.load_slice_slot(builder, offset, crate::mir::SliceLocation::Calldata))
+                } else {
+                    self.locals.get(&var_id).copied()
+                }
+            });
 
         match member.name {
             sym::slot => {
@@ -754,17 +767,14 @@ impl<'gcx> Lowerer<'gcx> {
                 if let Some(location) = self.storage_locations.get(&var_id) {
                     return builder.imm_u64(u64::from(location.offset));
                 }
-                if let Some(head) = calldata_head {
-                    let base = builder.imm_u64(4 + 32);
-                    return builder.add(base, head);
+                if let Some(slice) = calldata_slice {
+                    return builder.slice_ptr(slice);
                 }
                 return builder.imm_u64(0);
             }
             sym::length => {
-                if let Some(head) = calldata_head {
-                    let four = builder.imm_u64(4);
-                    let pos = builder.add(four, head);
-                    return builder.calldataload(pos);
+                if let Some(slice) = calldata_slice {
+                    return builder.slice_len(slice);
                 }
             }
             _ => {}
@@ -910,7 +920,7 @@ impl<'gcx> Lowerer<'gcx> {
         let head_offset = builder.imm_u64(32);
         builder.mstore(selector_size, head_offset);
 
-        let len = builder.mload(ptr);
+        let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
         let len_offset = builder.imm_u64(36);
         builder.mstore(len_offset, len);
 
@@ -954,11 +964,10 @@ impl<'gcx> Lowerer<'gcx> {
             });
         }
 
-        // Calldata dynamic array/bytes: length word at `4 + head`.
-        if let Some((head, _)) = self.calldata_dyn_head(base) {
-            let four = builder.imm_u64(4);
-            let len_pos = builder.add(four, head);
-            return Some(builder.calldataload(len_pos));
+        // Calldata dynamic array/bytes (and `msg.data`) carry their length in
+        // the slice.
+        if let Some((slice, _)) = self.calldata_bytes_source(builder, base) {
+            return Some(builder.slice_len(slice));
         }
 
         // Fixed-size arrays have a compile-time length.
@@ -1084,21 +1093,20 @@ impl<'gcx> Lowerer<'gcx> {
         // Allocate memory for bytes: 32 bytes length + bytecode
         // Layout: [length (32 bytes)][data...]
         //
-        // ptr = mload(0x40)           // get free memory pointer
-        // mstore(ptr, bytecode_len)   // store length
-        // // copy bytecode to ptr+32
-        // mstore(0x40, ptr + 32 + aligned_len)  // update free memory pointer
-
-        let free_mem_ptr_slot = builder.imm_u64(0x40);
-        let ptr = builder.mload(free_mem_ptr_slot);
+        let aligned_data_len = bytecode_len.div_ceil(32) * 32;
+        let total_size = 32 + aligned_data_len;
+        let ptr = self.allocate_memory_object(
+            builder,
+            total_size as u64,
+            crate::mir::MemoryObjectKind::Bytes,
+        );
 
         // Store length at ptr
         let len_val = builder.imm_u64(bytecode_len as u64);
-        builder.mstore(ptr, len_val);
+        builder.set_memory_object_len(ptr, len_val, MemoryObjectKind::Bytes);
 
         // Copy bytecode to ptr+32 using MSTORE loop
-        let thirty_two = builder.imm_u64(32);
-        let data_start = builder.add(ptr, thirty_two);
+        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
 
         let mut offset = 0u64;
         for chunk in bytecode.chunks(32) {
@@ -1112,13 +1120,6 @@ impl<'gcx> Lowerer<'gcx> {
             offset += 32;
         }
 
-        // Update free memory pointer: ptr + 32 + ceil(bytecode_len / 32) * 32
-        let aligned_data_len = bytecode_len.div_ceil(32) * 32;
-        let total_size = 32 + aligned_data_len;
-        let total_size_val = builder.imm_u64(total_size as u64);
-        let new_free_ptr = builder.add(ptr, total_size_val);
-        builder.mstore(free_mem_ptr_slot, new_free_ptr);
-
         // Return ptr (the bytes memory value)
         ptr
     }
@@ -1129,6 +1130,7 @@ impl<'gcx> Lowerer<'gcx> {
     fn lower_ternary(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
         cond: &hir::Expr<'_>,
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
@@ -1171,6 +1173,19 @@ impl<'gcx> Lowerer<'gcx> {
         } else {
             // For non-tuple ternaries, still use branching for correct semantics
             // (only one branch should be evaluated for side effects)
+            let result_ty = self.get_expr_type(expr);
+            // A calldata bytes/string/array ternary produces a logical slice:
+            // its pointer and length round-trip through both scratch words and
+            // re-form a slice at the merge, keeping the value lazy.
+            let slice_location = result_ty.and_then(|ty| match ty.kind {
+                TyKind::Ref(inner, solar_ast::DataLocation::Calldata) => match inner.kind {
+                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+                    | TyKind::DynArray(_)
+                    | TyKind::Slice(_) => Some(crate::mir::SliceLocation::Calldata),
+                    _ => None,
+                },
+                _ => None,
+            });
             let cond_val = self.lower_expr(builder, cond);
 
             let then_block = builder.create_block();
@@ -1179,25 +1194,72 @@ impl<'gcx> Lowerer<'gcx> {
 
             builder.branch(cond_val, then_block, else_block);
 
-            // Then block
-            builder.switch_to_block(then_block);
-            let then_val = self.lower_expr(builder, then_expr);
-            let zero_then = builder.imm_u64(0);
-            builder.mstore(zero_then, then_val);
-            builder.jump(merge_block);
+            for (block, arm) in [(then_block, then_expr), (else_block, else_expr)] {
+                builder.switch_to_block(block);
+                if slice_location.is_some() {
+                    let value = self.lower_expr(builder, arm);
+                    let ptr = builder.slice_ptr(value);
+                    let len = builder.slice_len(value);
+                    let ptr_slot = builder.imm_u64(0);
+                    builder.mstore(ptr_slot, ptr);
+                    // The second scratch word doubles as the ephemeral
+                    // multi-return buffer pointer, which is only live between
+                    // a multi-return call and its immediately-emitted reads,
+                    // never across an arm of a user expression.
+                    let len_slot = builder.imm_u64(32);
+                    builder.mstore(len_slot, len);
+                } else {
+                    let value = self.lower_ternary_arm_value(builder, arm, result_ty);
+                    let slot = builder.imm_u64(0);
+                    builder.mstore(slot, value);
+                }
+                builder.jump(merge_block);
+            }
 
-            // Else block
-            builder.switch_to_block(else_block);
-            let else_val = self.lower_expr(builder, else_expr);
-            let zero_else = builder.imm_u64(0);
-            builder.mstore(zero_else, else_val);
-            builder.jump(merge_block);
-
-            // Merge block: load result from scratch memory
+            // Merge block: load the selected result from scratch memory.
             builder.switch_to_block(merge_block);
-            let zero = builder.imm_u64(0);
-            builder.mload(zero)
+            if let Some(location) = slice_location {
+                let ptr_slot = builder.imm_u64(0);
+                let ptr = builder.mload(ptr_slot);
+                let len_slot = builder.imm_u64(32);
+                let len = builder.mload(len_slot);
+                builder.make_slice(ptr, len, location)
+            } else {
+                let slot = builder.imm_u64(0);
+                builder.mload(slot)
+            }
         }
+    }
+
+    /// Lowers one arm of a word-merged ternary. A memory-located dynamic
+    /// result adopts calldata arms by materializing them: their logical slice
+    /// value has no single-word form to round-trip through scratch.
+    fn lower_ternary_arm_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        arm: &hir::Expr<'_>,
+        result_ty: Option<Ty<'gcx>>,
+    ) -> ValueId {
+        if let Some(ty) = result_ty
+            && !matches!(
+                ty.kind,
+                TyKind::Ref(
+                    _,
+                    solar_ast::DataLocation::Calldata | solar_ast::DataLocation::Storage
+                )
+            )
+        {
+            match ty.peel_refs().kind {
+                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                    return self.lower_expr_as_memory_bytes(builder, arm);
+                }
+                TyKind::DynArray(_) => {
+                    return self.lower_expr_as_memory_dyn_array(builder, arm);
+                }
+                _ => {}
+            }
+        }
+        self.lower_expr(builder, arm)
     }
 
     /// Lowers a tuple expression by evaluating every element before staging
@@ -1261,6 +1323,10 @@ impl<'gcx> Lowerer<'gcx> {
 
                     // Check if it's a local variable stored in memory
                     if let Some(offset) = self.get_local_memory_offset(var_id) {
+                        if self.is_slice_slot_local(var_id) {
+                            self.store_slice_slot(builder, offset, rhs);
+                            return;
+                        }
                         let offset_val = self.local_memory_addr(builder, offset);
                         builder.mstore(offset_val, rhs);
                     } else if self.locals.contains_key(var_id) {
@@ -1342,13 +1408,12 @@ impl<'gcx> Lowerer<'gcx> {
                     && self.is_memory_struct_base(base, struct_id)
                 {
                     let base_val = self.lower_expr(builder, base);
-                    let field_offset = self.get_struct_field_memory_offset(struct_id, field_index);
-                    if field_offset == 0 {
-                        builder.mstore(base_val, rhs);
-                        return;
-                    }
-                    let offset_val = builder.imm_u64(field_offset);
-                    let field_addr = builder.add(base_val, offset_val);
+                    let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
+                    let field_addr = builder.memory_object_field_addr(
+                        base_val,
+                        crate::mir::MemoryObjectLayout::structure(fields),
+                        field_index as u64,
+                    );
                     builder.mstore(field_addr, rhs);
                     return;
                 }
@@ -1357,13 +1422,12 @@ impl<'gcx> Lowerer<'gcx> {
                     self.get_memory_struct_field_info(base, *member)
                 {
                     let base_val = self.lower_expr(builder, base);
-                    let field_offset = self.get_struct_field_memory_offset(struct_id, field_index);
-                    if field_offset == 0 {
-                        builder.mstore(base_val, rhs);
-                        return;
-                    }
-                    let offset_val = builder.imm_u64(field_offset);
-                    let field_addr = builder.add(base_val, offset_val);
+                    let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
+                    let field_addr = builder.memory_object_field_addr(
+                        base_val,
+                        crate::mir::MemoryObjectLayout::structure(fields),
+                        field_index as u64,
+                    );
                     builder.mstore(field_addr, rhs);
                     return;
                 }
@@ -1383,6 +1447,65 @@ impl<'gcx> Lowerer<'gcx> {
                 {
                     self.locals.insert(*var_id, rhs);
                     self.storage_ref_locals.insert(*var_id);
+                    return;
+                }
+                // `d.offset := x` / `d.length := x` on a `bytes`/`string` calldata
+                // slice rewrites one component of its `(offset, length)` pair. The
+                // slice is reconstructed and rebound so later reads and calls see
+                // the update; this is the `bytes calldata` empty/sub-slice idiom
+                // (`data.length := 0`) used to build calldata slices in assembly.
+                if matches!(member.name, sym::offset | sym::length)
+                    && let Some(var_id) = self.ident_variable(base)
+                    && Self::calldata_dynamic_var_kind(self.gcx.hir.variable(var_id)).is_some()
+                {
+                    // A reassignable slice lives in a two-word slot; a
+                    // straight-line one in `locals`. Read the current slice
+                    // through its own storage so the untouched component is
+                    // preserved, and write the rebuilt slice back the same way —
+                    // a slot store is a conditional `mstore` that merges across
+                    // control flow, where a bare `locals` update would leak a
+                    // branch's value into its siblings.
+                    let slot = self
+                        .is_slice_slot_local(&var_id)
+                        .then(|| self.get_local_memory_offset(&var_id))
+                        .flatten();
+                    // Only an existing calldata slice contributes the untouched
+                    // component. A freshly declared slice is seeded with a
+                    // placeholder zero word, not a slice, so projecting it would
+                    // build a `slice_ptr`/`slice_len` of a non-slice value that
+                    // never folds; treat that as an unset `0` instead.
+                    let current = if let Some(offset) = slot {
+                        Some(self.load_slice_slot(
+                            builder,
+                            offset,
+                            crate::mir::SliceLocation::Calldata,
+                        ))
+                    } else {
+                        self.locals
+                            .get(&var_id)
+                            .copied()
+                            .filter(|&slice| Self::value_is_calldata_slice(builder, slice))
+                    };
+                    let ptr = if member.name == sym::offset {
+                        rhs
+                    } else if let Some(slice) = current {
+                        builder.slice_ptr(slice)
+                    } else {
+                        builder.imm_u64(0)
+                    };
+                    let len = if member.name == sym::length {
+                        rhs
+                    } else if let Some(slice) = current {
+                        builder.slice_len(slice)
+                    } else {
+                        builder.imm_u64(0)
+                    };
+                    let slice = builder.make_slice(ptr, len, crate::mir::SliceLocation::Calldata);
+                    if let Some(offset) = slot {
+                        self.store_slice_slot(builder, offset, slice);
+                    } else {
+                        self.locals.insert(var_id, slice);
+                    }
                     return;
                 }
                 self.gcx
@@ -1652,29 +1775,78 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mul(index_val, elem_slots)
     }
 
+    /// Whether an expression is `msg.data`.
+    pub(super) fn expr_is_msg_data(&self, expr: &hir::Expr<'_>) -> bool {
+        matches!(self.resolved_builtin_member(expr), Some(Builtin::MsgData))
+    }
+
+    /// Resolves a calldata bytes/array base to its logical slice: an
+    /// `argN`-bound calldata dynamic parameter, or `msg.data` (bytes).
+    /// Returns the slice and whether it is bytes/string.
+    pub(super) fn calldata_bytes_source(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        base: &hir::Expr<'_>,
+    ) -> Option<(ValueId, bool)> {
+        if let Some(found) = self.calldata_dyn_slice(builder, base) {
+            return Some(found);
+        }
+        if self.expr_is_msg_data(base) {
+            let slice = self.lower_expr(builder, base);
+            return Some((slice, true));
+        }
+        // Any other calldata dynamic bytes/array expression (for example a
+        // chained slice `x[1:][2:]`) whose lowering is itself a calldata
+        // slice value.
+        let ty = self.get_expr_type(base)?;
+        if !matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Calldata) | TyKind::Slice(_))
+        {
+            return None;
+        }
+        // `expr_is_calldata_dynamic_bytes` looks through a slice type to its
+        // element, so it distinguishes a byte-strided bytes slice from a
+        // word-strided array slice.
+        let is_bytes = self.expr_is_calldata_dynamic_bytes(base);
+        let value = self.lower_expr(builder, base);
+        Self::value_is_calldata_slice(builder, value).then_some((value, is_bytes))
+    }
+
     /// Checks if an expression is a dynamically-sized calldata parameter (dynamic array or
-    /// bytes/string) and returns its ABI head value (the offset, relative to the start of the
-    /// args after the 4-byte selector, of its length word) and whether it is bytes/string.
+    /// bytes/string) and returns its MIR slice and whether it is bytes/string.
     ///
     /// Fixed-size calldata array parameters are not ABI heads: they are decoded to memory in
     /// the function prologue and take the regular memory path.
-    pub(super) fn calldata_dyn_head(&self, expr: &hir::Expr<'_>) -> Option<(ValueId, bool)> {
+    pub(super) fn calldata_dyn_slice(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> Option<(ValueId, bool)> {
         let ExprKind::Ident(res_slice) = &expr.kind else { return None };
         let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
             return None;
         };
         let var = self.gcx.hir.variable(*var_id);
-        if self.memory_backed_calldata_bytes.contains(var_id) {
-            return None;
-        }
         if var.data_location != Some(solar_ast::DataLocation::Calldata) {
             return None;
         }
-        let head = self.locals.get(var_id).copied()?;
+        let is_bytes = Self::calldata_dynamic_var_kind(var)?;
+        if self.is_slice_slot_local(var_id) {
+            let offset = self.get_local_memory_offset(var_id)?;
+            let slice = self.load_slice_slot(builder, offset, crate::mir::SliceLocation::Calldata);
+            return Some((slice, is_bytes));
+        }
+        let slice = self.locals.get(var_id).copied()?;
+        Some((slice, is_bytes))
+    }
+
+    pub(super) fn calldata_dynamic_var_kind(var: &hir::Variable<'_>) -> Option<bool> {
+        if var.data_location != Some(solar_ast::DataLocation::Calldata) {
+            return None;
+        }
         match &var.ty.kind {
-            hir::TypeKind::Array(arr) if arr.size.is_none() => Some((head, false)),
+            hir::TypeKind::Array(arr) if arr.size.is_none() => Some(false),
             hir::TypeKind::Elementary(hir::ElementaryType::Bytes | hir::ElementaryType::String) => {
-                Some((head, true))
+                Some(true)
             }
             _ => None,
         }
@@ -1720,7 +1892,8 @@ impl<'gcx> Lowerer<'gcx> {
         // Memory struct fields are one word each. Reference-typed fields,
         // including nested structs, store pointers to separate allocations.
         let struct_size = (num_fields as u64) * 32;
-        let struct_ptr = self.allocate_memory(builder, struct_size);
+        let struct_ptr =
+            self.allocate_memory_object(builder, struct_size, crate::mir::MemoryObjectKind::Struct);
         let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
 
         // Store each argument into the corresponding field
@@ -1732,14 +1905,12 @@ impl<'gcx> Lowerer<'gcx> {
             // values therefore materialize recursively before storing their
             // pointer in the field slot.
             let field_val = self.lower_return_value_for_ty(builder, arg, field_tys[i]);
-            let field_offset = (i as u64) * 32;
-            if field_offset == 0 {
-                builder.mstore(struct_ptr, field_val);
-            } else {
-                let offset_val = builder.imm_u64(field_offset);
-                let field_addr = builder.add(struct_ptr, offset_val);
-                builder.mstore(field_addr, field_val);
-            }
+            let field_addr = builder.memory_object_field_addr(
+                struct_ptr,
+                crate::mir::MemoryObjectLayout::structure(num_fields as u64),
+                i as u64,
+            );
+            builder.mstore(field_addr, field_val);
         }
 
         // Return the pointer to the struct
@@ -1747,23 +1918,36 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Allocates memory for a given size and returns the pointer.
-    /// Uses the Solidity free memory pointer pattern.
     pub(super) fn allocate_memory(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         size: u64,
     ) -> ValueId {
-        // Load free memory pointer from 0x40
-        let free_ptr_addr = builder.imm_u64(0x40);
-        let ptr = builder.mload(free_ptr_addr);
-
-        // Update free memory pointer: free_ptr + size
         let size_val = builder.imm_u64(size);
-        let new_free_ptr = builder.add(ptr, size_val);
-        let free_ptr_addr2 = builder.imm_u64(0x40);
-        builder.mstore(free_ptr_addr2, new_free_ptr);
+        builder.alloc(size_val, crate::mir::AllocationSemantics::INTERNAL)
+    }
 
-        ptr
+    /// Allocates a shaped Solidity memory object with a constant byte size.
+    pub(super) fn allocate_memory_object(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        size: u64,
+        kind: crate::mir::MemoryObjectKind,
+    ) -> ValueId {
+        let layout = match kind {
+            crate::mir::MemoryObjectKind::Bytes => crate::mir::MemoryObjectLayout::Bytes,
+            crate::mir::MemoryObjectKind::DynamicArray => {
+                crate::mir::MemoryObjectLayout::DynamicArray { element_words: 1 }
+            }
+            crate::mir::MemoryObjectKind::FixedArray => {
+                crate::mir::MemoryObjectLayout::FixedArray { len: size / 32, element_words: 1 }
+            }
+            crate::mir::MemoryObjectKind::Struct => {
+                crate::mir::MemoryObjectLayout::Struct { fields: size / 32 }
+            }
+        };
+        let size = builder.imm_u64(size);
+        builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL)
     }
 
     /// Lowers `abi.decode(data, (T...))` for elementary values from memory
@@ -1788,29 +1972,21 @@ impl<'gcx> Lowerer<'gcx> {
         };
 
         // The decode logic below expects a memory `[length][data...]` pointer.
-        // A calldata `bytes`/`string` parameter lowers to its ABI head, so copy
-        // it into memory first. Other calldata sources (e.g. `msg.data`, slices)
-        // don't have a head we can materialize, so reject them rather than
-        // silently decode garbage.
-        let ptr = if let Some((head, _)) = self.calldata_dyn_head(data) {
-            self.materialize_calldata_bytes(builder, head)
-        } else if self.expr_is_calldata_dynamic_bytes(data) {
-            return self.err_value(
-                builder,
-                data.span,
-                "codegen does not support `abi.decode` from this calldata source yet",
-            );
+        // Calldata values and subslices carry `(ptr, len)` explicitly and are
+        // copied only at this memory-consuming boundary.
+        let ptr = if self.expr_is_calldata_dynamic_bytes(data) {
+            let slice = self.lower_expr(builder, data);
+            self.materialize_calldata_bytes(builder, slice)
         } else {
             self.lower_expr(builder, data)
         };
-        let word = builder.imm_u64(32);
-        let len = builder.mload(ptr);
+        let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
         let head_size = (elems.len() * 32) as u64;
         let required = builder.imm_u64(head_size);
         let is_short = builder.lt(len, required);
         self.emit_abi_decode_revert_if(builder, is_short);
 
-        let data_start = builder.add(ptr, word);
+        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let mut decoded_values = Vec::with_capacity(elems.len());
         for (i, elem) in elems.iter().enumerate() {
             let addr = self.offset_ptr(builder, data_start, (i * 32) as u64);
@@ -1909,10 +2085,14 @@ impl<'gcx> Lowerer<'gcx> {
         let total_size = builder.add(word, data_size);
         let total_overflow = builder.lt(total_size, data_size);
         self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
-        let ptr = self.allocate_memory_dynamic(builder, total_size);
-        builder.mstore(ptr, tail_len);
+        let ptr = self.allocate_memory_object_dynamic(
+            builder,
+            total_size,
+            crate::mir::MemoryObjectKind::Bytes,
+        );
+        builder.set_memory_object_len(ptr, tail_len, MemoryObjectKind::Bytes);
 
-        let data_ptr = builder.add(ptr, word);
+        let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let zero = builder.imm_u64(0);
         let last_word_offset = builder.sub(data_size, word);
         let last_word = builder.add(data_ptr, last_word_offset);
@@ -1923,7 +2103,11 @@ impl<'gcx> Lowerer<'gcx> {
         ptr
     }
 
-    fn emit_abi_decode_revert_if(&mut self, builder: &mut FunctionBuilder<'_>, cond: ValueId) {
+    pub(super) fn emit_abi_decode_revert_if(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        cond: ValueId,
+    ) {
         let revert_block = builder.create_block();
         let continue_block = builder.create_block();
         builder.branch(cond, revert_block, continue_block);
@@ -2261,9 +2445,26 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
 
-        if let Some(ty) = self.get_expr_type(base)
-            && let solar_sema::ty::TyKind::Struct(struct_id) = ty.kind
-        {
+        // A struct value or a struct reference reached by field access (for
+        // example `outer.inner`). A calldata struct parameter is decoded to a
+        // memory pointer in the prologue, so its nested struct fields are
+        // memory pointers too and read through memory field addressing.
+        // Storage bases are handled by earlier member paths.
+        let struct_id = self.get_expr_type(base).and_then(|ty| {
+            let inner = match ty.kind {
+                solar_sema::ty::TyKind::Struct(_) => ty,
+                solar_sema::ty::TyKind::Ref(
+                    inner,
+                    solar_ast::DataLocation::Memory | solar_ast::DataLocation::Calldata,
+                ) => inner,
+                _ => return None,
+            };
+            match inner.kind {
+                solar_sema::ty::TyKind::Struct(id) => Some(id),
+                _ => None,
+            }
+        });
+        if let Some(struct_id) = struct_id {
             let strukt = self.gcx.hir.strukt(struct_id);
             for (i, &field_id) in strukt.fields.iter().enumerate() {
                 let field = self.gcx.hir.variable(field_id);
@@ -2782,8 +2983,7 @@ impl<'gcx> Lowerer<'gcx> {
         bytes: &[u8],
         slot: ValueId,
     ) -> ValueId {
-        let free_mem_ptr_slot = builder.imm_u64(0x40);
-        let scratch = builder.mload(free_mem_ptr_slot);
+        let scratch = builder.fmp();
         for (i, chunk) in bytes.chunks(32).enumerate() {
             let mut padded = [0u8; 32];
             padded[..chunk.len()].copy_from_slice(chunk);
@@ -2810,11 +3010,10 @@ impl<'gcx> Lowerer<'gcx> {
             return builder.mapping_slot_memory(ptr, slot);
         }
 
-        let len = builder.mload(ptr);
+        let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
         let word_size = builder.imm_u64(32);
-        let data_start = builder.add(ptr, word_size);
-        let free_mem_ptr_slot = builder.imm_u64(0x40);
-        let scratch = builder.mload(free_mem_ptr_slot);
+        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+        let scratch = builder.fmp();
         self.mcopy(builder, scratch, data_start, len, None);
         let slot_addr = builder.add(scratch, len);
         builder.mstore(slot_addr, slot);
@@ -2825,10 +3024,10 @@ impl<'gcx> Lowerer<'gcx> {
     fn compute_dynamic_calldata_mapping_slot(
         &self,
         builder: &mut FunctionBuilder<'_>,
-        head_offset: ValueId,
+        slice: ValueId,
         slot: ValueId,
     ) -> ValueId {
-        builder.mapping_slot_calldata(head_offset, slot)
+        builder.mapping_slot_calldata(slice, slot)
     }
 
     fn is_dynamic_mapping_key(kind: &hir::TypeKind<'_>) -> bool {

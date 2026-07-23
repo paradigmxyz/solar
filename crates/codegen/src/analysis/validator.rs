@@ -519,6 +519,87 @@ impl<'a> Validator<'a> {
                 module.phase.name()
             ));
         }
+        // The memory-lowered phase is a strict representation boundary: no
+        // nominal object types, layouts, or semantic accesses may survive.
+        if module.phase >= crate::mir::MirPhase::MemoryLowered {
+            for ty in func.params.iter().chain(&func.returns) {
+                if matches!(ty, crate::mir::MirType::MemoryObject(_)) {
+                    self.emit(format_args!(
+                        "memory-object signature type `{ty}` survives the `{}` phase boundary",
+                        module.phase.name()
+                    ));
+                }
+            }
+            for value in func.values.iter() {
+                if let Value::Undef(ty) = value
+                    && matches!(ty, crate::mir::MirType::MemoryObject(_))
+                {
+                    self.emit(format_args!(
+                        "memory-object value type survives the `{}` phase boundary",
+                        module.phase.name()
+                    ));
+                }
+            }
+            for (block_id, block) in func.blocks.iter_enumerated() {
+                for &inst_id in &block.instructions {
+                    let inst = &func.instructions[inst_id];
+                    let semantic = matches!(
+                        inst.kind,
+                        InstKind::Alloc { kind: crate::mir::AllocationKind::Object(_), .. }
+                            | InstKind::MemoryObjectLen(_, _)
+                            | InstKind::SetMemoryObjectLen(_, _, _)
+                            | InstKind::MemoryObjectData(_, _)
+                            | InstKind::MemoryObjectFieldAddr { .. }
+                            | InstKind::MemoryObjectElementAddr { .. }
+                            | InstKind::Keccak256Bytes(_)
+                    ) || inst
+                        .result_ty
+                        .is_some_and(|ty| matches!(ty, crate::mir::MirType::MemoryObject(_)));
+                    if semantic {
+                        self.emit_at_inst(
+                            format_args!(
+                                "memory-object instruction `{}` survives the `{}` phase boundary",
+                                inst.kind.mnemonic(),
+                                module.phase.name()
+                            ),
+                            block_id,
+                            inst_id,
+                        );
+                    }
+                }
+            }
+        }
+        // EVM-shaped MIR is the semantic boundary consumed by the word-based
+        // backend. High-level memory operations must have been expanded by
+        // their named lowering passes before the module enters this phase.
+        if module.phase >= crate::mir::MirPhase::EvmShaped {
+            for (block_id, block) in func.blocks.iter_enumerated() {
+                for &inst_id in &block.instructions {
+                    let kind = &func.instructions[inst_id].kind;
+                    let semantic_op = match kind {
+                        InstKind::MakeSlice { .. }
+                        | InstKind::SlicePtr(_)
+                        | InstKind::SliceLen(_) => Some("slice"),
+                        InstKind::AbiEncode { .. } => Some("ABI encoding"),
+                        InstKind::StorageToMemory { .. }
+                        | InstKind::MemoryToStorage { .. }
+                        | InstKind::ClearStorage { .. } => Some("aggregate"),
+                        _ => None,
+                    };
+                    if let Some(semantic_op) = semantic_op {
+                        self.emit_at_inst(
+                            format_args!(
+                                "{semantic_op} instruction `{}` survives the `{}` phase boundary",
+                                kind.mnemonic(),
+                                module.phase.name()
+                            ),
+                            block_id,
+                            inst_id,
+                        );
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -534,10 +615,12 @@ pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
 mod tests {
     use super::*;
     use crate::mir::{
-        BasicBlock, Function, FunctionBuilder, FunctionId, MirType, Module, Terminator,
+        AbiLayout, AbiType, BasicBlock, Function, FunctionBuilder, FunctionId, MirPhase, MirType,
+        Module, SliceLocation, StorageField, StorageLayout, Terminator,
     };
     use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, Ident, Session};
+    use std::sync::Arc;
 
     fn with_session<F: FnOnce(&Session) + Send>(f: F) {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
@@ -666,6 +749,33 @@ error: [bb0] entry block must have no predecessors
 
 "#]]
             );
+        });
+    }
+
+    #[test]
+    fn evm_shaped_rejects_semantic_memory_operations() {
+        with_session(|sess| {
+            let mut module = Module::new(Ident::DUMMY);
+            module.phase = MirPhase::EvmShaped;
+            let mut func = make_func();
+            {
+                let mut builder = FunctionBuilder::new(&mut func);
+                let zero = builder.imm_u64(0);
+                let slice = builder.make_slice(zero, zero, SliceLocation::Memory);
+                let layout = Arc::new(AbiLayout::new([AbiType::Bytes(SliceLocation::Memory)]));
+                builder.abi_encode(layout, None, [slice]);
+                let aggregate = Arc::new(StorageLayout::Struct([StorageField::Word].into()));
+                builder.storage_to_memory(aggregate, zero, zero);
+                builder.stop();
+            }
+            module.add_function(func);
+
+            Validator::new(&sess.dcx).validate_module(&module);
+            assert!(sess.dcx.has_errors().is_err());
+            let diagnostics = sess.emitted_diagnostics().unwrap().to_string();
+            assert!(diagnostics.contains("slice instruction"));
+            assert!(diagnostics.contains("ABI encoding instruction"));
+            assert!(diagnostics.contains("aggregate instruction"));
         });
     }
 

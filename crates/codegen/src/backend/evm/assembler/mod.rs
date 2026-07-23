@@ -11,6 +11,7 @@ use crate::{
         ir::{self, assembly},
         op,
     },
+    memory::EvmMemoryLayout,
     mir::IMMUTABLE_WORD_SIZE,
 };
 use alloy_primitives::U256;
@@ -23,7 +24,7 @@ const EVM_WORD_BYTES: usize = 32;
 mod id_counter;
 pub(in crate::backend::evm) use id_counter::IdCounter;
 
-pub(super) use assembly::{AsmInst, AsmInstKind, PushValueId};
+pub(super) use assembly::{AsmInst, AsmInstKind, DeferredAlloc, PushValueId};
 pub(crate) use assembly::{DeferredConst, Label};
 
 mod local_interner;
@@ -91,6 +92,19 @@ pub(crate) struct Assembler<'gcx> {
     next_deferred: IdCounter<DeferredConst>,
     /// Resolved values for deferred constants.
     deferred_values: FxHashMap<DeferredConst, U256>,
+    /// Unresolved deferred allocations emitted as push operands.
+    alloc_relocations: Vec<(ir::BlockId, usize, DeferredAlloc)>,
+    /// Next deferred allocation ID.
+    next_deferred_alloc: IdCounter<DeferredAlloc>,
+    /// Final placement of deferred allocations.
+    deferred_allocations: FxHashMap<DeferredAlloc, DeferredAllocResolution>,
+}
+
+/// Final lowering selected for a deferred allocation.
+#[derive(Clone, Copy, Debug)]
+enum DeferredAllocResolution {
+    Static(U256),
+    Dynamic(U256),
 }
 
 impl<'gcx> Assembler<'gcx> {
@@ -110,6 +124,9 @@ impl<'gcx> Assembler<'gcx> {
             next_label: IdCounter::new(),
             next_deferred: IdCounter::new(),
             deferred_values: FxHashMap::default(),
+            alloc_relocations: Vec::new(),
+            next_deferred_alloc: IdCounter::new(),
+            deferred_allocations: FxHashMap::default(),
         }
     }
 
@@ -126,6 +143,9 @@ impl<'gcx> Assembler<'gcx> {
         self.next_label.clear();
         self.next_deferred.clear();
         self.deferred_values.clear();
+        self.alloc_relocations.clear();
+        self.next_deferred_alloc.clear();
+        self.deferred_allocations.clear();
     }
 
     /// Creates a new label.
@@ -165,6 +185,34 @@ impl<'gcx> Assembler<'gcx> {
     /// Sets the value of a deferred constant.
     pub(crate) fn set_deferred_const(&mut self, id: DeferredConst, value: U256) {
         self.deferred_values.insert(id, value);
+    }
+
+    /// Emits an allocation whose static or dynamic placement is chosen after
+    /// exact backend frame layout is known.
+    pub(in crate::backend::evm) fn emit_deferred_alloc(&mut self) -> DeferredAlloc {
+        let id = self.next_deferred_alloc.next();
+        let (block, instruction) =
+            self.push_ir_instruction(ir::Instruction::push_value(U256::ZERO));
+        self.alloc_relocations.push((block, instruction, id));
+        id
+    }
+
+    /// Resolves an allocation to a compile-time address.
+    pub(in crate::backend::evm) fn set_deferred_alloc_static(
+        &mut self,
+        id: DeferredAlloc,
+        address: U256,
+    ) {
+        self.deferred_allocations.insert(id, DeferredAllocResolution::Static(address));
+    }
+
+    /// Resolves an allocation to the ordinary free-memory-pointer bump.
+    pub(in crate::backend::evm) fn set_deferred_alloc_dynamic(
+        &mut self,
+        id: DeferredAlloc,
+        size: U256,
+    ) {
+        self.deferred_allocations.insert(id, DeferredAllocResolution::Dynamic(size));
     }
 
     /// Emits a `PUSH32` zero placeholder for the immutable identified by `id`.
@@ -245,6 +293,34 @@ impl<'gcx> Assembler<'gcx> {
         for (block, instruction, id) in self.deferred_relocations.drain(..) {
             module.blocks[block].instructions[instruction] = ir::Instruction::push_deferred(id);
         }
+        // Allocation placeholders expand to more than one instruction, so they
+        // splice after every in-place relocation patch above. Descending
+        // instruction order keeps earlier indices in the same block valid.
+        let mut alloc_relocations = std::mem::take(&mut self.alloc_relocations);
+        alloc_relocations
+            .sort_by_key(|&(block, instruction, _)| std::cmp::Reverse((block, instruction)));
+        for (block, instruction, id) in alloc_relocations {
+            let resolution = self
+                .deferred_allocations
+                .get(&id)
+                .copied()
+                .unwrap_or_else(|| panic!("deferred allocation {id:?} was never resolved"));
+            let push = |value: U256| ir::Instruction::push_value(value);
+            let replacement = match resolution {
+                DeferredAllocResolution::Static(address) => vec![push(address)],
+                DeferredAllocResolution::Dynamic(size) => vec![
+                    push(U256::from(EvmMemoryLayout::FMP_SLOT)),
+                    ir::Instruction::opcode(op::MLOAD),
+                    ir::Instruction::opcode(op::DUP1),
+                    push(size),
+                    ir::Instruction::opcode(op::ADD),
+                    push(U256::from(EvmMemoryLayout::FMP_SLOT)),
+                    ir::Instruction::opcode(op::MSTORE),
+                ],
+            };
+            module.blocks[block].instructions.splice(instruction..=instruction, replacement);
+        }
+        self.deferred_allocations.clear();
         self.label_blocks.clear();
         self.cold_labels.clear();
 
@@ -445,7 +521,7 @@ impl<'gcx> Assembler<'gcx> {
                     offset += out.fixed_push_len(width);
                 }
                 AsmInstKind::PushDeferred(_) => {
-                    unreachable!("deferred constants must be resolved before assembly");
+                    unreachable!("deferred values must be resolved before assembly");
                 }
                 AsmInstKind::PushImmutable(_) => {
                     // PUSH32 opcode plus 32 placeholder bytes.
@@ -500,7 +576,7 @@ impl<'gcx> Assembler<'gcx> {
                     out.emit_push_fixed_width(U256::from(target_offset), width);
                 }
                 AsmInstKind::PushDeferred(_) => {
-                    unreachable!("deferred constants must be resolved before assembly");
+                    unreachable!("deferred values must be resolved before assembly");
                 }
                 AsmInstKind::PushImmutable(id) => {
                     out.emit_push_immutable(id);
@@ -711,6 +787,35 @@ PUSH4 0x80000000
 PUSH1 0x02
 
 "#]]
+            );
+        });
+    }
+
+    #[test]
+    fn deferred_allocations_expand_after_layout() {
+        with_assembler(CompileOpts::default(), |mut static_asm| {
+            let static_alloc = static_asm.emit_deferred_alloc();
+            static_asm.set_deferred_alloc_static(static_alloc, U256::from(0xa0));
+            assert_eq!(static_asm.assemble().bytecode, [op::PUSH1, 0xa0]);
+        });
+
+        with_assembler(CompileOpts::default(), |mut dynamic_asm| {
+            let dynamic_alloc = dynamic_asm.emit_deferred_alloc();
+            dynamic_asm.set_deferred_alloc_dynamic(dynamic_alloc, U256::from(0x20));
+            assert_eq!(
+                dynamic_asm.assemble().bytecode,
+                [
+                    op::PUSH1,
+                    0x40,
+                    op::MLOAD,
+                    op::DUP1,
+                    op::PUSH1,
+                    0x20,
+                    op::ADD,
+                    op::PUSH1,
+                    0x40,
+                    op::MSTORE,
+                ]
             );
         });
     }

@@ -4,7 +4,7 @@
 //! no intervening storage write may alias the loaded slot.
 
 use crate::{
-    analysis::Liveness,
+    analysis::{Access, AddressSpace, AliasAnalysis, Liveness, Location},
     mir::{BlockId, Function, InstId, InstKind, Module, StorageAlias, ValueId, utils as mir_utils},
     pass::{AnalysisManager, LivenessAnalysis, MirPass, run_function_pass},
 };
@@ -28,6 +28,7 @@ impl MirPass for StorageLoadCse {
 struct StorageLoadCseCx {
     /// Number of storage loads eliminated.
     eliminated_count: usize,
+    alias: Option<AliasAnalysis>,
 }
 
 struct RunState {
@@ -55,6 +56,7 @@ impl StorageLoadCseCx {
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
         self.eliminated_count = 0;
         func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
+        self.alias = Some(AliasAnalysis::new(func));
 
         let mut analyses = AnalysisManager::new();
         let liveness = analyses.get_or_compute(&LivenessAnalysis, func);
@@ -101,11 +103,16 @@ impl StorageLoadCseCx {
         inst_results: &FxHashMap<InstId, ValueId>,
         state: &mut RunState,
     ) {
+        let aa = self.alias.as_ref().expect("storage-load CSE alias snapshot is initialized");
         for (inst_idx, &inst_id) in func.blocks[block_id].instructions.iter().enumerate() {
             match &func.instructions[inst_id].kind {
                 InstKind::SLoad(slot) => {
-                    let alias =
-                        func.storage_alias_after_replacements(inst_id, *slot, &state.replacements);
+                    let alias = aa.storage_alias_after_replacements(
+                        func,
+                        inst_id,
+                        *slot,
+                        &state.replacements,
+                    );
                     let Some(&result) = inst_results.get(&inst_id) else {
                         continue;
                     };
@@ -122,12 +129,43 @@ impl StorageLoadCseCx {
                     }
                 }
                 InstKind::SStore(slot, _) => {
-                    let alias =
-                        func.storage_alias_after_replacements(inst_id, *slot, &state.replacements);
-                    state.cached_loads.retain(|cached_alias, _| !cached_alias.may_alias(alias));
+                    let alias = aa.storage_alias_after_replacements(
+                        func,
+                        inst_id,
+                        *slot,
+                        &state.replacements,
+                    );
+                    state.cached_loads.retain(|cached_alias, _| {
+                        !aa.alias(Location::Storage(*cached_alias), Location::Storage(alias))
+                            .may_alias()
+                    });
                 }
-                kind if kind.may_mutate_storage() => state.cached_loads.clear(),
-                _ => {}
+                _ => {
+                    let effects = aa.instruction_mod_ref_with_replacements(
+                        func,
+                        inst_id,
+                        &state.replacements,
+                    );
+                    for &access in effects.writes() {
+                        match access {
+                            Access::Any(AddressSpace::Storage) => {
+                                state.cached_loads.clear();
+                                break;
+                            }
+                            Access::Location(Location::Storage(alias)) => {
+                                state.cached_loads.retain(|cached_alias, _| {
+                                    !aa.alias(
+                                        Location::Storage(*cached_alias),
+                                        Location::Storage(alias),
+                                    )
+                                    .may_alias()
+                                });
+                            }
+                            Access::Any(AddressSpace::Memory | AddressSpace::Transient)
+                            | Access::Location(Location::Memory(_) | Location::Transient(_)) => {}
+                        }
+                    }
+                }
             }
         }
     }

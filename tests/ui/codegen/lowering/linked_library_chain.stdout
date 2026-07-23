@@ -91,7 +91,7 @@ bb9 [cold]:
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Outer (runtime) ===
 @module runtime
 bb0:
-  push 224
+  push 256
   push 64
   mstore
   callvalue
@@ -163,13 +163,16 @@ bb9:
   swap1
   mstore
   gas
+  dup1
+  push 224
+  mstore
   push 32
   push 0
   push 68
   push 160
   mload
   push 0x1000000000000000000000000000000000000001
-  gas
+  dup6
   delegatecall
   swap1
   pop
@@ -198,7 +201,7 @@ bb11 [cold]:
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 224
+  push 256
   push 64
   mstore
   callvalue
@@ -257,13 +260,16 @@ bb0:
   swap1
   mstore
   gas
+  dup1
+  push 224
+  mstore
   push 32
   push 0
   push 68
   push 160
   mload
   push 0x1000000000000000000000000000000000000002
-  gas
+  dup6
   delegatecall
   swap1
   pop

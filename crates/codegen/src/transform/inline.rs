@@ -4,8 +4,8 @@
 //! protocol and expose further optimization opportunities.
 
 use crate::{
-    MULTI_RETURN_BUFFER_PTR_SLOT,
     analysis::LoopAnalyzer,
+    memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
         BlockId, Function, FunctionId as MirFunctionId, Immediate, InstKind, Instruction, MirType,
         Module, Terminator, Value, ValueId,
@@ -92,10 +92,8 @@ impl MirInliner {
     /// Creates the `-O size` inliner: a module budget of zero disables all MIR
     /// inlining, which only ever grows emitted code on real contracts (both
     /// multi-use duplication and the cascades that single-call inlining sets
-    /// off were measured to increase size). Lowering-time inlining of tiny
-    /// single-return helpers is deliberately kept: the compiler's internal-call
-    /// protocol (memory frame setup) costs more bytes than those bodies, so
-    /// sharing them was measured to *increase* code size as well.
+    /// off were measured to increase size). Lowering-time inlining is disabled
+    /// independently; this zero budget also lets the MIR inliner skip analysis.
     #[must_use]
     fn for_size() -> Self {
         Self { max_module_code_size: 0, ..Self::default() }
@@ -138,15 +136,27 @@ impl MirInliner {
     /// Runs the inliner over the whole module.
     fn run(&mut self, module: &mut Module) -> MirInlineStats {
         let mut stats = MirInlineStats::default();
+
+        // A zero budget is an explicit off switch (used by `-O size`). Avoid
+        // summarizing the module or building its call graph when no call site
+        // can be accepted.
+        if self.max_module_code_size == 0 {
+            return stats;
+        }
+
         let mut summaries = self.summarize_module(module);
-        let mut call_counts = self.call_counts(module);
-        let recursive_functions = self.recursive_functions(module);
 
         // Size-aware backstop: inlining grows emitted code, so track the module's
         // estimated runtime bytecode and stop inlining once it reaches the budget,
         // keeping large contracts under the EIP-170 deployable-code limit. Small
         // contracts never reach the budget and inline normally.
         let mut module_code_size: usize = summaries.values().map(|s| s.estimated_code_size).sum();
+        if module_code_size >= self.max_module_code_size {
+            return stats;
+        }
+
+        let mut call_counts = self.call_counts(module);
+        let recursive_functions = self.recursive_functions(module);
 
         for caller_id in module.functions.indices().collect::<Vec<_>>() {
             let loop_depths = block_loop_depths(module.function(caller_id));
@@ -456,6 +466,36 @@ struct MirCost {
 
 fn estimate_inst_cost(kind: &InstKind) -> MirCost {
     let (runtime_gas, code_size) = match kind {
+        InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
+        InstKind::MemoryObjectData(_, kind) => {
+            if EvmMemoryLayout::object_data_offset(*kind) == 0 {
+                (0, 0)
+            } else {
+                (3, 1)
+            }
+        }
+        InstKind::MemoryObjectFieldAddr { layout, field, .. } => {
+            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) { (0, 0) } else { (3, 1) }
+        }
+        InstKind::MemoryObjectElementAddr { layout, .. } => {
+            let base_cost = u64::from(EvmMemoryLayout::object_data_offset(layout.kind()) != 0);
+            (8 + base_cost * 3, 2 + base_cost as usize)
+        }
+        InstKind::MemoryObjectLen(_, _) | InstKind::SetMemoryObjectLen(_, _, _) => (3, 1),
+        InstKind::Fmp | InstKind::SetFmp(_) => (3, 1),
+        InstKind::Alloc { .. } => (9, 3),
+        InstKind::AbiEncode { args, layout, .. } => {
+            let words = layout.head_size() / 32;
+            (30 + words * 12, 8 + args.len() * 3)
+        }
+        InstKind::StorageToMemory { layout, .. } => {
+            let slots = layout.storage_slots();
+            (slots * 103, slots as usize * 2)
+        }
+        InstKind::MemoryToStorage { layout, .. } | InstKind::ClearStorage { layout, .. } => {
+            let slots = layout.storage_slots();
+            (slots * 5_000, slots as usize * 2)
+        }
         InstKind::Add(..)
         | InstKind::Sub(..)
         | InstKind::Lt(..)
@@ -517,6 +557,8 @@ fn estimate_inst_cost(kind: &InstKind) -> MirCost {
         | InstKind::BlockHash(..)
         | InstKind::BlobHash(..)
         | InstKind::Keccak256(..) => (30, 1),
+        // Expands to length load + data pointer + physical keccak.
+        InstKind::Keccak256Bytes(_) => (36, 5),
         InstKind::MappingSlot(..) => (36, 3),
         InstKind::MappingSlotMemory(..) => (60, 8),
         InstKind::MappingSlotCalldata(..) => (63, 9),
@@ -554,8 +596,9 @@ fn estimate_terminator_cost(term: &Terminator) -> MirCost {
 }
 
 fn estimated_internal_call_savings(site: CallSite, summary: MirInlineSummary) -> u64 {
-    let frame_words =
-        (summary.internal_frame_size / 32) + 2 + (site.args_len + site.returns) as u64;
+    let frame_words = (summary.internal_frame_size / EvmMemoryLayout::WORD_SIZE)
+        + (EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE)
+        + (site.args_len + site.returns) as u64;
     let protocol = 90 + ((site.args_len + site.returns) as u64) * 24 + frame_words * 6;
     let return_protocol = 24 + (summary.param_count as u64 + site.returns as u64) * 8;
     let loop_multiplier = (site.loop_depth as u64).saturating_add(1);
@@ -650,10 +693,12 @@ fn inline_call_impl(
     let caller_frame_prefix = if caller_is_external {
         0
     } else {
-        64 + ((caller.params.len() + caller.returns.len()) as u64) * 32
+        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+            + ((caller.params.len() + caller.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE
     };
     let frame_base = caller_frame_prefix + caller.internal_frame_size;
-    let callee_frame_prefix = 64 + ((callee.params.len() + callee.returns.len()) as u64) * 32;
+    let callee_frame_prefix = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+        + ((callee.params.len() + callee.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE;
     caller.internal_frame_size += callee.internal_frame_size;
 
     let mut cloner = InlineCloner::new(caller, callee, frame_base, callee_frame_prefix, &args);
@@ -768,6 +813,47 @@ impl<'a> InlineCloner<'a> {
     #[allow(clippy::too_many_lines)]
     fn clone_inst_kind(&mut self, kind: InstKind) -> Option<InstKind> {
         Some(match kind {
+            InstKind::MakeSlice { ptr, len, location } => InstKind::MakeSlice {
+                ptr: self.clone_value(ptr)?,
+                len: self.clone_value(len)?,
+                location,
+            },
+            InstKind::SlicePtr(slice) => InstKind::SlicePtr(self.clone_value(slice)?),
+            InstKind::SliceLen(slice) => InstKind::SliceLen(self.clone_value(slice)?),
+            InstKind::MemoryObjectLen(object, kind) => {
+                InstKind::MemoryObjectLen(self.clone_value(object)?, kind)
+            }
+            InstKind::SetMemoryObjectLen(object, len, kind) => InstKind::SetMemoryObjectLen(
+                self.clone_value(object)?,
+                self.clone_value(len)?,
+                kind,
+            ),
+            InstKind::MemoryObjectData(object, kind) => {
+                InstKind::MemoryObjectData(self.clone_value(object)?, kind)
+            }
+            InstKind::MemoryObjectFieldAddr { object, layout, field } => {
+                InstKind::MemoryObjectFieldAddr { object: self.clone_value(object)?, layout, field }
+            }
+            InstKind::MemoryObjectElementAddr { object, layout, index } => {
+                InstKind::MemoryObjectElementAddr {
+                    object: self.clone_value(object)?,
+                    layout,
+                    index: self.clone_value(index)?,
+                }
+            }
+            InstKind::StorageToMemory { storage, memory, layout } => InstKind::StorageToMemory {
+                storage: self.clone_value(storage)?,
+                memory: self.clone_value(memory)?,
+                layout,
+            },
+            InstKind::MemoryToStorage { memory, storage, layout } => InstKind::MemoryToStorage {
+                memory: self.clone_value(memory)?,
+                storage: self.clone_value(storage)?,
+                layout,
+            },
+            InstKind::ClearStorage { storage, layout } => {
+                InstKind::ClearStorage { storage: self.clone_value(storage)?, layout }
+            }
             InstKind::Add(a, b) => InstKind::Add(self.clone_value(a)?, self.clone_value(b)?),
             InstKind::Sub(a, b) => InstKind::Sub(self.clone_value(a)?, self.clone_value(b)?),
             InstKind::Mul(a, b) => InstKind::Mul(self.clone_value(a)?, self.clone_value(b)?),
@@ -802,6 +888,23 @@ impl<'a> InlineCloner<'a> {
                 InstKind::MStore8(self.clone_value(a)?, self.clone_value(b)?)
             }
             InstKind::MSize => InstKind::MSize,
+            InstKind::Fmp => InstKind::Fmp,
+            InstKind::SetFmp(ptr) => InstKind::SetFmp(self.clone_value(ptr)?),
+            InstKind::Alloc { size, kind, semantics } => {
+                InstKind::Alloc { size: self.clone_value(size)?, kind, semantics }
+            }
+            InstKind::AbiEncode { selector, args, layout } => InstKind::AbiEncode {
+                selector: match selector {
+                    Some(selector) => Some(self.clone_value(selector)?),
+                    None => None,
+                },
+                args: args
+                    .iter()
+                    .map(|&arg| self.clone_value(arg))
+                    .collect::<Option<Vec<_>>>()?
+                    .into(),
+                layout,
+            },
             InstKind::MCopy(a, b, c) => {
                 InstKind::MCopy(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
             }
@@ -857,6 +960,7 @@ impl<'a> InlineCloner<'a> {
             InstKind::BaseFee => InstKind::BaseFee,
             InstKind::BlobBaseFee => InstKind::BlobBaseFee,
             InstKind::BlobHash(a) => InstKind::BlobHash(self.clone_value(a)?),
+            InstKind::Keccak256Bytes(object) => InstKind::Keccak256Bytes(self.clone_value(object)?),
             InstKind::Keccak256(a, b) => {
                 InstKind::Keccak256(self.clone_value(a)?, self.clone_value(b)?)
             }
@@ -1035,9 +1139,7 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
         .take_while(|&&inst_id| matches!(caller.instructions[inst_id].kind, InstKind::Phi(_)))
         .count();
 
-    let free_ptr_slot = caller.alloc_value(Value::Immediate(Immediate::uint256(U256::from(0x40))));
-    let base_load = caller
-        .alloc_inst(Instruction::new(InstKind::MLoad(free_ptr_slot), Some(MirType::uint256())));
+    let base_load = caller.alloc_inst(Instruction::new(InstKind::Fmp, Some(MirType::MemPtr)));
     let base = caller.alloc_value(Value::Inst(base_load));
     let mut insert_at = phi_count;
     caller.blocks[continuation].instructions.insert(insert_at, base_load);
@@ -1056,7 +1158,7 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
     }
 
     let ptr_slot = caller.alloc_value(Value::Immediate(Immediate::uint256(U256::from(
-        MULTI_RETURN_BUFFER_PTR_SLOT,
+        EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT,
     ))));
     let publish = caller.alloc_inst(Instruction::new(InstKind::MStore(ptr_slot, base), None));
     caller.blocks[continuation].instructions.insert(insert_at, publish);
