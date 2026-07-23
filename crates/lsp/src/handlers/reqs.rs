@@ -16,20 +16,10 @@ use lsp_types::{
     GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InlayHint, InlayHintParams,
     OneOf, OptionalVersionedTextDocumentIdentifier, Position, PrepareRenameResponse,
     ReferenceParams, RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport,
-    RenameParams, SignatureHelp, SignatureHelpParams, TextDocumentEdit, TextDocumentPositionParams,
-    TextEdit, UnchangedDocumentDiagnosticReport, Url, WorkspaceEdit, WorkspaceSymbolParams,
-    WorkspaceSymbolResponse, request::GotoImplementationParams,
-};
-use lsp_types::{
-    CompletionParams, CompletionResponse, DocumentChanges, DocumentDiagnosticParams,
-    DocumentDiagnosticReport, DocumentDiagnosticReportResult, DocumentFormattingParams,
-    DocumentHighlight, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
-    DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse,
-    Hover, HoverParams, InlayHint, InlayHintParams, OneOf, OptionalVersionedTextDocumentIdentifier,
-    Position, PrepareRenameResponse, ReferenceParams, RenameParams, SelectionRange,
-    SelectionRangeParams, SignatureHelp, SignatureHelpParams, TextDocumentEdit,
-    TextDocumentPositionParams, TextEdit, Url, WorkspaceEdit, WorkspaceSymbolParams,
-    WorkspaceSymbolResponse, request::GotoImplementationParams,
+    RenameParams, SelectionRange, SelectionRangeParams, SignatureHelp, SignatureHelpParams,
+    TextDocumentEdit, TextDocumentPositionParams, TextEdit, UnchangedDocumentDiagnosticReport, Url,
+    WorkspaceEdit, WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    request::GotoImplementationParams,
 };
 use solar_interface::{data_structures::sync::RwLock, source_map::SourceMap};
 use solar_parse::lexer::is_ident;

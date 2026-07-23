@@ -7,11 +7,10 @@ use crate::{
 use lsp_types::{
     CompletionOptions, DeclarationCapability, DiagnosticOptions, DiagnosticServerCapabilities,
     DocumentLinkOptions, ExecuteCommandOptions, HoverProviderCapability,
-    ImplementationProviderCapability, InitializeParams, OneOf, RenameOptions, SaveOptions, SelectionRangeProviderCapability,
-    ServerCapabilities,
-    SignatureHelpOptions, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TextDocumentSyncOptions, TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability,
-    WorkDoneProgressOptions,
+    ImplementationProviderCapability, InitializeParams, OneOf, RenameOptions, SaveOptions,
+    SelectionRangeProviderCapability, ServerCapabilities, SignatureHelpOptions,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+    TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WorkDoneProgressOptions,
 };
 use solar_interface::data_structures::map::FxHashSet;
 use std::{
