@@ -301,7 +301,11 @@ impl ModuleAnalyses {
     }
 
     fn retain(&mut self, func_id: FunctionId, keep_alias: bool, keep_cfg: bool) {
-        if !keep_alias {
+        if keep_alias {
+            if let Some(alias) = self.alias.get(&func_id) {
+                alias.clear_cached_addresses();
+            }
+        } else {
             self.alias.remove(&func_id);
         }
         if !keep_cfg {
