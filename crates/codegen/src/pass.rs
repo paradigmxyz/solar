@@ -388,12 +388,29 @@ fn run_cleanup_pipeline_to_fixpoint(
     passes: &[PassInfo],
     label: &str,
 ) -> bool {
+    // A pass only needs to rerun if the module changed since it last started:
+    // rerunning a deterministic pass on identical input is a no-op. Tracking
+    // that with a change generation keeps exactly the plain round loop's
+    // optimization power — a changing pass is stamped with its *pre-run*
+    // generation, so it always earns one confirming rerun, even when it is
+    // not internally fixpointed — while the pure confirmation reruns of
+    // unchanged passes, which otherwise dominate, are skipped.
+    let mut generation = 0usize;
+    let mut ran_at = vec![usize::MAX; passes.len()];
     let mut changed = false;
     for round in 1..=DEFAULT_CLEANUP_MAX_ROUNDS {
         let mut round_changed = false;
-        for pass in passes {
+        for (index, pass) in passes.iter().enumerate() {
+            if ran_at[index] == generation {
+                continue;
+            }
+            let generation_before = generation;
             let pass_changed = run_pass(gcx, module, pass);
-            round_changed |= pass_changed;
+            if pass_changed {
+                generation += 1;
+                round_changed = true;
+            }
+            ran_at[index] = generation_before;
             if gcx.sess.opts.unstable.print_after_each {
                 println!("// === {} (after {label}-{round}:{}) ===", module.name, pass.name);
                 print!("{}", module.to_text());

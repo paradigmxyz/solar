@@ -143,6 +143,31 @@ impl MemoryStoreEliminator {
 
     fn run_with_scratch(&mut self, func: &mut Function, scratch: &mut BlockScratch) -> usize {
         self.eliminated_count = 0;
+
+        // Both store elimination and store-to-load forwarding need at least
+        // one memory write to act on; functions without any skip the whole
+        // scan and never build the alias snapshot.
+        let has_memory_writes = func.blocks.iter().any(|block| {
+            block.instructions.iter().any(|&inst_id| {
+                matches!(
+                    func.instructions[inst_id].kind,
+                    InstKind::MStore(_, _)
+                        | InstKind::MStore8(_, _)
+                        | InstKind::MCopy(_, _, _)
+                        | InstKind::CalldataCopy(_, _, _)
+                        | InstKind::CodeCopy(_, _, _)
+                        | InstKind::ReturnDataCopy(_, _, _)
+                        | InstKind::ExtCodeCopy(_, _, _, _)
+                        | InstKind::SetMemoryObjectLen(_, _, _)
+                        | InstKind::StorageToMemory { .. }
+                        | InstKind::AbiEncode { .. }
+                )
+            })
+        });
+        if !has_memory_writes {
+            return 0;
+        }
+
         // Reuse one provenance snapshot across fixpoint iterations: removing
         // stores keeps the allocation facts conservative, so only the
         // value-address memo is dropped per iteration.
