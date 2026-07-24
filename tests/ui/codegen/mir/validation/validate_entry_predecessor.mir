@@ -1,0 +1,9 @@
+//@compile-flags: --pass dce
+
+@module ValidateEntryPredecessor
+
+//~? ERROR: [fn0] [bb0] entry block must have no predecessors
+fn @loop() {
+  bb0:
+    jump bb0
+}

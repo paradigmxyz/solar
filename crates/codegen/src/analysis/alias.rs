@@ -1610,36 +1610,6 @@ mod tests {
     }
 
     #[test]
-    fn canonicalizes_memory_bases_and_offsets() {
-        let mut func = function();
-        let (arg, frame, heap, absolute) = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let arg = builder.add_param(MirType::MemPtr);
-            let offset = builder.imm_u64(64);
-            let arg = builder.add(arg, offset);
-            let frame = builder.internal_frame_addr(32);
-            let frame = builder.add(frame, offset);
-            let heap = builder.fmp();
-            let heap = builder.add(heap, offset);
-            let absolute = builder.imm_u64(0x20);
-            (arg, frame, heap, absolute)
-        };
-        let aa = AliasAnalysis::new(&func);
-
-        assert_eq!(
-            aa.memory_address(&func, arg),
-            Some(MemoryAddress {
-                region: MemoryRegion::Unknown,
-                base: MemoryBase::Value(ValueId::from_usize(0)),
-                offset: 64,
-            })
-        );
-        assert_eq!(aa.memory_address(&func, frame), Some(MemoryAddress::internal_frame(96)));
-        assert_eq!(aa.memory_address(&func, heap).unwrap().region, MemoryRegion::Heap);
-        assert_eq!(aa.memory_address(&func, absolute), Some(MemoryAddress::absolute(0x20)));
-    }
-
-    #[test]
     fn distinguishes_and_classifies_memory_ranges() {
         let base = ValueId::from_usize(0);
         let location = |offset, size| {
@@ -1664,51 +1634,6 @@ mod tests {
 
         let scratch = Location::Memory(AliasAnalysis::fmp_location());
         assert_eq!(AliasAnalysis::alias_locations(scratch, location(0, 32)), AliasResult::NoAlias);
-    }
-
-    #[test]
-    fn tracks_fresh_allocations_through_control_flow_values() {
-        let mut func = function();
-        let (first, second, same_path, joined_path) = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let size = builder.imm_u64(32);
-            let first = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
-            let second = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
-            let condition = builder.add_param(MirType::Bool);
-            let same_path = builder.select(condition, first, first);
-            let joined_path = builder.select(condition, first, second);
-            (first, second, same_path, joined_path)
-        };
-        let aa = AliasAnalysis::new(&func);
-        let location = |value| {
-            MemoryLocation::new(aa.memory_address(&func, value).unwrap(), LocationSize::Const(32))
-        };
-
-        assert_eq!(aa.memory_alias(location(first), location(second)), AliasResult::NoAlias);
-        assert_eq!(aa.memory_address(&func, same_path), aa.memory_address(&func, first));
-        assert_eq!(aa.memory_address(&func, joined_path).unwrap().region, MemoryRegion::Heap);
-        assert_eq!(aa.memory_alias(location(joined_path), location(first)), AliasResult::MayAlias);
-    }
-
-    #[test]
-    fn forgets_freshness_after_an_fmp_reset() {
-        let mut func = function();
-        let (first, second) = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let size = builder.imm_u64(32);
-            let first = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
-            builder.set_fmp(first);
-            let second = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
-            (first, second)
-        };
-        let aa = AliasAnalysis::new(&func);
-        let location = |value| {
-            MemoryLocation::new(aa.memory_address(&func, value).unwrap(), LocationSize::Const(32))
-        };
-
-        assert!(matches!(location(first).address.base, MemoryBase::Allocation(_)));
-        assert!(matches!(location(second).address.base, MemoryBase::Value(_)));
-        assert_eq!(aa.memory_alias(location(first), location(second)), AliasResult::MayAlias);
     }
 
     #[test]
@@ -1737,38 +1662,6 @@ mod tests {
     }
 
     #[test]
-    fn distinct_loop_allocations_do_not_alias() {
-        let mut func = function();
-        let (first, second) = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let condition = builder.add_param(MirType::Bool);
-            let header = builder.create_block();
-            let exit = builder.create_block();
-            builder.jump(header);
-            builder.switch_to_block(header);
-            let size = builder.imm_u64(32);
-            // Two distinct allocation sites inside the same loop: each bumps the
-            // free-memory pointer, so their regions never overlap.
-            let first = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
-            let second = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
-            builder.branch(condition, header, exit);
-            builder.switch_to_block(exit);
-            builder.stop();
-            (first, second)
-        };
-
-        let aa = AliasAnalysis::new(&func);
-        let location = |value| {
-            MemoryLocation::new(aa.memory_address(&func, value).unwrap(), LocationSize::Const(32))
-        };
-        assert!(matches!(location(first).address.base, MemoryBase::DynamicAllocation(_)));
-        assert!(matches!(location(second).address.base, MemoryBase::DynamicAllocation(_)));
-        assert_eq!(aa.memory_alias(location(first), location(second)), AliasResult::NoAlias);
-        // The same loop allocation still may hit different instances.
-        assert_eq!(aa.memory_alias(location(first), location(first)), AliasResult::MayAlias);
-    }
-
-    #[test]
     fn classifies_storage_aliases() {
         let first = Location::Storage(StorageAlias::Slot(U256::from(1)));
         let second = Location::Storage(StorageAlias::Slot(U256::from(2)));
@@ -1784,45 +1677,5 @@ mod tests {
             ),
             AliasResult::NoAlias
         );
-    }
-
-    #[test]
-    fn reports_precise_copy_modref() {
-        let mut func = function();
-        let copy = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let dest = builder.imm_u64(0x80);
-            let source = builder.imm_u64(0x20);
-            let size = builder.imm_u64(32);
-            builder.mcopy(dest, source, size);
-            *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
-        };
-        let aa = AliasAnalysis::new(&func);
-        let effects = aa.instruction_mod_ref(&func, copy);
-
-        assert_eq!(effects.reads().len(), 1);
-        assert_eq!(effects.writes().len(), 1);
-        assert!(effects.reads_space(AddressSpace::Memory));
-        assert!(effects.writes_space(AddressSpace::Memory));
-    }
-
-    #[test]
-    fn static_call_reads_state_but_cannot_write_it() {
-        let mut func = function();
-        let call = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let gas = builder.imm_u64(100_000);
-            let address = builder.imm_u64(1);
-            let offset = builder.imm_u64(0x80);
-            let size = builder.imm_u64(32);
-            builder.staticcall(gas, address, offset, size, offset, size);
-            *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
-        };
-        let effects = AliasAnalysis::new(&func).instruction_mod_ref(&func, call);
-
-        assert!(effects.reads_space(AddressSpace::Storage));
-        assert!(!effects.writes_space(AddressSpace::Storage));
-        assert!(effects.reads_space(AddressSpace::Memory));
-        assert!(effects.writes_space(AddressSpace::Memory));
     }
 }

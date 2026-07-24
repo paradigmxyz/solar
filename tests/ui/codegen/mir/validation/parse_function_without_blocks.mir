@@ -1,0 +1,5 @@
+//@compile-flags: --pass none
+
+@module FunctionWithoutBlocks
+
+fn @bad() {} //~ ERROR: function must contain at least one block

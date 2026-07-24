@@ -1,0 +1,108 @@
+//@compile-flags: --pass cse
+//@filecheck: --check-prefix=CHECK --enable-var-scope
+
+@module AliasBuilderCases
+
+// CHECK-LABEL: @canonical_arg_offset
+// CHECK: [[LOAD:v[0-9]+]] = mload
+// CHECK: -     {{v[0-9]+}} = mload
+// CHECK: +     [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
+// CHECK: ret [[SUM]]
+fn @canonical_arg_offset(arg0: memptr) -> u256 {
+  bb0:
+    v0 = add arg0, 64
+    v1 = mload v0
+    v2 = add 64, arg0
+    v3 = mload v2
+    v4 = add v1, v3
+    ret v4
+}
+
+// CHECK-LABEL: @canonical_frame_offset
+// CHECK: [[LOAD:v[0-9]+]] = mload
+// CHECK: -     {{v[0-9]+}} = mload
+// CHECK: +     [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
+// CHECK: ret [[SUM]]
+fn @canonical_frame_offset() -> u256 {
+  bb0:
+    v0 = internal_frame_addr 32
+    v1 = add v0, 64
+    v2 = mload v1
+    v3 = internal_frame_addr 96
+    v4 = mload v3
+    v5 = add v2, v4
+    ret v5
+}
+
+// CHECK-LABEL: @canonical_heap_offset
+// CHECK: [[LOAD:v[0-9]+]] = mload
+// CHECK: -     {{v[0-9]+}} = mload
+// CHECK: +     [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
+// CHECK: ret [[SUM]]
+fn @canonical_heap_offset() -> u256 {
+  bb0:
+    v0 = fmp
+    v1 = add v0, 64
+    v2 = mload v1
+    v3 = fmp
+    v4 = add 64, v3
+    v5 = mload v4
+    v6 = add v2, v5
+    ret v6
+}
+
+// CHECK-LABEL: @same_select
+// CHECK: [[LOAD:v[0-9]+]] = mload
+// CHECK: -     {{v[0-9]+}} = mload
+// CHECK: +     [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
+// CHECK: ret [[SUM]]
+fn @same_select(arg0: bool) -> u256 {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = mload v0
+    v2 = select arg0, v0, v0
+    v3 = mload v2
+    v4 = add v1, v3
+    ret v4
+}
+
+// CHECK-LABEL: @joined_select
+// CHECK: [[BEFORE:v[0-9]+]] = mload [[FIRST:v[0-9]+]]
+// CHECK: mstore
+// CHECK: [[AFTER:v[0-9]+]] = mload [[FIRST]]
+// CHECK: add [[BEFORE]], [[AFTER]]
+fn @joined_select(arg0: bool) -> u256 {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v0, 1
+    v2 = mload v0
+    v3 = select arg0, v0, v1
+    mstore v3, 2
+    v4 = mload v0
+    v5 = add v2, v4
+    ret v5
+}
+
+// CHECK-LABEL: @distinct_loop_allocations
+// CHECK: [[FIRST:v[0-9]+]] = alloc
+// CHECK: alloc
+// CHECK: [[LOAD:v[0-9]+]] = mload [[FIRST]]
+// CHECK: mstore
+// CHECK: -     {{v[0-9]+}} = mload [[FIRST]]
+// CHECK: add [[LOAD]], [[LOAD]]
+fn @distinct_loop_allocations(arg0: bool) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v0, 7
+    v2 = mload v0
+    mstore v1, 9
+    v3 = mload v0
+    v4 = add v2, v3
+    br arg0, bb1, bb2
+  bb2:
+    ret v4
+}

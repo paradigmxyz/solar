@@ -1,19 +1,26 @@
 //@compile-flags: --pass dce
-//~? ERROR: [fn1] tail_call to `callee` passes 0 argument(s), expected 1
-//~? ERROR: [fn2] tail_call targets nonexistent function fn9
-// The module validator enforces `tail_call` cross-function contracts: the
-// callee must exist and the argument count must match its parameters. Invalid
-// hand-written MIR is rejected with a diagnostic, not an ICE.
 @module TailCallValidate
+
 fn @callee(arg0: u256) {
   bb0:
     stop
 }
+
+//~? ERROR: [fn1] tail_call to `callee` passes 0 argument(s), expected 1
 fn @wrongArity() {
   bb0:
     tail_call fn0
 }
+
+//~? ERROR: [fn2] tail_call targets nonexistent function fn9
 fn @unknownTarget() {
   bb0:
     tail_call fn9
+}
+
+//~? ERROR: [fn3] internal_call targets nonexistent function fn9
+fn @unknownInternalTarget() {
+  bb0:
+    internal_call fn9, 0
+    stop
 }

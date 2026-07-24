@@ -1,5 +1,13 @@
 //@compile-flags: --pass storage-promotion
+//@filecheck: --check-prefix=CHECK --enable-var-scope
 @module StoragePromotion
+
+// CHECK-LABEL: @promote_recomputed_offset_slot
+// CHECK:       [[SLOT:v[0-9]+]] = add arg0, 1
+// CHECK: +     mstore 128, 1
+// CHECK:       bb4:
+// CHECK: +     [[VALUE:v[0-9]+]] = mload 128
+// CHECK: +     sstore [[SLOT]], [[VALUE]]
 fn @promote_recomputed_offset_slot(arg0: u256) [selector=0x01020304] {
   bb0:
     v1 = add arg0, 1
@@ -20,6 +28,11 @@ fn @promote_recomputed_offset_slot(arg0: u256) [selector=0x01020304] {
     stop
 }
 
+// CHECK-LABEL: @reject_loop_variant_offset_slot
+// CHECK:       [[SLOT:v[0-9]+]] = add arg0
+// CHECK: +     [[LOAD:v[0-9]+]] = sload [[SLOT]]
+// CHECK:       [[VALUE:v[0-9]+]] = add [[LOAD]], 2
+// CHECK: +     sstore [[SLOT]], [[VALUE]]
 fn @reject_loop_variant_offset_slot(arg0: u256) [selector=0x01020304] {
   bb0:
     jump bb1
@@ -37,6 +50,12 @@ fn @reject_loop_variant_offset_slot(arg0: u256) [selector=0x01020304] {
     stop
 }
 
+// CHECK-LABEL: @promote_store_only_without_initial_load
+// CHECK: +     mstore 160, 0
+// CHECK: +     [[DIRTY:v[0-9]+]] = mload 160
+// CHECK: +     br [[DIRTY]]
+// CHECK: +     [[VALUE:v[0-9]+]] = mload 128
+// CHECK: +     sstore 0, [[VALUE]]
 fn @promote_store_only_without_initial_load() [selector=0x01020304] {
   bb0:
     jump bb1
@@ -51,6 +70,14 @@ fn @promote_store_only_without_initial_load() [selector=0x01020304] {
     stop
 }
 
+// CHECK-LABEL: @promote_two_initialized_slots
+// CHECK: +     mstore 128, 1
+// CHECK: +     mstore 160, 2
+// CHECK:       bb4:
+// CHECK: +     [[ONE:v[0-9]+]] = mload 160
+// CHECK: +     sstore 1, [[ONE]]
+// CHECK: +     [[ZERO:v[0-9]+]] = mload 128
+// CHECK: +     sstore 0, [[ZERO]]
 fn @promote_two_initialized_slots() [selector=0x01020304] {
   bb0:
     sstore 0, 1
@@ -72,6 +99,13 @@ fn @promote_two_initialized_slots() [selector=0x01020304] {
     stop
 }
 
+// CHECK-LABEL: @promote_without_init_rewrites_successor_phi
+// CHECK: +     [[INIT:v[0-9]+]] = sload 0
+// CHECK: +     mstore 128, [[INIT]]
+// CHECK: +     [[DIRTY:v[0-9]+]] = mload 160
+// CHECK: +     br [[DIRTY]]
+// CHECK:       [[PHI:v[0-9]+]] = phi [bb7: 7], [bb6: 9]
+// CHECK:       ret [[PHI]]
 fn @promote_without_init_rewrites_successor_phi() -> u256 [selector=0x01020304] {
   bb0:
     jump bb1

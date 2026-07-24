@@ -1,0 +1,67 @@
+//@compile-flags: --pass none
+//@filecheck: --check-prefix=CHECK --enable-var-scope
+
+@module Parser
+
+// CHECK-LABEL: @call
+// CHECK: [[SUCCESS:v[0-9]+]] = call 100, arg0, arg1, 0, 0, 0, 0
+// CHECK: ret [[SUCCESS]]
+fn @call(arg0: address, arg1: u256) -> u256 {
+  bb0:
+    v0 = call 100, arg0, arg1, 0, 0, 0, 0
+    ret v0
+}
+
+// CHECK-LABEL: @hash
+// CHECK: mstore 0, 1
+// CHECK: mstore 32, 2
+// CHECK: [[HASH:v[0-9]+]] = keccak256 0, 64
+// CHECK: ret [[HASH]]
+fn @hash() -> u256 {
+  bb0:
+    mstore 0, 1
+    mstore 32, 2
+    v0 = keccak256 0, 64
+    ret v0
+}
+
+// CHECK-LABEL: @environment
+// CHECK: caller
+// CHECK: callvalue
+// CHECK: gas
+// CHECK: [[CHAIN_ID:v[0-9]+]] = chainid
+// CHECK: ret [[CHAIN_ID]]
+fn @environment() -> u256 {
+  bb0:
+    v0 = caller
+    v1 = callvalue
+    v2 = gas
+    v3 = chainid
+    ret v3
+}
+
+// CHECK-LABEL: @select_and_log
+// CHECK: [[SELECTED:v[0-9]+]] = select arg0, arg1, arg2
+// CHECK: log1 0, 32, [[SELECTED]]
+// CHECK: ret [[SELECTED]]
+fn @select_and_log(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = select arg0, arg1, arg2
+    log1 0, 32, v0
+    ret v0
+}
+
+// CHECK-LABEL: @revert
+// CHECK: revert 0, 0
+fn @revert() {
+  bb0:
+    revert 0, 0
+}
+
+// CHECK-LABEL: @spaced_span
+// CHECK: sload 0 !metadata(span=1..5)
+fn @spaced_span() {
+  bb0:
+    v0 = sload 0 !metadata(span=1 .. 5)
+    stop
+}

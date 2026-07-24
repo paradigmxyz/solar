@@ -1,0 +1,8 @@
+error: expected integer literal
+   ╭▸ ROOT/tests/ui/codegen/evm-ir/validation/parse_immutable_block.evmir:LL:CC
+   │
+LL │   push_immutable bb1
+   ╰╴                 ━━━
+
+error: aborting due to 1 previous error
+

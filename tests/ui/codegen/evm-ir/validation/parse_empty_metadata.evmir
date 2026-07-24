@@ -1,0 +1,5 @@
+@module EmptyMetadata
+
+bb0:
+  push 1
+  add !meta(foo= ) //~ ERROR: expected metadata value

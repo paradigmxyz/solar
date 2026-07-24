@@ -1,0 +1,69 @@
+//@compile-flags: --pass licm
+//@filecheck: --check-prefix=CHECK --enable-var-scope
+@module LicmBuilderCases
+
+// CHECK-LABEL: @hoist_mul
+// CHECK:       mul arg0, 7
+// CHECK:       jump
+fn @hoist_mul(arg0: u256) {
+  bb0:
+    jump bb1
+  bb1:
+    br true, bb2, bb3
+  bb2:
+    v1 = mul arg0, 7
+    jump bb1
+  bb3:
+    stop
+}
+
+// CHECK-LABEL: @hoist_non_aliasing_sload
+// CHECK: +     [[LOAD:v[0-9]+]] = sload 0
+// CHECK:       ret [[LOAD]]
+fn @hoist_non_aliasing_sload() -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    br true, bb2, bb3
+  bb2:
+    v0 = sload 0
+    sstore 1, 1
+    jump bb1
+  bb3:
+    ret v0
+}
+
+// CHECK-LABEL: @keep_aliasing_sload
+// CHECK:       bb2:
+// CHECK:       sload 0
+// CHECK: +     sstore 0, 1
+fn @keep_aliasing_sload() -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    br true, bb2, bb3
+  bb2:
+    v0 = sload 0
+    sstore 0, 1
+    jump bb1
+  bb3:
+    ret v0
+}
+
+// CHECK-LABEL: @keep_work_after_gas
+// CHECK:       bb2:
+// CHECK:       gas
+// CHECK:       [[MUL:v[0-9]+]] = mul arg0, 7
+// CHECK:       ret [[MUL]]
+fn @keep_work_after_gas(arg0: u256) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    br true, bb2, bb3
+  bb2:
+    v1 = gas
+    v2 = mul arg0, 7
+    jump bb1
+  bb3:
+    ret v2
+}

@@ -1,0 +1,179 @@
+- // === ROOT/tests/ui/codegen/mir/memory-dse/builder_cases.mir (before memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/builder_cases.mir (after memory-dse) ===
+  @module MemoryDseBuilderCases
+  fn @overwritten_store() {
+    bb0:
+-     mstore 128, 0
+      mstore 128, 42
+      stop
+  }
+  
+  fn @store_observed_only_by_load() -> u256 {
+    bb0:
+-     mstore 128, 0
+-     v0 = mload 128
+      mstore 128, 42
+-     ret v0
++     ret 0
+  }
+  
+  fn @disjoint_keccak() {
+    bb0:
+-     mstore 128, 0
+      v0 = keccak256 0, 64
+      mstore 128, 1
+      stop
+  }
+  
+  fn @overlapping_keccak() {
+    bb0:
+      mstore 128, 0
+      v0 = keccak256 96, 64
+      mstore 128, 1
+      stop
+  }
+  
+  fn @cross_block_dead_store(arg0: u256) {
+    bb0:
+-     mstore 128, 0
+      br arg0, bb1, bb2
+    bb1:
+      mstore 128, 1
+      returndata 128, 32
+    bb2:
+      revert 0, 0
+  }
+  
+  fn @cross_block_read_path(arg0: u256) {
+    bb0:
+      mstore 128, 7
+      br arg0, bb1, bb2
+    bb1:
+      returndata 128, 32
+    bb2:
+      mstore 128, 9
+      returndata 128, 32
+  }
+  
+  fn @return_pointer() -> u256 {
+    bb0:
+      mstore 160, 42
+      ret 160
+  }
+  
+  fn @gas_barrier() {
+    bb0:
+      mstore 128, 0
+      v0 = gas
+      mstore 128, 42
+      stop
+  }
+  
+  fn @distinct_immediate_addresses() {
+    bb0:
+-     mstore 128, 0
+      mstore 128, 42
+      stop
+  }
+  
+  fn @equivalent_base_load(arg0: u256) -> u256 {
+    bb0:
+      v0 = add arg0, 32
+      mstore v0, 42
+      v1 = add arg0, 32
+-     v2 = mload v1
+-     ret v2
++     ret 42
+  }
+  
+  fn @equivalent_base_overwrite(arg0: u256) {
+    bb0:
+      v0 = add arg0, 32
+-     mstore v0, 0
+      v1 = add arg0, 32
+      mstore v1, 42
+      stop
+  }
+  
+  fn @unused_frame_store() -> u256 {
+    bb0:
+      v0 = internal_frame_addr 192
+-     mstore v0, 0
+      ret 0
+  }
+  
+  fn @immutable_copy_reuse() -> u256 {
+    bb0:
+      v0 = codesize
+      v1 = sub v0, 64
+      codecopy 0, v1, 32
+      v2 = mload 0
+      jump bb1
+    bb1:
+      v3 = codesize
+      v4 = sub v3, 64
+-     codecopy 0, v4, 32
+-     v5 = mload 0
+-     v6 = add v2, v5
++     mstore 0, v2
++     v6 = add v2, v2
+      ret v6
+  }
+  
+  fn @overlapping_load() {
+    bb0:
+      mstore 128, 0
+      v0 = mload 129
+      mstore 128, 42
+      stop
+  }
+  
+  fn @forward_load() -> u256 {
+    bb0:
+      mstore 128, 42
+-     v0 = mload 128
+-     ret v0
++     ret 42
+  }
+  
+  fn @forward_through_pure_op() -> u256 {
+    bb0:
+      mstore 128, 42
+      v0 = add 1, 1
+-     v1 = mload 128
+-     ret v1
++     ret 42
+  }
+  
+  fn @memory_write_barrier() -> u256 {
+    bb0:
+      mstore 128, 42
+      mcopy 160, 128, 32
+      v0 = mload 128
+      ret v0
+  }
+  
+  fn @internal_call_barrier() -> u256 {
+    bb0:
+      mstore 128, 42
+      internal_call @callee, 0
+      v0 = mload 128
+      ret v0
+  }
+  
+  fn @callee() {
+    bb0:
+      ret
+  }
+  
+  fn @chained_forwarding() -> u256 {
+    bb0:
+      mstore 128, 42
+-     v0 = mload 128
+-     mstore 160, v0
+-     v1 = mload 160
+-     ret v1
++     mstore 160, 42
++     ret 42
+  }
+  

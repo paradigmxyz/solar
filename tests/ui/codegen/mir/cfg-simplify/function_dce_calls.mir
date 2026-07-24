@@ -1,0 +1,30 @@
+//@compile-flags: --pass function-dce
+//@filecheck: --check-prefix=CHECK --enable-var-scope
+@module FunctionDceCalls
+
+// CHECK-LABEL: @dead_helper
+fn @dead_helper() -> u256 {
+  bb0:
+    ret 2
+}
+
+fn @live_helper() -> u256 {
+  bb0:
+    ret 1
+}
+
+// CHECK-LABEL: @entry
+// CHECK:       [[CALL:v[0-9]+]] = internal_call @live_helper, 1
+// CHECK:       ret [[CALL]]
+fn @entry() -> u256 [selector=0x00000001] {
+  bb0:
+    v0 = internal_call fn1, 1
+    ret v0
+}
+
+// CHECK-LABEL: @tail_entry
+// CHECK:       tail_call @live_helper
+fn @tail_entry() [selector=0x00000002] {
+  bb0:
+    tail_call fn1
+}

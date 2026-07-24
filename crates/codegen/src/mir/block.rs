@@ -27,13 +27,6 @@ impl BasicBlock {
     pub(crate) const fn is_terminated(&self) -> bool {
         self.terminator.is_some()
     }
-
-    /// Returns the terminator, if present.
-    #[must_use]
-    #[cfg(test)]
-    pub(crate) const fn terminator(&self) -> Option<&Terminator> {
-        self.terminator.as_ref()
-    }
 }
 
 impl Default for BasicBlock {

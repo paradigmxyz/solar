@@ -2,5 +2,7 @@ error: [fn1] tail_call to `callee` passes 0 argument(s), expected 1
 
 error: [fn2] tail_call targets nonexistent function fn9
 
-error: aborting due to 2 previous errors
+error: [fn3] internal_call targets nonexistent function fn9
+
+error: aborting due to 3 previous errors
 

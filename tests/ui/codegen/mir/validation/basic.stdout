@@ -1,0 +1,14 @@
+- // === ROOT/tests/ui/codegen/mir/validation/basic.mir (before none) ===
++ // === ROOT/tests/ui/codegen/mir/validation/basic.mir (after none) ===
+  @module BasicValidation
+  fn @linear(arg0: u256) -> u256 {
+    bb0:
+      v0 = add arg0, 1
+      ret v0
+  }
+  
+  fn @empty() {
+    bb0:
+      stop
+  }
+  

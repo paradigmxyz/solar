@@ -1,5 +1,10 @@
 //@compile-flags: --pass licm
+//@filecheck: --check-prefix=CHECK --enable-var-scope
 @module LicmMemoryAlias
+
+// CHECK-LABEL: @hoist_non_aliasing_mload
+// CHECK: +     [[LOAD:v[0-9]+]] = mload 0
+// CHECK:       ret [[LOAD]]
 fn @hoist_non_aliasing_mload() -> u256 {
   bb0:
     jump bb1
@@ -13,6 +18,10 @@ fn @hoist_non_aliasing_mload() -> u256 {
     ret v0
 }
 
+// CHECK-LABEL: @keep_aliasing_mload
+// CHECK:       bb2:
+// CHECK:       mload 0
+// CHECK:       mstore 16, 1
 fn @keep_aliasing_mload() -> u256 {
   bb0:
     jump bb1
@@ -26,6 +35,9 @@ fn @keep_aliasing_mload() -> u256 {
     ret v0
 }
 
+// CHECK-LABEL: @hoist_non_aliasing_keccak
+// CHECK: +     [[HASH:v[0-9]+]] = keccak256 0, 32
+// CHECK:       ret [[HASH]]
 fn @hoist_non_aliasing_keccak() -> bytes32 {
   bb0:
     jump bb1
@@ -39,6 +51,10 @@ fn @hoist_non_aliasing_keccak() -> bytes32 {
     ret v0
 }
 
+// CHECK-LABEL: @keep_aliasing_keccak
+// CHECK:       bb2:
+// CHECK:       keccak256 0, 32
+// CHECK:       mstore 16, 1
 fn @keep_aliasing_keccak() -> bytes32 {
   bb0:
     jump bb1

@@ -1,0 +1,4 @@
+@module HotnessMetadata
+
+bb0 [hotness=cold]: //~ ERROR: expected `cold`
+  stop

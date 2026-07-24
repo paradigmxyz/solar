@@ -1,0 +1,8 @@
+//@filecheck: --check-prefix=CHECK --enable-var-scope
+// CHECK-LABEL: @module compact
+// CHECK: push 1
+// CHECK: push 2
+// CHECK: add
+// CHECK: jump bb1
+// CHECK: bb1 [cold]:
+@module compact bb0: push 1 push 2 add jump bb1 bb1 [cold]: jump

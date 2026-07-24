@@ -1,0 +1,39 @@
+//@compile-flags: --pass inline
+//@filecheck: --check-prefix=CHECK --enable-var-scope
+@module InlineLoopReturn
+
+// CHECK-LABEL: @caller
+// CHECK:       internal_call @callee
+// CHECK: +     jump
+// CHECK: +     [[CONT:v[0-9]+]] = phi
+// CHECK: +     [[RESULT:v[0-9]+]] = add [[CONT]], 1
+// CHECK:       ret [[RESULT]]
+fn @caller() -> u256 [selector=0x01020304] {
+  bb0:
+    v0 = internal_call @callee, 1, 4
+    v1 = add v0, 1
+    ret v1
+}
+
+fn @callee(arg0: u256) -> u256 {
+  bb0:
+    v1 = internal_frame_addr 128
+    mstore v1, 0
+    jump bb1
+  bb1:
+    v2 = internal_frame_addr 128
+    v3 = mload v2
+    v4 = lt v3, arg0
+    br v4, bb2, bb3
+  bb2:
+    v5 = internal_frame_addr 128
+    v6 = mload v5
+    v7 = add v6, 1
+    v8 = internal_frame_addr 128
+    mstore v8, v7
+    jump bb1
+  bb3:
+    v9 = internal_frame_addr 128
+    v10 = mload v9
+    ret v10
+}
