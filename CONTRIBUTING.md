@@ -219,9 +219,10 @@ Here's a simple example to show how to write a "UI" integration test (`tests/ui`
 // Directives
 //@ compile-flags: --flag
 
-// Annotations specify the errors that the compiler is expected to emit.
-// These are `//~`, one of HELP, NOTE, WARN, ERROR, and a colon (`:`),
+// Annotations specify the diagnostics that the compiler is expected to emit.
+// These are `//~`, one of HELP, NOTE, WARN, ERROR, or ICE, and a colon (`:`),
 // followed by the expected message. The message can be a partial match.
+// An annotation can also match a diagnostic code directly.
 
 line with error //~ ERROR: error message
 
@@ -238,7 +239,20 @@ line with multiple errors
 //~^ ERROR: first error
 //~| ERROR: second error
 //~| ERROR: third error
+
+// Use `?` for a diagnostic without a location in the test file.
+
+//~? ERROR: error without a source location
 ```
+
+The UI runner infers the expected exit status from annotations. `ERROR` and
+`ICE` annotations expect status 1; tests without them expect status 0. Do not
+add `check-pass` or `check-fail` to ordinary tests. Use an explicit status
+directive only when the inferred status is wrong for the test:
+
+- `//@ check-pass` expects status 0.
+- `//@ check-fail` expects status 1.
+- `//@ failure-status: N` expects status `N`.
 
 Once you have written your test, or existing tests' output has changed, you must
 run `cargo uibless` to update the expected output files.

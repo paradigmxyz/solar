@@ -13,27 +13,43 @@ pub(crate) fn remap_block_order(
     order: &[BlockId],
 ) -> IndexVec<BlockId, BlockId> {
     debug_assert_eq!(order.len(), func.blocks.len());
-    let mut remap = index_vec![BlockId::from_usize(0); order.len()];
+    let remap = remap_blocks(func, order);
+    debug_assert!(!remap.contains(&BlockId::MAX));
+    remap
+}
+
+pub(crate) fn retain_blocks(func: &mut Function, order: &[BlockId]) {
+    debug_assert!(order.len() <= func.blocks.len());
+    remap_blocks(func, order);
+}
+
+fn remap_blocks(func: &mut Function, order: &[BlockId]) -> IndexVec<BlockId, BlockId> {
+    let mut remap = index_vec![BlockId::MAX; func.blocks.len()];
     let mut old_blocks =
         std::mem::take(&mut func.blocks).into_iter().map(Some).collect::<IndexVec<BlockId, _>>();
-    let mut blocks = IndexVec::with_capacity(old_blocks.len());
+    let mut blocks = IndexVec::with_capacity(order.len());
     for &old_block in order {
         let block = old_blocks[old_block].take().expect("duplicate block in order");
-        remap[old_block] = blocks.push(block);
+        let new_block = blocks.push(block);
+        remap[old_block] = new_block;
     }
-    debug_assert!(old_blocks.into_iter().all(|block| block.is_none()));
     func.blocks = blocks;
 
+    let mut retained_instructions = Vec::new();
     for block in &mut func.blocks {
+        block.predecessors.retain(|predecessor| remap[*predecessor] != BlockId::MAX);
         for predecessor in &mut block.predecessors {
             *predecessor = remap[*predecessor];
         }
         if let Some(terminator) = &mut block.terminator {
             remap_terminator_blocks(terminator, &remap);
         }
+        retained_instructions.extend_from_slice(&block.instructions);
     }
-    for inst in &mut func.instructions {
+    for inst_id in retained_instructions {
+        let inst = &mut func.instructions[inst_id];
         if let InstKind::Phi(incoming) = &mut inst.kind {
+            incoming.retain(|(block, _)| remap[*block] != BlockId::MAX);
             for (block, _) in incoming {
                 *block = remap[*block];
             }
@@ -43,7 +59,11 @@ pub(crate) fn remap_block_order(
 }
 
 fn remap_terminator_blocks(terminator: &mut Terminator, remap: &IndexVec<BlockId, BlockId>) {
-    let remap_block = |block: &mut BlockId| *block = remap[*block];
+    let remap_block = |block: &mut BlockId| {
+        let remapped = remap[*block];
+        assert_ne!(remapped, BlockId::MAX, "terminator target must be retained");
+        *block = remapped;
+    };
     match terminator {
         Terminator::Jump(target) => remap_block(target),
         Terminator::Branch { then_block, else_block, .. } => {
@@ -164,12 +184,11 @@ pub(crate) fn repair_reachability_phis(func: &mut Function) -> bool {
     }
 
     let mut changed = false;
-    for block_id in func.blocks.indices() {
-        let predecessors = func.blocks[block_id].predecessors.clone();
-        for &inst_id in &func.blocks[block_id].instructions {
+    for block in &mut func.blocks {
+        for &inst_id in &block.instructions {
             if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
                 let len_before = incoming.len();
-                incoming.retain(|(pred, _)| predecessors.contains(pred));
+                incoming.retain(|(pred, _)| block.predecessors.contains(pred));
                 changed |= incoming.len() != len_before;
             }
         }
