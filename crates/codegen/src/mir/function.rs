@@ -36,6 +36,10 @@ pub(crate) struct Function {
     /// All values in this function.
     pub(crate) values: IndexVec<ValueId, Value>,
     /// All instructions allocated in this function.
+    ///
+    /// Instructions remain allocated after removal from their block, so this is not the active
+    /// instruction list. Use [`Self::instructions`] to iterate active instructions and
+    /// [`Self::inst`] or [`Self::inst_mut`] for ID-based access.
     instructions: IndexVec<InstId, Instruction>,
     /// All basic blocks in this function. This is never empty; block zero is the entry.
     pub(crate) blocks: IndexVec<BlockId, BasicBlock>,
