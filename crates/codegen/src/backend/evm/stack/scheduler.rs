@@ -17,13 +17,15 @@
 //! plus `POP`, to the post-instruction cleanup.
 //!
 //! Plans use one cost and goal model at every tier. Exact prefix checks handle
-//! the cheapest common case. Gas mode also uses allocation-free verified
-//! one-action and unary plans before a lower-bound-certified deterministic walk;
-//! a linear proof also handles a single resident last use among otherwise
-//! materialized operands. Bounded A* is reserved for layouts where those proofs
-//! do not succeed. Size mode uses the single-resident proof too, but skips the
-//! local one-action and unary ties whose different residual layouts could cost
-//! more to clean up after the instruction. The available actions are:
+//! the cheapest common case. Linear proofs cover distinct operands that all
+//! require materialization, one resident last use among otherwise materialized
+//! operands, and a binary operation whose only resident operand must survive.
+//! Gas mode also uses allocation-free verified one-action and unary plans before
+//! a lower-bound-certified deterministic walk. Bounded A* is reserved for
+//! layouts where those proofs do not succeed. Size mode uses the linear proofs
+//! too, but skips the local one-action and unary ties whose different residual
+//! layouts could cost more to clean up after the instruction. The available
+//! actions are:
 //!
 //! - use `SWAP1..16` to consume accessible last uses in place;
 //! - use `DUP1..16` when another copy must survive or an operand repeats;

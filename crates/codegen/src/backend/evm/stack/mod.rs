@@ -90,14 +90,16 @@
 //!
 //! Lowering supplies operands in EVM push order and a liveness-derived set of
 //! values that must survive the instruction. An exact-prefix check avoids all
-//! search and allocation. A linear lower-bound proof handles the common shape
-//! where one unique last-use operand is already on top and every other operand
-//! must be materialized. Gas mode also uses verified one-action and unary fast
-//! paths. Longer unambiguous plans use a deterministic walk only when its cost
-//! reaches the admissible lower bound; ambiguous layouts use bounded A*. These
-//! are tiers of the same planner, not sequential optimizers: every accepted
-//! result satisfies the same exact goal and cost ordering, and a tier that
-//! cannot prove its result falls through without mutating the stack.
+//! search and allocation. Linear proofs handle three common shapes: all
+//! distinct operands require materialization; one unique last-use operand is
+//! already on top and every other operand must be materialized; or a binary
+//! operation must retain its sole resident operand while materializing the
+//! other. Gas mode also uses verified one-action and unary fast paths. Longer
+//! unambiguous plans use a deterministic walk only when its cost reaches the
+//! admissible lower bound; ambiguous layouts use bounded A*. These are tiers of
+//! the same planner, not sequential optimizers: every accepted result satisfies
+//! the same exact goal and cost ordering, and a tier that cannot prove its
+//! result falls through without mutating the stack.
 //! Transitions are `DUP`, `SWAP`, safe redundant-copy `POP`, and sound
 //! materializations. A goal is valid only when the exact operand head is
 //! present, every preserved operand still has a copy below it, and no dead
@@ -108,14 +110,14 @@
 //! selected plan with a reference Dijkstra search under the full cost order.
 //!
 //! Size mode deliberately keeps the established deterministic/A* path after
-//! the exact-prefix and single-resident proofs. A local one-action or unary plan
-//! can tie the search's byte cost while leaving a different live or anonymous
-//! residual layout, and that layout can cost more to arrange later. Until the
-//! cost model extends beyond the current instruction, those two fast paths stay
-//! disabled for size mode. Gas mode keeps them only when they improve its
-//! primary local cost, with whole-corpus output and compile-time benchmarks
-//! guarding the tradeoff. General `POP` exploration follows the same gas-only
-//! rule; a one-action `POP` is accepted only by the gas fast path.
+//! the exact-prefix and linear proofs. A local one-action or unary plan can tie
+//! the search's byte cost while leaving a different live or anonymous residual
+//! layout, and that layout can cost more to arrange later. Until the cost model
+//! extends beyond the current instruction, those two fast paths stay disabled
+//! for size mode. Gas mode keeps them only when they improve its primary local
+//! cost, with whole-corpus output and compile-time benchmarks guarding the
+//! tradeoff. General `POP` exploration follows the same gas-only rule; a
+//! one-action `POP` is accepted only by the gas fast path.
 //!
 //! Plans are compared lexicographically by the selected optimization mode:
 //! static gas first for `-O gas` and encoded bytes first for `-O size`, followed
