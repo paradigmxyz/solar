@@ -77,6 +77,20 @@ contract SwitchTables {
         }
     }
 
+    function binary(uint256 key) external pure returns (uint256 result) {
+        assembly {
+            switch key
+            case 1 { result := 300 }
+            case 7920 { result := 301 }
+            case 15839 { result := 302 }
+            case 23758 { result := 303 }
+            case 31677 { result := 304 }
+            case 39596 { result := 305 }
+            case 47515 { result := 306 }
+            default { result := 999 }
+        }
+    }
+
     function f00() external {
         value = 0;
     }
@@ -303,5 +317,17 @@ contract SwitchTablesTest {
         assert(tables.sparse(0x67e648b5) == 216);
         assert(tables.sparse(0x1f49dbe7) == 231);
         assert(tables.sparse(1) == 999);
+    }
+
+    function testBinarySwitch() public view {
+        assert(tables.binary(0) == 999);
+        assert(tables.binary(1) == 300);
+        assert(tables.binary(7920) == 301);
+        assert(tables.binary(15839) == 302);
+        assert(tables.binary(23758) == 303);
+        assert(tables.binary(31677) == 304);
+        assert(tables.binary(39596) == 305);
+        assert(tables.binary(47515) == 306);
+        assert(tables.binary(47516) == 999);
     }
 }
