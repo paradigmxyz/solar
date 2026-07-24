@@ -102,6 +102,7 @@ impl Function {
     }
 
     /// Returns a mutable reference to the instruction for the given ID.
+    #[must_use]
     pub(crate) fn inst_mut(&mut self, id: InstId) -> &mut Instruction {
         &mut self.instructions[id]
     }
@@ -113,6 +114,7 @@ impl Function {
     }
 
     /// Returns the IDs of all active instructions in block order.
+    #[must_use]
     pub(crate) fn instructions(&self) -> impl Iterator<Item = InstId> + '_ {
         self.blocks.iter().flat_map(|block| block.instructions.iter().copied())
     }
