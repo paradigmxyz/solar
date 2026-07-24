@@ -374,7 +374,7 @@ fn verified_preservation(
 ) -> (bool, bool) {
     let edges_after = cfg_edges(func);
     let keep_cfg = edges_after == edges_before;
-    let no_new_side_effects = (insts_before..func.instructions.len())
+    let no_new_side_effects = (insts_before..func.num_insts())
         .map(InstId::from_usize)
         .all(|inst_id| !func.inst(inst_id).kind.has_side_effects());
     let keep_alias = no_new_side_effects
@@ -392,7 +392,7 @@ fn run_function_pass_cached(
     let bundle = analyses.bundle(func_id, &module.functions[func_id]);
     let func = &mut module.functions[func_id];
     let edges_before = cfg_edges(func);
-    let insts_before = func.instructions.len();
+    let insts_before = func.num_insts();
     let changed = run(func, &bundle);
     if changed {
         let (keep_alias, keep_cfg) = verified_preservation(func, &edges_before, insts_before);

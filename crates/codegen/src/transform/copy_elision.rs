@@ -108,7 +108,8 @@ impl CopyElisionCx {
         }
 
         let mut writes = Vec::new();
-        for (inst_id, inst) in func.instructions.iter_enumerated() {
+        for inst_id in func.instructions() {
+            let inst = func.inst(inst_id);
             match &inst.kind {
                 // Writes to the allocation: the address is a derived value.
                 InstKind::MStore(addr, value) => {

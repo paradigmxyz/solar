@@ -312,7 +312,7 @@ impl CfgSimplifier {
         // the chain or they dangle once the intermediate phi is removed.
         // Mutually-trivial cycles have no outside source; keep those phis.
         let mut replacements = FxHashMap::default();
-        let mut dead = DenseBitSet::new_empty(func.instructions.len());
+        let mut dead = DenseBitSet::new_empty(func.num_insts());
         let mut seen = DenseBitSet::new_empty(func.values.len());
         for &(inst_id, phi_value) in &candidates {
             seen.clear();
@@ -748,12 +748,12 @@ impl DeadFunctionEliminator {
         module.functions = functions;
 
         for func in &mut module.functions {
-            for inst in &mut func.instructions {
+            func.for_each_instruction_mut(|_, inst| {
                 if let InstKind::InternalCall { function, .. } = &mut inst.kind {
                     *function = remap[function.index()]
                         .expect("reachable function cannot call an eliminated function");
                 }
-            }
+            });
             for block in &mut func.blocks {
                 if let Some(Terminator::TailCall { function, .. }) = &mut block.terminator {
                     *function = remap[function.index()]

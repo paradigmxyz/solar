@@ -108,8 +108,8 @@ impl SroaCx {
         // address, in this block.
         let mut slot_of: FxHashMap<ValueId, u64> = FxHashMap::default();
         let mut address_insts: FxHashSet<InstId> = FxHashSet::default();
-        for (inst_id, kind) in func.instructions.iter_enumerated().map(|(i, inst)| (i, &inst.kind))
-        {
+        for inst_id in func.instructions() {
+            let kind = &func.inst(inst_id).kind;
             let slot = match *kind {
                 InstKind::MemoryObjectFieldAddr { object: base, field, .. } if base == object => {
                     Some(field)
@@ -137,7 +137,8 @@ impl SroaCx {
         // `MStore`/`MLoad` in this block.
         let block = &func.blocks[block_id];
         let block_insts: FxHashSet<InstId> = block.instructions.iter().copied().collect();
-        for (inst_id, inst) in func.instructions.iter_enumerated() {
+        for inst_id in func.instructions() {
+            let inst = func.inst(inst_id);
             let kind = &inst.kind;
             let addr = match *kind {
                 InstKind::MStore(addr, value) => {

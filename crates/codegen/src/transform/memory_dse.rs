@@ -141,7 +141,7 @@ impl BlockScratch {
             stored_values: FxHashMap::default(),
             stored_words: FxHashMap::default(),
             replacements: FxHashMap::default(),
-            dead: DenseBitSet::new_empty(func.instructions.len()),
+            dead: DenseBitSet::new_empty(func.num_insts()),
         }
     }
 }
@@ -278,7 +278,7 @@ impl MemoryStoreEliminator {
         }
 
         // Collect dead stores using the stabilized live-out of each block.
-        let mut dead = DenseBitSet::new_empty(func.instructions.len());
+        let mut dead = DenseBitSet::new_empty(func.num_insts());
         for &block_id in &block_ids {
             let out = Self::live_out(func, block_id, &live_in);
             let mut collector = Some(&mut dead);
@@ -459,7 +459,7 @@ impl MemoryStoreEliminator {
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
         let mut cached: FxHashMap<ImmutableCopyKey, CachedImmutableCopy> = FxHashMap::default();
         let mut replacements = FxHashMap::default();
-        let mut dead = DenseBitSet::new_empty(func.instructions.len());
+        let mut dead = DenseBitSet::new_empty(func.num_insts());
 
         let block_ids: Vec<_> = func.blocks.indices().collect();
         for block_id in block_ids {
@@ -526,7 +526,7 @@ impl MemoryStoreEliminator {
         let Some(reads) = self.internal_frame_read_ranges(func) else {
             return;
         };
-        let mut dead = DenseBitSet::new_empty(func.instructions.len());
+        let mut dead = DenseBitSet::new_empty(func.num_insts());
 
         for inst_id in func.instructions() {
             let InstKind::MStore(addr, _) = func.inst(inst_id).kind else {
@@ -841,7 +841,7 @@ impl MemoryStoreEliminator {
         };
 
         let mut exit: FxHashMap<BlockId, FxHashMap<u64, U256>> = FxHashMap::default();
-        let mut dead = DenseBitSet::new_empty(func.instructions.len());
+        let mut dead = DenseBitSet::new_empty(func.num_insts());
 
         // Block index order approximates reverse postorder for this builder,
         // so a single predecessor is usually already computed; when it is not,
@@ -907,7 +907,7 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        let mut dead = DenseBitSet::new_empty(func.instructions.len());
+        let mut dead = DenseBitSet::new_empty(func.num_insts());
 
         for pred in func.blocks.indices() {
             let Some(succ) = Self::single_jump_successor(func, pred) else {

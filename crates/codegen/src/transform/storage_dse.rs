@@ -57,7 +57,7 @@ impl RunState {
         Self {
             later_writes: FxHashSet::default(),
             stored_values: FxHashMap::default(),
-            dead: DenseBitSet::new_empty(func.instructions.len()),
+            dead: DenseBitSet::new_empty(func.num_insts()),
         }
     }
 }

@@ -153,8 +153,8 @@ impl PartialRedundancyEliminator {
         let mut inst_blocks = func.inst_blocks();
 
         let mut eliminated_keys = FxHashSet::default();
-        let mut inserted_insts = GrowableBitSet::with_capacity(func.instructions.len());
-        let rewrite_limit = func.instructions.len().saturating_mul(2).max(64);
+        let mut inserted_insts = GrowableBitSet::with_capacity(func.num_insts());
+        let rewrite_limit = func.num_insts().saturating_mul(2).max(64);
         let mut rewrites = 0usize;
 
         while rewrites < rewrite_limit {

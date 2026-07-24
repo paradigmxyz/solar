@@ -189,7 +189,7 @@ impl GlobalValueNumberer {
         }
 
         let mut replacements = FxHashMap::default();
-        let mut dead = DenseBitSet::new_empty(func.instructions.len());
+        let mut dead = DenseBitSet::new_empty(func.num_insts());
         let mut ctx = ReplaceCtx {
             vn: &vn,
             cfg: &cfg,

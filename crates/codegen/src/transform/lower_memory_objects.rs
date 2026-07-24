@@ -62,7 +62,8 @@ fn lower_function<P: MemoryLayoutPolicy>(
             Value::Arg { ty, .. } | Value::Undef(ty) => is_object_type(ty),
             Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => false,
         })
-        || func.instructions.iter().any(|inst| {
+        || func.instructions().any(|inst_id| {
+            let inst = func.inst(inst_id);
             inst.result_ty.as_ref().is_some_and(is_object_type)
                 || matches!(
                     inst.kind,
@@ -207,11 +208,11 @@ fn erase_object_types(func: &mut Function, stats: &mut LowerMemoryObjectsStats) 
             Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => {}
         }
     }
-    for inst in func.instructions.iter_mut() {
+    func.for_each_instruction_mut(|_, inst| {
         if let Some(ty) = &mut inst.result_ty {
             erase_object_type(ty, stats);
         }
-    }
+    });
 }
 
 fn erase_object_type(ty: &mut MirType, stats: &mut LowerMemoryObjectsStats) {

@@ -35,8 +35,8 @@ pub(crate) struct Function {
     pub(crate) external_static_return_size: u64,
     /// All values in this function.
     pub(crate) values: IndexVec<ValueId, Value>,
-    /// All instructions in this function.
-    pub(crate) instructions: IndexVec<InstId, Instruction>,
+    /// All instructions allocated in this function.
+    instructions: IndexVec<InstId, Instruction>,
     /// All basic blocks in this function. This is never empty; block zero is the entry.
     pub(crate) blocks: IndexVec<BlockId, BasicBlock>,
 }
@@ -102,9 +102,35 @@ impl Function {
         &mut self.instructions[id]
     }
 
+    /// Returns the size of the allocated instruction ID domain.
+    #[must_use]
+    pub(crate) fn num_insts(&self) -> usize {
+        self.instructions.len()
+    }
+
     /// Returns the IDs of all active instructions in block order.
     pub(crate) fn instructions(&self) -> impl Iterator<Item = InstId> + '_ {
         self.blocks.iter().flat_map(|block| block.instructions.iter().copied())
+    }
+
+    /// Calls `f` for every active instruction in block order.
+    pub(crate) fn for_each_instruction_mut(&mut self, mut f: impl FnMut(InstId, &mut Instruction)) {
+        let blocks = &self.blocks;
+        let instructions = &mut self.instructions;
+        for block in blocks {
+            for &inst_id in &block.instructions {
+                f(inst_id, &mut instructions[inst_id]);
+            }
+        }
+    }
+
+    /// Returns an instruction's position among allocated value-producing instructions.
+    #[must_use]
+    pub(crate) fn inst_result_index(&self, id: InstId) -> Option<usize> {
+        self.instructions
+            .iter_enumerated()
+            .filter(|(_, inst)| inst.result_ty.is_some())
+            .position(|(inst_id, _)| inst_id == id)
     }
 
     /// Returns the value produced by the given instruction, if it has one.
@@ -218,9 +244,9 @@ impl Function {
             return;
         }
 
-        for inst in self.instructions.iter_mut() {
+        self.for_each_instruction_mut(|_, inst| {
             super::utils::replace_inst_uses(&mut inst.kind, replacements);
-        }
+        });
         for block in self.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
                 super::utils::replace_terminator_uses(term, replacements);
@@ -237,9 +263,9 @@ impl Function {
             return;
         }
 
-        for inst in self.instructions.iter_mut() {
+        self.for_each_instruction_mut(|_, inst| {
             super::utils::replace_inst_uses_canonicalized(&mut inst.kind, replacements);
-        }
+        });
         for block in self.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
                 super::utils::replace_terminator_uses_canonicalized(term, replacements);
@@ -249,8 +275,7 @@ impl Function {
 
     /// Annotates storage-alias metadata for state-access instructions.
     pub(crate) fn annotate_storage_aliases(&mut self, scope: super::utils::StorageAliasScope) {
-        let inst_ids: Vec<_> =
-            self.instructions.iter_enumerated().map(|(inst_id, _)| inst_id).collect();
+        let inst_ids: Vec<_> = self.instructions().collect();
         for inst_id in inst_ids {
             let slot = match self.inst(inst_id).kind {
                 InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(slot),

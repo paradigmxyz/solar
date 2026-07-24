@@ -205,7 +205,7 @@ impl Liveness {
             }
         }
 
-        let mut defining_blocks = index_vec![None; func.instructions.len()];
+        let mut defining_blocks = index_vec![None; func.num_insts()];
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 defining_blocks[inst_id] = Some(block_id);

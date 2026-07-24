@@ -129,7 +129,7 @@ impl LoopAnalyzer {
                             exit_blocks: SmallVec::new(),
                             preheader: None,
                             induction_vars: Vec::new(),
-                            invariant_insts: DenseBitSet::new_empty(func.instructions.len()),
+                            invariant_insts: DenseBitSet::new_empty(func.num_insts()),
                             trip_count: None,
                             trip_guard_is_header: false,
                         });

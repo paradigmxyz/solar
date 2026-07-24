@@ -96,7 +96,7 @@ impl<'a> Validator<'a> {
         let errors_before = self.error_count;
         let num_values = func.values.len();
         let num_blocks = func.blocks.len();
-        let num_insts = func.instructions.len();
+        let num_insts = func.num_insts();
 
         if num_blocks == 0 {
             self.emit("function has no entry block");
@@ -445,8 +445,8 @@ impl<'a> Validator<'a> {
 
     /// Checks that call targets exist and argument counts match.
     fn validate_calls(&mut self, module: &Module, func: &Function) {
-        for inst in &func.instructions {
-            let InstKind::InternalCall { function, args, .. } = &inst.kind else {
+        for inst_id in func.instructions() {
+            let InstKind::InternalCall { function, args, .. } = &func.inst(inst_id).kind else {
                 continue;
             };
             let Some(callee) = module.functions.get(*function) else {

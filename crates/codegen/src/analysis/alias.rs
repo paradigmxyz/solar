@@ -339,10 +339,9 @@ impl PointerProvenance {
         // sites. A function without allocations gets an empty map either way,
         // so skip all of it — most small functions (getters, setters, pure
         // helpers) take this path on every rebuild.
-        let has_allocations = func
-            .instructions
-            .iter()
-            .any(|inst| matches!(inst.kind, InstKind::Alloc { .. } | InstKind::AbiEncode { .. }));
+        let has_allocations = func.instructions().any(|inst_id| {
+            matches!(func.inst(inst_id).kind, InstKind::Alloc { .. } | InstKind::AbiEncode { .. })
+        });
         if !has_allocations {
             return Self::default();
         }

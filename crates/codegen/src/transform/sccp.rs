@@ -636,7 +636,7 @@ impl SccpCx {
         // Phase 1: Replace instructions whose results are constant with
         // immediate values, and remove the instruction from the block.
         let mut const_values: FxHashMap<ValueId, ValueId> = FxHashMap::default();
-        let mut dead_insts = DenseBitSet::new_empty(func.instructions.len());
+        let mut dead_insts = DenseBitSet::new_empty(func.num_insts());
 
         for (&inst_id, &vid) in inst_to_value {
             if let LatticeValue::Constant(c) = &lattice[vid] {

@@ -147,14 +147,10 @@ impl LowerAbiCx {
             if is_wrappable_external(func) {
                 targets.push(id);
             }
-            for function in func.instructions.iter().filter_map(|inst| {
-                if let InstKind::InternalCall { function, .. } = &inst.kind {
-                    Some(*function)
-                } else {
-                    None
+            for inst_id in func.instructions() {
+                if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
+                    internally_called.insert(function);
                 }
-            }) {
-                internally_called.insert(function);
             }
         }
 
@@ -195,14 +191,14 @@ impl LowerAbiCx {
         // wrappers' own calls already target the bodies and are not affected.
         if !body_of_wrapper.is_empty() {
             for func in module.functions.iter_mut() {
-                for inst in func.instructions.iter_mut() {
+                func.for_each_instruction_mut(|_, inst| {
                     if let InstKind::InternalCall { function, .. } = &mut inst.kind
                         && let Some(&body_id) = body_of_wrapper.get(function)
                     {
                         *function = body_id;
                         self.stats.retargeted_calls += 1;
                     }
-                }
+                });
             }
         }
 

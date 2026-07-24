@@ -321,10 +321,10 @@ impl LoadRedundancyEliminator {
             self.alias = Some(Rc::new(AliasAnalysis::new(func)));
         }
 
-        let rewrite_limit = func.instructions.len().saturating_mul(2).max(64);
+        let rewrite_limit = func.num_insts().saturating_mul(2).max(64);
         let mut rewrites = 0usize;
         let mut eliminated_keys: FxHashSet<(LoadKey, BlockId)> = FxHashSet::default();
-        let mut inserted_insts = GrowableBitSet::with_capacity(func.instructions.len());
+        let mut inserted_insts = GrowableBitSet::with_capacity(func.num_insts());
 
         while rewrites < rewrite_limit {
             let Some(analysis) = self.compute_analysis(func) else { break };
@@ -884,7 +884,7 @@ impl LoadRedundancyEliminator {
         for &(_, load_result) in &loads {
             Self::replace_uses(func, load_result, replacement);
         }
-        let mut load_insts = DenseBitSet::new_empty(func.instructions.len());
+        let mut load_insts = DenseBitSet::new_empty(func.num_insts());
         for &(inst_id, _) in &loads {
             load_insts.insert(inst_id);
         }
@@ -1006,7 +1006,7 @@ impl LoadRedundancyEliminator {
     // ----- Rewriting -----
 
     fn replace_uses(func: &mut Function, from: ValueId, to: ValueId) {
-        for inst in func.instructions.iter_mut() {
+        func.for_each_instruction_mut(|_, inst| {
             let mut changed = false;
             inst.kind.visit_operands_mut(|value| {
                 if *value == from {
@@ -1014,23 +1014,22 @@ impl LoadRedundancyEliminator {
                     changed = true;
                 }
             });
-            if !changed {
-                continue;
+            if changed {
+                // Operand-derived metadata is stale once the operand changes.
+                if mir_utils::is_memory_inst(&inst.kind) {
+                    inst.metadata.set_memory_region(None);
+                }
+                if matches!(
+                    inst.kind,
+                    InstKind::SLoad(_)
+                        | InstKind::SStore(_, _)
+                        | InstKind::TLoad(_)
+                        | InstKind::TStore(_, _)
+                ) {
+                    inst.metadata.set_storage_alias(None);
+                }
             }
-            // Operand-derived metadata is stale once the operand changes.
-            if mir_utils::is_memory_inst(&inst.kind) {
-                inst.metadata.set_memory_region(None);
-            }
-            if matches!(
-                inst.kind,
-                InstKind::SLoad(_)
-                    | InstKind::SStore(_, _)
-                    | InstKind::TLoad(_)
-                    | InstKind::TStore(_, _)
-            ) {
-                inst.metadata.set_storage_alias(None);
-            }
-        }
+        });
 
         for block in func.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {

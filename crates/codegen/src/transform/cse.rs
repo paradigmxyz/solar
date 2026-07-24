@@ -276,7 +276,7 @@ impl CommonSubexprEliminator {
             (cfg.dominators(), cfg.transitive_reachability())
         };
         let mut replacements = FxHashMap::default();
-        let mut dead = DenseBitSet::new_empty(func.instructions.len());
+        let mut dead = DenseBitSet::new_empty(func.num_insts());
         let mut ctx = GlobalCseContext {
             dom_tree,
             inst_results,
@@ -331,7 +331,7 @@ impl CommonSubexprEliminator {
             return;
         }
 
-        let mut dead = GrowableBitSet::with_capacity(func.instructions.len());
+        let mut dead = GrowableBitSet::with_capacity(func.num_insts());
         let mut replacements = FxHashMap::default();
         let mut inserted_by_block: FxHashMap<BlockId, usize> = FxHashMap::default();
 
@@ -556,7 +556,7 @@ impl CommonSubexprEliminator {
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
 
         // Instructions to remove
-        let mut to_remove = DenseBitSet::new_empty(func.instructions.len());
+        let mut to_remove = DenseBitSet::new_empty(func.num_insts());
 
         let instruction_count = func.blocks[block_id].instructions.len();
         for index in 0..instruction_count {
@@ -1062,8 +1062,8 @@ impl CommonSubexprEliminator {
 
     fn value_use_counts(func: &Function) -> FxHashMap<ValueId, usize> {
         let mut counts = FxHashMap::default();
-        for inst in func.instructions.iter() {
-            for value in inst.operands() {
+        for inst_id in func.instructions() {
+            for value in func.inst(inst_id).operands() {
                 *counts.entry(value).or_insert(0) += 1;
             }
         }

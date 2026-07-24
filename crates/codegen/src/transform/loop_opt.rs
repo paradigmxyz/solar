@@ -159,9 +159,9 @@ impl LoopOptimizer {
                 .then_with(|| a.index().cmp(&b.index()))
         });
 
-        let mut selected = DenseBitSet::new_empty(func.instructions.len());
+        let mut selected = DenseBitSet::new_empty(func.num_insts());
         let mut closure = Vec::new();
-        let mut visiting = DenseBitSet::new_empty(func.instructions.len());
+        let mut visiting = DenseBitSet::new_empty(func.num_insts());
         for root in roots {
             closure.clear();
             visiting.clear();
@@ -793,12 +793,12 @@ impl LoopOptimizer {
     }
 
     fn topological_sort_instructions(&self, func: &Function, insts: &[InstId]) -> Vec<InstId> {
-        let mut inst_set = DenseBitSet::new_empty(func.instructions.len());
+        let mut inst_set = DenseBitSet::new_empty(func.num_insts());
         for &inst_id in insts {
             inst_set.insert(inst_id);
         }
         let mut result = Vec::new();
-        let mut visited = DenseBitSet::new_empty(func.instructions.len());
+        let mut visited = DenseBitSet::new_empty(func.num_insts());
 
         fn visit(
             func: &Function,

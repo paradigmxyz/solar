@@ -275,10 +275,7 @@ fn function_prints_return_values(func: &Function) -> bool {
 }
 
 fn inst_result_index(func: &Function, inst_id: InstId) -> usize {
-    func.instructions
-        .iter_enumerated()
-        .filter(|(_, inst)| inst.result_ty.is_some())
-        .position(|(id, _)| id == inst_id)
+    func.inst_result_index(inst_id)
         .expect("Value::Inst should point to a value-producing instruction")
 }
 

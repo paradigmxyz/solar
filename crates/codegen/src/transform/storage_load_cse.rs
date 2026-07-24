@@ -51,7 +51,7 @@ impl RunState {
     fn new(func: &Function) -> Self {
         Self {
             replacements: FxHashMap::default(),
-            dead: DenseBitSet::new_empty(func.instructions.len()),
+            dead: DenseBitSet::new_empty(func.num_insts()),
             cached_loads: FxHashMap::default(),
         }
     }
@@ -187,12 +187,12 @@ impl StorageLoadCseCx {
             return;
         }
 
-        for inst in func.instructions.iter_mut() {
+        func.for_each_instruction_mut(|_, inst| {
             mir_utils::replace_inst_uses_canonicalized(&mut inst.kind, replacements);
             if matches!(inst.kind, InstKind::SLoad(_) | InstKind::SStore(_, _)) {
                 inst.metadata.set_storage_alias(None);
             }
-        }
+        });
 
         for block in func.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {

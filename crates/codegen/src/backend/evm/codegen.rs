@@ -3657,8 +3657,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !self.function_labels.contains_key(&func_id) {
                 continue;
             }
-            for inst in &func.instructions {
-                if let InstKind::InternalCall { function, .. } = inst.kind {
+            for inst_id in func.instructions() {
+                if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
                     edges.push((func_id, function));
                 }
             }
@@ -3833,7 +3833,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn uses_internal_frame_slot(func: &Function) -> bool {
-        func.instructions.iter().any(|inst| matches!(inst.kind, InstKind::InternalCall { .. }))
+        func.instructions()
+            .any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::InternalCall { .. }))
     }
 
     fn emit_external_free_memory_start(&mut self) -> DeferredConst {
