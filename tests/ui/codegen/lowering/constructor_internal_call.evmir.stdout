@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/constructor_internal_call_bin.sol:ConstructorInternalCallBin (creation) ===
+// === ROOT/tests/ui/codegen/lowering/constructor_internal_call.sol:ConstructorInternalCall (creation) ===
 // === deployment ===
 @module deployment
 bb0:

@@ -130,6 +130,13 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
 - Auxiliary files go in an `auxiliary/` subdirectory next to the UI test that needs
   imports or secondary source files. Do not use `aux/`: Windows rejects it.
 
+When the same or similar source needs to be tested with different compiler flags,
+passes, optimization levels, EVM versions, or output modes, prefer one revisioned
+UI test using `//@ revisions:` and revision-scoped directives over multiple files
+with a common prefix. Keep separate files when the source text itself is the
+behavior under test or combining the cases would hide materially different
+programs or purposes.
+
 ### Codegen / MIR Pass Tests
 
 - Prefer UI tests for MIR/codegen behavior. Organize codegen tests by layer:

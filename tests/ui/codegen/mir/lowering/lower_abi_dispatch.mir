@@ -1,0 +1,27 @@
+//@ revisions: compose bounds
+//@[compose] compile-flags: --pass lower-abi,lower-dispatch
+//@[compose] filecheck: --check-prefix=COMPOSE
+//@[bounds] compile-flags: --pass lower-dispatch,lower-abi,lower-dispatch,dce
+//@[bounds] filecheck: --check-prefix=BOUNDS
+// The two lowering phases compose: ABI first materializes self-decoding
+// wrappers, then dispatch routes a selector switch to those argument-free
+// wrappers. The module ends in the `dispatch` phase.
+@module LowerAbiDispatch
+// COMPOSE-LABEL: {{^[ +].*}}after lower-dispatch
+// COMPOSE: + @phase dispatch
+// COMPOSE: + fn @entry{{[( ]}}
+// COMPOSE: + [[SELECTOR:v[0-9]+]] = shr 224
+// COMPOSE: + switch [[SELECTOR]], default {{.*}}[0x9507d39a =>
+// COMPOSE: + tail_call @get
+// BOUNDS: {{^[ +].*}}@module LowerAbiDispatch
+// BOUNDS: + @phase dispatch
+// BOUNDS: + fn @entry{{[( ]}}
+// Passes declare the phases they operate on and the pass manager enforces the
+// range: the first lower-dispatch is skipped on a `built` module (it requires
+// `abi`), lower-abi then advances the phase, the second lower-dispatch runs,
+// and dce demonstrates ordinary optimization still works after dispatch.
+fn @get(arg0: u256) [selector=0x9507d39a] {
+  bb0:
+    mstore 128, arg0
+    returndata 128, 32
+}

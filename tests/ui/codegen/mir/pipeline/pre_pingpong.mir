@@ -1,0 +1,39 @@
+//@ revisions: pre pipeline
+//@[pre] compile-flags: --passes pre
+//@[pre] filecheck: --check-prefix=PRE
+//@[pipeline] compile-flags: --pipeline-default
+//@[pipeline] filecheck: --check-prefix=PIPELINE --implicit-check-not=add
+// Two join blocks that are mutual predecessors: eliminating the expression
+// from one join inserts it into the other, which used to ping-pong forever.
+// The direct pass must terminate after the single profitable rewrite in bb5,
+// and the full pipeline must terminate after removing the dead computation.
+@module PingPong
+// PRE-LABEL: {{^[ +].*}}fn @pingpong{{[( ]}}
+// PRE: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}], [bb6: [[INSERTED:v[0-9]+]]]
+// PRE: + [[INSERTED]] = add arg0, 7
+// PIPELINE-LABEL: fn @pingpong{{[( ]}}
+// PIPELINE: bb0:
+// PIPELINE-NEXT: jump [[LOOP:bb[0-9]+]]
+// PIPELINE: [[LOOP]]:
+// PIPELINE-NEXT: jump [[LOOP]]
+fn @pingpong(arg0: u256, arg1: u256) {
+  bb0:
+    switch arg1, default bb1, [1 => bb2, 2 => bb3, 3 => bb4]
+  bb1:
+    v2 = add arg0, 7
+    jump bb5
+  bb2:
+    v3 = add arg0, 7
+    jump bb5
+  bb3:
+    v4 = add arg0, 7
+    jump bb6
+  bb4:
+    v5 = add arg0, 7
+    jump bb6
+  bb5:
+    v6 = add arg0, 7
+    jump bb6
+  bb6:
+    jump bb5
+}
