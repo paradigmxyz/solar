@@ -116,6 +116,8 @@ struct CfgSimplifyStats {
     unreachable_blocks_removed: usize,
     /// Number of dead functions eliminated.
     dead_functions_eliminated: usize,
+    /// Whether reachability repair removed stale phi inputs.
+    phis_repaired: bool,
     /// Estimated gas saved (8 gas per eliminated jump).
     gas_saved: usize,
 }
@@ -131,6 +133,7 @@ impl CfgSimplifyStats {
             + self.terminal_blocks_deduplicated
             + self.unreachable_blocks_removed
             + self.dead_functions_eliminated
+            + self.phis_repaired as usize
     }
 
     /// Combines stats from another run.
@@ -142,6 +145,7 @@ impl CfgSimplifyStats {
         self.terminal_blocks_deduplicated += other.terminal_blocks_deduplicated;
         self.unreachable_blocks_removed += other.unreachable_blocks_removed;
         self.dead_functions_eliminated += other.dead_functions_eliminated;
+        self.phis_repaired |= other.phis_repaired;
         self.gas_saved += other.gas_saved;
     }
 }
@@ -381,7 +385,7 @@ impl CfgSimplifier {
         }
 
         if changed {
-            let _phis_repaired = repair_reachability_phis(func);
+            self.stats.phis_repaired |= repair_reachability_phis(func);
         }
     }
 

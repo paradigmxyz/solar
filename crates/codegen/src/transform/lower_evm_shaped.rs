@@ -101,8 +101,9 @@ impl LowerEvmShapedCx {
             })
         });
         if !has_candidate {
+            let changed = module.phase != MirPhase::EvmShaped;
             module.advance_phase(MirPhase::EvmShaped);
-            return false;
+            return changed;
         }
 
         let call_graph = CallGraphInfo::new(module);
@@ -134,10 +135,11 @@ impl LowerEvmShapedCx {
             }
         }
 
+        let mut changed = false;
         let function_ids: Vec<_> = module.functions.indices().collect();
         for func_id in function_ids {
             let func = &mut module.functions[func_id];
-            let mut changed = false;
+            let mut function_changed = false;
             for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
                 let insts = &func.blocks[block_id].instructions;
                 let Some(position) = insts.iter().position(|&inst_id| {
@@ -166,15 +168,17 @@ impl LowerEvmShapedCx {
                 func.blocks[block_id].instructions.truncate(position);
                 func.blocks[block_id].terminator = Some(Terminator::TailCall { function, args });
                 self.stats.tail_calls += 1;
-                changed = true;
+                function_changed = true;
             }
-            if changed {
-                let _phis_repaired = repair_reachability_phis(func);
+            changed |= function_changed;
+            if function_changed {
+                changed |= repair_reachability_phis(func);
             }
         }
 
+        let phase_changed = module.phase != MirPhase::EvmShaped;
         module.advance_phase(MirPhase::EvmShaped);
-        self.stats.tail_calls != 0
+        changed || phase_changed
     }
 }
 

@@ -36,6 +36,7 @@ impl MirPass for LowerMemoryObjects {
         }
         if module.phase == MirPhase::Dispatch {
             module.advance_phase(MirPhase::MemoryLowered);
+            changed = true;
         }
         changed
     }

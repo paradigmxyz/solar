@@ -73,12 +73,14 @@ struct PreStats {
     expressions_eliminated: usize,
     /// Number of predecessor computations inserted.
     expressions_inserted: usize,
+    /// Whether reachability repair removed stale phi inputs.
+    phis_repaired: bool,
 }
 
 impl PreStats {
     /// Returns the total number of MIR edits made by this pass.
     const fn total(self) -> usize {
-        self.expressions_eliminated + self.expressions_inserted
+        self.expressions_eliminated + self.expressions_inserted + self.phis_repaired as usize
     }
 }
 
@@ -182,7 +184,7 @@ impl PartialRedundancyEliminator {
                     &mut inserted_insts,
                 );
             }
-            let _phis_repaired = repair_reachability_phis(func);
+            self.stats.phis_repaired |= repair_reachability_phis(func);
         }
 
         self.stats

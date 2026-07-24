@@ -88,8 +88,8 @@ fn lower_function(func: &mut Function) -> bool {
         move_terminator(&mut builder, block, original_terminator);
     }
     func.replace_uses_canonicalized(&replacements);
-    let _phis_repaired = crate::mir::utils::repair_reachability_phis(func);
-    true
+    let repaired = crate::mir::utils::repair_reachability_phis(func);
+    !replacements.is_empty() || repaired
 }
 
 fn resolve(mut value: ValueId, replacements: &FxHashMap<ValueId, ValueId>) -> ValueId {

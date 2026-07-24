@@ -79,7 +79,7 @@ impl JumpThreader {
     }
 
     /// Runs jump threading on a function.
-    /// Returns the number of threading operations performed.
+    /// Returns the number of MIR mutations performed.
     fn run(&mut self, func: &mut Function) -> usize {
         self.stats = JumpThreadingStats::default();
         let mut changed = 0;
@@ -104,7 +104,7 @@ impl JumpThreader {
 
         // Update predecessor/successor information
         self.update_cfg_edges(func);
-        let _phis_repaired = repair_reachability_phis(func);
+        changed += usize::from(repair_reachability_phis(func));
 
         changed
     }

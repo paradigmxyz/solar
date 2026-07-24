@@ -90,11 +90,11 @@ validation or did not meet the codegen acceptance criteria.
   an empty switch to a jump.
 - EVM CFG simplification folds a same-target conditional jump to `POP` plus an
   unconditional jump, preserving consumption of the condition.
-- DCE and ADCE now report unreachable-block and phi repair mutations, so cached
-  analyses are invalidated after real CFG changes.
+- Every CFG transform folds reachability-phi repair into its mutation result;
+  DCE and ADCE also report unreachable-block cleanup. Phase transitions count
+  as mutations too, so cached analyses are invalidated after every real change.
 - MIR and EVM pass runners, pass mutation results, and reachability-phi repair
-  results are `#[must_use]`. Call sites now either incorporate each result or
-  name the intentional discard.
+  results are `#[must_use]`.
 - PRE now enforces its documented maximum of two inserted predecessor
   computations per rewrite; the old predicate made that cap redundant with the
   path-profitability test.

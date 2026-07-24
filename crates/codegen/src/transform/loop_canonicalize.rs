@@ -50,13 +50,18 @@ struct LoopCanonicalizeStats {
     header_phis_rewritten: usize,
     /// Number of new preheader phi nodes inserted.
     preheader_phis_inserted: usize,
+    /// Whether reachability repair removed stale phi inputs.
+    phis_repaired: bool,
 }
 
 impl LoopCanonicalizeStats {
     /// Returns total canonicalization changes performed.
     #[must_use]
     const fn total(&self) -> usize {
-        self.preheaders_inserted + self.header_phis_rewritten + self.preheader_phis_inserted
+        self.preheaders_inserted
+            + self.header_phis_rewritten
+            + self.preheader_phis_inserted
+            + self.phis_repaired as usize
     }
 }
 
@@ -164,7 +169,7 @@ impl LoopCanonicalizer {
         }
 
         self.rewrite_header_phis(func, header, preheader, outside_preds);
-        let _phis_repaired = repair_reachability_phis(func);
+        self.stats.phis_repaired |= repair_reachability_phis(func);
         self.stats.preheaders_inserted += 1;
     }
 

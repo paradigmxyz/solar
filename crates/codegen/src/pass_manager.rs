@@ -113,7 +113,9 @@ fn run_passes_inner(
             module.phase.name(),
             new_phase.name()
         );
+        let phase_changed = module.phase != new_phase;
         module.advance_phase(new_phase);
+        changed |= phase_changed;
         if cfg!(debug_assertions) {
             validate_module_after_pass(module, new_phase.name());
         }
