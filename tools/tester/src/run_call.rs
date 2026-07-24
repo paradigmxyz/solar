@@ -5,7 +5,7 @@ use alloy_primitives::{Address, Bytes, TxKind, U256, hex};
 use evm2::{
     BaseEvmTypes, Evm, Precompiles, SpecId, TxResult,
     env::BlockEnv,
-    ethereum::{RecoveredTxEnvelope, ethereum_tx_registry},
+    ethereum::{TxEnvelope, ethereum_tx_registry},
     evm::{AccountInfo, InMemoryDB},
 };
 use serde_json::Value;
@@ -396,7 +396,7 @@ fn execute(
     database.insert_account_info(&CALLER, AccountInfo::default().with_balance(U256::MAX));
     let mut evm = Evm::<BaseEvmTypes>::new(
         spec_id,
-        BlockEnv::default(),
+        BlockEnv::<BaseEvmTypes>::default(),
         ethereum_tx_registry(spec_id),
         database,
         Precompiles::base(spec_id),
@@ -409,7 +409,9 @@ fn execute(
             hex::encode(result.output)
         ));
     }
-    let contract = CALLER.create(0);
+    let contract = result
+        .created_address
+        .ok_or_else(|| "contract deployment did not return an address".to_owned())?;
 
     let mut nonce = 1;
     if let Some(setup) = setup {
@@ -428,13 +430,13 @@ fn execute(
 }
 
 fn transact(
-    evm: &mut Evm<BaseEvmTypes>,
+    evm: &mut Evm<'_, BaseEvmTypes>,
     nonce: u64,
     to: TxKind,
     input: Bytes,
 ) -> Result<TxResult, String> {
-    let tx = RecoveredTxEnvelope::Legacy(Recovered::new_unchecked(
-        TxLegacy {
+    let tx = Recovered::new_unchecked(
+        TxEnvelope::Legacy(TxLegacy {
             nonce,
             to,
             input,
@@ -442,10 +444,12 @@ fn transact(
             value: U256::ZERO,
             chain_id: None,
             gas_limit: GAS_LIMIT,
-        },
+        }),
         CALLER,
-    ));
-    evm.transact(&tx).map_err(|err| format!("transaction rejected: {err}"))
+    );
+    evm.transact(&tx)
+        .map(evm2::ExecutedTx::commit)
+        .map_err(|err| format!("transaction rejected: {err}"))
 }
 
 fn outcome(result: TxResult) -> Outcome {

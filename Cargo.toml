@@ -6,7 +6,7 @@ resolver = "2"
 [workspace.package]
 version = "0.2.0"
 edition = "2024"
-rust-version = "1.95" # MSRV
+rust-version = "1.96" # MSRV
 authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/paradigmxyz/solar"
@@ -123,7 +123,7 @@ alloy-consensus = "2.2"
 alloy-dyn-abi = "1.6"
 alloy-primitives = "1.3"
 alloy-json-abi = "1.3"
-evm2 = { git = "https://github.com/alloy-rs/evm2", rev = "9595c0ede98d977d40d81de4fe6efa70542cb6eb", default-features = false, features = [
+evm2 = { git = "https://github.com/alloy-rs/evm2", rev = "f85cf2657362c742ce7f6e4e6d39d4ac14823cb3", default-features = false, features = [
     "std",
     "map-foldhash",
     "asm-keccak",
