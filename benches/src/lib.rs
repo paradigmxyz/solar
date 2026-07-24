@@ -44,6 +44,10 @@ pub fn get_srcs() -> &'static [Source] {
                 "../testdata/solidity/test/benchmarks/OptimizorClub.sol",
                 Capabilities::all(),
             ),
+            include_source(
+                "../testdata/solidity/test/benchmarks/chains.sol",
+                Capabilities::all(),
+            ),
             // Pre-0.8 source semantics: rejected by 0.8 type rules (unary `-` on
             // unsigned, one-step sign+width conversions).
             include_source("../testdata/UniswapV3.sol", Capabilities::no_codegen()),
