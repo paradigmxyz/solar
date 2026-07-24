@@ -1387,15 +1387,19 @@ note: mutable variables should use mixedCase
 
         let formatted = [ColorChoice::Always, ColorChoice::Auto].map(|color| {
             let mut emitter = JsonEmitter::new(Box::new(std::io::sink()), Arc::clone(&sm), color);
-            emitter.solc_diagnostic(&diagnostic).formatted_message.unwrap()
+            let formatted = emitter.solc_diagnostic(&diagnostic).formatted_message.unwrap();
+            let has_ansi = formatted.bytes().any(|byte| byte == b'\x1b');
+            format!("ansi: {has_ansi}\n{}", anstream::adapter::strip_str(&formatted))
         });
         assert_data_eq!(
             formatted.join("\n---\n"),
             str![[r#"
-[1m[91merror[0m[1m: mismatched types[0m
+ansi: true
+error: mismatched types
 
 
 ---
+ansi: false
 error: mismatched types
 
 
