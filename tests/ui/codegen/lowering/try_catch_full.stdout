@@ -1,0 +1,545 @@
+// === ROOT/tests/ui/codegen/lowering/try_catch_full.sol:TryCatchFull ===
+@module TryCatchFull
+fn @full(arg0: u256) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    mstore 160, 0
+    v3 = sload 0 !metadata(storage=slot(0))
+    mstore 0, 0xb3de648b00000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, arg0 !metadata(memory=scratch)
+    v4 = gas
+    v5 = call v4, v3, 0, 0, 36, 0, 64
+    br v5, bb3, bb4
+  bb3:
+    v6 = returndatasize
+    v7 = make_returndata_slice 0, v6
+    v8 = slice_ptr v7
+    v9 = slice_len v7
+    v10 = add v9, 31
+    v11 = not 31
+    v12 = and v10, v11
+    v13 = add v12, 32
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v14, v9
+    v15 = memory_object_data memorybytes, v14
+    returndatacopy v15, v8, v9
+    v16 = memory_object_len memorybytes, v14
+    v17 = lt v16, 64
+    br v17, bb6, bb7
+  bb4:
+    v59 = returndatasize
+    v60 = lt v59, 4
+    v61 = iszero v60
+    mstore 0, 0 !metadata(memory=scratch)
+    v62 = select v61, 4, 0
+    returndatacopy 0, 0, v62 !metadata(memory=scratch)
+    v63 = mload 0 !metadata(memory=scratch)
+    v64 = shr 224, v63
+    v65 = eq v64, 0x8c379a0
+    v66 = and v65, v61
+    br v66, bb26, bb27
+  bb5:
+    v170 = mload 128
+    v171 = mload 160
+    v172 = alloc raw, exact, uninitialized, infallible, 64
+    v173 = add v172, 64
+    mstore v172, v170
+    v174 = add v172, 32
+    v175 = sub v173, v172
+    mstore v174, v175
+    v176 = memory_object_len memorybytes, v171
+    mstore v173, v176
+    v177 = not 31
+    v178 = add v176, 31
+    v179 = and v178, v177
+    v180 = add v173, 32
+    v181 = iszero v179
+    br v181, bb51, bb50
+  bb6:
+    revert 0, 0
+  bb7:
+    v18 = memory_object_data memorybytes, v14
+    v19 = mload v18
+    v20 = add v18, 32
+    v21 = mload v20
+    v22 = lt v21, 64
+    br v22, bb8, bb9
+  bb8:
+    revert 0, 0
+  bb9:
+    v23 = add v21, 32
+    v24 = lt v23, v21
+    br v24, bb10, bb11
+  bb10:
+    revert 0, 0
+  bb11:
+    v25 = gt v23, v16
+    br v25, bb12, bb13
+  bb12:
+    revert 0, 0
+  bb13:
+    v26 = add v18, v21
+    v27 = mload v26
+    v28 = add v27, 31
+    v29 = lt v28, v27
+    br v29, bb14, bb15
+  bb14:
+    revert 0, 0
+  bb15:
+    v30 = not 31
+    v31 = and v28, v30
+    v32 = add v23, v31
+    v33 = lt v32, v23
+    br v33, bb16, bb17
+  bb16:
+    revert 0, 0
+  bb17:
+    v34 = gt v32, v16
+    br v34, bb18, bb19
+  bb18:
+    revert 0, 0
+  bb19:
+    v35 = iszero v31
+    v36 = select v35, 32, v31
+    v37 = add 32, v36
+    v38 = lt v37, v36
+    br v38, bb20, bb21
+  bb20:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb21:
+    v39 = alloc memorybytes, exact, uninitialized, infallible, v37
+    set_memory_object_len memorybytes, v39, v27
+    v40 = memory_object_data memorybytes, v39
+    v41 = sub v36, 32
+    v42 = add v40, v41
+    mstore v42, 0
+    v43 = add v26, 32
+    mcopy v40, v43, v27
+    v44 = alloc raw, exact, uninitialized, infallible, 64
+    v45 = add v44, 64
+    mstore v44, v19
+    v46 = add v44, 32
+    v47 = sub v45, v44
+    mstore v46, v47
+    v48 = memory_object_len memorybytes, v39
+    mstore v45, v48
+    v49 = not 31
+    v50 = add v48, 31
+    v51 = and v50, v49
+    v52 = add v45, 32
+    v53 = iszero v51
+    br v53, bb23, bb22
+  bb22:
+    v54 = sub v51, 32
+    v55 = add v52, v54
+    mstore v55, 0
+    jump bb23
+  bb23:
+    v56 = memory_object_data memorybytes, v39
+    v57 = add v52, v51
+    mcopy v52, v56, v48
+    v58 = sub v57, v44
+    returndata v44, v58
+  bb24:
+    v169 = returndatasize
+    returndatacopy 0, 0, v169 !metadata(memory=scratch)
+    revert 0, v169
+  bb25:
+    v144 = returndatasize
+    v145 = make_returndata_slice 0, v144
+    v146 = slice_ptr v145
+    v147 = slice_len v145
+    v148 = add v147, 31
+    v149 = not 31
+    v150 = and v148, v149
+    v151 = add v150, 32
+    v152 = alloc memorybytes, exact, uninitialized, infallible, v151
+    set_memory_object_len memorybytes, v152, v147
+    v153 = memory_object_data memorybytes, v152
+    returndatacopy v153, v146, v147
+    v154 = alloc raw, exact, uninitialized, infallible, 64
+    v155 = add v154, 64
+    mstore v154, 3
+    v156 = add v154, 32
+    v157 = sub v155, v154
+    mstore v156, v157
+    v158 = memory_object_len memorybytes, v152
+    mstore v155, v158
+    v159 = not 31
+    v160 = add v158, 31
+    v161 = and v160, v159
+    v162 = add v155, 32
+    v163 = iszero v161
+    br v163, bb49, bb48
+  bb26:
+    v67 = returndatasize
+    v68 = make_returndata_slice 0, v67
+    v69 = slice_ptr v68
+    v70 = slice_len v68
+    v71 = add v70, 31
+    v72 = not 31
+    v73 = and v71, v72
+    v74 = add v73, 32
+    v75 = alloc memorybytes, exact, uninitialized, infallible, v74
+    set_memory_object_len memorybytes, v75, v70
+    v76 = memory_object_data memorybytes, v75
+    returndatacopy v76, v69, v70
+    v77 = memory_object_len memorybytes, v75
+    v78 = memory_object_data memorybytes, v75
+    v79 = add v78, 4
+    v80 = sub v77, 4
+    v81 = mload v79
+    v82 = lt v81, 32
+    br v82, bb28, bb29
+  bb27:
+    v119 = eq v64, 0x4e487b71
+    v120 = and v119, v61
+    v121 = lt v59, 36
+    v122 = iszero v121
+    v123 = and v120, v122
+    br v123, bb44, bb45
+  bb28:
+    revert 0, 0
+  bb29:
+    v83 = add v81, 32
+    v84 = lt v83, v81
+    br v84, bb30, bb31
+  bb30:
+    revert 0, 0
+  bb31:
+    v85 = gt v83, v80
+    br v85, bb32, bb33
+  bb32:
+    revert 0, 0
+  bb33:
+    v86 = add v79, v81
+    v87 = mload v86
+    v88 = add v87, 31
+    v89 = lt v88, v87
+    br v89, bb34, bb35
+  bb34:
+    revert 0, 0
+  bb35:
+    v90 = not 31
+    v91 = and v88, v90
+    v92 = add v83, v91
+    v93 = lt v92, v83
+    br v93, bb36, bb37
+  bb36:
+    revert 0, 0
+  bb37:
+    v94 = gt v92, v80
+    br v94, bb38, bb39
+  bb38:
+    revert 0, 0
+  bb39:
+    v95 = iszero v91
+    v96 = select v95, 32, v91
+    v97 = add 32, v96
+    v98 = lt v97, v96
+    br v98, bb40, bb41
+  bb40:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb41:
+    v99 = alloc memorybytes, exact, uninitialized, infallible, v97
+    set_memory_object_len memorybytes, v99, v87
+    v100 = memory_object_data memorybytes, v99
+    v101 = sub v96, 32
+    v102 = add v100, v101
+    mstore v102, 0
+    v103 = add v86, 32
+    mcopy v100, v103, v87
+    v104 = alloc raw, exact, uninitialized, infallible, 64
+    v105 = add v104, 64
+    mstore v104, 1
+    v106 = add v104, 32
+    v107 = sub v105, v104
+    mstore v106, v107
+    v108 = memory_object_len memorybytes, v99
+    mstore v105, v108
+    v109 = not 31
+    v110 = add v108, 31
+    v111 = and v110, v109
+    v112 = add v105, 32
+    v113 = iszero v111
+    br v113, bb43, bb42
+  bb42:
+    v114 = sub v111, 32
+    v115 = add v112, v114
+    mstore v115, 0
+    jump bb43
+  bb43:
+    v116 = memory_object_data memorybytes, v99
+    v117 = add v112, v111
+    mcopy v112, v116, v108
+    v118 = sub v117, v104
+    returndata v104, v118
+  bb44:
+    returndatacopy 0, 4, 32 !metadata(memory=scratch)
+    v124 = mload 0 !metadata(memory=scratch)
+    v125 = fmp
+    v126 = memory_object_data memorybytes, v125
+    mstore v126, v124
+    set_memory_object_len memorybytes, v125, 32
+    v127 = add 32, 32
+    v128 = add v125, v127
+    set_fmp v128
+    v129 = alloc raw, exact, uninitialized, infallible, 64
+    v130 = add v129, 64
+    mstore v129, 2
+    v131 = add v129, 32
+    v132 = sub v130, v129
+    mstore v131, v132
+    v133 = memory_object_len memorybytes, v125
+    mstore v130, v133
+    v134 = not 31
+    v135 = add v133, 31
+    v136 = and v135, v134
+    v137 = add v130, 32
+    v138 = iszero v136
+    br v138, bb47, bb46
+  bb45:
+    jump bb25
+  bb46:
+    v139 = sub v136, 32
+    v140 = add v137, v139
+    mstore v140, 0
+    jump bb47
+  bb47:
+    v141 = memory_object_data memorybytes, v125
+    v142 = add v137, v136
+    mcopy v137, v141, v133
+    v143 = sub v142, v129
+    returndata v129, v143
+  bb48:
+    v164 = sub v161, 32
+    v165 = add v162, v164
+    mstore v165, 0
+    jump bb49
+  bb49:
+    v166 = memory_object_data memorybytes, v152
+    v167 = add v162, v161
+    mcopy v162, v166, v158
+    v168 = sub v167, v154
+    returndata v154, v168
+  bb50:
+    v182 = sub v179, 32
+    v183 = add v180, v182
+    mstore v183, 0
+    jump bb51
+  bb51:
+    v184 = memory_object_data memorybytes, v171
+    v185 = add v180, v179
+    mcopy v180, v184, v176
+    v186 = sub v185, v172
+    returndata v172, v186
+}
+
+fn @rethrows(arg0: u256) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v3 = sload 0 !metadata(storage=slot(0))
+    mstore 0, 0xb3de648b00000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, arg0 !metadata(memory=scratch)
+    v4 = gas
+    v5 = call v4, v3, 0, 0, 36, 0, 64
+    br v5, bb3, bb4
+  bb3:
+    v6 = returndatasize
+    v7 = make_returndata_slice 0, v6
+    v8 = slice_ptr v7
+    v9 = slice_len v7
+    v10 = add v9, 31
+    v11 = not 31
+    v12 = and v10, v11
+    v13 = add v12, 32
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v14, v9
+    v15 = memory_object_data memorybytes, v14
+    returndatacopy v15, v8, v9
+    v16 = memory_object_len memorybytes, v14
+    v17 = lt v16, 64
+    br v17, bb6, bb7
+  bb4:
+    v44 = returndatasize
+    v45 = lt v44, 4
+    v46 = iszero v45
+    mstore 0, 0 !metadata(memory=scratch)
+    v47 = select v46, 4, 0
+    returndatacopy 0, 0, v47 !metadata(memory=scratch)
+    v48 = mload 0 !metadata(memory=scratch)
+    v49 = shr 224, v48
+    v50 = eq v49, 0x8c379a0
+    v51 = and v50, v46
+    br v51, bb24, bb25
+  bb5:
+    v90 = mload 128
+    mstore 128, v90
+    returndata 128, 32
+  bb6:
+    revert 0, 0
+  bb7:
+    v18 = memory_object_data memorybytes, v14
+    v19 = mload v18
+    v20 = add v18, 32
+    v21 = mload v20
+    v22 = lt v21, 64
+    br v22, bb8, bb9
+  bb8:
+    revert 0, 0
+  bb9:
+    v23 = add v21, 32
+    v24 = lt v23, v21
+    br v24, bb10, bb11
+  bb10:
+    revert 0, 0
+  bb11:
+    v25 = gt v23, v16
+    br v25, bb12, bb13
+  bb12:
+    revert 0, 0
+  bb13:
+    v26 = add v18, v21
+    v27 = mload v26
+    v28 = add v27, 31
+    v29 = lt v28, v27
+    br v29, bb14, bb15
+  bb14:
+    revert 0, 0
+  bb15:
+    v30 = not 31
+    v31 = and v28, v30
+    v32 = add v23, v31
+    v33 = lt v32, v23
+    br v33, bb16, bb17
+  bb16:
+    revert 0, 0
+  bb17:
+    v34 = gt v32, v16
+    br v34, bb18, bb19
+  bb18:
+    revert 0, 0
+  bb19:
+    v35 = iszero v31
+    v36 = select v35, 32, v31
+    v37 = add 32, v36
+    v38 = lt v37, v36
+    br v38, bb20, bb21
+  bb20:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb21:
+    v39 = alloc memorybytes, exact, uninitialized, infallible, v37
+    set_memory_object_len memorybytes, v39, v27
+    v40 = memory_object_data memorybytes, v39
+    v41 = sub v36, 32
+    v42 = add v40, v41
+    mstore v42, 0
+    v43 = add v26, 32
+    mcopy v40, v43, v27
+    mstore 128, v19
+    jump bb5
+  bb22:
+    v89 = returndatasize
+    returndatacopy 0, 0, v89 !metadata(memory=scratch)
+    revert 0, v89
+  bb23:
+    jump bb22
+  bb24:
+    v52 = returndatasize
+    v53 = make_returndata_slice 0, v52
+    v54 = slice_ptr v53
+    v55 = slice_len v53
+    v56 = add v55, 31
+    v57 = not 31
+    v58 = and v56, v57
+    v59 = add v58, 32
+    v60 = alloc memorybytes, exact, uninitialized, infallible, v59
+    set_memory_object_len memorybytes, v60, v55
+    v61 = memory_object_data memorybytes, v60
+    returndatacopy v61, v54, v55
+    v62 = memory_object_len memorybytes, v60
+    v63 = memory_object_data memorybytes, v60
+    v64 = add v63, 4
+    v65 = sub v62, 4
+    v66 = mload v64
+    v67 = lt v66, 32
+    br v67, bb26, bb27
+  bb25:
+    jump bb23
+  bb26:
+    revert 0, 0
+  bb27:
+    v68 = add v66, 32
+    v69 = lt v68, v66
+    br v69, bb28, bb29
+  bb28:
+    revert 0, 0
+  bb29:
+    v70 = gt v68, v65
+    br v70, bb30, bb31
+  bb30:
+    revert 0, 0
+  bb31:
+    v71 = add v64, v66
+    v72 = mload v71
+    v73 = add v72, 31
+    v74 = lt v73, v72
+    br v74, bb32, bb33
+  bb32:
+    revert 0, 0
+  bb33:
+    v75 = not 31
+    v76 = and v73, v75
+    v77 = add v68, v76
+    v78 = lt v77, v68
+    br v78, bb34, bb35
+  bb34:
+    revert 0, 0
+  bb35:
+    v79 = gt v77, v65
+    br v79, bb36, bb37
+  bb36:
+    revert 0, 0
+  bb37:
+    v80 = iszero v76
+    v81 = select v80, 32, v76
+    v82 = add 32, v81
+    v83 = lt v82, v81
+    br v83, bb38, bb39
+  bb38:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb39:
+    v84 = alloc memorybytes, exact, uninitialized, infallible, v82
+    set_memory_object_len memorybytes, v84, v72
+    v85 = memory_object_data memorybytes, v84
+    v86 = sub v81, 32
+    v87 = add v85, v86
+    mstore v87, 0
+    v88 = add v71, 32
+    mcopy v85, v88, v72
+    mstore 128, 1
+    jump bb5
+}
+
