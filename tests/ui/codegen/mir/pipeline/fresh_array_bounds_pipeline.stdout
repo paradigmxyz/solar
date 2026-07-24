@@ -10,10 +10,6 @@ fn @constant_index() -> u256 {
     v2 = add v0, 32
     calldatacopy v2, 0, 96
     ret 7
-  bb1:
-    invalid
-  bb2:
-    invalid
 }
 
 fn @runtime_index(arg0: u256) -> u256 {
