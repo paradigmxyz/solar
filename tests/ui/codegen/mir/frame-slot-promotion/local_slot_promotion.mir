@@ -1,5 +1,10 @@
 //@compile-flags: --passes frame-slot-promotion,dce
+//@filecheck:
 @module LocalSlotPromotion
+// CHECK-LABEL: fn @promote_loop_carried_slot
+// CHECK: + [[COUNTER:v[0-9]+]] = phi [bb0: 0], [bb2: [[NEXT:v[0-9]+]]]
+// CHECK: + [[NEXT]] = add [[COUNTER]], 1
+// CHECK: + ret [[COUNTER]]
 fn @promote_loop_carried_slot(arg0: u256) -> u256 {
   bb0:
     v1 = internal_frame_addr 128

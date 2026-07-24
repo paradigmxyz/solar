@@ -1,7 +1,11 @@
 //@compile-flags: --pass gvn
+//@filecheck:
 @module GvnLoadImmutable
 
 // Repeated reads of the same immutable are congruent and merge.
+// CHECK-LABEL: fn @same_immutable_merges
+// CHECK: - {{v[0-9]+}} = loadimmutable 0
+// CHECK: + {{v[0-9]+}} = add [[LOAD:v[0-9]+]], [[LOAD]]
 fn @same_immutable_merges() -> u256 {
   bb0:
     v0 = loadimmutable 0
@@ -11,6 +15,9 @@ fn @same_immutable_merges() -> u256 {
 }
 
 // Reads of different immutables stay distinct.
+// CHECK-LABEL: fn @different_immutables_stay
+// CHECK: {{v[0-9]+}} = loadimmutable 0
+// CHECK: {{v[0-9]+}} = loadimmutable 32
 fn @different_immutables_stay(arg0: u256) -> u256 {
   bb0:
     v0 = loadimmutable 0

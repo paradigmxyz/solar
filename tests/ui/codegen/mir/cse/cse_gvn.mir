@@ -1,5 +1,9 @@
 //@compile-flags: --pass cse
+//@filecheck:
 @module CseGvn
+// CHECK-LABEL: fn @nested_offsets_across_dominator
+// CHECK: - {{v[0-9]+}} = add arg0, 32
+// CHECK: + {{v[0-9]+}} = add [[OFFSET:v[0-9]+]], [[OFFSET]]
 fn @nested_offsets_across_dominator(arg0: u256, arg1: bool) -> u256 {
   bb0:
     v2 = add arg0, 16
@@ -13,6 +17,9 @@ fn @nested_offsets_across_dominator(arg0: u256, arg1: bool) -> u256 {
     ret v3
 }
 
+// CHECK-LABEL: fn @commuted_nested_offsets
+// CHECK: - {{v[0-9]+}} = add arg0, 32
+// CHECK: + ret {{v[0-9]+}}
 fn @commuted_nested_offsets(arg0: u256, arg1: bool) -> u256 {
   bb0:
     v2 = add 16, arg0
@@ -25,6 +32,9 @@ fn @commuted_nested_offsets(arg0: u256, arg1: bool) -> u256 {
     ret v3
 }
 
+// CHECK-LABEL: fn @reuse_keccak_with_equivalent_offset
+// CHECK: - {{v[0-9]+}} = keccak256 {{v[0-9]+}}, 32
+// CHECK: + ret {{v[0-9]+}}
 fn @reuse_keccak_with_equivalent_offset(arg0: u256, arg1: bool) -> u256 {
   bb0:
     v2 = add arg0, 16
@@ -39,6 +49,9 @@ fn @reuse_keccak_with_equivalent_offset(arg0: u256, arg1: bool) -> u256 {
     ret v4
 }
 
+// CHECK-LABEL: fn @keep_load_after_equivalent_overlapping_store
+// CHECK: + mstore {{v[0-9]+}}, 7
+// CHECK: {{v[0-9]+}} = mload {{v[0-9]+}}
 fn @keep_load_after_equivalent_overlapping_store(arg0: u256, arg1: bool) -> u256 {
   bb0:
     v2 = add arg0, 16
@@ -54,6 +67,9 @@ fn @keep_load_after_equivalent_overlapping_store(arg0: u256, arg1: bool) -> u256
     ret v4
 }
 
+// CHECK-LABEL: fn @keep_distinct_negative_memory_offsets
+// CHECK: {{v[0-9]+}} = mload {{v[0-9]+}}
+// CHECK: {{v[0-9]+}} = mload {{v[0-9]+}}
 fn @keep_distinct_negative_memory_offsets(arg0: u256) -> u256 {
   bb0:
     v1 = sub arg0, 1
@@ -64,6 +80,9 @@ fn @keep_distinct_negative_memory_offsets(arg0: u256) -> u256 {
     ret v5
 }
 
+// CHECK-LABEL: fn @sink_common_phi_expression
+// CHECK: - {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}]
+// CHECK: + {{v[0-9]+}} = add arg0, arg1
 fn @sink_common_phi_expression(arg0: u256, arg1: u256, arg2: bool) -> u256 {
   bb0:
     br arg2, bb1, bb2
@@ -79,6 +98,8 @@ fn @sink_common_phi_expression(arg0: u256, arg1: u256, arg2: bool) -> u256 {
     ret v6
 }
 
+// CHECK-LABEL: fn @keep_phi_expression_with_branch_local_operands
+// CHECK: {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}]
 fn @keep_phi_expression_with_branch_local_operands(arg0: u256, arg1: bool) -> u256 {
   bb0:
     br arg1, bb1, bb2

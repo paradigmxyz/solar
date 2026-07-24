@@ -1,8 +1,13 @@
 //@compile-flags: --passes pre
+//@filecheck:
 // Loop-invariant PRE: the header expression's translated form is available at
 // the latch end and insertable in the jump-terminated preheader, so it is
 // hoisted out of the loop and the header gets a phi.
 @module LoopInvariant
+// CHECK-LABEL: fn @hoist_header_expr
+// CHECK: + [[HOISTED:v[0-9]+]] = add arg0, 7
+// CHECK: + [[VALUE:v[0-9]+]] = phi [bb0: [[HOISTED]]], [bb2: [[LATCH:v[0-9]+]]]
+// CHECK: + ret [[VALUE]]
 fn @hoist_header_expr(arg0: u256, arg1: u256) -> u256 {
   bb0:
     jump bb1
@@ -19,6 +24,10 @@ fn @hoist_header_expr(arg0: u256, arg1: u256) -> u256 {
     ret v3
 }
 
+// CHECK-LABEL: fn @hoist_header_expr_two_latches
+// CHECK: + [[HOISTED:v[0-9]+]] = add arg0, 7
+// CHECK: + [[VALUE:v[0-9]+]] = phi [bb0: [[HOISTED]]], [bb3: [[LEFT:v[0-9]+]]], [bb4: [[RIGHT:v[0-9]+]]]
+// CHECK: + ret [[VALUE]]
 fn @hoist_header_expr_two_latches(arg0: u256, arg1: u256) -> u256 {
   bb0:
     jump bb1

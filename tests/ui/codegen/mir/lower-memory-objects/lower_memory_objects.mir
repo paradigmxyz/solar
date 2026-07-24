@@ -1,7 +1,13 @@
 //@compile-flags: --pass lower-memory-objects
+//@filecheck:
 @module LowerMemoryObjects
 @phase dispatch
 
+// CHECK-LABEL: fn @objects
+// CHECK: + [[OBJECT:v[0-9]+]] = alloc raw
+// CHECK: + mstore [[OBJECT]], 3
+// CHECK: + [[LENGTH:v[0-9]+]] = mload [[OBJECT]]
+// CHECK: + [[DATA:v[0-9]+]] = add [[OBJECT]], 32
 fn @objects(arg0: memorybytes, arg1: memoryarray, arg2: memorystruct, arg3: memoryfixedarray) {
   bb0:
     v4 = alloc memorybytes, exact, zeroed, panic, 96

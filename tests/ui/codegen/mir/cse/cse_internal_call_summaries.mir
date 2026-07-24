@@ -1,5 +1,9 @@
 //@compile-flags: --pass cse
+//@filecheck:
 @module CseInternalCallSummaries
+// CHECK-LABEL: fn @keep_load_across_reader
+// CHECK: - {{v[0-9]+}} = mload arg0
+// CHECK: + {{v[0-9]+}} = add [[LOAD:v[0-9]+]], [[LOAD]]
 fn @keep_load_across_reader(arg0: memptr) -> u256 {
   bb0:
     v1 = mload arg0
@@ -10,6 +14,9 @@ fn @keep_load_across_reader(arg0: memptr) -> u256 {
     ret v5
 }
 
+// CHECK-LABEL: fn @invalidate_load_across_writer
+// CHECK: {{v[0-9]+}} = mload arg0
+// CHECK: {{v[0-9]+}} = mload arg0
 fn @invalidate_load_across_writer(arg0: memptr) -> u256 {
   bb0:
     v1 = mload arg0
@@ -19,6 +26,9 @@ fn @invalidate_load_across_writer(arg0: memptr) -> u256 {
     ret v3
 }
 
+// CHECK-LABEL: fn @preserve_freshness_across_call
+// CHECK: - {{v[0-9]+}} = mload {{v[0-9]+}}
+// CHECK: + {{v[0-9]+}} = add [[FRESH:v[0-9]+]], [[FRESH]]
 fn @preserve_freshness_across_call() -> u256 {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32

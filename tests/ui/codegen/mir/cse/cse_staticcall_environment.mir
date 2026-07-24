@@ -1,9 +1,15 @@
 //@compile-flags: --pass cse
+//@filecheck:
 // STATICCALL cannot transfer value, write storage, create, or selfdestruct anywhere in
 // its static context, so balance/extcodesize/extcodehash/selfbalance reads stay valid
 // across it. It still rewrites the return-data buffer, so memory reads do not. A plain
 // CALL invalidates account-environment reads as before.
 @module CseStaticcallEnvironment
+// CHECK-LABEL: fn @reuse_account_reads_across_staticcall
+// CHECK: - {{v[0-9]+}} = balance arg0
+// CHECK: - {{v[0-9]+}} = extcodesize arg0
+// CHECK: - {{v[0-9]+}} = extcodehash arg0
+// CHECK: - {{v[0-9]+}} = selfbalance
 fn @reuse_account_reads_across_staticcall(arg0: address) -> u256 {
   bb0:
     v1 = balance arg0
@@ -26,6 +32,9 @@ fn @reuse_account_reads_across_staticcall(arg0: address) -> u256 {
     ret v17
 }
 
+// CHECK-LABEL: fn @keep_memory_reads_across_staticcall
+// CHECK: {{v[0-9]+}} = mload 128
+// CHECK: {{v[0-9]+}} = mload 128
 fn @keep_memory_reads_across_staticcall(arg0: address) -> u256 {
   bb0:
     v1 = mload 128
@@ -36,6 +45,9 @@ fn @keep_memory_reads_across_staticcall(arg0: address) -> u256 {
     ret v5
 }
 
+// CHECK-LABEL: fn @keep_account_reads_across_call
+// CHECK: {{v[0-9]+}} = balance arg0
+// CHECK: {{v[0-9]+}} = balance arg0
 fn @keep_account_reads_across_call(arg0: address) -> u256 {
   bb0:
     v1 = balance arg0

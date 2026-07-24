@@ -1,7 +1,12 @@
 //@compile-flags: --pass cse
+//@filecheck:
 // sub is NOT commutative: sub(a,b) != sub(b,a).
 // CSE must NOT merge them.
 @module CseNonCommutative
+// CHECK-LABEL: fn @non_commutative
+// CHECK: [[FORWARD:v[0-9]+]] = sub arg0, arg1
+// CHECK: [[REVERSE:v[0-9]+]] = sub arg1, arg0
+// CHECK: {{v[0-9]+}} = add [[FORWARD]], [[REVERSE]]
 fn @non_commutative(arg0: u256, arg1: u256) -> u256 {
   bb0:
     v2 = sub arg0, arg1

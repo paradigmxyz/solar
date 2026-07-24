@@ -1,7 +1,11 @@
 //@compile-flags: --pass cse
+//@filecheck:
 // v2 and v3 compute the same expression (add arg0, arg1).
 // CSE should eliminate v3 and replace its uses with v2.
 @module CseBasic
+// CHECK-LABEL: fn @redundant_add
+// CHECK: - {{v[0-9]+}} = add arg0, arg1
+// CHECK: + {{v[0-9]+}} = add [[SUM:v[0-9]+]], [[SUM]]
 fn @redundant_add(arg0: u256, arg1: u256) -> u256 {
   bb0:
     v2 = add arg0, arg1

@@ -1,8 +1,13 @@
 //@compile-flags: --pass check-elim
+//@filecheck:
 @module CheckElimPhiKept
 
 // The guard bounds the initial value `arg0`, but the loop-carried phi is a
 // different SSA value with an unbounded range: its overflow check stays.
+// CHECK-LABEL: fn @keep_check_on_loop_phi
+// CHECK: {{v[0-9]+}} = phi [bb1: arg0], [bb3: {{v[0-9]+}}]
+// CHECK: {{v[0-9]+}} = lt {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK: br {{v[0-9]+}}, bb4, bb3
 fn @keep_check_on_loop_phi(arg0: u256, arg1: bool) -> u256 {
   bb0:
     v1 = lt arg0, 100

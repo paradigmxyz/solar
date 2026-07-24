@@ -1,6 +1,12 @@
 //@compile-flags: --pass compact-pushes
+//@filecheck:
 @module module
 
+// CHECK-LABEL: bb0:
+// CHECK: + push 0
+// CHECK-NEXT: + not
+// CHECK: + push 96
+// CHECK-NEXT: + shr
 bb0:
   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   push 0xffffffffffffffffffffffffffffffffffffffff

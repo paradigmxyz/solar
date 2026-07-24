@@ -29,6 +29,7 @@ contract CalldataSliceControlFlow {
     // Uninitialized calldata slices filled in assembly and forwarded to an
     // internal call fold to compact head reads.
     // CDCF-LABEL: fn @forward
+    // CDCF-NOT: internal_call
     function forward(bytes calldata x) external pure returns (uint256) {
         bytes calldata a;
         bytes calldata b;

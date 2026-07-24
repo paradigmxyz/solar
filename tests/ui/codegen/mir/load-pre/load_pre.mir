@@ -1,10 +1,14 @@
 //@compile-flags: --pass load-pre
+//@filecheck:
 // Basic storage shapes: a join reload of a slot loaded in both arms becomes a
 // phi; an sstore in one arm forwards its stored value into the phi. A load
 // available on one diamond arm only is compensated on the other arm for
 // expensive storage/transient/keccak keys; cheap memory keys keep the stricter
 // loop-carried-only policy (load_pre_memory.mir).
 @module LoadPre
+// CHECK-LABEL: fn @full_diamond
+// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: [[LEFT:v[0-9]+]]], [bb2: [[RIGHT:v[0-9]+]]]
+// CHECK: + ret [[MERGE]]
 fn @full_diamond(arg0: bool) -> u256 {
   bb0:
     br arg0, bb1, bb2
@@ -19,6 +23,9 @@ fn @full_diamond(arg0: bool) -> u256 {
     ret v3
 }
 
+// CHECK-LABEL: fn @store_forward_arm
+// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: arg1], [bb2: [[LOAD:v[0-9]+]]]
+// CHECK: + ret [[MERGE]]
 fn @store_forward_arm(arg0: bool, arg1: u256) -> u256 {
   bb0:
     br arg0, bb1, bb2
@@ -33,6 +40,9 @@ fn @store_forward_arm(arg0: bool, arg1: u256) -> u256 {
     ret v3
 }
 
+// CHECK-LABEL: fn @partial_insert_diamond
+// CHECK: + [[INSERTED:v[0-9]+]] = sload 5
+// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: [[AVAILABLE:v[0-9]+]]], [bb2: [[INSERTED]]]
 fn @partial_insert_diamond(arg0: bool) -> u256 {
   bb0:
     br arg0, bb1, bb2
@@ -46,6 +56,9 @@ fn @partial_insert_diamond(arg0: bool) -> u256 {
     ret v2
 }
 
+// CHECK-LABEL: fn @transient_store_forward
+// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: arg1], [bb2: [[LOAD:v[0-9]+]]]
+// CHECK: + ret [[MERGE]]
 fn @transient_store_forward(arg0: bool, arg1: u256) -> u256 {
   bb0:
     br arg0, bb1, bb2

@@ -1,5 +1,10 @@
 //@compile-flags: --pipeline-default
+//@filecheck:
 @module PipelineDefault
+// CHECK-LABEL: fn @noisy
+// CHECK: bb0:
+// CHECK: [[RESULT:v[0-9]+]] = add arg0, 1
+// CHECK: ret [[RESULT]]
 fn @noisy(arg0: u256) -> u256 {
   bb0:
     v1 = add arg0, 1

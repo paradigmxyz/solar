@@ -30,6 +30,11 @@ contract CalldataSliceYulBounds {
     // Trimming a slice in place: read back the new length after adjusting both
     // components.
     // CDSLICE-LABEL: fn @trimLen
+    // CDSLICE: slice_ptr
+    // CDSLICE: add {{.*}}, 4
+    // CDSLICE: slice_len
+    // CDSLICE: sub {{.*}}, 4
+    // CDSLICE: make_calldata_slice
     function trimLen(bytes calldata x) external pure returns (uint256) {
         bytes calldata y = x;
         assembly {

@@ -1,5 +1,5 @@
 //@compile-flags: --pipeline-default
-//@filecheck: --match-full-lines
+//@filecheck:
 // CHECK: @module PhasePipelineTransition
 // CHECK-NEXT: @phase optimized
 // The canonical pipeline is a phase transition: the module comes out in

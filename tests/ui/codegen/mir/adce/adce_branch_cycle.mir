@@ -1,5 +1,9 @@
 //@compile-flags: --pass adce
+//@filecheck:
 @module AdceBranchCycle
+// CHECK-LABEL: fn @keeps_branch_cycle
+// CHECK: br arg0, bb2, bb3
+// CHECK: jump bb1
 fn @keeps_branch_cycle(arg0: bool) -> u256 {
   bb0:
     jump bb1
@@ -11,6 +15,8 @@ fn @keeps_branch_cycle(arg0: bool) -> u256 {
     ret 7
 }
 
+// CHECK-LABEL: fn @keeps_branch_self_loop
+// CHECK: br arg0, bb1, bb2
 fn @keeps_branch_self_loop(arg0: bool) -> u256 {
   bb0:
     jump bb1
@@ -20,6 +26,9 @@ fn @keeps_branch_self_loop(arg0: bool) -> u256 {
     ret 7
 }
 
+// CHECK-LABEL: fn @removes_nested_transparent_diamond
+// CHECK: - br arg0, bb1, bb2
+// CHECK: + jump bb5
 fn @removes_nested_transparent_diamond(arg0: bool, arg1: bool) -> u256 {
   bb0:
     br arg0, bb1, bb2

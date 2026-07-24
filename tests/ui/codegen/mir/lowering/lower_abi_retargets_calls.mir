@@ -1,15 +1,21 @@
 //@compile-flags: --pass lower-abi
+//@filecheck:
 // An internal call to a public function must keep calling the actual body after
 // wrapping: `@caller` calls `@pub.body`, not the argument-free `@pub` wrapper
 // it used to point at. Only `@pub` needs a body copy because `@caller` itself
 // has no internal callers.
 @module LowerAbiRetargets
+// CHECK-LABEL: fn @pub
+// CHECK: + fn @pub
 fn @pub(arg0: u256) [selector=0x0a0a0a01] {
   bb0:
     v1 = add arg0, 1
     mstore 128, v1
     returndata 128, 32
 }
+// CHECK-LABEL: fn @caller
+// CHECK: + {{v[0-9]+}} = internal_call @pub.body
+// CHECK: + fn @pub.body
 fn @caller(arg0: u256) [selector=0x0a0a0a02] {
   bb0:
     v1 = internal_call fn0, 1, arg0

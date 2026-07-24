@@ -9,14 +9,13 @@ interface SliceSink {
 }
 
 contract CalldataSliceRebind {
+    // SLICE-LABEL: fn @forward
+    // SLICE: make_calldata_slice
+    // SLICE-NOT: mcopy
+    // SLICE: abi_encode [calldata_bytes]
+    // SLICE: call
     function forward(bytes calldata data, uint256 start, SliceSink sink) external {
         data = data[start:];
         sink.consume(data);
     }
 }
-
-// SLICE-LABEL: fn @forward
-// SLICE: make_calldata_slice
-// SLICE-NOT: mcopy
-// SLICE: abi_encode [calldata_bytes]
-// SLICE: call

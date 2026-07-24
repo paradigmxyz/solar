@@ -1,4 +1,5 @@
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
+//@ filecheck:
 
 // Static frame overlays: non-recursive internal functions get
 // compile-time-fixed frame addresses (absolute pushes, no frame-pointer or
@@ -11,8 +12,34 @@
 //        leafS static)
 // - m1 <-> m2: mutual recursion (both dynamic) calling a static leaf
 contract SF {
+    // CHECK: push 0x313ae541
+    // CHECK: eq
+    // CHECK-NEXT: push [[TOP:bb[0-9]+]]
+    // CHECK: push 0x86b714e2
+    // CHECK: eq
+    // CHECK-NEXT: push [[GETTER:bb[0-9]+]]
+    // CHECK: [[GETTER]]:
+    // CHECK: sload
+    // CHECK: jump [[RETURN:bb[0-9]+]]
+    // CHECK: [[RETURN]]:
+    // CHECK: return
     uint256 public s;
 
+    // CHECK: [[TOP]]:
+    // CHECK: sstore
+    // CHECK: push 7
+    // CHECK: mod
+    // CHECK-NEXT: push [[DYNAMIC_CONT:bb[0-9]+]]
+    // CHECK-NEXT: jump [[DYNAMIC_ALLOC:bb[0-9]+]]
+    // CHECK: [[DYNAMIC_ALLOC]]:
+    // CHECK-NEXT: push 64
+    // CHECK-NEXT: mload
+    // CHECK: mstore
+    // CHECK: jump
+    // CHECK: [[DYNAMIC_CONT]]:
+    // CHECK: push [[STATIC_CONT:bb[0-9]+]]
+    // CHECK-NEXT: jump [[STATIC_CALLEE:bb[0-9]+]]
+    // CHECK: [[STATIC_CALLEE]]:
     function top(uint256 x) external returns (uint256) {
         uint256 keep = x * 3; // live across all the calls below
         uint256 a = chainA(x);

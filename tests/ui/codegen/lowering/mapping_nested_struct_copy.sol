@@ -19,10 +19,16 @@ contract MappingNestedStructCopy {
 
     mapping(uint256 => Outer) internal values;
 
+    // STRUCT-LABEL: fn @set
+    // STRUCT: = mapping_slot
+    // STRUCT: memory_to_storage struct<word, struct<word, word>, word>
     function set(uint256 key, uint256 head, uint256 left, uint256 right, uint256 tail) external {
         values[key] = Outer(head, Inner(left, right), tail);
     }
 
+    // STRUCT-LABEL: fn @get
+    // STRUCT: = mapping_slot
+    // STRUCT: storage_to_memory struct<word, struct<word, word>, word>
     function get(uint256 key)
         external
         view
@@ -32,17 +38,10 @@ contract MappingNestedStructCopy {
         return (value.head, value.inner.left, value.inner.right, value.tail);
     }
 
+    // STRUCT-LABEL: fn @clear
+    // STRUCT: = mapping_slot
+    // STRUCT: clear_storage struct<word, struct<word, word>, word>
     function clear(uint256 key) external {
         delete values[key];
     }
 }
-
-// STRUCT-LABEL: fn @set
-// STRUCT: = mapping_slot
-// STRUCT: memory_to_storage struct<word, struct<word, word>, word>
-// STRUCT-LABEL: fn @get
-// STRUCT: = mapping_slot
-// STRUCT: storage_to_memory struct<word, struct<word, word>, word>
-// STRUCT-LABEL: fn @clear
-// STRUCT: = mapping_slot
-// STRUCT: clear_storage struct<word, struct<word, word>, word>

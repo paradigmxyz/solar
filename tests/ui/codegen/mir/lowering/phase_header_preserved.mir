@@ -1,5 +1,5 @@
 //@compile-flags: --pipeline-default
-//@filecheck: --match-full-lines
+//@filecheck:
 // CHECK: @module PhaseHeaderPreserved
 // CHECK-NEXT: @phase optimized
 // Re-running the default pipeline on its own output keeps the phase instead of

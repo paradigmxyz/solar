@@ -1,5 +1,11 @@
 //@compile-flags: --pass inst-simplify
+//@filecheck:
 @module InstSimplify
+// CHECK-LABEL: fn @strength_reduce_arithmetic
+// CHECK: [[SHIFTED:v[0-9]+]] = shl 5, arg0
+// CHECK: [[SCALED:v[0-9]+]] = shr 3, [[SHIFTED]]
+// CHECK: [[MOD:v[0-9]+]] = and arg0, 15
+// CHECK: [[SQUARED:v[0-9]+]] = mul arg0, arg0
 fn @strength_reduce_arithmetic(arg0: u256) -> u256 {
   bb0:
     v1 = mul arg0, 32
@@ -17,6 +23,10 @@ fn @strength_reduce_arithmetic(arg0: u256) -> u256 {
     ret v12
 }
 
+// CHECK-LABEL: fn @simplify_booleans
+// CHECK: [[IS_FALSE:v[0-9]+]] = iszero arg0
+// CHECK: [[NOT:v[0-9]+]] = iszero arg0
+// CHECK: ret arg0, [[IS_FALSE]], arg1, arg0, [[NOT]]
 fn @simplify_booleans(arg0: bool, arg1: u256, arg2: u256) -> (bool, bool, u256, bool, bool) {
   bb0:
     v3 = eq arg0, true
@@ -27,6 +37,12 @@ fn @simplify_booleans(arg0: bool, arg1: u256, arg2: u256) -> (bool, bool, u256, 
     ret v3, v4, v5, v6, v7
 }
 
+// CHECK-LABEL: fn @remove_zero_length_copies
+// CHECK: - mcopy
+// CHECK: - calldatacopy
+// CHECK: - codecopy
+// CHECK: - returndatacopy
+// CHECK: ret arg0
 fn @remove_zero_length_copies(arg0: u256) -> u256 {
   bb0:
     mcopy 64, 96, 0
@@ -36,17 +52,23 @@ fn @remove_zero_length_copies(arg0: u256) -> u256 {
     ret arg0
 }
 
+// CHECK-LABEL: fn @stop_zero_length_external_return
+// CHECK: + stop
 fn @stop_zero_length_external_return(arg0: u256) [selector=0x01020304] {
   bb0:
     v1 = xor arg0, arg0
     returndata arg0, v1
 }
 
+// CHECK-LABEL: fn @preserve_zero_length_internal_return
+// CHECK: returndata arg0, 0
 fn @preserve_zero_length_internal_return(arg0: u256) {
   bb0:
     returndata arg0, 0
 }
 
+// CHECK-LABEL: fn @fold_modular_helpers
+// CHECK: + ret 0
 fn @fold_modular_helpers(arg0: u256) -> u256 {
   bb0:
     v1 = addmod arg0, 0, 0
@@ -55,6 +77,9 @@ fn @fold_modular_helpers(arg0: u256) -> u256 {
     ret v3
 }
 
+// CHECK-LABEL: fn @complete_word_identities
+// CHECK: [[NOT:v[0-9]+]] = not arg0
+// CHECK: ret 0xffff{{.*}}, [[NOT]], arg1, arg1, arg1, 0, 0, 0, arg0
 fn @complete_word_identities(arg0: u256, arg1: bool) -> (u256, u256, bool, bool, bool, u256, u256, u256, u256) {
   bb0:
     v2 = or arg0, 115792089237316195423570985008687907853269984665640564039457584007913129639935
@@ -70,6 +95,8 @@ fn @complete_word_identities(arg0: u256, arg1: bool) -> (u256, u256, bool, bool,
     ret v2, v3, v5, v6, v7, v8, v9, v10, v11
 }
 
+// CHECK-LABEL: fn @complete_exact_identities
+// CHECK: ret [[NOT:v[0-9]+]], 0, 0xffff{{.*}}, 0xffff{{.*}}, 1, 0, 1, 0, 0, 0
 fn @complete_exact_identities(arg0: u256, arg1: bool) -> (u256, u256, u256, u256, bool, bool, bool, bool, u256, u256) {
   bb0:
     v2 = not arg0
@@ -85,6 +112,8 @@ fn @complete_exact_identities(arg0: u256, arg1: bool) -> (u256, u256, u256, u256
     ret v2, v3, v4, v5, v6, v7, v8, v9, v10, v11
 }
 
+// CHECK-LABEL: fn @fold_modular_mod_one
+// CHECK: + ret 0
 fn @fold_modular_mod_one(arg0: u256, arg1: u256) -> u256 {
   bb0:
     v2 = addmod arg0, arg1, 1
@@ -93,12 +122,17 @@ fn @fold_modular_mod_one(arg0: u256, arg1: u256) -> u256 {
     ret v4
 }
 
+// CHECK-LABEL: fn @keep_exp_zero_base_with_unknown_exponent
+// CHECK: [[RESULT:v[0-9]+]] = exp 0, arg0
+// CHECK: ret [[RESULT]]
 fn @keep_exp_zero_base_with_unknown_exponent(arg0: u256) -> u256 {
   bb0:
     v1 = exp 0, arg0
     ret v1
 }
 
+// CHECK-LABEL: fn @fold_wide_modular_constants
+// CHECK: + ret 2, 2
 fn @fold_wide_modular_constants() -> (u256, u256) {
   bb0:
     v0 = addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 3
@@ -106,6 +140,8 @@ fn @fold_wide_modular_constants() -> (u256, u256) {
     ret v0, v1
 }
 
+// CHECK-LABEL: fn @fold_constant_ops
+// CHECK: + ret 12, 0xffff{{.*}}, 42, 8, 0, 2, 256, 2, 0xffff{{.*}}, 1, 1, 15, 17, 12, 256, 16, 0xffff{{.*}}, 255, 0xffff{{.*}}, 2, 5
 fn @fold_constant_ops() -> (u256, u256, u256, u256, u256, u256, u256, u256, u256, bool, bool, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256) {
   bb0:
     v1 = add 7, 5

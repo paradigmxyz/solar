@@ -1,4 +1,5 @@
 //@compile-flags: --pass sccp
+//@filecheck:
 // Switch cases are tested in order at runtime, so a constant case match is
 // definitive only if every earlier case is a known constant that differs from
 // the scrutinee.
@@ -6,6 +7,10 @@
 
 // arg0 may equal 5 at runtime, so the switch must not fold to bb2. The default
 // edge is still infeasible: case 5 matches whenever arg0 does not.
+// CHECK-LABEL: fn @earlier_unknown_case_blocks_fold
+// CHECK: switch 5, default bb3, [arg0 => bb1, 5 => bb2]
+// CHECK: - ret 3
+// CHECK: + invalid
 fn @earlier_unknown_case_blocks_fold(arg0: u256) -> u256 {
   bb0:
     switch 5, default bb3, [arg0 => bb1, 5 => bb2]
@@ -19,6 +24,9 @@ fn @earlier_unknown_case_blocks_fold(arg0: u256) -> u256 {
 
 // Every earlier case is a constant that differs from the scrutinee, so the
 // match on 5 is definitive and the switch folds.
+// CHECK-LABEL: fn @constant_cases_fold
+// CHECK: - switch 5, default bb3, [1 => bb1, 5 => bb2]
+// CHECK: + jump bb2
 fn @constant_cases_fold() -> u256 {
   bb0:
     switch 5, default bb3, [1 => bb1, 5 => bb2]
@@ -32,6 +40,10 @@ fn @constant_cases_fold() -> u256 {
 
 // No constant case matches: the unknown case and the default stay feasible,
 // but the constant case that differs from the scrutinee is unreachable.
+// CHECK-LABEL: fn @unknown_case_keeps_default
+// CHECK: switch 5, default bb3, [arg0 => bb1, 4 => bb2]
+// CHECK: - ret 2
+// CHECK: + invalid
 fn @unknown_case_keeps_default(arg0: u256) -> u256 {
   bb0:
     switch 5, default bb3, [arg0 => bb1, 4 => bb2]

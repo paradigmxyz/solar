@@ -1,5 +1,9 @@
 //@compile-flags: --pipeline-default
+//@filecheck:
 @module PipelineCleanupFixpoint
+// CHECK-LABEL: fn @fold_phi_after_promotion
+// CHECK: bb0:
+// CHECK: ret 1
 fn @fold_phi_after_promotion(arg0: bool) -> u256 {
   bb0:
     v1 = internal_frame_addr 128

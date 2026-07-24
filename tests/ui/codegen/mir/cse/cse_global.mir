@@ -1,5 +1,11 @@
 //@compile-flags: --pass cse
+//@filecheck:
 @module CseGlobal
+// CHECK-LABEL: fn @dominating_pure_expr
+// CHECK: - {{v[0-9]+}} = add arg0, arg1
+// CHECK: + {{v[0-9]+}} = mul [[DOMINATING:v[0-9]+]], 2
+// CHECK: - {{v[0-9]+}} = add arg1, arg0
+// CHECK: + {{v[0-9]+}} = mul [[DOMINATING]], 3
 fn @dominating_pure_expr(arg0: u256, arg1: u256, arg2: bool) -> u256 {
   bb0:
     v3 = add arg0, arg1

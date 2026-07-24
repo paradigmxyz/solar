@@ -1,4 +1,5 @@
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
+//@ filecheck:
 
 // A value used as a `LOG` topic and then used again *later in the same block*
 // (here `value` is both the event topic and the stored word) must survive the
@@ -14,6 +15,15 @@ contract LogTopicReuse {
     uint256 public last;
     mapping(uint256 => uint256) store;
 
+    // CHECK: push 0xb3de648b
+    // CHECK: eq
+    // CHECK-NEXT: push [[BODY:bb[0-9]+]]
+    // CHECK: [[BODY]]:
+    // CHECK: keccak256
+    // CHECK-NEXT: sload
+    // CHECK: push 0x48257dc961b6f792c2b78a080dacfed693b660960a702de21cee364e20270e2f
+    // CHECK: log2
+    // CHECK: sstore
     function f(uint256 k) external {
         uint256 value = store[k];
         emit Ping(value);

@@ -18,22 +18,21 @@ contract DynamicStructParam {
     // holds its offset from the args start, and the fields — including
     // nested dynamic offsets relative to the struct's own base — rebuild
     // recursively from the tail.
+    // The dynamic struct occupies one head slot and `sink` the next.
+    // DYNSTRUCT-LABEL: fn @init
+    // DYNSTRUCT: gt arg0, 0xffffffffffffffff
+    // DYNSTRUCT: add 4, arg0
+    // DYNSTRUCT: alloc raw, exact, uninitialized, infallible, 128
+    // DYNSTRUCT-COUNT-2: calldatacopy
     function init(InitInput calldata input, address sink) external pure returns (uint256) {
         return input.decimals + uint160(sink);
     }
 
     // A static struct stays inlined in the head, one slot per field.
+    // DYNSTRUCT-LABEL: fn @flat
+    // DYNSTRUCT: mstore v{{[0-9]+}}, arg0
+    // DYNSTRUCT: mstore v{{[0-9]+}}, arg1
     function flat(StaticPair calldata pair) external pure returns (uint256) {
         return pair.x;
     }
 }
-
-// The dynamic struct occupies ONE head slot (its offset) and `sink` the
-// next, so the function takes two head words; the offset is range-checked
-// and the struct rebuilds from `4 + offset`.
-// DYNSTRUCT-LABEL: fn @init(arg0: u256, arg1: address)
-// DYNSTRUCT: gt arg0, 0xffffffffffffffff
-// DYNSTRUCT: add 4, arg0
-// The static struct stays inlined: one head word per field.
-// DYNSTRUCT-LABEL: fn @flat(arg0: u256, arg1: u256)
-// DYNSTRUCT: mstore v{{[0-9]+}}, arg0

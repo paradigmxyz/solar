@@ -1,10 +1,14 @@
 //@compile-flags: --pass licm
+//@filecheck:
 // Rotated loop: the body (mstore + mload) sits BEFORE the exit guard inside the
 // header block, so it executes for v1 = 0..10 inclusive (11 times) while the
 // `lt v1, 10` trip count is 10. The mstore range really is [0, 352): the final
 // iteration writes 1 at byte 320 BEFORE the mload reads it, so the mload must
 // stay in the loop.
 @module LicmRotatedGuard
+// CHECK-LABEL: fn @rotated_guard_overlap
+// CHECK: mstore
+// CHECK: mload 320
 fn @rotated_guard_overlap() -> u256 {
   bb0:
     jump bb1
@@ -24,6 +28,9 @@ fn @rotated_guard_overlap() -> u256 {
 
 // Self-loop do-while variant of the same off-by-one: guard on the pre-increment
 // phi at the bottom of the single-block loop. The body runs with v1 = 0..10.
+// CHECK-LABEL: fn @dowhile_latch_guard_overlap
+// CHECK: mstore
+// CHECK: mload 320
 fn @dowhile_latch_guard_overlap() -> u256 {
   bb0:
     jump bb1
@@ -42,6 +49,9 @@ fn @dowhile_latch_guard_overlap() -> u256 {
 // Top-tested control: the guard is the header's terminator, so the store block
 // only executes after the bound check passed and the store range is exactly
 // The range is [0, 320), so the mload at 320 is genuinely disjoint and is hoisted.
+// CHECK-LABEL: fn @top_tested_control
+// CHECK: + [[LOAD:v[0-9]+]] = mload 320
+// CHECK: - [[LOAD]] = mload 320
 fn @top_tested_control() -> u256 {
   bb0:
     jump bb1
@@ -62,6 +72,9 @@ fn @top_tested_control() -> u256 {
 // Stores in the header observe the post-increment value of the exiting
 // iteration, so their range is widened one stride to [0, 352); a load one
 // stride further is still provably disjoint and may be hoisted.
+// CHECK-LABEL: fn @disjoint_past_widened_range
+// CHECK: + [[LOAD:v[0-9]+]] = mload 384
+// CHECK: - [[LOAD]] = mload 384
 fn @disjoint_past_widened_range() -> u256 {
   bb0:
     jump bb1

@@ -13,6 +13,15 @@ contract MultiReturnScratch {
         return (x, x + 1, x + 2);
     }
 
+    // ORDER-LABEL: fn @assign
+    // ORDER: internal_call
+    // ORDER: = mload 32
+    // ORDER: = add {{.*}}, 32
+    // ORDER: = mload
+    // ORDER: = add {{.*}}, 64
+    // ORDER: = mload
+    // ORDER: = mapping_slot
+    // ORDER: sstore
     function assign(uint256 key, uint256 seed)
         external
         returns (uint256 second, uint256 third, uint256 beforePtr, uint256 afterPtr)
@@ -26,13 +35,3 @@ contract MultiReturnScratch {
         }
     }
 }
-
-// ORDER-LABEL: fn @assign
-// ORDER: internal_call
-// ORDER: = mload 32
-// ORDER: = add {{.*}}, 32
-// ORDER: = mload
-// ORDER: = add {{.*}}, 64
-// ORDER: = mload
-// ORDER: = mapping_slot
-// ORDER: sstore

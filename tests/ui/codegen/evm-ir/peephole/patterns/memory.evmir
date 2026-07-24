@@ -1,6 +1,12 @@
 //@compile-flags: --pass peephole
+//@filecheck:
 @module module
 
+// CHECK-LABEL: bb0:
+// CHECK: mstore
+// CHECK: - dup1
+// CHECK: - push 32
+// CHECK: - mstore
 bb0:
   push 1
   dup1
@@ -10,6 +16,12 @@ bb0:
   push 32
   mstore
   stop
+
+// CHECK-LABEL: bb1:
+// CHECK: mstore
+// CHECK: - pop
+// CHECK: - push 32
+// CHECK: - mload
 bb1:
   push 1
   dup1

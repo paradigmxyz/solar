@@ -1,10 +1,16 @@
 //@compile-flags: --pipeline-default
+//@filecheck:
 @module FreshArrayBoundsPipeline
 
 // This is the MIR shape produced by `uint256[] memory x = new uint256[](3); x[1]`:
 // the length store is separated from the length load by an FMP update and a
 // zeroing calldatacopy over the data area. The default pipeline should forward
 // the stored length, fold `1 < 3`, and delete the panic branch.
+// CHECK-LABEL: fn @constant_index
+// CHECK: calldatacopy {{v[0-9]+}}, 0, 96
+// CHECK: ret 7
+// CHECK-NOT: br
+// CHECK-NOT: revert
 fn @constant_index() -> u256 {
   bb0:
     v0 = mload 64
@@ -23,6 +29,11 @@ fn @constant_index() -> u256 {
 }
 
 // Runtime lengths still need the bounds branch.
+// CHECK-LABEL: fn @runtime_index
+// CHECK: [[LENGTH:v[0-9]+]] = mload {{v[0-9]+}}
+// CHECK: [[IN_BOUNDS:v[0-9]+]] = lt 1, [[LENGTH]]
+// CHECK: br [[IN_BOUNDS]], bb2, bb1
+// CHECK: revert 0, 36
 fn @runtime_index(arg0: u256) -> u256 {
   bb0:
     v0 = mload 64

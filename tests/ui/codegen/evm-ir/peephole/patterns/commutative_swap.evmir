@@ -1,60 +1,100 @@
 //@compile-flags: --pass peephole
+//@filecheck:
 @module module
 
+// CHECK-LABEL: bb0:
+// CHECK: - swap1
+// CHECK: add
 bb0:
   push 1
   push 2
   swap1
   add
   stop
+
+// CHECK-LABEL: bb1:
+// CHECK: - swap1
+// CHECK: mul
 bb1:
   push 1
   push 2
   swap1
   mul
   stop
+
+// CHECK-LABEL: bb2:
+// CHECK: - swap1
+// CHECK: and
 bb2:
   push 1
   push 2
   swap1
   and
   stop
+
+// CHECK-LABEL: bb3:
+// CHECK: - swap1
+// CHECK: or
 bb3:
   push 1
   push 2
   swap1
   or
   stop
+
+// CHECK-LABEL: bb4:
+// CHECK: - swap1
+// CHECK: xor
 bb4:
   push 1
   push 2
   swap1
   xor
   stop
+
+// CHECK-LABEL: bb5:
+// CHECK: - swap1
+// CHECK: eq
 bb5:
   push 1
   push 2
   swap1
   eq
   stop
+
+// CHECK-LABEL: bb6:
+// CHECK: - swap1
+// CHECK: + gt
 bb6:
   push 1
   push 2
   swap1
   lt
   stop
+
+// CHECK-LABEL: bb7:
+// CHECK: - swap1
+// CHECK: + lt
 bb7:
   push 1
   push 2
   swap1
   gt
   stop
+
+// CHECK-LABEL: bb8:
+// CHECK: - swap1
+// CHECK: + sgt
 bb8:
   push 1
   push 2
   swap1
   slt
   stop
+
+// CHECK-LABEL: bb9:
+// CHECK: - swap1
+// CHECK: + slt
 bb9:
   push 1
   push 2

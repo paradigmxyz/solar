@@ -1,10 +1,18 @@
 //@compile-flags: --pass peephole
+//@filecheck:
 @module module
 
+// CHECK-LABEL: bb0:
+// CHECK: - push 1
+// CHECK: - pop
 bb0:
   push 1
   pop
   stop
+
+// CHECK-LABEL: bb1:
+// CHECK: - push bb2
+// CHECK: - pop
 bb1:
   push bb2
   pop

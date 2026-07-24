@@ -1,8 +1,15 @@
 //@compile-flags: --pass lower-abi,lower-dispatch
+//@filecheck:
 // The two lowering phases compose: ABI first materializes self-decoding
 // wrappers, then dispatch routes a selector switch to those argument-free
 // wrappers. The module ends in the `dispatch` phase.
 @module LowerAbiThenDispatch
+// CHECK-LABEL: after lower-dispatch
+// CHECK: + @phase dispatch
+// CHECK: + fn @entry
+// CHECK: + [[SELECTOR:v[0-9]+]] = shr 224
+// CHECK: + switch [[SELECTOR]], default {{.*}}[0x9507d39a =>
+// CHECK: + tail_call @get
 fn @get(arg0: u256) [selector=0x9507d39a] {
   bb0:
     mstore 128, arg0

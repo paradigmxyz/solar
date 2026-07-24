@@ -1,9 +1,13 @@
 //@compile-flags: --pass licm
+//@filecheck:
 @module LicmLoopBound
 
 // The only exit guard is the eq at the header, which yields no bound; the
 // in-body `lt v1, 2` has both successors inside the loop and must not be used
 // as a trip count. The mstore really covers [0, 3200) and overlaps mload 64.
+// CHECK-LABEL: fn @keep_mload_non_exiting_bound
+// CHECK: mload 64
+// CHECK: mstore
 fn @keep_mload_non_exiting_bound() -> u256 {
   bb0:
     jump bb1
@@ -29,6 +33,9 @@ fn @keep_mload_non_exiting_bound() -> u256 {
 // Both an exiting `lt v1, 100` and a non-exiting `lt v1, 2` exist; only the
 // exiting guard may provide the bound (previously hash-order dependent).
 // With bound 100 the mstore range overlaps mload 64, so nothing is hoisted.
+// CHECK-LABEL: fn @keep_mload_inner_branch_bound
+// CHECK: mload 64
+// CHECK: mstore
 fn @keep_mload_inner_branch_bound() -> u256 {
   bb0:
     jump bb1

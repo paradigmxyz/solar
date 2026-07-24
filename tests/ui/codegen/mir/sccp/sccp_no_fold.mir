@@ -1,7 +1,12 @@
 //@compile-flags: --pass sccp
+//@filecheck:
 // Can't fold: arg0 is overdefined (runtime value).
 // SCCP should leave these instructions as-is.
 @module SccpNoFold
+// CHECK-LABEL: fn @with_arg
+// CHECK: [[SUM:v[0-9]+]] = add arg0, 1
+// CHECK: [[PRODUCT:v[0-9]+]] = mul [[SUM]], 2
+// CHECK: ret [[PRODUCT]]
 fn @with_arg(arg0: u256) -> u256 {
   bb0:
     v1 = add arg0, 1

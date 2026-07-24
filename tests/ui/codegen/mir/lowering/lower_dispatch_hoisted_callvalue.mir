@@ -1,10 +1,18 @@
 //@compile-flags: --pass lower-dispatch
+//@filecheck:
 // When every external entry rejects value, the callvalue check is hoisted to
 // the top of `entry` once instead of being repeated per case, mirroring the
 // backend dispatcher. No receive/fallback: empty calldata and unknown
 // selectors both revert.
 @module DispatchHoisted
 @phase abi
+// CHECK-LABEL: after lower-dispatch
+// CHECK: + fn @entry
+// CHECK: + [[VALUE:v[0-9]+]] = callvalue
+// CHECK: + br [[VALUE]]
+// CHECK: + switch {{.*}}[1 => {{.*}}2 =>
+// CHECK: + tail_call @a
+// CHECK: + tail_call @b
 fn @a() [selector=0x00000001] {
   bb0:
     stop
