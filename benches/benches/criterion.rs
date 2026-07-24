@@ -1,5 +1,8 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
-use solar_bench::{COMPILERS, Compiler, Source, get_src, get_srcs};
+use solar_bench::{
+    COMPILERS, Compiler, ProjectSource, Source, get_projects, get_src, get_srcs, project_setup,
+    run_project_codegen, run_project_lower, run_project_parse,
+};
 use std::{any::Any, hint::black_box, time::Duration};
 
 type CompilerBench = (
@@ -8,6 +11,9 @@ type CompilerBench = (
     fn(&Source) -> Throughput,
     fn(&dyn Compiler, &Source, &mut dyn Any),
 );
+
+type ProjectBench =
+    (&'static str, fn(&ProjectSource) -> bool, fn(&mut solar_bench::SemaCompiler, &ProjectSource));
 
 fn micro_benches(c: &mut Criterion) {
     let mut g = make_group(c, "micro");
@@ -155,6 +161,38 @@ fn run_codegen(compiler: &dyn Compiler, source: &Source, setup: &mut dyn Any) {
     compiler.codegen(source, setup);
 }
 
+/// Whole-project benches: solar compiling a project's full build input, test
+/// suite included, in one session. Solar-only: the foreign parsers have no
+/// notion of a multi-file project build.
+fn project_benches(c: &mut Criterion) {
+    let mut g = make_group(c, "project");
+    let stages: [ProjectBench; 3] = [
+        ("parse", |_| true, run_project_parse),
+        ("lower", |p| p.capabilities.can_lower(), run_project_lower),
+        ("codegen", |p| p.capabilities.can_codegen(), run_project_codegen),
+    ];
+    for project in get_projects() {
+        eprintln!("{}: {} files, {} bytes", project.name, project.files.len(), project.bytes);
+        for (stage, enabled, run) in stages {
+            if !enabled(project) {
+                continue;
+            }
+            g.throughput(Throughput::Bytes(project.bytes));
+            g.bench_function(format!("{}/solar/{stage}", project.name), |b| {
+                b.iter_batched(
+                    || project_setup(project),
+                    |mut compiler| {
+                        run(&mut compiler, project);
+                        compiler
+                    },
+                    criterion::BatchSize::SmallInput,
+                )
+            });
+        }
+    }
+    g.finish();
+}
+
 fn make_group<'a>(
     c: &'a mut Criterion,
     name: &str,
@@ -167,5 +205,5 @@ fn make_group<'a>(
     g
 }
 
-criterion_group!(benches, micro_benches, compiler_benches);
+criterion_group!(benches, micro_benches, compiler_benches, project_benches);
 criterion_main!(benches);
