@@ -298,7 +298,7 @@ fn has_live_value_return(func: &Function) -> bool {
 fn value_type(func: &Function, value: crate::mir::ValueId) -> Option<MirType> {
     match func.value(value) {
         Value::Arg { ty, .. } | Value::Undef(ty) => Some(*ty),
-        Value::Inst(inst) => func.instructions[*inst].result_ty,
+        Value::Inst(inst) => func.inst(*inst).result_ty,
         Value::Immediate(_) => Some(MirType::uint256()),
         Value::Error(_) => None,
     }

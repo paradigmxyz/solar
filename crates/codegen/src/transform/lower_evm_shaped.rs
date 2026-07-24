@@ -37,7 +37,7 @@ impl MirPass for LowerEvmShaped {
         module.phase == MirPhase::MemoryLowered
             && module.functions.iter().all(|func| {
                 func.instructions().all(|inst_id| {
-                    let inst = &func.instructions[inst_id];
+                    let inst = func.inst(inst_id);
                     match inst.kind {
                         InstKind::MakeSlice { .. }
                         | InstKind::SlicePtr(_)
@@ -92,7 +92,7 @@ impl LowerEvmShapedCx {
         // graph and classifying every function in that common case.
         let has_candidate = module.functions.iter().any(|func| {
             func.instructions().any(|inst_id| {
-                let inst = &func.instructions[inst_id];
+                let inst = func.inst(inst_id);
                 inst.result_ty.is_none() && matches!(inst.kind, InstKind::InternalCall { .. })
             })
         });
@@ -139,7 +139,7 @@ impl LowerEvmShapedCx {
             for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
                 let insts = &func.blocks[block_id].instructions;
                 let Some(position) = insts.iter().position(|&inst_id| {
-                    let inst = &func.instructions[inst_id];
+                    let inst = func.inst(inst_id);
                     inst.result_ty.is_none()
                         && matches!(
                             &inst.kind,
@@ -153,9 +153,7 @@ impl LowerEvmShapedCx {
                 };
 
                 let inst_id = func.blocks[block_id].instructions[position];
-                let InstKind::InternalCall { function, args, .. } =
-                    &func.instructions[inst_id].kind
-                else {
+                let InstKind::InternalCall { function, args, .. } = &func.inst(inst_id).kind else {
                     unreachable!("position matched an internal call");
                 };
                 let (function, args) = (*function, args.iter().copied().collect());

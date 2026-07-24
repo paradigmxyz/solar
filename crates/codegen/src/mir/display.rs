@@ -62,7 +62,7 @@ pub(crate) fn display_function_dot<'a>(
         inst_id: InstId,
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
-            let inst = &func.instructions[inst_id];
+            let inst = func.inst(inst_id);
 
             write!(f, "  ")?;
             if inst.result_ty.is_some() {
@@ -221,7 +221,7 @@ pub(crate) fn display_function_text<'a>(
         inst_id: InstId,
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
-            let inst = &func.instructions[inst_id];
+            let inst = func.inst(inst_id);
 
             write!(f, "    ")?;
             if inst.result_ty.is_some() {

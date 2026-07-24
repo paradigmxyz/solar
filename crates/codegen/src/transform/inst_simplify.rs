@@ -83,7 +83,7 @@ impl InstSimplifier {
             for index in 0..instruction_count {
                 let inst_id = func.blocks[block_id].instructions[index];
                 loop {
-                    let kind = func.instructions[inst_id].kind.clone();
+                    let kind = func.inst(inst_id).kind.clone();
 
                     if self.is_dead_noop_inst(func, &kind, &state.replacements) {
                         tracing::trace!(
@@ -107,7 +107,7 @@ impl InstSimplifier {
                             output = %new_kind,
                             "mir_inst_simplify"
                         );
-                        func.instructions[inst_id].kind = new_kind;
+                        func.inst_mut(inst_id).kind = new_kind;
                         self.simplified_count += 1;
                         continue;
                     }
@@ -806,7 +806,7 @@ impl InstSimplifier {
 
     fn offset_base(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
         let Value::Inst(inst_id) = func.value(value) else { return None };
-        match func.instructions[*inst_id].kind {
+        match func.inst(*inst_id).kind {
             InstKind::Add(a, b) => Self::const_operand(func, a, b),
             InstKind::Sub(a, b) => {
                 let offset = func.value_u256(b)?;
@@ -818,7 +818,7 @@ impl InstSimplifier {
 
     fn and_mask_base(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
         let Value::Inst(inst_id) = func.value(value) else { return None };
-        match func.instructions[*inst_id].kind {
+        match func.inst(*inst_id).kind {
             InstKind::And(a, b) => Self::const_operand(func, a, b),
             _ => None,
         }
@@ -855,7 +855,7 @@ impl InstSimplifier {
         match &func.values[value] {
             Value::Immediate(Immediate::Bool(_)) => true,
             Value::Arg { ty: MirType::Bool, .. } => true,
-            Value::Inst(inst_id) => func.instructions[*inst_id].result_ty == Some(MirType::Bool),
+            Value::Inst(inst_id) => func.inst(*inst_id).result_ty == Some(MirType::Bool),
             _ => false,
         }
     }
@@ -880,7 +880,7 @@ impl InstSimplifier {
     fn is_clean_address(func: &Function, value: ValueId) -> bool {
         match &func.values[value] {
             Value::Inst(inst_id) => matches!(
-                func.instructions[*inst_id].kind,
+                func.inst(*inst_id).kind,
                 InstKind::Address
                     | InstKind::Caller
                     | InstKind::Origin
@@ -894,7 +894,7 @@ impl InstSimplifier {
 
     fn is_current_address(func: &Function, value: ValueId) -> bool {
         match &func.values[value] {
-            Value::Inst(inst_id) => matches!(func.instructions[*inst_id].kind, InstKind::Address),
+            Value::Inst(inst_id) => matches!(func.inst(*inst_id).kind, InstKind::Address),
             _ => false,
         }
     }
@@ -960,7 +960,7 @@ impl InstSimplifier {
     /// which are the unsigned nonzero test.
     fn nonzero_test_operand(func: &Function, value: ValueId) -> Option<ValueId> {
         match &func.values[value] {
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+            Value::Inst(inst_id) => match func.inst(*inst_id).kind {
                 InstKind::Gt(a, b) if Self::is_zero(func, b) => Some(a),
                 InstKind::Lt(a, b) if Self::is_zero(func, a) => Some(b),
                 _ => None,
@@ -971,7 +971,7 @@ impl InstSimplifier {
 
     fn iszero_operand(func: &Function, value: ValueId) -> Option<ValueId> {
         match &func.values[value] {
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+            Value::Inst(inst_id) => match func.inst(*inst_id).kind {
                 InstKind::IsZero(inner) => Some(inner),
                 _ => None,
             },
@@ -981,7 +981,7 @@ impl InstSimplifier {
 
     fn not_operand(func: &Function, value: ValueId) -> Option<ValueId> {
         match &func.values[value] {
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+            Value::Inst(inst_id) => match func.inst(*inst_id).kind {
                 InstKind::Not(inner) => Some(inner),
                 _ => None,
             },

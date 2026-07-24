@@ -134,7 +134,7 @@ impl LoopCanonicalizer {
         }
 
         for &inst_id in &func.blocks[header].instructions {
-            let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
+            let InstKind::Phi(incoming) = &func.inst(inst_id).kind else {
                 continue;
             };
             if outside_preds
@@ -184,7 +184,7 @@ impl LoopCanonicalizer {
             .instructions
             .iter()
             .copied()
-            .take_while(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+            .take_while(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
             .collect();
 
         let mut preheader_insert_pos = 0;
@@ -193,7 +193,7 @@ impl LoopCanonicalizer {
             let preheader_value =
                 self.canonical_preheader_value(func, inst_id, external_incoming, preheader);
 
-            let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind else {
+            let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind else {
                 continue;
             };
             incoming.retain(|(pred, _)| !outside_preds.contains(pred));
@@ -220,7 +220,7 @@ impl LoopCanonicalizer {
         inst_id: InstId,
         outside_preds: &[BlockId],
     ) -> Vec<(BlockId, ValueId)> {
-        let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
+        let InstKind::Phi(incoming) = &func.inst(inst_id).kind else {
             return Vec::new();
         };
         outside_preds
@@ -248,7 +248,7 @@ impl LoopCanonicalizer {
         }
 
         let result_ty =
-            func.instructions[header_phi].result_ty.expect("header phi should have result type");
+            func.inst(header_phi).result_ty.expect("header phi should have result type");
         let preheader_phi =
             func.alloc_inst(Instruction::new(InstKind::Phi(incoming), Some(result_ty)));
         func.blocks[preheader].instructions.push(preheader_phi);

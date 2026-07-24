@@ -65,7 +65,7 @@ impl SroaCx {
         for block_id in func.blocks.indices() {
             for &inst_id in &func.blocks[block_id].instructions {
                 if let InstKind::Alloc { kind: AllocationKind::Object(layout), .. } =
-                    func.instructions[inst_id].kind
+                    func.inst(inst_id).kind
                     && is_fixed_aggregate(layout)
                     && let Some(object) = func.inst_result_value(inst_id)
                 {
@@ -170,7 +170,7 @@ impl SroaCx {
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
         for &inst_id in &block.instructions {
-            match func.instructions[inst_id].kind {
+            match func.inst(inst_id).kind {
                 InstKind::MStore(addr, value) if slot_of.contains_key(&addr) => {
                     current.insert(slot_of[&addr], value);
                     dead.insert(inst_id);

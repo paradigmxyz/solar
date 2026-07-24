@@ -207,7 +207,7 @@ impl AggressiveDeadCodeEliminator {
         func.blocks[block_id]
             .instructions
             .iter()
-            .any(|&inst_id| func.instructions[inst_id].kind.has_side_effects())
+            .any(|&inst_id| func.inst(inst_id).kind.has_side_effects())
     }
 
     fn block_def_escapes(&self, func: &Function, ctx: &AdceContext, block_id: BlockId) -> bool {
@@ -250,7 +250,7 @@ impl AdceContext {
         let mut uses = FxHashMap::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
-                for operand in func.instructions[inst_id].kind.operands() {
+                for operand in func.inst(inst_id).kind.operands() {
                     uses.entry(operand)
                         .or_insert_with(|| DenseBitSet::new_empty(func.blocks.len()))
                         .insert(block_id);

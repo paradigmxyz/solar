@@ -126,11 +126,11 @@ impl<'a> Validator<'a> {
                 ));
             }
             // Only value-producing instructions may have a result value.
-            if count != 0 && func.instructions[inst_id].result_ty.is_none() {
+            if count != 0 && func.inst(inst_id).result_ty.is_none() {
                 self.emit(format_args!(
                     "instruction inst{} (`{:?}`) has a result Value entry but no result type",
                     inst_id.index(),
-                    func.instructions[inst_id].kind
+                    func.inst(inst_id).kind
                 ));
             }
         }
@@ -232,7 +232,7 @@ impl<'a> Validator<'a> {
                     );
                     continue;
                 }
-                let inst = func.instruction(inst_id);
+                let inst = func.inst(inst_id);
 
                 // Operand range check.
                 for op in inst.kind.operands() {
@@ -363,7 +363,7 @@ impl<'a> Validator<'a> {
             }
             let block_in_cycle = reaches(block_id, block_id);
             for (index, &inst_id) in block.instructions.iter().enumerate() {
-                match &func.instructions[inst_id].kind {
+                match &func.inst(inst_id).kind {
                     InstKind::Phi(incoming) => {
                         for &(pred, value) in incoming {
                             if let Some((def, _)) = def_location_of[value]
@@ -542,7 +542,7 @@ impl<'a> Validator<'a> {
             }
             for (block_id, block) in func.blocks.iter_enumerated() {
                 for &inst_id in &block.instructions {
-                    let inst = &func.instructions[inst_id];
+                    let inst = func.inst(inst_id);
                     let semantic = matches!(
                         inst.kind,
                         InstKind::Alloc { kind: crate::mir::AllocationKind::Object(_), .. }
@@ -575,15 +575,13 @@ impl<'a> Validator<'a> {
         if module.phase >= crate::mir::MirPhase::EvmShaped {
             for (block_id, block) in func.blocks.iter_enumerated() {
                 for &inst_id in &block.instructions {
-                    let kind = &func.instructions[inst_id].kind;
+                    let kind = &func.inst(inst_id).kind;
                     let semantic_op = match kind {
                         InstKind::MakeSlice { .. }
                         | InstKind::SlicePtr(_)
                         | InstKind::SliceLen(_) => Some("slice"),
                         InstKind::Fmp | InstKind::SetFmp(_) => Some("abstract allocation"),
-                        InstKind::Alloc { .. }
-                            if !func.instructions[inst_id].metadata.deferred_alloc() =>
-                        {
+                        InstKind::Alloc { .. } if !func.inst(inst_id).metadata.deferred_alloc() => {
                             Some("abstract allocation")
                         }
                         InstKind::AbiEncode { .. } => Some("ABI encoding"),

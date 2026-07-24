@@ -117,7 +117,7 @@ impl StorageLoadCseCx {
     ) {
         let aa = self.alias.as_ref().expect("storage-load CSE alias snapshot is initialized");
         for (inst_idx, &inst_id) in func.blocks[block_id].instructions.iter().enumerate() {
-            match &func.instructions[inst_id].kind {
+            match &func.inst(inst_id).kind {
                 InstKind::SLoad(slot) => {
                     let alias = aa.storage_alias_after_replacements(
                         func,

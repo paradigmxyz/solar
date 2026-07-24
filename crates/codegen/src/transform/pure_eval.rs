@@ -108,7 +108,7 @@ impl PureEvaluator {
     }
 
     fn is_side_effect_free(&self, func: &Function) -> bool {
-        func.instructions().all(|inst_id| !func.instructions[inst_id].kind.has_side_effects())
+        func.instructions().all(|inst_id| !func.inst(inst_id).kind.has_side_effects())
     }
 
     fn evaluate(&self, func: &Function) -> Option<Vec<U256>> {
@@ -129,7 +129,7 @@ impl PureEvaluator {
             let block = &func.blocks[current];
 
             for &inst_id in &block.instructions {
-                let inst = &func.instructions[inst_id];
+                let inst = func.inst(inst_id);
                 let result = match &inst.kind {
                     InstKind::Phi(incoming) => {
                         let pred = predecessor?;

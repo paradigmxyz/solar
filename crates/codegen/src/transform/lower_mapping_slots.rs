@@ -32,7 +32,7 @@ impl MirPass for LowerMappingSlots {
         run_function_pass(module, analyses, |func, _| {
             let has_mapping_slots = func.instructions().any(|inst_id| {
                 matches!(
-                    func.instructions[inst_id].kind,
+                    func.inst(inst_id).kind,
                     InstKind::MappingSlot(_, _)
                         | InstKind::MappingSlotMemory(_, _)
                         | InstKind::MappingSlotCalldata(_, _)
@@ -50,7 +50,7 @@ impl MirPass for LowerMappingSlots {
                 let mut builder = FunctionBuilder::new(func);
                 builder.switch_to_block(block_id);
                 for inst_id in instructions {
-                    let replacement = match builder.func().instructions[inst_id].kind {
+                    let replacement = match builder.func().inst(inst_id).kind {
                         InstKind::MappingSlot(key, slot) => {
                             Some(lower_word_mapping_slot(&mut builder, key, slot))
                         }

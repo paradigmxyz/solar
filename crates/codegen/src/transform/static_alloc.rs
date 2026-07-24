@@ -94,7 +94,7 @@ impl MirPass for DeferAlloc {
 
         let mut changed = false;
         for (func_id, alloc) in candidates {
-            let metadata = &mut module.functions[func_id].instructions[alloc].metadata;
+            let metadata = &mut module.functions[func_id].inst_mut(alloc).metadata;
             if !metadata.deferred_alloc() {
                 metadata.set_deferred_alloc();
                 changed = true;
@@ -139,7 +139,7 @@ fn eligible_static_allocations(func: &Function, aa: &AliasAnalysis) -> Vec<Stati
     let mut candidates = Vec::new();
     for block in func.blocks.indices() {
         for &alloc in &func.blocks[block].instructions {
-            let InstKind::Alloc { size, semantics, .. } = func.instructions[alloc].kind else {
+            let InstKind::Alloc { size, semantics, .. } = func.inst(alloc).kind else {
                 continue;
             };
             if semantics != crate::mir::AllocationSemantics::INTERNAL {
@@ -164,7 +164,7 @@ fn eligible_static_allocations(func: &Function, aa: &AliasAnalysis) -> Vec<Stati
 }
 
 fn has_msize(func: &Function) -> bool {
-    func.instructions().any(|inst| matches!(func.instructions[inst].kind, InstKind::MSize))
+    func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize))
 }
 
 /// Returns true when `block` can execute more than once: it can reach itself.
@@ -196,7 +196,7 @@ fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool
     loop {
         let mut grew = false;
         for inst_id in func.instructions() {
-            if let InstKind::Add(a, b) = func.instructions[inst_id].kind
+            if let InstKind::Add(a, b) = func.inst(inst_id).kind
                 && let Some(&result) = inst_results.get(&inst_id)
                 && !derived.contains_key(&result)
             {
@@ -231,7 +231,7 @@ fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool
         if inst_id == cand.alloc {
             continue;
         }
-        let kind = &func.instructions[inst_id].kind;
+        let kind = &func.inst(inst_id).kind;
         for &operand in kind.operands().iter() {
             let Some(&off) = derived.get(&operand) else { continue };
             let ok = match *kind {

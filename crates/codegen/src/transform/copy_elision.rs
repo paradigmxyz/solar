@@ -51,7 +51,7 @@ impl CopyElisionCx {
         let allocs: Vec<ValueId> = func
             .instructions()
             .filter_map(|inst_id| {
-                matches!(func.instructions[inst_id].kind, InstKind::Alloc { .. })
+                matches!(func.inst(inst_id).kind, InstKind::Alloc { .. })
                     .then(|| func.inst_result_value(inst_id))
                     .flatten()
             })
@@ -89,7 +89,7 @@ impl CopyElisionCx {
             let mut changed = false;
             for (value_id, value) in func.values.iter_enumerated() {
                 let crate::mir::Value::Inst(inst_id) = value else { continue };
-                let propagates = match &func.instructions[*inst_id].kind {
+                let propagates = match &func.inst(*inst_id).kind {
                     InstKind::Add(a, b) | InstKind::Sub(a, b) => {
                         derived.contains(a) || derived.contains(b)
                     }

@@ -141,7 +141,7 @@ impl GlobalStackPlan {
         let mut aliases = FxHashMap::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
-                let InstKind::CalldataLoad(offset) = &func.instructions[inst_id].kind else {
+                let InstKind::CalldataLoad(offset) = &func.inst(inst_id).kind else {
                     continue;
                 };
                 let Some(offset) = func.value_u64(*offset) else {
@@ -264,7 +264,8 @@ impl GlobalStackPlan {
         // reject dense layout plans unless a long CFG can amortize them.
         let mut arg_uses = 0usize;
         for inst_id in func.instructions() {
-            arg_uses += func.instructions[inst_id]
+            arg_uses += func
+                .inst(inst_id)
                 .kind
                 .operands()
                 .iter()
@@ -446,7 +447,7 @@ impl<'a> StackPhiPlanner<'a> {
             .instructions
             .iter()
             .copied()
-            .take_while(|&inst| matches!(self.func.instructions[inst].kind, InstKind::Phi(_)))
+            .take_while(|&inst| matches!(self.func.inst(inst).kind, InstKind::Phi(_)))
             .collect()
     }
 
@@ -475,10 +476,10 @@ impl<'a> StackPhiPlanner<'a> {
         for block_id in blocks {
             let block = &self.func.blocks[block_id];
             for &inst_id in &block.instructions {
-                if matches!(self.func.instructions[inst_id].kind, InstKind::Phi(_)) {
+                if matches!(self.func.inst(inst_id).kind, InstKind::Phi(_)) {
                     continue;
                 }
-                if self.func.instructions[inst_id].kind.operands().contains(&value) {
+                if self.func.inst(inst_id).kind.operands().contains(&value) {
                     return true;
                 }
             }
@@ -497,7 +498,7 @@ impl<'a> StackPhiPlanner<'a> {
         phi_insts
             .iter()
             .map(|&inst| {
-                let InstKind::Phi(incoming) = &self.func.instructions[inst].kind else {
+                let InstKind::Phi(incoming) = &self.func.inst(inst).kind else {
                     return None;
                 };
                 incoming.iter().find_map(|&(block, value)| (block == pred).then_some(value))
@@ -674,7 +675,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn collect_unsupported(&mut self, module: &Module) {
         'func: for func in module.functions.iter() {
             for inst_id in func.instructions() {
-                let inst = &func.instructions[inst_id];
+                let inst = func.inst(inst_id);
                 let message = match inst.kind {
                     InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => {
                         "codegen does not support this calldata-slice usage yet"
@@ -1338,7 +1339,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             // Generate instructions
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
-                let inst = &func.instructions[inst_id];
+                let inst = func.inst(inst_id);
 
                 // Skip phi instructions (they're handled by copies)
                 if matches!(inst.kind, InstKind::Phi(_)) {
@@ -1481,7 +1482,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let has_phi = func.blocks[*target]
             .instructions
             .iter()
-            .any(|&inst| matches!(func.instructions[inst].kind, InstKind::Phi(_)));
+            .any(|&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)));
         (!has_phi).then_some(*target)
     }
 
@@ -1545,7 +1546,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 || func.blocks[target]
                     .instructions
                     .iter()
-                    .any(|&inst| matches!(func.instructions[inst].kind, InstKind::Phi(_)))
+                    .any(|&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)))
             {
                 return Vec::new();
             }
@@ -1580,7 +1581,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let block = &func.blocks[block_id];
                     if block.instructions.iter().any(|&inst_id| {
                         matches!(
-                            func.instructions[inst_id].kind,
+                            func.inst(inst_id).kind,
                             InstKind::InternalCall { function, .. } if cold.contains(function)
                         )
                     }) {
@@ -1665,7 +1666,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             )
             || block.instructions.iter().any(|&inst_id| {
                 matches!(
-                    func.instructions[inst_id].kind,
+                    func.inst(inst_id).kind,
                     InstKind::InternalCall { function, .. }
                         if self.cold_functions.contains(function)
                 )
@@ -1947,7 +1948,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             for &inst_id in &func.blocks[block_id].instructions {
-                if matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
+                if matches!(func.inst(inst_id).kind, InstKind::Phi(_))
                     && let Some(val) = func.inst_result_value(inst_id)
                 {
                     values.insert(val);
@@ -1975,7 +1976,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let crate::mir::Value::Inst(inst_id) = func.value(val) else {
             return;
         };
-        for op in func.instructions[*inst_id].kind.operands() {
+        for op in func.inst(*inst_id).kind.operands() {
             if Self::is_rematerializable_value(func, op) {
                 continue;
             }
@@ -2053,7 +2054,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let carried: Vec<ValueId> = self.scheduler.stack.iter().flatten().collect();
         for value in carried {
             if let crate::mir::Value::Inst(inst_id) = func.value(value)
-                && matches!(func.instructions[*inst_id].kind, InstKind::Phi(_))
+                && matches!(func.inst(*inst_id).kind, InstKind::Phi(_))
             {
                 self.scheduler.spills.invalidate_stored(value);
             }
@@ -2070,7 +2071,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         for &inst_id in &func.blocks[block_id].instructions {
-            if matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
+            if matches!(func.inst(inst_id).kind, InstKind::Phi(_))
                 && let Some(val) = func.inst_result_value(inst_id)
                 && !self.scheduler.stack.contains(val)
                 && self.scheduler.spills.get(val).is_some()
@@ -2265,7 +2266,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return false;
         };
         matches!(
-            func.instruction(*inst_id).kind,
+            func.inst(*inst_id).kind,
             InstKind::Add(_, _)
                 | InstKind::Sub(_, _)
                 | InstKind::Mul(_, _)
@@ -2612,7 +2613,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::Alloc { size, .. } => {
-                debug_assert!(func.instructions[inst_id].metadata.deferred_alloc());
+                debug_assert!(func.inst(inst_id).metadata.deferred_alloc());
                 let size =
                     func.value_u64(*size).expect("deferred allocation must have a constant size");
                 let alloc = self.asm.emit_deferred_alloc();
@@ -3278,7 +3279,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             let has_candidate_call = func.instructions().any(|inst_id| {
                 matches!(
-                    &func.instructions[inst_id].kind,
+                    &func.inst(inst_id).kind,
                     InstKind::InternalCall { function, .. }
                         if self.static_frame_functions.contains(*function)
                 )
@@ -3297,7 +3298,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             for (block_idx, block) in func.blocks.iter().enumerate() {
                 for &inst_id in &block.instructions {
                     inst_block.insert(inst_id, block_idx);
-                    for operand in func.instructions[inst_id].kind.operands() {
+                    for operand in func.inst(inst_id).kind.operands() {
                         *use_counts.entry(operand).or_default() += 1;
                     }
                 }
@@ -3309,8 +3310,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             for (block_idx, block) in func.blocks.iter().enumerate() {
                 for &inst_id in &block.instructions {
-                    let InstKind::InternalCall { function, args, .. } =
-                        &func.instructions[inst_id].kind
+                    let InstKind::InternalCall { function, args, .. } = &func.inst(inst_id).kind
                     else {
                         continue;
                     };
@@ -4332,7 +4332,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     // Check if the instruction is one that we can "re-execute" to get a fresh value
                     // This handles GAS (which is always fresh) and MLOAD (which re-reads from
                     // memory)
-                    let inst_kind = &func.instruction(*inst_id).kind;
+                    let inst_kind = &func.inst(*inst_id).kind;
                     match inst_kind {
                         crate::mir::InstKind::Gas => {
                             self.asm.emit_op(op::GAS);
@@ -4520,7 +4520,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 panic!(
                                     "emit_value_fresh: value {val:?} ({:?}) is neither on the \
                                      stack, spilled, nor re-executable",
-                                    func.instruction(*inst_id).kind
+                                    func.inst(*inst_id).kind
                                 );
                             }
                         }

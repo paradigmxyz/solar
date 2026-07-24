@@ -89,7 +89,7 @@ impl Liveness {
         for (block_id, block) in func.blocks.iter_enumerated() {
             // Process instructions in forward order to compute upward-exposed uses and defs
             for &inst_id in &block.instructions {
-                let inst = func.instruction(inst_id);
+                let inst = func.inst(inst_id);
 
                 // Collect uses (upward-exposed uses - used before defined in this block)
                 operand_buf.clear();
@@ -176,7 +176,7 @@ impl Liveness {
             // Check instruction uses in reverse order
             // The first occurrence in reverse order is the last use in forward order
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate().rev() {
-                let inst = func.instruction(inst_id);
+                let inst = func.inst(inst_id);
                 operand_buf.clear();
                 inst.kind.collect_operands(&mut operand_buf);
                 for &operand in &operand_buf {
@@ -221,7 +221,7 @@ impl Liveness {
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 operands.clear();
-                func.instruction(inst_id).kind.collect_operands(&mut operands);
+                func.inst(inst_id).kind.collect_operands(&mut operands);
                 if operands.iter().any(|&value| !is_local(value, block_id)) {
                     return None;
                 }
@@ -253,7 +253,7 @@ impl Liveness {
             }
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate().rev() {
                 operands.clear();
-                func.instruction(inst_id).kind.collect_operands(&mut operands);
+                func.inst(inst_id).kind.collect_operands(&mut operands);
                 for &operand in &operands {
                     last_use_in_block.entry((operand, block_id)).or_insert(Some(inst_idx));
                 }
@@ -296,7 +296,7 @@ impl Liveness {
                 live.remove(value);
             }
             operand_buf.clear();
-            func.instruction(inst_id).kind.collect_operands(&mut operand_buf);
+            func.inst(inst_id).kind.collect_operands(&mut operand_buf);
             for &operand in &operand_buf {
                 live.insert(operand);
             }

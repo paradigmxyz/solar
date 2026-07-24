@@ -384,7 +384,7 @@ impl LoadRedundancyEliminator {
             let mut gen_set = KeySet::new_empty(key_count);
             let mut kill_set = KeySet::new_empty(key_count);
             for &inst_id in &func.blocks[block].instructions {
-                if func.instructions[inst_id].kind.has_side_effects() {
+                if func.inst(inst_id).kind.has_side_effects() {
                     for (idx, &key) in keys.iter().enumerate() {
                         if self.inst_kills_key(func, inst_id, key) {
                             kill_set.insert(idx);
@@ -567,7 +567,7 @@ impl LoadRedundancyEliminator {
                 }
                 continue;
             }
-            let kind = &func.instructions[inst_id].kind;
+            let kind = &func.inst(inst_id).kind;
             match kind {
                 // `gas` blocks every space, so nothing after it can be a
                 // candidate.
@@ -616,7 +616,7 @@ impl LoadRedundancyEliminator {
             }
 
             if inst_id != first_inst {
-                let kind = &func.instructions[inst_id].kind;
+                let kind = &func.inst(inst_id).kind;
                 if matches!(kind, InstKind::Gas) {
                     break;
                 }
@@ -650,7 +650,7 @@ impl LoadRedundancyEliminator {
         key_idx: usize,
         predecessors: &[BlockId],
     ) -> Option<Candidate> {
-        let instruction = &func.instructions[inst];
+        let instruction = func.inst(inst);
         let result = *cx.analysis.inst_results.get(&inst)?;
         let result_ty = instruction.result_ty?;
         let key = cx.analysis.keys[key_idx];
@@ -874,9 +874,7 @@ impl LoadRedundancyEliminator {
                 let phi_count = func.blocks[target]
                     .instructions
                     .iter()
-                    .take_while(|&&inst_id| {
-                        matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
-                    })
+                    .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
                     .count();
                 func.blocks[target].instructions.insert(phi_count, phi_inst);
                 phi_value
@@ -899,7 +897,7 @@ impl LoadRedundancyEliminator {
     /// Returns the key an instruction gens and where its value comes from.
     fn gen_key_value(&self, func: &Function, inst_id: InstId) -> Option<(LoadKey, GenSource)> {
         let aa = self.alias();
-        match func.instructions[inst_id].kind {
+        match func.inst(inst_id).kind {
             InstKind::SLoad(slot) => Some((
                 LoadKey::Storage(aa.storage_alias(func, inst_id, slot)),
                 GenSource::LoadResult,

@@ -229,7 +229,7 @@ impl MirInliner {
         let mut counts = FxHashMap::default();
         for func in module.functions.iter() {
             for inst_id in func.instructions() {
-                if let InstKind::InternalCall { function, .. } = func.instructions[inst_id].kind {
+                if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
                     *counts.entry(function).or_default() += 1;
                 }
             }
@@ -272,7 +272,7 @@ impl MirInliner {
     fn function_callees(&self, func: &Function) -> Vec<MirFunctionId> {
         let mut callees = Vec::new();
         for inst_id in func.instructions() {
-            if let InstKind::InternalCall { function, .. } = func.instructions[inst_id].kind {
+            if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
                 callees.push(function);
             }
         }
@@ -289,7 +289,7 @@ impl MirInliner {
             let start_inst = if block.index() == start.0 { start.1 } else { 0 };
             for (inst_index, &inst_id) in bb.instructions.iter().enumerate().skip(start_inst) {
                 if let InstKind::InternalCall { function, ref args, returns } =
-                    func.instructions[inst_id].kind
+                    func.inst(inst_id).kind
                 {
                     return Some(CallSite {
                         block,
@@ -390,7 +390,7 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
     };
 
     for inst_id in func.instructions() {
-        let kind = &func.instructions[inst_id].kind;
+        let kind = &func.inst(inst_id).kind;
         summary.instruction_count += match kind {
             InstKind::MappingSlot(..) => 3,
             InstKind::MappingSlotMemory(..) => 8,
@@ -663,8 +663,7 @@ fn inline_call_impl(
     callee: &Function,
 ) -> Option<()> {
     let call_inst = caller.blocks[call_block].instructions[call_inst_index];
-    let InstKind::InternalCall { args, returns, .. } = caller.instructions[call_inst].kind.clone()
-    else {
+    let InstKind::InternalCall { args, returns, .. } = caller.inst(call_inst).kind.clone() else {
         return None;
     };
     let returns = returns as usize;
@@ -770,7 +769,7 @@ impl<'a> InlineCloner<'a> {
             let caller_block = self.block_map[&callee_block];
             let mut instructions = Vec::with_capacity(block.instructions.len());
             for &inst_id in &block.instructions {
-                let inst = self.callee.instructions[inst_id].clone();
+                let inst = self.callee.inst(inst_id).clone();
                 let kind = self.clone_inst_kind(inst.kind)?;
                 let new_inst = self.caller.alloc_inst(Instruction::new(kind, inst.result_ty));
                 instructions.push(new_inst);
@@ -1137,7 +1136,7 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
     let phi_count = caller.blocks[continuation]
         .instructions
         .iter()
-        .take_while(|&&inst_id| matches!(caller.instructions[inst_id].kind, InstKind::Phi(_)))
+        .take_while(|&&inst_id| matches!(caller.inst(inst_id).kind, InstKind::Phi(_)))
         .count();
 
     let base_load = caller.alloc_inst(Instruction::new(InstKind::Fmp, Some(MirType::MemPtr)));
@@ -1176,8 +1175,10 @@ fn redirect_phi_predecessors(
     }
 
     for &succ in successors {
-        for &inst_id in &func.blocks[succ].instructions {
-            if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
+        let instruction_count = func.blocks[succ].instructions.len();
+        for index in 0..instruction_count {
+            let inst_id = func.blocks[succ].instructions[index];
+            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind {
                 for (pred, _) in incoming {
                     if *pred == old_pred {
                         *pred = new_pred;
@@ -1210,8 +1211,10 @@ fn recompute_cfg(func: &mut Function) {
 fn prune_phi_incoming_to_predecessors(func: &mut Function) {
     for block_id in func.blocks.indices() {
         let predecessors = func.blocks[block_id].predecessors.clone();
-        for &inst_id in &func.blocks[block_id].instructions {
-            if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
+        let instruction_count = func.blocks[block_id].instructions.len();
+        for index in 0..instruction_count {
+            let inst_id = func.blocks[block_id].instructions[index];
+            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind {
                 incoming.retain(|(pred, _)| predecessors.contains(pred));
             }
         }

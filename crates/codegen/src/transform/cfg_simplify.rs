@@ -254,7 +254,7 @@ impl CfgSimplifier {
 
         let mut insts = Vec::with_capacity(block.instructions.len());
         for &inst_id in &block.instructions {
-            let inst = &func.instructions[inst_id];
+            let inst = func.inst(inst_id);
             let extra = match &inst.kind {
                 InstKind::Phi(_) => return None,
                 InstKind::InternalFrameAddr(offset) => CanonPayload::FrameAddr(*offset),
@@ -287,7 +287,7 @@ impl CfgSimplifier {
         for block_id in func.blocks.indices() {
             let same_block_phi_results = func.block_phi_results(block_id);
             for &inst_id in &func.blocks[block_id].instructions {
-                let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
+                let InstKind::Phi(incoming) = &func.inst(inst_id).kind else {
                     continue;
                 };
                 let Some(phi_value) = func.inst_result_value(inst_id) else {
@@ -456,7 +456,7 @@ impl CfgSimplifier {
         }
 
         for &inst_id in &target_block.instructions {
-            let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
+            let InstKind::Phi(incoming) = &func.inst(inst_id).kind else {
                 continue;
             };
             if !incoming.iter().any(|(pred, _)| *pred == block_id) {
@@ -474,7 +474,7 @@ impl CfgSimplifier {
             .instructions
             .iter()
             .copied()
-            .filter(|&inst_id| !matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+            .filter(|&inst_id| !matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
             .collect();
         let target_terminator = func.blocks[target].terminator.take();
         let target_successors =
@@ -509,7 +509,7 @@ impl CfgSimplifier {
     ) -> FxHashMap<ValueId, ValueId> {
         let mut replacements = FxHashMap::default();
         for &inst_id in &func.blocks[target].instructions {
-            let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
+            let InstKind::Phi(incoming) = &func.inst(inst_id).kind else {
                 continue;
             };
             let Some(phi_value) = func.inst_result_value(inst_id) else {
@@ -569,7 +569,7 @@ impl CfgSimplifier {
         };
         if !matches!(
             func.blocks[target].instructions.first(),
-            Some(&inst) if matches!(func.instructions[inst].kind, InstKind::Phi(_))
+            Some(&inst) if matches!(func.inst(inst).kind, InstKind::Phi(_))
         ) {
             return false;
         }
@@ -593,7 +593,7 @@ impl CfgSimplifier {
         };
         let predecessors = &func.blocks[block_id].predecessors;
         for &inst_id in &func.blocks[target].instructions {
-            let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
+            let InstKind::Phi(incoming) = &func.inst(inst_id).kind else {
                 continue;
             };
             let Some(&(_, forwarded)) = incoming.iter().find(|(pred, _)| *pred == block_id) else {
@@ -638,8 +638,10 @@ impl CfgSimplifier {
         target: BlockId,
         new_preds: &[BlockId],
     ) {
-        for &inst_id in &func.blocks[target].instructions {
-            let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind else {
+        let instruction_count = func.blocks[target].instructions.len();
+        for index in 0..instruction_count {
+            let inst_id = func.blocks[target].instructions[index];
+            let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind else {
                 continue;
             };
 

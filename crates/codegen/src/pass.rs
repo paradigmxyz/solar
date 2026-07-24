@@ -376,7 +376,7 @@ fn verified_preservation(
     let keep_cfg = edges_after == edges_before;
     let no_new_side_effects = (insts_before..func.instructions.len())
         .map(InstId::from_usize)
-        .all(|inst_id| !func.instructions[inst_id].kind.has_side_effects());
+        .all(|inst_id| !func.inst(inst_id).kind.has_side_effects());
     let keep_alias = no_new_side_effects
         && (keep_cfg || edges_after.iter().all(|edge| edges_before.binary_search(edge).is_ok()));
     (keep_alias, keep_cfg)

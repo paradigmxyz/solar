@@ -142,7 +142,7 @@ impl DeadCodeEliminator {
 
         // Add values used as operands in instructions
         for inst_id in func.instructions() {
-            let inst = &func.instructions[inst_id];
+            let inst = func.inst(inst_id);
             for val in inst.kind.operands() {
                 self.used_values.insert(val);
             }
@@ -159,7 +159,7 @@ impl DeadCodeEliminator {
 
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
-                let inst = &func.instructions[inst_id];
+                let inst = func.inst(inst_id);
 
                 // Instructions with side effects are always kept.
                 if inst.kind.has_side_effects() {

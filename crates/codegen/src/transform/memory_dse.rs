@@ -160,7 +160,7 @@ impl MemoryStoreEliminator {
         // scan and never build the alias snapshot.
         let has_memory_writes = func.instructions().any(|inst_id| {
             matches!(
-                func.instructions[inst_id].kind,
+                func.inst(inst_id).kind,
                 InstKind::MStore(_, _)
                     | InstKind::MStore8(_, _)
                     | InstKind::MCopy(_, _, _)
@@ -186,7 +186,7 @@ impl MemoryStoreEliminator {
 
         let needs_inst_results = func.instructions().any(|inst_id| {
             matches!(
-                func.instructions[inst_id].kind,
+                func.inst(inst_id).kind,
                 InstKind::MLoad(_) | InstKind::MemoryObjectLen(_, _) | InstKind::Keccak256(_, _)
             )
         });
@@ -200,7 +200,7 @@ impl MemoryStoreEliminator {
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         let has_precise_reads = func
             .instructions()
-            .any(|inst_id| Self::constant_range_read(&func.instructions[inst_id].kind).is_some());
+            .any(|inst_id| Self::constant_range_read(&func.inst(inst_id).kind).is_some());
         if has_precise_reads {
             for block_id in block_ids {
                 self.process_block::<true>(func, block_id, &inst_results, scratch);
@@ -242,7 +242,7 @@ impl MemoryStoreEliminator {
     /// store, never drops a live one.
     fn remove_dead_memory_stores(&mut self, func: &mut Function) {
         if !func.instructions().any(|inst_id| {
-            matches!(func.instructions[inst_id].kind, InstKind::MStore(addr, _) if self.word_aligned_const(func, addr).is_some())
+            matches!(func.inst(inst_id).kind, InstKind::MStore(addr, _) if self.word_aligned_const(func, addr).is_some())
         }) {
             return;
         }
@@ -339,7 +339,7 @@ impl MemoryStoreEliminator {
         }
 
         for &inst_id in func.blocks[block].instructions.iter().rev() {
-            match &func.instructions[inst_id].kind {
+            match &func.inst(inst_id).kind {
                 InstKind::MStore(addr, _) => {
                     if let Some(slot) = self.word_aligned_const(func, *addr) {
                         if !live.contains(slot)
@@ -448,8 +448,8 @@ impl MemoryStoreEliminator {
     ) {
         let has_candidate = func.blocks.iter().any(|block| {
             block.instructions.windows(2).any(|window| {
-                matches!(func.instructions[window[0]].kind, InstKind::CodeCopy(_, _, _))
-                    && matches!(func.instructions[window[1]].kind, InstKind::MLoad(_))
+                matches!(func.inst(window[0]).kind, InstKind::CodeCopy(_, _, _))
+                    && matches!(func.inst(window[1]).kind, InstKind::MLoad(_))
             })
         });
         if !has_candidate {
@@ -461,12 +461,13 @@ impl MemoryStoreEliminator {
         let mut replacements = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.instructions.len());
 
-        for (block_id, block) in func.blocks.iter_enumerated() {
-            let insts = block.instructions.clone();
+        let block_ids: Vec<_> = func.blocks.indices().collect();
+        for block_id in block_ids {
+            let insts = func.blocks[block_id].instructions.clone();
             for (index, window) in insts.windows(2).enumerate() {
                 let codecopy = window[0];
                 let load = window[1];
-                let InstKind::CodeCopy(dest, src, size) = func.instructions[codecopy].kind else {
+                let InstKind::CodeCopy(dest, src, size) = func.inst(codecopy).kind else {
                     continue;
                 };
                 if func.value_u64(size) != Some(32) {
@@ -475,7 +476,7 @@ impl MemoryStoreEliminator {
                 let Some(key) = Self::immutable_copy_key(func, src) else {
                     continue;
                 };
-                let InstKind::MLoad(load_addr) = func.instructions[load].kind else {
+                let InstKind::MLoad(load_addr) = func.inst(load).kind else {
                     continue;
                 };
                 if self.mem_addr_key(func, dest) != self.mem_addr_key(func, load_addr) {
@@ -489,7 +490,7 @@ impl MemoryStoreEliminator {
                     && Self::copy_dominates(cfg.dominators(), cached_copy, block_id, index)
                 {
                     replacements.insert(loaded_value, cached_copy.value);
-                    func.instructions[codecopy].kind = InstKind::MStore(dest, cached_copy.value);
+                    func.inst_mut(codecopy).kind = InstKind::MStore(dest, cached_copy.value);
                     dead.insert(load);
                     self.eliminated_count += 1;
                 } else {
@@ -513,7 +514,7 @@ impl MemoryStoreEliminator {
 
     fn remove_unused_internal_frame_stores(&mut self, func: &mut Function) {
         let has_candidate = func.instructions().any(|inst_id| {
-            matches!(func.instructions[inst_id].kind, InstKind::MStore(addr, _) if self.internal_frame_offset(func, addr).is_some())
+            matches!(func.inst(inst_id).kind, InstKind::MStore(addr, _) if self.internal_frame_offset(func, addr).is_some())
         });
         if !has_candidate {
             return;
@@ -528,7 +529,7 @@ impl MemoryStoreEliminator {
         let mut dead = DenseBitSet::new_empty(func.instructions.len());
 
         for inst_id in func.instructions() {
-            let InstKind::MStore(addr, _) = func.instructions[inst_id].kind else {
+            let InstKind::MStore(addr, _) = func.inst(inst_id).kind else {
                 continue;
             };
             let Some(offset) = self.internal_frame_offset(func, addr) else {
@@ -574,7 +575,7 @@ impl MemoryStoreEliminator {
         let mut has_load = false;
         let mut has_keccak = false;
         for &inst_id in &func.blocks[block_id].instructions {
-            match func.instructions[inst_id].kind {
+            match func.inst(inst_id).kind {
                 InstKind::MStore(_, _) | InstKind::SetMemoryObjectLen(_, _, _) => {
                     mstores += 1;
                     memory_writes += 1;
@@ -616,7 +617,7 @@ impl MemoryStoreEliminator {
         scratch.dead.clear();
 
         for &inst_id in func.blocks[block_id].instructions.iter().rev() {
-            let inst = &func.instructions[inst_id];
+            let inst = func.inst(inst_id);
             match &inst.kind {
                 InstKind::MStore(addr, _) => {
                     if let Some(key) = self.mem_addr_key(func, *addr) {
@@ -823,7 +824,7 @@ impl MemoryStoreEliminator {
     fn remove_cross_block_equal_const_stores(&mut self, func: &mut Function) {
         if func
             .instructions()
-            .filter(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::MStore(_, _)))
+            .filter(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::MStore(_, _)))
             .take(2)
             .count()
             < 2
@@ -853,7 +854,7 @@ impl MemoryStoreEliminator {
             };
 
             for &inst_id in &func.blocks[block_id].instructions {
-                match &func.instructions[inst_id].kind {
+                match &func.inst(inst_id).kind {
                     InstKind::MStore(addr, value) => match const_store(func, *addr, *value) {
                         Some((a, v)) => {
                             if known.get(&a) == Some(&v) {
@@ -898,7 +899,7 @@ impl MemoryStoreEliminator {
     fn remove_cross_block_overwrites(&mut self, func: &mut Function) {
         if func
             .instructions()
-            .filter(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::MStore(_, _)))
+            .filter(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::MStore(_, _)))
             .take(2)
             .count()
             < 2
@@ -950,7 +951,7 @@ impl MemoryStoreEliminator {
         block: BlockId,
     ) -> Option<(InstId, MemAddrKey)> {
         for &inst_id in func.blocks[block].instructions.iter().rev() {
-            match func.instructions[inst_id].kind {
+            match func.inst(inst_id).kind {
                 InstKind::MStore(addr, _) => {
                     let key = self.mem_addr_key(func, addr)?;
                     return Some((inst_id, key));
@@ -964,7 +965,7 @@ impl MemoryStoreEliminator {
 
     fn first_cross_block_overwrite(&self, func: &Function, block: BlockId) -> Option<MemAddrKey> {
         for &inst_id in &func.blocks[block].instructions {
-            match func.instructions[inst_id].kind {
+            match func.inst(inst_id).kind {
                 InstKind::MStore(addr, _) => return self.mem_addr_key(func, addr),
                 _ if self.cross_block_memory_barrier(func, inst_id) => return None,
                 _ => {}
@@ -986,7 +987,7 @@ impl MemoryStoreEliminator {
 
         for index in 0..func.blocks[block_id].instructions.len() {
             let inst_id = func.blocks[block_id].instructions[index];
-            match &func.instructions[inst_id].kind {
+            match &func.inst(inst_id).kind {
                 InstKind::MStore(addr, value) => {
                     let Some(key) = self.mem_addr_key(func, *addr) else {
                         scratch.stored_words.clear();
@@ -1039,7 +1040,7 @@ impl MemoryStoreEliminator {
         scratch.dead.clear();
 
         for &inst_id in &func.blocks[block_id].instructions {
-            let inst = &func.instructions[inst_id];
+            let inst = func.inst(inst_id);
             match &inst.kind {
                 InstKind::MStore(addr, value) => {
                     let Some(key) = self.mem_addr_key(func, *addr) else {
@@ -1082,7 +1083,7 @@ impl MemoryStoreEliminator {
         scratch.dead.clear();
 
         for &inst_id in &func.blocks[block_id].instructions {
-            let inst = &func.instructions[inst_id];
+            let inst = func.inst(inst_id);
             match &inst.kind {
                 InstKind::MStore(addr, value) => {
                     if let Some(key) = self.mem_addr_key(func, *addr) {
@@ -1213,7 +1214,7 @@ impl MemoryStoreEliminator {
 
     fn immutable_copy_key(func: &Function, src: ValueId) -> Option<ImmutableCopyKey> {
         match func.values[src] {
-            Value::Inst(inst_id) => match func.instructions[inst_id].kind {
+            Value::Inst(inst_id) => match func.inst(inst_id).kind {
                 InstKind::Sub(code_size, len) if Self::is_codesize(func, code_size) => {
                     Some(ImmutableCopyKey { len: func.value_u64(len)?, offset: 0 })
                 }
@@ -1238,7 +1239,7 @@ impl MemoryStoreEliminator {
     }
 
     fn is_codesize(func: &Function, value: ValueId) -> bool {
-        matches!(func.values[value], Value::Inst(inst_id) if matches!(func.instructions[inst_id].kind, InstKind::CodeSize))
+        matches!(func.values[value], Value::Inst(inst_id) if matches!(func.inst(inst_id).kind, InstKind::CodeSize))
     }
 
     fn copy_dominates(
@@ -1373,7 +1374,7 @@ impl MemoryStoreEliminator {
             let effects = self.alias().instruction_mod_ref(func, inst_id);
             effects.observes_gas()
                 || effects.observes_memory_size()
-                || matches!(func.instructions[inst_id].kind, InstKind::InternalCall { .. })
+                || matches!(func.inst(inst_id).kind, InstKind::InternalCall { .. })
         })
     }
 

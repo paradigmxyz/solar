@@ -47,7 +47,7 @@ fn remap_blocks(func: &mut Function, order: &[BlockId]) -> IndexVec<BlockId, Blo
         retained_instructions.extend_from_slice(&block.instructions);
     }
     for inst_id in retained_instructions {
-        let inst = &mut func.instructions[inst_id];
+        let inst = func.inst_mut(inst_id);
         if let InstKind::Phi(incoming) = &mut inst.kind {
             incoming.retain(|(block, _)| remap[*block] != BlockId::MAX);
             for (block, _) in incoming {
@@ -150,8 +150,10 @@ pub(crate) fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> B
     predecessors.retain(|&mut block| block != pred);
 
     // Rekey `succ`'s phi incoming entries from `pred` to the new block.
-    for &inst_id in &func.blocks[succ].instructions {
-        if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
+    let instruction_count = func.blocks[succ].instructions.len();
+    for index in 0..instruction_count {
+        let inst_id = func.blocks[succ].instructions[index];
+        if let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind {
             for (block, _) in incoming.iter_mut() {
                 if *block == pred {
                     *block = new_block;
@@ -185,11 +187,15 @@ pub(crate) fn repair_reachability_phis(func: &mut Function) -> bool {
     }
 
     let mut changed = false;
-    for block in &mut func.blocks {
-        for &inst_id in &block.instructions {
-            if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
+    let block_ids: Vec<_> = func.blocks.indices().collect();
+    for block_id in block_ids {
+        let predecessors = func.blocks[block_id].predecessors.clone();
+        let instruction_count = func.blocks[block_id].instructions.len();
+        for index in 0..instruction_count {
+            let inst_id = func.blocks[block_id].instructions[index];
+            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind {
                 let len_before = incoming.len();
-                incoming.retain(|(pred, _)| block.predecessors.contains(pred));
+                incoming.retain(|(pred, _)| predecessors.contains(pred));
                 changed |= incoming.len() != len_before;
             }
         }
