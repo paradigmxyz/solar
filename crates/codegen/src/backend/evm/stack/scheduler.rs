@@ -126,6 +126,7 @@ impl OperandCostModel {
 #[derive(Clone, Copy)]
 struct OperandPlanningContext<'a> {
     func: &'a Function,
+    required_counts: &'a FxHashMap<ValueId, usize>,
     optimization: OptimizationMode,
     evm_version: EvmVersion,
     cost_model: OperandCostModel,
@@ -300,6 +301,25 @@ impl StackScheduler {
         ) {
             return Some(self.verify_operand_plan(plan, &goal, preserved));
         }
+        if let Some(plan) = self.try_direct_materialization_operand_plan(
+            operands,
+            preserved,
+            func,
+            evm_version,
+            cost_model,
+        ) {
+            return Some(self.verify_operand_plan(plan, &goal, preserved));
+        }
+        if let Some(plan) = self.try_preserved_resident_binary_plan(
+            operands,
+            preserved,
+            func,
+            optimization,
+            evm_version,
+            cost_model,
+        ) {
+            return Some(self.verify_operand_plan(plan, &goal, preserved));
+        }
         // Size mode keeps the established search tie-breaking because equal local costs can leave
         // residual stacks with different cleanup costs after the instruction.
         if matches!(optimization, OptimizationMode::Gas) {
@@ -331,13 +351,23 @@ impl StackScheduler {
         for &value in preserved {
             preserve_counts.entry(value).or_insert(1usize);
         }
+        let mut required_counts = preserve_counts.clone();
+        for &value in &goal {
+            *required_counts.entry(value).or_default() += 1;
+        }
 
         let start = SearchNode {
             stack: self.stack.as_slice().iter().copied().collect(),
             actions: PlannedActions::new(),
             cost: ScheduleCost::default(),
         };
-        let context = OperandPlanningContext { func, optimization, evm_version, cost_model };
+        let context = OperandPlanningContext {
+            func,
+            required_counts: &required_counts,
+            optimization,
+            evm_version,
+            cost_model,
+        };
         if let Some(plan) =
             self.try_goal_directed_operand_plan(start.clone(), &goal, &preserve_counts, context)
         {
@@ -596,6 +626,96 @@ impl StackScheduler {
         Some(OperandPlan { actions, cost })
     }
 
+    /// Builds the only possible optimal plan when every distinct operand must be materialized.
+    fn try_direct_materialization_operand_plan(
+        &self,
+        operands: &[ValueId],
+        preserved: &[ValueId],
+        func: &Function,
+        evm_version: EvmVersion,
+        cost_model: OperandCostModel,
+    ) -> Option<OperandPlan> {
+        if !preserved.is_empty()
+            || operands.len() < 2
+            || operands.iter().enumerate().any(|(i, &value)| operands[i + 1..].contains(&value))
+            || self
+                .stack
+                .as_slice()
+                .iter()
+                .any(|slot| slot.is_some_and(|value| operands.contains(&value)))
+        {
+            return None;
+        }
+
+        let mut actions = PlannedActions::new();
+        let mut cost = ScheduleCost::default();
+        for &value in operands {
+            let op = self.materialize_operand(value, func)?;
+            cost = cost.with_op(&op, evm_version, cost_model);
+            actions.push(PlannedAction { op, pushed: Some(value) });
+        }
+        Some(OperandPlan { actions, cost })
+    }
+
+    /// Builds the optimal two-action plan for a preserved top-of-stack binary operand.
+    fn try_preserved_resident_binary_plan(
+        &self,
+        operands: &[ValueId],
+        preserved: &[ValueId],
+        func: &Function,
+        optimization: OptimizationMode,
+        evm_version: EvmVersion,
+        cost_model: OperandCostModel,
+    ) -> Option<OperandPlan> {
+        let &[first, second] = operands else { return None };
+        let &[preserved] = preserved else { return None };
+        let Some(&Some(resident)) = self.stack.as_slice().first() else {
+            return None;
+        };
+        if preserved != resident || first == second {
+            return None;
+        }
+
+        let other = if first == resident {
+            second
+        } else if second == resident {
+            first
+        } else {
+            return None;
+        };
+        if self.stack.as_slice()[1..].contains(&Some(other))
+            || self.stack.as_slice()[1..].contains(&Some(resident))
+        {
+            return None;
+        }
+        let materialize = self.materialize_operand(other, func)?;
+        let duplicate = ScheduledOp::Stack(StackOp::Dup(if first == resident { 1 } else { 2 }));
+        let resident_op = self
+            .materialize_operand(resident, func)
+            .filter(|resident_op| {
+                let materialize_cost =
+                    ScheduleCost::default().with_op(resident_op, evm_version, cost_model);
+                let duplicate_cost =
+                    ScheduleCost::default().with_op(&duplicate, evm_version, cost_model);
+                materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
+            })
+            .unwrap_or(duplicate);
+        let resident_pushed = (!matches!(&resident_op, ScheduledOp::Stack(_))).then_some(resident);
+        let ops = if first == resident {
+            [(resident_op, resident_pushed), (materialize, Some(other))]
+        } else {
+            [(materialize, Some(other)), (resident_op, resident_pushed)]
+        };
+
+        let mut actions = PlannedActions::new();
+        let mut cost = ScheduleCost::default();
+        for (op, pushed) in ops {
+            cost = cost.with_op(&op, evm_version, cost_model);
+            actions.push(PlannedAction { op, pushed });
+        }
+        Some(OperandPlan { actions, cost })
+    }
+
     fn try_unary_operand_plan(
         &self,
         value: ValueId,
@@ -709,10 +829,10 @@ impl StackScheduler {
         context: OperandPlanningContext<'_>,
     ) -> Option<OperandPlan> {
         let OperandPlanningContext { optimization, evm_version, cost_model, .. } = context;
-        let optimal_key = self.operand_search_priority(&node, goal, preserve_counts, context);
-        let max_actions = self
-            .operand_search_lower_bound(&node.stack, goal, preserve_counts, context)
-            .actions as usize;
+        let lower_bound =
+            self.operand_search_lower_bound(&node.stack, goal, preserve_counts, context);
+        let optimal_key = node.cost.plus(lower_bound).key(optimization);
+        let max_actions = lower_bound.actions as usize;
 
         for _ in 0..max_actions {
             let mut best = None;
@@ -738,9 +858,9 @@ impl StackScheduler {
             node.actions.push(action);
         }
 
-        (Self::operand_goal_reached(&node.stack, goal, preserve_counts)
-            && node.cost.key(optimization) == optimal_key)
-            .then_some(OperandPlan { actions: node.actions, cost: node.cost })
+        let success = Self::operand_goal_reached(&node.stack, goal, preserve_counts)
+            && node.cost.key(optimization) == optimal_key;
+        success.then_some(OperandPlan { actions: node.actions, cost: node.cost })
     }
 
     fn operand_search_actions(
@@ -750,7 +870,8 @@ impl StackScheduler {
         preserve_counts: &FxHashMap<ValueId, usize>,
         context: OperandPlanningContext<'_>,
     ) -> SmallVec<[PlannedAction; 24]> {
-        let OperandPlanningContext { func, optimization, evm_version, cost_model } = context;
+        let OperandPlanningContext { func, required_counts, optimization, evm_version, cost_model } =
+            context;
         let mut actions = SmallVec::<[PlannedAction; 24]>::new();
         if matches!(optimization, OptimizationMode::Gas)
             && Self::operand_pop_can_help(stack, goal, preserve_counts)
@@ -768,11 +889,7 @@ impl StackScheduler {
             }
         }
 
-        let mut required_counts = preserve_counts.clone();
-        for &value in goal {
-            *required_counts.entry(value).or_default() += 1;
-        }
-        for (&value, &required) in &required_counts {
+        for (&value, &required) in required_counts {
             let current = stack.iter().filter(|&&slot| slot == Some(value)).count();
             let materialize = self.materialize_operand(value, func);
             let cheap_surplus_materialization = materialize.as_ref().is_some_and(|op| {
@@ -908,17 +1025,14 @@ impl StackScheduler {
         preserve_counts: &FxHashMap<ValueId, usize>,
         context: OperandPlanningContext<'_>,
     ) -> ScheduleCost {
-        let OperandPlanningContext { func, optimization, evm_version, cost_model } = context;
-        let mut required_counts = preserve_counts.clone();
-        for &value in goal {
-            *required_counts.entry(value).or_default() += 1;
-        }
+        let OperandPlanningContext { func, required_counts, optimization, evm_version, cost_model } =
+            context;
 
         let mut remaining = ScheduleCost::default();
         let mut has_missing_copies = false;
         let mut missing_counts = SmallVec::<[(ValueId, usize); 8]>::new();
         let mut total_missing = 0usize;
-        for (value, required) in required_counts {
+        for (&value, &required) in required_counts {
             let current = stack.iter().filter(|&&slot| slot == Some(value)).count();
             let missing = required.saturating_sub(current);
             if missing == 0 {
@@ -1438,8 +1552,13 @@ mod tests {
         for &value in preserved {
             *preserve_counts.entry(value).or_default() += 1;
         }
+        let mut required_counts = preserve_counts.clone();
+        for &value in &goal {
+            *required_counts.entry(value).or_default() += 1;
+        }
         let context = OperandPlanningContext {
             func,
+            required_counts: &required_counts,
             optimization,
             evm_version,
             cost_model: OperandCostModel::DIRECT,
