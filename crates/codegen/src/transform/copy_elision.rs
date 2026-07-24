@@ -1,11 +1,12 @@
 //! Elision of copies into write-only memory allocations.
 //!
 //! An allocation that never escapes and is never read is dead no matter what is
-//! written into it: the copies and stores that fill it, and the allocation
-//! itself, produce no observable effect. This arises after other passes strip
-//! the readers of a materialized buffer — a scalar-replaced struct, an
-//! inlined helper whose result is discarded, a re-encoded argument that is
-//! dropped — leaving a copy whose destination no one observes.
+//! written into it: the copies and stores that fill it produce no observable
+//! effect. The allocation itself remains because its free-memory-pointer bump
+//! and failure behavior are independently observable. This arises after other
+//! passes strip the readers of a materialized buffer — a scalar-replaced
+//! struct, an inlined helper whose result is discarded, a re-encoded argument
+//! that is dropped — leaving a copy whose destination no one observes.
 //!
 //! Ordinary dead-store elimination keeps such copies because they write
 //! memory; proving the destination allocation is unread lets them go. The pass
@@ -47,14 +48,14 @@ struct CopyElisionCx {
 
 impl CopyElisionCx {
     fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
-        let allocs: Vec<(InstId, ValueId)> = func
-            .instructions
-            .iter_enumerated()
-            .filter_map(|(inst_id, inst)| match inst.kind {
-                InstKind::Alloc { .. } => {
-                    func.inst_result_value(inst_id).map(|value| (inst_id, value))
-                }
-                _ => None,
+        let allocs: Vec<ValueId> = func
+            .blocks
+            .iter()
+            .flat_map(|block| block.instructions.iter().copied())
+            .filter_map(|inst_id| {
+                matches!(func.instructions[inst_id].kind, InstKind::Alloc { .. })
+                    .then(|| func.inst_result_value(inst_id))
+                    .flatten()
             })
             .collect();
         if allocs.is_empty() {
@@ -62,12 +63,11 @@ impl CopyElisionCx {
         }
 
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
-        for (alloc_inst, object) in allocs {
+        for object in allocs {
             if alias.value_escapes(func, object) {
                 continue;
             }
             let Some(writes) = self.write_only_writes(func, object) else { continue };
-            dead.insert(alloc_inst);
             dead.extend(writes);
             self.eliminated += 1;
         }

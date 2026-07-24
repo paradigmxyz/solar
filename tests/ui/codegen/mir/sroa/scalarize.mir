@@ -13,5 +13,7 @@ fn @local_struct(arg0: u256, arg1: u256) -> u256 {
     v5 = memory_object_field_addr memorystruct<2>, v0, 1
     v6 = mload v5
     v7 = add v4, v6
-    ret v7
+    v8 = fmp
+    v9 = add v7, v8
+    ret v9
 }

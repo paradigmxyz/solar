@@ -198,7 +198,7 @@ fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool
     // definition order does not matter.
     let mut derived: FxHashMap<ValueId, u64> = FxHashMap::default();
     derived.insert(cand.ptr, 0);
-    for _ in 0..4 {
+    loop {
         let mut grew = false;
         for block in func.blocks.iter() {
             for &inst_id in &block.instructions {

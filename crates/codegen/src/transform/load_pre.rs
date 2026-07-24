@@ -79,8 +79,7 @@ use crate::{
     },
     mir::{
         BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
-        MirType, Module, StorageAlias, Terminator, Value, ValueId,
-        utils::{self as mir_utils, repair_reachability_phis},
+        MirType, Module, StorageAlias, Terminator, Value, ValueId, utils as mir_utils,
     },
     pass::{MirPass, run_function_pass},
 };
@@ -318,7 +317,6 @@ impl LoadRedundancyEliminator {
     /// Runs load PRE to a fixed point under the rewrite budget.
     fn run(&mut self, func: &mut Function) -> LoadPreStats {
         self.stats = LoadPreStats::default();
-        repair_reachability_phis(func);
         if self.alias.is_none() {
             self.alias = Some(Rc::new(AliasAnalysis::new(func)));
         }

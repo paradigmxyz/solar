@@ -168,7 +168,7 @@ impl CheckEliminator {
         for &(block, keep) in &folds {
             func.blocks[block].terminator = Some(Terminator::Jump(keep));
         }
-        repair_reachability_phis(func);
+        let _phis_repaired = repair_reachability_phis(func);
         self.stats.branches_folded = folds.len();
         folds.len()
     }

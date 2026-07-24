@@ -219,6 +219,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     skip_all,
     fields(module = %module.name),
 )]
+#[must_use]
 pub fn run_default_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
     let lowering_start = DEFAULT_PIPELINE
         .iter()
@@ -257,6 +258,7 @@ pub(crate) trait AnalysisPass {
 }
 
 /// Runs a function-local transform over every bodied function in a module.
+#[must_use]
 pub(crate) fn run_function_pass(
     module: &mut Module,
     analyses: &mut ModuleAnalyses,
@@ -380,6 +382,7 @@ fn verified_preservation(
     (keep_alias, keep_cfg)
 }
 
+#[must_use]
 fn run_function_pass_cached(
     analyses: &mut ModuleAnalyses,
     module: &mut Module,

@@ -107,17 +107,22 @@ impl LowerAbiCx {
         }
 
         // Snapshot the ids to wrap first; wrapping appends new functions, and we
-        // must not revisit them.
-        // Fuse static word returns into `returndata` up front: an external
-        // function that hands plain words back to a caller can encode them
-        // itself, so it no longer forces the whole pass to bail. Dynamic
-        // returns (a memory pointer to bytes/array/struct data) still need an
-        // encoder the wrappers do not have.
+        // must not revisit them. Preflight return fusion on clones so an
+        // unsupported dynamic return cannot leave earlier functions partially
+        // mutated when this all-or-nothing phase transition bails.
         let wrappable: Vec<FunctionId> = module
             .functions
             .iter_enumerated()
             .filter_map(|(id, func)| is_wrappable_external(func).then_some(id))
             .collect();
+        for &id in &wrappable {
+            let mut preflight = module.function(id).clone();
+            fuse_static_word_returns(&mut preflight);
+            self.stats.skipped_dynamic += usize::from(has_live_value_return(&preflight));
+        }
+        if self.stats.skipped_dynamic != 0 || wrappable.is_empty() {
+            return false;
+        }
         for &id in &wrappable {
             self.stats.fused_returns +=
                 usize::from(fuse_static_word_returns(module.function_mut(id)));
@@ -130,7 +135,6 @@ impl LowerAbiCx {
             callvalue.observe(func);
             if is_wrappable_external(func) {
                 targets.push(id);
-                self.stats.skipped_dynamic += usize::from(has_live_value_return(func));
             }
             for function in func.instructions.iter().filter_map(|inst| {
                 if let InstKind::InternalCall { function, .. } = &inst.kind {
@@ -147,7 +151,7 @@ impl LowerAbiCx {
         // wrapper. If any signature is outside the static-word scope, leave the
         // module untouched instead of advancing to a phase the content does not
         // satisfy.
-        if self.stats.skipped_dynamic != 0 || targets.is_empty() {
+        if targets.is_empty() {
             return false;
         }
 

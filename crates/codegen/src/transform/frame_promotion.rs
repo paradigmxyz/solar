@@ -44,8 +44,8 @@ impl MirPass for FrameSlotPromotion {
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
             let changed = FrameSlotPromoter::new().run(func).total() != 0;
-            repair_reachability_phis(func);
-            changed
+            let repaired = repair_reachability_phis(func);
+            changed || repaired
         })
     }
 }

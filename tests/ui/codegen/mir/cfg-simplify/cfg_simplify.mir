@@ -29,3 +29,10 @@ fn @degenerate_branch_refreshes_successors(arg0: bool) -> u256 {
   bb1:
     ret 1
 }
+
+fn @degenerate_switch_refreshes_successors(arg0: u256) -> u256 {
+  bb0:
+    switch arg0, default bb1, [0 => bb1, 1 => bb1]
+  bb1:
+    ret 1
+}

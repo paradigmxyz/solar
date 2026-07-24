@@ -81,7 +81,7 @@ fn run_pipeline(gcx: Gcx<'_>, module: &mut ir::Module, name: &str, args: &EvmOpt
     for (index, &pass) in args.passes.iter().enumerate() {
         let before = sess.opts.unstable.pass_diff.then(|| module.to_text().to_string());
         if let Some(pass) = pass {
-            ir::run_passes(gcx, module, &[pass]);
+            let _changed = ir::run_passes(gcx, module, &[pass]);
         }
         if before.is_some() || print_after_each || index + 1 == args.passes.len() {
             ir::validate(dcx, module);

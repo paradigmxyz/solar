@@ -7,7 +7,7 @@
 //! dispatch phase removed from its own case blocks.
 //!
 //! This pass rewrites a resultless `internal_call` to a callee that cannot
-//! return (no `ret` and no `stop` terminator anywhere in it) into a
+//! return (no reachable `ret` or `stop` terminator) into a
 //! [`Terminator::TailCall`], dropping the dead remainder of the block. The
 //! module comes out in the `evm-shaped` phase: every call edge either returns
 //! or is an explicit tail call, which is the control-flow shape the backend
@@ -19,7 +19,7 @@
 //! non-recursive), so calls to any other callee are left as ordinary calls.
 
 use crate::{
-    analysis::CallGraphInfo,
+    analysis::{CallGraphInfo, CfgInfo},
     mir::{Function, InstKind, MirPhase, Module, Terminator, utils::repair_reachability_phis},
     pass::MirPass,
 };
@@ -89,8 +89,11 @@ impl LowerEvmShapedCx {
         // resultless internal call left to reshape, so avoid building a call
         // graph and classifying every function in that common case.
         let has_candidate = module.functions.iter().any(|func| {
-            func.instructions.iter().any(|inst| {
-                inst.result_ty.is_none() && matches!(inst.kind, InstKind::InternalCall { .. })
+            func.blocks.iter().any(|block| {
+                block.instructions.iter().any(|&inst_id| {
+                    let inst = &func.instructions[inst_id];
+                    inst.result_ty.is_none() && matches!(inst.kind, InstKind::InternalCall { .. })
+                })
             })
         });
         if !has_candidate {
@@ -162,7 +165,7 @@ impl LowerEvmShapedCx {
                 changed = true;
             }
             if changed {
-                repair_reachability_phis(func);
+                let _phis_repaired = repair_reachability_phis(func);
             }
         }
 
@@ -171,11 +174,15 @@ impl LowerEvmShapedCx {
     }
 }
 
-/// Whether a function can never return to an internal caller: it has no `ret`
-/// and no `stop` terminator (`stop` is the internal return of a void function).
+/// Whether a function can never return to an internal caller: its reachable CFG
+/// has no `ret` or `stop` terminator (`stop` is the internal return of a void
+/// function).
 fn function_cannot_return(func: &Function) -> bool {
-    !func
-        .blocks
-        .iter()
-        .any(|block| matches!(block.terminator, Some(Terminator::Return { .. } | Terminator::Stop)))
+    if func.blocks.is_empty() {
+        return false;
+    }
+    let cfg = CfgInfo::new(func);
+    !cfg.reachable().iter().any(|block| {
+        matches!(func.blocks[block].terminator, Some(Terminator::Return { .. } | Terminator::Stop))
+    })
 }

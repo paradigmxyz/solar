@@ -165,6 +165,7 @@ pub(crate) fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> B
 
 /// Rebuilds CFG edge lists from terminators and drops phi inputs from blocks
 /// that are no longer predecessors. Returns true if any phi input was dropped.
+#[must_use]
 pub(crate) fn repair_reachability_phis(func: &mut Function) -> bool {
     let mut edges = Vec::new();
     for (block, bb) in func.blocks.iter_enumerated() {

@@ -164,7 +164,7 @@ impl LoopCanonicalizer {
         }
 
         self.rewrite_header_phis(func, header, preheader, outside_preds);
-        repair_reachability_phis(func);
+        let _phis_repaired = repair_reachability_phis(func);
         self.stats.preheaders_inserted += 1;
     }
 

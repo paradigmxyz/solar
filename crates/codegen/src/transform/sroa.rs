@@ -2,8 +2,9 @@
 //!
 //! A struct or fixed-array memory object that never escapes and is accessed
 //! only through constant field/element addresses can be dissolved into SSA
-//! values: each field store feeds the matching field load directly, and the
-//! backing allocation — and its free-memory-pointer bump — disappears.
+//! values: each field store feeds the matching field load directly. The
+//! backing allocation remains because its free-memory-pointer bump and failure
+//! behavior are observable independently of accesses through its result.
 //!
 //! This runs conservatively within a single block, where store-to-load
 //! ordering is explicit and no phi reconstruction is required:
@@ -14,7 +15,7 @@
 //! - every load is dominated by a store to the same field, so no uninitialized slot is observed.
 //!
 //! When all of these hold, loads are replaced by the last stored value and the
-//! stores, addresses, and allocation are removed.
+//! stores and addresses are removed.
 
 use crate::{
     analysis::AliasAnalysis,
@@ -60,7 +61,7 @@ fn is_fixed_aggregate(layout: MemoryObjectLayout) -> bool {
 
 impl SroaCx {
     fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
-        let mut allocs: Vec<(BlockId, InstId, ValueId)> = Vec::new();
+        let mut allocs: Vec<(BlockId, ValueId)> = Vec::new();
         for block_id in func.blocks.indices() {
             for &inst_id in &func.blocks[block_id].instructions {
                 if let InstKind::Alloc { kind: AllocationKind::Object(layout), .. } =
@@ -68,7 +69,7 @@ impl SroaCx {
                     && is_fixed_aggregate(layout)
                     && let Some(object) = func.inst_result_value(inst_id)
                 {
-                    allocs.push((block_id, inst_id, object));
+                    allocs.push((block_id, object));
                 }
             }
         }
@@ -78,9 +79,8 @@ impl SroaCx {
 
         let inst_results = func.inst_results();
         let mut changed = false;
-        for (block_id, alloc_inst, object) in allocs {
-            if let Some(plan) = self.plan(func, alias, &inst_results, block_id, alloc_inst, object)
-            {
+        for (block_id, object) in allocs {
+            if let Some(plan) = self.plan(func, alias, &inst_results, block_id, object) {
                 self.apply(func, block_id, plan);
                 self.eliminated += 1;
                 changed = true;
@@ -97,7 +97,6 @@ impl SroaCx {
         alias: &AliasAnalysis,
         inst_results: &FxHashMap<InstId, ValueId>,
         block_id: BlockId,
-        alloc_inst: InstId,
         object: ValueId,
     ) -> Option<Plan> {
         if alias.value_escapes(func, object) {
@@ -189,7 +188,6 @@ impl SroaCx {
             }
         }
 
-        dead.insert(alloc_inst);
         dead.extend(address_insts);
         Some(Plan { replacements, dead })
     }

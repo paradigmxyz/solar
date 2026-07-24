@@ -355,24 +355,33 @@ impl CfgSimplifier {
     fn simplify_degenerate_terminators(&mut self, func: &mut Function) {
         let mut changed = false;
         for block_id in func.blocks.indices() {
-            let Some(Terminator::Branch { then_block, else_block, .. }) =
-                func.blocks[block_id].terminator.as_ref()
-            else {
-                continue;
+            let replacement = match func.blocks[block_id].terminator.as_mut() {
+                Some(Terminator::Branch { then_block, else_block, .. })
+                    if then_block == else_block =>
+                {
+                    Some(*then_block)
+                }
+                Some(Terminator::Switch { default, cases, .. }) => {
+                    let old_len = cases.len();
+                    cases.retain(|(_, target)| target != default);
+                    if cases.len() != old_len {
+                        self.stats.terminators_simplified += old_len - cases.len();
+                        changed = true;
+                    }
+                    cases.is_empty().then_some(*default)
+                }
+                _ => None,
             };
-            if then_block != else_block {
-                continue;
+            if let Some(target) = replacement {
+                func.blocks[block_id].terminator = Some(Terminator::Jump(target));
+                self.stats.terminators_simplified += 1;
+                self.stats.gas_saved += 10;
+                changed = true;
             }
-
-            let target = *then_block;
-            func.blocks[block_id].terminator = Some(Terminator::Jump(target));
-            self.stats.terminators_simplified += 1;
-            self.stats.gas_saved += 10;
-            changed = true;
         }
 
         if changed {
-            repair_reachability_phis(func);
+            let _phis_repaired = repair_reachability_phis(func);
         }
     }
 

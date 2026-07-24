@@ -104,7 +104,7 @@ impl JumpThreader {
 
         // Update predecessor/successor information
         self.update_cfg_edges(func);
-        repair_reachability_phis(func);
+        let _phis_repaired = repair_reachability_phis(func);
 
         changed
     }

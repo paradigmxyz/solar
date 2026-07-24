@@ -88,7 +88,7 @@ fn lower_function(func: &mut Function) -> bool {
         move_terminator(&mut builder, block, original_terminator);
     }
     func.replace_uses_canonicalized(&replacements);
-    crate::mir::utils::repair_reachability_phis(func);
+    let _phis_repaired = crate::mir::utils::repair_reachability_phis(func);
     true
 }
 

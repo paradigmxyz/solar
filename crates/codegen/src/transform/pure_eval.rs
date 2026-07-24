@@ -163,12 +163,13 @@ impl PureEvaluator {
                 Terminator::Switch { value, default, cases } => {
                     let value = self.value_const(&env, *value)?;
                     predecessor = Some(current);
-                    current = cases
-                        .iter()
-                        .find_map(|(case, target)| {
-                            (self.value_const(&env, *case)? == value).then_some(*target)
-                        })
-                        .unwrap_or(*default);
+                    current = *default;
+                    for (case, target) in cases {
+                        if self.value_const(&env, *case)? == value {
+                            current = *target;
+                            break;
+                        }
+                    }
                 }
                 Terminator::Return { values } => {
                     return values

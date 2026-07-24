@@ -134,10 +134,10 @@ impl LowerDispatchCx {
     ///
     /// Mirrors the backend dispatcher's semantics: an optional hoisted
     /// callvalue check when every entry rejects value, empty calldata routed to
-    /// `receive`, then `fallback`, then revert, the selector switch defaulting
-    /// to `fallback` or revert, and per-entry callvalue checks when the hoisted
-    /// check does not apply. Short calldata (under 4 bytes but not empty) takes
-    /// the selector path and falls through to the default, like the backend.
+    /// `receive`, then `fallback`, then revert, short calldata routed to
+    /// `fallback` or revert, the selector switch defaulting to `fallback` or
+    /// revert, and per-entry callvalue checks when the hoisted check does not
+    /// apply.
     fn build_entry(
         &self,
         module: &mut Module,
@@ -148,6 +148,7 @@ impl LowerDispatchCx {
     ) {
         let fallback_rejects =
             fallback.is_some_and(|id| super::utils::rejects_callvalue(module.function(id)));
+        let needs_short_calldata_guard = routes.iter().any(|(selector, _)| selector & 0xff == 0);
 
         let mut entry = Function::new(Ident::with_dummy_span(sym::entry));
         {
@@ -161,6 +162,7 @@ impl LowerDispatchCx {
             // dispatcher's exact shape.
             let empty_block =
                 (receive.is_some() || fallback.is_some()).then(|| builder.create_block());
+            let nonempty_block = needs_short_calldata_guard.then(|| builder.create_block());
             let select_block = builder.create_block();
             let case_blocks: Vec<_> = routes.iter().map(|_| builder.create_block()).collect();
             let default_block = fallback.map(|_| builder.create_block());
@@ -178,7 +180,11 @@ impl LowerDispatchCx {
             // calldatasize is the branch condition itself; no comparison.
             builder.switch_to_block(size_block);
             let size = builder.calldatasize();
-            builder.branch(size, select_block, empty_block.unwrap_or(revert_block));
+            builder.branch(
+                size,
+                nonempty_block.unwrap_or(select_block),
+                empty_block.unwrap_or(revert_block),
+            );
 
             if let Some(empty_block) = empty_block {
                 builder.switch_to_block(empty_block);
@@ -194,6 +200,16 @@ impl LowerDispatchCx {
                     }
                     (None, None) => unreachable!("empty_block exists without receive or fallback"),
                 }
+            }
+
+            if let Some(nonempty_block) = nonempty_block {
+                // CALLDATALOAD zero-pads short input. It can only spuriously
+                // match a selector whose final byte is zero.
+                builder.switch_to_block(nonempty_block);
+                let size = builder.calldatasize();
+                let selector_size = builder.imm_u64(4);
+                let short = builder.lt(size, selector_size);
+                builder.branch(short, default_block.unwrap_or(revert_block), select_block);
             }
 
             // Selector switch; the default goes to the fallback when present.

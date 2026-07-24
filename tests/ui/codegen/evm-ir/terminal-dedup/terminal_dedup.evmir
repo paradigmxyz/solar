@@ -9,7 +9,7 @@ bb1 [cold]:
   push 32
   push 0
   revert
-bb2 [cold]:
+bb2:
   push 64
   push 32
   push 0

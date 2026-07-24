@@ -146,7 +146,6 @@ impl PartialRedundancyEliminator {
     /// Runs PRE to a fixed point.
     fn run(&mut self, func: &mut Function) -> PreStats {
         self.stats = PreStats::default();
-        repair_reachability_phis(func);
 
         let mut inst_results = func.inst_results();
         let mut inst_blocks = func.inst_blocks();
@@ -183,7 +182,7 @@ impl PartialRedundancyEliminator {
                     &mut inserted_insts,
                 );
             }
-            repair_reachability_phis(func);
+            let _phis_repaired = repair_reachability_phis(func);
         }
 
         self.stats
@@ -330,9 +329,7 @@ impl PartialRedundancyEliminator {
         // than before; paths through available predecessors compute it
         // strictly less often. The constant bounds code growth at joins with
         // many predecessors.
-        if insertions.len() > available
-            || insertions.len() > MAX_INSERTIONS_PER_REWRITE.max(available)
-        {
+        if insertions.len() > available || insertions.len() > MAX_INSERTIONS_PER_REWRITE {
             return None;
         }
 

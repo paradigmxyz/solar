@@ -1,0 +1,54 @@
+//@compile-flags: --passes storage-promotion,static-alloc
+//@filecheck: --match-full-lines
+@module StaticAllocDerivedChain
+
+// The CFG visits bb5 through bb1, opposite the block storage order. Discovering
+// the full derived-address chain therefore requires more than four scans.
+// CHECK-LABEL: + // === {{.*}} (after static-alloc) ===
+// CHECK:   fn @derived_chain() -> u256 {
+// CHECK: -     {{v[0-9]+}} = alloc raw, exact, uninitialized, infallible, 32
+// CHECK:       [[LOAD:v[0-9]+]] = mload {{v[0-9]+}}
+// CHECK:       ret [[LOAD]]
+// CHECK: +     {{v[0-9]+}} = add 128, 0
+fn @derived_chain() -> u256 [selector=0x01020304] {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    jump bb5
+  bb1:
+    v5 = add v4, 0
+    v6 = mload v5
+    ret v6
+  bb2:
+    v4 = add v3, 0
+    jump bb1
+  bb3:
+    v3 = add v2, 0
+    jump bb2
+  bb4:
+    v2 = add v1, 0
+    jump bb3
+  bb5:
+    v1 = add v0, 0
+    jump bb4
+}
+
+// Storage promotion gives another entry a 32-byte frame, providing the shadow
+// region used by the explicit static-allocation pass.
+// CHECK-LABEL:   fn @reserve_frame() {
+// CHECK:       mstore 128, 1
+fn @reserve_frame() [selector=0x01020305] {
+  bb0:
+    sstore 0, 1
+    jump bb1
+  bb1:
+    br true, bb2, bb4
+  bb2:
+    v0 = sload 0
+    v1 = add v0, 1
+    sstore 0, v1
+    jump bb3
+  bb3:
+    jump bb1
+  bb4:
+    stop
+}

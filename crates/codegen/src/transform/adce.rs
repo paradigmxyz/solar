@@ -29,8 +29,8 @@ impl MirPass for Adce {
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
             let changed = AggressiveDeadCodeEliminator::new().run(func).total() != 0;
-            repair_reachability_phis(func);
-            changed
+            let repaired = repair_reachability_phis(func);
+            changed || repaired
         })
     }
 }
@@ -95,7 +95,7 @@ impl AggressiveDeadCodeEliminator {
                 break;
             }
             self.stats.control_edges_removed += rewrites;
-            repair_reachability_phis(func);
+            let _phis_repaired = repair_reachability_phis(func);
         }
 
         let removed = super::dce::DeadCodeEliminator::new().run_to_fixpoint(func);

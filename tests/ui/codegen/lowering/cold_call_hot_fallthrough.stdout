@@ -45,7 +45,7 @@ bb6:
   push 4
   calldataload
   iszero
-  push bb25
+  push bb10
   jump bb24
 bb24:
   jumpi
@@ -56,36 +56,22 @@ bb24:
   push 32
   push 128
   return
-bb11:
-  calldatasize
-  push 4
-  swap1
-  sub
-  push 32
-  sgt
-  push bb5
-  jumpi
-  push 0
-  push 128
-  mstore
-  push 100
+bb10 [cold]:
+  jump bb25
+bb25 [cold]:
   push 4
   calldataload
-  lt
-  push bb25
-  jump bb24
-bb18 [cold]:
-  push 1
+  push 288
+  mstore
   push 288
   mload
-  sub
-  push bb20
+  push bb18
   jumpi
-  push 3
+  push 4
   push 384
   mstore
-  push 0x6f6e65
-  push 232
+  push 0x7a65726f
+  push 224
   jump bb26
 bb26 [cold]:
   shl
@@ -110,6 +96,39 @@ bb26 [cold]:
   push 100
   push 0
   revert
+bb11:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  sgt
+  push bb5
+  jumpi
+  push 0
+  push 128
+  mstore
+  push 100
+  push 4
+  calldataload
+  lt
+  push bb15
+  jump bb24
+bb15 [cold]:
+  jump bb25
+bb18 [cold]:
+  push 1
+  push 288
+  mload
+  sub
+  push bb20
+  jumpi
+  push 3
+  push 384
+  mstore
+  push 0x6f6e65
+  push 232
+  jump bb26
 bb20 [cold]:
   push 2
   push 288
@@ -129,19 +148,4 @@ bb22 [cold]:
   mstore
   push 0x6f74686572
   push 216
-  jump bb26
-bb25 [cold]:
-  push 4
-  calldataload
-  push 288
-  mstore
-  push 288
-  mload
-  push bb18
-  jumpi
-  push 4
-  push 384
-  mstore
-  push 0x7a65726f
-  push 224
   jump bb26
