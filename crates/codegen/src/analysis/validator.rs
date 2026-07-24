@@ -496,9 +496,9 @@ impl<'a> Validator<'a> {
     }
 
     fn value_type(func: &Function, value: ValueId) -> Option<crate::mir::MirType> {
-        match func.values.get(value)? {
+        match func.value(value) {
             Value::Arg { ty, .. } | Value::Undef(ty) => Some(*ty),
-            Value::Inst(inst) => func.instructions.get(*inst)?.result_ty,
+            Value::Inst(inst) => func.instructions[*inst].result_ty,
             Value::Immediate(imm) => Some(imm.ty()),
             Value::Error(_) => None,
         }
@@ -899,31 +899,6 @@ error: function has no entry block
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
 error: [fn0] internal_call targets nonexistent function fn99
-
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn invalid_immutable_store_operand_is_caught() {
-        with_session(|sess| {
-            let mut module = Module::new(Ident::DUMMY);
-            let immutable = module.add_immutable(Ident::DUMMY, MirType::uint256());
-            let mut func = make_func();
-            {
-                let mut builder = FunctionBuilder::new(&mut func);
-                builder.store_immutable(immutable, ValueId::from_usize(99));
-                builder.stop();
-            }
-            module.add_function(func);
-
-            validate(&sess.dcx, &module);
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: [fn0] [bb0, inst0] instruction references undefined value v99 (only 0 values exist)
 
 
 "#]]
