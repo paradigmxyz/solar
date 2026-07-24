@@ -16,6 +16,7 @@ categories.workspace = true
 [dependencies]
 solar = { workspace = true, default-features = false }
 
+serde_json.workspace = true
 solang-parser = "=0.3.4"
 
 slang_solidity = "=0.18.3"

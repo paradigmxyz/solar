@@ -2,9 +2,12 @@
 
 use solar::{
     codegen::{self, Backend, EvmCodegen},
+    data_structures::map::FxHashMap,
     parse::interface::{Result, Session},
-    sema::{Compiler as SemaCompiler, CompilerRef},
+    sema::CompilerRef,
 };
+
+pub use solar::sema::Compiler as SemaCompiler;
 use std::{
     any::Any,
     hint::black_box,
@@ -44,10 +47,7 @@ pub fn get_srcs() -> &'static [Source] {
                 "../testdata/solidity/test/benchmarks/OptimizorClub.sol",
                 Capabilities::all(),
             ),
-            include_source(
-                "../testdata/solidity/test/benchmarks/chains.sol",
-                Capabilities::all(),
-            ),
+            include_source("../testdata/solidity/test/benchmarks/chains.sol", Capabilities::all()),
             // Pre-0.8 source semantics: rejected by 0.8 type rules (unary `-` on
             // unsigned, one-step sign+width conversions).
             include_source("../testdata/UniswapV3.sol", Capabilities::no_codegen()),
@@ -114,20 +114,99 @@ fn codegen_source(compiler: &mut CompilerRef<'_>, source: &Source) -> Result {
     parse_source(compiler, source)?;
     let ControlFlow::Continue(()) = compiler.lower_asts()? else { return Ok(()) };
     let ControlFlow::Continue(()) = compiler.analysis()? else { return Ok(()) };
+    codegen_contracts(compiler)
+}
 
+fn codegen_contracts(compiler: &mut CompilerRef<'_>) -> Result {
     let gcx = compiler.gcx();
+    let mut bytecodes = FxHashMap::default();
     for contract_id in gcx.hir.contract_ids() {
         if !gcx.hir.contract(contract_id).can_be_deployed() {
             continue;
         }
-
-        let mut module = codegen::lower::lower_contract(gcx, contract_id);
-        gcx.dcx().has_errors()?;
-        let artifact = EvmCodegen::new(gcx).lower_module(&mut module);
-        black_box(artifact);
+        ensure_contract_bytecode(gcx, contract_id, &mut bytecodes)?;
     }
-
     Ok(())
+}
+
+/// Generates a contract's deployment bytecode, recursing into its `new`
+/// dependencies first so creation-bytecode references resolve.
+fn ensure_contract_bytecode(
+    gcx: solar::sema::Gcx<'_>,
+    contract_id: solar::sema::hir::ContractId,
+    bytecodes: &mut FxHashMap<solar::sema::hir::ContractId, Vec<u8>>,
+) -> Result {
+    if bytecodes.contains_key(&contract_id) {
+        return Ok(());
+    }
+    // Valid code cannot have recursive creation dependencies; seed the entry
+    // so an unexpected cycle terminates instead of recursing forever.
+    bytecodes.insert(contract_id, Vec::new());
+    for dep in codegen::lower::contract_bytecode_dependencies(gcx, contract_id).iter() {
+        ensure_contract_bytecode(gcx, dep, bytecodes)?;
+    }
+    let mut module = codegen::lower::lower_contract_with_bytecodes(gcx, contract_id, bytecodes);
+    gcx.dcx().has_errors()?;
+    let artifact = EvmCodegen::new(gcx).lower_module(&mut module);
+    bytecodes.insert(contract_id, artifact.deployment.clone());
+    black_box(artifact);
+    Ok(())
+}
+
+fn parse_project(compiler: &mut CompilerRef<'_>, project: &ProjectSource) -> Result {
+    let mut pcx = compiler.parse();
+    pcx.par_load_files_with_contents(
+        project
+            .files
+            .iter()
+            .map(|&(name, content)| (PathBuf::from(name), content))
+            .collect::<Vec<_>>(),
+    )?;
+    pcx.parse();
+    compiler.dcx().has_errors()
+}
+
+fn codegen_project(compiler: &mut CompilerRef<'_>, project: &ProjectSource) -> Result {
+    parse_project(compiler, project)?;
+    let ControlFlow::Continue(()) = compiler.lower_asts()? else { return Ok(()) };
+    let ControlFlow::Continue(()) = compiler.analysis()? else { return Ok(()) };
+    codegen_contracts(compiler)
+}
+
+/// Builds a session configured for a project source: its import remappings
+/// applied, single-threaded, with codegen enabled.
+fn project_session(project: &ProjectSource) -> Session {
+    let mut opts = solar::config::CompileOpts {
+        threads: solar::config::Threads::resolve(1),
+        unstable: solar::config::UnstableOpts { codegen: true, ..Default::default() },
+        ..Default::default()
+    };
+    opts.import_remappings =
+        project.remappings.iter().map(|remapping| remapping.parse().unwrap()).collect();
+    Session::builder()
+        .with_stderr_emitter_and_color(solar::parse::interface::ColorChoice::Always)
+        .opts(opts)
+        .build()
+}
+
+/// Creates the per-iteration compiler state for a project bench.
+pub fn project_setup(project: &ProjectSource) -> SemaCompiler {
+    SemaCompiler::new(project_session(project))
+}
+
+pub fn run_project_parse(compiler: &mut SemaCompiler, project: &ProjectSource) {
+    compiler.enter_mut(|compiler| parse_project(compiler, project).unwrap());
+}
+
+pub fn run_project_lower(compiler: &mut SemaCompiler, project: &ProjectSource) {
+    compiler.enter_mut(|compiler| {
+        parse_project(compiler, project).unwrap();
+        let _ = compiler.lower_asts().unwrap();
+    });
+}
+
+pub fn run_project_codegen(compiler: &mut SemaCompiler, project: &ProjectSource) {
+    compiler.enter_mut(|compiler| codegen_project(compiler, project).unwrap());
 }
 
 /// `include!` at runtime, since the submodule may not be initialized.
@@ -153,6 +232,98 @@ pub struct Source {
     pub path: &'static str,
     pub src: &'static str,
     pub capabilities: Capabilities,
+}
+
+/// A whole-project compilation input: every source `forge build` compiles,
+/// test suite included, extracted as solc Standard JSON.
+///
+/// Single flattened contracts undersell the workload that makes compilers
+/// slow in practice; a project's build input is typically half test and mock
+/// code by file count and several times the flattened core by volume.
+#[derive(Clone, Debug)]
+pub struct ProjectSource {
+    pub name: &'static str,
+    /// `(source unit name, content)` pairs.
+    pub files: Vec<(&'static str, &'static str)>,
+    /// Import remappings from the project's build configuration.
+    pub remappings: Vec<&'static str>,
+    /// Total source bytes across every file.
+    pub bytes: u64,
+    pub capabilities: Capabilities,
+}
+
+pub fn get_projects() -> &'static [ProjectSource] {
+    static CACHE: std::sync::OnceLock<Vec<ProjectSource>> = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| {
+        // Whole-project inputs mirroring solc's external benchmarks
+        // (`test/benchmarks/external-setup.sh` upstream): pinned Foundry
+        // projects compiled with their full test suites.
+        //
+        // Projects capped below `all()` currently hit divergences in
+        // analysis (storage-array `push` with struct, string, bytes, and
+        // user-defined value type elements; `require` with custom errors;
+        // NatSpec strictness) or an unsupported `.push` form in codegen
+        // (solarray). Re-probe with `--test` when those close.
+        vec![
+            include_project("../testdata/projects/seaport-1.6.json", Capabilities::no_codegen()),
+            include_project(
+                "../testdata/projects/openzeppelin-5.6.1.json",
+                Capabilities::no_codegen(),
+            ),
+            include_project("../testdata/projects/solady-0.1.26.json", Capabilities::no_codegen()),
+            include_project("../testdata/projects/v4-core-4.0.0.json", Capabilities::no_codegen()),
+            include_project(
+                "../testdata/projects/morpho-blue-1.0.0.json",
+                Capabilities::no_codegen(),
+            ),
+            include_project(
+                "../testdata/projects/forge-std-1.16.1.json",
+                Capabilities::no_codegen(),
+            ),
+            include_project("../testdata/projects/prb-math-4.1.1.json", Capabilities::no_codegen()),
+            include_project("../testdata/projects/solmate-6.json", Capabilities::all()),
+            include_project(
+                "../testdata/projects/solarray-a547630.json",
+                Capabilities::no_codegen(),
+            ),
+        ]
+    })
+}
+
+fn include_project(path: &str, capabilities: Capabilities) -> ProjectSource {
+    let full_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(path);
+    let text = match std::fs::read_to_string(&full_path) {
+        Ok(text) => text,
+        Err(e) => panic!("failed to read {path}: {e}"),
+    };
+    let input: serde_json::Value = match serde_json::from_str(&text) {
+        Ok(input) => input,
+        Err(e) => panic!("failed to parse {path}: {e}"),
+    };
+    let sources = input["sources"].as_object().unwrap_or_else(|| panic!("{path}: no sources"));
+    let mut files = Vec::with_capacity(sources.len());
+    let mut bytes = 0;
+    for (name, source) in sources {
+        let content = source["content"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{path}: source `{name}` has no content"));
+        bytes += content.len() as u64;
+        files.push((
+            name.clone().leak() as &'static str,
+            content.to_string().leak() as &'static str,
+        ));
+    }
+    let remappings = input["settings"]["remappings"]
+        .as_array()
+        .map(|remappings| {
+            remappings
+                .iter()
+                .map(|remapping| remapping.as_str().unwrap().to_string().leak() as &'static str)
+                .collect()
+        })
+        .unwrap_or_default();
+    let name = Path::new(path).file_stem().unwrap().to_str().unwrap().to_string().leak();
+    ProjectSource { name, files, remappings, bytes, capabilities }
 }
 
 #[derive(Clone, Debug)]
