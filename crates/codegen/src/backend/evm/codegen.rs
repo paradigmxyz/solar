@@ -15,8 +15,8 @@ use super::{
         MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
     },
     switch::{
-        SwitchDefault, SwitchPlan, bucket_index, select_switch_plan,
-        select_switch_plan_with_linear_values,
+        MAX_GAS_CODE_GROWTH, SwitchDefault, SwitchPlan, SwitchSelection, bucket_index,
+        select_switch_plan_with_budget, select_switch_plan_with_linear_values_and_budget,
     },
 };
 use crate::{
@@ -614,6 +614,8 @@ pub struct EvmCodegen<'gcx> {
     /// so the leftover word can neither accumulate nor disturb an internal
     /// return.
     emitting_dispatch_entry: bool,
+    /// Gas-mode switch growth still available in the current runtime or constructor artifact.
+    switch_gas_code_growth_remaining: usize,
     capture_evm_ir: bool,
     /// Instructions that survive MIR lowering and the word-based backend cannot
     /// emit — an unsupported high-level construct rather than a miscompile. Each
@@ -659,6 +661,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             constructor_param_count: 0,
             in_internal_function: false,
             emitting_dispatch_entry: false,
+            switch_gas_code_growth_remaining: MAX_GAS_CODE_GROWTH,
             capture_evm_ir: false,
             unsupported: Vec::new(),
         }
@@ -937,6 +940,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         immutable_refs: &[ImmutableRef],
     ) -> PreparedDeploymentPrefix {
         self.asm.clear();
+        self.switch_gas_code_growth_remaining = MAX_GAS_CODE_GROWTH;
         let runtime_offset = self.asm.new_deferred_const();
 
         // Find constructor function if it exists
@@ -1118,6 +1122,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.stack_arg_masks.clear();
         self.runtime_stack_args = true;
         self.emitting_dispatch_entry = false;
+        self.switch_gas_code_growth_remaining = MAX_GAS_CODE_GROWTH;
 
         if !module.functions.is_empty() {
             if module.phase >= crate::mir::MirPhase::Dispatch {
@@ -1465,13 +1470,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         let values: Vec<_> = selectors.iter().map(|entry| U256::from(entry.selector)).collect();
         let default =
             if fallback_label.is_some() { SwitchDefault::Jump } else { SwitchDefault::Revert };
-        match select_switch_plan(
+        let selection = select_switch_plan_with_budget(
             &values,
             self.gcx.sess.opts.optimization,
             self.gcx.sess.opts.evm_version,
             default,
             self.switch_table_target_width(),
-        ) {
+            self.switch_gas_code_growth_remaining,
+        );
+        self.switch_gas_code_growth_remaining =
+            self.switch_gas_code_growth_remaining.saturating_sub(selection.gas_code_growth);
+        match selection.plan {
             SwitchPlan::Linear => {
                 self.emit_linear_selector_dispatch(selectors, fallback_label, revert_label);
             }
@@ -5704,7 +5713,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             Terminator::Switch { value, default, cases } => {
                 let constant_entries = self.constant_switch_entries(func, cases);
                 let plan = constant_entries.as_ref().map_or(
-                    SwitchPlan::Linear,
+                    SwitchSelection { plan: SwitchPlan::Linear, gas_code_growth: 0 },
                     |(linear_values, entries)| {
                         let values: Vec<_> = entries.iter().map(|entry| entry.value).collect();
                         let default =
@@ -5714,16 +5723,20 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 (false, true) => SwitchDefault::CleanupFallthrough,
                                 (false, false) => SwitchDefault::CleanupJump,
                             };
-                        select_switch_plan_with_linear_values(
+                        select_switch_plan_with_linear_values_and_budget(
                             &values,
                             linear_values,
                             self.gcx.sess.opts.optimization,
                             self.gcx.sess.opts.evm_version,
                             default,
                             self.switch_table_target_width(),
+                            self.switch_gas_code_growth_remaining,
                         )
                     },
                 );
+                self.switch_gas_code_growth_remaining =
+                    self.switch_gas_code_growth_remaining.saturating_sub(plan.gas_code_growth);
+                let plan = plan.plan;
                 let constant_entries = constant_entries.map(|(_, entries)| entries);
 
                 if self.emitting_dispatch_entry {

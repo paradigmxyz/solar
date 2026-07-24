@@ -26,8 +26,8 @@ const MIN_BUCKET_CASES: usize = 8;
 const MAX_BUCKET_CASES: usize = 64;
 const MAX_DENSE_RANGE: usize = 4096;
 const MAX_BUCKET_CANDIDATES: usize = 33;
-// Bound per-switch bytecode growth under the runtime-gas objective.
-const MAX_GAS_CODE_GROWTH: usize = 512;
+/// Bounds cumulative bytecode growth per artifact under the runtime-gas objective.
+pub(super) const MAX_GAS_CODE_GROWTH: usize = 512;
 
 /// Selected control-flow shape for a switch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -40,6 +40,13 @@ pub(super) enum SwitchPlan {
     Buckets { bucket_count: usize },
     /// Bounds-check `value - low` and dispatch through a dense target table.
     Dense { low: U256, range: usize },
+}
+
+/// Selected switch shape and its conservative growth over a linear scan.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct SwitchSelection {
+    pub(super) plan: SwitchPlan,
+    pub(super) gas_code_growth: usize,
 }
 
 /// Emitted switch miss sequence.
@@ -112,6 +119,7 @@ impl SwitchDefault {
 }
 
 /// Selects the cheapest supported switch shape for the optimization objective.
+#[cfg(test)]
 pub(super) fn select_switch_plan(
     values: &[U256],
     optimization: OptimizationMode,
@@ -119,34 +127,56 @@ pub(super) fn select_switch_plan(
     default: SwitchDefault,
     table_target_width: usize,
 ) -> SwitchPlan {
-    select_switch_plan_with_linear_values(
+    select_switch_plan_with_budget(
+        values,
+        optimization,
+        evm_version,
+        default,
+        table_target_width,
+        MAX_GAS_CODE_GROWTH,
+    )
+    .plan
+}
+
+/// Selects a switch shape within the remaining artifact-wide gas-mode growth budget.
+pub(super) fn select_switch_plan_with_budget(
+    values: &[U256],
+    optimization: OptimizationMode,
+    evm_version: EvmVersion,
+    default: SwitchDefault,
+    table_target_width: usize,
+    max_gas_code_growth: usize,
+) -> SwitchSelection {
+    select_switch_plan_with_linear_values_and_budget(
         values,
         values,
         optimization,
         evm_version,
         default,
         table_target_width,
+        max_gas_code_growth,
     )
 }
 
-/// Selects a switch shape while costing the linear plan in its emitted order.
-pub(super) fn select_switch_plan_with_linear_values(
+/// Selects a switch shape in emitted order within the remaining artifact-wide growth budget.
+pub(super) fn select_switch_plan_with_linear_values_and_budget(
     values: &[U256],
     linear_values: &[U256],
     optimization: OptimizationMode,
     evm_version: EvmVersion,
     default: SwitchDefault,
     table_target_width: usize,
-) -> SwitchPlan {
+    max_gas_code_growth: usize,
+) -> SwitchSelection {
     debug_assert!(values.windows(2).all(|values| values[0] < values[1]));
     debug_assert_eq!(values.len(), linear_values.len());
     if values.len() <= 1 || optimization == OptimizationMode::None {
-        return SwitchPlan::Linear;
+        return SwitchSelection { plan: SwitchPlan::Linear, gas_code_growth: 0 };
     }
 
     let linear_cost =
         lowering_cost(linear_values, values.len(), evm_version, default, table_target_width);
-    let max_gas_code_size = linear_cost.code_size.saturating_add(MAX_GAS_CODE_GROWTH);
+    let max_gas_code_size = linear_cost.code_size.saturating_add(max_gas_code_growth);
     let mut best = (linear_cost, SwitchPlan::Linear);
     if optimization == OptimizationMode::Gas {
         let explicit_default = default.without_fallthrough();
@@ -184,7 +214,12 @@ pub(super) fn select_switch_plan_with_linear_values(
             best = (cost, SwitchPlan::Dense { low, range });
         }
     }
-    best.1
+    let gas_code_growth = if optimization == OptimizationMode::Gas && best.1 != SwitchPlan::Linear {
+        best.0.max_code_size.saturating_sub(linear_cost.code_size)
+    } else {
+        0
+    };
+    SwitchSelection { plan: best.1, gas_code_growth }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -845,5 +880,29 @@ mod tests {
             2,
         );
         assert!(!matches!(plan, SwitchPlan::Dense { .. }));
+    }
+
+    #[test]
+    fn bounds_cumulative_gas_mode_growth() {
+        let values = (0..48).map(|value| U256::from(value * 4)).collect::<Vec<_>>();
+        let mut remaining = MAX_GAS_CODE_GROWTH;
+        let mut growth = 0;
+        let mut linear = 0;
+        for _ in 0..21 {
+            let selection = select_switch_plan_with_budget(
+                &values,
+                OptimizationMode::Gas,
+                EvmVersion::Cancun,
+                SwitchDefault::CleanupJump,
+                2,
+                remaining,
+            );
+            growth += selection.gas_code_growth;
+            remaining = remaining.saturating_sub(selection.gas_code_growth);
+            linear += usize::from(selection.plan == SwitchPlan::Linear);
+        }
+        assert!(growth <= MAX_GAS_CODE_GROWTH);
+        assert!(growth > 0);
+        assert!(linear > 0);
     }
 }
