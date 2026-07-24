@@ -1,3 +1,4 @@
+//@ check-pass
 function f() pure {
     uint i;
     do ++i; while (false);

@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: -Zcodegen -O size -Zdump=evm-ir-runtime --pretty-json
 
 // Calls to the non-returning helper make their blocks cold. The backend should

@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass inst-simplify
 @module InstSimplify
 fn @strength_reduce_arithmetic(arg0: u256) -> u256 {

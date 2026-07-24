@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: -Zcodegen --emit=bin-runtime
 
 contract CalldataSliceReturn {

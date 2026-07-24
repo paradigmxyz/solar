@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass indvar-simplify
 @module IndVarSimplify
 fn @strength_reduce_shifted_address(arg0: u256) -> u256 {

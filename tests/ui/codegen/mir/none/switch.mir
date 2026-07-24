@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass none
 @module SwitchTest
 fn @dispatch(arg0: u256) -> u256 {

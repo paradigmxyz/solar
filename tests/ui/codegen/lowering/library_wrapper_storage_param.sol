@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 // The external wrapper of a public library function must decode a

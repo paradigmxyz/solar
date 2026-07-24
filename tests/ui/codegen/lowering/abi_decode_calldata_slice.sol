@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: -Zcodegen -Zdump=mir
 
 contract AbiDecodeCalldataSlice {

@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass load-pre
 // Memory diamonds are cost-model gated: a single 3-gas MLOAD does not pay for
 // a merge phi, but repeated same-key join reloads can amortize the insertion.

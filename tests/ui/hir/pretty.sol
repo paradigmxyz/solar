@@ -1,3 +1,4 @@
+//@ check-pass
 //@ compile-flags: -Zdump=hir -Zhir-stats
 pragma solidity ^0.8.30;
 

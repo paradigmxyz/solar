@@ -1,3 +1,4 @@
+//@ check-pass
 // ported-from: test/libsolidity/semanticTests/using/imported_functions.sol
 
 import {inc as aliasedInc} from "./auxiliary/imported_aliases_and_clashes.sol";

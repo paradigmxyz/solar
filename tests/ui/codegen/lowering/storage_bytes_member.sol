@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 // A `bytes` struct field reached through a storage reference bound from a

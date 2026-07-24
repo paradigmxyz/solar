@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: -Zcodegen -Zdump=mir
 //@filecheck: --check-prefix=ORDER
 // Multi-return tails live at the free-memory pointer, and every tail word is

@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: -Zcodegen -Zdump=mir
 
 // Pins the calldata lower-bound check and validators emitted for value-type

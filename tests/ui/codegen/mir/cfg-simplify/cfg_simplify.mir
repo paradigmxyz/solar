@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass cfg-simplify
 @module CfgSimplify
 fn @sequential(arg0: u256) -> u256 {

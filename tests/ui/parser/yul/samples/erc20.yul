@@ -1,3 +1,4 @@
+//@ check-pass
 // https://gist.github.com/Philogy/04e5883c65b51f8a17ceb51828ea7fe3
 
 /// @use-src 0:"src/ERC20.sol"

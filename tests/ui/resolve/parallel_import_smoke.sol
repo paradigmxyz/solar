@@ -1,3 +1,4 @@
+//@ check-pass
 //@ compile-flags: -j8
 
 import "./auxiliary/parallel_import_a.sol" as A;

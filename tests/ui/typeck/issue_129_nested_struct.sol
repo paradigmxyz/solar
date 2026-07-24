@@ -1,3 +1,4 @@
+//@ check-pass
 // https://github.com/paradigmxyz/solar/issues/129
 
 // SPDX-License-Identifier: UNLICENSED

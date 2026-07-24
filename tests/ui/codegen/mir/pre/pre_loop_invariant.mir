@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --passes pre
 // Loop-invariant PRE: the header expression's translated form is available at
 // the latch end and insertable in the jump-terminated preheader, so it is

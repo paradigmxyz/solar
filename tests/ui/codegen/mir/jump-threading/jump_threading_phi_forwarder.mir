@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass jump-threading
 // A block whose only instruction is a phi is not an empty forwarder: threading
 // its predecessors past it would sever the phi's incoming edges.

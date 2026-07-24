@@ -1,3 +1,4 @@
+//@ check-pass
 // ported-from: test/libsolidity/syntaxTests/using/module_3.sol
 
 import "./auxiliary/imported_using.sol" as M;

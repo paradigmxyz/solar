@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 // Constant short revert messages share one synthesized `__revert_error`

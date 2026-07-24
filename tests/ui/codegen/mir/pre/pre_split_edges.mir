@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --passes pre
 // Insertion predecessors that end in a branch or switch: the critical edge
 // into the join is split and the computation lands in the new block.

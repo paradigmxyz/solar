@@ -1,3 +1,4 @@
+//@ check-pass
 // ported-from: test/libsolidity/syntaxTests/storageLayoutSpecifier/simple_layout.sol
 // ported-from: test/libsolidity/syntaxTests/storageLayoutSpecifier/literal_with_underscore.sol
 // ported-from: test/libsolidity/syntaxTests/storageLayoutSpecifier/rational_number_without_fractional_part.sol

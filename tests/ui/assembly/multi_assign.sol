@@ -1,3 +1,4 @@
+//@ check-pass
 // Test multi-variable declarations and assignments
 
 contract MultiAssign {

@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass licm
 // A wrapping decrement written as an addition of the all-ones constant is a
 // descending induction variable: the `lt v1, 100` guard yields a wraparound

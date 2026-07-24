@@ -1,3 +1,4 @@
+//@ check-pass
 // ported-from: test/libsolidity/semanticTests/using/using_global_invisible.sol
 
 import {C} from "./auxiliary/global_invisible_mid.sol";

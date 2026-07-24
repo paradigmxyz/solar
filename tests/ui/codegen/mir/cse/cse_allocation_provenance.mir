@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass cse
 //@filecheck: --match-full-lines
 // The reload of a fresh (unreused) allocation is CSE'd away in `@fresh`; the

@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass cse
 @module CseStorageAlias
 fn @reuse_sload_after_disjoint_store(arg0: u256, arg1: u256) -> u256 {

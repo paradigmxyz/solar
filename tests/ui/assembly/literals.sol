@@ -1,3 +1,4 @@
+//@ check-pass
 // Test Yul literal types
 
 contract Literals {

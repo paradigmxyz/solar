@@ -1,3 +1,4 @@
+//@ check-pass
 // Test memory-safe assembly flag
 
 contract MemorySafe {

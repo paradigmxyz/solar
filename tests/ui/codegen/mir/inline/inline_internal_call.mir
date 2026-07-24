@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass inline
 @module InlineInternalCall
 fn @caller(arg0: u256) -> u256 {

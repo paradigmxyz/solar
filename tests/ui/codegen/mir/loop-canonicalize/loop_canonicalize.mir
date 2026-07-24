@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass loop-canonicalize
 @module LoopCanonicalize
 fn @insert_preheader(arg0: bool) -> u256 {

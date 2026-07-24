@@ -1,3 +1,4 @@
+//@ check-pass
 contract C {
     uint public x = 1;
     function f() public view returns(uint y) {

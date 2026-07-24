@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --passes pre
 // Two join blocks that are mutual predecessors: eliminating the expression
 // from one join inserts it into the other, which used to ping-pong forever.

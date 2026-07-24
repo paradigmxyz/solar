@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: -Zcodegen --libraries Inner=0x1000000000000000000000000000000000000001,Outer=0x1000000000000000000000000000000000000002 -Zdump=evm-ir-runtime
 
 // A linked library may itself call another linked library, forwarding a

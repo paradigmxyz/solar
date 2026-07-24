@@ -1,3 +1,4 @@
+//@ check-pass
 /*
 // solc +0.8.26 --ir-optimized ./c.sol
 contract C {

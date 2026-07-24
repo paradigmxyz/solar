@@ -1,3 +1,4 @@
+//@ check-pass
 contract ArrayExpressions {
     function() internal internal $0;
     /* */function/* */()/* */internal/* */internal/* */$1/* */;

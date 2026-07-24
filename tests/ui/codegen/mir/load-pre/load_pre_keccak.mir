@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass load-pre
 // Keccak reads key the canonical size operand when the size is not constant:
 // reads with the same dynamic size unify across the join, reads with a

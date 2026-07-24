@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass cfg-simplify
 // Both arms of the entry branch are empty forwarders into the same join.
 // Eliminating both would give the join phi two entries for bb0 with

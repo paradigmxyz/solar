@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass storage-promotion
 @module StoragePromotionRevertExit
 fn @promote_checked_sum_loop(arg0: u256) [selector=0x01020304] {

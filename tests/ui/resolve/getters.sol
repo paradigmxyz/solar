@@ -1,3 +1,4 @@
+//@ check-pass
 contract C {
     bool public simple;
     bool[] public array;

@@ -1,3 +1,4 @@
+//@ check-pass
 contract P1 {
     //~^ WARN: contract has a payable fallback function, but no receive ether function
     fallback() external payable {}

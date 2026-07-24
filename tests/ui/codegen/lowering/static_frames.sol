@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 // Static frame overlays: non-recursive internal functions get

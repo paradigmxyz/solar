@@ -1,3 +1,4 @@
+//@ check-pass
 // An abstract contract may inherit `is Base` without supplying the base
 // constructor's arguments; a concrete descendant supplies them. This must not
 // be reported as a wrong-argument-count error.

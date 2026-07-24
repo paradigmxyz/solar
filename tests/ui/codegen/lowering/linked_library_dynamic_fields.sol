@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: -Zcodegen --libraries L=0x1000000000000000000000000000000000000001 -Zdump=evm-ir-runtime
 
 // A linked library call whose struct parameter carries dynamic fields:

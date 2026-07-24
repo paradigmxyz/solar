@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass compact-pushes
 @module module
 

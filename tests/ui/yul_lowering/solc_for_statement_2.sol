@@ -1,3 +1,4 @@
+//@ check-pass
 // ported-from: test/libyul/yulSyntaxTests/for_statement_2.yul
 
 contract C {

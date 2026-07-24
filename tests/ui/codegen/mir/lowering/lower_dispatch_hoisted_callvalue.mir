@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass lower-dispatch
 // When every external entry rejects value, the callvalue check is hoisted to
 // the top of `entry` once instead of being repeated per case, mirroring the

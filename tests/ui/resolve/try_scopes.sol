@@ -1,3 +1,4 @@
+//@ check-pass
 contract C {
     // https://github.com/paradigmxyz/solar/issues/196
     function g(bool x) public returns (uint a, uint b) {}

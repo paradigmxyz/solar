@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: -Zcodegen -Zdump=mir
 
 // Dynamic memory allocations must revert with Panic(0x41) when the requested

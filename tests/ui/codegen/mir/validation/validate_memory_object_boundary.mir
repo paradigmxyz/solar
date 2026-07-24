@@ -1,5 +1,9 @@
 //@compile-flags: --pass dce
-//@failure-status: 1
+//~? ERROR: [fn0] memory-object signature type `memorybytes` survives the `memory-lowered` phase boundary
+//~? ERROR: [fn0] memory-object signature type `memorystruct` survives the `memory-lowered` phase boundary
+//~? ERROR: [fn0] [bb0, inst0] memory-object instruction `alloc` survives the `memory-lowered` phase boundary
+//~? ERROR: [fn0] [bb0, inst1] memory-object instruction `memory_object_len` survives the `memory-lowered` phase boundary
+//~? ERROR: [fn0] [bb0, inst2] memory-object instruction `set_memory_object_len` survives the `memory-lowered` phase boundary
 @module ValidateMemoryObjectBoundary
 @phase memory-lowered
 

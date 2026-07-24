@@ -1,3 +1,4 @@
+//@ check-pass
 // Valid lvalue assignments for storage variables
 
 contract Test {

@@ -1,1 +1,2 @@
+//@ check-pass
 contract D {}

@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass none
 @module Identity
 fn @add(arg0: u256, arg1: u256) -> u256 {

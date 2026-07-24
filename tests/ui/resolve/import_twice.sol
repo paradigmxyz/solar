@@ -1,3 +1,4 @@
+//@ check-pass
 import "./import_twice.sol" as self;
 import "./import_twice.sol" as self;
 

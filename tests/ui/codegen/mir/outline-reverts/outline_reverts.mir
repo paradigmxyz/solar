@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass outline-reverts
 //@filecheck: --match-full-lines
 // Two functions carry the same constant panic block; it is outlined into one

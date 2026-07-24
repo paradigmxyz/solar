@@ -1,3 +1,4 @@
+//@ check-pass
 // ported-from: test/libsolidity/syntaxTests/inheritance/override/correct_choice_for_base_function_abstract_contract.sol
 
 abstract contract IBase {

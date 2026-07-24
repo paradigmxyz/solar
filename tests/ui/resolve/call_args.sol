@@ -1,3 +1,4 @@
+//@ check-pass
 struct Custom {
     int256 f1;
 }

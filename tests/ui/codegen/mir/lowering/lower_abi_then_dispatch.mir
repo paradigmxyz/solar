@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass lower-abi,lower-dispatch
 // The two lowering phases compose: ABI first materializes self-decoding
 // wrappers, then dispatch routes a selector switch to those argument-free

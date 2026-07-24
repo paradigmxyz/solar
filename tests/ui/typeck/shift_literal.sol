@@ -1,3 +1,4 @@
+//@ check-pass
 // A literal shifted by a non-constant amount is a runtime value, not a
 // compile-time constant; it is typed `uint256` (matching solc), so e.g.
 // `bytes32(1 << role)` type-checks (the role-bitmask idiom).

@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 // A low-level call may take a `bytes calldata` value as its call data, e.g. a

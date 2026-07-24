@@ -1,3 +1,4 @@
+//@ check-pass
 contract Base {
     uint8 base;
 

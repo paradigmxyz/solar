@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --passes frame-slot-promotion
 @module FramePromotionLoadBeforeStore
 fn @load_before_store() -> u256 {

@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --passes pre
 // The expression is computed in bb3, which dominates the empty forwarder bb4:
 // the join phi must reuse that def as the bb4 incoming instead of inserting a

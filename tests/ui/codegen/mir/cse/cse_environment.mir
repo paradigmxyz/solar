@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass cse
 @module CseEnvironment
 fn @keep_cheap_nullary_environment_reads(arg0: u256) -> u256 {

@@ -1,3 +1,4 @@
+//@ check-pass
 // `int` and `uint` are aliases for `int256` and `uint256`.
 // Override matching must compare the canonical types.
 

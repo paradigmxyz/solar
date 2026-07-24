@@ -1,5 +1,5 @@
 //@compile-flags: --pass dce
-//@failure-status: 1
+//~? ERROR: [fn0] [bb0, inst0] use of ValueId(0) precedes its definition in this acyclic block
 // The acyclic function uses v1 before its definition and must be rejected. The
 // cyclic function has the same textual ordering but remains valid under MIR's
 // deliberately loose SSA rules.

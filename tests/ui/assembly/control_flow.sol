@@ -1,3 +1,4 @@
+//@ check-pass
 // Test Yul control flow constructs
 
 contract ControlFlow {

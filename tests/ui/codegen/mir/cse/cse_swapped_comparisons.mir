@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass cse
 // Swapped comparisons canonicalize to the same key: `gt b, a` unifies with `lt a, b`
 // (and the signed variants likewise) in both directions, while the kept instruction

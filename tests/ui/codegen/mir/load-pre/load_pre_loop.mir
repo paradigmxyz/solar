@@ -1,3 +1,4 @@
+//@ check-pass
 //@compile-flags: --pass load-pre
 // Loop-load PRE: with a clobber-free body, the backedge carries the previous
 // iteration's value, so the in-loop reload becomes a phi over the preheader
