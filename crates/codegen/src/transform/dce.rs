@@ -141,12 +141,10 @@ impl DeadCodeEliminator {
         }
 
         // Add values used as operands in instructions
-        for (_, block) in func.blocks.iter_enumerated() {
-            for &inst_id in &block.instructions {
-                let inst = &func.instructions[inst_id];
-                for val in inst.kind.operands() {
-                    self.used_values.insert(val);
-                }
+        for inst_id in func.instructions() {
+            let inst = &func.instructions[inst_id];
+            for val in inst.kind.operands() {
+                self.used_values.insert(val);
             }
         }
     }

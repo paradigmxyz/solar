@@ -50,13 +50,11 @@ fn lower_alloc(module: &mut Module) -> bool {
 }
 
 fn lower_function(func: &mut Function) -> bool {
-    let has_abstract_memory = func.blocks.iter().any(|block| {
-        block.instructions.iter().any(|&inst| {
-            matches!(
-                func.instructions[inst].kind,
-                InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. }
-            )
-        })
+    let has_abstract_memory = func.instructions().any(|inst| {
+        matches!(
+            func.instructions[inst].kind,
+            InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. }
+        )
     });
     if !has_abstract_memory {
         return false;

@@ -30,15 +30,13 @@ impl MirPass for LowerMappingSlots {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
-            let has_mapping_slots = func.blocks.iter().any(|block| {
-                block.instructions.iter().any(|&inst_id| {
-                    matches!(
-                        func.instructions[inst_id].kind,
-                        InstKind::MappingSlot(_, _)
-                            | InstKind::MappingSlotMemory(_, _)
-                            | InstKind::MappingSlotCalldata(_, _)
-                    )
-                })
+            let has_mapping_slots = func.instructions().any(|inst_id| {
+                matches!(
+                    func.instructions[inst_id].kind,
+                    InstKind::MappingSlot(_, _)
+                        | InstKind::MappingSlotMemory(_, _)
+                        | InstKind::MappingSlotCalldata(_, _)
+                )
             });
             if !has_mapping_slots {
                 return false;

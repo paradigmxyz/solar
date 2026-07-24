@@ -91,23 +91,23 @@ impl MemoryCallSummaries {
 
                 let mut summary = local[func_id].clone();
                 let sources = parameter_sources(func);
-                for block in &func.blocks {
-                    for &inst_id in &block.instructions {
-                        if let InstKind::InternalCall { function, ref args, .. } =
-                            func.instructions[inst_id].kind
-                        {
-                            let callee = previous
-                                .get(function)
-                                .cloned()
-                                .unwrap_or_else(|| FunctionMemorySummary::conservative(args.len()));
-                            summary.merge_effects(&callee);
-                            for (index, &arg) in args.iter().enumerate() {
-                                if callee.captures_param(index) {
-                                    capture_sources(&mut summary, &sources[arg]);
-                                }
+                for inst_id in func.instructions() {
+                    if let InstKind::InternalCall { function, ref args, .. } =
+                        func.instructions[inst_id].kind
+                    {
+                        let callee = previous
+                            .get(function)
+                            .cloned()
+                            .unwrap_or_else(|| FunctionMemorySummary::conservative(args.len()));
+                        summary.merge_effects(&callee);
+                        for (index, &arg) in args.iter().enumerate() {
+                            if callee.captures_param(index) {
+                                capture_sources(&mut summary, &sources[arg]);
                             }
                         }
                     }
+                }
+                for block in &func.blocks {
                     if let Some(Terminator::TailCall { function, args }) = &block.terminator {
                         let callee = previous
                             .get(*function)
@@ -154,29 +154,29 @@ fn local_summary(func: &Function) -> FunctionMemorySummary {
     let mut summary = FunctionMemorySummary::empty(func.params.len());
     let sources = parameter_sources(func);
     let aa = AliasAnalysis::new(func);
-    for block in &func.blocks {
-        for &inst_id in &block.instructions {
-            let kind = &func.instructions[inst_id].kind;
-            if matches!(kind, InstKind::InternalCall { .. }) {
-                continue;
-            }
-            let effects = aa.instruction_mod_ref(func, inst_id);
-            for space in [AddressSpace::Memory, AddressSpace::Storage, AddressSpace::Transient] {
-                summary.reads |= (effects.reads_space(space) as u8) << space_index(space);
-                summary.writes |= (effects.writes_space(space) as u8) << space_index(space);
-            }
-            summary.may_reset_fmp |= aa.instruction_may_reset_fmp(func, inst_id);
-
-            match kind {
-                InstKind::MStore(_, value)
-                | InstKind::MStore8(_, value)
-                | InstKind::SStore(_, value)
-                | InstKind::TStore(_, value)
-                | InstKind::SetFmp(value) => capture_sources(&mut summary, &sources[*value]),
-                _ => {}
-            }
+    for inst_id in func.instructions() {
+        let kind = &func.instructions[inst_id].kind;
+        if matches!(kind, InstKind::InternalCall { .. }) {
+            continue;
         }
+        let effects = aa.instruction_mod_ref(func, inst_id);
+        for space in [AddressSpace::Memory, AddressSpace::Storage, AddressSpace::Transient] {
+            summary.reads |= (effects.reads_space(space) as u8) << space_index(space);
+            summary.writes |= (effects.writes_space(space) as u8) << space_index(space);
+        }
+        summary.may_reset_fmp |= aa.instruction_may_reset_fmp(func, inst_id);
 
+        match kind {
+            InstKind::MStore(_, value)
+            | InstKind::MStore8(_, value)
+            | InstKind::SStore(_, value)
+            | InstKind::TStore(_, value)
+            | InstKind::SetFmp(value) => capture_sources(&mut summary, &sources[*value]),
+            _ => {}
+        }
+    }
+
+    for block in &func.blocks {
         if let Some(Terminator::Return { values }) = &block.terminator {
             for &value in values {
                 capture_sources(&mut summary, &sources[value]);

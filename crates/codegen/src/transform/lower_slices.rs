@@ -349,20 +349,18 @@ impl LowerSlicesCx {
         let inst_results = builder.func().inst_results();
         let mut replacements = FxHashMap::default();
         let mut removed = FxHashSet::default();
-        for block in builder.func().blocks.iter() {
-            for &inst_id in &block.instructions {
-                let replacement = match builder.func().instructions[inst_id].kind {
-                    InstKind::SlicePtr(slice) => components.get(&slice).map(|&(ptr, _)| ptr),
-                    InstKind::SliceLen(slice) => components.get(&slice).map(|&(_, len)| len),
-                    _ => None,
-                };
-                if let Some(replacement) = replacement
-                    && let Some(&result) = inst_results.get(&inst_id)
-                {
-                    replacements.insert(result, replacement);
-                    removed.insert(inst_id);
-                    self.stats.projections += 1;
-                }
+        for inst_id in builder.func().instructions() {
+            let replacement = match builder.func().instructions[inst_id].kind {
+                InstKind::SlicePtr(slice) => components.get(&slice).map(|&(ptr, _)| ptr),
+                InstKind::SliceLen(slice) => components.get(&slice).map(|&(_, len)| len),
+                _ => None,
+            };
+            if let Some(replacement) = replacement
+                && let Some(&result) = inst_results.get(&inst_id)
+            {
+                replacements.insert(result, replacement);
+                removed.insert(inst_id);
+                self.stats.projections += 1;
             }
         }
         builder.func_mut().replace_uses_canonicalized(&replacements);
@@ -464,7 +462,7 @@ impl LowerSlicesCx {
             let mut removed = FxHashSet::default();
             let mut seen = FxHashSet::default();
             for (caller_id, caller) in module.functions.iter_enumerated() {
-                for &inst_id in caller.blocks.iter().flat_map(|block| &block.instructions) {
+                for inst_id in caller.instructions() {
                     let inst = &caller.instructions[inst_id];
                     let InstKind::InternalCall { function: callee, args, .. } = &inst.kind else {
                         continue;
@@ -509,8 +507,7 @@ impl LowerSlicesCx {
 
     fn lower_projections(&mut self, func: &mut Function) -> bool {
         let inst_results = func.inst_results();
-        let live_insts: FxHashSet<_> =
-            func.blocks.iter().flat_map(|block| block.instructions.iter().copied()).collect();
+        let live_insts: FxHashSet<_> = func.instructions().collect();
         let mut components = FxHashMap::<ValueId, (ValueId, ValueId, InstId)>::default();
         let mut projections = FxHashMap::<ValueId, (ValueId, InstId, bool)>::default();
         for (&inst, &result) in &inst_results {

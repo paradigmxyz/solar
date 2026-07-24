@@ -164,12 +164,7 @@ fn eligible_static_allocations(func: &Function, aa: &AliasAnalysis) -> Vec<Stati
 }
 
 fn has_msize(func: &Function) -> bool {
-    func.blocks.iter().any(|block| {
-        block
-            .instructions
-            .iter()
-            .any(|&inst| matches!(func.instructions[inst].kind, InstKind::MSize))
-    })
+    func.instructions().any(|inst| matches!(func.instructions[inst].kind, InstKind::MSize))
 }
 
 /// Returns true when `block` can execute more than once: it can reach itself.
@@ -200,31 +195,29 @@ fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool
     derived.insert(cand.ptr, 0);
     loop {
         let mut grew = false;
-        for block in func.blocks.iter() {
-            for &inst_id in &block.instructions {
-                if let InstKind::Add(a, b) = func.instructions[inst_id].kind
-                    && let Some(&result) = inst_results.get(&inst_id)
-                    && !derived.contains_key(&result)
-                {
-                    let (base, offset) = if derived.contains_key(&a) {
-                        (a, b)
-                    } else if derived.contains_key(&b) {
-                        (b, a)
-                    } else {
-                        continue;
-                    };
-                    let (Some(base_off), Some(off)) =
-                        (derived.get(&base).copied(), func.value_u64(offset))
-                    else {
-                        return false;
-                    };
-                    let Some(total) = base_off.checked_add(off) else { return false };
-                    if total >= cand.size {
-                        return false;
-                    }
-                    derived.insert(result, total);
-                    grew = true;
+        for inst_id in func.instructions() {
+            if let InstKind::Add(a, b) = func.instructions[inst_id].kind
+                && let Some(&result) = inst_results.get(&inst_id)
+                && !derived.contains_key(&result)
+            {
+                let (base, offset) = if derived.contains_key(&a) {
+                    (a, b)
+                } else if derived.contains_key(&b) {
+                    (b, a)
+                } else {
+                    continue;
+                };
+                let (Some(base_off), Some(off)) =
+                    (derived.get(&base).copied(), func.value_u64(offset))
+                else {
+                    return false;
+                };
+                let Some(total) = base_off.checked_add(off) else { return false };
+                if total >= cand.size {
+                    return false;
                 }
+                derived.insert(result, total);
+                grew = true;
             }
         }
         if !grew {
@@ -234,50 +227,49 @@ fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool
 
     // Every use of every derived address must be a bounded memory access.
     let in_range = |off: u64, len: u64| off.checked_add(len).is_some_and(|end| end <= cand.size);
-    for block in func.blocks.iter() {
-        for &inst_id in &block.instructions {
-            if inst_id == cand.alloc {
-                continue;
-            }
-            let kind = &func.instructions[inst_id].kind;
-            for &operand in kind.operands().iter() {
-                let Some(&off) = derived.get(&operand) else { continue };
-                let ok = match *kind {
-                    InstKind::MLoad(addr) => operand == addr && in_range(off, 32),
-                    InstKind::MStore(addr, value) => {
-                        operand == addr && value != operand && in_range(off, 32)
-                    }
-                    InstKind::Keccak256(addr, size)
-                    | InstKind::Log0(addr, size)
-                    | InstKind::CalldataCopy(addr, _, size)
-                    | InstKind::ReturnDataCopy(addr, _, size)
-                    | InstKind::CodeCopy(addr, _, size) => {
-                        operand == addr
-                            && func.value_u64(size).is_some_and(|len| in_range(off, len))
-                    }
-                    InstKind::Log1(addr, size, _)
-                    | InstKind::Log2(addr, size, _, _)
-                    | InstKind::Log3(addr, size, _, _, _)
-                    | InstKind::Log4(addr, size, _, _, _, _) => {
-                        operand == addr
-                            && func.value_u64(size).is_some_and(|len| in_range(off, len))
-                    }
-                    InstKind::MCopy(dest, src, size) => {
-                        (operand == dest || operand == src)
-                            && func.value_u64(size).is_some_and(|len| in_range(off, len))
-                    }
-                    // In-bounds derivations were collected above; anything
-                    // else consuming an address is an escape.
-                    InstKind::Add(_, _) => {
-                        inst_results.get(&inst_id).is_some_and(|r| derived.contains_key(r))
-                    }
-                    _ => false,
-                };
-                if !ok {
-                    return false;
+    for inst_id in func.instructions() {
+        if inst_id == cand.alloc {
+            continue;
+        }
+        let kind = &func.instructions[inst_id].kind;
+        for &operand in kind.operands().iter() {
+            let Some(&off) = derived.get(&operand) else { continue };
+            let ok = match *kind {
+                InstKind::MLoad(addr) => operand == addr && in_range(off, 32),
+                InstKind::MStore(addr, value) => {
+                    operand == addr && value != operand && in_range(off, 32)
                 }
+                InstKind::Keccak256(addr, size)
+                | InstKind::Log0(addr, size)
+                | InstKind::CalldataCopy(addr, _, size)
+                | InstKind::ReturnDataCopy(addr, _, size)
+                | InstKind::CodeCopy(addr, _, size) => {
+                    operand == addr && func.value_u64(size).is_some_and(|len| in_range(off, len))
+                }
+                InstKind::Log1(addr, size, _)
+                | InstKind::Log2(addr, size, _, _)
+                | InstKind::Log3(addr, size, _, _, _)
+                | InstKind::Log4(addr, size, _, _, _, _) => {
+                    operand == addr && func.value_u64(size).is_some_and(|len| in_range(off, len))
+                }
+                InstKind::MCopy(dest, src, size) => {
+                    (operand == dest || operand == src)
+                        && func.value_u64(size).is_some_and(|len| in_range(off, len))
+                }
+                // In-bounds derivations were collected above; anything
+                // else consuming an address is an escape.
+                InstKind::Add(_, _) => {
+                    inst_results.get(&inst_id).is_some_and(|r| derived.contains_key(r))
+                }
+                _ => false,
+            };
+            if !ok {
+                return false;
             }
         }
+    }
+
+    for block in func.blocks.iter() {
         if let Some(term) = &block.terminator {
             for &operand in term.operands().iter() {
                 let Some(&off) = derived.get(&operand) else { continue };

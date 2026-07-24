@@ -228,12 +228,9 @@ impl MirInliner {
     fn call_counts(&self, module: &Module) -> FxHashMap<MirFunctionId, usize> {
         let mut counts = FxHashMap::default();
         for func in module.functions.iter() {
-            for block in func.blocks.iter() {
-                for &inst_id in &block.instructions {
-                    if let InstKind::InternalCall { function, .. } = func.instructions[inst_id].kind
-                    {
-                        *counts.entry(function).or_default() += 1;
-                    }
+            for inst_id in func.instructions() {
+                if let InstKind::InternalCall { function, .. } = func.instructions[inst_id].kind {
+                    *counts.entry(function).or_default() += 1;
                 }
             }
         }
@@ -274,11 +271,9 @@ impl MirInliner {
 
     fn function_callees(&self, func: &Function) -> Vec<MirFunctionId> {
         let mut callees = Vec::new();
-        for block in func.blocks.iter() {
-            for &inst_id in &block.instructions {
-                if let InstKind::InternalCall { function, .. } = func.instructions[inst_id].kind {
-                    callees.push(function);
-                }
+        for inst_id in func.instructions() {
+            if let InstKind::InternalCall { function, .. } = func.instructions[inst_id].kind {
+                callees.push(function);
             }
         }
         callees
@@ -394,37 +389,38 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
         ..MirInlineSummary::default()
     };
 
-    for block in func.blocks.iter() {
-        for &inst_id in &block.instructions {
-            let kind = &func.instructions[inst_id].kind;
-            summary.instruction_count += match kind {
-                InstKind::MappingSlot(..) => 3,
-                InstKind::MappingSlotMemory(..) => 8,
-                InstKind::MappingSlotCalldata(..) => 9,
-                _ => 1,
-            };
-            let inst_cost = estimate_inst_cost(kind);
-            summary.estimated_code_size += inst_cost.code_size;
-            summary.estimated_runtime_gas += inst_cost.runtime_gas;
-            match kind {
-                InstKind::InternalCall { .. } => summary.has_internal_call = true,
-                InstKind::Phi(_) => summary.has_phi = true,
-                InstKind::Call { .. }
-                | InstKind::StaticCall { .. }
-                | InstKind::DelegateCall { .. }
-                | InstKind::Create(..)
-                | InstKind::Create2(..) => {
-                    summary.has_external_call = true;
-                }
-                InstKind::SStore(..) | InstKind::TStore(..) => summary.has_storage_write = true,
-                InstKind::Log0(..)
-                | InstKind::Log1(..)
-                | InstKind::Log2(..)
-                | InstKind::Log3(..)
-                | InstKind::Log4(..) => summary.has_log = true,
-                _ => {}
+    for inst_id in func.instructions() {
+        let kind = &func.instructions[inst_id].kind;
+        summary.instruction_count += match kind {
+            InstKind::MappingSlot(..) => 3,
+            InstKind::MappingSlotMemory(..) => 8,
+            InstKind::MappingSlotCalldata(..) => 9,
+            _ => 1,
+        };
+        let inst_cost = estimate_inst_cost(kind);
+        summary.estimated_code_size += inst_cost.code_size;
+        summary.estimated_runtime_gas += inst_cost.runtime_gas;
+        match kind {
+            InstKind::InternalCall { .. } => summary.has_internal_call = true,
+            InstKind::Phi(_) => summary.has_phi = true,
+            InstKind::Call { .. }
+            | InstKind::StaticCall { .. }
+            | InstKind::DelegateCall { .. }
+            | InstKind::Create(..)
+            | InstKind::Create2(..) => {
+                summary.has_external_call = true;
             }
+            InstKind::SStore(..) | InstKind::TStore(..) => summary.has_storage_write = true,
+            InstKind::Log0(..)
+            | InstKind::Log1(..)
+            | InstKind::Log2(..)
+            | InstKind::Log3(..)
+            | InstKind::Log4(..) => summary.has_log = true,
+            _ => {}
         }
+    }
+
+    for block in func.blocks.iter() {
         match block.terminator.as_ref() {
             Some(term @ Terminator::Return { .. }) => {
                 summary.return_count += 1;

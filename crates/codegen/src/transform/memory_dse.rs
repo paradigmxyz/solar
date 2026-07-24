@@ -158,22 +158,20 @@ impl MemoryStoreEliminator {
         // Both store elimination and store-to-load forwarding need at least
         // one memory write to act on; functions without any skip the whole
         // scan and never build the alias snapshot.
-        let has_memory_writes = func.blocks.iter().any(|block| {
-            block.instructions.iter().any(|&inst_id| {
-                matches!(
-                    func.instructions[inst_id].kind,
-                    InstKind::MStore(_, _)
-                        | InstKind::MStore8(_, _)
-                        | InstKind::MCopy(_, _, _)
-                        | InstKind::CalldataCopy(_, _, _)
-                        | InstKind::CodeCopy(_, _, _)
-                        | InstKind::ReturnDataCopy(_, _, _)
-                        | InstKind::ExtCodeCopy(_, _, _, _)
-                        | InstKind::SetMemoryObjectLen(_, _, _)
-                        | InstKind::StorageToMemory { .. }
-                        | InstKind::AbiEncode { .. }
-                )
-            })
+        let has_memory_writes = func.instructions().any(|inst_id| {
+            matches!(
+                func.instructions[inst_id].kind,
+                InstKind::MStore(_, _)
+                    | InstKind::MStore8(_, _)
+                    | InstKind::MCopy(_, _, _)
+                    | InstKind::CalldataCopy(_, _, _)
+                    | InstKind::CodeCopy(_, _, _)
+                    | InstKind::ReturnDataCopy(_, _, _)
+                    | InstKind::ExtCodeCopy(_, _, _, _)
+                    | InstKind::SetMemoryObjectLen(_, _, _)
+                    | InstKind::StorageToMemory { .. }
+                    | InstKind::AbiEncode { .. }
+            )
         });
         if !has_memory_writes {
             return 0;
@@ -186,15 +184,11 @@ impl MemoryStoreEliminator {
             self.alias = Some(Rc::new(AliasAnalysis::new(func)));
         }
 
-        let needs_inst_results = func.blocks.iter().any(|block| {
-            block.instructions.iter().any(|&inst_id| {
-                matches!(
-                    func.instructions[inst_id].kind,
-                    InstKind::MLoad(_)
-                        | InstKind::MemoryObjectLen(_, _)
-                        | InstKind::Keccak256(_, _)
-                )
-            })
+        let needs_inst_results = func.instructions().any(|inst_id| {
+            matches!(
+                func.instructions[inst_id].kind,
+                InstKind::MLoad(_) | InstKind::MemoryObjectLen(_, _) | InstKind::Keccak256(_, _)
+            )
         });
         let inst_results =
             if needs_inst_results { func.inst_results() } else { FxHashMap::default() };
@@ -204,11 +198,9 @@ impl MemoryStoreEliminator {
         self.remove_unused_internal_frame_stores(func);
 
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
-        let has_precise_reads = func.blocks.iter().any(|block| {
-            block.instructions.iter().any(|&inst_id| {
-                Self::constant_range_read(&func.instructions[inst_id].kind).is_some()
-            })
-        });
+        let has_precise_reads = func
+            .instructions()
+            .any(|inst_id| Self::constant_range_read(&func.instructions[inst_id].kind).is_some());
         if has_precise_reads {
             for block_id in block_ids {
                 self.process_block::<true>(func, block_id, &inst_results, scratch);
@@ -249,10 +241,8 @@ impl MemoryStoreEliminator {
     /// call, `msize` — widens to all-memory-live, which only ever keeps a
     /// store, never drops a live one.
     fn remove_dead_memory_stores(&mut self, func: &mut Function) {
-        if !func.blocks.iter().any(|block| {
-            block.instructions.iter().any(|&inst_id| {
-                matches!(func.instructions[inst_id].kind, InstKind::MStore(addr, _) if self.word_aligned_const(func, addr).is_some())
-            })
+        if !func.instructions().any(|inst_id| {
+            matches!(func.instructions[inst_id].kind, InstKind::MStore(addr, _) if self.word_aligned_const(func, addr).is_some())
         }) {
             return;
         }
@@ -522,10 +512,8 @@ impl MemoryStoreEliminator {
     }
 
     fn remove_unused_internal_frame_stores(&mut self, func: &mut Function) {
-        let has_candidate = func.blocks.iter().any(|block| {
-            block.instructions.iter().any(|&inst_id| {
-                matches!(func.instructions[inst_id].kind, InstKind::MStore(addr, _) if self.internal_frame_offset(func, addr).is_some())
-            })
+        let has_candidate = func.instructions().any(|inst_id| {
+            matches!(func.instructions[inst_id].kind, InstKind::MStore(addr, _) if self.internal_frame_offset(func, addr).is_some())
         });
         if !has_candidate {
             return;
@@ -539,30 +527,28 @@ impl MemoryStoreEliminator {
         };
         let mut dead = DenseBitSet::new_empty(func.instructions.len());
 
-        for block in func.blocks.iter() {
-            for &inst_id in &block.instructions {
-                let InstKind::MStore(addr, _) = func.instructions[inst_id].kind else {
-                    continue;
-                };
-                let Some(offset) = self.internal_frame_offset(func, addr) else {
-                    continue;
-                };
-                if !reads.iter().any(|&(read_offset, read_size)| {
-                    self.alias()
-                        .memory_alias(
-                            MemoryLocation::new(
-                                MemoryAddress::internal_frame(offset),
-                                LocationSize::Const(32),
-                            ),
-                            MemoryLocation::new(
-                                MemoryAddress::internal_frame(read_offset),
-                                LocationSize::Const(read_size),
-                            ),
-                        )
-                        .may_alias()
-                }) {
-                    dead.insert(inst_id);
-                }
+        for inst_id in func.instructions() {
+            let InstKind::MStore(addr, _) = func.instructions[inst_id].kind else {
+                continue;
+            };
+            let Some(offset) = self.internal_frame_offset(func, addr) else {
+                continue;
+            };
+            if !reads.iter().any(|&(read_offset, read_size)| {
+                self.alias()
+                    .memory_alias(
+                        MemoryLocation::new(
+                            MemoryAddress::internal_frame(offset),
+                            LocationSize::Const(32),
+                        ),
+                        MemoryLocation::new(
+                            MemoryAddress::internal_frame(read_offset),
+                            LocationSize::Const(read_size),
+                        ),
+                    )
+                    .may_alias()
+            }) {
+                dead.insert(inst_id);
             }
         }
 
@@ -836,10 +822,8 @@ impl MemoryStoreEliminator {
     /// predecessor's exit constants, and a store matching one is dead.
     fn remove_cross_block_equal_const_stores(&mut self, func: &mut Function) {
         if func
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
-            .filter(|&&inst_id| matches!(func.instructions[inst_id].kind, InstKind::MStore(_, _)))
+            .instructions()
+            .filter(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::MStore(_, _)))
             .take(2)
             .count()
             < 2
@@ -913,10 +897,8 @@ impl MemoryStoreEliminator {
 
     fn remove_cross_block_overwrites(&mut self, func: &mut Function) {
         if func
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
-            .filter(|&&inst_id| matches!(func.instructions[inst_id].kind, InstKind::MStore(_, _)))
+            .instructions()
+            .filter(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::MStore(_, _)))
             .take(2)
             .count()
             < 2
@@ -1387,26 +1369,22 @@ impl MemoryStoreEliminator {
     }
 
     fn has_frame_observer(&self, func: &Function) -> bool {
-        func.blocks.iter().any(|block| {
-            block.instructions.iter().any(|&inst_id| {
-                let effects = self.alias().instruction_mod_ref(func, inst_id);
-                effects.observes_gas()
-                    || effects.observes_memory_size()
-                    || matches!(func.instructions[inst_id].kind, InstKind::InternalCall { .. })
-            })
+        func.instructions().any(|inst_id| {
+            let effects = self.alias().instruction_mod_ref(func, inst_id);
+            effects.observes_gas()
+                || effects.observes_memory_size()
+                || matches!(func.instructions[inst_id].kind, InstKind::InternalCall { .. })
         })
     }
 
     fn internal_frame_read_ranges(&self, func: &Function) -> Option<Vec<(u64, u64)>> {
         let mut reads = Vec::new();
 
-        for block in func.blocks.iter() {
-            for &inst_id in &block.instructions {
-                Self::push_frame_reads(
-                    &mut reads,
-                    self.alias().instruction_mod_ref(func, inst_id).reads(),
-                )?;
-            }
+        for inst_id in func.instructions() {
+            Self::push_frame_reads(
+                &mut reads,
+                self.alias().instruction_mod_ref(func, inst_id).reads(),
+            )?;
         }
 
         for block in func.blocks.iter() {

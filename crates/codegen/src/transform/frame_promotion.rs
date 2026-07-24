@@ -249,10 +249,8 @@ impl FrameSlotPromoter {
     }
 
     fn has_global_observation_barrier(func: &Function) -> bool {
-        func.blocks.iter().any(|block| {
-            block.instructions.iter().any(|&inst_id| {
-                matches!(func.instructions[inst_id].kind, InstKind::Gas | InstKind::MSize)
-            })
+        func.instructions().any(|inst_id| {
+            matches!(func.instructions[inst_id].kind, InstKind::Gas | InstKind::MSize)
         })
     }
 
@@ -360,17 +358,17 @@ impl FrameSlotPromoter {
             return false;
         }
 
+        if func.instructions().any(|inst_id| {
+            Self::inst_may_observe_external_slot(
+                func,
+                aa,
+                &func.instructions[inst_id].kind,
+                slot_addr,
+            )
+        }) {
+            return false;
+        }
         for block in func.blocks.iter() {
-            for &inst_id in &block.instructions {
-                if Self::inst_may_observe_external_slot(
-                    func,
-                    aa,
-                    &func.instructions[inst_id].kind,
-                    slot_addr,
-                ) {
-                    return false;
-                }
-            }
             if let Some(term) = &block.terminator
                 && Self::terminator_may_observe_external_slot(func, aa, term, slot_addr)
             {
@@ -382,17 +380,17 @@ impl FrameSlotPromoter {
     }
 
     fn internal_frame_slot_safe(func: &Function, aa: &AliasAnalysis, slot_offset: u64) -> bool {
+        if func.instructions().any(|inst_id| {
+            Self::inst_may_observe_internal_slot(
+                func,
+                aa,
+                &func.instructions[inst_id].kind,
+                slot_offset,
+            )
+        }) {
+            return false;
+        }
         for block in func.blocks.iter() {
-            for &inst_id in &block.instructions {
-                if Self::inst_may_observe_internal_slot(
-                    func,
-                    aa,
-                    &func.instructions[inst_id].kind,
-                    slot_offset,
-                ) {
-                    return false;
-                }
-            }
             if let Some(term) = &block.terminator
                 && Self::terminator_may_observe_internal_slot(func, aa, term, slot_offset)
             {

@@ -36,19 +36,17 @@ impl MirPass for LowerEvmShaped {
     fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
         module.phase == MirPhase::MemoryLowered
             && module.functions.iter().all(|func| {
-                func.blocks.iter().all(|block| {
-                    block.instructions.iter().all(|&inst_id| {
-                        let inst = &func.instructions[inst_id];
-                        match inst.kind {
-                            InstKind::MakeSlice { .. }
-                            | InstKind::SlicePtr(_)
-                            | InstKind::SliceLen(_)
-                            | InstKind::Fmp
-                            | InstKind::SetFmp(_) => false,
-                            InstKind::Alloc { .. } => inst.metadata.deferred_alloc(),
-                            _ => true,
-                        }
-                    })
+                func.instructions().all(|inst_id| {
+                    let inst = &func.instructions[inst_id];
+                    match inst.kind {
+                        InstKind::MakeSlice { .. }
+                        | InstKind::SlicePtr(_)
+                        | InstKind::SliceLen(_)
+                        | InstKind::Fmp
+                        | InstKind::SetFmp(_) => false,
+                        InstKind::Alloc { .. } => inst.metadata.deferred_alloc(),
+                        _ => true,
+                    }
                 })
             })
     }
@@ -93,11 +91,9 @@ impl LowerEvmShapedCx {
         // resultless internal call left to reshape, so avoid building a call
         // graph and classifying every function in that common case.
         let has_candidate = module.functions.iter().any(|func| {
-            func.blocks.iter().any(|block| {
-                block.instructions.iter().any(|&inst_id| {
-                    let inst = &func.instructions[inst_id];
-                    inst.result_ty.is_none() && matches!(inst.kind, InstKind::InternalCall { .. })
-                })
+            func.instructions().any(|inst_id| {
+                let inst = &func.instructions[inst_id];
+                inst.result_ty.is_none() && matches!(inst.kind, InstKind::InternalCall { .. })
             })
         });
         if !has_candidate {

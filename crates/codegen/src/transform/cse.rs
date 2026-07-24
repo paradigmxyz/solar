@@ -261,12 +261,9 @@ impl CommonSubexprEliminator {
         inst_results: &FxHashMap<InstId, ValueId>,
         cfg: &CfgInfo,
     ) {
-        let has_path_sensitive_expr = func.blocks.iter().any(|block| {
-            block
-                .instructions
-                .iter()
-                .any(|&inst_id| Self::is_path_sensitive_kind(&func.instructions[inst_id].kind))
-        });
+        let has_path_sensitive_expr = func
+            .instructions()
+            .any(|inst_id| Self::is_path_sensitive_kind(&func.instructions[inst_id].kind));
         let block_clobbers = if has_path_sensitive_expr {
             self.block_clobber_summaries(func)
         } else {

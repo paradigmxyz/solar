@@ -263,15 +263,15 @@ impl GlobalStackPlan {
         // Require enough real argument reuse to recover that fixed cost, and
         // reject dense layout plans unless a long CFG can amortize them.
         let mut arg_uses = 0usize;
+        for inst_id in func.instructions() {
+            arg_uses += func.instructions[inst_id]
+                .kind
+                .operands()
+                .iter()
+                .filter(|&&value| matches!(func.value(value), crate::mir::Value::Arg { .. }))
+                .count();
+        }
         for block in func.blocks.iter() {
-            for &inst_id in &block.instructions {
-                arg_uses += func.instructions[inst_id]
-                    .kind
-                    .operands()
-                    .iter()
-                    .filter(|&&value| matches!(func.value(value), crate::mir::Value::Arg { .. }))
-                    .count();
-            }
             if let Some(term) = &block.terminator {
                 arg_uses += term
                     .operands()
@@ -673,21 +673,17 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// instruction arena retains folded-away slices the backend never emits.
     fn collect_unsupported(&mut self, module: &Module) {
         'func: for func in module.functions.iter() {
-            for block in func.blocks.iter() {
-                for &inst_id in &block.instructions {
-                    let inst = &func.instructions[inst_id];
-                    let message = match inst.kind {
-                        InstKind::MakeSlice { .. }
-                        | InstKind::SlicePtr(_)
-                        | InstKind::SliceLen(_) => {
-                            "codegen does not support this calldata-slice usage yet"
-                        }
-                        _ => continue,
-                    };
-                    self.unsupported.push((inst.metadata.source_span(), message.to_string()));
-                    // One diagnostic per function is enough to explain the bail.
-                    continue 'func;
-                }
+            for inst_id in func.instructions() {
+                let inst = &func.instructions[inst_id];
+                let message = match inst.kind {
+                    InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => {
+                        "codegen does not support this calldata-slice usage yet"
+                    }
+                    _ => continue,
+                };
+                self.unsupported.push((inst.metadata.source_span(), message.to_string()));
+                // One diagnostic per function is enough to explain the bail.
+                continue 'func;
             }
         }
     }
@@ -3272,7 +3268,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut scores: FxHashMap<FunctionId, Vec<i32>> = FxHashMap::default();
         let mut excluded = DenseBitSet::new_empty(module.functions.len());
         for (caller_id, func) in module.functions.iter_enumerated() {
-            let mut has_candidate_call = false;
             for block in func.blocks.iter() {
                 if let Some(Terminator::TailCall { function, args }) = &block.terminator
                     && !args.is_empty()
@@ -3280,14 +3275,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 {
                     excluded.insert(*function);
                 }
-                has_candidate_call |= block.instructions.iter().any(|&inst_id| {
-                    matches!(
-                        &func.instructions[inst_id].kind,
-                        InstKind::InternalCall { function, .. }
-                            if self.static_frame_functions.contains(*function)
-                    )
-                });
             }
+            let has_candidate_call = func.instructions().any(|inst_id| {
+                matches!(
+                    &func.instructions[inst_id].kind,
+                    InstKind::InternalCall { function, .. }
+                        if self.static_frame_functions.contains(*function)
+                )
+            });
             if !has_candidate_call {
                 continue;
             }

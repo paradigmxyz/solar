@@ -49,9 +49,7 @@ struct CopyElisionCx {
 impl CopyElisionCx {
     fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
         let allocs: Vec<ValueId> = func
-            .blocks
-            .iter()
-            .flat_map(|block| block.instructions.iter().copied())
+            .instructions()
             .filter_map(|inst_id| {
                 matches!(func.instructions[inst_id].kind, InstKind::Alloc { .. })
                     .then(|| func.inst_result_value(inst_id))

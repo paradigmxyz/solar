@@ -384,12 +384,8 @@ impl LoopOptimizer {
     }
 
     fn function_observes_msize(&self, func: &Function) -> bool {
-        func.blocks.iter().any(|block| {
-            block
-                .instructions
-                .iter()
-                .any(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::MSize))
-        })
+        func.instructions()
+            .any(|inst_id| matches!(func.instructions[inst_id].kind, InstKind::MSize))
     }
 
     fn loop_contains_call_or_create(&self, func: &Function, loop_data: &Loop) -> bool {

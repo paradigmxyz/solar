@@ -622,16 +622,16 @@ impl AliasAnalysis {
             }
         }
 
-        for block in &func.blocks {
-            for &inst_id in &block.instructions {
-                let kind = &func.instructions[inst_id].kind;
-                for operand in kind.operands() {
-                    if derived.contains(&operand) && self.instruction_operand_escapes(kind, operand)
-                    {
-                        return true;
-                    }
+        for inst_id in func.instructions() {
+            let kind = &func.instructions[inst_id].kind;
+            for operand in kind.operands() {
+                if derived.contains(&operand) && self.instruction_operand_escapes(kind, operand) {
+                    return true;
                 }
             }
+        }
+
+        for block in &func.blocks {
             if let Some(terminator) = &block.terminator {
                 for operand in terminator.operands() {
                     if !derived.contains(&operand) {

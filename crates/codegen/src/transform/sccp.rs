@@ -684,12 +684,8 @@ impl SccpCx {
 
         // Phase 3: Replace all uses of folded values with immediates.
         if !const_values.is_empty() {
-            let all_insts: Vec<InstId> = func
-                .blocks
-                .iter()
-                .flat_map(|block| block.instructions.iter().copied())
-                .filter(|&id| !dead_insts.contains(id))
-                .collect();
+            let all_insts: Vec<InstId> =
+                func.instructions().filter(|&id| !dead_insts.contains(id)).collect();
             for inst_id in all_insts {
                 mir_utils::replace_inst_uses(&mut func.instructions[inst_id].kind, &const_values);
             }

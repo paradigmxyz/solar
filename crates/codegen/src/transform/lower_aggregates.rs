@@ -40,15 +40,13 @@ enum AggregateOp {
 }
 
 fn lower_function(func: &mut Function) -> bool {
-    let has_aggregates = func.blocks.iter().any(|block| {
-        block.instructions.iter().any(|&inst| {
-            matches!(
-                func.instructions[inst].kind,
-                InstKind::StorageToMemory { .. }
-                    | InstKind::MemoryToStorage { .. }
-                    | InstKind::ClearStorage { .. }
-            )
-        })
+    let has_aggregates = func.instructions().any(|inst| {
+        matches!(
+            func.instructions[inst].kind,
+            InstKind::StorageToMemory { .. }
+                | InstKind::MemoryToStorage { .. }
+                | InstKind::ClearStorage { .. }
+        )
     });
     if !has_aggregates {
         return false;

@@ -97,6 +97,11 @@ impl Function {
         &self.instructions[id]
     }
 
+    /// Returns the IDs of all active instructions in block order.
+    pub(crate) fn instructions(&self) -> impl Iterator<Item = InstId> + '_ {
+        self.blocks.iter().flat_map(|block| block.instructions.iter().copied())
+    }
+
     /// Returns the value produced by the given instruction, if it has one.
     #[must_use]
     pub(crate) fn inst_result_value(&self, id: InstId) -> Option<ValueId> {

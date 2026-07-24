@@ -50,12 +50,9 @@ struct AbiValueDest {
 }
 
 fn lower_function(func: &mut Function) -> bool {
-    let has_encodes = func.blocks.iter().any(|block| {
-        block
-            .instructions
-            .iter()
-            .any(|&inst| matches!(func.instructions[inst].kind, InstKind::AbiEncode { .. }))
-    });
+    let has_encodes = func
+        .instructions()
+        .any(|inst| matches!(func.instructions[inst].kind, InstKind::AbiEncode { .. }));
     if !has_encodes {
         return false;
     }
