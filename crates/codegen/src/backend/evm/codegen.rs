@@ -263,16 +263,16 @@ impl GlobalStackPlan {
         // Require enough real argument reuse to recover that fixed cost, and
         // reject dense layout plans unless a long CFG can amortize them.
         let mut arg_uses = 0usize;
-        for inst_id in func.instructions() {
-            arg_uses += func
-                .inst(inst_id)
-                .kind
-                .operands()
-                .iter()
-                .filter(|&&value| matches!(func.value(value), crate::mir::Value::Arg { .. }))
-                .count();
-        }
         for block in func.blocks.iter() {
+            for &inst_id in &block.instructions {
+                arg_uses += func
+                    .inst(inst_id)
+                    .kind
+                    .operands()
+                    .iter()
+                    .filter(|&&value| matches!(func.value(value), crate::mir::Value::Arg { .. }))
+                    .count();
+            }
             if let Some(term) = &block.terminator {
                 arg_uses += term
                     .operands()
@@ -3269,6 +3269,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut scores: FxHashMap<FunctionId, Vec<i32>> = FxHashMap::default();
         let mut excluded = DenseBitSet::new_empty(module.functions.len());
         for (caller_id, func) in module.functions.iter_enumerated() {
+            let mut has_candidate_call = false;
             for block in func.blocks.iter() {
                 if let Some(Terminator::TailCall { function, args }) = &block.terminator
                     && !args.is_empty()
@@ -3276,14 +3277,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 {
                     excluded.insert(*function);
                 }
+                has_candidate_call |= block.instructions.iter().any(|&inst_id| {
+                    matches!(
+                        &func.inst(inst_id).kind,
+                        InstKind::InternalCall { function, .. }
+                            if self.static_frame_functions.contains(*function)
+                    )
+                });
             }
-            let has_candidate_call = func.instructions().any(|inst_id| {
-                matches!(
-                    &func.inst(inst_id).kind,
-                    InstKind::InternalCall { function, .. }
-                        if self.static_frame_functions.contains(*function)
-                )
-            });
             if !has_candidate_call {
                 continue;
             }
