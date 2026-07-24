@@ -2456,10 +2456,47 @@ impl<'gcx> TypeChecker<'gcx> {
         }
 
         match res.iter().filter(|res| res.as_variable().is_some()).collect::<WantOne<_>>() {
-            WantOne::Zero => Err(OverloadError::NotFound),
+            WantOne::Zero => self.resolve_override_chain(res).ok_or(OverloadError::NotFound),
             WantOne::One(var) => Ok(*var),
             WantOne::Many => Err(OverloadError::Ambiguous),
         }
+    }
+
+    /// Resolves a non-call reference to a set of functions that are all one
+    /// override chain, e.g. `onERC1155Received.selector` where the function is
+    /// declared in a base and overridden below it.
+    ///
+    /// An overridden function appears once per level of the inheritance chain
+    /// under name lookup, but overrides share the base's parameter types, so a
+    /// set with a single parameter list is a single function. Resolves to the
+    /// most derived candidate, whose type also carries the tightest state
+    /// mutability.
+    fn resolve_override_chain(&self, res: &[hir::Res]) -> Option<hir::Res> {
+        let function_id = |res: hir::Res| match res {
+            hir::Res::Item(hir::ItemId::Function(id)) => Some(id),
+            _ => None,
+        };
+        let first = function_id(res[0])?;
+        let TyKind::Fn(first_fn) = self.gcx.type_of_item(first.into()).kind else { return None };
+        let mut best = (first, self.gcx.hir.function(first).contract);
+        for &candidate in &res[1..] {
+            let id = function_id(candidate)?;
+            let TyKind::Fn(f) = self.gcx.type_of_item(id.into()).kind else { return None };
+            if f.parameters != first_fn.parameters {
+                return None;
+            }
+            let contract = self.gcx.hir.function(id).contract;
+            if let (Some(current), Some(a), Some(b)) = (self.contract, contract, best.1) {
+                let bases = self.gcx.hir.contract(current).linearized_bases;
+                let position = |c| bases.iter().position(|&base| base == c);
+                if let (Some(pos_a), Some(pos_b)) = (position(a), position(b))
+                    && pos_a < pos_b
+                {
+                    best = (id, contract);
+                }
+            }
+        }
+        Some(hir::ItemId::Function(best.0).into())
     }
 
     fn type_of_res(&self, res: hir::Res) -> Ty<'gcx> {
