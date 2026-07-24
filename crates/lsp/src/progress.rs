@@ -74,9 +74,9 @@ impl ProgressCoordinator {
 
     /// Starts or joins the progress wave for `version`.
     ///
-    /// A newer version reuses a visible wave and reports a restart. If the previous wave has
-    /// already ended or failed, a fresh token is allocated. Tickets for older versions remain
-    /// valid handles but cannot report or finish the newer wave.
+    /// A newer version reuses a visible wave and reports at most one restart. If the previous
+    /// wave has already ended or failed, a fresh token is allocated. Tickets for older versions
+    /// remain valid handles but cannot report or finish the newer wave.
     pub(crate) fn start(&self, version: usize) -> ProgressTicket {
         if !self.inner.enabled.load(Ordering::Acquire) {
             return ProgressTicket::disabled(version);
@@ -182,6 +182,7 @@ struct ProgressState {
     phase: Phase,
     message: Option<String>,
     terminal: Option<String>,
+    restart_reported: bool,
 }
 
 /// Owns one server-created progress token and serializes all wire-visible transitions.
@@ -209,6 +210,7 @@ impl WorkDoneProgressGuard {
                 phase: Phase::Delayed,
                 message: None,
                 terminal: None,
+                restart_reported: false,
             }),
         }
     }
@@ -270,6 +272,9 @@ impl WorkDoneProgressGuard {
         state.version = version;
         state.terminal = None;
         if state.phase == Phase::Begun {
+            if state.restart_reported {
+                return true;
+            }
             if !send_progress(
                 &self.client,
                 &self.token,
@@ -280,8 +285,10 @@ impl WorkDoneProgressGuard {
                 }),
             ) {
                 self.disable_locked(&mut state, "failed to enqueue replacement report");
+            } else {
+                state.restart_reported = true;
             }
-        } else {
+        } else if state.message.as_deref() != Some(RESTART_MESSAGE) {
             state.message = Some(RESTART_MESSAGE.into());
         }
         true
@@ -392,8 +399,9 @@ impl WorkDoneProgressGuard {
             return;
         }
 
-        if let Some(message) = message
-            && !send_progress(
+        if let Some(message) = message {
+            let is_restart = message == RESTART_MESSAGE;
+            if !send_progress(
                 &self.client,
                 &self.token,
                 WorkDoneProgress::Report(WorkDoneProgressReport {
@@ -401,10 +409,13 @@ impl WorkDoneProgressGuard {
                     message: Some(message),
                     percentage: None,
                 }),
-            )
-        {
-            self.disable_locked(&mut state, "failed to enqueue pending progress report");
-            return;
+            ) {
+                self.disable_locked(&mut state, "failed to enqueue pending progress report");
+                return;
+            }
+            if is_restart {
+                state.restart_reported = true;
+            }
         }
 
         if let Some(message) = state.terminal.take() {
@@ -502,7 +513,7 @@ mod tests {
         }
 
         async fn probe(&self) {
-            self.server.request::<req::Shutdown>(()).await.unwrap();
+            self.client.request::<req::Shutdown>(()).await.unwrap();
         }
 
         async fn shutdown(self) {
@@ -515,9 +526,7 @@ mod tests {
     fn progress_harness() -> ProgressHarness {
         let (server_main, client) = async_lsp::MainLoop::new_server(|_| {
             let mut router = Router::new(());
-            router
-                .request::<req::Shutdown, _>(|_, ()| async { Ok(()) })
-                .notification::<notif::Exit>(|_, ()| ControlFlow::Break(Ok(())));
+            router.notification::<notif::Exit>(|_, ()| ControlFlow::Break(Ok(())));
             router
         });
         let (events_tx, events) = mpsc::unbounded_channel();
@@ -535,6 +544,7 @@ mod tests {
                     Ok(())
                 }
             });
+            router.request::<req::Shutdown, _>(|_, ()| async { Ok(()) });
             router.notification::<notif::Progress>(|state, params| {
                 state.events.send(ClientEvent::Progress(params)).unwrap();
                 ControlFlow::Continue(())
@@ -703,6 +713,63 @@ mod tests {
             }) => {
                 assert_eq!(actual, token);
                 assert_eq!(end.message.as_deref(), Some("second finished"));
+            }
+            event => panic!("expected current end, got {event:?}"),
+        }
+
+        harness.shutdown().await;
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn consecutive_replacements_emit_one_restart_report_per_wave() {
+        let mut harness = progress_harness();
+        let coordinator = ProgressCoordinator::with_timing(
+            harness.client.clone(),
+            true,
+            Duration::ZERO,
+            Duration::from_secs(1),
+        );
+        let first = coordinator.start(1);
+
+        let ClientEvent::Create(create) = next_event(&mut harness.events).await else {
+            panic!("expected create request")
+        };
+        let token = create.token;
+        harness.acknowledge_create();
+        assert!(matches!(
+            next_event(&mut harness.events).await,
+            ClientEvent::Progress(ProgressParams {
+                token: actual,
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(_)),
+            }) if actual == token
+        ));
+
+        let _second = coordinator.start(2);
+        match next_event(&mut harness.events).await {
+            ClientEvent::Progress(ProgressParams {
+                token: actual,
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Report(report)),
+            }) => {
+                assert_eq!(actual, token);
+                assert_eq!(report.message.as_deref(), Some(RESTART_MESSAGE));
+            }
+            event => panic!("expected replacement report, got {event:?}"),
+        }
+
+        let _third = coordinator.start(3);
+        let latest = coordinator.start(4);
+        harness.probe().await;
+        assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
+
+        first.finish("stale");
+        latest.finish("done");
+        match next_event(&mut harness.events).await {
+            ClientEvent::Progress(ProgressParams {
+                token: actual,
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)),
+            }) => {
+                assert_eq!(actual, token);
+                assert_eq!(end.message.as_deref(), Some("done"));
             }
             event => panic!("expected current end, got {event:?}"),
         }
