@@ -5,17 +5,39 @@
 
 use crate::{
     analysis::{Access, AddressSpace, AliasAnalysis, Liveness, Location},
-    mir::{BlockId, Function, InstId, InstKind, StorageAlias, ValueId, utils as mir_utils},
-    pass::{AnalysisManager, FunctionAnalyses, FunctionPass, LivenessAnalysis},
+    mir::{BlockId, Function, InstId, InstKind, Module, StorageAlias, ValueId, utils as mir_utils},
+    pass::{AnalysisManager, LivenessAnalysis, MirPass, run_function_pass},
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use std::rc::Rc;
 
+/// Function pass for straight-line storage-load CSE.
+pub(crate) struct StorageLoadCse;
+
+impl MirPass for StorageLoadCse {
+    fn name(&self) -> &'static str {
+        "storage-load-cse"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
+            let mut cse = StorageLoadCseCx::new();
+            cse.alias = Some(Rc::clone(&analyses.alias));
+            cse.run_to_fixpoint(func) != 0
+        })
+    }
+}
+
 /// Local storage load CSE pass.
 #[derive(Debug, Default)]
-pub(crate) struct StorageLoadCse {
+struct StorageLoadCseCx {
     /// Number of storage loads eliminated.
-    pub eliminated_count: usize,
+    eliminated_count: usize,
     alias: Option<Rc<AliasAnalysis>>,
 }
 
@@ -35,24 +57,9 @@ impl RunState {
     }
 }
 
-/// Function pass for straight-line storage-load CSE.
-pub(crate) struct StorageLoadCsePass;
-
-impl FunctionPass for StorageLoadCsePass {
-    fn run_on_function_cached(&mut self, func: &mut Function, analyses: &FunctionAnalyses) -> bool {
-        let mut cse = StorageLoadCse::new();
-        cse.alias = Some(Rc::clone(&analyses.alias));
-        cse.run_to_fixpoint(func) != 0
-    }
-
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        StorageLoadCse::new().run_to_fixpoint(func) != 0
-    }
-}
-
-impl StorageLoadCse {
+impl StorageLoadCseCx {
     /// Creates a new storage-load CSE pass.
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
@@ -87,7 +94,7 @@ impl StorageLoadCse {
     }
 
     /// Runs storage-load CSE to a fixed point.
-    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+    fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
         let mut state = RunState::new(func);
         loop {

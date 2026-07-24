@@ -18,13 +18,12 @@ use super::{
 };
 use crate::{
     analysis::{
-        AliasAnalysis, CallGraphInfo, CfgInfo, CopyDest, CopySource, Liveness, Loop, LoopAnalyzer,
-        MemoryCallSummaries, ParallelCopy, PhiEliminator,
+        CallGraphInfo, CfgInfo, CopyDest, CopySource, Liveness, Loop, LoopAnalyzer, ParallelCopy,
+        PhiEliminator,
     },
     memory::EvmMemoryLayout,
     mir::{BlockId, Function, FunctionId, InstId, InstKind, Module, Terminator, ValueId},
-    pass::{run_default_pipeline, run_pass},
-    transform::{eligible_static_allocations, lower_alloc_except},
+    pass::run_default_pipeline,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -35,7 +34,6 @@ use solar_data_structures::{
 };
 use solar_interface::{Span, sym};
 use solar_sema::{Gcx, hir::StateMutability};
-use std::sync::Arc;
 
 const LINEAR_SELECTOR_DISPATCH_THRESHOLD: usize = 64;
 const STACK_PHI_LAYOUT_LIMIT: usize = 8;
@@ -571,8 +569,6 @@ pub struct EvmCodegen<'gcx> {
     /// by (function, byte offset within its frame). Resolved at the end of
     /// the pass, once every body's exact spill size is known.
     static_frame_addr_consts: FxHashMap<(FunctionId, u64), (DeferredConst, usize)>,
-    /// Proven local allocations retained until exact backend layout is known.
-    static_alloc_candidates: FxHashMap<(FunctionId, InstId), u64>,
     /// Deferred allocations emitted by each external entry.
     pending_static_allocs: FxHashMap<FunctionId, Vec<(DeferredAlloc, u64)>>,
     /// The pass's single free-memory-pointer constant, emitted once in the
@@ -641,7 +637,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             restorable_internal_frames: DenseBitSet::new_empty(0),
             static_frame_functions: DenseBitSet::new_empty(0),
             static_frame_addr_consts: FxHashMap::default(),
-            static_alloc_candidates: FxHashMap::default(),
             pending_static_allocs: FxHashMap::default(),
             runtime_free_memory_const: None,
             runtime_entry_funcs: Vec::new(),
@@ -1079,65 +1074,14 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
-        self.static_alloc_candidates.clear();
-        if self.gcx.sess.opts.optimization != OptimizationMode::None {
-            run_default_pipeline(self.gcx, module);
-            // MIR outlining remains profitable even though EVM IR can merge
-            // equivalent terminal blocks: lowering and stack scheduling can
-            // hide their shared semantic shape from the backend passes.
-            run_pass(self.gcx, module, &crate::pass::OUTLINE_REVERTS_PASS);
-        }
-        run_pass(self.gcx, module, &crate::pass::LOWER_MAPPING_SLOTS_PASS);
-        if self.gcx.sess.opts.optimization != OptimizationMode::None {
-            let summaries = Arc::new(MemoryCallSummaries::new(module));
-            for (func_id, func) in module.functions.iter_enumerated() {
-                let aa = AliasAnalysis::with_call_summaries(func, Arc::clone(&summaries));
-                for candidate in eligible_static_allocations(func, &aa) {
-                    self.static_alloc_candidates.insert((func_id, candidate.alloc), candidate.size);
-                }
-            }
-        }
-        // Progressive lowering: materialize ABI wrappers, the dispatcher, and
-        // tail-call edges as MIR. Each pass bails without advancing the phase
-        // when the module is outside its scope, in which case runtime
-        // generation falls back to the backend dispatcher.
-        if !self.gcx.sess.opts.unstable.no_mir_dispatch {
-            run_pass(self.gcx, module, &crate::pass::LOWER_ABI_PASS);
-        }
-        let lowered_abi_encode = run_pass(self.gcx, module, &crate::pass::LOWER_ABI_ENCODE_PASS);
-        let lowered_aggregates = run_pass(self.gcx, module, &crate::pass::LOWER_AGGREGATES_PASS);
-        if (lowered_abi_encode || lowered_aggregates)
-            && self.gcx.sess.opts.optimization != OptimizationMode::None
-        {
-            run_pass(self.gcx, module, &crate::pass::INST_SIMPLIFY_PASS);
-            run_pass(self.gcx, module, &crate::pass::CFG_SIMPLIFY_PASS);
-            run_pass(self.gcx, module, &crate::pass::DCE_PASS);
-        }
-        run_pass(self.gcx, module, &crate::pass::LOWER_SLICES_PASS);
+        run_default_pipeline(self.gcx, module);
+
         // A logical slice still live in a block after slice lowering is an
         // aggregate use it could not fold — an unsupported pattern, not a
-        // miscompile. Record it and stop before the later phase transitions, so
-        // the module is skipped and the caller reports it rather than an
-        // `evm-shaped` phase-boundary check or the emitter panicking on it.
+        // miscompile. `LowerEvmShaped` leaves such a module at the
+        // `memory-lowered` boundary; record it and stop before emission so the
+        // caller reports it rather than the emitter panicking on it.
         self.collect_unsupported(module);
-        if !self.unsupported.is_empty() {
-            return;
-        }
-        if !self.gcx.sess.opts.unstable.no_mir_dispatch {
-            run_pass(self.gcx, module, &crate::pass::LOWER_DISPATCH_PASS);
-        }
-        run_pass(self.gcx, module, &crate::pass::LOWER_MEMORY_OBJECTS_PASS);
-        if !self.gcx.sess.opts.unstable.no_mir_dispatch {
-            run_pass(self.gcx, module, &crate::pass::LOWER_EVM_SHAPED_PASS);
-        }
-        let deferred = self.static_alloc_candidates.keys().copied().collect();
-        lower_alloc_except(module, &deferred);
-        if self.gcx.sess.opts.optimization != OptimizationMode::None {
-            // Progressive lowering and every generic MIR optimization have finished. Reorder
-            // read-only subgraphs now, immediately before codegen recomputes liveness and starts
-            // physical stack scheduling.
-            run_pass(self.gcx, module, &crate::pass::EVM_INST_SCHEDULE_PASS);
-        }
     }
 
     /// Generates runtime bytecode for a module.
@@ -2958,8 +2902,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::MSIZE);
                 self.scheduler.instruction_executed(0, result_value);
             }
-            InstKind::Alloc { .. } => {
-                let size = self.static_alloc_candidates[&(func_id, inst_id)];
+            InstKind::Alloc { size, .. } => {
+                debug_assert!(func.instructions[inst_id].metadata.deferred_alloc());
+                let size =
+                    func.value_u64(*size).expect("deferred allocation must have a constant size");
                 let alloc = self.asm.emit_deferred_alloc();
                 self.pending_static_allocs.entry(func_id).or_default().push((alloc, size));
                 self.scheduler.instruction_executed(0, result_value);

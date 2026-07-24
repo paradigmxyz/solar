@@ -3,50 +3,53 @@
 use crate::{
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{AllocationKind, Function, FunctionBuilder, InstKind, MirPhase, MirType, Module, Value},
-    pass::ModulePass,
+    pass::MirPass,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::Gcx;
 
-/// Statistics from semantic memory-object lowering.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct LowerMemoryObjectsStats {
-    /// Object allocations changed to raw physical allocations.
-    pub allocations: usize,
-    /// Semantic accesses expanded or erased.
-    pub accesses: usize,
-    /// Nominal object types erased to physical pointers.
-    pub types: usize,
-}
-
 /// Lowers semantic object layouts under the selected physical memory policy.
-#[derive(Debug, Default)]
-pub(crate) struct LowerMemoryObjectsPass {
-    stats: LowerMemoryObjectsStats,
-}
+pub(crate) struct LowerMemoryObjects;
 
-impl LowerMemoryObjectsPass {}
+impl MirPass for LowerMemoryObjects {
+    fn name(&self) -> &'static str {
+        "lower-memory-objects"
+    }
 
-impl ModulePass for LowerMemoryObjectsPass {
-    fn run(
-        &mut self,
+    fn is_required(&self) -> bool {
+        true
+    }
+
+    fn run_pass(
+        &self,
         _gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        self.stats = LowerMemoryObjectsStats::default();
         if module.phase >= MirPhase::MemoryLowered {
             return false;
         }
+        let mut stats = LowerMemoryObjectsStats::default();
         let mut changed = false;
         for func in module.functions.iter_mut() {
-            changed |= lower_function::<EvmMemoryLayout>(func, &mut self.stats);
+            changed |= lower_function::<EvmMemoryLayout>(func, &mut stats);
         }
         if module.phase == MirPhase::Dispatch {
             module.advance_phase(MirPhase::MemoryLowered);
         }
         changed
     }
+}
+
+/// Statistics from semantic memory-object lowering.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct LowerMemoryObjectsStats {
+    /// Object allocations changed to raw physical allocations.
+    allocations: usize,
+    /// Semantic accesses expanded or erased.
+    accesses: usize,
+    /// Nominal object types erased to physical pointers.
+    types: usize,
 }
 
 fn lower_function<P: MemoryLayoutPolicy>(

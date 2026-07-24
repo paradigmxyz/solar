@@ -16,15 +16,37 @@ use crate::{
         LoopAnalyzer, ScalarEvolution,
     },
     mir::{
-        BlockId, Function, InstId, InstKind, StorageAlias, Terminator, Value, ValueId,
+        BlockId, Function, InstId, InstKind, Module, StorageAlias, Terminator, Value, ValueId,
         utils as mir_utils,
     },
-    pass::{FunctionAnalyses, FunctionPass},
+    pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::U256;
 use arrayvec::ArrayVec;
 use solar_data_structures::bit_set::DenseBitSet;
 use std::rc::Rc;
+
+/// Function pass for loop-invariant code motion.
+pub(crate) struct Licm;
+
+impl MirPass for Licm {
+    fn name(&self) -> &'static str {
+        "licm"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
+            let mut optimizer = LoopOptimizer::with_limits(3, 8);
+            optimizer.alias = Some(Rc::clone(&analyses.alias));
+            optimizer.optimize(func).instructions_hoisted != 0
+        })
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum StorageSpace {
@@ -48,7 +70,7 @@ struct LoopOptContext<'a> {
 
 /// Loop optimizer.
 #[derive(Debug)]
-pub(crate) struct LoopOptimizer {
+struct LoopOptimizer {
     /// Minimum estimated gas saved per iteration before an instruction is considered a LICM root.
     min_licm_profit: u16,
     /// Maximum number of instructions hoisted from one loop.
@@ -70,24 +92,9 @@ impl Default for LoopOptimizer {
 
 /// Statistics from loop optimization.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct LoopOptStats {
+struct LoopOptStats {
     /// Number of instructions hoisted out of loops.
-    pub instructions_hoisted: usize,
-}
-
-/// Function pass for loop-invariant code motion.
-pub(crate) struct LicmPass;
-
-impl FunctionPass for LicmPass {
-    fn run_on_function_cached(&mut self, func: &mut Function, analyses: &FunctionAnalyses) -> bool {
-        let mut optimizer = LoopOptimizer::with_limits(3, 8);
-        optimizer.alias = Some(Rc::clone(&analyses.alias));
-        optimizer.optimize(func).instructions_hoisted != 0
-    }
-
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        LoopOptimizer::with_limits(3, 8).optimize(func).instructions_hoisted != 0
-    }
+    instructions_hoisted: usize,
 }
 
 impl LoopOptimizer {
@@ -101,7 +108,7 @@ impl LoopOptimizer {
     }
 
     /// Runs loop-invariant code motion on a function.
-    pub(crate) fn optimize(&mut self, func: &mut Function) -> &LoopOptStats {
+    fn optimize(&mut self, func: &mut Function) -> &LoopOptStats {
         self.stats = LoopOptStats::default();
         func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
         if self.alias.is_none() {

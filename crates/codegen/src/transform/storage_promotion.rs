@@ -18,40 +18,51 @@ use crate::{
     analysis::{AliasAnalysis, Loop, LoopAnalyzer},
     memory::EvmMemoryLayout,
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, StorageAlias,
+        BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, StorageAlias,
         Terminator, Value, ValueId, utils as mir_utils,
     },
-    pass::FunctionPass,
+    pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
 
+/// Function pass for loop-carried storage scalar promotion.
+pub(crate) struct StorageScalarPromotion;
+
+impl MirPass for StorageScalarPromotion {
+    fn name(&self) -> &'static str {
+        "storage-promotion"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
+            let mut promoter = StorageScalarPromoter::new();
+            let stats = promoter.run(func);
+            stats.loops_promoted + stats.loads_promoted + stats.stores_promoted != 0
+        })
+    }
+}
+
 /// Statistics from storage scalar promotion.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct StoragePromotionStats {
+struct StoragePromotionStats {
     /// Number of loops promoted.
-    pub loops_promoted: usize,
+    loops_promoted: usize,
     /// Number of storage loads rewritten to memory loads.
-    pub loads_promoted: usize,
+    loads_promoted: usize,
     /// Number of storage stores rewritten to memory stores.
-    pub stores_promoted: usize,
+    stores_promoted: usize,
 }
 
 /// Promotes loop-carried storage values to memory-backed scalars.
 #[derive(Debug, Default)]
-pub(crate) struct StorageScalarPromoter {
+struct StorageScalarPromoter {
     stats: StoragePromotionStats,
-}
-
-/// Function pass for loop-carried storage scalar promotion.
-pub(crate) struct StorageScalarPromotionPass;
-
-impl FunctionPass for StorageScalarPromotionPass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        let mut promoter = StorageScalarPromoter::new();
-        let stats = promoter.run(func);
-        stats.loops_promoted + stats.loads_promoted + stats.stores_promoted != 0
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -73,12 +84,12 @@ struct PromotedCandidate {
 
 impl StorageScalarPromoter {
     /// Creates a new storage scalar promotion pass.
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     /// Runs the pass on one function.
-    pub(crate) fn run(&mut self, func: &mut Function) -> &StoragePromotionStats {
+    fn run(&mut self, func: &mut Function) -> &StoragePromotionStats {
         self.stats = StoragePromotionStats::default();
 
         // The pass currently introduces absolute low-memory temporaries, so it

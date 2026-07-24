@@ -4,10 +4,34 @@
 
 use crate::{
     analysis::CfgInfo,
-    mir::{BlockId, Function, InstId, Terminator, ValueId, utils::repair_reachability_phis},
-    pass::FunctionPass,
+    mir::{
+        BlockId, Function, InstId, Module, Terminator, ValueId, utils::repair_reachability_phis,
+    },
+    pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
+
+/// Function pass for dead code elimination.
+pub(crate) struct Dce;
+
+impl MirPass for Dce {
+    fn name(&self) -> &'static str {
+        "dce"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
+            let changed = DeadCodeEliminator::new().run_to_fixpoint(func) != 0;
+            repair_reachability_phis(func);
+            changed
+        })
+    }
+}
 
 /// Dead Code Elimination pass.
 ///
@@ -21,25 +45,11 @@ use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 #[derive(Debug, Default)]
 pub(crate) struct DeadCodeEliminator {
     /// Number of instructions eliminated in the last run.
-    pub eliminated_count: usize,
-    /// Scratch reused across runs: values used by instructions or terminators.
+    eliminated_count: usize,
+    /// Values used by instructions or terminators.
     used_values: GrowableBitSet<ValueId>,
-    /// Scratch reused across runs: dead instructions found in one iteration.
+    /// Dead instructions found in one iteration.
     dead: Vec<(BlockId, InstId)>,
-}
-
-/// Function pass for dead code elimination.
-#[derive(Default)]
-pub(crate) struct DcePass {
-    eliminator: DeadCodeEliminator,
-}
-
-impl FunctionPass for DcePass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        let changed = self.eliminator.run_to_fixpoint(func) != 0;
-        repair_reachability_phis(func);
-        changed
-    }
 }
 
 impl DeadCodeEliminator {

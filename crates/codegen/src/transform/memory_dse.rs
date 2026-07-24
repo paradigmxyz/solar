@@ -13,10 +13,10 @@ use crate::{
     },
     memory::EvmMemoryLayout,
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, MemoryObjectKind, Terminator, Value,
-        ValueId, utils as mir_utils,
+        BlockId, Function, Immediate, InstId, InstKind, MemoryObjectKind, Module, Terminator,
+        Value, ValueId, utils as mir_utils,
     },
-    pass::{FunctionAnalyses, FunctionPass},
+    pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::{U256, keccak256};
 use solar_data_structures::{
@@ -25,30 +25,37 @@ use solar_data_structures::{
 };
 use std::rc::Rc;
 
-/// Local dead memory optimization pass.
+/// Function pass for local dead memory-store elimination.
+pub(crate) struct MemoryDse;
+
+impl MirPass for MemoryDse {
+    fn name(&self) -> &'static str {
+        "memory-dse"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
+            let mut eliminator = MemoryStoreEliminator::new();
+            eliminator.alias = Some(Rc::clone(&analyses.alias));
+            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+            eliminator.run_to_fixpoint(func) != 0
+        })
+    }
+}
+
+/// Local dead memory optimization.
 #[derive(Debug, Default)]
-pub(crate) struct MemoryStoreEliminator {
+struct MemoryStoreEliminator {
     /// Shared CFG snapshot for the immutable-copy reuse scan.
     cfg: Option<Rc<CfgInfo>>,
     /// Number of memory instructions eliminated.
-    pub eliminated_count: usize,
+    eliminated_count: usize,
     alias: Option<Rc<AliasAnalysis>>,
-}
-
-/// Function pass for local dead memory-store elimination.
-pub(crate) struct MemoryDsePass;
-
-impl FunctionPass for MemoryDsePass {
-    fn run_on_function_cached(&mut self, func: &mut Function, analyses: &FunctionAnalyses) -> bool {
-        let mut eliminator = MemoryStoreEliminator::new();
-        eliminator.alias = Some(Rc::clone(&analyses.alias));
-        eliminator.cfg = Some(Rc::clone(&analyses.cfg));
-        eliminator.run_to_fixpoint(func) != 0
-    }
-
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        MemoryStoreEliminator::new().run_to_fixpoint(func) != 0
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -141,7 +148,7 @@ impl BlockScratch {
 
 impl MemoryStoreEliminator {
     /// Creates a new memory optimization pass.
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
@@ -434,7 +441,7 @@ impl MemoryStoreEliminator {
     }
 
     /// Runs local memory optimization until no more instructions can be eliminated.
-    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+    fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
         let mut scratch = BlockScratch::new(func);
         loop {
@@ -442,9 +449,6 @@ impl MemoryStoreEliminator {
             if eliminated == 0 {
                 break;
             }
-            // Stores were removed: the shared value-address memo may hold
-            // entries for values the next iteration no longer sees; facts stay
-            // conservative, only the memo is dropped.
             if let Some(alias) = &self.alias {
                 alias.clear_cached_addresses();
             }
@@ -468,10 +472,7 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        let cfg = match &self.cfg {
-            Some(cfg) => Rc::clone(cfg),
-            None => Rc::new(CfgInfo::new(func)),
-        };
+        let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
         let mut cached: FxHashMap<ImmutableCopyKey, CachedImmutableCopy> = FxHashMap::default();
         let mut replacements = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.instructions.len());

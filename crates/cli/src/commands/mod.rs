@@ -2,7 +2,7 @@
 
 use crate::args::{Args, Subcommands};
 use solar_data_structures::fmt::line_diff;
-use std::process::ExitCode;
+use std::{fmt::Display, process::ExitCode};
 
 pub mod compile;
 pub(crate) mod evm_opt;
@@ -10,7 +10,12 @@ pub(crate) mod evm_opt;
 mod lsp;
 pub(crate) mod mir_opt;
 
-fn print_pass_diff(name: &str, pass: &str, before: &str, after: &str) {
+fn print_pass_diff(
+    name: impl Display,
+    pass: impl Display,
+    before: impl Display,
+    after: impl Display,
+) {
     let before = format!("// === {name} (before {pass}) ===\n{before}");
     let after = format!("// === {name} (after {pass}) ===\n{after}");
     print!("{}", line_diff(&before, &after));

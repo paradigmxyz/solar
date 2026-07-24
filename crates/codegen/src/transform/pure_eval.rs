@@ -6,38 +6,49 @@
 //! normal encoder path.
 
 use crate::{
-    mir::{BlockId, Function, Immediate, InstKind, Terminator, Value, ValueId},
-    pass::FunctionPass,
+    mir::{BlockId, Function, Immediate, InstKind, Module, Terminator, Value, ValueId},
+    pass::{MirPass, run_function_pass},
     utils::evm_word,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
 
+/// Function pass for bounded pure MIR evaluation.
+pub(crate) struct PureEval;
+
+impl MirPass for PureEval {
+    fn name(&self) -> &'static str {
+        "pure-eval"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
+            let changed = PureEvaluator::new().run(func).functions_folded != 0;
+            let repaired = crate::mir::utils::repair_reachability_phis(func);
+            changed || repaired
+        })
+    }
+}
+
 const DEFAULT_FUEL: usize = 10_000;
 
 /// Statistics from bounded pure evaluation.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct PureEvalStats {
+struct PureEvalStats {
     /// Number of functions folded to constant returns.
-    pub functions_folded: usize,
+    functions_folded: usize,
 }
 
 /// Bounded pure MIR evaluator.
 #[derive(Debug)]
-pub(crate) struct PureEvaluator {
+struct PureEvaluator {
     fuel: usize,
     stats: PureEvalStats,
-}
-
-/// Function pass for bounded pure MIR evaluation.
-pub(crate) struct PureEvalPass;
-
-impl FunctionPass for PureEvalPass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        let changed = PureEvaluator::new().run(func).functions_folded != 0;
-        let repaired = crate::mir::utils::repair_reachability_phis(func);
-        changed || repaired
-    }
 }
 
 impl Default for PureEvaluator {
@@ -49,12 +60,12 @@ impl Default for PureEvaluator {
 impl PureEvaluator {
     /// Creates a new evaluator with the default fuel.
     #[must_use]
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     /// Runs the evaluator on one function.
-    pub(crate) fn run(&mut self, func: &mut Function) -> &PureEvalStats {
+    fn run(&mut self, func: &mut Function) -> &PureEvalStats {
         self.stats = PureEvalStats::default();
         if !func.params.is_empty() || !self.is_side_effect_free(func) {
             return &self.stats;

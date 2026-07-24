@@ -19,18 +19,22 @@ use crate::{
     analysis::{AliasAnalysis, CfgInfo, MemoryCallSummaries},
     memory::EvmMemoryLayout,
     mir::{BlockId, Function, Immediate, InstId, InstKind, Module, Terminator, Value, ValueId},
-    pass::ModulePass,
+    pass::MirPass,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use std::sync::Arc;
 
 /// Pass that places provably local allocations statically.
-pub(crate) struct StaticAllocPass;
+pub(crate) struct StaticAlloc;
 
-impl ModulePass for StaticAllocPass {
-    fn run(
-        &mut self,
+impl MirPass for StaticAlloc {
+    fn name(&self) -> &'static str {
+        "static-alloc"
+    }
+
+    fn run_pass(
+        &self,
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
@@ -63,6 +67,43 @@ impl ModulePass for StaticAllocPass {
     }
 }
 
+/// Pass that defers eligible allocations until exact backend layout is known.
+pub(crate) struct DeferAlloc;
+
+impl MirPass for DeferAlloc {
+    fn name(&self) -> &'static str {
+        "defer-alloc"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        let summaries = Arc::new(MemoryCallSummaries::new(module));
+        let mut candidates = Vec::new();
+        for (func_id, func) in module.functions.iter_enumerated() {
+            let aa = AliasAnalysis::with_call_summaries(func, Arc::clone(&summaries));
+            candidates.extend(
+                eligible_static_allocations(func, &aa)
+                    .into_iter()
+                    .map(|candidate| (func_id, candidate.alloc)),
+            );
+        }
+
+        let mut changed = false;
+        for (func_id, alloc) in candidates {
+            let metadata = &mut module.functions[func_id].instructions[alloc].metadata;
+            if !metadata.deferred_alloc() {
+                metadata.set_deferred_alloc();
+                changed = true;
+            }
+        }
+        changed
+    }
+}
+
 fn is_entry(func: &Function) -> bool {
     !func.attributes.is_constructor
         && (func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback)
@@ -78,19 +119,16 @@ fn run_on_entry(func: &mut Function, shadow: u64, aa: &AliasAnalysis) -> bool {
 
 /// One constant-size allocation eligible for static placement.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct StaticAllocCandidate {
-    pub block: BlockId,
-    pub alloc: InstId,
-    pub ptr: ValueId,
-    pub size: u64,
+struct StaticAllocCandidate {
+    block: BlockId,
+    alloc: InstId,
+    ptr: ValueId,
+    size: u64,
 }
 
 /// Returns constant-size, non-escaping allocations that the backend may place
 /// in an entry-local static region.
-pub(crate) fn eligible_static_allocations(
-    func: &Function,
-    aa: &AliasAnalysis,
-) -> Vec<StaticAllocCandidate> {
+fn eligible_static_allocations(func: &Function, aa: &AliasAnalysis) -> Vec<StaticAllocCandidate> {
     if !is_entry(func) || has_msize(func) {
         return Vec::new();
     }

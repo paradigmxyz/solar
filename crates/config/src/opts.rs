@@ -383,18 +383,6 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub codegen: bool,
 
-    /// Disable MIR-phase dispatch lowering.
-    ///
-    /// Generates the dispatcher inside the EVM backend instead of lowering
-    /// dispatch and ABI handling as MIR phases. By default the phases run and
-    /// the backend consumes them. A module falls back to the backend
-    /// dispatcher when `lower-abi` cannot wrap every external function yet —
-    /// the wrappers do not implement returndata encoding, so any returning
-    /// external function (getters included) keeps the module on the backend
-    /// path — or when there is no external interface at all.
-    #[cfg_attr(feature = "clap", arg(long))]
-    pub no_mir_dispatch: bool,
-
     // ----------------------------------------
     // Please add new options above this point!
     // ----------------------------------------

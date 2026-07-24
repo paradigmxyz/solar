@@ -8,7 +8,10 @@
 //! traces are placed before cold terminal traces so unlikely exit paths do not
 //! interrupt hot code.
 
-use super::utils::{is_evm_terminal, remap_block_order};
+use super::{
+    EvmPass,
+    utils::{is_evm_terminal, remap_block_order},
+};
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind},
     op,
@@ -17,7 +20,19 @@ use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;
 
-pub(super) fn run(gcx: Gcx<'_>, module: &mut Module) -> bool {
+pub(super) struct BlockLayout;
+
+impl EvmPass for BlockLayout {
+    fn name(&self) -> &'static str {
+        "block-layout"
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        layout_blocks(gcx, module)
+    }
+}
+
+fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
     if module.blocks.len() <= 1 {
         return false;
     }

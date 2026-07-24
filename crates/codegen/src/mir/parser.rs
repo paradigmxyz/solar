@@ -993,6 +993,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 kw::Unchecked => {
                     metadata.set_unchecked(true);
                 }
+                sym::deferred_alloc => {
+                    metadata.set_deferred_alloc();
+                }
                 kw::Storage => {
                     self.parser.expect(TokenKind::Eq)?;
                     metadata.set_storage_alias(Some(self.parse_storage_alias(builder)?));

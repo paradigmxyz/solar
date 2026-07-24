@@ -8,51 +8,47 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{
         AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationSemantics,
-        BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, Module,
-        Terminator, ValueId,
+        BlockId, Function, FunctionBuilder, InstId, InstKind, MemoryRegion, Module, Terminator,
+        ValueId,
     },
-    pass::ModulePass,
+    pass::MirPass,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashSet;
 use solar_sema::Gcx;
 
 /// Lowers `fmp`, `set_fmp`, and `alloc` instructions.
-pub(crate) struct LowerAllocPass;
+pub(crate) struct LowerAlloc;
 
-impl ModulePass for LowerAllocPass {
-    fn run(
-        &mut self,
+impl MirPass for LowerAlloc {
+    fn name(&self) -> &'static str {
+        "lower-alloc"
+    }
+
+    fn is_required(&self) -> bool {
+        true
+    }
+
+    fn run_pass(
+        &self,
         _gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        lower_alloc_except(module, &FxHashSet::default())
+        lower_alloc(module)
     }
 }
 
-/// Lowers abstract allocation operations except for backend-owned allocations
-/// whose final placement depends on exact emitted frame layout.
-pub(crate) fn lower_alloc_except(
-    module: &mut Module,
-    deferred: &FxHashSet<(FunctionId, InstId)>,
-) -> bool {
+fn lower_alloc(module: &mut Module) -> bool {
     let mut changed = false;
-    let function_ids: Vec<_> = module.functions.indices().collect();
-    for func_id in function_ids {
-        let func = &mut module.functions[func_id];
+    for func in module.functions.iter_mut() {
         if !func.blocks.is_empty() {
-            changed |= lower_function(func_id, func, deferred);
+            changed |= lower_function(func);
         }
     }
     changed
 }
 
-fn lower_function(
-    func_id: FunctionId,
-    func: &mut Function,
-    deferred: &FxHashSet<(FunctionId, InstId)>,
-) -> bool {
+fn lower_function(func: &mut Function) -> bool {
     let has_abstract_memory = func.blocks.iter().any(|block| {
         block.instructions.iter().any(|&inst| {
             matches!(
@@ -78,7 +74,7 @@ fn lower_function(
                         semantics: AllocationSemantics { failure: AllocationFailure::Panic, .. },
                         ..
                     }
-                ) && !deferred.contains(&(func_id, *inst))
+                ) && !func.instructions[*inst].metadata.deferred_alloc()
             });
         if let Some((position, inst)) = checked {
             lower_checked_alloc(func, block, position, inst, inst_results[&inst]);
@@ -105,7 +101,7 @@ fn lower_function(
                     builder.func_mut().blocks[block].instructions.push(inst);
                 }
                 InstKind::Alloc { size, semantics, .. } => {
-                    if deferred.contains(&(func_id, inst)) {
+                    if builder.func().instructions[inst].metadata.deferred_alloc() {
                         builder.func_mut().blocks[block].instructions.push(inst);
                         continue;
                     }

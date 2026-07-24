@@ -25,17 +25,28 @@
 //! [Vyper Venom's DFT pass]: https://github.com/vyperlang/vyper/blob/730a2d36f1fca90be059c75681de5c942560ce0b/vyper/venom/passes/dft.py
 
 use crate::{
-    mir::{Function, InstId, InstKind, Instruction, Terminator, Value, ValueId},
-    pass::FunctionPass,
+    mir::{Function, InstId, InstKind, Instruction, Module, Terminator, Value, ValueId},
+    pass::{MirPass, ModuleAnalyses, run_function_pass},
 };
 use smallvec::SmallVec;
 use solar_data_structures::bit_set::DenseBitSet;
+use solar_sema::Gcx;
 
 /// Orders movable MIR instructions for the EVM stack scheduler.
-pub(crate) struct EvmInstSchedulePass;
+pub(crate) struct EvmInstSchedule;
 
-impl FunctionPass for EvmInstSchedulePass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
+impl MirPass for EvmInstSchedule {
+    fn name(&self) -> &'static str {
+        "evm-inst-schedule"
+    }
+
+    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+        run_function_pass(module, analyses, |func, _| Self::run_on_function(func))
+    }
+}
+
+impl EvmInstSchedule {
+    fn run_on_function(func: &mut Function) -> bool {
         let mut changed = false;
         let block_ids = func.blocks.indices().collect::<Vec<_>>();
         let shared_results = Self::shared_results(func);
@@ -95,7 +106,7 @@ impl FunctionPass for EvmInstSchedulePass {
     }
 }
 
-impl EvmInstSchedulePass {
+impl EvmInstSchedule {
     /// Whether an instruction may move among other read-only instructions in the same segment.
     fn is_movable(inst: &Instruction) -> bool {
         if matches!(inst.kind, InstKind::Phi(_) | InstKind::Gas | InstKind::MSize) {

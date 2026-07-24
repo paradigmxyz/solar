@@ -9,17 +9,7 @@ use std::{
 #[test]
 fn c_api_smoke_test() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let workspace_dir = manifest_dir.join("../..");
-    let target_dir = env::var_os("CARGO_TARGET_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| workspace_dir.join("target"));
-    let lib_dir = target_dir.join("debug");
-
-    let mut build = Command::new(env::var_os("CARGO").unwrap_or_else(|| OsString::from("cargo")));
-    build.current_dir(&workspace_dir).args(["build", "-p", "solar-capi", "--lib"]);
-    crate::assert_command(build, "build solar-capi cdylib");
-
-    let out_dir = target_dir.join("ctest");
+    let out_dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("ctest");
     fs::create_dir_all(&out_dir).unwrap();
     let exe = out_dir.join(format!("solar-capi-ctest{}", env::consts::EXE_SUFFIX));
 
@@ -27,17 +17,18 @@ fn c_api_smoke_test() {
         eprintln!("skipping C API smoke test because no C compiler was found");
         return;
     };
+    let lib_path = dynamic_library().unwrap_or_else(|| {
+        panic!("failed to find solar_capi dynamic library in {}", dynamic_library_path_env())
+    });
+    let lib_dir = lib_path.parent().unwrap();
 
     let source = manifest_dir.join("ctest/solidity_capi_test.c");
     let include_dir = manifest_dir.join("include");
-    let runtime_lib_dir =
-        dynamic_library(&lib_dir).and_then(|path| path.parent().map(Path::to_path_buf));
     let mut compile = compiler.to_command();
     if compiler.is_like_msvc() {
-        let Some(import_lib) = find_existing(
-            &library_search_dirs(&lib_dir),
-            &["solar_capi.lib", "solar_capi.dll.lib"],
-        ) else {
+        let Some(import_lib) =
+            find_existing(&library_search_dirs(lib_dir), &["solar_capi.lib", "solar_capi.dll.lib"])
+        else {
             panic!("failed to find solar_capi import library in {}", lib_dir.display());
         };
         compile
@@ -50,15 +41,15 @@ fn c_api_smoke_test() {
         compile.arg("-I").arg(&include_dir).arg(&source);
         if cfg!(windows) {
             if let Some(import_lib) = find_existing(
-                &library_search_dirs(&lib_dir),
+                &library_search_dirs(lib_dir),
                 &["libsolar_capi.dll.a", "solar_capi.dll.a", "solar_capi.lib"],
             ) {
                 compile.arg(import_lib);
             } else {
-                compile.arg("-L").arg(&lib_dir).arg("-lsolar_capi");
+                compile.arg("-L").arg(lib_dir).arg("-lsolar_capi");
             }
         } else {
-            compile.arg("-L").arg(&lib_dir).arg("-lsolar_capi");
+            compile.arg("-L").arg(lib_dir).arg("-lsolar_capi");
             compile.arg(format!("-Wl,-rpath,{}", lib_dir.display()));
         }
         compile.arg("-o").arg(&exe);
@@ -66,7 +57,7 @@ fn c_api_smoke_test() {
     crate::assert_command(compile, "compile C API smoke test");
 
     let mut run = Command::new(&exe);
-    prepend_dynamic_library_path(&mut run, runtime_lib_dir.as_deref().unwrap_or(&lib_dir));
+    prepend_dynamic_library_path(&mut run, lib_dir);
     crate::assert_command(run, "run C API smoke test");
 }
 
@@ -91,13 +82,7 @@ fn target_triple() -> Option<String> {
 }
 
 fn prepend_dynamic_library_path(command: &mut Command, lib_dir: &Path) {
-    let key = if cfg!(windows) {
-        "PATH"
-    } else if cfg!(target_os = "macos") {
-        "DYLD_LIBRARY_PATH"
-    } else {
-        "LD_LIBRARY_PATH"
-    };
+    let key = dynamic_library_path_env();
     let mut paths = vec![lib_dir.to_path_buf()];
     if let Some(existing) = env::var_os(key) {
         paths.extend(env::split_paths(&existing));
@@ -105,9 +90,22 @@ fn prepend_dynamic_library_path(command: &mut Command, lib_dir: &Path) {
     command.env(key, env::join_paths(paths).unwrap());
 }
 
-fn dynamic_library(lib_dir: &Path) -> Option<PathBuf> {
+fn dynamic_library() -> Option<PathBuf> {
     let name = format!("{}solar_capi{}", env::consts::DLL_PREFIX, env::consts::DLL_SUFFIX);
-    find_existing(&library_search_dirs(lib_dir), &[name.as_str()])
+    let paths = env::split_paths(&env::var_os(dynamic_library_path_env())?).collect::<Vec<_>>();
+    find_existing(&paths, &[name.as_str()])
+}
+
+fn dynamic_library_path_env() -> &'static str {
+    if cfg!(windows) {
+        "PATH"
+    } else if cfg!(target_os = "macos") {
+        "DYLD_FALLBACK_LIBRARY_PATH"
+    } else if cfg!(target_os = "aix") {
+        "LIBPATH"
+    } else {
+        "LD_LIBRARY_PATH"
+    }
 }
 
 fn library_search_dirs(lib_dir: &Path) -> [PathBuf; 2] {

@@ -26,9 +26,10 @@
 use crate::{
     analysis::CfgInfo,
     mir::{
-        BlockId, Function, InstKind, Terminator, Value, ValueId, utils::repair_reachability_phis,
+        BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
+        utils::repair_reachability_phis,
     },
-    pass::{FunctionAnalyses, FunctionPass},
+    pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -37,29 +38,36 @@ use solar_data_structures::{
 };
 use std::rc::Rc;
 
+/// Function pass for range-based overflow-check elimination.
+pub(crate) struct CheckElim;
+
+impl MirPass for CheckElim {
+    fn name(&self) -> &'static str {
+        "check-elim"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
+            let mut eliminator = CheckEliminator::new();
+            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+            eliminator.run(func) != 0
+        })
+    }
+}
+
 /// Maximum recursion depth when evaluating value ranges and conditions.
 const MAX_DEPTH: usize = 12;
 
 /// Statistics from check elimination.
 #[derive(Debug, Default, Clone)]
-pub(crate) struct CheckElimStats {
+struct CheckElimStats {
     /// Number of branches folded to unconditional jumps.
-    pub branches_folded: usize,
-}
-
-/// Function pass adapter for range-based overflow-check elimination.
-pub(crate) struct CheckElimPass;
-
-impl FunctionPass for CheckElimPass {
-    fn run_on_function_cached(&mut self, func: &mut Function, analyses: &FunctionAnalyses) -> bool {
-        let mut eliminator = CheckEliminator::new();
-        eliminator.cfg = Some(Rc::clone(&analyses.cfg));
-        eliminator.run(func) != 0
-    }
-
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        CheckEliminator::new().run(func) != 0
-    }
+    branches_folded: usize,
 }
 
 /// An inclusive unsigned 256-bit interval.
@@ -115,11 +123,11 @@ fn ordered(a: ValueId, b: ValueId) -> (ValueId, ValueId) {
 
 /// Range-based overflow-check eliminator.
 #[derive(Default)]
-pub(crate) struct CheckEliminator {
+struct CheckEliminator {
     /// Shared CFG snapshot taken at entry, matching the previous fresh build.
     cfg: Option<Rc<CfgInfo>>,
     /// Statistics from the last run.
-    pub stats: CheckElimStats,
+    stats: CheckElimStats,
     ranges: FxHashMap<ValueId, Range>,
     relations: FxHashSet<Relation>,
     range_undo: Vec<(ValueId, Option<Range>)>,
@@ -129,18 +137,15 @@ pub(crate) struct CheckEliminator {
 impl CheckEliminator {
     /// Creates a new check eliminator.
     #[must_use]
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     /// Runs check elimination on a function. Returns the number of folded
     /// branches.
-    pub(crate) fn run(&mut self, func: &mut Function) -> usize {
+    fn run(&mut self, func: &mut Function) -> usize {
         self.stats = CheckElimStats::default();
-        let cfg = match &self.cfg {
-            Some(cfg) => Rc::clone(cfg),
-            None => Rc::new(CfgInfo::new(func)),
-        };
+        let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
 
         // Predecessors recomputed from reachable terminators: facts must only
         // come from edges that can actually execute.

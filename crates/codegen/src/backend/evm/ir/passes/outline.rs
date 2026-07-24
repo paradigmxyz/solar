@@ -1,5 +1,6 @@
 //! Outline repeated closed computations and large immediate pushes.
 
+use super::EvmPass;
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
     op,
@@ -10,12 +11,24 @@ use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_sema::Gcx;
 use std::hash::{Hash, Hasher};
 
+pub(super) struct Outline;
+
+impl EvmPass for Outline {
+    fn name(&self) -> &'static str {
+        "outline"
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        outline(gcx, module)
+    }
+}
+
 const MIN_CLOSED_RUN: usize = 4;
 
 type BlockEdits = SmallVec<[(usize, usize, BlockId); 1]>;
 type OutlineEdits = FxHashMap<BlockId, BlockEdits>;
 
-pub(super) fn run(gcx: Gcx<'_>, module: &mut Module) -> bool {
+fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
     outline_closed_computations(module, &mut state)
         | outline_repeated_pushes(gcx, module, &mut state)

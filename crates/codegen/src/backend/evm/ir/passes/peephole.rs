@@ -1,5 +1,6 @@
 //! Local peephole optimization over scheduled EVM IR.
 
+use super::EvmPass;
 use crate::backend::evm::{
     ir::{Instruction, Module, PushValue},
     op,
@@ -9,9 +10,21 @@ use solar_sema::Gcx;
 use std::fmt;
 use tracing::trace;
 
+pub(super) struct Peephole;
+
+impl EvmPass for Peephole {
+    fn name(&self) -> &'static str {
+        "peephole"
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        optimize_module(gcx, module)
+    }
+}
+
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
-pub(super) fn run(_gcx: Gcx<'_>, module: &mut Module) -> bool {
+fn optimize_module(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
