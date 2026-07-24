@@ -29,6 +29,7 @@ use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 mod completion;
 mod document_highlight;
 mod document_link;
+mod folding_range;
 mod goto_definition;
 mod hover;
 mod implementation;

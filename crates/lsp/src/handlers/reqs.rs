@@ -12,19 +12,48 @@ use lsp_types::{
     CompletionParams, CompletionResponse, DocumentChanges, DocumentDiagnosticParams,
     DocumentDiagnosticReport, DocumentDiagnosticReportResult, DocumentFormattingParams,
     DocumentHighlight, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
-    DocumentSymbolParams, DocumentSymbolResponse, FullDocumentDiagnosticReport,
-    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InlayHint, InlayHintParams,
-    OneOf, OptionalVersionedTextDocumentIdentifier, Position, PrepareRenameResponse,
-    ReferenceParams, RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport,
-    RenameParams, SelectionRange, SelectionRangeParams, SignatureHelp, SignatureHelpParams,
-    TextDocumentEdit, TextDocumentPositionParams, TextEdit, UnchangedDocumentDiagnosticReport, Url,
-    WorkspaceEdit, WorkspaceSymbolParams, WorkspaceSymbolResponse,
-    request::GotoImplementationParams,
+    DocumentSymbolParams, DocumentSymbolResponse, FoldingRange, FoldingRangeParams,
+    FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
+    InlayHint, InlayHintParams, OneOf, OptionalVersionedTextDocumentIdentifier, Position,
+    PrepareRenameResponse, ReferenceParams, RelatedFullDocumentDiagnosticReport,
+    RelatedUnchangedDocumentDiagnosticReport, RenameParams, SelectionRange, SelectionRangeParams,
+    SignatureHelp, SignatureHelpParams, TextDocumentEdit, TextDocumentPositionParams, TextEdit,
+    UnchangedDocumentDiagnosticReport, Url, WorkspaceEdit, WorkspaceSymbolParams,
+    WorkspaceSymbolResponse, request::GotoImplementationParams,
 };
 use solar_interface::{data_structures::sync::RwLock, source_map::SourceMap};
 use solar_parse::lexer::is_ident;
 use std::{collections::HashMap, future::ready, io, path::Path, sync::Arc};
 use tracing::warn;
+
+pub(crate) fn folding_range(
+    state: &mut GlobalState,
+    params: FoldingRangeParams,
+) -> impl Future<Output = Result<Option<Vec<FoldingRange>>, ResponseError>> + use<> {
+    let vfs = state.vfs.clone();
+    let request = params
+        .text_document
+        .uri
+        .to_file_path()
+        .ok()
+        .map(|path| (VfsPath::from(path.clone()), path));
+
+    async move {
+        let Some((vfs_path, path)) = request else { return Ok(None) };
+        let source = match document_contents(&vfs, &vfs_path, &path).await {
+            Ok(source) => source,
+            Err(error) => {
+                warn!(%error, "failed to read document");
+                return Ok(None);
+            }
+        };
+        let ranges =
+            tokio::task::spawn_blocking(move || crate::folding_range::folding_ranges(source))
+                .await
+                .map_err(folding_range_task_failed)?;
+        Ok(Some(ranges))
+    }
+}
 
 pub(crate) fn selection_range(
     state: &mut GlobalState,
@@ -131,6 +160,11 @@ fn rope_to_string(contents: &Rope) -> String {
 fn document_read_failed(error: io::Error) -> ResponseError {
     warn!(%error, "failed to read document");
     request_failed("failed to read document")
+}
+
+fn folding_range_task_failed(error: tokio::task::JoinError) -> ResponseError {
+    warn!(%error, "folding-range task failed");
+    ResponseError::new(ErrorCode::INTERNAL_ERROR, "folding-range task failed")
 }
 
 fn selection_range_task_failed(error: tokio::task::JoinError) -> ResponseError {
