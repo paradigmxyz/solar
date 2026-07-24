@@ -119,7 +119,7 @@ impl IndVarSimplifier {
         let mut blocks: Vec<_> = loop_data.blocks.iter().collect();
         blocks.sort_by_key(|block| block.index());
         for block in blocks {
-            for &inst_id in &func.blocks[block].instructions {
+            for &inst_id in &func.block(block).instructions {
                 let Some(&value) = inst_results.get(&inst_id) else { continue };
                 if !self.is_reducible_result(func, inst_id) {
                     continue;
@@ -165,7 +165,7 @@ impl IndVarSimplifier {
         update_inst: Option<InstId>,
     ) -> Option<i128> {
         let update_inst = update_inst?;
-        let InstKind::Add(a, b) = func.instructions[update_inst].kind else {
+        let InstKind::Add(a, b) = func.instruction(update_inst).kind else {
             return None;
         };
         let step = if a == iv_value {
@@ -227,7 +227,7 @@ impl IndVarSimplifier {
             InstKind::Add(phi_value, delta),
             Some(MirType::uint256()),
         );
-        let InstKind::Phi(incoming) = &mut func.instructions[phi_inst].kind else {
+        let InstKind::Phi(incoming) = &mut func.instruction_mut(phi_inst).kind else {
             return None;
         };
         incoming.push((latch, next));
@@ -269,25 +269,26 @@ impl IndVarSimplifier {
         ty: Option<MirType>,
     ) -> ValueId {
         let inst = func.alloc_inst(Instruction::new(kind, ty));
-        func.blocks[block].instructions.push(inst);
+        func.block_mut(block).instructions.push(inst);
         func.alloc_value(Value::Inst(inst))
     }
 
     fn insert_header_phi(&self, func: &mut Function, header: BlockId, phi_inst: InstId) {
-        let insert_pos = func.blocks[header]
+        let insert_pos = func
+            .block(header)
             .instructions
             .iter()
-            .take_while(|&&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+            .take_while(|&&inst_id| matches!(func.instruction(inst_id).kind, InstKind::Phi(_)))
             .count();
-        func.blocks[header].instructions.insert(insert_pos, phi_inst);
+        func.block_mut(header).instructions.insert(insert_pos, phi_inst);
     }
 
     fn is_reducible_result(&self, func: &Function, inst_id: InstId) -> bool {
-        if func.instructions[inst_id].result_ty != Some(MirType::uint256()) {
+        if func.instruction(inst_id).result_ty != Some(MirType::uint256()) {
             return false;
         }
         matches!(
-            func.instructions[inst_id].kind,
+            func.instruction(inst_id).kind,
             InstKind::Add(_, _) | InstKind::Sub(_, _) | InstKind::Mul(_, _) | InstKind::Shl(_, _)
         )
     }
@@ -302,13 +303,14 @@ impl IndVarSimplifier {
 
     fn has_non_address_loop_use(&self, func: &Function, loop_data: &Loop, value: ValueId) -> bool {
         for block in &loop_data.blocks {
-            for &inst_id in &func.blocks[block].instructions {
-                let kind = &func.instructions[inst_id].kind;
+            for &inst_id in &func.block(block).instructions {
+                let kind = &func.instruction(inst_id).kind;
                 if kind.operands().contains(&value) && !Self::is_address_builder(kind) {
                     return true;
                 }
             }
-            if func.blocks[block]
+            if func
+                .block(block)
                 .terminator
                 .as_ref()
                 .is_some_and(|term| term.operands().contains(&value))
@@ -334,15 +336,15 @@ impl IndVarSimplifier {
     ) -> usize {
         let mut replaced = 0;
         for block in &loop_data.blocks {
-            let instruction_count = func.blocks[block].instructions.len();
+            let instruction_count = func.block(block).instructions.len();
             for index in 0..instruction_count {
-                let inst_id = func.blocks[block].instructions[index];
+                let inst_id = func.block(block).instructions[index];
                 replaced += mir_utils::replace_inst_uses(
-                    &mut func.instructions[inst_id].kind,
+                    &mut func.instruction_mut(inst_id).kind,
                     replacements,
                 );
             }
-            if let Some(term) = &mut func.blocks[block].terminator {
+            if let Some(term) = &mut func.block_mut(block).terminator {
                 replaced += mir_utils::replace_terminator_uses(term, replacements);
             }
         }

@@ -233,7 +233,7 @@ impl FrameSlotPromoter {
         for info in slots {
             let inst_results = func.inst_results();
             let mut builder =
-                SlotSsaBuilder::new(&info, &cfg, &inst_results, &aa, func.instructions.len());
+                SlotSsaBuilder::new(&info, &cfg, &inst_results, &aa, func.instruction_count());
             if builder.run(func) {
                 self.stats.slots_promoted += 1;
                 self.stats.loads_promoted += builder.loads_promoted;
@@ -249,9 +249,9 @@ impl FrameSlotPromoter {
     }
 
     fn has_global_observation_barrier(func: &Function) -> bool {
-        func.blocks.iter().any(|block| {
+        func.blocks().any(|block| {
             block.instructions.iter().any(|&inst_id| {
-                matches!(func.instructions[inst_id].kind, InstKind::Gas | InstKind::MSize)
+                matches!(func.instruction(inst_id).kind, InstKind::Gas | InstKind::MSize)
             })
         })
     }
@@ -263,19 +263,19 @@ impl FrameSlotPromoter {
     ) -> Vec<SlotAccessInfo> {
         let mut accesses: FxHashMap<PromotableSlot, SlotAccessInfo> = FxHashMap::default();
 
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for (block_id, block) in func.blocks_enumerated() {
             if !cfg.is_reachable(block_id) {
                 continue;
             }
 
             for &inst_id in &block.instructions {
-                let kind = &func.instructions[inst_id].kind;
+                let kind = &func.instruction(inst_id).kind;
                 match *kind {
                     InstKind::MLoad(addr) => {
                         if let Some(slot) = Self::promotable_slot(func, aa, addr) {
                             accesses
                                 .entry(slot)
-                                .or_insert_with(|| SlotAccessInfo::new(slot, func.blocks.len()))
+                                .or_insert_with(|| SlotAccessInfo::new(slot, func.block_count()))
                                 .note_load(block_id, inst_id);
                         }
                     }
@@ -283,7 +283,7 @@ impl FrameSlotPromoter {
                         if let Some(slot) = Self::promotable_slot(func, aa, addr) {
                             accesses
                                 .entry(slot)
-                                .or_insert_with(|| SlotAccessInfo::new(slot, func.blocks.len()))
+                                .or_insert_with(|| SlotAccessInfo::new(slot, func.block_count()))
                                 .note_store(block_id, inst_id, value);
                         }
                     }
@@ -360,12 +360,12 @@ impl FrameSlotPromoter {
             return false;
         }
 
-        for block in func.blocks.iter() {
+        for block in func.blocks() {
             for &inst_id in &block.instructions {
                 if Self::inst_may_observe_external_slot(
                     func,
                     aa,
-                    &func.instructions[inst_id].kind,
+                    &func.instruction(inst_id).kind,
                     slot_addr,
                 ) {
                     return false;
@@ -382,12 +382,12 @@ impl FrameSlotPromoter {
     }
 
     fn internal_frame_slot_safe(func: &Function, aa: &AliasAnalysis, slot_offset: u64) -> bool {
-        for block in func.blocks.iter() {
+        for block in func.blocks() {
             for &inst_id in &block.instructions {
                 if Self::inst_may_observe_internal_slot(
                     func,
                     aa,
-                    &func.instructions[inst_id].kind,
+                    &func.instruction(inst_id).kind,
                     slot_offset,
                 ) {
                     return false;
@@ -700,17 +700,17 @@ impl<'a> SlotSsaBuilder<'a> {
     }
 
     fn compute_live_in(&self, func: &Function) -> DenseBitSet<BlockId> {
-        let mut gen_set = DenseBitSet::new_empty(func.blocks.len());
-        let mut kill = DenseBitSet::new_empty(func.blocks.len());
+        let mut gen_set = DenseBitSet::new_empty(func.block_count());
+        let mut kill = DenseBitSet::new_empty(func.block_count());
 
-        for block in func.blocks.indices() {
+        for block in func.block_ids() {
             if !self.cfg.is_reachable(block) {
                 continue;
             }
 
             let mut saw_store = false;
-            for &inst_id in &func.blocks[block].instructions {
-                match func.instructions[inst_id].kind {
+            for &inst_id in &func.block(block).instructions {
+                match func.instruction(inst_id).kind {
                     InstKind::MLoad(addr)
                         if !saw_store
                             && FrameSlotPromoter::promotable_slot(func, self.aa, addr)
@@ -738,7 +738,7 @@ impl<'a> SlotSsaBuilder<'a> {
         let mut changed = true;
         while changed {
             changed = false;
-            for block in func.blocks.indices() {
+            for block in func.block_ids() {
                 if !self.cfg.is_reachable(block) || live_in.contains(block) || kill.contains(block)
                 {
                     continue;
@@ -760,7 +760,7 @@ impl<'a> SlotSsaBuilder<'a> {
         live_in: &DenseBitSet<BlockId>,
     ) -> DenseBitSet<BlockId> {
         let frontiers = self.compute_dominance_frontiers(func);
-        let mut phi_blocks = DenseBitSet::new_empty(func.blocks.len());
+        let mut phi_blocks = DenseBitSet::new_empty(func.block_count());
         let mut worklist = sorted_blocks(&self.info.def_blocks);
 
         while let Some(block) = worklist.pop() {
@@ -777,13 +777,14 @@ impl<'a> SlotSsaBuilder<'a> {
     }
 
     fn compute_dominance_frontiers(&self, func: &Function) -> IndexVec<BlockId, Vec<BlockId>> {
-        let mut frontiers = index_vec![Vec::new(); func.blocks.len()];
-        for block in func.blocks.indices() {
+        let mut frontiers = index_vec![Vec::new(); func.block_count()];
+        for block in func.block_ids() {
             if !self.cfg.is_reachable(block) {
                 continue;
             }
 
-            let preds: Vec<_> = func.blocks[block]
+            let preds: Vec<_> = func
+                .block(block)
                 .predecessors
                 .iter()
                 .copied()
@@ -836,18 +837,19 @@ impl<'a> SlotSsaBuilder<'a> {
         for pending in self.phis.values() {
             let mut incoming = pending.incoming.clone();
             incoming.sort_by_key(|(block, _)| block.index());
-            func.instructions[pending.inst].kind = InstKind::Phi(incoming);
-            let insert_pos = func.blocks[pending.block]
+            func.instruction_mut(pending.inst).kind = InstKind::Phi(incoming);
+            let insert_pos = func
+                .block(pending.block)
                 .instructions
                 .iter()
-                .take_while(|&&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+                .take_while(|&&inst_id| matches!(func.instruction(inst_id).kind, InstKind::Phi(_)))
                 .count();
-            func.blocks[pending.block].instructions.insert(insert_pos, pending.inst);
+            func.block_mut(pending.block).instructions.insert(insert_pos, pending.inst);
         }
 
         func.replace_uses_canonicalized(&self.replacements);
 
-        for block in func.blocks.iter_mut() {
+        for block in func.blocks_mut() {
             block.instructions.retain(|&id| !self.dead.contains(id));
         }
     }
@@ -864,8 +866,8 @@ impl<'a> SlotSsaBuilder<'a> {
 
         let mut current = None;
         let mut changed = false;
-        for &inst_id in &func.blocks[block].instructions {
-            match func.instructions[inst_id].kind {
+        for &inst_id in &func.block(block).instructions {
+            match func.instruction(inst_id).kind {
                 InstKind::MLoad(addr)
                     if FrameSlotPromoter::promotable_slot(func, self.aa, addr)
                         == Some(self.info.slot) =>
@@ -918,7 +920,7 @@ impl<'a> SlotSsaBuilder<'a> {
     }
 
     fn inst_position(func: &Function, block: BlockId, inst: InstId) -> Option<usize> {
-        func.blocks[block].instructions.iter().position(|&candidate| candidate == inst)
+        func.block(block).instructions.iter().position(|&candidate| candidate == inst)
     }
 
     fn replace_load(&mut self, inst_id: InstId, value: ValueId) {
@@ -943,10 +945,10 @@ impl<'a> SlotSsaBuilder<'a> {
             current = Some(phi.value);
         }
 
-        let instruction_count = func.blocks[block].instructions.len();
+        let instruction_count = func.block(block).instructions.len();
         for index in 0..instruction_count {
-            let inst_id = func.blocks[block].instructions[index];
-            match func.instructions[inst_id].kind {
+            let inst_id = func.block(block).instructions[index];
+            match func.instruction(inst_id).kind {
                 InstKind::MLoad(addr)
                     if FrameSlotPromoter::promotable_slot(func, self.aa, addr)
                         == Some(self.info.slot) =>
@@ -999,7 +1001,7 @@ impl<'a> SlotSsaBuilder<'a> {
                 block,
                 inst,
                 value,
-                incoming: Vec::with_capacity(func.blocks[block].predecessors.len()),
+                incoming: Vec::with_capacity(func.block(block).predecessors.len()),
             },
         );
         value
@@ -1021,9 +1023,9 @@ mod tests {
         let mut stores = 0;
         let aa = AliasAnalysis::new(func);
 
-        for block in func.blocks.iter() {
+        for block in func.blocks() {
             for &inst_id in &block.instructions {
-                match func.instructions[inst_id].kind {
+                match func.instruction(inst_id).kind {
                     InstKind::MLoad(addr)
                         if FrameSlotPromoter::internal_frame_offset(func, &aa, addr)
                             == Some(offset) =>
@@ -1087,7 +1089,7 @@ mod tests {
         assert_eq!(stats.phis_inserted, 1);
         assert_eq!(count_active_frame_ops(&func, 128), (0, 0));
 
-        let Some(Terminator::Return { values }) = &func.blocks[exit].terminator else {
+        let Some(Terminator::Return { values }) = &func.block(exit).terminator else {
             panic!("expected return");
         };
         assert_ne!(values.as_slice(), &[result]);

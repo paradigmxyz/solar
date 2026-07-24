@@ -3,67 +3,13 @@
 use crate::mir::{BasicBlock, BlockId, Function, InstKind, Terminator, ValueId};
 use alloy_primitives::U256;
 use smallvec::smallvec;
-use solar_data_structures::{
-    index::{IndexVec, index_vec},
-    map::FxHashMap,
-};
+use solar_data_structures::{index::IndexVec, map::FxHashMap};
 
 pub(crate) fn remap_block_order(
     func: &mut Function,
     order: &[BlockId],
 ) -> IndexVec<BlockId, BlockId> {
-    debug_assert_eq!(order.len(), func.blocks.len());
-    let mut remap = index_vec![BlockId::from_usize(0); order.len()];
-    let mut old_blocks =
-        std::mem::take(&mut func.blocks).into_iter().map(Some).collect::<IndexVec<BlockId, _>>();
-    let mut blocks = IndexVec::with_capacity(old_blocks.len());
-    for &old_block in order {
-        let block = old_blocks[old_block].take().expect("duplicate block in order");
-        remap[old_block] = blocks.push(block);
-    }
-    debug_assert!(old_blocks.into_iter().all(|block| block.is_none()));
-    func.blocks = blocks;
-
-    for block in &mut func.blocks {
-        for predecessor in &mut block.predecessors {
-            *predecessor = remap[*predecessor];
-        }
-        if let Some(terminator) = &mut block.terminator {
-            remap_terminator_blocks(terminator, &remap);
-        }
-    }
-    for inst in &mut func.instructions {
-        if let InstKind::Phi(incoming) = &mut inst.kind {
-            for (block, _) in incoming {
-                *block = remap[*block];
-            }
-        }
-    }
-    remap
-}
-
-fn remap_terminator_blocks(terminator: &mut Terminator, remap: &IndexVec<BlockId, BlockId>) {
-    let remap_block = |block: &mut BlockId| *block = remap[*block];
-    match terminator {
-        Terminator::Jump(target) => remap_block(target),
-        Terminator::Branch { then_block, else_block, .. } => {
-            remap_block(then_block);
-            remap_block(else_block);
-        }
-        Terminator::Switch { default, cases, .. } => {
-            remap_block(default);
-            for (_, target) in cases {
-                remap_block(target);
-            }
-        }
-        Terminator::Return { .. }
-        | Terminator::Revert { .. }
-        | Terminator::ReturnData { .. }
-        | Terminator::Stop
-        | Terminator::SelfDestruct { .. }
-        | Terminator::TailCall { .. }
-        | Terminator::Invalid => {}
-    }
+    func.remap_block_order(order)
 }
 
 /// Which state-access instructions should receive storage-alias metadata.
@@ -88,11 +34,12 @@ pub(crate) enum StorageAliasScope {
 /// Self-loops (`pred == succ`) are supported: the new block takes over the
 /// backedge and `succ`'s phis are rekeyed from `pred` to the new block.
 pub(crate) fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> BlockId {
-    let new_block = func.blocks.push(BasicBlock {
+    let new_block = func.alloc_block();
+    *func.block_mut(new_block) = BasicBlock {
         instructions: Vec::new(),
         terminator: Some(Terminator::Jump(succ)),
         predecessors: smallvec![pred],
-    });
+    };
 
     // Retarget every occurrence of `succ` among `pred`'s successors.
     let mut retargeted = false;
@@ -102,7 +49,7 @@ pub(crate) fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> B
             retargeted = true;
         }
     };
-    match func.blocks[pred].terminator.as_mut().expect("predecessor must have a terminator") {
+    match func.block_mut(pred).terminator.as_mut().expect("predecessor must have a terminator") {
         Terminator::Jump(target) => retarget(target),
         Terminator::Branch { then_block, else_block, .. } => {
             retarget(then_block);
@@ -121,7 +68,7 @@ pub(crate) fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> B
     // Replace `pred` with the new block in `succ`'s predecessor list. A
     // multi-occurrence edge may have been recorded once per occurrence;
     // they all collapse into the single split block.
-    let predecessors = &mut func.blocks[succ].predecessors;
+    let predecessors = &mut func.block_mut(succ).predecessors;
     let first = predecessors
         .iter()
         .position(|&block| block == pred)
@@ -130,8 +77,9 @@ pub(crate) fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> B
     predecessors.retain(|&mut block| block != pred);
 
     // Rekey `succ`'s phi incoming entries from `pred` to the new block.
-    for &inst_id in &func.blocks[succ].instructions {
-        if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
+    let inst_ids = func.block(succ).instructions.clone();
+    for inst_id in inst_ids {
+        if let InstKind::Phi(incoming) = &mut func.instruction_mut(inst_id).kind {
             for (block, _) in incoming.iter_mut() {
                 if *block == pred {
                     *block = new_block;
@@ -147,27 +95,28 @@ pub(crate) fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> B
 /// that are no longer predecessors. Returns true if any phi input was dropped.
 pub(crate) fn repair_reachability_phis(func: &mut Function) -> bool {
     let mut edges = Vec::new();
-    for (block, bb) in func.blocks.iter_enumerated() {
+    for (block, bb) in func.blocks_enumerated() {
         if let Some(term) = &bb.terminator {
             edges.push((block, term.successors()));
         }
     }
 
-    for block in func.blocks.iter_mut() {
+    for block in func.blocks_mut() {
         block.predecessors.clear();
     }
 
     for (block, successors) in edges {
         for succ in successors {
-            func.blocks[succ].predecessors.push(block);
+            func.block_mut(succ).predecessors.push(block);
         }
     }
 
     let mut changed = false;
-    for block_id in func.blocks.indices() {
-        let predecessors = func.blocks[block_id].predecessors.clone();
-        for &inst_id in &func.blocks[block_id].instructions {
-            if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
+    for block_id in func.block_ids() {
+        let predecessors = func.block(block_id).predecessors.clone();
+        let inst_ids = func.block(block_id).instructions.clone();
+        for inst_id in inst_ids {
+            if let InstKind::Phi(incoming) = &mut func.instruction_mut(inst_id).kind {
                 let len_before = incoming.len();
                 incoming.retain(|(pred, _)| predecessors.contains(pred));
                 changed |= incoming.len() != len_before;

@@ -22,8 +22,8 @@ impl EvmPass for ShareReverts {
 }
 
 fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
-    let mut empty_reverts = DenseBitSet::new_empty(module.blocks.len());
-    for block in module.blocks.indices().filter(|&block| is_empty_revert(module, block)) {
+    let mut empty_reverts = DenseBitSet::new_empty(module.block_count());
+    for block in module.block_ids().filter(|&block| is_empty_revert(module, block)) {
         empty_reverts.insert(block);
     }
     let Some(shared) = empty_reverts.iter().next() else {
@@ -33,7 +33,7 @@ fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         return false;
     }
     let mut changed = false;
-    for (index, block) in module.blocks.iter_mut().enumerate() {
+    for (index, block) in module.blocks_mut().enumerate() {
         let block_id = BlockId::from_usize(index);
         let Some(revert) = block.terminator.as_ref().and_then(|term| match term.kind {
             TerminatorKind::Jump(target) => Some(target),
@@ -90,7 +90,7 @@ fn preserves_shared_revert_low_address(module: &Module, shared: BlockId) -> bool
     let mut references = 0;
     let mut shared_end = 0;
     let mut total = 0;
-    for (block_id, block) in module.blocks.iter_enumerated() {
+    for (block_id, block) in module.blocks_enumerated() {
         references += block
             .instructions
             .iter()
@@ -108,7 +108,7 @@ fn preserves_shared_revert_low_address(module: &Module, shared: BlockId) -> bool
 }
 
 fn is_empty_revert(module: &Module, block: BlockId) -> bool {
-    let block = &module.blocks[block];
+    let block = module.block(block);
     let [zero, dup] = block.instructions.as_slice() else { return false };
     is_zero_push(zero)
         && dup.opcode == op::DUP1

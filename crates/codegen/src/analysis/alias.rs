@@ -331,7 +331,7 @@ impl PointerProvenance {
         call_summaries: Option<&MemoryCallSummaries>,
         may_reset_fmp: impl Fn(&Function, InstId, Option<&MemoryCallSummaries>) -> bool,
     ) -> Self {
-        if func.blocks.is_empty() {
+        if func.has_no_blocks() {
             return Self::default();
         }
         // The cycle classification, the FMP-reset dataflow, and the
@@ -340,16 +340,14 @@ impl PointerProvenance {
         // so skip all of it — most small functions (getters, setters, pure
         // helpers) take this path on every rebuild.
         let has_allocations = func
-            .instructions
-            .iter()
+            .instructions()
             .any(|inst| matches!(inst.kind, InstKind::Alloc { .. } | InstKind::AbiEncode { .. }));
         if !has_allocations {
             return Self::default();
         }
         let cyclic = cyclic_blocks(func);
         let block_resets: Vec<_> = func
-            .blocks
-            .iter()
+            .blocks()
             .map(|block| {
                 block.instructions.iter().any(|&inst| may_reset_fmp(func, inst, call_summaries))
             })
@@ -357,13 +355,13 @@ impl PointerProvenance {
 
         // `poisoned[block]` means at least one path into the block may have
         // recycled the FMP. The monotone OR lattice handles joins and loops.
-        let mut reachable = DenseBitSet::new_empty(func.blocks.len());
-        let mut poisoned = DenseBitSet::new_empty(func.blocks.len());
+        let mut reachable = DenseBitSet::new_empty(func.block_count());
+        let mut poisoned = DenseBitSet::new_empty(func.block_count());
         let mut worklist = VecDeque::from([BlockId::ENTRY]);
         reachable.insert(BlockId::ENTRY);
         while let Some(block) = worklist.pop_front() {
             let out = poisoned.contains(block) || block_resets[block.index()];
-            let Some(terminator) = &func.blocks[block].terminator else { continue };
+            let Some(terminator) = &func.block(block).terminator else { continue };
             for successor in terminator.successors() {
                 let mut changed = reachable.insert(successor);
                 if out {
@@ -376,11 +374,11 @@ impl PointerProvenance {
         }
 
         let mut allocations = FxHashMap::default();
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for (block_id, block) in func.blocks_enumerated() {
             let mut reset = poisoned.contains(block_id);
             for &inst_id in &block.instructions {
                 if matches!(
-                    func.instructions[inst_id].kind,
+                    func.instruction(inst_id).kind,
                     InstKind::Alloc { .. } | InstKind::AbiEncode { .. }
                 ) {
                     allocations.insert(
@@ -486,7 +484,7 @@ impl AliasAnalysis {
         size: LocationSize,
     ) -> Option<MemoryLocation> {
         let mut address = self.memory_address(func, address)?;
-        if let Some(region) = func.instructions[inst_id].metadata.memory_region()
+        if let Some(region) = func.instruction(inst_id).metadata.memory_region()
             && region != MemoryRegion::Unknown
         {
             address.region = region;
@@ -505,7 +503,7 @@ impl AliasAnalysis {
     ) -> Option<MemoryLocation> {
         let offset = EvmMemoryLayout::object_length_offset(kind)?;
         let mut address = self.memory_address(func, object)?.checked_add(offset)?;
-        if let Some(region) = func.instructions[inst_id].metadata.memory_region()
+        if let Some(region) = func.instruction(inst_id).metadata.memory_region()
             && region != MemoryRegion::Unknown
         {
             address.region = region;
@@ -591,9 +589,9 @@ impl AliasAnalysis {
         derived.insert(root);
         loop {
             let mut changed = false;
-            for (value_id, value) in func.values.iter_enumerated() {
+            for (value_id, value) in func.values_enumerated() {
                 let Value::Inst(inst_id) = value else { continue };
-                let propagates = match &func.instructions[*inst_id].kind {
+                let propagates = match &func.instruction(*inst_id).kind {
                     InstKind::Add(first, second)
                     | InstKind::Sub(first, second)
                     | InstKind::MakeSlice { ptr: first, len: second, .. } => {
@@ -622,9 +620,9 @@ impl AliasAnalysis {
             }
         }
 
-        for block in &func.blocks {
+        for block in func.blocks() {
             for &inst_id in &block.instructions {
-                let kind = &func.instructions[inst_id].kind;
+                let kind = &func.instruction(inst_id).kind;
                 for operand in kind.operands() {
                     if derived.contains(&operand) && self.instruction_operand_escapes(kind, operand)
                     {
@@ -772,7 +770,7 @@ impl AliasAnalysis {
         inst_id: InstId,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> ModRef {
-        let kind = &func.instructions[inst_id].kind;
+        let kind = &func.instruction(inst_id).kind;
         let resolve = |value| crate::mir::utils::resolve_replacement(value, replacements);
         let mut effects = ModRef::default();
         let read_memory = |effects: &mut ModRef, address, size| {
@@ -1162,7 +1160,7 @@ impl AliasAnalysis {
                 },
             )),
             Value::Undef(_) | Value::Error(_) => None,
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+            Value::Inst(inst_id) => match func.instruction(*inst_id).kind {
                 InstKind::InternalFrameAddr(offset) => Some(MemoryAddress::internal_frame(offset)),
                 InstKind::Alloc { .. } => Some(if self.allocation_is_dynamic(func, *inst_id) {
                     MemoryAddress {
@@ -1254,7 +1252,7 @@ impl AliasAnalysis {
         let Value::Inst(inst_id) = func.value(slice) else {
             return Some(MemoryAddress::symbolic(slice, MemoryRegion::Unknown));
         };
-        match &func.instructions[*inst_id].kind {
+        match &func.instruction(*inst_id).kind {
             InstKind::MakeSlice { ptr, location, .. } => match location {
                 SliceLocation::Memory => self.memory_address_with_depth(func, *ptr, depth + 1),
                 // Calldata and returndata pointers index their own address
@@ -1313,7 +1311,7 @@ impl AliasAnalysis {
                 _ => MemoryRegion::Unknown,
             };
         };
-        match func.instructions[*inst_id].kind {
+        match func.instruction(*inst_id).kind {
             InstKind::InternalFrameAddr(_) => MemoryRegion::InternalFrame,
             InstKind::Fmp | InstKind::Alloc { .. } => MemoryRegion::Heap,
             InstKind::MLoad(address)
@@ -1345,7 +1343,7 @@ impl AliasAnalysis {
                 let Value::Inst(slice_inst) = func.value(slice) else {
                     return MemoryRegion::Unknown;
                 };
-                match &func.instructions[*slice_inst].kind {
+                match &func.instruction(*slice_inst).kind {
                     InstKind::MakeSlice { location: SliceLocation::Memory, .. }
                     | InstKind::AbiEncode { .. } => MemoryRegion::Heap,
                     _ => MemoryRegion::Unknown,
@@ -1393,7 +1391,7 @@ impl AliasAnalysis {
         inst: InstId,
         call_summaries: Option<&MemoryCallSummaries>,
     ) -> bool {
-        match func.instructions[inst].kind {
+        match func.instruction(inst).kind {
             InstKind::SetFmp(_) => true,
             InstKind::InternalCall { function, .. } => call_summaries
                 .and_then(|summaries| summaries.get(function))
@@ -1446,7 +1444,7 @@ impl AliasAnalysis {
             return Some(value);
         }
         let Value::Inst(inst) = func.value(value) else { return None };
-        match &func.instructions[*inst].kind {
+        match &func.instruction(*inst).kind {
             InstKind::Fmp | InstKind::Alloc { .. } | InstKind::AbiEncode { .. } => {
                 Some(EvmMemoryLayout::HEAP_START)
             }
@@ -1466,7 +1464,7 @@ impl AliasAnalysis {
                 .and_then(|base| base.checked_sub(func.value_u64(*offset)?)),
             InstKind::SlicePtr(slice) => {
                 let Value::Inst(slice) = func.value(*slice) else { return None };
-                match &func.instructions[*slice].kind {
+                match &func.instruction(*slice).kind {
                     InstKind::MakeSlice { ptr, location: SliceLocation::Memory, .. } => {
                         Self::pointer_lower_bound(func, *ptr, depth + 1)
                     }
@@ -1526,15 +1524,14 @@ impl AliasAnalysis {
 
 fn cyclic_blocks(func: &Function) -> DenseBitSet<BlockId> {
     let successors: Vec<Vec<_>> =
-        func.blocks
-            .iter()
+        func.blocks()
             .map(|block| {
                 block.terminator.as_ref().map_or_else(Vec::new, |terminator| {
                     terminator.successors().into_iter().collect()
                 })
             })
             .collect();
-    let mut predecessors = vec![Vec::new(); func.blocks.len()];
+    let mut predecessors = vec![Vec::new(); func.block_count()];
     for (block, block_successors) in successors.iter().enumerate() {
         for &successor in block_successors {
             predecessors[successor.index()].push(BlockId::from_usize(block));
@@ -1544,9 +1541,9 @@ fn cyclic_blocks(func: &Function) -> DenseBitSet<BlockId> {
     // Kosaraju's two linear scans classify all strongly connected components.
     // Doing one reachability search per block made constructing this analysis
     // quadratic on functions with many basic blocks.
-    let mut visited = DenseBitSet::new_empty(func.blocks.len());
-    let mut finish_order = Vec::with_capacity(func.blocks.len());
-    for start in func.blocks.indices() {
+    let mut visited = DenseBitSet::new_empty(func.block_count());
+    let mut finish_order = Vec::with_capacity(func.block_count());
+    for start in func.block_ids() {
         if !visited.insert(start) {
             continue;
         }
@@ -1565,7 +1562,7 @@ fn cyclic_blocks(func: &Function) -> DenseBitSet<BlockId> {
         }
     }
 
-    let mut cyclic = DenseBitSet::new_empty(func.blocks.len());
+    let mut cyclic = DenseBitSet::new_empty(func.block_count());
     visited.clear();
     for start in finish_order.into_iter().rev() {
         if !visited.insert(start) {
@@ -1795,7 +1792,7 @@ mod tests {
             let source = builder.imm_u64(0x20);
             let size = builder.imm_u64(32);
             builder.mcopy(dest, source, size);
-            *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
+            *builder.func().block(builder.current_block()).instructions.last().unwrap()
         };
         let aa = AliasAnalysis::new(&func);
         let effects = aa.instruction_mod_ref(&func, copy);
@@ -1816,7 +1813,7 @@ mod tests {
             let offset = builder.imm_u64(0x80);
             let size = builder.imm_u64(32);
             builder.staticcall(gas, address, offset, size, offset, size);
-            *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
+            *builder.func().block(builder.current_block()).instructions.last().unwrap()
         };
         let effects = AliasAnalysis::new(&func).instruction_mod_ref(&func, call);
 

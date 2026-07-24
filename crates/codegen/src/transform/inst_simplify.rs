@@ -60,7 +60,7 @@ impl RunState {
         Self {
             inst_results: func.inst_results(),
             replacements: FxHashMap::default(),
-            dead: DenseBitSet::new_empty(func.instructions.len()),
+            dead: DenseBitSet::new_empty(func.instruction_count()),
         }
     }
 }
@@ -82,14 +82,14 @@ impl InstSimplifier {
 
         state.replacements.clear();
         state.dead.clear();
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let block_ids: Vec<_> = func.block_ids().collect();
 
         for block_id in block_ids {
-            let instruction_count = func.blocks[block_id].instructions.len();
+            let instruction_count = func.block(block_id).instructions.len();
             for index in 0..instruction_count {
-                let inst_id = func.blocks[block_id].instructions[index];
+                let inst_id = func.block(block_id).instructions[index];
                 loop {
-                    let kind = func.instructions[inst_id].kind.clone();
+                    let kind = func.instruction(inst_id).kind.clone();
 
                     if self.is_dead_noop_inst(func, &kind, &state.replacements) {
                         tracing::trace!(
@@ -113,7 +113,7 @@ impl InstSimplifier {
                             output = %new_kind,
                             "mir_inst_simplify"
                         );
-                        func.instructions[inst_id].kind = new_kind;
+                        func.instruction_mut(inst_id).kind = new_kind;
                         self.simplified_count += 1;
                         continue;
                     }
@@ -150,7 +150,7 @@ impl InstSimplifier {
             func.replace_uses_canonicalized(&state.replacements);
         }
         if !state.dead.is_empty() {
-            for block in func.blocks.iter_mut() {
+            for block in func.blocks_mut() {
                 block.instructions.retain(|&id| !state.dead.contains(id));
             }
         }
@@ -812,7 +812,7 @@ impl InstSimplifier {
 
     fn offset_base(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
         let Value::Inst(inst_id) = func.value(value) else { return None };
-        match func.instructions[*inst_id].kind {
+        match func.instruction(*inst_id).kind {
             InstKind::Add(a, b) => Self::const_operand(func, a, b),
             InstKind::Sub(a, b) => {
                 let offset = func.value_u256(b)?;
@@ -824,7 +824,7 @@ impl InstSimplifier {
 
     fn and_mask_base(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
         let Value::Inst(inst_id) = func.value(value) else { return None };
-        match func.instructions[*inst_id].kind {
+        match func.instruction(*inst_id).kind {
             InstKind::And(a, b) => Self::const_operand(func, a, b),
             _ => None,
         }
@@ -858,17 +858,17 @@ impl InstSimplifier {
     }
 
     fn is_bool_value(func: &Function, value: ValueId) -> bool {
-        match &func.values[value] {
+        match func.value(value) {
             Value::Immediate(Immediate::Bool(_)) => true,
             Value::Arg { ty: MirType::Bool, .. } => true,
-            Value::Inst(inst_id) => func.instructions[*inst_id].result_ty == Some(MirType::Bool),
+            Value::Inst(inst_id) => func.instruction(*inst_id).result_ty == Some(MirType::Bool),
             _ => false,
         }
     }
 
     fn same_value(func: &Function, a: ValueId, b: ValueId) -> bool {
         a == b
-            || match (&func.values[a], &func.values[b]) {
+            || match (func.value(a), func.value(b)) {
                 (Value::Immediate(a), Value::Immediate(b)) => a == b,
                 _ => false,
             }
@@ -884,9 +884,9 @@ impl InstSimplifier {
     }
 
     fn is_clean_address(func: &Function, value: ValueId) -> bool {
-        match &func.values[value] {
+        match func.value(value) {
             Value::Inst(inst_id) => matches!(
-                func.instructions[*inst_id].kind,
+                func.instruction(*inst_id).kind,
                 InstKind::Address
                     | InstKind::Caller
                     | InstKind::Origin
@@ -899,8 +899,8 @@ impl InstSimplifier {
     }
 
     fn is_current_address(func: &Function, value: ValueId) -> bool {
-        match &func.values[value] {
-            Value::Inst(inst_id) => matches!(func.instructions[*inst_id].kind, InstKind::Address),
+        match func.value(value) {
+            Value::Inst(inst_id) => matches!(func.instruction(*inst_id).kind, InstKind::Address),
             _ => false,
         }
     }
@@ -913,9 +913,9 @@ impl InstSimplifier {
         let externally_terminating =
             func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback;
         let mut rewrites = 0;
-        for block_id in func.blocks.indices() {
+        for block_id in func.block_ids() {
             loop {
-                let Some(Terminator::Branch { condition, .. }) = func.blocks[block_id].terminator
+                let Some(Terminator::Branch { condition, .. }) = func.block(block_id).terminator
                 else {
                     break;
                 };
@@ -931,7 +931,7 @@ impl InstSimplifier {
                 };
                 let inner = mir_utils::resolve_replacement(inner, replacements);
                 let Some(Terminator::Branch { condition, then_block, else_block }) =
-                    &mut func.blocks[block_id].terminator
+                    &mut func.block_mut(block_id).terminator
                 else {
                     unreachable!()
                 };
@@ -951,10 +951,10 @@ impl InstSimplifier {
             }
 
             if externally_terminating
-                && let Some(Terminator::ReturnData { size, .. }) = func.blocks[block_id].terminator
+                && let Some(Terminator::ReturnData { size, .. }) = func.block(block_id).terminator
                 && Self::is_zero(func, mir_utils::resolve_replacement(size, replacements))
             {
-                func.blocks[block_id].terminator = Some(Terminator::Stop);
+                func.block_mut(block_id).terminator = Some(Terminator::Stop);
                 rewrites += 1;
             }
         }
@@ -965,8 +965,8 @@ impl InstSimplifier {
     /// Returns `x` when `value` computes `gt(x, 0)` or `lt(0, x)`, both of
     /// which are the unsigned nonzero test.
     fn nonzero_test_operand(func: &Function, value: ValueId) -> Option<ValueId> {
-        match &func.values[value] {
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+        match func.value(value) {
+            Value::Inst(inst_id) => match func.instruction(*inst_id).kind {
                 InstKind::Gt(a, b) if Self::is_zero(func, b) => Some(a),
                 InstKind::Lt(a, b) if Self::is_zero(func, a) => Some(b),
                 _ => None,
@@ -976,8 +976,8 @@ impl InstSimplifier {
     }
 
     fn iszero_operand(func: &Function, value: ValueId) -> Option<ValueId> {
-        match &func.values[value] {
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+        match func.value(value) {
+            Value::Inst(inst_id) => match func.instruction(*inst_id).kind {
                 InstKind::IsZero(inner) => Some(inner),
                 _ => None,
             },
@@ -986,8 +986,8 @@ impl InstSimplifier {
     }
 
     fn not_operand(func: &Function, value: ValueId) -> Option<ValueId> {
-        match &func.values[value] {
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+        match func.value(value) {
+            Value::Inst(inst_id) => match func.instruction(*inst_id).kind {
                 InstKind::Not(inner) => Some(inner),
                 _ => None,
             },
@@ -1022,7 +1022,7 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 1);
 
-        let block = &func.blocks[BlockId::ENTRY];
+        let block = func.block(BlockId::ENTRY);
         assert!(block.instructions.is_empty());
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
@@ -1042,7 +1042,7 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 1);
 
-        let block = &func.blocks[BlockId::ENTRY];
+        let block = func.block(BlockId::ENTRY);
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
         };
@@ -1060,13 +1060,13 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 1);
 
-        let block = &func.blocks[BlockId::ENTRY];
+        let block = func.block(BlockId::ENTRY);
         assert!(block.instructions.is_empty());
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
         };
         assert_eq!(
-            func.values[values[0]].as_immediate().and_then(Immediate::as_u256),
+            func.value(values[0]).as_immediate().and_then(Immediate::as_u256),
             Some(U256::ZERO)
         );
     }
@@ -1084,14 +1084,14 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 3);
 
-        let block = &func.blocks[BlockId::ENTRY];
+        let block = func.block(BlockId::ENTRY);
         assert!(block.instructions.is_empty());
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
         };
         assert_eq!(&values[..2], &[arg, arg]);
         assert_eq!(
-            func.values[values[2]].as_immediate().and_then(Immediate::as_u256),
+            func.value(values[2]).as_immediate().and_then(Immediate::as_u256),
             Some(U256::ZERO)
         );
     }
@@ -1108,7 +1108,7 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run_to_fixpoint(&mut func), 1);
 
-        let block = &func.blocks[BlockId::ENTRY];
+        let block = func.block(BlockId::ENTRY);
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
         };
@@ -1126,13 +1126,13 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 1);
 
-        let block = &func.blocks[BlockId::ENTRY];
+        let block = func.block(BlockId::ENTRY);
         assert!(block.instructions.is_empty());
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
         };
         assert_eq!(
-            func.values[values[0]].as_immediate().and_then(Immediate::as_u256),
+            func.value(values[0]).as_immediate().and_then(Immediate::as_u256),
             Some(U256::from(1))
         );
     }
@@ -1149,9 +1149,9 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 1);
 
-        let block = &func.blocks[BlockId::ENTRY];
+        let block = func.block(BlockId::ENTRY);
         assert_eq!(block.instructions.len(), 1);
-        let eq_inst = func.instructions[block.instructions[0]].kind.clone();
+        let eq_inst = func.instruction(block.instructions[0]).kind.clone();
         assert!(matches!(eq_inst, InstKind::IsZero(value) if value == arg));
     }
 
@@ -1167,7 +1167,7 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 1);
 
-        let block = &func.blocks[BlockId::ENTRY];
+        let block = func.block(BlockId::ENTRY);
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
         };
@@ -1186,7 +1186,7 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 1);
 
-        let block = &func.blocks[BlockId::ENTRY];
+        let block = func.block(BlockId::ENTRY);
         assert_eq!(block.instructions.len(), 1);
         let Some(Terminator::Return { values }) = &block.terminator else {
             panic!("expected return terminator");
@@ -1205,9 +1205,9 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 1);
 
-        let block = &func.blocks[BlockId::ENTRY];
+        let block = func.block(BlockId::ENTRY);
         assert_eq!(block.instructions.len(), 2);
-        let balance_inst = func.instructions[*block.instructions.last().unwrap()].kind.clone();
+        let balance_inst = func.instruction(*block.instructions.last().unwrap()).kind.clone();
         assert!(matches!(balance_inst, InstKind::SelfBalance));
     }
 
@@ -1226,7 +1226,7 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run(&mut func), 2);
 
-        let block = &func.blocks[BlockId::ENTRY];
+        let block = func.block(BlockId::ENTRY);
         let Some(Terminator::Branch { condition, then_block: new_then, else_block: new_else }) =
             block.terminator
         else {
@@ -1250,9 +1250,9 @@ mod tests {
         let mut pass = InstSimplifier::new();
         assert_eq!(pass.run_to_fixpoint(&mut func), 2);
 
-        let block = &func.blocks[BlockId::ENTRY];
+        let block = func.block(BlockId::ENTRY);
         assert_eq!(block.instructions.len(), 2);
-        let balance_inst = func.instructions[*block.instructions.last().unwrap()].kind.clone();
+        let balance_inst = func.instruction(*block.instructions.last().unwrap()).kind.clone();
         assert!(matches!(balance_inst, InstKind::SelfBalance));
     }
 }

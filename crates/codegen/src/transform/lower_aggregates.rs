@@ -26,7 +26,7 @@ impl MirPass for LowerAggregates {
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         let mut changed = false;
-        for func in module.functions.iter_mut() {
+        for func in module.functions_mut() {
             changed |= lower_function(func);
         }
         changed
@@ -40,10 +40,10 @@ enum AggregateOp {
 }
 
 fn lower_function(func: &mut Function) -> bool {
-    let has_aggregates = func.blocks.iter().any(|block| {
+    let has_aggregates = func.blocks().any(|block| {
         block.instructions.iter().any(|&inst| {
             matches!(
-                func.instructions[inst].kind,
+                func.instruction(inst).kind,
                 InstKind::StorageToMemory { .. }
                     | InstKind::MemoryToStorage { .. }
                     | InstKind::ClearStorage { .. }
@@ -54,13 +54,13 @@ fn lower_function(func: &mut Function) -> bool {
         return false;
     }
 
-    let blocks: Vec<_> = func.blocks.indices().collect();
+    let blocks: Vec<_> = func.block_ids().collect();
     for block in blocks {
-        let instructions = std::mem::take(&mut func.blocks[block].instructions);
+        let instructions = std::mem::take(&mut func.block_mut(block).instructions);
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for inst in instructions {
-            let op = match &builder.func().instructions[inst].kind {
+            let op = match &builder.func().instruction(inst).kind {
                 InstKind::StorageToMemory { storage, memory, layout } => {
                     Some(AggregateOp::StorageToMemory {
                         storage: *storage,
@@ -91,7 +91,7 @@ fn lower_function(func: &mut Function) -> bool {
                 Some(AggregateOp::ClearStorage { storage, layout }) => {
                     lower_clear_storage(&mut builder, &layout, storage);
                 }
-                None => builder.func_mut().blocks[block].instructions.push(inst),
+                None => builder.func_mut().block_mut(block).instructions.push(inst),
             }
         }
     }

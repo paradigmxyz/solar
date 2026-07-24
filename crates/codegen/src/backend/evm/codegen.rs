@@ -129,8 +129,7 @@ impl GlobalStackPlan {
 
         let mut entries = FxHashMap::default();
         let args_by_index: FxHashMap<_, _> = func
-            .values
-            .iter_enumerated()
+            .values_enumerated()
             .filter_map(|(value, kind)| match kind {
                 crate::mir::Value::Arg { index, .. } => Some((*index, value)),
                 _ => None,
@@ -146,9 +145,9 @@ impl GlobalStackPlan {
         }
         let mut decode_blocks = FxHashMap::default();
         let mut aliases = FxHashMap::default();
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for (block_id, block) in func.blocks_enumerated() {
             for &inst_id in &block.instructions {
-                let InstKind::CalldataLoad(offset) = &func.instructions[inst_id].kind else {
+                let InstKind::CalldataLoad(offset) = &func.instruction(inst_id).kind else {
                     continue;
                 };
                 let Some(offset) = func.value_u64(*offset) else {
@@ -167,9 +166,9 @@ impl GlobalStackPlan {
             }
         }
 
-        for block_id in func.blocks.indices() {
+        for block_id in func.block_ids() {
             if !cfg.is_reachable(block_id)
-                || func.blocks[block_id].predecessors.is_empty()
+                || func.block(block_id).predecessors.is_empty()
                 || stack_phi_plan.entries.contains_key(&block_id)
                 || Self::is_terminal_block(func, block_id)
             {
@@ -201,9 +200,9 @@ impl GlobalStackPlan {
         let mut changed = true;
         while changed {
             changed = false;
-            for block_id in func.blocks.indices() {
+            for block_id in func.block_ids() {
                 let Some(Terminator::Branch { then_block, else_block, .. }) =
-                    func.blocks[block_id].terminator.as_ref()
+                    func.block(block_id).terminator.as_ref()
                 else {
                     continue;
                 };
@@ -230,13 +229,13 @@ impl GlobalStackPlan {
         // Switch lowering owns the selector stack, and stack-phi loop headers
         // own their edge layouts. Disable their whole branch-sibling component
         // so every predecessor of every affected block still agrees.
-        let mut disabled = DenseBitSet::new_empty(func.blocks.len());
+        let mut disabled = DenseBitSet::new_empty(func.block_count());
         for &block in stack_phi_plan.entries.keys() {
             disabled.insert(block);
         }
-        for block_id in func.blocks.indices() {
+        for block_id in func.block_ids() {
             if let Some(Terminator::Switch { default, cases, .. }) =
-                func.blocks[block_id].terminator.as_ref()
+                func.block(block_id).terminator.as_ref()
             {
                 disabled.insert(*default);
                 for &(_, target) in cases {
@@ -247,9 +246,9 @@ impl GlobalStackPlan {
         let mut changed = true;
         while changed {
             changed = false;
-            for block_id in func.blocks.indices() {
+            for block_id in func.block_ids() {
                 let Some(Terminator::Branch { then_block, else_block, .. }) =
-                    func.blocks[block_id].terminator.as_ref()
+                    func.block(block_id).terminator.as_ref()
                 else {
                     continue;
                 };
@@ -270,9 +269,10 @@ impl GlobalStackPlan {
         // Require enough real argument reuse to recover that fixed cost, and
         // reject dense layout plans unless a long CFG can amortize them.
         let mut arg_uses = 0usize;
-        for block in func.blocks.iter() {
+        for block in func.blocks() {
             for &inst_id in &block.instructions {
-                arg_uses += func.instructions[inst_id]
+                arg_uses += func
+                    .instruction(inst_id)
                     .kind
                     .operands()
                     .iter()
@@ -340,7 +340,7 @@ impl GlobalStackPlan {
 
     fn is_terminal_block(func: &Function, block: BlockId) -> bool {
         matches!(
-            func.blocks[block].terminator,
+            func.block(block).terminator,
             Some(Terminator::Revert { .. } | Terminator::Invalid)
         )
     }
@@ -380,7 +380,7 @@ impl<'a> StackPhiPlanner<'a> {
 
     fn collect_header_results(&mut self) {
         for loop_info in &self.loops {
-            let block = &self.func.blocks[loop_info.header];
+            let block = self.func.block(loop_info.header);
             let phi_insts = self.leading_phi_insts(block);
             if let Some(results) = self.phi_result_values(&phi_insts) {
                 self.header_results.insert(loop_info.header, results);
@@ -395,8 +395,8 @@ impl<'a> StackPhiPlanner<'a> {
         let [latch] = loop_info.back_edges.as_slice() else {
             return;
         };
-        if !matches!(self.func.blocks[preheader].terminator, Some(Terminator::Jump(target)) if target == loop_info.header)
-            || !matches!(self.func.blocks[*latch].terminator, Some(Terminator::Jump(target)) if target == loop_info.header)
+        if !matches!(self.func.block(preheader).terminator, Some(Terminator::Jump(target)) if target == loop_info.header)
+            || !matches!(self.func.block(*latch).terminator, Some(Terminator::Jump(target)) if target == loop_info.header)
         {
             return;
         }
@@ -404,7 +404,7 @@ impl<'a> StackPhiPlanner<'a> {
             return;
         }
 
-        let block = &self.func.blocks[loop_info.header];
+        let block = self.func.block(loop_info.header);
         let phi_insts = self.leading_phi_insts(block);
         if phi_insts.is_empty() || phi_insts.len() > STACK_PHI_LAYOUT_LIMIT {
             return;
@@ -439,7 +439,7 @@ impl<'a> StackPhiPlanner<'a> {
 
         plan.entries.insert(loop_info.header, entry.clone());
         for (pred, sources) in edges {
-            let mut source_set = DenseBitSet::new_empty(self.func.values.len());
+            let mut source_set = DenseBitSet::new_empty(self.func.value_count());
             for &source in &sources {
                 source_set.insert(source);
             }
@@ -453,7 +453,7 @@ impl<'a> StackPhiPlanner<'a> {
             .instructions
             .iter()
             .copied()
-            .take_while(|&inst| matches!(self.func.instructions[inst].kind, InstKind::Phi(_)))
+            .take_while(|&inst| matches!(self.func.instruction(inst).kind, InstKind::Phi(_)))
             .collect()
     }
 
@@ -480,12 +480,12 @@ impl<'a> StackPhiPlanner<'a> {
 
     fn value_used_in_blocks(&self, blocks: &DenseBitSet<BlockId>, value: ValueId) -> bool {
         for block_id in blocks {
-            let block = &self.func.blocks[block_id];
+            let block = self.func.block(block_id);
             for &inst_id in &block.instructions {
-                if matches!(self.func.instructions[inst_id].kind, InstKind::Phi(_)) {
+                if matches!(self.func.instruction(inst_id).kind, InstKind::Phi(_)) {
                     continue;
                 }
-                if self.func.instructions[inst_id].kind.operands().contains(&value) {
+                if self.func.instruction(inst_id).kind.operands().contains(&value) {
                     return true;
                 }
             }
@@ -504,7 +504,7 @@ impl<'a> StackPhiPlanner<'a> {
         phi_insts
             .iter()
             .map(|&inst| {
-                let InstKind::Phi(incoming) = &self.func.instructions[inst].kind else {
+                let InstKind::Phi(incoming) = &self.func.instruction(inst).kind else {
                     return None;
                 };
                 incoming.iter().find_map(|&(block, value)| (block == pred).then_some(value))
@@ -680,10 +680,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Only live instructions — those still in a block — are checked, since the
     /// instruction arena retains folded-away slices the backend never emits.
     fn collect_unsupported(&mut self, module: &Module) {
-        'func: for func in module.functions.iter() {
-            for block in func.blocks.iter() {
+        'func: for func in module.functions() {
+            for block in func.blocks() {
                 for &inst_id in &block.instructions {
-                    let inst = &func.instructions[inst_id];
+                    let inst = func.instruction(inst_id);
                     let message = match inst.kind {
                         InstKind::MakeSlice { .. }
                         | InstKind::SlicePtr(_)
@@ -790,10 +790,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         // An internal-only library (no external interface) has no reachable
         // runtime code — like `solc`, it produces no bytecode rather than
         // standalone bodies for functions only ever inlined elsewhere.
-        if module.is_interface || !module.functions.iter().any(Self::is_module_entry) {
+        if module.is_interface || !module.functions().any(Self::is_module_entry) {
             return EvmArtifact::default();
         }
-        if let Some(func) = module.functions.iter().find(|func| func.blocks.is_empty()) {
+        if let Some(func) = module.functions().find(|func| func.has_no_blocks()) {
             panic!("cannot codegen MIR function `{}` without an entry block", func.name);
         }
         self.run_optimization_passes(module);
@@ -930,8 +930,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let runtime_offset = self.asm.new_deferred_const();
 
         // Find constructor function if it exists
-        let constructor =
-            module.functions.iter_enumerated().find(|(_, f)| f.attributes.is_constructor);
+        let constructor = module.iter_functions().find(|(_, f)| f.attributes.is_constructor);
 
         let constructor_arg_offset = if let Some((ctor_id, ctor)) = constructor {
             // Generate constructor bytecode
@@ -941,15 +940,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.function_labels.clear();
             self.cold_functions =
                 if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
-                    DenseBitSet::new_empty(module.functions.len())
+                    DenseBitSet::new_empty(module.function_count())
                 } else {
                     Self::collect_cold_functions(module)
                 };
             self.function_static_frame_sizes.clear();
             self.function_spill_sizes.clear();
             self.pending_frame_size_consts.clear();
-            self.restorable_internal_frames = DenseBitSet::new_empty(module.functions.len());
-            self.static_frame_functions = DenseBitSet::new_empty(module.functions.len());
+            self.restorable_internal_frames = DenseBitSet::new_empty(module.function_count());
+            self.static_frame_functions = DenseBitSet::new_empty(module.function_count());
             self.stack_arg_masks.clear();
             self.runtime_stack_args = false;
             self.static_frame_addr_consts.clear();
@@ -960,7 +959,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.current_internal_function = None;
             self.stack_phi_sources.clear();
 
-            for (func_id, func) in module.functions.iter_enumerated() {
+            for (func_id, func) in module.iter_functions() {
                 self.function_static_frame_sizes.insert(func_id, func.internal_frame_size);
                 if !func.params.iter().chain(&func.returns).any(|ty| ty.is_memory_reference()) {
                     self.restorable_internal_frames.insert(func_id);
@@ -1006,7 +1005,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_push_label(constructor_entry);
                 self.asm.emit_op(op::JUMP);
 
-                for (func_id, func) in module.functions.iter_enumerated() {
+                for (func_id, func) in module.iter_functions() {
                     if !internal_targets.contains(func_id) {
                         continue;
                     }
@@ -1088,15 +1087,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.block_labels.clear();
         self.function_labels.clear();
         self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
-            DenseBitSet::new_empty(module.functions.len())
+            DenseBitSet::new_empty(module.function_count())
         } else {
             Self::collect_cold_functions(module)
         };
         self.function_static_frame_sizes.clear();
         self.function_spill_sizes.clear();
         self.pending_frame_size_consts.clear();
-        self.restorable_internal_frames = DenseBitSet::new_empty(module.functions.len());
-        self.static_frame_functions = DenseBitSet::new_empty(module.functions.len());
+        self.restorable_internal_frames = DenseBitSet::new_empty(module.function_count());
+        self.static_frame_functions = DenseBitSet::new_empty(module.function_count());
         self.static_frame_addr_consts.clear();
         self.external_spill_addr_consts.clear();
         self.pending_static_allocs.clear();
@@ -1109,7 +1108,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.runtime_stack_args = true;
         self.emitting_dispatch_entry = false;
 
-        if !module.functions.is_empty() {
+        if !module.has_no_functions() {
             if module.phase >= crate::mir::MirPhase::Dispatch {
                 self.generate_mir_dispatched(module);
             } else {
@@ -1132,8 +1131,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// pop and payable check the backend dispatcher would add.
     fn generate_mir_dispatched(&mut self, module: &Module) {
         let Some((entry_id, _)) = module
-            .functions
-            .iter_enumerated()
+            .iter_functions()
             .find(|(_, f)| f.selector.is_none() && f.name.name == sym::entry)
         else {
             // Phase says dispatch but there is nothing to route; fall back.
@@ -1143,12 +1141,12 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let call_graph = CallGraphInfo::new(module);
         let internal_targets = call_graph.reachable_callees_from(
-            module.functions.iter_enumerated().filter_map(|(func_id, func)| {
+            module.iter_functions().filter_map(|(func_id, func)| {
                 (func_id == entry_id || Self::is_external_entry(func)).then_some(func_id)
             }),
         );
 
-        for (func_id, func) in module.functions.iter_enumerated() {
+        for (func_id, func) in module.iter_functions() {
             self.function_static_frame_sizes.insert(func_id, func.internal_frame_size);
             if !func.params.iter().chain(&func.returns).any(|ty| ty.is_memory_reference()) {
                 self.restorable_internal_frames.insert(func_id);
@@ -1165,7 +1163,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.compute_stack_arg_masks(module);
 
         // Labels for every tail-call and internal-call target.
-        for (func_id, func) in module.functions.iter_enumerated() {
+        for (func_id, func) in module.iter_functions() {
             if func_id == entry_id {
                 continue;
             }
@@ -1183,13 +1181,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emitting_dispatch_entry = true;
         let entry_free = self.emit_external_free_memory_start();
         self.runtime_free_memory_const = Some(entry_free);
-        self.generate_function_body(entry_id, &module.functions[entry_id]);
+        self.generate_function_body(entry_id, module.function(entry_id));
         self.emitting_dispatch_entry = false;
         self.record_function_spill_size(entry_id);
         self.runtime_entry_funcs.push(entry_id);
 
         // External entries, reached only through `tail_call` jumps.
-        for (func_id, func) in module.functions.iter_enumerated() {
+        for (func_id, func) in module.iter_functions() {
             if func_id == entry_id || !Self::is_external_entry(func) {
                 continue;
             }
@@ -1202,7 +1200,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         // Internal-call targets, exactly as in the backend dispatcher path.
-        for (func_id, func) in module.functions.iter_enumerated() {
+        for (func_id, func) in module.iter_functions() {
             if func_id == entry_id
                 || Self::is_external_entry(func)
                 || !Self::is_runtime_function(func)
@@ -1239,23 +1237,20 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// ```
     fn generate_dispatcher(&mut self, module: &Module) {
         let receive_idx = module
-            .functions
-            .iter_enumerated()
+            .iter_functions()
             .find_map(|(func_id, func)| func.attributes.is_receive.then_some(func_id));
         let fallback_idx = module
-            .functions
-            .iter_enumerated()
+            .iter_functions()
             .find_map(|(func_id, func)| func.attributes.is_fallback.then_some(func_id));
 
         let call_graph = CallGraphInfo::new(module);
         let internal_targets = call_graph.reachable_callees_from(
             module
-                .functions
-                .iter_enumerated()
+                .iter_functions()
                 .filter_map(|(func_id, func)| Self::is_external_entry(func).then_some(func_id)),
         );
 
-        for (func_id, func) in module.functions.iter_enumerated() {
+        for (func_id, func) in module.iter_functions() {
             self.function_static_frame_sizes.insert(func_id, func.internal_frame_size);
             if !func.params.iter().chain(&func.returns).any(|ty| ty.is_memory_reference()) {
                 self.restorable_internal_frames.insert(func_id);
@@ -1271,7 +1266,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.compute_stack_arg_masks(module);
 
         // Create labels for externally reachable runtime entry points and internal-call targets.
-        for (func_id, func) in module.functions.iter_enumerated() {
+        for (func_id, func) in module.iter_functions() {
             let external = Self::is_external_entry(func);
             let needs_body =
                 external || (Self::is_runtime_function(func) && internal_targets.contains(func_id));
@@ -1283,13 +1278,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         let revert_label = self.asm.new_label();
         self.asm.mark_label_cold(revert_label);
         let has_calldata_label = self.asm.new_label();
-        let all_external_entries_reject_value =
-            module.functions.iter().any(Self::is_external_entry)
-                && module
-                    .functions
-                    .iter()
-                    .filter(|func| Self::is_external_entry(func))
-                    .all(Self::rejects_callvalue);
+        let all_external_entries_reject_value = module.functions().any(Self::is_external_entry)
+            && module
+                .functions()
+                .filter(|func| Self::is_external_entry(func))
+                .all(Self::rejects_callvalue);
 
         // One shared free-memory store for every entry reached through the
         // dispatcher (solc does the same); its value is the maximum entry
@@ -1333,8 +1326,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_op(op::SHR);
 
         let mut selectors: Vec<_> = module
-            .functions
-            .iter_enumerated()
+            .iter_functions()
             .filter_map(|(func_id, func)| {
                 if !Self::is_external_entry(func) {
                     return None;
@@ -1352,7 +1344,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_selector_dispatch(&selectors, fallback_label, revert_label);
 
         // Define external function entry points.
-        for (func_id, func) in module.functions.iter_enumerated() {
+        for (func_id, func) in module.iter_functions() {
             if !Self::is_external_entry(func) {
                 continue;
             }
@@ -1380,7 +1372,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // Define internal-call targets once. Calls jump here and return
         // through the stack-passed return address.
-        for (func_id, func) in module.functions.iter_enumerated() {
+        for (func_id, func) in module.iter_functions() {
             if Self::is_external_entry(func) || !Self::is_runtime_function(func) {
                 continue;
             }
@@ -1421,7 +1413,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (id, callee, static_size) in std::mem::take(&mut self.pending_frame_size_consts) {
             let spill_size =
                 self.function_spill_sizes.get(&callee).copied().unwrap_or_else(|| {
-                    Self::conservative_spill_frame_size(&module.functions[callee])
+                    Self::conservative_spill_frame_size(module.function(callee))
                 });
             self.asm.set_deferred_const(id, U256::from(static_size + spill_size));
         }
@@ -1570,7 +1562,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // Create labels for each block
         self.block_labels.clear();
-        for block_id in func.blocks.indices() {
+        for block_id in func.block_ids() {
             let label = self.asm.new_label();
             if self.block_is_cold(block_id) {
                 self.asm.mark_label_cold(label);
@@ -1588,7 +1580,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut block_entry_stacks: FxHashMap<BlockId, StackModel> = FxHashMap::default();
         let mut preserved_fallthrough: Option<BlockId> = None;
         for (pos, &block_id) in block_order.iter().enumerate() {
-            let block = &func.blocks[block_id];
+            let block = func.block(block_id);
             let fallthrough = block_order.get(pos + 1).copied();
             let entered_by_preserved_fallthrough = preserved_fallthrough == Some(block_id);
             preserved_fallthrough = None;
@@ -1625,7 +1617,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             // Generate instructions
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
-                let inst = &func.instructions[inst_id];
+                let inst = func.instruction(inst_id);
 
                 // Skip phi instructions (they're handled by copies)
                 if matches!(inst.kind, InstKind::Phi(_)) {
@@ -1757,18 +1749,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         block_id: BlockId,
         fallthrough: Option<BlockId>,
     ) -> Option<BlockId> {
-        let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator.as_ref() else {
+        let Some(Terminator::Jump(target)) = func.block(block_id).terminator.as_ref() else {
             return None;
         };
-        if Some(*target) == fallthrough
-            || func.blocks[*target].predecessors.as_slice() != [block_id]
+        if Some(*target) == fallthrough || func.block(*target).predecessors.as_slice() != [block_id]
         {
             return None;
         }
-        let has_phi = func.blocks[*target]
+        let has_phi = func
+            .block(*target)
             .instructions
             .iter()
-            .any(|&inst| matches!(func.instructions[inst].kind, InstKind::Phi(_)));
+            .any(|&inst| matches!(func.instruction(inst).kind, InstKind::Phi(_)));
         (!has_phi).then_some(*target)
     }
 
@@ -1788,7 +1780,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         block_pos: &FxHashMap<BlockId, usize>,
     ) -> Vec<BlockId> {
         let Some(Terminator::Branch { condition, then_block, else_block }) =
-            func.blocks[block_id].terminator.as_ref()
+            func.block(block_id).terminator.as_ref()
         else {
             return Vec::new();
         };
@@ -1815,7 +1807,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let targets = [*then_block, *else_block];
-        let mut live_in_any_target = DenseBitSet::new_empty(func.values.len());
+        let mut live_in_any_target = DenseBitSet::new_empty(func.value_count());
         for target in targets {
             for value in liveness.live_in(target) {
                 live_in_any_target.insert(value);
@@ -1827,12 +1819,13 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         for target in targets {
             if target == block_id
-                || func.blocks[target].predecessors.as_slice() != [block_id]
+                || func.block(target).predecessors.as_slice() != [block_id]
                 || block_pos.get(&target).copied() <= Some(pos)
-                || func.blocks[target]
+                || func
+                    .block(target)
                     .instructions
                     .iter()
-                    .any(|&inst| matches!(func.instructions[inst].kind, InstKind::Phi(_)))
+                    .any(|&inst| matches!(func.instruction(inst).kind, InstKind::Phi(_)))
             {
                 return Vec::new();
             }
@@ -1844,12 +1837,12 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Finds functions whose reachable exits all abort, including chains of
     /// calls to other cold functions.
     fn collect_cold_functions(module: &Module) -> DenseBitSet<FunctionId> {
-        let mut cold = DenseBitSet::new_empty(module.functions.len());
+        let mut cold = DenseBitSet::new_empty(module.function_count());
         let mut worklist = Vec::new();
         let mut visited = GrowableBitSet::new_empty();
         loop {
             let mut changed = false;
-            for (function_id, func) in module.functions.iter_enumerated() {
+            for (function_id, func) in module.iter_functions() {
                 if cold.contains(function_id) {
                     continue;
                 }
@@ -1864,10 +1857,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if !visited.insert(block_id) {
                         continue;
                     }
-                    let block = &func.blocks[block_id];
+                    let block = func.block(block_id);
                     if block.instructions.iter().any(|&inst_id| {
                         matches!(
-                            func.instructions[inst_id].kind,
+                            func.instruction(inst_id).kind,
                             InstKind::InternalCall { function, .. } if cold.contains(function)
                         )
                     }) {
@@ -1908,9 +1901,9 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Finds blocks that abort directly or can only reach other cold blocks.
     fn collect_cold_blocks(&self, func: &Function) -> DenseBitSet<BlockId> {
-        let mut cold = DenseBitSet::new_empty(func.blocks.len());
+        let mut cold = DenseBitSet::new_empty(func.block_count());
         let mut worklist = Vec::new();
-        for block_id in func.blocks.indices() {
+        for block_id in func.block_ids() {
             if self.block_aborts(func, block_id) {
                 cold.insert(block_id);
                 worklist.push(block_id);
@@ -1921,11 +1914,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         while let Some(block_id) = worklist.pop() {
-            for &predecessor in &func.blocks[block_id].predecessors {
+            for &predecessor in &func.block(block_id).predecessors {
                 if cold.contains(predecessor) {
                     continue;
                 }
-                let Some(term) = func.blocks[predecessor].terminator.as_ref() else {
+                let Some(term) = func.block(predecessor).terminator.as_ref() else {
                     continue;
                 };
                 let successors = term.successors();
@@ -1943,7 +1936,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Returns true when a block aborts directly or calls a function whose
     /// reachable exits all abort.
     fn block_aborts(&self, func: &Function, block_id: BlockId) -> bool {
-        let block = &func.blocks[block_id];
+        let block = func.block(block_id);
         matches!(block.terminator, Some(Terminator::Revert { .. } | Terminator::Invalid))
             || matches!(
                 block.terminator,
@@ -1952,7 +1945,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             )
             || block.instructions.iter().any(|&inst_id| {
                 matches!(
-                    func.instructions[inst_id].kind,
+                    func.instruction(inst_id).kind,
                     InstKind::InternalCall { function, .. }
                         if self.cold_functions.contains(function)
                 )
@@ -1976,11 +1969,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         // transitive reachability remain unevaluated.
         let cfg = CfgInfo::new(func);
         let reachable = cfg.reachable();
-        let mut order = Vec::with_capacity(func.blocks.len());
-        let mut placed = DenseBitSet::new_empty(func.blocks.len());
+        let mut order = Vec::with_capacity(func.block_count());
+        let mut placed = DenseBitSet::new_empty(func.block_count());
 
         self.append_layout_chain(func, BlockId::ENTRY, reachable, &mut placed, &mut order);
-        for block_id in func.blocks.indices() {
+        for block_id in func.block_ids() {
             if reachable.contains(block_id) {
                 self.append_layout_chain(func, block_id, reachable, &mut placed, &mut order);
             }
@@ -2003,9 +1996,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             order.push(block_id);
 
-            let target = match func.blocks[block_id].terminator.as_ref() {
+            let target = match func.block(block_id).terminator.as_ref() {
                 Some(Terminator::Jump(target))
-                    if func.blocks[*target].predecessors.as_slice() == [block_id] =>
+                    if func.block(*target).predecessors.as_slice() == [block_id] =>
                 {
                     *target
                 }
@@ -2197,7 +2190,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         block_id: BlockId,
         fallthrough: Option<BlockId>,
     ) -> bool {
-        let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator.as_ref() else {
+        let Some(Terminator::Jump(target)) = func.block(block_id).terminator.as_ref() else {
             return false;
         };
         if Some(*target) != fallthrough {
@@ -2206,7 +2199,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // This block is the target's only predecessor, so no non-fallthrough edge can observe or
         // depend on a JUMPDEST at the target label.
-        func.blocks[*target].predecessors.as_slice() == [block_id]
+        func.block(*target).predecessors.as_slice() == [block_id]
     }
 
     fn is_stack_phi_source(&self, block: BlockId, value: ValueId) -> bool {
@@ -2226,15 +2219,15 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn cross_block_spill_values(func: &Function, liveness: &Liveness) -> DenseBitSet<ValueId> {
-        let mut values = DenseBitSet::new_empty(func.values.len());
-        for block_id in func.blocks.indices() {
+        let mut values = DenseBitSet::new_empty(func.value_count());
+        for block_id in func.block_ids() {
             for val in liveness.live_in(block_id).iter().chain(liveness.live_out(block_id).iter()) {
                 if matches!(func.value(val), crate::mir::Value::Inst(_)) {
                     values.insert(val);
                 }
             }
-            for &inst_id in &func.blocks[block_id].instructions {
-                if matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
+            for &inst_id in &func.block(block_id).instructions {
+                if matches!(func.instruction(inst_id).kind, InstKind::Phi(_))
                     && let Some(val) = func.inst_result_value(inst_id)
                 {
                     values.insert(val);
@@ -2262,7 +2255,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let crate::mir::Value::Inst(inst_id) = func.value(val) else {
             return;
         };
-        for op in func.instructions[*inst_id].kind.operands() {
+        for op in func.instruction(*inst_id).kind.operands() {
             if Self::is_rematerializable_value(func, op) {
                 continue;
             }
@@ -2291,7 +2284,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         block_id: BlockId,
         exempt: &[ValueId],
     ) {
-        let mut exempt_values = DenseBitSet::new_empty(func.values.len());
+        let mut exempt_values = DenseBitSet::new_empty(func.value_count());
         for &value in exempt {
             exempt_values.insert(value);
         }
@@ -2340,7 +2333,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let carried: Vec<ValueId> = self.scheduler.stack.iter().flatten().collect();
         for value in carried {
             if let crate::mir::Value::Inst(inst_id) = func.value(value)
-                && matches!(func.instructions[*inst_id].kind, InstKind::Phi(_))
+                && matches!(func.instruction(*inst_id).kind, InstKind::Phi(_))
             {
                 self.scheduler.spills.invalidate_stored(value);
             }
@@ -2356,8 +2349,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.scheduler.spills.mark_reloadable(val);
             }
         }
-        for &inst_id in &func.blocks[block_id].instructions {
-            if matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
+        for &inst_id in &func.block(block_id).instructions {
+            if matches!(func.instruction(inst_id).kind, InstKind::Phi(_))
                 && let Some(val) = func.inst_result_value(inst_id)
                 && !self.scheduler.stack.contains(val)
                 && self.scheduler.spills.get(val).is_some()
@@ -2899,7 +2892,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::Alloc { size, .. } => {
-                debug_assert!(func.instructions[inst_id].metadata.deferred_alloc());
+                debug_assert!(func.instruction(inst_id).metadata.deferred_alloc());
                 let size =
                     func.value_u64(*size).expect("deferred allocation must have a constant size");
                 let alloc = self.asm.emit_deferred_alloc();
@@ -3553,10 +3546,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let mut scores: FxHashMap<FunctionId, Vec<i32>> = FxHashMap::default();
-        let mut excluded = DenseBitSet::new_empty(module.functions.len());
-        for (caller_id, func) in module.functions.iter_enumerated() {
+        let mut excluded = DenseBitSet::new_empty(module.function_count());
+        for (caller_id, func) in module.iter_functions() {
             let mut has_candidate_call = false;
-            for block in func.blocks.iter() {
+            for block in func.blocks() {
                 if let Some(Terminator::TailCall { function, args }) = &block.terminator
                     && !args.is_empty()
                     && self.static_frame_functions.contains(*function)
@@ -3565,7 +3558,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 has_candidate_call |= block.instructions.iter().any(|&inst_id| {
                     matches!(
-                        &func.instructions[inst_id].kind,
+                        &func.instruction(inst_id).kind,
                         InstKind::InternalCall { function, .. }
                             if self.static_frame_functions.contains(*function)
                     )
@@ -3582,10 +3575,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             // arguments (already stored at their definition).
             let mut inst_block: FxHashMap<InstId, usize> = FxHashMap::default();
             let mut use_counts: FxHashMap<ValueId, usize> = FxHashMap::default();
-            for (block_idx, block) in func.blocks.iter().enumerate() {
+            for (block_idx, block) in func.blocks().enumerate() {
                 for &inst_id in &block.instructions {
                     inst_block.insert(inst_id, block_idx);
-                    for operand in func.instructions[inst_id].kind.operands() {
+                    for operand in func.instruction(inst_id).kind.operands() {
                         *use_counts.entry(operand).or_default() += 1;
                     }
                 }
@@ -3595,10 +3588,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     }
                 }
             }
-            for (block_idx, block) in func.blocks.iter().enumerate() {
+            for (block_idx, block) in func.blocks().enumerate() {
                 for &inst_id in &block.instructions {
                     let InstKind::InternalCall { function, args, .. } =
-                        &func.instructions[inst_id].kind
+                        &func.instruction(inst_id).kind
                     else {
                         continue;
                     };
@@ -3884,7 +3877,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Total frame size of `func_id`: the fixed prefix plus the exact spill
     /// area recorded after its body emitted (conservative when unavailable).
     fn emitted_frame_size(&self, module: &Module, func_id: FunctionId) -> u64 {
-        let func = &module.functions[func_id];
+        let func = module.function(func_id);
         let spill = self
             .function_spill_sizes
             .get(&func_id)
@@ -3918,13 +3911,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         let entry_bases: FxHashMap<FunctionId, u64> = runtime_entries
             .iter()
             .copied()
-            .map(|func_id| (func_id, Self::external_spill_base(&module.functions[func_id])))
+            .map(|func_id| (func_id, Self::external_spill_base(module.function(func_id))))
             .collect();
         let mut entry_ends: FxHashMap<FunctionId, u64> = runtime_entries
             .iter()
             .copied()
             .map(|func_id| {
-                let func = &module.functions[func_id];
+                let func = module.function(func_id);
                 let spill = self
                     .function_spill_sizes
                     .get(&func_id)
@@ -3941,23 +3934,23 @@ impl<'gcx> EvmCodegen<'gcx> {
         // would inflate every callee's depth — and with it the free-memory
         // start and the width of every frame push in the runtime.
         let mut edges = Vec::new();
-        for (func_id, func) in module.functions.iter_enumerated() {
+        for (func_id, func) in module.iter_functions() {
             if !self.function_labels.contains_key(&func_id) {
                 continue;
             }
-            for inst in &func.instructions {
+            for inst in func.instructions() {
                 if let InstKind::InternalCall { function, .. } = inst.kind {
                     edges.push((func_id, function));
                 }
             }
-            for block in func.blocks.iter() {
+            for block in func.blocks() {
                 if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
                     edges.push((func_id, *function));
                 }
             }
         }
         let mut depth: FxHashMap<FunctionId, u64> = FxHashMap::default();
-        for _ in 0..=module.functions.len() {
+        for _ in 0..=module.function_count() {
             let mut changed = false;
             for &(caller, callee) in &edges {
                 let mut contribution = depth.get(&caller).copied().unwrap_or(0);
@@ -4082,7 +4075,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         for (func_id, spills) in self.external_spill_addr_consts.drain() {
-            let base = Self::external_spill_base(&module.functions[func_id])
+            let base = Self::external_spill_base(module.function(func_id))
                 + static_alloc_sizes.get(&func_id).copied().unwrap_or(0);
             for (rank, (id, _)) in spills.into_iter().enumerate() {
                 self.asm.set_deferred_const(id, U256::from(base + rank as u64 * 32));
@@ -4104,7 +4097,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // The scheduler may allocate spill slots lazily while exposing deep stack values, not only
         // for values preallocated as cross-block live-ins/live-outs. Use this only when a body's
         // exact post-emission spill size is unavailable.
-        func.values.len() as u64 * 32
+        func.value_count() as u64 * 32
     }
 
     fn external_spill_base(func: &Function) -> u64 {
@@ -4121,7 +4114,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn uses_internal_frame_slot(func: &Function) -> bool {
-        func.instructions.iter().any(|inst| matches!(inst.kind, InstKind::InternalCall { .. }))
+        func.instructions().any(|inst| matches!(inst.kind, InstKind::InternalCall { .. }))
     }
 
     fn emit_external_free_memory_start(&mut self) -> DeferredConst {
@@ -5618,7 +5611,7 @@ REVERT
                 }
                 let caller_id = module.add_function(caller);
                 codegen.cold_functions = EvmCodegen::collect_cold_functions(&module);
-                let caller = &module.functions[caller_id];
+                let caller = module.function(caller_id);
                 codegen.cold_blocks = codegen.collect_cold_blocks(caller);
 
                 assert!(codegen.cold_functions.contains(cold_func));
@@ -5637,7 +5630,7 @@ REVERT
         let opts = CompileOpts { optimization: OptimizationMode::None, ..Default::default() };
         with_codegen(opts, |mut codegen| {
             codegen.cold_functions = EvmCodegen::collect_cold_functions(&module);
-            let caller = &module.functions[caller_id];
+            let caller = module.function(caller_id);
             codegen.cold_blocks = codegen.collect_cold_blocks(caller);
             assert_eq!(
                 codegen.block_layout_order(caller),

@@ -44,8 +44,7 @@ impl MirPass for StaticAlloc {
         // the others can grow into without moving the shared static-frame
         // region or any spill base above it. Placements stay inside it.
         let shadow = module
-            .functions
-            .iter()
+            .functions()
             .filter(|func| is_entry(func))
             .map(|func| {
                 EvmMemoryLayout::HEAP_START
@@ -56,7 +55,7 @@ impl MirPass for StaticAlloc {
 
         let summaries = Arc::new(MemoryCallSummaries::new(module));
         let mut changed = false;
-        for func in module.functions.iter_mut() {
+        for func in module.functions_mut() {
             if !is_entry(func) || has_msize(func) {
                 continue;
             }
@@ -83,7 +82,7 @@ impl MirPass for DeferAlloc {
     ) -> bool {
         let summaries = Arc::new(MemoryCallSummaries::new(module));
         let mut candidates = Vec::new();
-        for (func_id, func) in module.functions.iter_enumerated() {
+        for (func_id, func) in module.iter_functions() {
             let aa = AliasAnalysis::with_call_summaries(func, Arc::clone(&summaries));
             candidates.extend(
                 eligible_static_allocations(func, &aa)
@@ -94,7 +93,7 @@ impl MirPass for DeferAlloc {
 
         let mut changed = false;
         for (func_id, alloc) in candidates {
-            let metadata = &mut module.functions[func_id].instructions[alloc].metadata;
+            let metadata = &mut module.function_mut(func_id).instruction_mut(alloc).metadata;
             if !metadata.deferred_alloc() {
                 metadata.set_deferred_alloc();
                 changed = true;
@@ -137,9 +136,9 @@ fn eligible_static_allocations(func: &Function, aa: &AliasAnalysis) -> Vec<Stati
     let cfg = CfgInfo::new(func);
     let mut cyclic = FxHashMap::default();
     let mut candidates = Vec::new();
-    for block in func.blocks.indices() {
-        for &alloc in &func.blocks[block].instructions {
-            let InstKind::Alloc { size, semantics, .. } = func.instructions[alloc].kind else {
+    for block in func.block_ids() {
+        for &alloc in &func.block(block).instructions {
+            let InstKind::Alloc { size, semantics, .. } = func.instruction(alloc).kind else {
                 continue;
             };
             if semantics != crate::mir::AllocationSemantics::INTERNAL {
@@ -164,20 +163,20 @@ fn eligible_static_allocations(func: &Function, aa: &AliasAnalysis) -> Vec<Stati
 }
 
 fn has_msize(func: &Function) -> bool {
-    func.blocks.iter().any(|block| {
+    func.blocks().any(|block| {
         block
             .instructions
             .iter()
-            .any(|&inst| matches!(func.instructions[inst].kind, InstKind::MSize))
+            .any(|&inst| matches!(func.instruction(inst).kind, InstKind::MSize))
     })
 }
 
 /// Returns true when `block` can execute more than once: it can reach itself.
 fn block_in_cycle(func: &Function, block: BlockId) -> bool {
     let mut stack = vec![block];
-    let mut seen = DenseBitSet::new_empty(func.blocks.len());
+    let mut seen = DenseBitSet::new_empty(func.block_count());
     while let Some(current) = stack.pop() {
-        let Some(term) = func.blocks[current].terminator.as_ref() else { continue };
+        let Some(term) = func.block(current).terminator.as_ref() else { continue };
         for succ in term.successors() {
             if succ == block {
                 return true;
@@ -200,9 +199,9 @@ fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool
     derived.insert(cand.ptr, 0);
     for _ in 0..4 {
         let mut grew = false;
-        for block in func.blocks.iter() {
+        for block in func.blocks() {
             for &inst_id in &block.instructions {
-                if let InstKind::Add(a, b) = func.instructions[inst_id].kind
+                if let InstKind::Add(a, b) = func.instruction(inst_id).kind
                     && let Some(&result) = inst_results.get(&inst_id)
                     && !derived.contains_key(&result)
                 {
@@ -234,12 +233,12 @@ fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool
 
     // Every use of every derived address must be a bounded memory access.
     let in_range = |off: u64, len: u64| off.checked_add(len).is_some_and(|end| end <= cand.size);
-    for block in func.blocks.iter() {
+    for block in func.blocks() {
         for &inst_id in &block.instructions {
             if inst_id == cand.alloc {
                 continue;
             }
-            let kind = &func.instructions[inst_id].kind;
+            let kind = &func.instruction(inst_id).kind;
             for &operand in kind.operands().iter() {
                 let Some(&off) = derived.get(&operand) else { continue };
                 let ok = match *kind {
@@ -317,7 +316,7 @@ fn apply_candidate(func: &mut Function, cand: &StaticAllocCandidate, shadow: u64
     let mut replacements = FxHashMap::default();
     replacements.insert(cand.ptr, replacement);
     func.replace_uses_canonicalized(&replacements);
-    let block = &mut func.blocks[cand.block];
+    let block = func.block_mut(cand.block);
     block.instructions.retain(|&inst| inst != cand.alloc);
     true
 }

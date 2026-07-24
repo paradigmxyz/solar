@@ -114,8 +114,7 @@ impl LowerAbiCx {
         // returns (a memory pointer to bytes/array/struct data) still need an
         // encoder the wrappers do not have.
         let wrappable: Vec<FunctionId> = module
-            .functions
-            .iter_enumerated()
+            .iter_functions()
             .filter_map(|(id, func)| is_wrappable_external(func).then_some(id))
             .collect();
         for &id in &wrappable {
@@ -124,15 +123,15 @@ impl LowerAbiCx {
         }
 
         let mut targets = Vec::new();
-        let mut internally_called = DenseBitSet::new_empty(module.functions.len());
+        let mut internally_called = DenseBitSet::new_empty(module.function_count());
         let mut callvalue = super::utils::DispatchCallvalue::default();
-        for (id, func) in module.functions.iter_enumerated() {
+        for (id, func) in module.iter_functions() {
             callvalue.observe(func);
             if is_wrappable_external(func) {
                 targets.push(id);
                 self.stats.skipped_dynamic += usize::from(has_live_value_return(func));
             }
-            for function in func.instructions.iter().filter_map(|inst| {
+            for function in func.instructions().filter_map(|inst| {
                 if let InstKind::InternalCall { function, .. } = &inst.kind {
                     Some(*function)
                 } else {
@@ -180,8 +179,8 @@ impl LowerAbiCx {
         // original call semantics: retarget them to the extracted body. The
         // wrappers' own calls already target the bodies and are not affected.
         if !body_of_wrapper.is_empty() {
-            for func in module.functions.iter_mut() {
-                for inst in func.instructions.iter_mut() {
+            for func in module.functions_mut() {
+                for inst in func.instructions_mut() {
                     if let InstKind::InternalCall { function, .. } = &mut inst.kind
                         && let Some(&body_id) = body_of_wrapper.get(function)
                     {
@@ -254,7 +253,7 @@ impl LowerAbiCx {
         builder.revert(zero, zero);
 
         let order = std::iter::once(guard)
-            .chain(func.blocks.indices().filter(|&block| block != guard))
+            .chain(func.block_ids().filter(|&block| block != guard))
             .collect::<Vec<_>>();
         crate::mir::utils::remap_block_order(func, &order);
     }
@@ -276,7 +275,7 @@ fn is_wrappable_external(func: &Function) -> bool {
 /// any count are fine: each stays an `Arg` head word the backend
 /// rematerializes lazily.
 fn has_live_value_return(func: &Function) -> bool {
-    func.blocks.iter().any(|block| {
+    func.blocks().any(|block| {
         matches!(&block.terminator, Some(Terminator::Return { values }) if !values.is_empty())
     })
 }
@@ -285,7 +284,7 @@ fn has_live_value_return(func: &Function) -> bool {
 fn value_type(func: &Function, value: crate::mir::ValueId) -> Option<MirType> {
     match func.value(value) {
         Value::Arg { ty, .. } | Value::Undef(ty) => Some(*ty),
-        Value::Inst(inst) => func.instructions[*inst].result_ty,
+        Value::Inst(inst) => func.instruction(*inst).result_ty,
         Value::Immediate(_) => Some(MirType::uint256()),
         Value::Error(_) => None,
     }
@@ -312,10 +311,10 @@ fn is_static_word_return(func: &Function, value: crate::mir::ValueId) -> bool {
 /// the fused `returndata` encoding the backend expects: consecutive head words
 /// from the return buffer, then `RETURN`. Returns whether anything changed.
 fn fuse_static_word_returns(func: &mut Function) -> bool {
-    let block_ids: Vec<_> = func.blocks.indices().collect();
+    let block_ids: Vec<_> = func.block_ids().collect();
     let mut changed = false;
     for block_id in block_ids {
-        let Some(Terminator::Return { values }) = &func.blocks[block_id].terminator else {
+        let Some(Terminator::Return { values }) = &func.block(block_id).terminator else {
             continue;
         };
         if values.is_empty() || !values.iter().all(|&v| is_static_word_return(func, v)) {

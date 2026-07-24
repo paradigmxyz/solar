@@ -105,9 +105,9 @@ impl AggressiveDeadCodeEliminator {
 
     fn rewrite_dead_control(&self, func: &mut Function, ctx: &AdceContext) -> usize {
         let mut rewrites = Vec::new();
-        let mut search = TargetSearch::new(func.blocks.len());
-        for block_id in func.blocks.indices() {
-            let Some(term) = &func.blocks[block_id].terminator else {
+        let mut search = TargetSearch::new(func.block_count());
+        for block_id in func.block_ids() {
+            let Some(term) = &func.block(block_id).terminator else {
                 continue;
             };
             if !matches!(term, Terminator::Branch { .. } | Terminator::Switch { .. }) {
@@ -185,7 +185,7 @@ impl AggressiveDeadCodeEliminator {
             return Some(block_id);
         }
 
-        let term = func.blocks[block_id].terminator.as_ref()?;
+        let term = func.block(block_id).terminator.as_ref()?;
         match term {
             Terminator::Jump(target) => self.transparent_target(func, ctx, *target, search),
             Terminator::Branch { .. } | Terminator::Switch { .. } => {
@@ -202,14 +202,14 @@ impl AggressiveDeadCodeEliminator {
     }
 
     fn block_has_effect(&self, func: &Function, block_id: BlockId) -> bool {
-        func.blocks[block_id]
+        func.block(block_id)
             .instructions
             .iter()
-            .any(|&inst_id| func.instructions[inst_id].kind.has_side_effects())
+            .any(|&inst_id| func.instruction(inst_id).kind.has_side_effects())
     }
 
     fn block_def_escapes(&self, func: &Function, ctx: &AdceContext, block_id: BlockId) -> bool {
-        func.blocks[block_id].instructions.iter().any(|&inst_id| {
+        func.block(block_id).instructions.iter().any(|&inst_id| {
             let Some(&value) = ctx.inst_results.get(&inst_id) else {
                 return false;
             };
@@ -220,20 +220,21 @@ impl AggressiveDeadCodeEliminator {
     }
 
     fn rewrite_to_jump(&self, func: &mut Function, block_id: BlockId, target: BlockId) {
-        let old_successors = func.blocks[block_id]
+        let old_successors = func
+            .block(block_id)
             .terminator
             .as_ref()
             .map(|term| term.successors())
             .unwrap_or_default();
 
         for successor in old_successors {
-            func.blocks[successor].predecessors.retain(|pred| *pred != block_id);
+            func.block_mut(successor).predecessors.retain(|pred| *pred != block_id);
         }
-        if !func.blocks[target].predecessors.contains(&block_id) {
-            func.blocks[target].predecessors.push(block_id);
+        if !func.block(target).predecessors.contains(&block_id) {
+            func.block_mut(target).predecessors.push(block_id);
         }
 
-        func.blocks[block_id].terminator = Some(Terminator::Jump(target));
+        func.block_mut(block_id).terminator = Some(Terminator::Jump(target));
     }
 }
 
@@ -246,18 +247,18 @@ impl AdceContext {
 
     fn value_uses(func: &Function) -> FxHashMap<ValueId, DenseBitSet<BlockId>> {
         let mut uses = FxHashMap::default();
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for (block_id, block) in func.blocks_enumerated() {
             for &inst_id in &block.instructions {
-                for operand in func.instructions[inst_id].kind.operands() {
+                for operand in func.instruction(inst_id).kind.operands() {
                     uses.entry(operand)
-                        .or_insert_with(|| DenseBitSet::new_empty(func.blocks.len()))
+                        .or_insert_with(|| DenseBitSet::new_empty(func.block_count()))
                         .insert(block_id);
                 }
             }
             if let Some(term) = &block.terminator {
                 for operand in term.operands() {
                     uses.entry(operand)
-                        .or_insert_with(|| DenseBitSet::new_empty(func.blocks.len()))
+                        .or_insert_with(|| DenseBitSet::new_empty(func.block_count()))
                         .insert(block_id);
                 }
             }

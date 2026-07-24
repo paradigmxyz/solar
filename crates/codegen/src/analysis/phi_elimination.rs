@@ -70,7 +70,7 @@ impl PhiEliminator {
         let mut phis_to_remove = Vec::new();
 
         // Process each block looking for phi instructions
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for (block_id, block) in func.blocks_enumerated() {
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
                 let inst = func.instruction(inst_id);
 
@@ -108,7 +108,7 @@ impl PhiEliminator {
 
 /// Finds the ValueId that is defined by a phi instruction.
 fn find_phi_dst(func: &Function, inst_id: InstId) -> Option<ValueId> {
-    for (val_id, val) in func.values.iter_enumerated() {
+    for (val_id, val) in func.values_enumerated() {
         if let Value::Inst(def_inst) = val
             && *def_inst == inst_id
         {

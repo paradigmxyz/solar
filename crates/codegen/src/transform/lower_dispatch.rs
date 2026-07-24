@@ -87,7 +87,7 @@ impl LowerDispatchCx {
         let mut receive = None;
         let mut fallback = None;
         let mut callvalue = super::utils::DispatchCallvalue::default();
-        for (id, func) in module.functions.iter_enumerated() {
+        for (id, func) in module.iter_functions() {
             callvalue.observe(func);
             if func.attributes.is_receive && receive.is_none() {
                 receive = Some(id);

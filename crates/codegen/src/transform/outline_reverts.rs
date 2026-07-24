@@ -63,8 +63,8 @@ impl OutlineRevertsCx {
     fn run(&mut self, module: &mut Module) -> bool {
         // Collect every constant revert block, keyed by shape.
         let mut shapes: FxHashMap<RevertShape, Vec<(usize, usize)>> = FxHashMap::default();
-        for (func_idx, func) in module.functions.iter().enumerate() {
-            for block_idx in 0..func.blocks.len() {
+        for (func_idx, func) in module.functions().enumerate() {
+            for block_idx in 0..func.block_count() {
                 if let Some(shape) = constant_revert_shape(func, block_idx)
                     && estimated_inline_size(&shape) >= MIN_OUTLINED_SIZE
                 {
@@ -84,8 +84,8 @@ impl OutlineRevertsCx {
         for (shape, sites) in worth_outlining {
             let helper = self.synthesize_helper(module, &shape);
             for (func_idx, block_idx) in sites {
-                let func = &mut module.functions[crate::mir::FunctionId::from_usize(func_idx)];
-                let block = &mut func.blocks[crate::mir::BlockId::from_usize(block_idx)];
+                let func = module.function_mut(crate::mir::FunctionId::from_usize(func_idx));
+                let block = func.block_mut(crate::mir::BlockId::from_usize(block_idx));
                 block.instructions.clear();
                 block.terminator =
                     Some(Terminator::TailCall { function: helper, args: Default::default() });
@@ -126,7 +126,7 @@ const MIN_OUTLINED_SIZE: usize = 12;
 /// Returns the block's shape when every instruction is a fully-constant
 /// `mstore` and the terminator is a fully-constant `revert`.
 fn constant_revert_shape(func: &Function, block_idx: usize) -> Option<RevertShape> {
-    let block = &func.blocks[crate::mir::BlockId::from_usize(block_idx)];
+    let block = func.block(crate::mir::BlockId::from_usize(block_idx));
     let Some(Terminator::Revert { offset, size }) = block.terminator else {
         return None;
     };
@@ -136,7 +136,7 @@ fn constant_revert_shape(func: &Function, block_idx: usize) -> Option<RevertShap
     };
     let mut stores = SmallVec::with_capacity(block.instructions.len());
     for &inst_id in &block.instructions {
-        let InstKind::MStore(store_offset, value) = func.instructions[inst_id].kind else {
+        let InstKind::MStore(store_offset, value) = func.instruction(inst_id).kind else {
             return None;
         };
         stores.push((imm(store_offset)?, imm(value)?));

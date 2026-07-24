@@ -17,7 +17,7 @@ pub(in crate::backend::evm) fn lower_evm_ir(
     allocate_referenced_labels(module, labels, assembler);
 
     let mut program = Program::default();
-    for (block_id, block) in module.blocks.iter_enumerated() {
+    for (block_id, block) in module.blocks_enumerated() {
         let original = block.label as usize;
         if let Some(label) = labels.get(original).copied().flatten() {
             program.define_label(label);
@@ -39,8 +39,8 @@ fn allocate_referenced_labels(
     labels: &mut Vec<Option<Label>>,
     assembler: &mut Assembler<'_>,
 ) {
-    let mut referenced = DenseBitSet::new_empty(module.blocks.len());
-    for (block_id, block) in module.blocks.iter_enumerated() {
+    let mut referenced = DenseBitSet::new_empty(module.block_count());
+    for (block_id, block) in module.blocks_enumerated() {
         for inst in &block.instructions {
             if let Some(ir::PushValue::Block(target)) = &inst.value {
                 referenced.insert(*target);
@@ -53,7 +53,7 @@ fn allocate_referenced_labels(
             });
         }
     }
-    for (block_id, block) in module.blocks.iter_enumerated() {
+    for (block_id, block) in module.blocks_enumerated() {
         let original = block.label as usize;
         if !referenced.contains(block_id)
             && let Some(label) = labels.get_mut(original)
@@ -136,7 +136,7 @@ fn lower_terminator(
 
 fn next_block(module: &ir::Module, block: BlockId) -> Option<BlockId> {
     let next = block.index() + 1;
-    (next < module.blocks.len()).then(|| BlockId::from_usize(next))
+    (next < module.block_count()).then(|| BlockId::from_usize(next))
 }
 
 fn label_for_block(
@@ -145,7 +145,7 @@ fn label_for_block(
     labels: &mut Vec<Option<Label>>,
     assembler: &mut Assembler<'_>,
 ) -> Label {
-    let original = module.blocks[block].label as usize;
+    let original = module.block(block).label as usize;
     if original >= labels.len() {
         labels.resize_with(original + 1, || None);
     }
@@ -168,11 +168,13 @@ mod tests {
         let entry = module.add_block(Block::new(0));
         let then_block = module.add_block(Block::new(1));
         let else_block = module.add_block(Block::new(2));
-        module.blocks[entry].instructions.push(Instruction::push_value(U256::ONE));
-        module.blocks[entry].terminator =
+        module.block_mut(entry).instructions.push(Instruction::push_value(U256::ONE));
+        module.block_mut(entry).terminator =
             Some(Terminator::new(TerminatorKind::JumpI { then_block, else_block }));
-        module.blocks[then_block].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
-        module.blocks[else_block].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+        module.block_mut(then_block).terminator =
+            Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+        module.block_mut(else_block).terminator =
+            Some(Terminator::new(TerminatorKind::Op(op::STOP)));
 
         let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
         compiler.enter(|c| {

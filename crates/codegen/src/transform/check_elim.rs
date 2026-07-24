@@ -149,7 +149,7 @@ impl CheckEliminator {
 
         // Predecessors recomputed from reachable terminators: facts must only
         // come from edges that can actually execute.
-        let mut preds = index_vec![Vec::new(); func.blocks.len()];
+        let mut preds = index_vec![Vec::new(); func.block_count()];
         for &block in cfg.rpo() {
             for &succ in cfg.successors(block) {
                 preds[succ].push(block);
@@ -166,7 +166,7 @@ impl CheckEliminator {
             return 0;
         }
         for &(block, keep) in &folds {
-            func.blocks[block].terminator = Some(Terminator::Jump(keep));
+            func.block_mut(block).terminator = Some(Terminator::Jump(keep));
         }
         repair_reachability_phis(func);
         self.stats.branches_folded = folds.len();
@@ -214,7 +214,7 @@ impl CheckEliminator {
                     }
 
                     if let Some(Terminator::Branch { condition, then_block, else_block }) =
-                        func.blocks[block].terminator.as_ref()
+                        func.block(block).terminator.as_ref()
                         && then_block != else_block
                         && let Some(truth) = self.eval_truth(func, *condition, MAX_DEPTH)
                     {
@@ -621,7 +621,7 @@ fn dominating_edge_fact(
         return None;
     }
     let Terminator::Branch { condition, then_block, else_block } =
-        func.blocks[first].terminator.as_ref()?
+        func.block(first).terminator.as_ref()?
     else {
         return None;
     };
@@ -647,7 +647,7 @@ fn const_of(func: &Function, value: ValueId) -> Option<U256> {
 
 fn inst_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
     match func.value(value) {
-        Value::Inst(inst_id) => Some(&func.instructions[*inst_id].kind),
+        Value::Inst(inst_id) => Some(&func.instruction(*inst_id).kind),
         _ => None,
     }
 }

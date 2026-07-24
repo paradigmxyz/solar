@@ -96,7 +96,7 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
 }
 
 fn display_block_id(module: &Module, block: BlockId) -> impl fmt::Display + '_ {
-    fmt::from_fn(move |f| write!(f, "bb{}", module.blocks[block].label))
+    fmt::from_fn(move |f| write!(f, "bb{}", module.block(block).label))
 }
 
 fn display_u256(value: U256) -> impl fmt::Display {

@@ -111,7 +111,7 @@ impl ScalarEvolution {
     #[must_use]
     pub(crate) fn analyze(func: &Function, loop_data: &Loop) -> Self {
         let mut analysis = Self::default();
-        for value in func.values.indices() {
+        for value in func.value_ids() {
             let _ = analysis.affine_expr(func, loop_data, value);
         }
         analysis
@@ -144,7 +144,7 @@ impl ScalarEvolution {
                 if loop_data.induction_vars.iter().any(|iv| iv.value == value) {
                     AffineExpr::induction(value)
                 } else {
-                    match func.instructions[*inst_id].kind {
+                    match func.instruction(*inst_id).kind {
                         InstKind::Add(a, b) => {
                             let a = self.affine_expr(func, loop_data, a)?;
                             let b = self.affine_expr(func, loop_data, b)?;
@@ -197,7 +197,7 @@ fn value_defined_in_loop(func: &Function, value: ValueId, loop_data: &Loop) -> b
         Value::Inst(inst_id) => loop_data
             .blocks
             .iter()
-            .any(|block_id| func.blocks[block_id].instructions.contains(inst_id)),
+            .any(|block_id| func.block(block_id).instructions.contains(inst_id)),
         Value::Undef(_) | Value::Error(_) => true,
         Value::Arg { .. } | Value::Immediate(_) => false,
     }

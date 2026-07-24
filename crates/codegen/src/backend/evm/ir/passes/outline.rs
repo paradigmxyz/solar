@@ -36,7 +36,7 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
 
 fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> bool {
     let mut candidates = FxHashMap::<MachineInstSlice<'_>, SmallVec<[Site; 2]>>::default();
-    for (block_id, block) in module.blocks.iter_enumerated() {
+    for (block_id, block) in module.blocks_enumerated() {
         for start in 0..block.instructions.len() {
             let mut height = 0i32;
             for end in start..block.instructions.len() {
@@ -70,7 +70,7 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
     for (_, sites) in groups {
         let mut free = SmallVec::<[Site; 2]>::new();
         for site in sites {
-            let instruction_count = module.blocks[site.block].instructions.len();
+            let instruction_count = module.block(site.block).instructions.len();
             let claimed = claimed
                 .entry(site.block)
                 .or_insert_with(|| DenseBitSet::new_empty(instruction_count));
@@ -83,7 +83,7 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
         }
         let first = free[0];
         let body =
-            module.blocks[first.block].instructions[first.start..first.start + first.len].to_vec();
+            module.block(first.block).instructions[first.start..first.start + first.len].to_vec();
         let run_size = lower_bound(&body);
         let stub_size = 1 + run_size + usize::from(first.height) + 1;
         let site_size = if free.len() >= 4 { 7 } else { 8 };
@@ -124,7 +124,7 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
 
 fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
     let mut sites = FxHashMap::<U256, SmallVec<[(BlockId, usize); 2]>>::default();
-    for (block_id, block) in module.blocks.iter_enumerated() {
+    for (block_id, block) in module.blocks_enumerated() {
         for (index, inst) in block.instructions.iter().enumerate() {
             if inst.is_encoded_push()
                 && inst.deferred_push().is_none()
@@ -188,13 +188,13 @@ fn split_outline_site(
     state: &mut RunState,
 ) {
     let mut continuation = Block::new(state.next_label(module));
-    continuation.metadata = module.blocks[block].metadata;
-    continuation.instructions = module.blocks[block].instructions.split_off(start + len);
-    module.blocks[block].instructions.truncate(start);
-    continuation.terminator = module.blocks[block].terminator.take();
+    continuation.metadata = module.block(block).metadata;
+    continuation.instructions = module.block_mut(block).instructions.split_off(start + len);
+    module.block_mut(block).instructions.truncate(start);
+    continuation.terminator = module.block_mut(block).terminator.take();
     let continuation = module.add_block(continuation);
-    module.blocks[block].instructions.push(Instruction::push_block(continuation));
-    module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(stub)));
+    module.block_mut(block).instructions.push(Instruction::push_block(continuation));
+    module.block_mut(block).terminator = Some(Terminator::new(TerminatorKind::Jump(stub)));
 }
 
 fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
@@ -283,8 +283,7 @@ impl RunState {
     fn next_label(&mut self, module: &Module) -> u32 {
         let label = *self.next_label.get_or_insert_with(|| {
             module
-                .blocks
-                .iter()
+                .blocks()
                 .map(|block| block.label)
                 .max()
                 .unwrap_or(0)

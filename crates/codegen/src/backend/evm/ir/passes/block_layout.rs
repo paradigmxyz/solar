@@ -33,12 +33,12 @@ impl EvmPass for BlockLayout {
 }
 
 fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
-    if module.blocks.len() <= 1 {
+    if module.block_count() <= 1 {
         return false;
     }
     let mut state = RunState::default();
-    state.reset(module.blocks.len());
-    for block in &module.blocks {
+    state.reset(module.block_count());
+    for block in module.blocks() {
         if let Some(target) = layout_successor(block)
             && target.index() < state.predecessor_counts.len()
         {
@@ -48,9 +48,9 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
 
     append_layout_trace(module, BlockId::ENTRY, &mut state.placed, &mut state.order);
     for cold in [false, true] {
-        for block in module.blocks.indices() {
+        for block in module.block_ids() {
             if state.predecessor_counts[block] == 0
-                && is_cold_terminal_block(&module.blocks[block]) == cold
+                && is_cold_terminal_block(module.block(block)) == cold
             {
                 append_layout_trace(module, block, &mut state.placed, &mut state.order);
             }
@@ -59,14 +59,14 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
 
     pack_hot_terminal_blocks(gcx, module, &mut state);
     for cold in [false, true] {
-        for block in module.blocks.indices() {
-            if is_cold_terminal_block(&module.blocks[block]) == cold {
+        for block in module.block_ids() {
+            if is_cold_terminal_block(module.block(block)) == cold {
                 append_layout_trace(module, block, &mut state.placed, &mut state.order);
             }
         }
     }
 
-    if state.order.iter().copied().eq(module.blocks.indices()) {
+    if state.order.iter().copied().eq(module.block_ids()) {
         return false;
     }
     remap_block_order(module, &state.order);
@@ -128,7 +128,7 @@ struct Candidate {
 
 fn pack_hot_terminal_blocks(gcx: Gcx<'_>, module: &Module, state: &mut RunState) {
     let Some(first_terminal) = state.order.iter().enumerate().position(|(position, &block)| {
-        is_physical_terminal_boundary(&module.blocks[block], state.order.get(position + 1).copied())
+        is_physical_terminal_boundary(module.block(block), state.order.get(position + 1).copied())
     }) else {
         return;
     };
@@ -140,7 +140,7 @@ fn pack_hot_terminal_blocks(gcx: Gcx<'_>, module: &Module, state: &mut RunState)
         .map(|(index, &block)| {
             estimated_block_size(
                 gcx,
-                &module.blocks[block],
+                module.block(block),
                 state.order.get(index + 1).copied(),
                 state.references[block] != 0,
             )
@@ -153,17 +153,14 @@ fn pack_hot_terminal_blocks(gcx: Gcx<'_>, module: &Module, state: &mut RunState)
     for position in insert_at..state.order.len() {
         let block = state.order[position];
         if position == 0
-            || !is_physical_terminal_boundary(
-                &module.blocks[state.order[position - 1]],
-                Some(block),
-            )
-            || !is_terminal_block(&module.blocks[block])
+            || !is_physical_terminal_boundary(module.block(state.order[position - 1]), Some(block))
+            || !is_terminal_block(module.block(block))
         {
             continue;
         }
         let size = estimated_block_size(
             gcx,
-            &module.blocks[block],
+            module.block(block),
             state.order.get(position + 1).copied(),
             state.references[block] != 0,
         );
@@ -199,7 +196,7 @@ fn block_reference_counts(
     references: &mut IndexVec<BlockId, usize>,
 ) {
     for (position, &block_id) in order.iter().enumerate() {
-        let block = &module.blocks[block_id];
+        let block = module.block(block_id);
         for inst in &block.instructions {
             if let Some(PushValue::Block(block)) = &inst.value {
                 references[*block] += 1;
@@ -279,9 +276,9 @@ fn append_layout_trace(
     placed: &mut DenseBitSet<BlockId>,
     order: &mut Vec<BlockId>,
 ) {
-    while block.index() < module.blocks.len() && placed.insert(block) {
+    while block.index() < module.block_count() && placed.insert(block) {
         order.push(block);
-        let Some(target) = layout_successor(&module.blocks[block]) else { return };
+        let Some(target) = layout_successor(module.block(block)) else { return };
         block = target;
     }
 }

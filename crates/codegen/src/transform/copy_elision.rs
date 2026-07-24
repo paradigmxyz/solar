@@ -48,8 +48,7 @@ struct CopyElisionCx {
 impl CopyElisionCx {
     fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
         let allocs: Vec<(InstId, ValueId)> = func
-            .instructions
-            .iter_enumerated()
+            .instructions_enumerated()
             .filter_map(|(inst_id, inst)| match inst.kind {
                 InstKind::Alloc { .. } => {
                     func.inst_result_value(inst_id).map(|value| (inst_id, value))
@@ -74,7 +73,7 @@ impl CopyElisionCx {
         if dead.is_empty() {
             return false;
         }
-        for block in func.blocks.iter_mut() {
+        for block in func.blocks_mut() {
             block.instructions.retain(|inst| !dead.contains(inst));
         }
         true
@@ -89,9 +88,9 @@ impl CopyElisionCx {
         derived.insert(object);
         loop {
             let mut changed = false;
-            for (value_id, value) in func.values.iter_enumerated() {
+            for (value_id, value) in func.values_enumerated() {
                 let crate::mir::Value::Inst(inst_id) = value else { continue };
-                let propagates = match &func.instructions[*inst_id].kind {
+                let propagates = match &func.instruction(*inst_id).kind {
                     InstKind::Add(a, b) | InstKind::Sub(a, b) => {
                         derived.contains(a) || derived.contains(b)
                     }
@@ -110,7 +109,7 @@ impl CopyElisionCx {
         }
 
         let mut writes = Vec::new();
-        for (inst_id, inst) in func.instructions.iter_enumerated() {
+        for (inst_id, inst) in func.instructions_enumerated() {
             match &inst.kind {
                 // Writes to the allocation: the address is a derived value.
                 InstKind::MStore(addr, value) => {
@@ -175,7 +174,7 @@ impl CopyElisionCx {
 
         // Terminators never read a non-escaping allocation (that would escape),
         // but guard defensively.
-        for block in &func.blocks {
+        for block in func.blocks() {
             if let Some(term) = &block.terminator
                 && term.operands().iter().any(|op| derived.contains(op))
             {

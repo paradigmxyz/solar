@@ -229,7 +229,7 @@ impl StorageAlias {
     pub(crate) fn for_value(func: &Function, value: ValueId) -> Self {
         match func.value(value) {
             Value::Immediate(imm) => imm.as_u256().map_or(Self::Symbolic(value), Self::Slot),
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+            Value::Inst(inst_id) => match func.instruction(*inst_id).kind {
                 InstKind::Add(lhs, rhs) => {
                     if let Some(offset) = Self::immediate_u256(func, rhs) {
                         Self::add_offset(func, lhs, offset)

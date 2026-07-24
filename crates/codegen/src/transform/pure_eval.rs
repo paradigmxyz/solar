@@ -87,7 +87,7 @@ impl PureEvaluator {
     /// report a change (and allocate fresh immediates) without progress.
     fn is_already_folded(&self, func: &Function, values: &[U256]) -> bool {
         let entry = BlockId::ENTRY;
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for (block_id, block) in func.blocks_enumerated() {
             if !block.instructions.is_empty() {
                 return false;
             }
@@ -95,7 +95,7 @@ impl PureEvaluator {
                 return false;
             }
         }
-        let Some(Terminator::Return { values: ret }) = &func.blocks[entry].terminator else {
+        let Some(Terminator::Return { values: ret }) = &func.block(entry).terminator else {
             return false;
         };
         ret.len() == values.len()
@@ -108,9 +108,9 @@ impl PureEvaluator {
     }
 
     fn is_side_effect_free(&self, func: &Function) -> bool {
-        for block in &func.blocks {
+        for block in func.blocks() {
             for &inst_id in &block.instructions {
-                if func.instructions[inst_id].kind.has_side_effects() {
+                if func.instruction(inst_id).kind.has_side_effects() {
                     return false;
                 }
             }
@@ -120,7 +120,7 @@ impl PureEvaluator {
 
     fn evaluate(&self, func: &Function) -> Option<Vec<U256>> {
         let mut env = FxHashMap::default();
-        for (value_id, value) in func.values.iter_enumerated() {
+        for (value_id, value) in func.values_enumerated() {
             if let Value::Immediate(imm) = value
                 && let Some(value) = imm.as_u256()
             {
@@ -133,10 +133,10 @@ impl PureEvaluator {
         let mut fuel = self.fuel;
         while fuel != 0 {
             fuel -= 1;
-            let block = &func.blocks[current];
+            let block = func.block(current);
 
             for &inst_id in &block.instructions {
-                let inst = &func.instructions[inst_id];
+                let inst = func.instruction(inst_id);
                 let result = match &inst.kind {
                     InstKind::Phi(incoming) => {
                         let pred = predecessor?;
@@ -247,9 +247,9 @@ impl PureEvaluator {
 
     fn rewrite_to_return(&self, func: &mut Function, values: &[U256]) {
         let entry = BlockId::ENTRY;
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let block_ids: Vec<_> = func.block_ids().collect();
         for block_id in block_ids {
-            let block = &mut func.blocks[block_id];
+            let block = func.block_mut(block_id);
             block.instructions.clear();
             if block_id == entry {
                 block.predecessors.clear();
@@ -263,6 +263,6 @@ impl PureEvaluator {
             .iter()
             .map(|&value| func.alloc_value(Value::Immediate(Immediate::uint256(value))))
             .collect();
-        func.blocks[entry].terminator = Some(Terminator::Return { values });
+        func.block_mut(entry).terminator = Some(Terminator::Return { values });
     }
 }

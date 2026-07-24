@@ -31,8 +31,8 @@ struct RunState {
 fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
 
-    for block_id in module.blocks.indices() {
-        let block = &module.blocks[block_id];
+    for block_id in module.block_ids() {
+        let block = module.block(block_id);
         let Some(key) = terminal_block_key(block) else { continue };
         match state.canonical.entry(key) {
             StdEntry::Occupied(entry) => state.redirects.push((block_id, *entry.get())),
@@ -44,8 +44,8 @@ fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
 
     let changed = !state.redirects.is_empty();
     for (block, target) in state.redirects.drain(..) {
-        module.blocks[block].instructions.clear();
-        module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(target)));
+        module.block_mut(block).instructions.clear();
+        module.block_mut(block).terminator = Some(Terminator::new(TerminatorKind::Jump(target)));
     }
     changed
 }

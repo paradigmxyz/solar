@@ -85,7 +85,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Replaces an allocated value.
     pub(crate) fn set_value(&mut self, id: ValueId, value: Value) {
-        self.func.values[id] = value;
+        *self.func.value_mut(id) = value;
     }
 
     fn emit_inst_raw(&mut self, kind: InstKind, result_ty: Option<MirType>) -> InstId {
@@ -99,7 +99,7 @@ impl<'a> FunctionBuilder<'a> {
     /// Appends a fully constructed instruction to the current block.
     pub(crate) fn append_instruction(&mut self, inst: Instruction) -> InstId {
         let inst_id = self.func.alloc_inst(inst);
-        self.func.blocks[self.current_block].instructions.push(inst_id);
+        self.func.block_mut(self.current_block).instructions.push(inst_id);
         inst_id
     }
 
@@ -142,7 +142,7 @@ impl<'a> FunctionBuilder<'a> {
             {
                 MemoryRegion::Scratch
             }
-            Value::Inst(inst_id) => match self.func.instructions[*inst_id].kind {
+            Value::Inst(inst_id) => match self.func.instruction(*inst_id).kind {
                 InstKind::InternalFrameAddr(_) => MemoryRegion::InternalFrame,
                 InstKind::Add(lhs, rhs) if self.is_internal_frame_add(lhs, rhs) => {
                     MemoryRegion::InternalFrame
@@ -169,7 +169,7 @@ impl<'a> FunctionBuilder<'a> {
         matches!(
             self.func.value(value),
             Value::Inst(inst_id)
-                if matches!(self.func.instructions[*inst_id].kind, InstKind::InternalFrameAddr(_))
+                if matches!(self.func.instruction(*inst_id).kind, InstKind::InternalFrameAddr(_))
         )
     }
 
@@ -858,7 +858,7 @@ impl<'a> FunctionBuilder<'a> {
         let Value::Inst(inst_id) = *self.func.value(phi) else {
             panic!("add_phi_incoming: value is not an instruction result");
         };
-        let InstKind::Phi(incoming) = &mut self.func.instructions[inst_id].kind else {
+        let InstKind::Phi(incoming) = &mut self.func.instruction_mut(inst_id).kind else {
             panic!("add_phi_incoming: instruction is not a phi");
         };
         incoming.push((block, value));
@@ -925,9 +925,9 @@ impl<'a> FunctionBuilder<'a> {
     pub(crate) fn set_terminator(&mut self, terminator: Terminator) {
         let current = self.current_block;
         for successor in terminator.successors() {
-            self.func.blocks[successor].predecessors.push(current);
+            self.func.block_mut(successor).predecessors.push(current);
         }
-        self.func.blocks[current].terminator = Some(terminator);
+        self.func.block_mut(current).terminator = Some(terminator);
     }
 
     /// Returns a reference to the function.

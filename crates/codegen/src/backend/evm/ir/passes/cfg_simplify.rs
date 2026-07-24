@@ -25,7 +25,7 @@ impl EvmPass for CfgSimplify {
 
 fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
-    state.reserve(module.blocks.len());
+    state.reserve(module.block_count());
     let mut changed = false;
     loop {
         let truncated = truncate_after_terminal(module);
@@ -83,7 +83,7 @@ fn reserve_to<T>(values: &mut Vec<T>, capacity: usize) {
 
 fn truncate_after_terminal(module: &mut Module) -> bool {
     let mut changed = false;
-    for block in &mut module.blocks {
+    for block in module.blocks_mut() {
         let Some((at, opcode)) = block.instructions.iter().enumerate().find_map(|(at, inst)| {
             (!inst.is_encoded_push() && op::is_terminal(inst.opcode)).then_some((at, inst.opcode))
         }) else {
@@ -102,7 +102,7 @@ fn redirect_jump_thunks(
     order: &mut Vec<BlockId>,
 ) -> bool {
     thunks.clear();
-    for (block_id, block) in module.blocks.iter_enumerated() {
+    for (block_id, block) in module.blocks_enumerated() {
         if block.instructions.is_empty()
             && let Some(TerminatorKind::Jump(target)) =
                 block.terminator.as_ref().map(|term| &term.kind)
@@ -114,7 +114,7 @@ fn redirect_jump_thunks(
         return false;
     }
 
-    let block_count = module.blocks.len();
+    let block_count = module.block_count();
     let resolve = |start: BlockId| {
         let mut target = start;
         for _ in 0..block_count {
@@ -128,7 +128,7 @@ fn redirect_jump_thunks(
     };
 
     let mut changed = false;
-    for block in &mut module.blocks {
+    for block in module.blocks_mut() {
         for inst in &mut block.instructions {
             if let Some(PushValue::Block(block)) = &mut inst.value {
                 let resolved = resolve(*block);
@@ -148,7 +148,7 @@ fn redirect_jump_thunks(
     if entry != BlockId::ENTRY {
         order.clear();
         order.push(entry);
-        order.extend(module.blocks.indices().filter(|&block| block != entry));
+        order.extend(module.block_ids().filter(|&block| block != entry));
         remap_block_order(module, order);
         changed = true;
     }
@@ -161,11 +161,11 @@ fn remove_unreachable_blocks(
     pending: &mut Vec<BlockId>,
     order: &mut Vec<BlockId>,
 ) -> bool {
-    if module.blocks.is_empty() {
+    if module.has_no_blocks() {
         return false;
     }
-    if reachable.domain_size() != module.blocks.len() {
-        *reachable = DenseBitSet::new_empty(module.blocks.len());
+    if reachable.domain_size() != module.block_count() {
+        *reachable = DenseBitSet::new_empty(module.block_count());
     } else {
         reachable.clear();
     }
@@ -175,7 +175,7 @@ fn remove_unreachable_blocks(
         if !reachable.insert(block_id) {
             continue;
         }
-        let block = &module.blocks[block_id];
+        let block = module.block(block_id);
         for inst in &block.instructions {
             if let Some(PushValue::Block(target)) = &inst.value {
                 pending.push(*target);
@@ -185,7 +185,7 @@ fn remove_unreachable_blocks(
             term.kind.visit_targets(|target| pending.push(target));
         }
     }
-    if reachable.count() == module.blocks.len() {
+    if reachable.count() == module.block_count() {
         return false;
     }
     order.clear();
@@ -201,12 +201,12 @@ fn coalesce_blocks(
     order: &mut Vec<BlockId>,
 ) -> bool {
     references.clear();
-    references.resize(module.blocks.len(), 0);
+    references.resize(module.block_count(), 0);
     // Count the implicit program-entry edge.
     if let Some(entry_references) = references.first_mut() {
         *entry_references = 1;
     }
-    for block in &module.blocks {
+    for block in module.blocks() {
         for inst in &block.instructions {
             if let Some(PushValue::Block(target)) = &inst.value {
                 references[*target] += 1;
@@ -217,31 +217,31 @@ fn coalesce_blocks(
         }
     }
 
-    if retained.domain_size() != module.blocks.len() {
-        *retained = DenseBitSet::new_filled(module.blocks.len());
+    if retained.domain_size() != module.block_count() {
+        *retained = DenseBitSet::new_filled(module.block_count());
     } else {
         retained.insert_all();
     }
-    for predecessor in module.blocks.indices() {
+    for predecessor in module.block_ids() {
         if !retained.contains(predecessor) {
             continue;
         }
         while let Some(TerminatorKind::Jump(target)) =
-            module.blocks[predecessor].terminator.as_ref().map(|terminator| &terminator.kind)
+            module.block(predecessor).terminator.as_ref().map(|terminator| &terminator.kind)
         {
             let target = *target;
             if target == predecessor || references[target] != 1 || !retained.contains(target) {
                 break;
             }
 
-            let mut instructions = std::mem::take(&mut module.blocks[target].instructions);
-            let terminator = module.blocks[target].terminator.take();
-            module.blocks[predecessor].instructions.append(&mut instructions);
-            module.blocks[predecessor].terminator = terminator;
+            let mut instructions = std::mem::take(&mut module.block_mut(target).instructions);
+            let terminator = module.block_mut(target).terminator.take();
+            module.block_mut(predecessor).instructions.append(&mut instructions);
+            module.block_mut(predecessor).terminator = terminator;
             retained.remove(target);
         }
     }
-    if retained.count() == module.blocks.len() {
+    if retained.count() == module.block_count() {
         return false;
     }
     order.clear();

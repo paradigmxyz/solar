@@ -30,13 +30,13 @@ impl<'a> Verifier<'a> {
 
     fn verify_module(&self, module: &Module) {
         let errors_before = self.dcx.err_count();
-        if module.blocks.is_empty() {
+        if module.has_no_blocks() {
             self.error("program has no blocks");
             return;
         }
 
         let mut labels = FxHashSet::default();
-        for (block_id, block) in module.blocks.iter_enumerated() {
+        for (block_id, block) in module.blocks_enumerated() {
             if !labels.insert(block.label) {
                 self.error_in_block(
                     block_id,
@@ -194,11 +194,11 @@ impl<'a> Verifier<'a> {
 
     /// Checks physical stack operations along generated direct control-flow edges.
     fn verify_stack_ops(&self, module: &Module) {
-        let mut entry_depths = IndexVec::<BlockId, _>::from_vec(vec![None; module.blocks.len()]);
+        let mut entry_depths = IndexVec::<BlockId, _>::from_vec(vec![None; module.block_count()]);
         entry_depths[BlockId::ENTRY] = Some(0);
         let mut pending = vec![BlockId::ENTRY];
         while let Some(block_id) = pending.pop() {
-            let block = &module.blocks[block_id];
+            let block = module.block(block_id);
             let term =
                 block.terminator.as_ref().expect("terminator must exist after shape validation");
             let mut stack = entry_depths[block_id].unwrap();
@@ -351,12 +351,12 @@ impl<'a> Verifier<'a> {
     }
 
     fn block_exists(&self, module: &Module, block: BlockId) -> bool {
-        block.index() < module.blocks.len()
+        block.index() < module.block_count()
     }
 
     fn next_block(module: &Module, block: BlockId) -> Option<BlockId> {
         let next = block.index() + 1;
-        (next < module.blocks.len()).then(|| BlockId::from_usize(next))
+        (next < module.block_count()).then(|| BlockId::from_usize(next))
     }
 }
 

@@ -61,10 +61,10 @@ fn is_fixed_aggregate(layout: MemoryObjectLayout) -> bool {
 impl SroaCx {
     fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
         let mut allocs: Vec<(BlockId, InstId, ValueId)> = Vec::new();
-        for block_id in func.blocks.indices() {
-            for &inst_id in &func.blocks[block_id].instructions {
+        for block_id in func.block_ids() {
+            for &inst_id in &func.block(block_id).instructions {
                 if let InstKind::Alloc { kind: AllocationKind::Object(layout), .. } =
-                    func.instructions[inst_id].kind
+                    func.instruction(inst_id).kind
                     && is_fixed_aggregate(layout)
                     && let Some(object) = func.inst_result_value(inst_id)
                 {
@@ -109,8 +109,7 @@ impl SroaCx {
         // address, in this block.
         let mut slot_of: FxHashMap<ValueId, u64> = FxHashMap::default();
         let mut address_insts: FxHashSet<InstId> = FxHashSet::default();
-        for (inst_id, kind) in func.instructions.iter_enumerated().map(|(i, inst)| (i, &inst.kind))
-        {
+        for (inst_id, kind) in func.instructions_enumerated().map(|(i, inst)| (i, &inst.kind)) {
             let slot = match *kind {
                 InstKind::MemoryObjectFieldAddr { object: base, field, .. } if base == object => {
                     Some(field)
@@ -136,9 +135,9 @@ impl SroaCx {
 
         // Every field address must be used only as the address of an
         // `MStore`/`MLoad` in this block.
-        let block = &func.blocks[block_id];
+        let block = func.block(block_id);
         let block_insts: FxHashSet<InstId> = block.instructions.iter().copied().collect();
-        for (inst_id, inst) in func.instructions.iter_enumerated() {
+        for (inst_id, inst) in func.instructions_enumerated() {
             let kind = &inst.kind;
             let addr = match *kind {
                 InstKind::MStore(addr, value) => {
@@ -171,7 +170,7 @@ impl SroaCx {
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
         for &inst_id in &block.instructions {
-            match func.instructions[inst_id].kind {
+            match func.instruction(inst_id).kind {
                 InstKind::MStore(addr, value) if slot_of.contains_key(&addr) => {
                     current.insert(slot_of[&addr], value);
                     dead.insert(inst_id);
@@ -196,10 +195,10 @@ impl SroaCx {
 
     fn apply(&self, func: &mut Function, block_id: BlockId, plan: Plan) {
         func.replace_uses_canonicalized(&plan.replacements);
-        func.blocks[block_id].instructions.retain(|inst| !plan.dead.contains(inst));
+        func.block_mut(block_id).instructions.retain(|inst| !plan.dead.contains(inst));
         // Address instructions live in the same block; remove any that ended up
         // elsewhere defensively.
-        for block in func.blocks.iter_mut() {
+        for block in func.blocks_mut() {
             block.instructions.retain(|inst| !plan.dead.contains(inst));
         }
     }

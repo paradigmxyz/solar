@@ -104,8 +104,7 @@ impl DeadCodeEliminator {
 
         // Collect unreachable block IDs
         let unreachable: Vec<BlockId> = func
-            .blocks
-            .iter_enumerated()
+            .blocks_enumerated()
             .filter_map(|(id, _)| if !cfg.is_reachable(id) { Some(id) } else { None })
             .collect();
 
@@ -122,10 +121,10 @@ impl DeadCodeEliminator {
     /// Collects all values that are used (appear in instructions or terminators).
     fn collect_used_values(&mut self, func: &Function) {
         self.used_values.clear();
-        self.used_values.ensure(func.values.len());
+        self.used_values.ensure(func.value_count());
 
         // Add values used in terminators
-        for (_, block) in func.blocks.iter_enumerated() {
+        for (_, block) in func.blocks_enumerated() {
             if let Some(term) = &block.terminator {
                 for operand in term.operands() {
                     self.used_values.insert(operand);
@@ -134,9 +133,9 @@ impl DeadCodeEliminator {
         }
 
         // Add values used as operands in instructions
-        for (_, block) in func.blocks.iter_enumerated() {
+        for (_, block) in func.blocks_enumerated() {
             for &inst_id in &block.instructions {
-                let inst = &func.instructions[inst_id];
+                let inst = func.instruction(inst_id);
                 for val in inst.kind.operands() {
                     self.used_values.insert(val);
                 }
@@ -152,9 +151,9 @@ impl DeadCodeEliminator {
     ) {
         self.dead.clear();
 
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for (block_id, block) in func.blocks_enumerated() {
             for &inst_id in &block.instructions {
-                let inst = &func.instructions[inst_id];
+                let inst = func.instruction(inst_id);
 
                 // Instructions with side effects are always kept.
                 if inst.kind.has_side_effects() {

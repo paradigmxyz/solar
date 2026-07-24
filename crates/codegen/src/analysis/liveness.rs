@@ -56,13 +56,13 @@ impl Liveness {
     /// Computes liveness for a function.
     #[must_use]
     pub(crate) fn compute(func: &Function) -> Self {
-        let num_values = func.values.len();
-        let num_blocks = func.blocks.len();
+        let num_values = func.value_count();
+        let num_blocks = func.block_count();
 
         // Precompute InstId → ValueId mapping.
         // This replaces the O(n) linear scans that were previously done per-instruction.
         let mut inst_to_value: FxHashMap<InstId, ValueId> = FxHashMap::default();
-        for (val_id, val) in func.values.iter_enumerated() {
+        for (val_id, val) in func.values_enumerated() {
             if let Value::Inst(inst_id) = val {
                 inst_to_value.insert(*inst_id, val_id);
             }
@@ -86,7 +86,7 @@ impl Liveness {
 
         let mut operand_buf = SmallVec::<[ValueId; 8]>::new();
 
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for (block_id, block) in func.blocks_enumerated() {
             // Process instructions in forward order to compute upward-exposed uses and defs
             for &inst_id in &block.instructions {
                 let inst = func.instruction(inst_id);
@@ -122,14 +122,14 @@ impl Liveness {
         //
         // live_out(B) = union over S in succ(B) of live_in(S)
         // live_in(B) = block_uses(B) | (live_out(B) - block_defs(B))
-        let mut worklist: VecDeque<BlockId> = func.blocks.indices().rev().collect();
+        let mut worklist: VecDeque<BlockId> = func.block_ids().rev().collect();
         let mut queued = DenseBitSet::new_filled(num_blocks);
         let mut new_live_out = LiveSet::with_capacity(num_values);
         let mut new_live_in = LiveSet::with_capacity(num_values);
 
         while let Some(block_id) = worklist.pop_front() {
             queued.remove(block_id);
-            let block = &func.blocks[block_id];
+            let block = func.block(block_id);
 
             new_live_out.clear();
             let successors =
@@ -162,7 +162,7 @@ impl Liveness {
         // For each value, track the last instruction index where it's used within each block.
         let mut last_use_in_block: FxHashMap<(ValueId, BlockId), Option<usize>> =
             FxHashMap::default();
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for (block_id, block) in func.blocks_enumerated() {
             // Check terminator uses - these are the last use in this block
             if let Some(term) = &block.terminator {
                 operand_buf.clear();
@@ -196,8 +196,8 @@ impl Liveness {
     /// need live-in/live-out tracking. Instruction results still retain exact
     /// last-use information for stack scheduling.
     pub(crate) fn compute_block_local_for_codegen(func: &Function) -> Option<Self> {
-        let num_values = func.values.len();
-        for val in &func.values {
+        let num_values = func.value_count();
+        for val in func.values() {
             match val {
                 Value::Inst(_) => {}
                 Value::Arg { .. } => return None,
@@ -205,8 +205,8 @@ impl Liveness {
             }
         }
 
-        let mut defining_blocks = index_vec![None; func.instructions.len()];
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        let mut defining_blocks = index_vec![None; func.instruction_count()];
+        for (block_id, block) in func.blocks_enumerated() {
             for &inst_id in &block.instructions {
                 defining_blocks[inst_id] = Some(block_id);
             }
@@ -218,7 +218,7 @@ impl Liveness {
             Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => true,
         };
         let mut operands = SmallVec::<[ValueId; 8]>::new();
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for (block_id, block) in func.blocks_enumerated() {
             for &inst_id in &block.instructions {
                 operands.clear();
                 func.instruction(inst_id).kind.collect_operands(&mut operands);
@@ -240,10 +240,10 @@ impl Liveness {
                 live_in: LiveSet::new_empty(),
                 live_out: LiveSet::new_empty(),
             };
-            func.blocks.len()
+            func.block_count()
         ];
         let mut last_use_in_block = FxHashMap::default();
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for (block_id, block) in func.blocks_enumerated() {
             if let Some(term) = &block.terminator {
                 operands.clear();
                 collect_terminator_uses(term, &mut operands);
@@ -277,7 +277,7 @@ impl Liveness {
 
     #[cfg(test)]
     fn live_at_inst(&self, func: &Function, block_id: BlockId, inst_idx: usize) -> LivenessInfo {
-        let block = &func.blocks[block_id];
+        let block = func.block(block_id);
         let inst_to_value = func.inst_results();
         let mut live = self.block_liveness[block_id].live_out.clone();
 
@@ -858,8 +858,8 @@ mod tests {
             crate::mir::InstKind::Phi(vec![(entry, init), (body, updated)]),
             Some(MirType::uint256()),
         ));
-        func.blocks[header].instructions.insert(0, phi_inst);
-        func.values[phi_val] = crate::mir::Value::Inst(phi_inst);
+        func.block_mut(header).instructions.insert(0, phi_inst);
+        *func.value_mut(phi_val) = crate::mir::Value::Inst(phi_inst);
 
         let liveness = Liveness::compute(&func);
 

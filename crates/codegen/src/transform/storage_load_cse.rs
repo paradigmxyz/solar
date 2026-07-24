@@ -51,7 +51,7 @@ impl RunState {
     fn new(func: &Function) -> Self {
         Self {
             replacements: FxHashMap::default(),
-            dead: DenseBitSet::new_empty(func.instructions.len()),
+            dead: DenseBitSet::new_empty(func.instruction_count()),
             cached_loads: FxHashMap::default(),
         }
     }
@@ -76,7 +76,7 @@ impl StorageLoadCseCx {
         state.replacements.clear();
         state.dead.clear();
 
-        for block_id in func.blocks.indices() {
+        for block_id in func.block_ids() {
             state.cached_loads.clear();
             self.process_block(func, block_id, liveness, &inst_results, state);
         }
@@ -85,7 +85,7 @@ impl StorageLoadCseCx {
             Self::replace_uses(func, &state.replacements);
         }
         if !state.dead.is_empty() {
-            for block in func.blocks.iter_mut() {
+            for block in func.blocks_mut() {
                 block.instructions.retain(|&id| !state.dead.contains(id));
             }
         }
@@ -116,8 +116,8 @@ impl StorageLoadCseCx {
         state: &mut RunState,
     ) {
         let aa = self.alias.as_ref().expect("storage-load CSE alias snapshot is initialized");
-        for (inst_idx, &inst_id) in func.blocks[block_id].instructions.iter().enumerate() {
-            match &func.instructions[inst_id].kind {
+        for (inst_idx, &inst_id) in func.block(block_id).instructions.iter().enumerate() {
+            match &func.instruction(inst_id).kind {
                 InstKind::SLoad(slot) => {
                     let alias = aa.storage_alias_after_replacements(
                         func,
@@ -187,14 +187,14 @@ impl StorageLoadCseCx {
             return;
         }
 
-        for inst in func.instructions.iter_mut() {
+        for inst in func.instructions_mut() {
             mir_utils::replace_inst_uses_canonicalized(&mut inst.kind, replacements);
             if matches!(inst.kind, InstKind::SLoad(_) | InstKind::SStore(_, _)) {
                 inst.metadata.set_storage_alias(None);
             }
         }
 
-        for block in func.blocks.iter_mut() {
+        for block in func.blocks_mut() {
             if let Some(term) = &mut block.terminator {
                 mir_utils::replace_terminator_uses_canonicalized(term, replacements);
             }

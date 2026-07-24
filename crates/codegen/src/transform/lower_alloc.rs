@@ -40,8 +40,8 @@ impl MirPass for LowerAlloc {
 
 fn lower_alloc(module: &mut Module) -> bool {
     let mut changed = false;
-    for func in module.functions.iter_mut() {
-        if !func.blocks.is_empty() {
+    for func in module.functions_mut() {
+        if !func.has_no_blocks() {
             changed |= lower_function(func);
         }
     }
@@ -49,10 +49,10 @@ fn lower_alloc(module: &mut Module) -> bool {
 }
 
 fn lower_function(func: &mut Function) -> bool {
-    let has_abstract_memory = func.blocks.iter().any(|block| {
+    let has_abstract_memory = func.blocks().any(|block| {
         block.instructions.iter().any(|&inst| {
             matches!(
-                func.instructions[inst].kind,
+                func.instruction(inst).kind,
                 InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. }
             )
         })
@@ -64,17 +64,17 @@ fn lower_function(func: &mut Function) -> bool {
     let inst_results = func.inst_results();
     let mut changed = false;
     let mut block_index = 0;
-    while block_index < func.blocks.len() {
+    while block_index < func.block_count() {
         let block = BlockId::from_usize(block_index);
         let checked =
-            func.blocks[block].instructions.iter().copied().enumerate().find(|(_, inst)| {
+            func.block(block).instructions.iter().copied().enumerate().find(|(_, inst)| {
                 matches!(
-                    func.instructions[*inst].kind,
+                    func.instruction(*inst).kind,
                     InstKind::Alloc {
                         semantics: AllocationSemantics { failure: AllocationFailure::Panic, .. },
                         ..
                     }
-                ) && !func.instructions[*inst].metadata.deferred_alloc()
+                ) && !func.instruction(*inst).metadata.deferred_alloc()
             });
         if let Some((position, inst)) = checked {
             lower_checked_alloc(func, block, position, inst, inst_results[&inst]);
@@ -83,40 +83,40 @@ fn lower_function(func: &mut Function) -> bool {
         block_index += 1;
     }
 
-    let blocks: Vec<BlockId> = func.blocks.indices().collect();
+    let blocks: Vec<BlockId> = func.block_ids().collect();
     for block in blocks {
-        let instructions = std::mem::take(&mut func.blocks[block].instructions);
+        let instructions = std::mem::take(&mut func.block_mut(block).instructions);
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for inst in instructions {
-            match builder.func().instructions[inst].kind {
+            match builder.func().instruction(inst).kind {
                 InstKind::Fmp => {
                     changed = true;
                     rewrite_as_fmp_load(&mut builder, inst);
-                    builder.func_mut().blocks[block].instructions.push(inst);
+                    builder.func_mut().block_mut(block).instructions.push(inst);
                 }
                 InstKind::SetFmp(ptr) => {
                     changed = true;
                     rewrite_as_fmp_store(&mut builder, inst, ptr);
-                    builder.func_mut().blocks[block].instructions.push(inst);
+                    builder.func_mut().block_mut(block).instructions.push(inst);
                 }
                 InstKind::Alloc { size, semantics, .. } => {
-                    if builder.func().instructions[inst].metadata.deferred_alloc() {
-                        builder.func_mut().blocks[block].instructions.push(inst);
+                    if builder.func().instruction(inst).metadata.deferred_alloc() {
+                        builder.func_mut().block_mut(block).instructions.push(inst);
                         continue;
                     }
                     debug_assert_eq!(semantics.failure, AllocationFailure::Infallible);
                     changed = true;
                     let ptr = inst_results[&inst];
                     rewrite_as_fmp_load(&mut builder, inst);
-                    builder.func_mut().blocks[block].instructions.push(inst);
+                    builder.func_mut().block_mut(block).instructions.push(inst);
                     let size = aligned_size(&mut builder, size, semantics.alignment).0;
                     let next = builder.add(ptr, size);
                     store_fmp(&mut builder, next);
                     initialize(&mut builder, ptr, size, semantics.initialization);
                 }
                 _ => {
-                    builder.func_mut().blocks[block].instructions.push(inst);
+                    builder.func_mut().block_mut(block).instructions.push(inst);
                 }
             }
         }
@@ -131,19 +131,19 @@ fn lower_checked_alloc(
     inst: InstId,
     ptr: ValueId,
 ) {
-    let InstKind::Alloc { size, semantics, .. } = func.instructions[inst].kind else {
+    let InstKind::Alloc { size, semantics, .. } = func.instruction(inst).kind else {
         unreachable!()
     };
     debug_assert_eq!(semantics.failure, AllocationFailure::Panic);
 
-    let mut instructions = std::mem::take(&mut func.blocks[block].instructions);
+    let mut instructions = std::mem::take(&mut func.block_mut(block).instructions);
     let tail = instructions.split_off(position + 1);
-    func.blocks[block].instructions = instructions;
-    let old_terminator = func.blocks[block].terminator.take();
+    func.block_mut(block).instructions = instructions;
+    let old_terminator = func.block_mut(block).terminator.take();
 
     let continuation = func.alloc_block();
-    func.blocks[continuation].instructions = tail;
-    func.blocks[continuation].terminator = old_terminator;
+    func.block_mut(continuation).instructions = tail;
+    func.block_mut(continuation).terminator = old_terminator;
     redirect_successor_predecessors(func, block, continuation);
 
     let panic = func.alloc_block();
@@ -161,11 +161,11 @@ fn lower_checked_alloc(
     }
     builder.branch(invalid, panic, continuation);
 
-    let tail = std::mem::take(&mut builder.func_mut().blocks[continuation].instructions);
+    let tail = std::mem::take(&mut builder.func_mut().block_mut(continuation).instructions);
     builder.switch_to_block(continuation);
     store_fmp(&mut builder, next);
     initialize(&mut builder, ptr, size, semantics.initialization);
-    builder.func_mut().blocks[continuation].instructions.extend(tail);
+    builder.func_mut().block_mut(continuation).instructions.extend(tail);
 
     builder.switch_to_block(panic);
     let zero = builder.imm_u64(0);
@@ -180,21 +180,24 @@ fn lower_checked_alloc(
 
 fn redirect_successor_predecessors(func: &mut Function, from: BlockId, to: BlockId) {
     let successors =
-        func.blocks[to].terminator.as_ref().map(Terminator::successors).unwrap_or_default();
+        func.block(to).terminator.as_ref().map(Terminator::successors).unwrap_or_default();
     for successor in successors {
-        for predecessor in &mut func.blocks[successor].predecessors {
+        for predecessor in &mut func.block_mut(successor).predecessors {
             if *predecessor == from {
                 *predecessor = to;
             }
         }
-        let phi_insts: Vec<_> = func.blocks[successor]
+        let phi_insts: Vec<_> = func
+            .block(successor)
             .instructions
             .iter()
             .copied()
-            .take_while(|inst| matches!(func.instructions[*inst].kind, InstKind::Phi(_)))
+            .take_while(|inst| matches!(func.instruction(*inst).kind, InstKind::Phi(_)))
             .collect();
         for phi in phi_insts {
-            let InstKind::Phi(incoming) = &mut func.instructions[phi].kind else { unreachable!() };
+            let InstKind::Phi(incoming) = &mut func.instruction_mut(phi).kind else {
+                unreachable!()
+            };
             for (predecessor, _) in incoming {
                 if *predecessor == from {
                     *predecessor = to;
@@ -238,7 +241,7 @@ fn initialize(
 
 fn rewrite_as_fmp_load(builder: &mut FunctionBuilder<'_>, inst: crate::mir::InstId) {
     let slot = builder.imm_u64(EvmMemoryLayout::FMP_SLOT);
-    let instruction = &mut builder.func_mut().instructions[inst];
+    let instruction = builder.func_mut().instruction_mut(inst);
     instruction.kind = InstKind::MLoad(slot);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
 }
@@ -249,7 +252,7 @@ fn rewrite_as_fmp_store(
     ptr: crate::mir::ValueId,
 ) {
     let slot = builder.imm_u64(EvmMemoryLayout::FMP_SLOT);
-    let instruction = &mut builder.func_mut().instructions[inst];
+    let instruction = builder.func_mut().instruction_mut(inst);
     instruction.kind = InstKind::MStore(slot, ptr);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
 }

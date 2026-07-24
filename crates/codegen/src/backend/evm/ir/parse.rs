@@ -59,7 +59,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         while !self.parser.is_eof() {
             if let Some(header) = self.try_parse_block_header()? {
                 let block_id = self.define_block(module, header.label)?;
-                module.blocks[block_id].metadata.hotness = header.hotness;
+                module.block_mut(block_id).metadata.hotness = header.hotness;
                 current_block = Some(block_id);
                 continue;
             }
@@ -161,17 +161,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         module: &mut Module,
         block: BlockId,
     ) -> PResult<'sess, ()> {
-        if module.blocks[block].terminator.is_some() {
+        if module.block(block).terminator.is_some() {
             return Err(self.parser.error(format!(
                 "instruction after terminator in block `bb{}`",
-                module.blocks[block].label
+                module.block(block).label
             )));
         }
 
         let mnemonic = self.parser.parse_ident()?;
         if let Some(kind) = self.parse_terminator_kind(mnemonic, module)? {
             let metadata = self.parse_metadata()?;
-            module.blocks[block].terminator = Some(Terminator { kind, metadata });
+            module.block_mut(block).terminator = Some(Terminator { kind, metadata });
             return Ok(());
         }
 
@@ -192,7 +192,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             })?),
         };
         inst.metadata = self.parse_metadata()?;
-        module.blocks[block].instructions.push(inst);
+        module.block_mut(block).instructions.push(inst);
         Ok(())
     }
 

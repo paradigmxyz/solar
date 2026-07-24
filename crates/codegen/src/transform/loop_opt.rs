@@ -159,9 +159,9 @@ impl LoopOptimizer {
                 .then_with(|| a.index().cmp(&b.index()))
         });
 
-        let mut selected = DenseBitSet::new_empty(func.instructions.len());
+        let mut selected = DenseBitSet::new_empty(func.instruction_count());
         let mut closure = Vec::new();
-        let mut visiting = DenseBitSet::new_empty(func.instructions.len());
+        let mut visiting = DenseBitSet::new_empty(func.instruction_count());
         for root in roots {
             closure.clear();
             visiting.clear();
@@ -193,7 +193,7 @@ impl LoopOptimizer {
             // the same instruction in two blocks.
             let mut removed = false;
             for block_id in &loop_data.blocks {
-                let block = &mut func.blocks[block_id];
+                let block = func.block_mut(block_id);
                 if let Some(pos) = block.instructions.iter().position(|&id| id == inst_id) {
                     block.instructions.remove(pos);
                     removed = true;
@@ -201,7 +201,7 @@ impl LoopOptimizer {
                 }
             }
             if removed {
-                func.blocks[preheader].instructions.push(inst_id);
+                func.block_mut(preheader).instructions.push(inst_id);
                 self.stats.instructions_hoisted += 1;
             }
         }
@@ -229,7 +229,7 @@ impl LoopOptimizer {
             return false;
         }
 
-        let inst = &func.instructions[inst_id];
+        let inst = func.instruction(inst_id);
         for operand in inst.kind.operands() {
             if let Value::Inst(dep_inst) = func.value(operand)
                 && self.inst_in_loop(func, *dep_inst, ctx.loop_data)
@@ -244,7 +244,7 @@ impl LoopOptimizer {
     }
 
     fn can_hoist_safely(&self, func: &Function, inst_id: InstId, ctx: LoopOptContext<'_>) -> bool {
-        let inst = &func.instructions[inst_id];
+        let inst = func.instruction(inst_id);
 
         if inst.kind.has_side_effects() {
             return false;
@@ -334,7 +334,7 @@ impl LoopOptimizer {
         let Some(inst_block) = loop_data
             .blocks
             .iter()
-            .find(|&block| func.blocks[block].instructions.contains(&inst_id))
+            .find(|&block| func.block(block).instructions.contains(&inst_id))
         else {
             return false;
         };
@@ -362,7 +362,7 @@ impl LoopOptimizer {
     fn live_exiting_blocks(&self, func: &Function, loop_data: &Loop) -> Vec<BlockId> {
         let mut exiting = Vec::new();
         for block_id in &loop_data.blocks {
-            let Some(term) = &func.blocks[block_id].terminator else { continue };
+            let Some(term) = &func.block(block_id).terminator else { continue };
             let escapes = match term {
                 Terminator::Branch { condition, then_block, else_block } => {
                     match self.const_condition(func, *condition) {
@@ -384,19 +384,19 @@ impl LoopOptimizer {
     }
 
     fn function_observes_msize(&self, func: &Function) -> bool {
-        func.blocks.iter().any(|block| {
+        func.blocks().any(|block| {
             block
                 .instructions
                 .iter()
-                .any(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::MSize))
+                .any(|&inst_id| matches!(func.instruction(inst_id).kind, InstKind::MSize))
         })
     }
 
     fn loop_contains_call_or_create(&self, func: &Function, loop_data: &Loop) -> bool {
         loop_data.blocks.iter().any(|block_id| {
-            func.blocks[block_id].instructions.iter().any(|&inst_id| {
+            func.block(block_id).instructions.iter().any(|&inst_id| {
                 matches!(
-                    func.instructions[inst_id].kind,
+                    func.instruction(inst_id).kind,
                     InstKind::Call { .. }
                         | InstKind::StaticCall { .. }
                         | InstKind::DelegateCall { .. }
@@ -409,11 +409,11 @@ impl LoopOptimizer {
     }
 
     fn inst_in_loop(&self, func: &Function, inst_id: InstId, loop_data: &Loop) -> bool {
-        loop_data.blocks.iter().any(|block| func.blocks[block].instructions.contains(&inst_id))
+        loop_data.blocks.iter().any(|block| func.block(block).instructions.contains(&inst_id))
     }
 
     fn licm_profit(&self, func: &Function, inst_id: InstId) -> u16 {
-        match func.instructions[inst_id].kind {
+        match func.instruction(inst_id).kind {
             InstKind::SLoad(_) => 100,
             InstKind::TLoad(_) => 100,
             InstKind::Keccak256(_, _) => 30,
@@ -452,8 +452,8 @@ impl LoopOptimizer {
 
     fn loop_observes_gas(&self, func: &Function, loop_data: &Loop) -> bool {
         for block_id in &loop_data.blocks {
-            for &inst_id in &func.blocks[block_id].instructions {
-                if matches!(func.instructions[inst_id].kind, InstKind::Gas) {
+            for &inst_id in &func.block(block_id).instructions {
+                if matches!(func.instruction(inst_id).kind, InstKind::Gas) {
                     return true;
                 }
             }
@@ -471,7 +471,7 @@ impl LoopOptimizer {
         let Some(inst_block) = loop_data
             .blocks
             .iter()
-            .find(|&block| func.blocks[block].instructions.contains(&inst_id))
+            .find(|&block| func.block(block).instructions.contains(&inst_id))
         else {
             return false;
         };
@@ -487,8 +487,8 @@ impl LoopOptimizer {
     ) -> bool {
         let aa = self.alias();
         for block_id in &ctx.loop_data.blocks {
-            for &inst_id in &func.blocks[block_id].instructions {
-                match func.instructions[inst_id].kind {
+            for &inst_id in &func.block(block_id).instructions {
+                match func.instruction(inst_id).kind {
                     InstKind::MStore(addr, _) => {
                         if self.memory_ranges_may_alias(
                             func, ctx, load_addr, load_width, addr, 32, block_id,
@@ -536,8 +536,8 @@ impl LoopOptimizer {
         }
 
         for block_id in &ctx.loop_data.blocks {
-            for &inst_id in &func.blocks[block_id].instructions {
-                match (space, &func.instructions[inst_id].kind) {
+            for &inst_id in &func.block(block_id).instructions {
+                match (space, &func.instruction(inst_id).kind) {
                     (StorageSpace::Persistent, InstKind::SStore(slot, _))
                     | (StorageSpace::Transient, InstKind::TStore(slot, _)) => {
                         let Some(store_alias) =
@@ -735,8 +735,8 @@ impl LoopOptimizer {
     ) -> bool {
         let Some(result) = func.inst_result_value(inst_id) else { return false };
         for block_id in &ctx.loop_data.blocks {
-            for &user_inst in &func.blocks[block_id].instructions {
-                let kind = &func.instructions[user_inst].kind;
+            for &user_inst in &func.block(block_id).instructions {
+                let kind = &func.instruction(user_inst).kind;
                 let mut address_operands = ArrayVec::<ValueId, 2>::new();
                 match kind {
                     InstKind::MLoad(addr)
@@ -789,7 +789,7 @@ impl LoopOptimizer {
         if !self.inst_in_loop(func, *inst_id, ctx.loop_data) {
             return false;
         }
-        func.instructions[*inst_id]
+        func.instruction(*inst_id)
             .kind
             .operands()
             .iter()
@@ -798,12 +798,12 @@ impl LoopOptimizer {
     }
 
     fn topological_sort_instructions(&self, func: &Function, insts: &[InstId]) -> Vec<InstId> {
-        let mut inst_set = DenseBitSet::new_empty(func.instructions.len());
+        let mut inst_set = DenseBitSet::new_empty(func.instruction_count());
         for &inst_id in insts {
             inst_set.insert(inst_id);
         }
         let mut result = Vec::new();
-        let mut visited = DenseBitSet::new_empty(func.instructions.len());
+        let mut visited = DenseBitSet::new_empty(func.instruction_count());
 
         fn visit(
             func: &Function,
@@ -816,9 +816,9 @@ impl LoopOptimizer {
                 return;
             }
 
-            let inst = &func.instructions[inst_id];
+            let inst = func.instruction(inst_id);
             for operand in inst.kind.operands() {
-                if let Value::Inst(dep_inst) = &func.values[operand]
+                if let Value::Inst(dep_inst) = func.value(operand)
                     && inst_set.contains(*dep_inst)
                 {
                     visit(func, *dep_inst, inst_set, visited, result);
@@ -881,14 +881,14 @@ mod tests {
             panic!("mul should be an instruction");
         };
         let mul_inst = *mul_inst;
-        assert!(func.blocks[body].instructions.contains(&mul_inst));
+        assert!(func.block(body).instructions.contains(&mul_inst));
 
         let mut optimizer = LoopOptimizer::with_limits(5, 4);
         optimizer.optimize(&mut func);
 
-        assert!(func.blocks[entry].instructions.contains(&mul_inst));
-        assert!(!func.blocks[body].instructions.contains(&mul_inst));
-        assert!(matches!(func.blocks[header].terminator, Some(Terminator::Branch { .. })));
+        assert!(func.block(entry).instructions.contains(&mul_inst));
+        assert!(!func.block(body).instructions.contains(&mul_inst));
+        assert!(matches!(func.block(header).terminator, Some(Terminator::Branch { .. })));
     }
 
     #[test]
@@ -928,13 +928,13 @@ mod tests {
             panic!("mload should be an instruction");
         };
         let load_inst = *load_inst;
-        assert!(func.blocks[body].instructions.contains(&load_inst));
+        assert!(func.block(body).instructions.contains(&load_inst));
 
         let mut optimizer = LoopOptimizer::with_limits(3, 4);
         optimizer.optimize(&mut func);
 
-        assert!(func.blocks[entry].instructions.contains(&load_inst));
-        assert!(!func.blocks[body].instructions.contains(&load_inst));
+        assert!(func.block(entry).instructions.contains(&load_inst));
+        assert!(!func.block(body).instructions.contains(&load_inst));
     }
 
     #[test]
@@ -976,7 +976,7 @@ mod tests {
         let mut optimizer = LoopOptimizer::with_limits(3, 4);
         optimizer.optimize(&mut func);
 
-        assert!(func.blocks[body].instructions.contains(&load_inst));
+        assert!(func.block(body).instructions.contains(&load_inst));
     }
 
     #[test]
@@ -1021,8 +1021,8 @@ mod tests {
         let mut optimizer = LoopOptimizer::with_limits(5, 4);
         optimizer.optimize(&mut func);
 
-        assert!(func.blocks[entry].instructions.contains(&hash_inst));
-        assert!(!func.blocks[body].instructions.contains(&hash_inst));
+        assert!(func.block(entry).instructions.contains(&hash_inst));
+        assert!(!func.block(body).instructions.contains(&hash_inst));
     }
 
     #[test]
@@ -1065,7 +1065,7 @@ mod tests {
         let mut optimizer = LoopOptimizer::with_limits(5, 4);
         optimizer.optimize(&mut func);
 
-        assert!(func.blocks[body].instructions.contains(&hash_inst));
+        assert!(func.block(body).instructions.contains(&hash_inst));
     }
 
     #[test]
@@ -1109,8 +1109,8 @@ mod tests {
         let mut optimizer = LoopOptimizer::with_limits(5, 4);
         optimizer.optimize(&mut func);
 
-        assert!(func.blocks[entry].instructions.contains(&load_inst));
-        assert!(!func.blocks[body].instructions.contains(&load_inst));
+        assert!(func.block(entry).instructions.contains(&load_inst));
+        assert!(!func.block(body).instructions.contains(&load_inst));
     }
 
     #[test]
@@ -1151,7 +1151,7 @@ mod tests {
         let mut optimizer = LoopOptimizer::with_limits(5, 4);
         optimizer.optimize(&mut func);
 
-        assert!(func.blocks[body].instructions.contains(&load_inst));
+        assert!(func.block(body).instructions.contains(&load_inst));
     }
 
     #[test]
@@ -1192,6 +1192,6 @@ mod tests {
         let mut optimizer = LoopOptimizer::with_limits(5, 4);
         optimizer.optimize(&mut func);
 
-        assert!(func.blocks[body].instructions.contains(&mul_inst));
+        assert!(func.block(body).instructions.contains(&mul_inst));
     }
 }

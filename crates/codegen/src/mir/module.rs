@@ -93,7 +93,7 @@ pub struct Module {
     /// Module/contract name.
     pub(crate) name: Ident,
     /// All functions in this module.
-    pub(crate) functions: IndexVec<FunctionId, Function>,
+    functions: IndexVec<FunctionId, Function>,
     /// Canonical ABI layouts referenced by semantic encoding operations.
     pub(crate) abi_layouts: Vec<AbiLayoutRef>,
     /// Canonical storage layouts referenced by semantic aggregate operations.
@@ -154,9 +154,67 @@ impl Module {
         &self.functions[id]
     }
 
+    /// Returns the function for the given ID, if it exists.
+    #[must_use]
+    pub(crate) fn get_function(&self, id: FunctionId) -> Option<&Function> {
+        self.functions.get(id)
+    }
+
     /// Returns a mutable reference to the function.
     pub(crate) fn function_mut(&mut self, id: FunctionId) -> &mut Function {
         &mut self.functions[id]
+    }
+
+    /// Returns the number of functions.
+    #[must_use]
+    pub(crate) fn function_count(&self) -> usize {
+        self.functions.len()
+    }
+
+    /// Returns whether the module has no functions.
+    #[must_use]
+    pub(crate) fn has_no_functions(&self) -> bool {
+        self.functions.is_empty()
+    }
+
+    /// Returns the function IDs.
+    pub(crate) fn function_ids(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = FunctionId> + ExactSizeIterator + use<> {
+        self.functions.indices()
+    }
+
+    /// Returns all functions.
+    pub(crate) fn functions(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = &Function> + ExactSizeIterator {
+        self.functions.iter()
+    }
+
+    /// Returns all functions mutably.
+    pub(crate) fn functions_mut(
+        &mut self,
+    ) -> impl DoubleEndedIterator<Item = &mut Function> + ExactSizeIterator {
+        self.functions.iter_mut()
+    }
+
+    /// Retains the functions in the given order and returns their ID remapping.
+    pub(crate) fn retain_functions(
+        &mut self,
+        order: impl IntoIterator<Item = FunctionId>,
+    ) -> Vec<Option<FunctionId>> {
+        let mut remap = vec![None; self.functions.len()];
+        let mut old_functions: Vec<_> =
+            std::mem::take(&mut self.functions).into_iter().map(Some).collect();
+        let mut functions = IndexVec::new();
+        for old_id in order {
+            let function =
+                old_functions[old_id.index()].take().expect("retained function must exist");
+            let new_id = functions.push(function);
+            remap[old_id.index()] = Some(new_id);
+        }
+        self.functions = functions;
+        remap
     }
 
     /// Interns an ABI layout and returns its canonical shared reference.

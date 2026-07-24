@@ -35,11 +35,11 @@ impl MirPass for LowerEvmShaped {
 
     fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
         module.phase == MirPhase::MemoryLowered
-            && module.functions.iter().all(|func| {
-                func.blocks.iter().all(|block| {
+            && module.functions().all(|func| {
+                func.blocks().all(|block| {
                     block.instructions.iter().all(|&inst| {
                         !matches!(
-                            func.instructions[inst].kind,
+                            func.instruction(inst).kind,
                             InstKind::MakeSlice { .. }
                                 | InstKind::SlicePtr(_)
                                 | InstKind::SliceLen(_)
@@ -88,8 +88,8 @@ impl LowerEvmShapedCx {
         // Dispatch already uses explicit tail calls. Most modules have no
         // resultless internal call left to reshape, so avoid building a call
         // graph and classifying every function in that common case.
-        let has_candidate = module.functions.iter().any(|func| {
-            func.instructions.iter().any(|inst| {
+        let has_candidate = module.functions().any(|func| {
+            func.instructions().any(|inst| {
                 inst.result_ty.is_none() && matches!(inst.kind, InstKind::InternalCall { .. })
             })
         });
@@ -99,8 +99,8 @@ impl LowerEvmShapedCx {
         }
 
         let call_graph = CallGraphInfo::new(module);
-        let mut tail_callable = DenseBitSet::new_empty(module.functions.len());
-        for (func_id, func) in module.functions.iter_enumerated() {
+        let mut tail_callable = DenseBitSet::new_empty(module.function_count());
+        for (func_id, func) in module.iter_functions() {
             if function_cannot_return(func)
                 && func.selector.is_none()
                 && !func.attributes.is_receive
@@ -117,24 +117,23 @@ impl LowerEvmShapedCx {
         // rewrites need no frame addressing and stay valid on both paths.
         let mut constructor_reachable = call_graph.reachable_callees_from(
             module
-                .functions
-                .iter_enumerated()
+                .iter_functions()
                 .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
         );
-        for (id, func) in module.functions.iter_enumerated() {
+        for (id, func) in module.iter_functions() {
             if func.attributes.is_constructor {
                 constructor_reachable.insert(id);
             }
         }
 
-        let function_ids: Vec<_> = module.functions.indices().collect();
+        let function_ids: Vec<_> = module.function_ids().collect();
         for func_id in function_ids {
-            let func = &mut module.functions[func_id];
+            let func = module.function_mut(func_id);
             let mut changed = false;
-            for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
-                let insts = &func.blocks[block_id].instructions;
+            for block_id in (0..func.block_count()).map(crate::mir::BlockId::from_usize) {
+                let insts = &func.block(block_id).instructions;
                 let Some(position) = insts.iter().position(|&inst_id| {
-                    let inst = &func.instructions[inst_id];
+                    let inst = func.instruction(inst_id);
                     inst.result_ty.is_none()
                         && matches!(
                             &inst.kind,
@@ -147,17 +146,16 @@ impl LowerEvmShapedCx {
                     continue;
                 };
 
-                let inst_id = func.blocks[block_id].instructions[position];
-                let InstKind::InternalCall { function, args, .. } =
-                    &func.instructions[inst_id].kind
+                let inst_id = func.block(block_id).instructions[position];
+                let InstKind::InternalCall { function, args, .. } = &func.instruction(inst_id).kind
                 else {
                     unreachable!("position matched an internal call");
                 };
                 let (function, args) = (*function, args.iter().copied().collect());
 
                 // Control never comes back: everything after the call is dead.
-                func.blocks[block_id].instructions.truncate(position);
-                func.blocks[block_id].terminator = Some(Terminator::TailCall { function, args });
+                func.block_mut(block_id).instructions.truncate(position);
+                func.block_mut(block_id).terminator = Some(Terminator::TailCall { function, args });
                 self.stats.tail_calls += 1;
                 changed = true;
             }
@@ -175,7 +173,6 @@ impl LowerEvmShapedCx {
 /// and no `stop` terminator (`stop` is the internal return of a void function).
 fn function_cannot_return(func: &Function) -> bool {
     !func
-        .blocks
-        .iter()
+        .blocks()
         .any(|block| matches!(block.terminator, Some(Terminator::Return { .. } | Terminator::Stop)))
 }

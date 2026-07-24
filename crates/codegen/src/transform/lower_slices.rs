@@ -71,7 +71,7 @@ struct LowerSlicesCx {
 fn value_slice_location(func: &Function, value: ValueId) -> Option<SliceLocation> {
     let ty = match func.value(value) {
         Value::Arg { ty, .. } | Value::Undef(ty) => Some(*ty),
-        Value::Inst(inst) => func.instructions[*inst].result_ty,
+        Value::Inst(inst) => func.instruction(*inst).result_ty,
         Value::Immediate(_) | Value::Error(_) => None,
     };
     match ty {
@@ -123,12 +123,12 @@ impl LowerSlicesCx {
         let mut replacements = FxHashMap::default();
 
         // Selects: rewrite in place within their block.
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
+        let block_ids: Vec<BlockId> = func.block_ids().collect();
         for block_id in &block_ids {
-            let insts = std::mem::take(&mut func.blocks[*block_id].instructions);
+            let insts = std::mem::take(&mut func.block_mut(*block_id).instructions);
             let mut out = Vec::with_capacity(insts.len());
             for inst_id in insts {
-                if let InstKind::Select(cond, a, b) = func.instructions[inst_id].kind
+                if let InstKind::Select(cond, a, b) = func.instruction(inst_id).kind
                     && let Some(location) = value_slice_location(func, a)
                 {
                     let old = func.inst_result_value(inst_id).expect("select has a result");
@@ -147,7 +147,7 @@ impl LowerSlicesCx {
                 }
                 out.push(inst_id);
             }
-            func.blocks[*block_id].instructions = out;
+            func.block_mut(*block_id).instructions = out;
         }
 
         // Phis: project each incoming slice in its predecessor, phi the
@@ -158,8 +158,8 @@ impl LowerSlicesCx {
             // paired words allocates instructions and values.
             type SlicePhi = (InstId, Vec<(BlockId, ValueId)>, SliceLocation);
             let mut slice_phis: Vec<SlicePhi> = Vec::new();
-            for &inst_id in &func.blocks[block_id].instructions {
-                match &func.instructions[inst_id].kind {
+            for &inst_id in &func.block(block_id).instructions {
+                match &func.instruction(inst_id).kind {
                     InstKind::Phi(incoming) => {
                         if let Some(location) = incoming
                             .first()
@@ -178,8 +178,8 @@ impl LowerSlicesCx {
                 for (pred, value) in incoming {
                     let (pi, pv) = new_word_inst(func, InstKind::SlicePtr(value));
                     let (li, lv) = new_word_inst(func, InstKind::SliceLen(value));
-                    func.blocks[pred].instructions.push(pi);
-                    func.blocks[pred].instructions.push(li);
+                    func.block_mut(pred).instructions.push(pi);
+                    func.block_mut(pred).instructions.push(li);
                     ptr_incoming.push((pred, pv));
                     len_incoming.push((pred, lv));
                 }
@@ -200,8 +200,8 @@ impl LowerSlicesCx {
             let mut phis = Vec::new();
             let mut makes = Vec::new();
             let mut rest = Vec::new();
-            for &inst_id in &func.blocks[block_id].instructions {
-                if matches!(func.instructions[inst_id].kind, InstKind::Phi(_)) {
+            for &inst_id in &func.block(block_id).instructions {
+                if matches!(func.instruction(inst_id).kind, InstKind::Phi(_)) {
                     if let Some(&(sp, sl, ms)) = split_map.get(&inst_id) {
                         phis.push(sp);
                         phis.push(sl);
@@ -215,7 +215,7 @@ impl LowerSlicesCx {
             }
             phis.extend(makes);
             phis.extend(rest);
-            func.blocks[block_id].instructions = phis;
+            func.block_mut(block_id).instructions = phis;
         }
 
         if changed {
@@ -230,13 +230,13 @@ impl LowerSlicesCx {
         signatures: &FxHashMap<FunctionId, Vec<ParamRepr>>,
     ) -> bool {
         let mut changed = false;
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
+        let block_ids: Vec<BlockId> = func.block_ids().collect();
         for block_id in block_ids {
-            let instructions = std::mem::take(&mut func.blocks[block_id].instructions);
+            let instructions = std::mem::take(&mut func.block_mut(block_id).instructions);
             let mut builder = FunctionBuilder::new(func);
             builder.switch_to_block(block_id);
             for inst_id in instructions {
-                let call = match &builder.func().instructions[inst_id].kind {
+                let call = match &builder.func().instruction(inst_id).kind {
                     InstKind::InternalCall { function, args, .. } => {
                         Some((*function, args.to_vec()))
                     }
@@ -259,14 +259,14 @@ impl LowerSlicesCx {
                         self.stats.call_args += usize::from(repr != ParamRepr::Word);
                     }
                     let InstKind::InternalCall { args, .. } =
-                        &mut builder.func_mut().instructions[inst_id].kind
+                        &mut builder.func_mut().instruction_mut(inst_id).kind
                     else {
                         unreachable!()
                     };
                     *args = expanded.into();
                     changed = true;
                 }
-                builder.func_mut().blocks[block_id].instructions.push(inst_id);
+                builder.func_mut().block_mut(block_id).instructions.push(inst_id);
             }
         }
         changed
@@ -274,7 +274,7 @@ impl LowerSlicesCx {
 
     fn lower_params(&mut self, func: &mut Function, signature: &[ParamRepr]) -> bool {
         if func.selector.is_some()
-            || func.blocks.is_empty()
+            || func.has_no_blocks()
             || !func.params.iter().any(Self::is_slice)
         {
             return false;
@@ -299,7 +299,7 @@ impl LowerSlicesCx {
             next_index += 1;
         }
 
-        for value in func.values.iter_mut() {
+        for value in func.values_mut() {
             if let Value::Arg { index, ty } = value
                 && !matches!(ty, MirType::Slice(_))
             {
@@ -308,8 +308,7 @@ impl LowerSlicesCx {
         }
 
         let slice_args: Vec<_> = func
-            .values
-            .iter_enumerated()
+            .values_enumerated()
             .filter_map(|(value, kind)| match kind {
                 Value::Arg { index, ty: MirType::Slice(location) } => {
                     Some((value, *index, *location))
@@ -349,9 +348,9 @@ impl LowerSlicesCx {
         let inst_results = builder.func().inst_results();
         let mut replacements = FxHashMap::default();
         let mut removed = FxHashSet::default();
-        for block in builder.func().blocks.iter() {
+        for block in builder.func().blocks() {
             for &inst_id in &block.instructions {
-                let replacement = match builder.func().instructions[inst_id].kind {
+                let replacement = match builder.func().instruction(inst_id).kind {
                     InstKind::SlicePtr(slice) => components.get(&slice).map(|&(ptr, _)| ptr),
                     InstKind::SliceLen(slice) => components.get(&slice).map(|&(_, len)| len),
                     _ => None,
@@ -366,7 +365,7 @@ impl LowerSlicesCx {
             }
         }
         builder.func_mut().replace_uses_canonicalized(&replacements);
-        for block in builder.func_mut().blocks.iter_mut() {
+        for block in builder.func_mut().blocks_mut() {
             block.instructions.retain(|inst| !removed.contains(inst));
         }
         if !compact_heads.is_empty() {
@@ -382,15 +381,15 @@ impl LowerSlicesCx {
     ) {
         let inst_results = func.inst_results();
         let mut replacements = raw_heads.clone();
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
+        let block_ids: Vec<BlockId> = func.block_ids().collect();
         for block_id in block_ids {
-            let instructions = std::mem::take(&mut func.blocks[block_id].instructions);
+            let instructions = std::mem::take(&mut func.block_mut(block_id).instructions);
             let mut builder = FunctionBuilder::new(func);
             builder.switch_to_block(block_id);
             let mut lengths = FxHashMap::default();
             let mut pointers = FxHashMap::default();
             for inst_id in instructions {
-                let projection = match builder.func().instructions[inst_id].kind {
+                let projection = match builder.func().instruction(inst_id).kind {
                     InstKind::SlicePtr(slice) => raw_heads.get(&slice).map(|&head| (head, true)),
                     InstKind::SliceLen(slice) => raw_heads.get(&slice).map(|&head| (head, false)),
                     _ => None,
@@ -411,7 +410,7 @@ impl LowerSlicesCx {
                     replacements.insert(inst_results[&inst_id], replacement);
                     self.stats.projections += 1;
                 } else {
-                    builder.func_mut().blocks[block_id].instructions.push(inst_id);
+                    builder.func_mut().block_mut(block_id).instructions.push(inst_id);
                 }
             }
         }
@@ -419,12 +418,11 @@ impl LowerSlicesCx {
     }
 
     fn lower_external_args(&mut self, func: &mut Function) -> bool {
-        if func.selector.is_none() || func.blocks.is_empty() {
+        if func.selector.is_none() || func.has_no_blocks() {
             return false;
         }
         let slice_args: FxHashMap<_, _> = func
-            .values
-            .iter_enumerated()
+            .values_enumerated()
             .filter_map(|(value, kind)| match kind {
                 Value::Arg { index, ty: MirType::Slice(SliceLocation::Calldata) } => {
                     Some((value, *index))
@@ -450,8 +448,7 @@ impl LowerSlicesCx {
 
     fn infer_compact_params(module: &Module) -> FxHashSet<(FunctionId, usize)> {
         let mut compact: FxHashSet<_> = module
-            .functions
-            .iter_enumerated()
+            .iter_functions()
             .flat_map(|(function, func)| {
                 func.params.iter().enumerate().filter_map(move |(index, ty)| {
                     matches!(ty, MirType::Slice(SliceLocation::Calldata))
@@ -463,9 +460,9 @@ impl LowerSlicesCx {
         loop {
             let mut removed = FxHashSet::default();
             let mut seen = FxHashSet::default();
-            for (caller_id, caller) in module.functions.iter_enumerated() {
-                for &inst_id in caller.blocks.iter().flat_map(|block| &block.instructions) {
-                    let inst = &caller.instructions[inst_id];
+            for (caller_id, caller) in module.iter_functions() {
+                for &inst_id in caller.blocks().flat_map(|block| &block.instructions) {
+                    let inst = caller.instruction(inst_id);
                     let InstKind::InternalCall { function: callee, args, .. } = &inst.kind else {
                         continue;
                     };
@@ -510,14 +507,14 @@ impl LowerSlicesCx {
     fn lower_projections(&mut self, func: &mut Function) -> bool {
         let inst_results = func.inst_results();
         let live_insts: FxHashSet<_> =
-            func.blocks.iter().flat_map(|block| block.instructions.iter().copied()).collect();
+            func.blocks().flat_map(|block| block.instructions.iter().copied()).collect();
         let mut components = FxHashMap::<ValueId, (ValueId, ValueId, InstId)>::default();
         let mut projections = FxHashMap::<ValueId, (ValueId, InstId, bool)>::default();
         for (&inst, &result) in &inst_results {
             if !live_insts.contains(&inst) {
                 continue;
             }
-            match func.instructions[inst].kind {
+            match func.instruction(inst).kind {
                 InstKind::MakeSlice { ptr, len, .. } => {
                     components.insert(result, (ptr, len, inst));
                 }
@@ -538,7 +535,7 @@ impl LowerSlicesCx {
         // slices intact instead of guessing at a one-word representation.
         let mut removable: FxHashSet<ValueId> = components.keys().copied().collect();
         for inst_id in &live_insts {
-            let inst = &func.instructions[*inst_id];
+            let inst = func.instruction(*inst_id);
             for operand in inst.kind.operands() {
                 if components.contains_key(&operand)
                     && !matches!(inst.kind, InstKind::SlicePtr(v) | InstKind::SliceLen(v) if v == operand)
@@ -547,7 +544,7 @@ impl LowerSlicesCx {
                 }
             }
         }
-        for block in func.blocks.iter() {
+        for block in func.blocks() {
             if let Some(term) = &block.terminator {
                 for operand in term.operands() {
                     removable.remove(&operand);
@@ -575,7 +572,7 @@ impl LowerSlicesCx {
         }
 
         func.replace_uses_canonicalized(&replacements);
-        for block in func.blocks.iter_mut() {
+        for block in func.blocks_mut() {
             block.instructions.retain(|inst| !removed.contains(inst));
         }
         true
@@ -587,8 +584,7 @@ impl LowerSlicesCx {
         self.stats = LowerSlicesStats::default();
         let compact = Self::infer_compact_params(module);
         let signatures: FxHashMap<_, _> = module
-            .functions
-            .iter_enumerated()
+            .iter_functions()
             .map(|(id, func)| {
                 let signature = func
                     .params
@@ -608,16 +604,16 @@ impl LowerSlicesCx {
             })
             .collect();
         let mut changed = false;
-        for func in module.functions.iter_mut() {
+        for func in module.functions_mut() {
             // Eliminate slice-typed `select`/`phi` first, so every remaining
             // slice is a `make_slice` result or a projection that the later
             // stages can expand or fold.
             changed |= self.split_slice_aggregates(func);
         }
-        for func in module.functions.iter_mut() {
+        for func in module.functions_mut() {
             changed |= self.expand_call_args(func, &signatures);
         }
-        let function_ids: Vec<_> = module.functions.indices().collect();
+        let function_ids: Vec<_> = module.function_ids().collect();
         for id in function_ids {
             let func = module.function_mut(id);
             changed |= self.lower_external_args(func);

@@ -75,26 +75,26 @@ impl MemoryCallSummaries {
     /// Computes summaries to a monotone fixpoint over the module call graph.
     #[must_use]
     pub(crate) fn new(module: &Module) -> Self {
-        let mut local = IndexVec::with_capacity(module.functions.len());
-        for func in &module.functions {
+        let mut local = IndexVec::with_capacity(module.function_count());
+        for func in module.functions() {
             local.push(local_summary(func));
         }
         let mut summaries = local.clone();
 
         loop {
             let previous = summaries.clone();
-            for (func_id, func) in module.functions.iter_enumerated() {
-                if func.blocks.is_empty() {
+            for (func_id, func) in module.iter_functions() {
+                if func.has_no_blocks() {
                     summaries[func_id] = FunctionMemorySummary::conservative(func.params.len());
                     continue;
                 }
 
                 let mut summary = local[func_id].clone();
                 let sources = parameter_sources(func);
-                for block in &func.blocks {
+                for block in func.blocks() {
                     for &inst_id in &block.instructions {
                         if let InstKind::InternalCall { function, ref args, .. } =
-                            func.instructions[inst_id].kind
+                            func.instruction(inst_id).kind
                         {
                             let callee = previous
                                 .get(function)
@@ -147,16 +147,16 @@ const fn space_index(space: AddressSpace) -> usize {
 }
 
 fn local_summary(func: &Function) -> FunctionMemorySummary {
-    if func.blocks.is_empty() {
+    if func.has_no_blocks() {
         return FunctionMemorySummary::conservative(func.params.len());
     }
 
     let mut summary = FunctionMemorySummary::empty(func.params.len());
     let sources = parameter_sources(func);
     let aa = AliasAnalysis::new(func);
-    for block in &func.blocks {
+    for block in func.blocks() {
         for &inst_id in &block.instructions {
-            let kind = &func.instructions[inst_id].kind;
+            let kind = &func.instruction(inst_id).kind;
             if matches!(kind, InstKind::InternalCall { .. }) {
                 continue;
             }
@@ -195,11 +195,11 @@ fn capture_sources(summary: &mut FunctionMemorySummary, sources: &DenseBitSet<us
 /// deliberately not guessed, and storing a parameter is already a capture.
 fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<usize>> {
     let params = func.params.len();
-    let mut sources = IndexVec::with_capacity(func.values.len());
-    for _ in 0..func.values.len() {
+    let mut sources = IndexVec::with_capacity(func.value_count());
+    for _ in 0..func.value_count() {
         sources.push(DenseBitSet::new_empty(params));
     }
-    for (value_id, value) in func.values.iter_enumerated() {
+    for (value_id, value) in func.values_enumerated() {
         if let Value::Arg { index, .. } = value
             && (*index as usize) < params
         {
@@ -209,9 +209,9 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<usize>> {
 
     loop {
         let mut changed = false;
-        for (value_id, value) in func.values.iter_enumerated() {
+        for (value_id, value) in func.values_enumerated() {
             let Value::Inst(inst_id) = value else { continue };
-            let operands = match &func.instructions[*inst_id].kind {
+            let operands = match &func.instruction(*inst_id).kind {
                 InstKind::Add(first, second)
                 | InstKind::Sub(first, second)
                 | InstKind::MakeSlice { ptr: first, len: second, .. } => {

@@ -109,12 +109,11 @@ impl SccpCx {
     fn run(&mut self, func: &mut Function) -> usize {
         self.stats = SccpStats::default();
 
-        let num_values = func.values.len();
+        let num_values = func.value_count();
 
         // Precompute InstId → ValueId map.
         let inst_to_value: FxHashMap<InstId, ValueId> = func
-            .values
-            .iter_enumerated()
+            .values_enumerated()
             .filter_map(
                 |(vid, val)| {
                     if let Value::Inst(iid) = val { Some((*iid, vid)) } else { None }
@@ -126,7 +125,7 @@ impl SccpCx {
         let mut lattice = index_vec![LatticeValue::Top; num_values];
 
         // Arguments are overdefined (we don't know their runtime values).
-        for (vid, val) in func.values.iter_enumerated() {
+        for (vid, val) in func.values_enumerated() {
             match val {
                 Value::Arg { .. } => lattice[vid] = LatticeValue::Bottom,
                 Value::Immediate(imm) => {
@@ -142,7 +141,7 @@ impl SccpCx {
         }
 
         // Track which blocks are executable.
-        let mut executable_blocks = DenseBitSet::new_empty(func.blocks.len());
+        let mut executable_blocks = DenseBitSet::new_empty(func.block_count());
         // Track which CFG edges have been taken.
         let mut executable_edges: FxHashSet<(BlockId, BlockId)> = FxHashSet::default();
 
@@ -248,15 +247,15 @@ impl SccpCx {
         cfg_worklist: &mut VecDeque<(BlockId, BlockId)>,
         ssa_worklist: &mut VecDeque<ValueId>,
     ) {
-        let block = &func.blocks[block_id];
+        let block = func.block(block_id);
 
         for &inst_id in &block.instructions {
-            if matches!(func.instructions[inst_id].kind, InstKind::Phi(_)) {
+            if matches!(func.instruction(inst_id).kind, InstKind::Phi(_)) {
                 continue;
             }
             if let Some(&vid) = inst_to_value.get(&inst_id) {
                 let new_val =
-                    self.evaluate_instruction(func, &func.instructions[inst_id].kind, lattice);
+                    self.evaluate_instruction(func, &func.instruction(inst_id).kind, lattice);
                 if self.update_lattice(lattice, vid, new_val) {
                     ssa_worklist.push_back(vid);
                 }
@@ -279,9 +278,9 @@ impl SccpCx {
         executable_edges: &FxHashSet<(BlockId, BlockId)>,
         ssa_worklist: &mut VecDeque<ValueId>,
     ) {
-        let block = &func.blocks[block_id];
+        let block = func.block(block_id);
         for &inst_id in &block.instructions {
-            let inst = &func.instructions[inst_id];
+            let inst = func.instruction(inst_id);
             if let InstKind::Phi(incoming) = &inst.kind
                 && let Some(&vid) = inst_to_value.get(&inst_id)
             {
@@ -596,12 +595,12 @@ impl SccpCx {
         }
 
         // Find all instructions that use this value and re-evaluate them.
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for (block_id, block) in func.blocks_enumerated() {
             if !executable_blocks.contains(block_id) {
                 continue;
             }
             for &inst_id in &block.instructions {
-                let inst = &func.instructions[inst_id];
+                let inst = func.instruction(inst_id);
                 if matches!(inst.kind, InstKind::Phi(_)) {
                     continue;
                 }
@@ -637,16 +636,16 @@ impl SccpCx {
         // Phase 1: Replace instructions whose results are constant with
         // immediate values, and remove the instruction from the block.
         let mut const_values: FxHashMap<ValueId, ValueId> = FxHashMap::default();
-        let mut dead_insts = DenseBitSet::new_empty(func.instructions.len());
+        let mut dead_insts = DenseBitSet::new_empty(func.instruction_count());
 
         for (&inst_id, &vid) in inst_to_value {
             if let LatticeValue::Constant(c) = &lattice[vid] {
                 // Don't fold side-effecting instructions.
-                if func.instructions[inst_id].kind.has_side_effects() {
+                if func.instruction(inst_id).kind.has_side_effects() {
                     continue;
                 }
                 // Create an immediate replacement of the instruction's result type.
-                let imm = immediate_for_type(func.instructions[inst_id].result_ty, *c);
+                let imm = immediate_for_type(func.instruction(inst_id).result_ty, *c);
                 let imm_vid = func.alloc_value(Value::Immediate(imm));
                 const_values.insert(vid, imm_vid);
                 dead_insts.insert(inst_id);
@@ -656,14 +655,14 @@ impl SccpCx {
 
         // Phase 2: Collect branch rewrites BEFORE operand replacement, because
         // replacement may allocate new ValueIds that don't have lattice entries.
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
+        let block_ids: Vec<BlockId> = func.block_ids().collect();
         let mut control_rewrites: Vec<(BlockId, BlockId)> = Vec::new();
-        let mut executable_successors = DenseBitSet::new_empty(func.blocks.len());
+        let mut executable_successors = DenseBitSet::new_empty(func.block_count());
         for &block_id in &block_ids {
             if !executable_blocks.contains(block_id) {
                 continue;
             }
-            let Some(term) = &func.blocks[block_id].terminator else {
+            let Some(term) = &func.block(block_id).terminator else {
                 continue;
             };
             if !matches!(term, Terminator::Branch { .. } | Terminator::Switch { .. }) {
@@ -685,16 +684,18 @@ impl SccpCx {
         // Phase 3: Replace all uses of folded values with immediates.
         if !const_values.is_empty() {
             let all_insts: Vec<InstId> = func
-                .blocks
-                .iter()
+                .blocks()
                 .flat_map(|block| block.instructions.iter().copied())
                 .filter(|&id| !dead_insts.contains(id))
                 .collect();
             for inst_id in all_insts {
-                mir_utils::replace_inst_uses(&mut func.instructions[inst_id].kind, &const_values);
+                mir_utils::replace_inst_uses(
+                    &mut func.instruction_mut(inst_id).kind,
+                    &const_values,
+                );
             }
             for &block_id in &block_ids {
-                if let Some(term) = &mut func.blocks[block_id].terminator {
+                if let Some(term) = &mut func.block_mut(block_id).terminator {
                     mir_utils::replace_terminator_uses(term, &const_values);
                 }
             }
@@ -702,25 +703,26 @@ impl SccpCx {
 
         // Phase 4: Remove dead (folded) instructions from blocks.
         for &block_id in &block_ids {
-            func.blocks[block_id].instructions.retain(|&id| !dead_insts.contains(id));
+            func.block_mut(block_id).instructions.retain(|&id| !dead_insts.contains(id));
         }
 
         // Phase 5: Apply branch/switch rewrites.
         for (block_id, target) in control_rewrites {
-            let old_successors = func.blocks[block_id]
+            let old_successors = func
+                .block(block_id)
                 .terminator
                 .as_ref()
                 .map(Terminator::successors)
                 .unwrap_or_default();
             let was_switch =
-                matches!(func.blocks[block_id].terminator, Some(Terminator::Switch { .. }));
+                matches!(func.block(block_id).terminator, Some(Terminator::Switch { .. }));
             for successor in old_successors {
-                func.blocks[successor].predecessors.retain(|pred| *pred != block_id);
+                func.block_mut(successor).predecessors.retain(|pred| *pred != block_id);
             }
-            if !func.blocks[target].predecessors.contains(&block_id) {
-                func.blocks[target].predecessors.push(block_id);
+            if !func.block(target).predecessors.contains(&block_id) {
+                func.block_mut(target).predecessors.push(block_id);
             }
-            func.blocks[block_id].terminator = Some(Terminator::Jump(target));
+            func.block_mut(block_id).terminator = Some(Terminator::Jump(target));
             if was_switch {
                 self.stats.switches_folded += 1;
             } else {
@@ -733,7 +735,7 @@ impl SccpCx {
             if executable_blocks.contains(block_id) {
                 continue;
             }
-            let block = &mut func.blocks[block_id];
+            let block = func.block_mut(block_id);
             // Predecessor lists are rebuilt from terminators by
             // `repair_reachability_phis` below, so a never-taken switch target
             // keeps a predecessor entry; checking it here would re-count the

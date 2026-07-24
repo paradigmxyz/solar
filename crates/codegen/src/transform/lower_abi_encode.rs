@@ -29,7 +29,7 @@ impl MirPass for LowerAbiEncode {
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         let mut changed = false;
-        for func in module.functions.iter_mut() {
+        for func in module.functions_mut() {
             changed |= lower_function(func);
         }
         changed
@@ -50,11 +50,11 @@ struct AbiValueDest {
 }
 
 fn lower_function(func: &mut Function) -> bool {
-    let has_encodes = func.blocks.iter().any(|block| {
+    let has_encodes = func.blocks().any(|block| {
         block
             .instructions
             .iter()
-            .any(|&inst| matches!(func.instructions[inst].kind, InstKind::AbiEncode { .. }))
+            .any(|&inst| matches!(func.instruction(inst).kind, InstKind::AbiEncode { .. }))
     });
     if !has_encodes {
         return false;
@@ -62,14 +62,14 @@ fn lower_function(func: &mut Function) -> bool {
 
     let inst_results = func.inst_results();
     let mut replacements = FxHashMap::default();
-    let blocks: Vec<_> = func.blocks.indices().collect();
+    let blocks: Vec<_> = func.block_ids().collect();
     for block in blocks {
-        let instructions = std::mem::take(&mut func.blocks[block].instructions);
-        let original_terminator = func.blocks[block].terminator.take();
+        let instructions = std::mem::take(&mut func.block_mut(block).instructions);
+        let original_terminator = func.block_mut(block).terminator.take();
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for inst in instructions {
-            let encode = match &builder.func().instructions[inst].kind {
+            let encode = match &builder.func().instruction(inst).kind {
                 InstKind::AbiEncode { selector, args, layout } => Some((
                     selector.map(|value| resolve(value, &replacements)),
                     args.iter().map(|&value| resolve(value, &replacements)).collect::<Vec<_>>(),
@@ -82,7 +82,7 @@ fn lower_function(func: &mut Function) -> bool {
                 replacements.insert(inst_results[&inst], replacement);
             } else {
                 let current = builder.current_block();
-                builder.func_mut().blocks[current].instructions.push(inst);
+                builder.func_mut().block_mut(current).instructions.push(inst);
             }
         }
         move_terminator(&mut builder, block, original_terminator);
@@ -108,9 +108,10 @@ fn move_terminator(
     let Some(terminator) = terminator else { return };
     if final_block != original_block {
         for successor in terminator.successors() {
-            let instructions = builder.func().blocks[successor].instructions.clone();
+            let instructions = builder.func().block(successor).instructions.clone();
             for inst in instructions {
-                if let InstKind::Phi(incoming) = &mut builder.func_mut().instructions[inst].kind {
+                if let InstKind::Phi(incoming) = &mut builder.func_mut().instruction_mut(inst).kind
+                {
                     for (predecessor, _) in incoming {
                         if *predecessor == original_block {
                             *predecessor = final_block;
@@ -120,7 +121,7 @@ fn move_terminator(
             }
         }
     }
-    builder.func_mut().blocks[final_block].terminator = Some(terminator);
+    builder.func_mut().block_mut(final_block).terminator = Some(terminator);
 }
 
 fn lower_encode(

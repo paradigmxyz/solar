@@ -31,7 +31,7 @@ impl MirPass for LowerMemoryObjects {
         }
         let mut stats = LowerMemoryObjectsStats::default();
         let mut changed = false;
-        for func in module.functions.iter_mut() {
+        for func in module.functions_mut() {
             changed |= lower_function::<EvmMemoryLayout>(func, &mut stats);
         }
         if module.phase == MirPhase::Dispatch {
@@ -57,11 +57,11 @@ fn lower_function<P: MemoryLayoutPolicy>(
     stats: &mut LowerMemoryObjectsStats,
 ) -> bool {
     let has_objects = func.params.iter().chain(&func.returns).any(is_object_type)
-        || func.values.iter().any(|value| match value {
+        || func.values().any(|value| match value {
             Value::Arg { ty, .. } | Value::Undef(ty) => is_object_type(ty),
             Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => false,
         })
-        || func.instructions.iter().any(|inst| {
+        || func.instructions().any(|inst| {
             inst.result_ty.as_ref().is_some_and(is_object_type)
                 || matches!(
                     inst.kind,
@@ -81,37 +81,37 @@ fn lower_function<P: MemoryLayoutPolicy>(
     let inst_results = func.inst_results();
     let mut replacements = FxHashMap::default();
     let mut removed = FxHashSet::default();
-    let blocks: Vec<_> = func.blocks.indices().collect();
+    let blocks: Vec<_> = func.block_ids().collect();
 
     for block in blocks {
-        let instructions = std::mem::take(&mut func.blocks[block].instructions);
+        let instructions = std::mem::take(&mut func.block_mut(block).instructions);
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for inst in instructions {
-            let kind = builder.func().instructions[inst].kind.clone();
+            let kind = builder.func().instruction(inst).kind.clone();
             match kind {
                 InstKind::Alloc { size, kind: AllocationKind::Object(_), semantics } => {
-                    let instruction = &mut builder.func_mut().instructions[inst];
+                    let instruction = builder.func_mut().instruction_mut(inst);
                     instruction.kind =
                         InstKind::Alloc { size, kind: AllocationKind::Raw, semantics };
                     stats.allocations += 1;
                 }
                 InstKind::MemoryObjectLen(object, kind) => {
                     let Some(offset) = P::object_length_offset(kind) else {
-                        builder.func_mut().blocks[block].instructions.push(inst);
+                        builder.func_mut().block_mut(block).instructions.push(inst);
                         continue;
                     };
                     let address = offset_address(&mut builder, object, offset);
-                    builder.func_mut().instructions[inst].kind = InstKind::MLoad(address);
+                    builder.func_mut().instruction_mut(inst).kind = InstKind::MLoad(address);
                     stats.accesses += 1;
                 }
                 InstKind::SetMemoryObjectLen(object, len, kind) => {
                     let Some(offset) = P::object_length_offset(kind) else {
-                        builder.func_mut().blocks[block].instructions.push(inst);
+                        builder.func_mut().block_mut(block).instructions.push(inst);
                         continue;
                     };
                     let address = offset_address(&mut builder, object, offset);
-                    builder.func_mut().instructions[inst].kind = InstKind::MStore(address, len);
+                    builder.func_mut().instruction_mut(inst).kind = InstKind::MStore(address, len);
                     stats.accesses += 1;
                 }
                 InstKind::MemoryObjectData(object, kind) => {
@@ -123,13 +123,14 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         removed.insert(inst);
                     } else {
                         let offset = builder.imm_u64(offset);
-                        builder.func_mut().instructions[inst].kind = InstKind::Add(object, offset);
+                        builder.func_mut().instruction_mut(inst).kind =
+                            InstKind::Add(object, offset);
                     }
                     stats.accesses += 1;
                 }
                 InstKind::MemoryObjectFieldAddr { object, layout, field } => {
                     let Some(offset) = P::field_offset(layout, field) else {
-                        builder.func_mut().blocks[block].instructions.push(inst);
+                        builder.func_mut().block_mut(block).instructions.push(inst);
                         continue;
                     };
                     if offset == 0 {
@@ -139,25 +140,26 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         removed.insert(inst);
                     } else {
                         let offset = builder.imm_u64(offset);
-                        builder.func_mut().instructions[inst].kind = InstKind::Add(object, offset);
+                        builder.func_mut().instruction_mut(inst).kind =
+                            InstKind::Add(object, offset);
                     }
                     stats.accesses += 1;
                 }
                 InstKind::Keccak256Bytes(object) => {
                     let kind = crate::mir::MemoryObjectKind::Bytes;
                     let Some(length_offset) = P::object_length_offset(kind) else {
-                        builder.func_mut().blocks[block].instructions.push(inst);
+                        builder.func_mut().block_mut(block).instructions.push(inst);
                         continue;
                     };
                     let length_address = offset_address(&mut builder, object, length_offset);
                     let len = builder.mload(length_address);
                     let data = offset_address(&mut builder, object, P::object_data_offset(kind));
-                    builder.func_mut().instructions[inst].kind = InstKind::Keccak256(data, len);
+                    builder.func_mut().instruction_mut(inst).kind = InstKind::Keccak256(data, len);
                     stats.accesses += 1;
                 }
                 InstKind::MemoryObjectElementAddr { object, layout, index } => {
                     let Some(stride) = P::element_stride(layout) else {
-                        builder.func_mut().blocks[block].instructions.push(inst);
+                        builder.func_mut().block_mut(block).instructions.push(inst);
                         continue;
                     };
                     debug_assert!(stride.is_multiple_of(P::WORD_SIZE));
@@ -165,13 +167,13 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         offset_address(&mut builder, object, P::object_data_offset(layout.kind()));
                     let stride = builder.imm_u64(stride);
                     let offset = builder.mul(index, stride);
-                    builder.func_mut().instructions[inst].kind = InstKind::Add(base, offset);
+                    builder.func_mut().instruction_mut(inst).kind = InstKind::Add(base, offset);
                     stats.accesses += 1;
                 }
                 _ => {}
             }
             if !removed.contains(&inst) {
-                builder.func_mut().blocks[block].instructions.push(inst);
+                builder.func_mut().block_mut(block).instructions.push(inst);
             }
         }
     }
@@ -200,13 +202,13 @@ fn erase_object_types(func: &mut Function, stats: &mut LowerMemoryObjectsStats) 
     for ty in func.params.iter_mut().chain(&mut func.returns) {
         erase_object_type(ty, stats);
     }
-    for value in func.values.iter_mut() {
+    for value in func.values_mut() {
         match value {
             Value::Arg { ty, .. } | Value::Undef(ty) => erase_object_type(ty, stats),
             Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => {}
         }
     }
-    for inst in func.instructions.iter_mut() {
+    for inst in func.instructions_mut() {
         if let Some(ty) = &mut inst.result_ty {
             erase_object_type(ty, stats);
         }

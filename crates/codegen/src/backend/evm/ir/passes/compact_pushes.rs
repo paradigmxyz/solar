@@ -27,7 +27,7 @@ const MIN_COMPACT_MASK_WIDTH: u8 = 5;
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut changed = false;
     let mut scratch = Vec::new();
-    for block in &mut module.blocks {
+    for block in module.blocks_mut() {
         if !block.instructions.iter().any(|inst| {
             immediate(inst).is_some_and(|value| !matches!(select(gcx, value), CompactPush::Literal))
         }) {

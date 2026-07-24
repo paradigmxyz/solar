@@ -118,18 +118,18 @@ impl LoopAnalyzer {
         let Some(cfg) = &self.cfg else { return Vec::new() };
 
         for &block_id in cfg.rpo() {
-            let block = &func.blocks[block_id];
+            let block = func.block(block_id);
             if let Some(term) = &block.terminator {
                 for succ in term.successors() {
                     if cfg.dominators().dominates(succ, block_id) {
                         let loop_info = loops.entry(succ).or_insert_with(|| Loop {
                             header: succ,
-                            blocks: DenseBitSet::new_empty(func.blocks.len()),
+                            blocks: DenseBitSet::new_empty(func.block_count()),
                             back_edges: SmallVec::new(),
                             exit_blocks: SmallVec::new(),
                             preheader: None,
                             induction_vars: Vec::new(),
-                            invariant_insts: DenseBitSet::new_empty(func.instructions.len()),
+                            invariant_insts: DenseBitSet::new_empty(func.instruction_count()),
                             trip_count: None,
                             trip_guard_is_header: false,
                         });
@@ -156,7 +156,7 @@ impl LoopAnalyzer {
             worklist.push(back_edge_src);
         }
         while let Some(block) = worklist.pop() {
-            for &pred in &func.blocks[block].predecessors {
+            for &pred in &func.block(block).predecessors {
                 if blocks.insert(pred) {
                     worklist.push(pred);
                 }
@@ -166,7 +166,7 @@ impl LoopAnalyzer {
 
     fn find_exit_blocks(&self, func: &Function, loop_info: &mut Loop) {
         for block_id in &loop_info.blocks {
-            if let Some(term) = &func.blocks[block_id].terminator {
+            if let Some(term) = &func.block(block_id).terminator {
                 for succ in term.successors() {
                     if !loop_info.blocks.contains(succ) && !loop_info.exit_blocks.contains(&succ) {
                         loop_info.exit_blocks.push(succ);
@@ -177,7 +177,8 @@ impl LoopAnalyzer {
     }
 
     fn find_preheader(&self, func: &Function, loop_info: &mut Loop) {
-        let header_preds: Vec<BlockId> = func.blocks[loop_info.header]
+        let header_preds: Vec<BlockId> = func
+            .block(loop_info.header)
             .predecessors
             .iter()
             .filter(|&&pred| !loop_info.blocks.contains(pred))
@@ -192,12 +193,12 @@ impl LoopAnalyzer {
     }
 
     fn is_dedicated_preheader(&self, func: &Function, block: BlockId, header: BlockId) -> bool {
-        matches!(func.blocks[block].terminator.as_ref(), Some(Terminator::Jump(target)) if *target == header)
+        matches!(func.block(block).terminator.as_ref(), Some(Terminator::Jump(target)) if *target == header)
     }
 
     fn analyze_induction_vars(&self, func: &Function, loop_info: &mut Loop) {
-        for &inst_id in &func.blocks[loop_info.header].instructions {
-            let inst = &func.instructions[inst_id];
+        for &inst_id in &func.block(loop_info.header).instructions {
+            let inst = func.instruction(inst_id);
 
             if let InstKind::Phi(incoming) = &inst.kind {
                 let mut init_value: Option<ValueId> = None;
@@ -253,8 +254,8 @@ impl LoopAnalyzer {
         phi_val: ValueId,
         step_val: ValueId,
     ) -> Option<InstId> {
-        if let Value::Inst(inst_id) = &func.values[step_val] {
-            let inst = &func.instructions[*inst_id];
+        if let Value::Inst(inst_id) = func.value(step_val) {
+            let inst = func.instruction(*inst_id);
             match &inst.kind {
                 InstKind::Add(a, b) if *a == phi_val || *b == phi_val => return Some(*inst_id),
                 InstKind::Sub(a, _) if *a == phi_val => return Some(*inst_id),
@@ -271,7 +272,7 @@ impl LoopAnalyzer {
         inst_id: InstId,
         phi_val: ValueId,
     ) -> Option<(ValueId, bool)> {
-        let inst = &func.instructions[inst_id];
+        let inst = func.instruction(inst_id);
         match &inst.kind {
             InstKind::Add(a, b) => {
                 let step = if *a == phi_val { *b } else { *a };
@@ -279,7 +280,7 @@ impl LoopAnalyzer {
                 // constant (two's-complement negative); classify it as
                 // descending so trip-count and range reasoning bail out.
                 let descending = matches!(
-                    &func.values[step],
+                    &func.value(step),
                     Value::Immediate(imm) if imm.as_u256().is_some_and(|v| v.bit(255))
                 );
                 Some((step, descending))
@@ -290,9 +291,9 @@ impl LoopAnalyzer {
     }
 
     fn find_invariant_instructions(&self, func: &Function, loop_info: &mut Loop) {
-        let mut invariant_values = DenseBitSet::new_empty(func.values.len());
+        let mut invariant_values = DenseBitSet::new_empty(func.value_count());
 
-        for (value_id, value) in func.values.iter_enumerated() {
+        for (value_id, value) in func.values_enumerated() {
             match value {
                 Value::Immediate(_) | Value::Arg { .. } => {
                     invariant_values.insert(value_id);
@@ -301,7 +302,7 @@ impl LoopAnalyzer {
                     let in_loop = loop_info
                         .blocks
                         .iter()
-                        .any(|block| func.blocks[block].instructions.contains(inst_id));
+                        .any(|block| func.block(block).instructions.contains(inst_id));
                     if !in_loop {
                         invariant_values.insert(value_id);
                     }
@@ -314,8 +315,8 @@ impl LoopAnalyzer {
         while changed {
             changed = false;
             for block_id in &loop_info.blocks {
-                for &inst_id in &func.blocks[block_id].instructions {
-                    let inst = &func.instructions[inst_id];
+                for &inst_id in &func.block(block_id).instructions {
+                    let inst = func.instruction(inst_id);
 
                     if loop_info.invariant_insts.contains(inst_id) {
                         continue;
@@ -347,12 +348,12 @@ impl LoopAnalyzer {
 
         let iv = &loop_info.induction_vars[0];
 
-        let init = match &func.values[iv.init] {
+        let init = match func.value(iv.init) {
             Value::Immediate(imm) => imm.as_u256(),
             _ => return,
         };
 
-        let step = match &func.values[iv.step] {
+        let step = match func.value(iv.step) {
             Value::Immediate(imm) => imm.as_u256(),
             _ => return,
         };
@@ -404,7 +405,7 @@ impl LoopAnalyzer {
         let mut bound: Option<(alloy_primitives::U256, BlockId)> = None;
         for block_id in blocks {
             let Some(Terminator::Branch { condition, then_block, else_block }) =
-                &func.blocks[block_id].terminator
+                &func.block(block_id).terminator
             else {
                 continue;
             };
@@ -417,13 +418,13 @@ impl LoopAnalyzer {
             if !loop_info.back_edges.iter().all(|&latch| self.dominates(block_id, latch)) {
                 continue;
             }
-            let Value::Inst(cond_inst) = &func.values[*condition] else { continue };
-            let imm = match &func.instructions[*cond_inst].kind {
+            let Value::Inst(cond_inst) = func.value(*condition) else { continue };
+            let imm = match &func.instruction(*cond_inst).kind {
                 InstKind::Lt(a, b) if *a == iv_value => *b,
                 InstKind::Gt(a, b) if *b == iv_value => *a,
                 _ => continue,
             };
-            let Value::Immediate(imm) = &func.values[imm] else { continue };
+            let Value::Immediate(imm) = func.value(imm) else { continue };
             let Some(this_bound) = imm.as_u256() else { continue };
             match bound {
                 None => bound = Some((this_bound, block_id)),
@@ -439,7 +440,7 @@ impl LoopAnalyzer {
     }
 
     fn find_result_value(&self, func: &Function, inst_id: InstId) -> Option<ValueId> {
-        for (value_id, value) in func.values.iter_enumerated() {
+        for (value_id, value) in func.values_enumerated() {
             if let Value::Inst(id) = value
                 && *id == inst_id
             {
@@ -469,19 +470,19 @@ mod tests {
         let body = func.alloc_block();
         let exit = func.alloc_block();
 
-        func.blocks[entry].terminator = Some(Terminator::Jump(header));
-        func.blocks[header].predecessors.push(entry);
+        func.block_mut(entry).terminator = Some(Terminator::Jump(header));
+        func.block_mut(header).predecessors.push(entry);
 
         let cond = func.alloc_value(Value::Immediate(Immediate::bool(true)));
-        func.blocks[header].terminator =
+        func.block_mut(header).terminator =
             Some(Terminator::Branch { condition: cond, then_block: body, else_block: exit });
-        func.blocks[body].predecessors.push(header);
-        func.blocks[exit].predecessors.push(header);
+        func.block_mut(body).predecessors.push(header);
+        func.block_mut(exit).predecessors.push(header);
 
-        func.blocks[body].terminator = Some(Terminator::Jump(header));
-        func.blocks[header].predecessors.push(body);
+        func.block_mut(body).terminator = Some(Terminator::Jump(header));
+        func.block_mut(header).predecessors.push(body);
 
-        func.blocks[exit].terminator = Some(Terminator::Stop);
+        func.block_mut(exit).terminator = Some(Terminator::Stop);
 
         let mut analyzer = LoopAnalyzer::new();
         let info = analyzer.analyze(&func);

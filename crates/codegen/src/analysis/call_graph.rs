@@ -16,11 +16,11 @@ impl CallGraphInfo {
     /// Computes call graph facts for `module`.
     #[must_use]
     pub(crate) fn new(module: &Module) -> Self {
-        let function_count = module.functions.len();
+        let function_count = module.function_count();
         let mut callees = FxHashMap::default();
         let mut entry_functions = DenseBitSet::new_empty(function_count);
 
-        for (func_id, func) in module.functions.iter_enumerated() {
+        for (func_id, func) in module.iter_functions() {
             if Self::is_entry_function(func) {
                 entry_functions.insert(func_id);
             }
@@ -73,14 +73,14 @@ impl CallGraphInfo {
 
     fn collect_internal_callees(func: &Function, function_count: usize) -> DenseBitSet<FunctionId> {
         let mut callees = DenseBitSet::new_empty(function_count);
-        for inst in &func.instructions {
+        for inst in func.instructions() {
             if let InstKind::InternalCall { function, .. } = inst.kind {
                 callees.insert(function);
             }
         }
         // Tail calls transfer control to another function body: for
         // reachability and recursion purposes they are call edges.
-        for block in func.blocks.iter() {
+        for block in func.blocks() {
             if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
                 callees.insert(*function);
             }

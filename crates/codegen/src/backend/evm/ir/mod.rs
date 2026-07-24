@@ -12,7 +12,11 @@
 
 use super::op;
 use alloy_primitives::U256;
-use solar_data_structures::{fmt, index::IndexVec, newtype_index};
+use solar_data_structures::{
+    fmt,
+    index::{IndexVec, index_vec},
+    newtype_index,
+};
 use solar_parse::lexer::is_ident;
 
 mod display;
@@ -47,7 +51,7 @@ pub struct Module {
     /// Program name used by tools and diagnostics.
     pub(crate) name: String,
     /// Basic blocks in layout order.
-    pub(crate) blocks: IndexVec<BlockId, Block>,
+    blocks: IndexVec<BlockId, Block>,
 }
 
 impl Module {
@@ -83,6 +87,84 @@ impl Module {
     /// Adds a block to the program.
     pub(crate) fn add_block(&mut self, block: Block) -> BlockId {
         self.blocks.push(block)
+    }
+
+    /// Returns the block for the given ID.
+    #[must_use]
+    pub(crate) fn block(&self, id: BlockId) -> &Block {
+        &self.blocks[id]
+    }
+
+    /// Returns a mutable reference to the block for the given ID.
+    pub(crate) fn block_mut(&mut self, id: BlockId) -> &mut Block {
+        &mut self.blocks[id]
+    }
+
+    /// Returns the number of blocks.
+    #[must_use]
+    pub(crate) fn block_count(&self) -> usize {
+        self.blocks.len()
+    }
+
+    /// Returns whether the module has no blocks.
+    #[must_use]
+    pub(crate) fn has_no_blocks(&self) -> bool {
+        self.blocks.is_empty()
+    }
+
+    /// Returns the block IDs.
+    pub(crate) fn block_ids(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = BlockId> + ExactSizeIterator + use<> {
+        self.blocks.indices()
+    }
+
+    /// Returns the blocks.
+    pub(crate) fn blocks(&self) -> impl DoubleEndedIterator<Item = &Block> + ExactSizeIterator {
+        self.blocks.iter()
+    }
+
+    /// Returns the blocks with their IDs.
+    pub(crate) fn blocks_enumerated(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = (BlockId, &Block)> + ExactSizeIterator {
+        self.blocks.iter_enumerated()
+    }
+
+    /// Returns the blocks mutably.
+    pub(crate) fn blocks_mut(
+        &mut self,
+    ) -> impl DoubleEndedIterator<Item = &mut Block> + ExactSizeIterator {
+        self.blocks.iter_mut()
+    }
+
+    /// Retains the blocks in the given order and remaps every block reference.
+    pub(crate) fn retain_blocks(&mut self, order: &[BlockId]) {
+        let mut remap = index_vec![None; self.blocks.len()];
+        let mut old_blocks = std::mem::take(&mut self.blocks)
+            .into_iter()
+            .map(Some)
+            .collect::<IndexVec<BlockId, _>>();
+        let mut blocks = IndexVec::with_capacity(order.len());
+        for &old_block in order {
+            let block =
+                old_blocks[old_block].take().expect("block order must contain each block once");
+            let new_block = blocks.push(block);
+            remap[old_block] = Some(new_block);
+        }
+        self.blocks = blocks;
+        for block in &mut self.blocks {
+            for inst in &mut block.instructions {
+                if let Some(PushValue::Block(block)) = &mut inst.value {
+                    *block = remap[*block].expect("referenced block must be retained");
+                }
+            }
+            if let Some(term) = &mut block.terminator {
+                term.kind.visit_targets_mut(|target| {
+                    *target = remap[*target].expect("terminator target must be retained");
+                });
+            }
+        }
     }
 }
 

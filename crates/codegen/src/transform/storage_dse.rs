@@ -57,7 +57,7 @@ impl RunState {
         Self {
             later_writes: FxHashSet::default(),
             stored_values: FxHashMap::default(),
-            dead: DenseBitSet::new_empty(func.instructions.len()),
+            dead: DenseBitSet::new_empty(func.instruction_count()),
         }
     }
 }
@@ -75,7 +75,7 @@ impl StorageStoreEliminator {
             self.alias = Some(Rc::new(AliasAnalysis::new(func)));
         }
 
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
+        let block_ids: Vec<BlockId> = func.block_ids().collect();
         for block_id in block_ids {
             self.remove_overwritten_stores(
                 func,
@@ -114,8 +114,8 @@ impl StorageStoreEliminator {
         later_writes.clear();
         dead.clear();
 
-        for &inst_id in func.blocks[block_id].instructions.iter().rev() {
-            match &func.instructions[inst_id].kind {
+        for &inst_id in func.block(block_id).instructions.iter().rev() {
+            match &func.instruction(inst_id).kind {
                 InstKind::SStore(slot, _) => {
                     let alias = aa.storage_alias(func, inst_id, *slot);
                     if later_writes.contains(&alias) {
@@ -142,7 +142,7 @@ impl StorageStoreEliminator {
             return;
         }
 
-        func.blocks[block_id].instructions.retain(|&id| !dead.contains(id));
+        func.block_mut(block_id).instructions.retain(|&id| !dead.contains(id));
     }
 
     fn remove_equal_stores(
@@ -156,8 +156,8 @@ impl StorageStoreEliminator {
         stored_values.clear();
         dead.clear();
 
-        for &inst_id in &func.blocks[block_id].instructions {
-            match &func.instructions[inst_id].kind {
+        for &inst_id in &func.block(block_id).instructions {
+            match &func.instruction(inst_id).kind {
                 InstKind::SStore(slot, value) => {
                     let alias = aa.storage_alias(func, inst_id, *slot);
                     if stored_values.get(&alias).is_some_and(|&stored| stored == *value) {
@@ -180,7 +180,7 @@ impl StorageStoreEliminator {
             return;
         }
 
-        func.blocks[block_id].instructions.retain(|&id| !dead.contains(id));
+        func.block_mut(block_id).instructions.retain(|&id| !dead.contains(id));
     }
 
     fn remove_aliasing_set(

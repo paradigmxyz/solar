@@ -232,7 +232,7 @@ impl CommonSubexprEliminator {
         self.process_global_pure(func, &inst_results, cfg);
 
         // Process each block independently (local CSE)
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
+        let block_ids: Vec<BlockId> = func.block_ids().collect();
         for block_id in block_ids {
             self.alias().clear_cached_addresses();
             self.process_block(func, block_id, &inst_results);
@@ -261,11 +261,11 @@ impl CommonSubexprEliminator {
         inst_results: &FxHashMap<InstId, ValueId>,
         cfg: &CfgInfo,
     ) {
-        let has_path_sensitive_expr = func.blocks.iter().any(|block| {
+        let has_path_sensitive_expr = func.blocks().any(|block| {
             block
                 .instructions
                 .iter()
-                .any(|&inst_id| Self::is_path_sensitive_kind(&func.instructions[inst_id].kind))
+                .any(|&inst_id| Self::is_path_sensitive_kind(&func.instruction(inst_id).kind))
         });
         let block_clobbers = if has_path_sensitive_expr {
             self.block_clobber_summaries(func)
@@ -279,7 +279,7 @@ impl CommonSubexprEliminator {
             (cfg.dominators(), cfg.transitive_reachability())
         };
         let mut replacements = FxHashMap::default();
-        let mut dead = DenseBitSet::new_empty(func.instructions.len());
+        let mut dead = DenseBitSet::new_empty(func.instruction_count());
         let mut ctx = GlobalCseContext {
             dom_tree,
             inst_results,
@@ -295,7 +295,7 @@ impl CommonSubexprEliminator {
             self.apply_replacements_to_all_blocks(func, &replacements);
         }
         if !dead.is_empty() {
-            for block in func.blocks.iter_mut() {
+            for block in func.blocks_mut() {
                 block.instructions.retain(|&id| !dead.contains(id));
             }
         }
@@ -314,12 +314,13 @@ impl CommonSubexprEliminator {
         };
         let mut candidates = Vec::new();
 
-        for block_id in func.blocks.indices() {
-            let phi_insts: Vec<_> = func.blocks[block_id]
+        for block_id in func.block_ids() {
+            let phi_insts: Vec<_> = func
+                .block(block_id)
                 .instructions
                 .iter()
                 .copied()
-                .take_while(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+                .take_while(|&inst_id| matches!(func.instruction(inst_id).kind, InstKind::Phi(_)))
                 .collect();
             for phi_inst in phi_insts {
                 if let Some(candidate) =
@@ -334,7 +335,7 @@ impl CommonSubexprEliminator {
             return;
         }
 
-        let mut dead = GrowableBitSet::with_capacity(func.instructions.len());
+        let mut dead = GrowableBitSet::with_capacity(func.instruction_count());
         let mut replacements = FxHashMap::default();
         let mut inserted_by_block: FxHashMap<BlockId, usize> = FxHashMap::default();
 
@@ -343,13 +344,14 @@ impl CommonSubexprEliminator {
                 func.alloc_inst(Instruction::new(candidate.kind, Some(candidate.result_ty)));
             let new_value = func.alloc_value(Value::Inst(new_inst));
 
-            let phi_count = func.blocks[candidate.block_id]
+            let phi_count = func
+                .block(candidate.block_id)
                 .instructions
                 .iter()
-                .take_while(|&&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+                .take_while(|&&inst_id| matches!(func.instruction(inst_id).kind, InstKind::Phi(_)))
                 .count();
             let inserted = inserted_by_block.entry(candidate.block_id).or_default();
-            func.blocks[candidate.block_id].instructions.insert(phi_count + *inserted, new_inst);
+            func.block_mut(candidate.block_id).instructions.insert(phi_count + *inserted, new_inst);
             *inserted += 1;
 
             replacements.insert(candidate.phi_result, new_value);
@@ -363,7 +365,7 @@ impl CommonSubexprEliminator {
         }
 
         self.apply_replacements_to_all_blocks(func, &replacements);
-        for block in func.blocks.iter_mut() {
+        for block in func.blocks_mut() {
             block.instructions.retain(|&id| !dead.contains(id));
         }
     }
@@ -375,7 +377,7 @@ impl CommonSubexprEliminator {
         phi_inst: InstId,
         ctx: &PhiSinkContext<'_>,
     ) -> Option<PhiExpressionCandidate> {
-        let inst = &func.instructions[phi_inst];
+        let inst = func.instruction(phi_inst);
         let result_ty = inst.result_ty?;
         let phi_result = *ctx.inst_results.get(&phi_inst)?;
         let InstKind::Phi(incoming) = &inst.kind else { return None };
@@ -389,7 +391,7 @@ impl CommonSubexprEliminator {
 
         for &(_, value) in incoming {
             let Value::Inst(inst_id) = func.value(value) else { return None };
-            let source_inst = &func.instructions[*inst_id];
+            let source_inst = func.instruction(*inst_id);
             if source_inst.kind.has_side_effects()
                 || !Self::operands_dominate_block(
                     func,
@@ -427,8 +429,8 @@ impl CommonSubexprEliminator {
     fn process_global_blocks(&mut self, func: &Function, ctx: &mut GlobalCseContext<'_>) {
         let mut worklist = vec![(BlockId::ENTRY, FxHashMap::default())];
         while let Some((block_id, mut cache)) = worklist.pop() {
-            for &inst_id in &func.blocks[block_id].instructions {
-                let kind = func.instructions[inst_id].kind.clone();
+            for &inst_id in &func.block(block_id).instructions {
+                let kind = func.instruction(inst_id).kind.clone();
                 if kind.has_side_effects() {
                     self.invalidate_for_side_effect(
                         func,
@@ -508,10 +510,10 @@ impl CommonSubexprEliminator {
     fn block_clobber_summaries(&self, func: &Function) -> FxHashMap<BlockId, Vec<Clobber>> {
         let no_replacements = FxHashMap::default();
         let mut summaries = FxHashMap::default();
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for (block_id, block) in func.blocks_enumerated() {
             let mut clobbers = Vec::new();
             for &inst_id in &block.instructions {
-                let kind = &func.instructions[inst_id].kind;
+                let kind = &func.instruction(inst_id).kind;
                 if kind.has_side_effects() {
                     self.side_effect_clobbers(func, inst_id, kind, &no_replacements, &mut clobbers);
                 }
@@ -559,12 +561,12 @@ impl CommonSubexprEliminator {
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
 
         // Instructions to remove
-        let mut to_remove = DenseBitSet::new_empty(func.instructions.len());
+        let mut to_remove = DenseBitSet::new_empty(func.instruction_count());
 
-        let instruction_count = func.blocks[block_id].instructions.len();
+        let instruction_count = func.block(block_id).instructions.len();
         for index in 0..instruction_count {
-            let inst_id = func.blocks[block_id].instructions[index];
-            let inst = &func.instructions[inst_id];
+            let inst_id = func.block(block_id).instructions[index];
+            let inst = func.instruction(inst_id);
             let kind = inst.kind.clone();
 
             if kind.has_side_effects() {
@@ -997,7 +999,7 @@ impl CommonSubexprEliminator {
             Value::Arg { .. } | Value::Undef(_) | Value::Error(_) => {
                 Some((OperandKey::Value(value), U256::ZERO))
             }
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+            Value::Inst(inst_id) => match func.instruction(*inst_id).kind {
                 InstKind::Add(a, b) => {
                     if let Some(offset) = func.value_u256_after_replacements(b, replacements) {
                         let (base, existing) =
@@ -1065,12 +1067,12 @@ impl CommonSubexprEliminator {
 
     fn value_use_counts(func: &Function) -> FxHashMap<ValueId, usize> {
         let mut counts = FxHashMap::default();
-        for inst in func.instructions.iter() {
+        for inst in func.instructions() {
             for value in inst.operands() {
                 *counts.entry(value).or_insert(0) += 1;
             }
         }
-        for block in func.blocks.iter() {
+        for block in func.blocks() {
             if let Some(term) = &block.terminator {
                 Self::count_terminator_uses(term, &mut counts);
             }
@@ -1120,7 +1122,7 @@ impl CommonSubexprEliminator {
         func: &mut Function,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) {
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let block_ids: Vec<_> = func.block_ids().collect();
         for block_id in block_ids {
             self.apply_replacements(func, block_id, replacements);
         }
@@ -1133,10 +1135,10 @@ impl CommonSubexprEliminator {
         block_id: BlockId,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) {
-        let instruction_count = func.blocks[block_id].instructions.len();
+        let instruction_count = func.block(block_id).instructions.len();
         for index in 0..instruction_count {
-            let inst_id = func.blocks[block_id].instructions[index];
-            let inst = &mut func.instructions[inst_id];
+            let inst_id = func.block(block_id).instructions[index];
+            let inst = func.instruction_mut(inst_id);
             if mir_utils::replace_inst_uses_canonicalized(&mut inst.kind, replacements) != 0 {
                 if mir_utils::is_memory_inst(&inst.kind) {
                     inst.metadata.set_memory_region(None);

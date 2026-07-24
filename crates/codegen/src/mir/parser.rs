@@ -220,7 +220,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         function_refs: Vec<(FunctionId, PendingFunctionRef)>,
     ) -> PResult<'sess, ()> {
         let mut functions = FxHashMap::<Symbol, Vec<FunctionId>>::default();
-        for (id, function) in module.functions.iter_enumerated() {
+        for (id, function) in module.iter_functions() {
             functions.entry(function.name.name).or_default().push(id);
         }
         for (owner, reference) in function_refs {
@@ -241,7 +241,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             match reference.target {
                 FunctionRefTarget::Instruction(inst) => {
                     let InstKind::InternalCall { function: target, .. } =
-                        &mut module.functions[owner].instructions[inst].kind
+                        &mut module.function_mut(owner).instruction_mut(inst).kind
                     else {
                         unreachable!()
                     };
@@ -249,7 +249,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 FunctionRefTarget::Terminator(block) => {
                     let Some(Terminator::TailCall { function: target, .. }) =
-                        &mut module.functions[owner].blocks[block].terminator
+                        &mut module.function_mut(owner).block_mut(block).terminator
                     else {
                         unreachable!()
                     };
@@ -539,7 +539,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         inst_id: InstId,
     ) -> PResult<'sess, ()> {
         if let Some(value) = self.value_labels.get(&label).copied() {
-            if matches!(builder.func().values[value], Value::Undef(_)) {
+            if matches!(builder.func().value(value), Value::Undef(_)) {
                 builder.set_value(value, Value::Inst(inst_id));
                 return Ok(());
             }
@@ -556,7 +556,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             .value_labels
             .iter()
             .filter_map(|(&label, &value)| {
-                matches!(func.values[value], Value::Undef(_)).then_some(label)
+                matches!(func.value(value), Value::Undef(_)).then_some(label)
             })
             .collect();
         unresolved.sort_unstable();
@@ -1617,7 +1617,7 @@ fn @add(arg0: u256, arg1: u256) -> u256 {
 }
 ";
             let func = parse_function(sess, src).unwrap();
-            assert_eq!(func.blocks.len(), 1);
+            assert_eq!(func.block_count(), 1);
             assert_eq!(func.params.len(), 2);
             assert_eq!(func.returns.len(), 1);
             // Round-trip: print and re-parse should not error.
@@ -1639,13 +1639,13 @@ fn @increment() {
 }
 ";
             let func = parse_function(sess, src).unwrap();
-            assert_eq!(func.blocks.len(), 1);
+            assert_eq!(func.block_count(), 1);
             assert_eq!(func.params.len(), 0);
             // sstore + stop are the only "no result" things; sload, add produce results.
             // So we expect 4 instructions total.
-            assert_eq!(func.instructions.len(), 3);
+            assert_eq!(func.instruction_count(), 3);
             // 0 + 1 are immediates; v0, v1 are inst results.
-            assert!(func.values.len() >= 4);
+            assert!(func.value_count() >= 4);
         });
     }
 
@@ -1664,9 +1664,9 @@ fn @max(arg0: u256, arg1: u256) -> u256 {
 }
 ";
             let func = parse_function(sess, src).unwrap();
-            assert_eq!(func.blocks.len(), 3);
+            assert_eq!(func.block_count(), 3);
             // bb0 should have 2 successors.
-            assert_eq!(func.blocks[BlockId::ENTRY].terminator().unwrap().successors().len(), 2);
+            assert_eq!(func.block(BlockId::ENTRY).terminator().unwrap().successors().len(), 2);
         });
     }
 
@@ -1687,7 +1687,7 @@ fn @count_down(arg0: u256) -> u256 {
 }
 ";
             let func = parse_function(sess, src).unwrap();
-            assert_eq!(func.blocks.len(), 4);
+            assert_eq!(func.block_count(), 4);
         });
     }
 
@@ -1702,7 +1702,7 @@ fn @do_call(arg0: address, arg1: u256) -> u256 {
 }
 ";
             let func = parse_function(sess, src).unwrap();
-            assert_eq!(func.instructions.len(), 1);
+            assert_eq!(func.instruction_count(), 1);
         });
     }
 
@@ -1719,7 +1719,7 @@ fn @hash() -> u256 {
 }
 ";
             let func = parse_function(sess, src).unwrap();
-            assert_eq!(func.instructions.len(), 3);
+            assert_eq!(func.instruction_count(), 3);
         });
     }
 
@@ -1740,10 +1740,11 @@ fn @set(arg0: u256) {
 }
 ";
             let module = parse_module(sess, src).unwrap();
-            assert_eq!(module.functions.len(), 2);
-            let Some(Terminator::TailCall { function, .. }) =
-                &module.functions[FunctionId::from_usize(0)].blocks[BlockId::from_usize(0)]
-                    .terminator
+            assert_eq!(module.function_count(), 2);
+            let Some(Terminator::TailCall { function, .. }) = &module
+                .function(FunctionId::from_usize(0))
+                .block(BlockId::from_usize(0))
+                .terminator
             else {
                 panic!("expected tail call")
             };
@@ -1751,7 +1752,7 @@ fn @set(arg0: u256) {
             // Round-trip the printed form.
             let printed = module.to_text().to_string();
             let module2 = parse_module(sess, &printed).unwrap();
-            assert_eq!(module2.functions.len(), 2);
+            assert_eq!(module2.function_count(), 2);
         });
     }
 
@@ -1922,7 +1923,7 @@ fn @oops() {
 ";
             let func = parse_function(sess, src).unwrap();
             assert!(matches!(
-                func.blocks[BlockId::ENTRY].terminator,
+                func.block(BlockId::ENTRY).terminator,
                 Some(Terminator::Revert { .. })
             ));
         });
@@ -1942,7 +1943,7 @@ fn @env() -> u256 {
 }
 ";
             let func = parse_function(sess, src).unwrap();
-            assert_eq!(func.instructions.len(), 4);
+            assert_eq!(func.instruction_count(), 4);
         });
     }
 
@@ -1958,7 +1959,7 @@ fn @sel(arg0: bool, arg1: u256, arg2: u256) -> u256 {
 }
 ";
             let func = parse_function(sess, src).unwrap();
-            assert_eq!(func.instructions.len(), 2);
+            assert_eq!(func.instruction_count(), 2);
         });
     }
 
@@ -1979,10 +1980,10 @@ fn @diamond(arg0: bool) -> u256 {
 }
 ";
             let func = parse_function(sess, src).unwrap();
-            assert_eq!(func.blocks.len(), 4);
+            assert_eq!(func.block_count(), 4);
             // Find the phi instruction.
             let phi_inst =
-                func.instructions.iter().find(|i| matches!(i.kind, InstKind::Phi(_))).unwrap();
+                func.instructions().find(|i| matches!(i.kind, InstKind::Phi(_))).unwrap();
             if let InstKind::Phi(args) = &phi_inst.kind {
                 assert_eq!(args.len(), 2);
             } else {
@@ -2009,8 +2010,8 @@ fn @dispatch(arg0: u256) -> u256 {
 }
 ";
             let func = parse_function(sess, src).unwrap();
-            assert_eq!(func.blocks.len(), 5);
-            let term = func.blocks[BlockId::ENTRY].terminator.as_ref().unwrap();
+            assert_eq!(func.block_count(), 5);
+            let term = func.block(BlockId::ENTRY).terminator.as_ref().unwrap();
             if let Terminator::Switch { cases, .. } = term {
                 assert_eq!(cases.len(), 3);
             } else {

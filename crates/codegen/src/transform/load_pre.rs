@@ -323,10 +323,10 @@ impl LoadRedundancyEliminator {
             self.alias = Some(Rc::new(AliasAnalysis::new(func)));
         }
 
-        let rewrite_limit = func.instructions.len().saturating_mul(2).max(64);
+        let rewrite_limit = func.instruction_count().saturating_mul(2).max(64);
         let mut rewrites = 0usize;
         let mut eliminated_keys: FxHashSet<(LoadKey, BlockId)> = FxHashSet::default();
-        let mut inserted_insts = GrowableBitSet::with_capacity(func.instructions.len());
+        let mut inserted_insts = GrowableBitSet::with_capacity(func.instruction_count());
 
         while rewrites < rewrite_limit {
             let Some(analysis) = self.compute_analysis(func) else { break };
@@ -364,7 +364,7 @@ impl LoadRedundancyEliminator {
         let mut keys = Vec::new();
         let mut key_index: FxHashMap<LoadKey, usize> = FxHashMap::default();
         for &block in rpo {
-            for &inst_id in &func.blocks[block].instructions {
+            for &inst_id in &func.block(block).instructions {
                 if let Some((key, _)) = self.gen_key_value(func, inst_id) {
                     key_index.entry(key).or_insert_with(|| {
                         keys.push(key);
@@ -385,8 +385,8 @@ impl LoadRedundancyEliminator {
         for &block in rpo {
             let mut gen_set = KeySet::new_empty(key_count);
             let mut kill_set = KeySet::new_empty(key_count);
-            for &inst_id in &func.blocks[block].instructions {
-                if func.instructions[inst_id].kind.has_side_effects() {
+            for &inst_id in &func.block(block).instructions {
+                if func.instruction(inst_id).kind.has_side_effects() {
                     for (idx, &key) in keys.iter().enumerate() {
                         if self.inst_kills_key(func, inst_id, key) {
                             kill_set.insert(idx);
@@ -414,7 +414,7 @@ impl LoadRedundancyEliminator {
         let mut outs: FxHashMap<BlockId, KeySet> = rpo
             .iter()
             .map(|&block| {
-                let out = if func.blocks[block].predecessors.is_empty() {
+                let out = if func.block(block).predecessors.is_empty() {
                     gens[&block].clone()
                 } else {
                     KeySet::new_filled(key_count)
@@ -426,7 +426,7 @@ impl LoadRedundancyEliminator {
             let mut changed = false;
             for &block in rpo {
                 let mut acc: Option<KeySet> = None;
-                for &pred in &func.blocks[block].predecessors {
+                for &pred in &func.block(block).predecessors {
                     // Unreachable predecessors never execute and cannot
                     // contribute a path.
                     let Some(out) = outs.get(&pred) else { continue };
@@ -477,10 +477,10 @@ impl LoadRedundancyEliminator {
         let mut batch = Vec::new();
         // Candidates whose analysis would be invalidated by an earlier
         // candidate in this batch are deferred to the next round.
-        let mut modified_blocks = DenseBitSet::new_empty(func.blocks.len());
-        let mut eliminated_values = DenseBitSet::new_empty(func.values.len());
+        let mut modified_blocks = DenseBitSet::new_empty(func.block_count());
+        let mut eliminated_values = DenseBitSet::new_empty(func.value_count());
 
-        'targets: for target in func.blocks.indices() {
+        'targets: for target in func.block_ids() {
             if !cx.analysis.cfg.is_reachable(target) {
                 continue;
             }
@@ -559,7 +559,7 @@ impl LoadRedundancyEliminator {
         let mut taken = KeySet::new_empty(key_count);
         let mut found = Vec::new();
 
-        for &inst_id in &func.blocks[target].instructions {
+        for &inst_id in &func.block(target).instructions {
             if let Some((key, GenSource::LoadResult)) = self.gen_key_value(func, inst_id) {
                 if let Some(&idx) = analysis.key_index.get(&key)
                     && !blocked.contains(idx)
@@ -569,7 +569,7 @@ impl LoadRedundancyEliminator {
                 }
                 continue;
             }
-            let kind = &func.instructions[inst_id].kind;
+            let kind = &func.instruction(inst_id).kind;
             match kind {
                 // `gas` blocks every space, so nothing after it can be a
                 // candidate.
@@ -609,7 +609,7 @@ impl LoadRedundancyEliminator {
         let mut loads = Vec::new();
         let mut past_first = false;
 
-        for &inst_id in &func.blocks[target].instructions {
+        for &inst_id in &func.block(target).instructions {
             if inst_id == first_inst {
                 past_first = true;
             }
@@ -618,7 +618,7 @@ impl LoadRedundancyEliminator {
             }
 
             if inst_id != first_inst {
-                let kind = &func.instructions[inst_id].kind;
+                let kind = &func.instruction(inst_id).kind;
                 if matches!(kind, InstKind::Gas) {
                     break;
                 }
@@ -652,7 +652,7 @@ impl LoadRedundancyEliminator {
         key_idx: usize,
         predecessors: &[BlockId],
     ) -> Option<Candidate> {
-        let instruction = &func.instructions[inst];
+        let instruction = func.instruction(inst);
         let result = *cx.analysis.inst_results.get(&inst)?;
         let result_ty = instruction.result_ty?;
         let key = cx.analysis.keys[key_idx];
@@ -795,7 +795,7 @@ impl LoadRedundancyEliminator {
         key_idx: usize,
     ) -> Option<ValueId> {
         let key = cx.analysis.keys[key_idx];
-        for &inst_id in func.blocks[block].instructions.iter().rev() {
+        for &inst_id in func.block(block).instructions.iter().rev() {
             if let Some((gen_key, source)) = self.gen_key_value(func, inst_id)
                 && gen_key == key
             {
@@ -850,7 +850,7 @@ impl LoadRedundancyEliminator {
                 metadata: metadata.clone(),
             });
             let value = func.alloc_value(Value::Inst(new_inst));
-            func.blocks[block].instructions.push(new_inst);
+            func.block_mut(block).instructions.push(new_inst);
             incoming.push((block, value));
             inserted_insts.insert(new_inst);
             self.stats.loads_inserted += 1;
@@ -873,14 +873,15 @@ impl LoadRedundancyEliminator {
                 let phi_inst =
                     func.alloc_inst(Instruction::new(InstKind::Phi(incoming), Some(result_ty)));
                 let phi_value = func.alloc_value(Value::Inst(phi_inst));
-                let phi_count = func.blocks[target]
+                let phi_count = func
+                    .block(target)
                     .instructions
                     .iter()
                     .take_while(|&&inst_id| {
-                        matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
+                        matches!(func.instruction(inst_id).kind, InstKind::Phi(_))
                     })
                     .count();
-                func.blocks[target].instructions.insert(phi_count, phi_inst);
+                func.block_mut(target).instructions.insert(phi_count, phi_inst);
                 phi_value
             }
         };
@@ -888,11 +889,11 @@ impl LoadRedundancyEliminator {
         for &(_, load_result) in &loads {
             Self::replace_uses(func, load_result, replacement);
         }
-        let mut load_insts = DenseBitSet::new_empty(func.instructions.len());
+        let mut load_insts = DenseBitSet::new_empty(func.instruction_count());
         for &(inst_id, _) in &loads {
             load_insts.insert(inst_id);
         }
-        func.blocks[target].instructions.retain(|&inst_id| !load_insts.contains(inst_id));
+        func.block_mut(target).instructions.retain(|&inst_id| !load_insts.contains(inst_id));
         self.stats.loads_eliminated += loads.len();
     }
 
@@ -901,7 +902,7 @@ impl LoadRedundancyEliminator {
     /// Returns the key an instruction gens and where its value comes from.
     fn gen_key_value(&self, func: &Function, inst_id: InstId) -> Option<(LoadKey, GenSource)> {
         let aa = self.alias();
-        match func.instructions[inst_id].kind {
+        match func.instruction(inst_id).kind {
             InstKind::SLoad(slot) => Some((
                 LoadKey::Storage(aa.storage_alias(func, inst_id, slot)),
                 GenSource::LoadResult,
@@ -989,7 +990,7 @@ impl LoadRedundancyEliminator {
     // ----- CFG helpers -----
 
     fn can_insert_on_edge(func: &Function, pred: BlockId, target: BlockId) -> bool {
-        matches!(func.blocks[pred].terminator, Some(Terminator::Jump(jump_target)) if jump_target == target)
+        matches!(func.block(pred).terminator, Some(Terminator::Jump(jump_target)) if jump_target == target)
     }
 
     fn operands_dominate_block(
@@ -1010,7 +1011,7 @@ impl LoadRedundancyEliminator {
     // ----- Rewriting -----
 
     fn replace_uses(func: &mut Function, from: ValueId, to: ValueId) {
-        for inst in func.instructions.iter_mut() {
+        for inst in func.instructions_mut() {
             let mut changed = false;
             inst.kind.visit_operands_mut(|value| {
                 if *value == from {
@@ -1036,7 +1037,7 @@ impl LoadRedundancyEliminator {
             }
         }
 
-        for block in func.blocks.iter_mut() {
+        for block in func.blocks_mut() {
             if let Some(term) = &mut block.terminator {
                 Self::replace_terminator_uses(term, from, to);
             }

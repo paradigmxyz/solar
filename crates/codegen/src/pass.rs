@@ -235,8 +235,8 @@ pub(crate) fn run_function_pass(
     mut run: impl FnMut(&mut Function, &FunctionAnalyses) -> bool,
 ) -> bool {
     let mut changed = false;
-    for func_id in module.functions.indices() {
-        if module.functions[func_id].blocks.is_empty() {
+    for func_id in module.function_ids() {
+        if module.function(func_id).has_no_blocks() {
             continue;
         }
         changed |= run_function_pass_cached(analyses, module, func_id, &mut run);
@@ -326,7 +326,7 @@ impl ModuleAnalyses {
 
 fn cfg_edges(func: &Function) -> Vec<(u32, u32)> {
     let mut edges = Vec::new();
-    for (block_id, block) in func.blocks.iter_enumerated() {
+    for (block_id, block) in func.blocks_enumerated() {
         if let Some(terminator) = &block.terminator {
             for successor in terminator.successors() {
                 edges.push((block_id.index() as u32, successor.index() as u32));
@@ -344,9 +344,9 @@ fn verified_preservation(
 ) -> (bool, bool) {
     let edges_after = cfg_edges(func);
     let keep_cfg = edges_after == edges_before;
-    let no_new_side_effects = (insts_before..func.instructions.len())
+    let no_new_side_effects = (insts_before..func.instruction_count())
         .map(InstId::from_usize)
-        .all(|inst_id| !func.instructions[inst_id].kind.has_side_effects());
+        .all(|inst_id| !func.instruction(inst_id).kind.has_side_effects());
     let keep_alias = no_new_side_effects
         && (keep_cfg || edges_after.iter().all(|edge| edges_before.binary_search(edge).is_ok()));
     (keep_alias, keep_cfg)
@@ -358,10 +358,10 @@ fn run_function_pass_cached(
     func_id: FunctionId,
     run: &mut impl FnMut(&mut Function, &FunctionAnalyses) -> bool,
 ) -> bool {
-    let bundle = analyses.bundle(func_id, &module.functions[func_id]);
-    let func = &mut module.functions[func_id];
+    let bundle = analyses.bundle(func_id, module.function(func_id));
+    let func = module.function_mut(func_id);
     let edges_before = cfg_edges(func);
-    let insts_before = func.instructions.len();
+    let insts_before = func.instruction_count();
     let changed = run(func, &bundle);
     if changed {
         let (keep_alias, keep_cfg) = verified_preservation(func, &edges_before, insts_before);

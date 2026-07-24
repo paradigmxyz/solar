@@ -222,7 +222,7 @@ impl<'gcx> Assembler<'gcx> {
 
     /// Defines a label and emits a `JUMPDEST` at the current position.
     pub(crate) fn define_label(&mut self, label: Label) {
-        let mut block = ir::Block::new(self.program.blocks.len() as u32);
+        let mut block = ir::Block::new(self.program.block_count() as u32);
         if self.cold_labels.contains(label) {
             block.metadata.hotness = ir::Hotness::Cold;
         }
@@ -236,7 +236,7 @@ impl<'gcx> Assembler<'gcx> {
     pub(in crate::backend::evm) fn mark_label_cold(&mut self, label: Label) {
         self.cold_labels.insert(label);
         if let Some(&block) = self.label_blocks.get(&label) {
-            self.program.blocks[block].metadata.hotness = ir::Hotness::Cold;
+            self.program.block_mut(block).metadata.hotness = ir::Hotness::Cold;
         }
     }
 
@@ -248,7 +248,7 @@ impl<'gcx> Assembler<'gcx> {
         if let Some(block) = self.current_block {
             return block;
         }
-        let block = self.program.add_block(ir::Block::new(self.program.blocks.len() as u32));
+        let block = self.program.add_block(ir::Block::new(self.program.block_count() as u32));
         self.current_block = Some(block);
         self.block_labels.push(None);
         block
@@ -256,8 +256,8 @@ impl<'gcx> Assembler<'gcx> {
 
     fn push_ir_instruction(&mut self, instruction: ir::Instruction) -> (ir::BlockId, usize) {
         let block = self.current_block();
-        let index = self.program.blocks[block].instructions.len();
-        self.program.blocks[block].instructions.push(instruction);
+        let index = self.program.block(block).instructions.len();
+        self.program.block_mut(block).instructions.push(instruction);
         (block, index)
     }
 
@@ -278,7 +278,7 @@ impl<'gcx> Assembler<'gcx> {
     fn finish_evm_ir(&mut self) -> Option<(ir::Module, Vec<Option<Label>>)> {
         let mut module = std::mem::replace(&mut self.program, Self::new_ir_module());
         self.current_block = None;
-        if module.blocks.is_empty() {
+        if module.has_no_blocks() {
             return None;
         }
 
@@ -288,10 +288,10 @@ impl<'gcx> Assembler<'gcx> {
                 .get(&label)
                 .copied()
                 .unwrap_or_else(|| panic!("label {label:?} was never defined"));
-            module.blocks[block].instructions[instruction] = ir::Instruction::push_block(target);
+            module.block_mut(block).instructions[instruction] = ir::Instruction::push_block(target);
         }
         for (block, instruction, id) in self.deferred_relocations.drain(..) {
-            module.blocks[block].instructions[instruction] = ir::Instruction::push_deferred(id);
+            module.block_mut(block).instructions[instruction] = ir::Instruction::push_deferred(id);
         }
         // Allocation placeholders expand to more than one instruction, so they
         // splice after every in-place relocation patch above. Descending
@@ -318,7 +318,7 @@ impl<'gcx> Assembler<'gcx> {
                     ir::Instruction::opcode(op::MSTORE),
                 ],
             };
-            module.blocks[block].instructions.splice(instruction..=instruction, replacement);
+            module.block_mut(block).instructions.splice(instruction..=instruction, replacement);
         }
         self.deferred_allocations.clear();
         self.label_blocks.clear();
@@ -329,11 +329,11 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     fn finalize_evm_ir(module: &mut ir::Module) {
-        for index in 0..module.blocks.len() {
+        for index in 0..module.block_count() {
             let block_id = ir::BlockId::from_usize(index);
             let next =
-                (index + 1 < module.blocks.len()).then(|| ir::BlockId::from_usize(index + 1));
-            let block = &mut module.blocks[block_id];
+                (index + 1 < module.block_count()).then(|| ir::BlockId::from_usize(index + 1));
+            let block = module.block_mut(block_id);
             let (kind, remove) = if let [.., push, jump] = block.instructions.as_slice()
                 && !jump.is_encoded_push()
                 && jump.opcode == op::JUMP
@@ -406,7 +406,7 @@ impl<'gcx> Assembler<'gcx> {
         module: &mut ir::Module,
         values: &FxHashMap<DeferredConst, U256>,
     ) {
-        for block in &mut module.blocks {
+        for block in module.blocks_mut() {
             for inst in &mut block.instructions {
                 let Some(id) = inst.deferred_push() else { continue };
                 if let Some(&value) = values.get(&id) {
@@ -440,7 +440,7 @@ impl<'gcx> Assembler<'gcx> {
 
         let evm_ir = prepared.evm_ir.as_ref().map(|module| {
             let mut module = module.clone();
-            for block in &mut module.blocks {
+            for block in module.blocks_mut() {
                 for inst in &mut block.instructions {
                     if let Some(id) = inst.deferred_push() {
                         let value = self.deferred_values.get(&id).copied().unwrap_or_else(|| {
@@ -775,7 +775,7 @@ PUSH4 0x80000000
 
 "#]]
             );
-            assert!(asm.program.blocks.is_empty());
+            assert!(asm.program.has_no_blocks());
             assert_eq!(asm.push_values.len(), 0);
 
             asm.emit_push(U256::from(2));

@@ -31,8 +31,7 @@ impl CfgInfo {
     #[must_use]
     pub(crate) fn new(func: &Function) -> Self {
         let successors = func
-            .blocks
-            .iter()
+            .blocks()
             .map(|block| {
                 block.terminator.as_ref().map(|term| term.successors()).unwrap_or_default()
             })

@@ -182,14 +182,14 @@ impl GlobalValueNumberer {
         // Immediates, arguments, and undefs are available everywhere, so their
         // classes start with a leader. This folds phi-of-same over constants.
         let mut leaders: FxHashMap<ClassId, ValueId> = FxHashMap::default();
-        for (value_id, value) in func.values.iter_enumerated() {
+        for (value_id, value) in func.values_enumerated() {
             if !matches!(value, Value::Inst(_)) && vn[value_id] == value_id {
                 leaders.insert(value_id, value_id);
             }
         }
 
         let mut replacements = FxHashMap::default();
-        let mut dead = DenseBitSet::new_empty(func.instructions.len());
+        let mut dead = DenseBitSet::new_empty(func.instruction_count());
         let mut ctx = ReplaceCtx {
             vn: &vn,
             cfg: &cfg,
@@ -203,7 +203,7 @@ impl GlobalValueNumberer {
             return false;
         }
         Self::apply_replacements_to_all_blocks(func, &replacements);
-        for block in func.blocks.iter_mut() {
+        for block in func.blocks_mut() {
             block.instructions.retain(|&id| !dead.contains(id));
         }
         true
@@ -218,10 +218,10 @@ impl GlobalValueNumberer {
         rpo: &[BlockId],
         inst_results: &FxHashMap<InstId, ValueId>,
     ) -> Option<IndexVec<ValueId, ClassId>> {
-        let mut vn = func.values.indices().collect::<IndexVec<ValueId, _>>();
+        let mut vn = func.value_ids().collect::<IndexVec<ValueId, _>>();
         let mut immediate_reps: FxHashMap<Immediate, ValueId> = FxHashMap::default();
         let mut arg_reps: FxHashMap<u32, ValueId> = FxHashMap::default();
-        for (value_id, value) in func.values.iter_enumerated() {
+        for (value_id, value) in func.values_enumerated() {
             match value {
                 Value::Immediate(imm) => {
                     vn[value_id] = *immediate_reps.entry(imm.clone()).or_insert(value_id);
@@ -237,9 +237,9 @@ impl GlobalValueNumberer {
             let mut table: FxHashMap<ExprKey, ClassId> = FxHashMap::default();
             let mut changed = false;
             for &block_id in rpo {
-                for &inst_id in &func.blocks[block_id].instructions {
+                for &inst_id in &func.block(block_id).instructions {
                     let Some(&result) = inst_results.get(&inst_id) else { continue };
-                    let inst = &func.instructions[inst_id];
+                    let inst = func.instruction(inst_id);
                     let Some(ty) = inst.result_ty else { continue };
                     let Some(class) =
                         Self::instruction_class(block_id, &inst.kind, ty, result, &vn, &mut table)
@@ -403,9 +403,9 @@ impl GlobalValueNumberer {
         leaders: &mut FxHashMap<ClassId, ValueId>,
         ctx: &mut ReplaceCtx<'_>,
     ) {
-        for &inst_id in &func.blocks[block_id].instructions {
+        for &inst_id in &func.block(block_id).instructions {
             let Some(&result) = ctx.inst_results.get(&inst_id) else { continue };
-            let kind = &func.instructions[inst_id].kind;
+            let kind = &func.instruction(inst_id).kind;
             if !matches!(kind, InstKind::Phi(_)) && Self::expr_kind(kind, ctx.vn).is_none() {
                 continue;
             }
@@ -435,7 +435,7 @@ impl GlobalValueNumberer {
         func: &mut Function,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) {
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let block_ids: Vec<_> = func.block_ids().collect();
         for block_id in block_ids {
             Self::apply_replacements(func, block_id, replacements);
         }
@@ -447,10 +447,10 @@ impl GlobalValueNumberer {
         block_id: BlockId,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) {
-        let instruction_count = func.blocks[block_id].instructions.len();
+        let instruction_count = func.block(block_id).instructions.len();
         for index in 0..instruction_count {
-            let inst_id = func.blocks[block_id].instructions[index];
-            let inst = &mut func.instructions[inst_id];
+            let inst_id = func.block(block_id).instructions[index];
+            let inst = func.instruction_mut(inst_id);
             if mir_utils::replace_inst_uses_canonicalized(&mut inst.kind, replacements) != 0 {
                 if mir_utils::is_memory_inst(&inst.kind) {
                     inst.metadata.set_memory_region(None);
@@ -467,7 +467,7 @@ impl GlobalValueNumberer {
             }
         }
 
-        if let Some(term) = &mut func.blocks[block_id].terminator {
+        if let Some(term) = &mut func.block_mut(block_id).terminator {
             mir_utils::replace_terminator_uses_canonicalized(term, replacements);
         }
     }

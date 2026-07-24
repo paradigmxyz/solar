@@ -30,10 +30,10 @@ impl MirPass for LowerMappingSlots {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
-            let has_mapping_slots = func.blocks.iter().any(|block| {
+            let has_mapping_slots = func.blocks().any(|block| {
                 block.instructions.iter().any(|&inst_id| {
                     matches!(
-                        func.instructions[inst_id].kind,
+                        func.instruction(inst_id).kind,
                         InstKind::MappingSlot(_, _)
                             | InstKind::MappingSlotMemory(_, _)
                             | InstKind::MappingSlotCalldata(_, _)
@@ -46,13 +46,13 @@ impl MirPass for LowerMappingSlots {
 
             let inst_results = func.inst_results();
             let mut replacements = FxHashMap::default();
-            let block_ids: Vec<BlockId> = func.blocks.indices().collect();
+            let block_ids: Vec<BlockId> = func.block_ids().collect();
             for block_id in block_ids {
-                let instructions = std::mem::take(&mut func.blocks[block_id].instructions);
+                let instructions = std::mem::take(&mut func.block_mut(block_id).instructions);
                 let mut builder = FunctionBuilder::new(func);
                 builder.switch_to_block(block_id);
                 for inst_id in instructions {
-                    let replacement = match builder.func().instructions[inst_id].kind {
+                    let replacement = match builder.func().instruction(inst_id).kind {
                         InstKind::MappingSlot(key, slot) => {
                             Some(lower_word_mapping_slot(&mut builder, key, slot))
                         }
@@ -63,7 +63,7 @@ impl MirPass for LowerMappingSlots {
                             Some(lower_calldata_mapping_slot(&mut builder, key, slot))
                         }
                         _ => {
-                            builder.func_mut().blocks[block_id].instructions.push(inst_id);
+                            builder.func_mut().block_mut(block_id).instructions.push(inst_id);
                             None
                         }
                     };

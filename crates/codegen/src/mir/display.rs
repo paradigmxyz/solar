@@ -35,7 +35,7 @@ pub(crate) fn display_function_dot<'a>(
         funcs: Option<&solar_data_structures::index::IndexVec<FunctionId, Function>>,
         block_id: BlockId,
     ) -> fmt::Result {
-        let block = &func.blocks[block_id];
+        let block = func.block(block_id);
         let block_idx = block_id.index();
         write!(f, "bb{block_idx}:\\l")?;
 
@@ -62,7 +62,7 @@ pub(crate) fn display_function_dot<'a>(
         inst_id: InstId,
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
-            let inst = &func.instructions[inst_id];
+            let inst = func.instruction(inst_id);
 
             write!(f, "  ")?;
             if inst.result_ty.is_some() {
@@ -150,7 +150,7 @@ pub(crate) fn display_function_dot<'a>(
         write!(
             f,
             "{}",
-            func.blocks.iter_enumerated().format_with("", |f, (block_id, _)| write!(
+            func.blocks_enumerated().format_with("", |f, (block_id, _)| write!(
                 f,
                 "{}",
                 display_dot_node(func, funcs, block_id)
@@ -162,7 +162,7 @@ pub(crate) fn display_function_dot<'a>(
         write!(
             f,
             "{}",
-            func.blocks.iter_enumerated().format_with("", |f, (block_id, block)| {
+            func.blocks_enumerated().format_with("", |f, (block_id, block)| {
                 write!(f, "{}", display_dot_edges(func, funcs, block_id, block))
             })
         )?;
@@ -221,7 +221,7 @@ pub(crate) fn display_function_text<'a>(
         inst_id: InstId,
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
-            let inst = &func.instructions[inst_id];
+            let inst = func.instruction(inst_id);
 
             write!(f, "    ")?;
             if inst.result_ty.is_some() {
@@ -261,7 +261,7 @@ pub(crate) fn display_function_text<'a>(
         write!(
             f,
             "{}",
-            func.blocks.iter_enumerated().format_with("", |f, (block_id, block)| {
+            func.blocks_enumerated().format_with("", |f, (block_id, block)| {
                 write!(f, "{}", display_text_block(func, funcs, block_id, block))
             })
         )?;
@@ -271,12 +271,11 @@ pub(crate) fn display_function_text<'a>(
 }
 
 fn function_prints_return_values(func: &Function) -> bool {
-    func.blocks.iter().any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
+    func.blocks().any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
 }
 
 fn inst_result_index(func: &Function, inst_id: InstId) -> usize {
-    func.instructions
-        .iter_enumerated()
+    func.instructions_enumerated()
         .filter(|(_, inst)| inst.result_ty.is_some())
         .position(|(id, _)| id == inst_id)
         .expect("Value::Inst should point to a value-producing instruction")
@@ -424,7 +423,7 @@ fn display_function_ref(
 }
 
 fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
-    fmt::from_fn(move |f| match &func.values[vid] {
+    fmt::from_fn(move |f| match func.value(vid) {
         Value::Immediate(imm) if let Some(u256) = imm.as_u256() => {
             write!(f, "{}", display_u256(u256))
         }

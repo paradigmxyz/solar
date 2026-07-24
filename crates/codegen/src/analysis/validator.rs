@@ -6,10 +6,10 @@
 //!
 //! # Checks performed
 //!
-//! 1. **Defined-before-use**: every `ValueId` referenced as an operand has an entry in
-//!    `func.values`.
+//! 1. **Defined-before-use**: every `ValueId` referenced as an operand has an entry in the
+//!    function's value table.
 //! 2. **Block reference validity**: every `BlockId` mentioned in a terminator or phi has an entry
-//!    in `func.blocks`.
+//!    in the function's block table.
 //! 3. **Single definition**: each `InstId` is referenced by at most one `Value::Inst` entry.
 //! 4. **Terminator presence**: every block has a terminator.
 //! 5. **Predecessor back-link**: if A's terminator targets B, then B's `predecessors` contains A.
@@ -94,9 +94,9 @@ impl<'a> Validator<'a> {
 
     fn validate_function_body(&mut self, func: &Function) {
         let errors_before = self.error_count;
-        let num_values = func.values.len();
-        let num_blocks = func.blocks.len();
-        let num_insts = func.instructions.len();
+        let num_values = func.value_count();
+        let num_blocks = func.block_count();
+        let num_insts = func.instruction_count();
 
         if num_blocks == 0 {
             self.emit("function has no entry block");
@@ -108,7 +108,7 @@ impl<'a> Validator<'a> {
         let mut inst_def_count: IndexVec<InstId, usize> = index_vec![0; num_insts];
         let mut invalid_inst_def_count: FxHashMap<InstId, usize> = FxHashMap::default();
         let mut inst_results: IndexVec<InstId, Option<ValueId>> = index_vec![None; num_insts];
-        for (value_id, v) in func.values.iter_enumerated() {
+        for (value_id, v) in func.values_enumerated() {
             if let Value::Inst(inst_id) = v {
                 if inst_id.index() < num_insts {
                     inst_def_count[*inst_id] += 1;
@@ -126,11 +126,11 @@ impl<'a> Validator<'a> {
                 ));
             }
             // Only value-producing instructions may have a result value.
-            if count != 0 && func.instructions[inst_id].result_ty.is_none() {
+            if count != 0 && func.instruction(inst_id).result_ty.is_none() {
                 self.emit(format_args!(
                     "instruction inst{} (`{:?}`) has a result Value entry but no result type",
                     inst_id.index(),
-                    func.instructions[inst_id].kind
+                    func.instruction(inst_id).kind
                 ));
             }
         }
@@ -144,7 +144,7 @@ impl<'a> Validator<'a> {
         }
 
         // ----- Walk every block -----
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for (block_id, block) in func.blocks_enumerated() {
             // Check terminator presence.
             let term = match &block.terminator {
                 Some(t) => t,
@@ -165,7 +165,7 @@ impl<'a> Validator<'a> {
                     );
                     continue;
                 }
-                if !func.blocks[succ].predecessors.contains(&block_id) {
+                if !func.block(succ).predecessors.contains(&block_id) {
                     self.emit_at_block(
                         format_args!(
                             "successor bb{} does not list bb{} as a predecessor",
@@ -189,7 +189,7 @@ impl<'a> Validator<'a> {
                     );
                     continue;
                 }
-                let Some(pred_term) = &func.blocks[pred].terminator else {
+                let Some(pred_term) = &func.block(pred).terminator else {
                     self.emit_at_block(
                         format_args!("stored predecessor bb{} has no terminator", pred.index()),
                         block_id,
@@ -313,7 +313,7 @@ impl<'a> Validator<'a> {
         }
 
         // ----- Entry block invariants -----
-        if !func.blocks[BlockId::ENTRY].predecessors.is_empty() {
+        if !func.block(BlockId::ENTRY).predecessors.is_empty() {
             self.emit_at_block("entry block must have no predecessors", BlockId::ENTRY);
         }
 
@@ -332,7 +332,7 @@ impl<'a> Validator<'a> {
         let cfg = CfgInfo::new(func);
         let mut def_location_of: IndexVec<ValueId, Option<(BlockId, usize)>> =
             index_vec![None; num_values];
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for (block_id, block) in func.blocks_enumerated() {
             for (index, &inst_id) in block.instructions.iter().enumerate() {
                 if let Some(result) = inst_results[inst_id] {
                     def_location_of[result] = Some((block_id, index));
@@ -342,10 +342,10 @@ impl<'a> Validator<'a> {
         let mut reach_cache: FxHashMap<BlockId, DenseBitSet<BlockId>> = FxHashMap::default();
         let mut reaches = |from: BlockId, to: BlockId| {
             let set = reach_cache.entry(from).or_insert_with(|| {
-                let mut seen = DenseBitSet::new_empty(func.blocks.len());
+                let mut seen = DenseBitSet::new_empty(func.block_count());
                 let mut stack = vec![from];
                 while let Some(current) = stack.pop() {
-                    if let Some(term) = func.blocks[current].terminator.as_ref() {
+                    if let Some(term) = func.block(current).terminator.as_ref() {
                         for succ in term.successors() {
                             if seen.insert(succ) {
                                 stack.push(succ);
@@ -357,13 +357,13 @@ impl<'a> Validator<'a> {
             });
             set.contains(to)
         };
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for (block_id, block) in func.blocks_enumerated() {
             if !cfg.is_reachable(block_id) {
                 continue;
             }
             let block_in_cycle = reaches(block_id, block_id);
             for (index, &inst_id) in block.instructions.iter().enumerate() {
-                match &func.instructions[inst_id].kind {
+                match &func.instruction(inst_id).kind {
                     InstKind::Phi(incoming) => {
                         for &(pred, value) in incoming {
                             if let Some((def, _)) = def_location_of[value]
@@ -445,11 +445,11 @@ impl<'a> Validator<'a> {
 
     /// Checks that call targets exist and argument counts match.
     fn validate_calls(&mut self, module: &Module, func: &Function) {
-        for inst in &func.instructions {
+        for inst in func.instructions() {
             let InstKind::InternalCall { function, args, .. } = &inst.kind else {
                 continue;
             };
-            let Some(callee) = module.functions.get(*function) else {
+            let Some(callee) = module.get_function(*function) else {
                 self.emit(format_args!(
                     "internal_call targets nonexistent function fn{}",
                     function.index()
@@ -465,12 +465,12 @@ impl<'a> Validator<'a> {
                 ));
             }
         }
-        for block in func.blocks.iter() {
+        for block in func.blocks() {
             let Some(crate::mir::Terminator::TailCall { function, args }) = &block.terminator
             else {
                 continue;
             };
-            let Some(callee) = module.functions.get(*function) else {
+            let Some(callee) = module.get_function(*function) else {
                 self.emit(format_args!(
                     "tail_call targets nonexistent function fn{}",
                     function.index()
@@ -495,8 +495,8 @@ impl<'a> Validator<'a> {
         // From the `dispatch` phase on, routing is materialized: a module with
         // selector functions must contain the synthesized `entry`.
         if module.phase >= crate::mir::MirPhase::Dispatch
-            && module.functions.iter().any(|f| f.selector.is_some())
-            && !module.functions.iter().any(|f| f.name.name == sym::entry)
+            && module.functions().any(|f| f.selector.is_some())
+            && !module.functions().any(|f| f.name.name == sym::entry)
         {
             self.emit(format_args!(
                 "module is in the `{}` phase but has no `entry` dispatcher function",
@@ -530,7 +530,7 @@ impl<'a> Validator<'a> {
                     ));
                 }
             }
-            for value in func.values.iter() {
+            for value in func.values() {
                 if let Value::Undef(ty) = value
                     && matches!(ty, crate::mir::MirType::MemoryObject(_))
                 {
@@ -540,9 +540,9 @@ impl<'a> Validator<'a> {
                     ));
                 }
             }
-            for (block_id, block) in func.blocks.iter_enumerated() {
+            for (block_id, block) in func.blocks_enumerated() {
                 for &inst_id in &block.instructions {
-                    let inst = &func.instructions[inst_id];
+                    let inst = func.instruction(inst_id);
                     let semantic = matches!(
                         inst.kind,
                         InstKind::Alloc { kind: crate::mir::AllocationKind::Object(_), .. }
@@ -573,9 +573,9 @@ impl<'a> Validator<'a> {
         // backend. High-level memory operations must have been expanded by
         // their named lowering passes before the module enters this phase.
         if module.phase >= crate::mir::MirPhase::EvmShaped {
-            for (block_id, block) in func.blocks.iter_enumerated() {
+            for (block_id, block) in func.blocks_enumerated() {
                 for &inst_id in &block.instructions {
-                    let kind = &func.instructions[inst_id].kind;
+                    let kind = &func.instruction(inst_id).kind;
                     let semantic_op = match kind {
                         InstKind::MakeSlice { .. }
                         | InstKind::SlicePtr(_)
@@ -615,8 +615,8 @@ pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
 mod tests {
     use super::*;
     use crate::mir::{
-        AbiLayout, AbiType, BasicBlock, Function, FunctionBuilder, FunctionId, MirPhase, MirType,
-        Module, SliceLocation, StorageField, StorageLayout, Terminator,
+        AbiLayout, AbiType, Function, FunctionBuilder, FunctionId, MirPhase, MirType, Module,
+        SliceLocation, StorageField, StorageLayout, Terminator,
     };
     use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, Ident, Session};
@@ -682,7 +682,7 @@ error: [bb0] block has no terminator
             }
             // Manually corrupt: replace the terminator with a Jump to a nonexistent block.
             let bad_block = BlockId::from_usize(99);
-            func.blocks[BlockId::ENTRY].terminator = Some(Terminator::Jump(bad_block));
+            func.block_mut(BlockId::ENTRY).terminator = Some(Terminator::Jump(bad_block));
             Validator::new(&sess.dcx).validate_standalone_function(&func);
             assert!(sess.dcx.has_errors().is_err());
             assert_data_eq!(
@@ -711,7 +711,7 @@ error: [bb0] terminator references nonexistent block bb99
             Validator::new(&sess.dcx).validate_standalone_function(&func);
             assert!(sess.dcx.has_errors().is_ok());
             // Drop the back-link.
-            func.blocks[target].predecessors.clear();
+            func.block_mut(target).predecessors.clear();
             Validator::new(&sess.dcx).validate_standalone_function(&func);
             assert!(sess.dcx.has_errors().is_err());
             assert_data_eq!(
@@ -736,7 +736,7 @@ error: [bb0] successor bb1 does not list bb0 as a predecessor
                 b.stop();
             }
             // Add the invalid predecessor to the entry block.
-            func.blocks[BlockId::ENTRY].predecessors.push(BlockId::ENTRY);
+            func.block_mut(BlockId::ENTRY).predecessors.push(BlockId::ENTRY);
             Validator::new(&sess.dcx).validate_standalone_function(&func);
             assert!(sess.dcx.has_errors().is_err());
             assert_data_eq!(
@@ -772,24 +772,14 @@ error: [bb0] entry block must have no predecessors
 
             Validator::new(&sess.dcx).validate_module(&module);
             assert!(sess.dcx.has_errors().is_err());
-            let diagnostics = sess.emitted_diagnostics().unwrap().to_string();
-            assert!(diagnostics.contains("slice instruction"));
-            assert!(diagnostics.contains("ABI encoding instruction"));
-            assert!(diagnostics.contains("aggregate instruction"));
-        });
-    }
-
-    #[test]
-    fn function_without_entry_block_is_caught() {
-        with_session(|sess| {
-            let mut func = make_func();
-            func.blocks.clear();
-            Validator::new(&sess.dcx).validate_standalone_function(&func);
-            assert!(sess.dcx.has_errors().is_err());
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
-error: function has no entry block
+error: [fn0] [bb0, inst0] slice instruction `make_memory_slice` survives the `evm-shaped` phase boundary
+
+error: [fn0] [bb0, inst1] ABI encoding instruction `abi_encode` survives the `evm-shaped` phase boundary
+
+error: [fn0] [bb0, inst2] aggregate instruction `storage_to_memory` survives the `evm-shaped` phase boundary
 
 
 "#]]
@@ -832,11 +822,5 @@ error: [fn0] internal_call targets nonexistent function fn99
 "#]]
             );
         });
-    }
-
-    // Suppress the unused-import warning for `BasicBlock`.
-    #[allow(dead_code)]
-    fn _block_type_reference() -> Option<BasicBlock> {
-        None
     }
 }

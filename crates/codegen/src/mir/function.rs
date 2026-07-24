@@ -1,13 +1,14 @@
 //! MIR functions.
 
 use super::{
-    BasicBlock, BlockId, InstId, InstKind, Instruction, MirType, StorageAlias, Value, ValueId,
+    BasicBlock, BlockId, InstId, InstKind, Instruction, MirType, StorageAlias, Terminator, Value,
+    ValueId,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     fmt::{self, FmtIteratorExt},
-    index::IndexVec,
+    index::{IndexVec, index_vec},
     map::FxHashMap,
 };
 use solar_interface::Ident;
@@ -34,11 +35,11 @@ pub(crate) struct Function {
     /// Bytes reserved for the low-memory external ABI return buffer.
     pub(crate) external_static_return_size: u64,
     /// All values in this function.
-    pub(crate) values: IndexVec<ValueId, Value>,
+    values: IndexVec<ValueId, Value>,
     /// All instructions in this function.
-    pub(crate) instructions: IndexVec<InstId, Instruction>,
+    instructions: IndexVec<InstId, Instruction>,
     /// All basic blocks in this function. This is never empty; block zero is the entry.
-    pub(crate) blocks: IndexVec<BlockId, BasicBlock>,
+    blocks: IndexVec<BlockId, BasicBlock>,
 }
 
 impl Function {
@@ -69,6 +70,43 @@ impl Function {
         &self.values[id]
     }
 
+    /// Returns a mutable reference to the value for the given ID.
+    pub(crate) fn value_mut(&mut self, id: ValueId) -> &mut Value {
+        &mut self.values[id]
+    }
+
+    /// Returns the number of allocated values.
+    #[must_use]
+    pub(crate) fn value_count(&self) -> usize {
+        self.values.len()
+    }
+
+    /// Returns the allocated value IDs.
+    pub(crate) fn value_ids(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = ValueId> + ExactSizeIterator + use<> {
+        self.values.indices()
+    }
+
+    /// Returns the allocated values.
+    pub(crate) fn values(&self) -> impl DoubleEndedIterator<Item = &Value> + ExactSizeIterator {
+        self.values.iter()
+    }
+
+    /// Returns the allocated values with their IDs.
+    pub(crate) fn values_enumerated(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = (ValueId, &Value)> + ExactSizeIterator {
+        self.values.iter_enumerated()
+    }
+
+    /// Returns the allocated values mutably.
+    pub(crate) fn values_mut(
+        &mut self,
+    ) -> impl DoubleEndedIterator<Item = &mut Value> + ExactSizeIterator {
+        self.values.iter_mut()
+    }
+
     /// Returns an immediate value as U256.
     #[must_use]
     pub(crate) fn value_u256(&self, id: ValueId) -> Option<U256> {
@@ -95,6 +133,38 @@ impl Function {
     #[must_use]
     pub(crate) fn instruction(&self, id: InstId) -> &Instruction {
         &self.instructions[id]
+    }
+
+    /// Returns a mutable reference to the instruction for the given ID.
+    pub(crate) fn instruction_mut(&mut self, id: InstId) -> &mut Instruction {
+        &mut self.instructions[id]
+    }
+
+    /// Returns the number of allocated instructions.
+    #[must_use]
+    pub(crate) fn instruction_count(&self) -> usize {
+        self.instructions.len()
+    }
+
+    /// Returns the allocated instructions.
+    pub(crate) fn instructions(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = &Instruction> + ExactSizeIterator {
+        self.instructions.iter()
+    }
+
+    /// Returns the allocated instructions with their IDs.
+    pub(crate) fn instructions_enumerated(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = (InstId, &Instruction)> + ExactSizeIterator {
+        self.instructions.iter_enumerated()
+    }
+
+    /// Returns the allocated instructions mutably.
+    pub(crate) fn instructions_mut(
+        &mut self,
+    ) -> impl DoubleEndedIterator<Item = &mut Instruction> + ExactSizeIterator {
+        self.instructions.iter_mut()
     }
 
     /// Returns the value produced by the given instruction, if it has one.
@@ -187,6 +257,46 @@ impl Function {
         &mut self.blocks[id]
     }
 
+    /// Returns the number of allocated basic blocks.
+    #[must_use]
+    pub(crate) fn block_count(&self) -> usize {
+        self.blocks.len()
+    }
+
+    /// Returns whether the function has no basic blocks.
+    #[must_use]
+    pub(crate) fn has_no_blocks(&self) -> bool {
+        self.blocks.is_empty()
+    }
+
+    /// Returns the allocated basic block IDs.
+    pub(crate) fn block_ids(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = BlockId> + ExactSizeIterator + use<> {
+        self.blocks.indices()
+    }
+
+    /// Returns the allocated basic blocks.
+    pub(crate) fn blocks(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = &BasicBlock> + ExactSizeIterator {
+        self.blocks.iter()
+    }
+
+    /// Returns the allocated basic blocks with their IDs.
+    pub(crate) fn blocks_enumerated(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = (BlockId, &BasicBlock)> + ExactSizeIterator {
+        self.blocks.iter_enumerated()
+    }
+
+    /// Returns the allocated basic blocks mutably.
+    pub(crate) fn blocks_mut(
+        &mut self,
+    ) -> impl DoubleEndedIterator<Item = &mut BasicBlock> + ExactSizeIterator {
+        self.blocks.iter_mut()
+    }
+
     /// Allocates a new value.
     pub(crate) fn alloc_value(&mut self, value: Value) -> ValueId {
         self.values.push(value)
@@ -200,6 +310,60 @@ impl Function {
     /// Allocates a new basic block.
     pub(crate) fn alloc_block(&mut self) -> BlockId {
         self.blocks.push(BasicBlock::new())
+    }
+
+    /// Reorders the basic blocks and remaps every block reference.
+    pub(crate) fn remap_block_order(&mut self, order: &[BlockId]) -> IndexVec<BlockId, BlockId> {
+        debug_assert_eq!(order.len(), self.block_count());
+        let mut remap = index_vec![BlockId::from_usize(0); order.len()];
+        let mut old_blocks = std::mem::take(&mut self.blocks)
+            .into_iter()
+            .map(Some)
+            .collect::<IndexVec<BlockId, _>>();
+        let mut blocks = IndexVec::with_capacity(old_blocks.len());
+        for &old_block in order {
+            let block = old_blocks[old_block].take().expect("duplicate block in order");
+            remap[old_block] = blocks.push(block);
+        }
+        debug_assert!(old_blocks.into_iter().all(|block| block.is_none()));
+        self.blocks = blocks;
+
+        for block in &mut self.blocks {
+            for predecessor in &mut block.predecessors {
+                *predecessor = remap[*predecessor];
+            }
+            if let Some(terminator) = &mut block.terminator {
+                let remap_block = |block: &mut BlockId| *block = remap[*block];
+                match terminator {
+                    Terminator::Jump(target) => remap_block(target),
+                    Terminator::Branch { then_block, else_block, .. } => {
+                        remap_block(then_block);
+                        remap_block(else_block);
+                    }
+                    Terminator::Switch { default, cases, .. } => {
+                        remap_block(default);
+                        for (_, target) in cases {
+                            remap_block(target);
+                        }
+                    }
+                    Terminator::Return { .. }
+                    | Terminator::Revert { .. }
+                    | Terminator::ReturnData { .. }
+                    | Terminator::Stop
+                    | Terminator::SelfDestruct { .. }
+                    | Terminator::TailCall { .. }
+                    | Terminator::Invalid => {}
+                }
+            }
+        }
+        for inst in &mut self.instructions {
+            if let InstKind::Phi(incoming) = &mut inst.kind {
+                for (block, _) in incoming {
+                    *block = remap[*block];
+                }
+            }
+        }
+        remap
     }
 
     /// Replaces all value uses according to a one-step replacement map.

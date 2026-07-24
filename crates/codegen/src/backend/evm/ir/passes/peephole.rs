@@ -27,7 +27,7 @@ const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 fn optimize_module(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut changed = false;
     let mut scratch = Vec::new();
-    for block in &mut module.blocks {
+    for block in module.blocks_mut() {
         changed |= optimize(&mut block.instructions, &mut scratch, block.label) != 0;
     }
     changed

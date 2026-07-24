@@ -26,8 +26,7 @@ fn merge_tails(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         return false;
     }
     let mut next_label = module
-        .blocks
-        .iter()
+        .blocks()
         .map(|block| block.label)
         .max()
         .unwrap_or(0)
@@ -56,14 +55,14 @@ impl RunState {
     fn plan_merges(&mut self, module: &Module) {
         self.representatives.clear();
         self.merges.clear();
-        for (block_id, block) in module.blocks.iter_enumerated() {
+        for (block_id, block) in module.blocks_enumerated() {
             if !is_candidate(block) {
                 continue;
             }
 
             let mut matched = None;
             for &representative in &self.representatives {
-                let representative_block = &module.blocks[representative];
+                let representative_block = module.block(representative);
                 if block.terminator.as_ref().map(|term| &term.kind)
                     != representative_block.terminator.as_ref().map(|term| &term.kind)
                 {
@@ -112,14 +111,14 @@ impl RunState {
 
         let Self { groups, commons, tails, .. } = self;
         for group in groups.iter().take(group_count) {
-            let representative = &module.blocks[group.representative];
+            let representative = module.block(group.representative);
             let instructions = representative.instructions.clone();
             let terminator = representative.terminator.clone();
             let metadata = representative.metadata;
             let max_hot_common = group
                 .sites
                 .iter()
-                .filter(|&&(block, _)| !module.blocks[block].metadata.hotness.is_cold())
+                .filter(|&&(block, _)| !module.block(block).metadata.hotness.is_cold())
                 .map(|&(_, common)| common)
                 .max();
             commons.clear();
@@ -153,19 +152,21 @@ impl RunState {
             }
 
             let &(max_common, max_tail) = tails.last().expect("merge group must have a tail");
-            module.blocks[group.representative]
+            module
+                .block_mut(group.representative)
                 .instructions
                 .truncate(instructions.len() - max_common);
-            module.blocks[group.representative].terminator =
+            module.block_mut(group.representative).terminator =
                 Some(Terminator::new(TerminatorKind::Jump(max_tail)));
             for &(block, common) in &group.sites {
                 let tail = tails
                     .binary_search_by_key(&common, |&(known, _)| known)
                     .map(|index| tails[index].1)
                     .expect("tail must exist for every merge site");
-                let len = module.blocks[block].instructions.len();
-                module.blocks[block].instructions.truncate(len - common);
-                module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(tail)));
+                let len = module.block(block).instructions.len();
+                module.block_mut(block).instructions.truncate(len - common);
+                module.block_mut(block).terminator =
+                    Some(Terminator::new(TerminatorKind::Jump(tail)));
             }
         }
     }

@@ -89,7 +89,7 @@ impl JumpThreader {
 
         if !forwarders.is_empty() {
             // Resolve the final target for each forwarder (following chains)
-            let final_targets = self.resolve_final_targets(&forwarders, func.blocks.len());
+            let final_targets = self.resolve_final_targets(&forwarders, func.block_count());
 
             // Update all terminators to use final targets
             self.thread_jumps(func, &final_targets);
@@ -129,7 +129,7 @@ impl JumpThreader {
     fn find_forwarder_blocks(&self, func: &Function) -> FxHashMap<BlockId, BlockId> {
         let mut forwarders = FxHashMap::default();
 
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for (block_id, block) in func.blocks_enumerated() {
             if block.predecessors.is_empty() {
                 continue;
             }
@@ -192,13 +192,13 @@ impl JumpThreader {
 
     /// Updates all terminators to use the final targets.
     fn thread_jumps(&mut self, func: &mut Function, final_targets: &FxHashMap<BlockId, BlockId>) {
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let block_ids: Vec<_> = func.block_ids().collect();
         for block_id in block_ids {
-            let Some(mut term) = func.blocks[block_id].terminator.clone() else {
+            let Some(mut term) = func.block(block_id).terminator.clone() else {
                 continue;
             };
             self.thread_terminator(func, &mut term, final_targets);
-            func.blocks[block_id].terminator = Some(term);
+            func.block_mut(block_id).terminator = Some(term);
         }
     }
 
@@ -280,10 +280,11 @@ impl JumpThreader {
             return false;
         }
 
-        for (other_block, block) in func.blocks.iter_enumerated() {
+        for (other_block, block) in func.blocks_enumerated() {
             if other_block != block_id {
                 for &inst_id in &block.instructions {
-                    if func.instructions[inst_id]
+                    if func
+                        .instruction(inst_id)
                         .kind
                         .operands()
                         .iter()
@@ -309,7 +310,7 @@ impl JumpThreader {
 
     fn thread_phi_constant_edges(&mut self, func: &mut Function) -> usize {
         let mut rewrites = Vec::new();
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let block_ids: Vec<_> = func.block_ids().collect();
 
         for block_id in block_ids {
             if !func.block_has_only_phis(block_id) {
@@ -319,10 +320,10 @@ impl JumpThreader {
                 continue;
             }
 
-            let Some(term) = &func.blocks[block_id].terminator else {
+            let Some(term) = &func.block(block_id).terminator else {
                 continue;
             };
-            let predecessors = func.blocks[block_id].predecessors.clone();
+            let predecessors = func.block(block_id).predecessors.clone();
             if predecessors.is_empty() {
                 continue;
             }
@@ -393,10 +394,10 @@ impl JumpThreader {
         let Value::Inst(inst_id) = func.value(value) else {
             return Some(value);
         };
-        if !func.blocks[block_id].instructions.contains(inst_id) {
+        if !func.block(block_id).instructions.contains(inst_id) {
             return None;
         }
-        let InstKind::Phi(incoming) = &func.instructions[*inst_id].kind else {
+        let InstKind::Phi(incoming) = &func.instruction(*inst_id).kind else {
             return None;
         };
         incoming.iter().find_map(|(incoming_block, incoming_value)| {
@@ -405,7 +406,7 @@ impl JumpThreader {
     }
 
     fn successor_count(func: &Function, pred: BlockId, target: BlockId) -> usize {
-        func.blocks[pred]
+        func.block(pred)
             .terminator
             .as_ref()
             .map(|term| term.successors().into_iter().filter(|&succ| succ == target).count())
@@ -418,7 +419,7 @@ impl JumpThreader {
         old_target: BlockId,
         new_target: BlockId,
     ) -> bool {
-        let Some(term) = &mut func.blocks[pred].terminator else {
+        let Some(term) = &mut func.block_mut(pred).terminator else {
             return false;
         };
         match term {
@@ -468,20 +469,21 @@ impl JumpThreader {
 
     /// Updates CFG edges after threading.
     fn update_cfg_edges(&self, func: &mut Function) {
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let block_ids: Vec<_> = func.block_ids().collect();
         for block_id in &block_ids {
-            func.blocks[*block_id].predecessors.clear();
+            func.block_mut(*block_id).predecessors.clear();
         }
 
         for block_id in block_ids {
-            let successors = func.blocks[block_id]
+            let successors = func
+                .block(block_id)
                 .terminator
                 .as_ref()
                 .map(|t| t.successors())
                 .unwrap_or_default();
 
             for succ in successors {
-                func.blocks[succ].predecessors.push(block_id);
+                func.block_mut(succ).predecessors.push(block_id);
             }
         }
     }
