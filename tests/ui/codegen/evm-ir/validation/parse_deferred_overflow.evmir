@@ -1,0 +1,5 @@
+@module DeferredOverflow
+
+bb0:
+  push_deferred 0x10000000 //~ ERROR: deferred constant ID exceeds the assembler limit
+  stop

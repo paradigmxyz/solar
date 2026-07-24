@@ -1,7 +1,12 @@
 //@compile-flags: --pass sccp
+//@filecheck:
 // Constant arithmetic: 10 + 20 = 30, 30 * 2 = 60.
 // SCCP should propagate through the chain and fold everything.
 @module SccpFold
+// CHECK-LABEL: {{^[ +].*}}fn @const_chain{{[( ]}}
+// CHECK: - {{v[0-9]+}} = add 10, 20
+// CHECK: - {{v[0-9]+}} = mul {{v[0-9]+}}, 2
+// CHECK: + ret 60
 fn @const_chain() -> u256 {
   bb0:
     v0 = add 10, 20

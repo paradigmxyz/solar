@@ -1,5 +1,11 @@
 //@compile-flags: --passes frame-slot-promotion,cfg-simplify,dce
+//@filecheck:
 @module SequentialCounter
+// CHECK-LABEL: {{^[ +].*}}fn @sequential{{[( ]}}
+// CHECK: + [[FIRST:v[0-9]+]] = phi [bb0: 0], [bb2: [[NEXT_FIRST:v[0-9]+]]]
+// CHECK: + [[SECOND:v[0-9]+]] = phi [bb0: 0], [bb2: [[NEXT_SECOND:v[0-9]+]]]
+// CHECK: + [[NEXT_FIRST]] = add [[FIRST]], 1
+// CHECK: + [[NEXT_SECOND]] = add [[SECOND]], 1
 fn @sequential(arg0: u256) -> u256 {
   bb0:
     v1 = internal_frame_addr 128
@@ -11,7 +17,7 @@ fn @sequential(arg0: u256) -> u256 {
     v3 = internal_frame_addr 160
     v4 = mload v3
     v5 = lt v4, arg0
-    br v5, bb2, bb3
+    jumpi v5, bb2, bb3
   bb2:
     v6 = internal_frame_addr 128
     v7 = mload v6
@@ -32,7 +38,7 @@ fn @sequential(arg0: u256) -> u256 {
     v15 = internal_frame_addr 192
     v16 = mload v15
     v17 = lt v16, arg0
-    br v17, bb5, bb6
+    jumpi v17, bb5, bb6
   bb5:
     v18 = internal_frame_addr 128
     v19 = mload v18

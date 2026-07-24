@@ -1,9 +1,23 @@
 //@ignore-host: windows
 //@compile-flags: -Zcodegen -Zdump=evm-ir --pretty-json
+//@ filecheck:
 // solc 0.8.30 without --via-ir reports `Stack too deep` for this contract.
 pragma solidity ^0.8.0;
 
 contract StackTooDeepParams {
+    // CHECK-LABEL: @module runtime
+    // CHECK: push 0x8c4ee692
+    // CHECK: eq
+    // CHECK-NEXT: push [[BODY:bb[0-9]+]]
+    // CHECK: [[BODY]]:
+    // CHECK: push 640
+    // CHECK-NEXT: sgt
+    // CHECK: push 36
+    // CHECK-NEXT: calldataload
+    // CHECK: push 612
+    // CHECK-NEXT: calldataload
+    // CHECK: add
+    // CHECK: return
     function sum(
         uint256 a0,
         uint256 a1,

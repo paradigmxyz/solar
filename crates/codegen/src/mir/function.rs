@@ -287,18 +287,6 @@ impl Function {
     pub(crate) fn is_public(&self) -> bool {
         matches!(self.attributes.visibility, Visibility::Public | Visibility::External)
     }
-
-    /// Returns the human-readable textual MIR representation of this function.
-    #[cfg(test)]
-    pub(crate) fn to_text(&self) -> impl fmt::Display + '_ {
-        super::display::display_function_text(self, None)
-    }
-
-    /// Returns this function's DOT-format CFG.
-    #[cfg(test)]
-    pub(crate) fn to_dot(&self) -> impl fmt::Display + '_ {
-        super::display::display_function_dot(self, None)
-    }
 }
 
 /// Function attributes.

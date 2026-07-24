@@ -4,24 +4,20 @@
 fn @guarded(arg0: u256, arg1: u256) {
   bb0:
     v0 = gt arg1, arg0
-    br v0, bb1, bb2
+    jumpi v0, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = sub arg0, arg1
     mstore 128, v3
     returndata 128, 32
-  bb3:
-    invalid
-  bb4:
-    invalid
 }
 
 fn @unguarded(arg0: u256, arg1: u256) {
   bb0:
     v0 = sub arg0, arg1
     v1 = lt arg0, arg1
-    br v1, bb1, bb2
+    jumpi v1, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

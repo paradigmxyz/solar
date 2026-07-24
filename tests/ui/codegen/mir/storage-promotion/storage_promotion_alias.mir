@@ -1,12 +1,25 @@
 //@compile-flags: --pass storage-promotion
+//@filecheck: --enable-var-scope
 @module StoragePromotionAlias
+
+// CHECK-LABEL: @reject_two_symbolic_slots
+// CHECK: +     sstore arg0, 1
+// CHECK: +     sstore arg1, 2
+// CHECK:       jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK:       [[BODY]]:
+// CHECK: +     [[FIRST:v[0-9]+]] = sload arg0
+// CHECK:       [[FIRST_UPDATED:v[0-9]+]] = mul [[FIRST]], 2
+// CHECK: +     sstore arg0, [[FIRST_UPDATED]]
+// CHECK: +     [[SECOND:v[0-9]+]] = sload arg1
+// CHECK:       [[SECOND_UPDATED:v[0-9]+]] = add [[SECOND]], 3
+// CHECK: +     sstore arg1, [[SECOND_UPDATED]]
 fn @reject_two_symbolic_slots(arg0: u256, arg1: u256) [selector=0x01020304] {
   bb0:
     sstore arg0, 1
     sstore arg1, 2
     jump bb1
   bb1:
-    br true, bb2, bb4
+    jumpi true, bb2, bb4
   bb2:
     v1 = sload arg0
     v2 = mul v1, 2
@@ -21,13 +34,24 @@ fn @reject_two_symbolic_slots(arg0: u256, arg1: u256) [selector=0x01020304] {
     stop
 }
 
+// CHECK-LABEL: @reject_symbolic_and_constant_slots
+// CHECK: +     sstore arg0, 1
+// CHECK: +     sstore [[CONSTANT_SLOT:[0-9]+]], 2
+// CHECK:       jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK:       [[BODY]]:
+// CHECK: +     [[SYMBOLIC:v[0-9]+]] = sload arg0
+// CHECK:       [[SYMBOLIC_UPDATED:v[0-9]+]] = mul [[SYMBOLIC]], 2
+// CHECK: +     sstore arg0, [[SYMBOLIC_UPDATED]]
+// CHECK: +     [[CONSTANT:v[0-9]+]] = sload [[CONSTANT_SLOT]]
+// CHECK:       [[CONSTANT_UPDATED:v[0-9]+]] = add [[CONSTANT]], 3
+// CHECK: +     sstore [[CONSTANT_SLOT]], [[CONSTANT_UPDATED]]
 fn @reject_symbolic_and_constant_slots(arg0: u256) [selector=0x01020304] {
   bb0:
     sstore arg0, 1
     sstore 7, 2
     jump bb1
   bb1:
-    br true, bb2, bb4
+    jumpi true, bb2, bb4
   bb2:
     v1 = sload arg0
     v2 = mul v1, 2
@@ -42,13 +66,35 @@ fn @reject_symbolic_and_constant_slots(arg0: u256) [selector=0x01020304] {
     stop
 }
 
+// CHECK-LABEL: @promote_two_constant_slots
+// CHECK: -     sstore [[ZERO_SLOT:[0-9]+]], 1
+// CHECK: -     sstore [[ONE_SLOT:[0-9]+]], 2
+// CHECK:       mstore [[ZERO_ADDR:[0-9]+]], 1
+// CHECK:       mstore [[ONE_ADDR:[0-9]+]], 2
+// CHECK:       jumpi {{.*}}, [[BODY:bb[0-9]+]], [[EXIT:bb[0-9]+]]
+// CHECK:       [[BODY]]:
+// CHECK: -     {{v[0-9]+}} = sload [[ZERO_SLOT]]
+// CHECK:       [[ZERO_VALUE:v[0-9]+]] = mload [[ZERO_ADDR]]
+// CHECK:       [[ZERO_UPDATED:v[0-9]+]] = mul [[ZERO_VALUE]], 2
+// CHECK: -     sstore [[ZERO_SLOT]], [[ZERO_UPDATED]]
+// CHECK: -     {{v[0-9]+}} = sload [[ONE_SLOT]]
+// CHECK:       mstore [[ZERO_ADDR]], [[ZERO_UPDATED]]
+// CHECK:       [[ONE_VALUE:v[0-9]+]] = mload [[ONE_ADDR]]
+// CHECK:       [[ONE_UPDATED:v[0-9]+]] = add [[ONE_VALUE]], 3
+// CHECK: -     sstore [[ONE_SLOT]], [[ONE_UPDATED]]
+// CHECK:       mstore [[ONE_ADDR]], [[ONE_UPDATED]]
+// CHECK:       [[EXIT]]:
+// CHECK:       [[ONE:v[0-9]+]] = mload [[ONE_ADDR]]
+// CHECK:       sstore [[ONE_SLOT]], [[ONE]]
+// CHECK:       [[ZERO:v[0-9]+]] = mload [[ZERO_ADDR]]
+// CHECK:       sstore [[ZERO_SLOT]], [[ZERO]]
 fn @promote_two_constant_slots() [selector=0x01020304] {
   bb0:
     sstore 0, 1
     sstore 1, 2
     jump bb1
   bb1:
-    br true, bb2, bb4
+    jumpi true, bb2, bb4
   bb2:
     v1 = sload 0
     v2 = mul v1, 2
@@ -63,6 +109,34 @@ fn @promote_two_constant_slots() [selector=0x01020304] {
     stop
 }
 
+// CHECK-LABEL: @promote_same_base_distinct_offsets
+// CHECK:       [[ONE_SLOT:v[0-9]+]] = add arg0, 1
+// CHECK: -     sstore [[ONE_SLOT]], 1
+// CHECK:       mstore [[ONE_ADDR:[0-9]+]], 1
+// CHECK:       [[TWO_SLOT:v[0-9]+]] = add arg0, 2
+// CHECK: -     sstore [[TWO_SLOT]], 2
+// CHECK:       mstore [[TWO_ADDR:[0-9]+]], 2
+// CHECK:       jumpi {{.*}}, [[BODY:bb[0-9]+]], [[EXIT:bb[0-9]+]]
+// CHECK:       [[BODY]]:
+// CHECK:       [[BODY_ONE_SLOT:v[0-9]+]] = add arg0, 1
+// CHECK: -     {{v[0-9]+}} = sload [[BODY_ONE_SLOT]]
+// CHECK:       [[ONE_VALUE:v[0-9]+]] = mload [[ONE_ADDR]]
+// CHECK:       [[ONE_UPDATED:v[0-9]+]] = mul [[ONE_VALUE]], 2
+// CHECK:       [[STORE_ONE_SLOT:v[0-9]+]] = add arg0, 1
+// CHECK: -     sstore [[STORE_ONE_SLOT]], [[ONE_UPDATED]]
+// CHECK:       mstore [[ONE_ADDR]], [[ONE_UPDATED]]
+// CHECK:       [[BODY_TWO_SLOT:v[0-9]+]] = add arg0, 2
+// CHECK: -     {{v[0-9]+}} = sload [[BODY_TWO_SLOT]]
+// CHECK:       [[TWO_VALUE:v[0-9]+]] = mload [[TWO_ADDR]]
+// CHECK:       [[TWO_UPDATED:v[0-9]+]] = add [[TWO_VALUE]], 3
+// CHECK:       [[STORE_TWO_SLOT:v[0-9]+]] = add arg0, 2
+// CHECK: -     sstore [[STORE_TWO_SLOT]], [[TWO_UPDATED]]
+// CHECK:       mstore [[TWO_ADDR]], [[TWO_UPDATED]]
+// CHECK:       [[EXIT]]:
+// CHECK:       [[TWO_FLUSH:v[0-9]+]] = mload [[TWO_ADDR]]
+// CHECK:       sstore [[TWO_SLOT]], [[TWO_FLUSH]]
+// CHECK:       [[ONE_FLUSH:v[0-9]+]] = mload [[ONE_ADDR]]
+// CHECK:       sstore [[ONE_SLOT]], [[ONE_FLUSH]]
 fn @promote_same_base_distinct_offsets(arg0: u256) [selector=0x01020304] {
   bb0:
     v1 = add arg0, 1
@@ -71,7 +145,7 @@ fn @promote_same_base_distinct_offsets(arg0: u256) [selector=0x01020304] {
     sstore v2, 2
     jump bb1
   bb1:
-    br true, bb2, bb4
+    jumpi true, bb2, bb4
   bb2:
     v3 = add arg0, 1
     v4 = sload v3

@@ -5,7 +5,7 @@ fn @hash3(arg0: u256, arg1: u256, arg2: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -26,7 +26,7 @@ fn @encode3(arg0: u256, arg1: u256, arg2: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -71,7 +71,7 @@ fn @encodeDynamic(arg0: u256, arg1: memorybytes) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -101,7 +101,7 @@ fn @encodeDynamic(arg0: u256, arg1: memorybytes) {
     v20 = and v19, v18
     v21 = add v14, 32
     v22 = iszero v20
-    br v22, bb4, bb3
+    jumpi v22, bb4, bb3
   bb3:
     v23 = sub v20, 32
     v24 = add v21, v23
@@ -125,7 +125,7 @@ fn @hashDynamic(arg0: u256, arg1: memorybytes) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -154,7 +154,7 @@ fn @hashDynamic(arg0: u256, arg1: memorybytes) {
     v19 = and v18, v17
     v20 = add v13, 32
     v21 = iszero v19
-    br v21, bb4, bb3
+    jumpi v21, bb4, bb3
   bb3:
     v22 = sub v19, 32
     v23 = add v20, v22
@@ -175,7 +175,7 @@ fn @roundtrip(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -189,7 +189,7 @@ fn @roundtrip(arg0: u256) {
     set_fmp v6
     v7 = memory_object_len memorybytes, v3
     v8 = lt v7, 32
-    br v8, bb3, bb4
+    jumpi v8, bb3, bb4
   bb3:
     revert 0, 0
   bb4:

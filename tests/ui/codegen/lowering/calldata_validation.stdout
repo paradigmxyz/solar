@@ -5,14 +5,14 @@ fn @vUint8(arg0: u8) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 255
     v5 = eq v3, v4
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -26,14 +26,14 @@ fn @vInt16(arg0: i16) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = signextend 1, v3
     v5 = eq v3, v4
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -47,7 +47,7 @@ fn @vBool(arg0: bool) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -55,7 +55,7 @@ fn @vBool(arg0: bool) {
     v4 = iszero v3
     v5 = iszero v4
     v6 = eq v3, v5
-    br v6, bb4, bb3
+    jumpi v6, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -69,14 +69,14 @@ fn @vAddress(arg0: address) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = eq v3, v4
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -90,14 +90,14 @@ fn @vBytes4(arg0: bytes4) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v5 = eq v3, v4
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -111,13 +111,13 @@ fn @vEnum(arg0: u8) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = lt v3, 3
-    br v4, bb4, bb3
+    jumpi v4, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -131,21 +131,21 @@ fn @vMulti(arg0: u32, arg1: i8) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffff
     v5 = eq v3, v4
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
     v6 = calldataload 36
     v7 = signextend 0, v6
     v8 = eq v6, v7
-    br v8, bb6, bb5
+    jumpi v8, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
@@ -156,7 +156,7 @@ fn @vMulti(arg0: u32, arg1: i8) {
     v12 = and v11, 255
     v13 = add v9, v12
     v14 = lt v13, v9
-    br v14, bb7, bb8
+    jumpi v14, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -171,14 +171,14 @@ fn @vFull(arg0: u256, arg1: bytes32, arg2: i256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
     v3 = add arg0, arg1
     v4 = lt v3, arg0
-    br v4, bb3, bb4
+    jumpi v4, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -186,7 +186,7 @@ fn @vFull(arg0: u256, arg1: bytes32, arg2: i256) {
   bb4:
     v5 = add v3, arg2
     v6 = lt v5, v3
-    br v6, bb5, bb6
+    jumpi v6, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

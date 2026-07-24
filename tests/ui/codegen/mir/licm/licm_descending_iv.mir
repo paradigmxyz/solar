@@ -1,17 +1,21 @@
 //@compile-flags: --pass licm
+//@filecheck:
 @module LicmDescendingIv
 
 // Descending loop: i starts at 64, condition i < 100, i = i - 1 each iteration.
 // Real execution: i = 64, 63, ..., 1, 0, then wraps to 2^256-1 (>= 100) and
 // exits. mstore(i, ...) therefore writes bytes [0, 96), overlapping mload 0's
 // The range [0, 32) overlaps, so the mload must not be hoisted.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_mload_descending_iv{{[( ]}}
+// CHECK: {{^[ +].*}}[[LOAD:v[0-9]+]] = mload 0
+// CHECK: {{^[ +].*}}mstore
 fn @keep_mload_descending_iv() -> u256 {
   bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 64], [bb2: v9]
     v2 = lt v1, 100
-    br v2, bb2, bb3
+    jumpi v2, bb2, bb3
   bb2:
     v3 = mload 0
     sstore v1, v3
@@ -24,13 +28,16 @@ fn @keep_mload_descending_iv() -> u256 {
 
 // Ascending control: i = 64..99, the mstore range [64, 131) really is disjoint
 // from mload 0's [0, 32); hoisting here is correct.
+// CHECK-LABEL: {{^[ +].*}}fn @hoist_mload_ascending_iv{{[( ]}}
+// CHECK: + [[LOAD:v[0-9]+]] = mload 0
+// CHECK: - [[LOAD]] = mload 0
 fn @hoist_mload_ascending_iv() -> u256 {
   bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 64], [bb2: v9]
     v2 = lt v1, 100
-    br v2, bb2, bb3
+    jumpi v2, bb2, bb3
   bb2:
     v3 = mload 0
     sstore v1, v3

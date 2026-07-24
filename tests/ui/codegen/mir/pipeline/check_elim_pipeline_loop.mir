@@ -1,4 +1,7 @@
 //@compile-flags: --pipeline-default
+//@filecheck:
+// The loop guard proves that the counter increment cannot overflow, while the
+// accumulator's independent checked addition retains its panic path.
 @module CheckElimPipelineLoop
 
 // `for (uint i = 0; i < n; i++) s += i;` as the default pipeline shapes it
@@ -6,6 +9,18 @@
 // pipeline the loop-header guard `i < n` must fold the increment's
 // Panic(0x11) check — no `lt` after `add v, 1` and only one panic block —
 // while the unguarded accumulator check on `s += i` must survive.
+// CHECK-LABEL: fn @sum{{[( ]}}
+// CHECK: bb0:
+// CHECK: jump [[HEADER:bb[0-9]+]]
+// CHECK: [[HEADER]]:
+// CHECK-NEXT: [[INDEX:v[0-9]+]] = phi [bb0: 0], [[[LATCH:bb[0-9]+]]: [[NEXT:v[0-9]+]]]
+// CHECK: [[SUM:v[0-9]+]] = add {{v[0-9]+}}, [[INDEX]]
+// CHECK: {{v[0-9]+}} = lt [[SUM]], {{v[0-9]+}}
+// CHECK: mstore 4, 17 !metadata(memory=scratch)
+// CHECK: revert 0, 36
+// CHECK: [[LATCH]]:
+// CHECK: [[NEXT]] = add [[INDEX]], 1
+// CHECK-NEXT: jump [[HEADER]]
 fn @sum(arg0: u256) {
   bb0:
     mstore 128, 0
@@ -13,7 +28,7 @@ fn @sum(arg0: u256) {
   bb1:
     v44 = phi [bb0: 0], [bb9: v28]
     v9 = lt v44, arg0
-    br v9, bb4, bb5
+    jumpi v9, bb4, bb5
   bb2:
     v40 = mload 128
     mstore 128, v40
@@ -21,12 +36,12 @@ fn @sum(arg0: u256) {
   bb3:
     v28 = add v44, 1
     v29 = lt v28, v44
-    br v29, bb8, bb9
+    jumpi v29, bb8, bb9
   bb4:
     v13 = mload 128
     v14 = add v13, v44
     v15 = lt v14, v13
-    br v15, bb6, bb7
+    jumpi v15, bb6, bb7
   bb5:
     jump bb2
   bb6:

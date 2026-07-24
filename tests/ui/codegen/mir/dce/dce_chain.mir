@@ -1,7 +1,13 @@
 //@compile-flags: --pass dce
+//@filecheck:
 // Dead chain: v3 uses v2, v2 uses v1. None are used by ret.
 // run_to_fixpoint should eliminate all three.
 @module DceChain
+// CHECK-LABEL: {{^[ +].*}}fn @chain{{[( ]}}
+// CHECK: - {{v[0-9]+}} = add arg0, 1
+// CHECK: - {{v[0-9]+}} = mul {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK: - {{v[0-9]+}} = sub {{v[0-9]+}}, arg0
+// CHECK: {{^[ +].*}}ret arg0
 fn @chain(arg0: u256) -> u256 {
   bb0:
     v1 = add arg0, 1

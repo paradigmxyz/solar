@@ -1,6 +1,14 @@
 //@compile-flags: --pass share-reverts
+//@filecheck:
 @module module
 
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: - iszero
+// CHECK: - push bb2
+// CHECK: + push bb1
+// CHECK: {{^[ +].*}}jumpi
+// CHECK: - jump bb1
+// CHECK: + jump bb2
 bb0:
   push 1
   iszero

@@ -1,5 +1,13 @@
 //@compile-flags: --passes frame-slot-promotion,cfg-simplify,dce
+//@filecheck:
 @module NestedCounter
+// CHECK-LABEL: {{^[ +].*}}fn @nested{{[( ]}}
+// CHECK: + [[SUM:v[0-9]+]] = phi [bb0: 0], [bb5: [[NEXT_SUM:v[0-9]+]]]
+// CHECK: + [[OUTER:v[0-9]+]] = phi [bb0: 0], [bb5: [[NEXT_OUTER:v[0-9]+]]]
+// CHECK: + [[NEXT_SUM]] = phi [bb2: [[SUM]]], [bb4: {{v[0-9]+}}]
+// CHECK: + [[INNER:v[0-9]+]] = phi [bb2: 0], [bb4: [[NEXT_INNER:v[0-9]+]]]
+// CHECK: + [[NEXT_INNER]] = add [[INNER]], 1
+// CHECK: + [[NEXT_OUTER]] = add [[OUTER]], 1
 fn @nested(arg0: u256, arg1: u256) -> u256 {
   bb0:
     v1 = internal_frame_addr 128
@@ -11,7 +19,7 @@ fn @nested(arg0: u256, arg1: u256) -> u256 {
     v3 = internal_frame_addr 160
     v4 = mload v3
     v5 = lt v4, arg0
-    br v5, bb2, bb6
+    jumpi v5, bb2, bb6
   bb2:
     v6 = internal_frame_addr 192
     mstore v6, 0
@@ -20,7 +28,7 @@ fn @nested(arg0: u256, arg1: u256) -> u256 {
     v7 = internal_frame_addr 192
     v8 = mload v7
     v9 = lt v8, arg1
-    br v9, bb4, bb5
+    jumpi v9, bb4, bb5
   bb4:
     v10 = internal_frame_addr 128
     v11 = mload v10

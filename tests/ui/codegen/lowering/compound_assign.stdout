@@ -13,14 +13,14 @@ fn @add_to_value(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = add v3, arg0
     v5 = lt v4, v3
-    br v5, bb3, bb4
+    jumpi v5, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -35,14 +35,14 @@ fn @sub_from_value(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = sub v3, arg0
     v5 = lt v3, arg0
-    br v5, bb3, bb4
+    jumpi v5, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -57,7 +57,7 @@ fn @mul_value(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -68,7 +68,7 @@ fn @mul_value(arg0: u256) {
     v7 = eq v6, v3
     v8 = or v5, v7
     v9 = iszero v8
-    br v9, bb3, bb4
+    jumpi v9, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -84,7 +84,7 @@ fn @bump_post() {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
     v2 = lt v1, v0
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -101,7 +101,7 @@ fn @bump_pre() {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
     v2 = lt v1, v0
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

@@ -1,0 +1,9 @@
+- // === ROOT/tests/ui/codegen/mir/none/compact.mir (before none) ===
++ // === ROOT/tests/ui/codegen/mir/none/compact.mir (after none) ===
+  @module Compact
+  fn @compact() -> u256 {
+    bb0:
+      v0 = add 1, 2
+      ret v0
+  }
+  

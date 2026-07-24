@@ -1,10 +1,13 @@
 //@compile-flags: --pass sccp
+//@filecheck:
 // Constant folding for the signed, modular, byte-level, and select operations,
 // with exact EVM edge-case semantics. Negative constants are written as
 // two's-complement hex literals.
 @module SccpFoldEvmOps
 
 // MIN sdiv -1 wraps back to MIN.
+// CHECK-LABEL: {{^[ +].*}}fn @sdiv_min_by_neg_one{{[( ]}}
+// CHECK: + ret 1
 fn @sdiv_min_by_neg_one() -> bool {
   bb0:
     v0 = sdiv 0x8000000000000000000000000000000000000000000000000000000000000000, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -13,6 +16,8 @@ fn @sdiv_min_by_neg_one() -> bool {
 }
 
 // -7 sdiv 2 truncates toward zero: -3.
+// CHECK-LABEL: {{^[ +].*}}fn @sdiv_truncates_toward_zero{{[( ]}}
+// CHECK: + ret 1
 fn @sdiv_truncates_toward_zero() -> bool {
   bb0:
     v0 = sdiv 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 2
@@ -21,24 +26,32 @@ fn @sdiv_truncates_toward_zero() -> bool {
 }
 
 // A known-zero divisor folds to 0 even when the dividend is unknown.
+// CHECK-LABEL: {{^[ +].*}}fn @div_by_known_zero{{[( ]}}
+// CHECK: + ret 0
 fn @div_by_known_zero(arg0: u256) -> u256 {
   bb0:
     v0 = div arg0, 0
     ret v0
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @mod_by_known_zero{{[( ]}}
+// CHECK: + ret 0
 fn @mod_by_known_zero(arg0: u256) -> u256 {
   bb0:
     v0 = mod arg0, 0
     ret v0
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @sdiv_by_known_zero{{[( ]}}
+// CHECK: + ret 0
 fn @sdiv_by_known_zero(arg0: u256) -> u256 {
   bb0:
     v0 = sdiv arg0, 0
     ret v0
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @smod_by_known_zero{{[( ]}}
+// CHECK: + ret 0
 fn @smod_by_known_zero(arg0: u256) -> u256 {
   bb0:
     v0 = smod arg0, 0
@@ -46,6 +59,8 @@ fn @smod_by_known_zero(arg0: u256) -> u256 {
 }
 
 // The smod result takes the dividend's sign: -7 smod 3 == -1.
+// CHECK-LABEL: {{^[ +].*}}fn @smod_negative_dividend{{[( ]}}
+// CHECK: + ret 1
 fn @smod_negative_dividend() -> bool {
   bb0:
     v0 = smod 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 3
@@ -54,6 +69,8 @@ fn @smod_negative_dividend() -> bool {
 }
 
 // 7 smod -3 == 1.
+// CHECK-LABEL: {{^[ +].*}}fn @smod_positive_dividend{{[( ]}}
+// CHECK: + ret 1
 fn @smod_positive_dividend() -> bool {
   bb0:
     v0 = smod 7, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
@@ -62,12 +79,16 @@ fn @smod_positive_dividend() -> bool {
 }
 
 // Signed comparisons: -1 < 0 and not -1 > 0.
+// CHECK-LABEL: {{^[ +].*}}fn @slt_negative{{[( ]}}
+// CHECK: + ret 1
 fn @slt_negative() -> bool {
   bb0:
     v0 = slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
     ret v0
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @sgt_negative{{[( ]}}
+// CHECK: + ret 0
 fn @sgt_negative() -> bool {
   bb0:
     v0 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
@@ -75,6 +96,8 @@ fn @sgt_negative() -> bool {
 }
 
 // sar by 256 or more saturates: all ones for negative values, 0 otherwise.
+// CHECK-LABEL: {{^[ +].*}}fn @sar_saturates_negative{{[( ]}}
+// CHECK: + ret 1
 fn @sar_saturates_negative() -> bool {
   bb0:
     v0 = sar 256, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
@@ -82,6 +105,8 @@ fn @sar_saturates_negative() -> bool {
     ret v1
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @sar_saturates_positive{{[( ]}}
+// CHECK: + ret 0
 fn @sar_saturates_positive() -> u256 {
   bb0:
     v0 = sar 300, 7
@@ -89,6 +114,8 @@ fn @sar_saturates_positive() -> u256 {
 }
 
 // -7 sar 1 == -4 (sign-filling shift).
+// CHECK-LABEL: {{^[ +].*}}fn @sar_fills_sign_bits{{[( ]}}
+// CHECK: + ret 1
 fn @sar_fills_sign_bits() -> bool {
   bb0:
     v0 = sar 1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9
@@ -97,12 +124,16 @@ fn @sar_fills_sign_bits() -> bool {
 }
 
 // byte indices of 32 or more produce 0; smaller indices are big-endian.
+// CHECK-LABEL: {{^[ +].*}}fn @byte_index_out_of_range{{[( ]}}
+// CHECK: + ret 0
 fn @byte_index_out_of_range() -> u256 {
   bb0:
     v0 = byte 32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v0
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @byte_extracts_big_endian{{[( ]}}
+// CHECK: + ret 18
 fn @byte_extracts_big_endian() -> u256 {
   bb0:
     v0 = byte 30, 0x1234
@@ -110,6 +141,8 @@ fn @byte_extracts_big_endian() -> u256 {
 }
 
 // signextend with byte size 31 or more is the identity.
+// CHECK-LABEL: {{^[ +].*}}fn @signextend_identity_at_31{{[( ]}}
+// CHECK: + ret 1
 fn @signextend_identity_at_31() -> bool {
   bb0:
     v0 = signextend 31, 0x8000000000000000000000000000000000000000000000000000000000000000
@@ -118,6 +151,8 @@ fn @signextend_identity_at_31() -> bool {
 }
 
 // signextend 0 of 0xff is -1.
+// CHECK-LABEL: {{^[ +].*}}fn @signextend_byte_zero{{[( ]}}
+// CHECK: + ret 1
 fn @signextend_byte_zero() -> bool {
   bb0:
     v0 = signextend 0, 0xff
@@ -126,18 +161,24 @@ fn @signextend_byte_zero() -> bool {
 }
 
 // addmod/mulmod with a zero modulus produce 0, even with unknown operands.
+// CHECK-LABEL: {{^[ +].*}}fn @addmod_zero_modulus{{[( ]}}
+// CHECK: + ret 0
 fn @addmod_zero_modulus() -> u256 {
   bb0:
     v0 = addmod 1, 2, 0
     ret v0
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @addmod_unknown_operands_zero_modulus{{[( ]}}
+// CHECK: + ret 0
 fn @addmod_unknown_operands_zero_modulus(arg0: u256) -> u256 {
   bb0:
     v0 = addmod arg0, arg0, 0
     ret v0
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @mulmod_zero_modulus{{[( ]}}
+// CHECK: + ret 0
 fn @mulmod_zero_modulus() -> u256 {
   bb0:
     v0 = mulmod 5, 5, 0
@@ -146,6 +187,8 @@ fn @mulmod_zero_modulus() -> u256 {
 
 // addmod/mulmod use a 512-bit intermediate: (2^256 - 1 + 2) % 3 == 2, not
 // (wrapped 1) % 3 == 1.
+// CHECK-LABEL: {{^[ +].*}}fn @addmod_wide_intermediate{{[( ]}}
+// CHECK: + ret 2
 fn @addmod_wide_intermediate() -> u256 {
   bb0:
     v0 = addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 3
@@ -153,6 +196,8 @@ fn @addmod_wide_intermediate() -> u256 {
 }
 
 // (2^128 * 2^128) % 7 == 2, not (wrapped 0) % 7 == 0.
+// CHECK-LABEL: {{^[ +].*}}fn @mulmod_wide_intermediate{{[( ]}}
+// CHECK: + ret 2
 fn @mulmod_wide_intermediate() -> u256 {
   bb0:
     v0 = mulmod 0x100000000000000000000000000000000, 0x100000000000000000000000000000000, 7
@@ -161,18 +206,24 @@ fn @mulmod_wide_intermediate() -> u256 {
 
 // select folds on a constant condition, and on equal arms regardless of the
 // condition.
+// CHECK-LABEL: {{^[ +].*}}fn @select_true_condition{{[( ]}}
+// CHECK: + ret 11
 fn @select_true_condition() -> u256 {
   bb0:
     v0 = select 1, 11, 22
     ret v0
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @select_false_condition{{[( ]}}
+// CHECK: + ret 22
 fn @select_false_condition() -> u256 {
   bb0:
     v0 = select 0, 11, 22
     ret v0
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @select_equal_arms{{[( ]}}
+// CHECK: + ret 7
 fn @select_equal_arms(arg0: u256) -> u256 {
   bb0:
     v0 = select arg0, 7, 7

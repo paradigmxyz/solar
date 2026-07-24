@@ -1,8 +1,12 @@
 //@compile-flags: --passes cfg-simplify,dce
+//@filecheck:
 @module CfgSimplifyTrivialPhi
+// CHECK-LABEL: {{^[ +].*}}fn @fold_same_value_phi{{[( ]}}
+// CHECK: - {{v[0-9]+}} = phi [bb1: arg0], [bb2: arg0]
+// CHECK: + ret arg0
 fn @fold_same_value_phi(arg0: u256, arg1: bool) -> u256 {
   bb0:
-    br arg1, bb1, bb2
+    jumpi arg1, bb1, bb2
   bb1:
     log0 0, 0
     jump bb3
@@ -14,12 +18,15 @@ fn @fold_same_value_phi(arg0: u256, arg1: bool) -> u256 {
     ret v2
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @fold_self_incoming_phi{{[( ]}}
+// CHECK: - {{v[0-9]+}} = phi [bb0: arg0], [bb2: {{v[0-9]+}}]
+// CHECK: + ret arg0
 fn @fold_self_incoming_phi(arg0: u256, arg1: bool) -> u256 {
   bb0:
     jump bb1
   bb1:
     v2 = phi [bb0: arg0], [bb2: v2]
-    br arg1, bb2, bb3
+    jumpi arg1, bb2, bb3
   bb2:
     log0 0, 0
     jump bb1

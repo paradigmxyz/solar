@@ -1,4 +1,5 @@
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
+//@ filecheck:
 
 // The external wrapper of a public library function must decode a
 // storage-reference parameter as its slot (one calldata word), not
@@ -17,6 +18,26 @@ library DataTypes {
 }
 
 library L {
+    // CHECK: push 0xdef537e0
+    // CHECK: eq
+    // CHECK-NEXT: push [[BODY:bb[0-9]+]]
+    // CHECK: [[BODY]]:
+    // CHECK: push 2
+    // CHECK-NEXT: push 4
+    // CHECK-NEXT: calldataload
+    // CHECK: sload
+    // CHECK-NEXT: push 36
+    // CHECK-NEXT: calldataload
+    // CHECK: sstore
+    // CHECK: push 4
+    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: sload
+    // CHECK: jumpi
+    // CHECK-NEXT: push 1
+    // CHECK-NEXT: push 4
+    // CHECK-NEXT: calldataload
+    // CHECK: sload
+    // CHECK: return
     function settle(DataTypes.Reserve storage r, uint256 amount) public returns (uint256) {
         r.total += amount;
         return r.total + uint256(r.a) + uint256(r.b);

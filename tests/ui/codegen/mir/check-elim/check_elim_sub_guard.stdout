@@ -6,13 +6,13 @@
       v0 = gt arg1, arg0
       v1 = iszero v0
       v2 = iszero v1
-      br v2, bb1, bb2
+      jumpi v2, bb1, bb2
     bb1:
       revert 0, 0
     bb2:
       v3 = sub arg0, arg1
       v4 = lt arg0, arg1
--     br v4, bb3, bb4
+-     jumpi v4, bb3, bb4
 +     jump bb4
     bb3:
       revert 0, 0
@@ -24,7 +24,7 @@
     bb0:
       v0 = sub arg0, arg1
       v1 = lt arg0, arg1
-      br v1, bb1, bb2
+      jumpi v1, bb1, bb2
     bb1:
       revert 0, 0
     bb2:
@@ -34,14 +34,14 @@
   fn @keep_sub_on_other_value(arg0: u256, arg1: u256) -> u256 {
     bb0:
       v0 = gt arg1, arg0
-      br v0, bb1, bb2
+      jumpi v0, bb1, bb2
     bb1:
       revert 0, 0
     bb2:
       v1 = mload 0
       v2 = sub v1, arg1
       v3 = lt v1, arg1
-      br v3, bb3, bb4
+      jumpi v3, bb3, bb4
     bb3:
       revert 0, 0
     bb4:

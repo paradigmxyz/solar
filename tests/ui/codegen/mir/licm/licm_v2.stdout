@@ -10,7 +10,7 @@
     bb1:
       v0 = phi [bb0: 0], [bb2: v5]
       v1 = lt v0, 4
-      br v1, bb2, bb3
+      jumpi v1, bb2, bb3
     bb2:
 -     v2 = add arg0, 1
 -     v3 = sload v2
@@ -31,7 +31,7 @@
     bb1:
       v0 = phi [bb0: 0], [bb2: v5]
       v1 = lt v0, 4
-      br v1, bb2, bb3
+      jumpi v1, bb2, bb3
     bb2:
 -     v2 = add arg0, 1
 -     v3 = sload v2
@@ -51,7 +51,7 @@
 +     v2 = add arg0, 2
       jump bb1
     bb1:
-      br arg1, bb2, bb3
+      jumpi arg1, bb2, bb3
     bb2:
 -     v0 = add arg0, 1
 -     v1 = sload v0
@@ -71,7 +71,7 @@
     bb1:
       v0 = phi [bb0: 0], [bb2: v5]
       v1 = lt v0, 4
-      br v1, bb2, bb3
+      jumpi v1, bb2, bb3
     bb2:
 -     v2 = add arg0, 32
       v3 = mul v0, 32
@@ -90,7 +90,7 @@
     bb1:
       v0 = phi [bb0: 0], [bb2: v5]
       v1 = lt v0, arg1
-      br v1, bb2, bb3
+      jumpi v1, bb2, bb3
     bb2:
 -     v2 = add arg0, 32
       v3 = mul v0, 32

@@ -1,0 +1,8 @@
+error: unknown type `notatype`
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_unknown_type.mir:LL:CC
+   │
+LL │ fn @f() -> notatype {
+   ╰╴                    ━
+
+error: aborting due to 1 previous error
+

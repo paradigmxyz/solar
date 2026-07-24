@@ -1,5 +1,14 @@
 //@compile-flags: --passes cse,lower-mapping-slots,lower-slices
+//@filecheck:
 @module MappingSlotBuiltin
+// CHECK-LABEL: {{^[ +].*}}after cse
+// CHECK: {{^[ +].*}}fn @word{{[( ]}}
+// CHECK: + {{v[0-9]+}} = add [[HASH:v[0-9]+]], [[HASH]]
+// CHECK: {{^[ +].*}}after lower-mapping-slots
+// CHECK: {{^[ +].*}}fn @word{{[( ]}}
+// CHECK: + mstore 0, arg0
+// CHECK: + [[LOWERED_HASH:v[0-9]+]] = keccak256 0, 64
+// CHECK: + {{v[0-9]+}} = add [[LOWERED_HASH]], [[LOWERED_HASH]]
 fn @word(arg0: u256) -> u256 {
   bb0:
     v1 = mapping_slot arg0, 7
@@ -8,10 +17,13 @@ fn @word(arg0: u256) -> u256 {
     ret v3
 }
 
+// CHECK: {{^[ +].*}}fn @word_across_reverting_branch{{[( ]}}
+// CHECK: + [[HASH:v[0-9]+]] = keccak256 0, 64
+// CHECK: + {{v[0-9]+}} = add [[HASH]], [[HASH]]
 fn @word_across_reverting_branch(arg0: u256, arg1: bool) -> u256 {
   bb0:
     v2 = mapping_slot arg0, 7
-    br arg1, bb1, bb2
+    jumpi arg1, bb1, bb2
   bb1:
     mstore 0, 1
     revert 0, 0
@@ -21,6 +33,11 @@ fn @word_across_reverting_branch(arg0: u256, arg1: bool) -> u256 {
     ret v4
 }
 
+// CHECK: {{^[ +].*}}fn @memory{{[( ]}}
+// CHECK: + [[FIRST:v[0-9]+]] = keccak256
+// CHECK: {{^[ +].*}}mstore arg0, 1
+// CHECK: + [[SECOND:v[0-9]+]] = keccak256
+// CHECK: + {{v[0-9]+}} = add [[FIRST]], [[SECOND]]
 fn @memory(arg0: memptr) -> u256 {
   bb0:
     v1 = mapping_slot_memory arg0, 9
@@ -30,6 +47,10 @@ fn @memory(arg0: memptr) -> u256 {
     ret v3
 }
 
+// CHECK: {{^[ +].*}}fn @calldata{{[( ]}}
+// CHECK: + calldatacopy
+// CHECK: + [[HASH:v[0-9]+]] = keccak256
+// CHECK: + {{v[0-9]+}} = add [[HASH]], [[HASH]]
 fn @calldata(arg0: calldataslice) -> u256 {
   bb0:
     v1 = mapping_slot_calldata arg0, 11

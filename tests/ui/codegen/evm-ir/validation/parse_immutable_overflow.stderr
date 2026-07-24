@@ -1,0 +1,8 @@
+error: immutable ID exceeds the assembler limit
+   ╭▸ ROOT/tests/ui/codegen/evm-ir/validation/parse_immutable_overflow.evmir:LL:CC
+   │
+LL │   push_immutable 0x10000000
+   ╰╴                 ━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

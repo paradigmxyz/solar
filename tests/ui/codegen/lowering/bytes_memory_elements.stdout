@@ -5,7 +5,7 @@ fn @alloc() {
     mstore 128, 0
     v0 = add 96, 31
     v1 = lt v0, 96
-    br v1, bb1, bb2
+    jumpi v1, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -15,7 +15,7 @@ fn @alloc() {
     v3 = and v0, v2
     v4 = add v3, 32
     v5 = lt v4, v3
-    br v5, bb3, bb4
+    jumpi v5, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -25,7 +25,7 @@ fn @alloc() {
     set_memory_object_len memorybytes, v6, 96
     v7 = memory_object_len memorybytes, v6
     v8 = lt 5, v7
-    br v8, bb6, bb5
+    jumpi v8, bb6, bb5
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -36,7 +36,7 @@ fn @alloc() {
     mstore8 v10, 170
     v11 = memory_object_len memorybytes, v6
     v12 = lt 95, v11
-    br v12, bb8, bb7
+    jumpi v12, bb8, bb7
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -60,7 +60,7 @@ fn @literal() {
     mstore v2, 0x1020304050607080900000000000000000000000000000000000000000000
     v3 = memory_object_len memorybytes, v0
     v4 = lt 5, v3
-    br v4, bb2, bb1
+    jumpi v4, bb2, bb1
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -79,14 +79,14 @@ fn @allocDynamic(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
     v3 = add arg0, 31
     v4 = lt v3, arg0
-    br v4, bb3, bb4
+    jumpi v4, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -96,7 +96,7 @@ fn @allocDynamic(arg0: u256) {
     v6 = and v3, v5
     v7 = add v6, 32
     v8 = lt v7, v6
-    br v8, bb5, bb6
+    jumpi v8, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -114,7 +114,7 @@ fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -132,14 +132,14 @@ fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) {
     v12 = calldataload 68
     v13 = and v12, 0xff00000000000000000000000000000000000000000000000000000000000000
     v14 = eq v12, v13
-    br v14, bb4, bb3
+    jumpi v14, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
     mstore 128, 0
     v15 = memory_object_len memorybytes, v9
     v16 = lt arg1, v15
-    br v16, bb6, bb5
+    jumpi v16, bb6, bb5
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -151,7 +151,7 @@ fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) {
     mstore8 v18, v19
     v20 = memory_object_len memorybytes, v9
     v21 = lt arg1, v20
-    br v21, bb8, bb7
+    jumpi v21, bb8, bb7
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

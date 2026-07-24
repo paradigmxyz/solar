@@ -32,7 +32,7 @@ fn @trimLen(arg0: calldataslice) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -76,7 +76,7 @@ fn @conditional(arg0: calldataslice) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -87,7 +87,7 @@ fn @conditional(arg0: calldataslice) {
     mstore 192, v4
     v5 = slice_len arg0
     v6 = gt v5, 32
-    br v6, bb3, bb4
+    jumpi v6, bb3, bb4
   bb3:
     v7 = mload 160
     v8 = mload 192

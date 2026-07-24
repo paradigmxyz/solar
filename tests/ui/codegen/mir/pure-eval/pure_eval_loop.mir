@@ -1,18 +1,24 @@
 //@compile-flags: --pass pure-eval
+//@filecheck:
 @module PureEvalLoop
+// CHECK-LABEL: {{^[ +].*}}fn @bounded_loop{{[( ]}}
+// CHECK: - jump bb1
+// CHECK: + ret 3
 fn @bounded_loop() -> u256 {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb2: 3]
     v1 = lt v0, 3
-    br v1, bb2, bb3
+    jumpi v1, bb2, bb3
   bb2:
     jump bb1
   bb3:
     ret v0
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @with_arg{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = add arg0, 1
 fn @with_arg(arg0: u256) -> u256 {
   bb0:
     v0 = add arg0, 1

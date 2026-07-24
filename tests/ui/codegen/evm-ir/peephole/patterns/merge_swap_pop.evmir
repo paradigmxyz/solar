@@ -1,6 +1,12 @@
 //@compile-flags: --pass peephole
+//@filecheck:
 @module module
 
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: - swap1
+// CHECK: + swap2
+// CHECK: {{^[ +].*}}pop
+// CHECK: - swap1
 bb0:
   push 1
   push 2
@@ -10,6 +16,11 @@ bb0:
   swap1
   pop
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: - swap2
+// CHECK: + swap3
+// CHECK: - swap1
 bb1:
   push 1
   push 2
@@ -21,6 +32,11 @@ bb1:
   swap1
   pop
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: - swap15
+// CHECK: + swap16
+// CHECK: - swap1
 bb2:
   push 1
   push 2
