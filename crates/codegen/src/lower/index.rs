@@ -23,6 +23,18 @@ impl<'gcx> Lowerer<'gcx> {
             let element_slot = self.lower_storage_array_element_slot(
                 builder, slot_val, fixed_len, index_val, elem_slots,
             );
+            if let Some(ty) = self.get_expr_type(expr)
+                && let TyKind::Struct(struct_id) = ty.peel_refs().kind
+            {
+                let struct_size = self.calculate_memory_words_for_ty(ty) * 32;
+                let struct_ptr =
+                    self.allocate_memory_object(builder, struct_size, MemoryObjectKind::Struct);
+                self.copy_storage_to_memory_at(builder, struct_id, element_slot, struct_ptr, 0);
+                return struct_ptr;
+            }
+            if self.expr_has_bytes_or_string_type(expr) {
+                return self.materialize_storage_bytes(builder, element_slot);
+            }
             return builder.sload(element_slot);
         }
 
