@@ -89,13 +89,10 @@ pub trait Emitter: Any {
                 // code inline (`hide_inline`). Therefore, we don't show the substitution.
                 format!("help: {}", sugg.msg.as_str())
             } else {
-                let confusion_type = if sugg.style == SuggestionStyle::ShowCodeNoConfusion {
-                    ConfusionType::None
-                } else {
-                    self.source_map()
-                        .map(|sm| detect_confusion_type(sm, snippet, part.span))
-                        .unwrap_or(ConfusionType::None)
-                };
+                let confusion_type = self
+                    .source_map()
+                    .map(|sm| detect_confusion_type(sm, snippet, part.span))
+                    .unwrap_or(ConfusionType::None);
                 format!("help: {}{}: `{}`", sugg.msg.as_str(), confusion_type.label_text(), snippet)
             };
             primary_span.to_mut().push_span_label(part.span, msg);

@@ -339,7 +339,6 @@ impl HumanEmitter {
                 }
                 SuggestionStyle::HideCodeInline
                 | SuggestionStyle::ShowCode
-                | SuggestionStyle::ShowCodeNoConfusion
                 | SuggestionStyle::ShowAlways => {
                     let substitutions = suggestion
                         .substitutions
@@ -407,12 +406,10 @@ impl HumanEmitter {
                         .take(MAX_SUGGESTIONS)
                         .filter_map(|sub| {
                             let mut confusion_type = ConfusionType::None;
-                            if suggestion.style != SuggestionStyle::ShowCodeNoConfusion {
-                                for part in &sub.parts {
-                                    let part_confusion =
-                                        detect_confusion_type(sm, &part.snippet, part.span);
-                                    confusion_type = confusion_type.combine(part_confusion);
-                                }
+                            for part in &sub.parts {
+                                let part_confusion =
+                                    detect_confusion_type(sm, &part.snippet, part.span);
+                                confusion_type = confusion_type.combine(part_confusion);
                             }
 
                             if !matches!(confusion_type, ConfusionType::None) {
