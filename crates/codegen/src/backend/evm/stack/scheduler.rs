@@ -43,13 +43,14 @@
 //! an offset. An admissible lower bound for missing copies and unavoidable rearrangement proves the
 //! deterministic plan when its final cost matches the bound. A missing copy is priced as a `DUP`
 //! whenever one already exists, even below the direct-access window; exposing that copy is
-//! accounted for separately. Otherwise the A* queue handles the ambiguous layout. Gas optimization
-//! orders plans by static gas, encoded bytes, and action count. Size optimization orders them by
-//! encoded bytes, static gas, and action count. Equal estimates prefer deeper states, then queue
-//! serials make traversal deterministic. Search stops after [`MAX_OPERAND_SEARCH_STATES`];
-//! returning `None` delegates to the existing correctness-oriented emitter. “Optimal” here means
-//! the least estimated local preparation cost within this action model, not a whole-function
-//! stack-allocation optimum.
+//! accounted for separately. The deterministic walk scores candidates by applying and undoing them
+//! on one scratch layout, then records only the chosen action; it does not clone partial histories.
+//! Otherwise the A* queue handles the ambiguous layout. Gas optimization orders plans by static
+//! gas, encoded bytes, and action count. Size optimization orders them by encoded bytes, static
+//! gas, and action count. Equal estimates prefer deeper states, then queue serials make traversal
+//! deterministic. Search stops after [`MAX_OPERAND_SEARCH_STATES`]; returning `None` delegates to
+//! the existing correctness-oriented emitter. “Optimal” here means the least estimated local
+//! preparation cost within this action model, not a whole-function stack-allocation optimum.
 //!
 //! ## Applying a plan
 //!
@@ -716,13 +717,25 @@ impl StackScheduler {
         for _ in 0..max_actions {
             let mut best = None;
             for action in self.operand_search_actions(&node.stack, goal, preserve_counts, context) {
-                let next = Self::apply_planned_action(&node, action, evm_version, cost_model);
-                let priority = self.operand_search_priority(&next, goal, preserve_counts, context);
+                let popped = Self::apply_planned_stack_action(&mut node.stack, &action);
+                let next_cost = node.cost.with_op(&action.op, evm_version, cost_model);
+                let priority = next_cost
+                    .plus(self.operand_search_lower_bound(
+                        &node.stack,
+                        goal,
+                        preserve_counts,
+                        context,
+                    ))
+                    .key(optimization);
+                Self::undo_planned_stack_action(&mut node.stack, &action, popped);
                 if best.as_ref().is_none_or(|(best_priority, _)| priority < *best_priority) {
-                    best = Some((priority, next));
+                    best = Some((priority, action));
                 }
             }
-            node = best?.1;
+            let action = best?.1;
+            let _ = Self::apply_planned_stack_action(&mut node.stack, &action);
+            node.cost = node.cost.with_op(&action.op, evm_version, cost_model);
+            node.actions.push(action);
         }
 
         (Self::operand_goal_reached(&node.stack, goal, preserve_counts)
@@ -828,24 +841,51 @@ impl StackScheduler {
         cost_model: OperandCostModel,
     ) -> SearchNode {
         let mut next = node.clone();
-        match &action.op {
-            ScheduledOp::Stack(StackOp::Swap(depth)) => {
-                next.stack.swap(0, usize::from(*depth));
-            }
-            ScheduledOp::Stack(StackOp::Dup(depth)) => {
-                let value = next.stack[usize::from(*depth - 1)];
-                next.stack.insert(0, value);
-            }
-            ScheduledOp::Stack(StackOp::Pop) => {
-                next.stack.remove(0);
-            }
-            ScheduledOp::PushImmediate(_) | ScheduledOp::LoadSpill(_) | ScheduledOp::LoadArg(_) => {
-                next.stack.insert(0, action.pushed);
-            }
-        }
+        let _ = Self::apply_planned_stack_action(&mut next.stack, &action);
         next.cost = next.cost.with_op(&action.op, evm_version, cost_model);
         next.actions.push(action);
         next
+    }
+
+    fn apply_planned_stack_action(
+        stack: &mut SearchStack,
+        action: &PlannedAction,
+    ) -> Option<ValueId> {
+        match &action.op {
+            ScheduledOp::Stack(StackOp::Swap(depth)) => {
+                stack.swap(0, usize::from(*depth));
+                None
+            }
+            ScheduledOp::Stack(StackOp::Dup(depth)) => {
+                let value = stack[usize::from(*depth - 1)];
+                stack.insert(0, value);
+                None
+            }
+            ScheduledOp::Stack(StackOp::Pop) => stack.remove(0),
+            ScheduledOp::PushImmediate(_) | ScheduledOp::LoadSpill(_) | ScheduledOp::LoadArg(_) => {
+                stack.insert(0, action.pushed);
+                None
+            }
+        }
+    }
+
+    fn undo_planned_stack_action(
+        stack: &mut SearchStack,
+        action: &PlannedAction,
+        popped: Option<ValueId>,
+    ) {
+        match action.op {
+            ScheduledOp::Stack(StackOp::Swap(depth)) => {
+                stack.swap(0, usize::from(depth));
+            }
+            ScheduledOp::Stack(StackOp::Dup(_))
+            | ScheduledOp::PushImmediate(_)
+            | ScheduledOp::LoadSpill(_)
+            | ScheduledOp::LoadArg(_) => {
+                stack.remove(0);
+            }
+            ScheduledOp::Stack(StackOp::Pop) => stack.insert(0, popped),
+        }
     }
 
     fn operand_search_priority(
