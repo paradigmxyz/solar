@@ -114,7 +114,6 @@ impl Function {
     }
 
     /// Returns the IDs of all active instructions in block order.
-    #[must_use]
     pub(crate) fn instructions(&self) -> impl Iterator<Item = InstId> + '_ {
         self.blocks.iter().flat_map(|block| block.instructions.iter().copied())
     }
