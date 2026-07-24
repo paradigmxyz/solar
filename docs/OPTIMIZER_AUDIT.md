@@ -250,7 +250,7 @@ CI corpus with hot runtime-gas calls and matching successful call labels.
 
 Validation completed:
 
-- all 788 workspace tests, with six skipped;
+- all 718 workspace tests, with six skipped;
 - focused MIR and EVM IR UI coverage for CFG simplification, PRE, pure
   evaluation, SROA, copy elision, ABI lowering, dispatch lowering, EVM-shape
   lowering, and static-allocation propagation;
