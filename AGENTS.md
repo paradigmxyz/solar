@@ -188,6 +188,13 @@ Common file-level UI directives:
 - `//@ ignore-host: windows`: Skip a test on a specific host.
 - `//@[name] compile-flags: ...`: Define revision-specific flags for tests with
   multiple revisions.
+- `//@ run-call: add 1, 2 => 3`: Deploy a fresh contract, ABI-encode and call the
+  named function, then compare its ABI-encoded return values. Omit `=>` when no
+  return data is expected. Raw calldata and return data may be written as hex.
+- `//@ run-call-fail: fail()`: Like `run-call`, but require the call to fail.
+  Add `=> 0x...` to check exact revert data. Both directives use the EVM version
+  selected by `--evm-version`. Calls to functions named `test*` run a
+  zero-argument `setUp()` first when the contract defines it.
 - `//@ filecheck: ...`: Run LLVM FileCheck against the generated `.stdout` file
   after the UI test. Arguments after `filecheck:` are passed directly to
   FileCheck, for example `--check-prefix=ABI` or

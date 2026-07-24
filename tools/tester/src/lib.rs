@@ -22,6 +22,7 @@ use ui_test::{
 };
 
 mod errors;
+mod run_call;
 mod solc;
 mod standard_json;
 mod utils;
@@ -169,7 +170,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
             )*
         };
     }
-    register_custom_flags![FileCheck];
+    register_custom_flags![FileCheck, run_call::RunCall, run_call::RunCallFail];
 
     config.comment_defaults.base().exit_status = None.into();
     config.infer_exit_status_from_annotations = !mode.is_solc();
@@ -328,6 +329,10 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     }
 
     assert_eq!(config.comment_start, "//");
+    if matches!(cfg.mode, Mode::Ui) && src.lines().any(run_call::is_directive) {
+        config.program.args.extend(["-Zcodegen".into(), "--emit=abi,bin".into()]);
+        config.stdout_filter(r"(?s).+", "");
+    }
     if src.lines().any(|line| {
         let line = line.trim_start();
         line.starts_with("//@")
