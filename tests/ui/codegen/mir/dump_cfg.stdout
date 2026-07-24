@@ -15,3 +15,16 @@ digraph "f" {
     bb2 -> bb4 [label="false", color="red"];
 }
 
+
+digraph "storageOps" {
+    node [shape=box, fontname="Courier", fontsize=10];
+    edge [fontname="Courier", fontsize=9];
+
+    bb0 [label="bb0:\l  v0 = calldatasize\l  v1 = sub v0, 4\l  v2 = slt v1, 64\l  br v2, bb1, bb2\l"];
+    bb1 [label="bb1:\l  revert 0, 0\l"];
+    bb2 [label="bb2:\l  mstore 128, 0\l  sstore arg0, arg1\l  v3 = sload arg0\l  mstore 128, v3\l  v4 = mload 128\l  mstore 128, v4\l  returndata 128, 32\l"];
+
+    bb0 -> bb1 [label="v2 == true", color="green"];
+    bb0 -> bb2 [label="false", color="red"];
+}
+

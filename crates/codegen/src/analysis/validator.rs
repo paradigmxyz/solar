@@ -706,6 +706,32 @@ error: [bb0] successor bb1 does not list bb0 as a predecessor
     }
 
     #[test]
+    fn unexpected_stored_predecessor_is_caught() {
+        with_session(|sess| {
+            let mut func = make_func();
+            let target;
+            {
+                let mut builder = FunctionBuilder::new(&mut func);
+                target = builder.create_block();
+                builder.stop();
+                builder.switch_to_block(target);
+                builder.stop();
+            }
+            func.blocks[target].predecessors.push(BlockId::ENTRY);
+            Validator::new(&sess.dcx).validate_standalone_function(&func);
+            assert!(sess.dcx.has_errors().is_err());
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [bb1] stored predecessor bb0 does not branch to bb1
+
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
     fn function_without_entry_block_is_caught() {
         with_session(|sess| {
             let mut func = make_func();

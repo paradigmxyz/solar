@@ -1637,6 +1637,15 @@ mod tests {
     }
 
     #[test]
+    fn canonicalizes_absolute_memory_addresses() {
+        let mut func = function();
+        let absolute = FunctionBuilder::new(&mut func).imm_u64(0x20);
+        let aa = AliasAnalysis::new(&func);
+
+        assert_eq!(aa.memory_address(&func, absolute), Some(MemoryAddress::absolute(0x20)));
+    }
+
+    #[test]
     fn does_not_globalize_loop_allocation_identity() {
         let mut func = function();
         let allocation = {
@@ -1677,5 +1686,45 @@ mod tests {
             ),
             AliasResult::NoAlias
         );
+    }
+
+    #[test]
+    fn reports_precise_copy_modref() {
+        let mut func = function();
+        let copy = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let dest = builder.imm_u64(0x80);
+            let source = builder.imm_u64(0x20);
+            let size = builder.imm_u64(32);
+            builder.mcopy(dest, source, size);
+            *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
+        };
+        let aa = AliasAnalysis::new(&func);
+        let effects = aa.instruction_mod_ref(&func, copy);
+
+        assert_eq!(effects.reads().len(), 1);
+        assert_eq!(effects.writes().len(), 1);
+        assert!(effects.reads_space(AddressSpace::Memory));
+        assert!(effects.writes_space(AddressSpace::Memory));
+    }
+
+    #[test]
+    fn static_call_reads_state_but_cannot_write_it() {
+        let mut func = function();
+        let call = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let gas = builder.imm_u64(100_000);
+            let address = builder.imm_u64(1);
+            let offset = builder.imm_u64(0x80);
+            let size = builder.imm_u64(32);
+            builder.staticcall(gas, address, offset, size, offset, size);
+            *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
+        };
+        let effects = AliasAnalysis::new(&func).instruction_mod_ref(&func, call);
+
+        assert!(effects.reads_space(AddressSpace::Storage));
+        assert!(!effects.writes_space(AddressSpace::Storage));
+        assert!(effects.reads_space(AddressSpace::Memory));
+        assert!(effects.writes_space(AddressSpace::Memory));
     }
 }

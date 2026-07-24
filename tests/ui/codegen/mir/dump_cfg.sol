@@ -1,16 +1,28 @@
 //@ compile-flags: -Zcodegen -Zdump=mir-cfg
-//@ filecheck: --check-prefix=DOT
+//@ filecheck: --enable-var-scope
 
 contract DumpCfg {
+    // CHECK-LABEL: digraph "f" {
+    // CHECK: node [shape=box
+    // CHECK: [[ENTRY:bb[0-9]+]] [label="[[ENTRY]]:\l
+    // CHECK: [[ENTRY]] -> bb
     function f(uint x) public pure returns (uint) {
-        // DOT: // === ROOT/tests/ui/codegen/mir/dump_cfg.sol:DumpCfg ===
-        // DOT: digraph "f" {
-        // DOT: node [shape=box
-        // DOT: bb0 [label="bb0:\l
-        // DOT: bb0 -> bb
         if (x == 0) {
             return 1;
         }
         return x;
+    }
+
+    // CHECK-LABEL: digraph "storageOps" {
+    // CHECK-NOT: metadata
+    // CHECK: sstore arg0, arg1\l
+    // CHECK-NOT: metadata
+    // CHECK: [[LOAD:v[0-9]+]] = sload arg0\l
+    // CHECK-NOT: metadata
+    function storageOps(uint slot, uint value) public returns (uint loaded) {
+        assembly {
+            sstore(slot, value)
+            loaded := sload(slot)
+        }
     }
 }
