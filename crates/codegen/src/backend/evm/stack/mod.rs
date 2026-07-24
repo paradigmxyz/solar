@@ -9,8 +9,8 @@
 //!
 //! ## Architecture
 //!
-//! In optimized builds, the late `evm-inst-schedule` MIR pass runs immediately before this
-//! subsystem and orders movable, single-use expression trees in backend consumption order.
+//! The final pass in the default MIR lowering pipeline is `evm-inst-schedule`. It orders movable,
+//! single-use expression trees in backend consumption order immediately before this subsystem.
 //! Effectful instructions, `gas`, `msize`, phis, and shared results constrain that order; so does
 //! producer order for operations whose lowering already costs both equivalent operand
 //! orientations. This shortens avoidable producer-to-consumer distances without putting physical
@@ -38,6 +38,15 @@
 //! selected a stack-resident edge; ordinary edges retain the conservative spill
 //! and reload path.
 //!
+//! Lowering selects those edges with two narrow policies. Natural loops with one preheader and one
+//! latch may carry a canonical phi layout of up to eight words. Sufficiently large external
+//! functions may instead carry two or three repeatedly used decoded arguments through compatible
+//! joins; switch components and joins owned by the phi policy are excluded. Every incoming edge
+//! must agree on the same layout, and values outside a selected layout keep their stable spill
+//! homes. These are not independent schedulers applied in sequence: MIR ordering changes producer
+//! order, one local planner tier prepares each instruction, and an edge policy invokes the
+//! shuffler only when its complete-layout preconditions hold.
+//!
 //! ## Design lineage
 //!
 //! Plank's current [scheduler pipeline] derives block layout sets, builds an effect-aware operation
@@ -58,22 +67,23 @@
 //!
 //! [solc's SSA stack layout generator] and [Sonatina's stackify allocator] were evaluated for
 //! control-flow layouts and spill handling. They use whole-function layout machinery, fixed-point
-//! spill discovery, and canonical block-entry stacks. Sonatina's current operand preparer also
-//! supplies the verified one-action and unary fast-path pattern used here, while its normalized
-//! search cache and packed state remain coupled to its symbolic stack allocator. We retain
-//! conservative cross-block spills and add verified edge shuffles only where the current lowering
-//! can keep values stack-resident; importing either whole allocator would require a separate
-//! machine IR and a different calling and memory model. Fe delegates EVM code generation to
-//! Sonatina through its [Sonatina integration], so it does not add another stack scheduler to
-//! adapt.
+//! spill discovery, and canonical block-entry stacks. [Sonatina's operand preparer] also supplies
+//! the verified one-action and unary fast-path pattern used here, while its [normalized search]
+//! cache and packed state remain coupled to its symbolic stack allocator. We retain conservative
+//! cross-block spills and add verified edge shuffles only where the current lowering can keep
+//! values stack-resident; importing either whole allocator would require a separate machine IR and
+//! a different calling and memory model. Fe delegates EVM code generation to Sonatina through its
+//! [Sonatina integration], so it does not add another stack scheduler to adapt.
 //!
 //! [scheduler pipeline]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/lib.rs
 //! [Plank's intra-operation scheduler]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/greedy_intra_op_scheduler/mod.rs
 //! [greedy edge shuffler]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/greedy_shuffler/mod.rs
 //! [Venom's dependency-first traversal]: https://github.com/vyperlang/vyper/blob/730a2d36f1fca90be059c75681de5c942560ce0b/vyper/venom/passes/dft.py
 //! [single-use expansion]: https://github.com/vyperlang/vyper/blob/730a2d36f1fca90be059c75681de5c942560ce0b/vyper/venom/passes/single_use_expansion.py
-//! [solc's SSA stack layout generator]: https://github.com/ethereum/solidity/blob/d3ac579fe7521c43c73ef7261785c24d0b8c5e66/libyul/backends/evm/ssa/StackLayoutGenerator.cpp
-//! [Sonatina's stackify allocator]: https://github.com/fe-lang/sonatina/blob/55ca888f1fc83077e5eee803c0619231e9b50998/crates/codegen/src/stackalloc/stackify/planner/operand_prep.rs
+//! [solc's SSA stack layout generator]: https://github.com/ethereum/solidity/blob/d3ac579fe752189a9f2c365707b0f1cfc66b1437/libyul/backends/evm/ssa/StackLayoutGenerator.cpp
+//! [Sonatina's stackify allocator]: https://github.com/fe-lang/sonatina/blob/55ca888f1fc83077e5eee803c0619231e9b50998/crates/codegen/src/stackalloc/stackify/mod.rs
+//! [Sonatina's operand preparer]: https://github.com/fe-lang/sonatina/blob/55ca888f1fc83077e5eee803c0619231e9b50998/crates/codegen/src/stackalloc/stackify/planner/operand_prep.rs
+//! [normalized search]: https://github.com/fe-lang/sonatina/blob/55ca888f1fc83077e5eee803c0619231e9b50998/crates/codegen/src/stackalloc/stackify/planner/normalize_search.rs
 //! [Sonatina integration]: https://github.com/fe-lang/fe/blob/636607d1a859bb68d88460c5ee63dd9532791aa8/crates/codegen/src/sonatina/mod.rs
 //!
 //! ## Operand planning
