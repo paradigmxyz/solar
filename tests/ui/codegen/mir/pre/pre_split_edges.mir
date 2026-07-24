@@ -28,17 +28,17 @@ fn @switch_pred_two_cases(arg0: u256, arg1: u256) -> u256 {
 // bb2 branches to the join on both arms: one logical edge, one split block,
 // one phi entry.
 // CHECK-LABEL: {{^[ +].*}}fn @branch_both_arms_to_join{{[( ]}}
-// CHECK: + br arg1, bb4, bb4
+// CHECK: + jumpi arg1, bb4, bb4
 // CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb4: [[INSERTED:v[0-9]+]]]
 // CHECK: + [[INSERTED]] = add arg0, 7
 fn @branch_both_arms_to_join(arg0: u256, arg1: bool) -> u256 {
   bb0:
-    br arg1, bb1, bb2
+    jumpi arg1, bb1, bb2
   bb1:
     v2 = add arg0, 7
     jump bb3
   bb2:
-    br arg1, bb3, bb3
+    jumpi arg1, bb3, bb3
   bb3:
     v3 = add arg0, 7
     ret v3
@@ -61,7 +61,7 @@ fn @self_loop_backedge_insertion(arg0: u256, arg1: u256) -> u256 {
     v4 = add v3, 1
     v5 = add v3, 7
     v6 = lt v4, arg1
-    br v6, bb2, bb3
+    jumpi v6, bb2, bb3
   bb3:
     ret v5
 }
@@ -69,18 +69,18 @@ fn @self_loop_backedge_insertion(arg0: u256, arg1: u256) -> u256 {
 // Loop-invariant PRE through a branch-terminated preheader: the entry edge
 // into the header is split and the hoisted computation lands on it.
 // CHECK-LABEL: {{^[ +].*}}fn @hoist_through_branch_preheader{{[( ]}}
-// CHECK: + br {{v[0-9]+}}, bb5, bb4
+// CHECK: + jumpi {{v[0-9]+}}, bb5, bb4
 // CHECK: + {{v[0-9]+}} = phi [bb2: {{v[0-9]+}}], [bb5: [[HOISTED:v[0-9]+]]]
 // CHECK: + [[HOISTED]] = add arg0, 7
 fn @hoist_through_branch_preheader(arg0: u256, arg1: u256) -> u256 {
   bb0:
     v2 = lt arg0, arg1
-    br v2, bb1, bb4
+    jumpi v2, bb1, bb4
   bb1:
     v3 = phi [bb0: arg0], [bb2: v5]
     v4 = add v3, 7
     v9 = lt v4, arg1
-    br v9, bb2, bb3
+    jumpi v9, bb2, bb3
   bb2:
     v5 = add v3, 1
     v6 = add v5, 7

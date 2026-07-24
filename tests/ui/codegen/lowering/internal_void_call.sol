@@ -17,7 +17,7 @@ contract InternalVoidCall {
 
     // CHECK-LABEL: fn @setUnlessZero{{[( ]}}
     // CHECK: [[ZERO:v[0-9]+]] = eq arg0, 0
-    // CHECK: br [[ZERO]],
+    // CHECK: jumpi [[ZERO]],
     // CHECK: sstore 0, arg0
     function setUnlessZero(uint256 newValue) public {
         if (newValue == 0) {

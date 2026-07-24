@@ -7,20 +7,20 @@
 // CHECK-LABEL: {{^[ +].*}}fn @keep_check_on_loop_phi{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = phi [bb1: arg0], [bb3: {{v[0-9]+}}]
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = lt {{v[0-9]+}}, {{v[0-9]+}}
-// CHECK: {{^[ +].*}}br {{v[0-9]+}}, bb4, bb3
+// CHECK: {{^[ +].*}}jumpi {{v[0-9]+}}, bb4, bb3
 fn @keep_check_on_loop_phi(arg0: u256, arg1: bool) -> u256 {
   bb0:
     v1 = lt arg0, 100
-    br v1, bb1, bb5
+    jumpi v1, bb1, bb5
   bb1:
     jump bb2
   bb2:
     v2 = phi [bb1: arg0], [bb3: v3]
     v3 = add v2, 1
     v4 = lt v3, v2
-    br v4, bb4, bb3
+    jumpi v4, bb4, bb3
   bb3:
-    br arg1, bb2, bb6
+    jumpi arg1, bb2, bb6
   bb4:
     revert 0, 0
   bb5:

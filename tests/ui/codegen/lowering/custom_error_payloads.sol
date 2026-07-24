@@ -25,7 +25,7 @@ contract CustomErrorPayloads {
 
     // CHECK-LABEL: fn @require_empty{{[( ]}}
     // CHECK: [[FAIL:v[0-9]+]] = iszero arg0
-    // CHECK: br [[FAIL]],
+    // CHECK: jumpi [[FAIL]],
     // CHECK: [[PAYLOAD:v[0-9]+]] = alloc raw
     // CHECK: revert [[PAYLOAD]],
     function require_empty(bool ok) public pure {
@@ -34,7 +34,7 @@ contract CustomErrorPayloads {
 
     // CHECK-LABEL: fn @require_named{{[( ]}}
     // CHECK: [[FAIL:v[0-9]+]] = iszero arg0
-    // CHECK: br [[FAIL]],
+    // CHECK: jumpi [[FAIL]],
     // CHECK: [[MESSAGE:v[0-9]+]] = alloc memorybytes
     // CHECK: [[PAYLOAD:v[0-9]+]] = alloc raw
     // CHECK: revert [[PAYLOAD]],

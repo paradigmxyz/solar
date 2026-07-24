@@ -5,14 +5,14 @@ fn @setText(arg0: calldataslice) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = slice_len arg0
     v4 = add v3, 31
     v5 = lt v4, v3
-    br v5, bb3, bb4
+    jumpi v5, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -24,7 +24,7 @@ fn @setText(arg0: calldataslice) {
     v9 = select v8, 32, v7
     v10 = add 32, v9
     v11 = lt v10, v9
-    br v11, bb5, bb6
+    jumpi v11, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -60,7 +60,7 @@ fn @setText(arg0: calldataslice) {
     v36 = alloc raw, exact, uninitialized, infallible, 32
     mstore v36, 0
     v37 = keccak256 v36, 32
-    br v34, bb8, bb7
+    jumpi v34, bb8, bb7
   bb7:
     v38 = mload v18
     v39 = mul v17, 8
@@ -80,7 +80,7 @@ fn @setText(arg0: calldataslice) {
   bb9:
     v47 = mload v36
     v48 = lt v47, v35
-    br v48, bb10, bb11
+    jumpi v48, bb10, bb11
   bb10:
     v49 = mload v36
     v50 = add v37, v49
@@ -97,7 +97,7 @@ fn @setText(arg0: calldataslice) {
   bb12:
     v55 = mload v36
     v56 = lt v55, v30
-    br v56, bb13, bb14
+    jumpi v56, bb13, bb14
   bb13:
     v57 = mload v36
     v58 = add v37, v57
@@ -114,14 +114,14 @@ fn @setBlob(arg0: calldataslice) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = slice_len arg0
     v4 = add v3, 31
     v5 = lt v4, v3
-    br v5, bb3, bb4
+    jumpi v5, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -133,7 +133,7 @@ fn @setBlob(arg0: calldataslice) {
     v9 = select v8, 32, v7
     v10 = add 32, v9
     v11 = lt v10, v9
-    br v11, bb5, bb6
+    jumpi v11, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -169,7 +169,7 @@ fn @setBlob(arg0: calldataslice) {
     v36 = alloc raw, exact, uninitialized, infallible, 32
     mstore v36, 1
     v37 = keccak256 v36, 32
-    br v34, bb8, bb7
+    jumpi v34, bb8, bb7
   bb7:
     v38 = mload v18
     v39 = mul v17, 8
@@ -189,7 +189,7 @@ fn @setBlob(arg0: calldataslice) {
   bb9:
     v47 = mload v36
     v48 = lt v47, v35
-    br v48, bb10, bb11
+    jumpi v48, bb10, bb11
   bb10:
     v49 = mload v36
     v50 = add v37, v49
@@ -206,7 +206,7 @@ fn @setBlob(arg0: calldataslice) {
   bb12:
     v55 = mload v36
     v56 = lt v55, v30
-    br v56, bb13, bb14
+    jumpi v56, bb13, bb14
   bb13:
     v57 = mload v36
     v58 = add v37, v57
@@ -245,7 +245,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v14 = alloc memorybytes, exact, uninitialized, infallible, v12
     set_memory_object_len memorybytes, v14, v6
     v15 = memory_object_data memorybytes, v14
-    br v2, bb2, bb1
+    jumpi v2, bb2, bb1
   bb1:
     v16 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     mstore v15, v16
@@ -262,7 +262,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v20 = phi [bb2: v17], [bb5: v24]
     v21 = phi [bb2: v15], [bb5: v25]
     v22 = gt v19, 0
-    br v22, bb5, bb3
+    jumpi v22, bb5, bb3
   bb5:
     v23 = sload v20 !metadata(storage=symbolic(v20))
     mstore v21, v23

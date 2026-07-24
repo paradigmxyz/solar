@@ -6,20 +6,20 @@
 // iszero chain. On the surviving edge `a >= b` holds, so the checked
 // subtraction's underflow test `lt a, b` is constant false.
 // CHECK-LABEL: {{^[ +].*}}fn @fold_sub_after_ge_guard{{[( ]}}
-// CHECK: - br {{v[0-9]+}}, bb3, bb4
+// CHECK: - jumpi {{v[0-9]+}}, bb3, bb4
 // CHECK: + jump bb4
 fn @fold_sub_after_ge_guard(arg0: u256, arg1: u256) -> u256 {
   bb0:
     v1 = gt arg1, arg0
     v2 = iszero v1
     v3 = iszero v2
-    br v3, bb1, bb2
+    jumpi v3, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v4 = sub arg0, arg1
     v5 = lt arg0, arg1
-    br v5, bb3, bb4
+    jumpi v5, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
@@ -28,12 +28,12 @@ fn @fold_sub_after_ge_guard(arg0: u256, arg1: u256) -> u256 {
 
 // Without a dominating guard the underflow check must stay.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_sub_without_guard{{[( ]}}
-// CHECK: {{^[ +].*}}br {{v[0-9]+}}, bb1, bb2
+// CHECK: {{^[ +].*}}jumpi {{v[0-9]+}}, bb1, bb2
 fn @keep_sub_without_guard(arg0: u256, arg1: u256) -> u256 {
   bb0:
     v1 = sub arg0, arg1
     v2 = lt arg0, arg1
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -43,18 +43,18 @@ fn @keep_sub_without_guard(arg0: u256, arg1: u256) -> u256 {
 // The guarded values are arg0/arg1, but the checked subtraction uses a new
 // SSA value derived from a fresh load: no fact transfers, the check stays.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_sub_on_other_value{{[( ]}}
-// CHECK: {{^[ +].*}}br {{v[0-9]+}}, bb3, bb4
+// CHECK: {{^[ +].*}}jumpi {{v[0-9]+}}, bb3, bb4
 fn @keep_sub_on_other_value(arg0: u256, arg1: u256) -> u256 {
   bb0:
     v1 = gt arg1, arg0
-    br v1, bb1, bb2
+    jumpi v1, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v2 = mload 0
     v3 = sub v2, arg1
     v4 = lt v2, arg1
-    br v4, bb3, bb4
+    jumpi v4, bb3, bb4
   bb3:
     revert 0, 0
   bb4:

@@ -17,7 +17,7 @@ fn @sequential(arg0: u256) -> u256 {
     v3 = internal_frame_addr 160
     v4 = mload v3
     v5 = lt v4, arg0
-    br v5, bb2, bb3
+    jumpi v5, bb2, bb3
   bb2:
     v6 = internal_frame_addr 128
     v7 = mload v6
@@ -38,7 +38,7 @@ fn @sequential(arg0: u256) -> u256 {
     v15 = internal_frame_addr 192
     v16 = mload v15
     v17 = lt v16, arg0
-    br v17, bb5, bb6
+    jumpi v17, bb5, bb6
   bb5:
     v18 = internal_frame_addr 128
     v19 = mload v18

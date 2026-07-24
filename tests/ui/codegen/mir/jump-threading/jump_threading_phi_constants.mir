@@ -2,18 +2,18 @@
 //@filecheck:
 @module JumpThreadingPhiConstants
 // CHECK-LABEL: {{^[ +].*}}fn @thread_branch_on_phi_constant{{[( ]}}
-// CHECK: + br arg0, bb5, bb4
+// CHECK: + jumpi arg0, bb5, bb4
 // CHECK: + {{v[0-9]+}} = phi
 fn @thread_branch_on_phi_constant(arg0: bool) -> u256 {
   bb0:
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     jump bb3
   bb2:
     jump bb3
   bb3:
     v1 = phi [bb1: 0], [bb2: 1]
-    br v1, bb4, bb5
+    jumpi v1, bb4, bb5
   bb4:
     ret 11
   bb5:
@@ -21,11 +21,11 @@ fn @thread_branch_on_phi_constant(arg0: bool) -> u256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @thread_switch_on_phi_constant{{[( ]}}
-// CHECK: + br arg0, bb4, bb5
+// CHECK: + jumpi arg0, bb4, bb5
 // CHECK: + {{v[0-9]+}} = phi
 fn @thread_switch_on_phi_constant(arg0: bool) -> u256 {
   bb0:
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     jump bb3
   bb2:
@@ -43,17 +43,17 @@ fn @thread_switch_on_phi_constant(arg0: bool) -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @keep_unknown_phi{{[( ]}}
 // CHECK: {{^[ +].*}}[[VALUE:v[0-9]+]] = phi [bb1: arg1], [bb2: arg2]
-// CHECK: {{^[ +].*}}br [[VALUE]], bb4, bb5
+// CHECK: {{^[ +].*}}jumpi [[VALUE]], bb4, bb5
 fn @keep_unknown_phi(arg0: bool, arg1: u256, arg2: u256) -> u256 {
   bb0:
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     jump bb3
   bb2:
     jump bb3
   bb3:
     v1 = phi [bb1: arg1], [bb2: arg2]
-    br v1, bb4, bb5
+    jumpi v1, bb4, bb5
   bb4:
     ret 11
   bb5:
@@ -66,14 +66,14 @@ fn @keep_unknown_phi(arg0: bool, arg1: u256, arg2: u256) -> u256 {
 // CHECK: {{^[ +].*}}ret [[RESULT]]
 fn @keep_phi_used_in_successor(arg0: bool) -> u256 {
   bb0:
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     jump bb3
   bb2:
     jump bb3
   bb3:
     v1 = phi [bb1: 0], [bb2: 1]
-    br v1, bb4, bb5
+    jumpi v1, bb4, bb5
   bb4:
     v2 = add v1, 1
     ret v2

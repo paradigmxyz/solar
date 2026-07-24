@@ -15,13 +15,13 @@ fn @multi_latch_mixed_step() -> u256 {
   bb1:
     v1 = phi [bb0: 0], [bb2: v8], [bb3: v9]
     v2 = lt v1, 10
-    br v2, bb4, bb5
+    jumpi v2, bb4, bb5
   bb4:
     v6 = mul v1, 32
     mstore v6, 1
     v3 = mload 288
     v7 = calldataload 0
-    br v7, bb2, bb3
+    jumpi v7, bb2, bb3
   bb2:
     v8 = add v1, 1
     jump bb1
@@ -43,14 +43,14 @@ fn @multi_latch_same_value() -> u256 {
   bb1:
     v1 = phi [bb0: 0], [bb2: v8], [bb3: v8]
     v2 = lt v1, 10
-    br v2, bb4, bb5
+    jumpi v2, bb4, bb5
   bb4:
     v6 = mul v1, 32
     mstore v6, 1
     v3 = mload 320
     v8 = add v1, 1
     v7 = calldataload 0
-    br v7, bb2, bb3
+    jumpi v7, bb2, bb3
   bb2:
     jump bb1
   bb3:

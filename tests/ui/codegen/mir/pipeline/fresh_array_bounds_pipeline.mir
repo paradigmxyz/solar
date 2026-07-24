@@ -7,11 +7,11 @@
 // zeroing calldatacopy over the data area. The default pipeline should forward
 // the stored length, fold `1 < 3`, and delete the panic branch.
 // CHECK-LABEL: fn @constant_index{{[( ]}}
-// CHECK-NOT: {{br|revert}}
+// CHECK-NOT: {{jumpi|revert}}
 // CHECK: calldatacopy {{v[0-9]+}}, 0, 96
-// CHECK-NOT: {{br|revert}}
+// CHECK-NOT: {{jumpi|revert}}
 // CHECK: ret 7
-// CHECK-NOT: {{br|revert}}
+// CHECK-NOT: {{jumpi|revert}}
 fn @constant_index() -> u256 {
   bb0:
     v0 = mload 64
@@ -22,7 +22,7 @@ fn @constant_index() -> u256 {
     calldatacopy v2, 0, 96
     v3 = mload v0
     v4 = lt 1, v3
-    br v4, bb2, bb1
+    jumpi v4, bb2, bb1
   bb1:
     revert 0, 36
   bb2:
@@ -33,7 +33,7 @@ fn @constant_index() -> u256 {
 // CHECK-LABEL: fn @runtime_index{{[( ]}}
 // CHECK: [[LENGTH:v[0-9]+]] = mload {{v[0-9]+}}
 // CHECK: [[IN_BOUNDS:v[0-9]+]] = lt 1, [[LENGTH]]
-// CHECK: br [[IN_BOUNDS]], bb2, bb1
+// CHECK: jumpi [[IN_BOUNDS]], bb2, bb1
 // CHECK: revert 0, 36
 fn @runtime_index(arg0: u256) -> u256 {
   bb0:
@@ -47,7 +47,7 @@ fn @runtime_index(arg0: u256) -> u256 {
     calldatacopy v4, 0, v1
     v5 = mload v0
     v6 = lt 1, v5
-    br v6, bb2, bb1
+    jumpi v6, bb2, bb1
   bb1:
     revert 0, 36
   bb2:

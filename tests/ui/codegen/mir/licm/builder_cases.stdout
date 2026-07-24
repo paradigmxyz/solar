@@ -6,7 +6,7 @@
 +     v0 = mul arg0, 7
       jump bb1
     bb1:
-      br 1, bb2, bb3
+      jumpi 1, bb2, bb3
     bb2:
 -     v0 = mul arg0, 7
       jump bb1
@@ -19,7 +19,7 @@
 +     v0 = sload 0 !metadata(storage=slot(0))
       jump bb1
     bb1:
-      br 1, bb2, bb3
+      jumpi 1, bb2, bb3
     bb2:
 -     v0 = sload 0
 -     sstore 1, 1
@@ -33,7 +33,7 @@
     bb0:
       jump bb1
     bb1:
-      br 1, bb2, bb3
+      jumpi 1, bb2, bb3
     bb2:
 -     v0 = sload 0
 -     sstore 0, 1
@@ -48,7 +48,7 @@
     bb0:
       jump bb1
     bb1:
-      br 1, bb2, bb3
+      jumpi 1, bb2, bb3
     bb2:
       v0 = gas
       v1 = mul arg0, 7

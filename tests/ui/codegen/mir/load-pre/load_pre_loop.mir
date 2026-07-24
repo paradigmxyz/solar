@@ -18,7 +18,7 @@ fn @loop_header_reload(arg0: u256) -> u256 {
   bb1:
     v2 = sload 5
     v3 = lt v2, arg0
-    br v3, bb2, bb3
+    jumpi v3, bb2, bb3
   bb2:
     jump bb1
   bb3:
@@ -35,7 +35,7 @@ fn @loop_clobbered_keeps_reload(arg0: u256, arg1: u256) -> u256 {
   bb1:
     v2 = sload 5
     v3 = lt v2, arg0
-    br v3, bb2, bb3
+    jumpi v3, bb2, bb3
   bb2:
     sstore arg1, 9
     jump bb1
@@ -53,10 +53,10 @@ fn @loop_clobbered_no_insert(arg0: u256, arg1: u256) -> u256 {
   bb1:
     v2 = sload 5
     v3 = lt v2, arg0
-    br v3, bb2, bb3
+    jumpi v3, bb2, bb3
   bb2:
     sstore arg1, 9
-    br v3, bb1, bb3
+    jumpi v3, bb1, bb3
   bb3:
     ret v2
 }

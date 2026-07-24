@@ -9,7 +9,7 @@ contract BackendControlFlow {
 
     // CHECK-LABEL: fn @localVarInConditional
     // CHECK: [[VALUE:v[0-9]+]] = sload [[SLOT:[0-9]+]]
-    // CHECK: br
+    // CHECK: jumpi
     // CHECK: [[RESULT:v[0-9]+]] = sub [[VALUE]], 1
     // CHECK: sstore [[SLOT]], [[RESULT]]
     function localVarInConditional() public {
@@ -19,7 +19,7 @@ contract BackendControlFlow {
 
     // CHECK-LABEL: fn @directStorageInConditional
     // CHECK: sload [[SLOT:[0-9]+]]
-    // CHECK: br
+    // CHECK: jumpi
     // CHECK: [[VALUE:v[0-9]+]] = sload [[SLOT]]
     // CHECK: [[RESULT:v[0-9]+]] = sub [[VALUE]], 1
     // CHECK: sstore [[SLOT]], [[RESULT]]
@@ -28,7 +28,7 @@ contract BackendControlFlow {
     }
 
     // CHECK-LABEL: fn @phiAfterBranch
-    // CHECK: br
+    // CHECK: jumpi
     // CHECK: [[LIQUIDITY:v[0-9]+]] = mload {{[0-9]+}}
     // CHECK: [[SUPPLY:v[0-9]+]] = sload [[SUPPLY_SLOT:[0-9]+]]
     // CHECK: [[TOTAL:v[0-9]+]] = add [[SUPPLY]], [[LIQUIDITY]]
@@ -43,7 +43,7 @@ contract BackendControlFlow {
     }
 
     // CHECK-LABEL: fn @phiUsedMultipleTimes
-    // CHECK: br
+    // CHECK: jumpi
     // CHECK: [[LIQUIDITY:v[0-9]+]] = mload [[PHI_ADDR:[0-9]+]]
     // CHECK: [[SUPPLY:v[0-9]+]] = sload [[SUPPLY_SLOT:[0-9]+]]
     // CHECK: [[TOTAL:v[0-9]+]] = add [[SUPPLY]], [[LIQUIDITY]]
@@ -65,7 +65,7 @@ contract BackendControlFlow {
     }
 
     // CHECK-LABEL: fn @phiWithTernary
-    // CHECK: br
+    // CHECK: jumpi
     // CHECK: [[LIQUIDITY:v[0-9]+]] = mload [[RESULT_ADDR:[0-9]+]]
     // CHECK: [[SUPPLY:v[0-9]+]] = sload [[SUPPLY_SLOT:[0-9]+]]
     // CHECK: [[TOTAL:v[0-9]+]] = add [[SUPPLY]], [[LIQUIDITY]]

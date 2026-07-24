@@ -5,21 +5,21 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = eq v3, v4
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
     v6 = calldataload 36
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
     v8 = eq v6, v7
-    br v8, bb6, bb5
+    jumpi v8, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
@@ -43,21 +43,21 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) {
     returndatacopy v23, v16, v17
     mstore 160, v22
     v24 = mload 128
-    br v24, bb7, bb8
+    jumpi v24, bb7, bb8
   bb7:
     v25 = mload 160
     v26 = mload v25
     v27 = eq v26, 0
-    br v27, bb10, bb9
+    jumpi v27, bb10, bb9
   bb8:
     v38 = phi [bb6: 0], [bb10: v37]
     v39 = iszero v38
-    br v39, bb15, bb16
+    jumpi v39, bb15, bb16
   bb9:
     v28 = mload 160
     v29 = memory_object_len memorybytes, v28
     v30 = lt v29, 32
-    br v30, bb11, bb12
+    jumpi v30, bb11, bb12
   bb10:
     v37 = phi [bb7: 1], [bb14: v34]
     jump bb8
@@ -70,7 +70,7 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) {
     v34 = iszero v33
     v35 = eq v32, v34
     v36 = iszero v35
-    br v36, bb13, bb14
+    jumpi v36, bb13, bb14
   bb13:
     revert 0, 0
   bb14:
@@ -96,14 +96,14 @@ fn @balanceOf(arg0: address) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = eq v3, v4
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -131,14 +131,14 @@ fn @balanceOf(arg0: address) {
     mstore 192, v21
     v23 = mload 160
     v24 = iszero v23
-    br v24, bb5, bb6
+    jumpi v24, bb5, bb6
   bb5:
     revert 0, 0
   bb6:
     v25 = mload 192
     v26 = memory_object_len memorybytes, v25
     v27 = lt v26, 32
-    br v27, bb7, bb8
+    jumpi v27, bb7, bb8
   bb7:
     revert 0, 0
   bb8:
@@ -153,14 +153,14 @@ fn @forward(arg0: address, arg1: memorybytes) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = eq v3, v4
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -196,7 +196,7 @@ fn @forward(arg0: address, arg1: memorybytes) {
     mstore 192, v27
     v29 = mload 160
     v30 = iszero v29
-    br v30, bb5, bb6
+    jumpi v30, bb5, bb6
   bb5:
     revert 0, 0
   bb6:

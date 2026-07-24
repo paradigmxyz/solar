@@ -9,7 +9,7 @@
   
   fn @diamond(arg0: u256, arg1: bool) {
     bb0:
-      br arg1, bb1, bb2
+      jumpi arg1, bb1, bb2
     bb1:
       ret arg0
     bb2:

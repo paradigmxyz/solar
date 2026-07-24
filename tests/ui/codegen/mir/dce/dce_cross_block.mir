@@ -10,7 +10,7 @@
 fn @cross(arg0: u256, arg1: bool) -> u256 {
   bb0:
     v2 = add arg0, 1
-    br arg1, bb1, bb2
+    jumpi arg1, bb1, bb2
   bb1:
     v3 = mul arg0, arg0
     jump bb2

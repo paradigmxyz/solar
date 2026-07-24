@@ -5,7 +5,7 @@ fn @decode(arg0: memorybytes) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -25,7 +25,7 @@ fn @decode(arg0: memorybytes) {
     mstore 192, 0
     v12 = memory_object_len memorybytes, v9
     v13 = lt v12, 96
-    br v13, bb3, bb4
+    jumpi v13, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
@@ -37,7 +37,7 @@ fn @decode(arg0: memorybytes) {
     v19 = iszero v18
     v20 = eq v17, v19
     v21 = iszero v20
-    br v21, bb5, bb6
+    jumpi v21, bb5, bb6
   bb5:
     revert 0, 0
   bb6:
@@ -46,7 +46,7 @@ fn @decode(arg0: memorybytes) {
     v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
     v25 = eq v23, v24
     v26 = iszero v25
-    br v26, bb7, bb8
+    jumpi v26, bb7, bb8
   bb7:
     revert 0, 0
   bb8:

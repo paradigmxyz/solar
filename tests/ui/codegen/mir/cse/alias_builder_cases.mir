@@ -102,7 +102,7 @@ fn @distinct_loop_allocations(arg0: bool) -> u256 {
     mstore v1, 9
     v3 = mload v0
     v4 = add v2, v3
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
     ret v4
 }

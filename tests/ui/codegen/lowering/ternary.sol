@@ -5,7 +5,7 @@
 contract Ternary {
     // CHECK-LABEL: fn @max{{[( ]}}
     // CHECK: [[GT:v[0-9]+]] = gt arg0, arg1
-    // CHECK: br [[GT]],
+    // CHECK: jumpi [[GT]],
     // CHECK: mstore 0, arg0
     // CHECK: mstore 0, arg1
     // CHECK: mload 0

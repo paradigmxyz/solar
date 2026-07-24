@@ -20,8 +20,8 @@ contract StorageBytesElements {
     // CHECK: [[WORD:v[0-9]+]] = sload 0
     // CHECK: [[LOW_BIT:v[0-9]+]] = and [[WORD]], 1
     // CHECK: [[LONG:v[0-9]+]] = eq [[LOW_BIT]], 1
-    // CHECK: br {{v[0-9]+}},
-    // CHECK: br [[LONG]],
+    // CHECK: jumpi {{v[0-9]+}},
+    // CHECK: jumpi [[LONG]],
     // CHECK: sstore 0,
     // CHECK: {{v[0-9]+}} = keccak256 0, 32
     // CHECK: sstore {{v[0-9]+}},

@@ -28,7 +28,7 @@ fn @sum(arg0: u256) {
   bb1:
     v44 = phi [bb0: 0], [bb9: v28]
     v9 = lt v44, arg0
-    br v9, bb4, bb5
+    jumpi v9, bb4, bb5
   bb2:
     v40 = mload 128
     mstore 128, v40
@@ -36,12 +36,12 @@ fn @sum(arg0: u256) {
   bb3:
     v28 = add v44, 1
     v29 = lt v28, v44
-    br v29, bb8, bb9
+    jumpi v29, bb8, bb9
   bb4:
     v13 = mload 128
     v14 = add v13, v44
     v15 = lt v14, v13
-    br v15, bb6, bb7
+    jumpi v15, bb6, bb7
   bb5:
     jump bb2
   bb6:

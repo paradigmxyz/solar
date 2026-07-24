@@ -13,7 +13,7 @@ contract MultiReturn {
 
     // CHECK-LABEL: fn @min_max{{[( ]}}
     // CHECK: [[ORDERED:v[0-9]+]] = lt arg0, arg1
-    // CHECK: br [[ORDERED]],
+    // CHECK: jumpi [[ORDERED]],
     // CHECK-COUNT-2: returndata 128, 64
     function min_max(uint256 a, uint256 b) public pure returns (uint256, uint256) {
         if (a < b) {

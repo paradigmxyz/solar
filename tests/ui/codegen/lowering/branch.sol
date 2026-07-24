@@ -5,7 +5,7 @@
 contract Branch {
     // CHECK-LABEL: fn @max{{[( ]}}
     // CHECK: [[GT:v[0-9]+]] = gt arg0, arg1
-    // CHECK: br [[GT]],
+    // CHECK: jumpi [[GT]],
     // CHECK: returndata
     // CHECK: returndata
     function max(uint256 a, uint256 b) public pure returns (uint256) {

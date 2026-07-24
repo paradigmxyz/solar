@@ -9,7 +9,7 @@
 // CHECK-LABEL: {{^[ +].*}}after lower-dispatch
 // CHECK: + fn @entry{{[( ]}}
 // CHECK: + [[VALUE:v[0-9]+]] = callvalue
-// CHECK: + br [[VALUE]]
+// CHECK: + jumpi [[VALUE]]
 // CHECK: + switch {{.*}}[1 => {{.*}}2 =>
 // CHECK: + tail_call @a
 // CHECK: + tail_call @b

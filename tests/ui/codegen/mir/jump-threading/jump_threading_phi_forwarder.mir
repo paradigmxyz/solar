@@ -4,12 +4,12 @@
 // its predecessors past it would sever the phi's incoming edges.
 @module JumpThreadingPhiForwarder
 // CHECK-LABEL: {{^[ +].*}}fn @keep_phi_only_block{{[( ]}}
-// CHECK: {{^[ +].*}}br arg0, bb1, bb2
+// CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
 // CHECK: {{^[ +].*}}[[VALUE:v[0-9]+]] = phi [bb1: 1], [bb2: 2]
 // CHECK: {{^[ +].*}}add [[VALUE]], 1
 fn @keep_phi_only_block(arg0: bool) -> u256 {
   bb0:
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     jump bb3
   bb2:

@@ -8,7 +8,7 @@
 // CHECK: + ret [[MERGE]]
 fn @hoist_projection(arg0: memorystruct, arg1: bool) -> memptr {
   bb0:
-    br arg1, bb1, bb2
+    jumpi arg1, bb1, bb2
   bb1:
     v2 = memory_object_field_addr memorystruct<3>, arg0, 2
     jump bb3
