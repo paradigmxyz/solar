@@ -5,19 +5,16 @@
 // lay out each successful continuation as the branch fallthrough.
 contract ColdCallHotFallthrough {
     // CHECK-LABEL: @module runtime
-    // CHECK: sgt
-    // CHECK-NEXT: push [[REVERT:bb[0-9]+]]
+    // CHECK: eq
+    // CHECK-NEXT: push [[DISPATCH:bb[0-9]+]]
     // CHECK-NEXT: jumpi
-    // CHECK-NEXT: push 0{{$}}
-    // CHECK-NEXT: push 128
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: push 4{{$}}
-    // CHECK-NEXT: calldataload
-    // CHECK-NEXT: iszero
+    // CHECK: [[DISPATCH]]:
+    // CHECK: iszero
     // CHECK-NEXT: push [[COLD:bb[0-9]+]]
     // CHECK-NEXT: jump [[BRANCH:bb[0-9]+]]
     // CHECK: [[BRANCH]]:
     // CHECK-NEXT: jumpi
+    // CHECK-NOT: jump
     // CHECK: return
     // CHECK: [[COLD]] [cold]:
     function nonzero(uint256 value) external pure returns (uint256) {

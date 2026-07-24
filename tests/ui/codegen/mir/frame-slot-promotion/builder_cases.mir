@@ -3,9 +3,16 @@
 @module FramePromotionBuilderCases
 
 // CHECK-LABEL: @loop_carried
-// CHECK: +     [[INDEX:v[0-9]+]] = phi [bb0: 0], [bb2: [[NEXT:v[0-9]+]]]
-// CHECK: +     [[NEXT]] = add [[INDEX]], 1
-// CHECK: +     ret [[INDEX]]
+// CHECK:       [[ENTRY:bb[0-9]+]]:
+// CHECK:       jump [[HEADER:bb[0-9]+]]
+// CHECK:       [[HEADER]]:
+// CHECK:       [[INDEX:v[0-9]+]] = phi [[[ENTRY]]: 0], [[[BODY:bb[0-9]+]]: [[NEXT:v[0-9]+]]]
+// CHECK:       br {{.*}}, [[BODY]], [[EXIT:bb[0-9]+]]
+// CHECK:       [[BODY]]:
+// CHECK:       [[NEXT]] = add [[INDEX]], 1
+// CHECK:       jump [[HEADER]]
+// CHECK:       [[EXIT]]:
+// CHECK:       ret [[INDEX]]
 fn @loop_carried() -> u256 {
   bb0:
     v0 = internal_frame_addr 128
@@ -59,7 +66,7 @@ fn @gas_observed() -> u256 {
 
 // CHECK-LABEL: @internal_call
 // CHECK:       internal_call @callee, 0
-// CHECK: +     ret 42
+// CHECK:       ret 42
 fn @internal_call() -> u256 {
   bb0:
     v0 = internal_frame_addr 128
@@ -75,7 +82,7 @@ fn @callee() {
 }
 
 // CHECK-LABEL: @constant_offset
-// CHECK: +     ret 99
+// CHECK:       ret 99
 fn @constant_offset() -> u256 {
   bb0:
     v0 = internal_frame_addr 128

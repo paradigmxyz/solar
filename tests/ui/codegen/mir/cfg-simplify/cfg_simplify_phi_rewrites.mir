@@ -3,9 +3,12 @@
 @module CfgSimplifyPhiRewrites
 
 // CHECK-LABEL: @empty_forwarder
-// CHECK: +     br arg0, bb2, bb1
+// CHECK:       [[ENTRY:bb[0-9]+]]:
+// CHECK: +     br arg0, [[MERGE:bb[0-9]+]], [[OTHER_BLOCK:bb[0-9]+]]
+// CHECK:       [[OTHER_BLOCK]]:
 // CHECK:       [[OTHER:v[0-9]+]] = add 7, 42
-// CHECK: +     [[PHI:v[0-9]+]] = phi [bb0: 42], [bb1: [[OTHER]]]
+// CHECK: +     [[MERGE]]:
+// CHECK:       [[PHI:v[0-9]+]] = phi [[[ENTRY]]: 42], [[[OTHER_BLOCK]]: [[OTHER]]]
 // CHECK:       ret [[PHI]]
 fn @empty_forwarder(arg0: bool) -> u256 {
   bb0:
@@ -21,9 +24,16 @@ fn @empty_forwarder(arg0: bool) -> u256 {
 }
 
 // CHECK-LABEL: @block_merge
+// CHECK:       [[ENTRY:bb[0-9]+]]:
+// CHECK: +     br arg0, [[LEFT_BLOCK:bb[0-9]+]], [[RIGHT_BLOCK:bb[0-9]+]]
+// CHECK:       [[LEFT_BLOCK]]:
 // CHECK:       [[LEFT:v[0-9]+]] = add 1, 2
+// CHECK: +     jump [[MERGE:bb[0-9]+]]
+// CHECK: +     [[RIGHT_BLOCK]]:
 // CHECK:       [[RIGHT:v[0-9]+]] = add 3, 4
-// CHECK: +     [[PHI:v[0-9]+]] = phi [bb1: [[LEFT]]], [bb2: [[RIGHT]]]
+// CHECK: +     jump [[MERGE]]
+// CHECK: +     [[MERGE]]:
+// CHECK:       [[PHI:v[0-9]+]] = phi [[[LEFT_BLOCK]]: [[LEFT]]], [[[RIGHT_BLOCK]]: [[RIGHT]]]
 // CHECK:       ret [[PHI]]
 fn @block_merge(arg0: bool) -> u256 {
   bb0:

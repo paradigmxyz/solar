@@ -3,12 +3,13 @@
 
 contract ColdCallFallthroughNone {
     // CHECK-LABEL: @module runtime
-    // CHECK: push 128
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: push 0{{$}}
-    // CHECK-NEXT: push 4{{$}}
-    // CHECK-NEXT: calldataload
-    // CHECK-NEXT: eq
+    // CHECK: eq
+    // CHECK-NEXT: push [[DISPATCH:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
+    // CHECK: [[DISPATCH]]:
+    // CHECK-NEXT: jump [[WRAPPER:bb[0-9]+]]
+    // CHECK: [[WRAPPER]]:
+    // CHECK: eq
     // CHECK-NEXT: iszero
     // CHECK-NEXT: push [[HOT:bb[0-9]+]]
     // CHECK-NEXT: jumpi

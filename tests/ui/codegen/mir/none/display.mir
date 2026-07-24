@@ -13,8 +13,10 @@ fn @linear(arg0: u256) -> u256 {
 }
 
 // CHECK-LABEL: @diamond
-// CHECK: br arg1, bb1, bb2
+// CHECK: br arg1, [[THEN:bb[0-9]+]], [[ELSE:bb[0-9]+]]
+// CHECK: [[THEN]]:
 // CHECK: ret arg0
+// CHECK: [[ELSE]]:
 // CHECK: ret arg0
 fn @diamond(arg0: u256, arg1: bool) {
   bb0:

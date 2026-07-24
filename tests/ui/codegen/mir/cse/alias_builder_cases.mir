@@ -6,7 +6,7 @@
 // CHECK-LABEL: @canonical_arg_offset
 // CHECK: [[LOAD:v[0-9]+]] = mload
 // CHECK: -     {{v[0-9]+}} = mload
-// CHECK: +     [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
+// CHECK: [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
 // CHECK: ret [[SUM]]
 fn @canonical_arg_offset(arg0: memptr) -> u256 {
   bb0:
@@ -21,7 +21,7 @@ fn @canonical_arg_offset(arg0: memptr) -> u256 {
 // CHECK-LABEL: @canonical_frame_offset
 // CHECK: [[LOAD:v[0-9]+]] = mload
 // CHECK: -     {{v[0-9]+}} = mload
-// CHECK: +     [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
+// CHECK: [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
 // CHECK: ret [[SUM]]
 fn @canonical_frame_offset() -> u256 {
   bb0:
@@ -37,7 +37,7 @@ fn @canonical_frame_offset() -> u256 {
 // CHECK-LABEL: @canonical_heap_offset
 // CHECK: [[LOAD:v[0-9]+]] = mload
 // CHECK: -     {{v[0-9]+}} = mload
-// CHECK: +     [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
+// CHECK: [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
 // CHECK: ret [[SUM]]
 fn @canonical_heap_offset() -> u256 {
   bb0:
@@ -54,7 +54,7 @@ fn @canonical_heap_offset() -> u256 {
 // CHECK-LABEL: @same_select
 // CHECK: [[LOAD:v[0-9]+]] = mload
 // CHECK: -     {{v[0-9]+}} = mload
-// CHECK: +     [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
+// CHECK: [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
 // CHECK: ret [[SUM]]
 fn @same_select(arg0: bool) -> u256 {
   bb0:

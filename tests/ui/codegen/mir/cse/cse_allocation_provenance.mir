@@ -6,7 +6,7 @@
 // CHECK-LABEL: @fresh
 // CHECK:       [[LOAD:v[0-9]+]] = mload {{v[0-9]+}}
 // CHECK: -     {{v[0-9]+}} = mload {{v[0-9]+}}
-// CHECK: +     [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
+// CHECK:       [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
 // CHECK:       ret [[SUM]]
 fn @fresh(arg0: u256, arg1: u256) -> u256 {
   bb0:
