@@ -3485,6 +3485,7 @@ dependencies = [
  "solar-config",
  "solar-data-structures",
  "solar-interface",
+ "solar-lint",
  "solar-macros",
  "solar-parse",
  "solar-sema",
@@ -3553,6 +3554,16 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "unicode-width",
+]
+
+[[package]]
+name = "solar-lint"
+version = "0.2.0"
+dependencies = [
+ "rayon",
+ "solar-ast",
+ "solar-interface",
+ "solar-sema",
 ]
 
 [[package]]

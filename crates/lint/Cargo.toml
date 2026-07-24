@@ -1,0 +1,28 @@
+[package]
+name = "solar-lint"
+description = "Extensible lint infrastructure for the Solar Solidity compiler"
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+rayon.workspace = true
+solar-ast.workspace = true
+solar-interface.workspace = true
+solar-sema.workspace = true
+
+[features]
+nightly = [
+    "solar-ast/nightly",
+    "solar-interface/nightly",
+    "solar-sema/nightly",
+]

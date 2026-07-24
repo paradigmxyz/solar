@@ -503,13 +503,15 @@ pub enum SuggestionStyle {
     /// empty.
     #[default]
     ShowCode,
+    /// Show the suggested code without annotating visually confusable replacements.
+    ShowCodeNoConfusion,
     /// Always show the suggested code independently.
     ShowAlways,
 }
 
 impl SuggestionStyle {
     fn hide_inline(&self) -> bool {
-        !matches!(*self, Self::ShowCode)
+        !matches!(*self, Self::ShowCode | Self::ShowCodeNoConfusion)
     }
 }
 
@@ -1415,6 +1417,52 @@ warning: confusable spelling
 
 "#]]
         );
+    }
+
+    #[test]
+    fn test_inline_suggestion_can_hide_confusable_case_notice() {
+        let span = Span::new(BytePos(43), BytePos(47));
+        let mut diag = Diag::new(Level::Warning, "confusable spelling");
+        diag.span(span).span_suggestion_with_style(
+            span,
+            "capitalize this",
+            "View",
+            Applicability::MachineApplicable,
+            SuggestionStyle::ShowCodeNoConfusion,
+        );
+
+        assert_data_eq!(
+            emit_human_diagnostics(diag),
+            str![[r#"
+warning: confusable spelling
+  ╭▸ <test.sol>:3:27
+  │
+3 │     function foo() public view {
+  ╰╴                          ━━━━ help: capitalize this: `View`
+
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn test_standalone_suggestion_can_hide_confusable_case_notice() {
+        let span = Span::new(BytePos(43), BytePos(47));
+        let mut diag = Diag::new(Level::Warning, "confusable spelling");
+        for message in ["capitalize this", "capitalize this instead"] {
+            diag.span_suggestion_with_style(
+                span,
+                message,
+                "View",
+                Applicability::MachineApplicable,
+                SuggestionStyle::ShowCodeNoConfusion,
+            );
+        }
+
+        let rendered = emit_human_diagnostics(diag);
+        assert!(!rendered.contains("notice the capitalization"), "{rendered}");
+        assert!(rendered.contains("capitalize this"), "{rendered}");
+        assert!(rendered.contains("function foo() public View"), "{rendered}");
     }
 
     #[test]
