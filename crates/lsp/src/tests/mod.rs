@@ -5,24 +5,25 @@ use crate::{
     config::negotiate_capabilities,
     test_support::{MarkedProject, TestProject},
 };
-use async_lsp::{ClientSocket, router::Router};
+use async_lsp::{ClientSocket, ErrorCode, ResponseError, ServerSocket, router::Router};
 use lsp_types::{
     Diagnostic, DidChangeConfigurationParams, DidChangeTextDocumentParams,
     DidChangeWatchedFilesParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     DidSaveTextDocumentParams, DocumentDiagnosticParams, DocumentDiagnosticReport,
     DocumentDiagnosticReportResult, DocumentSymbol, FileChangeType, FileEvent, PartialResultParams,
-    Position, Range, SymbolKind, TextDocumentContentChangeEvent, TextDocumentIdentifier,
-    TextDocumentItem, VersionedTextDocumentIdentifier, WatchKind, WorkDoneProgressParams,
-    WorkspaceSymbol, notification, notification::Notification,
+    Position, ProgressParams, ProgressParamsValue, PublishDiagnosticsParams, Range, SymbolKind,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
+    VersionedTextDocumentIdentifier, WatchKind, WorkDoneProgress, WorkDoneProgressCreateParams,
+    WorkDoneProgressParams, WorkspaceSymbol, notification, notification::Notification, request,
 };
 use std::{
     future::Future,
     path::Path,
-    sync::mpsc as std_mpsc,
+    sync::{Barrier, mpsc as std_mpsc},
     task::{Context, Poll, Waker},
-    time::Duration,
+    time::{Duration, Instant},
 };
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 mod completion;
@@ -40,6 +41,96 @@ mod support;
 mod type_definition;
 
 const ASYNC_TEST_TIMEOUT: Duration = Duration::from_secs(5);
+
+#[derive(Debug)]
+enum WorkDoneEvent {
+    Create(WorkDoneProgressCreateParams),
+    Progress(ProgressParams),
+    Diagnostics(PublishDiagnosticsParams),
+}
+
+struct WorkDoneClientState {
+    events: mpsc::UnboundedSender<WorkDoneEvent>,
+    create_ack: Option<oneshot::Receiver<()>>,
+}
+
+struct WorkDoneHarness {
+    client: ClientSocket,
+    server: ServerSocket,
+    events: mpsc::UnboundedReceiver<WorkDoneEvent>,
+    create_ack: Option<oneshot::Sender<()>>,
+    server_task: tokio::task::JoinHandle<async_lsp::Result<()>>,
+    client_task: tokio::task::JoinHandle<async_lsp::Result<()>>,
+}
+
+impl WorkDoneHarness {
+    async fn next_event(&mut self) -> WorkDoneEvent {
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, self.events.recv())
+            .await
+            .expect("work-done client event should arrive")
+            .expect("work-done client event channel should stay open")
+    }
+
+    fn acknowledge_create(&mut self) {
+        self.create_ack.take().expect("one create acknowledgement").send(()).unwrap();
+    }
+
+    async fn shutdown(self) {
+        self.server.notify::<notification::Exit>(()).unwrap();
+        assert!(self.server_task.await.unwrap().is_ok());
+        assert!(matches!(self.client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
+    }
+}
+
+fn work_done_harness() -> WorkDoneHarness {
+    let (server_main, client) = async_lsp::MainLoop::new_server(|_| {
+        let mut router = Router::new(());
+        router.notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())));
+        router
+    });
+    let (events_tx, events) = mpsc::unbounded_channel();
+    let (create_ack_tx, create_ack_rx) = oneshot::channel();
+    let (client_main, server) = async_lsp::MainLoop::new_client(move |_| {
+        let mut router =
+            Router::new(WorkDoneClientState { events: events_tx, create_ack: Some(create_ack_rx) });
+        router.request::<request::WorkDoneProgressCreate, _>(|state, params| {
+            state.events.send(WorkDoneEvent::Create(params)).unwrap();
+            let create_ack = state.create_ack.take().expect("one progress create request");
+            async move {
+                create_ack.await.map_err(|_| {
+                    ResponseError::new(ErrorCode::REQUEST_FAILED, "test create ack dropped")
+                })?;
+                Ok(())
+            }
+        });
+        router.notification::<notification::Progress>(|state, params| {
+            state.events.send(WorkDoneEvent::Progress(params)).unwrap();
+            ControlFlow::Continue(())
+        });
+        router.notification::<notification::PublishDiagnostics>(|state, params| {
+            state.events.send(WorkDoneEvent::Diagnostics(params)).unwrap();
+            ControlFlow::Continue(())
+        });
+        router
+    });
+
+    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
+    let (server_rx, server_tx) = tokio::io::split(server_stream);
+    let server_task =
+        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
+    let (client_rx, client_tx) = tokio::io::split(client_stream);
+    let client_task =
+        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+
+    WorkDoneHarness {
+        client,
+        server,
+        events,
+        create_ack: Some(create_ack_tx),
+        server_task,
+        client_task,
+    }
+}
 
 fn snapshot(project: &TestProject) -> GlobalStateSnapshot {
     snapshot_with_config(project.config(), project.vfs())
@@ -193,6 +284,47 @@ fn pause_blocking_pool() -> (std_mpsc::Sender<()>, tokio::task::JoinHandle<()>) 
     (release_tx, task)
 }
 
+fn assert_analysis_stale_before_diagnostic_publication(
+    mut state: GlobalState,
+    stale_version: usize,
+    advance_epoch: impl FnOnce(&mut GlobalState) + Send + 'static,
+) {
+    let stale_snapshot = state.snapshot();
+    assert!(stale_snapshot.is_current(stale_version));
+
+    let diagnostics = state.diagnostics.clone();
+    let diagnostics_guard = diagnostics.write();
+    let start = Arc::new(Barrier::new(2));
+    let worker_start = start.clone();
+    let (finished_tx, finished_rx) = std_mpsc::sync_channel(1);
+    let worker = std::thread::spawn(move || {
+        worker_start.wait();
+        advance_epoch(&mut state);
+        finished_tx.send(()).unwrap();
+    });
+
+    start.wait();
+    let deadline = Instant::now() + ASYNC_TEST_TIMEOUT;
+    while stale_snapshot.is_current(stale_version) && Instant::now() < deadline {
+        std::thread::yield_now();
+    }
+    let stale_while_diagnostics_locked = !stale_snapshot.is_current(stale_version);
+    let finished_while_diagnostics_locked =
+        !matches!(finished_rx.try_recv(), Err(std_mpsc::TryRecvError::Empty));
+
+    drop(diagnostics_guard);
+    finished_rx
+        .recv_timeout(ASYNC_TEST_TIMEOUT)
+        .expect("epoch advance should finish after diagnostic publication is unblocked");
+    worker.join().unwrap();
+
+    assert!(!finished_while_diagnostics_locked, "diagnostic lock should block publication");
+    assert!(
+        stale_while_diagnostics_locked,
+        "old analysis should be stale before diagnostic publication"
+    );
+}
+
 fn assert_source_notification_tracks_until_publish(
     project: &TestProject,
     path: &Path,
@@ -225,6 +357,42 @@ fn assert_source_notification_tracks_until_publish(
         assert!(state.analysis_commit.lock().natspec_pending_source_changes.is_empty());
         assert!(state.natspec_semantics_are_usable(&other_uri));
     });
+}
+
+#[test]
+fn replacement_analysis_invalidates_old_worker_before_removed_diagnostics_publish() {
+    let uri = diagnostic_uri();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    let (stale_version, _stale_progress) =
+        state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    state.snapshot().publish_diagnostics(
+        DiagnosticOwner::Compiler,
+        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("removed")])]),
+    );
+
+    assert_analysis_stale_before_diagnostic_publication(state, stale_version, move |state| {
+        state
+            .begin_analysis(AnalysisMode::Recompute, vec![uri], Vec::new())
+            .expect("replacement analysis should start");
+    });
+}
+
+#[test]
+fn clearing_analysis_cache_invalidates_old_worker_before_diagnostics_publish() {
+    let uri = diagnostic_uri();
+    let state = GlobalState::new(ClientSocket::new_closed());
+    state.mark_analysis_pending_for_test();
+    let stale_version = state.analysis_version.load(Ordering::Acquire);
+    state.snapshot().publish_diagnostics(
+        DiagnosticOwner::Compiler,
+        DiagnosticMap::from_iter([(uri, vec![diagnostic("cleared")])]),
+    );
+
+    assert_analysis_stale_before_diagnostic_publication(
+        state,
+        stale_version,
+        GlobalState::clear_analysis_cache,
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -351,6 +519,232 @@ async fn clearing_analysis_cache_publishes_compiler_diagnostic_removals() {
     let _ = client_task.await;
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn clearing_analysis_cache_publishes_before_ending_progress() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Cleared.sol
+        contract Cleared {}
+        "#,
+    );
+    let uri = Url::from_file_path(project.path("/Cleared.sol")).unwrap();
+    let mut harness = work_done_harness();
+    let client = harness.client.clone();
+    let mut state = GlobalState::new(client.clone());
+    state.analysis_progress =
+        ProgressCoordinator::with_timing(client, true, Duration::ZERO, Duration::from_secs(1));
+    state.snapshot().publish_diagnostics(
+        DiagnosticOwner::Compiler,
+        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("old compiler")])]),
+    );
+    match harness.next_event().await {
+        WorkDoneEvent::Diagnostics(params) => {
+            assert_eq!(params.uri, uri);
+            assert_eq!(params.diagnostics.len(), 1);
+        }
+        event => panic!("expected seeded diagnostics, got {event:?}"),
+    }
+
+    let (_, progress) =
+        state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    progress.report("Analyzing workspace");
+    let WorkDoneEvent::Create(create) = harness.next_event().await else {
+        panic!("expected progress creation")
+    };
+    let token = create.token;
+    harness.acknowledge_create();
+    match harness.next_event().await {
+        WorkDoneEvent::Progress(ProgressParams {
+            token: actual,
+            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
+        }) => {
+            assert_eq!(actual, token);
+            assert_eq!(begin.message.as_deref(), Some("Analyzing workspace"));
+        }
+        event => panic!("expected progress begin, got {event:?}"),
+    }
+
+    state.clear_analysis_cache();
+
+    match harness.next_event().await {
+        WorkDoneEvent::Diagnostics(params) => {
+            assert_eq!(params.uri, uri);
+            assert!(params.diagnostics.is_empty());
+        }
+        event => panic!("expected cleared diagnostics, got {event:?}"),
+    }
+    match harness.next_event().await {
+        WorkDoneEvent::Progress(ProgressParams {
+            token: actual,
+            value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)),
+        }) => {
+            assert_eq!(actual, token);
+            assert_eq!(end.message.as_deref(), Some("Workspace index cleared"));
+        }
+        event => panic!("expected progress end, got {event:?}"),
+    }
+
+    harness.shutdown().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn clearing_analysis_cache_supersedes_a_pending_progress_end() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Cleared.sol
+        contract Cleared {}
+        "#,
+    );
+    let uri = Url::from_file_path(project.path("/Cleared.sol")).unwrap();
+    let mut harness = work_done_harness();
+    let client = harness.client.clone();
+    let mut state = GlobalState::new(client.clone());
+    state.analysis_progress =
+        ProgressCoordinator::with_timing(client, true, Duration::ZERO, Duration::from_secs(1));
+    state.snapshot().publish_diagnostics(
+        DiagnosticOwner::Compiler,
+        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("old compiler")])]),
+    );
+    assert!(matches!(harness.next_event().await, WorkDoneEvent::Diagnostics(_)));
+
+    let (_, progress) =
+        state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    let WorkDoneEvent::Create(create) = harness.next_event().await else {
+        panic!("expected progress creation")
+    };
+    let token = create.token;
+    progress.report("obsolete analysis");
+    progress.finish("obsolete completion");
+
+    state.clear_analysis_cache();
+
+    match harness.next_event().await {
+        WorkDoneEvent::Diagnostics(params) => {
+            assert_eq!(params.uri, uri);
+            assert!(params.diagnostics.is_empty());
+        }
+        event => panic!("expected cleared diagnostics, got {event:?}"),
+    }
+    harness.acknowledge_create();
+    match harness.next_event().await {
+        WorkDoneEvent::Progress(ProgressParams {
+            token: actual,
+            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
+        }) => {
+            assert_eq!(actual, token);
+            assert_eq!(begin.message.as_deref(), Some("Workspace index cleared"));
+        }
+        event => panic!("expected progress begin, got {event:?}"),
+    }
+    match harness.next_event().await {
+        WorkDoneEvent::Progress(ProgressParams {
+            token: actual,
+            value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)),
+        }) => {
+            assert_eq!(actual, token);
+            assert_eq!(end.message.as_deref(), Some("Workspace index cleared"));
+        }
+        event => panic!("expected progress end, got {event:?}"),
+    }
+
+    harness.shutdown().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn superseded_analysis_cannot_publish_or_end_latest_progress() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Current.sol
+        contract Current {}
+        "#,
+    );
+    let uri = Url::from_file_path(project.path("/Current.sol")).unwrap();
+    let mut harness = work_done_harness();
+    let client = harness.client.clone();
+    let mut state = GlobalState::new(client.clone());
+    state.analysis_progress =
+        ProgressCoordinator::with_timing(client, true, Duration::ZERO, Duration::from_secs(1));
+
+    let (stale_version, stale_progress) =
+        state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    let mut stale_snapshot = state.snapshot();
+    let WorkDoneEvent::Create(create) = harness.next_event().await else {
+        panic!("expected progress creation")
+    };
+    let token = create.token;
+    harness.acknowledge_create();
+    assert!(matches!(
+        harness.next_event().await,
+        WorkDoneEvent::Progress(ProgressParams {
+            token: actual,
+            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(_)),
+        }) if actual == token
+    ));
+
+    let (latest_version, latest_progress) =
+        state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    let mut latest_snapshot = state.snapshot();
+    match harness.next_event().await {
+        WorkDoneEvent::Progress(ProgressParams {
+            token: actual,
+            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Report(report)),
+        }) => {
+            assert_eq!(actual, token);
+            assert_eq!(report.message.as_deref(), Some("Workspace changed, restarting analysis"));
+        }
+        event => panic!("expected replacement report, got {event:?}"),
+    }
+
+    stale_progress.report("stale report");
+    stale_progress.finish("stale end");
+    let stale_result = AnalysisResult {
+        diagnostics: DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("stale")])]),
+        symbol_tables: SymbolTables::default(),
+    };
+    assert!(!stale_snapshot.publish_analysis(stale_version, stale_result));
+    assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
+
+    let latest_result = AnalysisResult {
+        diagnostics: DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("current")])]),
+        symbol_tables: SymbolTables::default(),
+    };
+    assert!(latest_snapshot.publish_analysis(latest_version, latest_result));
+    match harness.next_event().await {
+        WorkDoneEvent::Diagnostics(params) => {
+            assert_eq!(params.uri, uri);
+            assert_eq!(
+                params
+                    .diagnostics
+                    .iter()
+                    .map(|diagnostic| diagnostic.message.as_str())
+                    .collect::<Vec<_>>(),
+                ["current"]
+            );
+        }
+        event => panic!("expected current diagnostics, got {event:?}"),
+    }
+
+    finish_analysis_progress_if_current(
+        latest_version,
+        &state.analysis_version,
+        &state.analysis_commit,
+        &latest_progress,
+        "Workspace index ready",
+    );
+    match harness.next_event().await {
+        WorkDoneEvent::Progress(ProgressParams {
+            token: actual,
+            value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)),
+        }) => {
+            assert_eq!(actual, token);
+            assert_eq!(end.message.as_deref(), Some("Workspace index ready"));
+        }
+        event => panic!("expected progress end, got {event:?}"),
+    }
+
+    harness.shutdown().await;
+}
+
 #[test]
 fn clearing_analysis_cache_rejects_older_analysis_results() {
     let project = TestProject::from_fixture(
@@ -395,6 +789,54 @@ fn reindex_if_invalidated_is_a_no_op_for_a_current_cache() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn failed_current_analysis_ends_visible_progress() {
+    let mut harness = work_done_harness();
+    let client = harness.client.clone();
+    let mut state = GlobalState::new(client.clone());
+    state.analysis_progress =
+        ProgressCoordinator::with_timing(client, true, Duration::ZERO, Duration::from_secs(1));
+    let (version, progress) =
+        state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+
+    let WorkDoneEvent::Create(create) = harness.next_event().await else {
+        panic!("expected progress creation")
+    };
+    let token = create.token;
+    let task = tokio::spawn(async { panic!("test analysis failure") });
+    state.monitor_analysis_task(version, task, progress);
+
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("failed analysis should publish its terminal version")
+        .unwrap();
+    assert!(state.analysis_cache_invalidated());
+    harness.acknowledge_create();
+
+    match harness.next_event().await {
+        WorkDoneEvent::Progress(ProgressParams {
+            token: actual,
+            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
+        }) => {
+            assert_eq!(actual, token);
+            assert_eq!(begin.message.as_deref(), Some("Workspace indexing failed"));
+        }
+        event => panic!("expected progress begin, got {event:?}"),
+    }
+    match harness.next_event().await {
+        WorkDoneEvent::Progress(ProgressParams {
+            token: actual,
+            value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)),
+        }) => {
+            assert_eq!(actual, token);
+            assert_eq!(end.message.as_deref(), Some("Workspace indexing failed"));
+        }
+        event => panic!("expected failure end, got {event:?}"),
+    }
+
+    harness.shutdown().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn failed_current_analysis_recovers_after_save() {
     let project = TestProject::from_fixture(
         r#"
@@ -413,9 +855,10 @@ async fn failed_current_analysis_recovers_after_save() {
         DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("old compiler")])]),
     );
 
-    let version = state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    let (version, progress) =
+        state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
     let task = tokio::spawn(async { panic!("test analysis failure") });
-    state.monitor_analysis_task(version, task);
+    state.monitor_analysis_task(version, task, progress);
 
     let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
         .await
@@ -470,10 +913,11 @@ async fn cancelled_current_analysis_recovers_after_save() {
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.config = Arc::new(project.config());
 
-    let version = state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
-    let task = tokio::spawn(std::future::pending::<()>());
+    let (version, progress) =
+        state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    let task = tokio::spawn(std::future::pending::<AnalysisTaskOutcome>());
     task.abort();
-    state.monitor_analysis_task(version, task);
+    state.monitor_analysis_task(version, task, progress);
 
     let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
         .await
