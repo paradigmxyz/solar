@@ -4,7 +4,10 @@
 
 // CHECK-LABEL: @hoist_mul
 // CHECK: +     [[MUL:v[0-9]+]] = mul arg0, 7
-// CHECK-NEXT:  jump {{bb[0-9]+}}
+// CHECK-NEXT: {{^ +}}jump [[HEADER:bb[0-9]+]]
+// CHECK: {{^ +}}[[HEADER]]:
+// CHECK-NEXT: {{^ +}}br {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: {{^ +}}[[BODY]]:
 // CHECK: -     [[MUL]] = mul arg0, 7
 fn @hoist_mul(arg0: u256) {
   bb0:
@@ -37,7 +40,8 @@ fn @hoist_non_aliasing_sload() -> u256 {
 }
 
 // CHECK-LABEL: @keep_aliasing_sload
-// CHECK:       {{bb[0-9]+}}:
+// CHECK: {{^ +}}br {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: {{^ +}}[[BODY]]:
 // CHECK: +     {{v[0-9]+}} = sload [[SLOT:[0-9]+]]
 // CHECK: +     sstore [[SLOT]], 1
 fn @keep_aliasing_sload() -> u256 {
@@ -54,10 +58,12 @@ fn @keep_aliasing_sload() -> u256 {
 }
 
 // CHECK-LABEL: @keep_work_after_gas
-// CHECK:       {{bb[0-9]+}}:
-// CHECK:       gas
-// CHECK:       [[MUL:v[0-9]+]] = mul arg0, 7
-// CHECK:       ret [[MUL]]
+// CHECK: {{^ +}}br {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: {{^ +}}[[BODY]]:
+// CHECK: {{^ +}}{{v[0-9]+}} = gas
+// CHECK: {{^ +}}[[MUL:v[0-9]+]] = mul arg0, 7
+// CHECK: {{^ +}}jump
+// CHECK: {{^ +}}ret [[MUL]]
 fn @keep_work_after_gas(arg0: u256) -> u256 {
   bb0:
     jump bb1

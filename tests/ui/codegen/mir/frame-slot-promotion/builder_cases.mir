@@ -51,10 +51,10 @@ fn @loop_carried() -> u256 {
 }
 
 // CHECK-LABEL: @escaped_address
-// CHECK:       mstore [[FRAME:v[0-9]+]], 42
-// CHECK:       [[HASH:v[0-9]+]] = keccak256 [[FRAME]], 32
-// CHECK:       [[LOAD:v[0-9]+]] = mload [[FRAME]]
-// CHECK:       ret [[HASH]], [[LOAD]]
+// CHECK: {{^ +}}mstore [[FRAME:v[0-9]+]], 42
+// CHECK: {{^ +}}[[HASH:v[0-9]+]] = keccak256 [[FRAME]], 32
+// CHECK: {{^ +}}[[LOAD:v[0-9]+]] = mload [[FRAME]]
+// CHECK: {{^ +}}ret [[HASH]], [[LOAD]]
 fn @escaped_address() -> (bytes32, u256) {
   bb0:
     v0 = internal_frame_addr 128
@@ -65,10 +65,10 @@ fn @escaped_address() -> (bytes32, u256) {
 }
 
 // CHECK-LABEL: @gas_observed
-// CHECK:       mstore [[FRAME:v[0-9]+]], 42
-// CHECK:       gas
-// CHECK:       [[LOAD:v[0-9]+]] = mload [[FRAME]]
-// CHECK:       ret [[LOAD]]
+// CHECK: {{^ +}}mstore [[FRAME:v[0-9]+]], 42
+// CHECK: {{^ +}}{{v[0-9]+}} = gas
+// CHECK: {{^ +}}[[LOAD:v[0-9]+]] = mload [[FRAME]]
+// CHECK: {{^ +}}ret [[LOAD]]
 fn @gas_observed() -> u256 {
   bb0:
     v0 = internal_frame_addr 128

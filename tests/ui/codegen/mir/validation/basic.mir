@@ -4,8 +4,8 @@
 @module BasicValidation
 
 // CHECK-LABEL: @linear
-// CHECK: [[SUM:v[0-9]+]] = add arg0, 1
-// CHECK: ret [[SUM]]
+// CHECK: {{^ +}}[[SUM:v[0-9]+]] = add arg0, 1
+// CHECK: {{^ +}}ret [[SUM]]
 fn @linear(arg0: u256) -> u256 {
   bb0:
     v0 = add arg0, 1
@@ -13,7 +13,7 @@ fn @linear(arg0: u256) -> u256 {
 }
 
 // CHECK-LABEL: @empty
-// CHECK: stop
+// CHECK: {{^ +}}stop
 fn @empty() {
   bb0:
     stop

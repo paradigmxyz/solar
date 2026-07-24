@@ -67,10 +67,10 @@ fn @same_select(arg0: bool) -> u256 {
 }
 
 // CHECK-LABEL: @joined_select
-// CHECK: [[BEFORE:v[0-9]+]] = mload [[FIRST:v[0-9]+]]
-// CHECK: mstore
-// CHECK: [[AFTER:v[0-9]+]] = mload [[FIRST]]
-// CHECK: add [[BEFORE]], [[AFTER]]
+// CHECK: {{^ +}}[[BEFORE:v[0-9]+]] = mload [[FIRST:v[0-9]+]]
+// CHECK: {{^ +}}mstore
+// CHECK: {{^ +}}[[AFTER:v[0-9]+]] = mload [[FIRST]]
+// CHECK: {{^ +}}{{v[0-9]+}} = add [[BEFORE]], [[AFTER]]
 fn @joined_select(arg0: bool) -> u256 {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32

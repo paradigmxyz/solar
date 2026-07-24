@@ -62,13 +62,14 @@ fn @reject_loop_variant_offset_slot(arg0: u256) [selector=0x01020304] {
 
 // CHECK-LABEL: @promote_store_only_without_initial_load
 // CHECK:       mstore [[DIRTY_ADDR:[0-9]+]], 0
+// CHECK: -     sstore [[SLOT:[0-9]+]], 7
 // CHECK:       mstore [[VALUE_ADDR:[0-9]+]], 7
 // CHECK:       mstore [[DIRTY_ADDR]], 1
 // CHECK:       [[DIRTY:v[0-9]+]] = mload [[DIRTY_ADDR]]
 // CHECK:       br [[DIRTY]], [[FLUSH:bb[0-9]+]], {{bb[0-9]+}}
 // CHECK:       [[FLUSH]]:
 // CHECK:       [[VALUE:v[0-9]+]] = mload [[VALUE_ADDR]]
-// CHECK:       sstore {{[0-9]+}}, [[VALUE]]
+// CHECK:       sstore [[SLOT]], [[VALUE]]
 fn @promote_store_only_without_initial_load() [selector=0x01020304] {
   bb0:
     jump bb1

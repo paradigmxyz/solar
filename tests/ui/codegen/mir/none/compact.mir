@@ -1,6 +1,6 @@
 //@compile-flags: --pass none
 //@filecheck: --enable-var-scope
 // CHECK-LABEL: @compact
-// CHECK: [[SUM:v[0-9]+]] = add 1, 2
-// CHECK: ret [[SUM]]
+// CHECK: {{^ +}}[[SUM:v[0-9]+]] = add 1, 2
+// CHECK: {{^ +}}ret [[SUM]]
 @module Compact fn @compact() -> u256 { bb0: v0 = add 1, 2 ret v0 }

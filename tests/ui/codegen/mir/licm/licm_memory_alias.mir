@@ -21,9 +21,10 @@ fn @hoist_non_aliasing_mload() -> u256 {
 }
 
 // CHECK-LABEL: @keep_aliasing_mload
-// CHECK:       {{bb[0-9]+}}:
-// CHECK:       {{v[0-9]+}} = mload {{[0-9]+}}
-// CHECK:       mstore {{[0-9]+}}, 1
+// CHECK: {{^ +}}br {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: {{^ +}}[[BODY]]:
+// CHECK: {{^ +}}{{v[0-9]+}} = mload {{[0-9]+}}
+// CHECK: {{^ +}}mstore {{[0-9]+}}, 1
 fn @keep_aliasing_mload() -> u256 {
   bb0:
     jump bb1
@@ -56,9 +57,10 @@ fn @hoist_non_aliasing_keccak() -> bytes32 {
 }
 
 // CHECK-LABEL: @keep_aliasing_keccak
-// CHECK:       {{bb[0-9]+}}:
-// CHECK:       {{v[0-9]+}} = keccak256 {{[0-9]+}}, {{[0-9]+}}
-// CHECK:       mstore {{[0-9]+}}, 1
+// CHECK: {{^ +}}br {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: {{^ +}}[[BODY]]:
+// CHECK: {{^ +}}{{v[0-9]+}} = keccak256 {{[0-9]+}}, {{[0-9]+}}
+// CHECK: {{^ +}}mstore {{[0-9]+}}, 1
 fn @keep_aliasing_keccak() -> bytes32 {
   bb0:
     jump bb1

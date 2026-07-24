@@ -3,10 +3,10 @@
 @module StoragePromotionNonExternal
 
 // CHECK-LABEL: @non_external
-// CHECK:       sstore 0, 1
-// CHECK:       [[LOAD:v[0-9]+]] = sload 0
-// CHECK:       [[VALUE:v[0-9]+]] = mul [[LOAD]], 2
-// CHECK:       sstore 0, [[VALUE]]
+// CHECK: {{^ +}}sstore 0, 1
+// CHECK: {{^ +}}[[LOAD:v[0-9]+]] = sload 0
+// CHECK: {{^ +}}[[VALUE:v[0-9]+]] = mul [[LOAD]], 2
+// CHECK: {{^ +}}sstore 0, [[VALUE]]
 fn @non_external() {
   bb0:
     sstore 0, 1

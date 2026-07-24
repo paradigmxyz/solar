@@ -39,9 +39,9 @@ fn @disjoint_keccak() {
 }
 
 // CHECK-LABEL: @overlapping_keccak
-// CHECK:       mstore [[STORE_ADDR:[0-9]+]], 0
-// CHECK:       keccak256 {{[0-9]+}}, {{[0-9]+}}
-// CHECK:       mstore [[STORE_ADDR]], 1
+// CHECK: {{^ +}}mstore [[STORE_ADDR:[0-9]+]], 0
+// CHECK: {{^ +}}{{v[0-9]+}} = keccak256 {{[0-9]+}}, {{[0-9]+}}
+// CHECK: {{^ +}}mstore [[STORE_ADDR]], 1
 fn @overlapping_keccak() {
   bb0:
     mstore 128, 0
@@ -68,12 +68,12 @@ fn @cross_block_dead_store(arg0: u256) {
 }
 
 // CHECK-LABEL: @cross_block_read_path
-// CHECK:       mstore [[ADDR:[0-9]+]], 7
-// CHECK:       br arg0, [[READ:bb[0-9]+]], [[OVERWRITE:bb[0-9]+]]
-// CHECK:       [[READ]]:
-// CHECK:       returndata [[ADDR]]
-// CHECK:       [[OVERWRITE]]:
-// CHECK:       mstore [[ADDR]], 9
+// CHECK: {{^ +}}mstore [[ADDR:[0-9]+]], 7
+// CHECK: {{^ +}}br arg0, [[READ:bb[0-9]+]], [[OVERWRITE:bb[0-9]+]]
+// CHECK: {{^ +}}[[READ]]:
+// CHECK: {{^ +}}returndata [[ADDR]]
+// CHECK: {{^ +}}[[OVERWRITE]]:
+// CHECK: {{^ +}}mstore [[ADDR]], 9
 fn @cross_block_read_path(arg0: u256) {
   bb0:
     mstore 128, 7
@@ -86,8 +86,8 @@ fn @cross_block_read_path(arg0: u256) {
 }
 
 // CHECK-LABEL: @return_pointer
-// CHECK:       mstore [[ADDR:[0-9]+]], 42
-// CHECK:       ret [[ADDR]]
+// CHECK: {{^ +}}mstore [[ADDR:[0-9]+]], 42
+// CHECK: {{^ +}}ret [[ADDR]]
 fn @return_pointer() -> u256 {
   bb0:
     mstore 160, 42
@@ -95,9 +95,9 @@ fn @return_pointer() -> u256 {
 }
 
 // CHECK-LABEL: @gas_barrier
-// CHECK:       mstore [[ADDR:[0-9]+]], 0
-// CHECK:       gas
-// CHECK:       mstore [[ADDR]], 42
+// CHECK: {{^ +}}mstore [[ADDR:[0-9]+]], 0
+// CHECK: {{^ +}}{{v[0-9]+}} = gas
+// CHECK: {{^ +}}mstore [[ADDR]], 42
 fn @gas_barrier() {
   bb0:
     mstore 128, 0
@@ -181,9 +181,9 @@ fn @immutable_copy_reuse() -> u256 {
 }
 
 // CHECK-LABEL: @overlapping_load
-// CHECK:       mstore [[STORE_ADDR:[0-9]+]], 0
-// CHECK:       mload {{[0-9]+}}
-// CHECK:       mstore [[STORE_ADDR]], 42
+// CHECK: {{^ +}}mstore [[STORE_ADDR:[0-9]+]], 0
+// CHECK: {{^ +}}{{v[0-9]+}} = mload {{[0-9]+}}
+// CHECK: {{^ +}}mstore [[STORE_ADDR]], 42
 fn @overlapping_load() {
   bb0:
     mstore 128, 0
@@ -219,10 +219,10 @@ fn @forward_through_pure_op() -> u256 {
 }
 
 // CHECK-LABEL: @memory_write_barrier
-// CHECK:       mstore [[SOURCE:[0-9]+]], 42
-// CHECK:       mcopy {{[0-9]+}}, [[SOURCE]], {{[0-9]+}}
-// CHECK:       [[LOAD:v[0-9]+]] = mload [[SOURCE]]
-// CHECK:       ret [[LOAD]]
+// CHECK: {{^ +}}mstore [[SOURCE:[0-9]+]], 42
+// CHECK: {{^ +}}mcopy {{[0-9]+}}, [[SOURCE]], {{[0-9]+}}
+// CHECK: {{^ +}}[[LOAD:v[0-9]+]] = mload [[SOURCE]]
+// CHECK: {{^ +}}ret [[LOAD]]
 fn @memory_write_barrier() -> u256 {
   bb0:
     mstore 128, 42
@@ -232,10 +232,10 @@ fn @memory_write_barrier() -> u256 {
 }
 
 // CHECK-LABEL: @internal_call_barrier
-// CHECK:       mstore [[ADDR:[0-9]+]], 42
-// CHECK:       internal_call @callee
-// CHECK:       [[LOAD:v[0-9]+]] = mload [[ADDR]]
-// CHECK:       ret [[LOAD]]
+// CHECK: {{^ +}}mstore [[ADDR:[0-9]+]], 42
+// CHECK: {{^ +}}internal_call @callee
+// CHECK: {{^ +}}[[LOAD:v[0-9]+]] = mload [[ADDR]]
+// CHECK: {{^ +}}ret [[LOAD]]
 fn @internal_call_barrier() -> u256 {
   bb0:
     mstore 128, 42
