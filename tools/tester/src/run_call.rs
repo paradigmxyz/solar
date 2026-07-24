@@ -1,6 +1,6 @@
 use alloy_consensus::{TxLegacy, transaction::Recovered};
-use alloy_dyn_abi::{FunctionExt, JsonAbiExt, Specifier};
-use alloy_json_abi::{Function, JsonAbi};
+use alloy_dyn_abi::{DynSolValue, FunctionExt, JsonAbiExt, Specifier};
+use alloy_json_abi::{Function, JsonAbi, Param};
 use alloy_primitives::{Address, Bytes, TxKind, U256, hex};
 use evm2::{
     BaseEvmTypes, Evm, Precompiles, SpecId, TxResult,
@@ -19,18 +19,27 @@ use ui_test::{
 };
 
 const CALLER: Address = Address::repeat_byte(0x22);
-const GAS_LIMIT: u64 = 10_000_000;
+const DEFAULT_GAS_LIMIT: u64 = 10_000_000;
 
 #[derive(Debug, Clone)]
 pub(crate) struct RunCall {
     call: String,
     expected: String,
+    settings: CallSettings,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct RunCallFail {
     call: String,
     expected: String,
+    settings: CallSettings,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct CallSettings {
+    constructor: Option<String>,
+    gas: Option<u64>,
+    value: Option<U256>,
 }
 
 #[derive(Debug)]
@@ -49,8 +58,18 @@ struct Outcome {
 struct ResolvedCall<'a> {
     artifact: &'a Artifact,
     function: Option<&'a Function>,
+    constructor_args: Vec<u8>,
     input: Vec<u8>,
     expected: Vec<u8>,
+    gas_limit: u64,
+    value: U256,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct ParsedCall<'a> {
+    call: &'a str,
+    expected: &'a str,
+    settings: CallSettings,
 }
 
 pub(crate) fn is_directive(line: &str) -> bool {
@@ -76,9 +95,13 @@ impl RunCall {
         span: Span,
     ) {
         match parse_call(*args) {
-            Ok((call, expected)) => parser.add_custom_spanned(
+            Ok(parsed) => parser.add_custom_spanned(
                 Self::NAME,
-                Self { call: call.to_owned(), expected: expected.to_owned() },
+                Self {
+                    call: parsed.call.to_owned(),
+                    expected: parsed.expected.to_owned(),
+                    settings: parsed.settings,
+                },
                 span,
             ),
             Err(err) => parser.error(args.span(), err),
@@ -87,9 +110,18 @@ impl RunCall {
 
     fn run(&self, output: &[u8], test_path: &Path, spec_id: SpecId) -> Result<(), String> {
         let artifacts = parse_artifacts(output)?;
-        let call = resolve_call(&artifacts, test_path, &self.call, &self.expected, false)?;
+        let call =
+            resolve_call(&artifacts, test_path, &self.call, &self.expected, &self.settings, false)?;
         let setup = setup_call(call.artifact, call.function)?;
-        let actual = execute(&call.artifact.bytecode, setup, call.input, spec_id)?;
+        let actual = execute(
+            &call.artifact.bytecode,
+            &call.constructor_args,
+            setup,
+            call.input,
+            call.gas_limit,
+            call.value,
+            spec_id,
+        )?;
         if !actual.success {
             return Err(format!(
                 "`{}` failed with {}: 0x{}",
@@ -120,9 +152,13 @@ impl RunCallFail {
         span: Span,
     ) {
         match parse_call(*args) {
-            Ok((call, expected)) => parser.add_custom_spanned(
+            Ok(parsed) => parser.add_custom_spanned(
                 Self::NAME,
-                Self { call: call.to_owned(), expected: expected.to_owned() },
+                Self {
+                    call: parsed.call.to_owned(),
+                    expected: parsed.expected.to_owned(),
+                    settings: parsed.settings,
+                },
                 span,
             ),
             Err(err) => parser.error(args.span(), err),
@@ -131,9 +167,18 @@ impl RunCallFail {
 
     fn run(&self, output: &[u8], test_path: &Path, spec_id: SpecId) -> Result<(), String> {
         let artifacts = parse_artifacts(output)?;
-        let call = resolve_call(&artifacts, test_path, &self.call, &self.expected, true)?;
+        let call =
+            resolve_call(&artifacts, test_path, &self.call, &self.expected, &self.settings, true)?;
         let setup = setup_call(call.artifact, call.function)?;
-        let actual = execute(&call.artifact.bytecode, setup, call.input, spec_id)?;
+        let actual = execute(
+            &call.artifact.bytecode,
+            &call.constructor_args,
+            setup,
+            call.input,
+            call.gas_limit,
+            call.value,
+            spec_id,
+        )?;
         if actual.success {
             return Err(format!(
                 "`{}` succeeded with 0x{}, expected failure",
@@ -181,13 +226,88 @@ macro_rules! impl_flag {
 impl_flag!(RunCall);
 impl_flag!(RunCallFail);
 
-fn parse_call(args: &str) -> Result<(&str, &str), &'static str> {
-    let (call, expected) = args.split_once("=>").unwrap_or((args, ""));
+fn parse_call(args: &str) -> Result<ParsedCall<'_>, String> {
+    let (call_and_settings, expected) = split_expected(args).unwrap_or((args, ""));
+    let (call, settings) =
+        split_top_level_once(call_and_settings, ';').unwrap_or((call_and_settings, ""));
     let call = call.trim();
     if call.is_empty() {
-        return Err("call directive requires calldata or a function name");
+        return Err("call directive requires calldata or a function name".to_owned());
     }
-    Ok((call, expected.trim()))
+    Ok(ParsedCall { call, expected: expected.trim(), settings: parse_settings(settings)? })
+}
+
+fn split_expected(value: &str) -> Option<(&str, &str)> {
+    let mut depth = 0_u32;
+    let mut quote = None;
+    for (offset, ch) in value.char_indices() {
+        if let Some(active) = quote {
+            if ch == active && !is_escaped(value, offset) {
+                quote = None;
+            }
+            continue;
+        }
+        match ch {
+            '\'' | '"' => quote = Some(ch),
+            '[' | '(' => depth += 1,
+            ']' | ')' => depth = depth.saturating_sub(1),
+            '=' if depth == 0 && value[offset..].starts_with("=>") => {
+                return Some((&value[..offset], &value[offset + 2..]));
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn parse_settings(settings: &str) -> Result<CallSettings, String> {
+    let settings = settings.trim();
+    if settings.is_empty() {
+        return Ok(CallSettings::default());
+    }
+
+    let mut parsed = CallSettings::default();
+    for setting in split_top_level(settings, ',') {
+        let setting = setting.trim();
+        let (key, value) = setting
+            .split_once('=')
+            .map(|(key, value)| (key.trim(), value.trim()))
+            .ok_or_else(|| format!("setting `{setting}` requires a value"))?;
+        if key.is_empty() || value.is_empty() {
+            return Err(format!("setting `{setting}` requires a value"));
+        }
+        match key {
+            "constructor" => {
+                if parsed.constructor.replace(value.to_owned()).is_some() {
+                    return Err("duplicate `constructor` setting".to_owned());
+                }
+            }
+            "gas" => {
+                if parsed.gas.is_some() {
+                    return Err("duplicate `gas` setting".to_owned());
+                }
+                let gas = parse_integer(value, "gas")?;
+                parsed.gas = Some(
+                    gas.try_into()
+                        .map_err(|_| format!("`gas` value `{value}` does not fit in a u64"))?,
+                );
+            }
+            "value" => {
+                if parsed.value.is_some() {
+                    return Err("duplicate `value` setting".to_owned());
+                }
+                parsed.value = Some(parse_integer(value, "value")?);
+            }
+            _ => return Err(format!("unknown run-call setting `{key}`")),
+        }
+    }
+    Ok(parsed)
+}
+
+fn parse_integer(value: &str, setting: &str) -> Result<U256, String> {
+    let (digits, radix) = value.strip_prefix("0x").map_or((value, 10), |digits| (digits, 16));
+    U256::from_str_radix(digits, radix)
+        .map_err(|err| format!("invalid `{setting}` value `{value}`: {err}"))
 }
 
 fn resolve_call<'a>(
@@ -195,24 +315,43 @@ fn resolve_call<'a>(
     test_path: &Path,
     call: &str,
     expected: &str,
+    settings: &CallSettings,
     failure: bool,
 ) -> Result<ResolvedCall<'a>, String> {
     if call.starts_with("0x") {
         let artifact = only_artifact(artifacts, test_path)?;
+        let constructor_args = encode_constructor(artifact, settings.constructor.as_deref())?;
         let input = decode_hex(call, "calldata")?;
         let expected = decode_hex(expected, "expected result")?;
-        return Ok(ResolvedCall { artifact, function: None, input, expected });
+        return Ok(ResolvedCall {
+            artifact,
+            function: None,
+            constructor_args,
+            input,
+            expected,
+            gas_limit: settings.gas.unwrap_or(DEFAULT_GAS_LIMIT),
+            value: settings.value.unwrap_or_default(),
+        });
     }
 
     let (function_name, args) = call.split_once(char::is_whitespace).unwrap_or((call, ""));
     let (artifact, function) = find_function(artifacts, function_name)?;
+    let constructor_args = encode_constructor(artifact, settings.constructor.as_deref())?;
     let input = encode_values(function, args, false)?;
     let expected = if failure {
         decode_hex(expected, "expected revert data")?
     } else {
         encode_values(function, expected, true)?
     };
-    Ok(ResolvedCall { artifact, function: Some(function), input, expected })
+    Ok(ResolvedCall {
+        artifact,
+        function: Some(function),
+        constructor_args,
+        input,
+        expected,
+        gas_limit: settings.gas.unwrap_or(DEFAULT_GAS_LIMIT),
+        value: settings.value.unwrap_or_default(),
+    })
 }
 
 fn flag_error(command: &str, message: String) -> Errored {
@@ -304,8 +443,43 @@ fn find_function<'a>(
 
 fn encode_values(function: &Function, values: &str, output: bool) -> Result<Vec<u8>, String> {
     let params = if output { &function.outputs } else { &function.inputs };
+    let values = coerce_values(params, values)?;
+    if output { function.abi_encode_output(&values) } else { function.abi_encode_input(&values) }
+        .map_err(|err| format!("failed to encode values for `{}`: {err}", function.signature()))
+}
+
+fn encode_constructor(artifact: &Artifact, values: Option<&str>) -> Result<Vec<u8>, String> {
+    let Some(values) = values else {
+        if let Some(constructor) = &artifact.abi.constructor
+            && !constructor.inputs.is_empty()
+        {
+            return Err(format!(
+                "constructor for `{}` expects {} arguments; add `constructor=[...]`",
+                artifact.name,
+                constructor.inputs.len()
+            ));
+        }
+        return Ok(Vec::new());
+    };
+    let Some(values) = values.strip_prefix('[').and_then(|values| values.strip_suffix(']')) else {
+        return Err("`constructor` must be a bracketed argument list".to_owned());
+    };
+    let Some(constructor) = &artifact.abi.constructor else {
+        return if values.trim().is_empty() {
+            Ok(Vec::new())
+        } else {
+            Err(format!("contract `{}` has no constructor arguments", artifact.name))
+        };
+    };
+    let values = coerce_values(&constructor.inputs, values)?;
+    constructor
+        .abi_encode_input(&values)
+        .map_err(|err| format!("failed to encode constructor arguments: {err}"))
+}
+
+fn coerce_values(params: &[Param], values: &str) -> Result<Vec<DynSolValue>, String> {
     let values = split_values(values, params.len())?;
-    let values = params
+    params
         .iter()
         .zip(values)
         .map(|(param, value)| {
@@ -314,9 +488,7 @@ fn encode_values(function: &Function, values: &str, output: bool) -> Result<Vec<
                 .and_then(|ty| ty.coerce_str(value))
                 .map_err(|err| format!("invalid value `{value}` for `{}`: {err}", param.ty))
         })
-        .collect::<Result<Vec<_>, _>>()?;
-    if output { function.abi_encode_output(&values) } else { function.abi_encode_input(&values) }
-        .map_err(|err| format!("failed to encode values for `{}`: {err}", function.signature()))
+        .collect()
 }
 
 fn split_values(values: &str, expected: usize) -> Result<Vec<&str>, String> {
@@ -329,13 +501,24 @@ fn split_values(values: &str, expected: usize) -> Result<Vec<&str>, String> {
         };
     }
 
-    let mut result = Vec::with_capacity(expected);
+    let result = split_top_level(values, ',');
+    if result.len() != expected || result.iter().any(|value| value.is_empty()) {
+        return Err(format!(
+            "expected {expected} comma-separated values, found {}",
+            result.iter().filter(|value| !value.is_empty()).count()
+        ));
+    }
+    Ok(result)
+}
+
+fn split_top_level(value: &str, separator: char) -> Vec<&str> {
+    let mut result = Vec::new();
     let mut start = 0;
     let mut depth = 0_u32;
     let mut quote = None;
-    for (offset, ch) in values.char_indices() {
+    for (offset, ch) in value.char_indices() {
         if let Some(active) = quote {
-            if ch == active && !is_escaped(values, offset) {
+            if ch == active && !is_escaped(value, offset) {
                 quote = None;
             }
             continue;
@@ -344,21 +527,38 @@ fn split_values(values: &str, expected: usize) -> Result<Vec<&str>, String> {
             '\'' | '"' => quote = Some(ch),
             '[' | '(' => depth += 1,
             ']' | ')' => depth = depth.saturating_sub(1),
-            ',' if depth == 0 => {
-                result.push(values[start..offset].trim());
+            ch if ch == separator && depth == 0 => {
+                result.push(value[start..offset].trim());
                 start = offset + ch.len_utf8();
             }
             _ => {}
         }
     }
-    result.push(values[start..].trim());
-    if result.len() != expected || result.iter().any(|value| value.is_empty()) {
-        return Err(format!(
-            "expected {expected} comma-separated values, found {}",
-            result.iter().filter(|value| !value.is_empty()).count()
-        ));
+    result.push(value[start..].trim());
+    result
+}
+
+fn split_top_level_once(value: &str, separator: char) -> Option<(&str, &str)> {
+    let mut depth = 0_u32;
+    let mut quote = None;
+    for (offset, ch) in value.char_indices() {
+        if let Some(active) = quote {
+            if ch == active && !is_escaped(value, offset) {
+                quote = None;
+            }
+            continue;
+        }
+        match ch {
+            '\'' | '"' => quote = Some(ch),
+            '[' | '(' => depth += 1,
+            ']' | ')' => depth = depth.saturating_sub(1),
+            ch if ch == separator && depth == 0 => {
+                return Some((&value[..offset], &value[offset + ch.len_utf8()..]));
+            }
+            _ => {}
+        }
     }
-    Ok(result)
+    None
 }
 
 fn is_escaped(value: &str, offset: usize) -> bool {
@@ -388,8 +588,11 @@ fn setup_call(artifact: &Artifact, function: Option<&Function>) -> Result<Option
 
 fn execute(
     initcode: &[u8],
+    constructor_args: &[u8],
     setup: Option<Vec<u8>>,
     input: Vec<u8>,
+    gas_limit: u64,
+    value: U256,
     spec_id: SpecId,
 ) -> Result<Outcome, String> {
     let mut database = InMemoryDB::default();
@@ -401,7 +604,8 @@ fn execute(
         database,
         Precompiles::base(spec_id),
     );
-    let result = transact(&mut evm, 0, TxKind::Create, Bytes::copy_from_slice(initcode))?;
+    let initcode = Bytes::from_iter(initcode.iter().chain(constructor_args).copied());
+    let result = transact(&mut evm, 0, TxKind::Create, initcode, DEFAULT_GAS_LIMIT, U256::ZERO)?;
     if !result.status {
         return Err(format!(
             "contract deployment failed with {:?}: 0x{}",
@@ -415,8 +619,14 @@ fn execute(
 
     let mut nonce = 1;
     if let Some(setup) = setup {
-        let result =
-            outcome(transact(&mut evm, nonce, TxKind::Call(contract), Bytes::from(setup))?);
+        let result = outcome(transact(
+            &mut evm,
+            nonce,
+            TxKind::Call(contract),
+            Bytes::from(setup),
+            DEFAULT_GAS_LIMIT,
+            U256::ZERO,
+        )?);
         nonce += 1;
         if !result.success {
             return Err(format!(
@@ -426,7 +636,8 @@ fn execute(
             ));
         }
     }
-    transact(&mut evm, nonce, TxKind::Call(contract), Bytes::from(input)).map(outcome)
+    transact(&mut evm, nonce, TxKind::Call(contract), Bytes::from(input), gas_limit, value)
+        .map(outcome)
 }
 
 fn transact(
@@ -434,6 +645,8 @@ fn transact(
     nonce: u64,
     to: TxKind,
     input: Bytes,
+    gas_limit: u64,
+    value: U256,
 ) -> Result<TxResult, String> {
     let tx = Recovered::new_unchecked(
         TxEnvelope::Legacy(TxLegacy {
@@ -441,9 +654,9 @@ fn transact(
             to,
             input,
             gas_price: 0,
-            value: U256::ZERO,
+            value,
             chain_id: None,
-            gas_limit: GAS_LIMIT,
+            gas_limit,
         }),
         CALLER,
     );
@@ -502,19 +715,52 @@ mod tests {
 
     #[test]
     fn parses_empty_expected_output() {
-        assert_eq!(parse_call("f()"), Ok(("f()", "")));
-        assert_eq!(parse_call("f() =>"), Ok(("f()", "")));
+        assert_eq!(
+            parse_call("f()"),
+            Ok(ParsedCall { call: "f()", expected: "", settings: CallSettings::default() })
+        );
+        assert_eq!(
+            parse_call("f() =>"),
+            Ok(ParsedCall { call: "f()", expected: "", settings: CallSettings::default() })
+        );
     }
 
     #[test]
     fn rejects_empty_call() {
-        assert_eq!(parse_call(""), Err("call directive requires calldata or a function name"));
-        assert_eq!(parse_call(" => 1"), Err("call directive requires calldata or a function name"));
+        let error = "call directive requires calldata or a function name".to_owned();
+        assert_eq!(parse_call(""), Err(error.clone()));
+        assert_eq!(parse_call(" => 1"), Err(error));
     }
 
     #[test]
     fn splits_only_top_level_commas() {
         assert_eq!(split_values("[1, 2], (true, false)", 2), Ok(vec!["[1, 2]", "(true, false)"]));
         assert!(split_values("1 true", 2).is_err());
+    }
+
+    #[test]
+    fn parses_call_settings() {
+        assert_eq!(
+            parse_call("f 1; constructor=[\"=>\", [3, 4]], gas=0x100, value=5 => 6"),
+            Ok(ParsedCall {
+                call: "f 1",
+                expected: "6",
+                settings: CallSettings {
+                    constructor: Some("[\"=>\", [3, 4]]".to_owned()),
+                    gas: Some(256),
+                    value: Some(U256::from(5)),
+                },
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_call_settings() {
+        assert_eq!(
+            parse_call("f; unknown=1"),
+            Err("unknown run-call setting `unknown`".to_owned())
+        );
+        assert_eq!(parse_call("f; gas=1, gas=2"), Err("duplicate `gas` setting".to_owned()));
+        assert_eq!(parse_call("f; value"), Err("setting `value` requires a value".to_owned()));
     }
 }

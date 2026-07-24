@@ -191,6 +191,12 @@ Common file-level UI directives:
 - `//@ run-call: add 1, 2 => 3`: Deploy a fresh contract, ABI-encode and call the
   named function, then compare its ABI-encoded return values. Omit `=>` when no
   return data is expected. Raw calldata and return data may be written as hex.
+  Add settings after a semicolon, for example
+  `add 2; constructor=[40], gas=100000, value=3 => 45`. Settings are
+  comma-separated. `constructor=[...]` supplies ABI-encoded constructor
+  arguments, `gas` sets the call transaction's gas limit, and `value` sets its
+  value in wei. Numeric settings accept decimal and `0x`-prefixed integers.
+  Deployment and `setUp()` use the default gas limit and zero value.
 - `//@ run-call-fail: fail()`: Like `run-call`, but require the call to fail.
   Add `=> 0x...` to check exact revert data. Both directives use the EVM version
   selected by `--evm-version`. Calls to functions named `test*` run a
