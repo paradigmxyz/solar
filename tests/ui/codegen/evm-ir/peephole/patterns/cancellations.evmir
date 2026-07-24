@@ -2,7 +2,7 @@
 //@filecheck:
 @module module
 
-// CHECK-LABEL: bb0:
+// CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK-COUNT-2: - not
 bb0:
   push 1
@@ -10,7 +10,7 @@ bb0:
   not
   stop
 
-// CHECK-LABEL: bb1:
+// CHECK-LABEL: {{^[ +].*}}bb1:
 // CHECK: - dup1
 // CHECK: - pop
 bb1:
@@ -19,7 +19,7 @@ bb1:
   pop
   stop
 
-// CHECK-LABEL: bb2:
+// CHECK-LABEL: {{^[ +].*}}bb2:
 // CHECK: - dup3
 // CHECK: - pop
 bb2:
@@ -30,7 +30,7 @@ bb2:
   pop
   stop
 
-// CHECK-LABEL: bb3:
+// CHECK-LABEL: {{^[ +].*}}bb3:
 // CHECK-COUNT-2: - swap1
 bb3:
   push 1
@@ -39,7 +39,7 @@ bb3:
   swap1
   stop
 
-// CHECK-LABEL: bb4:
+// CHECK-LABEL: {{^[ +].*}}bb4:
 // CHECK-COUNT-2: - swap2
 bb4:
   push 1
@@ -49,8 +49,8 @@ bb4:
   swap2
   stop
 
-// CHECK-LABEL: bb5:
-// CHECK: iszero
+// CHECK-LABEL: {{^[ +].*}}bb5:
+// CHECK: {{^[ +].*}}iszero
 // CHECK-COUNT-2: - iszero
 bb5:
   push 1
@@ -59,7 +59,7 @@ bb5:
   iszero
   stop
 
-// CHECK-LABEL: bb6:
+// CHECK-LABEL: {{^[ +].*}}bb6:
 // CHECK: - dup16
 // CHECK: - pop
 bb6:
@@ -83,7 +83,7 @@ bb6:
   pop
   stop
 
-// CHECK-LABEL: bb7:
+// CHECK-LABEL: {{^[ +].*}}bb7:
 // CHECK-COUNT-2: - swap16
 bb7:
   push 1

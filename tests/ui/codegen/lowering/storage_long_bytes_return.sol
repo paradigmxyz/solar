@@ -3,17 +3,17 @@
 //@filecheck:
 
 contract StorageLongBytesReturn {
-    // CHECK-LABEL: fn @s
+    // CHECK-LABEL: fn @s{{[( ]}}
     // CHECK: [[VALUE:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
     // CHECK: internal_call @__ret_bytes, 0, [[VALUE]]
     string public s;
 
-    // CHECK-LABEL: fn @b
+    // CHECK-LABEL: fn @b{{[( ]}}
     // CHECK: [[VALUE:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 1
     // CHECK: internal_call @__ret_bytes, 0, [[VALUE]]
     bytes public b;
 
-    // CHECK-LABEL: fn @_anonymous
+    // CHECK-LABEL: fn @_anonymous{{[( ]}}
     // CHECK: sstore 0, 65
     // CHECK: [[S_DATA:v[0-9]+]] = keccak256 0, 32
     // CHECK: sstore [[S_DATA]], 0x6162636465666768696a6b6c6d6e6f707172737475767778797a414243444546
@@ -36,14 +36,14 @@ contract StorageLongBytesReturn {
         }
     }
 
-    // CHECK-LABEL: fn @getS
+    // CHECK-LABEL: fn @getS{{[( ]}}
     // CHECK: [[VALUE:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
     // CHECK: internal_call @__ret_bytes, 0, [[VALUE]]
     function getS() public view returns (string memory) {
         return s;
     }
 
-    // CHECK-LABEL: fn @getB
+    // CHECK-LABEL: fn @getB{{[( ]}}
     // CHECK: [[VALUE:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 1
     // CHECK: internal_call @__ret_bytes, 0, [[VALUE]]
     function getB() public view returns (bytes memory) {

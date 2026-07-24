@@ -2,12 +2,12 @@
 //@filecheck:
 @module MemoryObjectInstSimplify
 
-// CHECK-LABEL: fn @fold_identity_projections
+// CHECK-LABEL: {{^[ +].*}}fn @fold_identity_projections{{[( ]}}
 // CHECK: - {{.*}}memory_object_data
 // CHECK: - {{.*}}memory_object_field_addr
 // CHECK: - {{.*}}memory_object_element_addr
-// CHECK: [[SAME:v[0-9]+]] = eq arg0, arg1
-// CHECK: add [[SAME]], 1
+// CHECK: {{^[ +].*}}[[SAME:v[0-9]+]] = eq arg0, arg1
+// CHECK: {{^[ +].*}}add [[SAME]], 1
 fn @fold_identity_projections(arg0: memorystruct, arg1: memoryfixedarray) -> u256 {
   bb0:
     v2 = memory_object_data memorystruct, arg0

@@ -3,10 +3,10 @@
 // A fully-used chain: v2 uses v1, and v1 feeds the return.
 // DCE must not eliminate anything.
 @module DceUsedChain
-// CHECK-LABEL: fn @used_chain
-// CHECK: [[FIRST:v[0-9]+]] = add arg0, 1
-// CHECK: [[SECOND:v[0-9]+]] = mul [[FIRST]], 2
-// CHECK: ret [[SECOND]]
+// CHECK-LABEL: {{^[ +].*}}fn @used_chain{{[( ]}}
+// CHECK: {{^[ +].*}}[[FIRST:v[0-9]+]] = add arg0, 1
+// CHECK: {{^[ +].*}}[[SECOND:v[0-9]+]] = mul [[FIRST]], 2
+// CHECK: {{^[ +].*}}ret [[SECOND]]
 fn @used_chain(arg0: u256) -> u256 {
   bb0:
     v1 = add arg0, 1

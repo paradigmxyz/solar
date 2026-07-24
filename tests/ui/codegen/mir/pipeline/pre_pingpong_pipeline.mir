@@ -3,7 +3,7 @@
 // Same shape as pre_pingpong.mir: the full default pipeline must terminate on
 // joins that are mutual predecessors.
 @module PingPongPipeline
-// CHECK-LABEL: fn @pingpong
+// CHECK-LABEL: fn @pingpong{{[( ]}}
 // CHECK: bb0:
 // CHECK: jump bb6
 // CHECK: bb6:

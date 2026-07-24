@@ -1,8 +1,7 @@
 //@compile-flags: --passes lower-abi,lower-slices
 //@filecheck:
 @module LowerSlices
-// CHECK-LABEL: fn @entry
-// CHECK: + fn @entry
+// CHECK: + fn @entry()
 fn @entry(arg0: calldataslice) [selector=0x12345678] {
   bb0:
     v1 = internal_call @len, 1, arg0
@@ -10,8 +9,8 @@ fn @entry(arg0: calldataslice) [selector=0x12345678] {
     returndata 128, 32
 }
 
-// CHECK-LABEL: after lower-slices
-// CHECK: fn @len
+// CHECK-LABEL: {{^[ +].*}}after lower-slices
+// CHECK: {{^[ +].*}}fn @len{{[( ]}}
 // CHECK: + [[HEAD:v[0-9]+]] = add arg0, 4
 // CHECK: + [[LENGTH:v[0-9]+]] = calldataload [[HEAD]]
 // CHECK: + ret [[LENGTH]]
@@ -21,7 +20,7 @@ fn @len(arg0: calldataslice) -> u256 {
     ret v1
 }
 
-// CHECK-LABEL: fn @tail
+// CHECK-LABEL: {{^[ +].*}}fn @tail{{[( ]}}
 // CHECK: + [[POINTER:v[0-9]+]] = add arg0, arg2
 // CHECK: + [[LENGTH:v[0-9]+]] = sub arg1, arg2
 // CHECK: + {{v[0-9]+}} = internal_call @pair_len, 1, [[POINTER]], [[LENGTH]]
@@ -36,7 +35,7 @@ fn @tail(arg0: calldataslice, arg1: u256) -> u256 {
     ret v7
 }
 
-// CHECK-LABEL: fn @pair_len
+// CHECK-LABEL: {{^[ +].*}}fn @pair_len{{[( ]}}
 // CHECK: + ret arg1
 fn @pair_len(arg0: calldataslice) -> u256 {
   bb0:
@@ -44,9 +43,9 @@ fn @pair_len(arg0: calldataslice) -> u256 {
     ret v1
 }
 
-// CHECK-LABEL: fn @memory
+// CHECK-LABEL: {{^[ +].*}}fn @memory{{[( ]}}
 // CHECK: + [[END:v[0-9]+]] = add arg0, arg1
-// CHECK: ret [[END]]
+// CHECK: {{^[ +].*}}ret [[END]]
 fn @memory(arg0: memptr, arg1: u256) -> u256 {
   bb0:
     v2 = make_memory_slice arg0, arg1

@@ -3,11 +3,11 @@
 //@filecheck:
 
 contract CompoundAssign {
-    // CHECK-LABEL: fn @value
+    // CHECK-LABEL: fn @value{{[( ]}}
     // CHECK: sload 0
     uint256 public value;
 
-    // CHECK-LABEL: fn @add_to_value
+    // CHECK-LABEL: fn @add_to_value{{[( ]}}
     // CHECK: [[OLD:v[0-9]+]] = sload 0
     // CHECK: [[NEW:v[0-9]+]] = add [[OLD]], arg0
     // CHECK: sstore 0, [[NEW]]
@@ -15,7 +15,7 @@ contract CompoundAssign {
         value += x;
     }
 
-    // CHECK-LABEL: fn @sub_from_value
+    // CHECK-LABEL: fn @sub_from_value{{[( ]}}
     // CHECK: [[OLD:v[0-9]+]] = sload 0
     // CHECK: [[NEW:v[0-9]+]] = sub [[OLD]], arg0
     // CHECK: sstore 0, [[NEW]]
@@ -23,7 +23,7 @@ contract CompoundAssign {
         value -= x;
     }
 
-    // CHECK-LABEL: fn @mul_value
+    // CHECK-LABEL: fn @mul_value{{[( ]}}
     // CHECK: [[OLD:v[0-9]+]] = sload 0
     // CHECK: [[NEW:v[0-9]+]] = mul [[OLD]], arg0
     // CHECK: sstore 0, [[NEW]]
@@ -31,7 +31,7 @@ contract CompoundAssign {
         value *= x;
     }
 
-    // CHECK-LABEL: fn @bump_post
+    // CHECK-LABEL: fn @bump_post{{[( ]}}
     // CHECK: [[OLD:v[0-9]+]] = sload 0
     // CHECK: [[NEW:v[0-9]+]] = add [[OLD]], 1
     // CHECK: sstore 0, [[NEW]]
@@ -40,7 +40,7 @@ contract CompoundAssign {
         return value++;
     }
 
-    // CHECK-LABEL: fn @bump_pre
+    // CHECK-LABEL: fn @bump_pre{{[( ]}}
     // CHECK: [[OLD:v[0-9]+]] = sload 0
     // CHECK: [[NEW:v[0-9]+]] = add [[OLD]], 1
     // CHECK: sstore 0, [[NEW]]

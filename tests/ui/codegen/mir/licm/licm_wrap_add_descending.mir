@@ -4,9 +4,9 @@
 // descending induction variable: the `lt v1, 100` guard yields a wraparound
 // trip count, so range reasoning must not prove the mload disjoint.
 @module LicmWrapAddDescending
-// CHECK-LABEL: fn @wrap_add_descending
-// CHECK: mstore
-// CHECK: mload 0
+// CHECK-LABEL: {{^[ +].*}}fn @wrap_add_descending{{[( ]}}
+// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}mload 0
 fn @wrap_add_descending() -> u256 {
   bb0:
     jump bb1

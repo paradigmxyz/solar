@@ -10,7 +10,7 @@
 // - signed mul: division-inverse check plus `and(eq(lhs, MIN), slt(rhs, 0))`.
 // - div/mod: branch directly on the divisor, no `iszero`/`eq` flag.
 contract CheckedArithmeticShapes {
-    // CHECK-LABEL: fn @sadd
+    // CHECK-LABEL: fn @sadd{{[( ]}}
     // CHECK: [[SUM:v[0-9]+]] = add arg0, arg1
     // CHECK: [[LHS_NEG:v[0-9]+]] = slt arg0, 0
     // CHECK: [[WRAPPED:v[0-9]+]] = slt [[SUM]], arg1
@@ -19,7 +19,7 @@ contract CheckedArithmeticShapes {
         return a + b;
     }
 
-    // CHECK-LABEL: fn @ssub
+    // CHECK-LABEL: fn @ssub{{[( ]}}
     // CHECK: [[DIFF:v[0-9]+]] = sub arg0, arg1
     // CHECK: [[RHS_NEG:v[0-9]+]] = slt arg1, 0
     // CHECK: [[WRAPPED:v[0-9]+]] = sgt [[DIFF]], arg0
@@ -28,7 +28,7 @@ contract CheckedArithmeticShapes {
         return a - b;
     }
 
-    // CHECK-LABEL: fn @smul
+    // CHECK-LABEL: fn @smul{{[( ]}}
     // CHECK: [[PRODUCT:v[0-9]+]] = mul arg0, arg1
     // CHECK: sdiv [[PRODUCT]], arg1
     // CHECK: eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
@@ -37,7 +37,7 @@ contract CheckedArithmeticShapes {
         return a * b;
     }
 
-    // CHECK-LABEL: fn @sdiv
+    // CHECK-LABEL: fn @sdiv{{[( ]}}
     // CHECK: br arg1,
     // CHECK: mstore 4, 18
     // CHECK: and {{v[0-9]+}}, {{v[0-9]+}}
@@ -46,7 +46,7 @@ contract CheckedArithmeticShapes {
         return a / b;
     }
 
-    // CHECK-LABEL: fn @smod
+    // CHECK-LABEL: fn @smod{{[( ]}}
     // CHECK: br arg1,
     // CHECK: mstore 4, 18
     // CHECK: smod arg0, arg1
@@ -54,42 +54,42 @@ contract CheckedArithmeticShapes {
         return a % b;
     }
 
-    // CHECK-LABEL: fn @neg
+    // CHECK-LABEL: fn @neg{{[( ]}}
     // CHECK: eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     // CHECK: sub 0, arg0
     function neg(int256 a) public pure returns (int256) {
         return -a;
     }
 
-    // CHECK-LABEL: fn @inc
+    // CHECK-LABEL: fn @inc{{[( ]}}
     // CHECK: [[RESULT:v[0-9]+]] = add arg0, 1
     // CHECK: lt [[RESULT]], arg0
     function inc(uint256 a) public pure returns (uint256) {
         return ++a;
     }
 
-    // CHECK-LABEL: fn @dec
+    // CHECK-LABEL: fn @dec{{[( ]}}
     // CHECK: [[RESULT:v[0-9]+]] = sub arg0, 1
     // CHECK: lt arg0, 1
     function dec(uint256 a) public pure returns (uint256) {
         return --a;
     }
 
-    // CHECK-LABEL: fn @uadd128
+    // CHECK-LABEL: fn @uadd128{{[( ]}}
     // CHECK: [[RESULT:v[0-9]+]] = add arg0, arg1
     // CHECK: gt [[RESULT]], 0xffffffffffffffffffffffffffffffff
     function uadd128(uint128 a, uint128 b) public pure returns (uint128) {
         return a + b;
     }
 
-    // CHECK-LABEL: fn @umul128
+    // CHECK-LABEL: fn @umul128{{[( ]}}
     // CHECK: [[RESULT:v[0-9]+]] = mul arg0, arg1
     // CHECK: gt [[RESULT]], 0xffffffffffffffffffffffffffffffff
     function umul128(uint128 a, uint128 b) public pure returns (uint128) {
         return a * b;
     }
 
-    // CHECK-LABEL: fn @smul128
+    // CHECK-LABEL: fn @smul128{{[( ]}}
     // CHECK: [[RESULT:v[0-9]+]] = mul arg0, arg1
     // CHECK: slt [[RESULT]], 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
     // CHECK: sgt [[RESULT]], 0x7fffffffffffffffffffffffffffffff
@@ -97,7 +97,7 @@ contract CheckedArithmeticShapes {
         return a * b;
     }
 
-    // CHECK-LABEL: fn @umul192
+    // CHECK-LABEL: fn @umul192{{[( ]}}
     // CHECK: [[RESULT:v[0-9]+]] = mul arg0, arg1
     // CHECK: div [[RESULT]], arg1
     // CHECK: gt [[RESULT]], 0xffffffffffffffffffffffffffffffffffffffffffffffff

@@ -3,11 +3,11 @@
 //@filecheck:
 
 contract InternalVoidCall {
-    // CHECK-LABEL: fn @value
+    // CHECK-LABEL: fn @value{{[( ]}}
     // CHECK: sload 0
     uint256 public value;
 
-    // CHECK-LABEL: fn @set
+    // CHECK-LABEL: fn @set{{[( ]}}
     // CHECK: [[ZERO:v[0-9]+]] = eq arg0, 0
     // CHECK: {{v[0-9]+}} = iszero [[ZERO]]
     // CHECK: sstore 0, arg0
@@ -15,7 +15,7 @@ contract InternalVoidCall {
         writeIfNonZero(newValue);
     }
 
-    // CHECK-LABEL: fn @setUnlessZero
+    // CHECK-LABEL: fn @setUnlessZero{{[( ]}}
     // CHECK: [[ZERO:v[0-9]+]] = eq arg0, 0
     // CHECK: br [[ZERO]],
     // CHECK: sstore 0, arg0
@@ -26,7 +26,7 @@ contract InternalVoidCall {
         value = newValue;
     }
 
-    // CHECK-LABEL: fn @writeIfNonZero
+    // CHECK-LABEL: fn @writeIfNonZero{{[( ]}}
     // CHECK: [[ZERO:v[0-9]+]] = eq arg0, 0
     // CHECK: {{v[0-9]+}} = iszero [[ZERO]]
     // CHECK: sstore 0, arg0

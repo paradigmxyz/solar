@@ -8,7 +8,7 @@
 // `keccak256(abi.encode(...))` hashes the encoding staged at the unbumped free
 // memory pointer without materializing a `bytes` object.
 contract AbiEncodeBytes {
-    // CHECK-LABEL: fn @hash3
+    // CHECK-LABEL: fn @hash3{{[( ]}}
     // CHECK: [[BASE:v[0-9]+]] = fmp
     // CHECK: mstore [[BASE]], arg0
     // CHECK: {{v[0-9]+}} = keccak256 [[BASE]], 96
@@ -16,7 +16,7 @@ contract AbiEncodeBytes {
         return keccak256(abi.encode(a, b, c));
     }
 
-    // CHECK-LABEL: fn @encode3
+    // CHECK-LABEL: fn @encode3{{[( ]}}
     // CHECK: [[ENCODED:v[0-9]+]] = fmp
     // CHECK: [[DATA:v[0-9]+]] = memory_object_data memorybytes, [[ENCODED]]
     // CHECK: mstore [[DATA]], arg0
@@ -25,7 +25,7 @@ contract AbiEncodeBytes {
         return abi.encode(a, b, c);
     }
 
-    // CHECK-LABEL: fn @encodeDynamic
+    // CHECK-LABEL: fn @encodeDynamic{{[( ]}}
     // CHECK: [[ENCODED:v[0-9]+]] = fmp
     // CHECK: mcopy
     // CHECK: set_memory_object_len memorybytes, [[ENCODED]],
@@ -33,14 +33,14 @@ contract AbiEncodeBytes {
         return abi.encode(a, s);
     }
 
-    // CHECK-LABEL: fn @hashDynamic
+    // CHECK-LABEL: fn @hashDynamic{{[( ]}}
     // CHECK: mcopy
     // CHECK: keccak256
     function hashDynamic(uint a, string memory s) external pure returns (bytes32) {
         return keccak256(abi.encode(a, s));
     }
 
-    // CHECK-LABEL: fn @roundtrip
+    // CHECK-LABEL: fn @roundtrip{{[( ]}}
     // CHECK: set_memory_object_len memorybytes
     // CHECK: memory_object_data memorybytes
     // CHECK: mload

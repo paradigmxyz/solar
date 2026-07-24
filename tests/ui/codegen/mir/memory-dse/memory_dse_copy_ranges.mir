@@ -3,9 +3,9 @@
 @module MemoryDseCopyRanges
 
 // A full-word copy write to the same range makes the prior store dead.
-// CHECK-LABEL: fn @remove_store_overwritten_by_codecopy
+// CHECK-LABEL: {{^[ +].*}}fn @remove_store_overwritten_by_codecopy{{[( ]}}
 // CHECK: - mstore 0, 1
-// CHECK: codecopy 0, 0, 64
+// CHECK: {{^[ +].*}}codecopy 0, 0, 64
 fn @remove_store_overwritten_by_codecopy() -> u256 {
   bb0:
     mstore 0, 1
@@ -14,10 +14,10 @@ fn @remove_store_overwritten_by_codecopy() -> u256 {
 }
 
 // A partial disjoint copy range must not kill the store read from the next word.
-// CHECK-LABEL: fn @keep_store_after_partial_copy
-// CHECK: mstore 32, 1
-// CHECK: codecopy 0, 0, 32
-// CHECK: {{v[0-9]+}} = mload 32
+// CHECK-LABEL: {{^[ +].*}}fn @keep_store_after_partial_copy{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 32, 1
+// CHECK: {{^[ +].*}}codecopy 0, 0, 32
+// CHECK: + ret 1
 fn @keep_store_after_partial_copy() -> u256 {
   bb0:
     mstore 32, 1
@@ -28,8 +28,8 @@ fn @keep_store_after_partial_copy() -> u256 {
 
 // Updating the free-memory pointer at 0x40 and zeroing the data area do not
 // clobber the fresh allocation length word at the old FMP.
-// CHECK-LABEL: fn @forward_fresh_array_length
-// CHECK: calldatacopy
+// CHECK-LABEL: {{^[ +].*}}fn @forward_fresh_array_length{{[( ]}}
+// CHECK: {{^[ +].*}}calldatacopy
 // CHECK: + ret 3
 fn @forward_fresh_array_length() -> u256 {
   bb0:

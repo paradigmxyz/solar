@@ -19,7 +19,7 @@ contract DynamicStructParam {
     // nested dynamic offsets relative to the struct's own base — rebuild
     // recursively from the tail.
     // The dynamic struct occupies one head slot and `sink` the next.
-    // DYNSTRUCT-LABEL: fn @init
+    // DYNSTRUCT-LABEL: fn @init{{[( ]}}
     // DYNSTRUCT: gt arg0, 0xffffffffffffffff
     // DYNSTRUCT: add 4, arg0
     // DYNSTRUCT: alloc raw, exact, uninitialized, infallible, 128
@@ -29,7 +29,7 @@ contract DynamicStructParam {
     }
 
     // A static struct stays inlined in the head, one slot per field.
-    // DYNSTRUCT-LABEL: fn @flat
+    // DYNSTRUCT-LABEL: fn @flat{{[( ]}}
     // DYNSTRUCT: mstore v{{[0-9]+}}, arg0
     // DYNSTRUCT: mstore v{{[0-9]+}}, arg1
     function flat(StaticPair calldata pair) external pure returns (uint256) {

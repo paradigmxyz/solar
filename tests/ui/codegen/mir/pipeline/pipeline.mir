@@ -2,7 +2,7 @@
 //@filecheck:
 // Jump threading and CFG simplification expose the multiplication as dead.
 @module Pipeline
-// CHECK-LABEL: fn @noisy
+// CHECK-LABEL: {{^[ +].*}}fn @noisy{{[( ]}}
 // CHECK: - jump bb1
 // CHECK: + jump bb2
 // CHECK: - jump bb2

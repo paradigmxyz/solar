@@ -6,8 +6,8 @@
 // be hoisted. Receive is payable and needs no check.
 @module DispatchParity
 @phase abi
-// CHECK-LABEL: after lower-dispatch
-// CHECK: + fn @entry
+// CHECK-LABEL: {{^[ +].*}}after lower-dispatch
+// CHECK: + fn @entry{{[( ]}}
 // CHECK: + tail_call @recv
 // CHECK: + switch {{.*}}default bb6, [1 => bb4, 2 => bb5]
 // CHECK: + tail_call @pay

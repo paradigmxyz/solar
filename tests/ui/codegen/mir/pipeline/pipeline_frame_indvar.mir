@@ -1,7 +1,7 @@
 //@compile-flags: --pipeline-default
 //@filecheck: --implicit-check-not=internal_frame_addr --implicit-check-not=mload
 @module PipelineFrameIndVar
-// CHECK-LABEL: fn @frame_counter_feeds_affine_address
+// CHECK-LABEL: fn @frame_counter_feeds_affine_address{{[( ]}}
 // CHECK: [[INDEX:v[0-9]+]] = phi [bb0: 0], [bb2: [[NEXT_INDEX:v[0-9]+]]]
 // CHECK: [[ADDRESS:v[0-9]+]] = phi [bb0: arg1], [bb2: [[NEXT_ADDRESS:v[0-9]+]]]
 // CHECK: mstore [[ADDRESS]], [[INDEX]]

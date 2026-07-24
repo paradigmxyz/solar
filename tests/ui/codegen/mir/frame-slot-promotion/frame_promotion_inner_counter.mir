@@ -1,7 +1,7 @@
 //@compile-flags: --passes frame-slot-promotion,cfg-simplify,dce
 //@filecheck:
 @module NestedCounter
-// CHECK-LABEL: fn @nested
+// CHECK-LABEL: {{^[ +].*}}fn @nested{{[( ]}}
 // CHECK: + [[SUM:v[0-9]+]] = phi [bb0: 0], [bb5: [[NEXT_SUM:v[0-9]+]]]
 // CHECK: + [[OUTER:v[0-9]+]] = phi [bb0: 0], [bb5: [[NEXT_OUTER:v[0-9]+]]]
 // CHECK: + [[NEXT_SUM]] = phi [bb2: [[SUM]]], [bb4: {{v[0-9]+}}]

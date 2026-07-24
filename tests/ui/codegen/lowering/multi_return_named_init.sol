@@ -6,7 +6,7 @@
 // lands one word before the slot used by the body, and a reused static frame
 // leaks the previous call's value.
 contract MultiReturnNamedInit {
-    // INIT-LABEL: fn @readU64
+    // INIT-LABEL: fn @readU64{{[( ]}}
     // INIT: [[VALUE_SLOT:v[0-9]+]] = internal_frame_addr 192
     // INIT-NEXT: mstore [[VALUE_SLOT]], 0
     function readU64(bytes calldata data, uint256 start)
@@ -22,7 +22,7 @@ contract MultiReturnNamedInit {
         }
     }
 
-    // INIT-LABEL: fn @readTwice
+    // INIT-LABEL: fn @readTwice{{[( ]}}
     // INIT: internal_call @readU64, 2, arg0, 0
     // INIT: internal_call @readU64, 2, arg0, 8
     function readTwice(bytes calldata data) external pure returns (uint64 first, uint64 second) {

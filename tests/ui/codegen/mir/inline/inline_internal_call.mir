@@ -1,7 +1,7 @@
 //@compile-flags: --pass inline
 //@filecheck:
 @module InlineInternalCall
-// CHECK-LABEL: fn @caller
+// CHECK-LABEL: {{^[ +].*}}fn @caller{{[( ]}}
 // CHECK: - {{.*}}internal_call @callee
 // CHECK: + {{v[0-9]+}} = phi [bb2: [[INLINED:v[0-9]+]]]
 // CHECK: + [[INLINED]] = add arg0, 1

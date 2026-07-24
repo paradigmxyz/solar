@@ -2,8 +2,8 @@
 //@filecheck:
 @module module
 
-// CHECK-LABEL: bb0:
-// CHECK: push 2
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}push 2
 // CHECK: - push 0
 // CHECK: - add
 bb0:
@@ -12,8 +12,8 @@ bb0:
   add
   stop
 
-// CHECK-LABEL: bb1:
-// CHECK: push 2
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}push 2
 // CHECK: - push 0
 // CHECK: - or
 bb1:
@@ -22,8 +22,8 @@ bb1:
   or
   stop
 
-// CHECK-LABEL: bb2:
-// CHECK: push 2
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: {{^[ +].*}}push 2
 // CHECK: - push 0
 // CHECK: - xor
 bb2:
@@ -32,8 +32,8 @@ bb2:
   xor
   stop
 
-// CHECK-LABEL: bb3:
-// CHECK: push 2
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: {{^[ +].*}}push 2
 // CHECK: - push 0
 // CHECK: - shl
 bb3:
@@ -42,8 +42,8 @@ bb3:
   shl
   stop
 
-// CHECK-LABEL: bb4:
-// CHECK: push 2
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK: {{^[ +].*}}push 2
 // CHECK: - push 0
 // CHECK: - shr
 bb4:
@@ -52,8 +52,8 @@ bb4:
   shr
   stop
 
-// CHECK-LABEL: bb5:
-// CHECK: push 2
+// CHECK-LABEL: {{^[ +].*}}bb5:
+// CHECK: {{^[ +].*}}push 2
 // CHECK: - push 0
 // CHECK: - sar
 bb5:
@@ -62,8 +62,8 @@ bb5:
   sar
   stop
 
-// CHECK-LABEL: bb6:
-// CHECK: push 2
+// CHECK-LABEL: {{^[ +].*}}bb6:
+// CHECK: {{^[ +].*}}push 2
 // CHECK: - push 0
 // CHECK: + iszero
 bb6:
@@ -72,9 +72,9 @@ bb6:
   eq
   stop
 
-// CHECK-LABEL: bb7:
+// CHECK-LABEL: {{^[ +].*}}bb7:
 // CHECK: - push 2
-// CHECK: push 0
+// CHECK: {{^[ +].*}}push 0
 // CHECK: - mul
 bb7:
   push 2
@@ -82,9 +82,9 @@ bb7:
   mul
   stop
 
-// CHECK-LABEL: bb8:
+// CHECK-LABEL: {{^[ +].*}}bb8:
 // CHECK: - push 2
-// CHECK: push 0
+// CHECK: {{^[ +].*}}push 0
 // CHECK: - div
 bb8:
   push 2
@@ -92,9 +92,9 @@ bb8:
   div
   stop
 
-// CHECK-LABEL: bb9:
+// CHECK-LABEL: {{^[ +].*}}bb9:
 // CHECK: - push 2
-// CHECK: push 0
+// CHECK: {{^[ +].*}}push 0
 // CHECK: - sdiv
 bb9:
   push 2
@@ -102,9 +102,9 @@ bb9:
   sdiv
   stop
 
-// CHECK-LABEL: bb10:
+// CHECK-LABEL: {{^[ +].*}}bb10:
 // CHECK: - push 2
-// CHECK: push 0
+// CHECK: {{^[ +].*}}push 0
 // CHECK: - mod
 bb10:
   push 2
@@ -112,9 +112,9 @@ bb10:
   mod
   stop
 
-// CHECK-LABEL: bb11:
+// CHECK-LABEL: {{^[ +].*}}bb11:
 // CHECK: - push 2
-// CHECK: push 0
+// CHECK: {{^[ +].*}}push 0
 // CHECK: - smod
 bb11:
   push 2
@@ -122,9 +122,9 @@ bb11:
   smod
   stop
 
-// CHECK-LABEL: bb12:
+// CHECK-LABEL: {{^[ +].*}}bb12:
 // CHECK: - push 2
-// CHECK: push 0
+// CHECK: {{^[ +].*}}push 0
 // CHECK: - and
 bb12:
   push 2
@@ -132,9 +132,9 @@ bb12:
   and
   stop
 
-// CHECK-LABEL: bb13:
+// CHECK-LABEL: {{^[ +].*}}bb13:
 // CHECK: - push 2
-// CHECK: push 0
+// CHECK: {{^[ +].*}}push 0
 // CHECK: - gt
 bb13:
   push 2
@@ -142,8 +142,8 @@ bb13:
   gt
   stop
 
-// CHECK-LABEL: bb14:
-// CHECK: push 2
+// CHECK-LABEL: {{^[ +].*}}bb14:
+// CHECK: {{^[ +].*}}push 2
 // CHECK: - push 1
 // CHECK: - mul
 bb14:
@@ -152,9 +152,9 @@ bb14:
   mul
   stop
 
-// CHECK-LABEL: bb15:
+// CHECK-LABEL: {{^[ +].*}}bb15:
 // CHECK: - push 2
-// CHECK: push 1
+// CHECK: {{^[ +].*}}push 1
 // CHECK: - exp
 bb15:
   push 2

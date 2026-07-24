@@ -18,12 +18,12 @@ contract C {
     }
 
     // recursive function returning a memory struct
-    // CHECK-LABEL: fn @build
+    // CHECK-LABEL: fn @build{{[( ]}}
     // CHECK: internal_call [[BUILD:fn[0-9]+]], 1,
     // CHECK: [[RESULT:v[0-9]+]] = alloc memorystruct<2>
     // CHECK: memory_object_field_addr memorystruct<2>, [[RESULT]], 0
     // CHECK: returndata 128, 64
-    // CHECK-LABEL: fn @build
+    // CHECK-LABEL: fn @build{{[( ]}}
     // CHECK: internal_call [[BUILD]], 1,
     // CHECK: [[RESULT:v[0-9]+]] = alloc memorystruct<2>
     // CHECK: ret [[RESULT]]
@@ -34,7 +34,7 @@ contract C {
     }
 
     // public function returning a dynamic word-array (external ABI encoding)
-    // CHECK-LABEL: fn @mkArr
+    // CHECK-LABEL: fn @mkArr{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>
     // CHECK: set_memory_object_len memoryarray, [[ARRAY]], arg0
     // CHECK: {{v[0-9]+}} = memory_object_len memoryarray, [[ARRAY]]
@@ -47,7 +47,7 @@ contract C {
     }
 
     // recursive helper returning a memory array, consumed by a public function
-    // CHECK-LABEL: fn @fillImpl
+    // CHECK-LABEL: fn @fillImpl{{[( ]}}
     // CHECK: ret arg0
     // CHECK: memory_object_element_addr memoryarray<1>, arg0, arg1
     // CHECK: [[NEXT:v[0-9]+]] = add arg1, 1
@@ -59,7 +59,7 @@ contract C {
         return fillImpl(a, i + 1);
     }
 
-    // CHECK-LABEL: fn @squares
+    // CHECK-LABEL: fn @squares{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>
     // CHECK: [[FILLED:v[0-9]+]] = internal_call @fillImpl, 1, [[ARRAY]], 0
     // CHECK: memory_object_len memoryarray, [[FILLED]]

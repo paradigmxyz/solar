@@ -1,5 +1,5 @@
 //@compile-flags: --pass lower-abi
-//@filecheck:
+//@filecheck: --implicit-check-not=.body
 // The ABI phase absorbs each external function's arguments: the wrapper
 // loses its parameter list while its `argN` values stay and denote calldata
 // head words (rematerialized per use by the backend), the function keeps its
@@ -7,17 +7,15 @@
 // no redundant `.body` copy is appended. Advances the module to the `abi`
 // phase.
 @module LowerAbi
-// CHECK-LABEL: fn @add
 // CHECK: + @phase abi
-// CHECK: + fn @add
+// CHECK: + fn @add()
 fn @add(arg0: u256, arg1: u256) [selector=0x771602f7] {
   bb0:
     v2 = add arg0, arg1
     mstore 128, v2
     returndata 128, 32
 }
-// CHECK-LABEL: fn @flag
-// CHECK: + fn @flag
+// CHECK: + fn @flag()
 fn @flag(arg0: bool) [selector=0x0d2020dd] {
   bb0:
     mstore 128, arg0

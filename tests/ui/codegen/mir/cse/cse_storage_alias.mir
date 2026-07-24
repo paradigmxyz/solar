@@ -1,7 +1,7 @@
 //@compile-flags: --pass cse
 //@filecheck:
 @module CseStorageAlias
-// CHECK-LABEL: fn @reuse_sload_after_disjoint_store
+// CHECK-LABEL: {{^[ +].*}}fn @reuse_sload_after_disjoint_store{{[( ]}}
 // CHECK: - {{v[0-9]+}} = sload arg0
 // CHECK: + {{v[0-9]+}} = add [[SLOAD:v[0-9]+]], [[SLOAD]]
 fn @reuse_sload_after_disjoint_store(arg0: u256, arg1: u256) -> u256 {
@@ -14,9 +14,9 @@ fn @reuse_sload_after_disjoint_store(arg0: u256, arg1: u256) -> u256 {
     ret v6
 }
 
-// CHECK-LABEL: fn @keep_sload_after_aliasing_store
-// CHECK: {{v[0-9]+}} = sload arg0
-// CHECK: {{v[0-9]+}} = sload arg0
+// CHECK-LABEL: {{^[ +].*}}fn @keep_sload_after_aliasing_store{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload arg0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload arg0
 fn @keep_sload_after_aliasing_store(arg0: u256, arg1: u256) -> u256 {
   bb0:
     v2 = sload arg0
@@ -27,7 +27,7 @@ fn @keep_sload_after_aliasing_store(arg0: u256, arg1: u256) -> u256 {
     ret v6
 }
 
-// CHECK-LABEL: fn @reuse_tload_after_disjoint_store
+// CHECK-LABEL: {{^[ +].*}}fn @reuse_tload_after_disjoint_store{{[( ]}}
 // CHECK: - {{v[0-9]+}} = tload arg0
 // CHECK: + {{v[0-9]+}} = add [[TLOAD:v[0-9]+]], [[TLOAD]]
 fn @reuse_tload_after_disjoint_store(arg0: u256, arg1: u256) -> u256 {
@@ -40,9 +40,9 @@ fn @reuse_tload_after_disjoint_store(arg0: u256, arg1: u256) -> u256 {
     ret v6
 }
 
-// CHECK-LABEL: fn @keep_sload_after_external_call
-// CHECK: {{v[0-9]+}} = sload arg0
-// CHECK: {{v[0-9]+}} = sload arg0
+// CHECK-LABEL: {{^[ +].*}}fn @keep_sload_after_external_call{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload arg0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload arg0
 fn @keep_sload_after_external_call(arg0: u256, arg1: address) -> u256 {
   bb0:
     v2 = sload arg0

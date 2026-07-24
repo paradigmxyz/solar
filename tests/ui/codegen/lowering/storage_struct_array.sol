@@ -12,7 +12,7 @@ contract StorageStructArray {
 
     S[3] arr;
 
-    // CHECK-LABEL: fn @setS
+    // CHECK-LABEL: fn @setS{{[( ]}}
     // CHECK: [[OFFSET:v[0-9]+]] = mul arg0, 2
     // CHECK: sstore {{v[0-9]+}}, arg1 !metadata(storage=symbolic([[OFFSET]]))
     // CHECK: [[OFFSET2:v[0-9]+]] = mul arg0, 2
@@ -22,7 +22,7 @@ contract StorageStructArray {
         arr[i].b = y;
     }
 
-    // CHECK-LABEL: fn @getS
+    // CHECK-LABEL: fn @getS{{[( ]}}
     // CHECK: [[OFFSET:v[0-9]+]] = mul arg0, 2
     // CHECK: sload {{v[0-9]+}} !metadata(storage=symbolic([[OFFSET]]))
     // CHECK: [[OFFSET2:v[0-9]+]] = mul arg0, 2

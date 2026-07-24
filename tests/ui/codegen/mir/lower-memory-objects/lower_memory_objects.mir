@@ -3,7 +3,7 @@
 @module LowerMemoryObjects
 @phase dispatch
 
-// CHECK-LABEL: fn @objects
+// CHECK-LABEL: {{^[ +].*}}fn @objects{{[( ]}}
 // CHECK: + [[OBJECT:v[0-9]+]] = alloc raw
 // CHECK: + mstore [[OBJECT]], 3
 // CHECK: + {{v[0-9]+}} = mload [[OBJECT]]

@@ -2,16 +2,16 @@
 //@filecheck:
 @module module
 
-// CHECK-LABEL: bb0:
-// CHECK: jump bb2
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}jump bb2
 bb0:
   push 1
   push bb1
   jumpi
   jump bb2
 
-// CHECK-LABEL: bb1 [cold]:
-// CHECK: push 11
+// CHECK-LABEL: {{^[ +].*}}bb1 [cold]:
+// CHECK: {{^[ +].*}}push 11
 // CHECK: + jump [[TAIL_A:bb[0-9]+]]
 bb1 [cold]:
   push 11
@@ -21,8 +21,8 @@ bb1 [cold]:
   push 55
   revert
 
-// CHECK-LABEL: bb2 [cold]:
-// CHECK: push 99
+// CHECK-LABEL: {{^[ +].*}}bb2 [cold]:
+// CHECK: {{^[ +].*}}push 99
 // CHECK: + jump [[TAIL_A]]
 bb2 [cold]:
   push 99
@@ -32,9 +32,9 @@ bb2 [cold]:
   push 55
   revert
 
-// CHECK-LABEL: bb3:
-// CHECK: push 77
-// CHECK: push 66
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: {{^[ +].*}}push 77
+// CHECK: {{^[ +].*}}push 66
 // CHECK: + jump [[TAIL_B:bb[0-9]+]]
 bb3:
   push 77
@@ -44,8 +44,8 @@ bb3:
   push 55
   revert
 
-// CHECK-LABEL: bb6 [cold]:
-// CHECK: push 111
+// CHECK-LABEL: {{^[ +].*}}bb6 [cold]:
+// CHECK: {{^[ +].*}}push 111
 // CHECK: + jump [[TAIL_C:bb[0-9]+]]
 bb6 [cold]:
   push 111
@@ -55,18 +55,18 @@ bb6 [cold]:
   push 555
   revert
 
-// CHECK-LABEL: bb7:
-// CHECK: push 999
+// CHECK-LABEL: {{^[ +].*}}bb7:
+// CHECK: {{^[ +].*}}push 999
 // CHECK: + jump [[TAIL_C]]
 // CHECK: + [[TAIL_B]]:
-// CHECK: push 33
-// CHECK: revert
+// CHECK: {{^[ +].*}}push 33
+// CHECK: {{^[ +].*}}revert
 // CHECK: + [[TAIL_A]] [cold]:
-// CHECK: push 22
+// CHECK: {{^[ +].*}}push 22
 // CHECK: + jump [[TAIL_B]]
 // CHECK: + [[TAIL_C]]:
-// CHECK: push 222
-// CHECK: revert
+// CHECK: {{^[ +].*}}push 222
+// CHECK: {{^[ +].*}}revert
 bb7:
   push 999
   push 222

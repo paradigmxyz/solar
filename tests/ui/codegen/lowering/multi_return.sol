@@ -3,7 +3,7 @@
 //@filecheck:
 
 contract MultiReturn {
-    // CHECK-LABEL: fn @div_mod
+    // CHECK-LABEL: fn @div_mod{{[( ]}}
     // CHECK: {{v[0-9]+}} = div arg0, arg1
     // CHECK: {{v[0-9]+}} = mod arg0, arg1
     // CHECK: returndata 128, 64
@@ -11,7 +11,7 @@ contract MultiReturn {
         return (a / b, a % b);
     }
 
-    // CHECK-LABEL: fn @min_max
+    // CHECK-LABEL: fn @min_max{{[( ]}}
     // CHECK: [[ORDERED:v[0-9]+]] = lt arg0, arg1
     // CHECK: br [[ORDERED]],
     // CHECK-COUNT-2: returndata 128, 64
@@ -22,7 +22,7 @@ contract MultiReturn {
         return (b, a);
     }
 
-    // CHECK-LABEL: fn @triple
+    // CHECK-LABEL: fn @triple{{[( ]}}
     // CHECK: {{v[0-9]+}} = add arg0, arg0
     // CHECK: {{v[0-9]+}} = add {{v[0-9]+}}, arg0
     // CHECK: returndata 128, 96

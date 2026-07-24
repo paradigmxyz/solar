@@ -3,7 +3,7 @@
 //@filecheck:
 
 contract Branch {
-    // CHECK-LABEL: fn @max
+    // CHECK-LABEL: fn @max{{[( ]}}
     // CHECK: [[GT:v[0-9]+]] = gt arg0, arg1
     // CHECK: br [[GT]],
     // CHECK: returndata
@@ -15,7 +15,7 @@ contract Branch {
         return b;
     }
 
-    // CHECK-LABEL: fn @abs_diff
+    // CHECK-LABEL: fn @abs_diff{{[( ]}}
     // CHECK: [[LT:v[0-9]+]] = lt arg0, arg1
     // CHECK: {{v[0-9]+}} = iszero [[LT]]
     // CHECK: {{v[0-9]+}} = sub arg0, arg1

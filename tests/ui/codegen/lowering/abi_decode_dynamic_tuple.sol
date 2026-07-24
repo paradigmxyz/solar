@@ -2,7 +2,7 @@
 //@filecheck:
 
 contract AbiDecodeDynamicTuple {
-    // CHECK-LABEL: fn @decode
+    // CHECK-LABEL: fn @decode{{[( ]}}
     // CHECK: [[STRING:v[0-9]+]] = alloc memorybytes
     // CHECK: set_memory_object_len memorybytes, [[STRING]],
     // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes
@@ -16,7 +16,7 @@ contract AbiDecodeDynamicTuple {
         return abi.decode(data, (uint256, string, bytes));
     }
 
-    // CHECK-LABEL: fn @roundtrip
+    // CHECK-LABEL: fn @roundtrip{{[( ]}}
     // CHECK: set_memory_object_len memorybytes
     // CHECK: mcopy
     // CHECK: set_memory_object_len memorybytes
@@ -29,7 +29,7 @@ contract AbiDecodeDynamicTuple {
         return abi.decode(abi.encode(a, s, b), (uint256, string, bytes));
     }
 
-    // CHECK-LABEL: fn @decodeBytes
+    // CHECK-LABEL: fn @decodeBytes{{[( ]}}
     // CHECK: [[INPUT:v[0-9]+]] = alloc memorybytes
     // CHECK: set_memory_object_len memorybytes, [[INPUT]],
     // CHECK: [[RESULT:v[0-9]+]] = alloc memorybytes

@@ -9,7 +9,7 @@ interface SliceSink {
 }
 
 contract CalldataSliceRebind {
-    // SLICE-LABEL: fn @forward
+    // SLICE-LABEL: fn @forward{{[( ]}}
     // SLICE: make_calldata_slice
     // SLICE-NOT: mcopy
     // SLICE: abi_encode [calldata_bytes]

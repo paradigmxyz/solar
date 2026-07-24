@@ -13,7 +13,7 @@ contract MultiReturnScratch {
         return (x, x + 1, x + 2);
     }
 
-    // ORDER-LABEL: fn @assign
+    // ORDER-LABEL: fn @assign{{[( ]}}
     // ORDER: internal_call
     // ORDER: = mload 32
     // ORDER: = add {{.*}}, 32

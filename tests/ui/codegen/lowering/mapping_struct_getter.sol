@@ -9,7 +9,7 @@
 // `tmp` had no initializer, so the getter returned the wrong slot (slot 0).
 // Runtime-verified against solc.
 contract C {
-    // CHECK-LABEL: fn @constructor
+    // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: sstore 0, 1
     uint256 internal counter = 1; // slot 0
 
@@ -19,7 +19,7 @@ contract C {
         address c;
     }
 
-    // CHECK-LABEL: fn @items
+    // CHECK-LABEL: fn @items{{[( ]}}
     // CHECK: [[BASE:v[0-9]+]] = mapping_slot arg0, 1
     // CHECK: sload [[BASE]]
     // CHECK: sload {{v[0-9]+}} !metadata(storage=offset([[BASE]], 1))

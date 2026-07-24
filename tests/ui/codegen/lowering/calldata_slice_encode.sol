@@ -6,7 +6,7 @@ interface SliceSink {
 }
 
 contract CalldataSliceEncode {
-    // SLICE-LABEL: fn @encode
+    // SLICE-LABEL: fn @encode{{[( ]}}
     // SLICE: make_calldata_slice
     // SLICE: calldatacopy
     function encode(bytes calldata data, uint256 start)
@@ -17,7 +17,7 @@ contract CalldataSliceEncode {
         return abi.encode(data[start:]);
     }
 
-    // SLICE-LABEL: fn @forward
+    // SLICE-LABEL: fn @forward{{[( ]}}
     // SLICE: make_calldata_slice
     // SLICE: abi_encode [calldata_bytes]
     // SLICE: call

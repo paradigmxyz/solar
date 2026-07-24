@@ -1,7 +1,7 @@
 //@compile-flags: --passes frame-slot-promotion
 //@filecheck:
 @module FramePromotionDeadMerge
-// CHECK-LABEL: fn @dead_merge
+// CHECK-LABEL: {{^[ +].*}}fn @dead_merge{{[( ]}}
 // CHECK: + [[COUNTER:v[0-9]+]] = phi [bb3: 0], [bb5: [[NEXT:v[0-9]+]]]
 // CHECK: + [[NEXT]] = add [[COUNTER]], 1
 // CHECK: + ret [[COUNTER]]

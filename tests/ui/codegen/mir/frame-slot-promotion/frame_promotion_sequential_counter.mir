@@ -1,7 +1,7 @@
 //@compile-flags: --passes frame-slot-promotion,cfg-simplify,dce
 //@filecheck:
 @module SequentialCounter
-// CHECK-LABEL: fn @sequential
+// CHECK-LABEL: {{^[ +].*}}fn @sequential{{[( ]}}
 // CHECK: + [[FIRST:v[0-9]+]] = phi [bb0: 0], [bb2: [[NEXT_FIRST:v[0-9]+]]]
 // CHECK: + [[SECOND:v[0-9]+]] = phi [bb0: 0], [bb2: [[NEXT_SECOND:v[0-9]+]]]
 // CHECK: + [[NEXT_FIRST]] = add [[FIRST]], 1

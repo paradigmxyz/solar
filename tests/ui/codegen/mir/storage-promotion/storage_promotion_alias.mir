@@ -1,7 +1,7 @@
 //@compile-flags: --pass storage-promotion
 //@filecheck:
 @module StoragePromotionAlias
-// CHECK-LABEL: fn @reject_two_symbolic_slots
+// CHECK-LABEL: {{^[ +].*}}fn @reject_two_symbolic_slots{{[( ]}}
 // CHECK: + sstore arg0, 1
 // CHECK: + sstore arg1, 2
 fn @reject_two_symbolic_slots(arg0: u256, arg1: u256) [selector=0x01020304] {
@@ -25,7 +25,7 @@ fn @reject_two_symbolic_slots(arg0: u256, arg1: u256) [selector=0x01020304] {
     stop
 }
 
-// CHECK-LABEL: fn @reject_symbolic_and_constant_slots
+// CHECK-LABEL: {{^[ +].*}}fn @reject_symbolic_and_constant_slots{{[( ]}}
 // CHECK: + sstore arg0, 1
 // CHECK: + sstore 7, 2
 fn @reject_symbolic_and_constant_slots(arg0: u256) [selector=0x01020304] {
@@ -49,7 +49,7 @@ fn @reject_symbolic_and_constant_slots(arg0: u256) [selector=0x01020304] {
     stop
 }
 
-// CHECK-LABEL: fn @promote_two_constant_slots
+// CHECK-LABEL: {{^[ +].*}}fn @promote_two_constant_slots{{[( ]}}
 // CHECK: + mstore 128, 1
 // CHECK: + mstore 160, 2
 fn @promote_two_constant_slots() [selector=0x01020304] {
@@ -73,7 +73,7 @@ fn @promote_two_constant_slots() [selector=0x01020304] {
     stop
 }
 
-// CHECK-LABEL: fn @promote_same_base_distinct_offsets
+// CHECK-LABEL: {{^[ +].*}}fn @promote_same_base_distinct_offsets{{[( ]}}
 // CHECK: + mstore 128, 1
 // CHECK: + mstore 160, 2
 fn @promote_same_base_distinct_offsets(arg0: u256) [selector=0x01020304] {

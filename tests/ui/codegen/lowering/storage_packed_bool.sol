@@ -2,18 +2,18 @@
 //@ filecheck:
 
 contract PackedBool {
-    // CHECK-LABEL: fn @a
+    // CHECK-LABEL: fn @a{{[( ]}}
     // CHECK: [[WORD:v[0-9]+]] = sload 0
     // CHECK: and [[WORD]], 255
     bool public a;
 
-    // CHECK-LABEL: fn @b
+    // CHECK-LABEL: fn @b{{[( ]}}
     // CHECK: [[WORD:v[0-9]+]] = sload 0
     // CHECK: [[SHIFTED:v[0-9]+]] = shr 8, [[WORD]]
     // CHECK: and [[SHIFTED]], 255
     bool public b;
 
-    // CHECK-LABEL: fn @set
+    // CHECK-LABEL: fn @set{{[( ]}}
     // CHECK: [[WORD:v[0-9]+]] = sload 0
     // CHECK: and [[WORD]], 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     // CHECK: sstore 0,
@@ -25,7 +25,7 @@ contract PackedBool {
         b = y;
     }
 
-    // CHECK-LABEL: fn @both
+    // CHECK-LABEL: fn @both{{[( ]}}
     // CHECK: [[WORD:v[0-9]+]] = sload 0
     // CHECK: [[A:v[0-9]+]] = and [[WORD]], 255
     // CHECK: br [[A]],

@@ -4,11 +4,11 @@
 
 // The reload of a fresh (unreused) allocation is CSE'd away in `@fresh`; the
 // diff shows the second `mload` removed and the sum folded to one load.
-// CHECK-LABEL: fn @fresh
-// CHECK: [[LOAD:v[0-9]+]] = mload {{v[0-9]+}}
+// CHECK-LABEL: {{^[ +].*}}fn @fresh{{[( ]}}
+// CHECK: {{^[ +].*}}[[LOAD:v[0-9]+]] = mload {{v[0-9]+}}
 // CHECK: - {{v[0-9]+}} = mload {{v[0-9]+}}
 // CHECK: + [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
-// CHECK: ret [[SUM]]
+// CHECK: {{^[ +].*}}ret [[SUM]]
 fn @fresh(arg0: u256, arg1: u256) -> u256 {
   bb0:
     v2 = alloc raw, exact, uninitialized, infallible, 32
@@ -23,11 +23,11 @@ fn @fresh(arg0: u256, arg1: u256) -> u256 {
 
 // A reset free-memory pointer reuses the address, so `@reset` keeps both
 // loads: its lines stay unchanged context in the diff.
-// CHECK-LABEL: fn @reset
-// CHECK: [[FIRST:v[0-9]+]] = mload {{v[0-9]+}}
-// CHECK: [[SECOND:v[0-9]+]] = mload {{v[0-9]+}}
-// CHECK: [[SUM:v[0-9]+]] = add [[FIRST]], [[SECOND]]
-// CHECK: ret [[SUM]]
+// CHECK-LABEL: {{^[ +].*}}fn @reset{{[( ]}}
+// CHECK: {{^[ +].*}}[[FIRST:v[0-9]+]] = mload {{v[0-9]+}}
+// CHECK: {{^[ +].*}}[[SECOND:v[0-9]+]] = mload {{v[0-9]+}}
+// CHECK: {{^[ +].*}}[[SUM:v[0-9]+]] = add [[FIRST]], [[SECOND]]
+// CHECK: {{^[ +].*}}ret [[SUM]]
 fn @reset(arg0: u256, arg1: u256) -> u256 {
   bb0:
     v2 = alloc raw, exact, uninitialized, infallible, 32

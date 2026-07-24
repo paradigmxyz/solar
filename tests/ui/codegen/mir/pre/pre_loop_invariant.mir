@@ -4,7 +4,7 @@
 // the latch end and insertable in the jump-terminated preheader, so it is
 // hoisted out of the loop and the header gets a phi.
 @module LoopInvariant
-// CHECK-LABEL: fn @hoist_header_expr
+// CHECK-LABEL: {{^[ +].*}}fn @hoist_header_expr{{[( ]}}
 // CHECK: + [[HOISTED:v[0-9]+]] = add arg0, 7
 // CHECK: + [[VALUE:v[0-9]+]] = phi [bb0: [[HOISTED]]], [bb2: {{v[0-9]+}}]
 // CHECK: + ret [[VALUE]]
@@ -24,7 +24,7 @@ fn @hoist_header_expr(arg0: u256, arg1: u256) -> u256 {
     ret v3
 }
 
-// CHECK-LABEL: fn @hoist_header_expr_two_latches
+// CHECK-LABEL: {{^[ +].*}}fn @hoist_header_expr_two_latches{{[( ]}}
 // CHECK: + [[HOISTED:v[0-9]+]] = add arg0, 7
 // CHECK: + [[VALUE:v[0-9]+]] = phi [bb0: [[HOISTED]]], [bb3: {{v[0-9]+}}], [bb4: {{v[0-9]+}}]
 // CHECK: + ret [[VALUE]]

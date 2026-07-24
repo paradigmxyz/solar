@@ -2,7 +2,7 @@
 //@filecheck:
 
 contract AbiDecodeStaticTuple {
-    // CHECK-LABEL: fn @decode
+    // CHECK-LABEL: fn @decode{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = memory_object_len memorybytes
     // CHECK: {{v[0-9]+}} = lt [[LEN]], 96
     // CHECK: {{v[0-9]+}} = mload

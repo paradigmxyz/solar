@@ -3,7 +3,7 @@
 //@filecheck:
 
 contract NestedLoops {
-    // CHECK-LABEL: fn @sum_grid
+    // CHECK-LABEL: fn @sum_grid{{[( ]}}
     // CHECK: [[I:v[0-9]+]] = mload 192
     // CHECK: lt [[I]], arg0
     // CHECK: [[J:v[0-9]+]] = mload 224
@@ -21,7 +21,7 @@ contract NestedLoops {
         return total;
     }
 
-    // CHECK-LABEL: fn @find_first
+    // CHECK-LABEL: fn @find_first{{[( ]}}
     // CHECK: [[I:v[0-9]+]] = mload 160
     // CHECK: lt [[I]], arg0
     // CHECK: [[J:v[0-9]+]] = mload 192

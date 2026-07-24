@@ -1,18 +1,18 @@
 //@compile-flags: --pass none
 //@filecheck:
 @module Identity
-// CHECK-LABEL: fn @add
-// CHECK: [[SUM:v[0-9]+]] = add arg0, arg1
-// CHECK: ret [[SUM]]
+// CHECK-LABEL: {{^[ +].*}}fn @add{{[( ]}}
+// CHECK: {{^[ +].*}}[[SUM:v[0-9]+]] = add arg0, arg1
+// CHECK: {{^[ +].*}}ret [[SUM]]
 fn @add(arg0: u256, arg1: u256) -> u256 {
   bb0:
     v2 = add arg0, arg1
     ret v2
 }
 
-// CHECK-LABEL: fn @double
-// CHECK: [[SUM:v[0-9]+]] = add arg0, arg0
-// CHECK: ret [[SUM]]
+// CHECK-LABEL: {{^[ +].*}}fn @double{{[( ]}}
+// CHECK: {{^[ +].*}}[[SUM:v[0-9]+]] = add arg0, arg0
+// CHECK: {{^[ +].*}}ret [[SUM]]
 fn @double(arg0: u256) -> u256 {
   bb0:
     v1 = add arg0, arg0

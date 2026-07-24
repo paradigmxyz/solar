@@ -2,7 +2,7 @@
 //@filecheck:
 @module LowerAggregates
 
-// CHECK-LABEL: fn @storage_to_memory
+// CHECK-LABEL: {{^[ +].*}}fn @storage_to_memory{{[( ]}}
 // CHECK: - storage_to_memory
 // CHECK: + [[FIELD:v[0-9]+]] = memory_object_field_addr
 // CHECK: + [[VALUE:v[0-9]+]] = sload arg0
@@ -13,7 +13,7 @@ fn @storage_to_memory(arg0: u256, arg1: memptr) {
     stop
 }
 
-// CHECK-LABEL: fn @memory_to_storage
+// CHECK-LABEL: {{^[ +].*}}fn @memory_to_storage{{[( ]}}
 // CHECK: - memory_to_storage
 // CHECK: + [[FIELD:v[0-9]+]] = memory_object_field_addr
 // CHECK: + [[VALUE:v[0-9]+]] = mload [[FIELD]]
@@ -24,7 +24,7 @@ fn @memory_to_storage(arg0: memptr, arg1: u256) {
     stop
 }
 
-// CHECK-LABEL: fn @clear_storage
+// CHECK-LABEL: {{^[ +].*}}fn @clear_storage{{[( ]}}
 // CHECK: - clear_storage
 // CHECK: + sstore arg0, 0
 fn @clear_storage(arg0: u256) {

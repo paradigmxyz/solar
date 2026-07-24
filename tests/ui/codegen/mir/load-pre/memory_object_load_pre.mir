@@ -2,7 +2,7 @@
 //@filecheck:
 @module MemoryObjectLoadPre
 
-// CHECK-LABEL: fn @forward_length_across_join
+// CHECK-LABEL: {{^[ +].*}}fn @forward_length_across_join{{[( ]}}
 // CHECK: + ret arg2
 fn @forward_length_across_join(arg0: memorybytes, arg1: bool, arg2: u256) -> u256 {
   bb0:

@@ -1,11 +1,11 @@
 //@compile-flags: --pass cse
 //@filecheck:
 @module CseEnvironment
-// CHECK-LABEL: fn @keep_cheap_nullary_environment_reads
-// CHECK: {{v[0-9]+}} = caller
-// CHECK: {{v[0-9]+}} = caller
-// CHECK: {{v[0-9]+}} = callvalue
-// CHECK: {{v[0-9]+}} = callvalue
+// CHECK-LABEL: {{^[ +].*}}fn @keep_cheap_nullary_environment_reads{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = caller
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = caller
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = callvalue
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = callvalue
 fn @keep_cheap_nullary_environment_reads(arg0: u256) -> u256 {
   bb0:
     v1 = caller
@@ -27,7 +27,7 @@ fn @keep_cheap_nullary_environment_reads(arg0: u256) -> u256 {
     ret v16
 }
 
-// CHECK-LABEL: fn @reuse_expensive_environment_reads
+// CHECK-LABEL: {{^[ +].*}}fn @reuse_expensive_environment_reads{{[( ]}}
 // CHECK: - {{v[0-9]+}} = balance arg0
 // CHECK: - {{v[0-9]+}} = extcodesize arg0
 // CHECK: - {{v[0-9]+}} = extcodehash arg0
@@ -57,9 +57,9 @@ fn @reuse_expensive_environment_reads(arg0: address, arg1: u256) -> u256 {
     ret v19
 }
 
-// CHECK-LABEL: fn @invalidate_account_reads_after_call
-// CHECK: {{v[0-9]+}} = balance arg0
-// CHECK: {{v[0-9]+}} = balance arg0
+// CHECK-LABEL: {{^[ +].*}}fn @invalidate_account_reads_after_call{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = balance arg0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = balance arg0
 fn @invalidate_account_reads_after_call(arg0: address) -> u256 {
   bb0:
     v1 = balance arg0
@@ -74,9 +74,9 @@ fn @invalidate_account_reads_after_call(arg0: address) -> u256 {
     ret v9
 }
 
-// CHECK-LABEL: fn @keep_gas_uncached
-// CHECK: {{v[0-9]+}} = gas
-// CHECK: {{v[0-9]+}} = gas
+// CHECK-LABEL: {{^[ +].*}}fn @keep_gas_uncached{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = gas
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = gas
 fn @keep_gas_uncached() -> u256 {
   bb0:
     v1 = gas

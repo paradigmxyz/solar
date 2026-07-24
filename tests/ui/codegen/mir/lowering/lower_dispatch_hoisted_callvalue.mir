@@ -6,8 +6,8 @@
 // selectors both revert.
 @module DispatchHoisted
 @phase abi
-// CHECK-LABEL: after lower-dispatch
-// CHECK: + fn @entry
+// CHECK-LABEL: {{^[ +].*}}after lower-dispatch
+// CHECK: + fn @entry{{[( ]}}
 // CHECK: + [[VALUE:v[0-9]+]] = callvalue
 // CHECK: + br [[VALUE]]
 // CHECK: + switch {{.*}}[1 => {{.*}}2 =>

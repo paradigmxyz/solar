@@ -2,7 +2,7 @@
 //@filecheck:
 @module SplitAggregates
 
-// CHECK-LABEL: fn @select_slice
+// CHECK-LABEL: {{^[ +].*}}fn @select_slice{{[( ]}}
 // CHECK: + {{v[0-9]+}} = select arg4, arg0, arg2
 // CHECK: + [[LENGTH:v[0-9]+]] = select arg4, arg1, arg3
 // CHECK: + ret [[LENGTH]]
@@ -13,7 +13,7 @@ fn @select_slice(arg0: calldataslice, arg1: calldataslice, arg2: bool) -> u256 {
     ret v4
 }
 
-// CHECK-LABEL: fn @phi_slice
+// CHECK-LABEL: {{^[ +].*}}fn @phi_slice{{[( ]}}
 // CHECK: + {{v[0-9]+}} = phi [bb1: arg0], [bb2: arg2]
 // CHECK: + [[LENGTH:v[0-9]+]] = phi [bb1: arg1], [bb2: arg3]
 // CHECK: + ret [[LENGTH]]

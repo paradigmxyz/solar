@@ -4,7 +4,7 @@
 contract CalldataSliceTernary {
     // A calldata-typed ternary merges lazily: each arm's pointer and length
     // round-trip through scratch and re-form a slice, with no calldata copy.
-    // SLICE-LABEL: fn @pick
+    // SLICE-LABEL: fn @pick{{[( ]}}
     // SLICE: slice_ptr
     // SLICE: slice_len
     // SLICE: make_calldata_slice
@@ -20,7 +20,7 @@ contract CalldataSliceTernary {
 
     // A memory-typed ternary adopts a calldata arm by materializing it, so
     // the merge stays a single memory pointer.
-    // SLICE-LABEL: fn @adopt
+    // SLICE-LABEL: fn @adopt{{[( ]}}
     // SLICE: calldatacopy
     function adopt(bool c, bytes calldata a) external pure returns (bytes memory) {
         bytes memory local = hex"aabb";

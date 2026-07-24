@@ -5,7 +5,7 @@
 // size overflows while computing the padded byte length, element byte length,
 // total allocation size, or free-memory pointer bump.
 contract MemoryAllocationPanic {
-    // CHECK-LABEL: fn @makeBytes
+    // CHECK-LABEL: fn @makeBytes{{[( ]}}
     // CHECK: [[PADDED:v[0-9]+]] = add arg0, 31
     // CHECK: lt [[PADDED]], arg0
     // CHECK: mstore 4, 65
@@ -17,7 +17,7 @@ contract MemoryAllocationPanic {
         return b.length;
     }
 
-    // CHECK-LABEL: fn @makeArray
+    // CHECK-LABEL: fn @makeArray{{[( ]}}
     // CHECK: [[BYTES:v[0-9]+]] = mul arg0, 32
     // CHECK: mstore 4, 65
     // CHECK: [[TOTAL:v[0-9]+]] = add [[BYTES]], 32

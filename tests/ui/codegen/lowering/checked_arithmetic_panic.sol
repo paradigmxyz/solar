@@ -2,7 +2,7 @@
 //@filecheck:
 
 contract CheckedArithmeticPanic {
-    // CHECK-LABEL: fn @add
+    // CHECK-LABEL: fn @add{{[( ]}}
     // CHECK: [[SUM:v[0-9]+]] = add arg0, arg1
     // CHECK: lt [[SUM]], arg0
     // CHECK: mstore 4, 17
@@ -10,7 +10,7 @@ contract CheckedArithmeticPanic {
         return a + b;
     }
 
-    // CHECK-LABEL: fn @sub
+    // CHECK-LABEL: fn @sub{{[( ]}}
     // CHECK: {{v[0-9]+}} = sub arg0, arg1
     // CHECK: lt arg0, arg1
     // CHECK: mstore 4, 17
@@ -18,7 +18,7 @@ contract CheckedArithmeticPanic {
         return a - b;
     }
 
-    // CHECK-LABEL: fn @mul
+    // CHECK-LABEL: fn @mul{{[( ]}}
     // CHECK: [[PRODUCT:v[0-9]+]] = mul arg0, arg1
     // CHECK: iszero arg1
     // CHECK: div [[PRODUCT]], arg1
@@ -27,7 +27,7 @@ contract CheckedArithmeticPanic {
         return a * b;
     }
 
-    // CHECK-LABEL: fn @div_zero
+    // CHECK-LABEL: fn @div_zero{{[( ]}}
     // CHECK: br arg1,
     // CHECK: mstore 4, 18
     // CHECK: div arg0, arg1
@@ -35,7 +35,7 @@ contract CheckedArithmeticPanic {
         return a / b;
     }
 
-    // CHECK-LABEL: fn @pow
+    // CHECK-LABEL: fn @pow{{[( ]}}
     // CHECK: iszero arg1
     // CHECK: shl arg1, 1
     // CHECK: exp arg0, arg1
@@ -44,7 +44,7 @@ contract CheckedArithmeticPanic {
         return a ** b;
     }
 
-    // CHECK-LABEL: fn @signed_add
+    // CHECK-LABEL: fn @signed_add{{[( ]}}
     // CHECK: [[SUM:v[0-9]+]] = add arg0, arg1
     // CHECK: slt arg0, 0
     // CHECK: slt [[SUM]], arg1
@@ -53,7 +53,7 @@ contract CheckedArithmeticPanic {
         return a + b;
     }
 
-    // CHECK-LABEL: fn @signed_neg
+    // CHECK-LABEL: fn @signed_neg{{[( ]}}
     // CHECK: eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     // CHECK: mstore 4, 17
     // CHECK: sub 0, arg0
@@ -61,7 +61,7 @@ contract CheckedArithmeticPanic {
         return -a;
     }
 
-    // CHECK-LABEL: fn @narrow_add
+    // CHECK-LABEL: fn @narrow_add{{[( ]}}
     // CHECK: [[SUM:v[0-9]+]] = add arg0, arg1
     // CHECK: gt [[SUM]], 255
     // CHECK: mstore 4, 17
@@ -69,7 +69,7 @@ contract CheckedArithmeticPanic {
         return a + b;
     }
 
-    // CHECK-LABEL: fn @unchecked_add
+    // CHECK-LABEL: fn @unchecked_add{{[( ]}}
     // CHECK: add arg0, arg1
     // CHECK-NOT: mstore 4, 17
     // CHECK: returndata
@@ -79,7 +79,7 @@ contract CheckedArithmeticPanic {
         }
     }
 
-    // CHECK-LABEL: fn @unchecked_neg
+    // CHECK-LABEL: fn @unchecked_neg{{[( ]}}
     // CHECK: sub 0, arg0
     // CHECK-NOT: mstore 4, 17
     // CHECK: returndata
@@ -89,7 +89,7 @@ contract CheckedArithmeticPanic {
         }
     }
 
-    // CHECK-LABEL: fn @unchecked_pow
+    // CHECK-LABEL: fn @unchecked_pow{{[( ]}}
     // CHECK: exp arg0, arg1
     // CHECK-NOT: mstore 4, 17
     // CHECK: returndata
@@ -99,7 +99,7 @@ contract CheckedArithmeticPanic {
         }
     }
 
-    // CHECK-LABEL: fn @unchecked_call
+    // CHECK-LABEL: fn @unchecked_call{{[( ]}}
     // CHECK: [[SUM:v[0-9]+]] = add arg0, arg1
     // CHECK: lt [[SUM]], arg0
     // CHECK: mstore 4, 17
@@ -109,7 +109,7 @@ contract CheckedArithmeticPanic {
         }
     }
 
-    // CHECK-LABEL: fn @checked_inner
+    // CHECK-LABEL: fn @checked_inner{{[( ]}}
     // CHECK: [[SUM:v[0-9]+]] = add arg0, arg1
     // CHECK: lt [[SUM]], arg0
     // CHECK: ret [[SUM]]

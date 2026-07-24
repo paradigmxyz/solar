@@ -2,7 +2,7 @@
 //@filecheck:
 @module Sroa
 
-// CHECK-LABEL: fn @local_struct
+// CHECK-LABEL: {{^[ +].*}}fn @local_struct{{[( ]}}
 // CHECK: - {{v[0-9]+}} = alloc memorystruct<2>, exact, uninitialized, infallible, 64
 // CHECK: - mstore {{v[0-9]+}}, arg0
 // CHECK: - mstore {{v[0-9]+}}, arg1

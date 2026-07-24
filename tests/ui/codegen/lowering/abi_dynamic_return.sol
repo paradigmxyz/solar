@@ -3,7 +3,7 @@
 //@filecheck:
 
 contract AbiDynamicReturn {
-    // CHECK-LABEL: fn @bytesLiteral
+    // CHECK-LABEL: fn @bytesLiteral{{[( ]}}
     // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes
     // CHECK: set_memory_object_len memorybytes, [[BYTES]], 3
     // CHECK: mstore {{v[0-9]+}}, 0x102030000000000000000000000000000000000000000000000000000000000
@@ -12,7 +12,7 @@ contract AbiDynamicReturn {
         return hex"010203";
     }
 
-    // CHECK-LABEL: fn @stringLiteral
+    // CHECK-LABEL: fn @stringLiteral{{[( ]}}
     // CHECK: [[STRING:v[0-9]+]] = alloc memorybytes
     // CHECK: set_memory_object_len memorybytes, [[STRING]], 5
     // CHECK: mstore {{v[0-9]+}}, 0x68656c6c6f000000000000000000000000000000000000000000000000000000

@@ -16,7 +16,7 @@ contract CalldataSliceYulBounds {
 
     // The helpers inline, so the empty slice is a `make_calldata_slice` at the
     // call site (later folded away) with no `internal_call` left behind.
-    // CDSLICE-LABEL: fn @emptyLen
+    // CDSLICE-LABEL: fn @emptyLen{{[( ]}}
     // CDSLICE: make_calldata_slice 0, 0
     // CDSLICE-NOT: internal_call
     function emptyLen() external pure returns (uint256) {
@@ -29,7 +29,7 @@ contract CalldataSliceYulBounds {
 
     // Trimming a slice in place: read back the new length after adjusting both
     // components.
-    // CDSLICE-LABEL: fn @trimLen
+    // CDSLICE-LABEL: fn @trimLen{{[( ]}}
     // CDSLICE: slice_ptr
     // CDSLICE: add {{.*}}, 4
     // CDSLICE: slice_len
@@ -47,7 +47,7 @@ contract CalldataSliceYulBounds {
     // A slice reassigned only inside a branch must merge through its two-word
     // slot, so the untaken path keeps the original length. A bare SSA update
     // would leak the branch value; the slot store/load is the branch merge.
-    // CDSLICE-LABEL: fn @conditional
+    // CDSLICE-LABEL: fn @conditional{{[( ]}}
     // CDSLICE: mstore
     // CDSLICE: mload
     function conditional(bytes calldata x) external pure returns (uint256) {

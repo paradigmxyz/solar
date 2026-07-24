@@ -6,8 +6,8 @@
 // wrappers are already argument-free.
 @module LowerDispatch
 @phase abi
-// CHECK-LABEL: after lower-dispatch
-// CHECK: + fn @entry
+// CHECK-LABEL: {{^[ +].*}}after lower-dispatch
+// CHECK: + fn @entry{{[( ]}}
 // CHECK: + [[SELECTOR:v[0-9]+]] = shr 224
 // CHECK: + switch [[SELECTOR]], default {{.*}}[0x5c36b186 => {{.*}}0x8d3a3e57 =>
 // CHECK: + tail_call @ping

@@ -1,7 +1,7 @@
 //@compile-flags: --pass cse
 //@filecheck:
 @module CseGlobalLoads
-// CHECK-LABEL: fn @dominating_mload
+// CHECK-LABEL: {{^[ +].*}}fn @dominating_mload{{[( ]}}
 // CHECK: - {{v[0-9]+}} = mload 0
 // CHECK: + ret {{v[0-9]+}}
 fn @dominating_mload(arg0: bool) -> u256 {
@@ -18,7 +18,7 @@ fn @dominating_mload(arg0: bool) -> u256 {
     ret v3
 }
 
-// CHECK-LABEL: fn @dominating_sload
+// CHECK-LABEL: {{^[ +].*}}fn @dominating_sload{{[( ]}}
 // CHECK: - {{v[0-9]+}} = sload 0
 // CHECK: + ret {{v[0-9]+}}
 fn @dominating_sload(arg0: bool) -> u256 {

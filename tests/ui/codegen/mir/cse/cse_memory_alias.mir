@@ -1,7 +1,7 @@
 //@compile-flags: --pass cse
 //@filecheck:
 @module CseMemoryAlias
-// CHECK-LABEL: fn @reuse_same_memory_load
+// CHECK-LABEL: {{^[ +].*}}fn @reuse_same_memory_load{{[( ]}}
 // CHECK: - {{v[0-9]+}} = mload arg0
 // CHECK: + {{v[0-9]+}} = add [[SAME:v[0-9]+]], [[SAME]]
 fn @reuse_same_memory_load(arg0: u256) -> u256 {
@@ -12,7 +12,7 @@ fn @reuse_same_memory_load(arg0: u256) -> u256 {
     ret v3
 }
 
-// CHECK-LABEL: fn @reuse_after_disjoint_memory_store
+// CHECK-LABEL: {{^[ +].*}}fn @reuse_after_disjoint_memory_store{{[( ]}}
 // CHECK: - {{v[0-9]+}} = mload 64
 // CHECK: + {{v[0-9]+}} = add [[DISJOINT:v[0-9]+]], [[DISJOINT]]
 fn @reuse_after_disjoint_memory_store(arg0: u256) -> u256 {
@@ -26,9 +26,9 @@ fn @reuse_after_disjoint_memory_store(arg0: u256) -> u256 {
     ret v6
 }
 
-// CHECK-LABEL: fn @keep_after_overlapping_memory_store
-// CHECK: {{v[0-9]+}} = mload 64
-// CHECK: {{v[0-9]+}} = mload 64
+// CHECK-LABEL: {{^[ +].*}}fn @keep_after_overlapping_memory_store{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 64
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 64
 fn @keep_after_overlapping_memory_store(arg0: u256) -> u256 {
   bb0:
     v1 = mload 64
@@ -38,7 +38,7 @@ fn @keep_after_overlapping_memory_store(arg0: u256) -> u256 {
     ret v4
 }
 
-// CHECK-LABEL: fn @reuse_keccak_after_disjoint_memory_store
+// CHECK-LABEL: {{^[ +].*}}fn @reuse_keccak_after_disjoint_memory_store{{[( ]}}
 // CHECK: - {{v[0-9]+}} = keccak256 128, 64
 // CHECK: + {{v[0-9]+}} = add [[HASH:v[0-9]+]], [[HASH]]
 fn @reuse_keccak_after_disjoint_memory_store(arg0: u256) -> u256 {
@@ -50,7 +50,7 @@ fn @reuse_keccak_after_disjoint_memory_store(arg0: u256) -> u256 {
     ret v4
 }
 
-// CHECK-LABEL: fn @reuse_mload_after_disjoint_call_return
+// CHECK-LABEL: {{^[ +].*}}fn @reuse_mload_after_disjoint_call_return{{[( ]}}
 // CHECK: - {{v[0-9]+}} = mload 64
 // CHECK: + {{v[0-9]+}} = add [[CALL_LOAD:v[0-9]+]], [[CALL_LOAD]]
 fn @reuse_mload_after_disjoint_call_return(arg0: u256) -> u256 {
@@ -63,9 +63,9 @@ fn @reuse_mload_after_disjoint_call_return(arg0: u256) -> u256 {
     ret v5
 }
 
-// CHECK-LABEL: fn @keep_mload_after_overlapping_call_return
-// CHECK: {{v[0-9]+}} = mload 96
-// CHECK: {{v[0-9]+}} = mload 96
+// CHECK-LABEL: {{^[ +].*}}fn @keep_mload_after_overlapping_call_return{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 96
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 96
 fn @keep_mload_after_overlapping_call_return(arg0: u256) -> u256 {
   bb0:
     v1 = mload 96

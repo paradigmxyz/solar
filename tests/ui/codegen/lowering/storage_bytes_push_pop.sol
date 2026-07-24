@@ -4,7 +4,7 @@
 contract StorageBytesPushPop {
     bytes data;
 
-    // CHECK-LABEL: fn @_anonymous
+    // CHECK-LABEL: fn @_anonymous{{[( ]}}
     // CHECK: [[FIRST:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
     // CHECK: {{v[0-9]+}} = memory_object_len memorybytes, [[FIRST]]
     // CHECK: mcopy
@@ -16,7 +16,7 @@ contract StorageBytesPushPop {
         data.push(0x02);
     }
 
-    // CHECK-LABEL: fn @pushValue
+    // CHECK-LABEL: fn @pushValue{{[( ]}}
     // CHECK: [[OLD:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
     // CHECK: [[OLD_LEN:v[0-9]+]] = memory_object_len memorybytes, [[OLD]]
     // CHECK: mcopy
@@ -26,7 +26,7 @@ contract StorageBytesPushPop {
         data.push(value);
     }
 
-    // CHECK-LABEL: fn @pushZero
+    // CHECK-LABEL: fn @pushZero{{[( ]}}
     // CHECK: [[OLD:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
     // CHECK: [[OLD_LEN:v[0-9]+]] = memory_object_len memorybytes, [[OLD]]
     // CHECK: mcopy
@@ -35,7 +35,7 @@ contract StorageBytesPushPop {
         data.push();
     }
 
-    // CHECK-LABEL: fn @popValue
+    // CHECK-LABEL: fn @popValue{{[( ]}}
     // CHECK: [[OLD:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
     // CHECK: [[OLD_LEN:v[0-9]+]] = memory_object_len memorybytes, [[OLD]]
     // CHECK: mstore 4, 49
@@ -45,7 +45,7 @@ contract StorageBytesPushPop {
         data.pop();
     }
 
-    // CHECK-LABEL: fn @get
+    // CHECK-LABEL: fn @get{{[( ]}}
     // CHECK: [[VALUE:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
     // CHECK: internal_call @__ret_bytes, 0, [[VALUE]]
     function get() external view returns (bytes memory) {

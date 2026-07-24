@@ -3,7 +3,7 @@
 // add is commutative: add(a,b) == add(b,a).
 // CSE should recognize this and eliminate the second computation.
 @module CseCommutative
-// CHECK-LABEL: fn @commutative
+// CHECK-LABEL: {{^[ +].*}}fn @commutative{{[( ]}}
 // CHECK: - {{v[0-9]+}} = add arg1, arg0
 // CHECK: + {{v[0-9]+}} = add [[SUM:v[0-9]+]], [[SUM]]
 fn @commutative(arg0: u256, arg1: u256) -> u256 {

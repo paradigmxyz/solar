@@ -2,9 +2,9 @@
 //@filecheck:
 @module module
 
-// CHECK-LABEL: bb0:
+// CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: - swap1
-// CHECK: add
+// CHECK: {{^[ +].*}}add
 bb0:
   push 1
   push 2
@@ -12,9 +12,9 @@ bb0:
   add
   stop
 
-// CHECK-LABEL: bb1:
+// CHECK-LABEL: {{^[ +].*}}bb1:
 // CHECK: - swap1
-// CHECK: mul
+// CHECK: {{^[ +].*}}mul
 bb1:
   push 1
   push 2
@@ -22,9 +22,9 @@ bb1:
   mul
   stop
 
-// CHECK-LABEL: bb2:
+// CHECK-LABEL: {{^[ +].*}}bb2:
 // CHECK: - swap1
-// CHECK: and
+// CHECK: {{^[ +].*}}and
 bb2:
   push 1
   push 2
@@ -32,9 +32,9 @@ bb2:
   and
   stop
 
-// CHECK-LABEL: bb3:
+// CHECK-LABEL: {{^[ +].*}}bb3:
 // CHECK: - swap1
-// CHECK: or
+// CHECK: {{^[ +].*}}or
 bb3:
   push 1
   push 2
@@ -42,9 +42,9 @@ bb3:
   or
   stop
 
-// CHECK-LABEL: bb4:
+// CHECK-LABEL: {{^[ +].*}}bb4:
 // CHECK: - swap1
-// CHECK: xor
+// CHECK: {{^[ +].*}}xor
 bb4:
   push 1
   push 2
@@ -52,9 +52,9 @@ bb4:
   xor
   stop
 
-// CHECK-LABEL: bb5:
+// CHECK-LABEL: {{^[ +].*}}bb5:
 // CHECK: - swap1
-// CHECK: eq
+// CHECK: {{^[ +].*}}eq
 bb5:
   push 1
   push 2
@@ -62,7 +62,7 @@ bb5:
   eq
   stop
 
-// CHECK-LABEL: bb6:
+// CHECK-LABEL: {{^[ +].*}}bb6:
 // CHECK: - swap1
 // CHECK: + gt
 bb6:
@@ -72,7 +72,7 @@ bb6:
   lt
   stop
 
-// CHECK-LABEL: bb7:
+// CHECK-LABEL: {{^[ +].*}}bb7:
 // CHECK: - swap1
 // CHECK: + lt
 bb7:
@@ -82,7 +82,7 @@ bb7:
   gt
   stop
 
-// CHECK-LABEL: bb8:
+// CHECK-LABEL: {{^[ +].*}}bb8:
 // CHECK: - swap1
 // CHECK: + sgt
 bb8:
@@ -92,7 +92,7 @@ bb8:
   slt
   stop
 
-// CHECK-LABEL: bb9:
+// CHECK-LABEL: {{^[ +].*}}bb9:
 // CHECK: - swap1
 // CHECK: + slt
 bb9:

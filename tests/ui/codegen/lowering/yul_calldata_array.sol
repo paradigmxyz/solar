@@ -6,7 +6,7 @@
 // parameter's value is the ABI head, so `.length` reads the length word at
 // `4 + head` and `.offset` is `4 + head + 32` (first element). Runtime-verified.
 contract C {
-    // CHECK-LABEL: fn @probe
+    // CHECK-LABEL: fn @probe{{[( ]}}
     // CHECK: {{v[0-9]+}} = slice_len arg0
     // CHECK: [[PTR:v[0-9]+]] = slice_ptr arg0
     // CHECK: {{v[0-9]+}} = calldataload [[PTR]]

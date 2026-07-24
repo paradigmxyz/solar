@@ -16,7 +16,7 @@ contract C {
     mapping(uint256 => Item) items;
 
     // Direct indexed storage struct field assignment.
-    // CHECK-LABEL: fn @setDirect
+    // CHECK-LABEL: fn @setDirect{{[( ]}}
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot arg0, 0
     // CHECK: sstore [[SLOT]], arg1
     function setDirect(uint256 k, uint256 a) public {
@@ -24,7 +24,7 @@ contract C {
     }
 
     // Read through a storage reference: `r` holds the slot of `items[k]`.
-    // CHECK-LABEL: fn @getViaRef
+    // CHECK-LABEL: fn @getViaRef{{[( ]}}
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot arg0, 0
     // CHECK: sload [[SLOT]]
     function getViaRef(uint256 k) public view returns (uint256) {
@@ -33,7 +33,7 @@ contract C {
     }
 
     // Read/modify/write through a storage reference.
-    // CHECK-LABEL: fn @bump
+    // CHECK-LABEL: fn @bump{{[( ]}}
     // CHECK: [[BASE:v[0-9]+]] = mapping_slot arg0, 0
     // CHECK: [[FIELD:v[0-9]+]] = add [[BASE]], 1
     // CHECK: [[OLD:v[0-9]+]] = sload [[FIELD]]

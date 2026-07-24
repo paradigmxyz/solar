@@ -3,7 +3,7 @@
 //@filecheck:
 
 contract Ternary {
-    // CHECK-LABEL: fn @max
+    // CHECK-LABEL: fn @max{{[( ]}}
     // CHECK: [[GT:v[0-9]+]] = gt arg0, arg1
     // CHECK: br [[GT]],
     // CHECK: mstore 0, arg0
@@ -13,7 +13,7 @@ contract Ternary {
         return a > b ? a : b;
     }
 
-    // CHECK-LABEL: fn @clamp
+    // CHECK-LABEL: fn @clamp{{[( ]}}
     // CHECK: {{v[0-9]+}} = lt arg0, arg1
     // CHECK: {{v[0-9]+}} = gt arg0, arg2
     // CHECK: mload 0
@@ -21,7 +21,7 @@ contract Ternary {
         return x < lo ? lo : (x > hi ? hi : x);
     }
 
-    // CHECK-LABEL: fn @abs_diff
+    // CHECK-LABEL: fn @abs_diff{{[( ]}}
     // CHECK: [[LT:v[0-9]+]] = lt arg0, arg1
     // CHECK: {{v[0-9]+}} = iszero [[LT]]
     // CHECK: sub arg0, arg1

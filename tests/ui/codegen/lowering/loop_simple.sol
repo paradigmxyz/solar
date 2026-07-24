@@ -3,7 +3,7 @@
 //@filecheck:
 
 contract LoopSimple {
-    // CHECK-LABEL: fn @sum_to
+    // CHECK-LABEL: fn @sum_to{{[( ]}}
     // CHECK: [[I:v[0-9]+]] = mload 192
     // CHECK: lt [[I]], arg0
     // CHECK: {{v[0-9]+}} = mload 160

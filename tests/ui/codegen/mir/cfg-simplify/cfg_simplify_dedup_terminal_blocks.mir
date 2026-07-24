@@ -3,7 +3,7 @@
 @module CfgDedupTerminalBlocks
 
 // Two structurally identical panic blocks collapse into one shared block.
-// CHECK-LABEL: fn @dedup_identical_panics
+// CHECK-LABEL: {{^[ +].*}}fn @dedup_identical_panics{{[( ]}}
 // CHECK: - br arg1, bb3, bb4
 // CHECK: + br arg1, bb1, bb4
 fn @dedup_identical_panics(arg0: u256, arg1: u256) {
@@ -24,8 +24,8 @@ fn @dedup_identical_panics(arg0: u256, arg1: u256) {
 }
 
 // Panic blocks with different panic codes must NOT merge.
-// CHECK-LABEL: fn @keep_distinct_panic_codes
-// CHECK: br arg1, bb3, bb4
+// CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_panic_codes{{[( ]}}
+// CHECK: {{^[ +].*}}br arg1, bb3, bb4
 fn @keep_distinct_panic_codes(arg0: u256, arg1: u256) {
   bb0:
     br arg0, bb1, bb2
@@ -44,8 +44,8 @@ fn @keep_distinct_panic_codes(arg0: u256, arg1: u256) {
 }
 
 // Identical instructions but different terminator operands must NOT merge.
-// CHECK-LABEL: fn @keep_distinct_revert_sizes
-// CHECK: br arg1, bb3, bb4
+// CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_revert_sizes{{[( ]}}
+// CHECK: {{^[ +].*}}br arg1, bb3, bb4
 fn @keep_distinct_revert_sizes(arg0: u256, arg1: u256) {
   bb0:
     br arg0, bb1, bb2
@@ -65,7 +65,7 @@ fn @keep_distinct_revert_sizes(arg0: u256, arg1: u256) {
 
 // Block-local values compare by definition position, so alpha-equivalent
 // computations merge.
-// CHECK-LABEL: fn @dedup_local_computations
+// CHECK-LABEL: {{^[ +].*}}fn @dedup_local_computations{{[( ]}}
 // CHECK: - br arg1, bb3, bb4
 // CHECK: + br arg1, bb1, bb4
 fn @dedup_local_computations(arg0: u256, arg1: u256) {
@@ -86,8 +86,8 @@ fn @dedup_local_computations(arg0: u256, arg1: u256) {
 }
 
 // Blocks reading different outside values must NOT merge.
-// CHECK-LABEL: fn @keep_distinct_outside_operands
-// CHECK: br arg1, bb3, bb4
+// CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_outside_operands{{[( ]}}
+// CHECK: {{^[ +].*}}br arg1, bb3, bb4
 fn @keep_distinct_outside_operands(arg0: u256, arg1: u256) {
   bb0:
     br arg0, bb1, bb2

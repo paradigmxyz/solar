@@ -2,7 +2,7 @@
 //@filecheck:
 @module MemoryDseCrossBlock
 
-// CHECK-LABEL: fn @remove_store_overwritten_on_unique_edge
+// CHECK-LABEL: {{^[ +].*}}fn @remove_store_overwritten_on_unique_edge{{[( ]}}
 // CHECK: - mstore 128, 1
 // CHECK: + ret 2
 fn @remove_store_overwritten_on_unique_edge() -> u256 {
@@ -15,9 +15,9 @@ fn @remove_store_overwritten_on_unique_edge() -> u256 {
     ret v3
 }
 
-// CHECK-LABEL: fn @keep_store_read_before_successor_overwrite
-// CHECK: mstore 128, 1
-// CHECK: {{v[0-9]+}} = mload 128
+// CHECK-LABEL: {{^[ +].*}}fn @keep_store_read_before_successor_overwrite{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 128, 1
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 128
 fn @keep_store_read_before_successor_overwrite() -> u256 {
   bb0:
     mstore 128, 1
@@ -28,8 +28,8 @@ fn @keep_store_read_before_successor_overwrite() -> u256 {
     ret v2
 }
 
-// CHECK-LABEL: fn @keep_store_into_multi_pred_successor
-// CHECK: mstore 128, 1
+// CHECK-LABEL: {{^[ +].*}}fn @keep_store_into_multi_pred_successor{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 128, 1
 // CHECK: + ret 2
 fn @keep_store_into_multi_pred_successor(arg0: bool) -> u256 {
   bb0:

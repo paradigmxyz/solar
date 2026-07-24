@@ -15,7 +15,7 @@
 //   native `EXP` (`SHL` for base 2).
 // - unchecked exponentiation stays native `EXP` (masked for sub-word types).
 contract CheckedPowShapes {
-    // CHECK-LABEL: fn @upow
+    // CHECK-LABEL: fn @upow{{[( ]}}
     // CHECK: eq arg0, 2
     // CHECK: shl arg1, 1
     // CHECK: exp arg0, arg1
@@ -25,7 +25,7 @@ contract CheckedPowShapes {
         return a ** b;
     }
 
-    // CHECK-LABEL: fn @spow
+    // CHECK-LABEL: fn @spow{{[( ]}}
     // CHECK: eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     // CHECK: exp arg0, arg1
     // CHECK: sdiv 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
@@ -34,7 +34,7 @@ contract CheckedPowShapes {
         return a ** b;
     }
 
-    // CHECK-LABEL: fn @upow8
+    // CHECK-LABEL: fn @upow8{{[( ]}}
     // CHECK: shl arg1, 1
     // CHECK: gt {{v[0-9]+}}, 255
     // CHECK: exp arg0, arg1
@@ -43,7 +43,7 @@ contract CheckedPowShapes {
         return a ** b;
     }
 
-    // CHECK-LABEL: fn @spow8
+    // CHECK-LABEL: fn @spow8{{[( ]}}
     // CHECK: exp arg0, arg1
     // CHECK: gt {{v[0-9]+}}, 127
     // CHECK: sdiv 127, arg0
@@ -52,21 +52,21 @@ contract CheckedPowShapes {
         return a ** b;
     }
 
-    // CHECK-LABEL: fn @const2
+    // CHECK-LABEL: fn @const2{{[( ]}}
     // CHECK: gt arg0, 255
     // CHECK: shl arg0, 1
     function const2(uint256 b) public pure returns (uint256) {
         return 2 ** b;
     }
 
-    // CHECK-LABEL: fn @const10
+    // CHECK-LABEL: fn @const10{{[( ]}}
     // CHECK: gt arg0, 77
     // CHECK: exp 10, arg0
     function const10(uint256 b) public pure returns (uint256) {
         return 10 ** b;
     }
 
-    // CHECK-LABEL: fn @const_neg2
+    // CHECK-LABEL: fn @const_neg2{{[( ]}}
     // CHECK: [[BASE:v[0-9]+]] = sub 0, 2
     // CHECK: exp [[BASE]], arg0
     // CHECK: sdiv 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, [[BASE]]
@@ -74,7 +74,7 @@ contract CheckedPowShapes {
         return (-2) ** b;
     }
 
-    // CHECK-LABEL: fn @unchecked_pow8
+    // CHECK-LABEL: fn @unchecked_pow8{{[( ]}}
     // CHECK: [[POWER:v[0-9]+]] = exp arg0, arg1
     // CHECK: and [[POWER]], 255
     // CHECK-NOT: mstore 4, 17

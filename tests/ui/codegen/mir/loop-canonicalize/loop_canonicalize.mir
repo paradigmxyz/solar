@@ -1,7 +1,7 @@
 //@compile-flags: --pass loop-canonicalize
 //@filecheck:
 @module LoopCanonicalize
-// CHECK-LABEL: fn @insert_preheader
+// CHECK-LABEL: {{^[ +].*}}fn @insert_preheader{{[( ]}}
 // CHECK: + {{v[0-9]+}} = phi [bb4: 30], [bb6: [[ENTRY:v[0-9]+]]]
 // CHECK: + [[ENTRY]] = phi [bb1: 10], [bb2: 20]
 fn @insert_preheader(arg0: bool) -> u256 {
@@ -20,7 +20,7 @@ fn @insert_preheader(arg0: bool) -> u256 {
     ret v1
 }
 
-// CHECK-LABEL: fn @split_conditional_predecessor
+// CHECK-LABEL: {{^[ +].*}}fn @split_conditional_predecessor{{[( ]}}
 // CHECK: + br arg0, bb4, bb3
 // CHECK: + {{v[0-9]+}} = phi [bb2: 1], [bb4: 0]
 fn @split_conditional_predecessor(arg0: bool) -> u256 {

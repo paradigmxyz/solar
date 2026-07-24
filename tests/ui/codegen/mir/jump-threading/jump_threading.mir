@@ -1,7 +1,7 @@
 //@compile-flags: --pass jump-threading
 //@filecheck:
 @module Threading
-// CHECK-LABEL: fn @forwarder_chain
+// CHECK-LABEL: {{^[ +].*}}fn @forwarder_chain{{[( ]}}
 // CHECK: - jump bb1
 // CHECK: + jump bb3
 fn @forwarder_chain(arg0: u256) -> u256 {

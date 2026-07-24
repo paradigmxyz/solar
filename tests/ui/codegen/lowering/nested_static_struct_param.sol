@@ -19,7 +19,7 @@ contract NestedStaticStructParam {
     // and the field after it slots at the correct head word.
     // The nested struct is a separate allocation, and its second field reads at
     // a +32 offset rather than the enclosing struct's base.
-    // NESTED-LABEL: fn @take
+    // NESTED-LABEL: fn @take{{[( ]}}
     // NESTED: alloc memorystruct<3>
     // NESTED: alloc raw, exact, uninitialized, infallible, 64
     // NESTED: mstore {{.*}}, arg3

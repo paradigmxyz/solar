@@ -1,7 +1,7 @@
 //@compile-flags: --pass sccp
 //@filecheck:
 @module SccpEdge
-// CHECK-LABEL: fn @phi_ignores_unreachable_predecessor
+// CHECK-LABEL: {{^[ +].*}}fn @phi_ignores_unreachable_predecessor{{[( ]}}
 // CHECK: + jump bb1
 // CHECK: + ret 11
 fn @phi_ignores_unreachable_predecessor() -> u256 {
@@ -17,9 +17,9 @@ fn @phi_ignores_unreachable_predecessor() -> u256 {
     ret v1
 }
 
-// CHECK-LABEL: fn @unknown_branch_keeps_phi
-// CHECK: br arg0, bb1, bb2
-// CHECK: {{v[0-9]+}} = phi [bb1: 11], [bb2: 22]
+// CHECK-LABEL: {{^[ +].*}}fn @unknown_branch_keeps_phi{{[( ]}}
+// CHECK: {{^[ +].*}}br arg0, bb1, bb2
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = phi [bb1: 11], [bb2: 22]
 fn @unknown_branch_keeps_phi(arg0: bool) -> u256 {
   bb0:
     br arg0, bb1, bb2
@@ -32,9 +32,9 @@ fn @unknown_branch_keeps_phi(arg0: bool) -> u256 {
     ret v1
 }
 
-// CHECK-LABEL: fn @constant_switch_selects_one_case
+// CHECK-LABEL: {{^[ +].*}}fn @constant_switch_selects_one_case{{[( ]}}
 // CHECK: + jump bb2
-// CHECK: ret 22
+// CHECK: {{^[ +].*}}ret 22
 fn @constant_switch_selects_one_case() -> u256 {
   bb0:
     switch 2, default bb4, [1 => bb1, 2 => bb2, 3 => bb3]

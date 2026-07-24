@@ -6,7 +6,7 @@ contract MemoryFixedArrayAlloc {
         uint256[3] values;
     }
 
-    // CHECK-LABEL: fn @guardedFix
+    // CHECK-LABEL: fn @guardedFix{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<3, 1>
     // CHECK: lt arg0, 3
     // CHECK: mstore 4, 50
@@ -16,7 +16,7 @@ contract MemoryFixedArrayAlloc {
         return x[i];
     }
 
-    // CHECK-LABEL: fn @structArr
+    // CHECK-LABEL: fn @structArr{{[( ]}}
     // CHECK: [[STRUCT:v[0-9]+]] = alloc memorystruct<1>
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<3, 1>
     // CHECK: memory_object_field_addr memorystruct<1>, [[STRUCT]], 0
@@ -26,7 +26,7 @@ contract MemoryFixedArrayAlloc {
         return h.values[i];
     }
 
-    // CHECK-LABEL: fn @nested
+    // CHECK-LABEL: fn @nested{{[( ]}}
     // CHECK: [[OUTER:v[0-9]+]] = alloc memoryfixedarray<3, 1>
     // CHECK-COUNT-3: alloc memoryfixedarray<2, 1>
     // CHECK: memory_object_element_addr memoryfixedarray<3, 1>, [[OUTER]], arg0
@@ -37,7 +37,7 @@ contract MemoryFixedArrayAlloc {
         return x[i][j];
     }
 
-    // CHECK-LABEL: fn @fmpIntegrity
+    // CHECK-LABEL: fn @fmpIntegrity{{[( ]}}
     // CHECK: {{v[0-9]+}} = alloc memoryfixedarray<3, 1>
     // CHECK: mstore {{v[0-9]+}}, 7
     // CHECK: {{v[0-9]+}} = alloc memoryarray<1>
@@ -51,7 +51,7 @@ contract MemoryFixedArrayAlloc {
         return (x[2], y[0]);
     }
 
-    // CHECK-LABEL: fn @literal
+    // CHECK-LABEL: fn @literal{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<3, 1>
     // CHECK: [[FIRST:v[0-9]+]] = add [[ARRAY]], 0
     // CHECK: mstore [[FIRST]], 1
@@ -65,7 +65,7 @@ contract MemoryFixedArrayAlloc {
 
 contract NamedReturnAndDelete {
     // A named fixed-array return points at real zeroed memory, not scratch.
-    // CHECK-LABEL: fn @namedReturn
+    // CHECK-LABEL: fn @namedReturn{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<3, 1>
     // CHECK: mstore {{v[0-9]+}}, 1
     // CHECK: mstore {{v[0-9]+}}, 3
@@ -81,7 +81,7 @@ contract NamedReturnAndDelete {
     }
 
     // `delete` zeroes the elements in place; the pointer stays valid.
-    // CHECK-LABEL: fn @deleteInPlace
+    // CHECK-LABEL: fn @deleteInPlace{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<3, 1>
     // CHECK: mstore [[ARRAY]], 0
     // CHECK: [[SECOND:v[0-9]+]] = add [[ARRAY]], 32

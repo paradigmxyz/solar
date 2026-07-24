@@ -4,7 +4,7 @@
 
 // bb2 reaches the join through two switch edges: the phi must keep one
 // incoming entry per unique predecessor.
-// CHECK-LABEL: fn @duplicate_pred_edges
+// CHECK-LABEL: {{^[ +].*}}fn @duplicate_pred_edges{{[( ]}}
 // CHECK: + [[INSERTED:v[0-9]+]] = add arg0, 7
 // CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}], [bb3: [[INSERTED]]]
 fn @duplicate_pred_edges(arg0: u256, arg1: u256, arg2: u256) -> u256 {
@@ -25,7 +25,7 @@ fn @duplicate_pred_edges(arg0: u256, arg1: u256, arg2: u256) -> u256 {
 
 // The join is its own predecessor: the backedge incoming becomes the phi
 // itself, which is correct because the expression is loop-invariant.
-// CHECK-LABEL: fn @self_loop_join
+// CHECK-LABEL: {{^[ +].*}}fn @self_loop_join{{[( ]}}
 // CHECK: + [[INSERTED:v[0-9]+]] = add arg0, 7
 // CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}], [bb3: [[INSERTED]]], [bb4: [[MERGE]]]
 fn @self_loop_join(arg0: u256, arg1: u256) -> u256 {
@@ -49,7 +49,7 @@ fn @self_loop_join(arg0: u256, arg1: u256) -> u256 {
 
 // The join expression's operand is a phi defined in an enclosing header
 // block, not in the join itself: it must not be translated per predecessor.
-// CHECK-LABEL: fn @outer_phi_operand
+// CHECK-LABEL: {{^[ +].*}}fn @outer_phi_operand{{[( ]}}
 // CHECK: + [[INSERTED:v[0-9]+]] = add {{v[0-9]+}}, 7
 // CHECK: + [[MERGE:v[0-9]+]] = phi [bb2: {{v[0-9]+}}], [bb3: {{v[0-9]+}}], [bb4: [[INSERTED]]]
 fn @outer_phi_operand(arg0: u256, arg1: u256) -> u256 {

@@ -2,13 +2,13 @@
 //@filecheck:
 @module module
 
-// CHECK-LABEL: bb0:
+// CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: - jump bb1
 // CHECK: - jump bb2
-// CHECK: push 1
+// CHECK: {{^[ +].*}}push 1
 // CHECK: + stop
-// CHECK-LABEL: bb3:
-// CHECK: jump bb0
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: {{^[ +].*}}jump bb0
 bb0:
   push bb3
   jump bb1

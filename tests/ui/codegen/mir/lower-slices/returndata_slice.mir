@@ -7,8 +7,8 @@
 // backend.
 @module ReturndataSlice
 
-// CHECK-LABEL: fn @copy_returndata
-// CHECK: [[LENGTH:v[0-9]+]] = returndatasize
+// CHECK-LABEL: {{^[ +].*}}fn @copy_returndata{{[( ]}}
+// CHECK: {{^[ +].*}}[[LENGTH:v[0-9]+]] = returndatasize
 // CHECK: + returndatacopy {{v[0-9]+}}, 0, [[LENGTH]]
 fn @copy_returndata() -> memptr {
   bb0:

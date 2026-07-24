@@ -4,9 +4,8 @@
 // `4 + 32*i` through, and the body performs any further decoding itself, so a
 // memory-pointer parameter does not block the `abi` phase.
 @module LowerAbiDynamicParams
-// CHECK-LABEL: fn @takesBytes
 // CHECK: + @phase abi
-// CHECK: + fn @takesBytes
+// CHECK: + fn @takesBytes()
 fn @takesBytes(arg0: memptr, arg1: u256) [selector=0x0dead002] {
   bb0:
     v1 = mload arg0

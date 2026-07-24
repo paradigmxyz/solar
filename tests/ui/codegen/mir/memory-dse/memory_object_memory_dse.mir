@@ -2,7 +2,7 @@
 //@filecheck:
 @module MemoryObjectMemoryDse
 
-// CHECK-LABEL: fn @forward_length
+// CHECK-LABEL: {{^[ +].*}}fn @forward_length{{[( ]}}
 // CHECK: + ret 39
 fn @forward_length(arg0: memorybytes) -> u256 {
   bb0:
@@ -11,9 +11,9 @@ fn @forward_length(arg0: memorybytes) -> u256 {
     ret v1
 }
 
-// CHECK-LABEL: fn @keep_length_after_clobber
-// CHECK: mstore arg1, 7
-// CHECK: {{v[0-9]+}} = memory_object_len
+// CHECK-LABEL: {{^[ +].*}}fn @keep_length_after_clobber{{[( ]}}
+// CHECK: {{^[ +].*}}mstore arg1, 7
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = memory_object_len
 fn @keep_length_after_clobber(arg0: memorybytes, arg1: u256) -> u256 {
   bb0:
     set_memory_object_len memorybytes, arg0, 39

@@ -4,9 +4,9 @@
 // same dynamic size still unify, reads with different dynamic sizes must not, and a
 // memory write with a dynamic size still invalidates them conservatively.
 @module CseKeccakDynamicSize
-// CHECK-LABEL: fn @keep_different_dynamic_sizes
-// CHECK: {{v[0-9]+}} = keccak256 0, arg0
-// CHECK: {{v[0-9]+}} = keccak256 0, arg1
+// CHECK-LABEL: {{^[ +].*}}fn @keep_different_dynamic_sizes{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = keccak256 0, arg0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = keccak256 0, arg1
 fn @keep_different_dynamic_sizes(arg0: u256, arg1: u256) -> u256 {
   bb0:
     v2 = keccak256 0, arg0
@@ -15,7 +15,7 @@ fn @keep_different_dynamic_sizes(arg0: u256, arg1: u256) -> u256 {
     ret v4
 }
 
-// CHECK-LABEL: fn @reuse_same_dynamic_size
+// CHECK-LABEL: {{^[ +].*}}fn @reuse_same_dynamic_size{{[( ]}}
 // CHECK: - {{v[0-9]+}} = keccak256 0, arg0
 // CHECK: + {{v[0-9]+}} = add [[HASH:v[0-9]+]], [[HASH]]
 fn @reuse_same_dynamic_size(arg0: u256) -> u256 {
@@ -26,9 +26,9 @@ fn @reuse_same_dynamic_size(arg0: u256) -> u256 {
     ret v3
 }
 
-// CHECK-LABEL: fn @invalidate_after_dynamic_size_write
-// CHECK: {{v[0-9]+}} = keccak256 0, arg0
-// CHECK: {{v[0-9]+}} = keccak256 0, arg0
+// CHECK-LABEL: {{^[ +].*}}fn @invalidate_after_dynamic_size_write{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = keccak256 0, arg0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = keccak256 0, arg0
 fn @invalidate_after_dynamic_size_write(arg0: u256, arg1: u256) -> u256 {
   bb0:
     v2 = keccak256 0, arg0

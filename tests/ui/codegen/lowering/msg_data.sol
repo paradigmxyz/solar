@@ -5,20 +5,20 @@ contract MsgData {
     // `msg.data` is the whole calldata as a lazy slice `(0, calldatasize)`;
     // `.length` reads its length word, indexing reads a calldata byte, and a
     // value use materializes it into memory bytes.
-    // MSGDATA-LABEL: fn @len
+    // MSGDATA-LABEL: fn @len{{[( ]}}
     // MSGDATA: calldatasize
     function len() external pure returns (uint256) {
         return msg.data.length;
     }
 
-    // MSGDATA-LABEL: fn @copy
+    // MSGDATA-LABEL: fn @copy{{[( ]}}
     // MSGDATA: calldatasize
     // MSGDATA: calldatacopy
     function copy() external pure returns (bytes memory) {
         return msg.data;
     }
 
-    // MSGDATA-LABEL: fn @tail
+    // MSGDATA-LABEL: fn @tail{{[( ]}}
     // MSGDATA: calldatasize
     // MSGDATA: make_calldata_slice
     // MSGDATA: calldatacopy

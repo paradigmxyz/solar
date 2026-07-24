@@ -5,7 +5,7 @@
 // dominator tree and the duplicate sload's replacement must reach its use in bb3
 // instead of dangling on the deleted result.
 @module CseUnreachablePred
-// CHECK-LABEL: fn @no_dangling_use
+// CHECK-LABEL: {{^[ +].*}}fn @no_dangling_use{{[( ]}}
 // CHECK: - {{v[0-9]+}} = sload arg0
 // CHECK: + {{v[0-9]+}} = add [[LOAD:v[0-9]+]], [[LOAD]]
 fn @no_dangling_use(arg0: u256) -> u256 {

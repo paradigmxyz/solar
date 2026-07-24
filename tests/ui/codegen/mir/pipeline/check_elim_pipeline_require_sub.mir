@@ -5,7 +5,7 @@
 // Exact lowering of `require(b <= a); return a - b;`. Through the full
 // default pipeline the require guard must fold the subtraction's
 // Panic(0x11) underflow branch.
-// CHECK-LABEL: fn @guarded
+// CHECK-LABEL: fn @guarded{{[( ]}}
 // CHECK-NOT: {{mstore 4, 17|revert 0, 36}}
 // CHECK: [[SUB:v[0-9]+]] = sub arg0, arg1
 // CHECK-NOT: {{mstore 4, 17|revert 0, 36}}
@@ -35,7 +35,7 @@ fn @guarded(arg0: u256, arg1: u256) {
 
 // Negative control: without the require, the underflow check must survive
 // the full pipeline.
-// CHECK-LABEL: fn @unguarded
+// CHECK-LABEL: fn @unguarded{{[( ]}}
 // CHECK: [[SUB:v[0-9]+]] = sub arg0, arg1
 // CHECK: [[UNDERFLOW:v[0-9]+]] = lt arg0, arg1
 // CHECK: br [[UNDERFLOW]], bb1, bb2

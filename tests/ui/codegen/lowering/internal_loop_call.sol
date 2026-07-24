@@ -8,7 +8,7 @@
 // variable, so inlining produced a loop whose counter never advanced — an
 // infinite loop that ran out of gas. Runtime-verified against solc: run(5) == 10.
 contract C {
-    // CHECK-LABEL: fn @sumTo
+    // CHECK-LABEL: fn @sumTo{{[( ]}}
     // CHECK: [[I:v[0-9]+]] = mload {{v[0-9]+}} !metadata(memory=internal_frame)
     // CHECK: lt [[I]], arg0
     // CHECK: add {{v[0-9]+}}, 1
@@ -18,7 +18,7 @@ contract C {
         }
     }
 
-    // CHECK-LABEL: fn @run
+    // CHECK-LABEL: fn @run{{[( ]}}
     // CHECK: {{v[0-9]+}} = internal_call @sumTo, 1, arg0
     function run(uint256 n) public pure returns (uint256) {
         return sumTo(n);

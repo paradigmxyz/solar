@@ -4,9 +4,9 @@
 // wrappers, then dispatch routes a selector switch to those argument-free
 // wrappers. The module ends in the `dispatch` phase.
 @module LowerAbiThenDispatch
-// CHECK-LABEL: after lower-dispatch
+// CHECK-LABEL: {{^[ +].*}}after lower-dispatch
 // CHECK: + @phase dispatch
-// CHECK: + fn @entry
+// CHECK: + fn @entry{{[( ]}}
 // CHECK: + [[SELECTOR:v[0-9]+]] = shr 224
 // CHECK: + switch [[SELECTOR]], default {{.*}}[0x9507d39a =>
 // CHECK: + tail_call @get

@@ -2,8 +2,8 @@
 //@filecheck:
 @module module
 
-// CHECK-LABEL: bb0:
-// CHECK: mstore
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}mstore
 // CHECK: - dup1
 // CHECK: - push 32
 // CHECK: - mstore
@@ -17,8 +17,8 @@ bb0:
   mstore
   stop
 
-// CHECK-LABEL: bb1:
-// CHECK: mstore
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}mstore
 // CHECK: - pop
 // CHECK: - push 32
 // CHECK: - mload

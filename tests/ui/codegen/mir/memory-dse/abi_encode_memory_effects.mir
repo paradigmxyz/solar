@@ -2,9 +2,9 @@
 //@filecheck:
 @module AbiEncodeMemoryEffects
 
-// CHECK-LABEL: fn @encode
-// CHECK: mstore arg0, 1
-// CHECK: {{v[0-9]+}} = abi_encode
+// CHECK-LABEL: {{^[ +].*}}fn @encode{{[( ]}}
+// CHECK: {{^[ +].*}}mstore arg0, 1
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = abi_encode
 fn @encode(arg0: memptr) -> memoryslice {
   bb0:
     mstore arg0, 1

@@ -2,7 +2,7 @@
 //@filecheck:
 @module LowerAlloc
 
-// CHECK-LABEL: fn @operations
+// CHECK-LABEL: {{^[ +].*}}fn @operations{{[( ]}}
 // CHECK: + {{v[0-9]+}} = mload 64
 // CHECK: + [[NEXT:v[0-9]+]] = add {{v[0-9]+}}, 64
 // CHECK: + mstore 64, [[NEXT]]
@@ -15,8 +15,8 @@ fn @operations(arg0: u256) -> memptr {
     ret v2
 }
 
-// CHECK-LABEL: fn @deferred
-// CHECK: alloc raw{{.*}}!metadata(deferred_alloc)
+// CHECK-LABEL: {{^[ +].*}}fn @deferred{{[( ]}}
+// CHECK: {{^[ +].*}}alloc raw{{.*}}!metadata(deferred_alloc)
 fn @deferred() {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)

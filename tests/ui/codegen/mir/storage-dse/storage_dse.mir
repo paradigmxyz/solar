@@ -1,7 +1,7 @@
 //@compile-flags: --pass storage-dse
 //@filecheck:
 @module StorageDse
-// CHECK-LABEL: fn @remove_overwritten_store
+// CHECK-LABEL: {{^[ +].*}}fn @remove_overwritten_store{{[( ]}}
 // CHECK: - sstore 0, arg0
 // CHECK: + sstore 0, 7
 fn @remove_overwritten_store(arg0: u256) {
@@ -11,7 +11,7 @@ fn @remove_overwritten_store(arg0: u256) {
     stop
 }
 
-// CHECK-LABEL: fn @keep_store_observed_by_load
+// CHECK-LABEL: {{^[ +].*}}fn @keep_store_observed_by_load{{[( ]}}
 // CHECK: + sstore 0, arg0
 // CHECK: + {{v[0-9]+}} = sload 0
 // CHECK: + sstore 0, 7
@@ -23,7 +23,7 @@ fn @keep_store_observed_by_load(arg0: u256) -> u256 {
     ret v1
 }
 
-// CHECK-LABEL: fn @remove_equal_store_after_load
+// CHECK-LABEL: {{^[ +].*}}fn @remove_equal_store_after_load{{[( ]}}
 // CHECK: - sstore 0, arg0
 // CHECK: - {{.*}}sload 0
 // CHECK: - sstore 0, arg0
@@ -37,7 +37,7 @@ fn @remove_equal_store_after_load(arg0: u256) -> u256 {
     ret v1
 }
 
-// CHECK-LABEL: fn @keep_may_alias_symbolic_store
+// CHECK-LABEL: {{^[ +].*}}fn @keep_may_alias_symbolic_store{{[( ]}}
 // CHECK: + sstore arg0, 1
 // CHECK: + sstore arg1, 2
 fn @keep_may_alias_symbolic_store(arg0: u256, arg1: u256) {
@@ -47,7 +47,7 @@ fn @keep_may_alias_symbolic_store(arg0: u256, arg1: u256) {
     stop
 }
 
-// CHECK-LABEL: fn @remove_disjoint_offset_overwrite
+// CHECK-LABEL: {{^[ +].*}}fn @remove_disjoint_offset_overwrite{{[( ]}}
 // CHECK: - sstore {{v[0-9]+}}, 1
 // CHECK: + sstore {{v[0-9]+}}, 3
 fn @remove_disjoint_offset_overwrite(arg0: u256) {
@@ -61,9 +61,9 @@ fn @remove_disjoint_offset_overwrite(arg0: u256) {
     stop
 }
 
-// CHECK-LABEL: fn @keep_across_call
+// CHECK-LABEL: {{^[ +].*}}fn @keep_across_call{{[( ]}}
 // CHECK: + sstore 0, arg0
-// CHECK: call
+// CHECK: {{^[ +].*}}call
 // CHECK: + sstore 0, 7
 fn @keep_across_call(arg0: u256, arg1: address) {
   bb0:

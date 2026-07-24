@@ -4,9 +4,9 @@
 
 // A symbolic address can equal any constant address at runtime, so the load
 // from 128 may observe the first store and it must be kept.
-// CHECK-LABEL: fn @keep_symbolic_store_read_by_const_load
-// CHECK: mstore arg0, 1
-// CHECK: {{v[0-9]+}} = mload 128
+// CHECK-LABEL: {{^[ +].*}}fn @keep_symbolic_store_read_by_const_load{{[( ]}}
+// CHECK: {{^[ +].*}}mstore arg0, 1
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 128
 fn @keep_symbolic_store_read_by_const_load(arg0: u256) -> u256 {
   bb0:
     mstore arg0, 1
@@ -17,10 +17,10 @@ fn @keep_symbolic_store_read_by_const_load(arg0: u256) -> u256 {
 
 // The constant store may overwrite the symbolic store, so the load must not be
 // forwarded from the first store.
-// CHECK-LABEL: fn @keep_const_store_forwarding_to_symbolic_load
-// CHECK: mstore arg0, 1
-// CHECK: mstore 128, 2
-// CHECK: {{v[0-9]+}} = mload arg0
+// CHECK-LABEL: {{^[ +].*}}fn @keep_const_store_forwarding_to_symbolic_load{{[( ]}}
+// CHECK: {{^[ +].*}}mstore arg0, 1
+// CHECK: {{^[ +].*}}mstore 128, 2
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload arg0
 fn @keep_const_store_forwarding_to_symbolic_load(arg0: u256) -> u256 {
   bb0:
     mstore arg0, 1
@@ -30,9 +30,9 @@ fn @keep_const_store_forwarding_to_symbolic_load(arg0: u256) -> u256 {
 }
 
 // Two distinct symbolic bases may hold equal addresses at runtime.
-// CHECK-LABEL: fn @keep_store_read_by_distinct_symbolic_base
-// CHECK: mstore arg0, 1
-// CHECK: {{v[0-9]+}} = mload arg1
+// CHECK-LABEL: {{^[ +].*}}fn @keep_store_read_by_distinct_symbolic_base{{[( ]}}
+// CHECK: {{^[ +].*}}mstore arg0, 1
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload arg1
 fn @keep_store_read_by_distinct_symbolic_base(arg0: u256, arg1: u256) -> u256 {
   bb0:
     mstore arg0, 1
@@ -41,7 +41,7 @@ fn @keep_store_read_by_distinct_symbolic_base(arg0: u256, arg1: u256) -> u256 {
     ret v2
 }
 
-// CHECK-LABEL: fn @remove_dead_const_overwrite
+// CHECK-LABEL: {{^[ +].*}}fn @remove_dead_const_overwrite{{[( ]}}
 // CHECK: - mstore 128, 1
 // CHECK: + ret 2
 fn @remove_dead_const_overwrite() -> u256 {
@@ -52,7 +52,7 @@ fn @remove_dead_const_overwrite() -> u256 {
     ret v3
 }
 
-// CHECK-LABEL: fn @remove_dead_symbolic_overwrite
+// CHECK-LABEL: {{^[ +].*}}fn @remove_dead_symbolic_overwrite{{[( ]}}
 // CHECK: - mstore arg0, 1
 // CHECK: + ret 2
 fn @remove_dead_symbolic_overwrite(arg0: u256) -> u256 {
@@ -65,9 +65,9 @@ fn @remove_dead_symbolic_overwrite(arg0: u256) -> u256 {
 
 // Same canonical base with disjoint constant offsets is provably no-alias, so
 // the intervening load does not keep the overwritten store alive.
-// CHECK-LABEL: fn @remove_overwrite_past_same_base_disjoint_load
+// CHECK-LABEL: {{^[ +].*}}fn @remove_overwrite_past_same_base_disjoint_load{{[( ]}}
 // CHECK: - mstore arg0, 1
-// CHECK: {{v[0-9]+}} = mload
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload
 fn @remove_overwrite_past_same_base_disjoint_load(arg0: u256) -> u256 {
   bb0:
     mstore arg0, 1

@@ -3,7 +3,7 @@
 // Branch on a constant condition: lt(5, 10) = true.
 // SCCP should fold the comparison and the branch, making bb2 unreachable.
 @module SccpBranch
-// CHECK-LABEL: fn @const_branch
+// CHECK-LABEL: {{^[ +].*}}fn @const_branch{{[( ]}}
 // CHECK: - {{v[0-9]+}} = lt 5, 10
 // CHECK: - br {{v[0-9]+}}, bb1, bb2
 // CHECK: + jump bb1

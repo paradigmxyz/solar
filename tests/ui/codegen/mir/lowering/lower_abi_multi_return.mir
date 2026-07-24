@@ -3,7 +3,7 @@
 // Static multi-return wrappers must encode every return word, not just the
 // first call result.
 @module LowerAbiMultiReturn
-// CHECK-LABEL: fn @pair
+// CHECK-LABEL: {{^[ +].*}}fn @pair{{[( ]}}
 // CHECK: + mstore 128, arg0
 // CHECK: + mstore 160, {{v[0-9]+}}
 // CHECK: + returndata 128, 64

@@ -6,7 +6,7 @@ interface Sink {
 }
 
 contract AbiEncodeSemantic {
-    // ABI-LABEL: fn @forward
+    // ABI-LABEL: fn @forward{{[( ]}}
     // ABI: abi_encode [word, calldata_bytes], selector {{.*}}, args {{.*}}
     // ABI: slice_ptr
     // ABI: slice_len

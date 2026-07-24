@@ -1,7 +1,7 @@
 //@compile-flags: --pass adce
 //@filecheck:
 @module Adce
-// CHECK-LABEL: fn @removes_dead_branch_region
+// CHECK-LABEL: {{^[ +].*}}fn @removes_dead_branch_region{{[( ]}}
 // CHECK: - br arg0, bb1, bb2
 // CHECK: - {{v[0-9]+}} = add 1, 2
 // CHECK: - {{v[0-9]+}} = mul 3, 4
@@ -18,9 +18,9 @@ fn @removes_dead_branch_region(arg0: bool) -> u256 {
     ret 7
 }
 
-// CHECK-LABEL: fn @keeps_effectful_branch_region
-// CHECK: br arg0, bb1, bb2
-// CHECK: mstore 0, 1
+// CHECK-LABEL: {{^[ +].*}}fn @keeps_effectful_branch_region{{[( ]}}
+// CHECK: {{^[ +].*}}br arg0, bb1, bb2
+// CHECK: {{^[ +].*}}mstore 0, 1
 fn @keeps_effectful_branch_region(arg0: bool) -> u256 {
   bb0:
     br arg0, bb1, bb2
@@ -33,9 +33,9 @@ fn @keeps_effectful_branch_region(arg0: bool) -> u256 {
     ret 7
 }
 
-// CHECK-LABEL: fn @keeps_phi_target
-// CHECK: br arg0, bb1, bb2
-// CHECK: {{v[0-9]+}} = phi [bb1: 1], [bb2: 2]
+// CHECK-LABEL: {{^[ +].*}}fn @keeps_phi_target{{[( ]}}
+// CHECK: {{^[ +].*}}br arg0, bb1, bb2
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = phi [bb1: 1], [bb2: 2]
 fn @keeps_phi_target(arg0: bool) -> u256 {
   bb0:
     br arg0, bb1, bb2

@@ -1,11 +1,11 @@
 //@compile-flags: --pass dce
 //@filecheck:
 @module Dce
-// CHECK-LABEL: fn @with_dead_code
-// CHECK: [[LIVE:v[0-9]+]] = add arg0, 1
+// CHECK-LABEL: {{^[ +].*}}fn @with_dead_code{{[( ]}}
+// CHECK: {{^[ +].*}}[[LIVE:v[0-9]+]] = add arg0, 1
 // CHECK: - {{v[0-9]+}} = mul arg0, arg0
 // CHECK: - {{v[0-9]+}} = sub arg0, 1
-// CHECK: ret [[LIVE]]
+// CHECK: {{^[ +].*}}ret [[LIVE]]
 fn @with_dead_code(arg0: u256) -> u256 {
   bb0:
     v1 = add arg0, 1

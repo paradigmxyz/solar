@@ -1,7 +1,7 @@
 //@compile-flags: --pass storage-promotion
 //@filecheck:
 @module StoragePromotion
-// CHECK-LABEL: fn @promote_recomputed_offset_slot
+// CHECK-LABEL: {{^[ +].*}}fn @promote_recomputed_offset_slot{{[( ]}}
 // CHECK: + mstore 128, 1
 // CHECK: + [[VALUE:v[0-9]+]] = mload 128
 // CHECK: + [[FLUSH:v[0-9]+]] = mload 128
@@ -26,7 +26,7 @@ fn @promote_recomputed_offset_slot(arg0: u256) [selector=0x01020304] {
     stop
 }
 
-// CHECK-LABEL: fn @reject_loop_variant_offset_slot
+// CHECK-LABEL: {{^[ +].*}}fn @reject_loop_variant_offset_slot{{[( ]}}
 // CHECK: + [[VALUE:v[0-9]+]] = sload
 // CHECK: + sstore
 fn @reject_loop_variant_offset_slot(arg0: u256) [selector=0x01020304] {
@@ -46,7 +46,7 @@ fn @reject_loop_variant_offset_slot(arg0: u256) [selector=0x01020304] {
     stop
 }
 
-// CHECK-LABEL: fn @promote_store_only_without_initial_load
+// CHECK-LABEL: {{^[ +].*}}fn @promote_store_only_without_initial_load{{[( ]}}
 // CHECK: + mstore 128, 7
 // CHECK: + [[VALUE:v[0-9]+]] = mload 128
 // CHECK: + sstore 0, [[VALUE]]
@@ -64,7 +64,7 @@ fn @promote_store_only_without_initial_load() [selector=0x01020304] {
     stop
 }
 
-// CHECK-LABEL: fn @promote_two_initialized_slots
+// CHECK-LABEL: {{^[ +].*}}fn @promote_two_initialized_slots{{[( ]}}
 // CHECK: + mstore 128, 1
 // CHECK: + mstore 160, 2
 // CHECK: + {{v[0-9]+}} = mload 128
@@ -90,7 +90,7 @@ fn @promote_two_initialized_slots() [selector=0x01020304] {
     stop
 }
 
-// CHECK-LABEL: fn @promote_without_init_rewrites_successor_phi
+// CHECK-LABEL: {{^[ +].*}}fn @promote_without_init_rewrites_successor_phi{{[( ]}}
 // CHECK: + mstore
 // CHECK: + [[VALUE:v[0-9]+]] = phi
 fn @promote_without_init_rewrites_successor_phi() -> u256 [selector=0x01020304] {

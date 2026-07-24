@@ -1,8 +1,8 @@
 //@compile-flags: --pass lower-dispatch,lower-abi,lower-dispatch,dce
 //@filecheck:
-// CHECK: @module PhasePassBounds
+// CHECK: {{^[ +].*}}@module PhasePassBounds
 // CHECK: + @phase dispatch
-// CHECK: + fn @entry
+// CHECK: + fn @entry{{[( ]}}
 // Passes declare the phases they operate on and the pass manager enforces the
 // range: the first lower-dispatch is skipped on a `built` module (it requires
 // `abi`), lower-abi then advances the phase, the second lower-dispatch runs,

@@ -22,7 +22,7 @@ contract CalldataValidation {
         Left
     }
 
-    // CHECK-LABEL: fn @vUint8
+    // CHECK-LABEL: fn @vUint8{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
     // CHECK: [[CANON:v[0-9]+]] = and [[RAW]], 255
     // CHECK: eq [[RAW]], [[CANON]]
@@ -30,7 +30,7 @@ contract CalldataValidation {
         return x;
     }
 
-    // CHECK-LABEL: fn @vInt16
+    // CHECK-LABEL: fn @vInt16{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
     // CHECK: [[CANON:v[0-9]+]] = signextend 1, [[RAW]]
     // CHECK: eq [[RAW]], [[CANON]]
@@ -38,7 +38,7 @@ contract CalldataValidation {
         return x;
     }
 
-    // CHECK-LABEL: fn @vBool
+    // CHECK-LABEL: fn @vBool{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
     // CHECK: [[ZERO:v[0-9]+]] = iszero [[RAW]]
     // CHECK: [[CANON:v[0-9]+]] = iszero [[ZERO]]
@@ -47,7 +47,7 @@ contract CalldataValidation {
         return x;
     }
 
-    // CHECK-LABEL: fn @vAddress
+    // CHECK-LABEL: fn @vAddress{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
     // CHECK: [[CANON:v[0-9]+]] = and [[RAW]], 0xffffffffffffffffffffffffffffffffffffffff
     // CHECK: eq [[RAW]], [[CANON]]
@@ -55,7 +55,7 @@ contract CalldataValidation {
         return x;
     }
 
-    // CHECK-LABEL: fn @vBytes4
+    // CHECK-LABEL: fn @vBytes4{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
     // CHECK: [[CANON:v[0-9]+]] = and [[RAW]], 0xffffffff00000000000000000000000000000000000000000000000000000000
     // CHECK: eq [[RAW]], [[CANON]]
@@ -63,14 +63,14 @@ contract CalldataValidation {
         return x;
     }
 
-    // CHECK-LABEL: fn @vEnum
+    // CHECK-LABEL: fn @vEnum{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
     // CHECK: lt [[RAW]], 3
     function vEnum(Dir x) external pure returns (Dir) {
         return x;
     }
 
-    // CHECK-LABEL: fn @vMulti
+    // CHECK-LABEL: fn @vMulti{{[( ]}}
     // CHECK: [[A:v[0-9]+]] = calldataload 4
     // CHECK: and [[A]], 0xffffffff
     // CHECK: [[B:v[0-9]+]] = calldataload 36
@@ -80,7 +80,7 @@ contract CalldataValidation {
     }
 
     // Full-word value types are canonical by construction: no validator.
-    // CHECK-LABEL: fn @vFull
+    // CHECK-LABEL: fn @vFull{{[( ]}}
     // CHECK: {{v[0-9]+}} = slt {{v[0-9]+}}, 96
     // CHECK-NOT: calldataload
     // CHECK: add arg0, arg1

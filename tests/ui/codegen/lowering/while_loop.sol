@@ -3,7 +3,7 @@
 //@filecheck:
 
 contract WhileLoop {
-    // CHECK-LABEL: fn @count_down
+    // CHECK-LABEL: fn @count_down{{[( ]}}
     // CHECK: [[I:v[0-9]+]] = mload 160
     // CHECK: gt [[I]], 0
     // CHECK: returndata
@@ -17,7 +17,7 @@ contract WhileLoop {
         return i;
     }
 
-    // CHECK-LABEL: fn @do_at_least_once
+    // CHECK-LABEL: fn @do_at_least_once{{[( ]}}
     // CHECK: [[I:v[0-9]+]] = mload 160
     // CHECK: {{v[0-9]+}} = add [[I]], 1
     // CHECK: returndata
@@ -31,7 +31,7 @@ contract WhileLoop {
         return i;
     }
 
-    // CHECK-LABEL: fn @break_when_found
+    // CHECK-LABEL: fn @break_when_found{{[( ]}}
     // CHECK: [[I:v[0-9]+]] = mload 160
     // CHECK: lt [[I]], arg0
     // CHECK: returndata

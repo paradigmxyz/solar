@@ -3,15 +3,15 @@
 //@filecheck:
 
 contract C {
-    // CHECK-LABEL: fn @start
+    // CHECK-LABEL: fn @start{{[( ]}}
     // CHECK: loadimmutable 0
     uint256 public immutable start;
 
-    // CHECK-LABEL: fn @duration
+    // CHECK-LABEL: fn @duration{{[( ]}}
     // CHECK: loadimmutable 32
     uint256 public immutable duration;
 
-    // CHECK-LABEL: fn @_anonymous
+    // CHECK-LABEL: fn @_anonymous{{[( ]}}
     // CHECK: mstore 0x2000, arg0
     // CHECK: [[START:v[0-9]+]] = mload 0x2000
     // CHECK: [[DURATION:v[0-9]+]] = add [[START]], 1
@@ -23,7 +23,7 @@ contract C {
         duration = start + 1;
     }
 
-    // CHECK-LABEL: fn @end
+    // CHECK-LABEL: fn @end{{[( ]}}
     // CHECK: [[START:v[0-9]+]] = loadimmutable 0
     // CHECK: [[DURATION:v[0-9]+]] = loadimmutable 32
     // CHECK: add [[START]], [[DURATION]]

@@ -3,11 +3,11 @@
 // Side-effect instructions must survive DCE even if their results are unused.
 // sstore, log0, call all have side effects.
 @module DceSideEffects
-// CHECK-LABEL: fn @effects
-// CHECK: sstore arg0, arg1
-// CHECK: log0 0, 32
+// CHECK-LABEL: {{^[ +].*}}fn @effects{{[( ]}}
+// CHECK: {{^[ +].*}}sstore arg0, arg1
+// CHECK: {{^[ +].*}}log0 0, 32
 // CHECK: - {{v[0-9]+}} = add arg0, arg1
-// CHECK: stop
+// CHECK: {{^[ +].*}}stop
 fn @effects(arg0: u256, arg1: u256) {
   bb0:
     sstore arg0, arg1

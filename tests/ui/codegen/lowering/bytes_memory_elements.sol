@@ -7,7 +7,7 @@
 // extract single bytes left-aligned as `bytes1`, and element stores are
 // single-byte `mstore8` writes at `data + i`.
 contract BytesMemoryElements {
-    // CHECK-LABEL: fn @alloc
+    // CHECK-LABEL: fn @alloc{{[( ]}}
     // CHECK: [[ALLOC_SIZE:v[0-9]+]] = add {{v[0-9]+}}, 32
     // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic, [[ALLOC_SIZE]]
     // CHECK: set_memory_object_len memorybytes, [[BUF]], 96
@@ -21,7 +21,7 @@ contract BytesMemoryElements {
         return keccak256(buf);
     }
 
-    // CHECK-LABEL: fn @literal
+    // CHECK-LABEL: fn @literal{{[( ]}}
     // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes
     // CHECK: set_memory_object_len memorybytes, [[BUF]], 10
     // CHECK: mstore8 {{v[0-9]+}}, 170
@@ -32,7 +32,7 @@ contract BytesMemoryElements {
         return keccak256(buf);
     }
 
-    // CHECK-LABEL: fn @allocDynamic
+    // CHECK-LABEL: fn @allocDynamic{{[( ]}}
     // CHECK: [[ALLOC_SIZE:v[0-9]+]] = add {{v[0-9]+}}, 32
     // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic, [[ALLOC_SIZE]]
     // CHECK: set_memory_object_len memorybytes, [[BUF]], arg0
@@ -41,7 +41,7 @@ contract BytesMemoryElements {
         return buf.length;
     }
 
-    // CHECK-LABEL: fn @readWrite
+    // CHECK-LABEL: fn @readWrite{{[( ]}}
     // CHECK: [[BYTE:v[0-9]+]] = shr 248, arg2
     // CHECK: mstore8 {{v[0-9]+}}, [[BYTE]]
     // CHECK: [[LOADED:v[0-9]+]] = mload

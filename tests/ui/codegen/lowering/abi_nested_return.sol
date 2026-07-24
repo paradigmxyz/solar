@@ -8,7 +8,7 @@ contract AbiNestedReturn {
         uint256 b;
     }
 
-    // CHECK-LABEL: fn @structArray
+    // CHECK-LABEL: fn @structArray{{[( ]}}
     // CHECK: [[OUT:v[0-9]+]] = alloc memoryarray<1>
     // CHECK: [[PAIR:v[0-9]+]] = alloc memorystruct<2>
     // CHECK: memory_object_field_addr memorystruct<2>, [[PAIR]], 0
@@ -20,7 +20,7 @@ contract AbiNestedReturn {
         return out;
     }
 
-    // CHECK-LABEL: fn @nestedArray
+    // CHECK-LABEL: fn @nestedArray{{[( ]}}
     // CHECK: [[OUT:v[0-9]+]] = alloc memoryarray<1>
     // CHECK: [[INNER:v[0-9]+]] = alloc memoryarray<1>
     // CHECK: set_memory_object_len memoryarray, [[INNER]], arg0

@@ -6,9 +6,9 @@
 // the inserted load must stay after the clobber; gas() above the join load
 // blocks the rewrite in all spaces.
 @module LoadPreClobbers
-// CHECK-LABEL: fn @kill_blocks_reuse
-// CHECK: sstore arg1
-// CHECK: {{v[0-9]+}} = sload 5
+// CHECK-LABEL: {{^[ +].*}}fn @kill_blocks_reuse{{[( ]}}
+// CHECK: {{^[ +].*}}sstore arg1
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload 5
 fn @kill_blocks_reuse(arg0: bool, arg1: u256) -> u256 {
   bb0:
     v1 = sload 5
@@ -25,9 +25,9 @@ fn @kill_blocks_reuse(arg0: bool, arg1: u256) -> u256 {
     ret v1
 }
 
-// CHECK-LABEL: fn @call_kills_storage
-// CHECK: call
-// CHECK: {{v[0-9]+}} = sload 5
+// CHECK-LABEL: {{^[ +].*}}fn @call_kills_storage{{[( ]}}
+// CHECK: {{^[ +].*}}call
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload 5
 fn @call_kills_storage(arg0: bool, arg1: address) -> u256 {
   bb0:
     v1 = sload 5
@@ -44,8 +44,8 @@ fn @call_kills_storage(arg0: bool, arg1: address) -> u256 {
     ret v1
 }
 
-// CHECK-LABEL: fn @staticcall_preserves_storage
-// CHECK: staticcall
+// CHECK-LABEL: {{^[ +].*}}fn @staticcall_preserves_storage{{[( ]}}
+// CHECK: {{^[ +].*}}staticcall
 // CHECK: + ret {{v[0-9]+}}
 fn @staticcall_preserves_storage(arg0: bool, arg1: address) -> u256 {
   bb0:
@@ -63,8 +63,8 @@ fn @staticcall_preserves_storage(arg0: bool, arg1: address) -> u256 {
     ret v1
 }
 
-// CHECK-LABEL: fn @clobbered_arm_reload_after_store
-// CHECK: sstore
+// CHECK-LABEL: {{^[ +].*}}fn @clobbered_arm_reload_after_store{{[( ]}}
+// CHECK: {{^[ +].*}}sstore
 // CHECK: + [[RELOAD:v[0-9]+]] = sload 5
 // CHECK: + {{v[0-9]+}} = phi [bb1: [[RELOAD]]], [bb2: {{v[0-9]+}}]
 fn @clobbered_arm_reload_after_store(arg0: bool, arg1: u256) -> u256 {
@@ -82,9 +82,9 @@ fn @clobbered_arm_reload_after_store(arg0: bool, arg1: u256) -> u256 {
     ret v3
 }
 
-// CHECK-LABEL: fn @gas_blocks_rewrite
-// CHECK: gas
-// CHECK: {{v[0-9]+}} = sload 5
+// CHECK-LABEL: {{^[ +].*}}fn @gas_blocks_rewrite{{[( ]}}
+// CHECK: {{^[ +].*}}gas
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload 5
 fn @gas_blocks_rewrite(arg0: bool) -> u256 {
   bb0:
     br arg0, bb1, bb2

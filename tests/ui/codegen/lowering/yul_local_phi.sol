@@ -3,7 +3,7 @@
 //@filecheck:
 
 contract YulLocalPhi {
-    // CHECK-LABEL: fn @branchLocal
+    // CHECK-LABEL: fn @branchLocal{{[( ]}}
     // CHECK: mstore 160, 1
     // CHECK: br {{v[0-9]+}},
     // CHECK: mstore 160, 2

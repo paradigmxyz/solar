@@ -2,7 +2,7 @@
 //@filecheck:
 @module module
 
-// CHECK-LABEL: bb0:
+// CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: - push 1
 // CHECK: - pop
 bb0:
@@ -10,7 +10,7 @@ bb0:
   pop
   stop
 
-// CHECK-LABEL: bb1:
+// CHECK-LABEL: {{^[ +].*}}bb1:
 // CHECK: - push bb2
 // CHECK: - pop
 bb1:

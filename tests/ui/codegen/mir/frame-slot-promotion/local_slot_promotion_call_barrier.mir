@@ -1,8 +1,8 @@
 //@compile-flags: --passes frame-slot-promotion,dce
 //@filecheck:
 @module LocalSlotPromotionCallBarrier
-// CHECK-LABEL: fn @promote_across_unrelated_staticcall
-// CHECK: [[CALL:v[0-9]+]] = staticcall
+// CHECK-LABEL: {{^[ +].*}}fn @promote_across_unrelated_staticcall{{[( ]}}
+// CHECK: {{^[ +].*}}[[CALL:v[0-9]+]] = staticcall
 // CHECK: + {{v[0-9]+}} = add 9, [[CALL]]
 fn @promote_across_unrelated_staticcall(arg0: address) -> u256 {
   bb0:
@@ -15,11 +15,11 @@ fn @promote_across_unrelated_staticcall(arg0: address) -> u256 {
     ret v5
 }
 
-// CHECK-LABEL: fn @keep_msize_observation
-// CHECK: [[SLOT:v[0-9]+]] = internal_frame_addr 128
-// CHECK: mstore [[SLOT]], 9
-// CHECK: msize
-// CHECK: mload
+// CHECK-LABEL: {{^[ +].*}}fn @keep_msize_observation{{[( ]}}
+// CHECK: {{^[ +].*}}[[SLOT:v[0-9]+]] = internal_frame_addr 128
+// CHECK: {{^[ +].*}}mstore [[SLOT]], 9
+// CHECK: {{^[ +].*}}msize
+// CHECK: {{^[ +].*}}mload
 fn @keep_msize_observation() -> u256 {
   bb0:
     v1 = internal_frame_addr 128
@@ -31,8 +31,8 @@ fn @keep_msize_observation() -> u256 {
     ret v5
 }
 
-// CHECK-LABEL: fn @promote_slot_with_unrelated_frame_hash
-// CHECK: [[HASH:v[0-9]+]] = keccak256
+// CHECK-LABEL: {{^[ +].*}}fn @promote_slot_with_unrelated_frame_hash{{[( ]}}
+// CHECK: {{^[ +].*}}[[HASH:v[0-9]+]] = keccak256
 // CHECK: + {{v[0-9]+}} = add 9, [[HASH]]
 fn @promote_slot_with_unrelated_frame_hash() -> u256 {
   bb0:

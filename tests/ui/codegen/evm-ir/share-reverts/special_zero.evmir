@@ -2,8 +2,8 @@
 //@filecheck:
 @module module
 
-// CHECK-LABEL: bb0:
-// CHECK: jump bb1
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}jump bb1
 bb0:
   push 1
   iszero
@@ -11,16 +11,16 @@ bb0:
   jumpi
   jump bb1
 
-// CHECK-LABEL: bb1 [cold]:
-// CHECK: push_deferred 0
-// CHECK: revert
+// CHECK-LABEL: {{^[ +].*}}bb1 [cold]:
+// CHECK: {{^[ +].*}}push_deferred 0
+// CHECK: {{^[ +].*}}revert
 bb1 [cold]:
   push_deferred 0
   dup1
   revert
 
-// CHECK-LABEL: bb2:
-// CHECK: jump bb3
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: {{^[ +].*}}jump bb3
 bb2:
   push 1
   iszero
@@ -28,9 +28,9 @@ bb2:
   jumpi
   jump bb3
 
-// CHECK-LABEL: bb3 [cold]:
-// CHECK: push_immutable 0
-// CHECK: revert
+// CHECK-LABEL: {{^[ +].*}}bb3 [cold]:
+// CHECK: {{^[ +].*}}push_immutable 0
+// CHECK: {{^[ +].*}}revert
 bb3 [cold]:
   push_immutable 0
   dup1

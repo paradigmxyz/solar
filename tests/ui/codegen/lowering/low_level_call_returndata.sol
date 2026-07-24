@@ -7,7 +7,7 @@ interface IERC20Minimal {
 }
 
 contract LowLevelCallReturndata {
-    // CHECK-LABEL: fn @safeTransfer
+    // CHECK-LABEL: fn @safeTransfer{{[( ]}}
     // CHECK: {{v[0-9]+}} = abi_encode [word, word], selector 0xa9059cbb
     // CHECK: {{v[0-9]+}} = call {{v[0-9]+}}, arg0, 0,
     // CHECK: {{v[0-9]+}} = make_returndata_slice 0,
@@ -19,7 +19,7 @@ contract LowLevelCallReturndata {
         require(success && (data.length == 0 || abi.decode(data, (bool))), "TF");
     }
 
-    // CHECK-LABEL: fn @balanceOf
+    // CHECK-LABEL: fn @balanceOf{{[( ]}}
     // CHECK: abi_encode [word], selector 0x70a08231
     // CHECK: {{v[0-9]+}} = staticcall {{v[0-9]+}}, arg0,
     // CHECK: {{v[0-9]+}} = make_returndata_slice 0,
@@ -32,7 +32,7 @@ contract LowLevelCallReturndata {
         return abi.decode(data, (uint256));
     }
 
-    // CHECK-LABEL: fn @forward
+    // CHECK-LABEL: fn @forward{{[( ]}}
     // CHECK: {{v[0-9]+}} = call {{v[0-9]+}}, arg0, 0,
     // CHECK: {{v[0-9]+}} = make_returndata_slice 0,
     // CHECK: returndatacopy

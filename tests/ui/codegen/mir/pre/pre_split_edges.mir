@@ -6,7 +6,7 @@
 
 // bb2 reaches the join through two switch cases: both retarget to the same
 // split block, so the join phi gets exactly one new incoming entry.
-// CHECK-LABEL: fn @switch_pred_two_cases
+// CHECK-LABEL: {{^[ +].*}}fn @switch_pred_two_cases{{[( ]}}
 // CHECK: + switch arg1, default bb4, [2 => bb5, 3 => bb5]
 // CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb5: [[INSERTED:v[0-9]+]]]
 // CHECK: + [[INSERTED]] = add arg0, 7
@@ -27,7 +27,7 @@ fn @switch_pred_two_cases(arg0: u256, arg1: u256) -> u256 {
 
 // bb2 branches to the join on both arms: one logical edge, one split block,
 // one phi entry.
-// CHECK-LABEL: fn @branch_both_arms_to_join
+// CHECK-LABEL: {{^[ +].*}}fn @branch_both_arms_to_join{{[( ]}}
 // CHECK: + br arg1, bb4, bb4
 // CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb4: [[INSERTED:v[0-9]+]]]
 // CHECK: + [[INSERTED]] = add arg0, 7
@@ -47,7 +47,7 @@ fn @branch_both_arms_to_join(arg0: u256, arg1: bool) -> u256 {
 // The join is its own branch-terminated predecessor and the backedge
 // translation of the expression is not available: the backedge is split and
 // the new block carries the per-iteration recomputation.
-// CHECK-LABEL: fn @self_loop_backedge_insertion
+// CHECK-LABEL: {{^[ +].*}}fn @self_loop_backedge_insertion{{[( ]}}
 // CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb4: [[INSERTED:v[0-9]+]]]
 // CHECK: + [[INSERTED]] = add {{v[0-9]+}}, 7
 fn @self_loop_backedge_insertion(arg0: u256, arg1: u256) -> u256 {
@@ -68,7 +68,7 @@ fn @self_loop_backedge_insertion(arg0: u256, arg1: u256) -> u256 {
 
 // Loop-invariant PRE through a branch-terminated preheader: the entry edge
 // into the header is split and the hoisted computation lands on it.
-// CHECK-LABEL: fn @hoist_through_branch_preheader
+// CHECK-LABEL: {{^[ +].*}}fn @hoist_through_branch_preheader{{[( ]}}
 // CHECK: + br {{v[0-9]+}}, bb5, bb4
 // CHECK: + {{v[0-9]+}} = phi [bb2: {{v[0-9]+}}], [bb5: [[HOISTED:v[0-9]+]]]
 // CHECK: + [[HOISTED]] = add arg0, 7

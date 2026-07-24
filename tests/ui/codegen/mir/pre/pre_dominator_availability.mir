@@ -4,7 +4,7 @@
 // the join phi must reuse that def as the bb4 incoming instead of inserting a
 // duplicate computation into bb4.
 @module DomAvail
-// CHECK-LABEL: fn @reuse_dominating_def
+// CHECK-LABEL: {{^[ +].*}}fn @reuse_dominating_def{{[( ]}}
 // CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}], [bb4: {{v[0-9]+}}]
 // CHECK: + ret [[MERGE]]
 fn @reuse_dominating_def(arg0: u256, arg1: u256) -> u256 {
@@ -28,8 +28,8 @@ fn @reuse_dominating_def(arg0: u256, arg1: u256) -> u256 {
 
 // Every predecessor reuses the same def from the shared dominator bb0: the
 // join expression collapses to that value directly, with no phi.
-// CHECK-LABEL: fn @collapse_to_shared_def
-// CHECK: [[SHARED:v[0-9]+]] = add arg0, 7
+// CHECK-LABEL: {{^[ +].*}}fn @collapse_to_shared_def{{[( ]}}
+// CHECK: {{^[ +].*}}[[SHARED:v[0-9]+]] = add arg0, 7
 // CHECK: + ret [[SHARED]]
 fn @collapse_to_shared_def(arg0: u256, arg1: u256) -> u256 {
   bb0:

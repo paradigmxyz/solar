@@ -4,7 +4,7 @@
 // (and the signed variants likewise) in both directions, while the kept instruction
 // retains its own opcode. Same-order lt/gt must not unify.
 @module CseSwappedComparisons
-// CHECK-LABEL: fn @reuse_gt_after_lt
+// CHECK-LABEL: {{^[ +].*}}fn @reuse_gt_after_lt{{[( ]}}
 // CHECK: - {{v[0-9]+}} = gt arg1, arg0
 // CHECK: + ret [[CMP:v[0-9]+]], [[CMP]]
 fn @reuse_gt_after_lt(arg0: u256, arg1: u256) -> (bool, bool) {
@@ -14,7 +14,7 @@ fn @reuse_gt_after_lt(arg0: u256, arg1: u256) -> (bool, bool) {
     ret v2, v3
 }
 
-// CHECK-LABEL: fn @reuse_lt_after_gt
+// CHECK-LABEL: {{^[ +].*}}fn @reuse_lt_after_gt{{[( ]}}
 // CHECK: - {{v[0-9]+}} = lt arg0, arg1
 // CHECK: + ret [[CMP2:v[0-9]+]], [[CMP2]]
 fn @reuse_lt_after_gt(arg0: u256, arg1: u256) -> (bool, bool) {
@@ -24,7 +24,7 @@ fn @reuse_lt_after_gt(arg0: u256, arg1: u256) -> (bool, bool) {
     ret v2, v3
 }
 
-// CHECK-LABEL: fn @reuse_sgt_after_slt
+// CHECK-LABEL: {{^[ +].*}}fn @reuse_sgt_after_slt{{[( ]}}
 // CHECK: - {{v[0-9]+}} = sgt arg1, arg0
 fn @reuse_sgt_after_slt(arg0: u256, arg1: u256) -> (bool, bool) {
   bb0:
@@ -33,7 +33,7 @@ fn @reuse_sgt_after_slt(arg0: u256, arg1: u256) -> (bool, bool) {
     ret v2, v3
 }
 
-// CHECK-LABEL: fn @reuse_slt_after_sgt
+// CHECK-LABEL: {{^[ +].*}}fn @reuse_slt_after_sgt{{[( ]}}
 // CHECK: - {{v[0-9]+}} = slt arg0, arg1
 fn @reuse_slt_after_sgt(arg0: u256, arg1: u256) -> (bool, bool) {
   bb0:
@@ -42,9 +42,9 @@ fn @reuse_slt_after_sgt(arg0: u256, arg1: u256) -> (bool, bool) {
     ret v2, v3
 }
 
-// CHECK-LABEL: fn @keep_same_order_lt_gt
-// CHECK: {{v[0-9]+}} = lt arg0, arg1
-// CHECK: {{v[0-9]+}} = gt arg0, arg1
+// CHECK-LABEL: {{^[ +].*}}fn @keep_same_order_lt_gt{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = lt arg0, arg1
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = gt arg0, arg1
 fn @keep_same_order_lt_gt(arg0: u256, arg1: u256) -> (bool, bool) {
   bb0:
     v2 = lt arg0, arg1
@@ -52,9 +52,9 @@ fn @keep_same_order_lt_gt(arg0: u256, arg1: u256) -> (bool, bool) {
     ret v2, v3
 }
 
-// CHECK-LABEL: fn @keep_unsigned_signed_distinct
-// CHECK: {{v[0-9]+}} = lt arg0, arg1
-// CHECK: {{v[0-9]+}} = sgt arg1, arg0
+// CHECK-LABEL: {{^[ +].*}}fn @keep_unsigned_signed_distinct{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = lt arg0, arg1
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sgt arg1, arg0
 fn @keep_unsigned_signed_distinct(arg0: u256, arg1: u256) -> (bool, bool) {
   bb0:
     v2 = lt arg0, arg1

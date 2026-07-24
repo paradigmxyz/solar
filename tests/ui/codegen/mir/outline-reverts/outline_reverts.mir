@@ -7,7 +7,7 @@
 
 @module OutlineReverts
 
-// CHECK-LABEL: fn @first
+// CHECK-LABEL: {{^[ +].*}}fn @first{{[( ]}}
 // CHECK: + tail_call @[[STUB:__revert_stub[0-9]+]]
 fn @first(arg0: u256) {
   bb0:
@@ -23,7 +23,7 @@ fn @first(arg0: u256) {
     returndata 128, 32
 }
 
-// CHECK-LABEL: fn @second
+// CHECK-LABEL: {{^[ +].*}}fn @second{{[( ]}}
 // CHECK: + tail_call @[[STUB]]
 fn @second(arg0: u256) {
   bb0:
@@ -39,9 +39,9 @@ fn @second(arg0: u256) {
     returndata 128, 32
 }
 
-// CHECK-LABEL: fn @third
-// CHECK: mstore 4, 18
-// CHECK: revert 0, 36
+// CHECK-LABEL: {{^[ +].*}}fn @third{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 4, 18
+// CHECK: {{^[ +].*}}revert 0, 36
 fn @third(arg0: u256) {
   bb0:
     v1 = sub arg0, 1

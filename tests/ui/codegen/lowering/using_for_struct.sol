@@ -15,7 +15,7 @@ struct S {
 }
 
 library L {
-    // CHECK-LABEL: fn @hashLib
+    // CHECK-LABEL: fn @hashLib{{[( ]}}
     // CHECK: [[HASH:v[0-9]+]] = keccak256 {{v[0-9]+}}, 101
     // CHECK: ret [[HASH]]
     function hashLib(S memory s) internal pure returns (bytes32) {
@@ -26,7 +26,7 @@ library L {
 contract C {
     using L for S;
 
-    // CHECK-LABEL: fn @viaMethod
+    // CHECK-LABEL: fn @viaMethod{{[( ]}}
     // CHECK-NOT: {{^[[:space:]]*v[0-9]+ = call }}
     // CHECK: [[HASH:v[0-9]+]] = keccak256 {{v[0-9]+}}, 101
     function viaMethod(bytes32 a, bytes32 b) public pure returns (bytes32) {

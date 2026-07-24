@@ -4,10 +4,10 @@
 
 // STATICCALL cannot write storage, even reentrantly: the sload stays invariant
 // and is hoisted out of this view-heavy loop.
-// CHECK-LABEL: fn @hoist_sload_with_staticcall
+// CHECK-LABEL: {{^[ +].*}}fn @hoist_sload_with_staticcall{{[( ]}}
 // CHECK: + [[LOAD:v[0-9]+]] = sload 5
 // CHECK: - [[LOAD]] = sload 5
-// CHECK: staticcall
+// CHECK: {{^[ +].*}}staticcall
 fn @hoist_sload_with_staticcall() -> u256 {
   bb0:
     jump bb1
@@ -25,10 +25,10 @@ fn @hoist_sload_with_staticcall() -> u256 {
 }
 
 // Transient storage is equally unwritable from a static context.
-// CHECK-LABEL: fn @hoist_tload_with_staticcall
+// CHECK-LABEL: {{^[ +].*}}fn @hoist_tload_with_staticcall{{[( ]}}
 // CHECK: + [[LOAD:v[0-9]+]] = tload 5
 // CHECK: - [[LOAD]] = tload 5
-// CHECK: staticcall
+// CHECK: {{^[ +].*}}staticcall
 fn @hoist_tload_with_staticcall() -> u256 {
   bb0:
     jump bb1
@@ -46,9 +46,9 @@ fn @hoist_tload_with_staticcall() -> u256 {
 }
 
 // A plain call may write any slot; the sload must stay in the loop.
-// CHECK-LABEL: fn @keep_sload_with_call
+// CHECK-LABEL: {{^[ +].*}}fn @keep_sload_with_call{{[( ]}}
 // CHECK: + [[LOAD:v[0-9]+]] = sload 5
-// CHECK: call
+// CHECK: {{^[ +].*}}call
 fn @keep_sload_with_call() -> u256 {
   bb0:
     jump bb1
