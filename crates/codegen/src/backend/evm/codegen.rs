@@ -30,7 +30,7 @@ use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
 };
-use solar_interface::{Span, sym};
+use solar_interface::sym;
 use solar_sema::Gcx;
 
 const STACK_PHI_LAYOUT_LIMIT: usize = 8;
@@ -598,12 +598,6 @@ pub struct EvmCodegen<'gcx> {
     /// neither accumulate nor disturb an internal return.
     emitting_entry: bool,
     capture_evm_ir: bool,
-    /// Instructions that survive MIR lowering and the word-based backend cannot
-    /// emit — an unsupported high-level construct rather than a miscompile. Each
-    /// is a `(span, message)` the caller turns into a diagnostic instead of the
-    /// backend panicking. Populated after the lowering passes and, when
-    /// non-empty, generation is skipped for the affected module.
-    unsupported: Vec<(Option<Span>, String)>,
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -643,16 +637,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             in_internal_function: false,
             emitting_entry: false,
             capture_evm_ir: false,
-            unsupported: Vec::new(),
         }
-    }
-
-    /// Drains the unsupported-construct diagnostics collected during lowering.
-    /// The caller emits these against its diagnostic context, turning a
-    /// construct the backend cannot lower into a clean error rather than a
-    /// panic.
-    pub fn take_unsupported(&mut self) -> Vec<(Option<Span>, String)> {
-        std::mem::take(&mut self.unsupported)
     }
 
     /// Whether a function is an external interface of its module: an ABI entry,
@@ -665,14 +650,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             || func.attributes.is_receive
     }
 
-    /// Records any instruction that survives MIR lowering but the word-based
+    /// Reports any instruction that survives MIR lowering but the word-based
     /// backend cannot emit — chiefly logical slices whose aggregate use slice
-    /// lowering could not fold. When this finds anything the module is left
-    /// ungenerated so the caller reports it instead of the backend panicking.
+    /// lowering could not fold.
     ///
     /// Only live instructions — those still in a block — are checked, since the
     /// instruction arena retains folded-away slices the backend never emits.
-    fn collect_unsupported(&mut self, module: &Module) {
+    #[must_use]
+    fn emit_unsupported(&self, module: &Module) -> bool {
+        let mut emitted = false;
         'func: for func in module.functions.iter() {
             for inst_id in func.instructions() {
                 let inst = func.inst(inst_id);
@@ -682,11 +668,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                     }
                     _ => continue,
                 };
-                self.unsupported.push((inst.metadata.source_span(), message.to_string()));
+                let span = inst.metadata.source_span().unwrap_or(module.name.span);
+                self.gcx.dcx().err(message).span(span).emit();
+                emitted = true;
                 // One diagnostic per function is enough to explain the bail.
                 continue 'func;
             }
         }
+        emitted
     }
 
     /// Controls whether generated artifacts include final EVM IR.
@@ -786,7 +775,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             panic!("cannot codegen MIR function `{}` without an entry block", func.name);
         }
         self.run_optimization_passes(module);
-        if !self.unsupported.is_empty() {
+        if self.emit_unsupported(module) {
+            return EvmArtifact::default();
+        }
+        if module.phase != MirPhase::EvmShaped {
+            self.gcx
+                .dcx()
+                .err(format!(
+                    "EVM codegen requires MIR in the `evm-shaped` phase, stopped at `{}`",
+                    module.phase.name()
+                ))
+                .span(module.name.span)
+                .emit();
             return EvmArtifact::default();
         }
         // First generate the runtime code
@@ -1062,17 +1062,6 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
         let _changed = run_default_pipeline(self.gcx, module);
-
-        self.collect_unsupported(module);
-        if self.unsupported.is_empty() && module.phase != MirPhase::EvmShaped {
-            self.unsupported.push((
-                None,
-                format!(
-                    "EVM codegen requires MIR in the `evm-shaped` phase, stopped at `{}`",
-                    module.phase.name()
-                ),
-            ));
-        }
     }
 
     /// Generates runtime bytecode for a module.

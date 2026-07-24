@@ -1,12 +1,8 @@
 error: EVM codegen requires MIR in the `evm-shaped` phase, stopped at `abi`
    ╭▸ ROOT/tests/ui/codegen/lowering/fallback_bytes_requires_lowering.sol:LL:CC
    │
-LL │ ┏ contract FallbackBytesRequiresLowering {
-LL │ ┃     fallback(bytes calldata input) external returns (bytes memory) {
-LL │ ┃         return input;
-LL │ ┃     }
-LL │ ┃ }
-   ╰╴┗━┛
+LL │ contract FallbackBytesRequiresLowering {
+   ╰╴         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error: aborting due to 1 previous error
 

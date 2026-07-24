@@ -3,7 +3,7 @@ use alloy_primitives::Bytes;
 use solar_codegen::{Backend, EvmCodegen, backend::evm::ir, lower};
 use solar_config::{CompilerOutput, Dump, DumpKind};
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
-use solar_interface::{Result, Span};
+use solar_interface::Result;
 use solar_sema::{CompilerRef, Gcx, hir::ContractId};
 use std::{
     collections::BTreeMap,
@@ -348,7 +348,7 @@ fn ensure_contract_bytecode(
     let mut codegen = EvmCodegen::new(gcx);
     codegen.set_capture_evm_ir(capture_evm_ir);
     let artifact = codegen.lower_module(&mut module);
-    emit_codegen_unsupported(gcx, &mut codegen, contract.span)?;
+    gcx.dcx().has_errors()?;
     all_bytecodes.insert(contract_id, artifact.deployment.clone());
     artifacts.insert(
         contract_id,
@@ -361,25 +361,6 @@ fn ensure_contract_bytecode(
         },
     );
     visiting.remove(contract_id);
-
-    Ok(())
-}
-
-pub(crate) fn emit_codegen_unsupported(
-    gcx: Gcx<'_>,
-    codegen: &mut EvmCodegen<'_>,
-    fallback_span: Span,
-) -> Result {
-    let mut unsupported_guar = None;
-    for (span, message) in codegen.take_unsupported() {
-        // Backend instructions may lack a precise source span; anchor the
-        // diagnostic to the contract so it is attributed to a location.
-        let span = span.unwrap_or(fallback_span);
-        unsupported_guar = Some(gcx.dcx().err(message).span(span).emit());
-    }
-    if let Some(guar) = unsupported_guar {
-        return Err(guar);
-    }
 
     Ok(())
 }

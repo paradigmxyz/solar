@@ -3,8 +3,8 @@
     {
       "sourceLocation": {
         "file": "Fallback.sol",
-        "start": 0,
-        "end": 95
+        "start": 9,
+        "end": 10
       },
       "secondarySourceLocations": [],
       "type": "Exception",
@@ -12,7 +12,7 @@
       "severity": "error",
       "errorCode": null,
       "message": "EVM codegen requires MIR in the `evm-shaped` phase, stopped at `abi`",
-      "formattedMessage": "error: EVM codegen requires MIR in the `evm-shaped` phase, stopped at `abi`\n   ╭▸ Fallback.sol:LL:CC\n   │\nLL │ contract C { fallback(bytes calldata input) external returns (bytes memory) { return input; } }\n   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+      "formattedMessage": "error: EVM codegen requires MIR in the `evm-shaped` phase, stopped at `abi`\n   ╭▸ Fallback.sol:LL:CC\n   │\nLL │ contract C { fallback(bytes calldata input) external returns (bytes memory) { return input; } }\n   ╰╴         ━\n\n"
     }
   ],
   "sources": {
