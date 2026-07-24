@@ -828,7 +828,13 @@ mod tests {
             blocker.await.unwrap();
 
             let mut saw_latest_diagnostics = false;
-            let mut saw_ready_report = false;
+            let expected_reports = [
+                "Reading workspace sources",
+                "Analyzing workspace",
+                "Publishing workspace index",
+                "Workspace index ready",
+            ];
+            let mut report_index = 0;
             loop {
                 match next_analysis_event(&mut events_rx).await {
                     AnalysisClientEvent::Create(create) => {
@@ -849,14 +855,16 @@ mod tests {
                                 panic!("replacement began a second wave: {begin:?}")
                             }
                             WorkDoneProgress::Report(report) => {
-                                if report.message.as_deref() == Some("Workspace index ready") {
-                                    saw_ready_report = true;
-                                }
+                                let Some(&expected) = expected_reports.get(report_index) else {
+                                    panic!("unexpected extra progress report: {report:?}")
+                                };
+                                assert_eq!(report.message.as_deref(), Some(expected));
+                                report_index += 1;
                             }
                             WorkDoneProgress::End(end) => {
                                 assert_eq!(end.message.as_deref(), Some("Workspace index ready"));
+                                assert_eq!(report_index, expected_reports.len());
                                 assert!(saw_latest_diagnostics);
-                                assert!(saw_ready_report);
                                 break;
                             }
                         }

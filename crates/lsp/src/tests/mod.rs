@@ -556,19 +556,12 @@ async fn clearing_analysis_cache_publishes_before_ending_progress() {
     match harness.next_event().await {
         WorkDoneEvent::Progress(ProgressParams {
             token: actual,
-            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(_)),
-        }) => assert_eq!(actual, token),
-        event => panic!("expected progress begin, got {event:?}"),
-    }
-    match harness.next_event().await {
-        WorkDoneEvent::Progress(ProgressParams {
-            token: actual,
-            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Report(report)),
+            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
         }) => {
             assert_eq!(actual, token);
-            assert_eq!(report.message.as_deref(), Some("Analyzing workspace"));
+            assert_eq!(begin.message.as_deref(), Some("Analyzing workspace"));
         }
-        event => panic!("expected progress report, got {event:?}"),
+        event => panic!("expected progress begin, got {event:?}"),
     }
 
     state.clear_analysis_cache();
@@ -633,22 +626,15 @@ async fn clearing_analysis_cache_supersedes_a_pending_progress_end() {
         event => panic!("expected cleared diagnostics, got {event:?}"),
     }
     harness.acknowledge_create();
-    assert!(matches!(
-        harness.next_event().await,
-        WorkDoneEvent::Progress(ProgressParams {
-            token: actual,
-            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(_)),
-        }) if actual == token
-    ));
     match harness.next_event().await {
         WorkDoneEvent::Progress(ProgressParams {
             token: actual,
-            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Report(report)),
+            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
         }) => {
             assert_eq!(actual, token);
-            assert_eq!(report.message.as_deref(), Some("Workspace index cleared"));
+            assert_eq!(begin.message.as_deref(), Some("Workspace index cleared"));
         }
-        event => panic!("expected cleared progress report, got {event:?}"),
+        event => panic!("expected progress begin, got {event:?}"),
     }
     match harness.next_event().await {
         WorkDoneEvent::Progress(ProgressParams {
@@ -839,19 +825,12 @@ async fn failed_current_analysis_ends_visible_progress() {
     match harness.next_event().await {
         WorkDoneEvent::Progress(ProgressParams {
             token: actual,
-            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(_)),
-        }) => assert_eq!(actual, token),
-        event => panic!("expected progress begin, got {event:?}"),
-    }
-    match harness.next_event().await {
-        WorkDoneEvent::Progress(ProgressParams {
-            token: actual,
-            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Report(report)),
+            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
         }) => {
             assert_eq!(actual, token);
-            assert_eq!(report.message.as_deref(), Some("Workspace indexing failed"));
+            assert_eq!(begin.message.as_deref(), Some("Workspace indexing failed"));
         }
-        event => panic!("expected failure report, got {event:?}"),
+        event => panic!("expected progress begin, got {event:?}"),
     }
     match harness.next_event().await {
         WorkDoneEvent::Progress(ProgressParams {

@@ -122,7 +122,7 @@ impl ProgressCoordinator {
     /// Runs `publish` while blocking a pending create response, then finishes the active wave.
     pub(crate) fn finish_active_after<T>(
         &self,
-        message: impl Into<String>,
+        message: &'static str,
         publish: impl FnOnce() -> T,
     ) -> T {
         let active = self.inner.active.lock();
@@ -130,7 +130,7 @@ impl ProgressCoordinator {
             drop(active);
             return publish();
         };
-        guard.finish_active_after(message.into(), publish)
+        guard.finish_active_after(message, publish)
     }
 
     #[cfg(test)]
@@ -155,13 +155,17 @@ impl ProgressTicket {
         Self { guard: None, version }
     }
 
-    pub(crate) fn report(&self, message: &str) {
+    pub(crate) fn is_disabled(&self) -> bool {
+        self.guard.is_none()
+    }
+
+    pub(crate) fn report(&self, message: &'static str) {
         if let Some(guard) = &self.guard {
             guard.report(self.version, message);
         }
     }
 
-    pub(crate) fn finish(&self, message: &str) {
+    pub(crate) fn finish(&self, message: &'static str) {
         if let Some(guard) = &self.guard {
             guard.finish(self.version, message);
         }
@@ -173,15 +177,14 @@ enum Phase {
     Delayed,
     Creating,
     Begun,
-    Failed,
-    Ended,
+    Closed,
 }
 
 struct ProgressState {
     version: usize,
     phase: Phase,
-    message: Option<String>,
-    terminal: Option<String>,
+    message: Option<&'static str>,
+    terminal: Option<&'static str>,
     restart_reported: bool,
 }
 
@@ -262,7 +265,7 @@ impl WorkDoneProgressGuard {
 
     fn restart(&self, version: usize) -> bool {
         let mut state = self.state.lock();
-        if matches!(state.phase, Phase::Failed | Phase::Ended) {
+        if state.phase == Phase::Closed {
             return false;
         }
         if version <= state.version {
@@ -288,13 +291,13 @@ impl WorkDoneProgressGuard {
             } else {
                 state.restart_reported = true;
             }
-        } else if state.message.as_deref() != Some(RESTART_MESSAGE) {
-            state.message = Some(RESTART_MESSAGE.into());
+        } else if state.message != Some(RESTART_MESSAGE) {
+            state.message = Some(RESTART_MESSAGE);
         }
         true
     }
 
-    fn report(&self, version: usize, message: &str) {
+    fn report(&self, version: usize, message: &'static str) {
         let mut state = self.state.lock();
         if state.version != version || state.terminal.is_some() {
             return;
@@ -313,26 +316,26 @@ impl WorkDoneProgressGuard {
                 self.disable_locked(&mut state, "failed to enqueue progress report");
             }
         } else if matches!(state.phase, Phase::Delayed | Phase::Creating) {
-            state.message = Some(message.into());
+            state.message = Some(message);
         }
     }
 
-    fn finish(&self, version: usize, message: &str) {
+    fn finish(&self, version: usize, message: &'static str) {
         let mut state = self.state.lock();
-        if state.version != version || matches!(state.phase, Phase::Failed | Phase::Ended) {
+        if state.version != version || state.phase == Phase::Closed {
             return;
         }
 
         match state.phase {
             Phase::Delayed => {
-                state.phase = Phase::Ended;
+                state.phase = Phase::Closed;
                 state.message = None;
             }
             Phase::Creating => {
-                state.terminal.get_or_insert_with(|| message.into());
+                state.terminal.get_or_insert(message);
             }
             Phase::Begun => {
-                state.phase = Phase::Ended;
+                state.phase = Phase::Closed;
                 if !send_progress(
                     &self.client,
                     &self.token,
@@ -341,43 +344,40 @@ impl WorkDoneProgressGuard {
                     self.enabled.store(false, Ordering::Release);
                 }
             }
-            Phase::Failed | Phase::Ended => {}
+            Phase::Closed => {}
         }
     }
 
-    fn finish_active_after<T>(&self, message: String, publish: impl FnOnce() -> T) -> T {
+    fn finish_active_after<T>(&self, message: &'static str, publish: impl FnOnce() -> T) -> T {
         let mut state = self.state.lock();
-        let result = publish();
-        self.finish_active_locked(&mut state, message);
-        result
-    }
-
-    fn finish_active_locked(&self, state: &mut ProgressState, message: String) {
-        if matches!(state.phase, Phase::Failed | Phase::Ended) {
-            return;
+        if state.phase == Phase::Closed {
+            drop(state);
+            return publish();
         }
 
+        let result = publish();
         match state.phase {
             Phase::Delayed => {
-                state.phase = Phase::Ended;
+                state.phase = Phase::Closed;
                 state.message = None;
             }
             Phase::Creating => {
-                state.message = Some(message.clone());
+                state.message = Some(message);
                 state.terminal = Some(message);
             }
             Phase::Begun => {
-                state.phase = Phase::Ended;
+                state.phase = Phase::Closed;
                 if !send_progress(
                     &self.client,
                     &self.token,
-                    WorkDoneProgress::End(WorkDoneProgressEnd { message: Some(message) }),
+                    WorkDoneProgress::End(WorkDoneProgressEnd { message: Some(message.into()) }),
                 ) {
                     self.enabled.store(false, Ordering::Release);
                 }
             }
-            Phase::Failed | Phase::Ended => {}
+            Phase::Closed => {}
         }
+        result
     }
 
     fn created(&self) {
@@ -388,42 +388,27 @@ impl WorkDoneProgressGuard {
 
         state.phase = Phase::Begun;
         let message = state.message.take();
+        let is_restart = message == Some(RESTART_MESSAGE);
         let begin = WorkDoneProgress::Begin(WorkDoneProgressBegin {
             title: PROGRESS_TITLE.into(),
             cancellable: Some(false),
-            message: None,
+            message: message.map(str::to_owned),
             percentage: None,
         });
         if !send_progress(&self.client, &self.token, begin) {
             self.disable_locked(&mut state, "failed to enqueue progress begin");
             return;
         }
-
-        if let Some(message) = message {
-            let is_restart = message == RESTART_MESSAGE;
-            if !send_progress(
-                &self.client,
-                &self.token,
-                WorkDoneProgress::Report(WorkDoneProgressReport {
-                    cancellable: Some(false),
-                    message: Some(message),
-                    percentage: None,
-                }),
-            ) {
-                self.disable_locked(&mut state, "failed to enqueue pending progress report");
-                return;
-            }
-            if is_restart {
-                state.restart_reported = true;
-            }
+        if is_restart {
+            state.restart_reported = true;
         }
 
         if let Some(message) = state.terminal.take() {
-            state.phase = Phase::Ended;
+            state.phase = Phase::Closed;
             if !send_progress(
                 &self.client,
                 &self.token,
-                WorkDoneProgress::End(WorkDoneProgressEnd { message: Some(message) }),
+                WorkDoneProgress::End(WorkDoneProgressEnd { message: Some(message.into()) }),
             ) {
                 self.enabled.store(false, Ordering::Release);
             }
@@ -441,7 +426,7 @@ impl WorkDoneProgressGuard {
     fn disable_locked(&self, state: &mut ProgressState, reason: &str) {
         tracing::debug!(token = ?self.token, %reason, "work-done progress unavailable");
         self.enabled.store(false, Ordering::Release);
-        state.phase = Phase::Failed;
+        state.phase = Phase::Closed;
         state.message = None;
         state.terminal = None;
     }
@@ -449,7 +434,7 @@ impl WorkDoneProgressGuard {
     #[cfg(test)]
     fn is_current_and_open(&self, version: usize) -> bool {
         let state = self.state.lock();
-        state.version == version && !matches!(state.phase, Phase::Failed | Phase::Ended)
+        state.version == version && state.phase != Phase::Closed
     }
 }
 
@@ -459,7 +444,7 @@ impl Drop for WorkDoneProgressGuard {
         if state.phase != Phase::Begun {
             return;
         }
-        state.phase = Phase::Ended;
+        state.phase = Phase::Closed;
         if !send_progress(
             &self.client,
             &self.token,
@@ -590,7 +575,7 @@ mod tests {
         guard.report(1, "ignored");
         guard.finish(1, "second");
 
-        assert_eq!(guard.state.lock().terminal.as_deref(), Some("first"));
+        assert_eq!(guard.state.lock().terminal, Some("first"));
     }
 
     #[test]
@@ -606,7 +591,7 @@ mod tests {
         guard.finish(1, "finished");
 
         let state = guard.state.lock();
-        assert_eq!(state.phase, Phase::Ended);
+        assert_eq!(state.phase, Phase::Closed);
         assert!(state.message.is_none());
     }
 
@@ -647,6 +632,7 @@ mod tests {
     fn disabled_coordinator_returns_noop_ticket() {
         let coordinator = ProgressCoordinator::new(ClientSocket::new_closed(), false);
         let ticket = coordinator.start(1);
+        assert!(ticket.is_disabled());
         ticket.report("ignored");
         ticket.finish("ignored");
         assert!(!coordinator.is_active_for_test(1));
@@ -685,22 +671,15 @@ mod tests {
         assert!(Arc::ptr_eq(first.guard.as_ref().unwrap(), second.guard.as_ref().unwrap()));
         harness.acknowledge_create();
 
-        assert!(matches!(
-            next_event(&mut harness.events).await,
-            ClientEvent::Progress(ProgressParams {
-                token: actual,
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(_)),
-            }) if actual == token
-        ));
         match next_event(&mut harness.events).await {
             ClientEvent::Progress(ProgressParams {
                 token: actual,
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Report(report)),
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
             }) => {
                 assert_eq!(actual, token);
-                assert_eq!(report.message.as_deref(), Some(RESTART_MESSAGE));
+                assert_eq!(begin.message.as_deref(), Some(RESTART_MESSAGE));
             }
-            event => panic!("expected replacement report, got {event:?}"),
+            event => panic!("expected progress begin, got {event:?}"),
         }
         harness.probe().await;
         assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
@@ -713,6 +692,58 @@ mod tests {
             }) => {
                 assert_eq!(actual, token);
                 assert_eq!(end.message.as_deref(), Some("second finished"));
+            }
+            event => panic!("expected current end, got {event:?}"),
+        }
+
+        harness.shutdown().await;
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn replacement_across_create_ack_emits_one_restart_message() {
+        let mut harness = progress_harness();
+        let coordinator = ProgressCoordinator::with_timing(
+            harness.client.clone(),
+            true,
+            Duration::ZERO,
+            Duration::from_secs(1),
+        );
+        let first = coordinator.start(1);
+
+        let ClientEvent::Create(create) = next_event(&mut harness.events).await else {
+            panic!("expected create request")
+        };
+        let token = create.token;
+        let second = coordinator.start(2);
+        assert!(Arc::ptr_eq(first.guard.as_ref().unwrap(), second.guard.as_ref().unwrap()));
+
+        harness.acknowledge_create();
+        match next_event(&mut harness.events).await {
+            ClientEvent::Progress(ProgressParams {
+                token: actual,
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
+            }) => {
+                assert_eq!(actual, token);
+                assert_eq!(begin.message.as_deref(), Some(RESTART_MESSAGE));
+            }
+            event => panic!("expected progress begin, got {event:?}"),
+        }
+
+        let latest = coordinator.start(3);
+        assert!(Arc::ptr_eq(first.guard.as_ref().unwrap(), latest.guard.as_ref().unwrap()));
+        harness.probe().await;
+        assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
+
+        first.finish("stale");
+        second.finish("stale");
+        latest.finish("done");
+        match next_event(&mut harness.events).await {
+            ClientEvent::Progress(ProgressParams {
+                token: actual,
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)),
+            }) => {
+                assert_eq!(actual, token);
+                assert_eq!(end.message.as_deref(), Some("done"));
             }
             event => panic!("expected current end, got {event:?}"),
         }
@@ -846,7 +877,7 @@ mod tests {
         let publish_guard = guard.clone();
         let publish_complete = published.clone();
         let publish_task = std::thread::spawn(move || {
-            publish_guard.finish_active_after("publication complete".into(), || {
+            publish_guard.finish_active_after("publication complete", || {
                 publish_started_tx.send(()).unwrap();
                 release_publish_rx.recv().unwrap();
                 publish_complete.store(true, Ordering::Release);
@@ -878,6 +909,21 @@ mod tests {
         create_task.join().unwrap();
     }
 
+    #[test]
+    fn closed_guard_releases_state_lock_before_publication() {
+        let guard = WorkDoneProgressGuard::new(
+            ClientSocket::new_closed(),
+            Arc::new(AtomicBool::new(true)),
+            1,
+            Timing { delay: Duration::ZERO, create_timeout: Duration::from_secs(1) },
+        );
+        guard.finish(1, "done");
+
+        guard.finish_active_after("ignored", || {
+            assert!(guard.state.try_lock().is_some());
+        });
+    }
+
     #[tokio::test(flavor = "current_thread")]
     async fn emits_create_begin_report_end() {
         let mut harness = progress_harness();
@@ -904,22 +950,10 @@ mod tests {
                 assert_eq!(actual, token);
                 assert_eq!(begin.title, PROGRESS_TITLE);
                 assert_eq!(begin.cancellable, Some(false));
-                assert!(begin.message.is_none());
+                assert_eq!(begin.message.as_deref(), Some("reading sources"));
                 assert!(begin.percentage.is_none());
             }
             event => panic!("expected begin, got {event:?}"),
-        }
-        match next_event(&mut harness.events).await {
-            ClientEvent::Progress(ProgressParams {
-                token: actual,
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Report(report)),
-            }) => {
-                assert_eq!(actual, token);
-                assert_eq!(report.cancellable, Some(false));
-                assert_eq!(report.message.as_deref(), Some("reading sources"));
-                assert!(report.percentage.is_none());
-            }
-            event => panic!("expected initial report, got {event:?}"),
         }
 
         ticket.report("analyzing");
@@ -962,6 +996,7 @@ mod tests {
         disabled.finish("ignored");
 
         sleep(PROGRESS_DELAY + Duration::from_millis(50)).await;
+        harness.probe().await;
         assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
 
         harness.shutdown().await;

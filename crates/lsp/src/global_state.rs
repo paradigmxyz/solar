@@ -583,8 +583,12 @@ fn finish_analysis_progress_if_current(
     analysis_version: &Arc<AtomicUsize>,
     analysis_commit: &Arc<Mutex<AnalysisCommitState>>,
     progress: &ProgressTicket,
-    message: &str,
+    message: &'static str,
 ) {
+    if progress.is_disabled() {
+        return;
+    }
+
     let _commit = analysis_commit.lock();
     if analysis_version.load(Ordering::Acquire) == version {
         progress.report(message);
