@@ -165,16 +165,26 @@ contract Test {
 }
 ```
 
-Annotations: `//~ ERROR:`, `//~ WARN:`, `//~ NOTE:`, `//~ HELP:`
-Use `^` or `v` to point to lines above/below.
+Annotations: `//~ ERROR:`, `//~ WARN:`, `//~ NOTE:`, `//~ HELP:`, `//~ ICE:`,
+and `//~ diagnostic_code`. Use `^` or `v` to point to lines above/below, `|`
+to add another annotation for the same line, and `?` for a diagnostic without a
+location in the test file.
+
+The UI runner infers the expected exit status from annotations. `ERROR`, `ICE` 
+annotations expect status 1; tests without them expect status 0.
+Do not add `check-pass` or `check-fail` to ordinary tests.
+Use an explicit status directive only when the inferred status is wrong
+for the test.
 
 Common file-level UI directives:
 
 - `//@ compile-flags: ...`: Pass extra compiler flags for this test.
-- `//@ error-in-other-file: ...`: Expect a diagnostic with this text in an
-  imported/auxiliary source.
+- `//@ check-pass`: Mark the test as expected to pass even if no inline
+  diagnostic annotation appears in the primary file.
 - `//@ check-fail`: Mark the test as expected to fail even if no inline
   diagnostic annotation appears in the primary file.
+- `//@ failure-status: N`: Override the inferred exit status, for example when
+  testing a nonstandard failure status.
 - `//@ ignore-host: windows`: Skip a test on a specific host.
 - `//@[name] compile-flags: ...`: Define revision-specific flags for tests with
   multiple revisions.
