@@ -1,0 +1,8 @@
+// === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after pipeline-default) ===
+@module Pipeline
+@phase optimized
+fn @noisy(arg0: u256) -> u256 {
+  bb0:
+    v0 = add arg0, 1
+    ret v0
+}

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/cold_call_hot_fallthrough.sol:ColdCallHotFallthrough (runtime) ===
+// === ROOT/tests/ui/codegen/lowering/cold_call_fallthrough.sol:ColdCallFallthrough (runtime) ===
 @module runtime
 bb0:
   push 448

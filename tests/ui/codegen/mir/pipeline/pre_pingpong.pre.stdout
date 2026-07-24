@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/pre/pre_pingpong.mir (before pre) ===
-+ // === ROOT/tests/ui/codegen/mir/pre/pre_pingpong.mir (after pre) ===
+- // === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir (before pre) ===
++ // === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir (after pre) ===
   @module PingPong
   fn @pingpong(arg0: u256, arg1: u256) {
     bb0:

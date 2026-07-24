@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/public_library_call.sol:Lib (runtime) ===
+// === ROOT/tests/ui/codegen/lowering/library_call.sol:Lib (runtime) ===
 @module runtime
 bb0:
   push 352
@@ -145,7 +145,7 @@ bb5:
   push 32
   push 128
   return
-// === ROOT/tests/ui/codegen/lowering/public_library_call.sol:C (runtime) ===
+// === ROOT/tests/ui/codegen/lowering/library_call.sol:C (runtime) ===
 @module runtime
 bb0:
   push 672
