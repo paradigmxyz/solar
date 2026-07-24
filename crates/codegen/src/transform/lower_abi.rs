@@ -123,6 +123,14 @@ impl LowerAbiCx {
             return false;
         }
         if wrappable.is_empty() {
+            let has_selectorless_entry = module.functions.iter().any(|func| {
+                func.attributes.is_constructor
+                    || func.attributes.is_receive
+                    || func.attributes.is_fallback
+            });
+            if !has_selectorless_entry {
+                return false;
+            }
             module.advance_phase(MirPhase::Abi);
             return true;
         }
