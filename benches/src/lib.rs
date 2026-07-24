@@ -259,11 +259,13 @@ pub fn get_projects() -> &'static [ProjectSource] {
         // (`test/benchmarks/external-setup.sh` upstream): pinned Foundry
         // projects compiled with their full test suites.
         //
-        // Projects capped below `all()` currently hit divergences in
-        // analysis (storage-array `push` with struct, string, bytes, and
-        // user-defined value type elements; `require` with custom errors;
-        // NatSpec strictness) or an unsupported `.push` form in codegen
-        // (solarray). Re-probe with `--test` when those close.
+        // All nine projects typecheck clean; the caps below are codegen
+        // gaps: struct ABI decoding (seaport's try bindings, the
+        // forge-std StdCheats decodes in prb-math and solarray),
+        // `abi.encodeCall` as low-level call data (morpho-blue), Yul
+        // `.length` (solady), memory-array slicing (openzeppelin), and
+        // user-defined operators (v4-core). Re-probe with `--test` when
+        // those close.
         vec![
             include_project("../testdata/projects/seaport-1.6.json", Capabilities::no_codegen()),
             include_project(
