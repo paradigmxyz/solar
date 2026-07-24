@@ -20,25 +20,62 @@
 
 use crate::{
     analysis::CallGraphInfo,
-    mir::{Function, InstKind, MirPhase, Module, Terminator},
-    pass::ModulePass,
+    mir::{Function, InstKind, MirPhase, Module, Terminator, utils::repair_reachability_phis},
+    pass::MirPass,
 };
 use solar_data_structures::bit_set::DenseBitSet;
 
-/// Statistics from EVM-shape lowering.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct LowerEvmShapedStats {
-    /// Number of internal calls rewritten into tail calls.
-    pub tail_calls: usize,
+/// EVM-shaped phase lowering pass.
+pub(crate) struct LowerEvmShaped;
+
+impl MirPass for LowerEvmShaped {
+    fn name(&self) -> &'static str {
+        "lower-evm-shaped"
+    }
+
+    fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        module.phase == MirPhase::MemoryLowered
+            && module.functions.iter().all(|func| {
+                func.blocks.iter().all(|block| {
+                    block.instructions.iter().all(|&inst| {
+                        !matches!(
+                            func.instructions[inst].kind,
+                            InstKind::MakeSlice { .. }
+                                | InstKind::SlicePtr(_)
+                                | InstKind::SliceLen(_)
+                        )
+                    })
+                })
+            })
+    }
+
+    fn is_required(&self) -> bool {
+        true
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        LowerEvmShapedCx::default().run(module)
+    }
 }
 
-/// EVM-shaped phase lowering pass.
+/// Statistics from EVM-shape lowering.
+#[derive(Clone, Debug, Default)]
+struct LowerEvmShapedStats {
+    /// Number of internal calls rewritten into tail calls.
+    tail_calls: usize,
+}
+
 #[derive(Debug, Default)]
-pub(crate) struct LowerEvmShapedPass {
+struct LowerEvmShapedCx {
     stats: LowerEvmShapedStats,
 }
 
-impl LowerEvmShapedPass {
+impl LowerEvmShapedCx {
     fn run(&mut self, module: &mut Module) -> bool {
         self.stats = LowerEvmShapedStats::default();
         if module.phase >= MirPhase::EvmShaped {
@@ -93,6 +130,7 @@ impl LowerEvmShapedPass {
         let function_ids: Vec<_> = module.functions.indices().collect();
         for func_id in function_ids {
             let func = &mut module.functions[func_id];
+            let mut changed = false;
             for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
                 let insts = &func.blocks[block_id].instructions;
                 let Some(position) = insts.iter().position(|&inst_id| {
@@ -121,17 +159,15 @@ impl LowerEvmShapedPass {
                 func.blocks[block_id].instructions.truncate(position);
                 func.blocks[block_id].terminator = Some(Terminator::TailCall { function, args });
                 self.stats.tail_calls += 1;
+                changed = true;
+            }
+            if changed {
+                repair_reachability_phis(func);
             }
         }
 
         module.advance_phase(MirPhase::EvmShaped);
         self.stats.tail_calls != 0
-    }
-}
-
-impl ModulePass for LowerEvmShapedPass {
-    fn run(&mut self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        Self::run(self, module)
     }
 }
 

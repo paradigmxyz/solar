@@ -1,0 +1,12 @@
+//@compile-flags: --pipeline-default
+//@filecheck: --match-full-lines
+// CHECK: @module PhasePipelineResume
+// CHECK-NEXT: @phase evm-shaped
+// The canonical pipeline resumes progressive lowering when the input has
+// already passed the optimization phase.
+@module PhasePipelineResume
+@phase abi
+fn @ping() [selector=0x5c36b186] {
+  bb0:
+    stop
+}

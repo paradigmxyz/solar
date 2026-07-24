@@ -426,6 +426,14 @@ impl AliasAnalysis {
         Self::with_optional_summaries(func, None)
     }
 
+    /// An unpopulated snapshot: provenance and memos build lazily on the first
+    /// query, so this is equivalent to [`Self::new`] without needing the
+    /// function up front.
+    #[must_use]
+    pub(crate) fn empty() -> Self {
+        Self { provenance: std::cell::OnceCell::new(), call_summaries: None }
+    }
+
     /// Computes a snapshot using module-level internal-call summaries.
     #[must_use]
     pub(crate) fn with_call_summaries(

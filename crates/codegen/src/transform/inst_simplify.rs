@@ -13,20 +13,40 @@
 use crate::{
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
-        Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId,
+        Function, Immediate, InstId, InstKind, MirType, Module, Terminator, Value, ValueId,
         utils as mir_utils,
     },
-    pass::FunctionPass,
+    pass::{MirPass, run_function_pass},
     utils::evm_word,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
+/// Function pass for local instruction simplification.
+pub(crate) struct InstSimplify;
+
+impl MirPass for InstSimplify {
+    fn name(&self) -> &'static str {
+        "inst-simplify"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
+            InstSimplifier::new().run_to_fixpoint(func) != 0
+        })
+    }
+}
+
 /// Local MIR instruction simplification pass.
 #[derive(Debug, Default)]
-pub(crate) struct InstSimplifier {
+struct InstSimplifier {
     /// Number of instructions simplified in the last run.
-    pub simplified_count: usize,
+    simplified_count: usize,
 }
 
 struct RunState {
@@ -45,18 +65,9 @@ impl RunState {
     }
 }
 
-/// Function pass for local instruction simplification.
-pub(crate) struct InstSimplifyPass;
-
-impl FunctionPass for InstSimplifyPass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        InstSimplifier::new().run_to_fixpoint(func) != 0
-    }
-}
-
 impl InstSimplifier {
     /// Creates a new instruction simplifier.
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
@@ -149,7 +160,7 @@ impl InstSimplifier {
     }
 
     /// Runs instruction simplification until no more changes are found.
-    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+    fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
         let mut state = RunState::new(func);
         for round in 1.. {

@@ -6,43 +6,55 @@
 //! and values escaping a candidate dead block all prevent rewriting.
 
 use crate::{
-    mir::{BlockId, Function, InstId, Terminator, ValueId, utils::repair_reachability_phis},
-    pass::FunctionPass,
-    transform::DeadCodeEliminator,
+    mir::{
+        BlockId, Function, InstId, Module, Terminator, ValueId, utils::repair_reachability_phis,
+    },
+    pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
+/// Function pass for aggressive dead-code elimination.
+pub(crate) struct Adce;
+
+impl MirPass for Adce {
+    fn name(&self) -> &'static str {
+        "adce"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
+            let changed = AggressiveDeadCodeEliminator::new().run(func).total() != 0;
+            repair_reachability_phis(func);
+            changed
+        })
+    }
+}
+
 /// Statistics for aggressive dead-code elimination.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct AdceStats {
+struct AdceStats {
     /// Number of control terminators replaced with unconditional jumps.
-    pub control_edges_removed: usize,
+    control_edges_removed: usize,
     /// Number of instructions removed by cleanup DCE after control rewrites.
-    pub instructions_removed: usize,
+    instructions_removed: usize,
 }
 
 impl AdceStats {
     /// Returns the total number of MIR edits made by this pass.
-    pub(crate) const fn total(self) -> usize {
+    const fn total(self) -> usize {
         self.control_edges_removed + self.instructions_removed
     }
 }
 
 /// Aggressive dead-code eliminator.
 #[derive(Debug, Default)]
-pub(crate) struct AggressiveDeadCodeEliminator {
+struct AggressiveDeadCodeEliminator {
     stats: AdceStats,
-}
-
-/// Function pass for aggressive dead-code elimination.
-pub(crate) struct AdcePass;
-
-impl FunctionPass for AdcePass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        let changed = AggressiveDeadCodeEliminator::new().run(func).total() != 0;
-        repair_reachability_phis(func);
-        changed
-    }
 }
 
 #[derive(Debug)]
@@ -68,12 +80,12 @@ impl TargetSearch {
 
 impl AggressiveDeadCodeEliminator {
     /// Creates a new ADCE pass.
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     /// Runs aggressive dead-code elimination once to a fixed point.
-    pub(crate) fn run(&mut self, func: &mut Function) -> AdceStats {
+    fn run(&mut self, func: &mut Function) -> AdceStats {
         self.stats = AdceStats::default();
 
         loop {
@@ -86,7 +98,7 @@ impl AggressiveDeadCodeEliminator {
             repair_reachability_phis(func);
         }
 
-        let removed = DeadCodeEliminator::new().run_to_fixpoint(func);
+        let removed = super::dce::DeadCodeEliminator::new().run_to_fixpoint(func);
         self.stats.instructions_removed += removed;
         self.stats
     }

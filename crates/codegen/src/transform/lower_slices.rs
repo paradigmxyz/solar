@@ -10,24 +10,47 @@ use crate::{
         BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction, MirType,
         Module, SliceLocation, Value, ValueId,
     },
-    pass::ModulePass,
+    pass::MirPass,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::Gcx;
 
+/// Lowers logical slices to the word-based backend convention.
+pub(crate) struct LowerSlices;
+
+impl MirPass for LowerSlices {
+    fn name(&self) -> &'static str {
+        "lower-slices"
+    }
+
+    fn is_required(&self) -> bool {
+        true
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        let mut cx = LowerSlicesCx::default();
+        cx.run(module)
+    }
+}
+
 /// Statistics from slice lowering.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct LowerSlicesStats {
+struct LowerSlicesStats {
     /// Slice constructors erased.
-    pub slices: usize,
+    slices: usize,
     /// Pointer/length projections resolved.
-    pub projections: usize,
+    projections: usize,
     /// Logical slice parameters expanded into pointer/length words.
-    pub params: usize,
+    params: usize,
     /// Logical call arguments expanded into pointer/length words.
-    pub call_args: usize,
+    call_args: usize,
     /// External slice parameters projected back to ABI head reads.
-    pub external_params: usize,
+    external_params: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -37,9 +60,8 @@ enum ParamRepr {
     Pair,
 }
 
-/// Lowers logical slices to the word-based backend convention.
 #[derive(Debug, Default)]
-pub(crate) struct LowerSlicesPass {
+struct LowerSlicesCx {
     stats: LowerSlicesStats,
 }
 
@@ -91,7 +113,7 @@ fn new_slice_inst(
     (inst, value)
 }
 
-impl LowerSlicesPass {
+impl LowerSlicesCx {
     /// Rewrites slice-typed `select` and `phi` into paired pointer/length
     /// operations over a `make_slice`, so no two-word slice value survives an
     /// aggregate use. Each operand slice is then consumed only by projections
@@ -560,8 +582,8 @@ impl LowerSlicesPass {
     }
 }
 
-impl ModulePass for LowerSlicesPass {
-    fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+impl LowerSlicesCx {
+    fn run(&mut self, module: &mut Module) -> bool {
         self.stats = LowerSlicesStats::default();
         let compact = Self::infer_compact_params(module);
         let signatures: FxHashMap<_, _> = module

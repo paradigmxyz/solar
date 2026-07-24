@@ -1,5 +1,6 @@
 //! Target-dependent selection of compact immediate materializations.
 
+use super::EvmPass;
 use crate::backend::evm::{
     EVM_WORD_BYTES,
     ir::{Instruction, Module, PushValue},
@@ -8,10 +9,21 @@ use crate::backend::evm::{
 use alloy_primitives::U256;
 use solar_sema::Gcx;
 
+pub(super) struct CompactPushes;
+
+impl EvmPass for CompactPushes {
+    fn name(&self) -> &'static str {
+        "compact-pushes"
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        compact_pushes(gcx, module)
+    }
+}
 const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
 const MIN_COMPACT_MASK_WIDTH: u8 = 5;
 
-pub(super) fn run(gcx: Gcx<'_>, module: &mut Module) -> bool {
+fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {

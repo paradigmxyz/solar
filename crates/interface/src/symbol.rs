@@ -991,6 +991,7 @@ symbols! {
         creationCode,
         data,
         decode,
+        deferred_alloc,
         deployment,
         dispatch,
         display_test,

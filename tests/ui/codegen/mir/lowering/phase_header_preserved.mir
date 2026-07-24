@@ -1,9 +1,9 @@
-//@compile-flags: --pass dce
+//@compile-flags: --pipeline-default
 //@filecheck: --match-full-lines
 // CHECK: @module PhaseHeaderPreserved
 // CHECK-NEXT: @phase optimized
-// An explicit phase in the header round-trips through single-pass runs:
-// ad-hoc pass lists neither advance nor reset the phase.
+// Re-running the default pipeline on its own output keeps the phase instead of
+// rejecting the idempotent optimized-to-optimized transition.
 @module PhaseHeaderPreserved
 @phase optimized
 fn @f() {

@@ -25,8 +25,7 @@ pub(crate) struct Immutable {
 /// MIR is a phased IR, like rustc's MIR: the same data structures pass through
 /// well-defined phases, and passes declare what phase they expect and produce.
 /// Phases only move forward. The enum order is the lowering order, so
-/// [`MirPhase`] derives `Ord` and [`Module::advance_phase`] can assert
-/// monotonicity.
+/// [`MirPhase`] derives `Ord` and `Module::advance_phase` can assert monotonicity.
 ///
 /// Optimization runs on the compact high-level form first; the progressive
 /// lowering phases then rewrite high-level constructs into MIR itself instead
@@ -35,7 +34,7 @@ pub(crate) struct Immutable {
 /// consumes the `evm-shaped` module. A module where ABI/dispatch lowering bails
 /// keeps its earlier phase and uses the backend dispatcher.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum MirPhase {
+pub enum MirPhase {
     /// Fresh from HIR lowering: typed values, internal calls by function id,
     /// dispatch and ABI handling not yet materialized as MIR.
     #[default]
@@ -64,7 +63,7 @@ pub(crate) enum MirPhase {
 impl MirPhase {
     /// Stable textual name, as printed in the module header.
     #[must_use]
-    pub(crate) const fn name(self) -> &'static str {
+    pub const fn name(self) -> &'static str {
         match self {
             Self::Built => "built",
             Self::Optimized => "optimized",

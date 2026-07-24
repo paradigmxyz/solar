@@ -10,8 +10,9 @@ use super::print_pass_diff;
 use clap::ValueHint;
 use solar_codegen::backend::evm::ir;
 use solar_config::CompileOpts;
+use solar_data_structures::fmt::FmtIteratorExt;
 use solar_sema::Gcx;
-use std::{path::Path, process::ExitCode};
+use std::{fmt::Display, path::Path, process::ExitCode};
 
 #[derive(clap::Args)]
 #[command(after_help = after_help(), arg_required_else_help = true)]
@@ -25,13 +26,13 @@ pub(crate) struct EvmOptArgs {
         value_parser = parse_pass,
         default_value = "none"
     )]
-    passes: Vec<Option<&'static ir::PassInfo>>,
+    passes: Vec<Option<&'static dyn ir::EvmPass>>,
     /// Path to input file. Extension determines whether it's .evmir.
     #[arg(value_hint = ValueHint::FilePath)]
     input: String,
 }
 
-fn parse_pass(name: &str) -> Result<Option<&'static ir::PassInfo>, String> {
+fn parse_pass(name: &str) -> Result<Option<&'static dyn ir::EvmPass>, String> {
     match name {
         "none" => Ok(None),
         other => {
@@ -41,30 +42,33 @@ fn parse_pass(name: &str) -> Result<Option<&'static ir::PassInfo>, String> {
 }
 
 fn after_help() -> String {
+    let separator = "
+  ";
     format!(
-        "Passes:\n  {}\n  {:<20} No transform; validate and print the module\n\nInput formats:\n  *.evmir  EVM IR",
-        ir::PASS_REGISTRY
-            .iter()
-            .map(|pass| format!("{:<20} {}", pass.name, pass.description))
-            .collect::<Vec<_>>()
-            .join("\n  "),
-        "none",
+        "\
+Passes:
+  {}
+  none
+
+Input formats:
+  *.evmir  EVM IR",
+        ir::ALL_PASSES.iter().map(|pass| pass.name()).format(separator)
     )
 }
 
-fn pass_label(pass: Option<&ir::PassInfo>) -> &'static str {
+fn pass_label(pass: Option<&dyn ir::EvmPass>) -> &'static str {
     match pass {
-        Some(pass) => pass.name,
+        Some(pass) => pass.name(),
         None => "none",
     }
 }
 
-fn selected_pass_list_label(passes: &[Option<&ir::PassInfo>], separator: &str) -> String {
-    passes.iter().copied().map(pass_label).collect::<Vec<_>>().join(separator)
+fn selected_pass_list_label(passes: &[Option<&dyn ir::EvmPass>], separator: &str) -> String {
+    passes.iter().copied().map(pass_label).format(separator).to_string()
 }
 
 /// Prints a module with a header indicating which pass(es) produced it.
-fn print_module(module: &ir::Module, name: &str, after: &str) {
+fn print_module(module: &ir::Module, name: impl Display, after: impl Display) {
     println!("// === {name} (after {after}) ===");
     print!("{}", module.to_text());
 }
@@ -73,11 +77,11 @@ fn run_pipeline(gcx: Gcx<'_>, module: &mut ir::Module, name: &str, args: &EvmOpt
     let sess = gcx.sess;
     let dcx = &sess.dcx;
     let print_after_each = sess.opts.unstable.print_after_each;
-    let pipeline_label = selected_pass_list_label(&args.passes, ",");
+    let mut pipeline_label = None;
     for (index, &pass) in args.passes.iter().enumerate() {
         let before = sess.opts.unstable.pass_diff.then(|| module.to_text().to_string());
         if let Some(pass) = pass {
-            ir::run_pass(gcx, module, pass);
+            ir::run_passes(gcx, module, &[pass]);
         }
         if before.is_some() || print_after_each || index + 1 == args.passes.len() {
             ir::validate(dcx, module);
@@ -85,10 +89,15 @@ fn run_pipeline(gcx: Gcx<'_>, module: &mut ir::Module, name: &str, args: &EvmOpt
                 break;
             }
             if let Some(before) = before {
-                let after = module.to_text().to_string();
-                print_pass_diff(name, pass_label(pass), &before, &after);
+                let after = module.to_text();
+                print_pass_diff(name, pass_label(pass), before, after);
             } else {
-                let label = if print_after_each { pass_label(pass) } else { &pipeline_label };
+                let label = if print_after_each {
+                    pass_label(pass)
+                } else {
+                    pipeline_label
+                        .get_or_insert_with(|| selected_pass_list_label(&args.passes, ","))
+                };
                 print_module(module, name, label);
             }
         }

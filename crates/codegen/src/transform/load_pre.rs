@@ -79,46 +79,63 @@ use crate::{
     },
     mir::{
         BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
-        MirType, StorageAlias, Terminator, Value, ValueId,
+        MirType, Module, StorageAlias, Terminator, Value, ValueId,
         utils::{self as mir_utils, repair_reachability_phis},
     },
-    pass::FunctionPass,
+    pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
 };
+use std::rc::Rc;
+
+/// Function pass for load PRE.
+pub(crate) struct LoadPre;
+
+impl MirPass for LoadPre {
+    fn name(&self) -> &'static str {
+        "load-pre"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
+            let mut eliminator = LoadRedundancyEliminator::new();
+            eliminator.alias = Some(Rc::clone(&analyses.alias));
+            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+            eliminator.run(func).total() != 0
+        })
+    }
+}
 
 /// Statistics for load PRE.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct LoadPreStats {
+struct LoadPreStats {
     /// Number of join-block loads replaced by phis or available values.
-    pub loads_eliminated: usize,
+    loads_eliminated: usize,
     /// Number of compensating loads inserted into predecessors.
-    pub loads_inserted: usize,
+    loads_inserted: usize,
 }
 
 impl LoadPreStats {
     /// Returns the total number of MIR edits made by this pass.
-    pub(crate) const fn total(self) -> usize {
+    const fn total(self) -> usize {
         self.loads_eliminated + self.loads_inserted
     }
 }
 
 /// Dataflow-based redundancy eliminator for memory-dependent reads.
 #[derive(Debug, Default)]
-pub(crate) struct LoadRedundancyEliminator {
+struct LoadRedundancyEliminator {
+    /// Shared CFG snapshot for the availability dataflow.
+    cfg: Option<Rc<CfgInfo>>,
     stats: LoadPreStats,
-    alias: Option<AliasAnalysis>,
-}
-
-/// Function pass for load PRE.
-pub(crate) struct LoadPrePass;
-
-impl FunctionPass for LoadPrePass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        LoadRedundancyEliminator::new().run(func).total() != 0
-    }
+    alias: Option<Rc<AliasAnalysis>>,
 }
 
 /// A normalized key for a state-dependent read.
@@ -249,7 +266,7 @@ impl LoadPreCostModel {
 struct Analysis {
     keys: Vec<LoadKey>,
     key_index: FxHashMap<LoadKey, usize>,
-    cfg: CfgInfo,
+    cfg: Rc<CfgInfo>,
     /// Per-block keys killed at any point in the block; only blocks that kill
     /// something have an entry.
     kills: FxHashMap<BlockId, KeySet>,
@@ -294,15 +311,17 @@ struct CandidateCx<'a> {
 
 impl LoadRedundancyEliminator {
     /// Creates a new load PRE pass.
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     /// Runs load PRE to a fixed point under the rewrite budget.
-    pub(crate) fn run(&mut self, func: &mut Function) -> LoadPreStats {
+    fn run(&mut self, func: &mut Function) -> LoadPreStats {
         self.stats = LoadPreStats::default();
         repair_reachability_phis(func);
-        self.alias = Some(AliasAnalysis::new(func));
+        if self.alias.is_none() {
+            self.alias = Some(Rc::new(AliasAnalysis::new(func)));
+        }
 
         let rewrite_limit = func.instructions.len().saturating_mul(2).max(64);
         let mut rewrites = 0usize;
@@ -338,7 +357,7 @@ impl LoadRedundancyEliminator {
     }
 
     fn compute_analysis(&self, func: &Function) -> Option<Analysis> {
-        let cfg = CfgInfo::new(func);
+        let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
         let rpo = cfg.rpo();
 
         // The key universe: every key genned in a reachable block.

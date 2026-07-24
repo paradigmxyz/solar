@@ -20,9 +20,47 @@ use crate::{
         BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
         Terminator, Value, ValueId, utils::repair_reachability_phis,
     },
-    pass::{FunctionPass, ModulePass},
+    pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+
+/// Function pass for CFG simplification.
+pub(crate) struct CfgSimplify;
+
+impl MirPass for CfgSimplify {
+    fn name(&self) -> &'static str {
+        "cfg-simplify"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
+            CfgSimplifier::new().run_to_fixpoint(func).total() != 0
+        })
+    }
+}
+
+/// Module pass for dead internal function elimination.
+pub(crate) struct FunctionDce;
+
+impl MirPass for FunctionDce {
+    fn name(&self) -> &'static str {
+        "function-dce"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        DeadFunctionEliminator::new().run(module) != 0
+    }
+}
 
 /// Alpha-equivalence key for a terminal block used by
 /// [`CfgSimplifier::deduplicate_terminal_blocks`].
@@ -62,27 +100,27 @@ enum CanonOperand {
 
 /// Statistics from CFG simplification.
 #[derive(Debug, Default, Clone)]
-pub(crate) struct CfgSimplifyStats {
+struct CfgSimplifyStats {
     /// Number of blocks merged.
-    pub blocks_merged: usize,
+    blocks_merged: usize,
     /// Number of empty blocks eliminated.
-    pub empty_blocks_eliminated: usize,
+    empty_blocks_eliminated: usize,
     /// Number of degenerate terminators simplified.
-    pub terminators_simplified: usize,
+    terminators_simplified: usize,
     /// Number of trivial phi nodes replaced by their unique incoming value.
-    pub trivial_phis_simplified: usize,
+    trivial_phis_simplified: usize,
     /// Number of identical terminal blocks merged into one shared block.
-    pub terminal_blocks_deduplicated: usize,
+    terminal_blocks_deduplicated: usize,
     /// Number of dead functions eliminated.
-    pub dead_functions_eliminated: usize,
+    dead_functions_eliminated: usize,
     /// Estimated gas saved (8 gas per eliminated jump).
-    pub gas_saved: usize,
+    gas_saved: usize,
 }
 
 impl CfgSimplifyStats {
     /// Returns total optimizations performed.
     #[must_use]
-    pub(crate) fn total(&self) -> usize {
+    fn total(&self) -> usize {
         self.blocks_merged
             + self.empty_blocks_eliminated
             + self.terminators_simplified
@@ -92,7 +130,7 @@ impl CfgSimplifyStats {
     }
 
     /// Combines stats from another run.
-    pub(crate) fn combine(&mut self, other: &Self) {
+    fn combine(&mut self, other: &Self) {
         self.blocks_merged += other.blocks_merged;
         self.empty_blocks_eliminated += other.empty_blocks_eliminated;
         self.terminators_simplified += other.terminators_simplified;
@@ -105,30 +143,21 @@ impl CfgSimplifyStats {
 
 /// CFG simplification pass for a single function.
 #[derive(Debug, Default)]
-pub(crate) struct CfgSimplifier {
+struct CfgSimplifier {
     /// Statistics from the last run.
-    pub stats: CfgSimplifyStats,
-}
-
-/// Function pass for CFG simplification.
-pub(crate) struct CfgSimplifyPass;
-
-impl FunctionPass for CfgSimplifyPass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        CfgSimplifier::new().run_to_fixpoint(func).total() != 0
-    }
+    stats: CfgSimplifyStats,
 }
 
 impl CfgSimplifier {
     /// Creates a new CFG simplifier.
     #[must_use]
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     /// Runs CFG simplification on a function.
     /// Returns the number of optimizations performed.
-    pub(crate) fn run(&mut self, func: &mut Function) -> usize {
+    fn run(&mut self, func: &mut Function) -> usize {
         self.stats = CfgSimplifyStats::default();
 
         self.simplify_degenerate_terminators(func);
@@ -344,7 +373,7 @@ impl CfgSimplifier {
     }
 
     /// Runs CFG simplification iteratively until no more changes.
-    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> CfgSimplifyStats {
+    fn run_to_fixpoint(&mut self, func: &mut Function) -> CfgSimplifyStats {
         let mut total_stats = CfgSimplifyStats::default();
         loop {
             let changed = self.run(func);
@@ -647,30 +676,21 @@ impl CfgSimplifier {
 
 /// Dead function elimination pass for a module.
 #[derive(Debug, Default)]
-pub(crate) struct DeadFunctionEliminator {
+struct DeadFunctionEliminator {
     /// Statistics from the last run.
-    pub stats: CfgSimplifyStats,
-}
-
-/// Module pass for dead internal function elimination.
-pub(crate) struct FunctionDcePass;
-
-impl ModulePass for FunctionDcePass {
-    fn run(&mut self, _gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-        DeadFunctionEliminator::new().run(module) != 0
-    }
+    stats: CfgSimplifyStats,
 }
 
 impl DeadFunctionEliminator {
     /// Creates a new dead function eliminator.
     #[must_use]
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     /// Runs dead function elimination on a module.
     /// Returns the number of functions eliminated.
-    pub(crate) fn run(&mut self, module: &mut Module) -> usize {
+    fn run(&mut self, module: &mut Module) -> usize {
         self.stats = CfgSimplifyStats::default();
 
         let call_graph = CallGraphInfo::new(module);

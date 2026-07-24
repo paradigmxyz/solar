@@ -10,19 +10,42 @@ use crate::{
         BlockId, Function, FunctionId as MirFunctionId, Immediate, InstKind, Instruction, MirType,
         Module, Terminator, Value, ValueId,
     },
-    pass::ModulePass,
+    pass::MirPass,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_sema::Gcx;
 
+/// Module pass for metadata-backed MIR inlining.
+pub(crate) struct Inline;
+
+impl MirPass for Inline {
+    fn name(&self) -> &'static str {
+        "inline"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        let mut inliner = if gcx.sess.opts.optimization == solar_config::OptimizationMode::Size {
+            MirInliner::for_size()
+        } else {
+            MirInliner::default()
+        };
+        inliner.run(module).inlined != 0
+    }
+}
+
 /// Module-level MIR internal-call inliner.
 ///
 /// This pass clones small internal/private callees into their callers. Each
 /// inline expansion gets a fresh internal-frame range so copied local slots do
 /// not overlap caller locals.
-pub(crate) struct MirInliner {
+struct MirInliner {
     /// Maximum instruction count for ordinary inline candidates.
     max_instructions: usize,
     /// Hard sanity limit for single-call-site callees. These bypass the normal
@@ -77,20 +100,20 @@ impl MirInliner {
     /// off were measured to increase size). Lowering-time inlining is disabled
     /// independently; this zero budget also lets the MIR inliner skip analysis.
     #[must_use]
-    pub(crate) fn for_size() -> Self {
+    fn for_size() -> Self {
         Self { max_module_code_size: 0, ..Self::default() }
     }
 }
 
 /// Statistics for MIR-level inlining.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct MirInlineStats {
+struct MirInlineStats {
     /// Number of internal call sites considered.
-    pub call_sites: usize,
+    call_sites: usize,
     /// Number of call sites inlined.
-    pub inlined: usize,
+    inlined: usize,
     /// Number of call sites skipped because the callee was not inlineable.
-    pub skipped: usize,
+    skipped: usize,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -115,23 +138,9 @@ struct MirInlineSummary {
     no_inline: bool,
 }
 
-/// Module pass for metadata-backed MIR inlining.
-pub(crate) struct InlinePass;
-
-impl ModulePass for InlinePass {
-    fn run(&mut self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let mut inliner = if gcx.sess.opts.optimization == solar_config::OptimizationMode::Size {
-            MirInliner::for_size()
-        } else {
-            MirInliner::default()
-        };
-        inliner.run(module).inlined != 0
-    }
-}
-
 impl MirInliner {
     /// Runs the inliner over the whole module.
-    pub(crate) fn run(&mut self, module: &mut Module) -> MirInlineStats {
+    fn run(&mut self, module: &mut Module) -> MirInlineStats {
         let mut stats = MirInlineStats::default();
 
         // A zero budget is an explicit off switch (used by `-O size`). Avoid

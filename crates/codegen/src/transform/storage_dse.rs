@@ -7,20 +7,43 @@
 
 use crate::{
     analysis::{Access, AddressSpace, AliasAnalysis, Location, ModRef},
-    mir::{BlockId, Function, InstId, InstKind, StorageAlias, ValueId, utils as mir_utils},
-    pass::FunctionPass,
+    mir::{BlockId, Function, InstId, InstKind, Module, StorageAlias, ValueId, utils as mir_utils},
+    pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::{
     bit_set::DenseBitSet,
     map::{FxHashMap, FxHashSet},
 };
+use std::rc::Rc;
+
+/// Function pass for local dead storage-store elimination.
+pub(crate) struct StorageDse;
+
+impl MirPass for StorageDse {
+    fn name(&self) -> &'static str {
+        "storage-dse"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
+            let mut eliminator = StorageStoreEliminator::new();
+            eliminator.alias = Some(Rc::clone(&analyses.alias));
+            eliminator.run_to_fixpoint(func) != 0
+        })
+    }
+}
 
 /// Local dead storage-store elimination pass.
 #[derive(Debug, Default)]
-pub(crate) struct StorageStoreEliminator {
+struct StorageStoreEliminator {
     /// Number of storage stores eliminated.
-    pub eliminated_count: usize,
-    alias: Option<AliasAnalysis>,
+    eliminated_count: usize,
+    alias: Option<Rc<AliasAnalysis>>,
 }
 
 struct RunState {
@@ -39,25 +62,18 @@ impl RunState {
     }
 }
 
-/// Function pass for local dead storage-store elimination.
-pub(crate) struct StorageDsePass;
-
-impl FunctionPass for StorageDsePass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        StorageStoreEliminator::new().run_to_fixpoint(func) != 0
-    }
-}
-
 impl StorageStoreEliminator {
     /// Creates a new storage-store eliminator.
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
         self.eliminated_count = 0;
         func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
-        self.alias = Some(AliasAnalysis::new(func));
+        if self.alias.is_none() {
+            self.alias = Some(Rc::new(AliasAnalysis::new(func)));
+        }
 
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         for block_id in block_ids {
@@ -74,7 +90,7 @@ impl StorageStoreEliminator {
     }
 
     /// Runs local storage DSE to a fixed point.
-    pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+    fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
         let mut state = RunState::new(func);
         loop {

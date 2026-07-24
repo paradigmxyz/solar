@@ -18,16 +18,37 @@
 
 use crate::{
     analysis::AliasAnalysis,
-    mir::{AllocationKind, BlockId, Function, InstId, InstKind, MemoryObjectLayout, ValueId},
-    pass::FunctionPass,
+    mir::{
+        AllocationKind, BlockId, Function, InstId, InstKind, MemoryObjectLayout, Module, ValueId,
+    },
+    pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 /// Scalar-replacement-of-aggregates pass for memory objects.
+pub(crate) struct Sroa;
+
+impl MirPass for Sroa {
+    fn name(&self) -> &'static str {
+        "sroa"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
+            SroaCx::default().run(func, &analyses.alias)
+        })
+    }
+}
+
 #[derive(Debug, Default)]
-pub(crate) struct SroaPass {
+struct SroaCx {
     /// Number of allocations dissolved.
-    pub eliminated: usize,
+    eliminated: usize,
 }
 
 /// Whether a memory-object layout is a fixed-shape aggregate whose slots are
@@ -37,8 +58,8 @@ fn is_fixed_aggregate(layout: MemoryObjectLayout) -> bool {
     matches!(layout, MemoryObjectLayout::Struct { .. } | MemoryObjectLayout::FixedArray { .. })
 }
 
-impl SroaPass {
-    fn run(&mut self, func: &mut Function) -> bool {
+impl SroaCx {
+    fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
         let mut allocs: Vec<(BlockId, InstId, ValueId)> = Vec::new();
         for block_id in func.blocks.indices() {
             for &inst_id in &func.blocks[block_id].instructions {
@@ -55,11 +76,10 @@ impl SroaPass {
             return false;
         }
 
-        let alias = AliasAnalysis::new(func);
         let inst_results = func.inst_results();
         let mut changed = false;
         for (block_id, alloc_inst, object) in allocs {
-            if let Some(plan) = self.plan(func, &alias, &inst_results, block_id, alloc_inst, object)
+            if let Some(plan) = self.plan(func, alias, &inst_results, block_id, alloc_inst, object)
             {
                 self.apply(func, block_id, plan);
                 self.eliminated += 1;
@@ -188,11 +208,4 @@ impl SroaPass {
 struct Plan {
     replacements: FxHashMap<ValueId, ValueId>,
     dead: FxHashSet<InstId>,
-}
-
-impl FunctionPass for SroaPass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        self.eliminated = 0;
-        self.run(func)
-    }
 }

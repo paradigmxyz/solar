@@ -32,8 +32,7 @@ mod function;
 pub(crate) use function::{Function, FunctionAttributes};
 
 mod module;
-pub(crate) use module::MirPhase;
-pub use module::Module;
+pub use module::{MirPhase, Module};
 
 mod builder;
 pub(crate) use builder::FunctionBuilder;
