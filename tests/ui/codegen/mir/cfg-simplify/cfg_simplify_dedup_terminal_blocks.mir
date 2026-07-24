@@ -4,8 +4,9 @@
 
 // Two structurally identical panic blocks collapse into one shared block.
 // CHECK-LABEL: {{^[ +].*}}fn @dedup_identical_panics{{[( ]}}
+// CHECK: {{^[ +].*}}br arg0, [[PANIC:bb[0-9]+]], {{bb[0-9]+}}
 // CHECK: - br arg1, bb3, bb4
-// CHECK: + br arg1, bb1, bb4
+// CHECK: + br arg1, [[PANIC]], {{bb[0-9]+}}
 fn @dedup_identical_panics(arg0: u256, arg1: u256) {
   bb0:
     br arg0, bb1, bb2
@@ -66,8 +67,9 @@ fn @keep_distinct_revert_sizes(arg0: u256, arg1: u256) {
 // Block-local values compare by definition position, so alpha-equivalent
 // computations merge.
 // CHECK-LABEL: {{^[ +].*}}fn @dedup_local_computations{{[( ]}}
+// CHECK: {{^[ +].*}}br arg0, [[COMPUTATION:bb[0-9]+]], {{bb[0-9]+}}
 // CHECK: - br arg1, bb3, bb4
-// CHECK: + br arg1, bb1, bb4
+// CHECK: + br arg1, [[COMPUTATION]], {{bb[0-9]+}}
 fn @dedup_local_computations(arg0: u256, arg1: u256) {
   bb0:
     br arg0, bb1, bb2

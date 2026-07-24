@@ -1,0 +1,8 @@
+error: unknown block `bb9`
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_unknown_block.mir:LL:CC
+   │
+LL │     jump bb9
+   ╰╴         ━━━
+
+error: aborting due to 1 previous error
+

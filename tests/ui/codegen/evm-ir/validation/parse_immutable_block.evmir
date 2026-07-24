@@ -1,0 +1,5 @@
+@module ImmutableBlock
+
+bb0:
+  push_immutable bb1 //~ ERROR: expected integer literal
+  stop

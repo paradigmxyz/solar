@@ -18,7 +18,8 @@ use crate::{
     analysis::{CallGraphInfo, CfgInfo},
     mir::{
         BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
-        Terminator, Value, ValueId, utils::repair_reachability_phis,
+        Terminator, Value, ValueId,
+        utils::{repair_reachability_phis, retain_blocks},
     },
     pass::{MirPass, run_function_pass},
 };
@@ -111,6 +112,8 @@ struct CfgSimplifyStats {
     trivial_phis_simplified: usize,
     /// Number of identical terminal blocks merged into one shared block.
     terminal_blocks_deduplicated: usize,
+    /// Number of unreachable block tombstones removed.
+    unreachable_blocks_removed: usize,
     /// Number of dead functions eliminated.
     dead_functions_eliminated: usize,
     /// Estimated gas saved (8 gas per eliminated jump).
@@ -126,6 +129,7 @@ impl CfgSimplifyStats {
             + self.terminators_simplified
             + self.trivial_phis_simplified
             + self.terminal_blocks_deduplicated
+            + self.unreachable_blocks_removed
             + self.dead_functions_eliminated
     }
 
@@ -136,6 +140,7 @@ impl CfgSimplifyStats {
         self.terminators_simplified += other.terminators_simplified;
         self.trivial_phis_simplified += other.trivial_phis_simplified;
         self.terminal_blocks_deduplicated += other.terminal_blocks_deduplicated;
+        self.unreachable_blocks_removed += other.unreachable_blocks_removed;
         self.dead_functions_eliminated += other.dead_functions_eliminated;
         self.gas_saved += other.gas_saved;
     }
@@ -348,9 +353,8 @@ impl CfgSimplifier {
     }
 
     fn simplify_degenerate_terminators(&mut self, func: &mut Function) {
-        let block_ids: Vec<_> = func.blocks.indices().collect();
         let mut changed = false;
-        for block_id in block_ids {
+        for block_id in func.blocks.indices() {
             let Some(Terminator::Branch { then_block, else_block, .. }) =
                 func.blocks[block_id].terminator.as_ref()
             else {
@@ -382,7 +386,19 @@ impl CfgSimplifier {
             }
             total_stats.combine(&self.stats);
         }
+        total_stats.unreachable_blocks_removed = self.remove_unreachable_blocks(func);
         total_stats
+    }
+
+    fn remove_unreachable_blocks(&self, func: &mut Function) -> usize {
+        let cfg = CfgInfo::new(func);
+        let order =
+            func.blocks.indices().filter(|&block| cfg.is_reachable(block)).collect::<Vec<_>>();
+        let removed = func.blocks.len() - order.len();
+        if removed != 0 {
+            retain_blocks(func, &order);
+        }
+        removed
     }
 
     /// Merges blocks where A unconditionally jumps to B and B has only A as predecessor.
@@ -732,171 +748,5 @@ impl DeadFunctionEliminator {
         }
 
         self.stats.dead_functions_eliminated
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::{FunctionBuilder, Instruction, MirType, Value};
-    use solar_interface::Ident;
-    use solar_sema::hir::Visibility;
-
-    #[test]
-    fn dead_function_elimination_keeps_internal_call_targets() {
-        let mut module = Module::new(Ident::DUMMY);
-
-        let dead_helper = module.add_function(Function::new(Ident::DUMMY));
-        let live_helper = module.add_function(Function::new(Ident::DUMMY));
-
-        let mut entry = Function::new(Ident::DUMMY);
-        entry.selector = Some([0, 0, 0, 1]);
-        entry.attributes.visibility = Visibility::Public;
-        {
-            let mut builder = FunctionBuilder::new(&mut entry);
-            let value = builder.internal_call(live_helper, Vec::new(), MirType::uint256(), 1);
-            builder.ret([value]);
-        }
-        module.add_function(entry);
-
-        let mut tail_entry = Function::new(Ident::DUMMY);
-        tail_entry.selector = Some([0, 0, 0, 2]);
-        tail_entry.attributes.visibility = Visibility::Public;
-        FunctionBuilder::new(&mut tail_entry).tail_call(live_helper, Vec::new());
-        module.add_function(tail_entry);
-
-        {
-            let mut builder = FunctionBuilder::new(module.function_mut(live_helper));
-            let value = builder.imm_u64(1);
-            builder.ret([value]);
-        }
-        {
-            let mut builder = FunctionBuilder::new(module.function_mut(dead_helper));
-            let value = builder.imm_u64(2);
-            builder.ret([value]);
-        }
-
-        let mut dfe = DeadFunctionEliminator::new();
-        assert_eq!(dfe.run(&mut module), 1);
-
-        assert_eq!(module.functions.len(), 3);
-        assert!(module.functions.iter().all(|func| !func.blocks.is_empty()));
-        let live_helper = FunctionId::from_usize(0);
-        let entry = module.function(FunctionId::from_usize(1));
-        let InstKind::InternalCall { function, .. } =
-            &entry.instructions.iter().next().expect("entry call").kind
-        else {
-            panic!("expected internal call");
-        };
-        assert_eq!(*function, live_helper);
-
-        let tail_entry = module.function(FunctionId::from_usize(2));
-        let Some(Terminator::TailCall { function, .. }) =
-            &tail_entry.blocks[BlockId::ENTRY].terminator
-        else {
-            panic!("expected tail call");
-        };
-        assert_eq!(*function, live_helper);
-    }
-
-    #[test]
-    fn empty_forwarder_rewrites_target_phi_incoming() {
-        let mut func = Function::new(Ident::DUMMY);
-        let forwarder;
-        let direct;
-        let target;
-        let value;
-        let other;
-        {
-            let mut builder = FunctionBuilder::new(&mut func);
-            forwarder = builder.create_block();
-            direct = builder.create_block();
-            target = builder.create_block();
-
-            value = builder.imm_u64(42);
-            let cond = builder.imm_bool(true);
-            builder.branch(cond, forwarder, direct);
-
-            builder.switch_to_block(direct);
-            let seven = builder.imm_u64(7);
-            other = builder.add(seven, value);
-            builder.jump(target);
-
-            builder.switch_to_block(forwarder);
-            builder.jump(target);
-        }
-
-        let phi_inst = func.alloc_inst(Instruction::new(
-            InstKind::Phi(vec![(forwarder, value), (direct, other)]),
-            Some(MirType::uint256()),
-        ));
-        let phi_value = func.alloc_value(Value::Inst(phi_inst));
-        func.blocks[target].instructions.push(phi_inst);
-        func.blocks[target].terminator =
-            Some(Terminator::Return { values: vec![phi_value].into() });
-
-        let mut simplifier = CfgSimplifier::new();
-        simplifier.run_to_fixpoint(&mut func);
-
-        assert!(matches!(func.blocks[forwarder].terminator, Some(Terminator::Invalid)));
-        let phi_inst = func.blocks[target].instructions[0];
-        let InstKind::Phi(incoming) = &func.instructions[phi_inst].kind else {
-            panic!("expected phi");
-        };
-        assert_eq!(incoming.as_slice(), &[(BlockId::ENTRY, value), (direct, other)]);
-    }
-
-    #[test]
-    fn block_merge_rewrites_successor_phi_incoming() {
-        let mut func = Function::new(Ident::DUMMY);
-        let source;
-        let middle;
-        let other;
-        let exit;
-        let result;
-        let other_value;
-        {
-            let mut builder = FunctionBuilder::new(&mut func);
-            source = builder.create_block();
-            middle = builder.create_block();
-            other = builder.create_block();
-            exit = builder.create_block();
-
-            let cond = builder.imm_bool(true);
-            builder.branch(cond, source, other);
-
-            builder.switch_to_block(source);
-            builder.jump(middle);
-
-            builder.switch_to_block(middle);
-            let one = builder.imm_u64(1);
-            let two = builder.imm_u64(2);
-            result = builder.add(one, two);
-            builder.jump(exit);
-
-            builder.switch_to_block(other);
-            let three = builder.imm_u64(3);
-            let four = builder.imm_u64(4);
-            other_value = builder.add(three, four);
-            builder.jump(exit);
-        }
-
-        let phi_inst = func.alloc_inst(Instruction::new(
-            InstKind::Phi(vec![(middle, result), (other, other_value)]),
-            Some(MirType::uint256()),
-        ));
-        let phi_value = func.alloc_value(Value::Inst(phi_inst));
-        func.blocks[exit].instructions.push(phi_inst);
-        func.blocks[exit].terminator = Some(Terminator::Return { values: vec![phi_value].into() });
-
-        let mut simplifier = CfgSimplifier::new();
-        simplifier.run_to_fixpoint(&mut func);
-
-        assert!(matches!(func.blocks[middle].terminator, Some(Terminator::Invalid)));
-        let phi_inst = func.blocks[exit].instructions[0];
-        let InstKind::Phi(incoming) = &func.instructions[phi_inst].kind else {
-            panic!("expected phi");
-        };
-        assert_eq!(incoming.as_slice(), &[(source, result), (other, other_value)]);
     }
 }

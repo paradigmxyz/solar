@@ -1,7 +1,7 @@
-//@ error-in-other-file: can only use `global` with types defined in the same source unit at file level
-//@ error-in-other-file: can only use `global` with types defined in the same source unit at file level
-//@ error-in-other-file: can only use `global` with types defined in the same source unit at file level
-//@ error-in-other-file: can only use `global` with types defined in the same source unit at file level
+//~? ERROR: can only use `global` with types defined in the same source unit at file level
+//~? ERROR: can only use `global` with types defined in the same source unit at file level
+//~? ERROR: can only use `global` with types defined in the same source unit at file level
+//~? ERROR: can only use `global` with types defined in the same source unit at file level
 // ported-from: test/libsolidity/syntaxTests/operators/userDefined/calling_operator_imported_transitively.sol
 
 import "./auxiliary/global_wrong_left.sol";

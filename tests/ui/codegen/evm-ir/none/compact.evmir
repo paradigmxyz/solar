@@ -1,0 +1,9 @@
+//@filecheck:
+// CHECK-LABEL: @module compact
+// CHECK: push 1
+// CHECK: push 2
+// CHECK: add
+// CHECK: jump [[COLD:bb[0-9]+]]
+// CHECK: [[COLD]] [cold]:
+// CHECK-NEXT: jump
+@module compact bb0: push 1 push 2 add jump bb1 bb1 [cold]: jump

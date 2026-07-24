@@ -1,0 +1,9 @@
+//@compile-flags: --pass none
+
+@module UnknownPhase
+@phase shiny //~ ERROR: unknown MIR phase `shiny`
+
+fn @f() {
+  bb0:
+    stop
+}

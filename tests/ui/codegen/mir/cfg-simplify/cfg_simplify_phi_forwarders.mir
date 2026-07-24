@@ -5,8 +5,9 @@
 // conflicting values, so at most one forwarder may be folded away.
 @module CfgSimplifyPhiForwarders
 // CHECK-LABEL: {{^[ +].*}}fn @keep_conflicting_diamond{{[( ]}}
-// CHECK: + br arg0, bb3, bb2
-// CHECK: + {{v[0-9]+}} = phi [bb0: 1], [bb2: 2]
+// CHECK: + br arg0, [[JOIN:bb[0-9]+]], [[FORWARDER:bb[0-9]+]]
+// CHECK: + jump [[JOIN]]
+// CHECK: + {{v[0-9]+}} = phi [bb0: 1], [[[FORWARDER]]: 2]
 fn @keep_conflicting_diamond(arg0: bool) -> u256 {
   bb0:
     br arg0, bb1, bb2
@@ -22,8 +23,9 @@ fn @keep_conflicting_diamond(arg0: bool) -> u256 {
 // With equal incoming values the forwarders can both collapse; the phi
 // keeps a single entry per predecessor.
 // CHECK-LABEL: {{^[ +].*}}fn @fold_equal_value_diamond{{[( ]}}
-// CHECK: + br arg0, bb3, bb2
-// CHECK: + {{v[0-9]+}} = phi [bb0: 7], [bb2: 7]
+// CHECK: + br arg0, [[EQUAL_JOIN:bb[0-9]+]], [[EQUAL_FORWARDER:bb[0-9]+]]
+// CHECK: + jump [[EQUAL_JOIN]]
+// CHECK: + {{v[0-9]+}} = phi [bb0: 7], [[[EQUAL_FORWARDER]]: 7]
 fn @fold_equal_value_diamond(arg0: bool) -> u256 {
   bb0:
     br arg0, bb1, bb2

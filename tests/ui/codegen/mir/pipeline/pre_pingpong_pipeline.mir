@@ -5,9 +5,9 @@
 @module PingPongPipeline
 // CHECK-LABEL: fn @pingpong{{[( ]}}
 // CHECK: bb0:
-// CHECK: jump bb6
-// CHECK: bb6:
-// CHECK: jump bb6
+// CHECK-NEXT: jump [[LOOP:bb[0-9]+]]
+// CHECK: [[LOOP]]:
+// CHECK-NEXT: jump [[LOOP]]
 fn @pingpong(arg0: u256, arg1: u256) {
   bb0:
     switch arg1, default bb1, [1 => bb2, 2 => bb3, 3 => bb4]
