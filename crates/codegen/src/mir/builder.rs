@@ -142,7 +142,7 @@ impl<'a> FunctionBuilder<'a> {
             {
                 MemoryRegion::Scratch
             }
-            Value::Inst(inst_id) => match self.func.instructions[*inst_id].kind {
+            Value::Inst(inst_id) => match self.func.inst(*inst_id).kind {
                 InstKind::InternalFrameAddr(_) => MemoryRegion::InternalFrame,
                 InstKind::Add(lhs, rhs) if self.is_internal_frame_add(lhs, rhs) => {
                     MemoryRegion::InternalFrame
@@ -169,7 +169,7 @@ impl<'a> FunctionBuilder<'a> {
         matches!(
             self.func.value(value),
             Value::Inst(inst_id)
-                if matches!(self.func.instructions[*inst_id].kind, InstKind::InternalFrameAddr(_))
+                if matches!(self.func.inst(*inst_id).kind, InstKind::InternalFrameAddr(_))
         )
     }
 
@@ -858,7 +858,7 @@ impl<'a> FunctionBuilder<'a> {
         let Value::Inst(inst_id) = *self.func.value(phi) else {
             panic!("add_phi_incoming: value is not an instruction result");
         };
-        let InstKind::Phi(incoming) = &mut self.func.instructions[inst_id].kind else {
+        let InstKind::Phi(incoming) = &mut self.func.inst_mut(inst_id).kind else {
             panic!("add_phi_incoming: instruction is not a phi");
         };
         incoming.push((block, value));

@@ -32,6 +32,8 @@ fn @fused(arg0: u256) {
   bb0:
     mstore 128, arg0
     returndata 128, 32
+  bb1:
+    stop
 }
 // CHECK-LABEL: {{^[ +].*}}fn @spin{{[( ]}}
 // CHECK: {{^[ +].*}}internal_call @spin

@@ -348,16 +348,7 @@ fn ensure_contract_bytecode(
     let mut codegen = EvmCodegen::new(gcx);
     codegen.set_capture_evm_ir(capture_evm_ir);
     let artifact = codegen.lower_module(&mut module);
-    let mut unsupported_guar = None;
-    for (span, message) in codegen.take_unsupported() {
-        // Backend instructions may lack a precise source span; anchor the
-        // diagnostic to the contract so it is attributed to a location.
-        let span = span.unwrap_or(contract.span);
-        unsupported_guar = Some(gcx.dcx().err(message).span(span).emit());
-    }
-    if let Some(guar) = unsupported_guar {
-        return Err(guar);
-    }
+    gcx.dcx().has_errors()?;
     all_bytecodes.insert(contract_id, artifact.deployment.clone());
     artifacts.insert(
         contract_id,

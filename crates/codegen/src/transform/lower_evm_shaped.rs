@@ -7,7 +7,7 @@
 //! dispatch phase removed from its own case blocks.
 //!
 //! This pass rewrites a resultless `internal_call` to a callee that cannot
-//! return (no `ret` and no `stop` terminator anywhere in it) into a
+//! return (no reachable `ret` or `stop` terminator) into a
 //! [`Terminator::TailCall`], dropping the dead remainder of the block. The
 //! module comes out in the `evm-shaped` phase: every call edge either returns
 //! or is an explicit tail call, which is the control-flow shape the backend
@@ -19,7 +19,7 @@
 //! non-recursive), so calls to any other callee are left as ordinary calls.
 
 use crate::{
-    analysis::CallGraphInfo,
+    analysis::{CallGraphInfo, CfgInfo},
     mir::{Function, InstKind, MirPhase, Module, Terminator, utils::repair_reachability_phis},
     pass::MirPass,
 };
@@ -36,15 +36,17 @@ impl MirPass for LowerEvmShaped {
     fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
         module.phase == MirPhase::MemoryLowered
             && module.functions.iter().all(|func| {
-                func.blocks.iter().all(|block| {
-                    block.instructions.iter().all(|&inst| {
-                        !matches!(
-                            func.instructions[inst].kind,
-                            InstKind::MakeSlice { .. }
-                                | InstKind::SlicePtr(_)
-                                | InstKind::SliceLen(_)
-                        )
-                    })
+                func.instructions().all(|inst_id| {
+                    let inst = func.inst(inst_id);
+                    match inst.kind {
+                        InstKind::MakeSlice { .. }
+                        | InstKind::SlicePtr(_)
+                        | InstKind::SliceLen(_)
+                        | InstKind::Fmp
+                        | InstKind::SetFmp(_) => false,
+                        InstKind::Alloc { .. } => inst.metadata.deferred_alloc(),
+                        _ => true,
+                    }
                 })
             })
     }
@@ -85,17 +87,19 @@ impl LowerEvmShapedCx {
             return false;
         }
 
-        // Dispatch already uses explicit tail calls. Most modules have no
+        // Entry routing already uses explicit tail calls. Most modules have no
         // resultless internal call left to reshape, so avoid building a call
         // graph and classifying every function in that common case.
         let has_candidate = module.functions.iter().any(|func| {
-            func.instructions.iter().any(|inst| {
+            func.instructions().any(|inst_id| {
+                let inst = func.inst(inst_id);
                 inst.result_ty.is_none() && matches!(inst.kind, InstKind::InternalCall { .. })
             })
         });
         if !has_candidate {
+            let changed = module.phase != MirPhase::EvmShaped;
             module.advance_phase(MirPhase::EvmShaped);
-            return false;
+            return changed;
         }
 
         let call_graph = CallGraphInfo::new(module);
@@ -127,14 +131,15 @@ impl LowerEvmShapedCx {
             }
         }
 
+        let mut changed = false;
         let function_ids: Vec<_> = module.functions.indices().collect();
         for func_id in function_ids {
             let func = &mut module.functions[func_id];
-            let mut changed = false;
+            let mut function_changed = false;
             for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
                 let insts = &func.blocks[block_id].instructions;
                 let Some(position) = insts.iter().position(|&inst_id| {
-                    let inst = &func.instructions[inst_id];
+                    let inst = func.inst(inst_id);
                     inst.result_ty.is_none()
                         && matches!(
                             &inst.kind,
@@ -148,9 +153,7 @@ impl LowerEvmShapedCx {
                 };
 
                 let inst_id = func.blocks[block_id].instructions[position];
-                let InstKind::InternalCall { function, args, .. } =
-                    &func.instructions[inst_id].kind
-                else {
+                let InstKind::InternalCall { function, args, .. } = &func.inst(inst_id).kind else {
                     unreachable!("position matched an internal call");
                 };
                 let (function, args) = (*function, args.iter().copied().collect());
@@ -159,23 +162,29 @@ impl LowerEvmShapedCx {
                 func.blocks[block_id].instructions.truncate(position);
                 func.blocks[block_id].terminator = Some(Terminator::TailCall { function, args });
                 self.stats.tail_calls += 1;
-                changed = true;
+                function_changed = true;
             }
-            if changed {
-                repair_reachability_phis(func);
+            changed |= function_changed;
+            if function_changed {
+                changed |= repair_reachability_phis(func);
             }
         }
 
+        let phase_changed = module.phase != MirPhase::EvmShaped;
         module.advance_phase(MirPhase::EvmShaped);
-        self.stats.tail_calls != 0
+        changed || phase_changed
     }
 }
 
-/// Whether a function can never return to an internal caller: it has no `ret`
-/// and no `stop` terminator (`stop` is the internal return of a void function).
+/// Whether a function can never return to an internal caller: its reachable CFG
+/// has no `ret` or `stop` terminator (`stop` is the internal return of a void
+/// function).
 fn function_cannot_return(func: &Function) -> bool {
-    !func
-        .blocks
-        .iter()
-        .any(|block| matches!(block.terminator, Some(Terminator::Return { .. } | Terminator::Stop)))
+    if func.blocks.is_empty() {
+        return false;
+    }
+    let cfg = CfgInfo::new(func);
+    !cfg.reachable().iter().any(|block| {
+        matches!(func.blocks[block].terminator, Some(Terminator::Return { .. } | Terminator::Stop))
+    })
 }

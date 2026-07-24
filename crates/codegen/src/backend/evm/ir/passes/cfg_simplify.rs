@@ -5,7 +5,7 @@ use super::{
     utils::{remap_block_order, retain_blocks},
 };
 use crate::backend::evm::{
-    ir::{BlockId, Module, PushValue, Terminator, TerminatorKind},
+    ir::{Block, BlockId, Module, PushValue, Terminator, TerminatorKind},
     op,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -29,7 +29,9 @@ fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut changed = false;
     loop {
         let truncated = truncate_after_terminal(module);
-        let redirected = redirect_jump_thunks(module, &mut state.thunks, &mut state.order);
+        let degenerate = simplify_degenerate_branches(module);
+        let redirected =
+            redirect_jump_thunks(module, &mut state.thunks, &mut state.addressed, &mut state.order);
         let swept = remove_unreachable_blocks(
             module,
             &mut state.reachable,
@@ -38,8 +40,8 @@ fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         );
         let coalesced =
             coalesce_blocks(module, &mut state.references, &mut state.retained, &mut state.order);
-        changed |= truncated || redirected || swept || coalesced;
-        if !truncated && !redirected && !swept && !coalesced {
+        changed |= truncated || degenerate || redirected || swept || coalesced;
+        if !truncated && !degenerate && !redirected && !swept && !coalesced {
             return changed;
         }
     }
@@ -47,6 +49,7 @@ fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
 
 struct RunState {
     thunks: FxHashMap<BlockId, BlockId>,
+    addressed: DenseBitSet<BlockId>,
     reachable: DenseBitSet<BlockId>,
     pending: Vec<BlockId>,
     references: IndexVec<BlockId, usize>,
@@ -58,6 +61,7 @@ impl Default for RunState {
     fn default() -> Self {
         Self {
             thunks: FxHashMap::default(),
+            addressed: DenseBitSet::new_empty(0),
             reachable: DenseBitSet::new_empty(0),
             pending: Vec::new(),
             references: IndexVec::new(),
@@ -96,14 +100,51 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
     changed
 }
 
+fn simplify_degenerate_branches(module: &mut Module) -> bool {
+    let mut changed = false;
+    for block in &mut module.blocks {
+        let Some(TerminatorKind::JumpI { then_block, else_block }) =
+            block.terminator.as_ref().map(|term| &term.kind)
+        else {
+            continue;
+        };
+        if then_block != else_block {
+            continue;
+        }
+
+        let target = *then_block;
+        block.instructions.push(crate::backend::evm::ir::Instruction::opcode(op::POP));
+        block.terminator = Some(Terminator::new(TerminatorKind::Jump(target)));
+        changed = true;
+    }
+    changed
+}
+
 fn redirect_jump_thunks(
     module: &mut Module,
     thunks: &mut FxHashMap<BlockId, BlockId>,
+    addressed: &mut DenseBitSet<BlockId>,
     order: &mut Vec<BlockId>,
 ) -> bool {
+    if addressed.domain_size() != module.blocks.len() {
+        *addressed = DenseBitSet::new_empty(module.blocks.len());
+    } else {
+        addressed.clear();
+    }
+    for block in &module.blocks {
+        for (at, inst) in block.instructions.iter().enumerate() {
+            if let Some(PushValue::Block(target)) = &inst.value
+                && !is_direct_jump_label(block, at)
+            {
+                addressed.insert(*target);
+            }
+        }
+    }
+
     thunks.clear();
     for (block_id, block) in module.blocks.iter_enumerated() {
-        if block.instructions.is_empty()
+        if !addressed.contains(block_id)
+            && block.instructions.is_empty()
             && let Some(TerminatorKind::Jump(target)) =
                 block.terminator.as_ref().map(|term| &term.kind)
         {
@@ -129,11 +170,13 @@ fn redirect_jump_thunks(
 
     let mut changed = false;
     for block in &mut module.blocks {
-        for inst in &mut block.instructions {
-            if let Some(PushValue::Block(block)) = &mut inst.value {
-                let resolved = resolve(*block);
-                changed |= resolved != *block;
-                *block = resolved;
+        for at in 0..block.instructions.len() {
+            if is_direct_jump_label(block, at)
+                && let Some(PushValue::Block(target)) = &mut block.instructions[at].value
+            {
+                let resolved = resolve(*target);
+                changed |= resolved != *target;
+                *target = resolved;
             }
         }
         if let Some(term) = &mut block.terminator {
@@ -153,6 +196,15 @@ fn redirect_jump_thunks(
         changed = true;
     }
     changed
+}
+
+fn is_direct_jump_label(block: &Block, at: usize) -> bool {
+    block.instructions.get(at + 1).is_some_and(|inst| matches!(inst.opcode, op::JUMP | op::JUMPI))
+        || (at + 1 == block.instructions.len()
+            && block
+                .terminator
+                .as_ref()
+                .is_some_and(|term| matches!(term.kind, TerminatorKind::Op(op::JUMP | op::JUMPI))))
 }
 
 fn remove_unreachable_blocks(

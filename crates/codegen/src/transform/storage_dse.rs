@@ -57,7 +57,7 @@ impl RunState {
         Self {
             later_writes: FxHashSet::default(),
             stored_values: FxHashMap::default(),
-            dead: DenseBitSet::new_empty(func.instructions.len()),
+            dead: DenseBitSet::new_empty(func.num_insts()),
         }
     }
 }
@@ -115,7 +115,7 @@ impl StorageStoreEliminator {
         dead.clear();
 
         for &inst_id in func.blocks[block_id].instructions.iter().rev() {
-            match &func.instructions[inst_id].kind {
+            match &func.inst(inst_id).kind {
                 InstKind::SStore(slot, _) => {
                     let alias = aa.storage_alias(func, inst_id, *slot);
                     if later_writes.contains(&alias) {
@@ -157,7 +157,7 @@ impl StorageStoreEliminator {
         dead.clear();
 
         for &inst_id in &func.blocks[block_id].instructions {
-            match &func.instructions[inst_id].kind {
+            match &func.inst(inst_id).kind {
                 InstKind::SStore(slot, value) => {
                     let alias = aa.storage_alias(func, inst_id, *slot);
                     if stored_values.get(&alias).is_some_and(|&stored| stored == *value) {

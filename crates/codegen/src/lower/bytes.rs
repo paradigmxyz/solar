@@ -174,7 +174,7 @@ impl<'gcx> Lowerer<'gcx> {
         let func = builder.func();
         match func.value(value) {
             Value::Arg { ty, .. } | Value::Undef(ty) => Some(*ty),
-            Value::Inst(inst_id) => func.instructions[*inst_id].result_ty,
+            Value::Inst(inst_id) => func.inst(*inst_id).result_ty,
             Value::Immediate(_) | Value::Error(_) => None,
         }
     }

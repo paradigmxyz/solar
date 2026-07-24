@@ -62,7 +62,7 @@ pub(crate) fn display_function_dot<'a>(
         inst_id: InstId,
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
-            let inst = &func.instructions[inst_id];
+            let inst = func.inst(inst_id);
 
             write!(f, "  ")?;
             if inst.result_ty.is_some() {
@@ -221,7 +221,7 @@ pub(crate) fn display_function_text<'a>(
         inst_id: InstId,
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
-            let inst = &func.instructions[inst_id];
+            let inst = func.inst(inst_id);
 
             write!(f, "    ")?;
             if inst.result_ty.is_some() {
@@ -275,10 +275,7 @@ fn function_prints_return_values(func: &Function) -> bool {
 }
 
 fn inst_result_index(func: &Function, inst_id: InstId) -> usize {
-    func.instructions
-        .iter_enumerated()
-        .filter(|(_, inst)| inst.result_ty.is_some())
-        .position(|(id, _)| id == inst_id)
+    func.inst_result_index(inst_id)
         .expect("Value::Inst should point to a value-producing instruction")
 }
 

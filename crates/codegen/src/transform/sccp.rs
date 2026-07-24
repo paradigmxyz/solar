@@ -251,12 +251,11 @@ impl SccpCx {
         let block = &func.blocks[block_id];
 
         for &inst_id in &block.instructions {
-            if matches!(func.instructions[inst_id].kind, InstKind::Phi(_)) {
+            if matches!(func.inst(inst_id).kind, InstKind::Phi(_)) {
                 continue;
             }
             if let Some(&vid) = inst_to_value.get(&inst_id) {
-                let new_val =
-                    self.evaluate_instruction(func, &func.instructions[inst_id].kind, lattice);
+                let new_val = self.evaluate_instruction(func, &func.inst(inst_id).kind, lattice);
                 if self.update_lattice(lattice, vid, new_val) {
                     ssa_worklist.push_back(vid);
                 }
@@ -281,7 +280,7 @@ impl SccpCx {
     ) {
         let block = &func.blocks[block_id];
         for &inst_id in &block.instructions {
-            let inst = &func.instructions[inst_id];
+            let inst = func.inst(inst_id);
             if let InstKind::Phi(incoming) = &inst.kind
                 && let Some(&vid) = inst_to_value.get(&inst_id)
             {
@@ -601,7 +600,7 @@ impl SccpCx {
                 continue;
             }
             for &inst_id in &block.instructions {
-                let inst = &func.instructions[inst_id];
+                let inst = func.inst(inst_id);
                 if matches!(inst.kind, InstKind::Phi(_)) {
                     continue;
                 }
@@ -637,16 +636,16 @@ impl SccpCx {
         // Phase 1: Replace instructions whose results are constant with
         // immediate values, and remove the instruction from the block.
         let mut const_values: FxHashMap<ValueId, ValueId> = FxHashMap::default();
-        let mut dead_insts = DenseBitSet::new_empty(func.instructions.len());
+        let mut dead_insts = DenseBitSet::new_empty(func.num_insts());
 
         for (&inst_id, &vid) in inst_to_value {
             if let LatticeValue::Constant(c) = &lattice[vid] {
                 // Don't fold side-effecting instructions.
-                if func.instructions[inst_id].kind.has_side_effects() {
+                if func.inst(inst_id).kind.has_side_effects() {
                     continue;
                 }
                 // Create an immediate replacement of the instruction's result type.
-                let imm = immediate_for_type(func.instructions[inst_id].result_ty, *c);
+                let imm = immediate_for_type(func.inst(inst_id).result_ty, *c);
                 let imm_vid = func.alloc_value(Value::Immediate(imm));
                 const_values.insert(vid, imm_vid);
                 dead_insts.insert(inst_id);
@@ -684,14 +683,10 @@ impl SccpCx {
 
         // Phase 3: Replace all uses of folded values with immediates.
         if !const_values.is_empty() {
-            let all_insts: Vec<InstId> = func
-                .blocks
-                .iter()
-                .flat_map(|block| block.instructions.iter().copied())
-                .filter(|&id| !dead_insts.contains(id))
-                .collect();
+            let all_insts: Vec<InstId> =
+                func.instructions().filter(|&id| !dead_insts.contains(id)).collect();
             for inst_id in all_insts {
-                mir_utils::replace_inst_uses(&mut func.instructions[inst_id].kind, &const_values);
+                mir_utils::replace_inst_uses(&mut func.inst_mut(inst_id).kind, &const_values);
             }
             for &block_id in &block_ids {
                 if let Some(term) = &mut func.blocks[block_id].terminator {
@@ -749,13 +744,13 @@ impl SccpCx {
             self.stats.blocks_invalidated += 1;
         }
 
-        let phis_repaired = repair_reachability_phis(func);
+        let reachability_repaired = repair_reachability_phis(func);
 
         self.stats.constants_folded
             + self.stats.branches_folded
             + self.stats.switches_folded
             + self.stats.blocks_invalidated
-            + usize::from(phis_repaired)
+            + usize::from(reachability_repaired)
     }
 }
 

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/cold_call_fallthrough_none.sol:ColdCallFallthroughNone (runtime) ===
 @module runtime
 bb0:
-  push 352
+  push 320
   push 64
   mstore
   callvalue
@@ -77,10 +77,10 @@ bb9:
   return
 bb10:
   push 4
-  push 288
+  push 256
   mstore
   push 0x7a65726f00000000000000000000000000000000000000000000000000000000
-  push 320
+  push 288
   mstore
   jump bb16
 bb11:
@@ -94,10 +94,10 @@ bb11:
   jump bb12
 bb12:
   push 3
-  push 288
+  push 256
   mstore
   push 0x6f6e650000000000000000000000000000000000000000000000000000000000
-  push 320
+  push 288
   mstore
   jump bb16
 bb13:
@@ -111,18 +111,18 @@ bb13:
   jump bb14
 bb14:
   push 3
-  push 288
+  push 256
   mstore
   push 0x74776f0000000000000000000000000000000000000000000000000000000000
-  push 320
+  push 288
   mstore
   jump bb16
 bb15:
   push 5
-  push 288
+  push 256
   mstore
   push 0x6f74686572000000000000000000000000000000000000000000000000000000
-  push 320
+  push 288
   mstore
   jump bb16
 bb16:
@@ -132,11 +132,11 @@ bb16:
   push 32
   push 4
   mstore
-  push 288
+  push 256
   mload
   push 36
   mstore
-  push 320
+  push 288
   mload
   push 68
   mstore

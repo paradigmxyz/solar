@@ -34,6 +34,16 @@ contract ReceiveFallbackTest {
         assert(target.totalReceived() == 1 ether);
     }
 
+    function test_short_calldata_uses_fallback() public {
+        uint256 fallbackCallsBefore = target.fallbackCalls();
+
+        // `shortSelector250()` has selector 0x8dcb5900. Zero-padding this
+        // three-byte calldata must not dispatch to that reverting function.
+        (bool success,) = address(target).call(hex"8dcb59");
+        assert(success);
+        assert(target.fallbackCalls() == fallbackCallsBefore + 1);
+    }
+
     function test_receive_multiple_calls() public {
         (bool success1,) = address(target).call{value: 1 ether}("");
         assert(success1);

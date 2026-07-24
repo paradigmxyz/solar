@@ -72,7 +72,7 @@ impl PhiEliminator {
         // Process each block looking for phi instructions
         for (block_id, block) in func.blocks.iter_enumerated() {
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
-                let inst = func.instruction(inst_id);
+                let inst = func.inst(inst_id);
 
                 if let InstKind::Phi(incoming) = &inst.kind {
                     // Find the value defined by this phi

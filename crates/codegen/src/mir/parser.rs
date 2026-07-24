@@ -225,7 +225,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             match reference.target {
                 FunctionRefTarget::Instruction(inst) => {
                     let InstKind::InternalCall { function: target, .. } =
-                        &mut module.functions[owner].instructions[inst].kind
+                        &mut module.functions[owner].inst_mut(inst).kind
                     else {
                         unreachable!()
                     };

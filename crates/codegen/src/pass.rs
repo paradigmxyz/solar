@@ -186,7 +186,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &frame_promotion::FrameSlotPromotion,
     &memory_dse::MemoryDse,
     &adce::Adce,
-    // Progressive lowering materializes ABI wrappers, the dispatcher, and
+    // Progressive lowering materializes ABI wrappers, selector routing, and
     // tail-call edges as MIR. Each pass bails without advancing the phase
     // when the module is outside its scope.
     &lower_abi::LowerAbi,
@@ -203,8 +203,8 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_slices::LowerSlices,
     &lower_dispatch::LowerDispatch,
     &lower_memory_objects::LowerMemoryObjects,
-    &lower_evm_shaped::LowerEvmShaped,
     &lower_alloc::LowerAlloc,
+    &lower_evm_shaped::LowerEvmShaped,
 ];
 
 /// Runs the canonical MIR pipeline used by EVM codegen.
@@ -219,6 +219,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     skip_all,
     fields(module = %module.name),
 )]
+#[must_use]
 pub fn run_default_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
     let lowering_start = DEFAULT_PIPELINE
         .iter()
@@ -257,6 +258,7 @@ pub(crate) trait AnalysisPass {
 }
 
 /// Runs a function-local transform over every bodied function in a module.
+#[must_use]
 pub(crate) fn run_function_pass(
     module: &mut Module,
     analyses: &mut ModuleAnalyses,
@@ -372,14 +374,15 @@ fn verified_preservation(
 ) -> (bool, bool) {
     let edges_after = cfg_edges(func);
     let keep_cfg = edges_after == edges_before;
-    let no_new_side_effects = (insts_before..func.instructions.len())
+    let no_new_side_effects = (insts_before..func.num_insts())
         .map(InstId::from_usize)
-        .all(|inst_id| !func.instructions[inst_id].kind.has_side_effects());
+        .all(|inst_id| !func.inst(inst_id).kind.has_side_effects());
     let keep_alias = no_new_side_effects
         && (keep_cfg || edges_after.iter().all(|edge| edges_before.binary_search(edge).is_ok()));
     (keep_alias, keep_cfg)
 }
 
+#[must_use]
 fn run_function_pass_cached(
     analyses: &mut ModuleAnalyses,
     module: &mut Module,
@@ -389,7 +392,7 @@ fn run_function_pass_cached(
     let bundle = analyses.bundle(func_id, &module.functions[func_id]);
     let func = &mut module.functions[func_id];
     let edges_before = cfg_edges(func);
-    let insts_before = func.instructions.len();
+    let insts_before = func.num_insts();
     let changed = run(func, &bundle);
     if changed {
         let (keep_alias, keep_cfg) = verified_preservation(func, &edges_before, insts_before);
