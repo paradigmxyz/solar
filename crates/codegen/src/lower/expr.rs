@@ -30,7 +30,7 @@ enum MappingBaseSlot {
 }
 
 /// One member of an `abi.decode` target tuple.
-enum AbiDecodeTy {
+pub(super) enum AbiDecodeTy {
     /// An elementary value, including `bytes` and `string`.
     Value(ElementaryType),
     /// A dynamic array with an elementary element type.
@@ -2234,7 +2234,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// bulk with a per-element cleanliness check where the type requires one;
     /// `bytes`/`string` elements decode each element like a dynamic-bytes
     /// tuple member against the array's own data region.
-    fn lower_abi_decode_dyn_array(
+    pub(super) fn lower_abi_decode_dyn_array(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         tuple_base: ValueId,
@@ -2360,7 +2360,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(exit);
     }
 
-    fn lower_abi_decode_dynamic_bytes(
+    pub(super) fn lower_abi_decode_dynamic_bytes(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         tuple_base: ValueId,
@@ -2430,7 +2430,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(continue_block);
     }
 
-    fn lower_abi_decode_word(
+    pub(super) fn lower_abi_decode_word(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         elem: &ElementaryType,

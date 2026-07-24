@@ -1,13 +1,13 @@
 //! Statement lowering.
 
-use super::{LoopContext, Lowerer};
+use super::{LoopContext, Lowerer, expr::AbiDecodeTy};
 use crate::{
     memory::EvmMemoryLayout,
-    mir::{FunctionBuilder, ValueId},
+    mir::{FunctionBuilder, MemoryObjectKind, ValueId},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_interface::{Span, diagnostics::ErrorGuaranteed, kw};
+use solar_interface::{Span, diagnostics::ErrorGuaranteed, kw, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, ElementaryType, ExprKind, StmtKind},
@@ -1132,7 +1132,6 @@ impl<'gcx> Lowerer<'gcx> {
     /// 3. If success (1), jump to success block
     /// 4. If failure (0), jump to catch block
     fn lower_try(&mut self, builder: &mut FunctionBuilder<'_>, try_stmt: &hir::StmtTry<'_>) {
-        // Create blocks for success, catch, and merge
         let success_block = builder.create_block();
         let catch_block = builder.create_block();
         let merge_block = builder.create_block();
@@ -1144,53 +1143,219 @@ impl<'gcx> Lowerer<'gcx> {
         // Branch: if success (non-zero), go to success_block, else catch_block
         builder.branch(success, success_block, catch_block);
 
-        // Generate success block (returns clause - always first in clauses)
+        // Success block (the `returns` clause is always first): decode the
+        // call's returndata into the bound variables, then run the block.
         builder.switch_to_block(success_block);
         if let Some(returns_clause) = try_stmt.clauses.first() {
             if !returns_clause.args.is_empty() {
-                self.gcx
-                    .dcx()
-                    .err("codegen does not support try/catch return bindings yet")
-                    .span(try_stmt.expr.span)
-                    .emit();
+                self.bind_try_returns(builder, returns_clause.args, try_stmt.expr.span);
             }
             self.lower_block(builder, &returns_clause.block);
         }
-        builder.jump(merge_block);
-
-        // Generate catch block(s)
-        builder.switch_to_block(catch_block);
-        let catch_clauses = &try_stmt.clauses[1..];
-        if catch_clauses.len() > 1 {
-            self.gcx
-                .dcx()
-                .err("codegen does not support multiple try/catch handlers yet")
-                .span(try_stmt.expr.span)
-                .emit();
-        }
-
-        // The catch clauses are after the first (returns) clause.
-        for clause in try_stmt.clauses.iter().skip(1) {
-            if clause.name.is_some() || !clause.args.is_empty() {
-                self.gcx
-                    .dcx()
-                    .err("codegen does not support typed try/catch handlers yet")
-                    .span(try_stmt.expr.span)
-                    .emit();
-            }
-            self.lower_block(builder, &clause.block);
-        }
-        // If no catch clauses (only returns clause), this is just an empty block
-        if try_stmt.clauses.len() <= 1 {
-            // No catch clause - re-revert
-            let zero = builder.imm_u64(0);
-            builder.revert(zero, zero);
-        } else {
+        if !builder.func().block(builder.current_block()).is_terminated() {
             builder.jump(merge_block);
         }
 
+        // Catch clauses: dispatch on the revert data's selector. `Error` and
+        // `Panic` handlers match their selectors; a low-level `catch (bytes)`
+        // or bare `catch` takes everything else; with no applicable handler
+        // the revert data is rethrown.
+        builder.switch_to_block(catch_block);
+        self.lower_catch_clauses(builder, &try_stmt.clauses[1..], merge_block, try_stmt.expr.span);
+
         // Continue after try/catch
         builder.switch_to_block(merge_block);
+    }
+
+    /// Decodes the successful call's returndata into the `returns` clause
+    /// bindings. Like solc, malformed returndata reverts rather than reaching
+    /// any catch clause: the external call itself succeeded.
+    fn bind_try_returns(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        vars: &[hir::VariableId],
+        span: Span,
+    ) {
+        let slice = self.returndata_slice(builder);
+        let ptr = self.materialize_returndata_slice(builder, slice);
+        let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
+        let head_size = (vars.len() * 32) as u64;
+        let required = builder.imm_u64(head_size);
+        let is_short = builder.lt(len, required);
+        self.emit_abi_decode_revert_if(builder, is_short);
+        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+
+        for (i, &var_id) in vars.iter().enumerate() {
+            let var = self.gcx.hir.variable(var_id);
+            let Some(target) = self.abi_decode_ty_of_hir_ty(&var.ty) else {
+                self.gcx
+                    .dcx()
+                    .err("codegen does not support this try return type yet")
+                    .span(var.span)
+                    .emit();
+                return;
+            };
+            let addr = self.offset_ptr(builder, data_start, (i * 32) as u64);
+            let head = builder.mload(addr);
+            let decoded = match target {
+                AbiDecodeTy::Value(hir::ElementaryType::Bytes | hir::ElementaryType::String) => {
+                    let head_size = builder.imm_u64(head_size);
+                    self.lower_abi_decode_dynamic_bytes(builder, data_start, len, head_size, head)
+                }
+                AbiDecodeTy::Value(elem) => self.lower_abi_decode_word(builder, &elem, head),
+                AbiDecodeTy::Array(elem) => self
+                    .lower_abi_decode_dyn_array(builder, data_start, len, head_size, &elem, head),
+            };
+            self.bind_local_value(builder, var_id, decoded);
+        }
+        let _ = span;
+    }
+
+    /// The `abi.decode`-style target of a variable's declared type, if codegen
+    /// can decode it.
+    fn abi_decode_ty_of_hir_ty(&self, ty: &hir::Type<'_>) -> Option<AbiDecodeTy> {
+        match &ty.kind {
+            hir::TypeKind::Elementary(elem) => Some(AbiDecodeTy::Value(*elem)),
+            hir::TypeKind::Array(arr) if arr.size.is_none() => match &arr.element.kind {
+                hir::TypeKind::Elementary(elem) => Some(AbiDecodeTy::Array(*elem)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn lower_catch_clauses(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        clauses: &[hir::TryCatchClause<'_>],
+        merge_block: crate::mir::BlockId,
+        span: Span,
+    ) {
+        let mut error_clause = None;
+        let mut panic_clause = None;
+        let mut fallback_clause = None;
+        for clause in clauses {
+            match clause.name {
+                Some(name) if name.name == sym::Error => error_clause = Some(clause),
+                Some(name) if name.name == sym::Panic => panic_clause = Some(clause),
+                Some(name) => {
+                    self.gcx
+                        .dcx()
+                        .err(format!("unknown try/catch handler `{}`", name.name))
+                        .span(clause.span)
+                        .emit();
+                }
+                None => fallback_clause = Some(clause),
+            }
+        }
+
+        // Rethrow: forward the revert data unchanged.
+        let rethrow_block = builder.create_block();
+
+        // Selector of the revert data; too-short data reads as selector zero,
+        // which no handler matches. The copy size degrades to zero so the
+        // returndata access stays in bounds.
+        let rds = builder.returndatasize();
+        let four = builder.imm_u64(4);
+        let zero = builder.imm_u64(0);
+        let too_short = builder.lt(rds, four);
+        let has_selector = builder.iszero(too_short);
+        builder.mstore(zero, zero);
+        let copy_size = builder.select(has_selector, four, zero);
+        builder.returndatacopy(zero, zero, copy_size);
+        let word = builder.mload(zero);
+        let shift = builder.imm_u64(224);
+        let selector = builder.shr(shift, word);
+
+        let fallback_target = builder.create_block();
+
+        // `catch Error(string memory reason)`.
+        if let Some(clause) = error_clause {
+            let error_selector = builder.imm_u64(0x08c379a0);
+            let matches = builder.eq(selector, error_selector);
+            let matches = builder.and(matches, has_selector);
+            let body = builder.create_block();
+            let next = builder.create_block();
+            builder.branch(matches, body, next);
+
+            builder.switch_to_block(body);
+            let slice = self.returndata_slice(builder);
+            let ptr = self.materialize_returndata_slice(builder, slice);
+            let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
+            let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+            let region_base = builder.add(data, four);
+            let region_len = builder.sub(len, four);
+            let head = builder.mload(region_base);
+            let word = builder.imm_u64(32);
+            // Malformed `Error(string)` data reverts; solc instead falls
+            // through to a lower-level handler, which only differs for
+            // hostile callees that revert with a mangled Error selector.
+            let reason =
+                self.lower_abi_decode_dynamic_bytes(builder, region_base, region_len, word, head);
+            if let [var_id] = clause.args {
+                self.bind_local_value(builder, *var_id, reason);
+            }
+            self.lower_block(builder, &clause.block);
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                builder.jump(merge_block);
+            }
+
+            builder.switch_to_block(next);
+        }
+
+        // `catch Panic(uint256 code)`.
+        if let Some(clause) = panic_clause {
+            let panic_selector = builder.imm_u64(0x4e487b71);
+            let matches = builder.eq(selector, panic_selector);
+            let matches = builder.and(matches, has_selector);
+            let thirty_six = builder.imm_u64(36);
+            let panic_short = builder.lt(rds, thirty_six);
+            let long_enough = builder.iszero(panic_short);
+            let matches = builder.and(matches, long_enough);
+            let body = builder.create_block();
+            let next = builder.create_block();
+            builder.branch(matches, body, next);
+
+            builder.switch_to_block(body);
+            let zero = builder.imm_u64(0);
+            let word = builder.imm_u64(32);
+            builder.returndatacopy(zero, four, word);
+            let code = builder.mload(zero);
+            if let [var_id] = clause.args {
+                self.bind_local_value(builder, *var_id, code);
+            }
+            self.lower_block(builder, &clause.block);
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                builder.jump(merge_block);
+            }
+
+            builder.switch_to_block(next);
+        }
+        builder.jump(fallback_target);
+
+        // Low-level `catch (bytes memory data)` or bare `catch`; otherwise
+        // rethrow.
+        builder.switch_to_block(fallback_target);
+        if let Some(clause) = fallback_clause {
+            if let [var_id] = clause.args {
+                let slice = self.returndata_slice(builder);
+                let ptr = self.materialize_returndata_slice(builder, slice);
+                self.bind_local_value(builder, *var_id, ptr);
+            }
+            self.lower_block(builder, &clause.block);
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                builder.jump(merge_block);
+            }
+        } else {
+            builder.jump(rethrow_block);
+        }
+
+        builder.switch_to_block(rethrow_block);
+        let zero = builder.imm_u64(0);
+        let rds = builder.returndatasize();
+        builder.returndatacopy(zero, zero, rds);
+        builder.revert(zero, rds);
+        let _ = span;
     }
 
     /// Lowers a call expression for try/catch, returning the success flag.
