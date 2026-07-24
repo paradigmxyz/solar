@@ -1226,7 +1226,17 @@ impl<'gcx> TypeChecker<'gcx> {
         }
 
         let hir::ExprKind::Ident(res) = callee.kind else {
+            // Error constructors behind member paths (`Lib.SomeError()`)
+            // resolve through the ordinary call path; admit them exactly like
+            // a revert statement does.
+            let prev_in_revert = std::mem::replace(&mut self.in_revert, true);
             let actual = self.check_expr_once(expr);
+            self.in_revert = prev_in_revert;
+            if let Some(callee_ty) = self.results.expr_types.get(&callee.id)
+                && matches!(callee_ty.kind, TyKind::Error(..))
+            {
+                return Ok(());
+            }
             return self.check_expected(expr, actual, self.gcx.types.string_ref.memory);
         };
         let error_res = res
