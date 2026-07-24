@@ -19,10 +19,11 @@
 //! Plans use one cost and goal model at every tier. Exact prefix checks handle
 //! the cheapest common case. Gas mode also uses allocation-free verified
 //! one-action and unary plans before a lower-bound-certified deterministic walk;
-//! bounded A* is reserved for layouts where those proofs do not succeed. Size
-//! mode goes from the exact-prefix check to the deterministic/A* path so an
-//! equal-cost local fast-path tie cannot leave a residual stack that costs more
-//! to clean up after the instruction. The available actions are:
+//! a linear proof also handles a single resident last use among otherwise
+//! materialized operands. Bounded A* is reserved for layouts where those proofs
+//! do not succeed. Size mode uses the single-resident proof too, but skips the
+//! local one-action and unary ties whose different residual layouts could cost
+//! more to clean up after the instruction. The available actions are:
 //!
 //! - use `SWAP1..16` to consume accessible last uses in place;
 //! - use `DUP1..16` when another copy must survive or an operand repeats;
@@ -289,6 +290,15 @@ impl StackScheduler {
                 OperandPlan { actions: PlannedActions::new(), cost: ScheduleCost::default() };
             return Some(self.verify_operand_plan(plan, &goal, preserved));
         }
+        if let Some(plan) = self.try_single_resident_operand_plan(
+            operands,
+            preserved,
+            func,
+            evm_version,
+            cost_model,
+        ) {
+            return Some(self.verify_operand_plan(plan, &goal, preserved));
+        }
         // Size mode keeps the established search tie-breaking because equal local costs can leave
         // residual stacks with different cleanup costs after the instruction.
         if matches!(optimization, OptimizationMode::Gas) {
@@ -524,6 +534,65 @@ impl StackScheduler {
         }
 
         best
+    }
+
+    /// Builds the optimal plan when one unique last-use operand is already on
+    /// top and every other operand must be materialized.
+    ///
+    /// Every missing unique operand requires one materialization. If the
+    /// resident value is not the deepest operand, at least one rearrangement is
+    /// also necessary; pushing the surrounding operands in the derived order
+    /// and swapping once reaches the exact goal at that lower bound.
+    fn try_single_resident_operand_plan(
+        &self,
+        operands: &[ValueId],
+        preserved: &[ValueId],
+        func: &Function,
+        evm_version: EvmVersion,
+        cost_model: OperandCostModel,
+    ) -> Option<OperandPlan> {
+        if !preserved.is_empty() || operands.len() < 2 {
+            return None;
+        }
+        let Some(&Some(resident)) = self.stack.as_slice().first() else {
+            return None;
+        };
+        let resident_position = operands.iter().position(|&value| value == resident)?;
+        if resident_position > MAX_STACK_ACCESS
+            || operands.iter().enumerate().any(|(i, &value)| operands[i + 1..].contains(&value))
+            || self.stack.as_slice()[1..]
+                .iter()
+                .any(|slot| slot.is_some_and(|value| operands.contains(&value)))
+        {
+            return None;
+        }
+
+        let mut actions = PlannedActions::new();
+        let mut cost = ScheduleCost::default();
+        let (materialize_order, swap_after) = if resident_position == 0 {
+            (SmallVec::<[ValueId; 8]>::from_slice(&operands[1..]), None)
+        } else {
+            let mut order = SmallVec::<[ValueId; 8]>::new();
+            order.extend_from_slice(&operands[1..resident_position]);
+            order.push(operands[0]);
+            let swap_after = Some(order.len());
+            order.extend_from_slice(&operands[resident_position + 1..]);
+            (order, swap_after)
+        };
+
+        for (i, value) in materialize_order.into_iter().enumerate() {
+            let op = self.materialize_operand(value, func)?;
+            cost = cost.with_op(&op, evm_version, cost_model);
+            actions.push(PlannedAction { op, pushed: Some(value) });
+
+            if swap_after == Some(i + 1) {
+                let op = ScheduledOp::Stack(StackOp::Swap(resident_position as u8));
+                cost = cost.with_op(&op, evm_version, cost_model);
+                actions.push(PlannedAction { op, pushed: None });
+            }
+        }
+
+        Some(OperandPlan { actions, cost })
     }
 
     fn try_unary_operand_plan(
@@ -1982,6 +2051,47 @@ mod tests {
         assert_eq!(ops.len(), operands.len());
         assert!(ops.iter().all(|op| matches!(op, ScheduledOp::PushImmediate(_))));
         assert!(scheduler.stack.iter().eq(operands.iter().rev().copied().map(Some)));
+    }
+
+    #[test]
+    fn operand_plan_linearizes_single_resident_last_use() {
+        let mut func = Function::new(Ident::DUMMY);
+        let operands = (1..=5)
+            .map(|value| {
+                func.alloc_value(Value::Immediate(Immediate::uint256(
+                    alloy_primitives::U256::from(value),
+                )))
+            })
+            .collect::<Vec<_>>();
+
+        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let mut scheduler = StackScheduler::new();
+            scheduler.stack.push(operands[1]);
+
+            let plan = scheduler
+                .plan_operands(
+                    &operands,
+                    &[],
+                    &func,
+                    optimization,
+                    EvmVersion::Shanghai,
+                    OperandCostModel::DIRECT,
+                )
+                .unwrap();
+            assert_eq!(
+                plan.actions.iter().map(|action| &action.op).collect::<Vec<_>>(),
+                [
+                    &ScheduledOp::PushImmediate(alloy_primitives::U256::from(1)),
+                    &ScheduledOp::Stack(StackOp::Swap(1)),
+                    &ScheduledOp::PushImmediate(alloy_primitives::U256::from(3)),
+                    &ScheduledOp::PushImmediate(alloy_primitives::U256::from(4)),
+                    &ScheduledOp::PushImmediate(alloy_primitives::U256::from(5)),
+                ]
+            );
+
+            scheduler.apply_operand_plan(plan);
+            assert!(scheduler.stack.iter().eq(operands.iter().rev().copied().map(Some)));
+        }
     }
 
     #[test]
