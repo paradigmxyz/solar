@@ -2,7 +2,7 @@
 //@ filecheck:
 // CHECK: "errors": [
 // CHECK: "severity": "error"
-// CHECK: "message": "EVM codegen requires MIR in the `evm-shaped` phase, stopped at `abi`"
+// CHECK: "message": "codegen does not support `fallback(bytes) returns (bytes)` yet"
 // CHECK-NOT: "contracts"
 {
   "language": "Solidity",

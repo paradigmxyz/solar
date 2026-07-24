@@ -11,8 +11,8 @@
       "component": "general",
       "severity": "error",
       "errorCode": null,
-      "message": "EVM codegen requires MIR in the `evm-shaped` phase, stopped at `abi`",
-      "formattedMessage": "error: EVM codegen requires MIR in the `evm-shaped` phase, stopped at `abi`\n   ╭▸ Fallback.sol:LL:CC\n   │\nLL │ contract C { fallback(bytes calldata input) external returns (bytes memory) { return input; } }\n   ╰╴         ━\n\n"
+      "message": "codegen does not support `fallback(bytes) returns (bytes)` yet",
+      "formattedMessage": "error: codegen does not support `fallback(bytes) returns (bytes)` yet\n   ╭▸ Fallback.sol:LL:CC\n   │\nLL │ contract C { fallback(bytes calldata input) external returns (bytes memory) { return input; } }\n   ╰╴         ━\n\n"
     }
   ],
   "sources": {

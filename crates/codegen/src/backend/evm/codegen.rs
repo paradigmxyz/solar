@@ -650,14 +650,28 @@ impl<'gcx> EvmCodegen<'gcx> {
             || func.attributes.is_receive
     }
 
-    /// Reports any instruction that survives MIR lowering but the word-based
-    /// backend cannot emit — chiefly logical slices whose aggregate use slice
-    /// lowering could not fold.
+    /// Reports MIR constructs the backend cannot emit yet.
+    ///
+    /// This includes argument-taking fallbacks and logical slices whose
+    /// aggregate use slice lowering could not fold.
     ///
     /// Only live instructions — those still in a block — are checked, since the
     /// instruction arena retains folded-away slices the backend never emits.
     #[must_use]
     fn emit_unsupported(&self, module: &Module) -> bool {
+        if module
+            .functions
+            .iter()
+            .any(|func| func.attributes.is_fallback && !func.params.is_empty())
+        {
+            self.gcx
+                .dcx()
+                .err("codegen does not support `fallback(bytes) returns (bytes)` yet")
+                .span(module.name.span)
+                .emit();
+            return true;
+        }
+
         let mut emitted = false;
         'func: for func in module.functions.iter() {
             for inst_id in func.instructions() {
