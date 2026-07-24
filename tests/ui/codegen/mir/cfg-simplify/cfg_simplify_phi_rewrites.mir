@@ -4,9 +4,15 @@
 
 // CHECK-LABEL: @empty_forwarder
 // CHECK:       [[ENTRY:bb[0-9]+]]:
-// CHECK: +     br arg0, [[MERGE:bb[0-9]+]], [[OTHER_BLOCK:bb[0-9]+]]
+// CHECK: -     br arg0, [[OTHER_BLOCK:bb[0-9]+]], [[REMOVED_BLOCK:bb[0-9]+]]
+// CHECK: +     br arg0, [[MERGE:bb[0-9]+]], [[OTHER_BLOCK]]
 // CHECK:       [[OTHER_BLOCK]]:
+// CHECK: -     jump [[OLD_MERGE:bb[0-9]+]]
+// CHECK: -     [[REMOVED_BLOCK]]:
 // CHECK:       [[OTHER:v[0-9]+]] = add 7, 42
+// CHECK: -     jump [[OLD_MERGE]]
+// CHECK: -     [[OLD_MERGE]]:
+// CHECK: +     jump [[MERGE]]
 // CHECK: +     [[MERGE]]:
 // CHECK:       [[PHI:v[0-9]+]] = phi [[[ENTRY]]: 42], [[[OTHER_BLOCK]]: [[OTHER]]]
 // CHECK:       ret [[PHI]]
@@ -24,13 +30,20 @@ fn @empty_forwarder(arg0: bool) -> u256 {
 }
 
 // CHECK-LABEL: @block_merge
-// CHECK:       [[ENTRY:bb[0-9]+]]:
-// CHECK: +     br arg0, [[LEFT_BLOCK:bb[0-9]+]], [[RIGHT_BLOCK:bb[0-9]+]]
+// CHECK:       {{bb[0-9]+}}:
+// CHECK: -     br arg0, [[LEFT_BLOCK:bb[0-9]+]], [[OLD_RIGHT:bb[0-9]+]]
+// CHECK: +     br arg0, [[LEFT_BLOCK]], [[RIGHT_BLOCK:bb[0-9]+]]
 // CHECK:       [[LEFT_BLOCK]]:
+// CHECK: -     jump [[OLD_LEFT:bb[0-9]+]]
+// CHECK: -     [[OLD_LEFT]]:
 // CHECK:       [[LEFT:v[0-9]+]] = add 1, 2
+// CHECK: -     jump [[OLD_MERGE:bb[0-9]+]]
+// CHECK: -     [[OLD_RIGHT]]:
 // CHECK: +     jump [[MERGE:bb[0-9]+]]
 // CHECK: +     [[RIGHT_BLOCK]]:
 // CHECK:       [[RIGHT:v[0-9]+]] = add 3, 4
+// CHECK: -     jump [[OLD_MERGE]]
+// CHECK: -     [[OLD_MERGE]]:
 // CHECK: +     jump [[MERGE]]
 // CHECK: +     [[MERGE]]:
 // CHECK:       [[PHI:v[0-9]+]] = phi [[[LEFT_BLOCK]]: [[LEFT]]], [[[RIGHT_BLOCK]]: [[RIGHT]]]

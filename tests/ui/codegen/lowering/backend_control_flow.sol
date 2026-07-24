@@ -29,7 +29,7 @@ contract BackendControlFlow {
 
     // CHECK-LABEL: fn @phiAfterBranch
     // CHECK: br
-    // CHECK: [[LIQUIDITY:v[0-9]+]] = mload [[PHI_ADDR:[0-9]+]]
+    // CHECK: [[LIQUIDITY:v[0-9]+]] = mload {{[0-9]+}}
     // CHECK: [[SUPPLY:v[0-9]+]] = sload [[SUPPLY_SLOT:[0-9]+]]
     // CHECK: [[TOTAL:v[0-9]+]] = add [[SUPPLY]], [[LIQUIDITY]]
     // CHECK: sstore [[SUPPLY_SLOT]], [[TOTAL]]
@@ -51,7 +51,7 @@ contract BackendControlFlow {
     // CHECK: [[FIRST_USE:v[0-9]+]] = mload [[PHI_ADDR]]
     // CHECK: [[TWICE:v[0-9]+]] = mul [[FIRST_USE]], 2
     // CHECK: [[SECOND_USE:v[0-9]+]] = mload [[PHI_ADDR]]
-    // CHECK: [[RESULT:v[0-9]+]] = add [[TWICE]], [[SECOND_USE]]
+    // CHECK: {{v[0-9]+}} = add [[TWICE]], [[SECOND_USE]]
     function phiUsedMultipleTimes() external returns (uint256 result) {
         uint256 liquidity;
         if (totalSupply == 0) {
@@ -70,10 +70,10 @@ contract BackendControlFlow {
     // CHECK: [[SUPPLY:v[0-9]+]] = sload [[SUPPLY_SLOT:[0-9]+]]
     // CHECK: [[TOTAL:v[0-9]+]] = add [[SUPPLY]], [[LIQUIDITY]]
     // CHECK: [[FIRST_NUM:v[0-9]+]] = mul
-    // CHECK: [[RESERVE0:v[0-9]+]] = sload [[RESERVE0_SLOT:[0-9]+]]
+    // CHECK: [[RESERVE0:v[0-9]+]] = sload {{[0-9]+}}
     // CHECK: [[FIRST:v[0-9]+]] = div [[FIRST_NUM]], [[RESERVE0]]
     // CHECK: [[SECOND_NUM:v[0-9]+]] = mul
-    // CHECK: [[RESERVE1:v[0-9]+]] = sload [[RESERVE1_SLOT:[0-9]+]]
+    // CHECK: [[RESERVE1:v[0-9]+]] = sload {{[0-9]+}}
     // CHECK: [[SECOND:v[0-9]+]] = div [[SECOND_NUM]], [[RESERVE1]]
     // CHECK: lt [[FIRST]], [[SECOND]]
     // CHECK: mstore [[MERGE_ADDR:[0-9]+]], [[FIRST]]

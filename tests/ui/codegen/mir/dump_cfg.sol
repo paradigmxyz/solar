@@ -17,7 +17,7 @@ contract DumpCfg {
     // CHECK-NOT: metadata
     // CHECK: sstore arg0, arg1\l
     // CHECK-NOT: metadata
-    // CHECK: [[LOAD:v[0-9]+]] = sload arg0\l
+    // CHECK: {{v[0-9]+}} = sload arg0\l
     // CHECK-NOT: metadata
     function storageOps(uint slot, uint value) public returns (uint loaded) {
         assembly {

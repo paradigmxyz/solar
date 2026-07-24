@@ -160,7 +160,7 @@ fn @unused_frame_store() -> u256 {
 // CHECK-LABEL: @immutable_copy_reuse
 // CHECK:       [[FIRST:v[0-9]+]] = mload [[ADDR:[0-9]+]]
 // CHECK: -     codecopy [[ADDR]]
-// CHECK: -     [[SECOND:v[0-9]+]] = mload [[ADDR]]
+// CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
 // CHECK:       mstore [[ADDR]], [[FIRST]]
 // CHECK:       [[SUM:v[0-9]+]] = add [[FIRST]], [[FIRST]]
 // CHECK:       ret [[SUM]]
@@ -206,7 +206,7 @@ fn @forward_load() -> u256 {
 
 // CHECK-LABEL: @forward_through_pure_op
 // CHECK:       mstore [[ADDR:[0-9]+]], 42
-// CHECK:       [[SUM:v[0-9]+]] = add 1, 1
+// CHECK:       {{v[0-9]+}} = add 1, 1
 // CHECK: -     [[LOAD:v[0-9]+]] = mload [[ADDR]]
 // CHECK: -     ret [[LOAD]]
 // CHECK:       ret 42
