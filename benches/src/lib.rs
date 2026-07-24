@@ -44,12 +44,14 @@ pub fn get_srcs() -> &'static [Source] {
                 "../testdata/solidity/test/benchmarks/OptimizorClub.sol",
                 Capabilities::all(),
             ),
-            include_source("../testdata/UniswapV3.sol", Capabilities::no_codegen()), // TODO: old 0.8 semantics
+            // Pre-0.8 source semantics: rejected by 0.8 type rules (unary `-` on
+            // unsigned, one-step sign+width conversions).
+            include_source("../testdata/UniswapV3.sol", Capabilities::no_codegen()),
             include_source("../testdata/Solarray.sol", Capabilities::all()),
             include_source("../testdata/console.sol", Capabilities::all()),
             include_source("../testdata/Vm.sol", Capabilities::all()),
             include_source("../testdata/safeconsole.sol", Capabilities::all()),
-            include_source("../testdata/Seaport.sol", Capabilities::no_codegen()), // TODO: unsupported yul `return`
+            include_source("../testdata/Seaport.sol", Capabilities::all()),
             include_source("../testdata/Solady.sol", Capabilities::all()),
             include_source("../testdata/Optimism.sol", Capabilities::lex_and_parse()),
         ];
