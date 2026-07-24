@@ -3,7 +3,7 @@
 @module InlineLoopReturn
 
 // CHECK-LABEL: @caller
-// CHECK:       internal_call @callee
+// CHECK: -     [[CALL:v[0-9]+]] = internal_call @callee
 // CHECK: +     jump
 // CHECK: +     [[CONT:v[0-9]+]] = phi
 // CHECK: +     [[RESULT:v[0-9]+]] = add [[CONT]], 1

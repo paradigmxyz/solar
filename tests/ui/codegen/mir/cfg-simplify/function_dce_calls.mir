@@ -2,12 +2,13 @@
 //@filecheck: --enable-var-scope
 @module FunctionDceCalls
 
-// CHECK-LABEL: @dead_helper
+// CHECK: - fn @dead_helper
 fn @dead_helper() -> u256 {
   bb0:
     ret 2
 }
 
+// CHECK-LABEL: @live_helper
 fn @live_helper() -> u256 {
   bb0:
     ret 1

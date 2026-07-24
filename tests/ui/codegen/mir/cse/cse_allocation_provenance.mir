@@ -21,8 +21,8 @@ fn @fresh(arg0: u256, arg1: u256) -> u256 {
 }
 
 // CHECK-LABEL: @reset
-// CHECK:       [[FIRST:v[0-9]+]] = mload {{v[0-9]+}}
-// CHECK:       [[SECOND:v[0-9]+]] = mload {{v[0-9]+}}
+// CHECK:       [[FIRST:v[0-9]+]] = mload [[ADDR:v[0-9]+]]
+// CHECK:       [[SECOND:v[0-9]+]] = mload [[ADDR]]
 // CHECK:       [[SUM:v[0-9]+]] = add [[FIRST]], [[SECOND]]
 // CHECK:       ret [[SUM]]
 fn @reset(arg0: u256, arg1: u256) -> u256 {

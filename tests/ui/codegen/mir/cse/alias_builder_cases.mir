@@ -86,9 +86,9 @@ fn @joined_select(arg0: bool) -> u256 {
 
 // CHECK-LABEL: @distinct_loop_allocations
 // CHECK: [[FIRST:v[0-9]+]] = alloc
-// CHECK: alloc
+// CHECK: [[SECOND:v[0-9]+]] = alloc
 // CHECK: [[LOAD:v[0-9]+]] = mload [[FIRST]]
-// CHECK: mstore
+// CHECK: mstore [[SECOND]]
 // CHECK: -     {{v[0-9]+}} = mload [[FIRST]]
 // CHECK: add [[LOAD]], [[LOAD]]
 fn @distinct_loop_allocations(arg0: bool) -> u256 {

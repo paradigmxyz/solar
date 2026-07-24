@@ -5,4 +5,5 @@
 // CHECK: add
 // CHECK: jump bb1
 // CHECK: bb1 [cold]:
+// CHECK-NEXT: jump
 @module compact bb0: push 1 push 2 add jump bb1 bb1 [cold]: jump

@@ -3,7 +3,11 @@
 
 contract EmptyExternalReturn {
     // CHECK-LABEL: @module runtime
-    // CHECK: callvalue
-    // CHECK: revert
+    // CHECK: calldatasize
+    // CHECK-NEXT: push [[NONEMPTY:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
+    // CHECK-NEXT: jump [[SUCCESS:bb[0-9]+]]
+    // CHECK: [[SUCCESS]]:
+    // CHECK-NEXT: stop
     fallback() external {}
 }
