@@ -200,6 +200,14 @@ Common file-level UI directives:
   FileCheck, for example `--check-prefix=ABI` or
   `--implicit-check-not=UnusedSymbol`.
 
+Prefer `run-call` and `run-call-fail` for small runtime checks that fit one
+isolated entry-point call and an exact output or failure expectation. Each
+directive deploys a fresh contract, so calls never share state. Put more
+complex runtime tests under `tests/foundry/` and run them with
+`cargo tq foundry`. Use Foundry for multi-transaction sequences, persistent
+state, multiple actors or contracts, event assertions, cheatcodes, and complex
+setup.
+
 Use FileCheck when exact full-output snapshots are too brittle or when a test
 needs to assert selected output properties such as ordering, presence, or
 absence. Put `// CHECK:`, `// CHECK-LABEL:`, `// CHECK-NOT:`, and related
