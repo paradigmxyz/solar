@@ -409,9 +409,7 @@ fn execute(
             hex::encode(result.output)
         ));
     }
-    let contract = result
-        .created_address
-        .ok_or_else(|| "contract deployment did not return an address".to_owned())?;
+    let contract = CALLER.create(0);
 
     let mut nonce = 1;
     if let Some(setup) = setup {
@@ -430,7 +428,7 @@ fn execute(
 }
 
 fn transact(
-    evm: &mut Evm<'_, BaseEvmTypes>,
+    evm: &mut Evm<BaseEvmTypes>,
     nonce: u64,
     to: TxKind,
     input: Bytes,
@@ -447,9 +445,7 @@ fn transact(
         },
         CALLER,
     ));
-    evm.transact(&tx)
-        .map(evm2::ExecutedTx::commit)
-        .map_err(|err| format!("transaction rejected: {err}"))
+    evm.transact(&tx).map_err(|err| format!("transaction rejected: {err}"))
 }
 
 fn outcome(result: TxResult) -> Outcome {
