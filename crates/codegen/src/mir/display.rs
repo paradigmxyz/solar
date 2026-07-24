@@ -178,7 +178,7 @@ pub(crate) fn display_function_dot<'a>(
 /// fn @name(arg0: uint256, arg1: bool) -> uint256 {
 ///   bb0:
 ///     v0 = add arg0, 1
-///     br arg1, bb1, bb2
+///     jumpi arg1, bb1, bb2
 ///   bb1:
 ///     ret v0
 ///   bb2:
@@ -535,7 +535,7 @@ fn display_terminator<'a>(
         Terminator::Jump(target) => write!(f, "jump bb{}", target.index()),
         Terminator::Branch { condition, then_block, else_block } => write!(
             f,
-            "br {}, bb{}, bb{}",
+            "jumpi {}, bb{}, bb{}",
             display_val(*condition, func),
             then_block.index(),
             else_block.index()

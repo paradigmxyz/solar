@@ -838,7 +838,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 builder.set_terminator(Terminator::Jump(target));
                 return Ok(());
             }
-            sym::br => {
+            sym::jumpi => {
                 let condition = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
                 let then_block = self.parse_block_id(builder)?;

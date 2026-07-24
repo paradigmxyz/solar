@@ -5,7 +5,7 @@ fn @guardedFix(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -18,7 +18,7 @@ fn @guardedFix(arg0: u256) {
     v6 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 2
     mstore v6, 0
     v7 = lt arg0, 3
-    br v7, bb4, bb3
+    jumpi v7, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -35,7 +35,7 @@ fn @structArr(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -53,7 +53,7 @@ fn @structArr(arg0: u256) {
     v9 = memory_object_field_addr memorystruct<1>, v3, 0
     v10 = mload v9
     v11 = lt arg0, 3
-    br v11, bb4, bb3
+    jumpi v11, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -70,7 +70,7 @@ fn @nested(arg0: u256, arg1: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -102,7 +102,7 @@ fn @nested(arg0: u256, arg1: u256) {
     v18 = memory_object_element_addr memoryfixedarray<2, 1>, v17, 0
     mstore v18, 1
     v19 = lt arg0, 3
-    br v19, bb4, bb3
+    jumpi v19, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -111,7 +111,7 @@ fn @nested(arg0: u256, arg1: u256) {
     v20 = memory_object_element_addr memoryfixedarray<3, 1>, v3, arg0
     v21 = mload v20
     v22 = lt arg1, 2
-    br v22, bb6, bb5
+    jumpi v22, bb6, bb5
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -139,7 +139,7 @@ fn @fmpIntegrity() {
     v5 = mul 1, 32
     v6 = div v5, 32
     v7 = eq v6, 1
-    br v7, bb2, bb1
+    jumpi v7, bb2, bb1
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -147,7 +147,7 @@ fn @fmpIntegrity() {
   bb2:
     v8 = add v5, 32
     v9 = lt v8, v5
-    br v9, bb3, bb4
+    jumpi v9, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -157,7 +157,7 @@ fn @fmpIntegrity() {
     set_memory_object_len memoryarray, v10, 1
     v11 = memory_object_len memoryarray, v10
     v12 = lt 0, v11
-    br v12, bb6, bb5
+    jumpi v12, bb6, bb5
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -169,7 +169,7 @@ fn @fmpIntegrity() {
     v15 = mload v14
     v16 = memory_object_len memoryarray, v10
     v17 = lt 0, v16
-    br v17, bb8, bb7
+    jumpi v17, bb8, bb7
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -220,7 +220,7 @@ fn @namedReturn() {
     mstore v7, 3
     v8 = add 32, 31
     v9 = lt v8, 32
-    br v9, bb1, bb2
+    jumpi v9, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -230,7 +230,7 @@ fn @namedReturn() {
     v11 = and v8, v10
     v12 = add v11, 32
     v13 = lt v12, v11
-    br v13, bb3, bb4
+    jumpi v13, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -240,7 +240,7 @@ fn @namedReturn() {
     set_memory_object_len memorybytes, v14, 32
     v15 = memory_object_len memorybytes, v14
     v16 = lt 0, v15
-    br v16, bb6, bb5
+    jumpi v16, bb6, bb5
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -251,7 +251,7 @@ fn @namedReturn() {
     mstore8 v18, 238
     v19 = memory_object_len memorybytes, v14
     v20 = lt 0, v19
-    br v20, bb8, bb7
+    jumpi v20, bb8, bb7
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

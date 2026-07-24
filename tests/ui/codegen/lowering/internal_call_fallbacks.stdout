@@ -5,7 +5,7 @@ fn @recurse(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -20,14 +20,14 @@ fn @a(arg0: u256) -> u256 {
     v0 = internal_frame_addr 128
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = eq arg0, 0
-    br v1, bb1, bb2
+    jumpi v1, bb1, bb2
   bb1:
     mstore 0, 0 !metadata(memory=scratch)
     jump bb3
   bb2:
     v2 = sub arg0, 1
     v3 = lt arg0, 1
-    br v3, bb4, bb5
+    jumpi v3, bb4, bb5
   bb3:
     v5 = mload 0 !metadata(memory=scratch)
     ret v5
@@ -46,14 +46,14 @@ fn @b(arg0: u256) -> u256 {
     v0 = internal_frame_addr 128
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = eq arg0, 0
-    br v1, bb1, bb2
+    jumpi v1, bb1, bb2
   bb1:
     mstore 0, 0 !metadata(memory=scratch)
     jump bb3
   bb2:
     v2 = sub arg0, 1
     v3 = lt arg0, 1
-    br v3, bb4, bb5
+    jumpi v3, bb4, bb5
   bb3:
     v5 = mload 0 !metadata(memory=scratch)
     ret v5
@@ -72,7 +72,7 @@ fn @multi(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -96,7 +96,7 @@ fn @pair(arg0: u256) -> (u256, u256) {
     mstore v1, 0 !metadata(memory=internal_frame)
     v2 = add arg0, 1
     v3 = lt v2, arg0
-    br v3, bb1, bb2
+    jumpi v3, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

@@ -5,7 +5,7 @@
     bb0:
       jump bb1
     bb1:
-      br 1, bb2, bb3
+      jumpi 1, bb2, bb3
     bb2:
       v0 = balance 0xbeef
       v1 = mul v0, 3
@@ -21,7 +21,7 @@
 +     v1 = mul v0, 3
       jump bb1
     bb1:
-      br 1, bb2, bb3
+      jumpi 1, bb2, bb3
     bb2:
 -     v0 = balance 0xbeef
 -     v1 = mul v0, 3
@@ -34,7 +34,7 @@
     bb0:
       jump bb1
     bb1:
-      br 1, bb2, bb3
+      jumpi 1, bb2, bb3
     bb2:
       v0 = extcodesize 0xbeef
       v1 = mul v0, 3
@@ -48,7 +48,7 @@
     bb0:
       jump bb1
     bb1:
-      br 1, bb2, bb3
+      jumpi 1, bb2, bb3
     bb2:
       v0 = returndatasize
       v1 = mul v0, 3
@@ -62,7 +62,7 @@
     bb0:
       jump bb1
     bb1:
-      br 1, bb2, bb3
+      jumpi 1, bb2, bb3
     bb2:
       v0 = msize
       v1 = mul v0, 3

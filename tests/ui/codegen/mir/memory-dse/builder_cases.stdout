@@ -36,7 +36,7 @@
   fn @cross_block_dead_store(arg0: u256) {
     bb0:
 -     mstore 128, 0
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
       mstore 128, 1
       returndata 128, 32
@@ -47,7 +47,7 @@
   fn @cross_block_read_path(arg0: u256) {
     bb0:
       mstore 128, 7
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
       returndata 128, 32
     bb2:

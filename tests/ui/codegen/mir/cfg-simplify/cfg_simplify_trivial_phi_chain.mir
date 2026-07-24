@@ -8,11 +8,11 @@ fn @chained_trivial(arg0: u256) -> u256 {
     jump bb1
   bb1:
     v1 = phi [bb0: arg0], [bb3: v1]
-    br arg0, bb2, bb4
+    jumpi arg0, bb2, bb4
   bb2:
     v2 = phi [bb1: v1], [bb2: v2]
     v3 = add v2, 1
-    br v3, bb2, bb3
+    jumpi v3, bb2, bb3
   bb3:
     jump bb1
   bb4:

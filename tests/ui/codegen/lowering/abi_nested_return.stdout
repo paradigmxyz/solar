@@ -5,7 +5,7 @@ fn @structArray(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -13,7 +13,7 @@ fn @structArray(arg0: u256) {
     v3 = mul 1, 32
     v4 = div v3, 32
     v5 = eq v4, 1
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -21,7 +21,7 @@ fn @structArray(arg0: u256) {
   bb4:
     v6 = add v3, 32
     v7 = lt v6, v3
-    br v7, bb5, bb6
+    jumpi v7, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -34,7 +34,7 @@ fn @structArray(arg0: u256) {
     mstore v10, arg0
     v11 = add arg0, 1
     v12 = lt v11, arg0
-    br v12, bb7, bb8
+    jumpi v12, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -44,7 +44,7 @@ fn @structArray(arg0: u256) {
     mstore v13, v11
     v14 = memory_object_len memoryarray, v8
     v15 = lt 0, v14
-    br v15, bb10, bb9
+    jumpi v15, bb10, bb9
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -76,7 +76,7 @@ fn @structArray(arg0: u256) {
   bb11:
     v30 = mload v17
     v31 = gt v30, 0
-    br v31, bb12, bb13
+    jumpi v31, bb12, bb13
   bb12:
     v32 = mload v28
     v33 = mload v32
@@ -113,7 +113,7 @@ fn @nestedArray(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -121,7 +121,7 @@ fn @nestedArray(arg0: u256) {
     v3 = mul 1, 32
     v4 = div v3, 32
     v5 = eq v4, 1
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -129,7 +129,7 @@ fn @nestedArray(arg0: u256) {
   bb4:
     v6 = add v3, 32
     v7 = lt v6, v3
-    br v7, bb5, bb6
+    jumpi v7, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -140,7 +140,7 @@ fn @nestedArray(arg0: u256) {
     v9 = mul arg0, 32
     v10 = div v9, 32
     v11 = eq v10, arg0
-    br v11, bb8, bb7
+    jumpi v11, bb8, bb7
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -148,7 +148,7 @@ fn @nestedArray(arg0: u256) {
   bb8:
     v12 = add v9, 32
     v13 = lt v12, v9
-    br v13, bb9, bb10
+    jumpi v13, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -158,7 +158,7 @@ fn @nestedArray(arg0: u256) {
     set_memory_object_len memoryarray, v14, arg0
     v15 = memory_object_len memoryarray, v8
     v16 = lt 0, v15
-    br v16, bb12, bb11
+    jumpi v16, bb12, bb11
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -190,7 +190,7 @@ fn @nestedArray(arg0: u256) {
   bb13:
     v31 = mload v18
     v32 = gt v31, 0
-    br v32, bb14, bb15
+    jumpi v32, bb14, bb15
   bb14:
     v33 = mload v29
     v34 = mload v33

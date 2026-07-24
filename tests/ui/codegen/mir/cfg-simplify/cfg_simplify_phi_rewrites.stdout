@@ -3,8 +3,8 @@
   @module CfgSimplifyPhiRewrites
   fn @empty_forwarder(arg0: bool) -> u256 {
     bb0:
--     br arg0, bb1, bb2
-+     br arg0, bb2, bb1
+-     jumpi arg0, bb1, bb2
++     jumpi arg0, bb2, bb1
     bb1:
 -     jump bb3
 -   bb2:
@@ -20,8 +20,8 @@
   
   fn @block_merge(arg0: bool) -> u256 {
     bb0:
--     br arg0, bb1, bb3
-+     br arg0, bb1, bb2
+-     jumpi arg0, bb1, bb3
++     jumpi arg0, bb1, bb2
     bb1:
 -     jump bb2
 -   bb2:

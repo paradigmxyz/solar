@@ -15,7 +15,7 @@
   
   fn @branch_forwarder_preserves_successor_order(arg0: bool) -> u256 {
     bb0:
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
       ret 1
     bb2:
@@ -26,7 +26,7 @@
   
   fn @degenerate_branch_refreshes_successors(arg0: bool) -> u256 {
     bb0:
--     br arg0, bb1, bb1
+-     jumpi arg0, bb1, bb1
 -   bb1:
       ret 1
   }

@@ -73,7 +73,7 @@
 -     v3 = mload v0
 -     v4 = add v2, v3
 +     v4 = add v2, v2
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb2:
       ret v4
   }

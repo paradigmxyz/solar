@@ -5,13 +5,13 @@ fn @max(arg0: u256, arg1: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
     v3 = gt arg0, arg1
-    br v3, bb3, bb4
+    jumpi v3, bb3, bb4
   bb3:
     mstore 0, arg0 !metadata(memory=scratch)
     jump bb5
@@ -29,19 +29,19 @@ fn @clamp(arg0: u256, arg1: u256, arg2: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
     v3 = lt arg0, arg1
-    br v3, bb3, bb4
+    jumpi v3, bb3, bb4
   bb3:
     mstore 0, arg1 !metadata(memory=scratch)
     jump bb5
   bb4:
     v4 = gt arg0, arg2
-    br v4, bb6, bb7
+    jumpi v4, bb6, bb7
   bb5:
     v6 = mload 0 !metadata(memory=scratch)
     mstore 128, v6
@@ -63,22 +63,22 @@ fn @abs_diff(arg0: u256, arg1: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
     v3 = lt arg0, arg1
     v4 = iszero v3
-    br v4, bb3, bb4
+    jumpi v4, bb3, bb4
   bb3:
     v5 = sub arg0, arg1
     v6 = lt arg0, arg1
-    br v6, bb6, bb7
+    jumpi v6, bb6, bb7
   bb4:
     v7 = sub arg1, arg0
     v8 = lt arg1, arg0
-    br v8, bb8, bb9
+    jumpi v8, bb8, bb9
   bb5:
     v9 = mload 0 !metadata(memory=scratch)
     mstore 128, v9

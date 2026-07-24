@@ -52,14 +52,14 @@ fn @overlapping_keccak() {
 
 // CHECK-LABEL: @cross_block_dead_store
 // CHECK: -     mstore [[ADDR:[0-9]+]], 0
-// CHECK:       br arg0, [[READ:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK:       jumpi arg0, [[READ:bb[0-9]+]], {{bb[0-9]+}}
 // CHECK:       [[READ]]:
 // CHECK:       mstore [[ADDR]], 1
 // CHECK:       returndata [[ADDR]]
 fn @cross_block_dead_store(arg0: u256) {
   bb0:
     mstore 128, 0
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     mstore 128, 1
     returndata 128, 32
@@ -69,7 +69,7 @@ fn @cross_block_dead_store(arg0: u256) {
 
 // CHECK-LABEL: @cross_block_read_path
 // CHECK: {{^ +}}mstore [[ADDR:[0-9]+]], 7
-// CHECK: {{^ +}}br arg0, [[READ:bb[0-9]+]], [[OVERWRITE:bb[0-9]+]]
+// CHECK: {{^ +}}jumpi arg0, [[READ:bb[0-9]+]], [[OVERWRITE:bb[0-9]+]]
 // CHECK: {{^ +}}[[READ]]:
 // CHECK: {{^ +}}returndata [[ADDR]]
 // CHECK: {{^ +}}[[OVERWRITE]]:
@@ -77,7 +77,7 @@ fn @cross_block_dead_store(arg0: u256) {
 fn @cross_block_read_path(arg0: u256) {
   bb0:
     mstore 128, 7
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     returndata 128, 32
   bb2:

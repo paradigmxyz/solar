@@ -11,7 +11,7 @@ fn @promote_outer_after_inner_flush_split() [selector=0x01020304] {
   bb0:
     jump bb6
   bb1:
-    br true, bb2, bb4
+    jumpi true, bb2, bb4
   bb2:
     sstore 0, 7
     jump bb3
@@ -25,7 +25,7 @@ fn @promote_outer_after_inner_flush_split() [selector=0x01020304] {
     sstore 0, v2
     jump bb6
   bb6:
-    br true, bb7, bb8
+    jumpi true, bb7, bb8
   bb7:
     jump bb1
   bb8:
@@ -38,7 +38,7 @@ fn @reject_outer_when_inner_flush_may_alias(arg0: u256) [selector=0x01020304] {
   bb0:
     jump bb6
   bb1:
-    br true, bb2, bb4
+    jumpi true, bb2, bb4
   bb2:
     sstore arg0, 7
     jump bb3
@@ -52,7 +52,7 @@ fn @reject_outer_when_inner_flush_may_alias(arg0: u256) [selector=0x01020304] {
     sstore 0, v2
     jump bb6
   bb6:
-    br true, bb7, bb8
+    jumpi true, bb7, bb8
   bb7:
     jump bb1
   bb8:
