@@ -160,12 +160,16 @@ impl<'s, 'p> LintContext<'s, 'p> {
     pub fn get_span_indentation(&self, span: Span) -> usize {
         if !span.is_dummy() {
             let loc = self.sess.source_map().lookup_char_pos(span.lo());
-            if let Some(line_text) = loc.file.get_line(loc.line) {
+            if let Some(line_index) = loc.line.checked_sub(1)
+                && let Some(line_text) = loc.file.get_line(line_index)
+            {
                 let col_offset = loc.col.to_usize();
-                if col_offset <= line_text.len() {
-                    let previous = &line_text[..col_offset];
-                    return previous.len() - previous.trim().len();
-                }
+                let byte_offset = line_text
+                    .char_indices()
+                    .nth(col_offset)
+                    .map_or(line_text.len(), |(offset, _)| offset);
+                let previous = &line_text[..byte_offset];
+                return previous.len() - previous.trim_start().len();
             }
         }
         0
@@ -260,4 +264,48 @@ impl Suggestion {
 
 fn hyperlink(url: &'static str) -> String {
     format!("\x1b]8;;{url}\x1b\\{url}\x1b]8;;\x1b\\")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_interface::{BytePos, ColorChoice};
+    use std::path::PathBuf;
+
+    struct TestPolicy;
+
+    impl LintPolicy for TestPolicy {
+        fn is_lint_enabled(&self, _id: &str) -> bool {
+            true
+        }
+
+        fn is_lint_suppressed(&self, _id: &str, _span: Span) -> bool {
+            false
+        }
+    }
+
+    fn indentation(source: &str, needle: &str) -> usize {
+        let session = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        let file = session.source_map().new_source_file(PathBuf::from("test.sol"), source).unwrap();
+        let offset = source.find(needle).unwrap();
+        let pos = BytePos(file.start_pos.0 + u32::try_from(offset).unwrap());
+        let policy = TestPolicy;
+        let context = LintContext::new(&session, &policy, false, false, Some(file));
+        context.get_span_indentation(Span::new(pos, pos))
+    }
+
+    #[test]
+    fn indentation_on_final_line() {
+        assert_eq!(indentation("first line\n    target", "target"), 4);
+    }
+
+    #[test]
+    fn indentation_with_utf8_before_span() {
+        assert_eq!(indentation("  étarget", "target"), 2);
+    }
+
+    #[test]
+    fn indentation_ignores_inline_whitespace() {
+        assert_eq!(indentation("  item   target", "target"), 2);
+    }
 }
