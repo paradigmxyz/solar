@@ -734,16 +734,6 @@ async fn superseded_analysis_cannot_publish_or_end_latest_progress() {
     match harness.next_event().await {
         WorkDoneEvent::Progress(ProgressParams {
             token: actual,
-            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Report(report)),
-        }) => {
-            assert_eq!(actual, token);
-            assert_eq!(report.message.as_deref(), Some("Workspace index ready"));
-        }
-        event => panic!("expected completion report, got {event:?}"),
-    }
-    match harness.next_event().await {
-        WorkDoneEvent::Progress(ProgressParams {
-            token: actual,
             value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)),
         }) => {
             assert_eq!(actual, token);

@@ -14,6 +14,7 @@ use lsp_types::{
     Diagnostic, DidChangeWatchedFilesRegistrationOptions, FileSystemWatcher, GlobPattern,
     InitializeParams, InitializeResult, InitializedParams, LogMessageParams, MessageType,
     PublishDiagnosticsParams, Registration, RegistrationParams, ServerInfo, Url, WatchKind,
+    WorkDoneProgressCancelParams,
     notification::{DidChangeWatchedFiles, Notification},
 };
 use solar_config::{CompileOpts, version::SHORT_VERSION};
@@ -134,6 +135,14 @@ impl GlobalState {
             typ: MessageType::INFO,
             message: "solar initialized".into(),
         });
+        ControlFlow::Continue(())
+    }
+
+    pub(crate) fn on_work_done_progress_cancel(
+        &mut self,
+        params: WorkDoneProgressCancelParams,
+    ) -> NotifyResult {
+        self.analysis_progress.cancel(&params.token);
         ControlFlow::Continue(())
     }
 
@@ -551,23 +560,31 @@ impl GlobalState {
         task: JoinHandle<AnalysisTaskOutcome>,
         progress: ProgressTicket,
     ) {
-        let mut snapshot = self.snapshot();
+        let analysis_version = self.analysis_version.clone();
+        let published_analysis_version = self.published_analysis_version.clone();
+        let analysis_commit = self.analysis_commit.clone();
         tokio::spawn(async move {
             match task.await {
                 Ok(AnalysisTaskOutcome::Published) => finish_analysis_progress_if_current(
                     version,
-                    &snapshot.analysis_version,
-                    &snapshot.analysis_commit,
+                    &analysis_version,
+                    &analysis_commit,
                     &progress,
                     "Workspace index ready",
                 ),
                 Ok(AnalysisTaskOutcome::Superseded) => {}
                 Err(error) => {
-                    if snapshot.handle_analysis_failure(version, error) {
+                    if handle_analysis_failure(
+                        version,
+                        error,
+                        &analysis_version,
+                        &published_analysis_version,
+                        &analysis_commit,
+                    ) {
                         finish_analysis_progress_if_current(
                             version,
-                            &snapshot.analysis_version,
-                            &snapshot.analysis_commit,
+                            &analysis_version,
+                            &analysis_commit,
                             &progress,
                             "Workspace indexing failed",
                         );
@@ -591,9 +608,27 @@ fn finish_analysis_progress_if_current(
 
     let _commit = analysis_commit.lock();
     if analysis_version.load(Ordering::Acquire) == version {
-        progress.report(message);
         progress.finish(message);
     }
+}
+
+fn handle_analysis_failure(
+    version: usize,
+    error: JoinError,
+    analysis_version: &Arc<AtomicUsize>,
+    published_analysis_version: &watch::Sender<usize>,
+    analysis_commit: &Arc<Mutex<AnalysisCommitState>>,
+) -> bool {
+    let mut commit = analysis_commit.lock();
+    if analysis_version.load(Ordering::Acquire) != version {
+        return false;
+    }
+
+    tracing::warn!(%error, version, "analysis task failed");
+    commit.cache_invalidated = true;
+    commit.natspec_context_change_version = commit.natspec_context_change_version.max(version);
+    published_analysis_version.send_replace(version);
+    true
 }
 
 struct AnalysisResult {
@@ -735,20 +770,6 @@ impl GlobalStateSnapshot {
             version,
             AnalysisResult { diagnostics: DiagnosticMap::default(), symbol_tables },
         )
-    }
-
-    fn handle_analysis_failure(&mut self, version: usize, error: JoinError) -> bool {
-        let analysis_commit = self.analysis_commit.clone();
-        let mut commit = analysis_commit.lock();
-        if !self.is_current(version) {
-            return false;
-        }
-
-        tracing::warn!(%error, version, "analysis task failed");
-        commit.cache_invalidated = true;
-        commit.natspec_context_change_version = commit.natspec_context_change_version.max(version);
-        self.published_analysis_version.send_replace(version);
-        true
     }
 
     fn analysis_workspaces(&self) -> Cow<'_, [crate::workspace::Workspace]> {

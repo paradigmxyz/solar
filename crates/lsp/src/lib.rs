@@ -117,10 +117,7 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
         .notification::<notif::WillSaveTextDocument>(handlers::will_save_text_document)
         .notification::<notif::DidSaveTextDocument>(handlers::did_save_text_document)
         .notification::<notif::DidChangeConfiguration>(handlers::did_change_configuration)
-        .notification::<notif::WorkDoneProgressCancel>(|_, params| {
-            tracing::debug!(token = ?params.token, "ignoring work-done progress cancellation");
-            ControlFlow::Continue(())
-        });
+        .notification::<notif::WorkDoneProgressCancel>(GlobalState::on_work_done_progress_cancel);
 
     router
 }
@@ -308,7 +305,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn router_ignores_work_done_progress_cancellation() {
+    async fn router_handles_work_done_progress_cancellation() {
         let mut router = new_router(ClientSocket::new_closed());
         let params = WorkDoneProgressCancelParams {
             token: NumberOrString::String("solar/workspace-index/1".into()),
@@ -686,7 +683,7 @@ mod tests {
     }
 
     #[test]
-    fn reindex_progress_tracks_the_latest_published_analysis() {
+    fn reindex_progress_honors_client_cancellation() {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .max_blocking_threads(1)
@@ -824,18 +821,22 @@ mod tests {
                 .await
                 .unwrap();
 
+            match next_analysis_event(&mut events_rx).await {
+                AnalysisClientEvent::Progress(ProgressParams {
+                    token: actual,
+                    value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)),
+                }) => {
+                    assert_eq!(actual, token);
+                    assert!(end.message.is_none());
+                }
+                event => panic!("expected cancellation end, got {event:?}"),
+            }
+
             release_blocker_tx.send(()).unwrap();
             blocker.await.unwrap();
 
             let mut saw_latest_diagnostics = false;
-            let expected_reports = [
-                "Reading workspace sources",
-                "Analyzing workspace",
-                "Publishing workspace index",
-                "Workspace index ready",
-            ];
-            let mut report_index = 0;
-            loop {
+            while !saw_latest_diagnostics {
                 match next_analysis_event(&mut events_rx).await {
                     AnalysisClientEvent::Create(create) => {
                         panic!("replacement created a second token: {create:?}")
@@ -845,29 +846,8 @@ mod tests {
                             saw_latest_diagnostics = true;
                         }
                     }
-                    AnalysisClientEvent::Progress(ProgressParams {
-                        token: actual,
-                        value: ProgressParamsValue::WorkDone(progress),
-                    }) => {
-                        assert_eq!(actual, token);
-                        match progress {
-                            WorkDoneProgress::Begin(begin) => {
-                                panic!("replacement began a second wave: {begin:?}")
-                            }
-                            WorkDoneProgress::Report(report) => {
-                                let Some(&expected) = expected_reports.get(report_index) else {
-                                    panic!("unexpected extra progress report: {report:?}")
-                                };
-                                assert_eq!(report.message.as_deref(), Some(expected));
-                                report_index += 1;
-                            }
-                            WorkDoneProgress::End(end) => {
-                                assert_eq!(end.message.as_deref(), Some("Workspace index ready"));
-                                assert_eq!(report_index, expected_reports.len());
-                                assert!(saw_latest_diagnostics);
-                                break;
-                            }
-                        }
+                    AnalysisClientEvent::Progress(progress) => {
+                        panic!("progress continued after cancellation: {progress:?}")
                     }
                 }
             }

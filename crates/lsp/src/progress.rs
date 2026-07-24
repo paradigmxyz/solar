@@ -19,7 +19,7 @@ use std::{
     },
     time::Duration,
 };
-use tokio::time::{sleep, timeout};
+use tokio::time::sleep;
 
 const PROGRESS_TITLE: &str = "Indexing workspace";
 const PROGRESS_DELAY: Duration = Duration::from_millis(250);
@@ -70,6 +70,14 @@ impl ProgressCoordinator {
     /// Updates the negotiated client capability.
     pub(crate) fn set_enabled(&self, enabled: bool) {
         self.inner.enabled.store(enabled, Ordering::Release);
+    }
+
+    /// Closes the active progress wave when the client cancels its token.
+    pub(crate) fn cancel(&self, token: &NumberOrString) {
+        let active = self.inner.active.lock();
+        if let Some(guard) = active.as_ref() {
+            guard.cancel(token);
+        }
     }
 
     /// Starts or joins the progress wave for `version`.
@@ -186,6 +194,7 @@ struct ProgressState {
     message: Option<&'static str>,
     terminal: Option<&'static str>,
     restart_reported: bool,
+    create_timed_out: bool,
 }
 
 /// Owns one server-created progress token and serializes all wire-visible transitions.
@@ -214,6 +223,7 @@ impl WorkDoneProgressGuard {
                 message: None,
                 terminal: None,
                 restart_reported: false,
+                create_timed_out: false,
             }),
         }
     }
@@ -236,20 +246,20 @@ impl WorkDoneProgressGuard {
             let client = guard.client.clone();
             let token = guard.token.clone();
             let create_timeout = guard.timing.create_timeout;
-            drop(guard);
+            let request = client
+                .request::<req::WorkDoneProgressCreate>(WorkDoneProgressCreateParams { token });
+            tokio::pin!(request);
+            let result = tokio::select! {
+                result = &mut request => result,
+                _ = sleep(create_timeout) => {
+                    guard.observe_create_timeout();
+                    request.await
+                }
+            };
 
-            let result = timeout(
-                create_timeout,
-                client
-                    .request::<req::WorkDoneProgressCreate>(WorkDoneProgressCreateParams { token }),
-            )
-            .await;
-
-            let Some(guard) = weak.upgrade() else { return };
             match result {
-                Ok(Ok(())) => guard.created(),
-                Ok(Err(error)) => guard.disable(&format!("client rejected progress: {error}")),
-                Err(_) => guard.disable("client did not create progress before timeout"),
+                Ok(()) => guard.created(),
+                Err(error) => guard.disable(&format!("client could not create progress: {error}")),
             }
         });
     }
@@ -261,6 +271,43 @@ impl WorkDoneProgressGuard {
         }
         state.phase = Phase::Creating;
         true
+    }
+
+    fn observe_create_timeout(&self) {
+        let mut state = self.state.lock();
+        if state.phase != Phase::Creating || state.create_timed_out {
+            return;
+        }
+
+        state.create_timed_out = true;
+        tracing::debug!(
+            token = ?self.token,
+            timeout = ?self.timing.create_timeout,
+            "work-done progress create response is slow"
+        );
+    }
+
+    fn cancel(&self, token: &NumberOrString) {
+        let mut state = self.state.lock();
+        if &self.token != token || state.phase == Phase::Closed {
+            return;
+        }
+
+        let was_begun = state.phase == Phase::Begun;
+        state.phase = Phase::Closed;
+        state.message = None;
+        state.terminal = None;
+        state.restart_reported = false;
+
+        if was_begun
+            && !send_progress(
+                &self.client,
+                &self.token,
+                WorkDoneProgress::End(WorkDoneProgressEnd { message: None }),
+            )
+        {
+            self.enabled.store(false, Ordering::Release);
+        }
     }
 
     fn restart(&self, version: usize) -> bool {
@@ -332,7 +379,10 @@ impl WorkDoneProgressGuard {
                 state.message = None;
             }
             Phase::Creating => {
-                state.terminal.get_or_insert(message);
+                if state.terminal.is_none() {
+                    state.message = Some(message);
+                    state.terminal = Some(message);
+                }
             }
             Phase::Begun => {
                 state.phase = Phase::Closed;
@@ -435,6 +485,11 @@ impl WorkDoneProgressGuard {
     fn is_current_and_open(&self, version: usize) -> bool {
         let state = self.state.lock();
         state.version == version && state.phase != Phase::Closed
+    }
+
+    #[cfg(test)]
+    fn create_timed_out_for_test(&self) -> bool {
+        self.state.lock().create_timed_out
     }
 }
 
@@ -626,6 +681,120 @@ mod tests {
         tokio::task::yield_now().await;
 
         assert!(!coordinator.is_active_for_test(1));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn cancellation_before_delay_suppresses_creation() {
+        let mut harness = progress_harness();
+        let coordinator = ProgressCoordinator::with_timing(
+            harness.client.clone(),
+            true,
+            Duration::from_millis(10),
+            Duration::from_secs(1),
+        );
+        let ticket = coordinator.start(1);
+        let token = ticket.guard.as_ref().unwrap().token.clone();
+
+        coordinator.cancel(&token);
+        sleep(Duration::from_millis(25)).await;
+        harness.probe().await;
+
+        assert!(!coordinator.is_active_for_test(1));
+        assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
+        harness.shutdown().await;
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn cancellation_while_create_is_pending_suppresses_late_begin() {
+        let mut harness = progress_harness();
+        let coordinator = ProgressCoordinator::with_timing(
+            harness.client.clone(),
+            true,
+            Duration::ZERO,
+            Duration::from_secs(1),
+        );
+        let ticket = coordinator.start(1);
+        let ClientEvent::Create(create) = next_event(&mut harness.events).await else {
+            panic!("expected create request")
+        };
+
+        coordinator.cancel(&create.token);
+        harness.acknowledge_create();
+        harness.probe().await;
+
+        assert!(!coordinator.is_active_for_test(1));
+        assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
+        drop(ticket);
+        harness.shutdown().await;
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn cancellation_after_begin_sends_one_end_and_suppresses_reports() {
+        let mut harness = progress_harness();
+        let coordinator = ProgressCoordinator::with_timing(
+            harness.client.clone(),
+            true,
+            Duration::ZERO,
+            Duration::from_secs(1),
+        );
+        let ticket = coordinator.start(1);
+        let ClientEvent::Create(create) = next_event(&mut harness.events).await else {
+            panic!("expected create request")
+        };
+        let token = create.token;
+        harness.acknowledge_create();
+        assert!(matches!(
+            next_event(&mut harness.events).await,
+            ClientEvent::Progress(ProgressParams {
+                token: actual,
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(_)),
+            }) if actual == token
+        ));
+
+        coordinator.cancel(&token);
+        match next_event(&mut harness.events).await {
+            ClientEvent::Progress(ProgressParams {
+                token: actual,
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)),
+            }) => {
+                assert_eq!(actual, token);
+                assert!(end.message.is_none());
+            }
+            event => panic!("expected cancellation end, got {event:?}"),
+        }
+
+        ticket.report("late report");
+        ticket.finish("late finish");
+        harness.probe().await;
+        assert!(!coordinator.is_active_for_test(1));
+        assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
+        harness.shutdown().await;
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn unknown_or_stale_cancellation_does_not_close_current_token() {
+        let mut harness = progress_harness();
+        let coordinator = ProgressCoordinator::with_timing(
+            harness.client.clone(),
+            true,
+            Duration::from_secs(60),
+            Duration::from_secs(1),
+        );
+        let stale = coordinator.start(1);
+        let stale_token = stale.guard.as_ref().unwrap().token.clone();
+        stale.finish("stale");
+        let current = coordinator.start(2);
+        let current_token = current.guard.as_ref().unwrap().token.clone();
+
+        coordinator.cancel(&NumberOrString::String("unknown".into()));
+        coordinator.cancel(&stale_token);
+        assert!(coordinator.is_active_for_test(2));
+
+        current.finish("done");
+        assert!(!coordinator.is_active_for_test(2));
+        assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
+        assert_ne!(stale_token, current_token);
+        harness.shutdown().await;
     }
 
     #[test]
@@ -831,7 +1000,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn create_timeout_ignores_a_late_success_and_disables_future_progress() {
+    async fn create_timeout_keeps_the_request_alive_for_a_late_success() {
         let mut harness = progress_harness();
         let coordinator = ProgressCoordinator::with_timing(
             harness.client.clone(),
@@ -839,23 +1008,46 @@ mod tests {
             Duration::ZERO,
             Duration::from_millis(10),
         );
-        coordinator.start(1);
+        let first = coordinator.start(1);
 
-        assert!(matches!(next_event(&mut harness.events).await, ClientEvent::Create(_)));
+        let ClientEvent::Create(create) = next_event(&mut harness.events).await else {
+            panic!("expected create request")
+        };
+        let token = create.token;
         tokio::time::timeout(Duration::from_secs(1), async {
-            while coordinator.inner.enabled.load(Ordering::Acquire) {
+            while !first.guard.as_ref().unwrap().create_timed_out_for_test() {
                 tokio::task::yield_now().await;
             }
         })
         .await
-        .expect("create timeout should disable progress");
-        assert!(coordinator.start(2).guard.is_none());
+        .expect("create timeout should be observed");
+        assert!(coordinator.inner.enabled.load(Ordering::Acquire));
+
+        let latest = coordinator.start(2);
+        assert!(Arc::ptr_eq(first.guard.as_ref().unwrap(), latest.guard.as_ref().unwrap()));
+        latest.finish("done");
 
         harness.acknowledge_create();
-        harness.probe().await;
-        assert!(
-            tokio::time::timeout(Duration::from_millis(25), harness.events.recv()).await.is_err()
-        );
+        match next_event(&mut harness.events).await {
+            ClientEvent::Progress(ProgressParams {
+                token: actual,
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
+            }) => {
+                assert_eq!(actual, token);
+                assert_eq!(begin.message.as_deref(), Some("done"));
+            }
+            event => panic!("expected late progress begin, got {event:?}"),
+        }
+        match next_event(&mut harness.events).await {
+            ClientEvent::Progress(ProgressParams {
+                token: actual,
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)),
+            }) => {
+                assert_eq!(actual, token);
+                assert_eq!(end.message.as_deref(), Some("done"));
+            }
+            event => panic!("expected late progress end, got {event:?}"),
+        }
 
         harness.shutdown().await;
     }
