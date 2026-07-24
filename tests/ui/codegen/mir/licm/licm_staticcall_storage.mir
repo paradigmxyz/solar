@@ -48,7 +48,7 @@ fn @hoist_tload_with_staticcall() -> u256 {
 // A plain call may write any slot; the sload must stay in the loop.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_sload_with_call{{[( ]}}
 // CHECK: + [[LOAD:v[0-9]+]] = sload 5
-// CHECK: {{^[ +].*}}call
+// CHECK: {{^[ +].*[ =]call[[:space:]]}}
 fn @keep_sload_with_call() -> u256 {
   bb0:
     jump bb1

@@ -26,7 +26,7 @@ fn @kill_blocks_reuse(arg0: bool, arg1: u256) -> u256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @call_kills_storage{{[( ]}}
-// CHECK: {{^[ +].*}}call
+// CHECK: {{^[ +].*[ =]call[[:space:]]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = sload 5
 fn @call_kills_storage(arg0: bool, arg1: address) -> u256 {
   bb0:

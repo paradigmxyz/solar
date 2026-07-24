@@ -63,7 +63,7 @@ fn @remove_disjoint_offset_overwrite(arg0: u256) {
 
 // CHECK-LABEL: {{^[ +].*}}fn @keep_across_call{{[( ]}}
 // CHECK: + sstore 0, arg0
-// CHECK: {{^[ +].*}}call
+// CHECK: {{^[ +].*[ =]call[[:space:]]}}
 // CHECK: + sstore 0, 7
 fn @keep_across_call(arg0: u256, arg1: address) {
   bb0:

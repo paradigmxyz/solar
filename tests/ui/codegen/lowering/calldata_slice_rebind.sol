@@ -13,7 +13,7 @@ contract CalldataSliceRebind {
     // SLICE: make_calldata_slice
     // SLICE-NOT: mcopy
     // SLICE: abi_encode [calldata_bytes]
-    // SLICE: call
+    // SLICE: {{^.*[ =]call[[:space:]]}}
     function forward(bytes calldata data, uint256 start, SliceSink sink) external {
         data = data[start:];
         sink.consume(data);

@@ -20,7 +20,7 @@ contract C {
     // CHECK-NEXT: push [[SWAP:bb[0-9]+]]
     // CHECK: [[NAMED]]:
     // CHECK: calldatacopy
-    // CHECK: call
+    // CHECK: {{^.*[ =]call[[:space:]]}}
     // CHECK: return
     function viaNamed(address t, bytes calldata d) external returns (bool ok) {
         (ok, ) = t.call(d);

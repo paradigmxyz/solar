@@ -80,9 +80,11 @@ contract CheckedArithmeticPanic {
     }
 
     // CHECK-LABEL: fn @unchecked_neg{{[( ]}}
+    // CHECK-NOT: mstore 4, 17
     // CHECK: sub 0, arg0
     // CHECK-NOT: mstore 4, 17
     // CHECK: returndata
+    // CHECK-NOT: mstore 4, 17
     function unchecked_neg(int256 a) public pure returns (int256) {
         unchecked {
             return -a;
@@ -90,9 +92,11 @@ contract CheckedArithmeticPanic {
     }
 
     // CHECK-LABEL: fn @unchecked_pow{{[( ]}}
+    // CHECK-NOT: mstore 4, 17
     // CHECK: exp arg0, arg1
     // CHECK-NOT: mstore 4, 17
     // CHECK: returndata
+    // CHECK-NOT: mstore 4, 17
     function unchecked_pow(uint256 a, uint256 b) public pure returns (uint256) {
         unchecked {
             return a ** b;

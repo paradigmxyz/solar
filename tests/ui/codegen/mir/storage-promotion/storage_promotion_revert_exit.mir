@@ -62,7 +62,7 @@ fn @promote_revert_exit_reads_slot(arg0: u256) [selector=0x01020304] {
 // CHECK-LABEL: {{^[ +].*}}fn @reject_revert_exit_with_call{{[( ]}}
 // CHECK: + sstore 0, 1
 // CHECK: + {{v[0-9]+}} = sload 0
-// CHECK: {{^[ +].*}}call
+// CHECK: {{^[ +].*[ =]call[[:space:]]}}
 fn @reject_revert_exit_with_call(arg0: u256) [selector=0x01020304] {
   bb0:
     sstore 0, 1

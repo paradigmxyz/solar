@@ -79,7 +79,7 @@ fn @fold_modular_helpers(arg0: u256) -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @complete_word_identities{{[( ]}}
 // CHECK: {{^[ +].*}}[[NOT:v[0-9]+]] = not arg0
-// CHECK: {{^[ +].*}}ret 0xffff{{.*}}, [[NOT]], arg1, arg1, arg1, 0, 0, 0, arg0
+// CHECK: {{^[ +].*}}ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, [[NOT]], arg1, arg1, arg1, 0, 0, 0, arg0
 fn @complete_word_identities(arg0: u256, arg1: bool) -> (u256, u256, bool, bool, bool, u256, u256, u256, u256) {
   bb0:
     v2 = or arg0, 115792089237316195423570985008687907853269984665640564039457584007913129639935
@@ -96,7 +96,7 @@ fn @complete_word_identities(arg0: u256, arg1: bool) -> (u256, u256, bool, bool,
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @complete_exact_identities{{[( ]}}
-// CHECK: {{^[ +].*}}ret [[NOT:v[0-9]+]], 0, 0xffff{{.*}}, 0xffff{{.*}}, 1, 0, 1, 0, 0, 0
+// CHECK: {{^[ +].*}}ret [[NOT:v[0-9]+]], 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1, 0, 1, 0, 0, 0
 fn @complete_exact_identities(arg0: u256, arg1: bool) -> (u256, u256, u256, u256, bool, bool, bool, bool, u256, u256) {
   bb0:
     v2 = not arg0
@@ -141,7 +141,7 @@ fn @fold_wide_modular_constants() -> (u256, u256) {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @fold_constant_ops{{[( ]}}
-// CHECK: + ret 12, 0xffff{{.*}}, 42, 8, 0, 2, 256, 2, 0xffff{{.*}}, 1, 1, 15, 17, 12, 256, 16, 0xffff{{.*}}, 255, 0xffff{{.*}}, 2, 5
+// CHECK: + ret 12, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 42, 8, 0, 2, 256, 2, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 1, 1, 15, 17, 12, 256, 16, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc, 255, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 5
 fn @fold_constant_ops() -> (u256, u256, u256, u256, u256, u256, u256, u256, u256, bool, bool, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256) {
   bb0:
     v1 = add 7, 5

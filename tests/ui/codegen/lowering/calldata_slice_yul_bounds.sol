@@ -23,6 +23,7 @@ contract CalldataSliceYulBounds {
         return _sink(_empty());
     }
 
+    // CDSLICE-LABEL: fn @_sink{{[( ]}}
     function _sink(bytes calldata data) internal pure returns (uint256) {
         return data.length;
     }

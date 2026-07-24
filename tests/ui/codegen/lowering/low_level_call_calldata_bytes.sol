@@ -22,7 +22,7 @@ contract C {
     // CHECK: [[DELEGATE]]:
     // CHECK: jump [[DECODE]]
     // CHECK: calldatacopy
-    // CHECK: call
+    // CHECK: {{^.*[ =]call[[:space:]]}}
     // CHECK: jump [[RETURN:bb[0-9]+]]
     // CHECK: [[RETURN]]:
     // CHECK: return

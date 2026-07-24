@@ -5,8 +5,11 @@ contract CalldataSliceTernary {
     // A calldata-typed ternary merges lazily: each arm's pointer and length
     // round-trip through scratch and re-form a slice, with no calldata copy.
     // SLICE-LABEL: fn @pick{{[( ]}}
+    // SLICE-NOT: calldatacopy
     // SLICE: slice_ptr
+    // SLICE-NOT: calldatacopy
     // SLICE: slice_len
+    // SLICE-NOT: calldatacopy
     // SLICE: make_calldata_slice
     // SLICE-NOT: calldatacopy
     function pick(bool c, bytes calldata a, bytes calldata b)

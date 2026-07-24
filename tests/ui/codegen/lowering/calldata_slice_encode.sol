@@ -20,7 +20,7 @@ contract CalldataSliceEncode {
     // SLICE-LABEL: fn @forward{{[( ]}}
     // SLICE: make_calldata_slice
     // SLICE: abi_encode [calldata_bytes]
-    // SLICE: call
+    // SLICE: {{^.*[ =]call[[:space:]]}}
     function forward(bytes calldata data, uint256 start, SliceSink sink) external {
         data = data[start:];
         sink.consume(data);
