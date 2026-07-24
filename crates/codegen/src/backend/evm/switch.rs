@@ -1,5 +1,6 @@
 //! Target-aware switch lowering selection.
 
+use super::ir::immediate_materialization_cost;
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 
@@ -362,8 +363,9 @@ fn dense_lowering_cost(
         return None;
     }
 
-    let normalize_len = usize::from(!low.is_zero()) * (push_len(low, evm_version) + 2);
-    let normalize_gas = usize::from(!low.is_zero()) * VERY_LOW_GAS * 3;
+    let (low_len, low_gas) = immediate_materialization_cost(evm_version, low);
+    let normalize_len = usize::from(!low.is_zero()) * (low_len + 2);
+    let normalize_gas = usize::from(!low.is_zero()) * (low_gas + VERY_LOW_GAS * 2);
     let bounds_prefix_len = 1 + push_len(U256::from(range), evm_version) + 1;
     let bounds_len = bounds_prefix_len + MIN_LABEL_PUSH_LEN + 1;
     let max_bounds_len = bounds_prefix_len + max_label_push_len(table_target_width) + 1;
@@ -378,7 +380,7 @@ fn dense_lowering_cost(
         + JUMP_GAS;
     let hit_gas = normalize_gas + bounds_gas + JUMPDEST_GAS + indexed_jump_gas;
     let default_body_gas =
-        if default == SwitchDefault::Revert { default.gas(evm_version) } else { 0 };
+        if default == SwitchDefault::Revert { JUMPDEST_GAS + default.gas(evm_version) } else { 0 };
     let out_of_range_miss_gas =
         normalize_gas + bounds_gas + POP_GAS + DEFAULT_JUMP_GAS + default_body_gas;
     let hole_miss_gas = (range > values.len())
@@ -460,11 +462,12 @@ fn equality_test_cost(value: U256, evm_version: EvmVersion, table_target_width: 
 
 fn ordered_test_cost(value: U256, evm_version: EvmVersion, table_target_width: usize) -> TestCost {
     // DUP1, PUSH<value>, EQ/GT, PUSH<label>, JUMPI.
-    let prefix_len = 1 + push_len(value, evm_version) + 1;
+    let (value_len, value_gas) = immediate_materialization_cost(evm_version, value);
+    let prefix_len = 1 + value_len + 1;
     TestCost {
         code_size: prefix_len + MIN_LABEL_PUSH_LEN + 1,
         max_code_size: prefix_len + max_label_push_len(table_target_width) + 1,
-        gas: VERY_LOW_GAS * 4 + JUMPI_GAS,
+        gas: VERY_LOW_GAS * 3 + value_gas + JUMPI_GAS,
     }
 }
 
@@ -804,5 +807,43 @@ mod tests {
             .unwrap()
             .2;
         assert!(dense.miss_gas > full.miss_gas);
+    }
+
+    #[test]
+    fn accounts_for_dense_shared_revert_entry() {
+        let values = values(24);
+        let jump =
+            dense_lowering_cost(&values, EvmVersion::Cancun, SwitchDefault::Jump, 2).unwrap().2;
+        let revert =
+            dense_lowering_cost(&values, EvmVersion::Cancun, SwitchDefault::Revert, 2).unwrap().2;
+        assert_eq!(
+            revert.miss_gas,
+            jump.miss_gas + JUMPDEST_GAS + SwitchDefault::Revert.gas(EvmVersion::Cancun)
+        );
+    }
+
+    #[test]
+    fn accounts_for_compact_max_adjacent_constants() {
+        let low = U256::MAX - U256::from(64 * 6);
+        let values = (0..65).map(|index| low + U256::from(index * 6)).collect::<Vec<_>>();
+        assert_eq!(
+            select_switch_plan(
+                &values,
+                OptimizationMode::Size,
+                EvmVersion::Cancun,
+                SwitchDefault::CleanupJump,
+                2,
+            ),
+            SwitchPlan::Linear
+        );
+
+        let plan = select_switch_plan(
+            &values,
+            OptimizationMode::Gas,
+            EvmVersion::Cancun,
+            SwitchDefault::CleanupJump,
+            2,
+        );
+        assert!(!matches!(plan, SwitchPlan::Dense { .. }));
     }
 }
