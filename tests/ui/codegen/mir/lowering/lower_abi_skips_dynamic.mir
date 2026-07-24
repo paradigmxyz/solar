@@ -1,12 +1,11 @@
 //@compile-flags: --pass lower-abi
-//@filecheck:
+//@filecheck: --implicit-check-not=@phase
 // A function that still returns MIR values needs its caller to encode them,
 // which absorption cannot do, so the module is left entirely untouched: the
 // phase transition is all-or-nothing and the module does not advance to `abi`.
 @module LowerAbiSkipsDynamic
 // CHECK-LABEL: fn @givesBytes
 // CHECK: ret arg0
-// CHECK-NOT: @phase abi
 fn @givesBytes(arg0: memptr) -> memptr [selector=0x0dead001] {
   bb0:
     ret arg0

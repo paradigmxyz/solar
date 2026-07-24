@@ -16,6 +16,7 @@ contract CalldataSliceControlFlow {
         return _trim(data).length;
     }
 
+    // CDCF-LABEL: fn @_trim
     function _trim(bytes calldata data) internal pure returns (bytes calldata r) {
         r = data;
         if (data.length > 8) {
@@ -41,6 +42,7 @@ contract CalldataSliceControlFlow {
         return _sum(a, b);
     }
 
+    // CDCF-LABEL: fn @_sum
     function _sum(bytes calldata a, bytes calldata b) internal pure returns (uint256) {
         return a.length * 1000 + b.length;
     }
@@ -53,6 +55,7 @@ contract CalldataSliceControlFlow {
         return _explicitTrim(x).length;
     }
 
+    // CDCF-LABEL: fn @_explicitTrim
     function _explicitTrim(bytes calldata x) internal pure returns (bytes calldata) {
         if (x.length > 4) return x[4:];
         return x;
@@ -69,6 +72,7 @@ contract CalldataSliceControlFlow {
         tl = tail.length;
     }
 
+    // CDCF-LABEL: fn @_split
     function _split(bytes calldata x)
         internal
         pure

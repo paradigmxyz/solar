@@ -1,9 +1,8 @@
-//@filecheck:
+//@filecheck: --implicit-check-not=!meta
 @module module
 
 // CHECK-LABEL: bb0:
 // CHECK-COUNT-5: push 0
-// CHECK-NOT: !meta
 // CHECK: stop
 bb0:
   push 0 !meta(type=u256)

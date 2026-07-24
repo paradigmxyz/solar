@@ -7,10 +7,11 @@
 // zeroing calldatacopy over the data area. The default pipeline should forward
 // the stored length, fold `1 < 3`, and delete the panic branch.
 // CHECK-LABEL: fn @constant_index
+// CHECK-NOT: {{br|revert}}
 // CHECK: calldatacopy {{v[0-9]+}}, 0, 96
+// CHECK-NOT: {{br|revert}}
 // CHECK: ret 7
-// CHECK-NOT: br
-// CHECK-NOT: revert
+// CHECK-NOT: {{br|revert}}
 fn @constant_index() -> u256 {
   bb0:
     v0 = mload 64

@@ -6,10 +6,11 @@
 // default pipeline the require guard must fold the subtraction's
 // Panic(0x11) underflow branch.
 // CHECK-LABEL: fn @guarded
+// CHECK-NOT: {{mstore 4, 17|revert 0, 36}}
 // CHECK: [[SUB:v[0-9]+]] = sub arg0, arg1
+// CHECK-NOT: {{mstore 4, 17|revert 0, 36}}
 // CHECK: mstore 128, [[SUB]]
-// CHECK-NOT: mstore 4, 17
-// CHECK-NOT: revert 0, 36
+// CHECK-NOT: {{mstore 4, 17|revert 0, 36}}
 fn @guarded(arg0: u256, arg1: u256) {
   bb0:
     mstore 128, 0
