@@ -19,7 +19,6 @@ contract SwitchTables {
             case 19 { result := 109 }
             case 20 { result := 110 }
             case 21 { result := 111 }
-            case 22 { result := 112 }
             case 23 { result := 113 }
             case 24 { result := 114 }
             case 25 { result := 115 }
@@ -294,6 +293,7 @@ contract SwitchTablesTest {
         assert(tables.dense(9) == 999);
         assert(tables.dense(10) == 100);
         assert(tables.dense(21) == 111);
+        assert(tables.dense(22) == 999);
         assert(tables.dense(33) == 123);
         assert(tables.dense(34) == 999);
     }

@@ -171,7 +171,9 @@ pub(super) fn select_switch_plan_with_linear_values(
             }
         }
     }
-    if let Some((low, range, cost)) = dense_lowering_cost(values, evm_version, table_target_width) {
+    if let Some((low, range, cost)) =
+        dense_lowering_cost(values, evm_version, default, table_target_width)
+    {
         let better = match optimization {
             OptimizationMode::Gas => cost.is_better_for_gas_than(best.0, max_gas_code_size),
             OptimizationMode::Size => cost.size_key() < best.0.size_key(),
@@ -350,6 +352,7 @@ fn bucket_lowering_cost(
 fn dense_lowering_cost(
     values: &[U256],
     evm_version: EvmVersion,
+    default: SwitchDefault,
     table_target_width: usize,
 ) -> Option<(U256, usize, LoweringCost)> {
     let low = *values.first()?;
@@ -374,7 +377,14 @@ fn dense_lowering_cost(
         + VERY_LOW_GAS
         + JUMP_GAS;
     let hit_gas = normalize_gas + bounds_gas + JUMPDEST_GAS + indexed_jump_gas;
-    let miss_gas = normalize_gas + bounds_gas + 2 + DEFAULT_JUMP_GAS;
+    let default_body_gas =
+        if default == SwitchDefault::Revert { default.gas(evm_version) } else { 0 };
+    let out_of_range_miss_gas =
+        normalize_gas + bounds_gas + POP_GAS + DEFAULT_JUMP_GAS + default_body_gas;
+    let hole_miss_gas = (range > values.len())
+        .then_some(normalize_gas + bounds_gas + JUMPDEST_GAS + indexed_jump_gas + default_body_gas);
+    let miss_gas =
+        hole_miss_gas.map_or(out_of_range_miss_gas, |gas| out_of_range_miss_gas.max(gas));
     Some((
         low,
         range,
@@ -696,6 +706,21 @@ mod tests {
     }
 
     #[test]
+    fn selects_dense_table_with_holes() {
+        let values = (0..24).filter(|&value| value != 12).map(U256::from).collect::<Vec<_>>();
+        assert_eq!(
+            select_switch_plan(
+                &values,
+                OptimizationMode::Size,
+                EvmVersion::Cancun,
+                SwitchDefault::CleanupJump,
+                2,
+            ),
+            SwitchPlan::Dense { low: U256::ZERO, range: 24 }
+        );
+    }
+
+    #[test]
     fn rejects_excessive_gas_optimized_table_growth() {
         let values = (0..65).map(|value| U256::from(value * 63)).collect::<Vec<_>>();
         let plan = select_switch_plan(
@@ -724,7 +749,9 @@ mod tests {
                 2,
             ),
             SwitchPlan::Dense { .. } => {
-                dense_lowering_cost(&values, EvmVersion::Cancun, 2).unwrap().2
+                dense_lowering_cost(&values, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2)
+                    .unwrap()
+                    .2
             }
         };
         let linear =
@@ -764,5 +791,18 @@ mod tests {
             ),
             SwitchPlan::Linear
         );
+    }
+
+    #[test]
+    fn accounts_for_dense_hole_misses() {
+        let dense = [U256::ZERO, U256::from(2)];
+        let full = values(3);
+        let dense = dense_lowering_cost(&dense, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2)
+            .unwrap()
+            .2;
+        let full = dense_lowering_cost(&full, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2)
+            .unwrap()
+            .2;
+        assert!(dense.miss_gas > full.miss_gas);
     }
 }
