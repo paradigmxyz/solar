@@ -494,6 +494,18 @@ mod tests {
     }
 
     #[test]
+    fn test_shuffle_removes_anonymous_word_below_target() {
+        let v0 = ValueId::from_usize(0);
+        let source = make_model(&[Some(v0), None]);
+        let target = [TargetSlot::Value(v0)];
+
+        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
+
+        assert_eq!(result.ops, [StackOp::Swap(1), StackOp::Pop]);
+        assert_reaches(&source, &target, &result);
+    }
+
+    #[test]
     fn test_shuffle_uses_swap16() {
         let values: Vec<_> = (0..=MAX_STACK_ACCESS).map(ValueId::from_usize).collect();
         let source = make_model(&values.iter().copied().map(Some).collect::<Vec<_>>());
