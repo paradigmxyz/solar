@@ -33,7 +33,7 @@ jobs:
           - os: "windows-latest"
             rust: "stable"
           - os: "ubuntu-latest"
-            rust: "1.95" # MSRV
+            rust: "1.96" # MSRV
           - os: "ubuntu-latest"
             rust: "nightly"
     steps:
