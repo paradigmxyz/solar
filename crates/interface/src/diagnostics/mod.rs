@@ -1385,11 +1385,22 @@ note: mutable variables should use mixedCase
         sm.new_source_file(source_map::FileName::custom("test.sol"), CONTRACT.to_string()).unwrap();
         let diagnostic = Diag::new(Level::Error, "mismatched types");
 
-        for (color, expected) in [(ColorChoice::Always, true), (ColorChoice::Auto, false)] {
+        let formatted = [ColorChoice::Always, ColorChoice::Auto].map(|color| {
             let mut emitter = JsonEmitter::new(Box::new(std::io::sink()), Arc::clone(&sm), color);
-            let formatted = emitter.solc_diagnostic(&diagnostic).formatted_message.unwrap();
-            assert_eq!(formatted.contains("\x1b["), expected, "{formatted:?}");
-        }
+            emitter.solc_diagnostic(&diagnostic).formatted_message.unwrap()
+        });
+        assert_data_eq!(
+            formatted.join("\n---\n"),
+            str![[r#"
+[1m[91merror[0m[1m: mismatched types[0m
+
+
+---
+error: mismatched types
+
+
+"#]]
+        );
     }
 
     #[test]
@@ -1420,26 +1431,40 @@ warning: confusable spelling
     #[test]
     fn test_allowed_diagnostic_code_suppresses_warning() {
         let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never)
-            .with_allowed_diagnostic_codes(["1234".to_string()]);
+            .with_allowed_diagnostic_codes(["1234".to_string()])
+            .with_flags(|flags| flags.track_diagnostics = false);
 
         dcx.warn("suppressed warning").code(crate::error_code!(1234)).emit();
         dcx.warn("emitted warning").code(crate::error_code!(5678)).emit();
 
-        let diagnostics = dcx.emitted_diagnostics().unwrap().to_string();
         assert_eq!(dcx.warn_count(), 1);
-        assert!(diagnostics.contains("emitted warning"));
-        assert!(!diagnostics.contains("suppressed warning"));
+        assert_data_eq!(
+            dcx.emitted_diagnostics().unwrap().to_string(),
+            str![[r#"
+warning[5678]: emitted warning
+
+
+"#]]
+        );
     }
 
     #[test]
     fn test_allowed_diagnostic_code_does_not_suppress_error() {
         let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never)
-            .with_allowed_diagnostic_codes(["1234".to_string()]);
+            .with_allowed_diagnostic_codes(["1234".to_string()])
+            .with_flags(|flags| flags.track_diagnostics = false);
 
         let _ = dcx.err("emitted error").code(crate::error_code!(1234)).emit();
 
         assert!(dcx.has_errors().is_err());
-        assert!(dcx.emitted_diagnostics().unwrap().to_string().contains("emitted error"));
+        assert_data_eq!(
+            dcx.emitted_diagnostics().unwrap().to_string(),
+            str![[r#"
+error[1234]: emitted error
+
+
+"#]]
+        );
     }
 
     #[test]

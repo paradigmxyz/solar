@@ -408,6 +408,7 @@ pub struct UnstableOpts {
 mod tests {
     use super::*;
     use clap::CommandFactory;
+    use snapbox::{assert_data_eq, str};
 
     #[test]
     fn verify_cli() {
@@ -451,14 +452,36 @@ mod tests {
             CompileOpts::try_parse_from(["solar", "--standard-json", "input1.json", "input2.json"])
                 .unwrap();
         let error = opts.finish().unwrap_err().render().ansi().to_string();
-        assert!(error.contains("Too many input files for --standard-json."));
+        assert_data_eq!(
+            error,
+            str![[r#"
+[1m[31merror:[0m Too many input files for --standard-json.
+Please either specify a single file name or provide its content on standard input.
+
+[1m[4mUsage:[0m [1msolar[0m [OPTIONS] [INPUT]...
+
+For more information, try '[1m--help[0m'.
+
+"#]]
+        );
     }
 
     #[test]
     fn standard_json_rejects_remappings() {
         let mut opts = CompileOpts::try_parse_from(["solar", "--standard-json", "a=b"]).unwrap();
         let error = opts.finish().unwrap_err().render().ansi().to_string();
-        assert!(error.contains("Import remappings are not accepted on the command line"));
+        assert_data_eq!(
+            error,
+            str![[r#"
+[1m[31merror:[0m Import remappings are not accepted on the command line in Standard JSON mode.
+Please put them under 'settings.remappings' in the JSON input.
+
+[1m[4mUsage:[0m [1msolar[0m [OPTIONS] [INPUT]...
+
+For more information, try '[1m--help[0m'.
+
+"#]]
+        );
     }
 
     #[test]

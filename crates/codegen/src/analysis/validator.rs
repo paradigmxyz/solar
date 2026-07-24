@@ -772,10 +772,18 @@ error: [bb0] entry block must have no predecessors
 
             Validator::new(&sess.dcx).validate_module(&module);
             assert!(sess.dcx.has_errors().is_err());
-            let diagnostics = sess.emitted_diagnostics().unwrap().to_string();
-            assert!(diagnostics.contains("slice instruction"));
-            assert!(diagnostics.contains("ABI encoding instruction"));
-            assert!(diagnostics.contains("aggregate instruction"));
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [fn0] [bb0, inst0] slice instruction `make_memory_slice` survives the `evm-shaped` phase boundary
+
+error: [fn0] [bb0, inst1] ABI encoding instruction `abi_encode` survives the `evm-shaped` phase boundary
+
+error: [fn0] [bb0, inst2] aggregate instruction `storage_to_memory` survives the `evm-shaped` phase boundary
+
+
+"#]]
+            );
         });
     }
 

@@ -3500,6 +3500,7 @@ dependencies = [
  "colorchoice",
  "serde",
  "serde_json",
+ "snapbox",
  "strum 0.28.0",
  "vergen-gitcl",
 ]

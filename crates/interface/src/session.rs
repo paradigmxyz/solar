@@ -517,7 +517,15 @@ fn in_rayon() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use snapbox::{assert_data_eq, str};
     use std::path::PathBuf;
+
+    fn buffer_session() -> Session {
+        let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never).with_flags(|flags| {
+            flags.track_diagnostics = false;
+        });
+        Session::builder().dcx(dcx).build()
+    }
 
     /// Session to test `enter`.
     fn enter_tests_session() -> Session {
@@ -599,11 +607,18 @@ mod tests {
         assert!(sess.emitted_diagnostics().is_none());
         assert!(sess.emitted_errors().is_none());
 
-        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        let sess = buffer_session();
         sess.dcx.err("test").emit();
         let err = sess.dcx.emitted_errors().unwrap().unwrap_err();
         let err = Box::new(err) as Box<dyn std::error::Error>;
-        assert!(err.to_string().contains("error: test"), "{err:?}");
+        assert_data_eq!(
+            err.to_string(),
+            str![[r#"
+error: test
+
+
+"#]]
+        );
     }
 
     #[test]
@@ -640,19 +655,32 @@ mod tests {
 
     #[test]
     fn enter_diags() {
-        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        let sess = buffer_session();
         assert!(sess.dcx.emitted_errors().unwrap().is_ok());
         sess.enter(|| {
             sess.dcx.err("test1").emit();
             assert!(sess.dcx.emitted_errors().unwrap().is_err());
         });
-        assert!(sess.dcx.emitted_errors().unwrap().unwrap_err().to_string().contains("test1"));
+        let test1 = sess.dcx.emitted_errors().unwrap().unwrap_err().to_string();
         sess.enter(|| {
             sess.dcx.err("test2").emit();
             assert!(sess.dcx.emitted_errors().unwrap().is_err());
         });
-        assert!(sess.dcx.emitted_errors().unwrap().unwrap_err().to_string().contains("test1"));
-        assert!(sess.dcx.emitted_errors().unwrap().unwrap_err().to_string().contains("test2"));
+        let test1_test2 = sess.dcx.emitted_errors().unwrap().unwrap_err().to_string();
+        assert_data_eq!(
+            format!("{test1}\n---\n{test1_test2}"),
+            str![[r#"
+error: test1
+
+
+---
+error: test1
+
+error: test2
+
+
+"#]]
+        );
     }
 
     #[test]

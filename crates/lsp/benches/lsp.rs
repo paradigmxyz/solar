@@ -2,6 +2,7 @@
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use lsp_types::{GotoDefinitionResponse, HoverContents, Position};
+use snapbox::{assert_data_eq, str};
 use solar_lsp::{
     BenchmarkAnalysis, BenchmarkProject, BenchmarkRequest, BenchmarkResponse,
     benchmark_selection_ranges,
@@ -201,7 +202,14 @@ fn assert_unifap_response(name: &str, response: BenchmarkResponse) {
             let HoverContents::Markup(markup) = hover.contents else {
                 panic!("the SELECTOR hover should contain markup")
             };
-            assert!(markup.value.contains("SELECTOR"));
+            assert_data_eq!(
+                markup.value,
+                str![[r#"
+```solidity
+bytes4 public constant SELECTOR
+```
+"#]]
+            );
         }
         (
             "goto-definition",
@@ -231,8 +239,16 @@ fn assert_unifap_response(name: &str, response: BenchmarkResponse) {
         }
         ("workspace-symbols", BenchmarkResponse::WorkspaceSymbols(symbols)) => {
             assert_eq!(symbols.len(), 3);
-            assert!(symbols.iter().all(|symbol| symbol.name.contains("UnifapV2Pair")));
-            assert!(symbols.iter().any(|symbol| symbol.name == "UnifapV2Pair"));
+            let mut names = symbols.iter().map(|symbol| symbol.name.as_str()).collect::<Vec<_>>();
+            names.sort_unstable();
+            assert_data_eq!(
+                names.join("\n"),
+                str![[r#"
+IUnifapV2Pair
+TestUnifapV2Pair
+UnifapV2Pair
+"#]]
+            );
         }
         _ => panic!("unexpected `{name}` response for the unifap-v2 benchmark"),
     }

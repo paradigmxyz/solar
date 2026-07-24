@@ -5,7 +5,7 @@ use lsp_types::{
     HoverContents, HoverParams, Position, TextDocumentIdentifier, TextDocumentPositionParams, Url,
     WorkDoneProgressParams,
 };
-use snapbox::str;
+use snapbox::{assert_data_eq, str};
 use solar_config::CompileOpts;
 use std::task::{Context, Poll, Waker};
 
@@ -1065,5 +1065,12 @@ fn waits_for_latest_analysis_before_returning_hover() {
     let HoverContents::Markup(contents) = hover.contents else {
         panic!("hover should use markdown");
     };
-    assert!(contents.value.contains("address newValue"));
+    assert_data_eq!(
+        contents.value,
+        str![[r#"
+```solidity
+address newValue
+```
+"#]]
+    );
 }

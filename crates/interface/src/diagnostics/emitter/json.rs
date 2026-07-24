@@ -501,6 +501,7 @@ fn to_severity(level: Level) -> Severity {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use snapbox::{Assert, str};
 
     #[test]
     fn whole_line_deletion_includes_newline() {
@@ -543,8 +544,12 @@ mod tests {
         };
 
         let json = serde_json::to_string(&diagnostic).unwrap();
-        assert!(json.contains(r#""type":"Exception\nquoted""#));
-        assert!(json.contains(r#""message":"borrowed \"message\"""#));
+        Assert::new().normalize_paths(false).eq(
+            json,
+            str![[
+                r#"{"sourceLocation":{"file":"input.sol","start":0,"end":1,"message":"borrowed \"message\""},"secondarySourceLocations":[],"type":"Exception\nquoted","component":"general","severity":"error","errorCode":"1234","message":"borrowed message","formattedMessage":null}"#
+            ]],
+        );
 
         assert!(matches!(diagnostic.r#type, Cow::Borrowed(_)));
         assert!(matches!(diagnostic.component, Cow::Borrowed("general")));

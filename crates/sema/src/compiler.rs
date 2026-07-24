@@ -306,11 +306,12 @@ fn log_ast_arenas_stats(arenas: &mut ThreadLocal<solar_ast::Arena>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use snapbox::{assert_data_eq, str};
     use std::path::PathBuf;
 
     // --- copy from `crates/interface/src/session.rs`
     use solar_ast::{Span, Symbol};
-    use solar_interface::{BytePos, ColorChoice};
+    use solar_interface::{BytePos, ColorChoice, diagnostics::DiagCtxt};
 
     /// Session to test `enter`.
     fn enter_tests_session() -> Session {
@@ -384,22 +385,20 @@ mod tests {
         assert_eq!(compiler.enter(|c| c.gcx().sources.asts().count()), 0);
     }
 
-    fn stage_test(expected: Result<(), &str>, f: fn(&mut CompilerRef<'_>)) {
-        let sess =
-            Session::builder().with_buffer_emitter(solar_interface::ColorChoice::Never).build();
+    fn stage_test(expect_error: bool, f: fn(&mut CompilerRef<'_>)) -> Option<String> {
+        let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never).with_flags(|flags| {
+            flags.track_diagnostics = false;
+        });
+        let sess = Session::builder().dcx(dcx).build();
         let mut compiler = Compiler::new(sess);
         let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| compiler.enter_mut(f)));
         let errs = compiler.sess().dcx.emitted_errors().unwrap();
-        match expected {
-            Ok(()) => assert!(r.is_ok(), "panicked: {errs:#?}"),
-            Err(e) => {
-                assert!(r.is_err(), "didn't panic: {errs:#?}");
-                let errs = errs.unwrap_err();
-                let d = errs.to_string();
-                assert!(d.contains("invalid compiler stage transition:"), "{d}");
-                assert!(d.contains(e), "{d}");
-                assert!(d.contains("stages must be advanced sequentially"), "{d}");
-            }
+        if expect_error {
+            assert!(r.is_err(), "didn't panic: {errs:#?}");
+            Some(errs.unwrap_err().to_string())
+        } else {
+            assert!(r.is_ok(), "panicked: {errs:#?}");
+            None
         }
     }
 
@@ -411,36 +410,69 @@ mod tests {
 
     #[test]
     fn stage_tests() {
+        let mut diagnostics = Vec::new();
+
         // Backwards.
-        stage_test(Err("from `lowering` to `parsing`"), |c| {
+        diagnostics.extend(stage_test(true, |c| {
             parse_dummy_file(c);
             assert_eq!(c.lower_asts(), Ok(ControlFlow::Continue(())));
             parse_dummy_file(c);
-        });
+        }));
 
         // Too far ahead.
-        stage_test(Err("from `none` to `analysis`"), |c| {
+        diagnostics.extend(stage_test(true, |c| {
             assert_eq!(c.analysis(), Ok(ControlFlow::Continue(())));
-        });
+        }));
 
         // Same stage.
-        stage_test(Err("from `lowering` to `lowering`"), |c| {
+        diagnostics.extend(stage_test(true, |c| {
             parse_dummy_file(c);
             assert_eq!(c.lower_asts(), Ok(ControlFlow::Continue(())));
             assert_eq!(c.lower_asts(), Ok(ControlFlow::Continue(())));
             assert_eq!(c.analysis(), Ok(ControlFlow::Continue(())));
-        });
-        stage_test(Err("from `analysis` to `analysis`"), |c| {
+        }));
+        diagnostics.extend(stage_test(true, |c| {
             parse_dummy_file(c);
             assert_eq!(c.lower_asts(), Ok(ControlFlow::Continue(())));
             assert_eq!(c.analysis(), Ok(ControlFlow::Continue(())));
             assert_eq!(c.analysis(), Ok(ControlFlow::Continue(())));
-        });
+        }));
+
         // Parsing is special cased.
-        stage_test(Ok(()), |c| {
+        diagnostics.extend(stage_test(false, |c| {
             parse_dummy_file(c);
             parse_dummy_file(c);
-        });
+        }));
+
+        assert_data_eq!(
+            diagnostics.join("\n"),
+            str![[r#"
+error: internal compiler error: invalid compiler stage transition: cannot advance from `lowering` to `parsing`
+  │
+  ├ note: expected next stage: `analysis`
+  ╰ note: stages must be advanced sequentially
+
+
+error: internal compiler error: invalid compiler stage transition: cannot advance from `none` to `analysis`
+  │
+  ├ note: expected next stage: `parsing`
+  ╰ note: stages must be advanced sequentially
+
+
+error: internal compiler error: invalid compiler stage transition: cannot advance from `lowering` to `lowering`
+  │
+  ├ note: expected next stage: `analysis`
+  ╰ note: stages must be advanced sequentially
+
+
+error: internal compiler error: invalid compiler stage transition: cannot advance from `analysis` to `analysis`
+  │
+  ├ note: expected next stage: none (current stage is the last)
+  ╰ note: stages must be advanced sequentially
+
+
+"#]]
+        );
     }
 
     #[test]
