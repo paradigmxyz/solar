@@ -22,44 +22,55 @@
 use crate::{
     analysis::{AffineExpr, Loop, LoopAnalyzer, ScalarEvolution},
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Value, ValueId,
-        utils as mir_utils,
+        BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, Value,
+        ValueId, utils as mir_utils,
     },
-    pass::FunctionPass,
+    pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
 
+/// Function pass for induction-variable simplification and strength reduction.
+pub(crate) struct IndVarSimplify;
+
+impl MirPass for IndVarSimplify {
+    fn name(&self) -> &'static str {
+        "indvar-simplify"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
+            IndVarSimplifier::new().run(func).total() != 0
+        })
+    }
+}
+
 /// Statistics from induction-variable simplification.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct IndVarSimplifyStats {
+struct IndVarSimplifyStats {
     /// Number of loop-carried pointer phis inserted.
-    pub pointer_phis_inserted: usize,
+    pointer_phis_inserted: usize,
     /// Number of loop-local address uses replaced.
-    pub address_uses_replaced: usize,
+    address_uses_replaced: usize,
 }
 
 impl IndVarSimplifyStats {
     /// Returns the total number of MIR changes performed.
     #[must_use]
-    pub(crate) const fn total(&self) -> usize {
+    const fn total(&self) -> usize {
         self.pointer_phis_inserted + self.address_uses_replaced
     }
 }
 
 /// Performs conservative induction-variable strength reduction.
 #[derive(Debug, Default)]
-pub(crate) struct IndVarSimplifier {
+struct IndVarSimplifier {
     stats: IndVarSimplifyStats,
-}
-
-/// Function pass for induction-variable simplification and strength reduction.
-pub(crate) struct IndVarSimplifyPass;
-
-impl FunctionPass for IndVarSimplifyPass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        IndVarSimplifier::new().run(func).total() != 0
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -73,12 +84,12 @@ struct AddressKey {
 impl IndVarSimplifier {
     /// Creates a new induction-variable simplifier.
     #[must_use]
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     /// Runs induction-variable simplification once over `func`.
-    pub(crate) fn run(&mut self, func: &mut Function) -> &IndVarSimplifyStats {
+    fn run(&mut self, func: &mut Function) -> &IndVarSimplifyStats {
         self.stats = IndVarSimplifyStats::default();
 
         let mut analyzer = LoopAnalyzer::new();

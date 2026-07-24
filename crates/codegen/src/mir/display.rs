@@ -454,6 +454,7 @@ fn display_metadata<'a>(inst: &'a Instruction, func: &'a Function) -> impl fmt::
         Hir(hir::ExprId),
         Span { lo: u32, hi: u32 },
         Unchecked,
+        DeferredAlloc,
         LoopDepth(u16),
         Effect(EffectKind),
     }
@@ -467,6 +468,7 @@ fn display_metadata<'a>(inst: &'a Instruction, func: &'a Function) -> impl fmt::
             MetadataField::Hir(hir_expr) => write!(f, "hir={}", hir_expr.index()),
             MetadataField::Span { lo, hi } => write!(f, "span={lo}..{hi}"),
             MetadataField::Unchecked => write!(f, "unchecked"),
+            MetadataField::DeferredAlloc => write!(f, "deferred_alloc"),
             MetadataField::LoopDepth(loop_depth) => write!(f, "loop_depth={loop_depth}"),
             MetadataField::Effect(effect) => write!(f, "effect={}", effect.name()),
         })
@@ -484,7 +486,7 @@ fn display_metadata<'a>(inst: &'a Instruction, func: &'a Function) -> impl fmt::
 
     fmt::from_fn(move |f| {
         let metadata = &inst.metadata;
-        let mut fields = ArrayVec::<MetadataField<'_>, 7>::new();
+        let mut fields = ArrayVec::<MetadataField<'_>, 8>::new();
 
         if let Some(storage) = metadata.storage_alias() {
             fields.push(MetadataField::Storage(storage, func));
@@ -502,6 +504,9 @@ fn display_metadata<'a>(inst: &'a Instruction, func: &'a Function) -> impl fmt::
         }
         if metadata.unchecked() {
             fields.push(MetadataField::Unchecked);
+        }
+        if metadata.deferred_alloc() {
+            fields.push(MetadataField::DeferredAlloc);
         }
         if metadata.loop_depth != 0 {
             fields.push(MetadataField::LoopDepth(metadata.loop_depth));

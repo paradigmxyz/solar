@@ -33,10 +33,10 @@ use crate::{
     analysis::{CfgInfo, DominatorTree},
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, InstructionMetadata,
-        MemoryObjectKind, MemoryObjectLayout, MirType, Terminator, Value, ValueId,
+        MemoryObjectKind, MemoryObjectLayout, MirType, Module, Terminator, Value, ValueId,
         utils::{repair_reachability_phis, split_edge},
     },
-    pass::FunctionPass,
+    pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -44,37 +44,48 @@ use solar_data_structures::{
 };
 use std::cmp::Ordering;
 
+/// Function pass for pure expression PRE.
+pub(crate) struct Pre;
+
+impl MirPass for Pre {
+    fn name(&self) -> &'static str {
+        "pre"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
+            PartialRedundancyEliminator::new().run(func).total() != 0
+        })
+    }
+}
+
 const MAX_INSERTIONS_PER_REWRITE: usize = 2;
 
 /// Statistics for pure expression PRE.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct PreStats {
+struct PreStats {
     /// Number of join-block expressions replaced by PRE phis.
-    pub expressions_eliminated: usize,
+    expressions_eliminated: usize,
     /// Number of predecessor computations inserted.
-    pub expressions_inserted: usize,
+    expressions_inserted: usize,
 }
 
 impl PreStats {
     /// Returns the total number of MIR edits made by this pass.
-    pub(crate) const fn total(self) -> usize {
+    const fn total(self) -> usize {
         self.expressions_eliminated + self.expressions_inserted
     }
 }
 
 /// Partial redundancy eliminator for pure expressions.
 #[derive(Debug, Default)]
-pub(crate) struct PartialRedundancyEliminator {
+struct PartialRedundancyEliminator {
     stats: PreStats,
-}
-
-/// Function pass for pure expression PRE.
-pub(crate) struct PrePass;
-
-impl FunctionPass for PrePass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        PartialRedundancyEliminator::new().run(func).total() != 0
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -128,12 +139,12 @@ struct PreCandidate {
 
 impl PartialRedundancyEliminator {
     /// Creates a new PRE pass.
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
     /// Runs PRE to a fixed point.
-    pub(crate) fn run(&mut self, func: &mut Function) -> PreStats {
+    fn run(&mut self, func: &mut Function) -> PreStats {
         self.stats = PreStats::default();
         repair_reachability_phis(func);
 

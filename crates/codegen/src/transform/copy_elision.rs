@@ -14,20 +14,39 @@
 
 use crate::{
     analysis::AliasAnalysis,
-    mir::{Function, InstId, InstKind, ValueId},
-    pass::FunctionPass,
+    mir::{Function, InstId, InstKind, Module, ValueId},
+    pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::map::FxHashSet;
 
 /// Copy-elision pass over write-only memory allocations.
-#[derive(Debug, Default)]
-pub(crate) struct CopyElisionPass {
-    /// Number of write-only allocations eliminated.
-    pub eliminated: usize,
+pub(crate) struct CopyElision;
+
+impl MirPass for CopyElision {
+    fn name(&self) -> &'static str {
+        "copy-elision"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
+            CopyElisionCx::default().run(func, &analyses.alias)
+        })
+    }
 }
 
-impl CopyElisionPass {
-    fn run(&mut self, func: &mut Function) -> bool {
+#[derive(Debug, Default)]
+struct CopyElisionCx {
+    /// Number of write-only allocations eliminated.
+    eliminated: usize,
+}
+
+impl CopyElisionCx {
+    fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
         let allocs: Vec<(InstId, ValueId)> = func
             .instructions
             .iter_enumerated()
@@ -42,7 +61,6 @@ impl CopyElisionPass {
             return false;
         }
 
-        let alias = AliasAnalysis::new(func);
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
         for (alloc_inst, object) in allocs {
             if alias.value_escapes(func, object) {
@@ -166,12 +184,5 @@ impl CopyElisionPass {
         }
 
         (!writes.is_empty()).then_some(writes)
-    }
-}
-
-impl FunctionPass for CopyElisionPass {
-    fn run_on_function(&mut self, func: &mut Function) -> bool {
-        self.eliminated = 0;
-        self.run(func)
     }
 }

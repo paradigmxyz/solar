@@ -15,7 +15,6 @@ use crate::{
     mir::IMMUTABLE_WORD_SIZE,
 };
 use alloy_primitives::U256;
-use solar_config::OptimizationMode;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use solar_interface::diagnostics::DiagCtxt;
 use solar_sema::Gcx;
@@ -412,13 +411,9 @@ impl<'gcx> Assembler<'gcx> {
 
         Self::resolve_known_deferred_constants(&mut ir_program, &self.deferred_values);
 
-        if self.gcx.sess.opts.optimization != OptimizationMode::None {
-            let input_is_valid = cfg!(debug_assertions) && is_valid_evm_ir(&ir_program);
-            for pass in ir::DEFAULT_PIPELINE {
-                ir::run_pass(self.gcx, &mut ir_program, pass);
-            }
-            debug_assert!(!input_is_valid || is_valid_evm_ir(&ir_program));
-        }
+        let input_is_valid = cfg!(debug_assertions) && is_valid_evm_ir(&ir_program);
+        ir::run_passes(self.gcx, &mut ir_program, ir::DEFAULT_PIPELINE);
+        debug_assert!(!input_is_valid || is_valid_evm_ir(&ir_program));
 
         let program = assembly::lower_evm_ir(
             &mut ir_program,
@@ -730,7 +725,7 @@ mod tests {
     use super::*;
     use crate::backend::evm::test_utils::disassemble;
     use snapbox::{assert_data_eq, str};
-    use solar_config::{CompileOpts, EvmVersion};
+    use solar_config::{CompileOpts, EvmVersion, OptimizationMode};
     use solar_interface::Session;
     use solar_sema::Compiler;
 

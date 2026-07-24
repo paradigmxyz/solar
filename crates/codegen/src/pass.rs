@@ -1,10 +1,9 @@
 //! Pass infrastructure for MIR transformations and analyses.
 //!
-//! Inspired by LLVM/MLIR pass infrastructure:
-//! - **Analysis passes** (`AnalysisPass`) are read-only and produce a cached result. They take
-//!   `&Function` and store their result in `AnalysisManager`.
-//! - **Module passes** (`ModulePass`) modify the IR at module scope. Function-local passes can
-//!   implement `FunctionPass` and are automatically applied to each function.
+//! Transformation pipelines follow rustc MIR's pass-manager shape: passes
+//! implement [`MirPass`] and pipelines are slices of trait-object references.
+//! Analyses retain their LLVM/MLIR-style cache: read-only `AnalysisPass`es
+//! produce results cached in an `AnalysisManager`.
 //!
 //! # Usage
 //!
@@ -13,289 +12,129 @@
 //! let mut am = AnalysisManager::new();
 //! let liveness = am.get_or_compute(&LivenessAnalysis, &func);
 //!
-//! let changed = run_pass(gcx, &mut module, &DCE_PASS);
+//! let changed = run_passes(
+//!     gcx,
+//!     &mut module,
+//!     &[&dce::Dce],
+//!     None,
+//! );
 //! ```
 
+pub use crate::pass_manager::{MirPass, run_passes, run_passes_no_validate};
 use crate::{
-    mir::{Function, MirPhase, Module, validate},
-    timing::PassTimer,
+    analysis::{AliasAnalysis, CfgInfo, MemoryCallSummaries},
+    mir::{Function, FunctionId, InstId, MirPhase, Module},
     transform::{
-        AdcePass, CfgSimplifyPass, CheckElimPass, CopyElisionPass, CsePass, DcePass,
-        FrameSlotPromotionPass, FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass,
-        InstSimplifyPass, JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass,
-        LowerAbiEncodePass, LowerAbiPass, LowerAggregatesPass, LowerAllocPass, LowerDispatchPass,
-        LowerEvmShapedPass, LowerMappingSlotsPass, LowerMemoryObjectsPass, LowerSlicesPass,
-        MemoryDsePass, OutlineRevertsPass, PrePass, PureEvalPass, SccpTransformPass, SroaPass,
-        StaticAllocPass, StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
+        adce, cfg_simplify, check_elim, copy_elision, cse, dce, frame_promotion, gvn,
+        indvar_simplify, inline, inst_simplify, jump_threading, load_pre, loop_canonicalize,
+        loop_opt, lower_abi, lower_abi_encode, lower_aggregates, lower_alloc, lower_dispatch,
+        lower_evm_shaped, lower_mapping_slots, lower_memory_objects, lower_slices, memory_dse,
+        outline_reverts, pre, pure_eval, sccp, sroa, static_alloc, storage_dse, storage_load_cse,
+        storage_promotion,
     },
 };
 use solar_data_structures::map::FxHashMap;
-use solar_interface::diagnostics::DiagCtxt;
-use solar_sema::Gcx;
-use std::any::{Any, TypeId};
-
-type PassRunner = fn(Gcx<'_>, &mut Module) -> bool;
-
-/// Registry entry for a MIR transform pass.
-#[derive(Clone, Copy, Debug)]
-pub struct PassInfo {
-    /// Command-line and pipeline name.
-    pub name: &'static str,
-    /// Human-readable help text.
-    pub description: &'static str,
-    /// Earliest [`MirPhase`] this pass may run on.
-    min_phase: MirPhase,
-    /// Latest [`MirPhase`] this pass may run on.
-    max_phase: MirPhase,
-    run_pass: PassRunner,
-}
-
-impl PassInfo {
-    const fn new(name: &'static str, description: &'static str, run_pass: PassRunner) -> Self {
-        Self {
-            name,
-            description,
-            min_phase: MirPhase::Built,
-            max_phase: MirPhase::EvmShaped,
-            run_pass,
-        }
-    }
-
-    /// Restricts the phases this pass may run on: the pass manager skips it,
-    /// rather than running it, on modules outside the range.
-    const fn phases(mut self, min: MirPhase, max: MirPhase) -> Self {
-        self.min_phase = min;
-        self.max_phase = max;
-        self
-    }
-
-    /// Whether this pass's declared phase range admits the module's phase.
-    #[must_use]
-    fn admits(&self, module: &Module) -> bool {
-        self.min_phase <= module.phase && module.phase <= self.max_phase
-    }
-}
-
-macro_rules! declare_passes {
-    ($(
-        $(#[doc = $description:literal])+
-        $vis:vis const $const_name:ident -> $name:literal = $pass:expr;
-    )+) => {
-        $(
-            $(#[doc = $description])+
-            $vis const $const_name: PassInfo = PassInfo::new(
-                $name,
-                concat!($($description, "\n"),+).trim_ascii(),
-                |gcx, module| ModulePass::run(&mut $pass, gcx, module),
-            );
-        )+
-    };
-}
-
-declare_passes! {
-    /// Internal MIR function inlining.
-    pub(crate) const INLINE_PASS -> "inline" = InlinePass;
-
-    /// Outline duplicate constant revert blocks before backend lowering.
-    pub(crate) const OUTLINE_REVERTS_PASS -> "outline-reverts" = OutlineRevertsPass::default();
-
-    /// Dead internal function elimination.
-    pub(crate) const FUNCTION_DCE_PASS -> "function-dce" = FunctionDcePass;
-
-    /// Sparse Conditional Constant Propagation.
-    pub(crate) const SCCP_PASS -> "sccp" = SccpTransformPass;
-
-    /// Bounded evaluator for closed pure MIR loops/functions.
-    pub(crate) const PURE_EVAL_PASS -> "pure-eval" = PureEvalPass;
-
-    /// Local MIR instruction simplification.
-    pub(crate) const INST_SIMPLIFY_PASS -> "inst-simplify" = InstSimplifyPass;
-
-    /// Common Subexpression Elimination (fixed-point).
-    pub(crate) const CSE_PASS -> "cse" = CsePass;
-
-    /// Partial redundancy elimination for pure expressions.
-    pub(crate) const PRE_PASS -> "pre" = PrePass;
-
-    /// Congruence-class global value numbering.
-    pub(crate) const GVN_PASS -> "gvn" = GvnPass;
-
-    /// Reuse storage loads across definitely-disjoint stores.
-    pub(crate) const STORAGE_LOAD_CSE_PASS -> "storage-load-cse" = StorageLoadCsePass;
-
-    /// Eliminate overwritten or repeated storage stores.
-    pub(crate) const STORAGE_DSE_PASS -> "storage-dse" = StorageDsePass;
-
-    /// Availability-dataflow redundancy elimination and PRE for memory-dependent reads.
-    pub(crate) const LOAD_PRE_PASS -> "load-pre" = LoadPrePass;
-
-    /// Canonicalize natural loops with explicit preheaders.
-    pub(crate) const LOOP_CANONICALIZE_PASS -> "loop-canonicalize" = LoopCanonicalizePass;
-
-    /// Strength-reduce affine induction-variable address expressions.
-    pub(crate) const INDVAR_SIMPLIFY_PASS -> "indvar-simplify" = IndVarSimplifyPass;
-
-    /// Promote simple loop-carried storage updates to memory.
-    pub(crate) const STORAGE_PROMOTION_PASS -> "storage-promotion" = StorageScalarPromotionPass;
-
-    /// Loop-Invariant Code Motion.
-    pub(crate) const LICM_PASS -> "licm" = LicmPass;
-
-    /// Range-based elimination of provably dead overflow-check branches.
-    pub(crate) const CHECK_ELIM_PASS -> "check-elim" = CheckElimPass;
-
-    /// Jump Threading (fixed-point).
-    pub(crate) const JUMP_THREADING_PASS -> "jump-threading" = JumpThreadingPass;
-
-    /// CFG Simplification (fixed-point).
-    pub(crate) const CFG_SIMPLIFY_PASS -> "cfg-simplify" = CfgSimplifyPass;
-
-    /// Promote non-escaping compiler-local slots to SSA values.
-    pub(crate) const FRAME_SLOT_PROMOTION_PASS -> "frame-slot-promotion" = FrameSlotPromotionPass;
-
-    /// Local dead memory-store elimination.
-    pub(crate) const MEMORY_DSE_PASS -> "memory-dse" = MemoryDsePass;
-
-    /// Place provably local allocations at static frame addresses.
-    pub(crate) const STATIC_ALLOC_PASS -> "static-alloc" = StaticAllocPass;
-
-    /// Scalar-replace non-escaping memory-object allocations.
-    pub const SROA_PASS -> "sroa" = SroaPass::default();
-
-    /// Elide copies into write-only memory allocations.
-    pub const COPY_ELISION_PASS -> "copy-elision" = CopyElisionPass::default();
-
-    /// Dead Code Elimination (fixed-point).
-    pub(crate) const DCE_PASS -> "dce" = DcePass;
-
-    /// Aggressive dead-code elimination for dead control regions.
-    pub(crate) const ADCE_PASS -> "adce" = AdcePass;
-
-    /// ABI phase lowering: external functions become self-decoding wrappers.
-    const LOWER_ABI_PASS_BASE -> "lower-abi" = LowerAbiPass::default();
-
-    /// Dispatch phase lowering: synthesize the selector-switch `entry` function.
-    const LOWER_DISPATCH_PASS_BASE -> "lower-dispatch" = LowerDispatchPass::default();
-
-    /// EVM-shape lowering: non-returning internal calls become tail calls.
-    const LOWER_EVM_SHAPED_PASS_BASE -> "lower-evm-shaped" = LowerEvmShapedPass::default();
-
-    /// Lower mapping-slot hash builtins to memory operations.
-    pub(crate) const LOWER_MAPPING_SLOTS_PASS -> "lower-mapping-slots" = LowerMappingSlotsPass;
-
-    /// Lower semantic ABI encoding to memory and slice operations.
-    pub const LOWER_ABI_ENCODE_PASS -> "lower-abi-encode" = LowerAbiEncodePass;
-
-    /// Lower semantic memory/storage aggregate operations to word operations.
-    pub const LOWER_AGGREGATES_PASS -> "lower-aggregates" = LowerAggregatesPass;
-
-    /// Lower semantic memory-object layouts and accesses to physical words.
-    const LOWER_MEMORY_OBJECTS_PASS_BASE -> "lower-memory-objects" = LowerMemoryObjectsPass::default();
-
-    /// Lower logical slices to their pointer and length words.
-    pub(crate) const LOWER_SLICES_PASS -> "lower-slices" = LowerSlicesPass::default();
-
-    /// Lower abstract allocation operations to free-memory-pointer updates.
-    pub(crate) const LOWER_ALLOC_PASS -> "lower-alloc" = LowerAllocPass;
-}
-
-/// ABI phase lowering with its phase range declared: consumes
-/// `built`/`optimized` MIR and produces the `abi` phase.
-pub(crate) const LOWER_ABI_PASS: PassInfo =
-    LOWER_ABI_PASS_BASE.phases(MirPhase::Built, MirPhase::Optimized);
-
-/// Dispatch phase lowering with its phase range declared: consumes exactly
-/// `abi`-phase MIR and produces the `dispatch` phase.
-pub(crate) const LOWER_DISPATCH_PASS: PassInfo =
-    LOWER_DISPATCH_PASS_BASE.phases(MirPhase::Abi, MirPhase::Abi);
-
-/// Memory-object phase lowering: consumes up to `dispatch`-phase MIR and, for
-/// a dispatched module, produces the `memory-lowered` phase.
-pub const LOWER_MEMORY_OBJECTS_PASS: PassInfo =
-    LOWER_MEMORY_OBJECTS_PASS_BASE.phases(MirPhase::Built, MirPhase::Dispatch);
-
-/// EVM-shape lowering with its phase range declared: consumes exactly
-/// `memory-lowered` MIR and produces the `evm-shaped` phase.
-pub(crate) const LOWER_EVM_SHAPED_PASS: PassInfo =
-    LOWER_EVM_SHAPED_PASS_BASE.phases(MirPhase::MemoryLowered, MirPhase::MemoryLowered);
+use std::{
+    any::{Any, TypeId},
+    rc::Rc,
+    sync::Arc,
+};
 
 /// All known MIR passes exposed to `solar mir-opt`.
-pub const PASS_REGISTRY: &[PassInfo] = &[
-    INLINE_PASS,
-    FUNCTION_DCE_PASS,
-    ADCE_PASS,
-    DCE_PASS,
-    INST_SIMPLIFY_PASS,
-    CSE_PASS,
-    GVN_PASS,
-    PRE_PASS,
-    STORAGE_LOAD_CSE_PASS,
-    STORAGE_DSE_PASS,
-    LOAD_PRE_PASS,
-    LOOP_CANONICALIZE_PASS,
-    INDVAR_SIMPLIFY_PASS,
-    SCCP_PASS,
-    PURE_EVAL_PASS,
-    LICM_PASS,
-    CHECK_ELIM_PASS,
-    CFG_SIMPLIFY_PASS,
-    JUMP_THREADING_PASS,
-    FRAME_SLOT_PROMOTION_PASS,
-    MEMORY_DSE_PASS,
-    STATIC_ALLOC_PASS,
-    SROA_PASS,
-    COPY_ELISION_PASS,
-    STORAGE_PROMOTION_PASS,
-    LOWER_ABI_PASS,
-    LOWER_DISPATCH_PASS,
-    LOWER_EVM_SHAPED_PASS,
-    OUTLINE_REVERTS_PASS,
-    LOWER_MAPPING_SLOTS_PASS,
-    LOWER_ABI_ENCODE_PASS,
-    LOWER_AGGREGATES_PASS,
-    LOWER_MEMORY_OBJECTS_PASS,
-    LOWER_SLICES_PASS,
-    LOWER_ALLOC_PASS,
+pub static ALL_PASSES: &[&dyn MirPass] = &[
+    &inline::Inline,
+    &outline_reverts::OutlineReverts,
+    &cfg_simplify::FunctionDce,
+    &sccp::Sccp,
+    &pure_eval::PureEval,
+    &inst_simplify::InstSimplify,
+    &cse::Cse,
+    &pre::Pre,
+    &gvn::Gvn,
+    &storage_load_cse::StorageLoadCse,
+    &storage_dse::StorageDse,
+    &load_pre::LoadPre,
+    &loop_canonicalize::LoopCanonicalize,
+    &indvar_simplify::IndVarSimplify,
+    &storage_promotion::StorageScalarPromotion,
+    &loop_opt::Licm,
+    &check_elim::CheckElim,
+    &jump_threading::JumpThreading,
+    &cfg_simplify::CfgSimplify,
+    &frame_promotion::FrameSlotPromotion,
+    &memory_dse::MemoryDse,
+    &static_alloc::StaticAlloc,
+    &sroa::Sroa,
+    &copy_elision::CopyElision,
+    &dce::Dce,
+    &adce::Adce,
+    &lower_abi::LowerAbi,
+    &lower_dispatch::LowerDispatch,
+    &lower_evm_shaped::LowerEvmShaped,
+    &lower_mapping_slots::LowerMappingSlots,
+    &lower_abi_encode::LowerAbiEncode,
+    &lower_aggregates::LowerAggregates,
+    &lower_memory_objects::LowerMemoryObjects,
+    &lower_slices::LowerSlices,
+    &lower_alloc::LowerAlloc,
 ];
 
-/// Finds a pass in the global MIR pass registry by command-line name.
-pub fn lookup_pass(name: &str) -> Option<&'static PassInfo> {
-    PASS_REGISTRY.iter().find(|pass| pass.name == name)
+/// Finds a MIR pass by command-line name.
+pub fn lookup_pass(name: &str) -> Option<&'static dyn MirPass> {
+    ALL_PASSES.iter().copied().find(|pass| pass.name() == name)
 }
 
-/// The canonical MIR optimization pipeline used by EVM codegen.
-pub const DEFAULT_PIPELINE: &[PassInfo] = &[
-    INLINE_PASS,
-    FUNCTION_DCE_PASS,
-    SCCP_PASS,
-    PURE_EVAL_PASS,
-    INST_SIMPLIFY_PASS,
-    CSE_PASS,
+/// The canonical MIR pipeline used by EVM codegen.
+pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
+    &inline::Inline,
+    &cfg_simplify::FunctionDce,
+    &sccp::Sccp,
+    &pure_eval::PureEval,
+    &inst_simplify::InstSimplify,
+    &cse::Cse,
     // Reuse mapping slots before their scratch-memory expansion can obscure
     // the semantic expression from the remaining optimization passes.
-    LOWER_MAPPING_SLOTS_PASS,
-    GVN_PASS,
-    PRE_PASS,
-    STORAGE_LOAD_CSE_PASS,
-    STORAGE_DSE_PASS,
-    LOAD_PRE_PASS,
-    FRAME_SLOT_PROMOTION_PASS,
-    LOOP_CANONICALIZE_PASS,
-    INDVAR_SIMPLIFY_PASS,
-    STORAGE_PROMOTION_PASS,
-    LICM_PASS,
-    CHECK_ELIM_PASS,
-    JUMP_THREADING_PASS,
-    CFG_SIMPLIFY_PASS,
-    SROA_PASS,
-    COPY_ELISION_PASS,
-    MEMORY_DSE_PASS,
-    // Keep allocation semantic through the optimization pipeline. The EVM
-    // backend chooses static placement only after exact spill and helper-frame
-    // addresses are known, then lowers the residual dynamic allocations.
-    ADCE_PASS,
-    DCE_PASS,
+    &lower_mapping_slots::LowerMappingSlots,
+    &gvn::Gvn,
+    &pre::Pre,
+    &storage_load_cse::StorageLoadCse,
+    &storage_dse::StorageDse,
+    &load_pre::LoadPre,
+    &frame_promotion::FrameSlotPromotion,
+    &loop_canonicalize::LoopCanonicalize,
+    &indvar_simplify::IndVarSimplify,
+    &storage_promotion::StorageScalarPromotion,
+    &loop_opt::Licm,
+    &check_elim::CheckElim,
+    &jump_threading::JumpThreading,
+    &cfg_simplify::CfgSimplify,
+    &sroa::Sroa,
+    &copy_elision::CopyElision,
+    &memory_dse::MemoryDse,
+    &adce::Adce,
+    &dce::Dce,
+    // MIR outlining remains profitable even though EVM IR can merge
+    // equivalent terminal blocks: lowering and stack scheduling can
+    // hide their shared semantic shape from the backend passes.
+    &outline_reverts::OutlineReverts,
+    // Progressive lowering materializes ABI wrappers, the dispatcher, and
+    // tail-call edges as MIR. Each pass bails without advancing the phase
+    // when the module is outside its scope.
+    &lower_abi::LowerAbi,
+    &static_alloc::DeferAlloc,
+    &lower_abi_encode::LowerAbiEncode,
+    &lower_aggregates::LowerAggregates,
+    &inst_simplify::InstSimplify,
+    &cfg_simplify::CfgSimplify,
+    &dce::Dce,
+    &lower_slices::LowerSlices,
+    &lower_dispatch::LowerDispatch,
+    &lower_memory_objects::LowerMemoryObjects,
+    &lower_evm_shaped::LowerEvmShaped,
+    &lower_alloc::LowerAlloc,
 ];
+
+const DEFAULT_LOWERING_PASSES: usize = 12;
 
 /// Cleanup passes rerun after the primary pipeline until no pass changes MIR.
 ///
@@ -303,72 +142,35 @@ pub const DEFAULT_PIPELINE: &[PassInfo] = &[
 /// profitability passes such as inlining and storage promotion run once in
 /// [`DEFAULT_PIPELINE`], while this loop cleans up opportunities exposed by
 /// those transforms.
-pub const DEFAULT_CLEANUP_PIPELINE: &[PassInfo] = &[
-    SCCP_PASS,
-    PURE_EVAL_PASS,
-    INST_SIMPLIFY_PASS,
-    CSE_PASS,
-    GVN_PASS,
-    PRE_PASS,
-    STORAGE_LOAD_CSE_PASS,
-    STORAGE_DSE_PASS,
-    LOAD_PRE_PASS,
-    CHECK_ELIM_PASS,
-    JUMP_THREADING_PASS,
-    CFG_SIMPLIFY_PASS,
-    FRAME_SLOT_PROMOTION_PASS,
-    SROA_PASS,
-    COPY_ELISION_PASS,
-    MEMORY_DSE_PASS,
-    ADCE_PASS,
-    DCE_PASS,
+pub static DEFAULT_CLEANUP_PIPELINE: &[&dyn MirPass] = &[
+    &sccp::Sccp,
+    &pure_eval::PureEval,
+    &inst_simplify::InstSimplify,
+    &cse::Cse,
+    &gvn::Gvn,
+    &pre::Pre,
+    &storage_load_cse::StorageLoadCse,
+    &storage_dse::StorageDse,
+    &load_pre::LoadPre,
+    &check_elim::CheckElim,
+    &jump_threading::JumpThreading,
+    &cfg_simplify::CfgSimplify,
+    &frame_promotion::FrameSlotPromotion,
+    &sroa::Sroa,
+    &copy_elision::CopyElision,
+    &memory_dse::MemoryDse,
+    &adce::Adce,
+    &dce::Dce,
 ];
 
 const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
 
-/// Runs a named MIR pass over a module.
-#[tracing::instrument(
-    name = "mir_pass",
-    level = "debug",
-    skip_all,
-    fields(module = %module.name, pass = pass.name),
-)]
-pub fn run_pass(gcx: solar_sema::Gcx<'_>, module: &mut Module, pass: &PassInfo) -> bool {
-    // Passes declare which phases they operate on; the manager enforces it so a
-    // pipeline entry cannot silently corrupt a module in the wrong phase.
-    if !pass.admits(module) {
-        return false;
-    }
-    if cfg!(debug_assertions) {
-        validate_module_after_pass(module, "input");
-    }
-    let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-    let changed = (pass.run_pass)(gcx, module);
-    timer.finish("MIR", module.name, pass.name, changed);
-    if cfg!(debug_assertions) {
-        validate_module_after_pass(module, pass.name);
-    }
-    changed
-}
-
-/// Runs a named MIR pass pipeline over a module.
-fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, passes: &[PassInfo]) -> bool {
-    let mut changed = false;
-    for pass in passes {
-        changed |= run_pass(gcx, module, pass);
-        if gcx.sess.opts.unstable.print_after_each {
-            println!("// === {} (after {}) ===", module.name, pass.name);
-            print!("{}", module.to_text());
-        }
-    }
-    changed
-}
-
-/// Runs the canonical MIR optimization pipeline used by EVM codegen.
+/// Runs the canonical MIR pipeline used by EVM codegen.
 ///
-/// This is a phase transition: the module comes out in `MirPhase::Optimized`.
-/// Ad-hoc pass lists run through `run_pipeline`, such as `solar mir-opt`
-/// invocations, deliberately do not advance the phase.
+/// The optimization prefix advances the module to `MirPhase::Optimized` before
+/// cleanup. The lowering suffix then advances it as far as the module permits.
+/// Modules already past optimization resume at the lowering suffix. Ad-hoc
+/// `solar mir-opt` pass lists do not advance the phase.
 #[tracing::instrument(
     name = "mir_pipeline",
     level = "debug",
@@ -376,46 +178,25 @@ fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, passes: &[PassInf
     fields(module = %module.name),
 )]
 pub fn run_default_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-    let mut changed = run_pipeline(gcx, module, DEFAULT_PIPELINE);
-    changed |= run_cleanup_pipeline_to_fixpoint(gcx, module, DEFAULT_CLEANUP_PIPELINE, "cleanup");
-    module.advance_phase(crate::mir::MirPhase::Optimized);
+    let optimization_end = DEFAULT_PIPELINE.len() - DEFAULT_LOWERING_PASSES;
+    let (optimization_passes, lowering_passes) = DEFAULT_PIPELINE.split_at(optimization_end);
+    let mut changed = false;
+    if module.phase <= MirPhase::Optimized {
+        changed |= run_passes(gcx, module, optimization_passes, Some(MirPhase::Optimized));
+        changed |= run_cleanup_pipeline_to_fixpoint(gcx, module, DEFAULT_CLEANUP_PIPELINE);
+    }
+    changed |= run_passes(gcx, module, lowering_passes, None);
     changed
 }
 
 fn run_cleanup_pipeline_to_fixpoint(
     gcx: solar_sema::Gcx<'_>,
     module: &mut Module,
-    passes: &[PassInfo],
-    label: &str,
+    passes: &[&dyn MirPass],
 ) -> bool {
-    // A pass only needs to rerun if the module changed since it last started:
-    // rerunning a deterministic pass on identical input is a no-op. Tracking
-    // that with a change generation keeps exactly the plain round loop's
-    // optimization power — a changing pass is stamped with its *pre-run*
-    // generation, so it always earns one confirming rerun, even when it is
-    // not internally fixpointed — while the pure confirmation reruns of
-    // unchanged passes, which otherwise dominate, are skipped.
-    let mut generation = 0usize;
-    let mut ran_at = vec![usize::MAX; passes.len()];
     let mut changed = false;
-    for round in 1..=DEFAULT_CLEANUP_MAX_ROUNDS {
-        let mut round_changed = false;
-        for (index, pass) in passes.iter().enumerate() {
-            if ran_at[index] == generation {
-                continue;
-            }
-            let generation_before = generation;
-            let pass_changed = run_pass(gcx, module, pass);
-            if pass_changed {
-                generation += 1;
-                round_changed = true;
-            }
-            ran_at[index] = generation_before;
-            if gcx.sess.opts.unstable.print_after_each {
-                println!("// === {} (after {label}-{round}:{}) ===", module.name, pass.name);
-                print!("{}", module.to_text());
-            }
-        }
+    for _ in 0..DEFAULT_CLEANUP_MAX_ROUNDS {
+        let round_changed = run_passes(gcx, module, passes, None);
         if !round_changed {
             break;
         }
@@ -447,39 +228,146 @@ pub(crate) trait AnalysisPass {
     fn run(&self, func: &Function) -> Self::Result;
 }
 
-/// A transformation pass that mutates a MIR module.
-///
-/// Module-level passes can inspect or transform more than one function. Function-local passes
-/// should implement [`FunctionPass`] instead and use the blanket [`ModulePass`] implementation.
-pub(crate) trait ModulePass {
-    /// Runs the transformation on the given module.
-    ///
-    /// Returns true if the transform changed MIR.
-    fn run(&mut self, gcx: Gcx<'_>, module: &mut Module) -> bool;
-}
-
-/// A transformation pass that mutates one function at a time.
-pub(crate) trait FunctionPass {
-    /// Runs the transformation on the given function.
-    fn run_on_function(&mut self, func: &mut Function) -> bool;
-
-    /// Runs the function pass over a module.
-    ///
-    /// Passes that need module-level summaries may override this hook. The
-    /// default preserves the ordinary function-local execution model.
-    fn run_on_module(&mut self, module: &mut Module) -> bool {
-        let mut changed = false;
-        for func in &mut module.functions {
-            changed |= self.run_on_function(func);
+/// Runs a function-local transform over every bodied function in a module.
+pub(crate) fn run_function_pass(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    mut run: impl FnMut(&mut Function, &FunctionAnalyses) -> bool,
+) -> bool {
+    let mut changed = false;
+    for func_id in module.functions.indices() {
+        if module.functions[func_id].blocks.is_empty() {
+            continue;
         }
-        changed
+        changed |= run_function_pass_cached(analyses, module, func_id, &mut run);
+    }
+    analyses.preserved_by_pass = true;
+    changed
+}
+
+/// Per-function analysis snapshots handed to a pass run.
+pub(crate) struct FunctionAnalyses {
+    /// Shared alias analysis; provenance and address memos build lazily.
+    pub(crate) alias: Rc<AliasAnalysis>,
+    /// Shared CFG snapshot; RPO, dominators, and reachability build lazily.
+    pub(crate) cfg: Rc<CfgInfo>,
+    /// Module call summaries for passes that consume them.
+    pub(crate) call_summaries: Option<Arc<MemoryCallSummaries>>,
+}
+
+/// Cached per-function analyses shared by every pass in one pipeline run.
+#[doc(hidden)]
+#[derive(Default)]
+pub struct ModuleAnalyses {
+    alias: FxHashMap<FunctionId, Rc<AliasAnalysis>>,
+    cfg: FxHashMap<FunctionId, Rc<CfgInfo>>,
+    call_summaries: Option<Arc<MemoryCallSummaries>>,
+    preserved_by_pass: bool,
+}
+
+impl ModuleAnalyses {
+    pub(crate) fn begin_pass(&mut self) {
+        self.preserved_by_pass = false;
+    }
+
+    pub(crate) fn finish_pass(&mut self, changed: bool) {
+        if changed && !self.preserved_by_pass {
+            self.invalidate_all();
+        }
+    }
+
+    /// Returns the shared alias-analysis snapshot for a function.
+    pub(crate) fn alias(&mut self, func_id: FunctionId) -> Rc<AliasAnalysis> {
+        Rc::clone(self.alias.entry(func_id).or_insert_with(|| Rc::new(AliasAnalysis::empty())))
+    }
+
+    /// Returns the shared CFG snapshot for a function.
+    pub(crate) fn cfg(&mut self, func_id: FunctionId, func: &Function) -> Rc<CfgInfo> {
+        Rc::clone(self.cfg.entry(func_id).or_insert_with(|| Rc::new(CfgInfo::new(func))))
+    }
+
+    fn bundle(&mut self, func_id: FunctionId, func: &Function) -> FunctionAnalyses {
+        FunctionAnalyses {
+            alias: self.alias(func_id),
+            cfg: self.cfg(func_id, func),
+            call_summaries: self.call_summaries.clone(),
+        }
+    }
+
+    /// Provides module call summaries to subsequent pass runs.
+    pub(crate) fn set_call_summaries(&mut self, summaries: Arc<MemoryCallSummaries>) {
+        self.call_summaries = Some(summaries);
+    }
+
+    /// Withdraws module call summaries after the consuming pass completes.
+    pub(crate) fn clear_call_summaries(&mut self) {
+        self.call_summaries = None;
+    }
+
+    fn retain(&mut self, func_id: FunctionId, keep_alias: bool, keep_cfg: bool) {
+        if keep_alias {
+            if let Some(alias) = self.alias.get(&func_id) {
+                alias.clear_cached_addresses();
+            }
+        } else {
+            self.alias.remove(&func_id);
+        }
+        if !keep_cfg {
+            self.cfg.remove(&func_id);
+        }
+    }
+
+    fn invalidate_all(&mut self) {
+        self.alias.clear();
+        self.cfg.clear();
+        self.call_summaries = None;
     }
 }
 
-impl<T: FunctionPass> ModulePass for T {
-    fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
-        self.run_on_module(module)
+fn cfg_edges(func: &Function) -> Vec<(u32, u32)> {
+    let mut edges = Vec::new();
+    for (block_id, block) in func.blocks.iter_enumerated() {
+        if let Some(terminator) = &block.terminator {
+            for successor in terminator.successors() {
+                edges.push((block_id.index() as u32, successor.index() as u32));
+            }
+        }
     }
+    edges.sort_unstable();
+    edges
+}
+
+fn verified_preservation(
+    func: &Function,
+    edges_before: &[(u32, u32)],
+    insts_before: usize,
+) -> (bool, bool) {
+    let edges_after = cfg_edges(func);
+    let keep_cfg = edges_after == edges_before;
+    let no_new_side_effects = (insts_before..func.instructions.len())
+        .map(InstId::from_usize)
+        .all(|inst_id| !func.instructions[inst_id].kind.has_side_effects());
+    let keep_alias = no_new_side_effects
+        && (keep_cfg || edges_after.iter().all(|edge| edges_before.binary_search(edge).is_ok()));
+    (keep_alias, keep_cfg)
+}
+
+fn run_function_pass_cached(
+    analyses: &mut ModuleAnalyses,
+    module: &mut Module,
+    func_id: FunctionId,
+    run: &mut impl FnMut(&mut Function, &FunctionAnalyses) -> bool,
+) -> bool {
+    let bundle = analyses.bundle(func_id, &module.functions[func_id]);
+    let func = &mut module.functions[func_id];
+    let edges_before = cfg_edges(func);
+    let insts_before = func.instructions.len();
+    let changed = run(func, &bundle);
+    if changed {
+        let (keep_alias, keep_cfg) = verified_preservation(func, &edges_before, insts_before);
+        analyses.retain(func_id, keep_alias, keep_cfg);
+    }
+    changed
 }
 
 /// Manages cached analysis results for a function.
@@ -511,14 +399,6 @@ impl AnalysisManager {
             Box::new(result)
         });
         self.results[&key].downcast_ref::<A::Result>().unwrap()
-    }
-}
-
-fn validate_module_after_pass(module: &Module, pass_name: &str) {
-    let dcx = DiagCtxt::new_early();
-    validate(&dcx, module);
-    if dcx.has_errors().is_err() {
-        panic!("MIR validation failed after `{pass_name}`");
     }
 }
 

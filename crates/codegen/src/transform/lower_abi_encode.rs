@@ -5,10 +5,36 @@ use crate::{
         AbiLayout, AbiType, BlockId, Function, FunctionBuilder, InstKind, MemoryObjectKind, Module,
         SliceLocation, Terminator, Value, ValueId,
     },
-    pass::ModulePass,
+    pass::MirPass,
 };
 use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
+
+/// Lowers `abi_encode` after the main optimization pipeline.
+pub(crate) struct LowerAbiEncode;
+
+impl MirPass for LowerAbiEncode {
+    fn name(&self) -> &'static str {
+        "lower-abi-encode"
+    }
+
+    fn is_required(&self) -> bool {
+        true
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        let mut changed = false;
+        for func in module.functions.iter_mut() {
+            changed |= lower_function(func);
+        }
+        changed
+    }
+}
 
 #[derive(Clone, Copy)]
 pub(crate) struct AbiScratch {
@@ -21,19 +47,6 @@ struct AbiValueDest {
     head_addr: ValueId,
     tuple_base: ValueId,
     tail: ValueId,
-}
-
-/// Lowers `abi_encode` after the main optimization pipeline.
-pub(crate) struct LowerAbiEncodePass;
-
-impl ModulePass for LowerAbiEncodePass {
-    fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let mut changed = false;
-        for func in module.functions.iter_mut() {
-            changed |= lower_function(func);
-        }
-        changed
-    }
 }
 
 fn lower_function(func: &mut Function) -> bool {

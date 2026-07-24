@@ -2,16 +2,29 @@
 
 use crate::{
     mir::{Function, FunctionBuilder, InstKind, Module, StorageField, StorageLayout, ValueId},
-    pass::ModulePass,
+    pass::MirPass,
 };
 use solar_sema::Gcx;
 use std::sync::Arc;
 
 /// Lowers aggregate copies and clears after the main optimization pipeline.
-pub(crate) struct LowerAggregatesPass;
+pub(crate) struct LowerAggregates;
 
-impl ModulePass for LowerAggregatesPass {
-    fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+impl MirPass for LowerAggregates {
+    fn name(&self) -> &'static str {
+        "lower-aggregates"
+    }
+
+    fn is_required(&self) -> bool {
+        true
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
         let mut changed = false;
         for func in module.functions.iter_mut() {
             changed |= lower_function(func);
