@@ -1,22 +1,22 @@
 //@compile-flags: -Zcodegen -O none -Zdump=evm-ir-runtime
-//@filecheck: --check-prefix=NONE --enable-var-scope
+//@filecheck: --enable-var-scope
 
 contract ColdCallFallthroughNone {
-    // NONE-LABEL: @module runtime
-    // NONE: push 128
-    // NONE-NEXT: mstore
-    // NONE-NEXT: push 0{{$}}
-    // NONE-NEXT: push 4{{$}}
-    // NONE-NEXT: calldataload
-    // NONE-NEXT: eq
-    // NONE-NEXT: iszero
-    // NONE-NEXT: push [[HOT:bb[0-9]+]]
-    // NONE-NEXT: jumpi
-    // NONE-NEXT: jump [[COLD:bb[0-9]+]]
-    // NONE: [[COLD]]:
-    // NONE: jump
-    // NONE: [[HOT]]:
-    // NONE: return
+    // CHECK-LABEL: @module runtime
+    // CHECK: push 128
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push 0{{$}}
+    // CHECK-NEXT: push 4{{$}}
+    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: eq
+    // CHECK-NEXT: iszero
+    // CHECK-NEXT: push [[HOT:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
+    // CHECK-NEXT: jump [[COLD:bb[0-9]+]]
+    // CHECK: [[COLD]]:
+    // CHECK: jump
+    // CHECK: [[HOT]]:
+    // CHECK: return
     function nonzero(uint256 value) external pure returns (uint256) {
         if (value == 0) abort(value);
         return value;

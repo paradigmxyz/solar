@@ -1,5 +1,5 @@
 //@compile-flags: -Zcodegen -Zdump=mir
-//@filecheck: --check-prefix=CHECK --enable-var-scope
+//@filecheck: --enable-var-scope
 
 contract BackendControlFlow {
     uint256 public value;

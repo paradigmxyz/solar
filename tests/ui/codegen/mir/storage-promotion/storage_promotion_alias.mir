@@ -1,5 +1,5 @@
 //@compile-flags: --pass storage-promotion
-//@filecheck: --check-prefix=CHECK --enable-var-scope
+//@filecheck: --enable-var-scope
 @module StoragePromotionAlias
 
 // CHECK-LABEL: @reject_two_symbolic_slots

@@ -1,5 +1,5 @@
 //@compile-flags: --pass inst-simplify
-//@filecheck: --check-prefix=CHECK --enable-var-scope
+//@filecheck: --enable-var-scope
 @module InstSimplifyIdentities
 
 // CHECK-LABEL: @add_zero

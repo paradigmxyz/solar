@@ -1,5 +1,5 @@
 //@compile-flags: --pass memory-dse
-//@filecheck: --check-prefix=CHECK --enable-var-scope
+//@filecheck: --enable-var-scope
 @module MemoryDseBuilderCases
 
 // CHECK-LABEL: @overwritten_store

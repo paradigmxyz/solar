@@ -1,5 +1,5 @@
 //@compile-flags: --pass function-dce
-//@filecheck: --check-prefix=CHECK --enable-var-scope
+//@filecheck: --enable-var-scope
 @module FunctionDceCalls
 
 // CHECK-LABEL: @dead_helper

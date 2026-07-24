@@ -1,5 +1,5 @@
 //@compile-flags: --pass none
-//@filecheck: --check-prefix=CHECK --enable-var-scope
+//@filecheck: --enable-var-scope
 // CHECK-LABEL: @compact
 // CHECK: [[SUM:v[0-9]+]] = add 1, 2
 // CHECK: ret [[SUM]]

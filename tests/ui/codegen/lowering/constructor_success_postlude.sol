@@ -1,12 +1,12 @@
 //@compile-flags: -Zcodegen -Zdump=evm-ir
-//@filecheck: --check-prefix=CREATE --enable-var-scope
+//@filecheck: --enable-var-scope
 
 contract ConstructorSuccessPostlude {
-    // CREATE-LABEL: @module deployment
-    // CREATE: jumpi
-    // CREATE: codecopy
-    // CREATE: return
-    // CREATE: revert
+    // CHECK-LABEL: @module deployment
+    // CHECK: jumpi
+    // CHECK: codecopy
+    // CHECK: return
+    // CHECK: revert
     constructor(bool fail) {
         if (fail) revert();
     }

@@ -1,5 +1,5 @@
 //@compile-flags: --pass storage-promotion
-//@filecheck: --check-prefix=CHECK --enable-var-scope
+//@filecheck: --enable-var-scope
 @module StoragePromotion
 
 // CHECK-LABEL: @promote_recomputed_offset_slot

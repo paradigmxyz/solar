@@ -1,5 +1,5 @@
 //@compile-flags: --pass storage-promotion
-//@filecheck: --check-prefix=CHECK --enable-var-scope
+//@filecheck: --enable-var-scope
 @module StoragePromotionNonExternal
 
 // CHECK-LABEL: @non_external

@@ -1,5 +1,5 @@
 //@compile-flags: --pass licm
-//@filecheck: --check-prefix=CHECK --enable-var-scope
+//@filecheck: --enable-var-scope
 @module LicmBuilderCases
 
 // CHECK-LABEL: @hoist_mul

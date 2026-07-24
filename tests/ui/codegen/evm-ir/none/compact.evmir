@@ -1,4 +1,4 @@
-//@filecheck: --check-prefix=CHECK --enable-var-scope
+//@filecheck: --enable-var-scope
 // CHECK-LABEL: @module compact
 // CHECK: push 1
 // CHECK: push 2

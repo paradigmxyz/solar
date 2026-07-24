@@ -1,5 +1,5 @@
 //@compile-flags: --pass frame-slot-promotion
-//@filecheck: --check-prefix=CHECK --enable-var-scope
+//@filecheck: --enable-var-scope
 @module FramePromotionBuilderCases
 
 // CHECK-LABEL: @loop_carried

@@ -1,5 +1,5 @@
 //@compile-flags: --pass inline
-//@filecheck: --check-prefix=CHECK --enable-var-scope
+//@filecheck: --enable-var-scope
 @module InlineLoopReturn
 
 // CHECK-LABEL: @caller

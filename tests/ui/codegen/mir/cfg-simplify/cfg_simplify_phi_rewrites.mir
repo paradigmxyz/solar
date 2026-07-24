@@ -1,5 +1,5 @@
 //@compile-flags: --pass cfg-simplify
-//@filecheck: --check-prefix=CHECK --enable-var-scope
+//@filecheck: --enable-var-scope
 @module CfgSimplifyPhiRewrites
 
 // CHECK-LABEL: @empty_forwarder

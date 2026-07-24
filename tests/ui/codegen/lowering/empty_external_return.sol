@@ -1,9 +1,9 @@
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
-//@filecheck: --check-prefix=RUNTIME --enable-var-scope
+//@filecheck: --enable-var-scope
 
 contract EmptyExternalReturn {
-    // RUNTIME-LABEL: @module runtime
-    // RUNTIME: callvalue
-    // RUNTIME: revert
+    // CHECK-LABEL: @module runtime
+    // CHECK: callvalue
+    // CHECK: revert
     fallback() external {}
 }
