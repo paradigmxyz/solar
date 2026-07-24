@@ -499,7 +499,7 @@ impl<'a> Validator<'a> {
             && !module.functions.iter().any(|f| f.name.name == sym::entry)
         {
             self.emit(format_args!(
-                "module is in the `{}` phase but has no `entry` dispatcher function",
+                "module is in the `{}` phase but has no `entry` routing function",
                 module.phase.name()
             ));
         }
@@ -580,6 +580,12 @@ impl<'a> Validator<'a> {
                         InstKind::MakeSlice { .. }
                         | InstKind::SlicePtr(_)
                         | InstKind::SliceLen(_) => Some("slice"),
+                        InstKind::Fmp | InstKind::SetFmp(_) => Some("abstract allocation"),
+                        InstKind::Alloc { .. }
+                            if !func.instructions[inst_id].metadata.deferred_alloc() =>
+                        {
+                            Some("abstract allocation")
+                        }
                         InstKind::AbiEncode { .. } => Some("ABI encoding"),
                         InstKind::StorageToMemory { .. }
                         | InstKind::MemoryToStorage { .. }

@@ -2,7 +2,8 @@
 //!
 //! Allocation stays atomic through the optimization pipeline so placement
 //! passes can reason about it without reconstructing a load/add/store idiom.
-//! This pass expands the abstraction only at the EVM-shaped boundary.
+//! This pass expands the abstraction before the EVM-shaped boundary. Deferred
+//! static-allocation placeholders remain for final backend layout.
 
 use crate::{
     memory::EvmMemoryLayout,

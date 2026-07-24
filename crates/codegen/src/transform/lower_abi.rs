@@ -31,9 +31,8 @@
 //! a wrapper.
 //!
 //! Together with [`super::lower_dispatch::LowerDispatch`], which routes a selector switch
-//! to these argument-free wrappers, this moves dispatch and ABI handling out of
-//! the backend. Both passes run in the codegen pipeline; a module where this
-//! pass bails keeps its phase and is dispatched by the backend instead.
+//! to these argument-free wrappers, this materializes the ABI boundary before
+//! EVM codegen. Both passes must complete before the backend runs.
 
 use crate::{
     memory::EvmMemoryLayout,
@@ -120,8 +119,12 @@ impl LowerAbiCx {
             fuse_static_word_returns(&mut preflight);
             self.stats.skipped_dynamic += usize::from(has_live_value_return(&preflight));
         }
-        if self.stats.skipped_dynamic != 0 || wrappable.is_empty() {
+        if self.stats.skipped_dynamic != 0 {
             return false;
+        }
+        if wrappable.is_empty() {
+            module.advance_phase(MirPhase::Abi);
+            return true;
         }
         for &id in &wrappable {
             self.stats.fused_returns +=
@@ -159,13 +162,12 @@ impl LowerAbiCx {
         // that are need a second, parameterized body; cloning every wrapper
         // needlessly grows the MIR consumed by all subsequent lowering and
         // backend passes.
-        // When the dispatch entry cannot hoist a single callvalue check,
-        // each rejecting wrapper carries its own, exactly like the backend
-        // dispatcher's per-wrapper payable check: the check belongs to the
-        // wrapper's prologue (falling through into the body) rather than to a
-        // guard block in the selector switch, which would pay an extra jump
-        // per case. `lower-dispatch` shares the predicate and routes selector
-        // cases unguarded.
+        // When the dispatch entry cannot hoist a single callvalue check, each
+        // rejecting wrapper carries its own. The check belongs to the wrapper's
+        // prologue (falling through into the body) rather than to a guard block
+        // in the selector switch, which would pay an extra jump per case.
+        // `lower-dispatch` shares the predicate and routes selector cases
+        // unguarded.
         let hoist_callvalue = callvalue.hoists();
 
         let mut body_of_wrapper = FxHashMap::default();
@@ -242,9 +244,8 @@ impl LowerAbiCx {
     /// Prepends `if callvalue() != 0 { revert(0, 0) }` to a wrapper.
     ///
     /// The new guard block becomes the entry and falls through into the old
-    /// body, so the check costs no extra jump — the backend dispatcher's
-    /// per-wrapper payable-check shape. Injected after the `.body` copy is
-    /// taken: internal callers never pay the check.
+    /// body, so the check costs no extra jump. Injected after the `.body` copy
+    /// is taken: internal callers never pay the check.
     fn inject_callvalue_check(func: &mut Function) {
         let old_entry = BlockId::ENTRY;
         let mut builder = FunctionBuilder::new(func);
@@ -265,7 +266,7 @@ impl LowerAbiCx {
 }
 
 /// An external entry with a body and a selector — the shape a wrapper is built
-/// for. Receive/fallback entries have no selector and are left to the backend.
+/// for. Receive/fallback entries have no selector and need no ABI wrapper.
 fn is_wrappable_external(func: &Function) -> bool {
     func.selector.is_some() && !func.attributes.is_constructor
 }

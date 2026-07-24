@@ -37,13 +37,17 @@ impl MirPass for LowerEvmShaped {
         module.phase == MirPhase::MemoryLowered
             && module.functions.iter().all(|func| {
                 func.blocks.iter().all(|block| {
-                    block.instructions.iter().all(|&inst| {
-                        !matches!(
-                            func.instructions[inst].kind,
+                    block.instructions.iter().all(|&inst_id| {
+                        let inst = &func.instructions[inst_id];
+                        match inst.kind {
                             InstKind::MakeSlice { .. }
-                                | InstKind::SlicePtr(_)
-                                | InstKind::SliceLen(_)
-                        )
+                            | InstKind::SlicePtr(_)
+                            | InstKind::SliceLen(_)
+                            | InstKind::Fmp
+                            | InstKind::SetFmp(_) => false,
+                            InstKind::Alloc { .. } => inst.metadata.deferred_alloc(),
+                            _ => true,
+                        }
                     })
                 })
             })
@@ -85,7 +89,7 @@ impl LowerEvmShapedCx {
             return false;
         }
 
-        // Dispatch already uses explicit tail calls. Most modules have no
+        // Entry routing already uses explicit tail calls. Most modules have no
         // resultless internal call left to reshape, so avoid building a call
         // graph and classifying every function in that common case.
         let has_candidate = module.functions.iter().any(|func| {

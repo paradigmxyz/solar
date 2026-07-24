@@ -1,9 +1,8 @@
 //! Dispatch phase lowering: materialize the selector switch as MIR.
 //!
-//! In `built`/`optimized` MIR there is no dispatcher: the backend synthesizes
-//! the selector switch that routes an incoming call to the right external
-//! function. This pass makes that routing an ordinary MIR function named
-//! `entry` (the dispatch phase of the sketch in [`MirPhase`]).
+//! In `built`/`optimized` MIR, selector routing is still implicit. This pass
+//! makes it an ordinary MIR function named `entry` (the dispatch phase of the
+//! sketch in [`MirPhase`]).
 //!
 //! The synthesized `entry` function loads the 4-byte selector
 //! (`calldataload(0) >> 224`) and switches on it to one argument-free
@@ -16,9 +15,8 @@
 //! [`super::lower_abi::LowerAbi`] produces, so it bails on `built`/`optimized` modules
 //! rather than half-dispatching argument-taking functions.
 //!
-//! This pass runs after [`super::lower_abi::LowerAbi`] in the codegen pipeline. The
-//! backend consumes the resulting `dispatch`-or-later module and uses its
-//! `entry` function instead of synthesizing a dispatcher.
+//! This pass runs after [`super::lower_abi::LowerAbi`] in the codegen pipeline.
+//! The backend only consumes the final `evm-shaped` module.
 
 use crate::{
     mir::{Function, FunctionBuilder, FunctionId, MirPhase, Module, ValueId},
@@ -66,7 +64,7 @@ struct LowerDispatchCx {
 
 impl LowerDispatchCx {
     fn run(&mut self, module: &mut Module) -> bool {
-        // Idempotent: only build the dispatcher once.
+        // Idempotent: only build the entry once.
         if module.phase >= MirPhase::Dispatch {
             return false;
         }
@@ -114,14 +112,14 @@ impl LowerDispatchCx {
             }
         }
         if routes.is_empty() && receive.is_none() && fallback.is_none() {
-            return false;
+            module.advance_phase(MirPhase::Dispatch);
+            return true;
         }
 
-        // Hoist the callvalue check when every external entry rejects value,
-        // exactly like the backend dispatcher does. When the hoist does not
-        // apply, the selector cases route unguarded: `lower-abi` already
-        // injected the check into each rejecting wrapper's prologue (the two
-        // passes share this predicate).
+        // Hoist the callvalue check when every external entry rejects value.
+        // When the hoist does not apply, the selector cases route unguarded:
+        // `lower-abi` already injected the check into each rejecting wrapper's
+        // prologue (the two passes share this predicate).
         let hoist_callvalue = callvalue.hoists();
 
         self.build_entry(module, &routes, receive, fallback, hoist_callvalue);
@@ -130,14 +128,12 @@ impl LowerDispatchCx {
         true
     }
 
-    /// Synthesizes the `entry` dispatcher function and appends it to the module.
+    /// Synthesizes the `entry` routing function and appends it to the module.
     ///
-    /// Mirrors the backend dispatcher's semantics: an optional hoisted
-    /// callvalue check when every entry rejects value, empty calldata routed to
-    /// `receive`, then `fallback`, then revert, short calldata routed to
-    /// `fallback` or revert, the selector switch defaulting to `fallback` or
-    /// revert, and per-entry callvalue checks when the hoisted check does not
-    /// apply.
+    /// It includes an optional hoisted callvalue check when every entry rejects
+    /// value, routes empty calldata to `receive`, then `fallback`, then revert,
+    /// routes short calldata to `fallback` or revert, and defaults the selector
+    /// switch to `fallback` or revert.
     fn build_entry(
         &self,
         module: &mut Module,
@@ -157,9 +153,8 @@ impl LowerDispatchCx {
             let size_block = builder.create_block();
             // With no receive and no fallback there is no empty-calldata
             // entry: empty calldata branches straight to the revert, and
-            // keeping `select_block` the fallthrough lets the backend invert
-            // the size check into the shared revert stub — the backend
-            // dispatcher's exact shape.
+            // keeping `select_block` the fallthrough lets codegen invert the
+            // size check into the shared revert stub.
             let empty_block =
                 (receive.is_some() || fallback.is_some()).then(|| builder.create_block());
             let nonempty_block = needs_short_calldata_guard.then(|| builder.create_block());

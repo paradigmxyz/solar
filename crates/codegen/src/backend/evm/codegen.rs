@@ -21,7 +21,7 @@ use crate::{
         PhiEliminator,
     },
     memory::EvmMemoryLayout,
-    mir::{BlockId, Function, FunctionId, InstId, InstKind, Module, Terminator, ValueId},
+    mir::{BlockId, Function, FunctionId, InstId, InstKind, MirPhase, Module, Terminator, ValueId},
     pass::run_default_pipeline,
 };
 use alloy_primitives::U256;
@@ -31,9 +31,8 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 use solar_interface::{Span, sym};
-use solar_sema::{Gcx, hir::StateMutability};
+use solar_sema::Gcx;
 
-const LINEAR_SELECTOR_DISPATCH_THRESHOLD: usize = 64;
 const STACK_PHI_LAYOUT_LIMIT: usize = 8;
 const GLOBAL_STACK_LAYOUT_LIMIT: usize = 8;
 const GLOBAL_STACK_MAX_ARGS: usize = 3;
@@ -87,12 +86,6 @@ struct StackArgRetentionPlan {
     retained: DenseBitSet<usize>,
     drain_ops: Vec<StackOp>,
     shuffle_ops: Vec<StackOp>,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct SelectorDispatchEntry {
-    selector: u32,
-    label: Label,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -597,13 +590,12 @@ pub struct EvmCodegen<'gcx> {
     constructor_param_count: u32,
     /// Whether we're emitting an internal function body.
     in_internal_function: bool,
-    /// Whether we're emitting the MIR dispatch `entry` function. Its switch
+    /// Whether we're emitting the MIR `entry` function. Its switch
     /// keeps the selector on the physical stack through the case chain and
-    /// leaves it inert below the taken arm, like the backend dispatcher. Only
-    /// sound there: the entry runs once and every arm terminates externally,
-    /// so the leftover word can neither accumulate nor disturb an internal
-    /// return.
-    emitting_dispatch_entry: bool,
+    /// leaves it inert below the taken arm. This is only sound for `entry`: it
+    /// runs once and every arm terminates externally, so the leftover word can
+    /// neither accumulate nor disturb an internal return.
+    emitting_entry: bool,
     capture_evm_ir: bool,
     /// Instructions that survive MIR lowering and the word-based backend cannot
     /// emit — an unsupported high-level construct rather than a miscompile. Each
@@ -648,7 +640,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             constructor_exit: None,
             constructor_param_count: 0,
             in_internal_function: false,
-            emitting_dispatch_entry: false,
+            emitting_entry: false,
             capture_evm_ir: false,
             unsupported: Vec::new(),
         }
@@ -1072,18 +1064,27 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
-        run_default_pipeline(self.gcx, module);
+        let _changed = run_default_pipeline(self.gcx, module);
 
-        // A logical slice still live in a block after slice lowering is an
-        // aggregate use it could not fold — an unsupported pattern, not a
-        // miscompile. `LowerEvmShaped` leaves such a module at the
-        // `memory-lowered` boundary; record it and stop before emission so the
-        // caller reports it rather than the emitter panicking on it.
         self.collect_unsupported(module);
+        if self.unsupported.is_empty() && module.phase != MirPhase::EvmShaped {
+            self.unsupported.push((
+                None,
+                format!(
+                    "EVM codegen requires MIR in the `evm-shaped` phase, stopped at `{}`",
+                    module.phase.name()
+                ),
+            ));
+        }
     }
 
     /// Generates runtime bytecode for a module.
     fn generate_runtime_code(&mut self, module: &Module) -> GeneratedCode {
+        assert_eq!(
+            module.phase,
+            MirPhase::EvmShaped,
+            "EVM codegen requires MIR in the final phase"
+        );
         self.asm.clear();
         self.block_labels.clear();
         self.function_labels.clear();
@@ -1107,15 +1108,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.stack_phi_sources.clear();
         self.stack_arg_masks.clear();
         self.runtime_stack_args = true;
-        self.emitting_dispatch_entry = false;
+        self.emitting_entry = false;
 
         if !module.functions.is_empty() {
-            if module.phase >= crate::mir::MirPhase::Dispatch {
-                self.generate_mir_dispatched(module);
-            } else {
-                // The dispatcher generates function bodies inline
-                self.generate_dispatcher(module);
-            }
+            self.emit_runtime(module);
         }
 
         let result = self.asm.assemble_with_evm_ir(self.capture_evm_ir);
@@ -1123,21 +1119,20 @@ impl<'gcx> EvmCodegen<'gcx> {
         GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir }
     }
 
-    /// Generates the runtime from a `dispatch`-phase module: the MIR `entry`
-    /// function is the runtime prologue, its `tail_call`s jump to the ABI
-    /// wrappers, and no backend dispatcher is synthesized.
+    /// Emits a runtime from final-phase MIR.
     ///
     /// Selector matching, receive/fallback routing, and callvalue checks all
-    /// live in the MIR `entry`, so wrappers are emitted without the selector
-    /// pop and payable check the backend dispatcher would add.
-    fn generate_mir_dispatched(&mut self, module: &Module) {
+    /// live in the MIR `entry`, whose `tail_call`s jump to the ABI wrappers.
+    fn emit_runtime(&mut self, module: &Module) {
         let Some((entry_id, _)) = module
             .functions
             .iter_enumerated()
             .find(|(_, f)| f.selector.is_none() && f.name.name == sym::entry)
         else {
-            // Phase says dispatch but there is nothing to route; fall back.
-            self.generate_dispatcher(module);
+            assert!(
+                !module.functions.iter().any(Self::is_external_entry),
+                "evm-shaped module with a runtime interface must have a MIR `entry` function"
+            );
             return;
         };
 
@@ -1180,11 +1175,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         // The MIR entry is the runtime prologue: one shared free-memory
         // store covers every wrapper reached through it.
         self.in_internal_function = false;
-        self.emitting_dispatch_entry = true;
+        self.emitting_entry = true;
         let entry_free = self.emit_external_free_memory_start();
         self.runtime_free_memory_const = Some(entry_free);
         self.generate_function_body(entry_id, &module.functions[entry_id]);
-        self.emitting_dispatch_entry = false;
+        self.emitting_entry = false;
         self.record_function_spill_size(entry_id);
         self.runtime_entry_funcs.push(entry_id);
 
@@ -1201,7 +1196,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.runtime_entry_funcs.push(func_id);
         }
 
-        // Internal-call targets, exactly as in the backend dispatcher path.
+        // Internal-call targets.
         for (func_id, func) in module.functions.iter_enumerated() {
             if func_id == entry_id
                 || Self::is_external_entry(func)
@@ -1219,187 +1214,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.current_internal_function = None;
             self.record_function_spill_size(func_id);
         }
-
-        self.resolve_pending_frame_size_consts(module);
-        self.resolve_static_frames(module);
-    }
-
-    /// Generates the function dispatcher.
-    ///
-    /// The dispatcher logic is:
-    /// ```text
-    /// if calldatasize == 0:
-    ///     if has_receive: jump to receive
-    ///     elif has_fallback: jump to fallback
-    ///     else: revert
-    /// else:
-    ///     match selector...
-    ///     if no match and has_fallback: jump to fallback
-    ///     else: revert
-    /// ```
-    fn generate_dispatcher(&mut self, module: &Module) {
-        let receive_idx = module
-            .functions
-            .iter_enumerated()
-            .find_map(|(func_id, func)| func.attributes.is_receive.then_some(func_id));
-        let fallback_idx = module
-            .functions
-            .iter_enumerated()
-            .find_map(|(func_id, func)| func.attributes.is_fallback.then_some(func_id));
-
-        let call_graph = CallGraphInfo::new(module);
-        let internal_targets = call_graph.reachable_callees_from(
-            module
-                .functions
-                .iter_enumerated()
-                .filter_map(|(func_id, func)| Self::is_external_entry(func).then_some(func_id)),
-        );
-
-        for (func_id, func) in module.functions.iter_enumerated() {
-            self.function_static_frame_sizes.insert(func_id, func.internal_frame_size);
-            if !func.params.iter().chain(&func.returns).any(|ty| ty.is_memory_reference()) {
-                self.restorable_internal_frames.insert(func_id);
-            }
-            // Non-recursive internal functions get compile-time-fixed frames.
-            if !Self::is_external_entry(func)
-                && Self::is_runtime_function(func)
-                && !call_graph.is_recursive(func_id)
-            {
-                self.static_frame_functions.insert(func_id);
-            }
-        }
-        self.compute_stack_arg_masks(module);
-
-        // Create labels for externally reachable runtime entry points and internal-call targets.
-        for (func_id, func) in module.functions.iter_enumerated() {
-            let external = Self::is_external_entry(func);
-            let needs_body =
-                external || (Self::is_runtime_function(func) && internal_targets.contains(func_id));
-            let label = needs_body.then(|| self.new_function_label(func_id));
-            if let Some(label) = label {
-                self.function_labels.insert(func_id, label);
-            }
-        }
-        let revert_label = self.asm.new_label();
-        self.asm.mark_label_cold(revert_label);
-        let has_calldata_label = self.asm.new_label();
-        let all_external_entries_reject_value =
-            module.functions.iter().any(Self::is_external_entry)
-                && module
-                    .functions
-                    .iter()
-                    .filter(|func| Self::is_external_entry(func))
-                    .all(Self::rejects_callvalue);
-
-        // One shared free-memory store for every entry reached through the
-        // dispatcher (solc does the same); its value is the maximum entry
-        // frame end, or the static-frame region end.
-        let dispatcher_free = self.emit_external_free_memory_start();
-        self.runtime_free_memory_const = Some(dispatcher_free);
-
-        if all_external_entries_reject_value {
-            self.emit_callvalue_check(revert_label);
-        }
-
-        // Empty calldata: route to receive/fallback when they exist; with
-        // neither, invert the check so nonempty calldata falls straight
-        // through to the selector load and empty calldata takes the shared
-        // revert stub (a byte shorter than a dedicated arm).
-        if receive_idx.is_some() || fallback_idx.is_some() {
-            self.asm.emit_op(op::CALLDATASIZE);
-            self.asm.emit_push_label(has_calldata_label);
-            self.asm.emit_op(op::JUMPI);
-            if let Some(recv_idx) = receive_idx {
-                self.asm.emit_push_label(self.function_labels[&recv_idx]);
-                self.asm.emit_op(op::JUMP);
-            } else if let Some(fb_idx) = fallback_idx {
-                self.asm.emit_push_label(self.function_labels[&fb_idx]);
-                self.asm.emit_op(op::JUMP);
-            }
-        } else {
-            self.asm.emit_op(op::CALLDATASIZE);
-            self.asm.emit_op(op::ISZERO);
-            self.asm.emit_push_label(revert_label);
-            self.asm.emit_op(op::JUMPI);
-        }
-
-        // calldatasize > 0: Load selector and match
-        self.asm.define_label(has_calldata_label);
-
-        // Load selector from calldata
-        self.asm.emit_push(U256::ZERO);
-        self.asm.emit_op(op::CALLDATALOAD);
-        self.asm.emit_push(U256::from(0xe0));
-        self.asm.emit_op(op::SHR);
-
-        let mut selectors: Vec<_> = module
-            .functions
-            .iter_enumerated()
-            .filter_map(|(func_id, func)| {
-                if !Self::is_external_entry(func) {
-                    return None;
-                }
-                let selector = func.selector?;
-                Some(SelectorDispatchEntry {
-                    selector: u32::from_be_bytes(selector),
-                    label: self.function_labels[&func_id],
-                })
-            })
-            .collect();
-        selectors.sort_by_key(|entry| entry.selector);
-
-        let fallback_label = fallback_idx.map(|idx| self.function_labels[&idx]);
-        self.emit_selector_dispatch(&selectors, fallback_label, revert_label);
-
-        // Define external function entry points.
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if !Self::is_external_entry(func) {
-                continue;
-            }
-            let Some(&label) = self.function_labels.get(&func_id) else { continue };
-            self.asm.define_label(label);
-
-            // The dispatcher's shr'd selector is still on the physical stack
-            // for regular functions. It is untracked and below everything the
-            // wrapper's stack model describes, so it is inert (the same
-            // invariant stack-passed return addresses rely on) — the wrapper
-            // terminates externally and never reaches it; popping it per
-            // wrapper was a wasted byte each.
-
-            if !all_external_entries_reject_value {
-                self.emit_payable_check(func, revert_label);
-            }
-
-            // Generate function body
-            self.in_internal_function = false;
-            self.generate_function_body(func_id, func);
-
-            self.record_function_spill_size(func_id);
-            self.runtime_entry_funcs.push(func_id);
-        }
-
-        // Define internal-call targets once. Calls jump here and return
-        // through the stack-passed return address.
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if Self::is_external_entry(func) || !Self::is_runtime_function(func) {
-                continue;
-            }
-            let Some(&label) = self.function_labels.get(&func_id) else { continue };
-            self.asm.define_label(label);
-            self.emit_stack_arg_prologue(func_id, func);
-            self.in_internal_function = true;
-            self.current_internal_function = Some(func_id);
-            self.generate_function_body(func_id, func);
-            self.in_internal_function = false;
-            self.current_internal_function = None;
-            self.record_function_spill_size(func_id);
-        }
-
-        // Revert label
-        self.asm.define_label(revert_label);
-        self.asm.emit_push(U256::ZERO);
-        self.asm.emit_push(U256::ZERO);
-        self.asm.emit_op(op::REVERT);
 
         self.resolve_pending_frame_size_consts(module);
         self.resolve_static_frames(module);
@@ -1438,107 +1252,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         !func.attributes.is_constructor
     }
 
-    fn emit_selector_dispatch(
-        &mut self,
-        selectors: &[SelectorDispatchEntry],
-        fallback_label: Option<Label>,
-        revert_label: Label,
-    ) {
-        if selectors.len() <= LINEAR_SELECTOR_DISPATCH_THRESHOLD {
-            self.emit_linear_selector_dispatch(selectors, fallback_label, revert_label);
-        } else {
-            self.emit_binary_selector_dispatch(selectors, fallback_label, revert_label);
-        }
-    }
-
-    fn emit_linear_selector_dispatch(
-        &mut self,
-        selectors: &[SelectorDispatchEntry],
-        fallback_label: Option<Label>,
-        revert_label: Label,
-    ) {
-        for entry in selectors {
-            self.emit_selector_eq_jump(*entry);
-        }
-        self.emit_selector_dispatch_miss(fallback_label, revert_label);
-    }
-
-    fn emit_binary_selector_dispatch(
-        &mut self,
-        selectors: &[SelectorDispatchEntry],
-        fallback_label: Option<Label>,
-        revert_label: Label,
-    ) {
-        if selectors.len() <= LINEAR_SELECTOR_DISPATCH_THRESHOLD {
-            self.emit_linear_selector_dispatch(selectors, fallback_label, revert_label);
-            return;
-        }
-
-        let mid = selectors.len() / 2;
-        let left_label = self.asm.new_label();
-
-        // Stack has the selector. With the pivot pushed on top, GT checks
-        // `pivot > selector`, so jump left when selector < pivot.
-        self.asm.emit_op(op::dup(1));
-        self.asm.emit_push(U256::from(selectors[mid].selector));
-        self.asm.emit_op(op::GT);
-        self.asm.emit_push_label(left_label);
-        self.asm.emit_op(op::JUMPI);
-
-        self.emit_binary_selector_dispatch(&selectors[mid..], fallback_label, revert_label);
-
-        self.asm.define_label(left_label);
-        self.emit_binary_selector_dispatch(&selectors[..mid], fallback_label, revert_label);
-    }
-
-    fn emit_selector_eq_jump(&mut self, entry: SelectorDispatchEntry) {
-        self.asm.emit_op(op::dup(1));
-        self.asm.emit_push(U256::from(entry.selector));
-        self.asm.emit_op(op::EQ);
-        self.asm.emit_push_label(entry.label);
-        self.asm.emit_op(op::JUMPI);
-    }
-
-    fn emit_selector_dispatch_miss(&mut self, fallback_label: Option<Label>, _revert_label: Label) {
-        if let Some(fallback_label) = fallback_label {
-            // The unmatched selector below the fallback's stack model is
-            // inert, like the one below regular wrappers.
-            self.asm.emit_push_label(fallback_label);
-            self.asm.emit_op(op::JUMP);
-        } else {
-            // Reverting inline is a byte shorter than jumping to the shared
-            // revert stub, and terminal-span dedup still merges the copies.
-            self.asm.emit_push(U256::ZERO);
-            self.asm.emit_push(U256::ZERO);
-            self.asm.emit_op(op::REVERT);
-        }
-    }
-
-    /// Emits a payable check for non-payable functions.
-    /// Non-payable, view, and pure functions revert if called with value.
-    fn emit_payable_check(&mut self, func: &Function, revert_label: Label) {
-        if Self::rejects_callvalue(func) {
-            self.emit_callvalue_check(revert_label);
-        }
-    }
-
-    fn rejects_callvalue(func: &Function) -> bool {
-        matches!(
-            func.attributes.state_mutability,
-            StateMutability::NonPayable | StateMutability::View | StateMutability::Pure
-        )
-    }
-
-    fn emit_callvalue_check(&mut self, revert_label: Label) {
-        self.asm.emit_op(op::CALLVALUE);
-        self.asm.emit_push_label(revert_label);
-        self.asm.emit_op(op::JUMPI);
-    }
-
     /// Generates the body of a function.
     fn generate_function_body(&mut self, func_id: FunctionId, func: &Function) {
         let liveness = self
-            .emitting_dispatch_entry
+            .emitting_entry
             .then(|| Liveness::compute_block_local_for_codegen(func))
             .flatten()
             .unwrap_or_else(|| Liveness::compute(func));
@@ -3936,7 +3653,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // Longest live-chain depth below each function, over all call edges.
         // Only emitted callers count: an unemitted function (an internal
-        // `.body` clone nobody calls, dispatched-away dead code) stacks no
+        // `.body` clone nobody calls, unreachable dead code) stacks no
         // real frame below its callees, and its conservative spill estimate
         // would inflate every callee's depth — and with it the free-memory
         // start and the width of every frame push in the runtime.
@@ -5369,15 +5086,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             Terminator::Switch { value, default, cases } => {
-                if self.emitting_dispatch_entry {
-                    // The dispatch entry's selector switch mirrors the backend
-                    // dispatcher's shape: the just-computed selector stays on
-                    // the stack through the case chain — no spill, clear and
-                    // reload — and is left inert below the taken arm instead
-                    // of paying a POP ("popping it per wrapper was a wasted
-                    // byte each"). Every successor terminates externally and
-                    // the entry runs once, so the leftover word is unreachable
-                    // and cannot accumulate.
+                if self.emitting_entry {
+                    // The entry's just-computed selector stays on the stack
+                    // through the case chain — no spill, clear, and reload —
+                    // and is left inert below the taken arm instead of paying
+                    // a POP. Every successor terminates externally and the
+                    // entry runs once, so the leftover word cannot accumulate.
                     self.emit_value(func, *value);
                     while self.scheduler.depth() > 1 {
                         self.emit_stack_op(StackOp::Swap(1));
@@ -5409,7 +5123,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.scheduler.instruction_executed(1, None); // JUMPI consumes condition
                 }
 
-                if !self.emitting_dispatch_entry {
+                if !self.emitting_entry {
                     // Pop the value before the default edge.
                     self.asm.emit_op(op::POP);
                     self.scheduler.stack.pop();

@@ -1,0 +1,15 @@
+//@compile-flags: --pass lower-evm-shaped
+//@filecheck: --match-full-lines
+// CHECK:   @phase memory-lowered
+// CHECK-NOT: + @phase evm-shaped
+@module LowerEvmShapedRequiresAlloc
+@phase memory-lowered
+
+// CHECK-LABEL:   fn @entry() {
+// CHECK:     v0 = fmp
+// CHECK-NEXT:     stop
+fn @entry() {
+  bb0:
+    v0 = fmp
+    stop
+}

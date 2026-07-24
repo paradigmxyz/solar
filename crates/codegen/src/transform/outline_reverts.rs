@@ -12,8 +12,7 @@
 //! and whose terminator is `revert(imm, imm)`. A shape that occurs at least
 //! twice (and is big enough for the jump to pay for itself) is synthesized
 //! once as a shared no-return helper, and each occurrence is rewritten into an
-//! argless `tail_call` to it — a bare jump in the backend, on both the
-//! MIR-dispatch and backend-dispatcher paths.
+//! argless `tail_call` to it — a bare jump in the backend.
 
 use crate::{
     mir::{Function, FunctionBuilder, InstKind, Module, Terminator, Value},

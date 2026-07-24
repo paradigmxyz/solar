@@ -186,7 +186,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &frame_promotion::FrameSlotPromotion,
     &memory_dse::MemoryDse,
     &adce::Adce,
-    // Progressive lowering materializes ABI wrappers, the dispatcher, and
+    // Progressive lowering materializes ABI wrappers, selector routing, and
     // tail-call edges as MIR. Each pass bails without advancing the phase
     // when the module is outside its scope.
     &lower_abi::LowerAbi,
@@ -203,8 +203,8 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_slices::LowerSlices,
     &lower_dispatch::LowerDispatch,
     &lower_memory_objects::LowerMemoryObjects,
-    &lower_evm_shaped::LowerEvmShaped,
     &lower_alloc::LowerAlloc,
+    &lower_evm_shaped::LowerEvmShaped,
 ];
 
 /// Runs the canonical MIR pipeline used by EVM codegen.
