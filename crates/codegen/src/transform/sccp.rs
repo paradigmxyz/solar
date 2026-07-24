@@ -744,13 +744,13 @@ impl SccpCx {
             self.stats.blocks_invalidated += 1;
         }
 
-        let phis_repaired = repair_reachability_phis(func);
+        let reachability_repaired = repair_reachability_phis(func);
 
         self.stats.constants_folded
             + self.stats.branches_folded
             + self.stats.switches_folded
             + self.stats.blocks_invalidated
-            + usize::from(phis_repaired)
+            + usize::from(reachability_repaired)
     }
 }
 

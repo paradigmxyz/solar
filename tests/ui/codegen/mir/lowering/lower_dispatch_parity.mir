@@ -1,6 +1,6 @@
 //@compile-flags: --pass lower-dispatch
 //@filecheck:
-// Full dispatcher parity with the backend: empty calldata routes to `receive`,
+// Full entry-routing behavior: empty calldata routes to `receive`,
 // the switch default routes to `fallback`, and the nonpayable entry gets a
 // per-case callvalue check because a payable entry exists, so the check cannot
 // be hoisted. Receive is payable and needs no check.

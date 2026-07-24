@@ -3708,7 +3708,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Prefer eligible allocations before each entry's exact spill area,
         // then fall back to appending them after spills when only spill pushes
         // prevent the lower placement.
-        // Entries overlay because only one dispatcher arm executes per call.
+        // Entries overlay because only one runtime entry executes per call.
         // Reject any proposal that widens a shared heap/static-frame or
         // ranked-spill push.
         let mut static_alloc_sizes: FxHashMap<FunctionId, u64> = FxHashMap::default();

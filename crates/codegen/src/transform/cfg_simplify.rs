@@ -116,8 +116,8 @@ struct CfgSimplifyStats {
     unreachable_blocks_removed: usize,
     /// Number of dead functions eliminated.
     dead_functions_eliminated: usize,
-    /// Whether reachability repair removed stale phi inputs.
-    phis_repaired: bool,
+    /// Whether CFG backlinks or phi inputs were repaired.
+    reachability_repaired: bool,
     /// Estimated gas saved (8 gas per eliminated jump).
     gas_saved: usize,
 }
@@ -133,7 +133,7 @@ impl CfgSimplifyStats {
             + self.terminal_blocks_deduplicated
             + self.unreachable_blocks_removed
             + self.dead_functions_eliminated
-            + self.phis_repaired as usize
+            + self.reachability_repaired as usize
     }
 
     /// Combines stats from another run.
@@ -145,7 +145,7 @@ impl CfgSimplifyStats {
         self.terminal_blocks_deduplicated += other.terminal_blocks_deduplicated;
         self.unreachable_blocks_removed += other.unreachable_blocks_removed;
         self.dead_functions_eliminated += other.dead_functions_eliminated;
-        self.phis_repaired |= other.phis_repaired;
+        self.reachability_repaired |= other.reachability_repaired;
         self.gas_saved += other.gas_saved;
     }
 }
@@ -367,7 +367,9 @@ impl CfgSimplifier {
                 }
                 Some(Terminator::Switch { default, cases, .. }) => {
                     let old_len = cases.len();
-                    cases.retain(|(_, target)| target != default);
+                    while cases.last().is_some_and(|(_, target)| target == default) {
+                        cases.pop();
+                    }
                     if cases.len() != old_len {
                         self.stats.terminators_simplified += old_len - cases.len();
                         changed = true;
@@ -385,7 +387,7 @@ impl CfgSimplifier {
         }
 
         if changed {
-            self.stats.phis_repaired |= repair_reachability_phis(func);
+            self.stats.reachability_repaired |= repair_reachability_phis(func);
         }
     }
 

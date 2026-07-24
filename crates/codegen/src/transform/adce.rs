@@ -42,14 +42,14 @@ struct AdceStats {
     control_edges_removed: usize,
     /// Number of instructions removed by cleanup DCE after control rewrites.
     instructions_removed: usize,
-    /// Whether reachability repair removed stale phi inputs.
-    phis_repaired: bool,
+    /// Whether CFG backlinks or phi inputs were repaired.
+    reachability_repaired: bool,
 }
 
 impl AdceStats {
     /// Returns the total number of MIR edits made by this pass.
     const fn total(self) -> usize {
-        self.control_edges_removed + self.instructions_removed + self.phis_repaired as usize
+        self.control_edges_removed + self.instructions_removed + self.reachability_repaired as usize
     }
 }
 
@@ -97,7 +97,7 @@ impl AggressiveDeadCodeEliminator {
                 break;
             }
             self.stats.control_edges_removed += rewrites;
-            self.stats.phis_repaired |= repair_reachability_phis(func);
+            self.stats.reachability_repaired |= repair_reachability_phis(func);
         }
 
         let removed = super::dce::DeadCodeEliminator::new().run_to_fixpoint(func);
