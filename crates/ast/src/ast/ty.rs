@@ -231,15 +231,15 @@ impl TypeSize {
     /// Panics if `bits` is not a multiple of 8 or greater than 256.
     #[inline]
     #[track_caller]
-    pub fn new_int_bits(bits: u16) -> Self {
-        Self::try_new_int_bits(bits).unwrap_or_else(|| panic!("invalid integer size: {bits}"))
+    pub const fn new_int_bits(bits: u16) -> Self {
+        Self::try_new_int_bits(bits).expect("invalid integer size")
     }
 
     /// Creates a new `TypeSize` for an integer type from **bits**.
     ///
     /// Returns None if `bits` is not a multiple of 8 or greater than 256.
     #[inline]
-    pub fn try_new_int_bits(bits: u16) -> Option<Self> {
+    pub const fn try_new_int_bits(bits: u16) -> Option<Self> {
         if bits.is_multiple_of(8) { Self::new(bits) } else { None }
     }
 
@@ -265,15 +265,15 @@ impl TypeSize {
     /// Panics if `bytes` is not in the range 1..=32.
     #[inline]
     #[track_caller]
-    pub fn new_fb_bytes(bytes: u8) -> Self {
-        Self::try_new_fb_bytes(bytes).unwrap_or_else(|| panic!("invalid fixed-bytes size: {bytes}"))
+    pub const fn new_fb_bytes(bytes: u8) -> Self {
+        Self::try_new_fb_bytes(bytes).expect("invalid fixed-bytes size")
     }
 
     /// Creates a new `TypeSize` for a fixed-bytes type from **bytes**.
     ///
     /// Returns None if `bytes` is not in the range 1..=32.
     #[inline]
-    pub fn try_new_fb_bytes(bytes: u8) -> Option<Self> {
+    pub const fn try_new_fb_bytes(bytes: u8) -> Option<Self> {
         if bytes == 0 {
             return None;
         }

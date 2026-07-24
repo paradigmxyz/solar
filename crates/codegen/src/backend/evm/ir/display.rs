@@ -40,6 +40,9 @@ fn display_instruction<'a>(module: &'a Module, inst: &'a Instruction) -> impl fm
         if let Some(value) = &inst.value {
             write!(f, " {}", display_push_value(module, value))?;
         }
+        if let Some(size) = inst.immutable_type_size() {
+            write!(f, ", {}", size.bytes())?;
+        }
         write!(f, "{}", display_metadata(&inst.metadata, default_instruction_stack_effect(inst)))
     })
 }

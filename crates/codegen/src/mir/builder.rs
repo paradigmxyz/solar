@@ -1,8 +1,8 @@
 //! MIR function builder.
 
 use super::{
-    AllocationSemantics, BlockId, Function, FunctionId, Immediate, InstId, InstKind, Instruction,
-    MemoryRegion, MirType, SliceLocation, StorageAlias, Terminator, Value, ValueId,
+    AllocationSemantics, BlockId, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
+    Instruction, MemoryRegion, MirType, SliceLocation, StorageAlias, Terminator, Value, ValueId,
 };
 use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
@@ -534,9 +534,14 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::ExtCodeSize(addr), Some(MirType::uint256()))
     }
 
-    /// Emits a loadimmutable instruction for the immutable at `offset`.
-    pub(crate) fn load_immutable(&mut self, offset: u32) -> ValueId {
-        self.emit_inst(InstKind::LoadImmutable(offset), Some(MirType::uint256()))
+    /// Emits a loadimmutable instruction.
+    pub(crate) fn load_immutable(&mut self, id: ImmutableId, ty: MirType) -> ValueId {
+        self.emit_inst(InstKind::LoadImmutable { id }, Some(ty))
+    }
+
+    /// Emits a storeimmutable instruction.
+    pub(crate) fn store_immutable(&mut self, id: ImmutableId, value: ValueId) {
+        self.emit_void_inst(InstKind::StoreImmutable { id, value })
     }
 
     /// Emits an extcodecopy instruction.
@@ -618,7 +623,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Emits a blockhash instruction.
     pub(crate) fn blockhash(&mut self, block_num: ValueId) -> ValueId {
-        self.emit_inst(InstKind::BlockHash(block_num), Some(MirType::FixedBytes(32)))
+        self.emit_inst(InstKind::BlockHash(block_num), Some(MirType::bytes32()))
     }
 
     /// Emits a coinbase instruction.
@@ -710,7 +715,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Emits a blobhash instruction.
     pub(crate) fn blobhash(&mut self, index: ValueId) -> ValueId {
-        self.emit_inst(InstKind::BlobHash(index), Some(MirType::FixedBytes(32)))
+        self.emit_inst(InstKind::BlobHash(index), Some(MirType::bytes32()))
     }
 
     /// Emits a call instruction (external call).

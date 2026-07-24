@@ -16,8 +16,8 @@ mod type_query;
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, IMMUTABLE_WORD_SIZE,
-        MemoryObjectKind, MirType, Module, SliceLocation, StorageLayoutRef, ValueId,
+        BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, ImmutableId,
+        MemoryObjectKind, MirType, Module, SliceLocation, StorageLayoutRef, TypeSize, ValueId,
     },
 };
 use alloy_primitives::U256;
@@ -91,10 +91,8 @@ pub(crate) struct Lowerer<'gcx> {
     next_storage_slot: u64,
     /// Next available byte offset in `next_storage_slot` for packed variables.
     next_storage_offset: u8,
-    /// Mapping from HIR immutable variable IDs to runtime immutable byte offsets.
-    immutable_slots: FxHashMap<VariableId, u32>,
-    /// Next available immutable byte offset.
-    next_immutable_offset: u32,
+    /// Mapping from HIR immutable variable IDs to MIR immutable IDs.
+    immutable_ids: FxHashMap<VariableId, ImmutableId>,
     /// Mapping from HIR variable IDs to MIR values (for local variables).
     /// For SSA-style immutable variables (function params and non-mutated locals).
     locals: FxHashMap<VariableId, ValueId>,
@@ -200,8 +198,7 @@ impl<'gcx> Lowerer<'gcx> {
             storage_locations: FxHashMap::default(),
             next_storage_slot: 0,
             next_storage_offset: 0,
-            immutable_slots: FxHashMap::default(),
-            next_immutable_offset: 0,
+            immutable_ids: FxHashMap::default(),
             locals: FxHashMap::default(),
             local_memory_slots: FxHashMap::default(),
             slice_slot_locals: FxHashSet::default(),
@@ -344,39 +341,13 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Returns the constructor scratch address for an immutable word.
-    pub(crate) fn immutable_scratch_addr(offset: u32) -> u64 {
-        EvmMemoryLayout::IMMUTABLE_SCRATCH_BASE + u64::from(offset)
-    }
-
-    /// Stages an immutable word in constructor memory.
-    pub(crate) fn store_immutable_value(
-        &self,
-        builder: &mut FunctionBuilder<'_>,
-        offset: u32,
-        value: ValueId,
-    ) {
-        let addr = builder.imm_u64(Self::immutable_scratch_addr(offset));
-        builder.mstore(addr, value);
-    }
-
-    /// Loads an immutable word.
-    ///
-    /// Runtime code reads a `PUSH32` placeholder that the constructor patches
-    /// with the staged value before returning the runtime code. The running
-    /// constructor's own placeholders are never patched, so constructor-context
-    /// reads load the staged scratch word instead.
+    /// Loads an immutable value.
     pub(crate) fn load_immutable_value(
         &self,
         builder: &mut FunctionBuilder<'_>,
-        offset: u32,
+        id: ImmutableId,
     ) -> ValueId {
-        if self.lowering_constructor {
-            let addr = builder.imm_u64(Self::immutable_scratch_addr(offset));
-            builder.mload(addr)
-        } else {
-            builder.load_immutable(offset)
-        }
+        builder.load_immutable(id, self.module.immutable_type(id))
     }
 
     /// Registers a contract's bytecode for use in `new` expressions.
@@ -570,17 +541,13 @@ impl<'gcx> Lowerer<'gcx> {
                 }
 
                 let var = self.gcx.hir.variable(var_id);
-                // Constants are inlined. Immutables are patched into the
-                // runtime code's `PUSH32` placeholders at deploy time.
+                // Constants are inlined. Immutables are patched into typed
+                // runtime-code `PUSH<N>` placeholders at deploy time.
                 if var.is_state_variable() && var.is_immutable() {
-                    let offset = self.next_immutable_offset;
-                    self.next_immutable_offset = self
-                        .next_immutable_offset
-                        .checked_add(IMMUTABLE_WORD_SIZE as u32)
-                        .expect("immutable offset overflow");
-                    self.immutable_slots.insert(var_id, offset);
-
-                    self.module.add_immutable();
+                    let ty = self.lower_type_from_var(var);
+                    let name = var.name.expect("state immutable must be named");
+                    let id = self.module.add_immutable(name, ty);
+                    self.immutable_ids.insert(var_id, id);
                 } else if var.is_state_variable() && !var.is_constant() {
                     let var_ty = self.gcx.type_of_hir_ty(&var.ty);
                     let location = self.allocate_storage_location(var_ty, var.ty.span);
@@ -683,8 +650,8 @@ impl<'gcx> Lowerer<'gcx> {
             func.attributes.no_inline = true;
             {
                 let mut builder = FunctionBuilder::new(&mut func);
-                let len = builder.add_param(MirType::UInt(256));
-                let data = builder.add_param(MirType::UInt(256));
+                let len = builder.add_param(MirType::uint256());
+                let data = builder.add_param(MirType::uint256());
                 let selector = builder.imm_u256(U256::from(0x08c3_79a0u64) << 224);
                 let zero = builder.imm_u64(0);
                 builder.mstore(zero, selector);
@@ -1526,8 +1493,8 @@ impl<'gcx> Lowerer<'gcx> {
                     && let Some(init) = var.initializer
                 {
                     let init_val = self.lower_expr(builder, init);
-                    if let Some(&offset) = self.immutable_slots.get(&var_id) {
-                        self.store_immutable_value(builder, offset, init_val);
+                    if let Some(&id) = self.immutable_ids.get(&var_id) {
+                        builder.store_immutable(id, init_val);
                     } else if let Some(&location) = self.storage_locations.get(&var_id) {
                         self.store_storage_location(builder, location, init_val);
                     }
@@ -1574,11 +1541,11 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::Elementary(elem) => match elem {
                 ElementaryType::Bool => MirType::Bool,
                 ElementaryType::Address(_) => MirType::Address,
-                ElementaryType::Int(bits) => MirType::Int(bits.bits()),
-                ElementaryType::UInt(bits) => MirType::UInt(bits.bits()),
-                ElementaryType::Fixed(_, _) => MirType::Int(256),
-                ElementaryType::UFixed(_, _) => MirType::UInt(256),
-                ElementaryType::FixedBytes(n) => MirType::FixedBytes(n.bytes()),
+                ElementaryType::Int(size) => MirType::Int(size),
+                ElementaryType::UInt(size) => MirType::UInt(size),
+                ElementaryType::Fixed(size, _) => MirType::Int(size),
+                ElementaryType::UFixed(size, _) => MirType::UInt(size),
+                ElementaryType::FixedBytes(size) => MirType::FixedBytes(size),
                 ElementaryType::String | ElementaryType::Bytes => {
                     MirType::MemoryObject(MemoryObjectKind::Bytes)
                 }
@@ -1590,7 +1557,8 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::Array(_, _) => MirType::MemoryObject(MemoryObjectKind::FixedArray),
             TyKind::Fn(_) => MirType::Function,
             TyKind::Struct(_) => MirType::MemoryObject(MemoryObjectKind::Struct),
-            TyKind::Enum(_) => MirType::UInt(8),
+            TyKind::Enum(_) => MirType::UInt(TypeSize::new_int_bits(8)),
+            TyKind::Udvt(underlying, _) => self.lower_type_from_ty(underlying),
             TyKind::Contract(_) | TyKind::Super(_) => MirType::Address,
             TyKind::StringLiteral(_, _)
             | TyKind::IntLiteral(_, _, _)

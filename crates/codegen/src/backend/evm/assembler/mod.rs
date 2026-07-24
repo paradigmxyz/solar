@@ -6,25 +6,24 @@
 //! - Exact PUSH-width relaxation to a least fixed point.
 //! - Byte emission.
 
+use super::EVM_WORD_BYTES;
 use crate::{
     backend::evm::{
         ir::{self, assembly},
         op,
     },
     memory::EvmMemoryLayout,
-    mir::IMMUTABLE_WORD_SIZE,
+    mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use solar_interface::diagnostics::DiagCtxt;
 use solar_sema::Gcx;
 
-const EVM_WORD_BYTES: usize = 32;
-
 mod id_counter;
 pub(in crate::backend::evm) use id_counter::IdCounter;
 
-pub(super) use assembly::{AsmInst, AsmInstKind, DeferredAlloc, PushValueId};
+pub(super) use assembly::{AsmInst, AsmInstKind, DeferredAlloc, ImmutablePushId, PushValueId};
 pub(crate) use assembly::{DeferredConst, Label};
 
 mod local_interner;
@@ -32,17 +31,24 @@ pub(in crate::backend::evm) use local_interner::LocalInterner;
 
 use assembly::Program as AssemblyProgram;
 
-/// A `PUSH32` immutable placeholder emitted into the assembled bytecode.
-///
-/// TODO: Track placeholder byte width here when smaller immutable references
-/// are supported.
+/// An immutable placeholder emitted into the assembled bytecode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct ImmutableRef {
-    /// The immutable's byte offset identifier.
-    pub id: u32,
-    /// Byte offset of the `PUSH32` opcode in the assembled bytecode.
-    /// The 32 placeholder bytes start one byte later.
+    /// The immutable identifier.
+    pub id: ImmutableId,
+    /// Byte offset of the `PUSH<N>` opcode in the assembled bytecode.
+    /// The placeholder bytes start one byte later.
     pub code_offset: usize,
+    /// Type size encoded by the placeholder.
+    pub type_size: TypeSize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(in crate::backend::evm) struct ImmutablePush {
+    // Unlike a deferred constant, this value is unknown until the constructor runs.
+    // Assembly must therefore retain its fixed width and emit a patch relocation.
+    id: ImmutableId,
+    type_size: TypeSize,
 }
 
 /// Result of assembly.
@@ -62,6 +68,7 @@ pub(in crate::backend::evm) struct PreparedAssembly {
     program: AssemblyProgram,
     evm_ir: Option<ir::Module>,
     push_values: LocalInterner<U256, PushValueId>,
+    immutable_pushes: LocalInterner<ImmutablePush, ImmutablePushId>,
     next_label: IdCounter<Label>,
     deferred_values: FxHashMap<DeferredConst, U256>,
 }
@@ -86,6 +93,8 @@ pub(crate) struct Assembler<'gcx> {
     deferred_relocations: Vec<(ir::BlockId, usize, DeferredConst)>,
     /// Interned push immediates too large for inline storage.
     push_values: LocalInterner<U256, PushValueId>,
+    /// Interned immutable placeholders.
+    immutable_pushes: LocalInterner<ImmutablePush, ImmutablePushId>,
     /// Next label ID.
     next_label: IdCounter<Label>,
     /// Next deferred constant ID.
@@ -121,6 +130,7 @@ impl<'gcx> Assembler<'gcx> {
             label_relocations: Vec::new(),
             deferred_relocations: Vec::new(),
             push_values: LocalInterner::new(),
+            immutable_pushes: LocalInterner::new(),
             next_label: IdCounter::new(),
             next_deferred: IdCounter::new(),
             deferred_values: FxHashMap::default(),
@@ -140,6 +150,7 @@ impl<'gcx> Assembler<'gcx> {
         self.label_relocations.clear();
         self.deferred_relocations.clear();
         self.push_values.clear();
+        self.immutable_pushes.clear();
         self.next_label.clear();
         self.next_deferred.clear();
         self.deferred_values.clear();
@@ -215,9 +226,9 @@ impl<'gcx> Assembler<'gcx> {
         self.deferred_allocations.insert(id, DeferredAllocResolution::Dynamic(size));
     }
 
-    /// Emits a `PUSH32` zero placeholder for the immutable identified by `id`.
-    pub(crate) fn emit_push_immutable(&mut self, id: u32) {
-        self.push_ir_instruction(ir::Instruction::push_immutable(id));
+    /// Emits a `PUSH<N>` zero placeholder for the immutable identified by `id`.
+    pub(crate) fn emit_push_immutable(&mut self, id: ImmutableId, type_size: TypeSize) {
+        self.push_ir_instruction(ir::Instruction::push_immutable(id, type_size));
     }
 
     /// Defines a label and emits a `JUMPDEST` at the current position.
@@ -271,8 +282,20 @@ impl<'gcx> Assembler<'gcx> {
         AsmInst::push(self.push_values.intern(value))
     }
 
+    pub(in crate::backend::evm) fn immutable_push_inst(
+        &mut self,
+        id: ImmutableId,
+        type_size: TypeSize,
+    ) -> AsmInst {
+        AsmInst::push_immutable(self.immutable_pushes.intern(ImmutablePush { id, type_size }))
+    }
+
     pub(super) fn push_value(&self, index: PushValueId) -> U256 {
         *self.push_values.get(index)
+    }
+
+    fn immutable_push(&self, index: ImmutablePushId) -> ImmutablePush {
+        *self.immutable_pushes.get(index)
     }
 
     fn finish_evm_ir(&mut self) -> Option<(ir::Module, Vec<Option<Label>>)> {
@@ -397,6 +420,7 @@ impl<'gcx> Assembler<'gcx> {
             evm_ir,
             program,
             push_values: std::mem::take(&mut self.push_values),
+            immutable_pushes: std::mem::take(&mut self.immutable_pushes),
             next_label: std::mem::take(&mut self.next_label),
             deferred_values: std::mem::take(&mut self.deferred_values),
         }
@@ -422,6 +446,7 @@ impl<'gcx> Assembler<'gcx> {
         deferred_values: &[(DeferredConst, U256)],
     ) -> AssembledCode {
         self.push_values = prepared.push_values.clone();
+        self.immutable_pushes = prepared.immutable_pushes.clone();
         self.next_label = prepared.next_label.clone();
         self.deferred_values.clone_from(&prepared.deferred_values);
         self.deferred_values.extend(deferred_values.iter().copied());
@@ -523,9 +548,8 @@ impl<'gcx> Assembler<'gcx> {
                 AsmInstKind::PushDeferred(_) => {
                     unreachable!("deferred values must be resolved before assembly");
                 }
-                AsmInstKind::PushImmutable(_) => {
-                    // PUSH32 opcode plus 32 placeholder bytes.
-                    offset += 33;
+                AsmInstKind::PushImmutable(id) => {
+                    offset += 1 + usize::from(self.immutable_push(id).type_size.bytes());
                 }
                 AsmInstKind::Label(label) => {
                     label_offsets.insert(label, offset);
@@ -579,7 +603,7 @@ impl<'gcx> Assembler<'gcx> {
                     unreachable!("deferred values must be resolved before assembly");
                 }
                 AsmInstKind::PushImmutable(id) => {
-                    out.emit_push_immutable(id);
+                    out.emit_push_immutable(self.immutable_push(id));
                 }
                 AsmInstKind::Label(_) => {
                     out.emit_op(op::JUMPDEST);
@@ -619,10 +643,15 @@ impl<'gcx> BytecodeAssembler<'gcx> {
         self.bytecode.push(opcode);
     }
 
-    fn emit_push_immutable(&mut self, id: u32) {
-        self.immutable_refs.push(ImmutableRef { id, code_offset: self.bytecode.len() });
-        self.bytecode.push(op::PUSH32);
-        self.bytecode.extend(std::iter::repeat_n(0, IMMUTABLE_WORD_SIZE));
+    fn emit_push_immutable(&mut self, push: ImmutablePush) {
+        self.immutable_refs.push(ImmutableRef {
+            id: push.id,
+            code_offset: self.bytecode.len(),
+            type_size: push.type_size,
+        });
+        let byte_width = push.type_size.bytes();
+        self.bytecode.push(op::push(byte_width));
+        self.bytecode.extend(std::iter::repeat_n(0, usize::from(byte_width)));
     }
 
     fn encoded_push_len(&self, value: U256) -> usize {
@@ -761,6 +790,36 @@ mod tests {
     }
 
     #[test]
+    fn immutable_push_uses_declared_width() {
+        with_assembler(CompileOpts::default(), |mut asm| {
+            let narrow = ImmutableId::new(3);
+            let address = ImmutableId::new(4);
+            let narrow_size = TypeSize::new_int_bits(8);
+            let address_size = TypeSize::new_int_bits(160);
+
+            asm.emit_push_immutable(narrow, narrow_size);
+            asm.emit_push_immutable(address, address_size);
+            let result = asm.assemble();
+
+            assert_data_eq!(
+                disassemble(&result.bytecode),
+                str![[r#"
+PUSH1 0x00
+PUSH20 0x0000000000000000000000000000000000000000
+
+"#]]
+            );
+            assert_eq!(
+                result.immutable_refs,
+                [
+                    ImmutableRef { id: narrow, code_offset: 0, type_size: narrow_size },
+                    ImmutableRef { id: address, code_offset: 2, type_size: address_size },
+                ]
+            );
+        });
+    }
+
+    #[test]
     fn assembler_can_be_reused_after_assembly() {
         with_assembler(CompileOpts::default(), |mut asm| {
             let large = U256::from(1u64 << 31);
@@ -777,6 +836,7 @@ PUSH4 0x80000000
             );
             assert!(asm.program.blocks.is_empty());
             assert_eq!(asm.push_values.len(), 0);
+            assert_eq!(asm.immutable_pushes.len(), 0);
 
             asm.emit_push(U256::from(2));
             let second = asm.assemble();

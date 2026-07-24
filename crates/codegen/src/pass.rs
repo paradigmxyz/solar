@@ -28,9 +28,9 @@ use crate::{
         adce, cfg_simplify, check_elim, copy_elision, cse, dce, frame_promotion, gvn,
         indvar_simplify, inline, inst_simplify, jump_threading, load_pre, loop_canonicalize,
         loop_opt, lower_abi, lower_abi_encode, lower_aggregates, lower_alloc, lower_dispatch,
-        lower_evm_shaped, lower_mapping_slots, lower_memory_objects, lower_slices, memory_dse,
-        outline_reverts, pre, pure_eval, sccp, sroa, static_alloc, storage_dse, storage_load_cse,
-        storage_promotion,
+        lower_evm_shaped, lower_immutables, lower_mapping_slots, lower_memory_objects,
+        lower_slices, memory_dse, outline_reverts, pre, pure_eval, sccp, sroa, static_alloc,
+        storage_dse, storage_load_cse, storage_promotion,
     },
 };
 use solar_data_structures::map::FxHashMap;
@@ -71,6 +71,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_abi::LowerAbi,
     &lower_dispatch::LowerDispatch,
     &lower_evm_shaped::LowerEvmShaped,
+    &lower_immutables::LowerImmutables,
     &lower_mapping_slots::LowerMappingSlots,
     &lower_abi_encode::LowerAbiEncode,
     &lower_aggregates::LowerAggregates,
@@ -131,10 +132,11 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_dispatch::LowerDispatch,
     &lower_memory_objects::LowerMemoryObjects,
     &lower_evm_shaped::LowerEvmShaped,
+    &lower_immutables::LowerImmutables,
     &lower_alloc::LowerAlloc,
 ];
 
-const DEFAULT_LOWERING_PASSES: usize = 12;
+const DEFAULT_LOWERING_PASSES: usize = 13;
 
 /// Cleanup passes rerun after the primary pipeline until no pass changes MIR.
 ///

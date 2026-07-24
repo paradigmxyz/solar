@@ -5,7 +5,9 @@
 use solar_data_structures::newtype_index;
 
 mod types;
-pub(crate) use types::{MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation};
+pub(crate) use types::{
+    ImmutableEncoding, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation, TypeSize,
+};
 
 mod abi;
 pub(crate) use abi::{AbiLayout, AbiLayoutRef, AbiType};
@@ -30,7 +32,6 @@ mod function;
 pub(crate) use function::{Function, FunctionAttributes};
 
 mod module;
-pub(crate) use module::IMMUTABLE_WORD_SIZE;
 pub use module::{MirPhase, Module};
 
 mod builder;
@@ -59,6 +60,9 @@ newtype_index! {
 
     /// A unique identifier for a function in the MIR.
     pub(crate) struct FunctionId;
+
+    /// A unique identifier for an immutable in the MIR module.
+    pub(crate) struct ImmutableId;
 }
 
 impl BlockId {

@@ -6,4 +6,5 @@ time: <TIME>	MIR TimePasses lower-slices changed=false
 time: <TIME>	MIR TimePasses lower-dispatch changed=true
 time: <TIME>	MIR TimePasses lower-memory-objects changed=false
 time: <TIME>	MIR TimePasses lower-evm-shaped changed=false
+time: <TIME>	MIR TimePasses lower-immutables changed=false
 time: <TIME>	MIR TimePasses lower-alloc changed=false

@@ -16,8 +16,8 @@ use crate::{
         LoopAnalyzer, ScalarEvolution,
     },
     mir::{
-        BlockId, Function, InstId, InstKind, Module, StorageAlias, Terminator, Value, ValueId,
-        utils as mir_utils,
+        BlockId, Function, ImmutableId, InstId, InstKind, Module, StorageAlias, Terminator, Value,
+        ValueId, utils as mir_utils,
     },
     pass::{MirPass, run_function_pass},
 };
@@ -294,6 +294,10 @@ impl LoopOptimizer {
                         slot,
                         StorageSpace::Transient,
                     );
+            }
+            InstKind::LoadImmutable { id } => {
+                return self.hoist_execution_guaranteed(func, inst_id, ctx)
+                    && !self.loop_may_assign_immutable(func, ctx.loop_data, id);
             }
             // MSIZE observes every memory expansion, including from other hoisted
             // instructions; never move it.
@@ -573,6 +577,22 @@ impl LoopOptimizer {
             }
         }
         false
+    }
+
+    fn loop_may_assign_immutable(
+        &self,
+        func: &Function,
+        loop_data: &Loop,
+        load_id: ImmutableId,
+    ) -> bool {
+        loop_data.blocks.iter().any(|block_id| {
+            func.blocks[block_id].instructions.iter().any(|&inst_id| {
+                matches!(
+                    func.instructions[inst_id].kind,
+                    InstKind::StoreImmutable { id, .. } if id == load_id
+                ) || matches!(func.instructions[inst_id].kind, InstKind::InternalCall { .. })
+            })
+        })
     }
 
     #[allow(clippy::too_many_arguments)]

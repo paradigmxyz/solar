@@ -43,8 +43,6 @@ impl EvmMemoryLayout {
     pub(crate) const INTERNAL_FRAME_PTR_SLOT: u64 = 0xa0;
     /// Base of the absolute scheduler spill area.
     pub(crate) const SPILL_BASE: u64 = 0x1000;
-    /// Constructor staging area for immutable words.
-    pub(crate) const IMMUTABLE_SCRATCH_BASE: u64 = 0x2000;
     /// Header size for dynamically sized memory objects.
     pub(crate) const DYNAMIC_HEADER_SIZE: u64 = Self::WORD_SIZE;
     /// Header reserved by an internal-call frame before arguments and returns.

@@ -129,6 +129,7 @@ struct MirInlineSummary {
     has_phi: bool,
     has_external_call: bool,
     has_storage_write: bool,
+    has_immutable_write: bool,
     has_log: bool,
     has_control_flow: bool,
     has_unsupported_terminator: bool,
@@ -201,7 +202,7 @@ impl MirInliner {
                 let caller = module.function_mut(caller_id);
                 if inline_call(caller, site.block, site.inst_index, &callee) {
                     stats.inlined += 1;
-                    let new_summary = summarize_function(module.function(caller_id));
+                    let new_summary = summarize_function(module, module.function(caller_id));
                     module_code_size = module_code_size
                         .saturating_sub(old_size)
                         .saturating_add(new_summary.estimated_code_size);
@@ -221,7 +222,7 @@ impl MirInliner {
         module
             .functions
             .iter_enumerated()
-            .map(|(id, func)| (id, summarize_function(func)))
+            .map(|(id, func)| (id, summarize_function(module, func)))
             .collect()
     }
 
@@ -350,7 +351,10 @@ impl MirInliner {
         // code-growth check below.
         if !single_call
             && site.loop_depth == 0
-            && (summary.has_storage_write || summary.has_external_call || summary.has_log)
+            && (summary.has_storage_write
+                || summary.has_immutable_write
+                || summary.has_external_call
+                || summary.has_log)
             && summary.estimated_code_size
                 > estimated_internal_call_code_size(site)
                     + estimated_internal_return_code_size(summary, site)
@@ -380,7 +384,7 @@ struct CallSite {
     loop_depth: usize,
 }
 
-fn summarize_function(func: &Function) -> MirInlineSummary {
+fn summarize_function(module: &Module, func: &Function) -> MirInlineSummary {
     let mut summary = MirInlineSummary {
         block_count: func.blocks.len(),
         param_count: func.params.len(),
@@ -403,7 +407,7 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
                 InstKind::MappingSlotCalldata(..) => 9,
                 _ => 1,
             };
-            let inst_cost = estimate_inst_cost(kind);
+            let inst_cost = estimate_inst_cost(module, kind);
             summary.estimated_code_size += inst_cost.code_size;
             summary.estimated_runtime_gas += inst_cost.runtime_gas;
             match kind {
@@ -417,6 +421,7 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
                     summary.has_external_call = true;
                 }
                 InstKind::SStore(..) | InstKind::TStore(..) => summary.has_storage_write = true,
+                InstKind::StoreImmutable { .. } => summary.has_immutable_write = true,
                 InstKind::Log0(..)
                 | InstKind::Log1(..)
                 | InstKind::Log2(..)
@@ -469,7 +474,7 @@ struct MirCost {
     code_size: usize,
 }
 
-fn estimate_inst_cost(kind: &InstKind) -> MirCost {
+fn estimate_inst_cost(module: &Module, kind: &InstKind) -> MirCost {
     let (runtime_gas, code_size) = match kind {
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
         InstKind::MemoryObjectData(_, kind) => {
@@ -547,6 +552,7 @@ fn estimate_inst_cost(kind: &InstKind) -> MirCost {
         InstKind::AddMod(..) | InstKind::MulMod(..) => (8, 1),
         InstKind::SLoad(..) | InstKind::TLoad(..) => (100, 1),
         InstKind::SStore(..) | InstKind::TStore(..) => (5_000, 1),
+        InstKind::StoreImmutable { .. } => (6, 4),
         InstKind::MCopy(..)
         | InstKind::CalldataCopy(..)
         | InstKind::CodeCopy(..)
@@ -554,8 +560,13 @@ fn estimate_inst_cost(kind: &InstKind) -> MirCost {
         | InstKind::ReturnDataCopy(..) => (12, 1),
         InstKind::MSize | InstKind::CodeSize | InstKind::ReturnDataSize => (2, 1),
         InstKind::InternalFrameAddr(_) => (6, 3),
-        // PUSH32 placeholder patched at deploy time.
-        InstKind::LoadImmutable(_) => (3, 33),
+        // Typed PUSH<N> placeholder patched at deploy time.
+        InstKind::LoadImmutable { id } => {
+            let ty = module.immutable_type(*id);
+            let encoding = ty.immutable_encoding().expect("validated immutable declaration");
+            let width = usize::from(encoding.type_size().bytes());
+            if encoding.needs_runtime_normalization() { (9, width + 4) } else { (3, width + 1) }
+        }
         InstKind::ExtCodeSize(..)
         | InstKind::ExtCodeHash(..)
         | InstKind::Balance(..)
@@ -929,7 +940,10 @@ impl<'a> InlineCloner<'a> {
                 InstKind::InternalFrameAddr(self.frame_base + local_offset)
             }
             InstKind::CodeSize => InstKind::CodeSize,
-            InstKind::LoadImmutable(offset) => InstKind::LoadImmutable(offset),
+            InstKind::StoreImmutable { id, value } => {
+                InstKind::StoreImmutable { id, value: self.clone_value(value)? }
+            }
+            InstKind::LoadImmutable { id } => InstKind::LoadImmutable { id },
             InstKind::CodeCopy(a, b, c) => {
                 InstKind::CodeCopy(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
             }

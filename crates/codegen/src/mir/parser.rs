@@ -4,11 +4,14 @@
 //!
 //! ```text
 //! @module Counter
-//! fn @increment() {
+//! immutables:
+//!   initial: u256
+//!
+//! fn @constructor() {
 //!   bb0:
-//!     v0 = sload 0
+//!     v0 = loadimmutable initial
 //!     v1 = add v0, 1
-//!     sstore 0, v1
+//!     storeimmutable initial, v1
 //!     stop
 //! }
 //! ```
@@ -31,11 +34,11 @@
 use super::{
     AbiLayout, AbiLayoutRef, AbiType, AllocationAlignment, AllocationFailure,
     AllocationInitialization, AllocationKind, AllocationSemantics, BlockId, EffectKind, Function,
-    FunctionBuilder, FunctionId, InstId, InstKind, Instruction, InstructionMetadata,
+    FunctionBuilder, FunctionId, ImmutableId, InstId, InstKind, Instruction, InstructionMetadata,
     MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField,
     StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
 };
-use crate::mir::{MirType, SliceLocation};
+use crate::mir::{MirType, SliceLocation, TypeSize};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_ast::{
@@ -97,6 +100,7 @@ struct Parser<'sess, 'ast> {
     block_labels: FxHashMap<u32, BlockLabel>,
     block_order: Vec<BlockId>,
     value_labels: FxHashMap<u32, ValueId>,
+    immutable_names: FxHashMap<Symbol, (ImmutableId, MirType)>,
     /// ABI layouts interned while parsing instructions.
     abi_layouts: Vec<AbiLayoutRef>,
     /// Aggregate storage layouts interned while parsing instructions.
@@ -133,6 +137,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             block_labels: FxHashMap::default(),
             block_order: Vec::new(),
             value_labels: FxHashMap::default(),
+            immutable_names: FxHashMap::default(),
             abi_layouts: Vec::new(),
             storage_layouts: Vec::new(),
             pending_gt: 0,
@@ -200,6 +205,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         module.phase = phase;
         let mut function_refs = Vec::new();
 
+        if self.parser.check_keyword(sym::immutables) {
+            self.parse_immutable_declarations(&mut module)?;
+        }
+
         while !self.parser.is_eof() {
             let func = self.parse_function()?;
             let function = module.add_function(func);
@@ -212,6 +221,25 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         module.aggregate_layouts = std::mem::take(&mut self.storage_layouts);
 
         Ok(module)
+    }
+
+    fn parse_immutable_declarations(&mut self, module: &mut Module) -> PResult<'sess, ()> {
+        self.parser.expect_keyword(sym::immutables)?;
+        self.parser.expect(TokenKind::Colon)?;
+        while !self.parser.is_eof() && !self.parser.check_keyword(sym::fn_) {
+            let name_span = self.parser.token().span;
+            let name = self.parser.parse_ident()?;
+            self.parser.expect(TokenKind::Colon)?;
+            let ty = self.parse_type()?;
+            if self.immutable_names.contains_key(&name) {
+                return Err(self
+                    .parser
+                    .error_at(name_span, format!("duplicate immutable declaration `{name}`")));
+            }
+            let id = module.add_immutable(Ident::new(name, name_span), ty);
+            self.immutable_names.insert(name, (id, ty));
+        }
+        Ok(())
     }
 
     fn resolve_function_refs(
@@ -444,16 +472,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let ty = if let Some(rest) = id_str.strip_prefix('u') {
             let bits: u16 =
                 rest.parse().map_err(|_| self.parser.error(format!("invalid u-type `{id}`")))?;
-            MirType::UInt(bits)
+            let size = TypeSize::try_new_int_bits(bits)
+                .filter(|size| size.bits_raw() != 0)
+                .ok_or_else(|| self.parser.error(format!("invalid u-type `{id}`")))?;
+            MirType::UInt(size)
         } else if let Some(rest) = id_str.strip_prefix('i') {
             let bits: u16 =
                 rest.parse().map_err(|_| self.parser.error(format!("invalid i-type `{id}`")))?;
-            MirType::Int(bits)
+            let size = TypeSize::try_new_int_bits(bits)
+                .filter(|size| size.bits_raw() != 0)
+                .ok_or_else(|| self.parser.error(format!("invalid i-type `{id}`")))?;
+            MirType::Int(size)
         } else if let Some(rest) = id_str.strip_prefix("bytes") {
             let n: u8 = rest
                 .parse()
                 .map_err(|_| self.parser.error(format!("invalid bytes type `{id}`")))?;
-            MirType::FixedBytes(n)
+            let size = TypeSize::try_new_fb_bytes(n)
+                .ok_or_else(|| self.parser.error(format!("invalid bytes type `{id}`")))?;
+            MirType::FixedBytes(size)
         } else {
             match id {
                 kw::Bool => MirType::Bool,
@@ -1119,6 +1155,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::internal_call => EffectKind::InternalCall,
             kw::Create => EffectKind::Create,
             sym::log => EffectKind::Log,
+            sym::immutable_read => EffectKind::ImmutableRead,
+            sym::immutable_write => EffectKind::ImmutableWrite,
             _ => return Err(self.parser.error(format!("unknown effect metadata value `{value}`"))),
         })
     }
@@ -1127,6 +1165,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         value
             .try_into()
             .map_err(|_| self.parser.error(format!("integer `{value}` does not fit in u32")))
+    }
+
+    fn parse_immutable_ref(&mut self) -> PResult<'sess, (ImmutableId, MirType)> {
+        let span = self.parser.token().span;
+        let name = self.parser.parse_ident()?;
+        self.immutable_names.get(&name).copied().ok_or_else(|| {
+            self.parser.error_at(span, format!("unknown immutable declaration `{name}`"))
+        })
     }
 
     fn u256_to_u16(&self, value: U256) -> PResult<'sess, u16> {
@@ -1391,10 +1437,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
             kw::Codesize => unit!(CodeSize => MirType::uint256()),
             kw::Codecopy => inst!(CodeCopy(a, b, c)),
+            sym::storeimmutable => {
+                let (id, _) = self.parse_immutable_ref()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let value = self.parse_value(builder)?;
+                (InstKind::StoreImmutable { id, value }, None)
+            }
             kw::Loadimmutable => {
-                let offset = self.parser.parse_uint()?;
-                let offset = self.u256_to_u32(offset)?;
-                (InstKind::LoadImmutable(offset), Some(MirType::uint256()))
+                let (id, ty) = self.parse_immutable_ref()?;
+                (InstKind::LoadImmutable { id }, Some(ty))
             }
             kw::Extcodesize => inst!(ExtCodeSize(a) => MirType::uint256()),
             kw::Extcodecopy => inst!(ExtCodeCopy(a, b, c, d)),
@@ -1418,9 +1469,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             kw::Gas => unit!(Gas => MirType::uint256()),
             kw::Basefee => unit!(BaseFee => MirType::uint256()),
             kw::Blobbasefee => unit!(BlobBaseFee => MirType::uint256()),
-            kw::Blockhash => inst!(BlockHash(a) => MirType::FixedBytes(32)),
+            kw::Blockhash => inst!(BlockHash(a) => MirType::bytes32()),
             kw::Balance => inst!(Balance(a) => MirType::uint256()),
-            kw::Blobhash => inst!(BlobHash(a) => MirType::FixedBytes(32)),
+            kw::Blobhash => inst!(BlobHash(a) => MirType::bytes32()),
 
             // Hashing.
             kw::Keccak256 => inst!(Keccak256(a, b) => MirType::bytes32()),
@@ -1752,6 +1803,35 @@ fn @set(arg0: u256) {
             let printed = module.to_text().to_string();
             let module2 = parse_module(sess, &printed).unwrap();
             assert_eq!(module2.functions.len(), 2);
+        });
+    }
+
+    #[test]
+    fn parse_named_immutables() {
+        with_session(|sess| {
+            let src = "\
+@module NamedImmutables
+immutables:
+  count: u8
+  owner: address
+
+fn @constructor(arg0: u8) {
+  bb0:
+    storeimmutable count, arg0
+    stop
+}
+
+fn @get() -> u8 {
+  bb0:
+    v0 = loadimmutable count
+    ret v0
+}
+";
+            let module = parse_module(sess, src).unwrap();
+            assert_eq!(module.immutable_count(), 2);
+            assert_data_eq!(module.to_text().to_string(), src);
+            let reparsed = parse_module(sess, &module.to_text().to_string()).unwrap();
+            assert_eq!(reparsed.immutable_count(), 2);
         });
     }
 

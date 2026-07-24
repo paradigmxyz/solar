@@ -88,6 +88,7 @@ impl<'a> Validator<'a> {
 
     fn validate_function(&mut self, module: &Module, func: &Function) {
         self.validate_function_body(func);
+        self.validate_immutables(module, func);
         self.validate_calls(module, func);
         self.validate_function_phase(module, func);
     }
@@ -433,9 +434,80 @@ impl<'a> Validator<'a> {
         }
     }
 
+    fn validate_immutables(&mut self, module: &Module, func: &Function) {
+        for (inst, instruction) in func.instructions.iter_enumerated() {
+            match instruction.kind {
+                InstKind::LoadImmutable { id } => {
+                    match (module.get_immutable_type(id), instruction.result_ty) {
+                        (Some(expected), Some(actual)) if actual != expected => {
+                            self.emit(format_args!(
+                                "inst{} loads immutable {} as `{actual}`, expected `{expected}`",
+                                inst.index(),
+                                id.index(),
+                            ))
+                        }
+                        (Some(_), None) => self.emit(format_args!(
+                            "inst{} loads immutable {} without a result type",
+                            inst.index(),
+                            id.index(),
+                        )),
+                        (None, _) => self.emit(format_args!(
+                            "inst{} loads nonexistent immutable {}",
+                            inst.index(),
+                            id.index()
+                        )),
+                        _ => {}
+                    }
+                }
+                InstKind::StoreImmutable { id, value } => {
+                    let Some(immutable) = module.get_immutable(id) else {
+                        self.emit(format_args!(
+                            "inst{} stores nonexistent immutable {}",
+                            inst.index(),
+                            id.index()
+                        ));
+                        continue;
+                    };
+                    if let Some(actual) = Self::value_type(func, value)
+                        && actual.immutable_encoding().is_none()
+                    {
+                        self.emit(format_args!(
+                            "inst{} stores `{actual}` value into immutable `{}` of type `{}`",
+                            inst.index(),
+                            immutable.name,
+                            immutable.ty,
+                        ));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn validate_immutable_declarations(&mut self, module: &Module) {
+        for (_, immutable) in module.iter_immutables() {
+            if immutable.ty.immutable_encoding().is_none() {
+                self.emit(format_args!(
+                    "immutable `{}` cannot use type `{}`",
+                    immutable.name, immutable.ty
+                ));
+            }
+        }
+    }
+
+    fn value_type(func: &Function, value: ValueId) -> Option<crate::mir::MirType> {
+        match func.value(value) {
+            Value::Arg { ty, .. } | Value::Undef(ty) => Some(*ty),
+            Value::Inst(inst) => func.instructions[*inst].result_ty,
+            Value::Immediate(imm) => Some(imm.ty()),
+            Value::Error(_) => None,
+        }
+    }
+
     /// Validates every function in a module.
     fn validate_module(mut self, module: &Module) {
         self.validate_module_phase(module);
+        self.validate_immutable_declarations(module);
         for (id, func) in module.iter_functions() {
             self.function = Some(id);
             self.validate_function(module, func);
@@ -615,8 +687,8 @@ pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
 mod tests {
     use super::*;
     use crate::mir::{
-        AbiLayout, AbiType, BasicBlock, Function, FunctionBuilder, FunctionId, MirPhase, MirType,
-        Module, SliceLocation, StorageField, StorageLayout, Terminator,
+        AbiLayout, AbiType, Function, FunctionBuilder, FunctionId, MirPhase, MirType, Module,
+        SliceLocation, StorageField, StorageLayout, Terminator,
     };
     use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, Ident, Session};
@@ -832,11 +904,5 @@ error: [fn0] internal_call targets nonexistent function fn99
 "#]]
             );
         });
-    }
-
-    // Suppress the unused-import warning for `BasicBlock`.
-    #[allow(dead_code)]
-    fn _block_type_reference() -> Option<BasicBlock> {
-        None
     }
 }

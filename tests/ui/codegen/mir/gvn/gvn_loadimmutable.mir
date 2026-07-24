@@ -1,11 +1,14 @@
 //@compile-flags: --pass gvn
 @module GvnLoadImmutable
+immutables:
+  first: u256
+  second: u256
 
-// Repeated reads of the same immutable are congruent and merge.
-fn @same_immutable_merges() -> u256 {
+// GVN leaves immutable loads to CSE, which tracks their clobbers.
+fn @same_immutable_stays() -> u256 {
   bb0:
-    v0 = loadimmutable 0
-    v1 = loadimmutable 0
+    v0 = loadimmutable first
+    v1 = loadimmutable first
     v2 = add v0, v1
     ret v2
 }
@@ -13,8 +16,18 @@ fn @same_immutable_merges() -> u256 {
 // Reads of different immutables stay distinct.
 fn @different_immutables_stay(arg0: u256) -> u256 {
   bb0:
-    v0 = loadimmutable 0
-    v1 = loadimmutable 32
+    v0 = loadimmutable first
+    v1 = loadimmutable second
     v2 = add v0, v1
     ret v2
+}
+
+// A constructor assignment invalidates an earlier read.
+fn @store_prevents_merge(arg0: u256) -> u256 {
+  bb0:
+    v1 = loadimmutable first
+    storeimmutable first, arg0
+    v2 = loadimmutable first
+    v3 = add v1, v2
+    ret v3
 }

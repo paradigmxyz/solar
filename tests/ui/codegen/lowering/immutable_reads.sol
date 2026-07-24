@@ -7,7 +7,7 @@ contract C {
 
     constructor(uint256 s) {
         start = s;
-        // Constructor-context reads use the staged scratch word: the runtime
+        // Constructor-context reads observe the current assigned value: runtime
         // placeholders are only patched in the returned copy of the code.
         duration = start + 1;
     }

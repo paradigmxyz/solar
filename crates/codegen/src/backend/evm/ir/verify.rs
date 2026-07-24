@@ -75,7 +75,14 @@ impl<'a> Verifier<'a> {
                 );
                 return;
             };
-            if inst.opcode != op::PUSH32 {
+            if inst.encoding & Instruction::IMMUTABLE != 0
+                && !(op::PUSH1..=op::PUSH32).contains(&inst.opcode)
+            {
+                self.error_in_block(
+                    block_id,
+                    "encoded immutable push must use a `PUSH1` through `PUSH32` opcode",
+                );
+            } else if inst.encoding & Instruction::IMMUTABLE == 0 && inst.opcode != op::PUSH32 {
                 self.error_in_block(block_id, "encoded push must use the `PUSH32` opcode");
             }
             match inst.encoding {
@@ -84,7 +91,7 @@ impl<'a> Verifier<'a> {
                     self.verify_assembly_id(block_id, inst, value, "deferred constant");
                 }
                 encoding if encoding == Instruction::ENCODED_PUSH | Instruction::IMMUTABLE => {
-                    self.verify_assembly_id(block_id, inst, value, "immutable");
+                    self.verify_immutable_id(block_id, inst, value);
                 }
                 _ => {
                     self.error_in_block(block_id, "invalid encoded push kind");
@@ -153,6 +160,19 @@ impl<'a> Verifier<'a> {
         };
         if u32::try_from(*value).ok().is_none_or(|value| value > assembly::AsmInst::PAYLOAD_MASK) {
             self.error_in_block(block_id, format_args!("{name} ID exceeds the assembler limit"));
+        }
+    }
+
+    fn verify_immutable_id(&self, block_id: BlockId, inst: &Instruction, value: &PushValue) {
+        let PushValue::Immediate(value) = value else {
+            self.error_in_block(
+                block_id,
+                format_args!("`{}` must carry an immediate immutable ID", inst.mnemonic()),
+            );
+            return;
+        };
+        if u32::try_from(*value).ok().is_none_or(|value| value == u32::MAX) {
+            self.error_in_block(block_id, "immutable ID exceeds the index limit");
         }
     }
 

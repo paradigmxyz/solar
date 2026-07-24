@@ -74,8 +74,9 @@ fn lower_instruction(
 ) -> AsmInst {
     if let Some(id) = inst.deferred_push() {
         AsmInst::push_deferred(id)
-    } else if let Some(value) = inst.immutable_push() {
-        AsmInst::push_immutable(u32::try_from(value).expect("validated immutable ID must fit u32"))
+    } else if let Some(id) = inst.immutable_push() {
+        let type_size = inst.immutable_type_size().expect("validated immutable width");
+        assembler.immutable_push_inst(id, type_size)
     } else if inst.is_encoded_push() {
         match &inst.value {
             Some(ir::PushValue::Immediate(value)) => assembler.push_inst(*value),

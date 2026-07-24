@@ -1,0 +1,12 @@
+//@compile-flags: --pass dce
+//@failure-status: 1
+@module ValidateImmutables
+immutables:
+  invalid: void
+  narrow: u8
+
+fn @invalid_store(arg0: memoryslice) {
+  bb0:
+    storeimmutable narrow, arg0
+    stop
+}

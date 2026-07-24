@@ -1,0 +1,17 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_immutables.mir (before lower-immutables) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_immutables.mir (after lower-immutables) ===
+  @module LowerImmutables
+  immutables:
+    first: u8
+    second: bytes20
+  
+  fn @constructor(arg0: u8, arg1: bytes20) -> u8 {
+    bb0:
+-     storeimmutable first, arg0
+-     storeimmutable second, arg1
++     mstore 0x2000, arg0
++     mstore 0x2020, arg1
+      v0 = loadimmutable first
+      ret v0
+  }
+  
