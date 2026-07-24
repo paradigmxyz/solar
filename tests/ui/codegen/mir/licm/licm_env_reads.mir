@@ -1,8 +1,12 @@
 //@compile-flags: --pass licm
+//@filecheck:
 @module LicmEnvReads
 
 // The value-transferring call can change the queried balance between iterations,
 // so neither the balance nor the mul depending on it may be hoisted.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_balance_with_call{{[( ]}}
+// CHECK: {{^[ +].*}}[[BALANCE:v[0-9]+]] = balance 0xbeef
+// CHECK: {{^[ +].*[ =]call[[:space:]]}}
 fn @keep_balance_with_call() -> u256 {
   bb0:
     jump bb1
@@ -18,6 +22,10 @@ fn @keep_balance_with_call() -> u256 {
 }
 
 // Without any call or create in the loop the balance is loop-invariant for real.
+// CHECK-LABEL: {{^[ +].*}}fn @hoist_balance_without_calls{{[( ]}}
+// CHECK: + [[BALANCE:v[0-9]+]] = balance 0xbeef
+// CHECK: + {{v[0-9]+}} = mul [[BALANCE]], 3
+// CHECK: - [[BALANCE]] = balance 0xbeef
 fn @hoist_balance_without_calls() -> u256 {
   bb0:
     jump bb1
@@ -32,6 +40,9 @@ fn @hoist_balance_without_calls() -> u256 {
 }
 
 // The created contract's constructor can run arbitrary code.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_extcodesize_with_create{{[( ]}}
+// CHECK: {{^[ +].*}}extcodesize
+// CHECK: {{^[ +].*}}create
 fn @keep_extcodesize_with_create() -> u256 {
   bb0:
     jump bb1
@@ -47,6 +58,9 @@ fn @keep_extcodesize_with_create() -> u256 {
 }
 
 // Every external call, including staticcall, rewrites the return-data buffer.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_returndatasize_with_staticcall{{[( ]}}
+// CHECK: {{^[ +].*}}returndatasize
+// CHECK: {{^[ +].*}}staticcall
 fn @keep_returndatasize_with_staticcall() -> u256 {
   bb0:
     jump bb1
@@ -62,6 +76,8 @@ fn @keep_returndatasize_with_staticcall() -> u256 {
 }
 
 // msize observes memory expansion and must never move.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_msize{{[( ]}}
+// CHECK: {{^[ +].*}}msize
 fn @keep_msize() -> u256 {
   bb0:
     jump bb1

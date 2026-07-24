@@ -199,6 +199,13 @@ directives in the test source. Keep checks specific enough to fail for the bug
 being covered, and prefer `CHECK-LABEL` to anchor checks to the relevant
 contract/module section when the output contains multiple sections.
 
+Follow the [FileCheck reference](https://llvm.org/docs/CommandGuide/FileCheck.html):
+
+- Put checks immediately above the function or block they cover.
+- Keep labels and patterns short; omit full signatures and unrelated IR.
+- Capture changing values with `[[NAME:regex]]` and reuse them as `[[NAME]]`.
+- Generally keep filechecks for one function in one comment block.
+
 ### Porting Tests from Solc
 
 Always look at the corresponding Solc test when porting behavior. Solc is always

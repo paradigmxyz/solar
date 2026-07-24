@@ -1,5 +1,13 @@
 //@compile-flags: --pass cse
+//@filecheck:
 @module CseExtendedOps
+// CHECK-LABEL: {{^[ +].*}}fn @extended_pure_ops{{[( ]}}
+// CHECK: - {{v[0-9]+}} = sdiv arg0, arg1
+// CHECK: - {{v[0-9]+}} = smod arg0, arg1
+// CHECK: - {{v[0-9]+}} = sar arg1, arg0
+// CHECK: - {{v[0-9]+}} = signextend arg1, arg0
+// CHECK: - {{v[0-9]+}} = addmod arg1, arg0, 97
+// CHECK: - {{v[0-9]+}} = select arg2, arg0, arg1
 fn @extended_pure_ops(arg0: u256, arg1: u256, arg2: bool) -> (u256, u256, u256, u256, u256, bool) {
   bb0:
     v3 = sdiv arg0, arg1
@@ -17,6 +25,8 @@ fn @extended_pure_ops(arg0: u256, arg1: u256, arg2: bool) -> (u256, u256, u256, 
     ret v4, v6, v8, v10, v12, v14
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @calldata_reads{{[( ]}}
+// CHECK: - {{v[0-9]+}} = calldataload arg0
 fn @calldata_reads(arg0: u256) -> u256 {
   bb0:
     v1 = calldataload arg0

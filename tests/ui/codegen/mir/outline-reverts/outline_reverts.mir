@@ -1,11 +1,14 @@
 //@compile-flags: --pass outline-reverts
-//@filecheck: --match-full-lines
+//@filecheck:
 // Two functions carry the same constant panic block; it is outlined into one
 // shared no-return helper and each site becomes an argless `tail_call` — a
 // bare jump in the backend. The distinct panic in `@third` stays inline: a
 // shape must occur at least twice to pay for the helper.
 
 @module OutlineReverts
+
+// CHECK-LABEL: {{^[ +].*}}fn @first{{[( ]}}
+// CHECK: + tail_call @[[STUB:__revert_stub[0-9]+]]
 fn @first(arg0: u256) {
   bb0:
     v1 = add arg0, 1
@@ -19,6 +22,9 @@ fn @first(arg0: u256) {
     mstore 128, v1
     returndata 128, 32
 }
+
+// CHECK-LABEL: {{^[ +].*}}fn @second{{[( ]}}
+// CHECK: + tail_call @[[STUB]]
 fn @second(arg0: u256) {
   bb0:
     v1 = mul arg0, 2
@@ -32,6 +38,10 @@ fn @second(arg0: u256) {
     mstore 128, v1
     returndata 128, 32
 }
+
+// CHECK-LABEL: {{^[ +].*}}fn @third{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 4, 18
+// CHECK: {{^[ +].*}}revert 0, 36
 fn @third(arg0: u256) {
   bb0:
     v1 = sub arg0, 1
@@ -46,6 +56,6 @@ fn @third(arg0: u256) {
     returndata 128, 32
 }
 
-// CHECK: +     tail_call @__revert_stub0
-// CHECK: +     tail_call @__revert_stub0
-// CHECK: + fn @__revert_stub0() {
+// CHECK-LABEL: + fn @__revert_stub{{[0-9]+}}
+// CHECK: + mstore 4, 17
+// CHECK: + revert 0, 36

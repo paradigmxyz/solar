@@ -1,12 +1,15 @@
 //@compile-flags: --pass dce -Ztime-passes
-//@filecheck: --match-full-lines
+//@filecheck:
 //@normalize-stderr-test: "time: +[0-9]+\.[0-9]{3}" -> "time: <TIME>"
 // bb1 is unreachable (entry jumps straight to bb2).
 // DCE should clear bb1's instructions and mark it invalid.
 @module DceUnreachable
-// CHECK-LABEL:   fn @skip(arg0: u256) -> u256 {
-// CHECK:       bb1:
-// CHECK: +     invalid
+// CHECK-LABEL: {{^[ +].*}}fn @skip{{[( ]}}
+// CHECK: {{^[ +].*}}bb1:
+// CHECK: - {{v[0-9]+}} = add arg0, 1
+// CHECK: - {{v[0-9]+}} = mul {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK: - ret {{v[0-9]+}}
+// CHECK: + invalid
 fn @skip(arg0: u256) -> u256 {
   bb0:
     jump bb2

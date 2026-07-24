@@ -1,5 +1,6 @@
 //@ignore-host: windows
 //@compile-flags: -Zcodegen -Zdump=mir
+//@filecheck:
 
 // Storage references are modeled as slot values: `Item storage r = items[k]`
 // binds the storage *slot*, so `r.a` reads/writes `sload`/`sstore(slot + off)`
@@ -15,17 +16,29 @@ contract C {
     mapping(uint256 => Item) items;
 
     // Direct indexed storage struct field assignment.
+    // CHECK-LABEL: fn @setDirect{{[( ]}}
+    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot arg0, 0
+    // CHECK: sstore [[SLOT]], arg1
     function setDirect(uint256 k, uint256 a) public {
         items[k].a = a;
     }
 
     // Read through a storage reference: `r` holds the slot of `items[k]`.
+    // CHECK-LABEL: fn @getViaRef{{[( ]}}
+    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot arg0, 0
+    // CHECK: sload [[SLOT]]
     function getViaRef(uint256 k) public view returns (uint256) {
         Item storage r = items[k];
         return r.a;
     }
 
     // Read/modify/write through a storage reference.
+    // CHECK-LABEL: fn @bump{{[( ]}}
+    // CHECK: [[BASE:v[0-9]+]] = mapping_slot arg0, 0
+    // CHECK: [[FIELD:v[0-9]+]] = add [[BASE]], 1
+    // CHECK: [[OLD:v[0-9]+]] = sload [[FIELD]]
+    // CHECK: [[NEW:v[0-9]+]] = add [[OLD]], 1
+    // CHECK: sstore {{v[0-9]+}}, [[NEW]] !metadata(storage=offset([[BASE]], 1))
     function bump(uint256 k) public {
         Item storage r = items[k];
         r.b = r.b + 1;

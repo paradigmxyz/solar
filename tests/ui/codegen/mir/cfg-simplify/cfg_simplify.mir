@@ -1,5 +1,11 @@
 //@compile-flags: --pass cfg-simplify
+//@filecheck:
 @module CfgSimplify
+// CHECK-LABEL: {{^[ +].*}}fn @sequential{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = add arg0, 1
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = add {{v[0-9]+}}, 1
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = add {{v[0-9]+}}, 1
+// CHECK: {{^[ +].*}}ret {{v[0-9]+}}
 fn @sequential(arg0: u256) -> u256 {
   bb0:
     v1 = add arg0, 1
@@ -12,6 +18,8 @@ fn @sequential(arg0: u256) -> u256 {
     ret v3
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @branch_forwarder_preserves_successor_order{{[( ]}}
+// CHECK: - jump bb3
 fn @branch_forwarder_preserves_successor_order(arg0: bool) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2
@@ -23,6 +31,8 @@ fn @branch_forwarder_preserves_successor_order(arg0: bool) -> u256 {
     ret 2
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @degenerate_branch_refreshes_successors{{[( ]}}
+// CHECK: - jumpi arg0, bb1, bb1
 fn @degenerate_branch_refreshes_successors(arg0: bool) -> u256 {
   bb0:
     jumpi arg0, bb1, bb1

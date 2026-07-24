@@ -1,8 +1,16 @@
 //@compile-flags: --passes copy-elision,dce
+//@filecheck:
 @module CopyElision
 
 // An allocation filled by a copy but never read does not need the copy. The
 // checked allocation remains because its failure and FMP bump are observable.
+// CHECK-LABEL: after copy-elision
+// CHECK: {{^[ +].*}}fn @unread{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = alloc memorybytes, exact, zeroed, panic, 64
+// CHECK: - calldatacopy {{v[0-9]+}}, 4, 32
+// CHECK-LABEL: after dce
+// CHECK: {{^[ +].*}}fn @unread{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = alloc memorybytes, exact, zeroed, panic, 64
 fn @unread(arg0: u256) -> u256 {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 64
@@ -12,6 +20,9 @@ fn @unread(arg0: u256) -> u256 {
 }
 
 // A read of the allocation keeps every write.
+// CHECK-LABEL: {{^[ +].*}}fn @read{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = alloc memorybytes, exact, uninitialized, infallible, 64
+// CHECK: {{^[ +].*}}calldatacopy {{v[0-9]+}}, 4, 32
 fn @read(arg0: u256) -> u256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64

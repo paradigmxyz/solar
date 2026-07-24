@@ -1,5 +1,10 @@
 //@compile-flags: --pass indvar-simplify
+//@filecheck:
 @module IndVarSimplify
+// CHECK-LABEL: {{^[ +].*}}fn @strength_reduce_shifted_address{{[( ]}}
+// CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb0: arg0], [bb2: [[NEXT:v[0-9]+]]]
+// CHECK: + mstore [[ADDRESS]], {{v[0-9]+}}
+// CHECK: + [[NEXT]] = add [[ADDRESS]], 32
 fn @strength_reduce_shifted_address(arg0: u256) -> u256 {
   bb0:
     jump bb1
@@ -17,6 +22,11 @@ fn @strength_reduce_shifted_address(arg0: u256) -> u256 {
     ret 0
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @strength_reduce_scaled_address_with_offset{{[( ]}}
+// CHECK: + [[START:v[0-9]+]] = add arg0, 4
+// CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb0: [[START]]], [bb2: [[NEXT:v[0-9]+]]]
+// CHECK: + mstore [[ADDRESS]], {{v[0-9]+}}
+// CHECK: + [[NEXT]] = add [[ADDRESS]], 32
 fn @strength_reduce_scaled_address_with_offset(arg0: u256) -> u256 {
   bb0:
     jump bb1
@@ -35,6 +45,10 @@ fn @strength_reduce_scaled_address_with_offset(arg0: u256) -> u256 {
     ret 0
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @strength_reduce_scale_one_address{{[( ]}}
+// CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb0: arg0], [bb2: [[NEXT:v[0-9]+]]]
+// CHECK: + mstore8 [[ADDRESS]], {{v[0-9]+}}
+// CHECK: + [[NEXT]] = add [[ADDRESS]], 1
 fn @strength_reduce_scale_one_address(arg0: u256) -> u256 {
   bb0:
     jump bb1

@@ -1,8 +1,12 @@
 //@compile-flags: --pass check-elim
+//@filecheck:
 @module CheckElimLoopIncrement
 
 // The loop-header guard `v1 < arg0` dominates the increment, so `v1 + 1`
 // cannot wrap and its overflow check folds to the continue edge.
+// CHECK-LABEL: {{^[ +].*}}fn @fold_increment_check{{[( ]}}
+// CHECK: - jumpi {{v[0-9]+}}, bb3, bb4
+// CHECK: + jump bb4
 fn @fold_increment_check(arg0: u256) -> u256 {
   bb0:
     jump bb1
@@ -24,6 +28,8 @@ fn @fold_increment_check(arg0: u256) -> u256 {
 
 // The guard sits on one arm of a diamond and does not dominate the join,
 // so the overflow check must stay.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_non_dominating_guard{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi {{v[0-9]+}}, bb4, bb5
 fn @keep_non_dominating_guard(arg0: u256, arg1: bool) -> u256 {
   bb0:
     jumpi arg1, bb1, bb2

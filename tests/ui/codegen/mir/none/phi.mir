@@ -1,5 +1,9 @@
 //@compile-flags: --pass none
+//@filecheck:
 @module PhiTest
+// CHECK-LABEL: {{^[ +].*}}fn @diamond{{[( ]}}
+// CHECK: {{^[ +].*}}[[VALUE:v[0-9]+]] = phi [bb1: 10], [bb2: 20]
+// CHECK: {{^[ +].*}}ret [[VALUE]]
 fn @diamond(arg0: bool) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2

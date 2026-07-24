@@ -1,4 +1,5 @@
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
+//@ filecheck: --implicit-check-not=delegatecall
 
 // A `public`/`external` library function called from another contract is
 // compiled by solc into the library's own runtime and reached via delegatecall
@@ -12,6 +13,13 @@
 // verified equal to solc 0.8.30 (with real library linking) separately.
 
 library Lib {
+    // CHECK-LABEL: @module runtime
+    // CHECK: push 0xed2f0bb8
+    // CHECK: keccak256
+    // CHECK: sload
+    // CHECK: sstore
+    // CHECK: caller
+    // CHECK: return
     function bump(mapping(address => uint256) storage m, address k, uint256 by)
         public
         returns (uint256)
@@ -24,6 +32,13 @@ library Lib {
 contract C {
     mapping(address => uint256) bal;
 
+    // CHECK-LABEL: @module runtime
+    // CHECK: push 0x3dd41ca6
+    // CHECK: keccak256
+    // CHECK: sload
+    // CHECK: sstore
+    // CHECK: caller
+    // CHECK: return
     function inc(address k, uint256 by) external returns (uint256) {
         return Lib.bump(bal, k, by);
     }

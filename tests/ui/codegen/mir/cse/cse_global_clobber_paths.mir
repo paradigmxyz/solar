@@ -1,5 +1,9 @@
 //@compile-flags: --pass cse
+//@filecheck:
 @module CseGlobalClobberPaths
+// CHECK-LABEL: {{^[ +].*}}fn @diamond_sload_clobbered_arm{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload 0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload 0
 fn @diamond_sload_clobbered_arm(arg0: bool) -> u256 {
   bb0:
     v1 = sload 0
@@ -15,6 +19,9 @@ fn @diamond_sload_clobbered_arm(arg0: bool) -> u256 {
     ret v3
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @diamond_sload_clean_arms{{[( ]}}
+// CHECK: - {{v[0-9]+}} = sload 0
+// CHECK: + {{v[0-9]+}} = add [[CLEAN:v[0-9]+]], [[CLEAN]]
 fn @diamond_sload_clean_arms(arg0: bool) -> u256 {
   bb0:
     v1 = sload 0
@@ -29,6 +36,9 @@ fn @diamond_sload_clean_arms(arg0: bool) -> u256 {
     ret v3
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @diamond_sload_distinct_slot_store{{[( ]}}
+// CHECK: - {{v[0-9]+}} = sload 0
+// CHECK: + {{v[0-9]+}} = add [[DISTINCT:v[0-9]+]], [[DISTINCT]]
 fn @diamond_sload_distinct_slot_store(arg0: bool) -> u256 {
   bb0:
     v1 = sload 0
@@ -44,6 +54,9 @@ fn @diamond_sload_distinct_slot_store(arg0: bool) -> u256 {
     ret v3
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @loop_sload_clobbered_body{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload 0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload 0
 fn @loop_sload_clobbered_body(arg0: u256) -> u256 {
   bb0:
     v1 = sload 0
@@ -60,6 +73,10 @@ fn @loop_sload_clobbered_body(arg0: u256) -> u256 {
     ret v4
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @loop_sload_clean_body{{[( ]}}
+// CHECK: - {{v[0-9]+}} = sload 0
+// CHECK: + {{v[0-9]+}} = lt [[LOOP:v[0-9]+]], arg0
+// CHECK: + {{v[0-9]+}} = add [[LOOP]], [[LOOP]]
 fn @loop_sload_clean_body(arg0: u256) -> u256 {
   bb0:
     v1 = sload 0
@@ -75,6 +92,9 @@ fn @loop_sload_clean_body(arg0: u256) -> u256 {
     ret v4
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @diamond_mload_clobbered_arm{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 0
 fn @diamond_mload_clobbered_arm(arg0: bool) -> u256 {
   bb0:
     mstore 0, 11
@@ -91,6 +111,9 @@ fn @diamond_mload_clobbered_arm(arg0: bool) -> u256 {
     ret v3
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @diamond_call_clobbers_account_reads{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = balance arg1
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = balance arg1
 fn @diamond_call_clobbers_account_reads(arg0: bool, arg1: address) -> u256 {
   bb0:
     v1 = balance arg1

@@ -1,5 +1,9 @@
 //@compile-flags: --pass jump-threading
+//@filecheck:
 @module JumpThreadingPhiConstants
+// CHECK-LABEL: {{^[ +].*}}fn @thread_branch_on_phi_constant{{[( ]}}
+// CHECK: + jumpi arg0, bb5, bb4
+// CHECK: + {{v[0-9]+}} = phi
 fn @thread_branch_on_phi_constant(arg0: bool) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2
@@ -16,6 +20,9 @@ fn @thread_branch_on_phi_constant(arg0: bool) -> u256 {
     ret 22
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @thread_switch_on_phi_constant{{[( ]}}
+// CHECK: + jumpi arg0, bb4, bb5
+// CHECK: + {{v[0-9]+}} = phi
 fn @thread_switch_on_phi_constant(arg0: bool) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2
@@ -34,6 +41,9 @@ fn @thread_switch_on_phi_constant(arg0: bool) -> u256 {
     ret 33
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @keep_unknown_phi{{[( ]}}
+// CHECK: {{^[ +].*}}[[VALUE:v[0-9]+]] = phi [bb1: arg1], [bb2: arg2]
+// CHECK: {{^[ +].*}}jumpi [[VALUE]], bb4, bb5
 fn @keep_unknown_phi(arg0: bool, arg1: u256, arg2: u256) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2
@@ -50,6 +60,10 @@ fn @keep_unknown_phi(arg0: bool, arg1: u256, arg2: u256) -> u256 {
     ret 22
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @keep_phi_used_in_successor{{[( ]}}
+// CHECK: {{^[ +].*}}[[VALUE:v[0-9]+]] = phi [bb1: 0], [bb2: 1]
+// CHECK: {{^[ +].*}}[[RESULT:v[0-9]+]] = add [[VALUE]], 1
+// CHECK: {{^[ +].*}}ret [[RESULT]]
 fn @keep_phi_used_in_successor(arg0: bool) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2

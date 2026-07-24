@@ -1,5 +1,10 @@
 //@compile-flags: --passes frame-slot-promotion
+//@filecheck:
 @module FramePromotionDeadMerge
+// CHECK-LABEL: {{^[ +].*}}fn @dead_merge{{[( ]}}
+// CHECK: + [[COUNTER:v[0-9]+]] = phi [bb3: 0], [bb5: [[NEXT:v[0-9]+]]]
+// CHECK: + [[NEXT]] = add [[COUNTER]], 1
+// CHECK: + ret [[COUNTER]]
 fn @dead_merge(arg0: u256, arg1: bool) -> u256 {
   bb0:
     jumpi arg1, bb1, bb2

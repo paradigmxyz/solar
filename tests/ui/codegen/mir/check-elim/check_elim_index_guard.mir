@@ -1,9 +1,13 @@
 //@compile-flags: --pass check-elim
+//@filecheck:
 @module CheckElimIndexGuard
 
 // A dominating `i < 3` guard proves the array bounds check `lt i, 3`
 // (the shape emitted for `if (i < 3) { x[i] }` on a fixed-size array), so
 // the check folds to the continue edge and the Panic(0x32) block dies.
+// CHECK-LABEL: {{^[ +].*}}fn @fold_const_len_check{{[( ]}}
+// CHECK: - jumpi {{v[0-9]+}}, bb3, bb2
+// CHECK: + jump bb3
 fn @fold_const_len_check(arg0: u256) -> u256 {
   bb0:
     v1 = lt arg0, 3
@@ -26,6 +30,9 @@ fn @fold_const_len_check(arg0: u256) -> u256 {
 // A dominating `i < len` guard on the same SSA length value proves the
 // bounds check for a dynamic array (`if (i < x.length) { x[i] }` once load
 // CSE merges the two length loads), so the check folds.
+// CHECK-LABEL: {{^[ +].*}}fn @fold_dyn_len_check{{[( ]}}
+// CHECK: - jumpi {{v[0-9]+}}, bb3, bb2
+// CHECK: + jump bb3
 fn @fold_dyn_len_check(arg0: u256) -> u256 {
   bb0:
     v1 = sload 0
@@ -48,6 +55,8 @@ fn @fold_dyn_len_check(arg0: u256) -> u256 {
 
 // The guard checks a different bound (`i < 2` does prove `i < 3`, but
 // `i < 5` does not), so the bounds check must stay.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_weaker_guard{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi {{v[0-9]+}}, bb3, bb2
 fn @keep_weaker_guard(arg0: u256) -> u256 {
   bb0:
     v1 = lt arg0, 5

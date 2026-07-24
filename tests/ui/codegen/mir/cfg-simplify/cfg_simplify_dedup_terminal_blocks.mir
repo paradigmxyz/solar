@@ -1,7 +1,12 @@
 //@compile-flags: --pass cfg-simplify
+//@filecheck:
 @module CfgDedupTerminalBlocks
 
 // Two structurally identical panic blocks collapse into one shared block.
+// CHECK-LABEL: {{^[ +].*}}fn @dedup_identical_panics{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi arg0, [[PANIC:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: - jumpi arg1, bb3, bb4
+// CHECK: + jumpi arg1, [[PANIC]], {{bb[0-9]+}}
 fn @dedup_identical_panics(arg0: u256, arg1: u256) {
   bb0:
     jumpi arg0, bb1, bb2
@@ -20,6 +25,8 @@ fn @dedup_identical_panics(arg0: u256, arg1: u256) {
 }
 
 // Panic blocks with different panic codes must NOT merge.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_panic_codes{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi arg1, bb3, bb4
 fn @keep_distinct_panic_codes(arg0: u256, arg1: u256) {
   bb0:
     jumpi arg0, bb1, bb2
@@ -38,6 +45,8 @@ fn @keep_distinct_panic_codes(arg0: u256, arg1: u256) {
 }
 
 // Identical instructions but different terminator operands must NOT merge.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_revert_sizes{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi arg1, bb3, bb4
 fn @keep_distinct_revert_sizes(arg0: u256, arg1: u256) {
   bb0:
     jumpi arg0, bb1, bb2
@@ -57,6 +66,10 @@ fn @keep_distinct_revert_sizes(arg0: u256, arg1: u256) {
 
 // Block-local values compare by definition position, so alpha-equivalent
 // computations merge.
+// CHECK-LABEL: {{^[ +].*}}fn @dedup_local_computations{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi arg0, [[COMPUTATION:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: - jumpi arg1, bb3, bb4
+// CHECK: + jumpi arg1, [[COMPUTATION]], {{bb[0-9]+}}
 fn @dedup_local_computations(arg0: u256, arg1: u256) {
   bb0:
     jumpi arg0, bb1, bb2
@@ -75,6 +88,8 @@ fn @dedup_local_computations(arg0: u256, arg1: u256) {
 }
 
 // Blocks reading different outside values must NOT merge.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_outside_operands{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi arg1, bb3, bb4
 fn @keep_distinct_outside_operands(arg0: u256, arg1: u256) {
   bb0:
     jumpi arg0, bb1, bb2
