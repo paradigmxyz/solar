@@ -1,6 +1,9 @@
 //@compile-flags: --pass load-pre
+//@filecheck:
 @module MemoryObjectLoadPre
 
+// CHECK-LABEL: {{^[ +].*}}fn @forward_length_across_join{{[( ]}}
+// CHECK: + ret arg2
 fn @forward_length_across_join(arg0: memorybytes, arg1: bool, arg2: u256) -> u256 {
   bb0:
     jumpi arg1, bb1, bb2

@@ -1,5 +1,12 @@
+//@filecheck:
 @module module
 
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}push 1
+// CHECK: {{^[ +].*}}push_deferred 2
+// CHECK: {{^[ +].*}}push_deferred 0xfffffff
+// CHECK: {{^[ +].*}}push_immutable 3
+// CHECK: {{^[ +].*}}push_immutable 0xfffffff
 bb0:
   push 1
   push_deferred 2

@@ -1,7 +1,11 @@
 //@compile-flags: --pass jump-threading
+//@filecheck:
 // A conditional branch whose two targets are empty forwarder blocks.
 // Jump threading should rewrite the branch to point past the forwarders.
 @module ThreadingBranch
+// CHECK-LABEL: {{^[ +].*}}fn @branch_forwarders{{[( ]}}
+// CHECK: - jumpi arg0, bb1, bb2
+// CHECK: + jumpi arg0, bb3, bb4
 fn @branch_forwarders(arg0: u256) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2

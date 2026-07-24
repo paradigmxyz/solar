@@ -10,12 +10,13 @@
 contract CalldataSliceControlFlow {
     // A single calldata slice trimmed under a branch and returned through an
     // implicit named return: the helper inlines, so no `internal_call` is left.
-    // CDCF-LABEL: fn @trimLen
+    // CDCF-LABEL: fn @trimLen{{[( ]}}
     // CDCF-NOT: internal_call
     function trimLen(bytes calldata data) external pure returns (uint256) {
         return _trim(data).length;
     }
 
+    // CDCF-LABEL: fn @_trim{{[( ]}}
     function _trim(bytes calldata data) internal pure returns (bytes calldata r) {
         r = data;
         if (data.length > 8) {
@@ -28,7 +29,8 @@ contract CalldataSliceControlFlow {
 
     // Uninitialized calldata slices filled in assembly and forwarded to an
     // internal call fold to compact head reads.
-    // CDCF-LABEL: fn @forward
+    // CDCF-LABEL: fn @forward{{[( ]}}
+    // CDCF-NOT: internal_call
     function forward(bytes calldata x) external pure returns (uint256) {
         bytes calldata a;
         bytes calldata b;
@@ -40,18 +42,20 @@ contract CalldataSliceControlFlow {
         return _sum(a, b);
     }
 
+    // CDCF-LABEL: fn @_sum{{[( ]}}
     function _sum(bytes calldata a, bytes calldata b) internal pure returns (uint256) {
         return a.length * 1000 + b.length;
     }
 
     // An explicit `return` under control flow: the body inlines with an inline
     // exit block, each `return` storing to the return slot and jumping there.
-    // CDCF-LABEL: fn @explicitTrim
+    // CDCF-LABEL: fn @explicitTrim{{[( ]}}
     // CDCF-NOT: internal_call
     function explicitTrim(bytes calldata x) external pure returns (uint256) {
         return _explicitTrim(x).length;
     }
 
+    // CDCF-LABEL: fn @_explicitTrim{{[( ]}}
     function _explicitTrim(bytes calldata x) internal pure returns (bytes calldata) {
         if (x.length > 4) return x[4:];
         return x;
@@ -60,7 +64,7 @@ contract CalldataSliceControlFlow {
     // Destructuring a multi-slice return: the inlined callee delivers both
     // slices directly to the bindings, bypassing the one-word-per-value
     // multi-return buffer that cannot carry a two-word slice.
-    // CDCF-LABEL: fn @headTail
+    // CDCF-LABEL: fn @headTail{{[( ]}}
     // CDCF-NOT: internal_call
     function headTail(bytes calldata x) external pure returns (uint256 hl, uint256 tl) {
         (bytes calldata head, bytes calldata tail) = _split(x);
@@ -68,6 +72,7 @@ contract CalldataSliceControlFlow {
         tl = tail.length;
     }
 
+    // CDCF-LABEL: fn @_split{{[( ]}}
     function _split(bytes calldata x)
         internal
         pure

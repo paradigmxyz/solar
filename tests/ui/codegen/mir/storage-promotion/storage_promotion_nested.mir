@@ -1,4 +1,5 @@
 //@compile-flags: --pass storage-promotion
+//@filecheck:
 @module StoragePromotionNested
 // Blocks are laid out so the inner loop header (bb1) is processed before the
 // enclosing outer loop header (bb6). Promoting the inner loop splits its exit
@@ -7,6 +8,12 @@
 
 // The relocated inner flush writes the same slot the outer latch updates, so
 // after re-analysis the outer loop promotes both stores consistently.
+// CHECK-LABEL: {{^[ +].*}}fn @promote_outer_after_inner_flush_split{{[( ]}}
+// CHECK: + [[INITIAL:v[0-9]+]] = sload 0
+// CHECK: + mstore 192, [[INITIAL]]
+// CHECK: + {{v[0-9]+}} = mload 192
+// CHECK: + [[FLUSH:v[0-9]+]] = mload 192
+// CHECK: + sstore 0, [[FLUSH]]
 fn @promote_outer_after_inner_flush_split() [selector=0x01020304] {
   bb0:
     jump bb6
@@ -34,6 +41,9 @@ fn @promote_outer_after_inner_flush_split() [selector=0x01020304] {
 
 // The relocated inner flush targets a symbolic slot that may alias the outer
 // latch's constant slot, so the outer loop must not be promoted.
+// CHECK-LABEL: {{^[ +].*}}fn @reject_outer_when_inner_flush_may_alias{{[( ]}}
+// CHECK: + {{v[0-9]+}} = sload 0
+// CHECK: + sstore 0
 fn @reject_outer_when_inner_flush_may_alias(arg0: u256) [selector=0x01020304] {
   bb0:
     jump bb6

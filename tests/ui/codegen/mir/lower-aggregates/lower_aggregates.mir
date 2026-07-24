@@ -1,18 +1,32 @@
 //@compile-flags: --passes lower-aggregates
+//@filecheck:
 @module LowerAggregates
 
+// CHECK-LABEL: {{^[ +].*}}fn @storage_to_memory{{[( ]}}
+// CHECK: - storage_to_memory
+// CHECK: + [[FIELD:v[0-9]+]] = memory_object_field_addr
+// CHECK: + [[VALUE:v[0-9]+]] = sload arg0
+// CHECK: + mstore [[FIELD]], [[VALUE]]
 fn @storage_to_memory(arg0: u256, arg1: memptr) {
   bb0:
     storage_to_memory struct<word, struct<word, word>, array<2, word>>, arg0, arg1
     stop
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @memory_to_storage{{[( ]}}
+// CHECK: - memory_to_storage
+// CHECK: + [[FIELD:v[0-9]+]] = memory_object_field_addr
+// CHECK: + [[VALUE:v[0-9]+]] = mload [[FIELD]]
+// CHECK: + sstore arg1, [[VALUE]]
 fn @memory_to_storage(arg0: memptr, arg1: u256) {
   bb0:
     memory_to_storage struct<word, struct<word, word>, array<2, word>>, arg0, arg1
     stop
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @clear_storage{{[( ]}}
+// CHECK: - clear_storage
+// CHECK: + sstore arg0, 0
 fn @clear_storage(arg0: u256) {
   bb0:
     clear_storage struct<word, struct<word, word>, array<2, word>>, arg0

@@ -1,4 +1,5 @@
 //@compile-flags: --passes lower-slices
+//@filecheck:
 // A returndata slice `(0, returndatasize)` is a first-class slice like calldata
 // and memory. `lower-slices` folds its `slice_ptr`/`slice_len` projections back
 // to the constructor operands and erases the `make_returndata_slice`, leaving a
@@ -6,6 +7,9 @@
 // backend.
 @module ReturndataSlice
 
+// CHECK-LABEL: {{^[ +].*}}fn @copy_returndata{{[( ]}}
+// CHECK: {{^[ +].*}}[[LENGTH:v[0-9]+]] = returndatasize
+// CHECK: + returndatacopy {{v[0-9]+}}, 0, [[LENGTH]]
 fn @copy_returndata() -> memptr {
   bb0:
     v0 = returndatasize

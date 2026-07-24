@@ -1,14 +1,23 @@
 //@compile-flags: --pass terminal-dedup
+//@filecheck:
 @module module
 
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}jumpi bb1, bb2
 bb0:
   push 1
   jumpi bb1, bb2
+
+// CHECK-LABEL: {{^[ +].*}}bb1 [cold]:
+// CHECK: {{^[ +].*}}revert
 bb1 [cold]:
   push 64
   push 32
   push 0
   revert
+
+// CHECK-LABEL: {{^[ +].*}}bb2 [cold]:
+// CHECK: + jump bb1
 bb2 [cold]:
   push 64
   push 32
