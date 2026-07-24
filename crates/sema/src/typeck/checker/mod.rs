@@ -219,8 +219,10 @@ impl<'gcx> TypeChecker<'gcx> {
                                 .emit(),
                         )
                     } else {
+                        // Element types are stored bare; the inferred common
+                        // type of reference elements carries a location.
                         self.gcx
-                            .mk_ty(TyKind::Array(common, U256::from(exprs.len())))
+                            .mk_ty(TyKind::Array(common.peel_refs(), U256::from(exprs.len())))
                             .with_loc(self.gcx, DataLocation::Memory)
                     }
                 } else {
