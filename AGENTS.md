@@ -333,35 +333,34 @@ Use two corpora for codegen work. The UI codegen files give a fast generated
 size signal. The CI corpus in `walnuthq/solidity-compiler-benchmarks` is the
 source of truth for runtime checks and gas.
 
-Build once, then use the benchmark repository's `solar_bench.py` to record both
-optimization modes before editing:
+Build the debug compiler in the current checkout, then use the benchmark
+repository's `solar_bench.py` to record both optimization modes before editing.
+Do not use release builds for routine local tests:
 
 ```bash
-cargo build --release -p solar-compiler --bin solar
+cargo build -p solar-compiler --bin solar
 uv run ~/github/danipopes/solidity-compiler-benchmarks/solar_bench.py \
-  --solar-only --solar target/release/solar --solar-optimize gas \
+  --solar-only --solar target/debug/solar --solar-optimize gas \
   --corpus tests/ui/codegen --allow-failures \
   --output target/codegen-bench/ui-gas-baseline.json
 uv run ~/github/danipopes/solidity-compiler-benchmarks/solar_bench.py \
-  --solar-only --solar target/release/solar --solar-optimize size \
+  --solar-only --solar target/debug/solar --solar-optimize size \
   --corpus tests/ui/codegen --allow-failures \
   --output target/codegen-bench/ui-size-baseline.json
 ```
 
-For comparisons that also need to rerun the baseline, preserve its binary with
-an isolated `CARGO_TARGET_DIR`; rebuilding the ordinary release target replaces
-the executable even when the Git revision is unchanged.
-
-Run the same commands with the candidate binary and distinct output paths.
-Compare the successful test IDs before aggregating sizes: expected diagnostic
-fixtures fail compilation, and a new failure must not make the candidate total
-look smaller. Compare per-file deltas as well because an aggregate win can hide
-a large regression in one contract.
+Record the baseline before editing. Rebuild and benchmark the candidate in the
+same checkout with distinct output paths. Do not create extra worktrees or
+isolated target directories for routine local comparisons. Compare the
+successful test IDs before aggregating sizes: expected diagnostic fixtures fail
+compilation, and a new failure must not make the candidate total look smaller.
+Compare per-file deltas as well because an aggregate win can hide a large
+regression in one contract.
 
 For the CI corpus, use the `BENCHMARK_REF` and `SOLC_VERSION` pinned in
-`.github/workflows/bench.yml`. Do not reuse a checkout at another revision:
-make a detached worktree at the pin and initialize its recursive submodules.
-Run `solar_bench.py --suite all` as a quick size screen, then enable the hot gas
+`.github/workflows/bench.yml`. Use the current benchmark checkout at that pin
+and initialize its recursive submodules; do not create another worktree. Run
+`solar_bench.py --suite all` as a quick size screen, then enable the hot gas
 workload with `--gas --gas-profile hot --start-anvil` before accepting an
 `-Ogas` candidate. Always write JSON with `--output`, retain the baseline JSON,
 and compare the same test IDs and gas-call labels. `--allow-failures` keeps an
