@@ -195,6 +195,7 @@ Follow the [FileCheck reference](https://llvm.org/docs/CommandGuide/FileCheck.ht
 - Put checks immediately above the function or block they cover.
 - Keep labels and patterns short; omit full signatures and unrelated IR.
 - Capture changing values with `[[NAME:regex]]` and reuse them as `[[NAME]]`.
+- Generally keep filechecks for one function in one comment block.
 
 ### Porting Tests from Solc
 
