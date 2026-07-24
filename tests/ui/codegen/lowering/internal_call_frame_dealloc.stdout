@@ -227,9 +227,6 @@ bb22:
   mstore
   push 224
   mload
-  dup1
-  push 224
-  mstore
   gt
   push bb19
   jumpi
@@ -244,12 +241,6 @@ bb22:
   push 128
   return
 bb23:
-  dup1
-  push 160
-  mload
-  push 160
-  add
-  mstore
   dup1
   push 160
   mload

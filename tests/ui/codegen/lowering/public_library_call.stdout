@@ -69,76 +69,48 @@ bb5:
   push 0
   keccak256
   dup1
-  push 160
+  push 224
   mstore
+  dup1
   sload
   push 68
   calldataload
   dup2
-  dup1
-  push 256
-  mstore
   add
   dup1
-  push 192
+  push 160
   mstore
-  dup2
-  dup1
-  push 256
-  mstore
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
+  swap1
   pop
   push bb11
   jumpi
-  push 192
+  push 160
   mload
   dup1
-  push 192
-  mstore
   push 160
+  mstore
+  push 224
   mload
   sstore
-  push 160
+  push 224
   mload
-  dup1
-  push 160
-  mstore
   sload
   caller
   push 255
   and
   dup2
-  dup1
-  push 288
-  mstore
   add
   dup1
-  push 224
+  push 192
   mstore
-  dup2
-  dup1
-  push 288
-  mstore
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
   push bb11
   jumpi
-  push 224
+  push 192
   mload
   dup1
-  push 224
+  push 192
   mstore
   push 128
   mstore
@@ -233,28 +205,17 @@ bb5:
   dup1
   push 640
   mstore
+  dup1
   sload
   push 384
   mload
   dup2
-  dup1
-  push 480
-  mstore
   add
   dup1
   push 512
   mstore
-  dup2
-  dup1
-  push 480
-  mstore
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
+  swap1
   pop
   push bb13
   jumpi
@@ -268,33 +229,16 @@ bb5:
   sstore
   push 640
   mload
-  dup1
-  push 640
-  mstore
   sload
   caller
   push 255
   and
   dup2
-  dup1
-  push 544
-  mstore
   add
   dup1
   push 608
   mstore
-  dup2
-  dup1
-  push 544
-  mstore
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
   push bb13
   jumpi
   push 608

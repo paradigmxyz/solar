@@ -12,7 +12,8 @@ use super::{
     layout::{RelayoutAddress, preserves_push_width},
     op,
     stack::{
-        MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
+        MAX_STACK_ACCESS, OperandCostModel, OperandPlan, ScheduledOp, SpillSlot, StackModel,
+        StackOp, StackScheduler, TargetSlot,
     },
 };
 use crate::{
@@ -25,6 +26,7 @@ use crate::{
     pass::run_default_pipeline,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_config::OptimizationMode;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -1735,6 +1737,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if let Some(term) = &block.terminator {
                 self.generate_terminator(func, term, fallthrough, preserve_stack);
             }
+            self.scheduler.spills.release_block_locals();
             if preserve_stack_to_fallthrough {
                 preserved_fallthrough = fallthrough;
             } else if let Some(target) = preserve_jump_target {
@@ -2057,13 +2060,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let target: Vec<_> = needed.iter().copied().map(TargetSlot::Value).collect();
-        let shuffle = self.scheduler.shuffle_to_layout(&target);
+        let shuffle = self
+            .scheduler
+            .shuffle_to_layout(&target)
+            .expect("prepared global-stack edge must be shufflable");
         for op in shuffle.ops {
             self.asm.emit_op(op.opcode());
         }
 
-        self.scheduler.depth() == needed.len()
-            && self.scheduler.stack.iter().eq(needed.iter().copied().map(Some))
+        debug_assert_eq!(self.scheduler.depth(), needed.len());
+        debug_assert!(self.scheduler.stack.iter().eq(needed.iter().copied().map(Some)));
+        true
     }
 
     fn try_emit_stack_phi_edge(&mut self, func: &Function, edge: &StackPhiEdge) -> bool {
@@ -2084,19 +2091,21 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             self.emit_operand(func, source);
         }
-        if !self.stack_contains_only_phi_sources(&edge.sources) {
-            return false;
-        }
+        assert!(
+            self.stack_contains_only_phi_sources(&edge.sources),
+            "prepared stack-phi edge contains unexpected values"
+        );
 
         let target: Vec<_> = edge.sources.iter().copied().map(TargetSlot::Value).collect();
-        let shuffle = self.scheduler.shuffle_to_layout(&target);
+        let shuffle = self
+            .scheduler
+            .shuffle_to_layout(&target)
+            .expect("prepared stack-phi edge must be shufflable");
         for op in shuffle.ops {
             self.asm.emit_op(op.opcode());
         }
 
-        if self.scheduler.depth() != edge.sources.len() {
-            return false;
-        }
+        debug_assert_eq!(self.scheduler.depth(), edge.sources.len());
         self.set_stack_to_values(&edge.results);
         true
     }
@@ -2221,7 +2230,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// value is actually available on the stack.
     fn preallocate_cross_block_spills(&mut self, func: &Function, liveness: &Liveness) {
         for val in &Self::cross_block_spill_values(func, liveness) {
-            self.scheduler.spills.allocate(val);
+            self.scheduler.spills.reserve(val);
         }
     }
 
@@ -2242,36 +2251,31 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         // A cheap-recomputable value that is live-out is re-executed in the
-        // successor block instead of spilled. That recomputation needs its
-        // non-rematerializable operand leaves, which may be live only within the
-        // defining block; spill those leaves too, or the recomputation reads a
-        // value that is neither on the stack nor stored.
-        let seeds: Vec<ValueId> = values.iter().collect();
-        for val in seeds {
-            if Self::is_cheap_recomputable_value(func, val) {
-                Self::collect_recompute_leaves(func, val, &mut values);
+        // successor block instead of spilled. Discover the complete dependency
+        // closure: every non-rematerializable leaf needs a stable slot even if
+        // it is only live in the defining block. A worklist makes this robust
+        // to shared subexpressions and any future cyclic low-level value forms.
+        let mut worklist: Vec<ValueId> = values.iter().collect();
+        let mut expanded = GrowableBitSet::new_empty();
+        while let Some(val) = worklist.pop() {
+            if !expanded.insert(val) || !Self::is_cheap_recomputable_value(func, val) {
+                continue;
+            }
+            let crate::mir::Value::Inst(inst_id) = func.value(val) else {
+                continue;
+            };
+            for op in func.instructions[*inst_id].kind.operands() {
+                if Self::is_rematerializable_value(func, op) {
+                    continue;
+                }
+                if Self::is_cheap_recomputable_value(func, op) {
+                    worklist.push(op);
+                } else {
+                    values.insert(op);
+                }
             }
         }
         values
-    }
-
-    /// Adds the non-rematerializable values that recomputing `val` depends on:
-    /// operands are followed through further cheap-recomputable values, and
-    /// every other non-rematerializable operand is a leaf that must be spilled.
-    fn collect_recompute_leaves(func: &Function, val: ValueId, out: &mut DenseBitSet<ValueId>) {
-        let crate::mir::Value::Inst(inst_id) = func.value(val) else {
-            return;
-        };
-        for op in func.instructions[*inst_id].kind.operands() {
-            if Self::is_rematerializable_value(func, op) {
-                continue;
-            }
-            if Self::is_cheap_recomputable_value(func, op) {
-                Self::collect_recompute_leaves(func, op, out);
-            } else {
-                out.insert(op);
-            }
-        }
     }
 
     /// Spills all live-out values that are currently on the stack to memory.
@@ -3131,9 +3135,19 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // Stack notation: rightmost = top (depth 0).
                 // Stack after emit_value calls: [f, t, cond] with cond on top.
 
-                self.emit_value(func, *false_val); // Stack: [f]
-                self.emit_operand(func, *true_val); // Stack: [f, t]
-                self.emit_operand(func, *cond); // Stack: [f, t, cond]
+                if let Some(plan) = self.plan_operands(
+                    func,
+                    &[*false_val, *true_val, *cond],
+                    liveness,
+                    block,
+                    inst_idx,
+                ) {
+                    self.emit_operand_plan(func, plan);
+                } else {
+                    self.emit_value(func, *false_val); // Stack: [f]
+                    self.emit_operand(func, *true_val); // Stack: [f, t]
+                    self.emit_operand(func, *cond); // Stack: [f, t, cond]
+                }
 
                 // Now compute: f + cond * (t - f)
                 // Stack is [f, t, cond] with cond on top (depth 0), t at depth 1, f at depth 2
@@ -4141,7 +4155,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 spill_base + func.internal_frame_size + u64::from(slot.offset) * 32,
             );
         } else if self.in_constructor {
-            self.asm.emit_push(U256::from(slot.byte_offset()));
+            self.asm.emit_push(U256::from(slot.constructor_byte_offset()));
         } else {
             // Route the address through a deferred constant and count the
             // reference; `assign_ranked_spill_addrs` renumbers the body's
@@ -4503,34 +4517,64 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_value_impl(func, val, false);
     }
 
-    fn emit_value_impl(&mut self, func: &Function, val: ValueId, claim_top: bool) {
-        if let Some(depth) = self.scheduler.stack.find(val)
-            && depth >= MAX_STACK_ACCESS
-            && !self.scheduler.spills.is_reloadable(val)
-            && !matches!(
-                func.value(val),
-                crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. }
-            )
+    /// Returns materialization costs for the active argument and spill addressing convention.
+    fn operand_cost_model(&self) -> OperandCostModel {
+        if self.in_internal_function
+            && self
+                .current_internal_function
+                .is_none_or(|func_id| !self.static_frame_functions.contains(func_id))
         {
-            let slot = self.scheduler.spills.allocate(val);
-            self.spill_deep_stack_value(func, val, slot, depth);
-        }
-
-        if self.scheduler.stack.find(val).is_none()
-            && self.scheduler.spills.get(val).is_some()
-            && !self.scheduler.spills.is_stored(val)
-            && Self::is_cheap_recomputable_value(func, val)
-        {
-            self.emit_value_fresh(func, val);
-            return;
-        }
-
-        let ops = if claim_top {
-            self.scheduler.ensure_on_top(val, func)
+            OperandCostModel::DYNAMIC_FRAME
         } else {
-            self.scheduler.ensure_operand_on_top(val, func)
+            OperandCostModel::DIRECT
         }
-        .to_vec();
+    }
+
+    /// Plans operand preparation for operations whose inputs remain valid while
+    /// they are rearranged. Memory-mutating stores/copies and calls keep their
+    /// freshness-aware emitters until the stack model represents value epochs.
+    fn plan_operands(
+        &self,
+        func: &Function,
+        operands: &[ValueId],
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+    ) -> Option<OperandPlan> {
+        let mut preserved = SmallVec::<[ValueId; 8]>::new();
+        for &value in operands {
+            let alias_is_live = self
+                .global_stack_aliases
+                .get(&value)
+                .is_some_and(|&alias| !liveness.is_dead_after(alias, block, inst_idx));
+            let carried_arg_is_live = self.global_stack_active
+                && matches!(func.value(value), crate::mir::Value::Arg { .. })
+                && !liveness.is_dead_after(value, block, inst_idx);
+            if !preserved.contains(&value)
+                && (!liveness.is_dead_after(value, block, inst_idx) || alias_is_live)
+                && (!Self::is_rematerializable_value(func, value) || carried_arg_is_live)
+                && (!self.scheduler.spills.is_reloadable(value)
+                    || self.scheduler.stack.contains(value))
+            {
+                preserved.push(value);
+            }
+        }
+        self.scheduler.plan_operands(
+            operands,
+            &preserved,
+            func,
+            self.gcx.sess.opts.optimization,
+            self.gcx.sess.opts.evm_version,
+            self.operand_cost_model(),
+        )
+    }
+
+    fn emit_operand_plan(&mut self, func: &Function, plan: OperandPlan) {
+        let ops = self.scheduler.apply_operand_plan(plan);
+        self.emit_scheduled_ops(func, ops);
+    }
+
+    fn emit_scheduled_ops(&mut self, func: &Function, ops: Vec<ScheduledOp>) {
         for op in ops {
             match op {
                 ScheduledOp::Stack(stack_op) => {
@@ -4565,6 +4609,37 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
+    }
+
+    fn emit_value_impl(&mut self, func: &Function, val: ValueId, claim_top: bool) {
+        if let Some(depth) = self.scheduler.stack.find(val)
+            && depth >= MAX_STACK_ACCESS
+            && !self.scheduler.spills.is_reloadable(val)
+            && !matches!(
+                func.value(val),
+                crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. }
+            )
+        {
+            let slot = self.scheduler.spills.allocate(val);
+            self.spill_deep_stack_value(func, val, slot, depth);
+        }
+
+        if self.scheduler.stack.find(val).is_none()
+            && self.scheduler.spills.get(val).is_some()
+            && !self.scheduler.spills.is_stored(val)
+            && Self::is_cheap_recomputable_value(func, val)
+        {
+            self.emit_value_fresh(func, val);
+            return;
+        }
+
+        let ops = if claim_top {
+            self.scheduler.ensure_on_top(val, func)
+        } else {
+            self.scheduler.ensure_operand_on_top(val, func)
+        }
+        .to_vec();
+        self.emit_scheduled_ops(func, ops);
     }
 
     /// Emits a value fresh, without trying to DUP from the stack.
@@ -4853,6 +4928,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.stack.push(result);
     }
 
+    fn swapped_binary_opcode(opcode: u8) -> Option<u8> {
+        Some(match opcode {
+            op::ADD | op::MUL | op::AND | op::OR | op::XOR | op::EQ => opcode,
+            op::LT => op::GT,
+            op::GT => op::LT,
+            op::SLT => op::SGT,
+            op::SGT => op::SLT,
+            _ => return None,
+        })
+    }
+
     /// Emits a binary operation with result tracking and liveness awareness.
     /// If an operand is still live after this instruction, we DUP it before it gets consumed.
     #[allow(clippy::too_many_arguments)]
@@ -4867,6 +4953,25 @@ impl<'gcx> EvmCodegen<'gcx> {
         block: BlockId,
         inst_idx: usize,
     ) {
+        let mut selected =
+            self.plan_operands(func, &[b, a], liveness, block, inst_idx).map(|plan| (opcode, plan));
+        if a != b
+            && selected.as_ref().is_none_or(|(_, plan)| !plan.is_free())
+            && let Some(swapped_opcode) = Self::swapped_binary_opcode(opcode)
+            && let Some(swapped) = self.plan_operands(func, &[a, b], liveness, block, inst_idx)
+            && selected.as_ref().is_none_or(|(_, current)| {
+                swapped.cost().cmp_for(current.cost(), self.gcx.sess.opts.optimization).is_lt()
+            })
+        {
+            selected = Some((swapped_opcode, swapped));
+        }
+        if let Some((opcode, plan)) = selected {
+            self.emit_operand_plan(func, plan);
+            self.asm.emit_op(opcode);
+            self.scheduler.instruction_executed(2, result);
+            return;
+        }
+
         // Check if operands are still live after this instruction
         let a_is_live = !liveness.is_dead_after(a, block, inst_idx);
 
@@ -4996,6 +5101,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         block: BlockId,
         inst_idx: usize,
     ) {
+        if let Some(plan) = self.plan_operands(func, &[a], liveness, block, inst_idx) {
+            self.emit_operand_plan(func, plan);
+            self.asm.emit_op(opcode);
+            self.scheduler.instruction_executed(1, result);
+            return;
+        }
+
         self.emit_value(func, a);
         if !self.block_local_copy_survives(liveness, block, a, 1) {
             self.spill_top_value_if_live(func, liveness, block, inst_idx, a);
@@ -5021,6 +5133,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         block: BlockId,
         inst_idx: usize,
     ) {
+        if let Some(plan) = self.plan_operands(func, operands, liveness, block, inst_idx) {
+            self.emit_operand_plan(func, plan);
+            self.asm.emit_op(opcode);
+            self.scheduler.instruction_executed(operands.len(), None);
+            return;
+        }
+
         for (i, &operand) in operands.iter().enumerate() {
             if i == 0 {
                 self.emit_value(func, operand);
@@ -5147,6 +5266,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         block: BlockId,
         inst_idx: usize,
     ) {
+        if let Some(plan) = self.plan_operands(func, &operands, liveness, block, inst_idx) {
+            self.emit_operand_plan(func, plan);
+            self.asm.emit_op(opcode);
+            self.scheduler.instruction_executed(3, result);
+            return;
+        }
+
         for (i, &operand) in operands.iter().enumerate() {
             if i == 0 {
                 self.emit_value(func, operand);
@@ -5196,7 +5322,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             CopyDest::Value(dst_val) => {
                 // Spill the value on top of stack to the destination's spill slot
                 // This allows the successor block to reload it
-                let slot = self.scheduler.spills.allocate(*dst_val);
+                let slot = self.scheduler.spills.reserve(*dst_val);
                 self.emit_spill_slot_addr(func, slot);
                 self.scheduler.stack.push_unknown();
                 self.asm.emit_op(op::MSTORE);

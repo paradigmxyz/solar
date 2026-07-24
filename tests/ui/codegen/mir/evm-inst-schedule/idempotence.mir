@@ -1,0 +1,11 @@
+//@ compile-flags: --pass evm-inst-schedule,evm-inst-schedule
+@module EvmInstScheduleIdempotence
+
+// The second run must preserve the first run's order.
+fn @idempotent(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+  bb0:
+    v4 = add arg0, arg1
+    v5 = mul arg2, arg3
+    v6 = sub v4, v5
+    ret v6
+}

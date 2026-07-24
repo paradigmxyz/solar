@@ -25,8 +25,8 @@ use crate::{
     analysis::{AliasAnalysis, CfgInfo, MemoryCallSummaries},
     mir::{Function, FunctionId, InstId, MirPhase, Module},
     transform::{
-        adce, cfg_simplify, check_elim, copy_elision, cse, dce, frame_promotion, gvn,
-        indvar_simplify, inline, inst_simplify, jump_threading, load_pre, loop_canonicalize,
+        adce, cfg_simplify, check_elim, copy_elision, cse, dce, evm_inst_schedule, frame_promotion,
+        gvn, indvar_simplify, inline, inst_simplify, jump_threading, load_pre, loop_canonicalize,
         loop_opt, lower_abi, lower_abi_encode, lower_aggregates, lower_alloc, lower_dispatch,
         lower_evm_shaped, lower_mapping_slots, lower_memory_objects, lower_slices, memory_dse,
         outline_reverts, pre, pure_eval, sccp, sroa, static_alloc, storage_dse, storage_load_cse,
@@ -77,6 +77,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_memory_objects::LowerMemoryObjects,
     &lower_slices::LowerSlices,
     &lower_alloc::LowerAlloc,
+    &evm_inst_schedule::EvmInstSchedule,
 ];
 
 /// Finds a MIR pass by command-line name.
@@ -132,9 +133,10 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_memory_objects::LowerMemoryObjects,
     &lower_evm_shaped::LowerEvmShaped,
     &lower_alloc::LowerAlloc,
+    &evm_inst_schedule::EvmInstSchedule,
 ];
 
-const DEFAULT_LOWERING_PASSES: usize = 12;
+const DEFAULT_LOWERING_PASSES: usize = 13;
 
 /// Cleanup passes rerun after the primary pipeline until no pass changes MIR.
 ///

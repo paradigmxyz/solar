@@ -1,5 +1,7 @@
+//@revisions: mir size
 //@ignore-host: windows
-//@compile-flags: -Zcodegen -Zdump=mir
+//@[mir] compile-flags: -Zcodegen -Zdump=mir
+//@[size] compile-flags: -Zcodegen -O size -Zdump=evm-ir-runtime
 
 contract FunctionCall {
     function double(uint256 x) internal pure returns (uint256) {

@@ -87,15 +87,7 @@ bb5:
   dup1
   push 224
   mstore
-  dup2
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
   push bb12
   jumpi
   push 224
@@ -124,15 +116,7 @@ bb9:
   dup1
   push 160
   mstore
-  dup2
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
   push bb12
   jumpi
   push 160
@@ -152,15 +136,7 @@ bb13:
   dup1
   push 192
   mstore
-  dup2
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
   push bb12
   jumpi
   push 192
@@ -185,15 +161,7 @@ bb18:
   dup1
   push 256
   mstore
-  dup2
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
   push bb12
   jumpi
   push 256
@@ -212,15 +180,7 @@ bb21:
   dup1
   push 288
   mstore
-  dup2
-  dup2
   lt
-  swap2
-  pop
-  dup2
-  swap2
-  pop
-  pop
   push bb12
   jumpi
   push 288
