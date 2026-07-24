@@ -29,6 +29,14 @@ enum MappingBaseSlot {
     Value(ValueId),
 }
 
+/// One member of an `abi.decode` target tuple.
+enum AbiDecodeTy {
+    /// An elementary value, including `bytes` and `string`.
+    Value(ElementaryType),
+    /// A dynamic array with an elementary element type.
+    Array(ElementaryType),
+}
+
 impl<'gcx> Lowerer<'gcx> {
     /// Lowers an expression, preserving whether it produces one MIR value.
     pub(super) fn lower_expr(
@@ -2143,7 +2151,7 @@ impl<'gcx> Lowerer<'gcx> {
         types: &hir::Expr<'_>,
         span: Span,
     ) -> Result<ValueId, ErrorGuaranteed> {
-        let elems = self.abi_decode_elementary_types(types, span)?;
+        let elems = self.abi_decode_target_types(types, span)?;
 
         // The decode logic below expects a memory `[length][data...]` pointer.
         // Calldata values and subslices carry `(ptr, len)` explicitly and are
@@ -2165,10 +2173,14 @@ impl<'gcx> Lowerer<'gcx> {
         for (i, elem) in elems.iter().enumerate() {
             let addr = self.offset_ptr(builder, data_start, (i * 32) as u64);
             let value = builder.mload(addr);
-            let decoded = if matches!(elem, ElementaryType::Bytes | ElementaryType::String) {
-                self.lower_abi_decode_dynamic_bytes(builder, data_start, len, head_size, value)
-            } else {
-                self.lower_abi_decode_word(builder, elem, value)
+            let decoded = match elem {
+                AbiDecodeTy::Value(ElementaryType::Bytes | ElementaryType::String) => {
+                    let head_size = builder.imm_u64(head_size);
+                    self.lower_abi_decode_dynamic_bytes(builder, data_start, len, head_size, value)
+                }
+                AbiDecodeTy::Value(elem) => self.lower_abi_decode_word(builder, elem, value),
+                AbiDecodeTy::Array(elem) => self
+                    .lower_abi_decode_dyn_array(builder, data_start, len, head_size, elem, value),
             };
             decoded_values.push(decoded);
         }
@@ -2178,53 +2190,174 @@ impl<'gcx> Lowerer<'gcx> {
         })
     }
 
-    fn abi_decode_elementary_types(
+    fn abi_decode_target_types(
         &self,
         types: &hir::Expr<'_>,
         span: Span,
-    ) -> Result<Vec<ElementaryType>, ErrorGuaranteed> {
-        let ExprKind::Tuple(elems) = &types.kind else {
-            let guar = self
-                .gcx
+    ) -> Result<Vec<AbiDecodeTy>, ErrorGuaranteed> {
+        let unsupported = |span: Span| {
+            self.gcx
                 .dcx()
-                .err("codegen only supports `abi.decode` into static values")
+                .err("codegen does not support this `abi.decode` target type yet")
                 .span(span)
-                .emit();
-            return Err(guar);
+                .emit()
+        };
+        let ExprKind::Tuple(elems) = &types.kind else {
+            return Err(unsupported(span));
         };
 
         let mut out = Vec::with_capacity(elems.len());
         for elem in elems.iter().copied() {
             let Some(elem_expr) = elem else {
-                let guar = self
-                    .gcx
-                    .dcx()
-                    .err("codegen only supports `abi.decode` into static values")
-                    .span(span)
-                    .emit();
-                return Err(guar);
+                return Err(unsupported(span));
             };
             let ExprKind::Type(ty) = &elem_expr.kind else {
-                let guar = self
-                    .gcx
-                    .dcx()
-                    .err("codegen only supports `abi.decode` into static values")
-                    .span(elem_expr.span)
-                    .emit();
-                return Err(guar);
+                return Err(unsupported(elem_expr.span));
             };
-            let hir::TypeKind::Elementary(elem) = &ty.kind else {
-                let guar = self
-                    .gcx
-                    .dcx()
-                    .err("codegen only supports `abi.decode` into static values")
-                    .span(ty.span)
-                    .emit();
-                return Err(guar);
-            };
-            out.push(*elem);
+            match &ty.kind {
+                hir::TypeKind::Elementary(elem) => out.push(AbiDecodeTy::Value(*elem)),
+                hir::TypeKind::Array(arr) if arr.size.is_none() => {
+                    let hir::TypeKind::Elementary(elem) = &arr.element.kind else {
+                        return Err(unsupported(arr.element.span));
+                    };
+                    out.push(AbiDecodeTy::Array(*elem));
+                }
+                _ => return Err(unsupported(ty.span)),
+            }
         }
         Ok(out)
+    }
+
+    /// Decodes one dynamic-array member of an `abi.decode` tuple: validates
+    /// the head offset and the array bounds against the encoded region, then
+    /// copies the payload into a fresh memory array. Word elements copy in
+    /// bulk with a per-element cleanliness check where the type requires one;
+    /// `bytes`/`string` elements decode each element like a dynamic-bytes
+    /// tuple member against the array's own data region.
+    fn lower_abi_decode_dyn_array(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        tuple_base: ValueId,
+        tuple_len: ValueId,
+        head_size: u64,
+        elem: &ElementaryType,
+        head: ValueId,
+    ) -> ValueId {
+        // The head word is an offset to `[length][payload...]`; it must land
+        // after the head area and its length word must be in bounds.
+        let head_size_val = builder.imm_u64(head_size);
+        let head_before_tail = builder.lt(head, head_size_val);
+        self.emit_abi_decode_revert_if(builder, head_before_tail);
+        let word = builder.imm_u64(32);
+        let tail_head_end = builder.add(head, word);
+        let head_overflow = builder.lt(tail_head_end, head);
+        self.emit_abi_decode_revert_if(builder, head_overflow);
+        let head_oob = builder.gt(tail_head_end, tuple_len);
+        self.emit_abi_decode_revert_if(builder, head_oob);
+
+        let len_addr = builder.add(tuple_base, head);
+        let arr_len = builder.mload(len_addr);
+        // Guard `len * 32` before it can wrap.
+        let shift = builder.imm_u64(250);
+        let shifted = builder.shr(shift, arr_len);
+        let in_range = builder.iszero(shifted);
+        let too_big = builder.iszero(in_range);
+        self.emit_abi_decode_revert_if(builder, too_big);
+        let payload_bytes = builder.mul(arr_len, word);
+        let payload_end = builder.add(tail_head_end, payload_bytes);
+        let payload_oob = builder.gt(payload_end, tuple_len);
+        self.emit_abi_decode_revert_if(builder, payload_oob);
+
+        let total_size = builder.add(word, payload_bytes);
+        let payload_src = builder.add(len_addr, word);
+
+        if matches!(elem, ElementaryType::Bytes | ElementaryType::String) {
+            // The payload is a head area of per-element offsets relative to
+            // the array's own data region; decode each element against that
+            // region into a fresh array of pointers.
+            let region_base = payload_src;
+            let region_len = builder.sub(tuple_len, tail_head_end);
+            let ptr = self.allocate_memory_object_dynamic(
+                builder,
+                total_size,
+                MemoryObjectKind::DynamicArray,
+            );
+            builder.set_memory_object_len(ptr, arr_len, MemoryObjectKind::DynamicArray);
+            let dst_data = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
+            self.emit_decode_elements_loop(builder, arr_len, |this, builder, index| {
+                let offset = builder.mul(index, word);
+                let head_addr = builder.add(region_base, offset);
+                let elem_head = builder.mload(head_addr);
+                let elem_ptr = this.lower_abi_decode_dynamic_bytes(
+                    builder,
+                    region_base,
+                    region_len,
+                    payload_bytes,
+                    elem_head,
+                );
+                let dst_addr = builder.add(dst_data, offset);
+                builder.mstore(dst_addr, elem_ptr);
+            });
+            return ptr;
+        }
+
+        // Word elements: bulk copy, then a cleanliness sweep where the
+        // element type does not span the full word.
+        let ptr = self.allocate_memory_object_dynamic(
+            builder,
+            total_size,
+            MemoryObjectKind::DynamicArray,
+        );
+        builder.set_memory_object_len(ptr, arr_len, MemoryObjectKind::DynamicArray);
+        let dst_data = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
+        self.mcopy(builder, dst_data, payload_src, payload_bytes, None);
+
+        let needs_validation = !matches!(
+            elem,
+            ElementaryType::UInt(size) if size.bits() == 256
+        ) && !matches!(elem, ElementaryType::Int(size) if size.bits() == 256)
+            && !matches!(elem, ElementaryType::FixedBytes(size) if size.bytes() == 32);
+        if needs_validation {
+            let elem = *elem;
+            self.emit_decode_elements_loop(builder, arr_len, |this, builder, index| {
+                let offset = builder.mul(index, word);
+                let addr = builder.add(dst_data, offset);
+                let value = builder.mload(addr);
+                let _ = this.lower_abi_decode_word(builder, &elem, value);
+            });
+        }
+        ptr
+    }
+
+    /// Emits a `for index in 0..len` loop around `body`; the builder ends up
+    /// in the exit block.
+    fn emit_decode_elements_loop(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        len: ValueId,
+        body: impl FnOnce(&mut Self, &mut FunctionBuilder<'_>, ValueId) + Copy,
+    ) {
+        let preheader = builder.current_block();
+        let header = builder.create_block();
+        let body_block = builder.create_block();
+        let exit = builder.create_block();
+        let zero = builder.imm_u64(0);
+        builder.jump(header);
+
+        builder.switch_to_block(header);
+        let index_phi = builder.phi(vec![(preheader, zero)]);
+        let has_more = builder.lt(index_phi, len);
+        builder.branch(has_more, body_block, exit);
+
+        builder.switch_to_block(body_block);
+        body(self, builder, index_phi);
+        let one = builder.imm_u64(1);
+        let index_next = builder.add(index_phi, one);
+        let latch = builder.current_block();
+        builder.jump(header);
+        builder.add_phi_incoming(index_phi, latch, index_next);
+
+        builder.switch_to_block(exit);
     }
 
     fn lower_abi_decode_dynamic_bytes(
@@ -2232,10 +2365,9 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         tuple_base: ValueId,
         tuple_len: ValueId,
-        head_size: u64,
+        head_size: ValueId,
         head: ValueId,
     ) -> ValueId {
-        let head_size = builder.imm_u64(head_size);
         let head_before_tail = builder.lt(head, head_size);
         self.emit_abi_decode_revert_if(builder, head_before_tail);
 
