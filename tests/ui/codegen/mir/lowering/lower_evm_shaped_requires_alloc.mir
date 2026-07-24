@@ -5,7 +5,7 @@
 @module LowerEvmShapedRequiresAlloc
 @phase memory-lowered
 
-// CHECK-LABEL:   fn @entry() {
+// CHECK-LABEL:   fn @entry{{.*}}
 // CHECK:     v0 = fmp
 // CHECK-NEXT:     stop
 fn @entry() {

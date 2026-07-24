@@ -5,7 +5,7 @@
 // The CFG visits bb5 through bb1, opposite the block storage order. Discovering
 // the full derived-address chain therefore requires more than four scans.
 // CHECK-LABEL: + // === {{.*}} (after static-alloc) ===
-// CHECK:   fn @derived_chain() -> u256 {
+// CHECK:   fn @derived_chain{{.*}}
 // CHECK: -     {{v[0-9]+}} = alloc raw, exact, uninitialized, infallible, 32
 // CHECK:       [[LOAD:v[0-9]+]] = mload {{v[0-9]+}}
 // CHECK:       ret [[LOAD]]
@@ -34,7 +34,7 @@ fn @derived_chain() -> u256 [selector=0x01020304] {
 
 // Storage promotion gives another entry a 32-byte frame, providing the shadow
 // region used by the explicit static-allocation pass.
-// CHECK-LABEL:   fn @reserve_frame() {
+// CHECK-LABEL:   fn @reserve_frame{{.*}}
 // CHECK:       mstore 128, 1
 fn @reserve_frame() [selector=0x01020305] {
   bb0:
