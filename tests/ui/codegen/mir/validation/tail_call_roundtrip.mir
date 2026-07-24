@@ -14,7 +14,7 @@ fn @entry() {
     v1 = calldataload 0
     v3 = shr 224, v1
     v4 = eq v3, 0x9507d39a
-    br v4, bb1, bb2
+    jumpi v4, bb1, bb2
   bb1:
     v6 = calldataload 4
     tail_call fn0, v6

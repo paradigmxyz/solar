@@ -11,7 +11,7 @@ fn @hoist_non_aliasing_mload() -> u256 {
   bb0:
     jump bb1
   bb1:
-    br true, bb2, bb3
+    jumpi true, bb2, bb3
   bb2:
     v0 = mload 0
     mstore 64, 1
@@ -21,7 +21,7 @@ fn @hoist_non_aliasing_mload() -> u256 {
 }
 
 // CHECK-LABEL: @keep_aliasing_mload
-// CHECK: {{^ +}}br {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
 // CHECK: {{^ +}}[[BODY]]:
 // CHECK: {{^ +}}{{v[0-9]+}} = mload {{[0-9]+}}
 // CHECK: {{^ +}}mstore {{[0-9]+}}, 1
@@ -29,7 +29,7 @@ fn @keep_aliasing_mload() -> u256 {
   bb0:
     jump bb1
   bb1:
-    br true, bb2, bb3
+    jumpi true, bb2, bb3
   bb2:
     v0 = mload 0
     mstore 16, 1
@@ -47,7 +47,7 @@ fn @hoist_non_aliasing_keccak() -> bytes32 {
   bb0:
     jump bb1
   bb1:
-    br true, bb2, bb3
+    jumpi true, bb2, bb3
   bb2:
     v0 = keccak256 0, 32
     mstore 64, 1
@@ -57,7 +57,7 @@ fn @hoist_non_aliasing_keccak() -> bytes32 {
 }
 
 // CHECK-LABEL: @keep_aliasing_keccak
-// CHECK: {{^ +}}br {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
 // CHECK: {{^ +}}[[BODY]]:
 // CHECK: {{^ +}}{{v[0-9]+}} = keccak256 {{[0-9]+}}, {{[0-9]+}}
 // CHECK: {{^ +}}mstore {{[0-9]+}}, 1
@@ -65,7 +65,7 @@ fn @keep_aliasing_keccak() -> bytes32 {
   bb0:
     jump bb1
   bb1:
-    br true, bb2, bb3
+    jumpi true, bb2, bb3
   bb2:
     v0 = keccak256 0, 32
     mstore 16, 1

@@ -80,8 +80,8 @@
     bb0:
       v0 = lt 0, arg0
       v1 = iszero v0
--     br v1, bb1, bb2
-+     br arg0, bb2, bb1
+-     jumpi v1, bb1, bb2
++     jumpi arg0, bb2, bb1
     bb1:
       stop
     bb2:

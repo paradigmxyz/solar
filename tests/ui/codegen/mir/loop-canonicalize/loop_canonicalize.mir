@@ -2,14 +2,14 @@
 @module LoopCanonicalize
 fn @insert_preheader(arg0: bool) -> u256 {
   bb0:
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     jump bb3
   bb2:
     jump bb3
   bb3:
     v1 = phi [bb1: 10], [bb2: 20], [bb4: 30]
-    br true, bb4, bb5
+    jumpi true, bb4, bb5
   bb4:
     jump bb3
   bb5:
@@ -18,10 +18,10 @@ fn @insert_preheader(arg0: bool) -> u256 {
 
 fn @split_conditional_predecessor(arg0: bool) -> u256 {
   bb0:
-    br arg0, bb1, bb3
+    jumpi arg0, bb1, bb3
   bb1:
     v1 = phi [bb0: 0], [bb2: 1]
-    br true, bb2, bb3
+    jumpi true, bb2, bb3
   bb2:
     jump bb1
   bb3:

@@ -24,7 +24,7 @@ fn @set(arg0: bool, arg1: bool) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -32,7 +32,7 @@ fn @set(arg0: bool, arg1: bool) {
     v4 = iszero v3
     v5 = iszero v4
     v6 = eq v3, v5
-    br v6, bb4, bb3
+    jumpi v6, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -40,7 +40,7 @@ fn @set(arg0: bool, arg1: bool) {
     v8 = iszero v7
     v9 = iszero v8
     v10 = eq v7, v9
-    br v10, bb6, bb5
+    jumpi v10, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
@@ -63,7 +63,7 @@ fn @both() {
     mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
-    br v1, bb1, bb2
+    jumpi v1, bb1, bb2
   bb1:
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = shr 8, v2

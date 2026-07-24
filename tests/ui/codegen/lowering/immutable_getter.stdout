@@ -13,7 +13,7 @@ fn @_anonymous(arg0: address) {
     v0 = mload 128
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = eq v0, v1
-    br v2, bb2, bb1
+    jumpi v2, bb2, bb1
   bb1:
     revert 0, 0
   bb2:

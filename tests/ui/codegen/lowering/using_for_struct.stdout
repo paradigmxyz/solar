@@ -34,7 +34,7 @@ fn @viaMethod(arg0: bytes32, arg1: bytes32) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:

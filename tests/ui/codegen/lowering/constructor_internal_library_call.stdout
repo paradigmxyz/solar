@@ -5,7 +5,7 @@ fn @helper(arg0: u256) -> u256 {
     v0 = internal_frame_addr 128
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = eq arg0, 0
-    br v1, bb1, bb2
+    jumpi v1, bb1, bb2
   bb1:
     ret 1
   bb2:
@@ -15,7 +15,7 @@ fn @helper(arg0: u256) -> u256 {
     v5 = eq v4, arg0
     v6 = or v3, v5
     v7 = iszero v6
-    br v7, bb3, bb4
+    jumpi v7, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -23,7 +23,7 @@ fn @helper(arg0: u256) -> u256 {
   bb4:
     v8 = sub arg0, 1
     v9 = lt arg0, 1
-    br v9, bb5, bb6
+    jumpi v9, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -32,7 +32,7 @@ fn @helper(arg0: u256) -> u256 {
     v10 = internal_call @helper, 1, v8
     v11 = add v2, v10
     v12 = lt v11, v2
-    br v12, bb7, bb8
+    jumpi v12, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -64,7 +64,7 @@ fn @helper(arg0: u256) -> u256 {
     v0 = internal_frame_addr 128
     mstore v0, 0 !metadata(memory=internal_frame)
     v1 = eq arg0, 0
-    br v1, bb1, bb2
+    jumpi v1, bb1, bb2
   bb1:
     ret 1
   bb2:
@@ -74,7 +74,7 @@ fn @helper(arg0: u256) -> u256 {
     v5 = eq v4, arg0
     v6 = or v3, v5
     v7 = iszero v6
-    br v7, bb3, bb4
+    jumpi v7, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -82,7 +82,7 @@ fn @helper(arg0: u256) -> u256 {
   bb4:
     v8 = sub arg0, 1
     v9 = lt arg0, 1
-    br v9, bb5, bb6
+    jumpi v9, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -91,7 +91,7 @@ fn @helper(arg0: u256) -> u256 {
     v10 = internal_call @helper, 1, v8
     v11 = add v2, v10
     v12 = lt v11, v2
-    br v12, bb7, bb8
+    jumpi v12, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

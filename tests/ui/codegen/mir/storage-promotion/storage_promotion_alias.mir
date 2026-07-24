@@ -5,7 +5,7 @@
 // CHECK-LABEL: @reject_two_symbolic_slots
 // CHECK: +     sstore arg0, 1
 // CHECK: +     sstore arg1, 2
-// CHECK:       br {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK:       jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
 // CHECK:       [[BODY]]:
 // CHECK: +     [[FIRST:v[0-9]+]] = sload arg0
 // CHECK:       [[FIRST_UPDATED:v[0-9]+]] = mul [[FIRST]], 2
@@ -19,7 +19,7 @@ fn @reject_two_symbolic_slots(arg0: u256, arg1: u256) [selector=0x01020304] {
     sstore arg1, 2
     jump bb1
   bb1:
-    br true, bb2, bb4
+    jumpi true, bb2, bb4
   bb2:
     v1 = sload arg0
     v2 = mul v1, 2
@@ -37,7 +37,7 @@ fn @reject_two_symbolic_slots(arg0: u256, arg1: u256) [selector=0x01020304] {
 // CHECK-LABEL: @reject_symbolic_and_constant_slots
 // CHECK: +     sstore arg0, 1
 // CHECK: +     sstore [[CONSTANT_SLOT:[0-9]+]], 2
-// CHECK:       br {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK:       jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
 // CHECK:       [[BODY]]:
 // CHECK: +     [[SYMBOLIC:v[0-9]+]] = sload arg0
 // CHECK:       [[SYMBOLIC_UPDATED:v[0-9]+]] = mul [[SYMBOLIC]], 2
@@ -51,7 +51,7 @@ fn @reject_symbolic_and_constant_slots(arg0: u256) [selector=0x01020304] {
     sstore 7, 2
     jump bb1
   bb1:
-    br true, bb2, bb4
+    jumpi true, bb2, bb4
   bb2:
     v1 = sload arg0
     v2 = mul v1, 2
@@ -71,7 +71,7 @@ fn @reject_symbolic_and_constant_slots(arg0: u256) [selector=0x01020304] {
 // CHECK: -     sstore [[ONE_SLOT:[0-9]+]], 2
 // CHECK:       mstore [[ZERO_ADDR:[0-9]+]], 1
 // CHECK:       mstore [[ONE_ADDR:[0-9]+]], 2
-// CHECK:       br {{.*}}, [[BODY:bb[0-9]+]], [[EXIT:bb[0-9]+]]
+// CHECK:       jumpi {{.*}}, [[BODY:bb[0-9]+]], [[EXIT:bb[0-9]+]]
 // CHECK:       [[BODY]]:
 // CHECK: -     {{v[0-9]+}} = sload [[ZERO_SLOT]]
 // CHECK:       [[ZERO_VALUE:v[0-9]+]] = mload [[ZERO_ADDR]]
@@ -94,7 +94,7 @@ fn @promote_two_constant_slots() [selector=0x01020304] {
     sstore 1, 2
     jump bb1
   bb1:
-    br true, bb2, bb4
+    jumpi true, bb2, bb4
   bb2:
     v1 = sload 0
     v2 = mul v1, 2
@@ -116,7 +116,7 @@ fn @promote_two_constant_slots() [selector=0x01020304] {
 // CHECK:       [[TWO_SLOT:v[0-9]+]] = add arg0, 2
 // CHECK: -     sstore [[TWO_SLOT]], 2
 // CHECK:       mstore [[TWO_ADDR:[0-9]+]], 2
-// CHECK:       br {{.*}}, [[BODY:bb[0-9]+]], [[EXIT:bb[0-9]+]]
+// CHECK:       jumpi {{.*}}, [[BODY:bb[0-9]+]], [[EXIT:bb[0-9]+]]
 // CHECK:       [[BODY]]:
 // CHECK:       [[BODY_ONE_SLOT:v[0-9]+]] = add arg0, 1
 // CHECK: -     {{v[0-9]+}} = sload [[BODY_ONE_SLOT]]
@@ -145,7 +145,7 @@ fn @promote_same_base_distinct_offsets(arg0: u256) [selector=0x01020304] {
     sstore v2, 2
     jump bb1
   bb1:
-    br true, bb2, bb4
+    jumpi true, bb2, bb4
   bb2:
     v3 = add arg0, 1
     v4 = sload v3

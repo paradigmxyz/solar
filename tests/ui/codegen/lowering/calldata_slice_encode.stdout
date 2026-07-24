@@ -5,7 +5,7 @@ fn @encode(arg0: calldataslice, arg1: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -13,7 +13,7 @@ fn @encode(arg0: calldataslice, arg1: u256) {
     v3 = slice_ptr arg0
     v4 = slice_len arg0
     v5 = lt v4, arg1
-    br v5, bb3, bb4
+    jumpi v5, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -34,7 +34,7 @@ fn @encode(arg0: calldataslice, arg1: u256) {
     v16 = and v15, v14
     v17 = add v11, 32
     v18 = iszero v16
-    br v18, bb6, bb5
+    jumpi v18, bb6, bb5
   bb5:
     v19 = sub v16, 32
     v20 = add v17, v19
@@ -78,7 +78,7 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -89,7 +89,7 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
     v5 = calldataload 68
     v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
     v7 = eq v5, v6
-    br v7, bb4, bb3
+    jumpi v7, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -99,7 +99,7 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
     v11 = slice_ptr v10
     v12 = slice_len v10
     v13 = lt v12, arg1
-    br v13, bb5, bb6
+    jumpi v13, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -125,7 +125,7 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
     v27 = mload 32 !metadata(memory=scratch)
     v28 = call v26, v25, 0, v27, v24, 0, 32
     v29 = iszero v28
-    br v29, bb7, bb8
+    jumpi v29, bb7, bb8
   bb7:
     v30 = returndatasize
     returndatacopy 0, 0, v30 !metadata(memory=scratch)

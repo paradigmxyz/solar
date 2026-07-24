@@ -8,7 +8,7 @@
 +     mstore 224, 0
       jump bb6
     bb1:
-      br 1, bb2, bb4
+      jumpi 1, bb2, bb4
     bb2:
 -     sstore 0, 7
 +     mstore 128, 7
@@ -19,7 +19,7 @@
     bb4:
 -     jump bb5
 +     v2 = mload 160
-+     br v2, bb10, bb9
++     jumpi v2, bb10, bb9
     bb5:
 -     v0 = sload 0
 +     v0 = mload 192
@@ -29,13 +29,13 @@
 +     mstore 224, 1
       jump bb6
     bb6:
-      br 1, bb7, bb8
+      jumpi 1, bb7, bb8
     bb7:
 +     mstore 160, 0
       jump bb1
     bb8:
 +     v5 = mload 224
-+     br v5, bb12, bb11
++     jumpi v5, bb12, bb11
 +   bb9:
 +     jump bb5
 +   bb10:
@@ -55,7 +55,7 @@
     bb0:
       jump bb6
     bb1:
-      br 1, bb2, bb4
+      jumpi 1, bb2, bb4
     bb2:
 -     sstore arg0, 7
 +     mstore 128, 7
@@ -66,7 +66,7 @@
     bb4:
 -     jump bb5
 +     v2 = mload 160
-+     br v2, bb10, bb9
++     jumpi v2, bb10, bb9
     bb5:
 -     v0 = sload 0
 +     v0 = sload 0 !metadata(storage=slot(0))
@@ -75,7 +75,7 @@
 +     sstore 0, v1 !metadata(storage=slot(0))
       jump bb6
     bb6:
-      br 1, bb7, bb8
+      jumpi 1, bb7, bb8
     bb7:
 +     mstore 160, 0
       jump bb1

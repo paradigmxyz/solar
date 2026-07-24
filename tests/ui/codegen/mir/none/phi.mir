@@ -2,7 +2,7 @@
 @module PhiTest
 fn @diamond(arg0: bool) -> u256 {
   bb0:
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb1:
     jump bb3
   bb2:

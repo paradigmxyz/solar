@@ -133,7 +133,7 @@ impl Terminator {
     pub(crate) const fn mnemonic(&self) -> &'static str {
         match self {
             Self::Jump(_) => "jump",
-            Self::Branch { .. } => "branch",
+            Self::Branch { .. } => "jumpi",
             Self::Switch { .. } => "switch",
             Self::Return { .. } => "return",
             Self::Revert { .. } => "revert",
@@ -179,7 +179,7 @@ impl fmt::Display for Terminator {
             Self::Branch { condition, then_block, else_block } => {
                 write!(
                     f,
-                    "branch v{}, bb{}, bb{}",
+                    "jumpi v{}, bb{}, bb{}",
                     condition.index(),
                     then_block.index(),
                     else_block.index()

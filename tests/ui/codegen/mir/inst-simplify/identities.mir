@@ -113,13 +113,13 @@ fn @own_balance() -> u256 {
 }
 
 // CHECK-LABEL: @invert_iszero_branch
-// CHECK: -     br {{v[0-9]+}}, [[THEN:bb[0-9]+]], [[ELSE:bb[0-9]+]]
-// CHECK:       br arg0, [[ELSE]], [[THEN]]
+// CHECK: -     jumpi {{v[0-9]+}}, [[THEN:bb[0-9]+]], [[ELSE:bb[0-9]+]]
+// CHECK:       jumpi arg0, [[ELSE]], [[THEN]]
 fn @invert_iszero_branch(arg0: u256) {
   bb0:
     v1 = lt 0, arg0
     v2 = iszero v1
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     stop
   bb2:

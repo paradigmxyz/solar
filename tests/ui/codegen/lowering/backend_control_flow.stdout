@@ -37,11 +37,11 @@ fn @localVarInConditional() {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = eq v0, 0
     v2 = iszero v1
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     v3 = sub v0, 1
     v4 = lt v0, 1
-    br v4, bb3, bb4
+    jumpi v4, bb3, bb4
   bb2:
     stop
   bb3:
@@ -58,12 +58,12 @@ fn @directStorageInConditional() {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = eq v0, 0
     v2 = iszero v1
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = sub v3, 1
     v5 = lt v3, 1
-    br v5, bb3, bb4
+    jumpi v5, bb3, bb4
   bb2:
     stop
   bb3:
@@ -80,7 +80,7 @@ fn @phiAfterBranch() {
     mstore 128, 0
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = eq v0, 0
-    br v1, bb1, bb3
+    jumpi v1, bb1, bb3
   bb1:
     mstore 128, 1
     jump bb2
@@ -89,7 +89,7 @@ fn @phiAfterBranch() {
     v3 = sload 1 !metadata(storage=slot(1))
     v4 = add v3, v2
     v5 = lt v4, v3
-    br v5, bb4, bb5
+    jumpi v5, bb4, bb5
   bb3:
     mstore 128, 2
     jump bb2
@@ -110,7 +110,7 @@ fn @phiUsedMultipleTimes() {
     mstore 160, 0
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = eq v0, 0
-    br v1, bb1, bb3
+    jumpi v1, bb1, bb3
   bb1:
     mstore 160, 1
     jump bb2
@@ -119,7 +119,7 @@ fn @phiUsedMultipleTimes() {
     v3 = sload 1 !metadata(storage=slot(1))
     v4 = add v3, v2
     v5 = lt v4, v3
-    br v5, bb4, bb5
+    jumpi v5, bb4, bb5
   bb3:
     mstore 160, 2
     jump bb2
@@ -136,7 +136,7 @@ fn @phiUsedMultipleTimes() {
     v10 = eq v9, v6
     v11 = or v8, v10
     v12 = iszero v11
-    br v12, bb6, bb7
+    jumpi v12, bb6, bb7
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -145,7 +145,7 @@ fn @phiUsedMultipleTimes() {
     v13 = mload 160
     v14 = add v7, v13
     v15 = lt v14, v7
-    br v15, bb8, bb9
+    jumpi v15, bb8, bb9
   bb8:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -162,7 +162,7 @@ fn @phiWithTernary() {
     mstore 128, 0
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = eq v0, 0
-    br v1, bb1, bb3
+    jumpi v1, bb1, bb3
   bb1:
     v2 = mul 100, 200
     v3 = iszero 200
@@ -170,13 +170,13 @@ fn @phiWithTernary() {
     v5 = eq v4, 100
     v6 = or v3, v5
     v7 = iszero v6
-    br v7, bb4, bb5
+    jumpi v7, bb4, bb5
   bb2:
     v28 = mload 128
     v29 = sload 1 !metadata(storage=slot(1))
     v30 = add v29, v28
     v31 = lt v30, v29
-    br v31, bb17, bb18
+    jumpi v31, bb17, bb18
   bb3:
     v8 = sload 1 !metadata(storage=slot(1))
     v9 = mul 100, v8
@@ -185,7 +185,7 @@ fn @phiWithTernary() {
     v12 = eq v11, 100
     v13 = or v10, v12
     v14 = iszero v13
-    br v14, bb6, bb7
+    jumpi v14, bb6, bb7
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -199,7 +199,7 @@ fn @phiWithTernary() {
     revert 0, 36
   bb7:
     v15 = sload 2 !metadata(storage=slot(2))
-    br v15, bb9, bb8
+    jumpi v15, bb9, bb8
   bb8:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 18 !metadata(memory=scratch)
@@ -213,14 +213,14 @@ fn @phiWithTernary() {
     v21 = eq v20, 200
     v22 = or v19, v21
     v23 = iszero v22
-    br v23, bb10, bb11
+    jumpi v23, bb10, bb11
   bb10:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb11:
     v24 = sload 3 !metadata(storage=slot(3))
-    br v24, bb13, bb12
+    jumpi v24, bb13, bb12
   bb12:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 18 !metadata(memory=scratch)
@@ -228,7 +228,7 @@ fn @phiWithTernary() {
   bb13:
     v25 = div v18, v24
     v26 = lt v16, v25
-    br v26, bb14, bb15
+    jumpi v26, bb14, bb15
   bb14:
     mstore 0, v16 !metadata(memory=scratch)
     jump bb16
