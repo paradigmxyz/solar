@@ -1,9 +1,10 @@
 //! Stack shuffler for stack layout transitions.
 //!
-//! This module converts a source stack layout to a target layout using DUP,
-//! SWAP, and POP operations. A greedy fast path handles ordinary edges; its
-//! resulting model is verified against the exact target, with a bounded exact
-//! search as the fallback.
+//! This module converts a source stack layout to a target layout using DUP, SWAP, and POP
+//! operations. Layouts of up to four words compare nontrivial greedy results with a bounded exact
+//! search and take an exact sequence only when it improves one objective without worsening action
+//! count or static gas. Larger layouts use the verified greedy result, with exact search as the
+//! correctness fallback when the greedy pass cannot reach the target.
 //!
 //! ## Algorithm overview
 //!
@@ -24,6 +25,7 @@ use solar_data_structures::map::FxHashMap;
 use std::collections::VecDeque;
 
 const MAX_LAYOUT_SEARCH_STATES: usize = 100_000;
+const EXACT_LAYOUT_OPTIMIZATION_LIMIT: usize = 4;
 
 type Layout = SmallVec<[Option<ValueId>; 16]>;
 type Predecessors = FxHashMap<Layout, Option<(Layout, StackOp)>>;
@@ -73,20 +75,44 @@ impl<'a> StackShuffler<'a> {
     pub(crate) fn shuffle(mut self) -> Option<ShuffleResult> {
         let original = self.source.clone();
 
-        // Phase 1: Ensure we have enough copies of each value
+        // Phase 1: Ensure we have enough copies of each value.
         self.ensure_multiplicities();
 
-        // Phase 2: Arrange values to match target positions
+        // Phase 2: Arrange values to match target positions.
         self.arrange_positions();
 
-        // Phase 3: Pop excess values
+        // Phase 3: Pop excess values.
         self.pop_excess();
 
-        if Self::matches_target(&self.source, self.target) {
-            return Some(ShuffleResult { ops: self.ops });
+        let greedy = Self::matches_target(&self.source, self.target)
+            .then_some(ShuffleResult { ops: self.ops });
+        let operation_lower_bound = original
+            .len()
+            .abs_diff(self.target.len())
+            .max(usize::from(!Self::matches_target(&original, self.target)));
+        if original.len().max(self.target.len()) <= EXACT_LAYOUT_OPTIMIZATION_LIMIT
+            && greedy.as_ref().is_none_or(|result| result.ops.len() > operation_lower_bound)
+        {
+            let exact = Self::search_exact(original, self.target, &self.multiplicities);
+            return match (greedy, exact) {
+                (Some(greedy), Some(exact)) => {
+                    let exact_gas = Self::static_gas(&exact.ops);
+                    let greedy_gas = Self::static_gas(&greedy.ops);
+                    if exact.ops.len() <= greedy.ops.len()
+                        && exact_gas <= greedy_gas
+                        && (exact.ops.len() < greedy.ops.len() || exact_gas < greedy_gas)
+                    {
+                        Some(exact)
+                    } else {
+                        Some(greedy)
+                    }
+                }
+                (None, Some(exact)) => Some(exact),
+                (greedy, None) => greedy,
+            };
         }
 
-        Self::search_exact(original, self.target, &self.multiplicities)
+        greedy.or_else(|| Self::search_exact(original, self.target, &self.multiplicities))
     }
 
     fn search_exact(
@@ -161,6 +187,10 @@ impl<'a> StackShuffler<'a> {
         None
     }
 
+    fn static_gas(ops: &[StackOp]) -> usize {
+        ops.iter().map(|op| if matches!(op, StackOp::Pop) { 2 } else { 3 }).sum()
+    }
+
     fn enqueue(
         queue: &mut VecDeque<Layout>,
         predecessors: &mut Predecessors,
@@ -184,11 +214,11 @@ impl<'a> StackShuffler<'a> {
 
     /// Phase 1: Ensure we have enough copies of each value in source.
     fn ensure_multiplicities(&mut self) {
-        // For each value, check if we have enough copies
+        // For each value, check if we have enough copies.
         for (&value, &needed) in self.multiplicities.iter() {
             let current_count = self.source.iter().filter(|&&v| v == Some(value)).count();
             if current_count < needed {
-                // Need to DUP this value
+                // DUP this value until its target multiplicity is available.
                 if let Some(depth) = self.find_value(value)
                     && depth < MAX_STACK_ACCESS
                 {
@@ -206,33 +236,32 @@ impl<'a> StackShuffler<'a> {
 
     /// Phase 2: Arrange values to match target positions using SWAPs.
     fn arrange_positions(&mut self) {
-        // Work from top of stack downward
+        // Work from top of stack downward.
         for target_depth in 0..self.target.len().min(self.source.len()) {
             let target_slot = &self.target[target_depth];
 
             match target_slot {
                 TargetSlot::Value(target_val) => {
-                    // Check if correct value is already at this position
+                    // Check if the correct value is already at this position.
                     if self.source.get(target_depth) == Some(&Some(*target_val)) {
                         continue;
                     }
 
-                    // Find where the target value currently is
+                    // Find where the target value currently is.
                     if let Some(source_depth) = self.find_value_from(*target_val, target_depth)
                         && source_depth != target_depth
                         && source_depth <= MAX_STACK_ACCESS
                     {
-                        // Need to swap
+                        // Move the selected value into place.
                         if target_depth == 0 {
-                            // Simple case: swap to top
+                            // The top position needs one swap.
                             let swap_n = source_depth as u8;
                             if (1..=16).contains(&swap_n) {
                                 self.swap(source_depth);
                             }
                         } else {
-                            // Need to bring target value to position target_depth
-                            // First swap current top to target_depth, then bring value to
-                            // top, then swap back
+                            // First swap the current top to `target_depth`, then bring the selected
+                            // value to the top and swap it back.
                             if target_depth <= MAX_STACK_ACCESS && source_depth <= MAX_STACK_ACCESS
                             {
                                 // Swap top with target_depth position
@@ -267,14 +296,14 @@ impl<'a> StackShuffler<'a> {
 
     /// Phase 3: Pop excess values from the stack.
     fn pop_excess(&mut self) {
-        // Count how many of each value we still need
+        // Count how many of each value we still need.
         let mut still_needed: FxHashMap<ValueId, usize> = FxHashMap::default();
         for slot in self.target.iter() {
             let TargetSlot::Value(v) = slot;
             *still_needed.entry(*v).or_insert(0) += 1;
         }
 
-        // Pop values from top that are no longer needed
+        // Pop values from the top that are no longer needed.
         while !self.source.is_empty() {
             if let Some(Some(top_val)) = self.source.first() {
                 let needed = still_needed.get(top_val).copied().unwrap_or(0);
@@ -286,7 +315,7 @@ impl<'a> StackShuffler<'a> {
                     break;
                 }
             } else if self.source.first() == Some(&None) {
-                // Unknown value on top - pop it if target is shorter
+                // Pop an anonymous top value if the target is shorter.
                 if self.source.len() > self.target.len() {
                     self.ops.push(StackOp::Pop);
                     self.source.remove(0);
@@ -452,6 +481,19 @@ mod tests {
     }
 
     #[test]
+    fn test_shuffle_optimizes_duplicate_placement() {
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+        let source = make_model(&[Some(v0), Some(v1)]);
+        let target = [TargetSlot::Value(v0), TargetSlot::Value(v1), TargetSlot::Value(v0)];
+
+        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
+
+        assert_eq!(result.ops, [StackOp::Swap(1), StackOp::Dup(2)]);
+        assert_reaches(&source, &target, &result);
+    }
+
+    #[test]
     fn test_shuffle_uses_swap16() {
         let values: Vec<_> = (0..=MAX_STACK_ACCESS).map(ValueId::from_usize).collect();
         let source = make_model(&values.iter().copied().map(Some).collect::<Vec<_>>());
@@ -476,7 +518,7 @@ mod tests {
     }
 
     #[test]
-    fn exhaustive_small_reachable_layouts_are_verified() {
+    fn exhaustive_small_reachable_layouts_are_optimal() {
         let values = [ValueId::from_usize(0), ValueId::from_usize(1), ValueId::from_usize(2)];
         let sources: Vec<_> = (1..=4).flat_map(|len| sequences(&values, len)).collect();
         let targets: Vec<_> = (0..=4).flat_map(|len| sequences(&values, len)).collect();
@@ -493,6 +535,17 @@ mod tests {
                 let result = StackShuffler::new(&source, &target).shuffle().unwrap_or_else(|| {
                     panic!("failed to shuffle {source_values:?} to {target_values:?}")
                 });
+                let shuffler = StackShuffler::new(&source, &target);
+                let exact =
+                    StackShuffler::search_exact(shuffler.source, &target, &shuffler.multiplicities)
+                        .unwrap();
+                assert!(
+                    result.ops.len() <= exact.ops.len(),
+                    "non-minimal shuffle from {source_values:?} to {target_values:?}: \
+                     greedy={:?}, exact={:?}",
+                    result.ops,
+                    exact.ops
+                );
                 assert_reaches(&source, &target, &result);
             }
         }
