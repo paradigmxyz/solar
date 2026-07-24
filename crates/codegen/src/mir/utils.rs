@@ -166,39 +166,31 @@ pub(crate) fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> B
 }
 
 /// Rebuilds CFG edge lists from terminators and drops phi inputs from blocks
-/// that are no longer predecessors. Returns true if any phi input was dropped.
+/// that are no longer predecessors. Returns true if either changed.
 #[must_use]
 pub(crate) fn repair_reachability_phis(func: &mut Function) -> bool {
-    let mut edges = Vec::new();
+    let mut predecessors = index_vec![smallvec![]; func.blocks.len()];
     for (block, bb) in func.blocks.iter_enumerated() {
         if let Some(term) = &bb.terminator {
-            edges.push((block, term.successors()));
-        }
-    }
-
-    for block in func.blocks.iter_mut() {
-        block.predecessors.clear();
-    }
-
-    for (block, successors) in edges {
-        for succ in successors {
-            func.blocks[succ].predecessors.push(block);
+            for succ in term.successors() {
+                predecessors[succ].push(block);
+            }
         }
     }
 
     let mut changed = false;
-    let block_ids: Vec<_> = func.blocks.indices().collect();
-    for block_id in block_ids {
-        let predecessors = func.blocks[block_id].predecessors.clone();
+    for (block_id, block_predecessors) in predecessors.into_iter_enumerated() {
+        changed |= func.blocks[block_id].predecessors != block_predecessors;
         let instruction_count = func.blocks[block_id].instructions.len();
         for index in 0..instruction_count {
             let inst_id = func.blocks[block_id].instructions[index];
             if let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind {
                 let len_before = incoming.len();
-                incoming.retain(|(pred, _)| predecessors.contains(pred));
+                incoming.retain(|(pred, _)| block_predecessors.contains(pred));
                 changed |= incoming.len() != len_before;
             }
         }
+        func.blocks[block_id].predecessors = block_predecessors;
     }
     changed
 }
