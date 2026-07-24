@@ -15,10 +15,7 @@ use clap::ValueHint;
 use solar_codegen::{
     lower,
     mir::{Module, validate},
-    pass::{
-        ALL_PASSES, DEFAULT_CLEANUP_PIPELINE, DEFAULT_PIPELINE, MirPass, lookup_pass,
-        run_default_pipeline, run_passes,
-    },
+    pass::{ALL_PASSES, DEFAULT_PIPELINE, MirPass, lookup_pass, run_default_pipeline, run_passes},
 };
 use solar_config::CompileOpts;
 use solar_data_structures::fmt::{self, FmtIteratorExt};
@@ -49,15 +46,11 @@ Passes:
 Default pipeline:
   {}
 
-Default cleanup fixpoint:
-  {}
-
 Input formats:
   *.sol  Solidity contract — lowered through the normal compiler pipeline
   *.mir  Textual MIR — parsed directly via solar_codegen::mir::Module::parse",
             display_pass_list(ALL_PASSES, separator),
-            display_pass_list(DEFAULT_PIPELINE, " → "),
-            display_pass_list(DEFAULT_CLEANUP_PIPELINE, " → ")
+            display_pass_list(DEFAULT_PIPELINE, " → ")
         )
     })
     .to_string()

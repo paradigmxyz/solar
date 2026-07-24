@@ -1,5 +1,4 @@
 //@compile-flags: -Zcodegen -Zdump=mir
-//@check-fail
 
 // Unsupported constructs reported during lowering produce an error sentinel
 // value instead of panicking or silently lowering to zero. This used to ICE.

@@ -1,0 +1,7 @@
+// === ROOT/tests/ui/codegen/mir/pipeline/pipeline_cleanup.mir (after pipeline-default) ===
+@module PipelineCleanup
+@phase optimized
+fn @fold_phi_after_promotion(arg0: bool) -> u256 {
+  bb0:
+    ret 1
+}

@@ -1,5 +1,9 @@
 //@compile-flags: --pass dce
-//@failure-status: 1
+//~? ERROR: [fn0] [bb0, inst0] slice instruction `make_memory_slice` survives the `evm-shaped` phase boundary
+//~? ERROR: [fn0] [bb0, inst1] slice instruction `slice_len` survives the `evm-shaped` phase boundary
+//~? ERROR: [fn1] [bb0, inst0] ABI encoding instruction `abi_encode` survives the `evm-shaped` phase boundary
+//~? ERROR: [fn2] memory-object signature type `memorystruct` survives the `evm-shaped` phase boundary
+//~? ERROR: [fn2] [bb0, inst0] aggregate instruction `storage_to_memory` survives the `evm-shaped` phase boundary
 // EVM-shaped MIR is the word-backend boundary. Semantic memory operations
 // must be rejected here if their named lowering pass did not consume them.
 @module ValidateMemoryBoundary

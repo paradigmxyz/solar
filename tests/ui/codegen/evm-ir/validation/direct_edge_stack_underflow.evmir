@@ -1,4 +1,4 @@
-//@ failure-status: 1
+//~? ERROR: EVM IR verification failed: block 1: `pop` on an empty stack
 @module module
 
 bb0:

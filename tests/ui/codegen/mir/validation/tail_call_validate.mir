@@ -1,5 +1,6 @@
 //@compile-flags: --pass dce
-//@failure-status: 1
+//~? ERROR: [fn1] tail_call to `callee` passes 0 argument(s), expected 1
+//~? ERROR: [fn2] tail_call targets nonexistent function fn9
 // The module validator enforces `tail_call` cross-function contracts: the
 // callee must exist and the argument count must match its parameters. Invalid
 // hand-written MIR is rejected with a diagnostic, not an ICE.

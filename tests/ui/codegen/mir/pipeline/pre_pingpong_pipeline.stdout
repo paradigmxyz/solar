@@ -3,17 +3,7 @@
 @phase optimized
 fn @pingpong(arg0: u256, arg1: u256) {
   bb0:
-    jump bb6
+    jump bb1
   bb1:
-    invalid
-  bb2:
-    invalid
-  bb3:
-    invalid
-  bb4:
-    invalid
-  bb5:
-    invalid
-  bb6:
-    jump bb6
+    jump bb1
 }

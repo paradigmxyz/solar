@@ -1,5 +1,4 @@
 //@compile-flags: -Zcodegen -Zdump=evm-ir
-//@check-fail
 // A member call on a receiver whose type is an unresolved import must produce
 // diagnostics, not an ICE in codegen (the typeck-invariant panic).
 import {Missing} from "./does-not-exist.sol"; //~ ERROR: file
