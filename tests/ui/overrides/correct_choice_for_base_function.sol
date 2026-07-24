@@ -1,4 +1,3 @@
-//@ check-pass
 // ported-from: test/libsolidity/syntaxTests/inheritance/override/correct_choice_for_base_function.sol
 
 interface IBase {

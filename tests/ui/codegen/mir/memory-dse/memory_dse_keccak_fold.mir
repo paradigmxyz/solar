@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass memory-dse
 @module MemoryDseKeccakFold
 fn @fold_constant_scratch_keccak() -> bytes32 {

@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass dce
 // A fully-used chain: v2 uses v1, and v1 feeds the return.
 // DCE must not eliminate anything.

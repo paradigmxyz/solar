@@ -1,4 +1,3 @@
-//@ check-pass
 // https://github.com/paradigmxyz/solar/issues/197
 
 abstract contract A {

@@ -1,4 +1,3 @@
-//@ check-pass
 // Valid operations on calldata (reading is allowed)
 
 struct S {

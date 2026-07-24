@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass pure-eval
 @module PureEvalLoop
 fn @bounded_loop() -> u256 {

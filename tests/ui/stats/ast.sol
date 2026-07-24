@@ -1,4 +1,3 @@
-//@ check-pass
 //@ compile-flags: -Zast-stats
 pragma solidity ^0.8.13;
 

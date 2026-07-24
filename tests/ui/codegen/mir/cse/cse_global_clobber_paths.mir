@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass cse
 @module CseGlobalClobberPaths
 fn @diamond_sload_clobbered_arm(arg0: bool) -> u256 {

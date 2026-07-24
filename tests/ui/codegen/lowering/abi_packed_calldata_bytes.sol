@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 // `abi.encodePacked(...)` may include a `bytes`/`string` calldata argument,

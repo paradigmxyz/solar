@@ -1,4 +1,3 @@
-//@ check-pass
 // ported-from: test/libsolidity/syntaxTests/constructor/payable_new.sol
 
 contract PayableA1 {}

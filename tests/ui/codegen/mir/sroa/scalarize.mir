@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --passes sroa,dce
 @module Sroa
 

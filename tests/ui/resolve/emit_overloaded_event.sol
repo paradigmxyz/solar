@@ -1,4 +1,3 @@
-//@ check-pass
 contract StdAssertions {
     event log_array(uint256[] val);
     event log_array(int256[] val);

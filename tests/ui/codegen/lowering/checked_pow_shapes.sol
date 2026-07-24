@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: -Zcodegen -Zdump=mir
 
 // Pins the checked exponentiation shapes ported from solc's `checked_exp_*`

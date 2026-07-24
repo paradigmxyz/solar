@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: -Zcodegen -Zdump=mir
 
 // Pins the per-op checked-arithmetic check shapes so they stay at or below

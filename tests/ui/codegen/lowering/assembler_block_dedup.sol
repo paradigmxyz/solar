@@ -1,4 +1,3 @@
-//@ check-pass
 //@ignore-host: windows
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime --pretty-json
 contract AssemblerBlockDedup {

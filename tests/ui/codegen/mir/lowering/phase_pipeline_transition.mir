@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pipeline-default
 //@filecheck: --match-full-lines
 // CHECK: @module PhasePipelineTransition

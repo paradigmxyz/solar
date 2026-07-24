@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass load-pre
 @module MemoryObjectLoadPre
 

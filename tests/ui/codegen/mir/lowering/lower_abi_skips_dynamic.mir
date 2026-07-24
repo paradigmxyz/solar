@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass lower-abi
 // A function that still returns MIR values needs its caller to encode them,
 // which absorption cannot do, so the module is left entirely untouched: the

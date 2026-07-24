@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass tail-merge
 @module module
 

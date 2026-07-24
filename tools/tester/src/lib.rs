@@ -171,7 +171,8 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     }
     register_custom_flags![FileCheck];
 
-    config.comment_defaults.base().exit_status = Spanned::dummy(1).into();
+    config.comment_defaults.base().exit_status = None.into();
+    config.infer_exit_status_from_annotations = !mode.is_solc();
     config.comment_defaults.base().require_annotations = Spanned::dummy(true).into();
     config.comment_defaults.base().require_annotations_for_level =
         Spanned::dummy(ui_test::diagnostics::Level::Warn).into();

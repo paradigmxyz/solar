@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass check-elim
 @module CheckElimMulDiv
 

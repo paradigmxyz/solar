@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass cse
 // v2 and v3 compute the same expression (add arg0, arg1).
 // CSE should eliminate v3 and replace its uses with v2.

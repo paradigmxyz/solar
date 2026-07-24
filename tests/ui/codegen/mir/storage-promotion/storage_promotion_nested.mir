@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass storage-promotion
 @module StoragePromotionNested
 // Blocks are laid out so the inner loop header (bb1) is processed before the

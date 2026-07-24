@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pipeline-default
 // Same shape as pre_pingpong.mir: the full default pipeline must terminate on
 // joins that are mutual predecessors.

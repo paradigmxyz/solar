@@ -1,4 +1,3 @@
-//@ check-pass
 //@ compile-flags: -Zspan-visitor
 
 /// @title SpanVisitorTest

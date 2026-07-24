@@ -1,4 +1,3 @@
-//@ check-pass
 function test() pure {
     uint[2**3**2] memory a;
     uint[512] memory b = a;

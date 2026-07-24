@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 // An explicit enum conversion written through its container, `Container.Enum(x)`

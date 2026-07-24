@@ -1,4 +1,3 @@
-//@ check-pass
 // ported-from: test/libsolidity/semanticTests/various/super.sol
 // ported-from: test/libsolidity/semanticTests/various/super_parentheses.sol
 // ported-from: test/libsolidity/semanticTests/inheritance/super_overload.sol

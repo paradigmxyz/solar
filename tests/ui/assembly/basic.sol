@@ -1,4 +1,3 @@
-//@ check-pass
 // Test basic inline assembly parsing and lowering
 
 contract BasicAssembly {

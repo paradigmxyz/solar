@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --emit=hashes
 //@filecheck: --implicit-check-not=get(
 

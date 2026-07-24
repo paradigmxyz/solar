@@ -1,4 +1,3 @@
-//@ check-pass
 import "./import_self.sol" as self1;
 import "./import_self.sol" as self2;
 import { S, S as S2 } from "./import_self.sol";

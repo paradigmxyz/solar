@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 // The Yul `return(offset, size)` builtin halts execution and returns `size`

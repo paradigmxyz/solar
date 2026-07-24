@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass jump-threading
 @module JumpThreadingPhiConstants
 fn @thread_branch_on_phi_constant(arg0: bool) -> u256 {

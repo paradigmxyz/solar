@@ -1,4 +1,3 @@
-//@ check-pass
 /*
 // solc +0.8.26 --ir ./c.sol
 contract C {

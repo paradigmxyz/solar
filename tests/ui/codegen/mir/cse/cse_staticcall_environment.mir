@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass cse
 // STATICCALL cannot transfer value, write storage, create, or selfdestruct anywhere in
 // its static context, so balance/extcodesize/extcodehash/selfbalance reads stay valid

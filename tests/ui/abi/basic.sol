@@ -1,4 +1,3 @@
-//@ check-pass
 //@ compile-flags: --emit=abi,hashes --pretty-json
 
 struct S1 {

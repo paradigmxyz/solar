@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: -Zcodegen --libraries Lib=0x1111111111111111111111111111111111111111 -Zdump=evm-ir-runtime
 
 // With `--libraries Lib=0xADDR`, a call to a `public` library function is

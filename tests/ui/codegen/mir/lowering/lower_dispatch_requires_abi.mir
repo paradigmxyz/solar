@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass lower-dispatch
 // Dispatch lowering requires argument-free ABI wrappers. A built module still
 // has typed external arguments, so the pass must leave it untouched.

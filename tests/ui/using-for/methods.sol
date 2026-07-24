@@ -1,4 +1,3 @@
-//@ check-pass
 // ported-from: test/libsolidity/syntaxTests/using/using_free_functions.sol
 // ported-from: test/libsolidity/syntaxTests/using/library_functions_inside_contract.sol
 // ported-from: test/libsolidity/syntaxTests/using/global_working.sol

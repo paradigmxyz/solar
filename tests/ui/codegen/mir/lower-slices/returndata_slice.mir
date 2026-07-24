@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --passes lower-slices
 // A returndata slice `(0, returndatasize)` is a first-class slice like calldata
 // and memory. `lower-slices` folds its `slice_ptr`/`slice_len` projections back

@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass lower-abi
 // Dynamic parameters decode uniformly: the wrapper passes the ABI head word at
 // `4 + 32*i` through, and the body performs any further decoding itself, so a

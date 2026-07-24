@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass load-pre
 // Kill behavior: a may-aliasing sstore or a call in an arm blocks reuse across
 // that edge; staticcall preserves storage so the join reload reuses the

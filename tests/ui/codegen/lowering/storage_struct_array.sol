@@ -1,4 +1,3 @@
-//@ check-pass
 //@ignore-host: windows
 //@compile-flags: -Zcodegen -Zdump=mir
 // Fixed storage arrays of multi-slot elements stride by the element's slot

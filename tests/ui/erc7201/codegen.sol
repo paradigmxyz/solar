@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: -Zcodegen -Zdump=mir
 // ported-from: test/cmdlineTests/yul_optimizer_erc7201_literal_comptime_evaluation/input.sol
 // ported-from: test/cmdlineTests/yul_optimizer_erc7201_param_memory/input.sol

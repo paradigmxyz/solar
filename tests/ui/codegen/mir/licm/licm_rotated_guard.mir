@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass licm
 // Rotated loop: the body (mstore + mload) sits BEFORE the exit guard inside the
 // header block, so it executes for v1 = 0..10 inclusive (11 times) while the

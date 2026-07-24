@@ -1,4 +1,3 @@
-//@ check-pass
 contract C {
     function f() public returns (uint256 x) {
         assembly {

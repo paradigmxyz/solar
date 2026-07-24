@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass cse
 @module CseInternalCallSummaries
 fn @keep_load_across_reader(arg0: memptr) -> u256 {

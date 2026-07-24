@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass sccp
 // Switch cases are tested in order at runtime, so a constant case match is
 // definitive only if every earlier case is a known constant that differs from

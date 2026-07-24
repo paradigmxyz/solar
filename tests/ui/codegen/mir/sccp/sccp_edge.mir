@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass sccp
 @module SccpEdge
 fn @phi_ignores_unreachable_predecessor() -> u256 {

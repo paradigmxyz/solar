@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass sccp
 // Constant folding for the signed, modular, byte-level, and select operations,
 // with exact EVM edge-case semantics. Negative constants are written as

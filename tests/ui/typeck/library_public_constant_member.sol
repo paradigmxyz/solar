@@ -1,4 +1,3 @@
-//@ check-pass
 // A `public constant` in a library exposes both the constant and its
 // auto-generated getter as members. Accessing it must resolve to the variable,
 // not report an ambiguity.

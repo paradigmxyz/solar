@@ -1,4 +1,3 @@
-//@ check-pass
 contract C {
     struct S {
         uint256 x;

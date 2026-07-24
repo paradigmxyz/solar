@@ -1,4 +1,3 @@
-//@ check-pass
 // Test all categories of Yul EVM builtins
 
 contract YulBuiltins {

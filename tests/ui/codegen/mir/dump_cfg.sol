@@ -1,4 +1,3 @@
-//@ check-pass
 //@ compile-flags: -Zcodegen -Zdump=mir-cfg
 //@ filecheck: --check-prefix=DOT
 

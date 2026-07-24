@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass lower-dispatch
 // Full dispatcher parity with the backend: empty calldata routes to `receive`,
 // the switch default routes to `fallback`, and the nonpayable entry gets a

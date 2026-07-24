@@ -1,4 +1,3 @@
-//@ check-pass
 import { MyUdvt } from "./auxiliary/udvt.sol";
 
 struct S {

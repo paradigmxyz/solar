@@ -1,4 +1,3 @@
-//@ check-pass
 contract DollarIdentifiers {
     struct $dStruct {
         uint256 $dField;

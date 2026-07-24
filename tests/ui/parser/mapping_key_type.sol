@@ -1,4 +1,3 @@
-//@ check-pass
 type U is int;
 enum E {
     A,

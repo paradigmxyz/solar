@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass lower-abi
 // An internal call to a public function must keep calling the actual body after
 // wrapping: `@caller` calls `@pub.body`, not the argument-free `@pub` wrapper

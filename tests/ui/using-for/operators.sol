@@ -1,4 +1,3 @@
-//@ check-pass
 // ported-from: test/libsolidity/syntaxTests/operators/userDefined/calling_operator.sol
 
 type U is uint256;

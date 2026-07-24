@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass licm
 // Two latches feeding the same phi with DIFFERENT increments (+1 and +7) take
 // the variable off the single-stride lattice that trip counts and affine

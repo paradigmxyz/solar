@@ -1,4 +1,3 @@
-//@ check-pass
 abstract contract MyAbstractTest {
     function setUp() public virtual;
 }

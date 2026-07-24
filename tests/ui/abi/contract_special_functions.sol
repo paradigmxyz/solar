@@ -1,4 +1,3 @@
-//@ check-pass
 //@ compile-flags: --emit=abi,hashes --pretty-json
 
 // Abstract contracts don't emit constructors.

@@ -1,4 +1,3 @@
-//@ check-pass
 //@ compile-flags: -Zhir-stats
 pragma solidity ^0.8.13;
 

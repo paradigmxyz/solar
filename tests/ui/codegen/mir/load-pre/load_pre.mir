@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass load-pre
 // Basic storage shapes: a join reload of a slot loaded in both arms becomes a
 // phi; an sstore in one arm forwards its stored value into the phi. A load

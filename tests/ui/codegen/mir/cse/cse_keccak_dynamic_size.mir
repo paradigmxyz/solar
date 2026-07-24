@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass cse
 // Keccak reads with non-constant sizes key the canonical size operand: reads with the
 // same dynamic size still unify, reads with different dynamic sizes must not, and a

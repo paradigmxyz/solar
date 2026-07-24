@@ -1,4 +1,3 @@
-//@ check-pass
 //@ignore-host: windows
 //@compile-flags: -Zcodegen -Zdump=evm-ir --pretty-json
 // solc 0.8.30 without --via-ir reports `Stack too deep` for this contract.

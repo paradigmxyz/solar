@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass cfg-simplify
 // Two trivial phis forming a chain across nested loops: v2's unique source is
 // v1, itself a trivial phi deleted in the same batch. Uses of v2 must resolve

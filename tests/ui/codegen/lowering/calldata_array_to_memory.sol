@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 // A calldata dynamic array converted to memory (declaration initializer,

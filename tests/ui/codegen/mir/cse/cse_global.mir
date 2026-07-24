@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass cse
 @module CseGlobal
 fn @dominating_pure_expr(arg0: u256, arg1: u256, arg2: bool) -> u256 {

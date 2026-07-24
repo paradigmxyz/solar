@@ -1,4 +1,3 @@
-//@ check-pass
 // Test Yul function definitions
 
 contract YulFunctions {

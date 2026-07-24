@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --passes lower-abi,lower-slices
 @module LowerSlices
 fn @entry(arg0: calldataslice) [selector=0x12345678] {

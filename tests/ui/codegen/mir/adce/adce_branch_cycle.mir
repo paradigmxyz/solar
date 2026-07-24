@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass adce
 @module AdceBranchCycle
 fn @keeps_branch_cycle(arg0: bool) -> u256 {

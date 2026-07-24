@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass cse
 @module MemoryObjectCse
 

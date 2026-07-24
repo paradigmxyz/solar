@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass dce
 @module Dce
 fn @with_dead_code(arg0: u256) -> u256 {

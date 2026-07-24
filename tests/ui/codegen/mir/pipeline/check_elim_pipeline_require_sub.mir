@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pipeline-default
 @module CheckElimPipelineRequireSub
 

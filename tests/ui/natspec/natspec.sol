@@ -1,4 +1,3 @@
-//@ check-pass
 //@ compile-flags: --stop-after parsing
 
 /// @title A Simple Contract

@@ -1,4 +1,3 @@
-//@ check-pass
 pragma abicoder v1;
 pragma abicoder v2;
 pragma abicoder "v1";

@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass adce
 @module Adce
 fn @removes_dead_branch_region(arg0: bool) -> u256 {

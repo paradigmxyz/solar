@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass licm
 @module LicmDescendingIv
 

@@ -1,4 +1,3 @@
-//@ check-pass
 // ported-from: test/libsolidity/syntaxTests/operators/userDefined/calling_operator_imported.sol
 
 import {Int} from "./auxiliary/operator_imported.sol";

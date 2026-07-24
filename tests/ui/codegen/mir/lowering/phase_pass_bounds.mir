@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass lower-dispatch,lower-abi,lower-dispatch,dce
 //@filecheck: --match-full-lines
 // CHECK: @module PhasePassBounds

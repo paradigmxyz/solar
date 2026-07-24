@@ -1,4 +1,3 @@
-//@ check-pass
 // Test accessing Solidity variables from assembly
 
 contract VariableAccess {

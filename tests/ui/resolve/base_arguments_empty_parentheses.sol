@@ -1,4 +1,3 @@
-//@ check-pass
 contract Base {
     constructor(uint) {}
 }

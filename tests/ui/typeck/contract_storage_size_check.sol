@@ -1,4 +1,3 @@
-//@ check-pass
 //@ compile-flags: -Zprint-max-storage-sizes
 
 struct Person {

@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass terminal-dedup
 @module module
 

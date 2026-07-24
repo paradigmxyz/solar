@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 
 // Tuple assignment to EXISTING lvalues, `(a, b) = rhs`. `lower_assign` had no

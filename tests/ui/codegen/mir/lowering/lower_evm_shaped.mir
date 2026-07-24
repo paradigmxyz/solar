@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --pass lower-evm-shaped
 // A resultless internal call to a callee that never returns (no `ret`, no
 // `stop` — it ends in `returndata`) models a returning edge that does not

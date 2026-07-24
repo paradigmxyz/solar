@@ -1,4 +1,3 @@
-//@ check-pass
 //@compile-flags: --passes frame-slot-promotion,dce
 @module LocalSlotPromotionCallBarrier
 fn @promote_across_unrelated_staticcall(arg0: address) -> u256 {
