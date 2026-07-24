@@ -1,0 +1,25 @@
+- // === ROOT/tests/ui/codegen/mir/none/display.mir (before none) ===
++ // === ROOT/tests/ui/codegen/mir/none/display.mir (after none) ===
+  @module Display
+  fn @linear(arg0: u256) -> u256 {
+    bb0:
+      v0 = add arg0, 1
+      ret v0
+  }
+  
+  fn @diamond(arg0: u256, arg1: bool) {
+    bb0:
+      jumpi arg1, bb1, bb2
+    bb1:
+      ret arg0
+    bb2:
+      ret arg0
+  }
+  
+  fn @storage_ops(arg0: u256, arg1: u256) {
+    bb0:
+      sstore arg0, arg1 !metadata(storage=symbolic(arg0))
+      v0 = sload arg0 !metadata(storage=symbolic(arg0))
+      ret v0
+  }
+  

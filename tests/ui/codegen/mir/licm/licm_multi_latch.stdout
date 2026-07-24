@@ -8,13 +8,13 @@
     bb1:
       v0 = phi [bb0: 0], [bb3: v5], [bb4: v6]
       v1 = lt v0, 10
-      br v1, bb2, bb5
+      jumpi v1, bb2, bb5
     bb2:
       v2 = mul v0, 32
       mstore v2, 1
       v3 = mload 288
 -     v4 = calldataload 0
-      br v4, bb3, bb4
+      jumpi v4, bb3, bb4
     bb3:
       v5 = add v0, 1
       jump bb1
@@ -33,14 +33,14 @@
     bb1:
       v0 = phi [bb0: 0], [bb3: v4], [bb4: v4]
       v1 = lt v0, 10
-      br v1, bb2, bb5
+      jumpi v1, bb2, bb5
     bb2:
       v2 = mul v0, 32
       mstore v2, 1
 -     v3 = mload 320
       v4 = add v0, 1
 -     v5 = calldataload 0
-      br v5, bb3, bb4
+      jumpi v5, bb3, bb4
     bb3:
       jump bb1
     bb4:

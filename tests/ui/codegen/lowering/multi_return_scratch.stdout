@@ -5,7 +5,7 @@ fn @stored(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -25,13 +25,13 @@ fn @triple(arg0: u256) -> (u256, u256, u256) {
     v2 = internal_frame_addr 256
     mstore v2, 0 !metadata(memory=internal_frame)
     v3 = eq arg0, 0
-    br v3, bb1, bb2
+    jumpi v3, bb1, bb2
   bb1:
     ret 1, 2, 3
   bb2:
     v4 = add arg0, 1
     v5 = lt v4, arg0
-    br v5, bb3, bb4
+    jumpi v5, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -39,7 +39,7 @@ fn @triple(arg0: u256) -> (u256, u256, u256) {
   bb4:
     v6 = add arg0, 2
     v7 = lt v6, arg0
-    br v7, bb5, bb6
+    jumpi v7, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -53,7 +53,7 @@ fn @assign(arg0: u256, arg1: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:

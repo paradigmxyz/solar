@@ -29,7 +29,7 @@
 +     mstore 128, 1
       jump bb1
     bb1:
-      br 1, bb2, bb4
+      jumpi 1, bb2, bb4
     bb2:
 -     v0 = sload 0
 +     v0 = mload 128
@@ -76,7 +76,7 @@
       mstore 128, 1
       jump bb1
     bb1:
-      br 1, bb2, bb4
+      jumpi 1, bb2, bb4
     bb2:
       v0 = mload 128
       v1 = add v0, 1

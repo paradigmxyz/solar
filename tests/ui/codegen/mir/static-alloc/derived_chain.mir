@@ -41,7 +41,7 @@ fn @reserve_frame() [selector=0x01020305] {
     sstore 0, 1
     jump bb1
   bb1:
-    br true, bb2, bb4
+    jumpi true, bb2, bb4
   bb2:
     v0 = sload 0
     v1 = add v0, 1

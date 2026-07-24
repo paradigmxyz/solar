@@ -3,7 +3,7 @@
 fn @dominating_pure_expr(arg0: u256, arg1: u256, arg2: bool) -> u256 {
   bb0:
     v3 = add arg0, arg1
-    br arg2, bb1, bb2
+    jumpi arg2, bb1, bb2
   bb1:
     v4 = add arg0, arg1
     v5 = mul v4, 2

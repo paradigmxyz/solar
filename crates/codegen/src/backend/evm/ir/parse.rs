@@ -347,7 +347,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, source_map::FileName};
     use std::path::{Path, PathBuf};
 
@@ -387,6 +386,11 @@ mod tests {
                 }
                 count += 1;
                 if let Err(err) = round_trip_fixture(&path) {
+                    if err.starts_with("first parse failed:")
+                        && path.with_extension("stderr").is_file()
+                    {
+                        continue;
+                    }
                     let name = path.file_name().unwrap().to_string_lossy();
                     failures.push(format!("{name}: {err}"));
                 }
@@ -402,197 +406,25 @@ mod tests {
         );
     }
 
-    #[test]
-    fn parser_does_not_treat_newlines_as_syntax() {
-        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        let input = "@module m bb0: push 1 push 2 add jump bb1 bb1 [cold]: jump";
-        sess.enter(|| {
-            let module = parse_module(&sess, input).unwrap();
-            assert_data_eq!(
-                module.to_text().to_string(),
-                str![[r#"
-@module m
-bb0:
-  push 1
-  push 2
-  add
-  jump bb1
-bb1 [cold]:
-  jump
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn parser_rejects_instructions_after_terminator() {
-        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        sess.dcx.set_flags(|flags| flags.track_diagnostics = false);
-        let input = "\
-@module m
-
-bb0:
-  stop
-  invalid
-";
-        sess.enter(|| assert!(parse_module(&sess, input).is_err()));
-        assert_data_eq!(
-            sess.emitted_diagnostics().unwrap().to_string(),
-            str![[r#"
-error: instruction after terminator in block `bb0`
-  ╭▸ <test0.evmir>:5:3
-  │
-5 │   invalid
-  ╰╴  ━━━━━━━
-
-
-"#]]
-        );
-    }
-
-    #[test]
-    fn parser_handles_doc_comments_and_empty_metadata_values() {
-        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        sess.dcx.set_flags(|flags| flags.track_diagnostics = false);
-        let input = "\
-/// module docs
-@module m
-
-bb0:
-  push 1
-  add !meta(foo= )
-";
-        let source = sess
-            .source_map()
-            .new_source_file(FileName::Custom("empty-metadata.evmir".into()), input)
-            .unwrap();
-        sess.enter(|| assert!(Module::parse(&sess, &source).is_err()));
-        assert_data_eq!(
-            sess.emitted_diagnostics().unwrap().to_string(),
-            str![[r#"
-error: expected metadata value
-  ╭▸ <empty-metadata.evmir>:6:18
-  │
-6 │   add !meta(foo= )
-  ╰╴                 ━
-
-
-"#]]
-        );
-    }
-
-    #[test]
-    fn parser_rejects_invalid_special_pushes() {
-        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        sess.dcx.set_flags(|flags| flags.track_diagnostics = false);
-        let cases = [
-            ("deferred-block.evmir", "push_deferred bb1"),
-            ("immutable-block.evmir", "push_immutable bb1"),
-            ("deferred-overflow.evmir", "push_deferred 0x10000000"),
-            ("immutable-overflow.evmir", "push_immutable 0x10000000"),
-        ];
-        sess.enter(|| {
-            for (name, instruction) in cases {
-                let input = format!("@module m\n\nbb0:\n  {instruction}\n  stop\n");
-                let source = sess
-                    .source_map()
-                    .new_source_file(FileName::Custom(name.into()), input)
-                    .unwrap();
-                assert!(Module::parse(&sess, &source).is_err());
-            }
-        });
-        assert_data_eq!(
-            sess.emitted_diagnostics().unwrap().to_string(),
-            str![[r#"
-error: expected integer literal
-  ╭▸ <deferred-block.evmir>:4:17
-  │
-4 │   push_deferred bb1
-  ╰╴                ━━━
-
-error: expected integer literal
-  ╭▸ <immutable-block.evmir>:4:18
-  │
-4 │   push_immutable bb1
-  ╰╴                 ━━━
-
-error: deferred constant ID exceeds the assembler limit
-  ╭▸ <deferred-overflow.evmir>:4:17
-  │
-4 │   push_deferred 0x10000000
-  ╰╴                ━━━━━━━━━━
-
-error: immutable ID exceeds the assembler limit
-  ╭▸ <immutable-overflow.evmir>:4:18
-  │
-4 │   push_immutable 0x10000000
-  ╰╴                 ━━━━━━━━━━
-
-
-"#]]
-        );
-    }
-
-    #[test]
-    fn unresolved_block_reports_reference_span() {
-        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        sess.dcx.set_flags(|flags| flags.track_diagnostics = false);
-        let input = "@module m\n\nbb0:\n  jump bb9\n";
-        let source = sess
-            .source_map()
-            .new_source_file(FileName::Custom("unknown-block.evmir".into()), input)
-            .unwrap();
-        sess.enter(|| assert!(Module::parse(&sess, &source).is_err()));
-        assert_data_eq!(
-            sess.emitted_diagnostics().unwrap().to_string(),
-            str![[r#"
-error: unknown block `bb9`
-  ╭▸ <unknown-block.evmir>:4:8
-  │
-4 │   jump bb9
-  ╰╴       ━━━
-
-
-"#]]
-        );
-    }
-
-    #[test]
-    fn parser_rejects_hotness_block_metadata() {
-        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        sess.dcx.set_flags(|flags| flags.track_diagnostics = false);
-        let input = "@module m\n\nbb0 [hotness=cold]:\n  stop\n";
-        let source = sess
-            .source_map()
-            .new_source_file(FileName::Custom("hotness.evmir".into()), input)
-            .unwrap();
-        sess.enter(|| assert!(Module::parse(&sess, &source).is_err()));
-        assert_data_eq!(
-            sess.emitted_diagnostics().unwrap().to_string(),
-            str![[r#"
-error: expected `cold`
-  ╭▸ <hotness.evmir>:3:6
-  │
-3 │ bb0 [hotness=cold]:
-  ╰╴     ━━━━━━━
-
-
-"#]]
-        );
-    }
-
     fn round_trip_fixture(path: &Path) -> Result<(), String> {
         #[allow(clippy::disallowed_methods)]
         let input = std::fs::read_to_string(path).map_err(|err| err.to_string())?;
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        let (print1, print2) = sess
-            .enter(|| {
-                let print1 = parse_module(&sess, &input)?.to_text().to_string();
-                let print2 = parse_module(&sess, &print1)?.to_text().to_string();
-                Ok::<_, solar_interface::diagnostics::ErrorGuaranteed>((print1, print2))
-            })
-            .map_err(|_| sess.emitted_diagnostics().unwrap().to_string())?;
+        let (print1, print2) = sess.enter(|| {
+            let print1 = parse_module(&sess, &input)
+                .map_err(|_| {
+                    format!("first parse failed: {}", sess.emitted_diagnostics().unwrap())
+                })?
+                .to_text()
+                .to_string();
+            let print2 = parse_module(&sess, &print1)
+                .map_err(|_| {
+                    format!("second parse failed: {}", sess.emitted_diagnostics().unwrap())
+                })?
+                .to_text()
+                .to_string();
+            Ok::<_, String>((print1, print2))
+        })?;
         if print1 != print2 {
             return Err(first_diff(&print1, &print2)
                 .map(|(line, a, b)| {

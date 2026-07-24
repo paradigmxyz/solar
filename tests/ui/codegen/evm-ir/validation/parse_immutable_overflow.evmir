@@ -1,0 +1,5 @@
+@module ImmutableOverflow
+
+bb0:
+  push_immutable 0x10000000 //~ ERROR: immutable ID exceeds the assembler limit
+  stop

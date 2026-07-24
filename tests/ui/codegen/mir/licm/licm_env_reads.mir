@@ -7,7 +7,7 @@ fn @keep_balance_with_call() -> u256 {
   bb0:
     jump bb1
   bb1:
-    br true, bb2, bb3
+    jumpi true, bb2, bb3
   bb2:
     v0 = balance 0xbeef
     v1 = mul v0, 3
@@ -22,7 +22,7 @@ fn @hoist_balance_without_calls() -> u256 {
   bb0:
     jump bb1
   bb1:
-    br true, bb2, bb3
+    jumpi true, bb2, bb3
   bb2:
     v0 = balance 0xbeef
     v1 = mul v0, 3
@@ -36,7 +36,7 @@ fn @keep_extcodesize_with_create() -> u256 {
   bb0:
     jump bb1
   bb1:
-    br true, bb2, bb3
+    jumpi true, bb2, bb3
   bb2:
     v0 = extcodesize 0xbeef
     v1 = mul v0, 3
@@ -51,7 +51,7 @@ fn @keep_returndatasize_with_staticcall() -> u256 {
   bb0:
     jump bb1
   bb1:
-    br true, bb2, bb3
+    jumpi true, bb2, bb3
   bb2:
     v0 = returndatasize
     v1 = mul v0, 3
@@ -66,7 +66,7 @@ fn @keep_msize() -> u256 {
   bb0:
     jump bb1
   bb1:
-    br true, bb2, bb3
+    jumpi true, bb2, bb3
   bb2:
     v0 = msize
     v1 = mul v0, 3

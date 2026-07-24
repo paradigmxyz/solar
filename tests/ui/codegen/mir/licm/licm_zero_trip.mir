@@ -10,7 +10,7 @@ fn @keep_sload_zero_trip() -> u256 {
   bb1:
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, v0
-    br v2, bb2, bb3
+    jumpi v2, bb2, bb3
   bb2:
     v3 = sload 5
     v9 = add v1, 1
@@ -28,7 +28,7 @@ fn @keep_mload_zero_trip() -> u256 {
   bb1:
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, v0
-    br v2, bb2, bb3
+    jumpi v2, bb2, bb3
   bb2:
     v3 = mload 0x1000000
     v9 = add v1, 1
@@ -45,7 +45,7 @@ fn @hoist_sload_known_trip() -> u256 {
   bb1:
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, 10
-    br v2, bb2, bb3
+    jumpi v2, bb2, bb3
   bb2:
     v3 = sload 5
     v9 = add v1, 1
@@ -63,7 +63,7 @@ fn @hoist_mload_dominates_exits() -> u256 {
     v0 = mload 64
     v1 = calldataload 0
     v2 = lt v0, v1
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb2:
     ret v0
 }
@@ -76,7 +76,7 @@ fn @keep_mload_msize_in_function() -> u256 {
   bb1:
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, 10
-    br v2, bb2, bb3
+    jumpi v2, bb2, bb3
   bb2:
     v3 = mload 64
     v9 = add v1, 1

@@ -4,7 +4,7 @@ fn @nested_offsets_across_dominator(arg0: u256, arg1: bool) -> u256 {
   bb0:
     v2 = add arg0, 16
     v3 = add v2, 16
-    br arg1, bb1, bb2
+    jumpi arg1, bb1, bb2
   bb1:
     v4 = add arg0, 32
     v5 = add v3, v4
@@ -17,7 +17,7 @@ fn @commuted_nested_offsets(arg0: u256, arg1: bool) -> u256 {
   bb0:
     v2 = add 16, arg0
     v3 = add 16, v2
-    br arg1, bb1, bb2
+    jumpi arg1, bb1, bb2
   bb1:
     v4 = add arg0, 32
     ret v4
@@ -30,7 +30,7 @@ fn @reuse_keccak_with_equivalent_offset(arg0: u256, arg1: bool) -> u256 {
     v2 = add arg0, 16
     v3 = add v2, 16
     v4 = keccak256 v3, 32
-    br arg1, bb1, bb2
+    jumpi arg1, bb1, bb2
   bb1:
     v5 = add arg0, 32
     v6 = keccak256 v5, 32
@@ -44,7 +44,7 @@ fn @keep_load_after_equivalent_overlapping_store(arg0: u256, arg1: bool) -> u256
     v2 = add arg0, 16
     v3 = add v2, 16
     v4 = mload v3
-    br arg1, bb1, bb2
+    jumpi arg1, bb1, bb2
   bb1:
     v5 = add arg0, 32
     mstore v5, 7
@@ -66,7 +66,7 @@ fn @keep_distinct_negative_memory_offsets(arg0: u256) -> u256 {
 
 fn @sink_common_phi_expression(arg0: u256, arg1: u256, arg2: bool) -> u256 {
   bb0:
-    br arg2, bb1, bb2
+    jumpi arg2, bb1, bb2
   bb1:
     v3 = add arg0, arg1
     jump bb3
@@ -81,7 +81,7 @@ fn @sink_common_phi_expression(arg0: u256, arg1: u256, arg2: bool) -> u256 {
 
 fn @keep_phi_expression_with_branch_local_operands(arg0: u256, arg1: bool) -> u256 {
   bb0:
-    br arg1, bb1, bb2
+    jumpi arg1, bb1, bb2
   bb1:
     v2 = add arg0, 1
     v3 = mul v2, 2

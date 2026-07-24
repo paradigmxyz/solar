@@ -7,13 +7,13 @@
 fn @fold_mul_check_with_bound(arg0: u256) -> u256 {
   bb0:
     v1 = lt arg0, 100
-    br v1, bb1, bb2
+    jumpi v1, bb1, bb2
   bb1:
     v2 = mul arg0, 3
     v3 = div v2, 3
     v4 = eq v3, arg0
     v5 = iszero v4
-    br v5, bb3, bb4
+    jumpi v5, bb3, bb4
   bb2:
     ret 0
   bb3:
@@ -29,7 +29,7 @@ fn @keep_mul_check_without_bound(arg0: u256) -> u256 {
     v2 = div v1, 3
     v3 = eq v2, arg0
     v4 = iszero v3
-    br v4, bb1, bb2
+    jumpi v4, bb1, bb2
   bb1:
     revert 0, 0
   bb2:

@@ -35,7 +35,7 @@ fn @self_loop_join(arg0: u256, arg1: u256) -> u256 {
   bb4:
     v4 = add arg0, 7
     v5 = eq arg1, v4
-    br v5, bb4, bb5
+    jumpi v5, bb4, bb5
   bb5:
     ret v4
 }
@@ -59,7 +59,7 @@ fn @outer_phi_operand(arg0: u256, arg1: u256) -> u256 {
   bb5:
     v7 = add v2, 7
     v8 = lt v7, arg1
-    br v8, bb6, bb7
+    jumpi v8, bb6, bb7
   bb6:
     v20 = add v2, 1
     jump bb1

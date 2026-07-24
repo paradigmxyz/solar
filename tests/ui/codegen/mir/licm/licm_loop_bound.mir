@@ -10,13 +10,13 @@ fn @keep_mload_non_exiting_bound() -> u256 {
   bb1:
     v1 = phi [bb0: 0], [bb4: v9]
     v2 = eq v1, 100
-    br v2, bb5, bb2
+    jumpi v2, bb5, bb2
   bb2:
     v3 = mload 64
     v4 = mul v1, 32
     mstore v4, 1
     v5 = lt v1, 2
-    br v5, bb3, bb4
+    jumpi v5, bb3, bb4
   bb3:
     jump bb4
   bb4:
@@ -35,13 +35,13 @@ fn @keep_mload_inner_branch_bound() -> u256 {
   bb1:
     v1 = phi [bb0: 0], [bb4: v9]
     v2 = lt v1, 100
-    br v2, bb2, bb5
+    jumpi v2, bb2, bb5
   bb2:
     v3 = mload 64
     v4 = mul v1, 32
     mstore v4, 1
     v5 = lt v1, 2
-    br v5, bb3, bb4
+    jumpi v5, bb3, bb4
   bb3:
     jump bb4
   bb4:

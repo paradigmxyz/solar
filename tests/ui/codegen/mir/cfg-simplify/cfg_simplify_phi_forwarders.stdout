@@ -3,8 +3,8 @@
   @module CfgSimplifyPhiForwarders
   fn @keep_conflicting_diamond(arg0: bool) -> u256 {
     bb0:
--     br arg0, bb1, bb2
-+     br arg0, bb2, bb1
+-     jumpi arg0, bb1, bb2
++     jumpi arg0, bb2, bb1
     bb1:
 -     jump bb3
 +     jump bb2
@@ -18,8 +18,8 @@
   
   fn @fold_equal_value_diamond(arg0: bool) -> u256 {
     bb0:
--     br arg0, bb1, bb2
-+     br arg0, bb2, bb1
+-     jumpi arg0, bb1, bb2
++     jumpi arg0, bb2, bb1
     bb1:
 -     jump bb3
 +     jump bb2

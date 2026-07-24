@@ -9,7 +9,7 @@ fn @wrap_add_descending() -> u256 {
   bb1:
     v1 = phi [bb0: 64], [bb2: v9]
     v2 = lt v1, 100
-    br v2, bb2, bb3
+    jumpi v2, bb2, bb3
   bb2:
     v4 = mul v1, 32
     mstore v4, 1

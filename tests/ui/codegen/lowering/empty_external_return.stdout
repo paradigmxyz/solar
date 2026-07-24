@@ -1,0 +1,25 @@
+// === ROOT/tests/ui/codegen/lowering/empty_external_return.sol:EmptyExternalReturn (runtime) ===
+@module runtime
+bb0:
+  push 128
+  push 64
+  mstore
+  callvalue
+  push bb3
+  jumpi
+  calldatasize
+  push bb1
+  jumpi
+  jump bb2
+bb2:
+  stop
+bb1:
+  push 0
+  calldataload
+  push 224
+  shr
+  jump bb2
+bb3 [cold]:
+  push 0
+  push 0
+  revert

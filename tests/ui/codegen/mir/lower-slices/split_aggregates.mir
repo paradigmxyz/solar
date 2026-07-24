@@ -10,7 +10,7 @@ fn @select_slice(arg0: calldataslice, arg1: calldataslice, arg2: bool) -> u256 {
 
 fn @phi_slice(arg0: calldataslice, arg1: calldataslice, arg2: bool) -> u256 {
   bb0:
-    br arg2, bb1, bb2
+    jumpi arg2, bb1, bb2
   bb1:
     jump bb3
   bb2:

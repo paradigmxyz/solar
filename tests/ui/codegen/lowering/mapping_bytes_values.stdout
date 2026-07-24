@@ -5,7 +5,7 @@ fn @set(arg0: u256, arg1: memorybytes) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -43,7 +43,7 @@ fn @set(arg0: u256, arg1: memorybytes) {
     v32 = alloc raw, exact, uninitialized, infallible, 32
     mstore v32, v12
     v33 = keccak256 v32, 32
-    br v30, bb4, bb3
+    jumpi v30, bb4, bb3
   bb3:
     v34 = mload v14
     v35 = mul v13, 8
@@ -63,7 +63,7 @@ fn @set(arg0: u256, arg1: memorybytes) {
   bb5:
     v43 = mload v32
     v44 = lt v43, v31
-    br v44, bb6, bb7
+    jumpi v44, bb6, bb7
   bb6:
     v45 = mload v32
     v46 = add v33, v45
@@ -80,7 +80,7 @@ fn @set(arg0: u256, arg1: memorybytes) {
   bb8:
     v51 = mload v32
     v52 = lt v51, v26
-    br v52, bb9, bb10
+    jumpi v52, bb9, bb10
   bb9:
     v53 = mload v32
     v54 = add v33, v53
@@ -97,7 +97,7 @@ fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -136,7 +136,7 @@ fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) {
     v33 = alloc raw, exact, uninitialized, infallible, 32
     mstore v33, v13
     v34 = keccak256 v33, 32
-    br v31, bb4, bb3
+    jumpi v31, bb4, bb3
   bb3:
     v35 = mload v15
     v36 = mul v14, 8
@@ -156,7 +156,7 @@ fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) {
   bb5:
     v44 = mload v33
     v45 = lt v44, v32
-    br v45, bb6, bb7
+    jumpi v45, bb6, bb7
   bb6:
     v46 = mload v33
     v47 = add v34, v46
@@ -173,7 +173,7 @@ fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) {
   bb8:
     v52 = mload v33
     v53 = lt v52, v27
-    br v53, bb9, bb10
+    jumpi v53, bb9, bb10
   bb9:
     v54 = mload v33
     v55 = add v34, v54
@@ -190,7 +190,7 @@ fn @get(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -220,7 +220,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v14 = alloc memorybytes, exact, uninitialized, infallible, v12
     set_memory_object_len memorybytes, v14, v6
     v15 = memory_object_data memorybytes, v14
-    br v2, bb2, bb1
+    jumpi v2, bb2, bb1
   bb1:
     v16 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     mstore v15, v16
@@ -237,7 +237,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v20 = phi [bb2: v17], [bb5: v24]
     v21 = phi [bb2: v15], [bb5: v25]
     v22 = gt v19, 0
-    br v22, bb5, bb3
+    jumpi v22, bb5, bb3
   bb5:
     v23 = sload v20 !metadata(storage=symbolic(v20))
     mstore v21, v23
@@ -272,7 +272,7 @@ fn @getNested(arg0: u256, arg1: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:

@@ -8,7 +8,7 @@
 +     mstore 128, 1
       jump bb1
     bb1:
-      br 1, bb2, bb4
+      jumpi 1, bb2, bb4
     bb2:
       v1 = add arg0, 1
 -     v2 = sload v1
@@ -31,7 +31,7 @@
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v4]
-      br 1, bb2, bb3
+      jumpi 1, bb2, bb3
     bb2:
       v1 = add arg0, v0
 -     v2 = sload v1
@@ -50,7 +50,7 @@
 +     mstore 160, 0
       jump bb1
     bb1:
-      br 1, bb2, bb4
+      jumpi 1, bb2, bb4
     bb2:
 -     sstore 0, 7
 +     mstore 128, 7
@@ -60,7 +60,7 @@
       jump bb1
     bb4:
 +     v0 = mload 160
-+     br v0, bb6, bb5
++     jumpi v0, bb6, bb5
 +   bb5:
       stop
 +   bb6:
@@ -77,7 +77,7 @@
 +     mstore 160, 2
       jump bb1
     bb1:
-      br 1, bb2, bb4
+      jumpi 1, bb2, bb4
     bb2:
 -     v0 = sload 0
 +     v0 = mload 128
@@ -107,7 +107,7 @@
 +     mstore 160, 0
       jump bb1
     bb1:
-      br 1, bb2, bb4
+      jumpi 1, bb2, bb4
     bb2:
 -     v0 = sload 0
 +     v0 = mload 128
@@ -121,7 +121,7 @@
     bb4:
 -     jump bb5
 +     v4 = mload 160
-+     br v4, bb8, bb7
++     jumpi v4, bb8, bb7
     bb5:
 -     v2 = phi [bb4: 7], [bb6: 9]
 +     v2 = phi [bb7: 7], [bb6: 9]

@@ -5,14 +5,14 @@ fn @fromUint(arg0: u8) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 255
     v5 = eq v3, v4
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -35,7 +35,7 @@ fn @compareElement(arg0: memorybytes) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -53,7 +53,7 @@ fn @compareElement(arg0: memorybytes) {
     mstore 128, 0
     v12 = memory_object_len memorybytes, v9
     v13 = lt 0, v12
-    br v13, bb4, bb3
+    jumpi v13, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -76,14 +76,14 @@ fn @narrow(arg0: bytes4) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v5 = eq v3, v4
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:

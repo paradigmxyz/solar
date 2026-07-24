@@ -8,7 +8,7 @@
     bb1:
 -     v0 = phi [bb0: 0], [bb2: 3]
 -     v1 = lt v0, 3
--     br v1, bb2, bb3
+-     jumpi v1, bb2, bb3
 +     invalid
     bb2:
 -     jump bb1

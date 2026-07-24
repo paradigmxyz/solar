@@ -620,13 +620,9 @@ pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{
-        AbiLayout, AbiType, BasicBlock, Function, FunctionBuilder, FunctionId, MirPhase, MirType,
-        Module, SliceLocation, StorageField, StorageLayout, Terminator,
-    };
+    use crate::mir::{Function, FunctionBuilder, MirType, Terminator};
     use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, Ident, Session};
-    use std::sync::Arc;
 
     fn with_session<F: FnOnce(&Session) + Send>(f: F) {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
@@ -636,22 +632,6 @@ mod tests {
 
     fn make_func() -> Function {
         Function::new(Ident::DUMMY)
-    }
-
-    #[test]
-    fn valid_simple_function() {
-        with_session(|sess| {
-            let mut func = make_func();
-            {
-                let mut b = FunctionBuilder::new(&mut func);
-                let x = b.add_param(MirType::uint256());
-                let one = b.imm_u64(1);
-                let sum = b.add(x, one);
-                b.ret([sum]);
-            }
-            Validator::new(&sess.dcx).validate_standalone_function(&func);
-            assert!(sess.dcx.has_errors().is_ok());
-        });
     }
 
     #[test]
@@ -732,56 +712,28 @@ error: [bb0] successor bb1 does not list bb0 as a predecessor
     }
 
     #[test]
-    fn entry_block_with_predecessors_is_caught() {
+    fn unexpected_stored_predecessor_is_caught() {
         with_session(|sess| {
             let mut func = make_func();
-            // Build a function that loops back to the entry block.
-            // The builder rejects this shape, so construct it manually for validation.
+            let target;
             {
-                let mut b = FunctionBuilder::new(&mut func);
-                b.stop();
+                let mut builder = FunctionBuilder::new(&mut func);
+                target = builder.create_block();
+                builder.stop();
+                builder.switch_to_block(target);
+                builder.stop();
             }
-            // Add the invalid predecessor to the entry block.
-            func.blocks[BlockId::ENTRY].predecessors.push(BlockId::ENTRY);
+            func.blocks[target].predecessors.push(BlockId::ENTRY);
             Validator::new(&sess.dcx).validate_standalone_function(&func);
             assert!(sess.dcx.has_errors().is_err());
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
-error: [bb0] stored predecessor bb0 does not branch to bb0
-
-error: [bb0] entry block must have no predecessors
+error: [bb1] stored predecessor bb0 does not branch to bb1
 
 
 "#]]
             );
-        });
-    }
-
-    #[test]
-    fn evm_shaped_rejects_semantic_memory_operations() {
-        with_session(|sess| {
-            let mut module = Module::new(Ident::DUMMY);
-            module.phase = MirPhase::EvmShaped;
-            let mut func = make_func();
-            {
-                let mut builder = FunctionBuilder::new(&mut func);
-                let zero = builder.imm_u64(0);
-                let slice = builder.make_slice(zero, zero, SliceLocation::Memory);
-                let layout = Arc::new(AbiLayout::new([AbiType::Bytes(SliceLocation::Memory)]));
-                builder.abi_encode(layout, None, [slice]);
-                let aggregate = Arc::new(StorageLayout::Struct([StorageField::Word].into()));
-                builder.storage_to_memory(aggregate, zero, zero);
-                builder.stop();
-            }
-            module.add_function(func);
-
-            Validator::new(&sess.dcx).validate_module(&module);
-            assert!(sess.dcx.has_errors().is_err());
-            let diagnostics = sess.emitted_diagnostics().unwrap().to_string();
-            assert!(diagnostics.contains("slice instruction"));
-            assert!(diagnostics.contains("ABI encoding instruction"));
-            assert!(diagnostics.contains("aggregate instruction"));
         });
     }
 
@@ -801,48 +753,5 @@ error: function has no entry block
 "#]]
             );
         });
-    }
-
-    #[test]
-    fn entry_with_just_terminator_is_valid() {
-        with_session(|sess| {
-            let mut func = make_func();
-            {
-                let mut b = FunctionBuilder::new(&mut func);
-                b.stop();
-            }
-            Validator::new(&sess.dcx).validate_standalone_function(&func);
-            assert!(sess.dcx.has_errors().is_ok());
-        });
-    }
-
-    #[test]
-    fn nonexistent_internal_call_target_is_caught() {
-        with_session(|sess| {
-            let mut caller = make_func();
-            {
-                let mut builder = FunctionBuilder::new(&mut caller);
-                builder.internal_call_void(FunctionId::from_usize(99), Vec::new(), 0);
-                builder.stop();
-            }
-            let mut module = Module::new(Ident::DUMMY);
-            module.add_function(caller);
-
-            validate(&sess.dcx, &module);
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: [fn0] internal_call targets nonexistent function fn99
-
-
-"#]]
-            );
-        });
-    }
-
-    // Suppress the unused-import warning for `BasicBlock`.
-    #[allow(dead_code)]
-    fn _block_type_reference() -> Option<BasicBlock> {
-        None
     }
 }

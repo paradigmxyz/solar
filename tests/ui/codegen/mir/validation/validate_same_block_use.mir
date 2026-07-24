@@ -16,7 +16,7 @@ fn @cyclic(arg0: bool) -> u256 {
   bb1:
     v0 = add v1, 1
     v1 = add v0, 1
-    br arg0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
     ret v0
 }

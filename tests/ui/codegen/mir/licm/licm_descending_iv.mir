@@ -11,7 +11,7 @@ fn @keep_mload_descending_iv() -> u256 {
   bb1:
     v1 = phi [bb0: 64], [bb2: v9]
     v2 = lt v1, 100
-    br v2, bb2, bb3
+    jumpi v2, bb2, bb3
   bb2:
     v3 = mload 0
     sstore v1, v3
@@ -30,7 +30,7 @@ fn @hoist_mload_ascending_iv() -> u256 {
   bb1:
     v1 = phi [bb0: 64], [bb2: v9]
     v2 = lt v1, 100
-    br v2, bb2, bb3
+    jumpi v2, bb2, bb3
   bb2:
     v3 = mload 0
     sstore v1, v3

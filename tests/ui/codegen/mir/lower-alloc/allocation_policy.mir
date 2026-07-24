@@ -2,7 +2,7 @@
 //@filecheck: --match-full-lines
 // CHECK-LABEL:   fn @checked(arg0: u256) -> memorybytes {
 // CHECK: +     v0 = mload 64 !metadata(memory=scratch)
-// CHECK: +     br v8, bb2, bb1
+// CHECK: +     jumpi v8, bb2, bb1
 // CHECK: +     calldatacopy v0, v9, v3
 // CHECK: +     revert 0, 36
 // CHECK-LABEL:   fn @internal() -> memptr {

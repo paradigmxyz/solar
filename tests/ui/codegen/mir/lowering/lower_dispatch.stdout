@@ -16,14 +16,14 @@
 + fn @entry() {
 +   bb0:
 +     v0 = callvalue
-+     br v0, bb6, bb1
++     jumpi v0, bb6, bb1
 +   bb1:
 +     v1 = calldatasize
-+     br v1, bb2, bb6
++     jumpi v1, bb2, bb6
 +   bb2:
 +     v2 = calldatasize
 +     v3 = lt v2, 4
-+     br v3, bb6, bb3
++     jumpi v3, bb6, bb3
 +   bb3:
 +     v4 = calldataload 0
 +     v5 = shr 224, v4
