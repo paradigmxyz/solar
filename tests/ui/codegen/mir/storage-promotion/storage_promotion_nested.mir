@@ -11,7 +11,7 @@
 // CHECK-LABEL: fn @promote_outer_after_inner_flush_split
 // CHECK: + [[INITIAL:v[0-9]+]] = sload 0
 // CHECK: + mstore 192, [[INITIAL]]
-// CHECK: + [[LOOP_VALUE:v[0-9]+]] = mload 192
+// CHECK: + {{v[0-9]+}} = mload 192
 // CHECK: + [[FLUSH:v[0-9]+]] = mload 192
 // CHECK: + sstore 0, [[FLUSH]]
 fn @promote_outer_after_inner_flush_split() [selector=0x01020304] {
@@ -42,7 +42,7 @@ fn @promote_outer_after_inner_flush_split() [selector=0x01020304] {
 // The relocated inner flush targets a symbolic slot that may alias the outer
 // latch's constant slot, so the outer loop must not be promoted.
 // CHECK-LABEL: fn @reject_outer_when_inner_flush_may_alias
-// CHECK: + [[VALUE:v[0-9]+]] = sload 0
+// CHECK: + {{v[0-9]+}} = sload 0
 // CHECK: + sstore 0
 fn @reject_outer_when_inner_flush_may_alias(arg0: u256) [selector=0x01020304] {
   bb0:

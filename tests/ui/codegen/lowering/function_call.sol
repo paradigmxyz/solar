@@ -12,7 +12,7 @@ contract FunctionCall {
 
     // CHECK-LABEL: fn @quadruple
     // CHECK: [[DOUBLE:v[0-9]+]] = add arg0, arg0
-    // CHECK: [[QUADRUPLE:v[0-9]+]] = add [[DOUBLE]], [[DOUBLE]]
+    // CHECK: {{v[0-9]+}} = add [[DOUBLE]], [[DOUBLE]]
     function quadruple(uint256 x) public pure returns (uint256) {
         return double(double(x));
     }

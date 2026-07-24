@@ -6,7 +6,7 @@ contract LoopSimple {
     // CHECK-LABEL: fn @sum_to
     // CHECK: [[I:v[0-9]+]] = mload 192
     // CHECK: lt [[I]], arg0
-    // CHECK: [[EXIT_TOTAL:v[0-9]+]] = mload 160
+    // CHECK: {{v[0-9]+}} = mload 160
     // CHECK: returndata
     // CHECK: [[LOOP_I:v[0-9]+]] = mload 192
     // CHECK: add [[LOOP_I]], 1

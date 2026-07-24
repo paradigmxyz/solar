@@ -21,7 +21,7 @@ fn @entry() {
 }
 // CHECK-LABEL: fn @caller
 // CHECK: - internal_call @fused
-// CHECK: + tail_call @fused, [[ARG:v[0-9]+]]
+// CHECK: + tail_call @fused, {{v[0-9]+}}
 fn @caller() [selector=0x00000007] {
   bb0:
     v0 = calldataload 4

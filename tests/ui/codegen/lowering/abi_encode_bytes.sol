@@ -11,7 +11,7 @@ contract AbiEncodeBytes {
     // CHECK-LABEL: fn @hash3
     // CHECK: [[BASE:v[0-9]+]] = fmp
     // CHECK: mstore [[BASE]], arg0
-    // CHECK: [[HASH:v[0-9]+]] = keccak256 [[BASE]], 96
+    // CHECK: {{v[0-9]+}} = keccak256 [[BASE]], 96
     function hash3(uint a, uint b, uint c) external pure returns (bytes32) {
         return keccak256(abi.encode(a, b, c));
     }

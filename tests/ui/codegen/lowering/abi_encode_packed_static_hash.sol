@@ -6,8 +6,8 @@
 // scratch memory and coalesce adjacent sub-word writes into one word store.
 contract AbiEncodePackedStaticHash {
     // CHECK-LABEL: fn @hash
-    // CHECK: [[SIZE:v[0-9]+]] = shl 136, arg0
-    // CHECK: [[MAX_SIZE:v[0-9]+]] = shl 72, arg1
+    // CHECK: {{v[0-9]+}} = shl 136, arg0
+    // CHECK: {{v[0-9]+}} = shl 72, arg1
     // CHECK: mstore 0, {{v[0-9]+}}
     // CHECK: mstore 23, arg2
     // CHECK: keccak256 0, 55

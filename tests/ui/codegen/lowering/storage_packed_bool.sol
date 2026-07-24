@@ -17,7 +17,7 @@ contract PackedBool {
     // CHECK: [[WORD:v[0-9]+]] = sload 0
     // CHECK: and [[WORD]], 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     // CHECK: sstore 0,
-    // CHECK: [[WORD2:v[0-9]+]] = sload 0
+    // CHECK: {{v[0-9]+}} = sload 0
     // CHECK: shl 8,
     // CHECK: sstore 0,
     function set(bool x, bool y) external {
@@ -29,7 +29,7 @@ contract PackedBool {
     // CHECK: [[WORD:v[0-9]+]] = sload 0
     // CHECK: [[A:v[0-9]+]] = and [[WORD]], 255
     // CHECK: br [[A]],
-    // CHECK: [[WORD2:v[0-9]+]] = sload 0
+    // CHECK: {{v[0-9]+}} = sload 0
     // CHECK: phi [bb0: 0],
     function both() external view returns (bool) {
         return a && b;

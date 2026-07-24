@@ -3,7 +3,7 @@
 
 contract InternalCallFallbacks {
     // CHECK-LABEL: fn @recurse
-    // CHECK: [[RESULT:v[0-9]+]] = internal_call @a, 1, arg0
+    // CHECK: {{v[0-9]+}} = internal_call @a, 1, arg0
     function recurse(uint256 x) public returns (uint256) {
         return a(x);
     }

@@ -3,7 +3,7 @@
 @module Pre
 // CHECK-LABEL: fn @insert_missing_predecessor
 // CHECK: + [[INSERTED:v[0-9]+]] = add arg0, 7
-// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: [[LEFT:v[0-9]+]]], [bb2: [[RIGHT:v[0-9]+]]], [bb3: [[INSERTED]]]
+// CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}], [bb3: [[INSERTED]]]
 fn @insert_missing_predecessor(arg0: u256, arg1: u256) -> u256 {
   bb0:
     switch arg1, default bb3, [1 => bb1, 2 => bb2]
@@ -22,7 +22,7 @@ fn @insert_missing_predecessor(arg0: u256, arg1: u256) -> u256 {
 
 // CHECK-LABEL: fn @translate_join_phi
 // CHECK: + [[INSERTED:v[0-9]+]] = add arg2, 1
-// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: [[LEFT:v[0-9]+]]], [bb2: [[RIGHT:v[0-9]+]]], [bb3: [[INSERTED]]]
+// CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}], [bb3: [[INSERTED]]]
 fn @translate_join_phi(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
   bb0:
     switch arg3, default bb3, [1 => bb1, 2 => bb2]
@@ -42,7 +42,7 @@ fn @translate_join_phi(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
 
 // CHECK-LABEL: fn @two_way_join
 // CHECK: + [[INSERTED:v[0-9]+]] = add arg0, 1
-// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: [[AVAILABLE:v[0-9]+]]], [bb2: [[INSERTED]]]
+// CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: [[INSERTED]]]
 fn @two_way_join(arg0: u256, arg1: bool) -> u256 {
   bb0:
     br arg1, bb1, bb2
@@ -58,7 +58,7 @@ fn @two_way_join(arg0: u256, arg1: bool) -> u256 {
 
 // CHECK-LABEL: fn @split_branch_terminated_pred
 // CHECK: + br arg1, bb5, bb4
-// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: [[AVAILABLE:v[0-9]+]]], [bb5: [[INSERTED:v[0-9]+]]]
+// CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb5: [[INSERTED:v[0-9]+]]]
 // CHECK: + [[INSERTED]] = add arg0, 1
 fn @split_branch_terminated_pred(arg0: u256, arg1: bool) -> u256 {
   bb0:

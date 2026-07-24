@@ -37,7 +37,7 @@ contract C {
     // CHECK-LABEL: fn @mkArr
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>
     // CHECK: set_memory_object_len memoryarray, [[ARRAY]], arg0
-    // CHECK: [[LEN:v[0-9]+]] = memory_object_len memoryarray, [[ARRAY]]
+    // CHECK: {{v[0-9]+}} = memory_object_len memoryarray, [[ARRAY]]
     // CHECK: mcopy {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK: returndata
     function mkArr(uint256 n) public pure returns (uint256[] memory) {

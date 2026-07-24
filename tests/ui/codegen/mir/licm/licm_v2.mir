@@ -3,7 +3,7 @@
 @module LicmV2
 // CHECK-LABEL: fn @hoist_symbolic_offset_sload
 // CHECK: + [[SLOT:v[0-9]+]] = add arg0, 1
-// CHECK: + [[LOAD:v[0-9]+]] = sload [[SLOT]]
+// CHECK: + {{v[0-9]+}} = sload [[SLOT]]
 // CHECK: + [[OTHER:v[0-9]+]] = add arg0, 2
 // CHECK: sstore [[OTHER]], 9
 fn @hoist_symbolic_offset_sload(arg0: u256) -> u256 {
@@ -27,7 +27,7 @@ fn @hoist_symbolic_offset_sload(arg0: u256) -> u256 {
 // CHECK-LABEL: fn @keep_aliasing_symbolic_offset_sload
 // CHECK: + [[SLOT:v[0-9]+]] = add arg0, 1
 // CHECK: + [[ALIAS:v[0-9]+]] = add arg0, 1
-// CHECK: + [[LOAD:v[0-9]+]] = sload [[SLOT]]
+// CHECK: + {{v[0-9]+}} = sload [[SLOT]]
 // CHECK: + sstore [[ALIAS]], 9
 fn @keep_aliasing_symbolic_offset_sload(arg0: u256) -> u256 {
   bb0:
@@ -49,7 +49,7 @@ fn @keep_aliasing_symbolic_offset_sload(arg0: u256) -> u256 {
 
 // CHECK-LABEL: fn @do_not_speculate_symbolic_offset_sload
 // CHECK: br arg1
-// CHECK: + [[LOAD:v[0-9]+]] = sload
+// CHECK: + {{v[0-9]+}} = sload
 fn @do_not_speculate_symbolic_offset_sload(arg0: u256, arg1: bool) -> u256 {
   bb0:
     jump bb1

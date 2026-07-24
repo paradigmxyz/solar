@@ -29,7 +29,7 @@ contract AssemblerBlockDedup {
     // DEDUP: [[RETURN]]:
     // DEDUP: return
     // DEDUP: [[TWO]]:
-    // DEDUP: push [[REVERT:bb[0-9]+]]
+    // DEDUP: push {{bb[0-9]+}}
     // DEDUP: jumpi
     // DEDUP: push 2
     // DEDUP: jump [[RETURN]]

@@ -5,7 +5,7 @@
 // The pass must terminate after the single profitable rewrite in bb5.
 @module PingPong
 // CHECK-LABEL: fn @pingpong
-// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: [[LEFT:v[0-9]+]]], [bb2: [[RIGHT:v[0-9]+]]], [bb6: [[INSERTED:v[0-9]+]]]
+// CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}], [bb6: [[INSERTED:v[0-9]+]]]
 // CHECK: + [[INSERTED]] = add arg0, 7
 fn @pingpong(arg0: u256, arg1: u256) {
   bb0:

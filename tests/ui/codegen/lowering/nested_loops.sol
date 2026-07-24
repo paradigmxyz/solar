@@ -10,7 +10,7 @@ contract NestedLoops {
     // CHECK: lt [[J]], arg1
     // CHECK: [[BODY_I:v[0-9]+]] = mload 192
     // CHECK: [[BODY_J:v[0-9]+]] = mload 224
-    // CHECK: [[PRODUCT:v[0-9]+]] = mul [[BODY_I]], [[BODY_J]]
+    // CHECK: {{v[0-9]+}} = mul [[BODY_I]], [[BODY_J]]
     function sum_grid(uint256 n, uint256 m) public pure returns (uint256) {
         uint256 total = 0;
         for (uint256 i = 0; i < n; i++) {

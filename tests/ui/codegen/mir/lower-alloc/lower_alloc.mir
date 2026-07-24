@@ -3,7 +3,7 @@
 @module LowerAlloc
 
 // CHECK-LABEL: fn @operations
-// CHECK: + [[FMP:v[0-9]+]] = mload 64
+// CHECK: + {{v[0-9]+}} = mload 64
 // CHECK: + [[NEXT:v[0-9]+]] = add {{v[0-9]+}}, 64
 // CHECK: + mstore 64, [[NEXT]]
 fn @operations(arg0: u256) -> memptr {

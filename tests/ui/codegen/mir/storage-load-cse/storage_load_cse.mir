@@ -3,7 +3,7 @@
 @module StorageLoadCse
 // CHECK-LABEL: fn @reuse_across_disjoint_constant_store
 // CHECK: + [[LOAD:v[0-9]+]] = sload 0
-// CHECK: + [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
+// CHECK: + {{v[0-9]+}} = add [[LOAD]], [[LOAD]]
 fn @reuse_across_disjoint_constant_store() -> u256 {
   bb0:
     v1 = sload 0
@@ -14,9 +14,9 @@ fn @reuse_across_disjoint_constant_store() -> u256 {
 }
 
 // CHECK-LABEL: fn @keep_after_same_slot_store
-// CHECK: + [[BEFORE:v[0-9]+]] = sload 0
+// CHECK: + {{v[0-9]+}} = sload 0
 // CHECK: + sstore 0, 9
-// CHECK: + [[AFTER:v[0-9]+]] = sload 0
+// CHECK: + {{v[0-9]+}} = sload 0
 fn @keep_after_same_slot_store() -> u256 {
   bb0:
     v1 = sload 0
@@ -27,9 +27,9 @@ fn @keep_after_same_slot_store() -> u256 {
 }
 
 // CHECK-LABEL: fn @keep_after_symbolic_store
-// CHECK: + [[BEFORE:v[0-9]+]] = sload 0
+// CHECK: + {{v[0-9]+}} = sload 0
 // CHECK: + sstore arg0, 9
-// CHECK: + [[AFTER:v[0-9]+]] = sload 0
+// CHECK: + {{v[0-9]+}} = sload 0
 fn @keep_after_symbolic_store(arg0: u256) -> u256 {
   bb0:
     v1 = sload 0
@@ -41,7 +41,7 @@ fn @keep_after_symbolic_store(arg0: u256) -> u256 {
 
 // CHECK-LABEL: fn @reuse_across_disjoint_offset_store
 // CHECK: + [[LOAD:v[0-9]+]] = sload
-// CHECK: + [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
+// CHECK: + {{v[0-9]+}} = add [[LOAD]], [[LOAD]]
 fn @reuse_across_disjoint_offset_store(arg0: u256) -> u256 {
   bb0:
     v1 = add arg0, 1
@@ -55,7 +55,7 @@ fn @reuse_across_disjoint_offset_store(arg0: u256) -> u256 {
 }
 
 // CHECK-LABEL: fn @keep_when_reuse_extends_live_range
-// CHECK: + [[FIRST:v[0-9]+]] = sload 0
+// CHECK: + {{v[0-9]+}} = sload 0
 // CHECK: + [[SECOND:v[0-9]+]] = sload 0
 // CHECK: ret [[SECOND]]
 fn @keep_when_reuse_extends_live_range() -> u256 {
@@ -68,7 +68,7 @@ fn @keep_when_reuse_extends_live_range() -> u256 {
 
 // CHECK-LABEL: fn @replace_uses_after_second_load
 // CHECK: - {{.*}}sload 0
-// CHECK: + [[SUM:v[0-9]+]] = add [[LOAD:v[0-9]+]], [[LOAD]]
+// CHECK: + {{v[0-9]+}} = add [[LOAD:v[0-9]+]], [[LOAD]]
 // CHECK: phi [bb0: [[LOAD]]]
 fn @replace_uses_after_second_load() -> u256 {
   bb0:

@@ -8,13 +8,13 @@
 // CHECK: - {{v[0-9]+}} = mload 128
 // CHECK: + {{v[0-9]+}} = add [[FLAT:v[0-9]+]], [[FLAT]]
 // CHECK: fn @nested_memory_write_is_barrier
-// CHECK: [[NESTED_FIRST:v[0-9]+]] = mload 128
-// CHECK: [[NESTED_SECOND:v[0-9]+]] = mload 128
+// CHECK: {{v[0-9]+}} = mload 128
+// CHECK: {{v[0-9]+}} = mload 128
 // CHECK: fn @disjoint_storage
 // CHECK: + {{v[0-9]+}} = add [[SLOAD:v[0-9]+]], [[SLOAD]]
 // CHECK: fn @overlapping_storage
-// CHECK: [[SLOAD_FIRST:v[0-9]+]] = sload 0
-// CHECK: [[SLOAD_SECOND:v[0-9]+]] = sload 0
+// CHECK: {{v[0-9]+}} = sload 0
+// CHECK: {{v[0-9]+}} = sload 0
 // Aggregate writes kill preceding stores only when they overwrite the value.
 // CHECK: + // === {{.*}} (after memory-dse) ===
 // CHECK: fn @overwrites_memory

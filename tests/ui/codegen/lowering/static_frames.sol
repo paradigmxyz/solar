@@ -37,7 +37,7 @@ contract SF {
     // CHECK: mstore
     // CHECK: jump
     // CHECK: [[DYNAMIC_CONT]]:
-    // CHECK: push [[STATIC_CONT:bb[0-9]+]]
+    // CHECK: push {{bb[0-9]+}}
     // CHECK-NEXT: jump [[STATIC_CALLEE:bb[0-9]+]]
     // CHECK: [[STATIC_CALLEE]]:
     function top(uint256 x) external returns (uint256) {

@@ -4,7 +4,7 @@
 
 // CHECK-LABEL: fn @checked
 // CHECK: + [[PTR:v[0-9]+]] = mload 64
-// CHECK: + br [[OVERFLOW:v[0-9]+]], bb2, bb1
+// CHECK: + br {{v[0-9]+}}, bb2, bb1
 // CHECK: + calldatacopy [[PTR]], {{v[0-9]+}}, {{v[0-9]+}}
 // CHECK: + revert 0, 36
 fn @checked(arg0: u256) -> memorybytes {

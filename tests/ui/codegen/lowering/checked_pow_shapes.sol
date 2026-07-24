@@ -19,7 +19,7 @@ contract CheckedPowShapes {
     // CHECK: eq arg0, 2
     // CHECK: shl arg1, 1
     // CHECK: exp arg0, arg1
-    // CHECK: [[SQUARED:v[0-9]+]] = mul {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: {{v[0-9]+}} = mul {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK: shr 1,
     function upow(uint256 a, uint256 b) public pure returns (uint256) {
         return a ** b;

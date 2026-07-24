@@ -3,7 +3,7 @@
 @module InlineInternalCall
 // CHECK-LABEL: fn @caller
 // CHECK: - {{.*}}internal_call @callee
-// CHECK: + [[RESULT:v[0-9]+]] = phi [bb2: [[INLINED:v[0-9]+]]]
+// CHECK: + {{v[0-9]+}} = phi [bb2: [[INLINED:v[0-9]+]]]
 // CHECK: + [[INLINED]] = add arg0, 1
 fn @caller(arg0: u256) -> u256 {
   bb0:

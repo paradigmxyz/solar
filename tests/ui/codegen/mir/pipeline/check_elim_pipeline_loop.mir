@@ -12,7 +12,7 @@
 // CHECK-LABEL: fn @sum
 // CHECK: [[INDEX:v[0-9]+]] = phi [bb0: 0], [bb7: [[NEXT:v[0-9]+]]]
 // CHECK: [[SUM:v[0-9]+]] = add {{v[0-9]+}}, [[INDEX]]
-// CHECK: [[OVERFLOW:v[0-9]+]] = lt [[SUM]], {{v[0-9]+}}
+// CHECK: {{v[0-9]+}} = lt [[SUM]], {{v[0-9]+}}
 // CHECK: mstore 4, 17 !metadata(memory=scratch)
 // CHECK: revert 0, 36
 // CHECK: [[NEXT]] = add [[INDEX]], 1

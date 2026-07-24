@@ -9,7 +9,7 @@ contract InternalVoidCall {
 
     // CHECK-LABEL: fn @set
     // CHECK: [[ZERO:v[0-9]+]] = eq arg0, 0
-    // CHECK: [[NONZERO:v[0-9]+]] = iszero [[ZERO]]
+    // CHECK: {{v[0-9]+}} = iszero [[ZERO]]
     // CHECK: sstore 0, arg0
     function set(uint256 newValue) public {
         writeIfNonZero(newValue);
@@ -28,7 +28,7 @@ contract InternalVoidCall {
 
     // CHECK-LABEL: fn @writeIfNonZero
     // CHECK: [[ZERO:v[0-9]+]] = eq arg0, 0
-    // CHECK: [[NONZERO:v[0-9]+]] = iszero [[ZERO]]
+    // CHECK: {{v[0-9]+}} = iszero [[ZERO]]
     // CHECK: sstore 0, arg0
     function writeIfNonZero(uint256 newValue) internal {
         if (newValue != 0) {

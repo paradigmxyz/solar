@@ -20,7 +20,7 @@ contract StackPhiLoop {
     // CHECK: return
     // CHECK: jump [[CARRIED_HEADER]]
     // CHECK: [[CARRIED_BODY]]:
-    // CHECK: push [[CARRIED_LATCH:bb[0-9]+]]
+    // CHECK: push {{bb[0-9]+}}
     // CHECK: jumpi
     function loopCarried(uint256 n, bool flag) public pure returns (uint256) {
         uint256 step = flag ? 7 : 11;
@@ -42,7 +42,7 @@ contract StackPhiLoop {
     // CHECK: [[FIRST_EXIT]]:
     // CHECK: jump [[SECOND_HEADER:bb[0-9]+]]
     // CHECK: [[SECOND_HEADER]]:
-    // CHECK: push [[SECOND_BODY:bb[0-9]+]]
+    // CHECK: push {{bb[0-9]+}}
     // CHECK-NEXT: jumpi
     // CHECK: jump [[SECOND_HEADER]]
     function sequential(uint256 a, uint256 b) public pure returns (uint256) {
@@ -64,7 +64,7 @@ contract StackPhiLoop {
     // CHECK: [[OUTER_BODY]]:
     // CHECK: jump [[INNER_HEADER:bb[0-9]+]]
     // CHECK: [[INNER_HEADER]]:
-    // CHECK: push [[INNER_BODY:bb[0-9]+]]
+    // CHECK: push {{bb[0-9]+}}
     // CHECK-NEXT: jumpi
     // CHECK: jump [[OUTER_HEADER]]
     // CHECK: jump [[INNER_HEADER]]

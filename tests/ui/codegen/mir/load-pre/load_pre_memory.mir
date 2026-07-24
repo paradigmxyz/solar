@@ -80,8 +80,8 @@ fn @mload_partial_rejected(arg0: bool) -> u256 {
 
 // CHECK-LABEL: fn @mload_partial_repeated_profitable
 // CHECK: + [[INSERTED:v[0-9]+]] = mload 128
-// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: [[AVAILABLE:v[0-9]+]]], [bb2: [[INSERTED]]]
-// CHECK: + [[SUM:v[0-9]+]] = add [[MERGE]], [[MERGE]]
+// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: {{v[0-9]+}}], [bb2: [[INSERTED]]]
+// CHECK: + {{v[0-9]+}} = add [[MERGE]], [[MERGE]]
 fn @mload_partial_repeated_profitable(arg0: bool) -> u256 {
   bb0:
     br arg0, bb1, bb2
@@ -118,8 +118,8 @@ fn @mload_partial_two_available(arg0: u256) -> u256 {
 }
 
 // CHECK-LABEL: fn @mload_loop_header
-// CHECK: + [[LOAD:v[0-9]+]] = phi [bb0: [[INITIAL:v[0-9]+]]], [bb2: [[LOAD]]]
-// CHECK: + [[CMP:v[0-9]+]] = lt [[LOAD]], arg0
+// CHECK: + [[LOAD:v[0-9]+]] = phi [bb0: {{v[0-9]+}}], [bb2: [[LOAD]]]
+// CHECK: + {{v[0-9]+}} = lt [[LOAD]], arg0
 fn @mload_loop_header(arg0: u256) -> u256 {
   bb0:
     v1 = mload 128

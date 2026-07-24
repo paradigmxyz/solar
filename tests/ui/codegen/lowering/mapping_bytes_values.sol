@@ -7,7 +7,7 @@ contract MappingBytesValues {
 
     // CHECK-LABEL: fn @set
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot arg0, 0
-    // CHECK: [[LEN:v[0-9]+]] = memory_object_len memorybytes
+    // CHECK: {{v[0-9]+}} = memory_object_len memorybytes
     // CHECK: sload [[SLOT]]
     // CHECK: sstore [[SLOT]],
     function set(uint256 key, bytes memory value) external {

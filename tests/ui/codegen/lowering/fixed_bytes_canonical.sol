@@ -17,7 +17,7 @@ contract FixedBytesCanonical {
 
     // CHECK-LABEL: fn @compareElement
     // CHECK: [[ELEMENT:v[0-9]+]] = and {{v[0-9]+}}, 0xff00000000000000000000000000000000000000000000000000000000000000
-    // CHECK: [[ONE:v[0-9]+]] = shl 248, {{v[0-9]+}}
+    // CHECK: {{v[0-9]+}} = shl 248, {{v[0-9]+}}
     // CHECK: eq [[ELEMENT]], {{v[0-9]+}}
     function compareElement(bytes memory data) external pure returns (bool) {
         return data[0] == bytes1(uint8(1));

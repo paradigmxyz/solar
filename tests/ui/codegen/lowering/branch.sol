@@ -17,9 +17,9 @@ contract Branch {
 
     // CHECK-LABEL: fn @abs_diff
     // CHECK: [[LT:v[0-9]+]] = lt arg0, arg1
-    // CHECK: [[GE:v[0-9]+]] = iszero [[LT]]
-    // CHECK: [[AB:v[0-9]+]] = sub arg0, arg1
-    // CHECK: [[BA:v[0-9]+]] = sub arg1, arg0
+    // CHECK: {{v[0-9]+}} = iszero [[LT]]
+    // CHECK: {{v[0-9]+}} = sub arg0, arg1
+    // CHECK: {{v[0-9]+}} = sub arg1, arg0
     function abs_diff(uint256 a, uint256 b) public pure returns (uint256) {
         if (a >= b) {
             return a - b;

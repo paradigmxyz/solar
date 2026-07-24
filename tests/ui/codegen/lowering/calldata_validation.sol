@@ -81,7 +81,7 @@ contract CalldataValidation {
 
     // Full-word value types are canonical by construction: no validator.
     // CHECK-LABEL: fn @vFull
-    // CHECK: [[SIZE:v[0-9]+]] = slt {{v[0-9]+}}, 96
+    // CHECK: {{v[0-9]+}} = slt {{v[0-9]+}}, 96
     // CHECK-NOT: calldataload
     // CHECK: add arg0, arg1
     function vFull(uint256 a, bytes32 b, int256 c) external pure returns (uint256) {

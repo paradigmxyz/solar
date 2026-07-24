@@ -8,8 +8,8 @@
 // loss.
 @module LoadPreLoop
 // CHECK-LABEL: fn @loop_header_reload
-// CHECK: + [[LOAD:v[0-9]+]] = phi [bb0: [[INITIAL:v[0-9]+]]], [bb2: [[LOAD]]]
-// CHECK: + [[CMP:v[0-9]+]] = lt [[LOAD]], arg0
+// CHECK: + [[LOAD:v[0-9]+]] = phi [bb0: {{v[0-9]+}}], [bb2: [[LOAD]]]
+// CHECK: + {{v[0-9]+}} = lt [[LOAD]], arg0
 // CHECK: + ret [[LOAD]]
 fn @loop_header_reload(arg0: u256) -> u256 {
   bb0:

@@ -9,7 +9,7 @@ contract StorageBytesElements {
     bytes public b;
 
     // CHECK-LABEL: fn @init
-    // CHECK: [[LEN:v[0-9]+]] = memory_object_len memorybytes
+    // CHECK: {{v[0-9]+}} = memory_object_len memorybytes
     // CHECK: sload 0
     // CHECK: sstore 0,
     function init(bytes memory value) public {
@@ -23,7 +23,7 @@ contract StorageBytesElements {
     // CHECK: br {{v[0-9]+}},
     // CHECK: br [[LONG]],
     // CHECK: sstore 0,
-    // CHECK: [[DATA:v[0-9]+]] = keccak256 0, 32
+    // CHECK: {{v[0-9]+}} = keccak256 0, 32
     // CHECK: sstore {{v[0-9]+}},
     function poke() public {
         b[5] = 0xAA;

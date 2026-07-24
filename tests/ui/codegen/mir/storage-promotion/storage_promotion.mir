@@ -67,8 +67,8 @@ fn @promote_store_only_without_initial_load() [selector=0x01020304] {
 // CHECK-LABEL: fn @promote_two_initialized_slots
 // CHECK: + mstore 128, 1
 // CHECK: + mstore 160, 2
-// CHECK: + [[FIRST:v[0-9]+]] = mload 128
-// CHECK: + [[SECOND:v[0-9]+]] = mload 160
+// CHECK: + {{v[0-9]+}} = mload 128
+// CHECK: + {{v[0-9]+}} = mload 160
 fn @promote_two_initialized_slots() [selector=0x01020304] {
   bb0:
     sstore 0, 1

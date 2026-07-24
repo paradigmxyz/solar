@@ -24,7 +24,7 @@ fn @keep_balance_with_call() -> u256 {
 // Without any call or create in the loop the balance is loop-invariant for real.
 // CHECK-LABEL: fn @hoist_balance_without_calls
 // CHECK: + [[BALANCE:v[0-9]+]] = balance 0xbeef
-// CHECK: + [[SCALED:v[0-9]+]] = mul [[BALANCE]], 3
+// CHECK: + {{v[0-9]+}} = mul [[BALANCE]], 3
 // CHECK: - [[BALANCE]] = balance 0xbeef
 fn @hoist_balance_without_calls() -> u256 {
   bb0:

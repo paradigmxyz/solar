@@ -19,7 +19,7 @@ contract ArrayBoundsPanic {
     uint256[3] sfix;
 
     // CHECK-LABEL: fn @memFix
-    // CHECK: [[IN_BOUNDS:v[0-9]+]] = lt arg0, 3
+    // CHECK: {{v[0-9]+}} = lt arg0, 3
     // CHECK: mstore 4, 50
     // CHECK: memory_object_element_addr memoryfixedarray<3, 1>, {{v[0-9]+}}, arg0
     function memFix(uint256 i) public pure returns (uint256) {
@@ -47,7 +47,7 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @memDyn
     // CHECK: [[LEN:v[0-9]+]] = memory_object_len memoryarray
-    // CHECK: [[IN_BOUNDS:v[0-9]+]] = lt arg1, [[LEN]]
+    // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
     // CHECK: mstore 4, 50
     function memDyn(uint256 n, uint256 i) public pure returns (uint256) {
         uint256[] memory x = new uint256[](n);
@@ -56,7 +56,7 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @stDyn
     // CHECK: [[LEN:v[0-9]+]] = sload 0
-    // CHECK: [[IN_BOUNDS:v[0-9]+]] = lt arg0, [[LEN]]
+    // CHECK: {{v[0-9]+}} = lt arg0, [[LEN]]
     // CHECK: mstore 4, 50
     // CHECK: keccak256 0, 32
     function stDyn(uint256 i) public view returns (uint256) {
@@ -65,14 +65,14 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @stDynWrite
     // CHECK: [[LEN:v[0-9]+]] = sload 0
-    // CHECK: [[IN_BOUNDS:v[0-9]+]] = lt arg0, [[LEN]]
+    // CHECK: {{v[0-9]+}} = lt arg0, [[LEN]]
     // CHECK: sstore {{v[0-9]+}}, arg1
     function stDynWrite(uint256 i, uint256 v) public {
         sdyn[i] = v;
     }
 
     // CHECK-LABEL: fn @stFix
-    // CHECK: [[IN_BOUNDS:v[0-9]+]] = lt arg0, 3
+    // CHECK: {{v[0-9]+}} = lt arg0, 3
     // CHECK: mstore 4, 50
     // CHECK: sload
     function stFix(uint256 i) public view returns (uint256) {
@@ -81,14 +81,14 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @cdDyn
     // CHECK: [[LEN:v[0-9]+]] = slice_len arg0
-    // CHECK: [[IN_BOUNDS:v[0-9]+]] = lt arg1, [[LEN]]
+    // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
     // CHECK: calldataload
     function cdDyn(uint256[] calldata x, uint256 i) public pure returns (uint256) {
         return x[i];
     }
 
     // CHECK-LABEL: fn @cdFix
-    // CHECK: [[IN_BOUNDS:v[0-9]+]] = lt arg3, 3
+    // CHECK: {{v[0-9]+}} = lt arg3, 3
     // CHECK: memory_object_element_addr memoryfixedarray<3, 1>, {{v[0-9]+}}, arg3
     function cdFix(uint256[3] calldata x, uint256 i) public pure returns (uint256) {
         return x[i];
@@ -96,7 +96,7 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @cdBytes
     // CHECK: [[LEN:v[0-9]+]] = slice_len arg0
-    // CHECK: [[IN_BOUNDS:v[0-9]+]] = lt arg1, [[LEN]]
+    // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
     // CHECK: calldataload
     function cdBytes(bytes calldata b, uint256 i) public pure returns (bytes1) {
         return b[i];

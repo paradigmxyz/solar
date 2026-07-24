@@ -5,7 +5,7 @@
 // different dynamic size share no key and are left alone.
 @module LoadPreKeccak
 // CHECK-LABEL: fn @keccak_same_dynamic_size
-// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: [[LEFT:v[0-9]+]]], [bb2: [[RIGHT:v[0-9]+]]]
+// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}]
 // CHECK: + ret [[MERGE]]
 fn @keccak_same_dynamic_size(arg0: bool, arg1: u256) -> u256 {
   bb0:

@@ -7,7 +7,7 @@
 // `string` values copy their data without padding (runtime-length cursor).
 contract AbiEncodePackedMixed {
     // CHECK-LABEL: fn @fixedBytesArg
-    // CHECK: [[ADDRESS:v[0-9]+]] = shl 96, arg1
+    // CHECK: {{v[0-9]+}} = shl 96, arg1
     // CHECK: mstore {{v[0-9]+}}, arg2
     // CHECK: keccak256 {{v[0-9]+}}, 54
     function fixedBytesArg(uint a, address b, bytes2 c) external pure returns (bytes32) {

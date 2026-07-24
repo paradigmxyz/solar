@@ -5,7 +5,7 @@
 @module LowerAbiMultiReturn
 // CHECK-LABEL: fn @pair
 // CHECK: + mstore 128, arg0
-// CHECK: + mstore 160, [[SECOND:v[0-9]+]]
+// CHECK: + mstore 160, {{v[0-9]+}}
 // CHECK: + returndata 128, 64
 fn @pair(arg0: u256) -> (u256, u256) [selector=0x1f6a26ff] {
   bb0:

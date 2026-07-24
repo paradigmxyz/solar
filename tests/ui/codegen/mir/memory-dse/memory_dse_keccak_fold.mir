@@ -13,7 +13,7 @@ fn @fold_constant_scratch_keccak() -> bytes32 {
 
 // CHECK-LABEL: fn @keep_dynamic_word
 // CHECK: mstore 0, arg0
-// CHECK: [[HASH:v[0-9]+]] = keccak256 0, 64
+// CHECK: {{v[0-9]+}} = keccak256 0, 64
 fn @keep_dynamic_word(arg0: u256) -> bytes32 {
   bb0:
     mstore 0, arg0
@@ -24,7 +24,7 @@ fn @keep_dynamic_word(arg0: u256) -> bytes32 {
 
 // CHECK-LABEL: fn @keep_after_memory_clobber
 // CHECK: calldatacopy
-// CHECK: [[HASH:v[0-9]+]] = keccak256 0, 64
+// CHECK: {{v[0-9]+}} = keccak256 0, 64
 fn @keep_after_memory_clobber() -> bytes32 {
   bb0:
     mstore 0, 7

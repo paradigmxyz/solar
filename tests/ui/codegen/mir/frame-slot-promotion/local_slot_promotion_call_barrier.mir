@@ -3,7 +3,7 @@
 @module LocalSlotPromotionCallBarrier
 // CHECK-LABEL: fn @promote_across_unrelated_staticcall
 // CHECK: [[CALL:v[0-9]+]] = staticcall
-// CHECK: + [[RESULT:v[0-9]+]] = add 9, [[CALL]]
+// CHECK: + {{v[0-9]+}} = add 9, [[CALL]]
 fn @promote_across_unrelated_staticcall(arg0: address) -> u256 {
   bb0:
     v1 = internal_frame_addr 128
@@ -33,7 +33,7 @@ fn @keep_msize_observation() -> u256 {
 
 // CHECK-LABEL: fn @promote_slot_with_unrelated_frame_hash
 // CHECK: [[HASH:v[0-9]+]] = keccak256
-// CHECK: + [[RESULT:v[0-9]+]] = add 9, [[HASH]]
+// CHECK: + {{v[0-9]+}} = add 9, [[HASH]]
 fn @promote_slot_with_unrelated_frame_hash() -> u256 {
   bb0:
     v1 = internal_frame_addr 128

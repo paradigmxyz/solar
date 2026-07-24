@@ -4,7 +4,7 @@
 
 // CHECK-LABEL: fn @hoist_projection
 // CHECK: + [[INSERTED:v[0-9]+]] = memory_object_field_addr
-// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: [[AVAILABLE:v[0-9]+]]], [bb2: [[INSERTED]]]
+// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: {{v[0-9]+}}], [bb2: [[INSERTED]]]
 // CHECK: + ret [[MERGE]]
 fn @hoist_projection(arg0: memorystruct, arg1: bool) -> memptr {
   bb0:

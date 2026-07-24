@@ -17,7 +17,7 @@ fn @remove_store_overwritten_on_unique_edge() -> u256 {
 
 // CHECK-LABEL: fn @keep_store_read_before_successor_overwrite
 // CHECK: mstore 128, 1
-// CHECK: [[LOAD:v[0-9]+]] = mload 128
+// CHECK: {{v[0-9]+}} = mload 128
 fn @keep_store_read_before_successor_overwrite() -> u256 {
   bb0:
     mstore 128, 1

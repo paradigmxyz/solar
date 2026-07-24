@@ -16,7 +16,7 @@ contract ConstructorInternalCallBin {
     // CHECK: mul
     // CHECK: jumpi
     // CHECK-NEXT: push 1
-    // CHECK: push [[RECURSE_CONT:bb[0-9]+]]
+    // CHECK: push {{bb[0-9]+}}
     // CHECK-NEXT: jump [[HELPER]]
     // CHECK: [[CTOR_CONT]]:
     // CHECK: sstore

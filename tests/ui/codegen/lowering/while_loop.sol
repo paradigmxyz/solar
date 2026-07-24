@@ -19,7 +19,7 @@ contract WhileLoop {
 
     // CHECK-LABEL: fn @do_at_least_once
     // CHECK: [[I:v[0-9]+]] = mload 160
-    // CHECK: [[NEXT:v[0-9]+]] = add [[I]], 1
+    // CHECK: {{v[0-9]+}} = add [[I]], 1
     // CHECK: returndata
     // CHECK: [[LOOP_I:v[0-9]+]] = mload 160
     // CHECK: lt [[LOOP_I]], arg0

@@ -11,7 +11,7 @@ contract CheckedArithmeticPanic {
     }
 
     // CHECK-LABEL: fn @sub
-    // CHECK: [[DIFF:v[0-9]+]] = sub arg0, arg1
+    // CHECK: {{v[0-9]+}} = sub arg0, arg1
     // CHECK: lt arg0, arg1
     // CHECK: mstore 4, 17
     function sub(uint256 a, uint256 b) public pure returns (uint256) {

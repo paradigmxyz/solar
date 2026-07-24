@@ -4,19 +4,19 @@
 
 contract Comparison {
     // CHECK-LABEL: fn @eq
-    // CHECK: [[RESULT:v[0-9]+]] = eq arg0, arg1
+    // CHECK: {{v[0-9]+}} = eq arg0, arg1
     function eq(uint256 a, uint256 b) public pure returns (bool) {
         return a == b;
     }
 
     // CHECK-LABEL: fn @lt
-    // CHECK: [[RESULT:v[0-9]+]] = lt arg0, arg1
+    // CHECK: {{v[0-9]+}} = lt arg0, arg1
     function lt(uint256 a, uint256 b) public pure returns (bool) {
         return a < b;
     }
 
     // CHECK-LABEL: fn @is_zero
-    // CHECK: [[RESULT:v[0-9]+]] = eq arg0, 0
+    // CHECK: {{v[0-9]+}} = eq arg0, 0
     function is_zero(uint256 a) public pure returns (bool) {
         return a == 0;
     }

@@ -17,7 +17,7 @@ fn @remove_store_overwritten_by_codecopy() -> u256 {
 // CHECK-LABEL: fn @keep_store_after_partial_copy
 // CHECK: mstore 32, 1
 // CHECK: codecopy 0, 0, 32
-// CHECK: [[LOAD:v[0-9]+]] = mload 32
+// CHECK: {{v[0-9]+}} = mload 32
 fn @keep_store_after_partial_copy() -> u256 {
   bb0:
     mstore 32, 1

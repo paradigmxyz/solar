@@ -4,7 +4,7 @@
 
 contract Base {
     // CHECK-LABEL: fn @value
-    // CHECK: [[VALUE:v[0-9]+]] = sload 0
+    // CHECK: {{v[0-9]+}} = sload 0
     uint256 public value;
 
     // CHECK-LABEL: fn @_anonymous

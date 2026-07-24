@@ -14,8 +14,8 @@ contract Ternary {
     }
 
     // CHECK-LABEL: fn @clamp
-    // CHECK: [[BELOW:v[0-9]+]] = lt arg0, arg1
-    // CHECK: [[ABOVE:v[0-9]+]] = gt arg0, arg2
+    // CHECK: {{v[0-9]+}} = lt arg0, arg1
+    // CHECK: {{v[0-9]+}} = gt arg0, arg2
     // CHECK: mload 0
     function clamp(uint256 x, uint256 lo, uint256 hi) public pure returns (uint256) {
         return x < lo ? lo : (x > hi ? hi : x);
@@ -23,7 +23,7 @@ contract Ternary {
 
     // CHECK-LABEL: fn @abs_diff
     // CHECK: [[LT:v[0-9]+]] = lt arg0, arg1
-    // CHECK: [[GE:v[0-9]+]] = iszero [[LT]]
+    // CHECK: {{v[0-9]+}} = iszero [[LT]]
     // CHECK: sub arg0, arg1
     // CHECK: sub arg1, arg0
     // CHECK: mload 0

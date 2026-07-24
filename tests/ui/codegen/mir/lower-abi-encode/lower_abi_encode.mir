@@ -5,7 +5,7 @@
 // CHECK-LABEL: fn @static
 // CHECK: + [[MEMORY:v[0-9]+]] = alloc raw
 // CHECK: + mstore [[MEMORY]], 0x12345678
-// CHECK: + [[SLICE:v[0-9]+]] = make_memory_slice [[MEMORY]], 36
+// CHECK: + {{v[0-9]+}} = make_memory_slice [[MEMORY]], 36
 fn @static(arg0: u256) -> memoryslice {
   bb0:
     v0 = abi_encode [word], selector 0x1234567800000000000000000000000000000000000000000000000000000000, args arg0

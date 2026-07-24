@@ -13,7 +13,7 @@ fn @forward_length(arg0: memorybytes) -> u256 {
 
 // CHECK-LABEL: fn @keep_length_after_clobber
 // CHECK: mstore arg1, 7
-// CHECK: [[LENGTH:v[0-9]+]] = memory_object_len
+// CHECK: {{v[0-9]+}} = memory_object_len
 fn @keep_length_after_clobber(arg0: memorybytes, arg1: u256) -> u256 {
   bb0:
     set_memory_object_len memorybytes, arg0, 39

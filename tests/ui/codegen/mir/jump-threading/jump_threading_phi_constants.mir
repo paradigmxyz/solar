@@ -3,7 +3,7 @@
 @module JumpThreadingPhiConstants
 // CHECK-LABEL: fn @thread_branch_on_phi_constant
 // CHECK: + br arg0, bb5, bb4
-// CHECK: + [[DEAD_PHI:v[0-9]+]] = phi
+// CHECK: + {{v[0-9]+}} = phi
 fn @thread_branch_on_phi_constant(arg0: bool) -> u256 {
   bb0:
     br arg0, bb1, bb2
@@ -22,7 +22,7 @@ fn @thread_branch_on_phi_constant(arg0: bool) -> u256 {
 
 // CHECK-LABEL: fn @thread_switch_on_phi_constant
 // CHECK: + br arg0, bb4, bb5
-// CHECK: + [[DEAD_PHI:v[0-9]+]] = phi
+// CHECK: + {{v[0-9]+}} = phi
 fn @thread_switch_on_phi_constant(arg0: bool) -> u256 {
   bb0:
     br arg0, bb1, bb2

@@ -22,7 +22,7 @@ contract MemoryAllocationPanic {
     // CHECK: mstore 4, 65
     // CHECK: [[TOTAL:v[0-9]+]] = add [[BYTES]], 32
     // CHECK: mstore 4, 65
-    // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic, [[TOTAL]]
+    // CHECK: {{v[0-9]+}} = alloc memoryarray<1>, exact, zeroed, panic, [[TOTAL]]
     function makeArray(uint256 n) external pure returns (uint256) {
         uint256[] memory a = new uint256[](n);
         return a.length;

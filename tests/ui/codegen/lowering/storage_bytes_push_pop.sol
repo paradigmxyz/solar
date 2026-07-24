@@ -6,10 +6,10 @@ contract StorageBytesPushPop {
 
     // CHECK-LABEL: fn @_anonymous
     // CHECK: [[FIRST:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
-    // CHECK: [[FIRST_LEN:v[0-9]+]] = memory_object_len memorybytes, [[FIRST]]
+    // CHECK: {{v[0-9]+}} = memory_object_len memorybytes, [[FIRST]]
     // CHECK: mcopy
     // CHECK: [[SECOND:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
-    // CHECK: [[SECOND_LEN:v[0-9]+]] = memory_object_len memorybytes, [[SECOND]]
+    // CHECK: {{v[0-9]+}} = memory_object_len memorybytes, [[SECOND]]
     // CHECK: mcopy
     constructor() {
         data.push(0x01);
@@ -39,7 +39,7 @@ contract StorageBytesPushPop {
     // CHECK: [[OLD:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
     // CHECK: [[OLD_LEN:v[0-9]+]] = memory_object_len memorybytes, [[OLD]]
     // CHECK: mstore 4, 49
-    // CHECK: [[NEW_LEN:v[0-9]+]] = sub [[OLD_LEN]], 1
+    // CHECK: {{v[0-9]+}} = sub [[OLD_LEN]], 1
     // CHECK: mcopy
     function popValue() external {
         data.pop();

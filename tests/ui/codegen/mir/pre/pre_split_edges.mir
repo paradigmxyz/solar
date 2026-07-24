@@ -8,7 +8,7 @@
 // split block, so the join phi gets exactly one new incoming entry.
 // CHECK-LABEL: fn @switch_pred_two_cases
 // CHECK: + switch arg1, default bb4, [2 => bb5, 3 => bb5]
-// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: [[AVAILABLE:v[0-9]+]]], [bb5: [[INSERTED:v[0-9]+]]]
+// CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb5: [[INSERTED:v[0-9]+]]]
 // CHECK: + [[INSERTED]] = add arg0, 7
 fn @switch_pred_two_cases(arg0: u256, arg1: u256) -> u256 {
   bb0:
@@ -29,7 +29,7 @@ fn @switch_pred_two_cases(arg0: u256, arg1: u256) -> u256 {
 // one phi entry.
 // CHECK-LABEL: fn @branch_both_arms_to_join
 // CHECK: + br arg1, bb4, bb4
-// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: [[AVAILABLE:v[0-9]+]]], [bb4: [[INSERTED:v[0-9]+]]]
+// CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb4: [[INSERTED:v[0-9]+]]]
 // CHECK: + [[INSERTED]] = add arg0, 7
 fn @branch_both_arms_to_join(arg0: u256, arg1: bool) -> u256 {
   bb0:
@@ -48,7 +48,7 @@ fn @branch_both_arms_to_join(arg0: u256, arg1: bool) -> u256 {
 // translation of the expression is not available: the backedge is split and
 // the new block carries the per-iteration recomputation.
 // CHECK-LABEL: fn @self_loop_backedge_insertion
-// CHECK: + [[VALUE:v[0-9]+]] = phi [bb1: [[AVAILABLE:v[0-9]+]]], [bb4: [[INSERTED:v[0-9]+]]]
+// CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb4: [[INSERTED:v[0-9]+]]]
 // CHECK: + [[INSERTED]] = add {{v[0-9]+}}, 7
 fn @self_loop_backedge_insertion(arg0: u256, arg1: u256) -> u256 {
   bb0:
@@ -70,7 +70,7 @@ fn @self_loop_backedge_insertion(arg0: u256, arg1: u256) -> u256 {
 // into the header is split and the hoisted computation lands on it.
 // CHECK-LABEL: fn @hoist_through_branch_preheader
 // CHECK: + br {{v[0-9]+}}, bb5, bb4
-// CHECK: + [[VALUE:v[0-9]+]] = phi [bb2: [[LATCH:v[0-9]+]]], [bb5: [[HOISTED:v[0-9]+]]]
+// CHECK: + {{v[0-9]+}} = phi [bb2: {{v[0-9]+}}], [bb5: [[HOISTED:v[0-9]+]]]
 // CHECK: + [[HOISTED]] = add arg0, 7
 fn @hoist_through_branch_preheader(arg0: u256, arg1: u256) -> u256 {
   bb0:
