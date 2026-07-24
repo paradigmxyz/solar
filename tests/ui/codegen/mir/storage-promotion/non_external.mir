@@ -1,0 +1,25 @@
+//@compile-flags: --pass storage-promotion
+//@filecheck: --enable-var-scope
+@module StoragePromotionNonExternal
+
+// CHECK-LABEL: @non_external
+// CHECK: {{^ +}}sstore 0, 1
+// CHECK: {{^ +}}[[LOAD:v[0-9]+]] = sload 0
+// CHECK: {{^ +}}[[VALUE:v[0-9]+]] = mul [[LOAD]], 2
+// CHECK: {{^ +}}sstore 0, [[VALUE]]
+fn @non_external() {
+  bb0:
+    sstore 0, 1
+    jump bb1
+  bb1:
+    br true, bb2, bb4
+  bb2:
+    v0 = sload 0
+    v1 = mul v0, 2
+    sstore 0, v1
+    jump bb3
+  bb3:
+    jump bb1
+  bb4:
+    stop
+}

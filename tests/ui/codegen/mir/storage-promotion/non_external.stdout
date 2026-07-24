@@ -1,0 +1,20 @@
+- // === ROOT/tests/ui/codegen/mir/storage-promotion/non_external.mir (before storage-promotion) ===
++ // === ROOT/tests/ui/codegen/mir/storage-promotion/non_external.mir (after storage-promotion) ===
+  @module StoragePromotionNonExternal
+  fn @non_external() {
+    bb0:
+      sstore 0, 1
+      jump bb1
+    bb1:
+      br 1, bb2, bb4
+    bb2:
+      v0 = sload 0
+      v1 = mul v0, 2
+      sstore 0, v1
+      jump bb3
+    bb3:
+      jump bb1
+    bb4:
+      stop
+  }
+  

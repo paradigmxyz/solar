@@ -1,0 +1,145 @@
+// === ROOT/tests/ui/codegen/lowering/cold_call_fallthrough_none.sol:ColdCallFallthroughNone (runtime) ===
+@module runtime
+bb0:
+  push 352
+  push 64
+  mstore
+  callvalue
+  push bb4
+  jumpi
+  jump bb1
+bb1:
+  calldatasize
+  iszero
+  push bb4
+  jumpi
+  jump bb2
+bb2:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x161e4029
+  eq
+  push bb3
+  jumpi
+  jump bb4
+bb3:
+  jump bb5
+bb4 [cold]:
+  push 0
+  dup1
+  revert
+bb5:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  iszero
+  push bb7
+  jumpi
+  jump bb6
+bb6 [cold]:
+  push 0
+  dup1
+  revert
+bb7:
+  push 0
+  push 128
+  mstore
+  push 0
+  push 4
+  calldataload
+  eq
+  iszero
+  push bb9
+  jumpi
+  jump bb8
+bb8:
+  push 0
+  push 4
+  calldataload
+  eq
+  push bb10
+  jumpi
+  jump bb11
+bb9:
+  push 4
+  calldataload
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb10:
+  push 4
+  push 288
+  mstore
+  push 0x7a65726f00000000000000000000000000000000000000000000000000000000
+  push 320
+  mstore
+  jump bb16
+bb11:
+  push 1
+  push 4
+  calldataload
+  eq
+  iszero
+  push bb13
+  jumpi
+  jump bb12
+bb12:
+  push 3
+  push 288
+  mstore
+  push 0x6f6e650000000000000000000000000000000000000000000000000000000000
+  push 320
+  mstore
+  jump bb16
+bb13:
+  push 2
+  push 4
+  calldataload
+  eq
+  iszero
+  push bb15
+  jumpi
+  jump bb14
+bb14:
+  push 3
+  push 288
+  mstore
+  push 0x74776f0000000000000000000000000000000000000000000000000000000000
+  push 320
+  mstore
+  jump bb16
+bb15:
+  push 5
+  push 288
+  mstore
+  push 0x6f74686572000000000000000000000000000000000000000000000000000000
+  push 320
+  mstore
+  jump bb16
+bb16:
+  push 0x8c379a000000000000000000000000000000000000000000000000000000000
+  push 0
+  mstore
+  push 32
+  push 4
+  mstore
+  push 288
+  mload
+  push 36
+  mstore
+  push 320
+  mload
+  push 68
+  mstore
+  push 100
+  push 0
+  revert

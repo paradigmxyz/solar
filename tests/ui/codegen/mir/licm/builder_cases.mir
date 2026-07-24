@@ -1,0 +1,78 @@
+//@compile-flags: --pass licm
+//@filecheck: --enable-var-scope
+@module LicmBuilderCases
+
+// CHECK-LABEL: @hoist_mul
+// CHECK: +     [[MUL:v[0-9]+]] = mul arg0, 7
+// CHECK-NEXT: {{^ +}}jump [[HEADER:bb[0-9]+]]
+// CHECK: {{^ +}}[[HEADER]]:
+// CHECK-NEXT: {{^ +}}br {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: {{^ +}}[[BODY]]:
+// CHECK: -     [[MUL]] = mul arg0, 7
+fn @hoist_mul(arg0: u256) {
+  bb0:
+    jump bb1
+  bb1:
+    br true, bb2, bb3
+  bb2:
+    v1 = mul arg0, 7
+    jump bb1
+  bb3:
+    stop
+}
+
+// CHECK-LABEL: @hoist_non_aliasing_sload
+// CHECK: +     [[LOAD:v[0-9]+]] = sload [[SLOT:[0-9]+]]
+// CHECK-NEXT:  jump {{bb[0-9]+}}
+// CHECK: -     [[LOAD]] = sload [[SLOT]]
+// CHECK:       ret [[LOAD]]
+fn @hoist_non_aliasing_sload() -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    br true, bb2, bb3
+  bb2:
+    v0 = sload 0
+    sstore 1, 1
+    jump bb1
+  bb3:
+    ret v0
+}
+
+// CHECK-LABEL: @keep_aliasing_sload
+// CHECK: {{^ +}}br {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: {{^ +}}[[BODY]]:
+// CHECK: +     {{v[0-9]+}} = sload [[SLOT:[0-9]+]]
+// CHECK: +     sstore [[SLOT]], 1
+fn @keep_aliasing_sload() -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    br true, bb2, bb3
+  bb2:
+    v0 = sload 0
+    sstore 0, 1
+    jump bb1
+  bb3:
+    ret v0
+}
+
+// CHECK-LABEL: @keep_work_after_gas
+// CHECK: {{^ +}}br {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: {{^ +}}[[BODY]]:
+// CHECK: {{^ +}}{{v[0-9]+}} = gas
+// CHECK: {{^ +}}[[MUL:v[0-9]+]] = mul arg0, 7
+// CHECK: {{^ +}}jump
+// CHECK: {{^ +}}ret [[MUL]]
+fn @keep_work_after_gas(arg0: u256) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    br true, bb2, bb3
+  bb2:
+    v1 = gas
+    v2 = mul arg0, 7
+    jump bb1
+  bb3:
+    ret v2
+}

@@ -1,5 +1,12 @@
 //@compile-flags: --pass licm
+//@filecheck: --enable-var-scope
 @module LicmMemoryAlias
+
+// CHECK-LABEL: @hoist_non_aliasing_mload
+// CHECK: +     [[LOAD:v[0-9]+]] = mload [[ADDR:[0-9]+]]
+// CHECK-NEXT:  jump {{bb[0-9]+}}
+// CHECK: -     [[LOAD]] = mload [[ADDR]]
+// CHECK:       ret [[LOAD]]
 fn @hoist_non_aliasing_mload() -> u256 {
   bb0:
     jump bb1
@@ -13,6 +20,11 @@ fn @hoist_non_aliasing_mload() -> u256 {
     ret v0
 }
 
+// CHECK-LABEL: @keep_aliasing_mload
+// CHECK: {{^ +}}br {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: {{^ +}}[[BODY]]:
+// CHECK: {{^ +}}{{v[0-9]+}} = mload {{[0-9]+}}
+// CHECK: {{^ +}}mstore {{[0-9]+}}, 1
 fn @keep_aliasing_mload() -> u256 {
   bb0:
     jump bb1
@@ -26,6 +38,11 @@ fn @keep_aliasing_mload() -> u256 {
     ret v0
 }
 
+// CHECK-LABEL: @hoist_non_aliasing_keccak
+// CHECK: +     [[HASH:v[0-9]+]] = keccak256 [[ADDR:[0-9]+]], [[SIZE:[0-9]+]]
+// CHECK-NEXT:  jump {{bb[0-9]+}}
+// CHECK: -     [[HASH]] = keccak256 [[ADDR]], [[SIZE]]
+// CHECK:       ret [[HASH]]
 fn @hoist_non_aliasing_keccak() -> bytes32 {
   bb0:
     jump bb1
@@ -39,6 +56,11 @@ fn @hoist_non_aliasing_keccak() -> bytes32 {
     ret v0
 }
 
+// CHECK-LABEL: @keep_aliasing_keccak
+// CHECK: {{^ +}}br {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: {{^ +}}[[BODY]]:
+// CHECK: {{^ +}}{{v[0-9]+}} = keccak256 {{[0-9]+}}, {{[0-9]+}}
+// CHECK: {{^ +}}mstore {{[0-9]+}}, 1
 fn @keep_aliasing_keccak() -> bytes32 {
   bb0:
     jump bb1

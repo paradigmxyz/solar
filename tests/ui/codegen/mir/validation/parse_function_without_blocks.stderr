@@ -1,0 +1,8 @@
+error: function must contain at least one block
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_function_without_blocks.mir:LL:CC
+   │
+LL │ fn @bad() {}
+   ╰╴           ━
+
+error: aborting due to 1 previous error
+

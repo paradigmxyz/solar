@@ -1,0 +1,4 @@
+error: [fn0] [bb0] entry block must have no predecessors
+
+error: aborting due to 1 previous error
+

@@ -1,0 +1,62 @@
+// === ROOT/tests/ui/codegen/lowering/constructor_success_postlude.sol:ConstructorSuccessPostlude (creation) ===
+// === deployment ===
+@module deployment
+bb0:
+  push 0x4000
+  push 64
+  mstore
+  push 73
+  codesize
+  sub
+  push 73
+  push 128
+  codecopy
+  push 128
+  mload
+  dup1
+  push 0x1000
+  mstore
+  iszero
+  iszero
+  push 0x1000
+  mload
+  sub
+  push bb3
+  jumpi
+  push 128
+  mload
+  push bb3
+  jumpi
+  push 21
+  dup1
+  push 52
+  push 0
+  codecopy
+  push 0
+  return
+bb3 [cold]:
+  push 0
+  dup1
+  revert
+
+// === runtime ===
+@module runtime
+bb0:
+  push 0
+  push 64
+  mstore
+  calldatasize
+  iszero
+  push bb2
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  push 0
+  push 0
+  revert
+bb2 [cold]:
+  push 0
+  push 0
+  revert
