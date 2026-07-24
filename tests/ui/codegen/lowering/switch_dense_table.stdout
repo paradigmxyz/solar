@@ -1,0 +1,173 @@
+// === ROOT/tests/ui/codegen/lowering/switch_dense_table.sol:SwitchDenseTable (runtime) ===
+@module runtime
+bb0:
+  push 128
+  push 64
+  mstore
+  callvalue
+  push bb4
+  jumpi
+  calldatasize
+  iszero
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x839a19d9
+  sub
+  push bb4
+  jumpi
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  sgt
+  push bb4
+  jumpi
+  push 4
+  calldataload
+  push 10
+  swap1
+  sub
+  dup1
+  push 24
+  gt
+  push bb7
+  jumpi
+  pop
+  push 255
+  jump bb34
+bb34:
+  push 0
+  sstore
+  stop
+bb4 [cold]:
+  push 0
+  dup1
+  revert
+bb7:
+  indexed_jump bb35, bb36, bb37, bb38, bb39, bb40, bb41, bb42, bb43, bb44, bb45, bb46, bb47, bb48, bb49, bb50, bb51, bb52, bb53, bb54, bb55, bb56, bb57, bb58
+bb10:
+  push 10
+  jump bb34
+bb11:
+  push 11
+  jump bb34
+bb12:
+  push 12
+  jump bb34
+bb13:
+  push 13
+  jump bb34
+bb14:
+  push 14
+  jump bb34
+bb15:
+  push 15
+  jump bb34
+bb16:
+  push 16
+  jump bb34
+bb17:
+  push 17
+  jump bb34
+bb18:
+  push 18
+  jump bb34
+bb19:
+  push 19
+  jump bb34
+bb20:
+  push 20
+  jump bb34
+bb21:
+  push 21
+  jump bb34
+bb22:
+  push 22
+  jump bb34
+bb23:
+  push 23
+  jump bb34
+bb24:
+  push 24
+  jump bb34
+bb25:
+  push 25
+  jump bb34
+bb26:
+  push 26
+  jump bb34
+bb27:
+  push 27
+  jump bb34
+bb28:
+  push 28
+  jump bb34
+bb29:
+  push 29
+  jump bb34
+bb30:
+  push 30
+  jump bb34
+bb31:
+  push 31
+  jump bb34
+bb32:
+  push 32
+  jump bb34
+bb33:
+  push 33
+  jump bb34
+bb35:
+  jump bb10
+bb36:
+  jump bb11
+bb37:
+  jump bb12
+bb38:
+  jump bb13
+bb39:
+  jump bb14
+bb40:
+  jump bb15
+bb41:
+  jump bb16
+bb42:
+  jump bb17
+bb43:
+  jump bb18
+bb44:
+  jump bb19
+bb45:
+  jump bb20
+bb46:
+  jump bb21
+bb47:
+  jump bb22
+bb48:
+  jump bb23
+bb49:
+  jump bb24
+bb50:
+  jump bb25
+bb51:
+  jump bb26
+bb52:
+  jump bb27
+bb53:
+  jump bb28
+bb54:
+  jump bb29
+bb55:
+  jump bb30
+bb56:
+  jump bb31
+bb57:
+  jump bb32
+bb58:
+  jump bb33

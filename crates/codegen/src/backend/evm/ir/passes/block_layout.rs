@@ -253,6 +253,8 @@ fn estimated_terminator_size(kind: &TerminatorKind, next: Option<BlockId>) -> us
                 8
             }
         }
+        // Final lowering appends table stubs after the existing block order.
+        TerminatorKind::IndexedJump(_) => 8,
         TerminatorKind::Op(_) => 1,
     }
 }
@@ -296,4 +298,17 @@ fn layout_successor(block: &Block) -> Option<BlockId> {
 fn is_cold_terminal_block(block: &Block) -> bool {
     block.metadata.hotness.is_cold()
         && block.terminator.as_ref().is_some_and(|term| is_evm_terminal(&term.kind))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn indexed_jump_estimate_excludes_appended_stubs() {
+        let one = TerminatorKind::IndexedJump(vec![BlockId::ENTRY].into_boxed_slice());
+        let many = TerminatorKind::IndexedJump(vec![BlockId::ENTRY; 64].into_boxed_slice());
+        assert_eq!(estimated_terminator_size(&one, None), 8);
+        assert_eq!(estimated_terminator_size(&many, None), 8);
+    }
 }

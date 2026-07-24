@@ -6,7 +6,7 @@
 
 mod block_layout;
 mod cfg_simplify;
-mod compact_pushes;
+pub(in crate::backend::evm) mod compact_pushes;
 mod outline;
 mod peephole;
 mod share_reverts;

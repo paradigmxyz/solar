@@ -1018,6 +1018,7 @@ symbols! {
         global,
         heap,
         hir,
+        indexed_jump,
         infallible,
         interfaceId,
         internal_call,

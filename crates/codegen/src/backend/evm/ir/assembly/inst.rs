@@ -65,6 +65,9 @@ impl AsmInst {
     const TAG_PUSH_DEFERRED: u32 = 0xb000_0000;
     const TAG_PUSH_IMMUTABLE: u32 = 0xc000_0000;
     const TAG_LABEL: u32 = 0xd000_0000;
+    const TAG_PUSH_LABEL_FIXED: u32 = 0xe000_0000;
+    const FIXED_LABEL_MASK: u32 = 0x007f_ffff;
+    const FIXED_WIDTH_SHIFT: u32 = 23;
 
     pub(in crate::backend::evm) fn op(opcode: u8) -> Self {
         Self(Self::TAG_OP | u32::from(opcode))
@@ -80,6 +83,14 @@ impl AsmInst {
 
     pub(in crate::backend::evm) fn push_label(label: Label) -> Self {
         Self::tagged(Self::TAG_PUSH_LABEL, label.inst_payload())
+    }
+
+    pub(in crate::backend::evm) fn push_label_fixed(label: Label, width: u8) -> Self {
+        assert!((1..=32).contains(&width), "invalid fixed label width");
+        let label = label.inst_payload();
+        assert!(label <= Self::FIXED_LABEL_MASK, "assembler label index overflow");
+        let width = u32::from(width - 1) << Self::FIXED_WIDTH_SHIFT;
+        Self::tagged(Self::TAG_PUSH_LABEL_FIXED, width | label)
     }
 
     pub(in crate::backend::evm) fn push_deferred(id: DeferredConst) -> Self {
@@ -114,6 +125,11 @@ impl AsmInst {
             }
             Self::TAG_PUSH_IMMUTABLE => AsmInstKind::PushImmutable(payload),
             Self::TAG_LABEL => AsmInstKind::Label(Label::from_inst_payload(payload)),
+            Self::TAG_PUSH_LABEL_FIXED => {
+                let label = Label::from_inst_payload(payload & Self::FIXED_LABEL_MASK);
+                let width = ((payload >> Self::FIXED_WIDTH_SHIFT) + 1) as u8;
+                AsmInstKind::PushLabelFixed(label, width)
+            }
             _ => unreachable!("invalid assembler instruction tag"),
         }
     }
@@ -125,6 +141,7 @@ pub(in crate::backend::evm) enum AsmInstKind {
     PushInline(u32),
     Push(PushValueId),
     PushLabel(Label),
+    PushLabelFixed(Label, u8),
     PushDeferred(DeferredConst),
     PushImmutable(u32),
     Label(Label),

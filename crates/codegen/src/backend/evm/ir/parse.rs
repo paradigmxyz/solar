@@ -210,6 +210,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let else_block = self.parse_block_ref(module)?;
                 TerminatorKind::JumpI { then_block, else_block }
             }
+            sym::indexed_jump => {
+                let mut targets = vec![self.parse_block_ref(module)?];
+                while self.parser.eat(TokenKind::Comma) {
+                    targets.push(self.parse_block_ref(module)?);
+                }
+                TerminatorKind::IndexedJump(targets.into_boxed_slice())
+            }
             kw::Return => TerminatorKind::Op(op::RETURN),
             kw::Revert => TerminatorKind::Op(op::REVERT),
             kw::Stop => TerminatorKind::Op(op::STOP),

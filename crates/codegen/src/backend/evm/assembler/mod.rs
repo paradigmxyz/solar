@@ -84,6 +84,8 @@ pub(crate) struct Assembler<'gcx> {
     label_relocations: Vec<(ir::BlockId, usize, Label)>,
     /// Unresolved deferred constants emitted as push operands.
     deferred_relocations: Vec<(ir::BlockId, usize, DeferredConst)>,
+    /// Indexed jumps whose possible targets are assembler labels.
+    indexed_jump_relocations: Vec<(ir::BlockId, Vec<Label>)>,
     /// Interned push immediates too large for inline storage.
     push_values: LocalInterner<U256, PushValueId>,
     /// Next label ID.
@@ -120,6 +122,7 @@ impl<'gcx> Assembler<'gcx> {
             cold_labels: GrowableBitSet::new_empty(),
             label_relocations: Vec::new(),
             deferred_relocations: Vec::new(),
+            indexed_jump_relocations: Vec::new(),
             push_values: LocalInterner::new(),
             next_label: IdCounter::new(),
             next_deferred: IdCounter::new(),
@@ -139,6 +142,7 @@ impl<'gcx> Assembler<'gcx> {
         self.cold_labels.clear();
         self.label_relocations.clear();
         self.deferred_relocations.clear();
+        self.indexed_jump_relocations.clear();
         self.push_values.clear();
         self.next_label.clear();
         self.next_deferred.clear();
@@ -173,6 +177,13 @@ impl<'gcx> Assembler<'gcx> {
         let (block, instruction) =
             self.push_ir_instruction(ir::Instruction::push_value(U256::ZERO));
         self.label_relocations.push((block, instruction, label));
+    }
+
+    /// Terminates the current block with an indexed jump to one of `targets`.
+    pub(crate) fn emit_indexed_jump(&mut self, targets: Vec<Label>) {
+        assert!(!targets.is_empty(), "indexed jump must have at least one target");
+        let block = self.current_block();
+        self.indexed_jump_relocations.push((block, targets));
     }
 
     /// Emits a push instruction for a deferred constant.
@@ -321,10 +332,23 @@ impl<'gcx> Assembler<'gcx> {
             module.blocks[block].instructions.splice(instruction..=instruction, replacement);
         }
         self.deferred_allocations.clear();
+        Self::finalize_evm_ir(&mut module);
+        for (block, targets) in self.indexed_jump_relocations.drain(..) {
+            let targets = targets
+                .into_iter()
+                .map(|label| {
+                    self.label_blocks
+                        .get(&label)
+                        .copied()
+                        .unwrap_or_else(|| panic!("label {label:?} was never defined"))
+                })
+                .collect::<Vec<_>>()
+                .into_boxed_slice();
+            module.blocks[block].terminator =
+                Some(ir::Terminator::new(ir::TerminatorKind::IndexedJump(targets)));
+        }
         self.label_blocks.clear();
         self.cold_labels.clear();
-
-        Self::finalize_evm_ir(&mut module);
         Some((module, std::mem::take(&mut self.block_labels)))
     }
 
@@ -391,8 +415,13 @@ impl<'gcx> Assembler<'gcx> {
         ir::run_passes(self.gcx, &mut ir_program, ir::DEFAULT_PIPELINE);
         debug_assert!(!input_is_valid || is_valid_evm_ir(&ir_program));
 
-        let evm_ir = capture_evm_ir.then(|| ir_program.clone());
-        let program = assembly::lower_evm_ir(&ir_program, &mut labels, self);
+        let program = assembly::lower_evm_ir(
+            &mut ir_program,
+            &mut labels,
+            self,
+            self.gcx.sess.opts.evm_version,
+        );
+        let evm_ir = capture_evm_ir.then_some(ir_program);
         PreparedAssembly {
             evm_ir,
             program,
@@ -455,11 +484,14 @@ impl<'gcx> Assembler<'gcx> {
 
         // Label-free constructor and deployment snippets need neither offset
         // discovery nor push-width relaxation.
-        if !program
-            .instructions
-            .iter()
-            .any(|inst| matches!(inst.kind(), AsmInstKind::Label(_) | AsmInstKind::PushLabel(_)))
-        {
+        if !program.instructions.iter().any(|inst| {
+            matches!(
+                inst.kind(),
+                AsmInstKind::Label(_)
+                    | AsmInstKind::PushLabel(_)
+                    | AsmInstKind::PushLabelFixed(_, _)
+            )
+        }) {
             let mut result =
                 self.emit_bytecode(&program, FxHashMap::default(), &FxHashMap::default());
             result.evm_ir = evm_ir;
@@ -520,6 +552,9 @@ impl<'gcx> Assembler<'gcx> {
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
                     offset += out.fixed_push_len(width);
                 }
+                AsmInstKind::PushLabelFixed(_, width) => {
+                    offset += out.fixed_push_len(width);
+                }
                 AsmInstKind::PushDeferred(_) => {
                     unreachable!("deferred values must be resolved before assembly");
                 }
@@ -533,7 +568,6 @@ impl<'gcx> Assembler<'gcx> {
                 }
             }
         }
-
         // Compute new widths based on resolved offsets
         for (idx, inst) in program.instructions.iter().enumerate() {
             if let AsmInstKind::PushLabel(label) = inst.kind()
@@ -575,6 +609,13 @@ impl<'gcx> Assembler<'gcx> {
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
                     out.emit_push_fixed_width(U256::from(target_offset), width);
                 }
+                AsmInstKind::PushLabelFixed(label, width) => {
+                    let target_offset = label_offsets
+                        .get(&label)
+                        .copied()
+                        .unwrap_or_else(|| panic!("label {label:?} was never defined"));
+                    out.emit_push_fixed_width(U256::from(target_offset), width);
+                }
                 AsmInstKind::PushDeferred(_) => {
                     unreachable!("deferred values must be resolved before assembly");
                 }
@@ -586,7 +627,6 @@ impl<'gcx> Assembler<'gcx> {
                 }
             }
         }
-
         out.finish()
     }
 
@@ -636,6 +676,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
 
     /// Emits a PUSH instruction with a specific width.
     fn emit_push_fixed_width(&mut self, value: U256, width: u8) {
+        assert!(self.push_width(value) <= width, "value does not fit fixed PUSH width");
         if width == 0 {
             self.emit_push_zero();
             return;
@@ -785,6 +826,44 @@ PUSH4 0x80000000
                 disassemble(&second.bytecode),
                 str![[r#"
 PUSH1 0x02
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
+    fn indexed_jump_uses_reachable_fixed_stride_blocks() {
+        with_assembler(opts(EvmVersion::Shanghai, OptimizationMode::None), |mut asm| {
+            let left = asm.new_label();
+            let right = asm.new_label();
+
+            asm.emit_push(U256::from(1));
+            asm.emit_indexed_jump(vec![left, right]);
+            asm.define_label(left);
+            asm.emit_op(op::STOP);
+            asm.define_label(right);
+            asm.emit_op(op::INVALID);
+
+            assert_data_eq!(
+                disassemble(&asm.assemble().bytecode),
+                str![[r#"
+PUSH1 0x01
+PUSH1 0x04
+MUL
+PUSH1 0x0d
+ADD
+JUMP
+JUMPDEST
+STOP
+JUMPDEST
+INVALID
+JUMPDEST
+PUSH1 0x09
+JUMP
+JUMPDEST
+PUSH1 0x0b
+JUMP
 
 "#]]
             );

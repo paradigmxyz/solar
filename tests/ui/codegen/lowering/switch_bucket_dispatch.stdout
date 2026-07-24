@@ -1,0 +1,249 @@
+// === ROOT/tests/ui/codegen/lowering/switch_bucket_dispatch.sol:SwitchBucketDispatch (runtime) ===
+@module runtime
+bb0:
+  push 128
+  push 64
+  mstore
+  callvalue
+  push bb59
+  jumpi
+  calldatasize
+  iszero
+  push bb59
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 40
+  swap1
+  mod
+  indexed_jump bb62, bb63, bb64, bb65, bb66, bb67, bb68, bb69, bb70, bb71, bb72, bb73, bb74, bb75, bb76, bb77, bb78, bb79, bb80, bb81, bb82, bb83, bb84, bb85, bb86, bb87, bb88, bb89, bb90, bb91, bb92, bb93, bb94, bb95, bb96, bb97, bb98, bb99, bb100, bb101
+bb60:
+  stop
+bb3:
+  dup1
+  push 0xcbf99d38
+  jump bb61
+bb61:
+  eq
+  push bb60
+  jumpi
+  jump bb59
+bb59 [cold]:
+  push 0
+  dup1
+  revert
+bb4:
+  dup1
+  push 0x87d912cb
+  eq
+  push bb60
+  jumpi
+  dup1
+  push 0x920f5c73
+  jump bb61
+bb5:
+  dup1
+  push 0x41052a0d
+  jump bb61
+bb6:
+  dup1
+  push 0x7238232f
+  eq
+  push bb60
+  jumpi
+  dup1
+  push 0x905f7d67
+  jump bb61
+bb7:
+  dup1
+  push 0x3b88f6c2
+  jump bb61
+bb8:
+  dup1
+  push 0xaa66aa63
+  jump bb61
+bb9:
+  dup1
+  push 0x24a75cfd
+  eq
+  push bb60
+  jumpi
+  dup1
+  push 0x98e9a73d
+  jump bb61
+bb10:
+  dup1
+  push 0xebd25c8f
+  jump bb61
+bb11:
+  dup1
+  push 0x8a67ee70
+  eq
+  push bb60
+  jumpi
+  dup1
+  push 0xc43b1a78
+  jump bb61
+bb12:
+  dup1
+  push 0xebbd40a9
+  jump bb61
+bb13:
+  dup1
+  push 0x1eb6457a
+  eq
+  push bb60
+  jumpi
+  dup1
+  push 0xdca2fb5a
+  jump bb61
+bb14:
+  dup1
+  push 0x67e648b5
+  jump bb61
+bb15:
+  dup1
+  push 0xe6e0ae36
+  jump bb61
+bb16:
+  dup1
+  push 0xcba58af7
+  jump bb61
+bb17:
+  dup1
+  push 0x6d4975a2
+  eq
+  push bb60
+  jumpi
+  dup1
+  push 0x8dc714ba
+  jump bb61
+bb18:
+  dup1
+  push 0x54eaadab
+  jump bb61
+bb19:
+  dup1
+  push 0x10c772cc
+  eq
+  push bb60
+  jumpi
+  dup1
+  push 0x4e580bc4
+  jump bb61
+bb20:
+  dup1
+  push 0x965a68f5
+  jump bb61
+bb21:
+  dup1
+  push 0xd758c88e
+  jump bb61
+bb22:
+  dup1
+  push 0x6d738a50
+  jump bb61
+bb23:
+  dup1
+  push 0xf02a00c9
+  jump bb61
+bb24:
+  dup1
+  push 0x40bcff2a
+  eq
+  push bb60
+  jumpi
+  dup1
+  push 0x5fb43592
+  jump bb61
+bb25:
+  dup1
+  push 0x3d492ec4
+  jump bb61
+bb26:
+  dup1
+  push 0x1f49dbe7
+  jump bb61
+bb62:
+  jump bb3
+bb63:
+  jump bb59
+bb64:
+  jump bb59
+bb65:
+  jump bb4
+bb66:
+  jump bb59
+bb67:
+  jump bb5
+bb68:
+  jump bb59
+bb69:
+  jump bb6
+bb70:
+  jump bb59
+bb71:
+  jump bb59
+bb72:
+  jump bb7
+bb73:
+  jump bb8
+bb74:
+  jump bb59
+bb75:
+  jump bb9
+bb76:
+  jump bb59
+bb77:
+  jump bb10
+bb78:
+  jump bb11
+bb79:
+  jump bb12
+bb80:
+  jump bb13
+bb81:
+  jump bb59
+bb82:
+  jump bb59
+bb83:
+  jump bb14
+bb84:
+  jump bb15
+bb85:
+  jump bb16
+bb86:
+  jump bb59
+bb87:
+  jump bb59
+bb88:
+  jump bb17
+bb89:
+  jump bb18
+bb90:
+  jump bb19
+bb91:
+  jump bb20
+bb92:
+  jump bb21
+bb93:
+  jump bb59
+bb94:
+  jump bb22
+bb95:
+  jump bb23
+bb96:
+  jump bb24
+bb97:
+  jump bb59
+bb98:
+  jump bb25
+bb99:
+  jump bb59
+bb100:
+  jump bb59
+bb101:
+  jump bb26

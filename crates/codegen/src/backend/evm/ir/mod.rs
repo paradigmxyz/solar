@@ -25,6 +25,7 @@ pub(in crate::backend::evm) mod assembly;
 pub use passes::{ALL_PASSES, EvmPass, lookup_pass, run_passes};
 
 pub(crate) use passes::DEFAULT_PIPELINE;
+pub(in crate::backend::evm) use passes::compact_pushes::immediate_materialization_cost;
 
 /// Validates the invariants of an EVM IR module.
 pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
@@ -306,6 +307,8 @@ pub(crate) enum TerminatorKind {
         /// Target when condition is zero.
         else_block: BlockId,
     },
+    /// Jump through a dense zero-based table using an index from the stack.
+    IndexedJump(Box<[BlockId]>),
     /// Terminal EVM opcode.
     Op(u8),
 }
@@ -319,6 +322,7 @@ impl TerminatorKind {
                 visit(*then_block);
                 visit(*else_block);
             }
+            Self::IndexedJump(targets) => targets.iter().copied().for_each(visit),
             Self::Op(_) => {}
         }
     }
@@ -345,6 +349,7 @@ impl TerminatorKind {
                     visit(*else_block);
                 }
             }
+            Self::IndexedJump(targets) => targets.iter().copied().for_each(visit),
             Self::Op(_) => {}
         }
     }
@@ -357,6 +362,7 @@ impl TerminatorKind {
                 visit(then_block);
                 visit(else_block);
             }
+            Self::IndexedJump(targets) => targets.iter_mut().for_each(visit),
             Self::Op(_) => {}
         }
     }
@@ -413,6 +419,7 @@ pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> Option<Sta
 fn default_terminator_stack_effect(kind: &TerminatorKind) -> Option<StackEffect> {
     match kind {
         TerminatorKind::JumpI { .. } => Some(StackEffect::new(1, 0)),
+        TerminatorKind::IndexedJump(_) => Some(StackEffect::new(1, 0)),
         TerminatorKind::Jump(_) => Some(StackEffect::new(0, 0)),
         TerminatorKind::Op(opcode) => {
             op::stack_io(*opcode).map(|(inputs, outputs)| StackEffect::new(inputs, outputs))

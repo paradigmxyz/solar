@@ -14,6 +14,10 @@ use super::{
     stack::{
         MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
     },
+    switch::{
+        MAX_GAS_CODE_GROWTH, SwitchDefault, SwitchPlan, SwitchSelection, bucket_index,
+        select_switch_plan_with_budget, select_switch_plan_with_linear_values_and_budget,
+    },
 };
 use crate::{
     analysis::{
@@ -25,7 +29,7 @@ use crate::{
     pass::run_default_pipeline,
 };
 use alloy_primitives::U256;
-use solar_config::OptimizationMode;
+use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
@@ -33,7 +37,6 @@ use solar_data_structures::{
 use solar_interface::{Span, sym};
 use solar_sema::{Gcx, hir::StateMutability};
 
-const LINEAR_SELECTOR_DISPATCH_THRESHOLD: usize = 64;
 const STACK_PHI_LAYOUT_LIMIT: usize = 8;
 const GLOBAL_STACK_LAYOUT_LIMIT: usize = 8;
 const GLOBAL_STACK_MAX_ARGS: usize = 3;
@@ -93,6 +96,13 @@ struct StackArgRetentionPlan {
 struct SelectorDispatchEntry {
     selector: u32,
     label: Label,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct MirSwitchEntry {
+    value: U256,
+    value_id: ValueId,
+    target: BlockId,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -604,6 +614,8 @@ pub struct EvmCodegen<'gcx> {
     /// so the leftover word can neither accumulate nor disturb an internal
     /// return.
     emitting_dispatch_entry: bool,
+    /// Gas-mode switch growth still available in the current runtime or constructor artifact.
+    switch_gas_code_growth_remaining: usize,
     capture_evm_ir: bool,
     /// Instructions that survive MIR lowering and the word-based backend cannot
     /// emit — an unsupported high-level construct rather than a miscompile. Each
@@ -649,6 +661,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             constructor_param_count: 0,
             in_internal_function: false,
             emitting_dispatch_entry: false,
+            switch_gas_code_growth_remaining: MAX_GAS_CODE_GROWTH,
             capture_evm_ir: false,
             unsupported: Vec::new(),
         }
@@ -927,6 +940,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         immutable_refs: &[ImmutableRef],
     ) -> PreparedDeploymentPrefix {
         self.asm.clear();
+        self.switch_gas_code_growth_remaining = MAX_GAS_CODE_GROWTH;
         let runtime_offset = self.asm.new_deferred_const();
 
         // Find constructor function if it exists
@@ -1108,6 +1122,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.stack_arg_masks.clear();
         self.runtime_stack_args = true;
         self.emitting_dispatch_entry = false;
+        self.switch_gas_code_growth_remaining = MAX_GAS_CODE_GROWTH;
 
         if !module.functions.is_empty() {
             if module.phase >= crate::mir::MirPhase::Dispatch {
@@ -1438,16 +1453,61 @@ impl<'gcx> EvmCodegen<'gcx> {
         !func.attributes.is_constructor
     }
 
+    fn switch_table_target_width(&self) -> usize {
+        if self.in_constructor && self.gcx.sess.opts.evm_version < EvmVersion::Shanghai {
+            3
+        } else {
+            2
+        }
+    }
+
     fn emit_selector_dispatch(
         &mut self,
         selectors: &[SelectorDispatchEntry],
         fallback_label: Option<Label>,
         revert_label: Label,
     ) {
-        if selectors.len() <= LINEAR_SELECTOR_DISPATCH_THRESHOLD {
-            self.emit_linear_selector_dispatch(selectors, fallback_label, revert_label);
-        } else {
-            self.emit_binary_selector_dispatch(selectors, fallback_label, revert_label);
+        let values: Vec<_> = selectors.iter().map(|entry| U256::from(entry.selector)).collect();
+        let default =
+            if fallback_label.is_some() { SwitchDefault::Jump } else { SwitchDefault::Revert };
+        let selection = select_switch_plan_with_budget(
+            &values,
+            self.gcx.sess.opts.optimization,
+            self.gcx.sess.opts.evm_version,
+            default,
+            self.switch_table_target_width(),
+            self.switch_gas_code_growth_remaining,
+        );
+        self.switch_gas_code_growth_remaining =
+            self.switch_gas_code_growth_remaining.saturating_sub(selection.gas_code_growth);
+        match selection.plan {
+            SwitchPlan::Linear => {
+                self.emit_linear_selector_dispatch(selectors, fallback_label, revert_label);
+            }
+            SwitchPlan::Binary { leaf_size } => {
+                self.emit_binary_selector_dispatch(
+                    selectors,
+                    fallback_label,
+                    revert_label,
+                    leaf_size,
+                );
+            }
+            SwitchPlan::Buckets { bucket_count } => {
+                self.emit_bucketed_selector_dispatch(
+                    selectors,
+                    fallback_label,
+                    revert_label,
+                    bucket_count,
+                );
+            }
+            SwitchPlan::Dense { low, range } => {
+                self.emit_dense_selector_dispatch(
+                    selectors,
+                    fallback_label.unwrap_or(revert_label),
+                    low,
+                    range,
+                );
+            }
         }
     }
 
@@ -1468,8 +1528,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         selectors: &[SelectorDispatchEntry],
         fallback_label: Option<Label>,
         revert_label: Label,
+        leaf_size: usize,
     ) {
-        if selectors.len() <= LINEAR_SELECTOR_DISPATCH_THRESHOLD {
+        if selectors.len() <= leaf_size {
             self.emit_linear_selector_dispatch(selectors, fallback_label, revert_label);
             return;
         }
@@ -1485,16 +1546,95 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_push_label(left_label);
         self.asm.emit_op(op::JUMPI);
 
-        self.emit_binary_selector_dispatch(&selectors[mid..], fallback_label, revert_label);
+        self.emit_binary_selector_dispatch(
+            &selectors[mid..],
+            fallback_label,
+            revert_label,
+            leaf_size,
+        );
 
         self.asm.define_label(left_label);
-        self.emit_binary_selector_dispatch(&selectors[..mid], fallback_label, revert_label);
+        self.emit_binary_selector_dispatch(
+            &selectors[..mid],
+            fallback_label,
+            revert_label,
+            leaf_size,
+        );
+    }
+
+    fn emit_bucketed_selector_dispatch(
+        &mut self,
+        selectors: &[SelectorDispatchEntry],
+        fallback_label: Option<Label>,
+        revert_label: Label,
+        bucket_count: usize,
+    ) {
+        let mut buckets = vec![Vec::new(); bucket_count];
+        for &entry in selectors {
+            buckets[bucket_index(U256::from(entry.selector), bucket_count)].push(entry);
+        }
+        let default_label = fallback_label.unwrap_or(revert_label);
+        let bucket_labels: Vec<_> = buckets
+            .iter()
+            .map(|bucket| if bucket.is_empty() { default_label } else { self.asm.new_label() })
+            .collect();
+
+        self.asm.emit_op(op::DUP1);
+        self.asm.emit_push(U256::from(bucket_count));
+        self.asm.emit_op(op::SWAP1);
+        self.asm.emit_op(op::MOD);
+        self.asm.emit_indexed_jump(bucket_labels.clone());
+
+        for (label, bucket) in bucket_labels.into_iter().zip(buckets) {
+            if bucket.is_empty() {
+                continue;
+            }
+            self.asm.define_label(label);
+            self.emit_linear_selector_dispatch(&bucket, fallback_label, revert_label);
+        }
+    }
+
+    fn emit_dense_selector_dispatch(
+        &mut self,
+        selectors: &[SelectorDispatchEntry],
+        default_label: Label,
+        low: U256,
+        range: usize,
+    ) {
+        let mut targets = vec![default_label; range];
+        for entry in selectors {
+            let index = usize::try_from(U256::from(entry.selector) - low)
+                .expect("dense selector table index must fit usize");
+            targets[index] = entry.label;
+        }
+        let in_range = self.asm.new_label();
+
+        if !low.is_zero() {
+            self.asm.emit_push(low);
+            self.asm.emit_op(op::SWAP1);
+            self.asm.emit_op(op::SUB);
+        }
+        self.asm.emit_op(op::DUP1);
+        self.asm.emit_push(U256::from(range));
+        self.asm.emit_op(op::GT);
+        self.asm.emit_push_label(in_range);
+        self.asm.emit_op(op::JUMPI);
+        self.asm.emit_op(op::POP);
+        self.asm.emit_push_label(default_label);
+        self.asm.emit_op(op::JUMP);
+
+        self.asm.define_label(in_range);
+        self.asm.emit_indexed_jump(targets);
     }
 
     fn emit_selector_eq_jump(&mut self, entry: SelectorDispatchEntry) {
         self.asm.emit_op(op::dup(1));
-        self.asm.emit_push(U256::from(entry.selector));
-        self.asm.emit_op(op::EQ);
+        if entry.selector == 0 && self.gcx.sess.opts.optimization != OptimizationMode::None {
+            self.asm.emit_op(op::ISZERO);
+        } else {
+            self.asm.emit_push(U256::from(entry.selector));
+            self.asm.emit_op(op::EQ);
+        }
         self.asm.emit_push_label(entry.label);
         self.asm.emit_op(op::JUMPI);
     }
@@ -5248,6 +5388,208 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    fn constant_switch_entries(
+        &self,
+        func: &Function,
+        cases: &[(ValueId, BlockId)],
+    ) -> Option<(Vec<U256>, Vec<MirSwitchEntry>)> {
+        let mut entries = cases
+            .iter()
+            .map(|&(value_id, target)| {
+                let value = func.value(value_id).as_immediate()?.as_u256()?;
+                Some(MirSwitchEntry { value, value_id, target })
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let linear_values = entries.iter().map(|entry| entry.value).collect();
+        entries.sort_unstable_by_key(|entry| entry.value);
+        if entries.windows(2).any(|entries| entries[0].value == entries[1].value) {
+            return None;
+        }
+        Some((linear_values, entries))
+    }
+
+    fn emit_linear_mir_switch(&mut self, func: &Function, cases: &[(ValueId, BlockId)]) {
+        for &(value_id, target) in cases {
+            let value = func.value(value_id).as_immediate().and_then(|value| value.as_u256());
+            self.emit_mir_switch_eq_jump(func, value_id, value, target);
+        }
+    }
+
+    fn emit_binary_mir_switch(
+        &mut self,
+        func: &Function,
+        entries: &[MirSwitchEntry],
+        default: BlockId,
+        can_fallthrough: bool,
+        leaf_size: usize,
+    ) {
+        if entries.len() <= leaf_size {
+            for entry in entries {
+                self.emit_mir_switch_eq_jump(func, entry.value_id, Some(entry.value), entry.target);
+            }
+            self.emit_mir_switch_default(default, can_fallthrough);
+            return;
+        }
+
+        let mid = entries.len() / 2;
+        let left_label = self.asm.new_label();
+        let entry_stack = self.scheduler.stack.clone();
+
+        // With the pivot on top, GT computes `pivot > selector`.
+        self.asm.emit_op(op::DUP1);
+        self.scheduler.stack.dup(1);
+        self.emit_operand(func, entries[mid].value_id);
+        self.asm.emit_op(op::GT);
+        self.scheduler.instruction_executed_untracked(2);
+        self.asm.emit_push_label(left_label);
+        self.asm.emit_op(op::JUMPI);
+        self.scheduler.instruction_executed(1, None);
+
+        self.emit_binary_mir_switch(func, &entries[mid..], default, false, leaf_size);
+
+        self.asm.define_label(left_label);
+        self.scheduler.stack = entry_stack;
+        self.emit_binary_mir_switch(func, &entries[..mid], default, can_fallthrough, leaf_size);
+    }
+
+    fn emit_bucketed_mir_switch(
+        &mut self,
+        func: &Function,
+        entries: &[MirSwitchEntry],
+        default: BlockId,
+        can_fallthrough: bool,
+        bucket_count: usize,
+    ) {
+        let mut buckets = vec![Vec::new(); bucket_count];
+        for &entry in entries {
+            buckets[bucket_index(entry.value, bucket_count)].push(entry);
+        }
+        let default_label = self.block_labels[&default];
+        let empty_label = (!self.emitting_dispatch_entry
+            && buckets.iter().any(|bucket| bucket.is_empty()))
+        .then(|| self.asm.new_label());
+        let bucket_labels: Vec<_> = buckets
+            .iter()
+            .map(|bucket| {
+                if bucket.is_empty() {
+                    empty_label.unwrap_or(default_label)
+                } else {
+                    self.asm.new_label()
+                }
+            })
+            .collect();
+
+        self.asm.emit_op(op::DUP1);
+        self.scheduler.stack.dup(1);
+        self.asm.emit_push(U256::from(bucket_count));
+        self.scheduler.stack.push_unknown();
+        self.asm.emit_op(op::SWAP1);
+        self.scheduler.stack_swapped();
+        self.asm.emit_op(op::MOD);
+        self.scheduler.instruction_executed_untracked(2);
+        self.asm.emit_indexed_jump(bucket_labels.clone());
+        self.scheduler.stack.pop();
+
+        let entry_stack = self.scheduler.stack.clone();
+        if let Some(empty_label) = empty_label {
+            self.asm.define_label(empty_label);
+            self.scheduler.stack = entry_stack.clone();
+            self.emit_mir_switch_default(default, false);
+        }
+        let last_bucket = buckets.iter().rposition(|bucket| !bucket.is_empty()).unwrap();
+        for (index, (label, bucket)) in bucket_labels.into_iter().zip(buckets).enumerate() {
+            if bucket.is_empty() {
+                continue;
+            }
+            self.asm.define_label(label);
+            self.scheduler.stack = entry_stack.clone();
+            for entry in bucket {
+                self.emit_mir_switch_eq_jump(func, entry.value_id, Some(entry.value), entry.target);
+            }
+            self.emit_mir_switch_default(default, can_fallthrough && index == last_bucket);
+        }
+    }
+
+    fn emit_dense_mir_switch(
+        &mut self,
+        entries: &[MirSwitchEntry],
+        default: BlockId,
+        low: U256,
+        range: usize,
+    ) {
+        let mut targets = vec![self.block_labels[&default]; range];
+        for entry in entries {
+            let index = usize::try_from(entry.value - low)
+                .expect("dense switch table index must fit usize");
+            targets[index] = self.block_labels[&entry.target];
+        }
+        let in_range = self.asm.new_label();
+
+        if !low.is_zero() {
+            self.asm.emit_push(low);
+            self.scheduler.stack.push_unknown();
+            self.asm.emit_op(op::SWAP1);
+            self.scheduler.stack_swapped();
+            self.asm.emit_op(op::SUB);
+            self.scheduler.instruction_executed_untracked(2);
+        }
+        self.asm.emit_op(op::DUP1);
+        self.scheduler.stack.dup(1);
+        self.asm.emit_push(U256::from(range));
+        self.scheduler.stack.push_unknown();
+        self.asm.emit_op(op::GT);
+        self.scheduler.instruction_executed_untracked(2);
+        self.asm.emit_push_label(in_range);
+        self.asm.emit_op(op::JUMPI);
+        self.scheduler.instruction_executed(1, None);
+
+        let indexed_stack = self.scheduler.stack.clone();
+        self.asm.emit_op(op::POP);
+        self.scheduler.stack.pop();
+        self.asm.emit_push_label(self.block_labels[&default]);
+        self.asm.emit_op(op::JUMP);
+
+        self.asm.define_label(in_range);
+        self.scheduler.stack = indexed_stack;
+        self.asm.emit_indexed_jump(targets);
+        self.scheduler.stack.pop();
+    }
+
+    fn emit_mir_switch_eq_jump(
+        &mut self,
+        func: &Function,
+        value_id: ValueId,
+        value: Option<U256>,
+        target: BlockId,
+    ) {
+        self.asm.emit_op(op::DUP1);
+        self.scheduler.stack.dup(1);
+        if value.is_some_and(|value| value.is_zero())
+            && self.gcx.sess.opts.optimization != OptimizationMode::None
+        {
+            self.asm.emit_op(op::ISZERO);
+            self.scheduler.instruction_executed_untracked(1);
+        } else {
+            self.emit_operand(func, value_id);
+            self.asm.emit_op(op::EQ);
+            self.scheduler.instruction_executed_untracked(2);
+        }
+        self.asm.emit_push_label(self.block_labels[&target]);
+        self.asm.emit_op(op::JUMPI);
+        self.scheduler.instruction_executed(1, None);
+    }
+
+    fn emit_mir_switch_default(&mut self, default: BlockId, can_fallthrough: bool) {
+        if !self.emitting_dispatch_entry {
+            self.asm.emit_op(op::POP);
+            self.scheduler.stack.pop();
+        }
+        if !can_fallthrough {
+            self.asm.emit_push_label(self.block_labels[&default]);
+            self.asm.emit_op(op::JUMP);
+        }
+    }
+
     /// Generates bytecode for a terminator.
     fn generate_terminator(
         &mut self,
@@ -5369,6 +5711,34 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             Terminator::Switch { value, default, cases } => {
+                let constant_entries = self.constant_switch_entries(func, cases);
+                let plan = constant_entries.as_ref().map_or(
+                    SwitchSelection { plan: SwitchPlan::Linear, gas_code_growth: 0 },
+                    |(linear_values, entries)| {
+                        let values: Vec<_> = entries.iter().map(|entry| entry.value).collect();
+                        let default =
+                            match (self.emitting_dispatch_entry, fallthrough == Some(*default)) {
+                                (true, true) => SwitchDefault::Fallthrough,
+                                (true, false) => SwitchDefault::Jump,
+                                (false, true) => SwitchDefault::CleanupFallthrough,
+                                (false, false) => SwitchDefault::CleanupJump,
+                            };
+                        select_switch_plan_with_linear_values_and_budget(
+                            &values,
+                            linear_values,
+                            self.gcx.sess.opts.optimization,
+                            self.gcx.sess.opts.evm_version,
+                            default,
+                            self.switch_table_target_width(),
+                            self.switch_gas_code_growth_remaining,
+                        )
+                    },
+                );
+                self.switch_gas_code_growth_remaining =
+                    self.switch_gas_code_growth_remaining.saturating_sub(plan.gas_code_growth);
+                let plan = plan.plan;
+                let constant_entries = constant_entries.map(|(_, entries)| entries);
+
                 if self.emitting_dispatch_entry {
                     // The dispatch entry's selector switch mirrors the backend
                     // dispatcher's shape: the just-computed selector stays on
@@ -5397,26 +5767,32 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.emit_value(func, *value);
                 }
 
-                for (case_val, target) in cases {
-                    // DUP the value, compare, jump if equal
-                    self.asm.emit_op(op::DUP1);
-                    self.scheduler.stack.dup(1);
-                    self.emit_operand(func, *case_val);
-                    self.asm.emit_op(op::EQ);
-                    self.scheduler.instruction_executed_untracked(2);
-                    self.asm.emit_push_label(self.block_labels[target]);
-                    self.asm.emit_op(op::JUMPI);
-                    self.scheduler.instruction_executed(1, None); // JUMPI consumes condition
-                }
-
-                if !self.emitting_dispatch_entry {
-                    // Pop the value before the default edge.
-                    self.asm.emit_op(op::POP);
-                    self.scheduler.stack.pop();
-                }
-                if Some(*default) != fallthrough {
-                    self.asm.emit_push_label(self.block_labels[default]);
-                    self.asm.emit_op(op::JUMP);
+                match (plan, constant_entries) {
+                    (SwitchPlan::Binary { leaf_size }, Some(entries)) => {
+                        self.emit_binary_mir_switch(
+                            func,
+                            &entries,
+                            *default,
+                            fallthrough == Some(*default),
+                            leaf_size,
+                        );
+                    }
+                    (SwitchPlan::Buckets { bucket_count }, Some(entries)) => {
+                        self.emit_bucketed_mir_switch(
+                            func,
+                            &entries,
+                            *default,
+                            fallthrough == Some(*default),
+                            bucket_count,
+                        );
+                    }
+                    (SwitchPlan::Dense { low, range }, Some(entries)) => {
+                        self.emit_dense_mir_switch(&entries, *default, low, range);
+                    }
+                    _ => {
+                        self.emit_linear_mir_switch(func, cases);
+                        self.emit_mir_switch_default(*default, fallthrough == Some(*default));
+                    }
                 }
             }
 
