@@ -188,10 +188,31 @@ Common file-level UI directives:
 - `//@ ignore-host: windows`: Skip a test on a specific host.
 - `//@[name] compile-flags: ...`: Define revision-specific flags for tests with
   multiple revisions.
+- `//@ run-call: add 1, 2 => 3`: Deploy a fresh contract, ABI-encode and call the
+  named function, then compare its ABI-encoded return values. Omit `=>` when no
+  return data is expected. Raw calldata and return data may be written as hex.
+  Add settings after a semicolon, for example
+  `add 2; constructor=[40], gas=100000, value=3 => 45`. Settings are
+  comma-separated. `constructor=[...]` supplies ABI-encoded constructor
+  arguments, `gas` sets the call transaction's gas limit, and `value` sets its
+  value in wei. Numeric settings accept decimal and `0x`-prefixed integers.
+  Deployment and `setUp()` use the default gas limit and zero value.
+- `//@ run-call-fail: fail()`: Like `run-call`, but require the call to fail.
+  Add `=> 0x...` to check exact revert data. Both directives use the EVM version
+  selected by `--evm-version`. Calls to functions named `test*` run a
+  zero-argument `setUp()` first when the contract defines it.
 - `//@ filecheck: ...`: Run LLVM FileCheck against the generated `.stdout` file
   after the UI test. Arguments after `filecheck:` are passed directly to
   FileCheck, for example `--check-prefix=ABI` or
   `--implicit-check-not=UnusedSymbol`.
+
+Prefer `run-call` and `run-call-fail` for small runtime checks that fit one
+isolated entry-point call and an exact output or failure expectation. Each
+directive deploys a fresh contract, so calls never share state. Put more
+complex runtime tests under `tests/foundry/` and run them with
+`cargo tq foundry`. Use Foundry for multi-transaction sequences, persistent
+state, multiple actors or contracts, event assertions, cheatcodes, and complex
+setup.
 
 Use FileCheck when exact full-output snapshots are too brittle or when a test
 needs to assert selected output properties such as ordering, presence, or
