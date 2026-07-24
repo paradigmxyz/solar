@@ -4307,6 +4307,7 @@ dependencies = [
 name = "solar-tester"
 version = "0.2.0"
 dependencies = [
+ "alloy-consensus",
  "alloy-dyn-abi",
  "alloy-json-abi",
  "alloy-primitives",

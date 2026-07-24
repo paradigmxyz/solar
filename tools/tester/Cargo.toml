@@ -17,6 +17,7 @@ categories.workspace = true
 workspace = true
 
 [dependencies]
+alloy-consensus.workspace = true
 alloy-dyn-abi.workspace = true
 alloy-json-abi.workspace = true
 alloy-primitives.workspace = true

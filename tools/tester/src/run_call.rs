@@ -1,13 +1,12 @@
+use alloy_consensus::{TxLegacy, transaction::Recovered};
 use alloy_dyn_abi::{FunctionExt, JsonAbiExt, Specifier};
 use alloy_json_abi::{Function, JsonAbi};
-use alloy_primitives::{Address, Bytes, U256, hex};
+use alloy_primitives::{Address, Bytes, TxKind, U256, hex};
 use evm2::{
-    BaseEvmTypes, Evm, Precompiles, SpecId,
-    bytecode::Bytecode,
-    env::{BlockEnv, TxEnv},
+    BaseEvmTypes, Evm, Precompiles, SpecId, TxResult,
+    env::BlockEnv,
+    ethereum::{RecoveredTxEnvelope, ethereum_tx_registry},
     evm::{AccountInfo, InMemoryDB},
-    interpreter::{Host, Message, MessageKind},
-    registry::TxRegistry,
 };
 use serde_json::Value;
 use std::path::Path;
@@ -19,9 +18,8 @@ use ui_test::{
     spanned::{Span, Spanned},
 };
 
-const CONTRACT: Address = Address::repeat_byte(0x11);
 const CALLER: Address = Address::repeat_byte(0x22);
-const GAS_LIMIT: u64 = 30_000_000;
+const GAS_LIMIT: u64 = 10_000_000;
 
 #[derive(Debug, Clone)]
 pub(crate) struct RunCall {
@@ -399,31 +397,27 @@ fn execute(
     let mut evm = Evm::<BaseEvmTypes>::new(
         spec_id,
         BlockEnv::default(),
-        TxRegistry::new(),
+        ethereum_tx_registry(spec_id),
         database,
         Precompiles::base(spec_id),
     );
-    let mut deployment = Message {
-        kind: MessageKind::Create,
-        destination: CONTRACT,
-        caller: CALLER,
-        code_address: CONTRACT,
-        gas_limit: GAS_LIMIT,
-        ..Message::default()
-    };
-    let result = Host::execute_message(
-        &mut evm,
-        &TxEnv::default(),
-        Bytecode::new_legacy(Bytes::copy_from_slice(initcode)),
-        &mut deployment,
-    );
-    if !result.stop.is_success() {
-        return Err(format!("contract deployment failed with {:?}", result.stop));
+    let result = transact(&mut evm, 0, TxKind::Create, Bytes::copy_from_slice(initcode))?;
+    if !result.status {
+        return Err(format!(
+            "contract deployment failed with {:?}: 0x{}",
+            result.stop,
+            hex::encode(result.output)
+        ));
     }
+    let contract = result
+        .created_address
+        .ok_or_else(|| "contract deployment did not return an address".to_owned())?;
 
-    let runtime = Bytecode::new_legacy(result.output);
+    let mut nonce = 1;
     if let Some(setup) = setup {
-        let result = execute_message(&mut evm, runtime.clone(), setup);
+        let result =
+            outcome(transact(&mut evm, nonce, TxKind::Call(contract), Bytes::from(setup))?);
+        nonce += 1;
         if !result.success {
             return Err(format!(
                 "`setUp()` failed with {}: 0x{}",
@@ -432,21 +426,35 @@ fn execute(
             ));
         }
     }
-    Ok(execute_message(&mut evm, runtime, input))
+    transact(&mut evm, nonce, TxKind::Call(contract), Bytes::from(input)).map(outcome)
 }
 
-fn execute_message(evm: &mut Evm<'_, BaseEvmTypes>, runtime: Bytecode, input: Vec<u8>) -> Outcome {
-    let mut call = Message {
-        destination: CONTRACT,
-        caller: CALLER,
-        input: Bytes::from(input),
-        code_address: CONTRACT,
-        gas_limit: GAS_LIMIT,
-        ..Message::default()
-    };
-    let result = Host::execute_message(evm, &TxEnv::default(), runtime, &mut call);
+fn transact(
+    evm: &mut Evm<'_, BaseEvmTypes>,
+    nonce: u64,
+    to: TxKind,
+    input: Bytes,
+) -> Result<TxResult, String> {
+    let tx = RecoveredTxEnvelope::Legacy(Recovered::new_unchecked(
+        TxLegacy {
+            nonce,
+            to,
+            input,
+            gas_price: 0,
+            value: U256::ZERO,
+            chain_id: None,
+            gas_limit: GAS_LIMIT,
+        },
+        CALLER,
+    ));
+    evm.transact(&tx)
+        .map(evm2::ExecutedTx::commit)
+        .map_err(|err| format!("transaction rejected: {err}"))
+}
+
+fn outcome(result: TxResult) -> Outcome {
     Outcome {
-        success: result.stop.is_success(),
+        success: result.status,
         output: result.output.into(),
         stop: format!("{:?}", result.stop),
     }
