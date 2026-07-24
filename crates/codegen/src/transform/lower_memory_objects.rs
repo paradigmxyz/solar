@@ -92,7 +92,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
             let kind = builder.func().inst(inst).kind.clone();
             match kind {
                 InstKind::Alloc { size, kind: AllocationKind::Object(_), semantics } => {
-                    let instruction = &mut builder.func_mut().inst_mut(inst);
+                    let instruction = builder.func_mut().inst_mut(inst);
                     instruction.kind =
                         InstKind::Alloc { size, kind: AllocationKind::Raw, semantics };
                     stats.allocations += 1;

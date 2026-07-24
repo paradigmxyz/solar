@@ -232,7 +232,7 @@ fn initialize(
 
 fn rewrite_as_fmp_load(builder: &mut FunctionBuilder<'_>, inst: crate::mir::InstId) {
     let slot = builder.imm_u64(EvmMemoryLayout::FMP_SLOT);
-    let instruction = &mut builder.func_mut().inst_mut(inst);
+    let instruction = builder.func_mut().inst_mut(inst);
     instruction.kind = InstKind::MLoad(slot);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
 }
@@ -243,7 +243,7 @@ fn rewrite_as_fmp_store(
     ptr: crate::mir::ValueId,
 ) {
     let slot = builder.imm_u64(EvmMemoryLayout::FMP_SLOT);
-    let instruction = &mut builder.func_mut().inst_mut(inst);
+    let instruction = builder.func_mut().inst_mut(inst);
     instruction.kind = InstKind::MStore(slot, ptr);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
 }
