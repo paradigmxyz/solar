@@ -706,6 +706,11 @@ impl<'gcx> Ty<'gcx> {
             // See: <https://docs.soliditylang.org/en/latest/types.html#array-slices>
             // `T[] loc slice` -> `T[] loc`
             (Slice(underlying), _) if underlying == other => Ok(()),
+            // `T[] loc slice` -> location-less `T[]`, like any other reference;
+            // this arises for mapping keys, e.g. `m[data[1:]]`.
+            (Slice(underlying), to) if !matches!(to, Ref(..)) => {
+                underlying.try_convert_implicit_to(other, gcx)
+            }
             // `T[] loc slice` -> `T[] memory`
             (Slice(underlying), Ref(other_inner, DataLocation::Memory)) => {
                 if let Ref(self_inner, _) = underlying.kind
