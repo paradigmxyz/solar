@@ -97,13 +97,13 @@ only when not the default). The phases, in order:
 
 The `lower-abi`, `lower-dispatch`, `lower-memory-objects`, and `lower-evm-shaped`
 passes are progressive MIR-to-MIR lowering, moving dispatch, ABI handling, and
-memory layout out of the backend. They run **by default** in the codegen pipeline
-and the backend consumes the `evm-shaped` module, with the MIR `entry` as the
-runtime prologue and `tail_call` lowered to a jump
-(opt out with `-Zno-mir-dispatch`). A module where `lower-abi` bails — when any
-external function has returns (the wrappers do not implement returndata
-encoding yet), or there is no external interface — keeps its phase and is
-dispatched by the backend. When extending them or adding the next phase, make the transition a
+memory layout out of the backend. They run in the codegen pipeline and the
+backend consumes the `evm-shaped` module, with the MIR `entry` as the runtime
+prologue and `tail_call` lowered to a jump. A module where `lower-abi` bails —
+when any external function has returns (the wrappers do not implement
+returndata encoding yet), or there is no external interface — keeps its phase
+and is dispatched by the backend. When extending them or adding the next phase,
+make the transition a
 named pass that advances the phase via `Module::advance_phase`, keep it
 conservative (bail rather than miscompile — `lower-abi` skips dynamic types),
 and pin it with `.mir` UI tests under `tests/ui/codegen/mir/`.
@@ -287,6 +287,7 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 - Put module documentation at the top of the module file with inner doc comments (`//! ...`), not on the `mod` item in the parent module.
 - NEVER put imports inside functions unless required for `#[cfg(...)]` gating. All imports go at the top of the file.
 - Group all `use` imports together. Keep `pub use` imports in a separate group. For local module re-exports, write `mod x;` before `pub use x;`; for re-exporting another module or external crate, use `use x;`, then a blank line, then `pub use y;`, then a blank line before local `mod my_mod; pub use my_mod::*;`.
+- Move ordinary test-only imports into the `#[cfg(test)] mod tests` module instead of gating them individually. Keep crate-level dependency anchors such as `#[cfg(test)] use cc as _;` at crate scope.
 - In `Cargo.toml`, generally group optional dependencies for a feature together. Put a comment immediately above the group containing only the feature name, for example `# jit`.
 - Prefer `let Some(x) = x else { return };` / `let Ok(x) = x else { return };` over `match x { Some(x) => x, _ => return }`.
 - Use `let ... else` only for a single early-exit guard. When multiple conditions or patterns gate the same block, prefer a combined `if let` / `let` chain instead of several sequential `let ... else` statements.

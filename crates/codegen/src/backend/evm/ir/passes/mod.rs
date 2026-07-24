@@ -1,6 +1,6 @@
 //! EVM IR optimization and layout passes.
 //!
-//! This module owns the pass registry and canonical backend pipeline. Individual
+//! This module owns the pass list and canonical backend pipeline. Individual
 //! transforms live in their own modules so their implementation and invariants
 //! remain local, matching the organization of the MIR transforms.
 
@@ -16,124 +16,92 @@ pub(super) mod utils;
 
 use super::Module;
 use crate::timing::PassTimer;
+use solar_config::OptimizationMode;
 use solar_sema::Gcx;
 
-type PassRunner = fn(Gcx<'_>, &mut Module) -> bool;
-
-/// Registry entry for an EVM IR transform pass.
-#[derive(Clone, Copy, Debug)]
-pub struct PassInfo {
+/// A streamlined trait for an EVM IR transformation pass.
+pub trait EvmPass: Sync {
     /// Command-line and pipeline name.
-    pub name: &'static str,
-    /// Human-readable help text.
-    pub description: &'static str,
-    run_pass: PassRunner,
-}
+    fn name(&self) -> &'static str;
 
-impl PassInfo {
-    const fn new(name: &'static str, description: &'static str, run_pass: PassRunner) -> Self {
-        Self { name, description, run_pass }
+    /// Returns whether this pass is enabled with the current compiler flags.
+    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
+        self.is_required() || !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
     }
-}
 
-macro_rules! declare_passes {
-    ($(
-        $(#[doc = $description:literal])+
-        $vis:vis const $const_name:ident -> $name:literal = $run_pass:path;
-    )+) => {
-        $(
-            $(#[doc = $description])+
-            $vis const $const_name: PassInfo = PassInfo::new(
-                $name,
-                concat!($($description, "\n"),+).trim_ascii(),
-                $run_pass,
-            );
-        )+
-    };
-}
+    /// Returns whether this pass must run independently of the optimization level.
+    fn is_required(&self) -> bool {
+        false
+    }
 
-declare_passes! {
-    /// Simplify local instruction sequences in scheduled EVM IR.
-    pub(crate) const PEEPHOLE_PASS -> "peephole" = peephole::run;
-
-    /// Share empty revert blocks and invert their conditional branches.
-    pub(crate) const SHARE_REVERTS_PASS -> "share-reverts" = share_reverts::run;
-
-    /// Select smaller instruction sequences for large immediate pushes.
-    pub(crate) const COMPACT_PUSHES_PASS -> "compact-pushes" = compact_pushes::run;
-
-    /// Redirect jump thunks, remove unreachable blocks, and coalesce linear control flow.
-    pub(crate) const CFG_SIMPLIFY_PASS -> "cfg-simplify" = cfg_simplify::run;
-
-    /// Outline repeated closed computations and large immediate pushes.
-    pub(crate) const OUTLINE_PASS -> "outline" = outline::run;
-
-    /// Redirect duplicate terminal block bodies to the first copy.
-    pub(crate) const TERMINAL_DEDUP_PASS -> "terminal-dedup" = terminal_dedup::run;
-
-    /// Merge profitable common suffixes of terminal blocks.
-    pub(crate) const TAIL_MERGE_PASS -> "tail-merge" = tail_merge::run;
-
-    /// Reorder blocks to maximize jumps assembled as physical fallthroughs.
-    pub(crate) const BLOCK_LAYOUT_PASS -> "block-layout" = block_layout::run;
+    /// Runs the pass and returns whether it changed EVM IR.
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
 }
 
 /// All EVM IR passes exposed by `solar evm-opt`.
-pub const PASS_REGISTRY: &[PassInfo] = &[
-    PEEPHOLE_PASS,
-    SHARE_REVERTS_PASS,
-    COMPACT_PUSHES_PASS,
-    CFG_SIMPLIFY_PASS,
-    OUTLINE_PASS,
-    TERMINAL_DEDUP_PASS,
-    TAIL_MERGE_PASS,
-    BLOCK_LAYOUT_PASS,
+pub static ALL_PASSES: &[&dyn EvmPass] = &[
+    &peephole::Peephole,
+    &share_reverts::ShareReverts,
+    &compact_pushes::CompactPushes,
+    &cfg_simplify::CfgSimplify,
+    &outline::Outline,
+    &terminal_dedup::TerminalDedup,
+    &tail_merge::TailMerge,
+    &block_layout::BlockLayout,
 ];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
-pub(crate) const DEFAULT_PIPELINE: &[PassInfo] = &[
+pub(crate) static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Normalize and establish the first physical layout.
-    PEEPHOLE_PASS,
-    COMPACT_PUSHES_PASS,
-    CFG_SIMPLIFY_PASS,
-    BLOCK_LAYOUT_PASS,
-    SHARE_REVERTS_PASS,
+    &peephole::Peephole,
+    &compact_pushes::CompactPushes,
+    &cfg_simplify::CfgSimplify,
+    &block_layout::BlockLayout,
+    &share_reverts::ShareReverts,
     // Simplify and merge the explicit control-flow graph.
-    CFG_SIMPLIFY_PASS,
-    TERMINAL_DEDUP_PASS,
-    CFG_SIMPLIFY_PASS,
-    TAIL_MERGE_PASS,
-    CFG_SIMPLIFY_PASS,
-    TAIL_MERGE_PASS,
-    CFG_SIMPLIFY_PASS,
+    &cfg_simplify::CfgSimplify,
+    &terminal_dedup::TerminalDedup,
+    &cfg_simplify::CfgSimplify,
+    &tail_merge::TailMerge,
+    &cfg_simplify::CfgSimplify,
+    &tail_merge::TailMerge,
+    &cfg_simplify::CfgSimplify,
     // Outline only after straight-line paths and terminal tails are canonical.
-    OUTLINE_PASS,
-    CFG_SIMPLIFY_PASS,
-    TERMINAL_DEDUP_PASS,
-    CFG_SIMPLIFY_PASS,
+    &outline::Outline,
+    &cfg_simplify::CfgSimplify,
+    &terminal_dedup::TerminalDedup,
+    &cfg_simplify::CfgSimplify,
     // Pack address-sensitive terminal blocks, then clean up any adjacent
     // revert branch that remains profitable in the final layout.
-    BLOCK_LAYOUT_PASS,
-    SHARE_REVERTS_PASS,
-    CFG_SIMPLIFY_PASS,
-    BLOCK_LAYOUT_PASS,
+    &block_layout::BlockLayout,
+    &share_reverts::ShareReverts,
+    &cfg_simplify::CfgSimplify,
+    &block_layout::BlockLayout,
 ];
 
-/// Finds a pass in the EVM IR pass registry by command-line name.
-pub fn lookup_pass(name: &str) -> Option<&'static PassInfo> {
-    PASS_REGISTRY.iter().find(|pass| pass.name == name)
+/// Finds an EVM IR pass by command-line name.
+pub fn lookup_pass(name: &str) -> Option<&'static dyn EvmPass> {
+    ALL_PASSES.iter().copied().find(|pass| pass.name() == name)
 }
 
-/// Runs a named EVM IR pass over a module.
-#[tracing::instrument(
-    name = "evm_ir_pass",
-    level = "debug",
-    skip_all,
-    fields(pass = pass.name),
-)]
-pub fn run_pass(gcx: Gcx<'_>, module: &mut Module, pass: &PassInfo) -> bool {
-    let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-    let changed = (pass.run_pass)(gcx, module);
-    timer.finish("EVM IR", module.name(), pass.name, changed);
+/// Runs an EVM IR pass pipeline.
+pub fn run_passes(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn EvmPass]) -> bool {
+    let mut changed = false;
+    for pass in passes {
+        let pass_name = pass.name();
+        if !pass.is_enabled(gcx, module) {
+            continue;
+        }
+
+        let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
+        let pass_changed = pass.run_pass(gcx, module);
+        timer.finish("EVM IR", module.name(), pass_name, pass_changed);
+        changed |= pass_changed;
+
+        if gcx.sess.opts.unstable.print_after_each && !gcx.sess.opts.unstable.pass_diff {
+            println!("// === {} (after {pass_name}) ===", module.name());
+            print!("{}", module.to_text());
+        }
+    }
     changed
 }

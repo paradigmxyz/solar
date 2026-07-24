@@ -1,6 +1,9 @@
 //! Machine-level EVM control-flow simplification.
 
-use super::utils::{remap_block_order, retain_blocks};
+use super::{
+    EvmPass,
+    utils::{remap_block_order, retain_blocks},
+};
 use crate::backend::evm::{
     ir::{BlockId, Module, PushValue, Terminator, TerminatorKind},
     op,
@@ -8,7 +11,19 @@ use crate::backend::evm::{
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
-pub(super) fn run(_gcx: Gcx<'_>, module: &mut Module) -> bool {
+pub(super) struct CfgSimplify;
+
+impl EvmPass for CfgSimplify {
+    fn name(&self) -> &'static str {
+        "cfg-simplify"
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        simplify_cfg(gcx, module)
+    }
+}
+
+fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
     state.reserve(module.blocks.len());
     let mut changed = false;

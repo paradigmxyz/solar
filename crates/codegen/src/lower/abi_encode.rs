@@ -13,7 +13,7 @@ use crate::{
         AbiLayout, AbiType, FunctionBuilder, MemoryObjectKind, MirType, SliceLocation, Value,
         ValueId,
     },
-    transform::lower_abi_encode::{AbiScratch, encode_tuple},
+    transform::lower_abi_encode,
 };
 use alloy_primitives::U256;
 use solar_ast::ElementaryType;
@@ -155,7 +155,7 @@ impl<'gcx> Lowerer<'gcx> {
         items: &[(ValueId, Ty<'gcx>)],
         dest: ValueId,
         calldata_slices: &FxHashSet<ValueId>,
-        scratch: AbiScratch,
+        scratch: lower_abi_encode::AbiScratch,
     ) -> ValueId {
         let values: Vec<_> = items.iter().map(|&(value, _)| value).collect();
         let types = items
@@ -165,7 +165,7 @@ impl<'gcx> Lowerer<'gcx> {
                     .expect("recursive ABI values cannot be materialized")
             })
             .collect::<Vec<_>>();
-        encode_tuple(builder, &values, &types, dest, scratch)
+        lower_abi_encode::encode_tuple(builder, &values, &types, dest, scratch)
     }
 
     /// Emits ABI-encoded custom error data and terminates with `REVERT`.
@@ -195,7 +195,7 @@ impl<'gcx> Lowerer<'gcx> {
                 items,
                 args_base,
                 &calldata_slices,
-                AbiScratch { base: scratch_base, depth: 0 },
+                lower_abi_encode::AbiScratch { base: scratch_base, depth: 0 },
             )
         };
         let selector_size = builder.imm_u64(4);
@@ -242,7 +242,7 @@ impl<'gcx> Lowerer<'gcx> {
                 items,
                 buf,
                 &calldata_slices,
-                AbiScratch { base: None, depth: 0 },
+                lower_abi_encode::AbiScratch { base: None, depth: 0 },
             );
             builder.ret_data(buf, size);
             return;
@@ -257,7 +257,7 @@ impl<'gcx> Lowerer<'gcx> {
             items,
             buf,
             &calldata_slices,
-            AbiScratch { base: scratch_base, depth: 0 },
+            lower_abi_encode::AbiScratch { base: scratch_base, depth: 0 },
         );
         builder.ret_data(buf, size);
     }
@@ -372,7 +372,7 @@ impl<'gcx> Lowerer<'gcx> {
                 &items,
                 dest,
                 &calldata_slices,
-                AbiScratch { base: scratch_base, depth: 0 },
+                lower_abi_encode::AbiScratch { base: scratch_base, depth: 0 },
             )
         };
         builder.set_memory_object_len(ptr, size, MemoryObjectKind::Bytes);
@@ -414,7 +414,7 @@ impl<'gcx> Lowerer<'gcx> {
                 &items,
                 data,
                 &calldata_slices,
-                AbiScratch { base: scratch_base, depth: 0 },
+                lower_abi_encode::AbiScratch { base: scratch_base, depth: 0 },
             )
         };
         Some(builder.keccak256(data, size))
@@ -443,7 +443,7 @@ impl<'gcx> Lowerer<'gcx> {
             items,
             data,
             &calldata_slices,
-            AbiScratch { base: scratch_base, depth: 0 },
+            lower_abi_encode::AbiScratch { base: scratch_base, depth: 0 },
         );
 
         let thirty_one = builder.imm_u64(31);

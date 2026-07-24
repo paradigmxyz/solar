@@ -8,38 +8,63 @@
 //! The synthesized `entry` function loads the 4-byte selector
 //! (`calldataload(0) >> 224`) and switches on it to one argument-free
 //! `internal_call` per external wrapper, defaulting to a `revert`. It is meant
-//! to run after [`super::LowerAbiPass`], which turns external functions into the
+//! to run after [`super::lower_abi::LowerAbi`], which turns external functions into the
 //! argument-free self-decoding wrappers this switch routes to; that is why it
 //! only routes selector-bearing functions that take no MIR arguments.
 //!
 //! It requires the `abi` phase: it routes to the argument-free wrappers that
-//! [`super::LowerAbiPass`] produces, so it bails on `built`/`optimized` modules
+//! [`super::lower_abi::LowerAbi`] produces, so it bails on `built`/`optimized` modules
 //! rather than half-dispatching argument-taking functions.
 //!
-//! This is opt-in: it is not part of the default pipeline, and the backend does
-//! not consume `dispatch`-phase modules. It is the staging ground for moving the
-//! dispatcher out of the backend.
+//! This pass runs after [`super::lower_abi::LowerAbi`] in the codegen pipeline. The
+//! backend consumes the resulting `dispatch`-or-later module and uses its
+//! `entry` function instead of synthesizing a dispatcher.
 
 use crate::{
     mir::{Function, FunctionBuilder, FunctionId, MirPhase, Module, ValueId},
-    pass::ModulePass,
+    pass::MirPass,
 };
 use solar_interface::{Ident, sym};
 
-/// Statistics from dispatch lowering.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct LowerDispatchStats {
-    /// Number of selector cases routed by the synthesized `entry` function.
-    pub routed: usize,
+/// Dispatch phase lowering pass.
+pub(crate) struct LowerDispatch;
+
+impl MirPass for LowerDispatch {
+    fn name(&self) -> &'static str {
+        "lower-dispatch"
+    }
+
+    fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        module.phase == MirPhase::Abi
+    }
+
+    fn is_required(&self) -> bool {
+        true
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        LowerDispatchCx::default().run(module)
+    }
 }
 
-/// Dispatch phase lowering pass.
+/// Statistics from dispatch lowering.
+#[derive(Clone, Debug, Default)]
+struct LowerDispatchStats {
+    /// Number of selector cases routed by the synthesized `entry` function.
+    routed: usize,
+}
+
 #[derive(Debug, Default)]
-pub(crate) struct LowerDispatchPass {
+struct LowerDispatchCx {
     stats: LowerDispatchStats,
 }
 
-impl LowerDispatchPass {
+impl LowerDispatchCx {
     fn run(&mut self, module: &mut Module) -> bool {
         // Idempotent: only build the dispatcher once.
         if module.phase >= MirPhase::Dispatch {
@@ -61,7 +86,7 @@ impl LowerDispatchPass {
         let mut routes: Vec<(u32, FunctionId)> = Vec::new();
         let mut receive = None;
         let mut fallback = None;
-        let mut callvalue = super::DispatchCallvalue::default();
+        let mut callvalue = super::utils::DispatchCallvalue::default();
         for (id, func) in module.functions.iter_enumerated() {
             callvalue.observe(func);
             if func.attributes.is_receive && receive.is_none() {
@@ -122,7 +147,7 @@ impl LowerDispatchPass {
         hoist_callvalue: bool,
     ) {
         let fallback_rejects =
-            fallback.is_some_and(|id| super::rejects_callvalue(module.function(id)));
+            fallback.is_some_and(|id| super::utils::rejects_callvalue(module.function(id)));
 
         let mut entry = Function::new(Ident::with_dummy_span(sym::entry));
         {
@@ -234,15 +259,4 @@ fn load_selector(builder: &mut FunctionBuilder<'_>) -> ValueId {
     let word = builder.calldataload(zero);
     let shift = builder.imm_u64(224);
     builder.shr(shift, word)
-}
-
-impl ModulePass for LowerDispatchPass {
-    fn run(
-        &mut self,
-        _gcx: solar_sema::Gcx<'_>,
-        module: &mut Module,
-        _analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
-        Self::run(self, module)
-    }
 }

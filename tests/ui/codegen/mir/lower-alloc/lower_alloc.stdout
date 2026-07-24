@@ -15,3 +15,10 @@
       ret v1
   }
   
+  fn @deferred() {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)
+      mstore v0, 1
+      stop
+  }
+  
