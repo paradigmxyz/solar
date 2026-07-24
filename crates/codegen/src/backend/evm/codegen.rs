@@ -811,7 +811,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         self.immutable_encodings.clear();
         for (id, immutable) in module.iter_immutables() {
-            let allocated = self.immutable_encodings.push(immutable.ty.immutable_encoding());
+            let encoding =
+                immutable.ty.immutable_encoding().expect("validated immutable declaration");
+            let allocated = self.immutable_encodings.push(encoding);
             debug_assert_eq!(allocated, id);
         }
         // First generate the runtime code
@@ -930,7 +932,10 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // Patch each `PUSH<N>` placeholder with its staged immutable value.
         for r in immutable_refs {
-            let encoding = module.immutable_type(r.id).immutable_encoding();
+            let encoding = module
+                .immutable_type(r.id)
+                .immutable_encoding()
+                .expect("validated immutable declaration");
             debug_assert_eq!(encoding.type_size(), r.type_size);
             self.emit_immutable_patch(copy_base, *r, encoding);
         }

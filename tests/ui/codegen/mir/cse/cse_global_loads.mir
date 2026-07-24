@@ -42,3 +42,19 @@ fn @dominating_loadimmutable(arg0: bool) -> u256 {
     v3 = loadimmutable value
     ret v3
 }
+
+fn @keep_phi_immutable_loads_before_branch_stores(arg0: bool) -> u256 {
+  bb0:
+    br arg0, bb1, bb2
+  bb1:
+    v1 = loadimmutable value
+    storeimmutable value, 1
+    jump bb3
+  bb2:
+    v2 = loadimmutable value
+    storeimmutable value, 2
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v1], [bb2: v2]
+    ret v3
+}

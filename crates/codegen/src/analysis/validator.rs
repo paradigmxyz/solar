@@ -459,21 +459,55 @@ impl<'a> Validator<'a> {
                         _ => {}
                     }
                 }
-                InstKind::StoreImmutable { id, .. } if module.get_immutable(id).is_none() => {
-                    self.emit(format_args!(
-                        "inst{} stores nonexistent immutable {}",
-                        inst.index(),
-                        id.index()
-                    ));
+                InstKind::StoreImmutable { id, value } => {
+                    let Some(immutable) = module.get_immutable(id) else {
+                        self.emit(format_args!(
+                            "inst{} stores nonexistent immutable {}",
+                            inst.index(),
+                            id.index()
+                        ));
+                        continue;
+                    };
+                    if let Some(actual) = Self::value_type(func, value)
+                        && actual.immutable_encoding().is_none()
+                    {
+                        self.emit(format_args!(
+                            "inst{} stores `{actual}` value into immutable `{}` of type `{}`",
+                            inst.index(),
+                            immutable.name,
+                            immutable.ty,
+                        ));
+                    }
                 }
                 _ => {}
             }
         }
     }
 
+    fn validate_immutable_declarations(&mut self, module: &Module) {
+        for (_, immutable) in module.iter_immutables() {
+            if immutable.ty.immutable_encoding().is_none() {
+                self.emit(format_args!(
+                    "immutable `{}` cannot use type `{}`",
+                    immutable.name, immutable.ty
+                ));
+            }
+        }
+    }
+
+    fn value_type(func: &Function, value: ValueId) -> Option<crate::mir::MirType> {
+        match func.value(value) {
+            Value::Arg { ty, .. } | Value::Undef(ty) => Some(*ty),
+            Value::Inst(inst) => func.instructions[*inst].result_ty,
+            Value::Immediate(imm) => Some(imm.ty()),
+            Value::Error(_) => None,
+        }
+    }
+
     /// Validates every function in a module.
     fn validate_module(mut self, module: &Module) {
         self.validate_module_phase(module);
+        self.validate_immutable_declarations(module);
         for (id, func) in module.iter_functions() {
             self.function = Some(id);
             self.validate_function(module, func);

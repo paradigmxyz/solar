@@ -47,3 +47,19 @@
       ret v2
   }
   
+  fn @keep_phi_immutable_loads_before_branch_stores(arg0: bool) -> u256 {
+    bb0:
+      br arg0, bb1, bb2
+    bb1:
+      v0 = loadimmutable value
+      storeimmutable value, 1
+      jump bb3
+    bb2:
+      v1 = loadimmutable value
+      storeimmutable value, 2
+      jump bb3
+    bb3:
+      v2 = phi [bb1: v0], [bb2: v1]
+      ret v2
+  }
+  

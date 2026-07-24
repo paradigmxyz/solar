@@ -563,7 +563,7 @@ fn estimate_inst_cost(module: &Module, kind: &InstKind) -> MirCost {
         // Typed PUSH<N> placeholder patched at deploy time.
         InstKind::LoadImmutable { id } => {
             let ty = module.immutable_type(*id);
-            let encoding = ty.immutable_encoding();
+            let encoding = ty.immutable_encoding().expect("validated immutable declaration");
             let width = usize::from(encoding.type_size().bytes());
             if encoding.needs_runtime_normalization() { (9, width + 4) } else { (3, width + 1) }
         }

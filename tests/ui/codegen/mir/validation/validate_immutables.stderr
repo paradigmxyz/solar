@@ -1,0 +1,6 @@
+error: immutable `invalid` cannot use type `void`
+
+error: [fn0] inst0 stores `memoryslice` value into immutable `narrow` of type `u8`
+
+error: aborting due to 2 previous errors
+

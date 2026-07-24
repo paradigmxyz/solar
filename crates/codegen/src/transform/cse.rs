@@ -170,16 +170,12 @@ struct GlobalCseContext<'a> {
 /// A single cache-invalidating effect of a side-effecting instruction.
 #[derive(Clone, Copy, Debug)]
 enum Clobber {
-    /// A memory write; `None` clobbers all of memory.
-    Memory(Option<MemRangeKey>),
-    /// A storage write to a possibly-aliasing slot.
-    Storage(StorageAlias),
-    /// An effect that may mutate any storage slot.
-    AllStorage,
-    /// A transient-storage write to a possibly-aliasing slot.
-    Transient(StorageAlias),
-    /// An effect that may mutate any transient-storage slot.
-    AllTransient,
+    /// A memory write.
+    Memory(ClobberScope<MemRangeKey>),
+    /// A persistent-storage write.
+    Storage(ClobberScope<StorageAlias>),
+    /// A transient-storage write.
+    Transient(ClobberScope<StorageAlias>),
     /// An immutable assignment.
     Immutable(ClobberScope<ImmutableId>),
     /// An effect that may change account balances or deployed code.
@@ -193,15 +189,6 @@ enum ClobberScope<T> {
     Specific(T),
     /// Every target in the address space.
     All,
-}
-
-impl<T> From<Option<T>> for ClobberScope<T> {
-    fn from(value: Option<T>) -> Self {
-        match value {
-            Some(value) => Self::Specific(value),
-            None => Self::All,
-        }
-    }
 }
 
 impl<T: Copy> ClobberScope<T> {
@@ -831,12 +818,18 @@ impl CommonSubexprEliminator {
             self.alias().instruction_mod_ref_with_replacements(func, inst_id, replacements);
         for &write in effects.writes() {
             clobbers.push(match write {
-                Access::Location(Location::Memory(location)) => Clobber::Memory(Some(location)),
-                Access::Location(Location::Storage(alias)) => Clobber::Storage(alias),
-                Access::Location(Location::Transient(alias)) => Clobber::Transient(alias),
-                Access::Any(AddressSpace::Memory) => Clobber::Memory(None),
-                Access::Any(AddressSpace::Storage) => Clobber::AllStorage,
-                Access::Any(AddressSpace::Transient) => Clobber::AllTransient,
+                Access::Location(Location::Memory(location)) => {
+                    Clobber::Memory(ClobberScope::Specific(location))
+                }
+                Access::Location(Location::Storage(alias)) => {
+                    Clobber::Storage(ClobberScope::Specific(alias))
+                }
+                Access::Location(Location::Transient(alias)) => {
+                    Clobber::Transient(ClobberScope::Specific(alias))
+                }
+                Access::Any(AddressSpace::Memory) => Clobber::Memory(ClobberScope::All),
+                Access::Any(AddressSpace::Storage) => Clobber::Storage(ClobberScope::All),
+                Access::Any(AddressSpace::Transient) => Clobber::Transient(ClobberScope::All),
             });
         }
         if Self::may_change_account_environment(kind) {
@@ -857,31 +850,29 @@ impl CommonSubexprEliminator {
     fn apply_clobber(&self, expr_cache: &mut FxHashMap<ExprKey, ValueId>, clobber: &Clobber) {
         match *clobber {
             Clobber::Memory(write) => self.invalidate_memory(expr_cache, write),
-            Clobber::Storage(alias) => {
+            Clobber::Storage(write) => {
                 expr_cache.retain(|key, _| match key {
-                    ExprKey::SLoad(cached) => !AliasAnalysis::alias_locations(
-                        Location::Storage(*cached),
-                        Location::Storage(alias),
-                    )
-                    .may_alias(),
+                    ExprKey::SLoad(cached) => write.preserves(*cached, |cached, assigned| {
+                        AliasAnalysis::alias_locations(
+                            Location::Storage(cached),
+                            Location::Storage(assigned),
+                        )
+                        .may_alias()
+                    }),
                     _ => true,
                 });
             }
-            Clobber::AllStorage => {
-                expr_cache.retain(|key, _| !matches!(key, ExprKey::SLoad(_)));
-            }
-            Clobber::Transient(alias) => {
+            Clobber::Transient(write) => {
                 expr_cache.retain(|key, _| match key {
-                    ExprKey::TLoad(cached) => !AliasAnalysis::alias_locations(
-                        Location::Transient(*cached),
-                        Location::Transient(alias),
-                    )
-                    .may_alias(),
+                    ExprKey::TLoad(cached) => write.preserves(*cached, |cached, assigned| {
+                        AliasAnalysis::alias_locations(
+                            Location::Transient(cached),
+                            Location::Transient(assigned),
+                        )
+                        .may_alias()
+                    }),
                     _ => true,
                 });
-            }
-            Clobber::AllTransient => {
-                expr_cache.retain(|key, _| !matches!(key, ExprKey::TLoad(_)));
             }
             Clobber::Immutable(write) => {
                 expr_cache.retain(|key, _| match key {
@@ -900,12 +891,13 @@ impl CommonSubexprEliminator {
     fn invalidate_memory(
         &self,
         expr_cache: &mut FxHashMap<ExprKey, ValueId>,
-        write: Option<MemRangeKey>,
+        write: ClobberScope<MemRangeKey>,
     ) {
         expr_cache.retain(|key, _| match key {
-            ExprKey::MLoad(read) | ExprKey::Keccak256(read) => write.is_some_and(|write| {
-                !AliasAnalysis::memory_alias_locations(*read, write).may_alias()
-            }),
+            ExprKey::MLoad(read) | ExprKey::Keccak256(read) => write
+                .preserves(*read, |read, write| {
+                    AliasAnalysis::memory_alias_locations(read, write).may_alias()
+                }),
             ExprKey::MappingSlotMemory(..) => false,
             _ => true,
         });
@@ -956,6 +948,7 @@ impl CommonSubexprEliminator {
                 | ExprKey::Balance(_)
                 | ExprKey::SelfBalance
                 | ExprKey::BlobHash(_)
+                | ExprKey::LoadImmutable(_)
         )
     }
 

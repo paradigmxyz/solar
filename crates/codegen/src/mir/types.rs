@@ -205,17 +205,23 @@ impl MirType {
         }
     }
 
-    /// Returns the compact immutable encoding for this type.
+    /// Returns the compact immutable encoding for scalar types that can be immutable.
     #[must_use]
-    pub(crate) const fn immutable_encoding(self) -> ImmutableEncoding {
-        let Some(size) = self.type_size() else { panic!("void has no immutable encoding") };
-        match self {
+    pub(crate) const fn immutable_encoding(self) -> Option<ImmutableEncoding> {
+        let Some(size) = self.type_size() else { return None };
+        Some(match self {
             Self::Int(_) => ImmutableEncoding::Signed(size),
             Self::FixedBytes(_) => ImmutableEncoding::LeftAligned(size),
             // Internal function pointers do not yet have a stable narrow ABI in MIR.
             Self::Function => ImmutableEncoding::Unsigned(TypeSize::new_int_bits(256)),
-            _ => ImmutableEncoding::Unsigned(size),
-        }
+            Self::Bool | Self::UInt(_) | Self::Address => ImmutableEncoding::Unsigned(size),
+            Self::MemPtr
+            | Self::MemoryObject(_)
+            | Self::StoragePtr
+            | Self::CalldataPtr
+            | Self::Slice(_)
+            | Self::Void => return None,
+        })
     }
 
     /// Returns whether this is a raw address or a semantic memory-object reference.
