@@ -40,16 +40,16 @@
 //!
 //! Each transition accumulates [`ScheduleCost`]. Direct and dynamic-frame loads
 //! have separate costs because the latter also loads the frame pointer and adds
-//! an offset. An admissible lower bound for missing copies and unavoidable
-//! rearrangement proves the deterministic plan when its final cost matches the
-//! bound. Otherwise the A* queue handles the ambiguous layout. Gas optimization
-//! orders plans by static gas, encoded bytes, and action count. Size optimization
-//! orders them by encoded bytes, static gas, and action count. Equal estimates
-//! prefer deeper states, then queue serials make traversal deterministic. Search
-//! stops after [`MAX_OPERAND_SEARCH_STATES`]; returning `None` delegates to the
-//! existing correctness-oriented emitter. “Optimal” here means the least
-//! estimated local preparation cost within this action model, not a
-//! whole-function stack-allocation optimum.
+//! an offset. An admissible lower bound for missing copies and unavoidable rearrangement proves the
+//! deterministic plan when its final cost matches the bound. A missing copy is priced as a `DUP`
+//! whenever one already exists, even below the direct-access window; exposing that copy is
+//! accounted for separately. Otherwise the A* queue handles the ambiguous layout. Gas optimization
+//! orders plans by static gas, encoded bytes, and action count. Size optimization orders them by
+//! encoded bytes, static gas, and action count. Equal estimates prefer deeper states, then queue
+//! serials make traversal deterministic. Search stops after [`MAX_OPERAND_SEARCH_STATES`];
+//! returning `None` delegates to the existing correctness-oriented emitter. “Optimal” here means
+//! the least estimated local preparation cost within this action model, not a whole-function
+//! stack-allocation optimum.
 //!
 //! ## Applying a plan
 //!
@@ -888,11 +888,8 @@ impl StackScheduler {
             missing_counts.push((value, missing));
             total_missing += missing;
 
-            let duplicate = stack
-                .iter()
-                .take(MAX_STACK_ACCESS)
-                .any(|&slot| slot == Some(value))
-                .then_some(ScheduledOp::Stack(StackOp::Dup(1)));
+            let duplicate =
+                stack.contains(&Some(value)).then_some(ScheduledOp::Stack(StackOp::Dup(1)));
             let materialize = self.materialize_operand(value, func);
             let first = match (duplicate, materialize.clone()) {
                 (Some(duplicate), Some(materialize)) => {
@@ -1938,6 +1935,38 @@ mod tests {
             .unwrap();
         assert_eq!(plan.actions.len(), 1);
         assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Swap(16)));
+    }
+
+    #[test]
+    fn operand_plan_duplicates_value_below_dup16_reach() {
+        let mut func = Function::new(Ident::DUMMY);
+        let target = func.alloc_value(Value::Arg { index: 0, ty: MirType::uint256() });
+        let mut scheduler = StackScheduler::new();
+        scheduler.stack.push(target);
+        for value in 0..MAX_STACK_ACCESS {
+            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+                alloy_primitives::U256::from(value),
+            )));
+            scheduler.stack.push(filler);
+        }
+        assert_eq!(scheduler.stack.find(target), Some(MAX_STACK_ACCESS));
+
+        let plan = scheduler
+            .plan_operands(
+                &[target, target],
+                &[],
+                &func,
+                OptimizationMode::Gas,
+                EvmVersion::Shanghai,
+                OperandCostModel::DYNAMIC_FRAME,
+            )
+            .unwrap();
+
+        assert_eq!(
+            plan.actions.iter().map(|action| &action.op).collect::<Vec<_>>(),
+            [&ScheduledOp::Stack(StackOp::Swap(16)), &ScheduledOp::Stack(StackOp::Dup(1))]
+        );
+        assert_eq!(plan.cost.key(OptimizationMode::Gas), [6, 2, 2]);
     }
 
     #[test]
