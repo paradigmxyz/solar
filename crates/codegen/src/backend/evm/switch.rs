@@ -364,10 +364,10 @@ fn dense_lowering_cost(
 
     let normalize_len = usize::from(!low.is_zero()) * (push_len(low, evm_version) + 2);
     let normalize_gas = usize::from(!low.is_zero()) * VERY_LOW_GAS * 3;
-    let bounds_prefix_len = 1 + push_len(U256::from(range), evm_version) + 1 + 1;
+    let bounds_prefix_len = 1 + push_len(U256::from(range), evm_version) + 1;
     let bounds_len = bounds_prefix_len + MIN_LABEL_PUSH_LEN + 1;
     let max_bounds_len = bounds_prefix_len + max_label_push_len(table_target_width) + 1;
-    let bounds_gas = VERY_LOW_GAS * 5 + JUMPI_GAS;
+    let bounds_gas = VERY_LOW_GAS * 4 + JUMPI_GAS;
     let indexed_jump_gas = VERY_LOW_GAS
         + MUL_GAS
         + VERY_LOW_GAS

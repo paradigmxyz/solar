@@ -1607,8 +1607,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         self.asm.emit_op(op::DUP1);
         self.asm.emit_push(U256::from(range));
-        self.asm.emit_op(op::SWAP1);
-        self.asm.emit_op(op::LT);
+        self.asm.emit_op(op::GT);
         self.asm.emit_push_label(in_range);
         self.asm.emit_op(op::JUMPI);
         self.asm.emit_op(op::POP);
@@ -5529,9 +5528,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.stack.dup(1);
         self.asm.emit_push(U256::from(range));
         self.scheduler.stack.push_unknown();
-        self.asm.emit_op(op::SWAP1);
-        self.scheduler.stack_swapped();
-        self.asm.emit_op(op::LT);
+        self.asm.emit_op(op::GT);
         self.scheduler.instruction_executed_untracked(2);
         self.asm.emit_push_label(in_range);
         self.asm.emit_op(op::JUMPI);
