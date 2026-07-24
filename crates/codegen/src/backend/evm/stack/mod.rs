@@ -39,13 +39,15 @@
 //!
 //! ## Design lineage
 //!
-//! The instruction-local boundary and last-use-aware operand preparation are adapted from
-//! [Plank's intra-operation scheduler]. We keep the same useful separation between choosing an
-//! instruction and preparing its operands, but not Plank's unique-value stack invariant, greedy
-//! preparer, or scheduler-owned static allocator. Our representation permits repeated MIR values
-//! and anonymous words, uses one-action and lower-bound-certified fast paths before bounded A*,
-//! and fits the existing direct MIR-to-EVM lowering and memory conventions. This is an original
-//! implementation rather than vendored Plank code.
+//! Plank's current [scheduler pipeline] derives block layout sets, builds an effect-aware operation
+//! graph, selects ready operations, and lets [Plank's intra-operation scheduler] and edge shuffler
+//! drive a tracked stack with scheduler-owned static allocation. We adapt its instruction-local
+//! boundary and last-use-aware operand preparation, not the whole pipeline. In particular, we do
+//! not inherit Plank's unique-value stack invariant, greedy preparer, operation graph, or static
+//! allocator. Our representation permits repeated MIR values and anonymous words, uses one-action
+//! and lower-bound-certified fast paths before bounded A*, and fits the existing direct MIR-to-EVM
+//! lowering and memory conventions. This is an original implementation rather than vendored Plank
+//! code.
 //!
 //! The preceding MIR ordering pass is adapted from [Venom's dependency-first traversal]. Venom
 //! first applies [single-use expansion], then orders both data and effect dependencies with
@@ -64,10 +66,11 @@
 //! Sonatina through its [Sonatina integration], so it does not add another stack scheduler to
 //! adapt.
 //!
+//! [scheduler pipeline]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/lib.rs
 //! [Plank's intra-operation scheduler]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/greedy_intra_op_scheduler/mod.rs
 //! [Venom's dependency-first traversal]: https://github.com/vyperlang/vyper/blob/730a2d36f1fca90be059c75681de5c942560ce0b/vyper/venom/passes/dft.py
 //! [single-use expansion]: https://github.com/vyperlang/vyper/blob/730a2d36f1fca90be059c75681de5c942560ce0b/vyper/venom/passes/single_use_expansion.py
-//! [solc's SSA stack layout generator]: https://github.com/ethereum/solidity/blob/03fe7dd46c793ba556dad3302b0ba3fe4273760e/libyul/backends/evm/ssa/StackLayoutGenerator.cpp
+//! [solc's SSA stack layout generator]: https://github.com/ethereum/solidity/blob/d3ac579fe7521c43c73ef7261785c24d0b8c5e66/libyul/backends/evm/ssa/StackLayoutGenerator.cpp
 //! [Sonatina's stackify allocator]: https://github.com/fe-lang/sonatina/blob/55ca888f1fc83077e5eee803c0619231e9b50998/crates/codegen/src/stackalloc/stackify/planner/operand_prep.rs
 //! [Sonatina integration]: https://github.com/fe-lang/fe/blob/636607d1a859bb68d88460c5ee63dd9532791aa8/crates/codegen/src/sonatina/mod.rs
 //!

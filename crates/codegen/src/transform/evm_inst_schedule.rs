@@ -11,12 +11,12 @@
 //! across an observable mutation, gas observation, call-gas boundary, or phi definition. Within
 //! each barrier-delimited segment, a deterministic dependency-first traversal emits operand
 //! producers in EVM push order and places values consumed by the following barrier or terminator
-//! last. The pass commits a changed segment only when its instruction results are single-use;
-//! shared results retain their existing order because moving one use changes which physical copy
-//! should survive for later consumers. It also preserves the producer order of binary operations
-//! whose lowering already costs both equivalent operand orientations. Instruction and value
-//! identities do not change; codegen recomputes liveness from the resulting order before stack
-//! scheduling.
+//! last. The pass commits a changed segment only when its active instruction results are
+//! single-use; references left in the arena by eliminated instructions do not count. Shared
+//! results retain their existing order because moving one use changes which physical copy should
+//! survive for later consumers. It also preserves the producer order of binary operations whose
+//! lowering already costs both equivalent operand orientations. Instruction and value identities
+//! do not change; codegen recomputes liveness from the resulting order before stack scheduling.
 //!
 //! The dependency-first shape is adapted from [Vyper Venom's DFT pass]. Venom makes shared values
 //! movable with a preceding single-use expansion pass; this implementation instead rejects those
@@ -275,16 +275,15 @@ impl EvmInstSchedule {
 
     fn shared_results(func: &Function) -> DenseBitSet<InstId> {
         let mut counts = vec![0u32; func.values.len()];
-        // Instruction arenas retain replaced and eliminated instructions. Counting those retired
-        // uses is intentionally conservative: values which were shared before late cleanup keep
-        // their established order instead of being treated as newly single-use at the backend
-        // boundary.
-        for inst in &func.instructions {
-            for operand in inst.kind.operands() {
-                counts[operand.index()] += 1;
-            }
-        }
+        // Instruction arenas retain replaced and eliminated instructions, but only instructions
+        // still present in a block reach codegen. Retired uses must not make a live single-use tree
+        // look shared and disable scheduling for its whole segment.
         for block in &func.blocks {
+            for &inst_id in &block.instructions {
+                for operand in func.instructions[inst_id].kind.operands() {
+                    counts[operand.index()] += 1;
+                }
+            }
             if let Some(terminator) = &block.terminator {
                 for operand in terminator.operands() {
                     counts[operand.index()] += 1;

@@ -1,0 +1,18 @@
+//@ compile-flags: --pass dce,evm-inst-schedule
+@module EvmInstScheduleRetiredUses
+
+// DCE leaves the removed multiply in the instruction arena. Its use of v4 must
+// not make the active single-use tree look shared to the scheduling pass.
+fn @retired_use_does_not_block_scheduling(
+  arg0: u256,
+  arg1: u256,
+  arg2: u256,
+  arg3: u256
+) -> u256 {
+  bb0:
+    v4 = add arg0, arg1
+    v5 = mul v4, arg2
+    v6 = div arg2, arg3
+    v7 = sub v4, v6
+    ret v7
+}
