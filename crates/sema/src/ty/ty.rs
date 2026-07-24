@@ -593,7 +593,7 @@ impl<'gcx> Ty<'gcx> {
     /// Returns `true` if the type can be used for variables.
     pub fn nameable(self) -> bool {
         matches!(
-            self.kind,
+            self.peel_refs().kind,
             TyKind::Elementary(_)
                 | TyKind::Array(..)
                 | TyKind::DynArray(_)
