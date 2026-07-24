@@ -18,7 +18,8 @@ use crate::{
     analysis::{CallGraphInfo, CfgInfo},
     mir::{
         BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
-        Terminator, Value, ValueId, utils::repair_reachability_phis,
+        Terminator, Value, ValueId,
+        utils::{repair_reachability_phis, retain_blocks},
     },
     pass::{MirPass, run_function_pass},
 };
@@ -111,6 +112,8 @@ struct CfgSimplifyStats {
     trivial_phis_simplified: usize,
     /// Number of identical terminal blocks merged into one shared block.
     terminal_blocks_deduplicated: usize,
+    /// Number of unreachable block tombstones removed.
+    unreachable_blocks_removed: usize,
     /// Number of dead functions eliminated.
     dead_functions_eliminated: usize,
     /// Estimated gas saved (8 gas per eliminated jump).
@@ -126,6 +129,7 @@ impl CfgSimplifyStats {
             + self.terminators_simplified
             + self.trivial_phis_simplified
             + self.terminal_blocks_deduplicated
+            + self.unreachable_blocks_removed
             + self.dead_functions_eliminated
     }
 
@@ -136,6 +140,7 @@ impl CfgSimplifyStats {
         self.terminators_simplified += other.terminators_simplified;
         self.trivial_phis_simplified += other.trivial_phis_simplified;
         self.terminal_blocks_deduplicated += other.terminal_blocks_deduplicated;
+        self.unreachable_blocks_removed += other.unreachable_blocks_removed;
         self.dead_functions_eliminated += other.dead_functions_eliminated;
         self.gas_saved += other.gas_saved;
     }
@@ -348,9 +353,8 @@ impl CfgSimplifier {
     }
 
     fn simplify_degenerate_terminators(&mut self, func: &mut Function) {
-        let block_ids: Vec<_> = func.blocks.indices().collect();
         let mut changed = false;
-        for block_id in block_ids {
+        for block_id in func.blocks.indices() {
             let Some(Terminator::Branch { then_block, else_block, .. }) =
                 func.blocks[block_id].terminator.as_ref()
             else {
@@ -382,7 +386,19 @@ impl CfgSimplifier {
             }
             total_stats.combine(&self.stats);
         }
+        total_stats.unreachable_blocks_removed = self.remove_unreachable_blocks(func);
         total_stats
+    }
+
+    fn remove_unreachable_blocks(&self, func: &mut Function) -> usize {
+        let cfg = CfgInfo::new(func);
+        let order =
+            func.blocks.indices().filter(|&block| cfg.is_reachable(block)).collect::<Vec<_>>();
+        let removed = func.blocks.len() - order.len();
+        if removed != 0 {
+            retain_blocks(func, &order);
+        }
+        removed
     }
 
     /// Merges blocks where A unconditionally jumps to B and B has only A as predecessor.
@@ -838,7 +854,9 @@ mod tests {
         let mut simplifier = CfgSimplifier::new();
         simplifier.run_to_fixpoint(&mut func);
 
-        assert!(matches!(func.blocks[forwarder].terminator, Some(Terminator::Invalid)));
+        assert_eq!(func.blocks.len(), 3);
+        let direct = BlockId::from_usize(1);
+        let target = BlockId::from_usize(2);
         let phi_inst = func.blocks[target].instructions[0];
         let InstKind::Phi(incoming) = &func.instructions[phi_inst].kind else {
             panic!("expected phi");
@@ -892,7 +910,10 @@ mod tests {
         let mut simplifier = CfgSimplifier::new();
         simplifier.run_to_fixpoint(&mut func);
 
-        assert!(matches!(func.blocks[middle].terminator, Some(Terminator::Invalid)));
+        assert_eq!(func.blocks.len(), 4);
+        let source = BlockId::from_usize(1);
+        let other = BlockId::from_usize(2);
+        let exit = BlockId::from_usize(3);
         let phi_inst = func.blocks[exit].instructions[0];
         let InstKind::Phi(incoming) = &func.instructions[phi_inst].kind else {
             panic!("expected phi");

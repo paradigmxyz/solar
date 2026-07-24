@@ -84,10 +84,64 @@ pub fn lookup_pass(name: &str) -> Option<&'static dyn MirPass> {
     ALL_PASSES.iter().copied().find(|pass| pass.name() == name)
 }
 
+struct SizeOnly<P>(P);
+
+impl<P: MirPass> MirPass for SizeOnly<P> {
+    fn name(&self) -> &'static str {
+        self.0.name()
+    }
+
+    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        gcx.sess.opts.optimization.is_size() && self.0.is_enabled(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        self.0.is_required()
+    }
+
+    fn run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut ModuleAnalyses,
+    ) -> bool {
+        self.0.run_pass(gcx, module, analyses)
+    }
+}
+
+struct GasOnly<P>(P);
+
+impl<P: MirPass> MirPass for GasOnly<P> {
+    fn name(&self) -> &'static str {
+        self.0.name()
+    }
+
+    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        gcx.sess.opts.optimization.is_gas() && self.0.is_enabled(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        self.0.is_required()
+    }
+
+    fn run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut ModuleAnalyses,
+    ) -> bool {
+        self.0.run_pass(gcx, module, analyses)
+    }
+}
+
 /// The canonical MIR pipeline used by EVM codegen.
 pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &inline::Inline,
     &cfg_simplify::FunctionDce,
+    // Early frame scalarization improves size but can increase hot-path gas.
+    &SizeOnly(cfg_simplify::CfgSimplify),
+    &SizeOnly(frame_promotion::FrameSlotPromotion),
+    &SizeOnly(sroa::Sroa),
     &sccp::Sccp,
     &pure_eval::PureEval,
     &inst_simplify::InstSimplify,
@@ -117,6 +171,21 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // equivalent terminal blocks: lowering and stack scheduling can
     // hide their shared semantic shape from the backend passes.
     &outline_reverts::OutlineReverts,
+    // Outlining and late control-flow rewrites expose scalar simplifications.
+    // Thread and clean the CFG first so the rest of this sequence observes the
+    // simplified graph in one pass through the pipeline.
+    &jump_threading::JumpThreading,
+    &cfg_simplify::CfgSimplify,
+    &sccp::Sccp,
+    &inst_simplify::InstSimplify,
+    &cse::Cse,
+    &gvn::Gvn,
+    &check_elim::CheckElim,
+    &jump_threading::JumpThreading,
+    &cfg_simplify::CfgSimplify,
+    &frame_promotion::FrameSlotPromotion,
+    &memory_dse::MemoryDse,
+    &adce::Adce,
     // Progressive lowering materializes ABI wrappers, the dispatcher, and
     // tail-call edges as MIR. Each pass bails without advancing the phase
     // when the module is outside its scope.
@@ -126,6 +195,10 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_aggregates::LowerAggregates,
     &inst_simplify::InstSimplify,
     &cfg_simplify::CfgSimplify,
+    &memory_dse::MemoryDse,
+    // Late CSE reduces runtime gas after aggregate lowering, but can grow
+    // bytecode through longer live ranges, so keep it out of `-Osize`.
+    &GasOnly(cse::Cse),
     &dce::Dce,
     &lower_slices::LowerSlices,
     &lower_dispatch::LowerDispatch,
@@ -134,43 +207,12 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_alloc::LowerAlloc,
 ];
 
-const DEFAULT_LOWERING_PASSES: usize = 12;
-
-/// Cleanup passes rerun after the primary pipeline until no pass changes MIR.
-///
-/// Keep this group focused on simplification and canonicalization. Structural
-/// profitability passes such as inlining and storage promotion run once in
-/// [`DEFAULT_PIPELINE`], while this loop cleans up opportunities exposed by
-/// those transforms.
-pub static DEFAULT_CLEANUP_PIPELINE: &[&dyn MirPass] = &[
-    &sccp::Sccp,
-    &pure_eval::PureEval,
-    &inst_simplify::InstSimplify,
-    &cse::Cse,
-    &gvn::Gvn,
-    &pre::Pre,
-    &storage_load_cse::StorageLoadCse,
-    &storage_dse::StorageDse,
-    &load_pre::LoadPre,
-    &check_elim::CheckElim,
-    &jump_threading::JumpThreading,
-    &cfg_simplify::CfgSimplify,
-    &frame_promotion::FrameSlotPromotion,
-    &sroa::Sroa,
-    &copy_elision::CopyElision,
-    &memory_dse::MemoryDse,
-    &adce::Adce,
-    &dce::Dce,
-];
-
-const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
-
 /// Runs the canonical MIR pipeline used by EVM codegen.
 ///
-/// The optimization prefix advances the module to `MirPhase::Optimized` before
-/// cleanup. The lowering suffix then advances it as far as the module permits.
-/// Modules already past optimization resume at the lowering suffix. Ad-hoc
-/// `solar mir-opt` pass lists do not advance the phase.
+/// The optimization prefix advances the module to `MirPhase::Optimized`. The
+/// lowering suffix then advances it as far as the module permits. Modules
+/// already past optimization resume at the lowering suffix. Ad-hoc pass lists
+/// passed to `solar mir-opt` do not advance the phase.
 #[tracing::instrument(
     name = "mir_pipeline",
     level = "debug",
@@ -178,30 +220,16 @@ const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
     fields(module = %module.name),
 )]
 pub fn run_default_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
-    let optimization_end = DEFAULT_PIPELINE.len() - DEFAULT_LOWERING_PASSES;
-    let (optimization_passes, lowering_passes) = DEFAULT_PIPELINE.split_at(optimization_end);
+    let lowering_start = DEFAULT_PIPELINE
+        .iter()
+        .position(|pass| pass.name() == lower_abi::LowerAbi.name())
+        .expect("default pipeline must contain `lower-abi`");
+    let (optimization_passes, lowering_passes) = DEFAULT_PIPELINE.split_at(lowering_start);
     let mut changed = false;
     if module.phase <= MirPhase::Optimized {
         changed |= run_passes(gcx, module, optimization_passes, Some(MirPhase::Optimized));
-        changed |= run_cleanup_pipeline_to_fixpoint(gcx, module, DEFAULT_CLEANUP_PIPELINE);
     }
     changed |= run_passes(gcx, module, lowering_passes, None);
-    changed
-}
-
-fn run_cleanup_pipeline_to_fixpoint(
-    gcx: solar_sema::Gcx<'_>,
-    module: &mut Module,
-    passes: &[&dyn MirPass],
-) -> bool {
-    let mut changed = false;
-    for _ in 0..DEFAULT_CLEANUP_MAX_ROUNDS {
-        let round_changed = run_passes(gcx, module, passes, None);
-        if !round_changed {
-            break;
-        }
-        changed = true;
-    }
     changed
 }
 
