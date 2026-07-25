@@ -242,16 +242,8 @@ impl CommonSubexprEliminator {
 
     /// Runs CSE iteratively until no more changes.
     fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
-        let mut total = 0;
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
-        loop {
-            let eliminated = self.run_with_cfg(func, &cfg);
-            if eliminated == 0 {
-                break;
-            }
-            total += eliminated;
-        }
-        total
+        self.run_with_cfg(func, &cfg)
     }
 
     fn process_global_pure(&mut self, func: &mut Function, cfg: &CfgInfo) {
