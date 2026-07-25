@@ -300,9 +300,22 @@ impl JumpThreader {
     fn thread_phi_constant_edges(&mut self, func: &mut Function) -> usize {
         let mut rewrites = Vec::new();
         let externally_used_phis = Self::externally_used_phi_results(func);
+        let mut phi_incoming = FxHashMap::default();
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            if !func.block_has_phi(block_id) || !func.block_has_only_phis(block_id) {
+                continue;
+            }
+            for &inst_id in &block.instructions {
+                let Some(result) = func.inst_result_value(inst_id) else { continue };
+                let InstKind::Phi(incoming) = &func.inst(inst_id).kind else { continue };
+                for &(pred, value) in incoming {
+                    phi_incoming.insert((block_id, result, pred), value);
+                }
+            }
+        }
 
         for block_id in func.blocks.indices() {
-            if !func.block_has_only_phis(block_id) {
+            if !func.block_has_phi(block_id) || !func.block_has_only_phis(block_id) {
                 continue;
             }
             if func.blocks[block_id]
@@ -326,7 +339,8 @@ impl JumpThreader {
                 if pred == block_id || Self::successor_count(func, pred, block_id) != 1 {
                     continue;
                 }
-                let Some(target) = self.phi_constant_target_for_pred(func, block_id, term, pred)
+                let Some(target) =
+                    self.phi_constant_target_for_pred(func, block_id, term, pred, &phi_incoming)
                 else {
                     continue;
                 };
@@ -358,15 +372,18 @@ impl JumpThreader {
         block_id: BlockId,
         term: &Terminator,
         pred: BlockId,
+        phi_incoming: &FxHashMap<(BlockId, ValueId, BlockId), ValueId>,
     ) -> Option<BlockId> {
         match term {
             Terminator::Branch { condition, then_block, else_block } => {
-                let incoming = Self::incoming_value_for_pred(func, block_id, *condition, pred)?;
+                let incoming =
+                    Self::incoming_value_for_pred(func, block_id, *condition, pred, phi_incoming)?;
                 let condition = func.value_u256(incoming)?;
                 Some(if condition.is_zero() { *else_block } else { *then_block })
             }
             Terminator::Switch { value, default, cases } => {
-                let incoming = Self::incoming_value_for_pred(func, block_id, *value, pred)?;
+                let incoming =
+                    Self::incoming_value_for_pred(func, block_id, *value, pred, phi_incoming)?;
                 let value = func.value_u256(incoming)?;
                 for (case, target) in cases {
                     if func.value_u256(*case)? == value {
@@ -384,27 +401,26 @@ impl JumpThreader {
         block_id: BlockId,
         value: ValueId,
         pred: BlockId,
+        phi_incoming: &FxHashMap<(BlockId, ValueId, BlockId), ValueId>,
     ) -> Option<ValueId> {
-        let Value::Inst(inst_id) = func.value(value) else {
+        let Value::Inst(_) = func.value(value) else {
             return Some(value);
         };
-        if !func.blocks[block_id].instructions.contains(inst_id) {
-            return None;
-        }
-        let InstKind::Phi(incoming) = &func.inst(*inst_id).kind else {
-            return None;
-        };
-        incoming.iter().find_map(|(incoming_block, incoming_value)| {
-            (*incoming_block == pred).then_some(*incoming_value)
-        })
+        phi_incoming.get(&(block_id, value, pred)).copied()
     }
 
     fn successor_count(func: &Function, pred: BlockId, target: BlockId) -> usize {
-        func.blocks[pred]
-            .terminator
-            .as_ref()
-            .map(|term| term.successors().into_iter().filter(|&succ| succ == target).count())
-            .unwrap_or_default()
+        match func.blocks[pred].terminator.as_ref() {
+            Some(Terminator::Jump(successor)) => usize::from(*successor == target),
+            Some(Terminator::Branch { then_block, else_block, .. }) => {
+                usize::from(*then_block == target) + usize::from(*else_block == target)
+            }
+            Some(Terminator::Switch { default, cases, .. }) => {
+                usize::from(*default == target)
+                    + cases.iter().filter(|(_, successor)| *successor == target).count()
+            }
+            _ => 0,
+        }
     }
 
     fn replace_successor(
