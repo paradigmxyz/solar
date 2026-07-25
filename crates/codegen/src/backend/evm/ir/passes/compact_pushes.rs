@@ -29,6 +29,7 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     compact_pushes_with_scratch(gcx, module, &mut scratch)
 }
 
+#[must_use]
 pub(super) fn compact_pushes_with_scratch(
     gcx: Gcx<'_>,
     module: &mut Module,

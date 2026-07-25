@@ -26,6 +26,7 @@ fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     share_reverts_with_scratch(module, &mut empty_reverts)
 }
 
+#[must_use]
 pub(super) fn share_reverts_with_scratch(
     module: &mut Module,
     empty_reverts: &mut GrowableBitSet<BlockId>,

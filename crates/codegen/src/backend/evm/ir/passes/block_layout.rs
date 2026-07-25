@@ -37,6 +37,7 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
     layout_blocks_with_state(gcx, module, &mut state)
 }
 
+#[must_use]
 pub(super) fn layout_blocks_with_state(
     gcx: Gcx<'_>,
     module: &mut Module,

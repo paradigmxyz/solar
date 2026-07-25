@@ -28,6 +28,7 @@ fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     simplify_cfg_with_state(module, &mut state)
 }
 
+#[must_use]
 pub(super) fn simplify_cfg_with_state(module: &mut Module, state: &mut RunState) -> bool {
     state.reserve(module.blocks.len());
     let truncated = truncate_after_terminal(module);
