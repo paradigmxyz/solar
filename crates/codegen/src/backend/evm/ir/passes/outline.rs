@@ -40,12 +40,21 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
 fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> bool {
     let mut candidates = FxHashMap::<(u64, usize), SmallVec<[CandidateGroup; 1]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
+        let effects: Vec<_> = block.instructions.iter().map(whitelisted_effect).collect();
+        let mut remaining_drops = vec![0usize; effects.len() + 1];
+        for index in (0..effects.len()).rev() {
+            if let Some((_, pops, pushes)) = effects[index] {
+                remaining_drops[index] = remaining_drops[index + 1]
+                    .saturating_add(usize::from(pops.saturating_sub(pushes)));
+            }
+        }
+
         for start in 0..block.instructions.len() {
             let mut height = 0i32;
             let mut hasher = FxHasher::default();
             for end in start..block.instructions.len() {
                 let inst = &block.instructions[end];
-                let Some((reads, pops, pushes)) = whitelisted_effect(inst) else { break };
+                let Some((reads, pops, pushes)) = effects[end] else { break };
                 if height < i32::from(reads) {
                     break;
                 }
@@ -62,6 +71,9 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
                     } else {
                         bucket.push(CandidateGroup { sites: smallvec::smallvec![site] });
                     }
+                }
+                if (height as usize).saturating_sub(remaining_drops[end + 1]) > 1 {
+                    break;
                 }
             }
         }
