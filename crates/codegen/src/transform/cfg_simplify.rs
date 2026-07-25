@@ -174,9 +174,24 @@ impl MirPass for CfgSimplify {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass_no_analyses(module, analyses, |func| {
+            if !may_simplify_cfg(func) {
+                return false;
+            }
             CfgSimplifier::new().run_to_fixpoint(func).total() != 0
         })
     }
+}
+
+fn may_simplify_cfg(func: &Function) -> bool {
+    if func.blocks.len() != 1 {
+        return true;
+    }
+    let block = &func.blocks[BlockId::ENTRY];
+    matches!(block.terminator, Some(Terminator::Branch { .. } | Terminator::Switch { .. }))
+        || block
+            .instructions
+            .iter()
+            .any(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
 }
 
 /// Module pass for dead internal function elimination.
