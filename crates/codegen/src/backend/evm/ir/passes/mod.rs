@@ -14,9 +14,10 @@ mod tail_merge;
 mod terminal_dedup;
 pub(super) mod utils;
 
-use super::Module;
+use super::{BlockId, Instruction, Module};
 use crate::timing::PassTimer;
 use solar_config::OptimizationMode;
+use solar_data_structures::bit_set::GrowableBitSet;
 use solar_sema::Gcx;
 
 /// A streamlined trait for an EVM IR transformation pass.
@@ -108,20 +109,48 @@ fn run_layout(gcx: Gcx<'_>, module: &mut Module, state: &mut block_layout::RunSt
     })
 }
 
+#[must_use]
+fn run_compact_pushes(gcx: Gcx<'_>, module: &mut Module, scratch: &mut Vec<Instruction>) -> bool {
+    run_pass_with(gcx, module, &compact_pushes::CompactPushes, |module| {
+        compact_pushes::compact_pushes_with_scratch(gcx, module, scratch)
+    })
+}
+
+#[must_use]
+fn run_share_reverts(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    empty_reverts: &mut GrowableBitSet<BlockId>,
+) -> bool {
+    run_pass_with(gcx, module, &share_reverts::ShareReverts, |module| {
+        share_reverts::share_reverts_with_scratch(module, empty_reverts)
+    })
+}
+
+#[must_use]
+fn run_tail_merge(gcx: Gcx<'_>, module: &mut Module, state: &mut tail_merge::RunState) -> bool {
+    run_pass_with(gcx, module, &tail_merge::TailMerge, |module| {
+        tail_merge::merge_tails_with_state(module, state)
+    })
+}
+
 /// Runs the canonical EVM IR layout and code-size pipeline.
 #[must_use]
 pub(crate) fn run_default_pipeline(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut cfg_state = cfg_simplify::RunState::default();
     let mut layout_state = block_layout::RunState::default();
+    let mut compact_scratch = Vec::new();
+    let mut empty_reverts = GrowableBitSet::new_empty();
+    let mut tail_merge_state = tail_merge::RunState::default();
 
     // Normalize the machine instructions and establish the first physical layout.
-    let mut changed =
-        run_passes(gcx, module, &[&peephole::Peephole, &compact_pushes::CompactPushes]);
+    let mut changed = run_one(gcx, module, &peephole::Peephole);
+    changed |= run_compact_pushes(gcx, module, &mut compact_scratch);
     changed |= run_cfg(gcx, module, &mut cfg_state);
     changed |= run_layout(gcx, module, &mut layout_state);
 
     // CFG cleanup is only needed when terminal sharing changed an edge.
-    let shared = run_one(gcx, module, &share_reverts::ShareReverts);
+    let shared = run_share_reverts(gcx, module, &mut empty_reverts);
     changed |= shared;
     let deduplicated = run_one(gcx, module, &terminal_dedup::TerminalDedup);
     changed |= deduplicated;
@@ -131,14 +160,14 @@ pub(crate) fn run_default_pipeline(gcx: Gcx<'_>, module: &mut Module) -> bool {
 
     // Tail merging itself reaches a fixed point. Run it again only when CFG
     // cleanup exposes new cross-block suffixes.
-    let tails_merged = run_one(gcx, module, &tail_merge::TailMerge);
+    let tails_merged = run_tail_merge(gcx, module, &mut tail_merge_state);
     changed |= tails_merged;
     let mut second_tail_merge = false;
     if tails_merged {
         let cfg_changed = run_cfg(gcx, module, &mut cfg_state);
         changed |= cfg_changed;
         if cfg_changed {
-            second_tail_merge = run_one(gcx, module, &tail_merge::TailMerge);
+            second_tail_merge = run_tail_merge(gcx, module, &mut tail_merge_state);
             changed |= second_tail_merge;
         }
     }
@@ -149,12 +178,12 @@ pub(crate) fn run_default_pipeline(gcx: Gcx<'_>, module: &mut Module) -> bool {
     if second_tail_merge || outlined {
         changed |= run_cfg(gcx, module, &mut cfg_state);
     }
-    changed |= run_one(gcx, module, &compact_pushes::CompactPushes);
+    changed |= run_compact_pushes(gcx, module, &mut compact_scratch);
 
     // Pack address-sensitive terminal blocks, then clean up a shared adjacent
     // revert path only when branch inversion changed the final layout.
     changed |= run_layout(gcx, module, &mut layout_state);
-    let shared = run_one(gcx, module, &share_reverts::ShareReverts);
+    let shared = run_share_reverts(gcx, module, &mut empty_reverts);
     changed |= shared;
     if shared {
         changed |= run_cfg(gcx, module, &mut cfg_state);

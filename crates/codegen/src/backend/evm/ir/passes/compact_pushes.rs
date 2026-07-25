@@ -25,8 +25,16 @@ const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
 const MIN_COMPACT_MASK_WIDTH: u8 = 5;
 
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
-    let mut changed = false;
     let mut scratch = Vec::new();
+    compact_pushes_with_scratch(gcx, module, &mut scratch)
+}
+
+pub(super) fn compact_pushes_with_scratch(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    scratch: &mut Vec<Instruction>,
+) -> bool {
+    let mut changed = false;
     for block in &mut module.blocks {
         if !block.instructions.iter().any(|inst| {
             immediate(inst).is_some_and(|value| !matches!(select(gcx, value), CompactPush::Literal))
@@ -34,7 +42,7 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
             continue;
         }
         scratch.clear();
-        std::mem::swap(&mut block.instructions, &mut scratch);
+        std::mem::swap(&mut block.instructions, scratch);
         block.instructions.reserve(scratch.len());
         for inst in scratch.drain(..) {
             let Some(value) = immediate(&inst) else {

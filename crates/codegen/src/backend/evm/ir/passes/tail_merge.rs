@@ -21,6 +21,10 @@ impl EvmPass for TailMerge {
 
 fn merge_tails(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
+    merge_tails_with_state(module, &mut state)
+}
+
+pub(super) fn merge_tails_with_state(module: &mut Module, state: &mut RunState) -> bool {
     state.plan_merges(module);
     if state.merges.is_empty() {
         return false;
@@ -43,7 +47,7 @@ fn merge_tails(_gcx: Gcx<'_>, module: &mut Module) -> bool {
 }
 
 #[derive(Default)]
-struct RunState {
+pub(super) struct RunState {
     roots: FxHashMap<TerminatorKind, usize>,
     nodes: Vec<SuffixNode>,
     merges: Vec<Merge>,

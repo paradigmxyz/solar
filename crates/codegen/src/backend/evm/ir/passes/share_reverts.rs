@@ -6,7 +6,7 @@ use crate::backend::evm::{
     op,
 };
 use alloy_primitives::U256;
-use solar_data_structures::bit_set::DenseBitSet;
+use solar_data_structures::bit_set::GrowableBitSet;
 use solar_sema::Gcx;
 
 pub(super) struct ShareReverts;
@@ -22,7 +22,15 @@ impl EvmPass for ShareReverts {
 }
 
 fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
-    let mut empty_reverts = DenseBitSet::new_empty(module.blocks.len());
+    let mut empty_reverts = GrowableBitSet::new_empty();
+    share_reverts_with_scratch(module, &mut empty_reverts)
+}
+
+pub(super) fn share_reverts_with_scratch(
+    module: &mut Module,
+    empty_reverts: &mut GrowableBitSet<BlockId>,
+) -> bool {
+    empty_reverts.clear();
     for block in module.blocks.indices().filter(|&block| is_empty_revert(module, block)) {
         empty_reverts.insert(block);
     }
