@@ -53,6 +53,12 @@ bb5:
   iszero
   push bb4
   jumpi
+  push 0
+  push 128
+  mstore
+  dup2
+  push 160
+  mstore
   dup2
   push 192
   mstore

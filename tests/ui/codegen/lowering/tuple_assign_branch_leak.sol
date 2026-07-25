@@ -14,6 +14,12 @@ contract TupleAssignBranchLeak {
     // CHECK: eq
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]
     // CHECK: [[BODY]]:
+    // CHECK: push 0
+    // CHECK-NEXT: push 128
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: dup2
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mstore
     // CHECK: dup2
     // CHECK-NEXT: push 192
     // CHECK-NEXT: mstore

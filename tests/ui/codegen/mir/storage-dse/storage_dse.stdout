@@ -39,6 +39,24 @@
       stop
   }
   
+  fn @keep_symbolic_before_constant(arg0: u256) {
+    bb0:
+-     sstore arg0, 1
+-     sstore 0, 2
++     sstore arg0, 1 !metadata(storage=symbolic(arg0))
++     sstore 0, 2 !metadata(storage=slot(0))
+      stop
+  }
+  
+  fn @keep_constant_before_symbolic(arg0: u256) {
+    bb0:
+-     sstore 0, 1
+-     sstore arg0, 2
++     sstore 0, 1 !metadata(storage=slot(0))
++     sstore arg0, 2 !metadata(storage=symbolic(arg0))
+      stop
+  }
+  
   fn @remove_disjoint_offset_overwrite(arg0: u256) {
     bb0:
       v0 = add arg0, 1
