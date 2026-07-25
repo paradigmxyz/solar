@@ -590,6 +590,9 @@ impl LowerSlicesCx {
 impl LowerSlicesCx {
     fn run(&mut self, module: &mut Module) -> bool {
         self.stats = LowerSlicesStats::default();
+        if !module.functions.iter().any(function_has_slices) {
+            return false;
+        }
         let compact = Self::infer_compact_params(module);
         let signatures: FxHashMap<_, _> = module
             .functions
@@ -631,4 +634,15 @@ impl LowerSlicesCx {
         }
         changed
     }
+}
+
+fn function_has_slices(func: &Function) -> bool {
+    func.params.iter().chain(&func.returns).any(LowerSlicesCx::is_slice)
+        || func.values.iter().any(|value| match value {
+            Value::Arg { ty, .. } | Value::Undef(ty) => LowerSlicesCx::is_slice(ty),
+            Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => false,
+        })
+        || func
+            .instructions()
+            .any(|inst| func.inst(inst).result_ty.as_ref().is_some_and(LowerSlicesCx::is_slice))
 }
