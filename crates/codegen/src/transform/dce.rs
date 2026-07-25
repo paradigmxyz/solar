@@ -98,6 +98,9 @@ impl DeadCodeEliminator {
 
     /// Eliminates unreachable blocks using CFG reachability analysis.
     fn eliminate_unreachable_blocks(&mut self, func: &mut Function) -> usize {
+        if func.blocks.len() == 1 {
+            return 0;
+        }
         let cfg = CfgInfo::new(func);
 
         // Collect unreachable block IDs
