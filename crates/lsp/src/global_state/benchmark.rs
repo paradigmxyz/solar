@@ -1,7 +1,10 @@
 //! Benchmark-only, in-memory LSP analysis support.
 
 use super::{AnalysisBatch, DiagnosticMap, SymbolTables, analyze, analyze_with_source_map};
-use crate::{project_fixture::ProjectFixture, utils::apply_document_changes, workspace::Workspace};
+use crate::{
+    project_fixture::ProjectFixture, symbols::SymbolTablesAggregator,
+    utils::apply_document_changes, workspace::Workspace,
+};
 use crop::Rope;
 use lsp_types::{
     Diagnostic, GotoDefinitionResponse, Hover, HoverContents, Location, Position, Range,
@@ -301,6 +304,31 @@ impl BenchmarkProject {
         }
     }
 
+    /// Analyze each primary file as an independent production analysis batch.
+    pub fn analyze_file_batches(self) -> Vec<BenchmarkAnalysis> {
+        let Self { root, mut opts, files, loader, markers: _ } = self;
+        opts.threads = Threads::resolve(1);
+
+        files
+            .into_iter()
+            .map(|(path, source)| {
+                let default_uri = Url::from_file_path(&path).ok();
+                let source_map = Arc::new(SourceMap::empty());
+                source_map.set_file_loader(loader.clone());
+                let result = analyze_with_source_map(
+                    AnalysisBatch::from_files(opts.clone(), [(path, source)]),
+                    source_map,
+                );
+                BenchmarkAnalysis {
+                    root: root.clone(),
+                    diagnostics: result.diagnostics,
+                    symbol_tables: result.symbol_tables,
+                    default_uri,
+                }
+            })
+            .collect()
+    }
+
     fn source(&self, relative_path: &Path) -> Result<(&PathBuf, &str), BenchmarkError> {
         let path = resolve_relative_path(&self.root, relative_path)?;
         self.files
@@ -363,6 +391,7 @@ pub enum BenchmarkResponse {
 
 /// An opaque analysis snapshot used by the LSP Criterion benchmarks.
 #[doc(hidden)]
+#[derive(Clone)]
 pub struct BenchmarkAnalysis {
     root: PathBuf,
     diagnostics: DiagnosticMap,
@@ -404,6 +433,34 @@ impl BenchmarkAnalysis {
             .collect::<Vec<_>>();
         diagnostics.sort();
         diagnostics.join("\n")
+    }
+
+    /// Merge independently analyzed batches through the production symbol-table aggregation path.
+    pub fn merge(batches: Vec<Self>) -> Self {
+        let mut batches = batches.into_iter();
+        let first = batches.next().expect("benchmark analysis needs at least one batch");
+        let Self { root, diagnostics, symbol_tables: first_symbol_tables, default_uri } = first;
+        let mut merged = Self {
+            root,
+            diagnostics: DiagnosticMap::default(),
+            symbol_tables: SymbolTables::default(),
+            default_uri,
+        };
+        let mut symbol_tables = SymbolTablesAggregator::default();
+
+        for (uri, mut batch_diagnostics) in diagnostics {
+            merged.diagnostics.entry(uri).or_default().append(&mut batch_diagnostics);
+        }
+        symbol_tables.push(first_symbol_tables);
+
+        for batch in batches {
+            for (uri, mut batch_diagnostics) in batch.diagnostics {
+                merged.diagnostics.entry(uri).or_default().append(&mut batch_diagnostics);
+            }
+            symbol_tables.push(batch.symbol_tables);
+        }
+        merged.symbol_tables = symbol_tables.finish();
+        merged
     }
 
     /// Execute one synchronous query against the analyzed symbol tables.

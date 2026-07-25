@@ -1578,12 +1578,13 @@ fn goto_implementation_finds_unopened_naked_workspace_files() {
         "#,
     );
     let snapshot = snapshot(marked.project());
-    let mut symbol_tables = SymbolTables::default();
+    let mut symbol_tables = SymbolTablesAggregator::default();
     for batch in snapshot.analysis_batches(Vec::new()) {
         let result = analyze(batch);
         assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
-        symbol_tables.extend(result.symbol_tables);
+        symbol_tables.push(result.symbol_tables);
     }
+    let symbol_tables = symbol_tables.finish();
 
     let marker = marked.marker("$1");
     let uri = Url::from_file_path(marked.project().path(marker.path())).unwrap();

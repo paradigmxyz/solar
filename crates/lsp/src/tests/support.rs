@@ -1,5 +1,5 @@
 use super::super::{AnalysisBatch, AnalysisResult, GlobalState, analyze};
-use crate::test_support::MarkedProject;
+use crate::{symbols::SymbolTablesAggregator, test_support::MarkedProject};
 use async_lsp::{ClientSocket, ErrorCode};
 use lsp_types::{
     CompletionContext, CompletionItem, CompletionParams, CompletionResponse, CompletionTextEdit,
@@ -68,6 +68,7 @@ impl RequestFixture {
     ) -> Self {
         let mut result =
             AnalysisResult { diagnostics: Default::default(), symbol_tables: Default::default() };
+        let mut symbol_tables = SymbolTablesAggregator::default();
         for path in paths {
             let contents = open_file
                 .as_ref()
@@ -76,11 +77,12 @@ impl RequestFixture {
             let path = marked.project().path(path);
             let batch =
                 analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, contents)]));
-            result.symbol_tables.extend(batch.symbol_tables);
+            symbol_tables.push(batch.symbol_tables);
             for (uri, mut diagnostics) in batch.diagnostics {
                 result.diagnostics.entry(uri).or_default().append(&mut diagnostics);
             }
         }
+        result.symbol_tables = symbol_tables.finish();
         assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
         Self { marked, result }
     }

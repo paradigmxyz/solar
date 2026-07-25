@@ -5,17 +5,17 @@ use crate::{
     flycheck,
     progress::{ProgressCoordinator, ProgressTicket},
     proto,
-    symbols::SymbolTables,
+    symbols::{SymbolTables, SymbolTablesAggregator},
     vfs::Vfs,
     workspace::WorkspacePathIndex,
 };
 use async_lsp::{ClientSocket, LanguageClient, ResponseError};
 use lsp_types::{
     Diagnostic, DidChangeWatchedFilesRegistrationOptions, FileSystemWatcher, GlobPattern,
-    InitializeParams, InitializeResult, InitializedParams, LogMessageParams, MessageType,
-    PublishDiagnosticsParams, Registration, RegistrationParams, ServerInfo, Url, WatchKind,
-    WorkDoneProgressCancelParams,
+    InitializeParams, InitializedParams, LogMessageParams, MessageType, PublishDiagnosticsParams,
+    Registration, RegistrationParams, ServerInfo, Url, WatchKind, WorkDoneProgressCancelParams,
     notification::{DidChangeWatchedFiles, Notification},
+    request::{Initialize as LspInitialize, Request},
 };
 use solar_config::{CompileOpts, version::SHORT_VERSION};
 use solar_interface::{
@@ -53,6 +53,32 @@ enum AnalysisMode {
 enum AnalysisTaskOutcome {
     Published,
     Superseded,
+}
+
+#[derive(Debug)]
+pub(crate) enum Initialize {}
+
+impl Request for Initialize {
+    type Params = InitializeParams;
+    type Result = InitializeResponse;
+    const METHOD: &'static str = LspInitialize::METHOD;
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct InitializeResponse {
+    capabilities: AdvertisedServerCapabilities,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    server_info: Option<ServerInfo>,
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AdvertisedServerCapabilities {
+    #[serde(flatten)]
+    base: lsp_types::ServerCapabilities,
+    // The pinned lsp-types release omits this LSP 3.17 server capability.
+    type_hierarchy_provider: bool,
 }
 
 /// State serialized with analysis and diagnostic publication.
@@ -103,15 +129,18 @@ impl GlobalState {
     pub(crate) fn on_initialize(
         &mut self,
         params: InitializeParams,
-    ) -> impl Future<Output = Result<InitializeResult, ResponseError>> + use<> {
+    ) -> impl Future<Output = Result<InitializeResponse, ResponseError>> + use<> {
         let (capabilities, mut config) = negotiate_capabilities(params);
 
         config.rediscover_workspaces();
 
         self.analysis_progress.set_enabled(config.supports_work_done_progress());
         self.config = Arc::new(config);
-        std::future::ready(Ok(InitializeResult {
-            capabilities,
+        std::future::ready(Ok(InitializeResponse {
+            capabilities: AdvertisedServerCapabilities {
+                base: capabilities,
+                type_hierarchy_provider: true,
+            },
             server_info: Some(ServerInfo {
                 name: "solar".into(),
                 version: Some(SHORT_VERSION.into()),
@@ -254,7 +283,7 @@ impl GlobalState {
             }
 
             let mut diagnostics = DiagnosticMap::default();
-            let mut symbol_tables = SymbolTables::default();
+            let mut symbol_tables = SymbolTablesAggregator::default();
 
             for batch in batches {
                 if batch.files.is_empty() {
@@ -266,7 +295,7 @@ impl GlobalState {
                 }
 
                 let result = analyze(batch);
-                symbol_tables.extend(result.symbol_tables);
+                symbol_tables.push(result.symbol_tables);
                 for (uri, mut batch_diagnostics) in result.diagnostics {
                     diagnostics.entry(uri).or_default().append(&mut batch_diagnostics);
                 }
@@ -276,6 +305,7 @@ impl GlobalState {
                 }
             }
 
+            let symbol_tables = symbol_tables.finish();
             worker_progress.report("Publishing workspace index");
             if snapshot.publish_analysis(version, AnalysisResult { diagnostics, symbol_tables }) {
                 AnalysisTaskOutcome::Published

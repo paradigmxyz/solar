@@ -17,7 +17,7 @@ const DATA_VERSION: u8 = 1;
 pub(crate) struct TypeHierarchyIndex {
     raw_nodes: FxHashMap<SymbolId, TypeHierarchyItem>,
     raw_edges: Vec<(SymbolId, SymbolId)>,
-    nodes: FxHashMap<NodeKey, TypeHierarchyItem>,
+    nodes: FxHashMap<NodeKey, SymbolId>,
     symbol_keys: FxHashMap<SymbolId, NodeKey>,
     direct_bases: FxHashMap<NodeKey, Vec<NodeKey>>,
     direct_children: FxHashMap<NodeKey, Vec<NodeKey>>,
@@ -27,6 +27,21 @@ pub(crate) struct TypeHierarchyIndex {
 struct NodeKey {
     uri: Url,
     selection_range: Range,
+}
+
+impl Ord for NodeKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.uri
+            .as_str()
+            .cmp(other.uri.as_str())
+            .then_with(|| range_key(self.selection_range).cmp(&range_key(other.selection_range)))
+    }
+}
+
+impl PartialOrd for NodeKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 #[derive(Deserialize, Serialize)]
@@ -66,29 +81,19 @@ impl TypeHierarchyIndex {
                 ),
             };
             index.raw_nodes.insert(symbol_id, item);
-        }
-
-        for item_id in gcx.hir.item_ids() {
-            if !is_eligible_item(gcx, item_id) {
-                continue;
-            }
-            let Some(&derived) = item_symbols.get(&item_id) else { continue };
-            if !index.raw_nodes.contains_key(&derived) {
-                continue;
-            }
 
             match item_id {
                 ItemId::Contract(id) => {
                     for &base_id in gcx.hir.contract(id).bases {
                         if let Some(&base) = item_symbols.get(&ItemId::Contract(base_id)) {
-                            index.raw_edges.push((derived, base));
+                            index.raw_edges.push((symbol_id, base));
                         }
                     }
                 }
                 ItemId::Function(_) | ItemId::Variable(_) => {
                     for &base_item in gcx.base_override_items(item_id) {
                         if let Some(&base) = item_symbols.get(&base_item) {
-                            index.raw_edges.push((derived, base));
+                            index.raw_edges.push((symbol_id, base));
                         }
                     }
                 }
@@ -126,10 +131,12 @@ impl TypeHierarchyIndex {
             let key = NodeKey { uri: item.uri.clone(), selection_range: item.selection_range };
             self.symbol_keys.insert(symbol_id, key.clone());
             match self.nodes.get_mut(&key) {
-                Some(existing) if item_order(item, existing).is_lt() => *existing = item.clone(),
+                Some(existing) if item_order(item, &self.raw_nodes[existing]).is_lt() => {
+                    *existing = symbol_id;
+                }
                 Some(_) => {}
                 None => {
-                    self.nodes.insert(key, item.clone());
+                    self.nodes.insert(key, symbol_id);
                 }
             }
         }
@@ -148,23 +155,23 @@ impl TypeHierarchyIndex {
         }
 
         for bases in self.direct_bases.values_mut() {
-            sort_and_dedup_keys(&self.nodes, bases);
+            sort_and_dedup_keys(bases);
         }
         for children in self.direct_children.values_mut() {
-            sort_and_dedup_keys(&self.nodes, children);
+            sort_and_dedup_keys(children);
         }
     }
 
     pub(crate) fn prepare(&self, symbol_ids: &[SymbolId]) -> Option<Vec<TypeHierarchyItem>> {
         let mut keys = symbol_ids
             .iter()
-            .filter_map(|symbol_id| self.symbol_keys.get(symbol_id).cloned())
+            .filter_map(|symbol_id| self.symbol_keys.get(symbol_id))
             .collect::<Vec<_>>();
         if keys.is_empty() {
             return None;
         }
-        sort_and_dedup_keys(&self.nodes, &mut keys);
-        Some(keys.into_iter().map(|key| self.nodes[&key].clone()).collect())
+        sort_and_dedup_keys(&mut keys);
+        Some(keys.into_iter().map(|key| self.raw_nodes[&self.nodes[key]].clone()).collect())
     }
 
     pub(crate) fn supertypes(&self, item: &TypeHierarchyItem) -> Option<Vec<TypeHierarchyItem>> {
@@ -186,18 +193,18 @@ impl TypeHierarchyIndex {
                 .get(&key)
                 .into_iter()
                 .flatten()
-                .map(|neighbor| self.nodes[neighbor].clone())
+                .map(|neighbor| self.raw_nodes[&self.nodes[neighbor]].clone())
                 .collect(),
         )
     }
 
     fn resolve_item(&self, item: &TypeHierarchyItem) -> Option<NodeKey> {
-        let data = serde_json::from_value::<TypeHierarchyData>(item.data.clone()?).ok()?;
+        let data = TypeHierarchyData::deserialize(item.data.as_ref()?).ok()?;
         if data.version != DATA_VERSION {
             return None;
         }
         let key = NodeKey { uri: data.uri, selection_range: data.selection_range };
-        (self.nodes.get(&key)? == item).then_some(key)
+        (self.raw_nodes.get(self.nodes.get(&key)?)? == item).then_some(key)
     }
 
     fn clear_derived(&mut self) {
@@ -291,8 +298,8 @@ fn remap_symbol_id(symbol_id: SymbolId, offset: usize) -> SymbolId {
     SymbolId::from_usize(symbol_id.index() + offset)
 }
 
-fn sort_and_dedup_keys(nodes: &FxHashMap<NodeKey, TypeHierarchyItem>, keys: &mut Vec<NodeKey>) {
-    keys.sort_by(|a, b| item_order(&nodes[a], &nodes[b]));
+fn sort_and_dedup_keys<T: Ord>(keys: &mut Vec<T>) {
+    keys.sort_unstable();
     keys.dedup();
 }
 

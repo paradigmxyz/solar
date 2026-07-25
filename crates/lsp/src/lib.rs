@@ -79,7 +79,7 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
 
     // Lifecycle
     router
-        .request::<req::Initialize, _>(GlobalState::on_initialize)
+        .request::<global_state::Initialize, _>(GlobalState::on_initialize)
         .notification::<notif::Initialized>(GlobalState::on_initialized)
         .request::<req::Shutdown, _>(|_, _| std::future::ready(Ok(())))
         .notification::<notif::Exit>(|_, _| ControlFlow::Break(Ok(())));
@@ -929,6 +929,21 @@ mod tests {
             assert!(server_task.await.unwrap().is_ok());
             assert!(matches!(client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
         });
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn initialize_advertises_type_hierarchy_statically() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 1,
+            "method": request::Initialize::METHOD,
+            "params": InitializeParams::default(),
+        }))
+        .unwrap();
+
+        let response = router.call(request).await.unwrap();
+
+        assert_eq!(response["capabilities"]["typeHierarchyProvider"], true);
     }
 
     #[tokio::test(flavor = "current_thread")]

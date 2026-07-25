@@ -2,6 +2,7 @@
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use lsp_types::{GotoDefinitionResponse, HoverContents, Position};
+use solar_config::CompileOpts;
 use solar_lsp::{
     BenchmarkAnalysis, BenchmarkProject, BenchmarkRequest, BenchmarkResponse,
     benchmark_selection_ranges,
@@ -10,6 +11,8 @@ use std::{hint::black_box, path::PathBuf};
 
 const ANALYSIS_FUNCTION_COUNTS: [usize; 2] = [64, 256];
 const HOVER_FUNCTION_COUNT: usize = 256;
+const AGGREGATION_BATCH_COUNT: usize = 4;
+const AGGREGATION_FUNCTION_COUNT: usize = 64;
 const UNIFAP_PROJECT: &str = "unifap-v2";
 const UNIFAP_ROUTER: &str = "src/UnifapV2Router.sol";
 const UNIFAP_PAIR: &str = "src/UnifapV2Pair.sol";
@@ -113,6 +116,60 @@ fn analysis_build(c: &mut Criterion) {
         );
     }
     group.finish();
+}
+
+fn aggregation_project() -> BenchmarkProject {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/aggregation");
+    let source = benchmark_source(AGGREGATION_FUNCTION_COUNT).source;
+    let sources = (0..AGGREGATION_BATCH_COUNT)
+        .map(|index| (PathBuf::from(format!("batch-{index}.sol")), source.clone()));
+    let opts = CompileOpts { base_path: Some(root), ..Default::default() };
+    BenchmarkProject::from_sources(opts, sources)
+        .expect("the aggregation benchmark project should be valid")
+}
+
+fn symbol_table_aggregation(c: &mut Criterion) {
+    let project = aggregation_project();
+    let batches = project.clone().analyze_file_batches();
+    assert_eq!(batches.len(), AGGREGATION_BATCH_COUNT);
+    assert!(batches.iter().all(|batch| batch.diagnostic_count() == 0));
+    let merged = BenchmarkAnalysis::merge(batches.clone());
+    assert_clean(&merged);
+    let response = merged.execute(&BenchmarkRequest::WorkspaceSymbols {
+        query: format!("function_{:04}", AGGREGATION_FUNCTION_COUNT - 1),
+    });
+    let BenchmarkResponse::WorkspaceSymbols(symbols) = response else {
+        panic!("the aggregation check should return workspace symbols")
+    };
+    assert_eq!(symbols.len(), AGGREGATION_BATCH_COUNT);
+
+    let mut group = c.benchmark_group("lsp/symbol-table-aggregation");
+    for batch_count in [1, AGGREGATION_BATCH_COUNT] {
+        group.throughput(Throughput::Elements(batch_count as u64));
+        group.bench_with_input(
+            BenchmarkId::from_parameter(batch_count),
+            &batch_count,
+            |b, &batch_count| {
+                b.iter_batched(
+                    || batches[..batch_count].to_vec(),
+                    |batches| black_box(BenchmarkAnalysis::merge(black_box(batches))),
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+    }
+    group.finish();
+
+    let end_to_end_id = format!("lsp/project-analysis-batched/{AGGREGATION_BATCH_COUNT}");
+    c.bench_function(&end_to_end_id, |b| {
+        b.iter_batched(
+            || project.clone(),
+            |project| {
+                black_box(BenchmarkAnalysis::merge(black_box(project.analyze_file_batches())))
+            },
+            BatchSize::PerIteration,
+        );
+    });
 }
 
 fn burst_hover(c: &mut Criterion) {
@@ -306,5 +363,12 @@ fn unifap_benches(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, analysis_build, burst_hover, selection_range, unifap_benches);
+criterion_group!(
+    benches,
+    analysis_build,
+    symbol_table_aggregation,
+    burst_hover,
+    selection_range,
+    unifap_benches
+);
 criterion_main!(benches);

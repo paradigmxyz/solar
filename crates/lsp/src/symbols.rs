@@ -68,6 +68,34 @@ pub(crate) struct SymbolTables {
     type_hierarchy: TypeHierarchyIndex,
 }
 
+#[derive(Default)]
+pub(crate) struct SymbolTablesAggregator {
+    tables: Option<SymbolTables>,
+    needs_rebuild: bool,
+}
+
+impl SymbolTablesAggregator {
+    pub(crate) fn push(&mut self, tables: SymbolTables) {
+        if let Some(merged) = &mut self.tables {
+            merged.extend_unindexed(tables);
+            self.needs_rebuild = true;
+        } else {
+            self.tables = Some(tables);
+        }
+    }
+
+    pub(crate) fn finish(self) -> SymbolTables {
+        let Self { tables, needs_rebuild } = self;
+        let Some(mut tables) = tables else { return SymbolTables::default() };
+        if needs_rebuild {
+            tables.rebuild_indexes();
+        }
+        // HIR IDs are scoped to one compiler run and cannot back published LSP queries.
+        tables.symbols_by_key.clear();
+        tables
+    }
+}
+
 newtype_index! {
     /// A declaration symbol ID in the LSP symbol table.
     pub(crate) struct SymbolId;
@@ -315,7 +343,7 @@ impl SymbolTables {
             .flat_map(|symbols| symbols.iter().map(|&symbol_id| &self.declarations[symbol_id]))
     }
 
-    pub(crate) fn extend(&mut self, mut other: Self) {
+    fn extend_unindexed(&mut self, mut other: Self) {
         if self.global_completions.is_empty() {
             self.global_completions = std::mem::take(&mut other.global_completions);
         }
@@ -370,10 +398,6 @@ impl SymbolTables {
         self.member_completions.extend(other.member_completions);
         self.references.extend(other.references);
         self.rename.extend(other.rename, symbol_offset);
-        // HIR IDs are scoped to one compiler run, so this build-time map is not meaningful after
-        // merging symbol tables from separate analysis batches.
-        self.symbols_by_key.clear();
-        self.rebuild_indexes();
     }
 
     pub(crate) fn inlay_hints(&self, uri: &Url, range: Range) -> Vec<InlayHint> {
@@ -2352,15 +2376,17 @@ mod tests {
     }
 
     #[test]
-    fn extend_preserves_document_links_without_declarations() {
+    fn aggregator_preserves_document_links_without_declarations() {
         let source_path = PathBuf::from("/workspace/src/Imports.sol");
         let target = parse_uri("file:///workspace/src/Dependency.sol");
         let link_range = range(0, 8, 0, 24);
-        let mut tables = SymbolTables::default();
         let mut other = SymbolTables::default();
         other.document_links.insert_for_test(source_path.clone(), link_range, target.clone());
+        let mut aggregator = SymbolTablesAggregator::default();
 
-        tables.extend(other);
+        aggregator.push(SymbolTables::default());
+        aggregator.push(other);
+        let tables = aggregator.finish();
 
         let links = tables.document_links(&source_path);
         assert_eq!(links.len(), 1);
