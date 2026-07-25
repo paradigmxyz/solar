@@ -123,6 +123,22 @@ impl<'gcx> Lowerer<'gcx> {
                 // Constant operations are not special-cased here: lowering
                 // emits the plain instruction and the MIR pass pipeline folds
                 // it uniformly, with checked-arithmetic semantics intact.
+                // A user-defined operator on a UDVT resolves to a function; call
+                // it with the operand values (UDVTs are transparent at runtime).
+                if let Some(op_fn) = self.gcx.user_operator(expr.id) {
+                    let lhs_val = self.lower_value_expr(builder, lhs);
+                    let rhs_val = self.lower_value_expr(builder, rhs);
+                    return self
+                        .lower_internal_call_values(builder, op_fn, vec![lhs_val, rhs_val])
+                        .unwrap_or_else(|| {
+                            self.err_value(
+                                builder,
+                                expr.span,
+                                "codegen expected user-defined operator to return a value",
+                            )
+                        });
+                }
+
                 let int_info =
                     self.integer_info_for_expr(expr).or_else(|| self.integer_info_for_expr(lhs));
                 let is_signed =
@@ -213,6 +229,20 @@ impl<'gcx> Lowerer<'gcx> {
                         }
                     }
                     _ => {
+                        // A user-defined unary operator resolves to a
+                        // single-argument function.
+                        if let Some(op_fn) = self.gcx.user_operator(expr.id) {
+                            let operand_val = self.lower_value_expr(builder, operand);
+                            return self
+                                .lower_internal_call_values(builder, op_fn, vec![operand_val])
+                                .unwrap_or_else(|| {
+                                    self.err_value(
+                                        builder,
+                                        expr.span,
+                                        "codegen expected user-defined operator to return a value",
+                                    )
+                                });
+                        }
                         let operand_val = self.lower_value_expr(builder, operand);
                         let int_info = self
                             .integer_info_for_expr(expr)

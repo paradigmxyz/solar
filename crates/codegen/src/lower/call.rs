@@ -1767,6 +1767,22 @@ impl<'gcx> Lowerer<'gcx> {
             })
             .collect();
 
+        self.lower_internal_call_values(builder, func_id, arg_vals)
+    }
+
+    /// Lowers an internal call given already-lowered argument values, choosing
+    /// between inlining and a shared `internal_call` the same way
+    /// [`Self::lower_internal_call`] does. Used for operator expressions, whose
+    /// operands are plain values rather than argument expressions.
+    pub(super) fn lower_internal_call_values(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func_id: hir::FunctionId,
+        arg_vals: Vec<ValueId>,
+    ) -> Option<ValueId> {
+        let func = self.gcx.hir.function(func_id);
+        let params = func.parameters;
+
         // A callee that takes a storage-reference parameter must be lowered
         // through the internal-frame path, whose normal statement lowering binds
         // storage-reference locals correctly. The straight-line SSA inline path
