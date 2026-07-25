@@ -1,7 +1,7 @@
 //! Module-level call graph facts for MIR.
 
 use crate::mir::{Function, FunctionId, InstKind, Module, Terminator};
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::index_vec, map::FxHashMap};
 use std::collections::VecDeque;
 
 /// Module-level internal-call graph facts.
@@ -122,28 +122,72 @@ impl CallGraphInfo {
         callees: &FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
         function_count: usize,
     ) -> DenseBitSet<FunctionId> {
-        let mut recursive = DenseBitSet::new_empty(function_count);
-        for &func_id in callees.keys() {
-            if Self::has_cycle_from(func_id, callees, &mut DenseBitSet::new_empty(function_count)) {
-                recursive.insert(func_id);
+        let mut outgoing = index_vec![Vec::new(); function_count];
+        let mut callers = index_vec![Vec::new(); function_count];
+        for (&caller, direct_callees) in callees {
+            for callee in direct_callees {
+                outgoing[caller].push(callee);
+                callers[callee].push(caller);
             }
         }
-        recursive
-    }
 
-    fn has_cycle_from(
-        func_id: FunctionId,
-        callees: &FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
-        visiting: &mut DenseBitSet<FunctionId>,
-    ) -> bool {
-        if !visiting.insert(func_id) {
-            return true;
+        let mut visited = DenseBitSet::new_empty(function_count);
+        let mut postorder = Vec::with_capacity(function_count);
+        let mut stack = Vec::new();
+        for root in outgoing.indices() {
+            if !visited.insert(root) {
+                continue;
+            }
+            stack.push((root, 0));
+            while let Some((function, next)) = stack.last_mut() {
+                if let Some(&callee) = outgoing[*function].get(*next) {
+                    *next += 1;
+                    if visited.insert(callee) {
+                        stack.push((callee, 0));
+                    }
+                } else {
+                    postorder.push(*function);
+                    stack.pop();
+                }
+            }
         }
 
-        let recursive = callees.get(&func_id).is_some_and(|direct_callees| {
-            direct_callees.iter().any(|callee| Self::has_cycle_from(callee, callees, visiting))
-        });
-        visiting.remove(func_id);
+        let mut assigned = DenseBitSet::new_empty(function_count);
+        let mut recursive = DenseBitSet::new_empty(function_count);
+        let mut component = Vec::new();
+        for root in postorder.into_iter().rev() {
+            if !assigned.insert(root) {
+                continue;
+            }
+            component.clear();
+            component.push(root);
+            stack.push((root, 0));
+            while let Some((function, next)) = stack.last_mut() {
+                if let Some(&caller) = callers[*function].get(*next) {
+                    *next += 1;
+                    if assigned.insert(caller) {
+                        component.push(caller);
+                        stack.push((caller, 0));
+                    }
+                } else {
+                    stack.pop();
+                }
+            }
+            if component.len() > 1 || outgoing[root].contains(&root) {
+                for &function in &component {
+                    recursive.insert(function);
+                }
+            }
+        }
+
+        let mut pending = recursive.iter().collect::<Vec<_>>();
+        while let Some(function) = pending.pop() {
+            for &caller in &callers[function] {
+                if recursive.insert(caller) {
+                    pending.push(caller);
+                }
+            }
+        }
         recursive
     }
 }
