@@ -731,6 +731,10 @@ impl CfgSimplifier {
 
     /// Eliminates empty blocks that only contain an unconditional jump.
     fn eliminate_empty_blocks(&mut self, func: &mut Function) {
+        if !func.blocks.indices().any(|block| self.is_empty_forwarder(func, block)) {
+            return;
+        }
+
         let cfg = CfgInfo::new(func);
         let loop_preheaders = self.loop_preheader_forwarders(func, &cfg);
         let mut switch_targets = index_vec![None; func.blocks.len()];

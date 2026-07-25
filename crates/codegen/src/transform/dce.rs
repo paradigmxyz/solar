@@ -27,12 +27,10 @@ impl MirPass for Dce {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
-            let removed = DeadCodeEliminator::new().run_to_fixpoint(func);
-            let mut changed = removed != 0;
-            if changed {
-                changed |= repair_reachability_phis(func);
-            }
-            changed
+            let mut eliminator = DeadCodeEliminator::new();
+            let removed = eliminator.run_to_fixpoint(func);
+            let repaired = eliminator.cfg_changed() && repair_reachability_phis(func);
+            removed != 0 || repaired
         })
     }
 }
@@ -56,6 +54,8 @@ pub(crate) struct DeadCodeEliminator {
     worklist: Vec<InstId>,
     /// Dead instructions found in one run.
     dead: DenseBitSet<InstId>,
+    /// Whether unreachable-block cleanup changed the CFG.
+    cfg_changed: bool,
 }
 
 impl DeadCodeEliminator {
@@ -66,14 +66,18 @@ impl DeadCodeEliminator {
             use_counts: IndexVec::new(),
             worklist: Vec::new(),
             dead: DenseBitSet::new_empty(0),
+            cfg_changed: false,
         }
     }
 
     fn run_once(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
+        self.cfg_changed = false;
 
         // Phase 1: Remove unreachable blocks.
-        self.eliminated_count += self.eliminate_unreachable_blocks(func);
+        let unreachable_removed = self.eliminate_unreachable_blocks(func);
+        self.eliminated_count += unreachable_removed;
+        self.cfg_changed = unreachable_removed != 0;
 
         // Phase 2: Count uses, then propagate liveness losses backwards from
         // initially-unused results.
@@ -94,6 +98,12 @@ impl DeadCodeEliminator {
     /// Runs dead code elimination to a fixed point.
     pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         self.run_once(func)
+    }
+
+    /// Returns whether the last run changed CFG reachability.
+    #[must_use]
+    pub(crate) fn cfg_changed(&self) -> bool {
+        self.cfg_changed
     }
 
     /// Eliminates unreachable blocks using CFG reachability analysis.
