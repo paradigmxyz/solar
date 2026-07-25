@@ -407,6 +407,9 @@ impl<'a> Validator<'a> {
         }
         let mut reach_cache: FxHashMap<BlockId, DenseBitSet<BlockId>> = FxHashMap::default();
         let mut reaches = |from: BlockId, to: BlockId| {
+            if cfg.dominators().dominates(from, to) {
+                return true;
+            }
             let set = reach_cache.entry(from).or_insert_with(|| {
                 let mut seen = DenseBitSet::new_empty(func.blocks.len());
                 let mut stack = vec![from];
