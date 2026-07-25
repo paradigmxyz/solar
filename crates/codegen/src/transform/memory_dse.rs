@@ -21,6 +21,7 @@ use crate::{
 use alloy_primitives::{U256, keccak256};
 use solar_data_structures::{
     bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
 use std::rc::Rc;
@@ -252,29 +253,30 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        // Backward fixpoint: live_in[b] = transfer(b, ∪ live_in[succ(b)]).
-        // Liveness only grows, so stopping early would under-approximate it and
-        // could mark a live store dead; require real convergence, else bail.
-        let mut live_in: FxHashMap<BlockId, MemLive> =
-            block_ids.iter().map(|&b| (b, MemLive::Only(FxHashSet::default()))).collect();
-        let mut converged = false;
-        for _ in 0..(block_ids.len() * 4 + 16) {
-            let mut changed = false;
-            for &block_id in block_ids.iter().rev() {
-                let out = Self::live_out(func, block_id, &live_in);
-                let new_in = self.transfer_block(func, block_id, out, &mut None);
-                if live_in.get(&block_id) != Some(&new_in) {
-                    live_in.insert(block_id, new_in);
-                    changed = true;
+        let mut predecessors = index_vec![Vec::new(); func.blocks.len()];
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            if let Some(term) = &block.terminator {
+                for successor in term.successors() {
+                    predecessors[successor].push(block_id);
                 }
             }
-            if !changed {
-                converged = true;
-                break;
-            }
         }
-        if !converged {
-            return;
+
+        let mut live_in = index_vec![MemLive::Only(FxHashSet::default()); func.blocks.len()];
+        let mut pending = block_ids.clone();
+        let mut queued = DenseBitSet::new_filled(func.blocks.len());
+        while let Some(block_id) = pending.pop() {
+            queued.remove(block_id);
+            let out = Self::live_out(func, block_id, &live_in);
+            let new_in = self.transfer_block(func, block_id, out, &mut None);
+            if live_in[block_id] != new_in {
+                live_in[block_id] = new_in;
+                for &predecessor in &predecessors[block_id] {
+                    if queued.insert(predecessor) {
+                        pending.push(predecessor);
+                    }
+                }
+            }
         }
 
         // Collect dead stores using the stabilized live-out of each block.
@@ -294,13 +296,11 @@ impl MemoryStoreEliminator {
         }
     }
 
-    fn live_out(func: &Function, block: BlockId, live_in: &FxHashMap<BlockId, MemLive>) -> MemLive {
+    fn live_out(func: &Function, block: BlockId, live_in: &IndexVec<BlockId, MemLive>) -> MemLive {
         let mut out = MemLive::Only(FxHashSet::default());
         if let Some(term) = func.blocks[block].terminator.as_ref() {
             for succ in term.successors() {
-                if let Some(in_set) = live_in.get(&succ) {
-                    out.join(in_set);
-                }
+                out.join(&live_in[succ]);
             }
         }
         out
