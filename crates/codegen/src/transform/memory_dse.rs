@@ -24,7 +24,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
-use std::rc::Rc;
+use std::{collections::BTreeMap, rc::Rc};
 
 /// Function pass for local dead memory-store elimination.
 pub(crate) struct MemoryDse;
@@ -61,6 +61,100 @@ struct MemoryStoreEliminator {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct MemAddrKey(MemoryAddress);
+
+/// Exact word locations grouped by base and ordered for range invalidation.
+#[derive(Debug)]
+struct MemoryWordMap<T> {
+    groups: FxHashMap<MemoryAddress, BTreeMap<u64, T>>,
+}
+
+impl<T> Default for MemoryWordMap<T> {
+    fn default() -> Self {
+        Self { groups: FxHashMap::default() }
+    }
+}
+
+impl<T> MemoryWordMap<T> {
+    fn clear(&mut self) {
+        self.groups.clear();
+    }
+
+    fn contains_key(&self, key: &MemAddrKey) -> bool {
+        self.get(key).is_some()
+    }
+
+    fn get(&self, key: &MemAddrKey) -> Option<&T> {
+        self.groups.get(&Self::group_key(key.0))?.get(&key.0.offset)
+    }
+
+    fn insert(&mut self, key: MemAddrKey, value: T) {
+        self.groups.entry(Self::group_key(key.0)).or_default().insert(key.0.offset, value);
+    }
+
+    fn remove_overlapping_key(&mut self, key: MemAddrKey) {
+        self.remove_overlapping_location(MemoryLocation::new(key.0, LocationSize::Const(32)));
+    }
+
+    fn remove_overlapping_location(&mut self, location: MemoryLocation) {
+        for (&group, words) in &mut self.groups {
+            let exact_probe = MemoryLocation::new(
+                MemoryAddress { offset: location.address.offset, ..group },
+                LocationSize::Const(32),
+            );
+            if !AliasAnalysis::memory_alias_locations(exact_probe, location).may_alias() {
+                continue;
+            }
+            let LocationSize::Const(size) = location.size else {
+                words.clear();
+                continue;
+            };
+            let Some(disjoint_offset) =
+                location.address.offset.checked_add(size).and_then(|end| end.checked_add(32))
+            else {
+                words.clear();
+                continue;
+            };
+            let disjoint_probe = MemoryLocation::new(
+                MemoryAddress { offset: disjoint_offset, ..group },
+                LocationSize::Const(32),
+            );
+            if AliasAnalysis::memory_alias_locations(disjoint_probe, location).may_alias() {
+                words.clear();
+            } else {
+                Self::remove_range(words, location.address.offset, size);
+            }
+        }
+        self.groups.retain(|_, words| !words.is_empty());
+    }
+
+    fn retain(&mut self, mut predicate: impl FnMut(MemAddrKey, &mut T) -> bool) {
+        for (&group, words) in &mut self.groups {
+            words.retain(|&offset, value| {
+                predicate(MemAddrKey(MemoryAddress { offset, ..group }), value)
+            });
+        }
+        self.groups.retain(|_, words| !words.is_empty());
+    }
+
+    fn group_key(mut address: MemoryAddress) -> MemoryAddress {
+        address.offset = 0;
+        address
+    }
+
+    fn remove_range(words: &mut BTreeMap<u64, T>, address: u64, size: u64) {
+        if size == 0 {
+            return;
+        }
+        let start = address.saturating_sub(31);
+        let keys: Vec<_> = match address.checked_add(size) {
+            Some(end) => words.range(start..end).map(|(&key, _)| key).collect(),
+            None => words.keys().copied().collect(),
+        };
+        for key in keys {
+            words.remove(&key);
+        }
+    }
+}
 
 /// Above this many tracked live slots the backward DSE gives up precision and
 /// treats all memory as live. Keeps the lattice height (and cost) bounded.
@@ -128,9 +222,9 @@ struct CachedImmutableCopy {
 }
 
 struct BlockScratch {
-    overwritten: FxHashSet<MemAddrKey>,
-    stored_values: FxHashMap<MemAddrKey, ValueId>,
-    stored_words: FxHashMap<MemAddrKey, U256>,
+    overwritten: MemoryWordMap<()>,
+    stored_values: MemoryWordMap<ValueId>,
+    stored_words: MemoryWordMap<U256>,
     replacements: FxHashMap<ValueId, ValueId>,
     dead: DenseBitSet<InstId>,
 }
@@ -138,9 +232,9 @@ struct BlockScratch {
 impl BlockScratch {
     fn new(func: &Function) -> Self {
         Self {
-            overwritten: FxHashSet::default(),
-            stored_values: FxHashMap::default(),
-            stored_words: FxHashMap::default(),
+            overwritten: MemoryWordMap::default(),
+            stored_values: MemoryWordMap::default(),
+            stored_words: MemoryWordMap::default(),
             replacements: FxHashMap::default(),
             dead: DenseBitSet::new_empty(func.num_insts()),
         }
@@ -522,20 +616,7 @@ impl MemoryStoreEliminator {
             let Some(offset) = self.internal_frame_offset(func, addr) else {
                 continue;
             };
-            if !reads.iter().any(|&(read_offset, read_size)| {
-                self.alias()
-                    .memory_alias(
-                        MemoryLocation::new(
-                            MemoryAddress::internal_frame(offset),
-                            LocationSize::Const(32),
-                        ),
-                        MemoryLocation::new(
-                            MemoryAddress::internal_frame(read_offset),
-                            LocationSize::Const(read_size),
-                        ),
-                    )
-                    .may_alias()
-            }) {
+            if !Self::frame_ranges_overlap(&reads, offset, 32) {
                 dead.insert(inst_id);
             }
         }
@@ -607,11 +688,11 @@ impl MemoryStoreEliminator {
             match &inst.kind {
                 InstKind::MStore(addr, _) => {
                     if let Some(key) = self.mem_addr_key(func, *addr) {
-                        if scratch.overwritten.contains(&key) {
+                        if scratch.overwritten.contains_key(&key) {
                             scratch.dead.insert(inst_id);
                             self.eliminated_count += 1;
                         } else {
-                            scratch.overwritten.insert(key);
+                            scratch.overwritten.insert(key, ());
                         }
                     } else {
                         scratch.overwritten.clear();
@@ -620,11 +701,11 @@ impl MemoryStoreEliminator {
                 InstKind::SetMemoryObjectLen(object, _, kind) => {
                     if let Some(key) = self.memory_object_length_key(func, inst_id, *object, *kind)
                     {
-                        if scratch.overwritten.contains(&key) {
+                        if scratch.overwritten.contains_key(&key) {
                             scratch.dead.insert(inst_id);
                             self.eliminated_count += 1;
                         } else {
-                            scratch.overwritten.insert(key);
+                            scratch.overwritten.insert(key, ());
                         }
                     } else {
                         scratch.overwritten.clear();
@@ -632,7 +713,7 @@ impl MemoryStoreEliminator {
                 }
                 InstKind::MLoad(addr) => {
                     if let Some(key) = self.mem_addr_key(func, *addr) {
-                        Self::remove_overlapping_set(&mut scratch.overwritten, key);
+                        scratch.overwritten.remove_overlapping_key(key);
                     } else {
                         scratch.overwritten.clear();
                     }
@@ -640,19 +721,20 @@ impl MemoryStoreEliminator {
                 InstKind::MemoryObjectLen(object, kind) => {
                     if let Some(key) = self.memory_object_length_key(func, inst_id, *object, *kind)
                     {
-                        Self::remove_overlapping_set(&mut scratch.overwritten, key);
+                        scratch.overwritten.remove_overlapping_key(key);
                     } else {
                         scratch.overwritten.clear();
                     }
                 }
                 InstKind::Fmp | InstKind::Alloc { .. } => {
-                    Self::remove_overlapping_set(
-                        &mut scratch.overwritten,
-                        MemAddrKey(AliasAnalysis::fmp_location().address),
-                    );
+                    scratch
+                        .overwritten
+                        .remove_overlapping_key(MemAddrKey(AliasAnalysis::fmp_location().address));
                 }
                 InstKind::SetFmp(_) => {
-                    scratch.overwritten.insert(MemAddrKey(AliasAnalysis::fmp_location().address));
+                    scratch
+                        .overwritten
+                        .insert(MemAddrKey(AliasAnalysis::fmp_location().address), ());
                 }
                 InstKind::CalldataCopy(dest, _, size)
                 | InstKind::CodeCopy(dest, _, size)
@@ -703,7 +785,7 @@ impl MemoryStoreEliminator {
         &self,
         func: &Function,
         inst_id: InstId,
-        overwritten: &mut FxHashSet<MemAddrKey>,
+        overwritten: &mut MemoryWordMap<()>,
     ) {
         let effects = self.alias().instruction_mod_ref(func, inst_id);
         if effects.observes_memory_size()
@@ -725,18 +807,13 @@ impl MemoryStoreEliminator {
         }
         for &access in effects.reads() {
             if let Access::Location(Location::Memory(location)) = access {
-                overwritten.retain(|key| {
-                    !self
-                        .alias()
-                        .memory_alias(MemoryLocation::new(key.0, LocationSize::Const(32)), location)
-                        .may_alias()
-                });
+                overwritten.remove_overlapping_location(location);
             }
         }
     }
 
     fn insert_memory_location(
-        overwritten: &mut FxHashSet<MemAddrKey>,
+        overwritten: &mut MemoryWordMap<()>,
         location: MemoryLocation,
     ) -> bool {
         let LocationSize::Const(size) = location.size else { return false };
@@ -745,7 +822,7 @@ impl MemoryStoreEliminator {
         }
         for offset in (0..size).step_by(32) {
             let Some(address) = location.address.checked_add(offset) else { return false };
-            overwritten.insert(MemAddrKey(address));
+            overwritten.insert(MemAddrKey(address), ());
         }
         true
     }
@@ -769,7 +846,7 @@ impl MemoryStoreEliminator {
     fn retain_overwritten_disjoint_from_read(
         &self,
         func: &Function,
-        overwritten: &mut FxHashSet<MemAddrKey>,
+        overwritten: &mut MemoryWordMap<()>,
         offset: ValueId,
         size: ValueId,
     ) {
@@ -781,7 +858,7 @@ impl MemoryStoreEliminator {
         if read_size == 0 {
             return;
         }
-        overwritten.retain(|key| {
+        overwritten.retain(|key, _| {
             key.0.as_absolute().is_some_and(|_| {
                 !self
                     .alias()
@@ -976,7 +1053,7 @@ impl MemoryStoreEliminator {
                         scratch.stored_words.clear();
                         continue;
                     };
-                    Self::remove_overlapping_map(&mut scratch.stored_words, key);
+                    scratch.stored_words.remove_overlapping_key(key);
                     if let Some(value) = func.value_u256(*value) {
                         scratch.stored_words.insert(key, value);
                     }
@@ -1037,7 +1114,7 @@ impl MemoryStoreEliminator {
                         continue;
                     }
 
-                    Self::remove_overlapping_map(&mut scratch.stored_values, key);
+                    scratch.stored_values.remove_overlapping_key(key);
                     scratch.stored_values.insert(key, *value);
                 }
                 _ if self.can_mutate_memory(func, inst_id) => {
@@ -1092,7 +1169,7 @@ impl MemoryStoreEliminator {
                         scratch.stored_values.clear();
                         continue;
                     };
-                    Self::remove_overlapping_map(&mut scratch.stored_values, key);
+                    scratch.stored_values.remove_overlapping_key(key);
                     scratch
                         .stored_values
                         .insert(key, mir_utils::resolve_replacement(*value, &scratch.replacements));
@@ -1238,7 +1315,7 @@ impl MemoryStoreEliminator {
 
     fn constant_memory_bytes(
         func: &Function,
-        stored_words: &FxHashMap<MemAddrKey, U256>,
+        stored_words: &MemoryWordMap<U256>,
         offset: ValueId,
         size: ValueId,
     ) -> Option<Vec<u8>> {
@@ -1257,40 +1334,24 @@ impl MemoryStoreEliminator {
         Some(bytes)
     }
 
-    fn overlaps(a: MemAddrKey, b: MemAddrKey) -> bool {
-        AliasAnalysis::memory_alias_locations(
-            MemoryLocation::new(a.0, LocationSize::Const(32)),
-            MemoryLocation::new(b.0, LocationSize::Const(32)),
-        )
-        .may_alias()
-    }
-
-    fn remove_overlapping_map<T>(map: &mut FxHashMap<MemAddrKey, T>, key: MemAddrKey) {
-        map.retain(|&stored, _| !Self::overlaps(stored, key));
-    }
-
-    fn remove_overlapping_set(set: &mut FxHashSet<MemAddrKey>, key: MemAddrKey) {
-        set.retain(|&stored| !Self::overlaps(stored, key));
-    }
-
     fn remove_overlapping_write_range<T>(
         &self,
         func: &Function,
-        map: &mut FxHashMap<MemAddrKey, T>,
+        map: &mut MemoryWordMap<T>,
         dest: ValueId,
         size: u64,
     ) -> bool {
         let Some(write) = self.mem_addr_key(func, dest) else {
             return false;
         };
-        map.retain(|&stored, _| !Self::ranges_overlap_mem_keys(func, stored, 32, write, size));
+        map.remove_overlapping_location(MemoryLocation::new(write.0, LocationSize::Const(size)));
         true
     }
 
     fn insert_full_word_overwritten_range(
         &self,
         func: &Function,
-        overwritten: &mut FxHashSet<MemAddrKey>,
+        overwritten: &mut MemoryWordMap<()>,
         dest: ValueId,
         size: ValueId,
     ) -> bool {
@@ -1308,7 +1369,7 @@ impl MemoryStoreEliminator {
             let Some(key) = Self::offset_mem_addr_key(base, offset) else {
                 return false;
             };
-            overwritten.insert(key);
+            overwritten.insert(key, ());
         }
         true
     }
@@ -1316,7 +1377,7 @@ impl MemoryStoreEliminator {
     fn insert_or_clear_full_word_overwritten_range(
         &self,
         func: &Function,
-        overwritten: &mut FxHashSet<MemAddrKey>,
+        overwritten: &mut MemoryWordMap<()>,
         dest: ValueId,
         size: ValueId,
     ) {
@@ -1327,20 +1388,6 @@ impl MemoryStoreEliminator {
 
     fn offset_mem_addr_key(key: MemAddrKey, add: u64) -> Option<MemAddrKey> {
         key.0.checked_add(add).map(MemAddrKey)
-    }
-
-    fn ranges_overlap_mem_keys(
-        _func: &Function,
-        read: MemAddrKey,
-        read_size: u64,
-        write: MemAddrKey,
-        write_size: u64,
-    ) -> bool {
-        AliasAnalysis::memory_alias_locations(
-            MemoryLocation::new(read.0, LocationSize::Const(read_size)),
-            MemoryLocation::new(write.0, LocationSize::Const(write_size)),
-        )
-        .may_alias()
     }
 
     fn is_memory_or_gas_observer(&self, func: &Function, inst_id: InstId) -> bool {
@@ -1379,7 +1426,28 @@ impl MemoryStoreEliminator {
             }
         }
 
-        Some(reads)
+        reads.retain(|&(_, size)| size != 0);
+        reads.sort_unstable_by_key(|&(offset, _)| offset);
+        let mut merged: Vec<(u64, u64)> = Vec::with_capacity(reads.len());
+        for (start, size) in reads {
+            let end = start.checked_add(size).unwrap_or(u64::MAX);
+            if let Some((_, previous_end)) = merged.last_mut()
+                && start <= *previous_end
+            {
+                *previous_end = (*previous_end).max(end);
+            } else {
+                merged.push((start, end));
+            }
+        }
+        Some(merged)
+    }
+
+    fn frame_ranges_overlap(reads: &[(u64, u64)], offset: u64, size: u64) -> bool {
+        let Some(end) = offset.checked_add(size) else {
+            return !reads.is_empty();
+        };
+        let index = reads.partition_point(|&(start, _)| start < end);
+        index != 0 && reads[index - 1].1 > offset
     }
 
     fn push_frame_reads(reads: &mut Vec<(u64, u64)>, accesses: &[Access]) -> Option<()> {
