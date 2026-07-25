@@ -15,6 +15,7 @@
 //! with immediates and rewrites branches with known-constant conditions.
 
 use crate::{
+    analysis::CfgInfo,
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, MirType, Module, Terminator, Value,
         ValueId,
@@ -45,8 +46,24 @@ impl MirPass for Sccp {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass_no_analyses(module, analyses, |func| SccpCx::new().run(func) != 0)
+        run_function_pass_no_analyses(module, analyses, |func| {
+            if !may_propagate_constants(func) {
+                return false;
+            }
+            SccpCx::new().run(func) != 0
+        })
     }
+}
+
+fn may_propagate_constants(func: &Function) -> bool {
+    if func
+        .values
+        .iter()
+        .any(|value| matches!(value, Value::Immediate(immediate) if immediate.as_u256().is_some()))
+    {
+        return true;
+    }
+    CfgInfo::new(func).reachable().count() != func.blocks.len()
 }
 
 /// Lattice element for a single SSA value.
