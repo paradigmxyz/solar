@@ -91,7 +91,9 @@ impl AggressiveDeadCodeEliminator {
     fn run(&mut self, func: &mut Function) -> AdceStats {
         self.stats = AdceStats::default();
 
-        loop {
+        while func.blocks.iter().any(|block| {
+            matches!(block.terminator, Some(Terminator::Branch { .. } | Terminator::Switch { .. }))
+        }) {
             let ctx = AdceContext::new(func);
             let rewrites = self.rewrite_dead_control(func, &ctx);
             if rewrites == 0 {
