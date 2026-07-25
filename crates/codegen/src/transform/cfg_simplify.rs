@@ -28,7 +28,7 @@ use smallvec::smallvec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
-    map::{FxHashMap, FxHashSet},
+    map::FxHashMap,
 };
 
 type SwitchTargetIndex = IndexVec<BlockId, Option<FxHashMap<BlockId, Vec<usize>>>>;
@@ -76,15 +76,11 @@ impl IndexedPhiIncoming {
     }
 
     fn replace_predecessor(&mut self, old: BlockId, new: &[BlockId]) {
-        self.dirty = true;
         let Some(&old_node) = self.by_predecessor.get(&old) else {
             return;
         };
-        if new.iter().any(|pred| *pred != old && self.by_predecessor.contains_key(pred)) {
-            self.replace_predecessor_slow(old, new);
-            return;
-        }
 
+        self.dirty = true;
         let node = self.nodes[old_node];
         self.by_predecessor.remove(&old);
         let mut previous = node.previous;
@@ -113,26 +109,6 @@ impl IndexedPhiIncoming {
         } else {
             self.last = previous;
         }
-    }
-
-    fn replace_predecessor_slow(&mut self, old: BlockId, new: &[BlockId]) {
-        let mut incoming = Vec::with_capacity(self.by_predecessor.len() + new.len());
-        let mut current = self.first;
-        while let Some(node) = current {
-            let node = self.nodes[node];
-            if node.pred == old {
-                incoming.extend(new.iter().map(|&pred| (pred, node.value)));
-            } else {
-                incoming.push((node.pred, node.value));
-            }
-            current = node.next;
-        }
-
-        let mut seen = FxHashSet::default();
-        incoming.retain(|(pred, _)| seen.insert(*pred));
-        let dirty = self.dirty;
-        *self = Self::new(self.inst, &incoming);
-        self.dirty = dirty;
     }
 
     fn push_back(&mut self, pred: BlockId, value: ValueId) {
@@ -380,17 +356,12 @@ impl CfgSimplifier {
         }
 
         let mut switch_targets = index_vec![None; func.blocks.len()];
-        let mut predecessor_edges = FxHashSet::default();
-        for (block, basic_block) in func.blocks.iter_enumerated() {
-            predecessor_edges.extend(basic_block.predecessors.iter().map(|&pred| (pred, block)));
-        }
         for (dup, keep) in merges {
             let predecessors = func.unique_predecessors(dup);
             for pred in predecessors {
-                self.redirect_terminator_indexed(func, pred, dup, keep, &mut switch_targets);
-                if predecessor_edges.insert((pred, keep)) {
-                    func.blocks[keep].predecessors.push(pred);
-                }
+                let edge_count =
+                    self.redirect_terminator_indexed(func, pred, dup, keep, &mut switch_targets);
+                func.blocks[keep].predecessors.extend(std::iter::repeat_n(pred, edge_count));
             }
             func.blocks[dup].instructions.clear();
             func.blocks[dup].terminator = Some(Terminator::Invalid);
@@ -932,9 +903,9 @@ impl CfgSimplifier {
         }
 
         for &pred_id in predecessors {
-            self.redirect_terminator_indexed(func, pred_id, block_id, target, switch_targets);
-
-            func.blocks[target].predecessors.push(pred_id);
+            let edge_count =
+                self.redirect_terminator_indexed(func, pred_id, block_id, target, switch_targets);
+            func.blocks[target].predecessors.extend(std::iter::repeat_n(pred_id, edge_count));
         }
 
         func.blocks[block_id].instructions.clear();
@@ -982,12 +953,11 @@ impl CfgSimplifier {
         old_target: BlockId,
         new_target: BlockId,
         switch_targets: &mut SwitchTargetIndex,
-    ) {
+    ) -> usize {
         let Some(Terminator::Switch { default, cases, .. }) =
             func.blocks[block_id].terminator.as_mut()
         else {
-            self.redirect_terminator(func, block_id, old_target, new_target);
-            return;
+            return self.redirect_terminator(func, block_id, old_target, new_target);
         };
 
         let targets = switch_targets[block_id].get_or_insert_with(|| {
@@ -999,7 +969,7 @@ impl CfgSimplifier {
             targets
         });
         let Some(positions) = targets.remove(&old_target) else {
-            return;
+            return 0;
         };
         for &position in &positions {
             if position == 0 {
@@ -1008,7 +978,9 @@ impl CfgSimplifier {
                 cases[position - 1].1 = new_target;
             }
         }
+        let redirected = positions.len();
         targets.entry(new_target).or_default().extend(positions);
+        redirected
     }
 
     /// Redirects a terminator from old_target to new_target.
@@ -1018,31 +990,40 @@ impl CfgSimplifier {
         block_id: BlockId,
         old_target: BlockId,
         new_target: BlockId,
-    ) {
+    ) -> usize {
         let block = &mut func.blocks[block_id];
         match &mut block.terminator {
             Some(Terminator::Jump(t)) if *t == old_target => {
                 *t = new_target;
+                1
             }
             Some(Terminator::Branch { then_block, else_block, .. }) => {
+                let mut redirected = 0;
                 if *then_block == old_target {
                     *then_block = new_target;
+                    redirected += 1;
                 }
                 if *else_block == old_target {
                     *else_block = new_target;
+                    redirected += 1;
                 }
+                redirected
             }
             Some(Terminator::Switch { default, cases, .. }) => {
+                let mut redirected = 0;
                 if *default == old_target {
                     *default = new_target;
+                    redirected += 1;
                 }
                 for (_, target) in cases.iter_mut() {
                     if *target == old_target {
                         *target = new_target;
+                        redirected += 1;
                     }
                 }
+                redirected
             }
-            _ => {}
+            _ => 0,
         }
     }
 }

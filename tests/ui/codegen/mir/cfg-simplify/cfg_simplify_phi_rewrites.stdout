@@ -65,3 +65,20 @@
       ret v3
   }
   
+  fn @colliding_forwarders(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     switch arg0, default bb1, [1 => bb2, 2 => bb3, 3 => bb4]
+-   bb1:
+-     jump bb5
+-   bb2:
+-     jump bb5
+-   bb3:
+-     jump bb5
+-   bb4:
+-     jump bb5
+-   bb5:
+-     v0 = phi [bb1: arg1], [bb2: arg1], [bb3: arg1], [bb4: arg1]
+-     ret v0
++     ret arg1
+  }
+  
