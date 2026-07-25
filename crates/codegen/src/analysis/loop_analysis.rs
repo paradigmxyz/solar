@@ -14,7 +14,7 @@ use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
-    map::FxHashMap,
+    map::{FxHashMap, FxHashSet},
 };
 
 /// A natural loop in the control flow graph.
@@ -83,6 +83,8 @@ impl LoopInfo {
 pub(crate) struct LoopAnalyzer {
     cfg: Option<CfgInfo>,
     inst_blocks: IndexVec<InstId, Option<BlockId>>,
+    invariant_users: IndexVec<ValueId, SmallVec<[InstId; 2]>>,
+    invariant_remaining: IndexVec<InstId, usize>,
 }
 
 impl LoopAnalyzer {
@@ -109,6 +111,8 @@ impl LoopAnalyzer {
 
         self.cfg = Some(CfgInfo::new(func));
         self.inst_blocks = index_vec![None; func.num_insts()];
+        self.invariant_users = index_vec![SmallVec::new(); func.values.len()];
+        self.invariant_remaining = index_vec![usize::MAX; func.num_insts()];
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 self.inst_blocks[inst_id] = Some(block_id);
@@ -134,13 +138,16 @@ impl LoopAnalyzer {
 
     fn find_natural_loops(&self, func: &Function) -> Vec<Loop> {
         let mut loops: FxHashMap<BlockId, Loop> = FxHashMap::default();
+        let mut back_edges = FxHashSet::default();
         let Some(cfg) = &self.cfg else { return Vec::new() };
 
         for &block_id in cfg.rpo() {
             let block = &func.blocks[block_id];
             if let Some(term) = &block.terminator {
                 for succ in term.successors() {
-                    if cfg.dominators().dominates(succ, block_id) {
+                    if cfg.dominators().dominates(succ, block_id)
+                        && back_edges.insert((succ, block_id))
+                    {
                         let loop_info = loops.entry(succ).or_insert_with(|| Loop {
                             header: succ,
                             blocks: DenseBitSet::new_empty(func.blocks.len()),
@@ -185,10 +192,11 @@ impl LoopAnalyzer {
     }
 
     fn find_exit_blocks(&self, func: &Function, loop_info: &mut Loop) {
+        let mut exits = FxHashSet::default();
         for block_id in &loop_info.blocks {
             if let Some(term) = &func.blocks[block_id].terminator {
                 for succ in term.successors() {
-                    if !loop_info.blocks.contains(succ) && !loop_info.exit_blocks.contains(&succ) {
+                    if !loop_info.blocks.contains(succ) && exits.insert(succ) {
                         loop_info.exit_blocks.push(succ);
                     }
                 }
@@ -197,17 +205,21 @@ impl LoopAnalyzer {
     }
 
     fn find_preheader(&self, func: &Function, loop_info: &mut Loop) {
-        let header_preds: Vec<BlockId> = func.blocks[loop_info.header]
-            .predecessors
-            .iter()
-            .filter(|&&pred| !loop_info.blocks.contains(pred))
-            .copied()
-            .collect();
+        let mut preheader = None;
+        for &pred in &func.blocks[loop_info.header].predecessors {
+            if loop_info.blocks.contains(pred) {
+                continue;
+            }
+            if preheader.is_some_and(|existing| existing != pred) {
+                return;
+            }
+            preheader = Some(pred);
+        }
 
-        if let [preheader] = header_preds.as_slice()
-            && self.is_dedicated_preheader(func, *preheader, loop_info.header)
+        if let Some(preheader) = preheader
+            && self.is_dedicated_preheader(func, preheader, loop_info.header)
         {
-            loop_info.preheader = Some(*preheader);
+            loop_info.preheader = Some(preheader);
         }
     }
 
@@ -309,15 +321,14 @@ impl LoopAnalyzer {
         }
     }
 
-    fn find_invariant_instructions(&self, func: &Function, loop_info: &mut Loop) {
+    fn find_invariant_instructions(&mut self, func: &Function, loop_info: &mut Loop) {
         for block in &loop_info.blocks {
             for &inst_id in &func.blocks[block].instructions {
                 loop_info.instructions.insert(inst_id);
             }
         }
 
-        let mut users = index_vec![Vec::new(); func.values.len()];
-        let mut remaining = index_vec![usize::MAX; func.num_insts()];
+        let mut touched_values = Vec::new();
         let mut ready = Vec::new();
         for inst_id in &loop_info.instructions {
             let inst = func.inst(inst_id);
@@ -334,10 +345,13 @@ impl LoopAnalyzer {
                 };
                 if !invariant {
                     dependencies += 1;
-                    users[operand].push(inst_id);
+                    if self.invariant_users[operand].is_empty() {
+                        touched_values.push(operand);
+                    }
+                    self.invariant_users[operand].push(inst_id);
                 }
             }
-            remaining[inst_id] = dependencies;
+            self.invariant_remaining[inst_id] = dependencies;
             if dependencies == 0 {
                 ready.push(inst_id);
             }
@@ -348,12 +362,16 @@ impl LoopAnalyzer {
                 continue;
             }
             let Some(result) = func.inst_result_value(inst_id) else { continue };
-            for &user in &users[result] {
-                remaining[user] -= 1;
-                if remaining[user] == 0 {
+            for &user in &self.invariant_users[result] {
+                self.invariant_remaining[user] -= 1;
+                if self.invariant_remaining[user] == 0 {
                     ready.push(user);
                 }
             }
+        }
+
+        for value in touched_values {
+            self.invariant_users[value].clear();
         }
     }
 

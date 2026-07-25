@@ -235,20 +235,21 @@ impl LoopOptimizer {
         hoistable.sort_by_key(|inst_id| inst_id.index());
         let ordered = self.topological_sort_instructions(func, &hoistable);
 
+        let mut removed = DenseBitSet::new_empty(func.num_insts());
+        for block_id in &loop_data.blocks {
+            func.blocks[block_id].instructions.retain(|&inst_id| {
+                let keep = !selected.contains(inst_id);
+                if !keep {
+                    removed.insert(inst_id);
+                }
+                keep
+            });
+        }
         for inst_id in ordered {
             // An enclosing loop's earlier hoist may have already moved the
             // instruction out of these blocks; pushing it again would schedule
             // the same instruction in two blocks.
-            let mut removed = false;
-            for block_id in &loop_data.blocks {
-                let block = &mut func.blocks[block_id];
-                if let Some(pos) = block.instructions.iter().position(|&id| id == inst_id) {
-                    block.instructions.remove(pos);
-                    removed = true;
-                    break;
-                }
-            }
-            if removed {
+            if removed.contains(inst_id) {
                 func.blocks[preheader].instructions.push(inst_id);
                 self.stats.instructions_hoisted += 1;
             }
