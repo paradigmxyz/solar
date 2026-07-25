@@ -194,12 +194,14 @@ fn sequentialize_copies(copies: &mut Vec<ParallelCopy>, temp_counter: &mut u32) 
 
     // Every remaining component is a cycle: each node is blocked, and every
     // copy has at most one dependency. Break each one at its first index.
+    let mut cycle_members = DenseBitSet::new_empty(pending.len());
     for start_idx in 0..pending.len() {
         if !emitted.contains(start_idx) {
             break_cycle(
                 start_idx,
                 &pending,
                 &mut emitted,
+                &mut cycle_members,
                 &mut blocked_by,
                 &writes_to,
                 &mut result,
@@ -222,6 +224,7 @@ fn break_cycle(
     start_idx: usize,
     pending: &[ParallelCopy],
     emitted: &mut DenseBitSet<usize>,
+    cycle_members: &mut DenseBitSet<usize>,
     blocked_by: &mut [usize],
     writes_to: &FxHashMap<ValueId, usize>,
     result: &mut Vec<ParallelCopy>,
@@ -229,6 +232,7 @@ fn break_cycle(
 ) {
     // Trace the cycle to find all participants
     let mut cycle_indices = vec![start_idx];
+    cycle_members.insert(start_idx);
     let mut current = start_idx;
 
     while let Some(src) = src_value(&pending[current].src) {
@@ -241,7 +245,7 @@ fn break_cycle(
                 // We've completed the cycle
                 break;
             }
-            if cycle_indices.contains(&pred_idx) {
+            if !cycle_members.insert(pred_idx) {
                 // Hit part of the cycle we've already seen
                 break;
             }
@@ -251,6 +255,9 @@ fn break_cycle(
             // Not a true cycle (shouldn't happen if blocked_by > 0)
             break;
         }
+    }
+    for &index in &cycle_indices {
+        cycle_members.remove(index);
     }
 
     // Pick the first copy in the cycle to break
