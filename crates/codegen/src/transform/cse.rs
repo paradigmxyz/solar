@@ -42,8 +42,8 @@ use crate::{
     },
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, MemoryObjectKind,
-        MemoryObjectLayout, MirType, Module, SliceLocation, StorageAlias, Value, ValueId,
-        utils as mir_utils,
+        MemoryObjectLayout, MirType, Module, SliceLocation, StorageAlias, Terminator, Value,
+        ValueId, utils as mir_utils,
     },
     pass::{MirPass, run_function_pass_filtered},
 };
@@ -78,7 +78,9 @@ impl MirPass for Cse {
         if candidates.is_empty() {
             return false;
         }
-        analyses.set_call_summaries(Arc::new(MemoryCallSummaries::new(module)));
+        if has_internal_calls(module) {
+            analyses.set_call_summaries(Arc::new(MemoryCallSummaries::new(module)));
+        }
         let changed = run_function_pass_filtered(
             module,
             analyses,
@@ -97,6 +99,17 @@ impl MirPass for Cse {
         analyses.clear_call_summaries();
         changed
     }
+}
+
+fn has_internal_calls(module: &Module) -> bool {
+    module.functions.iter().any(|func| {
+        func.instructions()
+            .any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::InternalCall { .. }))
+            || func
+                .blocks
+                .iter()
+                .any(|block| matches!(block.terminator, Some(Terminator::TailCall { .. })))
+    })
 }
 
 fn may_have_common_subexpression(func: &Function) -> bool {
