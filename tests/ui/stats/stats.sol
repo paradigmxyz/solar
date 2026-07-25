@@ -1,4 +1,6 @@
-//@ compile-flags: -Zast-stats
+//@ revisions: ast hir
+//@[ast] compile-flags: -Zast-stats
+//@[hir] compile-flags: -Zhir-stats
 pragma solidity ^0.8.13;
 
 contract Counter {

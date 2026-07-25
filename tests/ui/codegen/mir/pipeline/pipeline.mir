@@ -1,13 +1,20 @@
-//@compile-flags: --passes jump-threading,cfg-simplify,dce
-//@filecheck:
+//@ revisions: passes default
+//@[passes] compile-flags: --passes jump-threading,cfg-simplify,dce
+//@[passes] filecheck: --check-prefix=PASSES
+//@[default] compile-flags: --pipeline-default
+//@[default] filecheck: --check-prefix=DEFAULT
 // Jump threading and CFG simplification expose the multiplication as dead.
 @module Pipeline
-// CHECK-LABEL: {{^[ +].*}}fn @noisy{{[( ]}}
-// CHECK: - jump bb1
-// CHECK: + jump bb2
-// CHECK: - jump bb2
-// CHECK: {{^[ +].*}}ret {{v[0-9]+}}
-// CHECK: - {{v[0-9]+}} = mul arg0, arg0
+// PASSES-LABEL: {{^[ +].*}}fn @noisy{{[( ]}}
+// PASSES: - jump bb1
+// PASSES: + jump bb2
+// PASSES: - jump bb2
+// PASSES: {{^[ +].*}}ret {{v[0-9]+}}
+// PASSES: - {{v[0-9]+}} = mul arg0, arg0
+// DEFAULT-LABEL: fn @noisy{{[( ]}}
+// DEFAULT: bb0:
+// DEFAULT: [[RESULT:v[0-9]+]] = add arg0, 1
+// DEFAULT: ret [[RESULT]]
 fn @noisy(arg0: u256) -> u256 {
   bb0:
     v1 = add arg0, 1
