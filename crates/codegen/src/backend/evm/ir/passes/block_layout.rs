@@ -17,7 +17,7 @@ use crate::backend::evm::{
     op,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
+use solar_data_structures::{bit_set::GrowableBitSet, index::IndexVec};
 use solar_sema::Gcx;
 
 pub(super) struct BlockLayout;
@@ -33,10 +33,18 @@ impl EvmPass for BlockLayout {
 }
 
 fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    let mut state = RunState::default();
+    layout_blocks_with_state(gcx, module, &mut state)
+}
+
+pub(super) fn layout_blocks_with_state(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    state: &mut RunState,
+) -> bool {
     if module.blocks.len() <= 1 {
         return false;
     }
-    let mut state = RunState::default();
     state.reset(module.blocks.len());
     for block in &module.blocks {
         if let Some(target) = layout_successor(block)
@@ -57,7 +65,7 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
         }
     }
 
-    pack_hot_terminal_blocks(gcx, module, &mut state);
+    pack_hot_terminal_blocks(gcx, module, state);
     for cold in [false, true] {
         for block in module.blocks.indices() {
             if is_cold_terminal_block(&module.blocks[block]) == cold {
@@ -73,13 +81,13 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
     true
 }
 
-struct RunState {
+pub(super) struct RunState {
     predecessor_counts: IndexVec<BlockId, usize>,
     order: Vec<BlockId>,
-    placed: DenseBitSet<BlockId>,
+    placed: GrowableBitSet<BlockId>,
     references: IndexVec<BlockId, usize>,
     candidates: Vec<Candidate>,
-    picked: DenseBitSet<BlockId>,
+    picked: GrowableBitSet<BlockId>,
     picked_order: Vec<BlockId>,
 }
 
@@ -88,10 +96,10 @@ impl Default for RunState {
         Self {
             predecessor_counts: IndexVec::new(),
             order: Vec::new(),
-            placed: DenseBitSet::new_empty(0),
+            placed: GrowableBitSet::new_empty(),
             references: IndexVec::new(),
             candidates: Vec::new(),
-            picked: DenseBitSet::new_empty(0),
+            picked: GrowableBitSet::new_empty(),
             picked_order: Vec::new(),
         }
     }
@@ -105,13 +113,8 @@ impl RunState {
         if self.order.capacity() < blocks {
             self.order.reserve(blocks);
         }
-        if self.placed.domain_size() == blocks {
-            self.placed.clear();
-            self.picked.clear();
-        } else {
-            self.placed = DenseBitSet::new_empty(blocks);
-            self.picked = DenseBitSet::new_empty(blocks);
-        }
+        self.placed.clear();
+        self.picked.clear();
         self.references.clear();
         self.references.resize(blocks, 0);
         self.candidates.clear();
@@ -276,7 +279,7 @@ fn is_physical_terminal_boundary(block: &Block, next: Option<BlockId>) -> bool {
 fn append_layout_trace(
     module: &Module,
     mut block: BlockId,
-    placed: &mut DenseBitSet<BlockId>,
+    placed: &mut GrowableBitSet<BlockId>,
     order: &mut Vec<BlockId>,
 ) {
     while block.index() < module.blocks.len() && placed.insert(block) {

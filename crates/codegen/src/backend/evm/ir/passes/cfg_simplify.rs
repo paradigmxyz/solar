@@ -8,7 +8,7 @@ use crate::backend::evm::{
     ir::{Block, BlockId, Module, PushValue, Terminator, TerminatorKind},
     op,
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
+use solar_data_structures::{bit_set::GrowableBitSet, index::IndexVec};
 use solar_sema::Gcx;
 
 pub(super) struct CfgSimplify;
@@ -25,6 +25,10 @@ impl EvmPass for CfgSimplify {
 
 fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
+    simplify_cfg_with_state(module, &mut state)
+}
+
+pub(super) fn simplify_cfg_with_state(module: &mut Module, state: &mut RunState) -> bool {
     state.reserve(module.blocks.len());
     let truncated = truncate_after_terminal(module);
     let redirected = redirect_jump_thunks(
@@ -48,16 +52,16 @@ fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     truncated || degenerate || redirected || swept || coalesced
 }
 
-struct RunState {
+pub(super) struct RunState {
     thunks: IndexVec<BlockId, Option<BlockId>>,
     resolved: IndexVec<BlockId, Option<BlockId>>,
     positions: IndexVec<BlockId, usize>,
     path: Vec<BlockId>,
-    addressed: DenseBitSet<BlockId>,
-    reachable: DenseBitSet<BlockId>,
+    addressed: GrowableBitSet<BlockId>,
+    reachable: GrowableBitSet<BlockId>,
     pending: Vec<BlockId>,
     references: IndexVec<BlockId, usize>,
-    retained: DenseBitSet<BlockId>,
+    retained: GrowableBitSet<BlockId>,
     order: Vec<BlockId>,
 }
 
@@ -68,11 +72,11 @@ impl Default for RunState {
             resolved: IndexVec::new(),
             positions: IndexVec::new(),
             path: Vec::new(),
-            addressed: DenseBitSet::new_empty(0),
-            reachable: DenseBitSet::new_empty(0),
+            addressed: GrowableBitSet::new_empty(),
+            reachable: GrowableBitSet::new_empty(),
             pending: Vec::new(),
             references: IndexVec::new(),
-            retained: DenseBitSet::new_empty(0),
+            retained: GrowableBitSet::new_empty(),
             order: Vec::new(),
         }
     }
@@ -135,14 +139,10 @@ fn redirect_jump_thunks(
     resolved: &mut IndexVec<BlockId, Option<BlockId>>,
     positions: &mut IndexVec<BlockId, usize>,
     path: &mut Vec<BlockId>,
-    addressed: &mut DenseBitSet<BlockId>,
+    addressed: &mut GrowableBitSet<BlockId>,
     order: &mut Vec<BlockId>,
 ) -> bool {
-    if addressed.domain_size() != module.blocks.len() {
-        *addressed = DenseBitSet::new_empty(module.blocks.len());
-    } else {
-        addressed.clear();
-    }
+    addressed.clear();
     for block in &module.blocks {
         for (at, inst) in block.instructions.iter().enumerate() {
             if let Some(PushValue::Block(target)) = &inst.value
@@ -246,18 +246,14 @@ fn is_direct_jump_label(block: &Block, at: usize) -> bool {
 
 fn remove_unreachable_blocks(
     module: &mut Module,
-    reachable: &mut DenseBitSet<BlockId>,
+    reachable: &mut GrowableBitSet<BlockId>,
     pending: &mut Vec<BlockId>,
     order: &mut Vec<BlockId>,
 ) -> bool {
     if module.blocks.is_empty() {
         return false;
     }
-    if reachable.domain_size() != module.blocks.len() {
-        *reachable = DenseBitSet::new_empty(module.blocks.len());
-    } else {
-        reachable.clear();
-    }
+    reachable.clear();
     pending.clear();
     pending.push(BlockId::ENTRY);
     while let Some(block_id) = pending.pop() {
@@ -286,7 +282,7 @@ fn remove_unreachable_blocks(
 fn coalesce_blocks(
     module: &mut Module,
     references: &mut IndexVec<BlockId, usize>,
-    retained: &mut DenseBitSet<BlockId>,
+    retained: &mut GrowableBitSet<BlockId>,
     order: &mut Vec<BlockId>,
 ) -> bool {
     references.clear();
@@ -306,11 +302,8 @@ fn coalesce_blocks(
         }
     }
 
-    if retained.domain_size() != module.blocks.len() {
-        *retained = DenseBitSet::new_filled(module.blocks.len());
-    } else {
-        retained.insert_all();
-    }
+    retained.clear();
+    retained.insert_range(BlockId::from_usize(0)..BlockId::from_usize(module.blocks.len()));
     for predecessor in module.blocks.indices() {
         if !retained.contains(predecessor) {
             continue;

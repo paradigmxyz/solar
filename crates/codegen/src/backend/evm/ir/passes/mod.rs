@@ -61,20 +61,30 @@ pub fn lookup_pass(name: &str) -> Option<&'static dyn EvmPass> {
 pub fn run_passes(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn EvmPass]) -> bool {
     let mut changed = false;
     for pass in passes {
-        let pass_name = pass.name();
-        if !pass.is_enabled(gcx, module) {
-            continue;
-        }
+        changed |= run_pass_with(gcx, module, *pass, |module| pass.run_pass(gcx, module));
+    }
+    changed
+}
 
-        let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-        let pass_changed = pass.run_pass(gcx, module);
-        timer.finish("EVM IR", module.name(), pass_name, pass_changed);
-        changed |= pass_changed;
+#[must_use]
+fn run_pass_with(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    pass: &dyn EvmPass,
+    run: impl FnOnce(&mut Module) -> bool,
+) -> bool {
+    if !pass.is_enabled(gcx, module) {
+        return false;
+    }
 
-        if gcx.sess.opts.unstable.print_after_each && !gcx.sess.opts.unstable.pass_diff {
-            println!("// === {} (after {pass_name}) ===", module.name());
-            print!("{}", module.to_text());
-        }
+    let pass_name = pass.name();
+    let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
+    let changed = run(module);
+    timer.finish("EVM IR", module.name(), pass_name, changed);
+
+    if gcx.sess.opts.unstable.print_after_each && !gcx.sess.opts.unstable.pass_diff {
+        println!("// === {} (after {pass_name}) ===", module.name());
+        print!("{}", module.to_text());
     }
     changed
 }
@@ -84,20 +94,31 @@ fn run_one(gcx: Gcx<'_>, module: &mut Module, pass: &'static dyn EvmPass) -> boo
     run_passes(gcx, module, &[pass])
 }
 
+#[must_use]
+fn run_cfg(gcx: Gcx<'_>, module: &mut Module, state: &mut cfg_simplify::RunState) -> bool {
+    run_pass_with(gcx, module, &cfg_simplify::CfgSimplify, |module| {
+        cfg_simplify::simplify_cfg_with_state(module, state)
+    })
+}
+
+#[must_use]
+fn run_layout(gcx: Gcx<'_>, module: &mut Module, state: &mut block_layout::RunState) -> bool {
+    run_pass_with(gcx, module, &block_layout::BlockLayout, |module| {
+        block_layout::layout_blocks_with_state(gcx, module, state)
+    })
+}
+
 /// Runs the canonical EVM IR layout and code-size pipeline.
 #[must_use]
 pub(crate) fn run_default_pipeline(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    let mut cfg_state = cfg_simplify::RunState::default();
+    let mut layout_state = block_layout::RunState::default();
+
     // Normalize the machine instructions and establish the first physical layout.
-    let mut changed = run_passes(
-        gcx,
-        module,
-        &[
-            &peephole::Peephole,
-            &compact_pushes::CompactPushes,
-            &cfg_simplify::CfgSimplify,
-            &block_layout::BlockLayout,
-        ],
-    );
+    let mut changed =
+        run_passes(gcx, module, &[&peephole::Peephole, &compact_pushes::CompactPushes]);
+    changed |= run_cfg(gcx, module, &mut cfg_state);
+    changed |= run_layout(gcx, module, &mut layout_state);
 
     // CFG cleanup is only needed when terminal sharing changed an edge.
     let shared = run_one(gcx, module, &share_reverts::ShareReverts);
@@ -105,7 +126,7 @@ pub(crate) fn run_default_pipeline(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let deduplicated = run_one(gcx, module, &terminal_dedup::TerminalDedup);
     changed |= deduplicated;
     if shared || deduplicated {
-        changed |= run_one(gcx, module, &cfg_simplify::CfgSimplify);
+        changed |= run_cfg(gcx, module, &mut cfg_state);
     }
 
     // Tail merging itself reaches a fixed point. Run it again only when CFG
@@ -114,7 +135,7 @@ pub(crate) fn run_default_pipeline(gcx: Gcx<'_>, module: &mut Module) -> bool {
     changed |= tails_merged;
     let mut second_tail_merge = false;
     if tails_merged {
-        let cfg_changed = run_one(gcx, module, &cfg_simplify::CfgSimplify);
+        let cfg_changed = run_cfg(gcx, module, &mut cfg_state);
         changed |= cfg_changed;
         if cfg_changed {
             second_tail_merge = run_one(gcx, module, &tail_merge::TailMerge);
@@ -126,18 +147,18 @@ pub(crate) fn run_default_pipeline(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let outlined = run_one(gcx, module, &outline::Outline);
     changed |= outlined;
     if second_tail_merge || outlined {
-        changed |= run_one(gcx, module, &cfg_simplify::CfgSimplify);
+        changed |= run_cfg(gcx, module, &mut cfg_state);
     }
     changed |= run_one(gcx, module, &compact_pushes::CompactPushes);
 
     // Pack address-sensitive terminal blocks, then clean up a shared adjacent
     // revert path only when branch inversion changed the final layout.
-    changed |= run_one(gcx, module, &block_layout::BlockLayout);
+    changed |= run_layout(gcx, module, &mut layout_state);
     let shared = run_one(gcx, module, &share_reverts::ShareReverts);
     changed |= shared;
     if shared {
-        changed |=
-            run_passes(gcx, module, &[&cfg_simplify::CfgSimplify, &block_layout::BlockLayout]);
+        changed |= run_cfg(gcx, module, &mut cfg_state);
+        changed |= run_layout(gcx, module, &mut layout_state);
     }
 
     changed
