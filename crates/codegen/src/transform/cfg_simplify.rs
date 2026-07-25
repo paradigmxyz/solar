@@ -689,19 +689,15 @@ impl CfgSimplifier {
         replacements: &mut FxHashMap<ValueId, ValueId>,
     ) {
         self.fold_target_phis_for_merge(func, block_id, target, replacements);
-        let target_instructions: Vec<_> = func.blocks[target]
-            .instructions
-            .iter()
-            .copied()
-            .filter(|&inst_id| !matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-            .collect();
+        let mut target_instructions = std::mem::take(&mut func.blocks[target].instructions);
+        target_instructions.retain(|&inst_id| !matches!(func.inst(inst_id).kind, InstKind::Phi(_)));
         let target_terminator = func.blocks[target].terminator.take();
         let mut target_successors =
             target_terminator.as_ref().map(Terminator::successors).unwrap_or_default();
         target_successors.sort_unstable();
         target_successors.dedup();
 
-        func.blocks[block_id].instructions.extend(target_instructions);
+        func.blocks[block_id].instructions.append(&mut target_instructions);
         func.blocks[block_id].terminator = target_terminator;
 
         for &succ in &target_successors {
@@ -715,7 +711,6 @@ impl CfgSimplifier {
             }
         }
 
-        func.blocks[target].instructions.clear();
         func.blocks[target].terminator = Some(Terminator::Invalid);
         func.blocks[target].predecessors.clear();
     }
