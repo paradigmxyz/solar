@@ -78,8 +78,6 @@ impl MirPass for Gvn {
 
 /// Hard cap on value-numbering sweeps per round.
 const MAX_VN_SWEEPS: usize = 10;
-/// Hard cap on whole-pass rounds (number, then replace) per function.
-const MAX_ROUNDS: usize = 4;
 
 /// A value number, named by its congruence-class representative.
 type ClassId = ValueId;
@@ -158,23 +156,22 @@ impl GlobalValueNumberer {
         Self::default()
     }
 
-    /// Runs GVN on a function to a fixed point of number-then-replace rounds.
+    /// Runs GVN on a function.
     /// Returns the number of instructions eliminated.
     fn run(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
-        for _ in 0..MAX_ROUNDS {
-            if !self.run_round(func) {
-                break;
-            }
-        }
+        self.number_and_replace(func);
         self.eliminated_count
     }
 
-    /// Runs one numbering and replacement round. Returns true if MIR changed.
-    fn run_round(&mut self, func: &mut Function) -> bool {
+    /// Computes converged value numbers and replaces redundant class members.
+    ///
+    /// Replacing a member with its class leader cannot create another
+    /// congruence: expression keys already use the converged operand classes.
+    fn number_and_replace(&mut self, func: &mut Function) {
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
         let Some(vn) = Self::compute_value_numbers(func, cfg.rpo()) else {
-            return false;
+            return;
         };
 
         // Immediates, arguments, and undefs are available everywhere, so their
@@ -193,13 +190,12 @@ impl GlobalValueNumberer {
         self.replace_in_dominator_tree(func, &mut leaders, &mut ctx);
 
         if replacements.is_empty() {
-            return false;
+            return;
         }
         Self::apply_replacements_to_all_blocks(func, &replacements);
         for block in func.blocks.iter_mut() {
             block.instructions.retain(|&id| !dead.contains(id));
         }
-        true
     }
 
     // ----- value numbering -----
