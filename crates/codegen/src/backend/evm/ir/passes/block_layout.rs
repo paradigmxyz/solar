@@ -113,8 +113,8 @@ impl RunState {
         if self.order.capacity() < blocks {
             self.order.reserve(blocks);
         }
-        self.placed.clear();
-        self.picked.clear();
+        self.placed.truncate(0);
+        self.picked.truncate(0);
         self.references.clear();
         self.references.resize(blocks, 0);
         self.candidates.clear();

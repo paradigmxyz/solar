@@ -279,6 +279,8 @@ impl MemoryStoreEliminator {
 
     fn run_with_scratch(&mut self, func: &mut Function, scratch: &mut BlockScratch) -> usize {
         self.eliminated_count = 0;
+        scratch.dead.truncate(0);
+        scratch.queued.truncate(0);
 
         // Reuse one provenance snapshot across fixpoint iterations: removing
         // stores keeps the allocation facts conservative, so only the

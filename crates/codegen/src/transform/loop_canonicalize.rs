@@ -80,6 +80,8 @@ impl LoopCanonicalizer {
     /// Runs loop canonicalization.
     fn run(&mut self, func: &mut Function) -> &LoopCanonicalizeStats {
         self.stats = LoopCanonicalizeStats::default();
+        self.outside.truncate(0);
+        self.seen.truncate(0);
 
         let loop_info = self.analyzer.analyze(func);
         let mut headers: Vec<_> = loop_info.loops.keys().copied().collect();

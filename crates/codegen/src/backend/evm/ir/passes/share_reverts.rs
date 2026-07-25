@@ -30,7 +30,7 @@ pub(super) fn share_reverts_with_scratch(
     module: &mut Module,
     empty_reverts: &mut GrowableBitSet<BlockId>,
 ) -> bool {
-    empty_reverts.clear();
+    empty_reverts.truncate(0);
     for block in module.blocks.indices().filter(|&block| is_empty_revert(module, block)) {
         empty_reverts.insert(block);
     }

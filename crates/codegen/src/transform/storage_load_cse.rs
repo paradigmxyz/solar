@@ -154,7 +154,7 @@ impl StorageLoadCseCx {
         let mut analyses = AnalysisManager::new();
         let liveness = analyses.get_or_compute(&LivenessAnalysis, func);
         state.replacements.clear();
-        state.dead.clear();
+        state.dead.truncate(0);
 
         for block_id in func.blocks.indices() {
             state.cached_loads.clear();

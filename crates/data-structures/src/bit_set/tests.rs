@@ -700,6 +700,25 @@ fn grow() {
 }
 
 #[test]
+fn truncate_growable() {
+    let mut set = GrowableBitSet::new_empty();
+    set.insert(idx(1));
+    set.insert(idx(63));
+    set.insert(idx(64));
+    set.insert(idx(127));
+
+    set.truncate(65);
+    assert_eq!(set.iter().collect::<Vec<_>>(), [idx(1), idx(63), idx(64)]);
+
+    set.truncate(64);
+    assert_eq!(set.iter().collect::<Vec<_>>(), [idx(1), idx(63)]);
+
+    set.truncate(0);
+    assert!(set.is_empty());
+    assert!(set.insert(idx(127)));
+}
+
+#[test]
 fn matrix_intersection() {
     let mut matrix: BitMatrix<TestIdx, TestIdx> = BitMatrix::new(200, 200);
 

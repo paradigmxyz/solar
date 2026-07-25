@@ -1364,6 +1364,17 @@ impl<T: BitSetIndex> GrowableBitSet<T> {
         }
     }
 
+    /// Shrinks the domain to `domain_size`, discarding higher elements while
+    /// retaining the underlying allocation.
+    pub fn truncate(&mut self, domain_size: usize) {
+        if domain_size >= self.bit_set.domain_size {
+            return;
+        }
+        self.bit_set.domain_size = domain_size;
+        self.bit_set.words.truncate(num_words(domain_size));
+        self.bit_set.clear_excess_bits();
+    }
+
     pub fn new_empty() -> GrowableBitSet<T> {
         GrowableBitSet { bit_set: DenseBitSet::new_empty(0) }
     }

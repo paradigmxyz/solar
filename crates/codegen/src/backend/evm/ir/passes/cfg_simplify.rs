@@ -142,7 +142,7 @@ fn redirect_jump_thunks(
     addressed: &mut GrowableBitSet<BlockId>,
     order: &mut Vec<BlockId>,
 ) -> bool {
-    addressed.clear();
+    addressed.truncate(0);
     for block in &module.blocks {
         for (at, inst) in block.instructions.iter().enumerate() {
             if let Some(PushValue::Block(target)) = &inst.value
@@ -253,7 +253,7 @@ fn remove_unreachable_blocks(
     if module.blocks.is_empty() {
         return false;
     }
-    reachable.clear();
+    reachable.truncate(0);
     pending.clear();
     pending.push(BlockId::ENTRY);
     while let Some(block_id) = pending.pop() {
@@ -302,7 +302,7 @@ fn coalesce_blocks(
         }
     }
 
-    retained.clear();
+    retained.truncate(0);
     retained.insert_range(BlockId::from_usize(0)..BlockId::from_usize(module.blocks.len()));
     for predecessor in module.blocks.indices() {
         if !retained.contains(predecessor) {

@@ -159,6 +159,7 @@ impl StorageStoreEliminator {
         if self.alias.is_none() {
             self.alias = Some(Rc::new(AliasAnalysis::new(func)));
         }
+        state.dead.truncate(0);
 
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         for block_id in block_ids {

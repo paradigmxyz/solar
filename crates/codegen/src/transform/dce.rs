@@ -166,7 +166,7 @@ impl DeadCodeEliminator {
 
     /// Finds dead instructions and propagates each removed use to its operands.
     fn find_dead_instructions(&mut self, func: &Function) {
-        self.dead.clear();
+        self.dead.truncate(0);
         self.worklist.clear();
 
         for block in &func.blocks {

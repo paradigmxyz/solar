@@ -950,7 +950,7 @@ impl CfgSimplifier {
             }
             // The safety check guarantees colliding entries carry equal values;
             // keep one entry per predecessor block.
-            self.seen_predecessors.clear();
+            self.seen_predecessors.truncate(0);
             rewritten.retain(|&(pred, _)| self.seen_predecessors.insert(pred));
             *incoming = rewritten;
         }
