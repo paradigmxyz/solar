@@ -10,7 +10,7 @@ use crate::{
     pass::{MirPass, run_function_pass_no_analyses},
 };
 use solar_data_structures::{
-    bit_set::DenseBitSet,
+    bit_set::GrowableBitSet,
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
 };
@@ -29,8 +29,8 @@ impl MirPass for Dce {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
+        let mut eliminator = DeadCodeEliminator::new();
         run_function_pass_no_analyses(module, analyses, |func| {
-            let mut eliminator = DeadCodeEliminator::new();
             eliminator.run_to_fixpoint(func) != 0
         })
     }
@@ -54,7 +54,7 @@ pub(crate) struct DeadCodeEliminator {
     /// Instructions whose result just became unused.
     worklist: Vec<InstId>,
     /// Dead instructions found in one run.
-    dead: DenseBitSet<InstId>,
+    dead: GrowableBitSet<InstId>,
 }
 
 impl DeadCodeEliminator {
@@ -64,7 +64,7 @@ impl DeadCodeEliminator {
             eliminated_count: 0,
             use_counts: IndexVec::new(),
             worklist: Vec::new(),
-            dead: DenseBitSet::new_empty(0),
+            dead: GrowableBitSet::new_empty(),
         }
     }
 
@@ -166,7 +166,7 @@ impl DeadCodeEliminator {
 
     /// Finds dead instructions and propagates each removed use to its operands.
     fn find_dead_instructions(&mut self, func: &Function) {
-        self.dead = DenseBitSet::new_empty(func.num_insts());
+        self.dead.clear();
         self.worklist.clear();
 
         for block in &func.blocks {
