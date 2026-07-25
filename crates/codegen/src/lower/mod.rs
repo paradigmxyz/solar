@@ -484,9 +484,8 @@ impl<'gcx> Lowerer<'gcx> {
                                 functions.push(func_id);
                             }
                         } else {
-                            // Internal functions: use function identity
-                            // For simplicity, we include internal functions from all bases
-                            // (they won't have selectors in the dispatcher anyway)
+                            // Include internal functions from every base by identity; they have no
+                            // selector.
                             functions.push(func_id);
                         }
                     }

@@ -118,7 +118,7 @@ fn selected_pass_list_label(passes: &[Option<&dyn MirPass>], separator: &str) ->
 fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: &str, args: &MirOptArgs) {
     let print_after_each = gcx.sess.opts.unstable.print_after_each;
     if args.pipeline_default {
-        run_default_pipeline(gcx, module);
+        let _changed = run_default_pipeline(gcx, module);
         if !print_after_each {
             print_module(module, name, "pipeline-default");
         }
@@ -130,7 +130,7 @@ fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: &str, args: &MirOptArgs
     for (index, &pass) in passes.iter().enumerate() {
         let before = gcx.sess.opts.unstable.pass_diff.then(|| module.to_text().to_string());
         if let Some(pass) = pass {
-            run_passes(gcx, module, &[pass], None);
+            let _changed = run_passes(gcx, module, &[pass], None);
         }
         if let Some(before) = before {
             let after = module.to_text().to_string();

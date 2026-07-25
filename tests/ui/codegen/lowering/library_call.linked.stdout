@@ -1,7 +1,7 @@
-// === ROOT/tests/ui/codegen/lowering/linked_library_call.sol:Lib (runtime) ===
+// === ROOT/tests/ui/codegen/lowering/library_call.sol:Lib (runtime) ===
 @module runtime
 bb0:
-  push 256
+  push 352
   push 64
   mstore
   callvalue
@@ -17,9 +17,27 @@ bb0:
   shr
   dup1
   push 0xed2f0bb8
-  sub
-  push bb4
+  eq
+  push bb5
   jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  dup1
+  revert
+bb11 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+bb5:
   calldatasize
   push 4
   swap1
@@ -58,7 +76,7 @@ bb0:
   calldataload
   dup2
   dup1
-  push 224
+  push 256
   mstore
   add
   dup1
@@ -66,7 +84,7 @@ bb0:
   mstore
   dup2
   dup1
-  push 224
+  push 256
   mstore
   dup2
   lt
@@ -76,7 +94,7 @@ bb0:
   swap2
   pop
   pop
-  push bb10
+  push bb11
   jumpi
   push 192
   mload
@@ -92,28 +110,42 @@ bb0:
   push 160
   mstore
   sload
+  caller
+  push 255
+  and
+  dup2
+  dup1
+  push 288
+  mstore
+  add
+  dup1
+  push 224
+  mstore
+  dup2
+  dup1
+  push 288
+  mstore
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap2
+  pop
+  pop
+  push bb11
+  jumpi
+  push 224
+  mload
+  dup1
+  push 224
+  mstore
   push 128
   mstore
   push 32
   push 128
   return
-bb4 [cold]:
-  push 0
-  dup1
-  revert
-bb10 [cold]:
-  push 0x4e487b71
-  push 224
-  shl
-  push 0
-  mstore
-  push 17
-  push 4
-  mstore
-  push 36
-  push 0
-  revert
-// === ROOT/tests/ui/codegen/lowering/linked_library_call.sol:C (runtime) ===
+// === ROOT/tests/ui/codegen/lowering/library_call.sol:C (runtime) ===
 @module runtime
 bb0:
   push 256

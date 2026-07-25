@@ -159,9 +159,9 @@ impl LoopOptimizer {
                 .then_with(|| a.index().cmp(&b.index()))
         });
 
-        let mut selected = DenseBitSet::new_empty(func.instructions.len());
+        let mut selected = DenseBitSet::new_empty(func.num_insts());
         let mut closure = Vec::new();
-        let mut visiting = DenseBitSet::new_empty(func.instructions.len());
+        let mut visiting = DenseBitSet::new_empty(func.num_insts());
         for root in roots {
             closure.clear();
             visiting.clear();
@@ -229,7 +229,7 @@ impl LoopOptimizer {
             return false;
         }
 
-        let inst = &func.instructions[inst_id];
+        let inst = func.inst(inst_id);
         for operand in inst.kind.operands() {
             if let Value::Inst(dep_inst) = func.value(operand)
                 && self.inst_in_loop(func, *dep_inst, ctx.loop_data)
@@ -244,7 +244,7 @@ impl LoopOptimizer {
     }
 
     fn can_hoist_safely(&self, func: &Function, inst_id: InstId, ctx: LoopOptContext<'_>) -> bool {
-        let inst = &func.instructions[inst_id];
+        let inst = func.inst(inst_id);
 
         if inst.kind.has_side_effects() {
             return false;
@@ -384,19 +384,14 @@ impl LoopOptimizer {
     }
 
     fn function_observes_msize(&self, func: &Function) -> bool {
-        func.blocks.iter().any(|block| {
-            block
-                .instructions
-                .iter()
-                .any(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::MSize))
-        })
+        func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::MSize))
     }
 
     fn loop_contains_call_or_create(&self, func: &Function, loop_data: &Loop) -> bool {
         loop_data.blocks.iter().any(|block_id| {
             func.blocks[block_id].instructions.iter().any(|&inst_id| {
                 matches!(
-                    func.instructions[inst_id].kind,
+                    func.inst(inst_id).kind,
                     InstKind::Call { .. }
                         | InstKind::StaticCall { .. }
                         | InstKind::DelegateCall { .. }
@@ -413,7 +408,7 @@ impl LoopOptimizer {
     }
 
     fn licm_profit(&self, func: &Function, inst_id: InstId) -> u16 {
-        match func.instructions[inst_id].kind {
+        match func.inst(inst_id).kind {
             InstKind::SLoad(_) => 100,
             InstKind::TLoad(_) => 100,
             InstKind::Keccak256(_, _) => 30,
@@ -453,7 +448,7 @@ impl LoopOptimizer {
     fn loop_observes_gas(&self, func: &Function, loop_data: &Loop) -> bool {
         for block_id in &loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
-                if matches!(func.instructions[inst_id].kind, InstKind::Gas) {
+                if matches!(func.inst(inst_id).kind, InstKind::Gas) {
                     return true;
                 }
             }
@@ -488,7 +483,7 @@ impl LoopOptimizer {
         let aa = self.alias();
         for block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
-                match func.instructions[inst_id].kind {
+                match func.inst(inst_id).kind {
                     InstKind::MStore(addr, _) => {
                         if self.memory_ranges_may_alias(
                             func, ctx, load_addr, load_width, addr, 32, block_id,
@@ -537,7 +532,7 @@ impl LoopOptimizer {
 
         for block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
-                match (space, &func.instructions[inst_id].kind) {
+                match (space, &func.inst(inst_id).kind) {
                     (StorageSpace::Persistent, InstKind::SStore(slot, _))
                     | (StorageSpace::Transient, InstKind::TStore(slot, _)) => {
                         let Some(store_alias) =
@@ -736,7 +731,7 @@ impl LoopOptimizer {
         let Some(result) = func.inst_result_value(inst_id) else { return false };
         for block_id in &ctx.loop_data.blocks {
             for &user_inst in &func.blocks[block_id].instructions {
-                let kind = &func.instructions[user_inst].kind;
+                let kind = &func.inst(user_inst).kind;
                 let mut address_operands = ArrayVec::<ValueId, 2>::new();
                 match kind {
                     InstKind::MLoad(addr)
@@ -789,7 +784,7 @@ impl LoopOptimizer {
         if !self.inst_in_loop(func, *inst_id, ctx.loop_data) {
             return false;
         }
-        func.instructions[*inst_id]
+        func.inst(*inst_id)
             .kind
             .operands()
             .iter()
@@ -798,12 +793,12 @@ impl LoopOptimizer {
     }
 
     fn topological_sort_instructions(&self, func: &Function, insts: &[InstId]) -> Vec<InstId> {
-        let mut inst_set = DenseBitSet::new_empty(func.instructions.len());
+        let mut inst_set = DenseBitSet::new_empty(func.num_insts());
         for &inst_id in insts {
             inst_set.insert(inst_id);
         }
         let mut result = Vec::new();
-        let mut visited = DenseBitSet::new_empty(func.instructions.len());
+        let mut visited = DenseBitSet::new_empty(func.num_insts());
 
         fn visit(
             func: &Function,
@@ -816,7 +811,7 @@ impl LoopOptimizer {
                 return;
             }
 
-            let inst = &func.instructions[inst_id];
+            let inst = func.inst(inst_id);
             for operand in inst.kind.operands() {
                 if let Value::Inst(dep_inst) = &func.values[operand]
                     && inst_set.contains(*dep_inst)

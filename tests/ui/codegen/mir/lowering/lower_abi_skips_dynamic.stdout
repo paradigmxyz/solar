@@ -1,6 +1,11 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_skips_dynamic.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_skips_dynamic.mir (after lower-abi) ===
   @module LowerAbiSkipsDynamic
+  fn @givesWord(arg0: u256) -> u256 {
+    bb0:
+      ret arg0
+  }
+  
   fn @givesBytes(arg0: memptr) -> memptr {
     bb0:
       ret arg0

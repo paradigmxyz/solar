@@ -31,9 +31,8 @@
 //! a wrapper.
 //!
 //! Together with [`super::lower_dispatch::LowerDispatch`], which routes a selector switch
-//! to these argument-free wrappers, this moves dispatch and ABI handling out of
-//! the backend. Both passes run in the codegen pipeline; a module where this
-//! pass bails keeps its phase and is dispatched by the backend instead.
+//! to these argument-free wrappers, this materializes the ABI boundary before
+//! EVM codegen. Both passes must complete before the backend runs.
 
 use crate::{
     memory::EvmMemoryLayout,
@@ -107,17 +106,34 @@ impl LowerAbiCx {
         }
 
         // Snapshot the ids to wrap first; wrapping appends new functions, and we
-        // must not revisit them.
-        // Fuse static word returns into `returndata` up front: an external
-        // function that hands plain words back to a caller can encode them
-        // itself, so it no longer forces the whole pass to bail. Dynamic
-        // returns (a memory pointer to bytes/array/struct data) still need an
-        // encoder the wrappers do not have.
+        // must not revisit them. Preflight return fusion on clones so an
+        // unsupported dynamic return cannot leave earlier functions partially
+        // mutated when this all-or-nothing phase transition bails.
         let wrappable: Vec<FunctionId> = module
             .functions
             .iter_enumerated()
             .filter_map(|(id, func)| is_wrappable_external(func).then_some(id))
             .collect();
+        for &id in &wrappable {
+            let mut preflight = module.function(id).clone();
+            fuse_static_word_returns(&mut preflight);
+            self.stats.skipped_dynamic += usize::from(has_live_value_return(&preflight));
+        }
+        if self.stats.skipped_dynamic != 0 {
+            return false;
+        }
+        if wrappable.is_empty() {
+            let has_selectorless_entry = module.functions.iter().any(|func| {
+                func.attributes.is_constructor
+                    || func.attributes.is_receive
+                    || func.attributes.is_fallback
+            });
+            if !has_selectorless_entry {
+                return false;
+            }
+            module.advance_phase(MirPhase::Abi);
+            return true;
+        }
         for &id in &wrappable {
             self.stats.fused_returns +=
                 usize::from(fuse_static_word_returns(module.function_mut(id)));
@@ -130,16 +146,11 @@ impl LowerAbiCx {
             callvalue.observe(func);
             if is_wrappable_external(func) {
                 targets.push(id);
-                self.stats.skipped_dynamic += usize::from(has_live_value_return(func));
             }
-            for function in func.instructions.iter().filter_map(|inst| {
-                if let InstKind::InternalCall { function, .. } = &inst.kind {
-                    Some(*function)
-                } else {
-                    None
+            for inst_id in func.instructions() {
+                if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
+                    internally_called.insert(function);
                 }
-            }) {
-                internally_called.insert(function);
             }
         }
 
@@ -147,7 +158,7 @@ impl LowerAbiCx {
         // wrapper. If any signature is outside the static-word scope, leave the
         // module untouched instead of advancing to a phase the content does not
         // satisfy.
-        if self.stats.skipped_dynamic != 0 || targets.is_empty() {
+        if targets.is_empty() {
             return false;
         }
 
@@ -155,13 +166,12 @@ impl LowerAbiCx {
         // that are need a second, parameterized body; cloning every wrapper
         // needlessly grows the MIR consumed by all subsequent lowering and
         // backend passes.
-        // When the dispatch entry cannot hoist a single callvalue check,
-        // each rejecting wrapper carries its own, exactly like the backend
-        // dispatcher's per-wrapper payable check: the check belongs to the
-        // wrapper's prologue (falling through into the body) rather than to a
-        // guard block in the selector switch, which would pay an extra jump
-        // per case. `lower-dispatch` shares the predicate and routes selector
-        // cases unguarded.
+        // When the dispatch entry cannot hoist a single callvalue check, each
+        // rejecting wrapper carries its own. The check belongs to the wrapper's
+        // prologue (falling through into the body) rather than to a guard block
+        // in the selector switch, which would pay an extra jump per case.
+        // `lower-dispatch` shares the predicate and routes selector cases
+        // unguarded.
         let hoist_callvalue = callvalue.hoists();
 
         let mut body_of_wrapper = FxHashMap::default();
@@ -181,14 +191,14 @@ impl LowerAbiCx {
         // wrappers' own calls already target the bodies and are not affected.
         if !body_of_wrapper.is_empty() {
             for func in module.functions.iter_mut() {
-                for inst in func.instructions.iter_mut() {
+                func.for_each_instruction_mut(|_, inst| {
                     if let InstKind::InternalCall { function, .. } = &mut inst.kind
                         && let Some(&body_id) = body_of_wrapper.get(function)
                     {
                         *function = body_id;
                         self.stats.retargeted_calls += 1;
                     }
-                }
+                });
             }
         }
 
@@ -238,9 +248,8 @@ impl LowerAbiCx {
     /// Prepends `if callvalue() != 0 { revert(0, 0) }` to a wrapper.
     ///
     /// The new guard block becomes the entry and falls through into the old
-    /// body, so the check costs no extra jump — the backend dispatcher's
-    /// per-wrapper payable-check shape. Injected after the `.body` copy is
-    /// taken: internal callers never pay the check.
+    /// body, so the check costs no extra jump. Injected after the `.body` copy
+    /// is taken: internal callers never pay the check.
     fn inject_callvalue_check(func: &mut Function) {
         let old_entry = BlockId::ENTRY;
         let mut builder = FunctionBuilder::new(func);
@@ -261,7 +270,7 @@ impl LowerAbiCx {
 }
 
 /// An external entry with a body and a selector — the shape a wrapper is built
-/// for. Receive/fallback entries have no selector and are left to the backend.
+/// for. Receive/fallback entries have no selector and need no ABI wrapper.
 fn is_wrappable_external(func: &Function) -> bool {
     func.selector.is_some() && !func.attributes.is_constructor
 }
@@ -285,7 +294,7 @@ fn has_live_value_return(func: &Function) -> bool {
 fn value_type(func: &Function, value: crate::mir::ValueId) -> Option<MirType> {
     match func.value(value) {
         Value::Arg { ty, .. } | Value::Undef(ty) => Some(*ty),
-        Value::Inst(inst) => func.instructions[*inst].result_ty,
+        Value::Inst(inst) => func.inst(*inst).result_ty,
         Value::Immediate(_) => Some(MirType::uint256()),
         Value::Error(_) => None,
     }

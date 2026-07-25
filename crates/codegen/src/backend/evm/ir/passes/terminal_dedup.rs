@@ -6,7 +6,9 @@
 //! then redirects references and removes the temporary jump thunks.
 
 use super::{EvmPass, utils::is_evm_terminal};
-use crate::backend::evm::ir::{Block, BlockId, Module, PushValue, Terminator, TerminatorKind};
+use crate::backend::evm::ir::{
+    Block, BlockId, Hotness, Module, PushValue, Terminator, TerminatorKind,
+};
 use solar_data_structures::map::{FxHashMap, StdEntry};
 use solar_sema::Gcx;
 
@@ -44,6 +46,9 @@ fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
 
     let changed = !state.redirects.is_empty();
     for (block, target) in state.redirects.drain(..) {
+        if !module.blocks[block].metadata.hotness.is_cold() {
+            module.blocks[target].metadata.hotness = Hotness::Hot;
+        }
         module.blocks[block].instructions.clear();
         module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(target)));
     }

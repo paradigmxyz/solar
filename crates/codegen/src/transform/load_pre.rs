@@ -79,8 +79,7 @@ use crate::{
     },
     mir::{
         BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
-        MirType, Module, StorageAlias, Terminator, Value, ValueId,
-        utils::{self as mir_utils, repair_reachability_phis},
+        MirType, Module, StorageAlias, Terminator, Value, ValueId, utils as mir_utils,
     },
     pass::{MirPass, run_function_pass},
 };
@@ -318,15 +317,14 @@ impl LoadRedundancyEliminator {
     /// Runs load PRE to a fixed point under the rewrite budget.
     fn run(&mut self, func: &mut Function) -> LoadPreStats {
         self.stats = LoadPreStats::default();
-        repair_reachability_phis(func);
         if self.alias.is_none() {
             self.alias = Some(Rc::new(AliasAnalysis::new(func)));
         }
 
-        let rewrite_limit = func.instructions.len().saturating_mul(2).max(64);
+        let rewrite_limit = func.num_insts().saturating_mul(2).max(64);
         let mut rewrites = 0usize;
         let mut eliminated_keys: FxHashSet<(LoadKey, BlockId)> = FxHashSet::default();
-        let mut inserted_insts = GrowableBitSet::with_capacity(func.instructions.len());
+        let mut inserted_insts = GrowableBitSet::with_capacity(func.num_insts());
 
         while rewrites < rewrite_limit {
             let Some(analysis) = self.compute_analysis(func) else { break };
@@ -386,7 +384,7 @@ impl LoadRedundancyEliminator {
             let mut gen_set = KeySet::new_empty(key_count);
             let mut kill_set = KeySet::new_empty(key_count);
             for &inst_id in &func.blocks[block].instructions {
-                if func.instructions[inst_id].kind.has_side_effects() {
+                if func.inst(inst_id).kind.has_side_effects() {
                     for (idx, &key) in keys.iter().enumerate() {
                         if self.inst_kills_key(func, inst_id, key) {
                             kill_set.insert(idx);
@@ -569,7 +567,7 @@ impl LoadRedundancyEliminator {
                 }
                 continue;
             }
-            let kind = &func.instructions[inst_id].kind;
+            let kind = &func.inst(inst_id).kind;
             match kind {
                 // `gas` blocks every space, so nothing after it can be a
                 // candidate.
@@ -618,7 +616,7 @@ impl LoadRedundancyEliminator {
             }
 
             if inst_id != first_inst {
-                let kind = &func.instructions[inst_id].kind;
+                let kind = &func.inst(inst_id).kind;
                 if matches!(kind, InstKind::Gas) {
                     break;
                 }
@@ -652,7 +650,7 @@ impl LoadRedundancyEliminator {
         key_idx: usize,
         predecessors: &[BlockId],
     ) -> Option<Candidate> {
-        let instruction = &func.instructions[inst];
+        let instruction = func.inst(inst);
         let result = *cx.analysis.inst_results.get(&inst)?;
         let result_ty = instruction.result_ty?;
         let key = cx.analysis.keys[key_idx];
@@ -876,9 +874,7 @@ impl LoadRedundancyEliminator {
                 let phi_count = func.blocks[target]
                     .instructions
                     .iter()
-                    .take_while(|&&inst_id| {
-                        matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
-                    })
+                    .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
                     .count();
                 func.blocks[target].instructions.insert(phi_count, phi_inst);
                 phi_value
@@ -888,7 +884,7 @@ impl LoadRedundancyEliminator {
         for &(_, load_result) in &loads {
             Self::replace_uses(func, load_result, replacement);
         }
-        let mut load_insts = DenseBitSet::new_empty(func.instructions.len());
+        let mut load_insts = DenseBitSet::new_empty(func.num_insts());
         for &(inst_id, _) in &loads {
             load_insts.insert(inst_id);
         }
@@ -901,7 +897,7 @@ impl LoadRedundancyEliminator {
     /// Returns the key an instruction gens and where its value comes from.
     fn gen_key_value(&self, func: &Function, inst_id: InstId) -> Option<(LoadKey, GenSource)> {
         let aa = self.alias();
-        match func.instructions[inst_id].kind {
+        match func.inst(inst_id).kind {
             InstKind::SLoad(slot) => Some((
                 LoadKey::Storage(aa.storage_alias(func, inst_id, slot)),
                 GenSource::LoadResult,
@@ -1010,7 +1006,7 @@ impl LoadRedundancyEliminator {
     // ----- Rewriting -----
 
     fn replace_uses(func: &mut Function, from: ValueId, to: ValueId) {
-        for inst in func.instructions.iter_mut() {
+        func.for_each_instruction_mut(|_, inst| {
             let mut changed = false;
             inst.kind.visit_operands_mut(|value| {
                 if *value == from {
@@ -1018,23 +1014,22 @@ impl LoadRedundancyEliminator {
                     changed = true;
                 }
             });
-            if !changed {
-                continue;
+            if changed {
+                // Operand-derived metadata is stale once the operand changes.
+                if mir_utils::is_memory_inst(&inst.kind) {
+                    inst.metadata.set_memory_region(None);
+                }
+                if matches!(
+                    inst.kind,
+                    InstKind::SLoad(_)
+                        | InstKind::SStore(_, _)
+                        | InstKind::TLoad(_)
+                        | InstKind::TStore(_, _)
+                ) {
+                    inst.metadata.set_storage_alias(None);
+                }
             }
-            // Operand-derived metadata is stale once the operand changes.
-            if mir_utils::is_memory_inst(&inst.kind) {
-                inst.metadata.set_memory_region(None);
-            }
-            if matches!(
-                inst.kind,
-                InstKind::SLoad(_)
-                    | InstKind::SStore(_, _)
-                    | InstKind::TLoad(_)
-                    | InstKind::TStore(_, _)
-            ) {
-                inst.metadata.set_storage_alias(None);
-            }
-        }
+        });
 
         for block in func.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
