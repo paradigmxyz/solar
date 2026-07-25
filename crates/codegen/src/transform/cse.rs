@@ -45,7 +45,7 @@ use crate::{
         MemoryObjectLayout, MirType, Module, SliceLocation, StorageAlias, Value, ValueId,
         utils as mir_utils,
     },
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_filtered},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -69,20 +69,48 @@ impl MirPass for Cse {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
+        let mut candidates = DenseBitSet::new_empty(module.functions.len());
+        for (id, func) in module.functions.iter_enumerated() {
+            if may_have_common_subexpression(func) {
+                candidates.insert(id);
+            }
+        }
+        if candidates.is_empty() {
+            return false;
+        }
         analyses.set_call_summaries(Arc::new(MemoryCallSummaries::new(module)));
-        let changed = run_function_pass(module, analyses, |func, analyses| {
-            let mut eliminator = match &analyses.call_summaries {
-                Some(summaries) => {
-                    CommonSubexprEliminator::with_call_summaries(Arc::clone(summaries))
-                }
-                None => CommonSubexprEliminator::default(),
-            };
-            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
-            eliminator.run_to_fixpoint(func) != 0
-        });
+        let changed = run_function_pass_filtered(
+            module,
+            analyses,
+            |id, _| candidates.contains(id),
+            |func, analyses| {
+                let mut eliminator = match &analyses.call_summaries {
+                    Some(summaries) => {
+                        CommonSubexprEliminator::with_call_summaries(Arc::clone(summaries))
+                    }
+                    None => CommonSubexprEliminator::default(),
+                };
+                eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+                eliminator.run_to_fixpoint(func) != 0
+            },
+        );
         analyses.clear_call_summaries();
         changed
     }
+}
+
+fn may_have_common_subexpression(func: &Function) -> bool {
+    let mut found = false;
+    for inst_id in func.instructions() {
+        let inst = func.inst(inst_id);
+        if func.inst_result_value(inst_id).is_some() && !inst.kind.has_side_effects() {
+            if found {
+                return true;
+            }
+            found = true;
+        }
+    }
+    false
 }
 
 /// Common Subexpression Elimination pass.

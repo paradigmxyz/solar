@@ -262,11 +262,24 @@ pub(crate) trait AnalysisPass {
 pub(crate) fn run_function_pass(
     module: &mut Module,
     analyses: &mut ModuleAnalyses,
+    run: impl FnMut(&mut Function, &FunctionAnalyses) -> bool,
+) -> bool {
+    run_function_pass_filtered(module, analyses, |_, _| true, run)
+}
+
+/// Runs a function-local transform over selected bodied functions in a module.
+#[must_use]
+pub(crate) fn run_function_pass_filtered(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    mut filter: impl FnMut(FunctionId, &Function) -> bool,
     mut run: impl FnMut(&mut Function, &FunctionAnalyses) -> bool,
 ) -> bool {
     let mut changed = false;
     for func_id in module.functions.indices() {
-        if module.functions[func_id].blocks.is_empty() {
+        if module.functions[func_id].blocks.is_empty()
+            || !filter(func_id, &module.functions[func_id])
+        {
             continue;
         }
         changed |= run_function_pass_cached(analyses, module, func_id, &mut run);
