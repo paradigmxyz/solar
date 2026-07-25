@@ -29,7 +29,7 @@ use crate::{
         BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
         utils::repair_reachability_phis,
     },
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_filtered},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -52,13 +52,22 @@ impl MirPass for CheckElim {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
-            let mut eliminator = CheckEliminator::new();
-            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
-            let changed = eliminator.run(func) != 0;
-            let repaired = repair_reachability_phis(func);
-            changed || repaired
-        })
+        run_function_pass_filtered(
+            module,
+            analyses,
+            |_, func| {
+                func.blocks
+                    .iter()
+                    .any(|block| matches!(block.terminator, Some(Terminator::Branch { .. })))
+            },
+            |func, analyses| {
+                let mut eliminator = CheckEliminator::new();
+                eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+                let changed = eliminator.run(func) != 0;
+                let repaired = repair_reachability_phis(func);
+                changed || repaired
+            },
+        )
     }
 }
 
