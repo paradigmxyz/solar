@@ -10,7 +10,7 @@ use crate::{
     },
     pass::{MirPass, run_function_pass},
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 
 /// Function pass for dead code elimination.
 pub(crate) struct Dce;
@@ -66,11 +66,7 @@ impl DeadCodeEliminator {
         }
     }
 
-    fn run_with_inst_results(
-        &mut self,
-        func: &mut Function,
-        inst_to_value: &FxHashMap<InstId, ValueId>,
-    ) -> usize {
+    fn run_once(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
 
         // Phase 1: Remove unreachable blocks.
@@ -79,7 +75,7 @@ impl DeadCodeEliminator {
         // Phase 2: Count uses, then propagate liveness losses backwards from
         // initially-unused results.
         self.collect_use_counts(func);
-        self.find_dead_instructions(func, inst_to_value);
+        self.find_dead_instructions(func);
 
         // Remove dead instructions from blocks.
         self.eliminated_count += self.dead.count();
@@ -94,8 +90,7 @@ impl DeadCodeEliminator {
 
     /// Runs dead code elimination to a fixed point.
     pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
-        let inst_to_value = func.inst_results();
-        self.run_with_inst_results(func, &inst_to_value)
+        self.run_once(func)
     }
 
     /// Eliminates unreachable blocks using CFG reachability analysis.
@@ -146,18 +141,14 @@ impl DeadCodeEliminator {
     }
 
     /// Finds dead instructions and propagates each removed use to its operands.
-    fn find_dead_instructions(
-        &mut self,
-        func: &Function,
-        inst_to_value: &FxHashMap<InstId, ValueId>,
-    ) {
+    fn find_dead_instructions(&mut self, func: &Function) {
         self.dead = DenseBitSet::new_empty(func.num_insts());
         self.worklist.clear();
 
         for block in &func.blocks {
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
-                if let Some(&result) = inst_to_value.get(&inst_id)
+                if let Some(result) = func.inst_result_value(inst_id)
                     && self.use_counts[result] == 0
                     && !inst.kind.has_side_effects()
                 {
