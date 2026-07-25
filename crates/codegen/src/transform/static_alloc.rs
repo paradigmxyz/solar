@@ -16,14 +16,16 @@
 //! - functions observing `msize` are skipped: eliding a bump changes the high-water mark.
 
 use crate::{
-    analysis::{AliasAnalysis, CfgInfo, MemoryCallSummaries},
+    analysis::CfgInfo,
     memory::EvmMemoryLayout,
     mir::{BlockId, Function, Immediate, InstId, InstKind, Module, Terminator, Value, ValueId},
     pass::MirPass,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{index::index_vec, map::FxHashMap};
-use std::sync::Arc;
+use solar_data_structures::{
+    index::{IndexVec, index_vec},
+    map::FxHashMap,
+};
 
 /// Pass that places provably local allocations statically.
 pub(crate) struct StaticAlloc;
@@ -54,14 +56,12 @@ impl MirPass for StaticAlloc {
             .max()
             .unwrap_or(EvmMemoryLayout::HEAP_START);
 
-        let summaries = Arc::new(MemoryCallSummaries::new(module));
         let mut changed = false;
         for func in module.functions.iter_mut() {
             if !is_entry(func) || has_msize(func) {
                 continue;
             }
-            let aa = AliasAnalysis::with_call_summaries(func, Arc::clone(&summaries));
-            changed |= run_on_entry(func, shadow, &aa);
+            changed |= run_on_entry(func, shadow);
         }
         changed
     }
@@ -81,12 +81,10 @@ impl MirPass for DeferAlloc {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        let summaries = Arc::new(MemoryCallSummaries::new(module));
         let mut candidates = Vec::new();
         for (func_id, func) in module.functions.iter_enumerated() {
-            let aa = AliasAnalysis::with_call_summaries(func, Arc::clone(&summaries));
             candidates.extend(
-                eligible_static_allocations(func, &aa)
+                eligible_static_allocations(func)
                     .into_iter()
                     .map(|candidate| (func_id, candidate.alloc)),
             );
@@ -109,9 +107,9 @@ fn is_entry(func: &Function) -> bool {
         && (func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback)
 }
 
-fn run_on_entry(func: &mut Function, shadow: u64, aa: &AliasAnalysis) -> bool {
+fn run_on_entry(func: &mut Function, shadow: u64) -> bool {
     let mut changed = false;
-    for cand in eligible_static_allocations(func, aa) {
+    for cand in eligible_static_allocations(func) {
         changed |= apply_candidate(func, &cand, shadow);
     }
     changed
@@ -128,7 +126,7 @@ struct StaticAllocCandidate {
 
 /// Returns constant-size, non-escaping allocations that the backend may place
 /// in an entry-local static region.
-fn eligible_static_allocations(func: &Function, aa: &AliasAnalysis) -> Vec<StaticAllocCandidate> {
+fn eligible_static_allocations(func: &Function) -> Vec<StaticAllocCandidate> {
     if !is_entry(func) || has_msize(func) {
         return Vec::new();
     }
@@ -153,12 +151,15 @@ fn eligible_static_allocations(func: &Function, aa: &AliasAnalysis) -> Vec<Stati
                 continue;
             }
             let Some(ptr) = func.inst_result_value(alloc) else { continue };
-            let candidate = StaticAllocCandidate { block, alloc, ptr, size };
-            if !aa.value_escapes(func, candidate.ptr) && candidate_uses_are_safe(func, &candidate) {
-                candidates.push(candidate);
-            }
+            candidates.push(StaticAllocCandidate { block, alloc, ptr, size });
         }
     }
+    if candidates.is_empty() {
+        return candidates;
+    }
+    let uses = ValueUses::new(func);
+    // The bounded-use proof rejects every unrecognized use, so it also proves non-escape.
+    candidates.retain(|candidate| candidate_uses_are_safe(func, candidate, &uses));
     candidates
 }
 
@@ -166,22 +167,40 @@ fn has_msize(func: &Function) -> bool {
     func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize))
 }
 
+struct ValueUses {
+    instructions: IndexVec<ValueId, Vec<InstId>>,
+    terminators: IndexVec<ValueId, Vec<BlockId>>,
+}
+
+impl ValueUses {
+    fn new(func: &Function) -> Self {
+        let mut instructions = index_vec![Vec::new(); func.values.len()];
+        let mut terminators = index_vec![Vec::new(); func.values.len()];
+        for inst_id in func.instructions() {
+            for operand in func.inst(inst_id).operands() {
+                instructions[operand].push(inst_id);
+            }
+        }
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            if let Some(terminator) = &block.terminator {
+                for operand in terminator.operands() {
+                    terminators[operand].push(block_id);
+                }
+            }
+        }
+        Self { instructions, terminators }
+    }
+}
+
 /// Verifies every use of the pointer stays in bounds and never escapes.
-fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool {
+fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate, uses: &ValueUses) -> bool {
     // Discover in-bounds address derivations from the pointer through def-use
     // edges so definition order does not matter.
-    let mut add_users = index_vec![Vec::new(); func.values.len()];
-    for inst_id in func.instructions() {
-        if let InstKind::Add(a, b) = func.inst(inst_id).kind {
-            add_users[a].push(inst_id);
-            add_users[b].push(inst_id);
-        }
-    }
     let mut derived: FxHashMap<ValueId, u64> = FxHashMap::default();
     derived.insert(cand.ptr, 0);
     let mut pending = vec![cand.ptr];
     while let Some(value) = pending.pop() {
-        for &inst_id in &add_users[value] {
+        for &inst_id in &uses.instructions[value] {
             let Some(result) = func.inst_result_value(inst_id) else { continue };
             if derived.contains_key(&result) {
                 continue;
@@ -203,64 +222,56 @@ fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool
 
     // Every use of every derived address must be a bounded memory access.
     let in_range = |off: u64, len: u64| off.checked_add(len).is_some_and(|end| end <= cand.size);
-    for block in func.blocks.iter() {
-        for &inst_id in &block.instructions {
+    for (&operand, &off) in &derived {
+        for &inst_id in &uses.instructions[operand] {
             if inst_id == cand.alloc {
                 continue;
             }
             let kind = &func.inst(inst_id).kind;
-            for &operand in kind.operands().iter() {
-                let Some(&off) = derived.get(&operand) else { continue };
-                let ok = match *kind {
-                    InstKind::MLoad(addr) => operand == addr && in_range(off, 32),
-                    InstKind::MStore(addr, value) => {
-                        operand == addr && value != operand && in_range(off, 32)
-                    }
-                    InstKind::Keccak256(addr, size)
-                    | InstKind::Log0(addr, size)
-                    | InstKind::CalldataCopy(addr, _, size)
-                    | InstKind::ReturnDataCopy(addr, _, size)
-                    | InstKind::CodeCopy(addr, _, size) => {
-                        operand == addr
-                            && func.value_u64(size).is_some_and(|len| in_range(off, len))
-                    }
-                    InstKind::Log1(addr, size, _)
-                    | InstKind::Log2(addr, size, _, _)
-                    | InstKind::Log3(addr, size, _, _, _)
-                    | InstKind::Log4(addr, size, _, _, _, _) => {
-                        operand == addr
-                            && func.value_u64(size).is_some_and(|len| in_range(off, len))
-                    }
-                    InstKind::MCopy(dest, src, size) => {
-                        (operand == dest || operand == src)
-                            && func.value_u64(size).is_some_and(|len| in_range(off, len))
-                    }
-                    // In-bounds derivations were collected above; anything
-                    // else consuming an address is an escape.
-                    InstKind::Add(_, _) => {
-                        func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))
-                    }
-                    _ => false,
-                };
-                if !ok {
-                    return false;
+            let ok = match *kind {
+                InstKind::MLoad(addr) => operand == addr && in_range(off, 32),
+                InstKind::MStore(addr, value) => {
+                    operand == addr && value != operand && in_range(off, 32)
                 }
+                InstKind::Keccak256(addr, size)
+                | InstKind::Log0(addr, size)
+                | InstKind::CalldataCopy(addr, _, size)
+                | InstKind::ReturnDataCopy(addr, _, size)
+                | InstKind::CodeCopy(addr, _, size) => {
+                    operand == addr && func.value_u64(size).is_some_and(|len| in_range(off, len))
+                }
+                InstKind::Log1(addr, size, _)
+                | InstKind::Log2(addr, size, _, _)
+                | InstKind::Log3(addr, size, _, _, _)
+                | InstKind::Log4(addr, size, _, _, _, _) => {
+                    operand == addr && func.value_u64(size).is_some_and(|len| in_range(off, len))
+                }
+                InstKind::MCopy(dest, src, size) => {
+                    (operand == dest || operand == src)
+                        && func.value_u64(size).is_some_and(|len| in_range(off, len))
+                }
+                // In-bounds derivations were collected above; anything
+                // else consuming an address is an escape.
+                InstKind::Add(_, _) => {
+                    func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))
+                }
+                _ => false,
+            };
+            if !ok {
+                return false;
             }
         }
-        if let Some(term) = &block.terminator {
-            for &operand in term.operands().iter() {
-                let Some(&off) = derived.get(&operand) else { continue };
-                let ok = match term {
-                    Terminator::Revert { offset, size }
-                    | Terminator::ReturnData { offset, size } => {
-                        operand == *offset
-                            && func.value_u64(*size).is_some_and(|len| in_range(off, len))
-                    }
-                    _ => false,
-                };
-                if !ok {
-                    return false;
+        for &block in &uses.terminators[operand] {
+            let term = func.blocks[block].terminator.as_ref().expect("indexed terminator use");
+            let ok = match term {
+                Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
+                    operand == *offset
+                        && func.value_u64(*size).is_some_and(|len| in_range(off, len))
                 }
+                _ => false,
+            };
+            if !ok {
+                return false;
             }
         }
     }
