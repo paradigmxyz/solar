@@ -12,7 +12,10 @@ use crate::{
     },
     pass::MirPass,
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_sema::Gcx;
 
 /// Lowers logical slices to the word-based backend convention.
@@ -590,7 +593,13 @@ impl LowerSlicesCx {
 impl LowerSlicesCx {
     fn run(&mut self, module: &mut Module) -> bool {
         self.stats = LowerSlicesStats::default();
-        if !module.functions.iter().any(function_has_slices) {
+        let mut slice_functions = DenseBitSet::new_empty(module.functions.len());
+        for (id, func) in module.functions.iter_enumerated() {
+            if function_has_slices(func) {
+                slice_functions.insert(id);
+            }
+        }
+        if slice_functions.is_empty() {
             return false;
         }
         let compact = Self::infer_compact_params(module);
@@ -616,17 +625,16 @@ impl LowerSlicesCx {
             })
             .collect();
         let mut changed = false;
-        for func in module.functions.iter_mut() {
+        for id in slice_functions.iter() {
             // Eliminate slice-typed `select`/`phi` first, so every remaining
             // slice is a `make_slice` result or a projection that the later
             // stages can expand or fold.
-            changed |= self.split_slice_aggregates(func);
+            changed |= self.split_slice_aggregates(module.function_mut(id));
         }
-        for func in module.functions.iter_mut() {
-            changed |= self.expand_call_args(func, &signatures);
+        for id in slice_functions.iter() {
+            changed |= self.expand_call_args(module.function_mut(id), &signatures);
         }
-        let function_ids: Vec<_> = module.functions.indices().collect();
-        for id in function_ids {
+        for id in slice_functions.iter() {
             let func = module.function_mut(id);
             changed |= self.lower_external_args(func);
             changed |= self.lower_params(func, &signatures[&id]);
