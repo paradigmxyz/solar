@@ -427,7 +427,7 @@ impl<'a> Validator<'a> {
             if !cfg.is_reachable(block_id) {
                 continue;
             }
-            let block_in_cycle = reaches(block_id, block_id);
+            let block_in_cycle = cfg.cyclic_blocks().contains(block_id);
             for (index, &inst_id) in block.instructions.iter().enumerate() {
                 match &func.inst(inst_id).kind {
                     InstKind::Phi(incoming) => {
