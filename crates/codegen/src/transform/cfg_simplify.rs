@@ -606,7 +606,16 @@ impl CfgSimplifier {
             if changed == 0 {
                 break;
             }
+            let rerun = self.stats.empty_blocks_eliminated != 0
+                || self.stats.terminal_blocks_deduplicated != 0
+                || self.stats.trivial_phis_simplified != 0;
+            if !rerun && self.stats.blocks_merged != 0 {
+                self.stats.unreachable_blocks_removed += self.remove_unreachable_blocks(func);
+            }
             total_stats.combine(&self.stats);
+            if !rerun {
+                break;
+            }
         }
         total_stats
     }
