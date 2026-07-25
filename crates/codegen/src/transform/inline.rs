@@ -14,7 +14,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_sema::Gcx;
 
 /// Module pass for metadata-backed MIR inlining.
@@ -619,12 +619,99 @@ fn inline_call(
     call_inst_index: usize,
     callee: &Function,
 ) -> bool {
-    let snapshot = caller.clone();
-    if inline_call_impl(caller, call_block, call_inst_index, callee).is_some() {
-        true
-    } else {
-        *caller = snapshot;
-        false
+    if !can_inline_call(caller, call_block, call_inst_index, callee) {
+        return false;
+    }
+
+    inline_call_impl(caller, call_block, call_inst_index, callee)
+        .expect("prevalidated inline call must succeed");
+    true
+}
+
+#[must_use]
+fn can_inline_call(
+    caller: &Function,
+    call_block: BlockId,
+    call_inst_index: usize,
+    callee: &Function,
+) -> bool {
+    let call_inst = caller.blocks[call_block].instructions[call_inst_index];
+    let InstKind::InternalCall { ref args, returns, .. } = caller.inst(call_inst).kind else {
+        return false;
+    };
+    let returns = returns as usize;
+    if args.len() != callee.params.len()
+        || returns != callee.returns.len()
+        || (returns > 0 && caller.inst_result_value(call_inst).is_none())
+    {
+        return false;
+    }
+
+    let callee_frame_prefix = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+        + ((callee.params.len() + callee.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE;
+    let mut available = DenseBitSet::new_empty(callee.values.len());
+    for (value_id, value) in callee.values.iter_enumerated() {
+        if matches!(value, Value::Arg { index, .. } if (*index as usize) < args.len()) {
+            available.insert(value_id);
+        }
+    }
+
+    for block in &callee.blocks {
+        for &inst_id in &block.instructions {
+            let kind = &callee.inst(inst_id).kind;
+            if matches!(kind, InstKind::Phi(_))
+                || matches!(kind, InstKind::InternalFrameAddr(offset) if *offset < callee_frame_prefix)
+                || kind
+                    .operands()
+                    .into_iter()
+                    .any(|value| !value_available_to_cloner(callee, &available, value))
+            {
+                return false;
+            }
+            if let Some(result) = callee.inst_result_value(inst_id) {
+                available.insert(result);
+            }
+        }
+    }
+
+    for block in &callee.blocks {
+        let Some(term) = &block.terminator else { return false };
+        if term.successors().into_iter().any(|successor| successor.index() >= callee.blocks.len())
+            || term
+                .operands()
+                .into_iter()
+                .any(|value| !value_available_to_cloner(callee, &available, value))
+        {
+            return false;
+        }
+        match term {
+            Terminator::Return { values } if values.len() == returns => {}
+            Terminator::Stop if returns == 0 => {}
+            Terminator::Jump(_)
+            | Terminator::Branch { .. }
+            | Terminator::Switch { .. }
+            | Terminator::Revert { .. }
+            | Terminator::Invalid => {}
+            Terminator::Return { .. }
+            | Terminator::ReturnData { .. }
+            | Terminator::Stop
+            | Terminator::SelfDestruct { .. }
+            | Terminator::TailCall { .. } => return false,
+        }
+    }
+
+    true
+}
+
+#[must_use]
+fn value_available_to_cloner(
+    callee: &Function,
+    available: &DenseBitSet<ValueId>,
+    value: ValueId,
+) -> bool {
+    match callee.value(value) {
+        Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => true,
+        Value::Arg { .. } | Value::Inst(_) => available.contains(value),
     }
 }
 
