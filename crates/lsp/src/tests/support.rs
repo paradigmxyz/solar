@@ -9,7 +9,8 @@ use lsp_types::{
     HoverParams, InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams, Location, MarkupKind,
     ParameterLabel, PartialResultParams, Position, PrepareRenameResponse, Range, ReferenceContext,
     ReferenceParams, RenameParams, SelectionRange, SelectionRangeParams, SignatureHelp,
-    SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams, Url,
+    SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams, TypeHierarchyItem,
+    TypeHierarchyPrepareParams, TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, Url,
     WorkDoneProgressParams, WorkspaceEdit,
 };
 use snapbox::{IntoData, assert_data_eq};
@@ -86,6 +87,10 @@ impl RequestFixture {
 
     pub(super) fn project_contents(&self, path: &str) -> String {
         self.marked.project().read_file(path)
+    }
+
+    pub(super) fn project_path(&self, path: &str) -> std::path::PathBuf {
+        self.marked.project().path(path)
     }
 
     pub(super) fn rename_state_and_params(
@@ -285,6 +290,40 @@ impl RequestFixture {
         ))
         .unwrap();
         assert_data_eq!(self.goto_output(response), expected);
+    }
+
+    pub(super) fn prepare_type_hierarchy(&self, marker: &str) -> Option<Vec<TypeHierarchyItem>> {
+        let mut state = self.state();
+        let (uri, position) = self.marker_location(marker);
+        expect_ready(crate::handlers::prepare_type_hierarchy(
+            &mut state,
+            type_hierarchy_prepare_params(uri, position),
+        ))
+        .unwrap()
+    }
+
+    pub(super) fn type_hierarchy_supertypes(
+        &self,
+        item: TypeHierarchyItem,
+    ) -> Option<Vec<TypeHierarchyItem>> {
+        let mut state = self.state();
+        expect_ready(crate::handlers::type_hierarchy_supertypes(
+            &mut state,
+            type_hierarchy_supertypes_params(item),
+        ))
+        .unwrap()
+    }
+
+    pub(super) fn type_hierarchy_subtypes(
+        &self,
+        item: TypeHierarchyItem,
+    ) -> Option<Vec<TypeHierarchyItem>> {
+        let mut state = self.state();
+        expect_ready(crate::handlers::type_hierarchy_subtypes(
+            &mut state,
+            type_hierarchy_subtypes_params(item),
+        ))
+        .unwrap()
     }
 
     pub(super) fn check_references(
@@ -1071,6 +1110,29 @@ fn completion_params_with_trigger(
 fn goto_params(uri: Url, position: Position) -> GotoDefinitionParams {
     GotoDefinitionParams {
         text_document_position_params: text_document_position(uri, position),
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
+    }
+}
+
+fn type_hierarchy_prepare_params(uri: Url, position: Position) -> TypeHierarchyPrepareParams {
+    TypeHierarchyPrepareParams {
+        text_document_position_params: text_document_position(uri, position),
+        work_done_progress_params: WorkDoneProgressParams::default(),
+    }
+}
+
+fn type_hierarchy_supertypes_params(item: TypeHierarchyItem) -> TypeHierarchySupertypesParams {
+    TypeHierarchySupertypesParams {
+        item,
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
+    }
+}
+
+fn type_hierarchy_subtypes_params(item: TypeHierarchyItem) -> TypeHierarchySubtypesParams {
+    TypeHierarchySubtypesParams {
+        item,
         work_done_progress_params: WorkDoneProgressParams::default(),
         partial_result_params: PartialResultParams::default(),
     }

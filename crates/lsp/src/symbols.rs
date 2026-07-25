@@ -1,7 +1,7 @@
 use lsp_types::{
     CompletionItem, CompletionItemKind, DocumentHighlight, DocumentHighlightKind, DocumentSymbol,
     GotoDefinitionResponse, Hover, HoverContents, InlayHint, Location, MarkupContent, OneOf,
-    Position, Range, SymbolInformation, SymbolKind, Url, WorkspaceSymbol,
+    Position, Range, SymbolInformation, SymbolKind, TypeHierarchyItem, Url, WorkspaceSymbol,
     request::GotoTypeDefinitionResponse,
 };
 use solar_interface::{
@@ -38,6 +38,7 @@ use crate::{
         ImportBindings, MappingBindings, RenameCandidate, RenameIndex, RenameReferenceContext,
     },
     signature_help::SignatureHelpIndex,
+    type_hierarchy::TypeHierarchyIndex,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -64,6 +65,7 @@ pub(crate) struct SymbolTables {
     inlay_hints: InlayHintIndex,
     natspec_completion: NatSpecCompletionIndex,
     signature_help: SignatureHelpIndex,
+    type_hierarchy: TypeHierarchyIndex,
 }
 
 newtype_index! {
@@ -284,6 +286,7 @@ impl SymbolTables {
                 item_symbols.insert(ItemId::Function(function_id), symbol_id);
             }
         }
+        tables.type_hierarchy = TypeHierarchyIndex::build(gcx, &item_symbols, &tables.declarations);
         tables.build_scopes(gcx);
         tables.build_receiver_member_completions(gcx);
         tables.build_member_completions(gcx);
@@ -325,6 +328,7 @@ impl SymbolTables {
         self.signature_help.extend(other.signature_help);
 
         let symbol_offset = self.declarations.len();
+        self.type_hierarchy.extend(other.type_hierarchy, symbol_offset);
         self.override_families.extend(other.override_families, symbol_offset);
         let scope_offset = self.scopes.len();
         for declaration in &mut other.declarations {
@@ -553,6 +557,33 @@ impl SymbolTables {
         locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
         Some(GotoDefinitionResponse::Array(locations))
     }
+
+    pub(crate) fn prepare_type_hierarchy(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<Vec<TypeHierarchyItem>> {
+        if self.rename.conflicting_contents().contains(uri) {
+            return None;
+        }
+        let symbol_ids = self.symbol_ids_at_position(uri, position)?;
+        self.type_hierarchy.prepare(&symbol_ids)
+    }
+
+    pub(crate) fn type_hierarchy_supertypes(
+        &self,
+        item: &TypeHierarchyItem,
+    ) -> Option<Vec<TypeHierarchyItem>> {
+        self.type_hierarchy.supertypes(item)
+    }
+
+    pub(crate) fn type_hierarchy_subtypes(
+        &self,
+        item: &TypeHierarchyItem,
+    ) -> Option<Vec<TypeHierarchyItem>> {
+        self.type_hierarchy.subtypes(item)
+    }
+
     pub(crate) fn goto_type_definition(
         &self,
         uri: &Url,
@@ -1214,6 +1245,7 @@ impl SymbolTables {
             references.rebuild(|index| self.references[index].location.range);
         }
         self.override_families.rebuild(&self.declarations, self.rename.conflicting_contents());
+        self.type_hierarchy.rebuild(self.rename.conflicting_contents());
         self.rename.rebuild(&self.override_families);
     }
 }

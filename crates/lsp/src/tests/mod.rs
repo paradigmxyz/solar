@@ -40,6 +40,7 @@ mod selection_range;
 mod signature_help;
 mod support;
 mod type_definition;
+mod type_hierarchy;
 
 const ASYNC_TEST_TIMEOUT: Duration = Duration::from_secs(5);
 
