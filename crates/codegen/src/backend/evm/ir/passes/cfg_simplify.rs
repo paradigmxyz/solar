@@ -30,8 +30,15 @@ fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     loop {
         let truncated = truncate_after_terminal(module);
         let degenerate = simplify_degenerate_branches(module);
-        let redirected =
-            redirect_jump_thunks(module, &mut state.thunks, &mut state.addressed, &mut state.order);
+        let redirected = redirect_jump_thunks(
+            module,
+            &mut state.thunks,
+            &mut state.resolved,
+            &mut state.positions,
+            &mut state.path,
+            &mut state.addressed,
+            &mut state.order,
+        );
         let swept = remove_unreachable_blocks(
             module,
             &mut state.reachable,
@@ -49,6 +56,9 @@ fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
 
 struct RunState {
     thunks: FxHashMap<BlockId, BlockId>,
+    resolved: FxHashMap<BlockId, BlockId>,
+    positions: IndexVec<BlockId, usize>,
+    path: Vec<BlockId>,
     addressed: DenseBitSet<BlockId>,
     reachable: DenseBitSet<BlockId>,
     pending: Vec<BlockId>,
@@ -61,6 +71,9 @@ impl Default for RunState {
     fn default() -> Self {
         Self {
             thunks: FxHashMap::default(),
+            resolved: FxHashMap::default(),
+            positions: IndexVec::new(),
+            path: Vec::new(),
             addressed: DenseBitSet::new_empty(0),
             reachable: DenseBitSet::new_empty(0),
             pending: Vec::new(),
@@ -74,6 +87,8 @@ impl Default for RunState {
 impl RunState {
     fn reserve(&mut self, blocks: usize) {
         reserve_to(&mut self.pending, blocks);
+        reserve_to(self.positions.as_mut_vec(), blocks);
+        reserve_to(&mut self.path, blocks);
         reserve_to(self.references.as_mut_vec(), blocks);
         reserve_to(&mut self.order, blocks);
     }
@@ -123,6 +138,9 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
 fn redirect_jump_thunks(
     module: &mut Module,
     thunks: &mut FxHashMap<BlockId, BlockId>,
+    resolved: &mut FxHashMap<BlockId, BlockId>,
+    positions: &mut IndexVec<BlockId, usize>,
+    path: &mut Vec<BlockId>,
     addressed: &mut DenseBitSet<BlockId>,
     order: &mut Vec<BlockId>,
 ) -> bool {
@@ -155,40 +173,61 @@ fn redirect_jump_thunks(
         return false;
     }
 
-    let block_count = module.blocks.len();
-    let resolve = |start: BlockId| {
-        let mut target = start;
-        for _ in 0..block_count {
-            let Some(&next) = thunks.get(&target) else { break };
-            if next == start {
-                return start;
-            }
-            target = next;
+    resolved.clear();
+    positions.clear();
+    positions.resize(module.blocks.len(), usize::MAX);
+    for &start in thunks.keys() {
+        if resolved.contains_key(&start) {
+            continue;
         }
-        target
-    };
+        path.clear();
+        let mut current = start;
+        let final_target = loop {
+            if let Some(&target) = resolved.get(&current) {
+                break target;
+            }
+            if positions[current] != usize::MAX {
+                let cycle_start = positions[current];
+                for &cycle_block in &path[cycle_start..] {
+                    resolved.insert(cycle_block, cycle_block);
+                }
+                break current;
+            }
+            let Some(&next) = thunks.get(&current) else {
+                break current;
+            };
+            positions[current] = path.len();
+            path.push(current);
+            current = next;
+        };
+        for &path_block in path.iter() {
+            resolved.entry(path_block).or_insert(final_target);
+            positions[path_block] = usize::MAX;
+        }
+    }
+    let resolve = |target: BlockId| resolved.get(&target).copied().filter(|&next| next != target);
 
     let mut changed = false;
     for block in &mut module.blocks {
         for at in 0..block.instructions.len() {
             if is_direct_jump_label(block, at)
                 && let Some(PushValue::Block(target)) = &mut block.instructions[at].value
+                && let Some(resolved) = resolve(*target)
             {
-                let resolved = resolve(*target);
-                changed |= resolved != *target;
                 *target = resolved;
+                changed = true;
             }
         }
         if let Some(term) = &mut block.terminator {
             term.kind.visit_targets_mut(|target| {
-                let resolved = resolve(*target);
-                changed |= resolved != *target;
-                *target = resolved;
+                if let Some(resolved) = resolve(*target) {
+                    *target = resolved;
+                    changed = true;
+                }
             });
         }
     }
-    let entry = resolve(BlockId::ENTRY);
-    if entry != BlockId::ENTRY {
+    if let Some(entry) = resolve(BlockId::ENTRY) {
         order.clear();
         order.push(entry);
         order.extend(module.blocks.indices().filter(|&block| block != entry));
