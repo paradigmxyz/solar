@@ -17,6 +17,7 @@ bb1:
 // CHECK-LABEL: bb2:
 // CHECK: {{^[ +].*}}push bb3
 // CHECK: {{^[ +].*}}push bb7
+// CHECK: {{^[ +].*}}push bb9
 // CHECK: - jump bb4
 // CHECK: + push 1
 // CHECK-NEXT: + pop
@@ -26,6 +27,8 @@ bb2:
   push bb3
   pop
   push bb7
+  pop
+  push bb9
   pop
   jump bb4
 
@@ -56,4 +59,23 @@ bb6:
 bb7:
   jump bb8
 bb8:
+  stop
+
+// CHECK-LABEL: bb9:
+// CHECK: - jumpi bb10, bb11
+// CHECK: - bb10:
+// CHECK: - jump bb12
+// CHECK: - bb11:
+// CHECK: - jump bb12
+// CHECK: - bb12:
+// CHECK: + pop
+// CHECK-NEXT: {{^[ +].*}}stop
+bb9:
+  push 1
+  jumpi bb10, bb11
+bb10:
+  jump bb12
+bb11:
+  jump bb12
+bb12:
   stop

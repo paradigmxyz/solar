@@ -27,7 +27,6 @@ fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
     state.reserve(module.blocks.len());
     let truncated = truncate_after_terminal(module);
-    let degenerate = simplify_degenerate_branches(module);
     let redirected = redirect_jump_thunks(
         module,
         &mut state.thunks,
@@ -37,6 +36,7 @@ fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         &mut state.addressed,
         &mut state.order,
     );
+    let degenerate = simplify_degenerate_branches(module);
     let swept = remove_unreachable_blocks(
         module,
         &mut state.reachable,
