@@ -952,6 +952,9 @@ impl<'gcx> Lowerer<'gcx> {
                         return self.abi_encode_call_payload(builder, Some(selector), &exprs[1..]);
                     }
                 }
+                sym::encodeCall => {
+                    return self.abi_encode_call_from_args(builder, args);
+                }
                 _ => {}
             }
 

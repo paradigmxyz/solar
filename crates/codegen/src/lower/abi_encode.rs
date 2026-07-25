@@ -19,7 +19,10 @@ use alloy_primitives::U256;
 use solar_ast::ElementaryType;
 use solar_data_structures::map::FxHashSet;
 use solar_interface::diagnostics::ErrorGuaranteed;
-use solar_sema::ty::{Ty, TyKind};
+use solar_sema::{
+    builtins::Builtin,
+    ty::{Ty, TyKind},
+};
 
 struct LoweredAbiItems<'gcx> {
     items: Vec<(ValueId, Ty<'gcx>)>,
@@ -459,6 +462,32 @@ impl<'gcx> Lowerer<'gcx> {
         builder.set_fmp(new_free_ptr);
 
         (data, size)
+    }
+
+    /// Lowers `abi.encodeCall(F, (args...))` to a `(data, len)` payload: the
+    /// function reference `F` supplies the 4-byte selector, and the second
+    /// argument's tuple elements are ABI-encoded after it.
+    pub(super) fn abi_encode_call_from_args(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        args: &solar_sema::hir::CallArgs<'_>,
+    ) -> Result<(ValueId, ValueId), ErrorGuaranteed> {
+        let exprs = self.collect_builtin_args(Builtin::AbiEncodeCall, args)?;
+        let func_ref = exprs[0];
+        let args_tuple = exprs[1];
+        let selector = self.lower_resolved_function_selector(func_ref).ok_or_else(|| {
+            self.gcx
+                .dcx()
+                .err("codegen cannot resolve the `abi.encodeCall` function reference")
+                .span(func_ref.span)
+                .emit()
+        })?;
+        let selector_word = builder.imm_u256(U256::from(selector) << 224);
+        let arg_exprs: Vec<_> = match &args_tuple.kind {
+            solar_sema::hir::ExprKind::Tuple(elems) => elems.iter().filter_map(|e| *e).collect(),
+            _ => vec![args_tuple],
+        };
+        self.abi_encode_call_payload(builder, Some(selector_word), &arg_exprs)
     }
 
     /// ABI-encodes call arguments (optionally prefixed by a left-aligned
