@@ -199,7 +199,7 @@ fn compile(
             let bytecodes = if gcx.sess.opts.unstable.codegen
                 && needs_bytecode_output(gcx, &output_selection)
             {
-                Some(generate_contract_bytecodes(gcx)?)
+                Some(generate_contract_bytecodes(gcx, &output_selection)?)
             } else {
                 None
             };
@@ -398,13 +398,19 @@ fn needs_bytecode_output(gcx: solar_sema::Gcx<'_>, output_selection: &OutputSele
 
 fn generate_contract_bytecodes(
     gcx: solar_sema::Gcx<'_>,
+    output_selection: &OutputSelection<'_>,
 ) -> Result<FxHashMap<ContractId, GeneratedBytecodes>> {
     let mut all_bytecodes = FxHashMap::default();
     let mut artifacts = FxHashMap::default();
     let mut visiting = DenseBitSet::new_empty(gcx.hir.contract_ids().len());
     for contract_id in gcx.hir.contract_ids() {
         let contract = gcx.hir.contract(contract_id);
-        if !contract.kind.is_interface() && !contract.kind.is_abstract_contract() {
+        let source = gcx.hir.source(contract.source);
+        let source_name = standard_json_source_name(&source.file.name);
+        let selected = output_selection.contract(&source_name, contract.name.as_str()).intersects(
+            OutputSelectionFlags::BYTECODE_OBJECT | OutputSelectionFlags::DEPLOYED_BYTECODE_OBJECT,
+        );
+        if selected && !contract.kind.is_interface() && !contract.kind.is_abstract_contract() {
             ensure_contract_bytecode(
                 gcx,
                 contract_id,

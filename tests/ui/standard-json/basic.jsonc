@@ -15,7 +15,7 @@
   "language": "Solidity",
   "sources": {
     "A.sol": {
-      "content": "contract Counter { uint256 public number; function setNumber(uint256 value) public { number = value; } }"
+      "content": "contract Counter { uint256 public number; function setNumber(uint256 value) public { number = value; } } contract Unsupported { fallback(bytes calldata input) external returns (bytes memory) { return input; } }"
     }
   },
   "settings": {
@@ -26,7 +26,7 @@
         ]
       },
       "A.sol": {
-        "*": [
+        "Counter": [
           "evm.methodIdentifiers",
           "evm.bytecode.object",
           "evm.deployedBytecode.object"
