@@ -918,7 +918,13 @@ impl MemoryStoreEliminator {
             Some((a.as_u256()?.try_into().ok()?, v.as_u256()?))
         };
 
-        let mut exit: FxHashMap<BlockId, FxHashMap<u64, U256>> = FxHashMap::default();
+        let mut remaining_consumers = index_vec![0usize; func.blocks.len()];
+        for block in &func.blocks {
+            if let [predecessor] = block.predecessors.as_slice() {
+                remaining_consumers[*predecessor] += 1;
+            }
+        }
+        let mut exit = index_vec![None; func.blocks.len()];
         let mut dead = DenseBitSet::new_empty(func.num_insts());
 
         // Block index order approximates reverse postorder for this builder,
@@ -927,7 +933,15 @@ impl MemoryStoreEliminator {
         for block_id in func.blocks.indices() {
             let preds = &func.blocks[block_id].predecessors;
             let mut known: FxHashMap<u64, U256> = match preds.as_slice() {
-                [pred] => exit.get(pred).cloned().unwrap_or_default(),
+                [predecessor] => {
+                    remaining_consumers[*predecessor] =
+                        remaining_consumers[*predecessor].saturating_sub(1);
+                    if remaining_consumers[*predecessor] == 0 {
+                        exit[*predecessor].take().unwrap_or_default()
+                    } else {
+                        exit[*predecessor].clone().unwrap_or_default()
+                    }
+                }
                 _ => FxHashMap::default(),
             };
 
@@ -963,7 +977,9 @@ impl MemoryStoreEliminator {
                 }
             }
 
-            exit.insert(block_id, known);
+            if remaining_consumers[block_id] != 0 {
+                exit[block_id] = Some(known);
+            }
         }
 
         if dead.is_empty() {
