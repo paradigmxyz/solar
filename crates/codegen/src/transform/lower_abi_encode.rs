@@ -87,8 +87,7 @@ fn lower_function(func: &mut Function) -> bool {
         move_terminator(&mut builder, block, original_terminator);
     }
     func.replace_uses_canonicalized(&replacements);
-    let repaired = crate::mir::utils::repair_reachability_phis(func);
-    !replacements.is_empty() || repaired
+    !replacements.is_empty()
 }
 
 fn resolve(mut value: ValueId, replacements: &FxHashMap<ValueId, ValueId>) -> ValueId {
@@ -106,9 +105,18 @@ fn move_terminator(
     let final_block = builder.current_block();
     let Some(terminator) = terminator else { return };
     if final_block != original_block {
-        for successor in terminator.successors() {
-            let instructions = builder.func().blocks[successor].instructions.clone();
-            for inst in instructions {
+        let mut successors = terminator.successors();
+        successors.sort_unstable();
+        successors.dedup();
+        for successor in successors {
+            for predecessor in &mut builder.func_mut().blocks[successor].predecessors {
+                if *predecessor == original_block {
+                    *predecessor = final_block;
+                }
+            }
+            let instruction_count = builder.func().blocks[successor].instructions.len();
+            for index in 0..instruction_count {
+                let inst = builder.func().blocks[successor].instructions[index];
                 if let InstKind::Phi(incoming) = &mut builder.func_mut().inst_mut(inst).kind {
                     for (predecessor, _) in incoming {
                         if *predecessor == original_block {
