@@ -35,6 +35,10 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
 
 fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> bool {
     let ranks = SubstringRanks::new(module);
+    let repeated_prefixes = repeated_sequence_prefixes(module, &ranks);
+    if repeated_prefixes.is_empty() {
+        return false;
+    }
     let mut candidates = FxHashMap::<SequenceKey, CandidateGroup>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         let effects: Vec<_> = block.instructions.iter().map(whitelisted_effect).collect();
@@ -47,6 +51,11 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
         }
 
         for start in 0..block.instructions.len() {
+            if start + MIN_CLOSED_RUN > block.instructions.len()
+                || !repeated_prefixes.contains_key(&ranks.key(block_id, start, MIN_CLOSED_RUN))
+            {
+                continue;
+            }
             let mut height = 0i32;
             for end in start..block.instructions.len() {
                 let Some((reads, pops, pushes)) = effects[end] else { break };
@@ -131,6 +140,24 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
     }
     apply_outline_edits(module, edits, state);
     true
+}
+
+fn repeated_sequence_prefixes(
+    module: &Module,
+    ranks: &SubstringRanks,
+) -> FxHashMap<SequenceKey, bool> {
+    let mut prefixes = FxHashMap::default();
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        let Some(last_start) = block.instructions.len().checked_sub(MIN_CLOSED_RUN) else {
+            continue;
+        };
+        for start in 0..=last_start {
+            let key = ranks.key(block_id, start, MIN_CLOSED_RUN);
+            prefixes.entry(key).and_modify(|repeated| *repeated = true).or_insert(false);
+        }
+    }
+    prefixes.retain(|_, repeated| *repeated);
+    prefixes
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
