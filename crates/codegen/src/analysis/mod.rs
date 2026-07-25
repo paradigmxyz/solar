@@ -15,7 +15,7 @@ mod memory_summary;
 pub(crate) use memory_summary::MemoryCallSummaries;
 
 mod cfg;
-pub(crate) use cfg::{CfgInfo, DominatorTree, TransitiveReachability};
+pub(crate) use cfg::{CfgInfo, DominatorTree, TransitiveReachability, may_have_cycle};
 
 mod call_graph;
 pub(crate) use call_graph::CallGraphInfo;

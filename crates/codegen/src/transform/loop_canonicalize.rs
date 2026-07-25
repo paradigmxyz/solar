@@ -11,7 +11,7 @@
 //! - preserve header phi semantics by moving outside incoming values through the inserted preheader
 
 use crate::{
-    analysis::LoopAnalyzer,
+    analysis::{LoopAnalyzer, may_have_cycle},
     mir::{BlockId, Function, InstId, InstKind, Instruction, Module, Terminator, Value, ValueId},
     pass::{MirPass, run_function_pass_no_analyses},
 };
@@ -35,6 +35,9 @@ impl MirPass for LoopCanonicalize {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass_no_analyses(module, analyses, |func| {
+            if !may_have_cycle(func) {
+                return false;
+            }
             LoopCanonicalizer::new().run(func).total() != 0
         })
     }

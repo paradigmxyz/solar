@@ -13,7 +13,7 @@
 use crate::{
     analysis::{
         AddressSpace, AffineExpr, AliasAnalysis, AliasResult, Location, LocationSize, Loop,
-        LoopAnalyzer, ScalarEvolution,
+        LoopAnalyzer, ScalarEvolution, may_have_cycle,
     },
     mir::{
         BlockId, Function, InstId, InstKind, Module, StorageAlias, Terminator, Value, ValueId,
@@ -62,12 +62,7 @@ fn may_have_loop_or_storage_access(func: &Function) -> bool {
                 | InstKind::TLoad(_)
                 | InstKind::TStore(_, _)
         )
-    }) || func.blocks.iter_enumerated().any(|(block_id, block)| {
-        block
-            .terminator
-            .as_ref()
-            .is_some_and(|term| term.successors().iter().any(|&successor| successor <= block_id))
-    })
+    }) || may_have_cycle(func)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -8,7 +8,7 @@
 
 use std::cell::OnceCell;
 
-use crate::mir::{BlockId, Function};
+use crate::mir::{BlockId, Function, Terminator};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -19,6 +19,25 @@ use solar_data_structures::{
 
 newtype_index! {
     struct ComponentId;
+}
+
+/// Returns whether the CFG can contain a cycle.
+///
+/// Every cycle has at least one edge that does not increase the block index,
+/// so the absence of such an edge proves the CFG acyclic without constructing
+/// its strongly connected components.
+#[must_use]
+pub(crate) fn may_have_cycle(func: &Function) -> bool {
+    func.blocks.iter_enumerated().any(|(block_id, block)| match block.terminator.as_ref() {
+        Some(Terminator::Jump(target)) => *target <= block_id,
+        Some(Terminator::Branch { then_block, else_block, .. }) => {
+            *then_block <= block_id || *else_block <= block_id
+        }
+        Some(Terminator::Switch { default, cases, .. }) => {
+            *default <= block_id || cases.iter().any(|(_, target)| *target <= block_id)
+        }
+        _ => false,
+    })
 }
 
 /// Control-flow facts for one MIR function.
