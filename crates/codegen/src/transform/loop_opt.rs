@@ -65,6 +65,7 @@ struct AffineRange {
 struct LoopOptContext<'a> {
     loop_data: &'a Loop,
     scev: &'a ScalarEvolution,
+    affine_address_values: &'a DenseBitSet<ValueId>,
     analyzer: &'a LoopAnalyzer,
     effects: &'a LoopEffects,
     live_exiting_blocks: &'a [BlockId],
@@ -173,10 +174,12 @@ impl LoopOptimizer {
         }
 
         let scev = ScalarEvolution::analyze(func, loop_data);
+        let affine_address_values = self.affine_address_values(func, loop_data, &scev);
         let live_exiting_blocks = self.live_exiting_blocks(func, loop_data);
         let ctx = LoopOptContext {
             loop_data,
             scev: &scev,
+            affine_address_values: &affine_address_values,
             analyzer,
             effects: &effects,
             live_exiting_blocks: &live_exiting_blocks,
@@ -773,8 +776,19 @@ impl LoopOptimizer {
         inst_id: InstId,
         ctx: LoopOptContext<'_>,
     ) -> bool {
-        let Some(result) = func.inst_result_value(inst_id) else { return false };
-        for block_id in &ctx.loop_data.blocks {
+        func.inst_result_value(inst_id)
+            .is_some_and(|result| ctx.affine_address_values.contains(result))
+    }
+
+    fn affine_address_values(
+        &self,
+        func: &Function,
+        loop_data: &Loop,
+        scev: &ScalarEvolution,
+    ) -> DenseBitSet<ValueId> {
+        let mut values = DenseBitSet::new_empty(func.values.len());
+        let mut pending = Vec::new();
+        for block_id in &loop_data.blocks {
             for &user_inst in &func.blocks[block_id].instructions {
                 let kind = &func.inst(user_inst).kind;
                 let mut address_operands = ArrayVec::<ValueId, 2>::new();
@@ -801,40 +815,25 @@ impl LoopOptimizer {
                 }
 
                 for address in address_operands {
-                    if self.value_feeds_affine_address(func, ctx, result, address, 0) {
-                        return true;
-                    }
+                    pending.push((address, 0));
                 }
             }
         }
-        false
-    }
 
-    fn value_feeds_affine_address(
-        &self,
-        func: &Function,
-        ctx: LoopOptContext<'_>,
-        needle: ValueId,
-        value: ValueId,
-        depth: usize,
-    ) -> bool {
-        if value == needle {
-            return true;
+        while let Some((value, depth)) = pending.pop() {
+            values.insert(value);
+            if depth >= 4 || scev.get(value).is_none() {
+                continue;
+            }
+            let Value::Inst(inst_id) = func.value(value) else { continue };
+            if !self.inst_in_loop(*inst_id, loop_data) {
+                continue;
+            }
+            pending.extend(
+                func.inst(*inst_id).kind.operands().into_iter().map(|value| (value, depth + 1)),
+            );
         }
-        if depth >= 4 || ctx.scev.get(value).is_none() {
-            return false;
-        }
-
-        let Value::Inst(inst_id) = func.value(value) else { return false };
-        if !self.inst_in_loop(*inst_id, ctx.loop_data) {
-            return false;
-        }
-        func.inst(*inst_id)
-            .kind
-            .operands()
-            .iter()
-            .copied()
-            .any(|operand| self.value_feeds_affine_address(func, ctx, needle, operand, depth + 1))
+        values
     }
 
     fn topological_sort_instructions(&self, func: &Function, insts: &[InstId]) -> Vec<InstId> {
