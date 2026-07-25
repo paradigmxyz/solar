@@ -2037,12 +2037,10 @@ fn member_completion_item_kind(gcx: Gcx<'_>, member: Member<'_>) -> CompletionIt
     match member.res {
         Some(res) if res.enum_variant_index(&gcx.hir).is_some() => CompletionItemKind::ENUM_MEMBER,
         Some(res) if res.struct_field_index(&gcx.hir).is_some() => CompletionItemKind::FIELD,
-        Some(_) | None => match member.res {
-            Some(Res::Item(item_id)) => completion_item_kind(item_symbol_kind(gcx, item_id)),
-            Some(Res::Namespace(_)) => CompletionItemKind::MODULE,
-            Some(Res::Builtin(_)) => CompletionItemKind::METHOD,
-            Some(Res::Err(_)) | None => CompletionItemKind::FIELD,
-        },
+        Some(Res::Item(item_id)) => completion_item_kind(item_symbol_kind(gcx, item_id)),
+        Some(Res::Namespace(_)) => CompletionItemKind::MODULE,
+        Some(Res::Builtin(_)) => CompletionItemKind::METHOD,
+        Some(Res::Err(_)) | None => CompletionItemKind::FIELD,
     }
 }
 

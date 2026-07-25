@@ -314,18 +314,13 @@ fn item_order(a: &TypeHierarchyItem, b: &TypeHierarchyItem) -> Ordering {
 }
 
 fn hierarchy_kind_order(kind: SymbolKind) -> u8 {
-    if kind == SymbolKind::CLASS {
-        0
-    } else if kind == SymbolKind::INTERFACE {
-        1
-    } else if kind == SymbolKind::MODULE {
-        2
-    } else if kind == SymbolKind::METHOD {
-        3
-    } else if kind == SymbolKind::FUNCTION {
-        4
-    } else {
-        5
+    match kind {
+        SymbolKind::CLASS => 0,
+        SymbolKind::INTERFACE => 1,
+        SymbolKind::MODULE => 2,
+        SymbolKind::METHOD => 3,
+        SymbolKind::FUNCTION => 4,
+        _ => 5,
     }
 }
 
