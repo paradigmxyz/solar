@@ -60,9 +60,23 @@ impl MirPass for Pre {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass_no_analyses(module, analyses, |func| {
+            if !may_have_partial_redundancy(func) {
+                return false;
+            }
             PartialRedundancyEliminator::new().run(func).total() != 0
         })
     }
+}
+
+fn may_have_partial_redundancy(func: &Function) -> bool {
+    let has_join = func.blocks.iter().any(|block| {
+        let Some(&first) = block.predecessors.first() else { return false };
+        block.predecessors[1..].iter().any(|&predecessor| predecessor != first)
+    });
+    has_join
+        && func
+            .instructions()
+            .any(|inst_id| PartialRedundancyEliminator::is_pre_expression(&func.inst(inst_id).kind))
 }
 
 const MAX_INSERTIONS_PER_REWRITE: usize = 2;
