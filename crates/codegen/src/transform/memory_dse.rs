@@ -843,10 +843,8 @@ impl MemoryStoreEliminator {
         let mut exit: FxHashMap<BlockId, FxHashMap<u64, U256>> = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.num_insts());
 
-        // Block index order approximates reverse postorder for this builder,
-        // so a single predecessor is usually already computed; when it is not,
-        // the block simply starts from no known constants.
-        for block_id in func.blocks.indices() {
+        let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
+        for &block_id in cfg.rpo() {
             let preds = &func.blocks[block_id].predecessors;
             let mut known: FxHashMap<u64, U256> = match preds.as_slice() {
                 [pred] => exit.get(pred).cloned().unwrap_or_default(),

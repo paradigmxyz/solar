@@ -44,3 +44,20 @@ fn @keep_store_into_multi_pred_successor(arg0: bool) -> u256 {
     v4 = mload 128
     ret v4
 }
+
+// CHECK-LABEL: {{^[ +].*}}fn @remove_equal_store_in_rpo{{[( ]}}
+// CHECK: - mstore 128, 1
+// CHECK: {{^[ +].*}}mstore 128, 1
+fn @remove_equal_store_in_rpo() -> u256 {
+  bb0:
+    jump bb2
+  bb1:
+    v1 = mload 128
+    mstore 128, 1
+    v2 = mload 128
+    v3 = add v1, v2
+    ret v3
+  bb2:
+    mstore 128, 1
+    jump bb1
+}
