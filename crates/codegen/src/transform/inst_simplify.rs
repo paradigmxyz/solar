@@ -20,7 +20,7 @@ use crate::{
     utils::evm_word,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 
 /// Function pass for local instruction simplification.
 pub(crate) struct InstSimplify;
@@ -36,8 +36,10 @@ impl MirPass for InstSimplify {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
+        let mut simplifier = InstSimplifier::new();
+        let mut state = RunState::new();
         run_function_pass_no_analyses(module, analyses, |func| {
-            InstSimplifier::new().run_to_fixpoint(func) != 0
+            simplifier.run_with_state(func, &mut state) != 0
         })
     }
 }
@@ -51,12 +53,12 @@ struct InstSimplifier {
 
 struct RunState {
     replacements: FxHashMap<ValueId, ValueId>,
-    dead: DenseBitSet<InstId>,
+    dead: GrowableBitSet<InstId>,
 }
 
 impl RunState {
-    fn new(func: &Function) -> Self {
-        Self { replacements: FxHashMap::default(), dead: DenseBitSet::new_empty(func.num_insts()) }
+    fn new() -> Self {
+        Self { replacements: FxHashMap::default(), dead: GrowableBitSet::new_empty() }
     }
 }
 
@@ -146,12 +148,6 @@ impl InstSimplifier {
         self.simplified_count += self.rewrite_terminators(func, &state.replacements);
 
         self.simplified_count
-    }
-
-    /// Runs instruction simplification until no more changes are found.
-    fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
-        let mut state = RunState::new(func);
-        self.run_with_state(func, &mut state)
     }
 
     fn rewrite_inst(

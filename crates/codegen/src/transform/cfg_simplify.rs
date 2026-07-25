@@ -149,11 +149,12 @@ impl MirPass for CfgSimplify {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
+        let mut simplifier = CfgSimplifier::new();
         run_function_pass_no_analyses(module, analyses, |func| {
             if !may_simplify_cfg(func) {
                 return false;
             }
-            CfgSimplifier::new().run_to_fixpoint(func).total() != 0
+            simplifier.run_to_fixpoint(func).total() != 0
         })
     }
 }

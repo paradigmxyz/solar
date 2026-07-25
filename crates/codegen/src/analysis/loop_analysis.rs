@@ -13,7 +13,7 @@ use crate::{
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    index::{IndexVec, index_vec},
+    index::IndexVec,
     map::{FxHashMap, FxHashSet},
 };
 
@@ -108,9 +108,21 @@ impl LoopAnalyzer {
         let mut info = LoopInfo::default();
 
         self.cfg = Some(CfgInfo::new(func));
-        self.inst_blocks = index_vec![None; func.num_insts()];
-        self.invariant_users = index_vec![SmallVec::new(); func.values.len()];
-        self.invariant_remaining = index_vec![usize::MAX; func.num_insts()];
+        self.inst_blocks.truncate(func.num_insts());
+        for block in &mut self.inst_blocks {
+            *block = None;
+        }
+        self.inst_blocks.resize(func.num_insts(), None);
+        self.invariant_users.truncate(func.values.len());
+        for users in &mut self.invariant_users {
+            users.clear();
+        }
+        self.invariant_users.resize(func.values.len(), SmallVec::new());
+        self.invariant_remaining.truncate(func.num_insts());
+        for remaining in &mut self.invariant_remaining {
+            *remaining = usize::MAX;
+        }
+        self.invariant_remaining.resize(func.num_insts(), usize::MAX);
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 self.inst_blocks[inst_id] = Some(block_id);

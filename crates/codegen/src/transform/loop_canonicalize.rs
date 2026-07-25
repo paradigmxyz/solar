@@ -15,10 +15,7 @@ use crate::{
     mir::{BlockId, Function, InstId, InstKind, Instruction, Module, Terminator, Value, ValueId},
     pass::{MirPass, run_function_pass_no_analyses},
 };
-use solar_data_structures::{
-    bit_set::DenseBitSet,
-    index::{IndexVec, index_vec},
-};
+use solar_data_structures::{bit_set::GrowableBitSet, index::IndexVec};
 
 /// Function pass for loop canonicalization.
 pub(crate) struct LoopCanonicalize;
@@ -34,11 +31,12 @@ impl MirPass for LoopCanonicalize {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
+        let mut canonicalizer = LoopCanonicalizer::new();
         run_function_pass_no_analyses(module, analyses, |func| {
             if !may_have_cycle(func) {
                 return false;
             }
-            LoopCanonicalizer::new().run(func).total() != 0
+            canonicalizer.run(func).total() != 0
         })
     }
 }
@@ -66,6 +64,10 @@ impl LoopCanonicalizeStats {
 #[derive(Debug, Default)]
 struct LoopCanonicalizer {
     stats: LoopCanonicalizeStats,
+    analyzer: LoopAnalyzer,
+    outside: GrowableBitSet<BlockId>,
+    seen: GrowableBitSet<BlockId>,
+    outside_values: IndexVec<BlockId, Option<ValueId>>,
 }
 
 impl LoopCanonicalizer {
@@ -79,8 +81,7 @@ impl LoopCanonicalizer {
     fn run(&mut self, func: &mut Function) -> &LoopCanonicalizeStats {
         self.stats = LoopCanonicalizeStats::default();
 
-        let mut analyzer = LoopAnalyzer::new();
-        let loop_info = analyzer.analyze(func);
+        let loop_info = self.analyzer.analyze(func);
         let mut headers: Vec<_> = loop_info.loops.keys().copied().collect();
         headers.sort_by_key(|header| header.index());
         let candidates = headers
@@ -103,22 +104,22 @@ impl LoopCanonicalizer {
     }
 
     fn outside_predecessors(
-        &self,
+        &mut self,
         func: &Function,
         loop_data: &crate::analysis::Loop,
     ) -> Vec<BlockId> {
-        let mut seen = DenseBitSet::new_empty(func.blocks.len());
+        self.seen.clear();
         func.blocks[loop_data.header]
             .predecessors
             .iter()
             .copied()
             .filter(|&pred| !loop_data.blocks.contains(pred))
-            .filter(|pred| seen.insert(*pred))
+            .filter(|pred| self.seen.insert(*pred))
             .collect()
     }
 
     fn can_split_preheader(
-        &self,
+        &mut self,
         func: &Function,
         header: BlockId,
         outside_preds: &[BlockId],
@@ -129,22 +130,21 @@ impl LoopCanonicalizer {
             }
         }
 
-        let mut outside = DenseBitSet::new_empty(func.blocks.len());
+        self.outside.clear();
         for &pred in outside_preds {
-            outside.insert(pred);
+            self.outside.insert(pred);
         }
-        let mut seen = DenseBitSet::new_empty(func.blocks.len());
         for &inst_id in &func.blocks[header].instructions {
             let InstKind::Phi(incoming) = &func.inst(inst_id).kind else {
                 continue;
             };
-            seen.clear();
+            self.seen.clear();
             for &(pred, _) in incoming {
-                if outside.contains(pred) {
-                    seen.insert(pred);
+                if self.outside.contains(pred) {
+                    self.seen.insert(pred);
                 }
             }
-            if seen.count() != outside_preds.len() {
+            if self.seen.count() != outside_preds.len() {
                 return false;
             }
         }
@@ -172,11 +172,11 @@ impl LoopCanonicalizer {
             let edge_count = self.redirect_terminator(func, pred, header, preheader);
             func.blocks[preheader].predecessors.extend(std::iter::repeat_n(pred, edge_count));
         }
-        let mut outside = DenseBitSet::new_empty(func.blocks.len());
+        self.outside.clear();
         for &pred in outside_preds {
-            outside.insert(pred);
+            self.outside.insert(pred);
         }
-        func.blocks[header].predecessors.retain(|pred| !outside.contains(*pred));
+        func.blocks[header].predecessors.retain(|pred| !self.outside.contains(*pred));
         func.blocks[header].predecessors.push(preheader);
 
         self.rewrite_header_phis(func, header, preheader, outside_preds);
@@ -197,18 +197,18 @@ impl LoopCanonicalizer {
             .take_while(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
             .collect();
 
-        let mut outside = DenseBitSet::new_empty(func.blocks.len());
-        for &pred in outside_preds {
-            outside.insert(pred);
+        self.outside_values.truncate(func.blocks.len());
+        for value in &mut self.outside_values {
+            *value = None;
         }
-        let mut outside_values = index_vec![None; func.blocks.len()];
+        self.outside_values.resize(func.blocks.len(), None);
         for inst_id in phi_insts {
-            let external_incoming = self.external_phi_incoming(
+            let external_incoming = Self::external_phi_incoming(
                 func,
                 inst_id,
                 outside_preds,
-                &outside,
-                &mut outside_values,
+                &self.outside,
+                &mut self.outside_values,
             );
             let preheader_value =
                 self.canonical_preheader_value(func, inst_id, external_incoming, preheader);
@@ -216,18 +216,17 @@ impl LoopCanonicalizer {
             let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind else {
                 continue;
             };
-            incoming.retain(|(pred, _)| !outside.contains(*pred));
+            incoming.retain(|(pred, _)| !self.outside.contains(*pred));
             incoming.push((preheader, preheader_value));
             self.stats.header_phis_rewritten += 1;
         }
     }
 
     fn external_phi_incoming(
-        &self,
         func: &Function,
         inst_id: InstId,
         outside_preds: &[BlockId],
-        outside: &DenseBitSet<BlockId>,
+        outside: &GrowableBitSet<BlockId>,
         values: &mut IndexVec<BlockId, Option<ValueId>>,
     ) -> Vec<(BlockId, ValueId)> {
         let InstKind::Phi(incoming) = &func.inst(inst_id).kind else {
