@@ -11,7 +11,11 @@ use crate::{
     mir::{BlockId, Function, InstId, InstKind, Terminator, Value, ValueId},
 };
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::index_vec,
+    map::FxHashMap,
+};
 
 /// A natural loop in the control flow graph.
 #[derive(Clone, Debug)]
@@ -96,13 +100,12 @@ impl LoopAnalyzer {
 
         self.cfg = Some(CfgInfo::new(func));
         let loops = self.find_natural_loops(func);
-        let inst_blocks = func.inst_blocks();
 
         for mut loop_info in loops {
             self.find_exit_blocks(func, &mut loop_info);
             self.find_preheader(func, &mut loop_info);
             self.analyze_induction_vars(func, &mut loop_info);
-            self.find_invariant_instructions(func, &mut loop_info, &inst_blocks);
+            self.find_invariant_instructions(func, &mut loop_info);
             self.analyze_trip_count(func, &mut loop_info);
 
             for block in &loop_info.blocks {
@@ -290,56 +293,50 @@ impl LoopAnalyzer {
         }
     }
 
-    fn find_invariant_instructions(
-        &self,
-        func: &Function,
-        loop_info: &mut Loop,
-        inst_blocks: &FxHashMap<InstId, BlockId>,
-    ) {
-        let mut invariant_values = DenseBitSet::new_empty(func.values.len());
-
-        for (value_id, value) in func.values.iter_enumerated() {
-            match value {
-                Value::Immediate(_) | Value::Arg { .. } => {
-                    invariant_values.insert(value_id);
-                }
-                Value::Inst(inst_id) => {
-                    if !inst_blocks
-                        .get(inst_id)
-                        .is_some_and(|block| loop_info.blocks.contains(*block))
-                    {
-                        invariant_values.insert(value_id);
-                    }
-                }
-                Value::Undef(_) | Value::Error(_) => {}
+    fn find_invariant_instructions(&self, func: &Function, loop_info: &mut Loop) {
+        let mut loop_insts = DenseBitSet::new_empty(func.num_insts());
+        for block in &loop_info.blocks {
+            for &inst_id in &func.blocks[block].instructions {
+                loop_insts.insert(inst_id);
             }
         }
 
-        let mut changed = true;
-        while changed {
-            changed = false;
-            for block_id in &loop_info.blocks {
-                for &inst_id in &func.blocks[block_id].instructions {
-                    let inst = func.inst(inst_id);
+        let mut users = index_vec![Vec::new(); func.values.len()];
+        let mut remaining = index_vec![usize::MAX; func.num_insts()];
+        let mut ready = Vec::new();
+        for inst_id in &loop_insts {
+            let inst = func.inst(inst_id);
+            if inst.kind.has_side_effects() || matches!(inst.kind, InstKind::Phi(_)) {
+                continue;
+            }
 
-                    if loop_info.invariant_insts.contains(inst_id) {
-                        continue;
-                    }
-                    if inst.kind.has_side_effects() {
-                        continue;
-                    }
-                    if matches!(inst.kind, InstKind::Phi(_)) {
-                        continue;
-                    }
+            let mut dependencies = 0;
+            for operand in inst.kind.operands() {
+                let invariant = match func.value(operand) {
+                    Value::Immediate(_) | Value::Arg { .. } => true,
+                    Value::Inst(def) => !loop_insts.contains(*def),
+                    Value::Undef(_) | Value::Error(_) => false,
+                };
+                if !invariant {
+                    dependencies += 1;
+                    users[operand].push(inst_id);
+                }
+            }
+            remaining[inst_id] = dependencies;
+            if dependencies == 0 {
+                ready.push(inst_id);
+            }
+        }
 
-                    let operands = inst.kind.operands();
-                    if operands.iter().all(|&op| invariant_values.contains(op)) {
-                        loop_info.invariant_insts.insert(inst_id);
-                        if let Some(result) = self.find_result_value(func, inst_id) {
-                            invariant_values.insert(result);
-                        }
-                        changed = true;
-                    }
+        while let Some(inst_id) = ready.pop() {
+            if !loop_info.invariant_insts.insert(inst_id) {
+                continue;
+            }
+            let Some(result) = func.inst_result_value(inst_id) else { continue };
+            for &user in &users[result] {
+                remaining[user] -= 1;
+                if remaining[user] == 0 {
+                    ready.push(user);
                 }
             }
         }
