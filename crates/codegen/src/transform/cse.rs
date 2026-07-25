@@ -50,6 +50,7 @@ use crate::{
 use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
+    index::index_vec,
     map::FxHashMap,
 };
 use std::{cmp::Ordering, rc::Rc, sync::Arc};
@@ -332,21 +333,13 @@ impl CommonSubexprEliminator {
 
         let mut dead = GrowableBitSet::with_capacity(func.num_insts());
         let mut replacements = FxHashMap::default();
-        let mut inserted_by_block: FxHashMap<BlockId, usize> = FxHashMap::default();
+        let mut insertions = index_vec![Vec::new(); func.blocks.len()];
 
         for candidate in candidates {
             let new_inst =
                 func.alloc_inst(Instruction::new(candidate.kind, Some(candidate.result_ty)));
             let new_value = func.alloc_value(Value::Inst(new_inst));
-
-            let phi_count = func.blocks[candidate.block_id]
-                .instructions
-                .iter()
-                .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-                .count();
-            let inserted = inserted_by_block.entry(candidate.block_id).or_default();
-            func.blocks[candidate.block_id].instructions.insert(phi_count + *inserted, new_inst);
-            *inserted += 1;
+            insertions[candidate.block_id].push(new_inst);
 
             replacements.insert(candidate.phi_result, new_value);
             dead.insert(candidate.phi_inst);
@@ -356,6 +349,18 @@ impl CommonSubexprEliminator {
                 }
             }
             self.eliminated_count += 1;
+        }
+
+        for (block, insts) in insertions.iter_mut_enumerated() {
+            if insts.is_empty() {
+                continue;
+            }
+            let phi_count = func.blocks[block]
+                .instructions
+                .iter()
+                .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+                .count();
+            func.blocks[block].instructions.splice(phi_count..phi_count, insts.drain(..));
         }
 
         self.apply_replacements_to_all_blocks(func, &replacements);
