@@ -24,7 +24,7 @@ use crate::{
     pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 /// Function pass for loop-carried storage scalar promotion.
 pub(crate) struct StorageScalarPromotion;
@@ -233,18 +233,27 @@ impl StorageScalarPromoter {
         // example two symbolic mapping slots whose keys happen to be equal).
         // Promoting them to separate memory temps would desynchronize loads
         // and stores, so require every pair to be provably disjoint.
-        let keys: Vec<StorageAlias> = stores.keys().copied().collect();
-        if keys
-            .iter()
-            .enumerate()
-            .any(|(i, a)| keys[i + 1..].iter().any(|b| self.storage_may_alias(*a, *b)))
-        {
+        if !self.storage_aliases_are_pairwise_disjoint(stores.keys().copied()) {
+            return None;
+        }
+
+        let slots: FxHashSet<_> = stores.keys().copied().collect();
+        let mut init_stores = FxHashMap::default();
+        for &inst_id in func.blocks[preheader].instructions.iter().rev() {
+            if let InstKind::SStore(slot, _) = func.inst(inst_id).kind {
+                let alias = self.storage_alias(func, inst_id, slot);
+                if slots.contains(&alias) {
+                    init_stores.entry(alias).or_insert(inst_id);
+                }
+            }
+        }
+        if init_stores.len() != stores.len() {
             return None;
         }
 
         let mut candidates = Vec::with_capacity(stores.len());
         for (slot, _) in stores {
-            let init_store = self.find_preheader_init_store(func, preheader, &slot)?;
+            let init_store = init_stores[&slot];
             let slot_value = self.store_slot(func, init_store)?;
             candidates.push(Candidate {
                 slot_value,
@@ -385,12 +394,14 @@ impl StorageScalarPromoter {
         blocks: &[BlockId],
         candidates: &[Candidate],
     ) -> bool {
+        let candidate_slots: FxHashSet<_> =
+            candidates.iter().map(|candidate| candidate.slot).collect();
         for &block_id in blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 match &func.inst(inst_id).kind {
                     InstKind::SLoad(slot) => {
                         let alias = self.storage_alias(func, inst_id, *slot);
-                        if self.candidate_index(candidates, &alias).is_none()
+                        if !candidate_slots.contains(&alias)
                             && candidates
                                 .iter()
                                 .any(|candidate| self.storage_may_alias(candidate.slot, alias))
@@ -400,7 +411,7 @@ impl StorageScalarPromoter {
                     }
                     InstKind::SStore(slot, _) => {
                         let alias = self.storage_alias(func, inst_id, *slot);
-                        if self.candidate_index(candidates, &alias).is_none() {
+                        if !candidate_slots.contains(&alias) {
                             return false;
                         }
                     }
@@ -470,25 +481,23 @@ impl StorageScalarPromoter {
         preheader: BlockId,
         candidates: &[Candidate],
     ) -> bool {
-        let Some(first_init) = candidates
+        let init_stores: FxHashSet<_> =
+            candidates.iter().filter_map(|candidate| candidate.init_store).collect();
+        let Some(first_init) = func.blocks[preheader]
+            .instructions
             .iter()
-            .filter_map(|candidate| candidate.init_store)
-            .filter_map(|inst_id| {
-                func.blocks[preheader]
-                    .instructions
-                    .iter()
-                    .position(|&candidate| candidate == inst_id)
-            })
-            .min()
+            .position(|inst_id| init_stores.contains(inst_id))
         else {
             return false;
         };
 
+        let candidate_slots: FxHashSet<_> =
+            candidates.iter().map(|candidate| candidate.slot).collect();
         for &inst_id in &func.blocks[preheader].instructions[first_init + 1..] {
             match &func.inst(inst_id).kind {
                 InstKind::SLoad(load_slot) | InstKind::SStore(load_slot, _) => {
                     let alias = self.storage_alias(func, inst_id, *load_slot);
-                    if self.candidate_index(candidates, &alias).is_none()
+                    if !candidate_slots.contains(&alias)
                         && candidates
                             .iter()
                             .any(|candidate| self.storage_may_alias(candidate.slot, alias))
@@ -550,16 +559,22 @@ impl StorageScalarPromoter {
             return;
         };
 
+        let init_stores: FxHashSet<_> =
+            promoted.iter().filter_map(|candidate| candidate.candidate.init_store).collect();
+        let init_positions: FxHashMap<_, _> = func.blocks[preheader]
+            .instructions
+            .iter()
+            .enumerate()
+            .filter_map(|(position, &inst_id)| {
+                init_stores.contains(&inst_id).then_some((inst_id, position))
+            })
+            .collect();
         let mut temps: FxHashMap<StorageAlias, (ValueId, usize)> = FxHashMap::default();
         for candidate in promoted {
             if let Some(init_store) = candidate.candidate.init_store
                 && let InstKind::SStore(_, init) = &func.inst(init_store).kind
             {
-                let init_pos = func.blocks[preheader]
-                    .instructions
-                    .iter()
-                    .position(|&inst_id| inst_id == init_store)
-                    .expect("candidate init store should be in the preheader");
+                let init_pos = init_positions[&init_store];
                 temps.insert(candidate.candidate.slot, (candidate.temp_addr, init_pos));
                 func.inst_mut(init_store).kind = InstKind::MStore(candidate.temp_addr, *init);
                 func.inst_mut(init_store).metadata.set_storage_alias(None);
@@ -909,17 +924,55 @@ impl StorageScalarPromoter {
 
     fn value_defined_in_loop(&self, func: &Function, value: ValueId, loop_data: &Loop) -> bool {
         match func.value(value) {
-            Value::Inst(inst_id) => loop_data
-                .blocks
-                .iter()
-                .any(|block_id| func.blocks[block_id].instructions.contains(inst_id)),
+            Value::Inst(inst_id) => loop_data.instructions.contains(*inst_id),
             Value::Undef(_) | Value::Error(_) => true,
             Value::Arg { .. } | Value::Immediate(_) => false,
         }
     }
 
-    fn candidate_index(&self, candidates: &[Candidate], alias: &StorageAlias) -> Option<usize> {
-        candidates.iter().position(|candidate| candidate.slot == *alias)
+    fn storage_aliases_are_pairwise_disjoint(
+        &self,
+        aliases: impl Iterator<Item = StorageAlias>,
+    ) -> bool {
+        let mut saw_absolute = false;
+        let mut symbolic_base = None;
+        let mut saw_symbolic = false;
+        let mut saw_zero_offset = false;
+
+        for alias in aliases {
+            match alias {
+                StorageAlias::Slot(_) => {
+                    if symbolic_base.is_some() {
+                        return false;
+                    }
+                    saw_absolute = true;
+                }
+                StorageAlias::Symbolic(base) => {
+                    if saw_absolute
+                        || symbolic_base.is_some_and(|existing| existing != base)
+                        || saw_symbolic
+                        || saw_zero_offset
+                    {
+                        return false;
+                    }
+                    symbolic_base = Some(base);
+                    saw_symbolic = true;
+                }
+                StorageAlias::Offset { base, offset } => {
+                    if saw_absolute || symbolic_base.is_some_and(|existing| existing != base) {
+                        return false;
+                    }
+                    symbolic_base = Some(base);
+                    if offset.is_zero() {
+                        if saw_symbolic {
+                            return false;
+                        }
+                        saw_zero_offset = true;
+                    }
+                }
+            }
+        }
+        true
     }
 
     fn storage_alias(&self, func: &Function, inst_id: InstId, slot: ValueId) -> StorageAlias {
