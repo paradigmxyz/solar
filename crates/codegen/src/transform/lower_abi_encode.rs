@@ -50,12 +50,8 @@ struct AbiValueDest {
 }
 
 fn lower_function(func: &mut Function) -> bool {
-    let has_encodes = func.blocks.iter().any(|block| {
-        block
-            .instructions
-            .iter()
-            .any(|&inst| matches!(func.instructions[inst].kind, InstKind::AbiEncode { .. }))
-    });
+    let has_encodes =
+        func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::AbiEncode { .. }));
     if !has_encodes {
         return false;
     }
@@ -69,7 +65,7 @@ fn lower_function(func: &mut Function) -> bool {
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for inst in instructions {
-            let encode = match &builder.func().instructions[inst].kind {
+            let encode = match &builder.func().inst(inst).kind {
                 InstKind::AbiEncode { selector, args, layout } => Some((
                     selector.map(|value| resolve(value, &replacements)),
                     args.iter().map(|&value| resolve(value, &replacements)).collect::<Vec<_>>(),
@@ -88,8 +84,8 @@ fn lower_function(func: &mut Function) -> bool {
         move_terminator(&mut builder, block, original_terminator);
     }
     func.replace_uses_canonicalized(&replacements);
-    crate::mir::utils::repair_reachability_phis(func);
-    true
+    let repaired = crate::mir::utils::repair_reachability_phis(func);
+    !replacements.is_empty() || repaired
 }
 
 fn resolve(mut value: ValueId, replacements: &FxHashMap<ValueId, ValueId>) -> ValueId {
@@ -110,7 +106,7 @@ fn move_terminator(
         for successor in terminator.successors() {
             let instructions = builder.func().blocks[successor].instructions.clone();
             for inst in instructions {
-                if let InstKind::Phi(incoming) = &mut builder.func_mut().instructions[inst].kind {
+                if let InstKind::Phi(incoming) = &mut builder.func_mut().inst_mut(inst).kind {
                     for (predecessor, _) in incoming {
                         if *predecessor == original_block {
                             *predecessor = final_block;

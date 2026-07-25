@@ -94,7 +94,7 @@ impl MemoryCallSummaries {
                 for block in &func.blocks {
                     for &inst_id in &block.instructions {
                         if let InstKind::InternalCall { function, ref args, .. } =
-                            func.instructions[inst_id].kind
+                            func.inst(inst_id).kind
                         {
                             let callee = previous
                                 .get(function)
@@ -156,7 +156,7 @@ fn local_summary(func: &Function) -> FunctionMemorySummary {
     let aa = AliasAnalysis::new(func);
     for block in &func.blocks {
         for &inst_id in &block.instructions {
-            let kind = &func.instructions[inst_id].kind;
+            let kind = &func.inst(inst_id).kind;
             if matches!(kind, InstKind::InternalCall { .. }) {
                 continue;
             }
@@ -211,7 +211,7 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<usize>> {
         let mut changed = false;
         for (value_id, value) in func.values.iter_enumerated() {
             let Value::Inst(inst_id) = value else { continue };
-            let operands = match &func.instructions[*inst_id].kind {
+            let operands = match &func.inst(*inst_id).kind {
                 InstKind::Add(first, second)
                 | InstKind::Sub(first, second)
                 | InstKind::MakeSlice { ptr: first, len: second, .. } => {

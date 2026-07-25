@@ -95,18 +95,17 @@ only when not the default). The phases, in order:
   callees the backend statically frames, so their arguments store at
   compile-time frame addresses with no return address pushed.
 
-The `lower-abi`, `lower-dispatch`, `lower-memory-objects`, and `lower-evm-shaped`
-passes are progressive MIR-to-MIR lowering, moving dispatch, ABI handling, and
-memory layout out of the backend. They run in the codegen pipeline and the
-backend consumes the `evm-shaped` module, with the MIR `entry` as the runtime
-prologue and `tail_call` lowered to a jump. A module where `lower-abi` bails —
-when any external function has returns (the wrappers do not implement
-returndata encoding yet), or there is no external interface — keeps its phase
-and is dispatched by the backend. When extending them or adding the next phase,
-make the transition a
-named pass that advances the phase via `Module::advance_phase`, keep it
-conservative (bail rather than miscompile — `lower-abi` skips dynamic types),
-and pin it with `.mir` UI tests under `tests/ui/codegen/mir/`.
+The `lower-abi`, `lower-dispatch`, `lower-memory-objects`, `lower-alloc`, and
+`lower-evm-shaped` passes are progressive MIR-to-MIR lowering, moving dispatch,
+ABI handling, and memory layout out of the backend. They run in the codegen
+pipeline and the backend only consumes the `evm-shaped` module, with the MIR
+`entry` as the runtime prologue and `tail_call` lowered to a jump. A module
+where a required lowering pass bails keeps its earlier phase and codegen
+reports it as unsupported. When extending them or adding the next phase, make
+the transition a named pass that advances the phase via
+`Module::advance_phase`, keep it conservative (bail rather than miscompile —
+`lower-abi` skips dynamic types), and pin it with `.mir` UI tests under
+`tests/ui/codegen/mir/`.
 
 ### Visitor Pattern
 

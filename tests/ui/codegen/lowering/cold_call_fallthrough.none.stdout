@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/cold_call_fallthrough.sol:ColdCallFallthrough (runtime) ===
 @module runtime
 bb0:
-  push 352
+  push 320
   push 64
   mstore
   callvalue
@@ -84,10 +84,10 @@ bb10:
   return
 bb11:
   push 4
-  push 288
+  push 256
   mstore
   push 0x7a65726f00000000000000000000000000000000000000000000000000000000
-  push 320
+  push 288
   mstore
   jump bb28
 bb12:
@@ -101,10 +101,10 @@ bb12:
   jump bb13
 bb13:
   push 3
-  push 288
+  push 256
   mstore
   push 0x6f6e650000000000000000000000000000000000000000000000000000000000
-  push 320
+  push 288
   mstore
   jump bb28
 bb14:
@@ -118,18 +118,18 @@ bb14:
   jump bb15
 bb15:
   push 3
-  push 288
+  push 256
   mstore
   push 0x74776f0000000000000000000000000000000000000000000000000000000000
-  push 320
+  push 288
   mstore
   jump bb28
 bb16:
   push 5
-  push 288
+  push 256
   mstore
   push 0x6f74686572000000000000000000000000000000000000000000000000000000
-  push 320
+  push 288
   mstore
   jump bb28
 bb17:
@@ -178,10 +178,10 @@ bb21:
   return
 bb22:
   push 4
-  push 288
+  push 256
   mstore
   push 0x7a65726f00000000000000000000000000000000000000000000000000000000
-  push 320
+  push 288
   mstore
   jump bb28
 bb23:
@@ -195,10 +195,10 @@ bb23:
   jump bb24
 bb24:
   push 3
-  push 288
+  push 256
   mstore
   push 0x6f6e650000000000000000000000000000000000000000000000000000000000
-  push 320
+  push 288
   mstore
   jump bb28
 bb25:
@@ -212,18 +212,18 @@ bb25:
   jump bb26
 bb26:
   push 3
-  push 288
+  push 256
   mstore
   push 0x74776f0000000000000000000000000000000000000000000000000000000000
-  push 320
+  push 288
   mstore
   jump bb28
 bb27:
   push 5
-  push 288
+  push 256
   mstore
   push 0x6f74686572000000000000000000000000000000000000000000000000000000
-  push 320
+  push 288
   mstore
   jump bb28
 bb28:
@@ -233,11 +233,11 @@ bb28:
   push 32
   push 4
   mstore
-  push 288
+  push 256
   mload
   push 36
   mstore
-  push 320
+  push 288
   mload
   push 68
   mstore

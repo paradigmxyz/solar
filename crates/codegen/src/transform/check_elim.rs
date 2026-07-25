@@ -55,7 +55,9 @@ impl MirPass for CheckElim {
         run_function_pass(module, analyses, |func, analyses| {
             let mut eliminator = CheckEliminator::new();
             eliminator.cfg = Some(Rc::clone(&analyses.cfg));
-            eliminator.run(func) != 0
+            let changed = eliminator.run(func) != 0;
+            let repaired = repair_reachability_phis(func);
+            changed || repaired
         })
     }
 }
@@ -168,7 +170,6 @@ impl CheckEliminator {
         for &(block, keep) in &folds {
             func.blocks[block].terminator = Some(Terminator::Jump(keep));
         }
-        repair_reachability_phis(func);
         self.stats.branches_folded = folds.len();
         folds.len()
     }
@@ -647,7 +648,7 @@ fn const_of(func: &Function, value: ValueId) -> Option<U256> {
 
 fn inst_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
     match func.value(value) {
-        Value::Inst(inst_id) => Some(&func.instructions[*inst_id].kind),
+        Value::Inst(inst_id) => Some(&func.inst(*inst_id).kind),
         _ => None,
     }
 }

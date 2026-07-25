@@ -35,6 +35,7 @@ pub trait EvmPass: Sync {
     }
 
     /// Runs the pass and returns whether it changed EVM IR.
+    #[must_use]
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
 }
 
@@ -82,6 +83,7 @@ pub fn lookup_pass(name: &str) -> Option<&'static dyn EvmPass> {
 }
 
 /// Runs an EVM IR pass pipeline.
+#[must_use]
 pub fn run_passes(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn EvmPass]) -> bool {
     let mut changed = false;
     for pass in passes {

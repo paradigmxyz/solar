@@ -4,12 +4,13 @@
   bb0:
     push 1
     jumpi bb1, bb2
-  bb1 [cold]:
+- bb1 [cold]:
++ bb1:
     push 64
     push 32
     push 0
     revert
-  bb2 [cold]:
+  bb2:
 -   push 64
 -   push 32
 -   push 0

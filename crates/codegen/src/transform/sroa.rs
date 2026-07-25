@@ -2,8 +2,9 @@
 //!
 //! A struct or fixed-array memory object that never escapes and is accessed
 //! only through constant field/element addresses can be dissolved into SSA
-//! values: each field store feeds the matching field load directly, and the
-//! backing allocation — and its free-memory-pointer bump — disappears.
+//! values: each field store feeds the matching field load directly. The
+//! backing allocation remains because its free-memory-pointer bump and failure
+//! behavior are observable independently of accesses through its result.
 //!
 //! This runs conservatively within a single block, where store-to-load
 //! ordering is explicit and no phi reconstruction is required:
@@ -14,7 +15,7 @@
 //! - every load is dominated by a store to the same field, so no uninitialized slot is observed.
 //!
 //! When all of these hold, loads are replaced by the last stored value and the
-//! stores, addresses, and allocation are removed.
+//! stores and addresses are removed.
 
 use crate::{
     analysis::AliasAnalysis,
@@ -60,15 +61,15 @@ fn is_fixed_aggregate(layout: MemoryObjectLayout) -> bool {
 
 impl SroaCx {
     fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
-        let mut allocs: Vec<(BlockId, InstId, ValueId)> = Vec::new();
+        let mut allocs: Vec<(BlockId, ValueId)> = Vec::new();
         for block_id in func.blocks.indices() {
             for &inst_id in &func.blocks[block_id].instructions {
                 if let InstKind::Alloc { kind: AllocationKind::Object(layout), .. } =
-                    func.instructions[inst_id].kind
+                    func.inst(inst_id).kind
                     && is_fixed_aggregate(layout)
                     && let Some(object) = func.inst_result_value(inst_id)
                 {
-                    allocs.push((block_id, inst_id, object));
+                    allocs.push((block_id, object));
                 }
             }
         }
@@ -78,9 +79,8 @@ impl SroaCx {
 
         let inst_results = func.inst_results();
         let mut changed = false;
-        for (block_id, alloc_inst, object) in allocs {
-            if let Some(plan) = self.plan(func, alias, &inst_results, block_id, alloc_inst, object)
-            {
+        for (block_id, object) in allocs {
+            if let Some(plan) = self.plan(func, alias, &inst_results, block_id, object) {
                 self.apply(func, block_id, plan);
                 self.eliminated += 1;
                 changed = true;
@@ -97,7 +97,6 @@ impl SroaCx {
         alias: &AliasAnalysis,
         inst_results: &FxHashMap<InstId, ValueId>,
         block_id: BlockId,
-        alloc_inst: InstId,
         object: ValueId,
     ) -> Option<Plan> {
         if alias.value_escapes(func, object) {
@@ -109,8 +108,8 @@ impl SroaCx {
         // address, in this block.
         let mut slot_of: FxHashMap<ValueId, u64> = FxHashMap::default();
         let mut address_insts: FxHashSet<InstId> = FxHashSet::default();
-        for (inst_id, kind) in func.instructions.iter_enumerated().map(|(i, inst)| (i, &inst.kind))
-        {
+        for inst_id in func.instructions() {
+            let kind = &func.inst(inst_id).kind;
             let slot = match *kind {
                 InstKind::MemoryObjectFieldAddr { object: base, field, .. } if base == object => {
                     Some(field)
@@ -138,7 +137,8 @@ impl SroaCx {
         // `MStore`/`MLoad` in this block.
         let block = &func.blocks[block_id];
         let block_insts: FxHashSet<InstId> = block.instructions.iter().copied().collect();
-        for (inst_id, inst) in func.instructions.iter_enumerated() {
+        for inst_id in func.instructions() {
+            let inst = func.inst(inst_id);
             let kind = &inst.kind;
             let addr = match *kind {
                 InstKind::MStore(addr, value) => {
@@ -171,7 +171,7 @@ impl SroaCx {
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
         for &inst_id in &block.instructions {
-            match func.instructions[inst_id].kind {
+            match func.inst(inst_id).kind {
                 InstKind::MStore(addr, value) if slot_of.contains_key(&addr) => {
                     current.insert(slot_of[&addr], value);
                     dead.insert(inst_id);
@@ -189,7 +189,6 @@ impl SroaCx {
             }
         }
 
-        dead.insert(alloc_inst);
         dead.extend(address_insts);
         Some(Plan { replacements, dead })
     }

@@ -47,7 +47,7 @@ fn remap_blocks(func: &mut Function, order: &[BlockId]) -> IndexVec<BlockId, Blo
         retained_instructions.extend_from_slice(&block.instructions);
     }
     for inst_id in retained_instructions {
-        let inst = &mut func.instructions[inst_id];
+        let inst = func.inst_mut(inst_id);
         if let InstKind::Phi(incoming) = &mut inst.kind {
             incoming.retain(|(block, _)| remap[*block] != BlockId::MAX);
             for (block, _) in incoming {
@@ -150,8 +150,10 @@ pub(crate) fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> B
     predecessors.retain(|&mut block| block != pred);
 
     // Rekey `succ`'s phi incoming entries from `pred` to the new block.
-    for &inst_id in &func.blocks[succ].instructions {
-        if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
+    let instruction_count = func.blocks[succ].instructions.len();
+    for index in 0..instruction_count {
+        let inst_id = func.blocks[succ].instructions[index];
+        if let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind {
             for (block, _) in incoming.iter_mut() {
                 if *block == pred {
                     *block = new_block;
@@ -164,34 +166,31 @@ pub(crate) fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> B
 }
 
 /// Rebuilds CFG edge lists from terminators and drops phi inputs from blocks
-/// that are no longer predecessors. Returns true if any phi input was dropped.
+/// that are no longer predecessors. Returns true if either changed.
+#[must_use]
 pub(crate) fn repair_reachability_phis(func: &mut Function) -> bool {
-    let mut edges = Vec::new();
+    let mut predecessors = index_vec![smallvec![]; func.blocks.len()];
     for (block, bb) in func.blocks.iter_enumerated() {
         if let Some(term) = &bb.terminator {
-            edges.push((block, term.successors()));
-        }
-    }
-
-    for block in func.blocks.iter_mut() {
-        block.predecessors.clear();
-    }
-
-    for (block, successors) in edges {
-        for succ in successors {
-            func.blocks[succ].predecessors.push(block);
+            for succ in term.successors() {
+                predecessors[succ].push(block);
+            }
         }
     }
 
     let mut changed = false;
-    for block in &mut func.blocks {
-        for &inst_id in &block.instructions {
-            if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
+    for (block_id, block_predecessors) in predecessors.into_iter_enumerated() {
+        changed |= func.blocks[block_id].predecessors != block_predecessors;
+        let instruction_count = func.blocks[block_id].instructions.len();
+        for index in 0..instruction_count {
+            let inst_id = func.blocks[block_id].instructions[index];
+            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind {
                 let len_before = incoming.len();
-                incoming.retain(|(pred, _)| block.predecessors.contains(pred));
+                incoming.retain(|(pred, _)| block_predecessors.contains(pred));
                 changed |= incoming.len() != len_before;
             }
         }
+        func.blocks[block_id].predecessors = block_predecessors;
     }
     changed
 }

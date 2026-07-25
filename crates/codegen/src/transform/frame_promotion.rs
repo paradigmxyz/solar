@@ -44,8 +44,8 @@ impl MirPass for FrameSlotPromotion {
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
             let changed = FrameSlotPromoter::new().run(func).total() != 0;
-            repair_reachability_phis(func);
-            changed
+            let repaired = repair_reachability_phis(func);
+            changed || repaired
         })
     }
 }
@@ -233,7 +233,7 @@ impl FrameSlotPromoter {
         for info in slots {
             let inst_results = func.inst_results();
             let mut builder =
-                SlotSsaBuilder::new(&info, &cfg, &inst_results, &aa, func.instructions.len());
+                SlotSsaBuilder::new(&info, &cfg, &inst_results, &aa, func.num_insts());
             if builder.run(func) {
                 self.stats.slots_promoted += 1;
                 self.stats.loads_promoted += builder.loads_promoted;
@@ -249,11 +249,8 @@ impl FrameSlotPromoter {
     }
 
     fn has_global_observation_barrier(func: &Function) -> bool {
-        func.blocks.iter().any(|block| {
-            block.instructions.iter().any(|&inst_id| {
-                matches!(func.instructions[inst_id].kind, InstKind::Gas | InstKind::MSize)
-            })
-        })
+        func.instructions()
+            .any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::Gas | InstKind::MSize))
     }
 
     fn collect_promotable_slots(
@@ -269,7 +266,7 @@ impl FrameSlotPromoter {
             }
 
             for &inst_id in &block.instructions {
-                let kind = &func.instructions[inst_id].kind;
+                let kind = &func.inst(inst_id).kind;
                 match *kind {
                     InstKind::MLoad(addr) => {
                         if let Some(slot) = Self::promotable_slot(func, aa, addr) {
@@ -365,7 +362,7 @@ impl FrameSlotPromoter {
                 if Self::inst_may_observe_external_slot(
                     func,
                     aa,
-                    &func.instructions[inst_id].kind,
+                    &func.inst(inst_id).kind,
                     slot_addr,
                 ) {
                     return false;
@@ -387,7 +384,7 @@ impl FrameSlotPromoter {
                 if Self::inst_may_observe_internal_slot(
                     func,
                     aa,
-                    &func.instructions[inst_id].kind,
+                    &func.inst(inst_id).kind,
                     slot_offset,
                 ) {
                     return false;
@@ -710,7 +707,7 @@ impl<'a> SlotSsaBuilder<'a> {
 
             let mut saw_store = false;
             for &inst_id in &func.blocks[block].instructions {
-                match func.instructions[inst_id].kind {
+                match func.inst(inst_id).kind {
                     InstKind::MLoad(addr)
                         if !saw_store
                             && FrameSlotPromoter::promotable_slot(func, self.aa, addr)
@@ -836,11 +833,11 @@ impl<'a> SlotSsaBuilder<'a> {
         for pending in self.phis.values() {
             let mut incoming = pending.incoming.clone();
             incoming.sort_by_key(|(block, _)| block.index());
-            func.instructions[pending.inst].kind = InstKind::Phi(incoming);
+            func.inst_mut(pending.inst).kind = InstKind::Phi(incoming);
             let insert_pos = func.blocks[pending.block]
                 .instructions
                 .iter()
-                .take_while(|&&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+                .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
                 .count();
             func.blocks[pending.block].instructions.insert(insert_pos, pending.inst);
         }
@@ -865,7 +862,7 @@ impl<'a> SlotSsaBuilder<'a> {
         let mut current = None;
         let mut changed = false;
         for &inst_id in &func.blocks[block].instructions {
-            match func.instructions[inst_id].kind {
+            match func.inst(inst_id).kind {
                 InstKind::MLoad(addr)
                     if FrameSlotPromoter::promotable_slot(func, self.aa, addr)
                         == Some(self.info.slot) =>
@@ -946,7 +943,7 @@ impl<'a> SlotSsaBuilder<'a> {
         let instruction_count = func.blocks[block].instructions.len();
         for index in 0..instruction_count {
             let inst_id = func.blocks[block].instructions[index];
-            match func.instructions[inst_id].kind {
+            match func.inst(inst_id).kind {
                 InstKind::MLoad(addr)
                     if FrameSlotPromoter::promotable_slot(func, self.aa, addr)
                         == Some(self.info.slot) =>

@@ -7,6 +7,7 @@
 
 /tests/ui/codegen/mir/**/*.stdout linguist-language=Diff whitespace=-trailing-space
 /tests/ui/codegen/evm-ir/**/*.stdout linguist-language=Diff whitespace=-trailing-space
+/tests/ui/**/*.stderr whitespace=-blank-at-eof
 
 /testdata/* linguist-vendored
 /testdata/**/* linguist-vendored
