@@ -113,14 +113,13 @@ impl IndVarSimplifier {
         };
 
         let scev = ScalarEvolution::analyze(func, loop_data);
-        let inst_results = func.inst_results();
         let mut candidates: FxHashMap<AddressKey, Vec<ValueId>> = FxHashMap::default();
 
         let mut blocks: Vec<_> = loop_data.blocks.iter().collect();
         blocks.sort_by_key(|block| block.index());
         for block in blocks {
             for &inst_id in &func.blocks[block].instructions {
-                let Some(&value) = inst_results.get(&inst_id) else { continue };
+                let Some(value) = func.inst_result_value(inst_id) else { continue };
                 if !self.is_reducible_result(func, inst_id) {
                     continue;
                 }

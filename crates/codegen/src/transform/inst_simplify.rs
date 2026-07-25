@@ -50,18 +50,13 @@ struct InstSimplifier {
 }
 
 struct RunState {
-    inst_results: FxHashMap<InstId, ValueId>,
     replacements: FxHashMap<ValueId, ValueId>,
     dead: DenseBitSet<InstId>,
 }
 
 impl RunState {
     fn new(func: &Function) -> Self {
-        Self {
-            inst_results: func.inst_results(),
-            replacements: FxHashMap::default(),
-            dead: DenseBitSet::new_empty(func.num_insts()),
-        }
+        Self { replacements: FxHashMap::default(), dead: DenseBitSet::new_empty(func.num_insts()) }
     }
 }
 
@@ -112,7 +107,7 @@ impl InstSimplifier {
                         continue;
                     }
 
-                    let Some(&result) = state.inst_results.get(&inst_id) else {
+                    let Some(result) = func.inst_result_value(inst_id) else {
                         break;
                     };
                     let Some(replacement) = self.simplify_inst(func, &kind, &state.replacements)
