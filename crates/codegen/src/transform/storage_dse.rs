@@ -8,7 +8,7 @@
 use crate::{
     analysis::{Access, AddressSpace, AliasAnalysis, Location, ModRef},
     mir::{BlockId, Function, InstId, InstKind, Module, StorageAlias, ValueId, utils as mir_utils},
-    pass::{MirPass, run_function_pass_filtered},
+    pass::{MirPass, run_function_pass_with_alias_filtered},
 };
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -30,7 +30,7 @@ impl MirPass for StorageDse {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass_filtered(
+        run_function_pass_with_alias_filtered(
             module,
             analyses,
             |_, func| {
@@ -38,9 +38,9 @@ impl MirPass for StorageDse {
                     matches!(func.inst(inst_id).kind, InstKind::SLoad(_) | InstKind::SStore(_, _))
                 })
             },
-            |func, analyses| {
+            |func, alias| {
                 let mut eliminator = StorageStoreEliminator::new();
-                eliminator.alias = Some(Rc::clone(&analyses.alias));
+                eliminator.alias = Some(Rc::clone(alias));
                 eliminator.run_to_fixpoint(func) != 0
             },
         )

@@ -278,6 +278,39 @@ pub(crate) fn run_function_pass_filtered(
     changed
 }
 
+/// Runs a CFG-preserving function transform with shared alias analysis.
+#[must_use]
+pub(crate) fn run_function_pass_with_alias_filtered(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    mut filter: impl FnMut(FunctionId, &Function) -> bool,
+    mut run: impl FnMut(&mut Function, &Rc<AliasAnalysis>) -> bool,
+) -> bool {
+    let mut changed = false;
+    for func_id in module.functions.indices() {
+        if module.functions[func_id].blocks.is_empty()
+            || !filter(func_id, &module.functions[func_id])
+        {
+            continue;
+        }
+        let alias = analyses.alias(func_id);
+        let cfg_before = analyses.cfg.get(&func_id).cloned();
+        let func = &mut module.functions[func_id];
+        let insts_before = func.num_insts();
+        let func_changed = run(func, &alias);
+        if func_changed {
+            debug_assert!(cfg_before.as_ref().is_none_or(|cfg| cfg.has_same_edges(func)));
+            let keep_alias = (insts_before..func.num_insts())
+                .map(InstId::from_usize)
+                .all(|inst_id| !func.inst(inst_id).kind.has_side_effects());
+            analyses.retain(func_id, keep_alias, true);
+        }
+        changed |= func_changed;
+    }
+    analyses.preserved_by_pass = true;
+    changed
+}
+
 /// Runs a function-local transform that does not consume cached analyses.
 #[must_use]
 pub(crate) fn run_function_pass_no_analyses(
