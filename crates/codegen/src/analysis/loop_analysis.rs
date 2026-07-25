@@ -13,7 +13,7 @@ use crate::{
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    index::index_vec,
+    index::{IndexVec, index_vec},
     map::FxHashMap,
 };
 
@@ -34,6 +34,8 @@ pub(crate) struct Loop {
     pub induction_vars: Vec<InductionVariable>,
     /// Instructions that are invariant (don't change within the loop).
     pub invariant_insts: DenseBitSet<InstId>,
+    /// All instructions in the loop.
+    pub instructions: DenseBitSet<InstId>,
     /// Optional: constant trip count if statically known.
     pub trip_count: Option<u64>,
     /// Whether the guard that produced [`Self::trip_count`] is the header's
@@ -80,6 +82,7 @@ impl LoopInfo {
 #[derive(Debug, Default)]
 pub(crate) struct LoopAnalyzer {
     cfg: Option<CfgInfo>,
+    inst_blocks: IndexVec<InstId, Option<BlockId>>,
 }
 
 impl LoopAnalyzer {
@@ -94,11 +97,23 @@ impl LoopAnalyzer {
         self.cfg.as_ref().is_some_and(|cfg| cfg.dominators().dominates(dominator, block))
     }
 
+    /// Returns the block containing an instruction in the last analyzed function.
+    #[must_use]
+    pub(crate) fn instruction_block(&self, inst: InstId) -> Option<BlockId> {
+        self.inst_blocks.get(inst).copied().flatten()
+    }
+
     /// Analyzes loops in a function.
     pub(crate) fn analyze(&mut self, func: &Function) -> LoopInfo {
         let mut info = LoopInfo::default();
 
         self.cfg = Some(CfgInfo::new(func));
+        self.inst_blocks = index_vec![None; func.num_insts()];
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                self.inst_blocks[inst_id] = Some(block_id);
+            }
+        }
         let loops = self.find_natural_loops(func);
 
         for mut loop_info in loops {
@@ -134,6 +149,7 @@ impl LoopAnalyzer {
                             preheader: None,
                             induction_vars: Vec::new(),
                             invariant_insts: DenseBitSet::new_empty(func.num_insts()),
+                            instructions: DenseBitSet::new_empty(func.num_insts()),
                             trip_count: None,
                             trip_guard_is_header: false,
                         });
@@ -294,17 +310,16 @@ impl LoopAnalyzer {
     }
 
     fn find_invariant_instructions(&self, func: &Function, loop_info: &mut Loop) {
-        let mut loop_insts = DenseBitSet::new_empty(func.num_insts());
         for block in &loop_info.blocks {
             for &inst_id in &func.blocks[block].instructions {
-                loop_insts.insert(inst_id);
+                loop_info.instructions.insert(inst_id);
             }
         }
 
         let mut users = index_vec![Vec::new(); func.values.len()];
         let mut remaining = index_vec![usize::MAX; func.num_insts()];
         let mut ready = Vec::new();
-        for inst_id in &loop_insts {
+        for inst_id in &loop_info.instructions {
             let inst = func.inst(inst_id);
             if inst.kind.has_side_effects() || matches!(inst.kind, InstKind::Phi(_)) {
                 continue;
@@ -314,7 +329,7 @@ impl LoopAnalyzer {
             for operand in inst.kind.operands() {
                 let invariant = match func.value(operand) {
                     Value::Immediate(_) | Value::Arg { .. } => true,
-                    Value::Inst(def) => !loop_insts.contains(*def),
+                    Value::Inst(def) => !loop_info.instructions.contains(*def),
                     Value::Undef(_) | Value::Error(_) => false,
                 };
                 if !invariant {
