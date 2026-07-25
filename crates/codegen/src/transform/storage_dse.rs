@@ -166,16 +166,8 @@ impl StorageStoreEliminator {
 
     /// Runs local storage DSE to a fixed point.
     fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
-        let mut total = 0;
         let mut state = RunState::new(func);
-        loop {
-            let eliminated = self.run_with_state(func, &mut state);
-            if eliminated == 0 {
-                break;
-            }
-            total += eliminated;
-        }
-        total
+        self.run_with_state(func, &mut state)
     }
 
     fn remove_overwritten_stores(
