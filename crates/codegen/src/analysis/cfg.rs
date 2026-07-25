@@ -202,7 +202,7 @@ impl CfgInfo {
     /// Returns immediate-dominator information.
     #[must_use]
     pub(crate) fn dominators(&self) -> &DominatorTree {
-        self.dominators.get_or_init(|| DominatorTree::compute(&self.successors, self.rpo()))
+        self.dominators.get_or_init(|| DominatorTree::compute(&self.successors))
     }
 
     /// Returns block-to-block reachability through at least one CFG edge.
@@ -338,10 +338,12 @@ impl TransitiveReachability {
 pub(crate) struct DominatorTree {
     idoms: IndexVec<BlockId, Option<BlockId>>,
     children: IndexVec<BlockId, Vec<BlockId>>,
+    preorder: IndexVec<BlockId, usize>,
+    subtree_end: IndexVec<BlockId, usize>,
 }
 
 impl DominatorTree {
-    fn compute(successors: &IndexVec<BlockId, SmallVec<[BlockId; 2]>>, rpo: &[BlockId]) -> Self {
+    fn compute(successors: &IndexVec<BlockId, SmallVec<[BlockId; 2]>>) -> Self {
         let block_count = successors.len();
         let mut predecessors = index_vec![Vec::new(); block_count];
         for (block, block_successors) in successors.iter_enumerated() {
@@ -349,38 +351,85 @@ impl DominatorTree {
                 predecessors[successor].push(block);
             }
         }
-        let mut rpo_numbers = index_vec![usize::MAX; block_count];
-        for (number, &block) in rpo.iter().enumerate() {
-            rpo_numbers[block] = number;
+
+        // Build the DFS spanning tree used by Lengauer-Tarjan.
+        let mut blocks = Vec::with_capacity(block_count);
+        let mut block_preorders = index_vec![usize::MAX; block_count];
+        let mut parents = Vec::with_capacity(block_count);
+        let mut stack = vec![(BlockId::ENTRY, 0usize)];
+        blocks.push(BlockId::ENTRY);
+        block_preorders[BlockId::ENTRY] = 0;
+        parents.push(0);
+        while let Some((block, next_successor)) = stack.last_mut() {
+            if let Some(&successor) = successors[*block].get(*next_successor) {
+                *next_successor += 1;
+                if block_preorders[successor] == usize::MAX {
+                    let preorder = blocks.len();
+                    blocks.push(successor);
+                    block_preorders[successor] = preorder;
+                    parents.push(block_preorders[*block]);
+                    stack.push((successor, 0));
+                }
+            } else {
+                stack.pop();
+            }
+        }
+
+        // Compute semidominators and partial immediate dominators with the
+        // link-eval forest, then resolve the remaining relative dominators.
+        let reachable = blocks.len();
+        let mut immediate_dominators = vec![0usize; reachable];
+        let mut semidominators = (0..reachable).collect::<Vec<_>>();
+        let mut labels = semidominators.clone();
+        let mut ancestors = vec![usize::MAX; reachable];
+        let mut buckets = vec![Vec::new(); reachable];
+        let mut eval_stack = Vec::new();
+        for block_preorder in (1..reachable).rev() {
+            for &predecessor in &predecessors[blocks[block_preorder]] {
+                let predecessor = block_preorders[predecessor];
+                if predecessor == usize::MAX {
+                    continue;
+                }
+                let evaluated = Self::eval(
+                    predecessor,
+                    &mut ancestors,
+                    &semidominators,
+                    &mut labels,
+                    &mut eval_stack,
+                );
+                semidominators[block_preorder] =
+                    semidominators[block_preorder].min(semidominators[evaluated]);
+            }
+
+            buckets[semidominators[block_preorder]].push(block_preorder);
+            let parent = parents[block_preorder];
+            ancestors[block_preorder] = parent;
+            for pending in std::mem::take(&mut buckets[parent]) {
+                let evaluated = Self::eval(
+                    pending,
+                    &mut ancestors,
+                    &semidominators,
+                    &mut labels,
+                    &mut eval_stack,
+                );
+                immediate_dominators[pending] =
+                    if semidominators[evaluated] < semidominators[pending] {
+                        evaluated
+                    } else {
+                        parent
+                    };
+            }
+        }
+        for block_preorder in 1..reachable {
+            if immediate_dominators[block_preorder] != semidominators[block_preorder] {
+                immediate_dominators[block_preorder] =
+                    immediate_dominators[immediate_dominators[block_preorder]];
+            }
         }
 
         let mut idoms = index_vec![None; block_count];
-        idoms[BlockId::ENTRY] = Some(BlockId::ENTRY);
-        let mut changed = true;
-        while changed {
-            changed = false;
-            for &block in rpo {
-                let block_predecessors = &predecessors[block];
-                if block_predecessors.is_empty() {
-                    continue;
-                }
-                let mut new_idom: Option<BlockId> = None;
-                for &pred in block_predecessors {
-                    if idoms[pred].is_none() {
-                        continue;
-                    }
-                    new_idom = Some(match new_idom {
-                        None => pred,
-                        Some(current) => Self::intersect(&idoms, &rpo_numbers, pred, current),
-                    });
-                }
-                if let Some(new_idom) = new_idom
-                    && idoms[block] != Some(new_idom)
-                {
-                    idoms[block] = Some(new_idom);
-                    changed = true;
-                }
-            }
+        for (block_preorder, &block) in blocks.iter().enumerate() {
+            idoms[block] = Some(blocks[immediate_dominators[block_preorder]]);
         }
 
         let mut children = index_vec![Vec::new(); block_count];
@@ -395,25 +444,50 @@ impl DominatorTree {
             children.sort_by_key(|block| block.index());
         }
 
-        Self { idoms, children }
-    }
-
-    fn intersect(
-        idoms: &IndexVec<BlockId, Option<BlockId>>,
-        rpo_numbers: &IndexVec<BlockId, usize>,
-        a: BlockId,
-        b: BlockId,
-    ) -> BlockId {
-        let (mut a, mut b) = (a, b);
-        while a != b {
-            while rpo_numbers[a] > rpo_numbers[b] {
-                a = idoms[a].expect("processed block has an immediate dominator");
-            }
-            while rpo_numbers[b] > rpo_numbers[a] {
-                b = idoms[b].expect("processed block has an immediate dominator");
+        let mut preorder = index_vec![usize::MAX; block_count];
+        let mut subtree_end = index_vec![usize::MAX; block_count];
+        let mut next_preorder = 0;
+        let mut stack = vec![(BlockId::ENTRY, 0usize)];
+        preorder[BlockId::ENTRY] = next_preorder;
+        next_preorder += 1;
+        while let Some((block, next_child)) = stack.last_mut() {
+            if let Some(&child) = children[*block].get(*next_child) {
+                *next_child += 1;
+                preorder[child] = next_preorder;
+                next_preorder += 1;
+                stack.push((child, 0));
+            } else {
+                subtree_end[*block] = next_preorder;
+                stack.pop();
             }
         }
-        a
+
+        Self { idoms, children, preorder, subtree_end }
+    }
+
+    /// Returns the label with the lowest semidominator on `node`'s compressed
+    /// ancestor path.
+    fn eval(
+        node: usize,
+        ancestors: &mut [usize],
+        semidominators: &[usize],
+        labels: &mut [usize],
+        stack: &mut Vec<usize>,
+    ) -> usize {
+        stack.clear();
+        let mut current = node;
+        while ancestors[current] != usize::MAX && ancestors[ancestors[current]] != usize::MAX {
+            stack.push(current);
+            current = ancestors[current];
+        }
+        while let Some(current) = stack.pop() {
+            let ancestor = ancestors[current];
+            if semidominators[labels[ancestor]] < semidominators[labels[current]] {
+                labels[current] = labels[ancestor];
+            }
+            ancestors[current] = ancestors[ancestor];
+        }
+        labels[node]
     }
 
     /// Returns the immediate dominator of `block`, if reachable.
@@ -425,16 +499,13 @@ impl DominatorTree {
     /// Returns true if `dominator` dominates `block`.
     #[must_use]
     pub(crate) fn dominates(&self, dominator: BlockId, block: BlockId) -> bool {
-        let mut current = block;
-        loop {
-            if current == dominator {
-                return true;
-            }
-            match self.idom(current) {
-                Some(idom) if idom != current => current = idom,
-                _ => return false,
-            }
+        if dominator == block {
+            return true;
         }
+        let start = self.preorder[dominator];
+        start != usize::MAX
+            && start <= self.preorder[block]
+            && self.preorder[block] < self.subtree_end[dominator]
     }
 
     /// Returns dominator-tree children of `block`.
