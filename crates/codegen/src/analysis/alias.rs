@@ -18,6 +18,7 @@ use crate::{
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
+    index::index_vec,
     map::{FxHashMap, FxHashSet},
 };
 use std::{cell::RefCell, collections::VecDeque, sync::Arc};
@@ -586,54 +587,60 @@ impl AliasAnalysis {
     /// Unsupported uses stay conservative.
     #[must_use]
     pub(crate) fn value_escapes(&self, func: &Function, root: ValueId) -> bool {
-        let mut derived = FxHashSet::default();
-        derived.insert(root);
-        loop {
-            let mut changed = false;
-            for (value_id, value) in func.values.iter_enumerated() {
-                let Value::Inst(inst_id) = value else { continue };
-                let propagates = match &func.inst(*inst_id).kind {
-                    InstKind::Add(first, second)
-                    | InstKind::Sub(first, second)
-                    | InstKind::MakeSlice { ptr: first, len: second, .. } => {
-                        derived.contains(first) || derived.contains(second)
-                    }
-                    InstKind::Phi(incoming) => {
-                        incoming.iter().any(|(_, value)| derived.contains(value))
-                    }
-                    InstKind::Select(_, first, second) => {
-                        derived.contains(first) || derived.contains(second)
-                    }
-                    InstKind::SlicePtr(value)
-                    | InstKind::MemoryObjectData(value, _)
-                    | InstKind::MemoryObjectFieldAddr { object: value, .. } => {
-                        derived.contains(value)
-                    }
-                    InstKind::MemoryObjectElementAddr { object, .. } => derived.contains(object),
-                    _ => false,
-                };
-                if propagates && derived.insert(value_id) {
-                    changed = true;
+        let mut propagating_users = index_vec![Vec::new(); func.values.len()];
+        for inst_id in func.instructions() {
+            let Some(result) = func.inst_result_value(inst_id) else { continue };
+            match &func.inst(inst_id).kind {
+                InstKind::Add(first, second)
+                | InstKind::Sub(first, second)
+                | InstKind::MakeSlice { ptr: first, len: second, .. } => {
+                    propagating_users[*first].push(result);
+                    propagating_users[*second].push(result);
                 }
-            }
-            if !changed {
-                break;
+                InstKind::Phi(incoming) => {
+                    for &(_, value) in incoming {
+                        propagating_users[value].push(result);
+                    }
+                }
+                InstKind::Select(_, first, second) => {
+                    propagating_users[*first].push(result);
+                    propagating_users[*second].push(result);
+                }
+                InstKind::SlicePtr(value)
+                | InstKind::MemoryObjectData(value, _)
+                | InstKind::MemoryObjectFieldAddr { object: value, .. } => {
+                    propagating_users[*value].push(result);
+                }
+                InstKind::MemoryObjectElementAddr { object, .. } => {
+                    propagating_users[*object].push(result);
+                }
+                _ => {}
             }
         }
 
-        for block in &func.blocks {
-            for &inst_id in &block.instructions {
-                let kind = &func.inst(inst_id).kind;
-                for operand in kind.operands() {
-                    if derived.contains(&operand) && self.instruction_operand_escapes(kind, operand)
-                    {
-                        return true;
-                    }
+        let mut derived = DenseBitSet::new_empty(func.values.len());
+        derived.insert(root);
+        let mut pending = vec![root];
+        while let Some(value) = pending.pop() {
+            for &user in &propagating_users[value] {
+                if derived.insert(user) {
+                    pending.push(user);
                 }
             }
+        }
+
+        for inst_id in func.instructions() {
+            let kind = &func.inst(inst_id).kind;
+            for operand in kind.operands() {
+                if derived.contains(operand) && self.instruction_operand_escapes(kind, operand) {
+                    return true;
+                }
+            }
+        }
+        for block in &func.blocks {
             if let Some(terminator) = &block.terminator {
                 for operand in terminator.operands() {
-                    if !derived.contains(&operand) {
+                    if !derived.contains(operand) {
                         continue;
                     }
                     match terminator {

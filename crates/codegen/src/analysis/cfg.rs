@@ -26,6 +26,7 @@ pub(crate) struct CfgInfo {
     successors: IndexVec<BlockId, SmallVec<[BlockId; 2]>>,
     reachable: OnceCell<DenseBitSet<BlockId>>,
     rpo: OnceCell<Vec<BlockId>>,
+    cyclic_blocks: OnceCell<DenseBitSet<BlockId>>,
     dominators: OnceCell<DominatorTree>,
     transitive_reachability: OnceCell<TransitiveReachability>,
 }
@@ -45,6 +46,7 @@ impl CfgInfo {
             successors,
             reachable: OnceCell::new(),
             rpo: OnceCell::new(),
+            cyclic_blocks: OnceCell::new(),
             dominators: OnceCell::new(),
             transitive_reachability: OnceCell::new(),
         }
@@ -130,6 +132,70 @@ impl CfgInfo {
             rpo.reverse();
             let _ = self.reachable.set(reachable);
             rpo
+        })
+    }
+
+    /// Returns blocks that belong to a control-flow cycle.
+    #[must_use]
+    pub(crate) fn cyclic_blocks(&self) -> &DenseBitSet<BlockId> {
+        self.cyclic_blocks.get_or_init(|| {
+            let block_count = self.successors.len();
+            let mut predecessors = index_vec![Vec::new(); block_count];
+            for (block, successors) in self.successors.iter_enumerated() {
+                for &successor in successors {
+                    predecessors[successor].push(block);
+                }
+            }
+
+            let mut visited = DenseBitSet::new_empty(block_count);
+            let mut postorder = Vec::with_capacity(block_count);
+            let mut stack = Vec::new();
+            for root in self.successors.indices() {
+                if !visited.insert(root) {
+                    continue;
+                }
+                stack.push((root, 0));
+                while let Some((block, next)) = stack.last_mut() {
+                    if let Some(&successor) = self.successors[*block].get(*next) {
+                        *next += 1;
+                        if visited.insert(successor) {
+                            stack.push((successor, 0));
+                        }
+                    } else {
+                        postorder.push(*block);
+                        stack.pop();
+                    }
+                }
+            }
+
+            let mut assigned = DenseBitSet::new_empty(block_count);
+            let mut cyclic = DenseBitSet::new_empty(block_count);
+            let mut component = Vec::new();
+            for root in postorder.into_iter().rev() {
+                if !assigned.insert(root) {
+                    continue;
+                }
+                component.clear();
+                component.push(root);
+                stack.push((root, 0));
+                while let Some((block, next)) = stack.last_mut() {
+                    if let Some(&predecessor) = predecessors[*block].get(*next) {
+                        *next += 1;
+                        if assigned.insert(predecessor) {
+                            component.push(predecessor);
+                            stack.push((predecessor, 0));
+                        }
+                    } else {
+                        stack.pop();
+                    }
+                }
+                if component.len() > 1 || self.successors[root].contains(&root) {
+                    for &block in &component {
+                        cyclic.insert(block);
+                    }
+                }
+            }
+            cyclic
         })
     }
 

@@ -22,7 +22,7 @@ use crate::{
     pass::MirPass,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{index::index_vec, map::FxHashMap};
 use std::sync::Arc;
 
 /// Pass that places provably local allocations statically.
@@ -133,9 +133,7 @@ fn eligible_static_allocations(func: &Function, aa: &AliasAnalysis) -> Vec<Stati
         return Vec::new();
     }
 
-    let inst_results = func.inst_results();
     let cfg = CfgInfo::new(func);
-    let mut cyclic = FxHashMap::default();
     let mut candidates = Vec::new();
     for block in func.blocks.indices() {
         for &alloc in &func.blocks[block].instructions {
@@ -150,11 +148,12 @@ fn eligible_static_allocations(func: &Function, aa: &AliasAnalysis) -> Vec<Stati
                 || size > 0x1000
                 || !size.is_multiple_of(32)
                 || !cfg.is_reachable(block)
-                || *cyclic.entry(block).or_insert_with(|| block_in_cycle(func, block))
+                || cfg.cyclic_blocks().contains(block)
             {
                 continue;
             }
-            let candidate = StaticAllocCandidate { block, alloc, ptr: inst_results[&alloc], size };
+            let Some(ptr) = func.inst_result_value(alloc) else { continue };
+            let candidate = StaticAllocCandidate { block, alloc, ptr, size };
             if !aa.value_escapes(func, candidate.ptr) && candidate_uses_are_safe(func, &candidate) {
                 candidates.push(candidate);
             }
@@ -167,61 +166,38 @@ fn has_msize(func: &Function) -> bool {
     func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize))
 }
 
-/// Returns true when `block` can execute more than once: it can reach itself.
-fn block_in_cycle(func: &Function, block: BlockId) -> bool {
-    let mut stack = vec![block];
-    let mut seen = DenseBitSet::new_empty(func.blocks.len());
-    while let Some(current) = stack.pop() {
-        let Some(term) = func.blocks[current].terminator.as_ref() else { continue };
-        for succ in term.successors() {
-            if succ == block {
-                return true;
-            }
-            if seen.insert(succ) {
-                stack.push(succ);
-            }
-        }
-    }
-    false
-}
-
 /// Verifies every use of the pointer stays in bounds and never escapes.
 fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool {
-    let inst_results = func.inst_results();
-
-    // In-bounds address derivations from the pointer, to a fixpoint so
-    // definition order does not matter.
+    // Discover in-bounds address derivations from the pointer through def-use
+    // edges so definition order does not matter.
+    let mut add_users = index_vec![Vec::new(); func.values.len()];
+    for inst_id in func.instructions() {
+        if let InstKind::Add(a, b) = func.inst(inst_id).kind {
+            add_users[a].push(inst_id);
+            add_users[b].push(inst_id);
+        }
+    }
     let mut derived: FxHashMap<ValueId, u64> = FxHashMap::default();
     derived.insert(cand.ptr, 0);
-    loop {
-        let mut grew = false;
-        for inst_id in func.instructions() {
-            if let InstKind::Add(a, b) = func.inst(inst_id).kind
-                && let Some(&result) = inst_results.get(&inst_id)
-                && !derived.contains_key(&result)
-            {
-                let (base, offset) = if derived.contains_key(&a) {
-                    (a, b)
-                } else if derived.contains_key(&b) {
-                    (b, a)
-                } else {
-                    continue;
-                };
-                let (Some(base_off), Some(off)) =
-                    (derived.get(&base).copied(), func.value_u64(offset))
-                else {
-                    return false;
-                };
-                let Some(total) = base_off.checked_add(off) else { return false };
-                if total >= cand.size {
-                    return false;
-                }
-                derived.insert(result, total);
-                grew = true;
+    let mut pending = vec![cand.ptr];
+    while let Some(value) = pending.pop() {
+        for &inst_id in &add_users[value] {
+            let Some(result) = func.inst_result_value(inst_id) else { continue };
+            if derived.contains_key(&result) {
+                continue;
             }
-        }
-        if !grew {
-            break;
+            let InstKind::Add(a, b) = func.inst(inst_id).kind else { continue };
+            let (base, offset) = if derived.contains_key(&a) { (a, b) } else { (b, a) };
+            let (Some(base_off), Some(off)) = (derived.get(&base).copied(), func.value_u64(offset))
+            else {
+                return false;
+            };
+            let Some(total) = base_off.checked_add(off) else { return false };
+            if total >= cand.size {
+                return false;
+            }
+            derived.insert(result, total);
+            pending.push(result);
         }
     }
 
@@ -262,7 +238,7 @@ fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool
                     // In-bounds derivations were collected above; anything
                     // else consuming an address is an escape.
                     InstKind::Add(_, _) => {
-                        inst_results.get(&inst_id).is_some_and(|r| derived.contains_key(r))
+                        func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))
                     }
                     _ => false,
                 };
