@@ -275,6 +275,24 @@ pub(crate) fn run_function_pass(
     changed
 }
 
+/// Runs a function-local transform that does not consume cached analyses.
+#[must_use]
+pub(crate) fn run_function_pass_no_analyses(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    mut run: impl FnMut(&mut Function) -> bool,
+) -> bool {
+    let mut changed = false;
+    for func_id in module.functions.indices() {
+        if module.functions[func_id].blocks.is_empty() {
+            continue;
+        }
+        changed |= run_function_pass_without_bundle(analyses, module, func_id, &mut run);
+    }
+    analyses.preserved_by_pass = true;
+    changed
+}
+
 /// Per-function analysis snapshots handed to a pass run.
 pub(crate) struct FunctionAnalyses {
     /// Shared alias analysis; provenance and address memos build lazily.
@@ -381,6 +399,28 @@ fn run_function_pass_cached(
     if changed {
         let (keep_alias, keep_cfg) = verified_preservation(func, &bundle.cfg, insts_before);
         analyses.retain(func_id, keep_alias, keep_cfg);
+    }
+    changed
+}
+
+#[must_use]
+fn run_function_pass_without_bundle(
+    analyses: &mut ModuleAnalyses,
+    module: &mut Module,
+    func_id: FunctionId,
+    run: &mut impl FnMut(&mut Function) -> bool,
+) -> bool {
+    let cfg_before = analyses.cfg.get(&func_id).cloned();
+    let func = &mut module.functions[func_id];
+    let insts_before = func.num_insts();
+    let changed = run(func);
+    if changed {
+        if let Some(cfg_before) = cfg_before {
+            let (keep_alias, keep_cfg) = verified_preservation(func, &cfg_before, insts_before);
+            analyses.retain(func_id, keep_alias, keep_cfg);
+        } else {
+            analyses.retain(func_id, false, false);
+        }
     }
     changed
 }

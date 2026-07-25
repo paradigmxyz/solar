@@ -22,7 +22,7 @@ use crate::{
         MemoryRegion, MirType, Module, StorageAlias, StorageLayoutRef, Terminator, Value, ValueId,
         utils::{TerminatorEdgeUpdate, apply_terminator_edge_updates, retain_blocks},
     },
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_no_analyses},
 };
 use smallvec::smallvec;
 use solar_data_structures::{
@@ -173,7 +173,7 @@ impl MirPass for CfgSimplify {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass_no_analyses(module, analyses, |func| {
             CfgSimplifier::new().run_to_fixpoint(func).total() != 0
         })
     }

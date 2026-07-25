@@ -19,7 +19,7 @@ use crate::{
         BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
         utils::{TerminatorEdgeUpdate, apply_terminator_edge_updates},
     },
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_no_analyses},
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::index_vec, map::FxHashMap};
 
@@ -37,7 +37,7 @@ impl MirPass for JumpThreading {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass_no_analyses(module, analyses, |func| {
             JumpThreader::new().run_to_fixpoint(func).total_threaded() != 0
         })
     }

@@ -20,7 +20,7 @@ use crate::{
         ValueId,
         utils::{self as mir_utils, TerminatorEdgeUpdate, apply_terminator_edge_updates},
     },
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_no_analyses},
     utils::evm_word,
 };
 use alloy_primitives::U256;
@@ -45,7 +45,7 @@ impl MirPass for Sccp {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| SccpCx::new().run(func) != 0)
+        run_function_pass_no_analyses(module, analyses, |func| SccpCx::new().run(func) != 0)
     }
 }
 

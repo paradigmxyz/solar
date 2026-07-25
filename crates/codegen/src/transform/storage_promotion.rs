@@ -21,7 +21,7 @@ use crate::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, StorageAlias,
         Terminator, Value, ValueId, utils as mir_utils,
     },
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_no_analyses},
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -40,7 +40,7 @@ impl MirPass for StorageScalarPromotion {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass_no_analyses(module, analyses, |func| {
             let mut promoter = StorageScalarPromoter::new();
             let stats = promoter.run(func);
             stats.loops_promoted + stats.loads_promoted + stats.stores_promoted != 0

@@ -13,7 +13,7 @@
 use crate::{
     analysis::LoopAnalyzer,
     mir::{BlockId, Function, InstId, InstKind, Instruction, Module, Terminator, Value, ValueId},
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_no_analyses},
 };
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -34,7 +34,7 @@ impl MirPass for LoopCanonicalize {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass_no_analyses(module, analyses, |func| {
             LoopCanonicalizer::new().run(func).total() != 0
         })
     }

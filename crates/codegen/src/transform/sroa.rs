@@ -21,7 +21,7 @@ use crate::{
     mir::{
         AllocationKind, BlockId, Function, InstId, InstKind, MemoryObjectLayout, Module, ValueId,
     },
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_no_analyses},
 };
 use solar_data_structures::{
     index::{IndexVec, index_vec},
@@ -42,7 +42,7 @@ impl MirPass for Sroa {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| SroaCx::default().run(func))
+        run_function_pass_no_analyses(module, analyses, |func| SroaCx::default().run(func))
     }
 }
 

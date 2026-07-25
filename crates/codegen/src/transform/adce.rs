@@ -7,7 +7,7 @@
 
 use crate::{
     mir::{BlockId, Function, Module, Terminator, Value, ValueId, utils::remove_predecessors},
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_no_analyses},
 };
 use smallvec::SmallVec;
 use solar_data_structures::{
@@ -30,7 +30,7 @@ impl MirPass for Adce {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass_no_analyses(module, analyses, |func| {
             AggressiveDeadCodeEliminator::new().run(func).total() != 0
         })
     }

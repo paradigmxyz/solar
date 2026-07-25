@@ -7,7 +7,7 @@ use crate::{
     mir::{
         BlockId, Function, InstId, Module, Terminator, Value, ValueId, utils::remove_predecessors,
     },
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_no_analyses},
 };
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -29,7 +29,7 @@ impl MirPass for Dce {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass_no_analyses(module, analyses, |func| {
             let mut eliminator = DeadCodeEliminator::new();
             eliminator.run_to_fixpoint(func) != 0
         })
