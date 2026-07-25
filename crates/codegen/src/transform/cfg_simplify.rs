@@ -27,7 +27,7 @@ use crate::{
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
-    map::FxHashMap,
+    map::{FxHashMap, FxHashSet},
 };
 
 type SwitchTargetIndex = IndexVec<BlockId, Option<FxHashMap<BlockId, Vec<usize>>>>;
@@ -237,11 +237,19 @@ impl CfgSimplifier {
             }
         }
 
+        if merges.is_empty() {
+            return;
+        }
+
+        let mut predecessor_edges = FxHashSet::default();
+        for (block, basic_block) in func.blocks.iter_enumerated() {
+            predecessor_edges.extend(basic_block.predecessors.iter().map(|&pred| (pred, block)));
+        }
         for (dup, keep) in merges {
             let predecessors = func.unique_predecessors(dup);
             for pred in predecessors {
                 self.redirect_terminator(func, pred, dup, keep);
-                if !func.blocks[keep].predecessors.contains(&pred) {
+                if predecessor_edges.insert((pred, keep)) {
                     func.blocks[keep].predecessors.push(pred);
                 }
             }
