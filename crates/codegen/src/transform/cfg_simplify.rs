@@ -26,7 +26,7 @@ use crate::{
 };
 use smallvec::smallvec;
 use solar_data_structures::{
-    bit_set::DenseBitSet,
+    bit_set::{DenseBitSet, GrowableBitSet},
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
@@ -302,6 +302,8 @@ impl CfgSimplifyStats {
 struct CfgSimplifier {
     /// Statistics from the last run.
     stats: CfgSimplifyStats,
+    /// Reused while deduplicating phi predecessors after block merges.
+    seen_predecessors: GrowableBitSet<BlockId>,
 }
 
 impl CfgSimplifier {
@@ -669,7 +671,7 @@ impl CfgSimplifier {
 
     /// Merges block_id with target, appending target's instructions and terminator to block_id.
     fn do_merge(
-        &self,
+        &mut self,
         func: &mut Function,
         block_id: BlockId,
         target: BlockId,
@@ -919,14 +921,17 @@ impl CfgSimplifier {
     }
 
     fn redirect_target_phi_incoming(
-        &self,
+        &mut self,
         func: &mut Function,
         old_pred: BlockId,
         target: BlockId,
         new_preds: &[BlockId],
     ) {
+        if !func.block_has_phi(target) {
+            return;
+        }
+
         let instruction_count = func.blocks[target].instructions.len();
-        let mut seen = DenseBitSet::new_empty(func.blocks.len());
         for index in 0..instruction_count {
             let inst_id = func.blocks[target].instructions[index];
             let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind else {
@@ -944,8 +949,8 @@ impl CfgSimplifier {
             }
             // The safety check guarantees colliding entries carry equal values;
             // keep one entry per predecessor block.
-            seen.clear();
-            rewritten.retain(|&(pred, _)| seen.insert(pred));
+            self.seen_predecessors.clear();
+            rewritten.retain(|&(pred, _)| self.seen_predecessors.insert(pred));
             *incoming = rewritten;
         }
     }
