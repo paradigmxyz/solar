@@ -8,6 +8,7 @@ use crate::{
     mir::{BlockId, Function, InstId, InstKind, Module, StorageAlias, ValueId, utils as mir_utils},
     pass::{AnalysisManager, LivenessAnalysis, MirPass, run_function_pass},
 };
+use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use std::rc::Rc;
 
@@ -44,7 +45,7 @@ struct StorageLoadCseCx {
 struct RunState {
     replacements: FxHashMap<ValueId, ValueId>,
     dead: DenseBitSet<InstId>,
-    cached_loads: FxHashMap<StorageAlias, ValueId>,
+    cached_loads: CachedStorageLoads,
 }
 
 impl RunState {
@@ -52,7 +53,77 @@ impl RunState {
         Self {
             replacements: FxHashMap::default(),
             dead: DenseBitSet::new_empty(func.num_insts()),
-            cached_loads: FxHashMap::default(),
+            cached_loads: CachedStorageLoads::default(),
+        }
+    }
+}
+
+/// Groups symbolic load aliases by base so writes only inspect aliases they can preserve.
+#[derive(Debug, Default)]
+struct CachedStorageLoads {
+    slots: FxHashMap<U256, ValueId>,
+    symbolic: FxHashMap<ValueId, FxHashMap<StorageAlias, ValueId>>,
+}
+
+impl CachedStorageLoads {
+    fn clear(&mut self) {
+        self.slots.clear();
+        self.symbolic.clear();
+    }
+
+    fn get(&self, alias: StorageAlias) -> Option<&ValueId> {
+        match alias {
+            StorageAlias::Slot(slot) => self.slots.get(&slot),
+            alias => self.symbolic.get(&alias.symbolic_base()?)?.get(&alias),
+        }
+    }
+
+    fn insert(&mut self, alias: StorageAlias, value: ValueId) {
+        match alias {
+            StorageAlias::Slot(slot) => {
+                self.slots.insert(slot, value);
+            }
+            alias => {
+                let base = alias.symbolic_base().expect("symbolic alias has a base");
+                self.symbolic.entry(base).or_default().insert(alias, value);
+            }
+        }
+    }
+
+    fn remove_aliasing(&mut self, alias: StorageAlias) {
+        match alias {
+            StorageAlias::Slot(slot) => {
+                self.slots.remove(&slot);
+                self.symbolic.clear();
+            }
+            StorageAlias::Symbolic(base) => {
+                self.slots.clear();
+                let Some(mut aliases) = self.symbolic.remove(&base) else {
+                    self.symbolic.clear();
+                    return;
+                };
+                self.symbolic.clear();
+                aliases.remove(&StorageAlias::Symbolic(base));
+                aliases.remove(&StorageAlias::Offset { base, offset: U256::ZERO });
+                if !aliases.is_empty() {
+                    self.symbolic.insert(base, aliases);
+                }
+            }
+            StorageAlias::Offset { base, offset } => {
+                self.slots.clear();
+                let Some(mut aliases) = self.symbolic.remove(&base) else {
+                    self.symbolic.clear();
+                    return;
+                };
+                self.symbolic.clear();
+                aliases.remove(&StorageAlias::Offset { base, offset });
+                if offset.is_zero() {
+                    aliases.remove(&StorageAlias::Symbolic(base));
+                }
+                if !aliases.is_empty() {
+                    self.symbolic.insert(base, aliases);
+                }
+            }
         }
     }
 }
@@ -126,7 +197,7 @@ impl StorageLoadCseCx {
                     let Some(result) = func.inst_result_value(inst_id) else {
                         continue;
                     };
-                    if let Some(&cached) = state.cached_loads.get(&alias) {
+                    if let Some(&cached) = state.cached_loads.get(alias) {
                         if !liveness.is_used_at_or_after(cached, block_id, inst_idx) {
                             state.cached_loads.insert(alias, result);
                             continue;
@@ -145,10 +216,7 @@ impl StorageLoadCseCx {
                         *slot,
                         &state.replacements,
                     );
-                    state.cached_loads.retain(|cached_alias, _| {
-                        !aa.alias(Location::Storage(*cached_alias), Location::Storage(alias))
-                            .may_alias()
-                    });
+                    state.cached_loads.remove_aliasing(alias);
                 }
                 _ => {
                     let effects = aa.instruction_mod_ref_with_replacements(
@@ -163,13 +231,7 @@ impl StorageLoadCseCx {
                                 break;
                             }
                             Access::Location(Location::Storage(alias)) => {
-                                state.cached_loads.retain(|cached_alias, _| {
-                                    !aa.alias(
-                                        Location::Storage(*cached_alias),
-                                        Location::Storage(alias),
-                                    )
-                                    .may_alias()
-                                });
+                                state.cached_loads.remove_aliasing(alias);
                             }
                             Access::Any(AddressSpace::Memory | AddressSpace::Transient)
                             | Access::Location(Location::Memory(_) | Location::Transient(_)) => {}
