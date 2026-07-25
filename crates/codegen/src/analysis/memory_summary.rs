@@ -7,6 +7,7 @@
 use super::{AddressSpace, AliasAnalysis};
 use crate::mir::{Function, FunctionId, InstKind, Module, Terminator, Value, ValueId};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
+use std::collections::VecDeque;
 
 /// Conservative memory effects and pointer captures for one MIR function.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -75,56 +76,62 @@ impl MemoryCallSummaries {
     /// Computes summaries to a monotone fixpoint over the module call graph.
     #[must_use]
     pub(crate) fn new(module: &Module) -> Self {
+        let function_count = module.functions.len();
+        let sources = module.functions.iter().map(parameter_sources).collect::<IndexVec<_, _>>();
         let mut local = IndexVec::with_capacity(module.functions.len());
-        for func in &module.functions {
-            local.push(local_summary(func));
+        for (func_id, func) in module.functions.iter_enumerated() {
+            local.push(local_summary(func, &sources[func_id]));
         }
         let mut summaries = local.clone();
 
-        loop {
-            let previous = summaries.clone();
-            for (func_id, func) in module.functions.iter_enumerated() {
-                if func.blocks.is_empty() {
-                    summaries[func_id] = FunctionMemorySummary::conservative(func.params.len());
-                    continue;
+        let mut callers = IndexVec::from_vec(vec![Vec::new(); function_count]);
+        for (caller, func) in module.functions.iter_enumerated() {
+            for inst_id in func.instructions() {
+                if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind
+                    && let Some(function_callers) = callers.get_mut(function)
+                {
+                    function_callers.push(caller);
                 }
-
-                let mut summary = local[func_id].clone();
-                let sources = parameter_sources(func);
-                for block in &func.blocks {
-                    for &inst_id in &block.instructions {
-                        if let InstKind::InternalCall { function, ref args, .. } =
-                            func.inst(inst_id).kind
-                        {
-                            let callee = previous
-                                .get(function)
-                                .cloned()
-                                .unwrap_or_else(|| FunctionMemorySummary::conservative(args.len()));
-                            summary.merge_effects(&callee);
-                            for (index, &arg) in args.iter().enumerate() {
-                                if callee.captures_param(index) {
-                                    capture_sources(&mut summary, &sources[arg]);
-                                }
-                            }
-                        }
-                    }
-                    if let Some(Terminator::TailCall { function, args }) = &block.terminator {
-                        let callee = previous
-                            .get(*function)
-                            .cloned()
-                            .unwrap_or_else(|| FunctionMemorySummary::conservative(args.len()));
-                        summary.merge_effects(&callee);
-                        for (index, &arg) in args.iter().enumerate() {
-                            if callee.captures_param(index) {
-                                capture_sources(&mut summary, &sources[arg]);
-                            }
-                        }
-                    }
-                }
-                summaries[func_id] = summary;
             }
-            if summaries == previous {
-                break;
+            for block in &func.blocks {
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator
+                    && let Some(function_callers) = callers.get_mut(*function)
+                {
+                    function_callers.push(caller);
+                }
+            }
+        }
+        for function_callers in &mut callers {
+            function_callers.sort_unstable();
+            function_callers.dedup();
+        }
+
+        let mut queued = DenseBitSet::new_filled(function_count);
+        let mut worklist = module.functions.indices().collect::<VecDeque<_>>();
+        while let Some(func_id) = worklist.pop_front() {
+            queued.remove(func_id);
+            let func = &module.functions[func_id];
+            let mut summary = local[func_id].clone();
+            for block in &func.blocks {
+                for &inst_id in &block.instructions {
+                    if let InstKind::InternalCall { function, ref args, .. } =
+                        func.inst(inst_id).kind
+                    {
+                        merge_call(&mut summary, summaries.get(function), args, &sources[func_id]);
+                    }
+                }
+                if let Some(Terminator::TailCall { function, args }) = &block.terminator {
+                    merge_call(&mut summary, summaries.get(*function), args, &sources[func_id]);
+                }
+            }
+
+            if summary != summaries[func_id] {
+                summaries[func_id] = summary;
+                for &caller in &callers[func_id] {
+                    if queued.insert(caller) {
+                        worklist.push_back(caller);
+                    }
+                }
             }
         }
 
@@ -146,13 +153,36 @@ const fn space_index(space: AddressSpace) -> usize {
     }
 }
 
-fn local_summary(func: &Function) -> FunctionMemorySummary {
+fn merge_call(
+    summary: &mut FunctionMemorySummary,
+    callee: Option<&FunctionMemorySummary>,
+    args: &[ValueId],
+    sources: &IndexVec<ValueId, DenseBitSet<usize>>,
+) {
+    let conservative;
+    let callee = if let Some(callee) = callee {
+        callee
+    } else {
+        conservative = FunctionMemorySummary::conservative(args.len());
+        &conservative
+    };
+    summary.merge_effects(callee);
+    for (index, &arg) in args.iter().enumerate() {
+        if callee.captures_param(index) {
+            capture_sources(summary, &sources[arg]);
+        }
+    }
+}
+
+fn local_summary(
+    func: &Function,
+    sources: &IndexVec<ValueId, DenseBitSet<usize>>,
+) -> FunctionMemorySummary {
     if func.blocks.is_empty() {
         return FunctionMemorySummary::conservative(func.params.len());
     }
 
     let mut summary = FunctionMemorySummary::empty(func.params.len());
-    let sources = parameter_sources(func);
     let aa = AliasAnalysis::new(func);
     for block in &func.blocks {
         for &inst_id in &block.instructions {
@@ -195,46 +225,61 @@ fn capture_sources(summary: &mut FunctionMemorySummary, sources: &DenseBitSet<us
 /// deliberately not guessed, and storing a parameter is already a capture.
 fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<usize>> {
     let params = func.params.len();
-    let mut sources = IndexVec::with_capacity(func.values.len());
-    for _ in 0..func.values.len() {
-        sources.push(DenseBitSet::new_empty(params));
+    let mut sources = IndexVec::from_vec(vec![DenseBitSet::new_empty(params); func.values.len()]);
+    if params == 0 {
+        return sources;
     }
+
+    let mut users = IndexVec::from_vec(vec![Vec::new(); func.values.len()]);
+    let mut queued = DenseBitSet::new_empty(func.values.len());
+    let mut worklist = VecDeque::new();
     for (value_id, value) in func.values.iter_enumerated() {
         if let Value::Arg { index, .. } = value
             && (*index as usize) < params
         {
             sources[value_id].insert(*index as usize);
+            queued.insert(value_id);
+            worklist.push_back(value_id);
         }
     }
 
-    loop {
-        let mut changed = false;
-        for (value_id, value) in func.values.iter_enumerated() {
-            let Value::Inst(inst_id) = value else { continue };
-            let operands = match &func.inst(*inst_id).kind {
-                InstKind::Add(first, second)
-                | InstKind::Sub(first, second)
-                | InstKind::MakeSlice { ptr: first, len: second, .. } => {
-                    vec![*first, *second]
-                }
-                InstKind::Select(_, first, second) => vec![*first, *second],
-                InstKind::Phi(incoming) => incoming.iter().map(|(_, value)| *value).collect(),
-                InstKind::SlicePtr(value)
-                | InstKind::MemoryObjectData(value, _)
-                | InstKind::MemoryObjectFieldAddr { object: value, .. } => vec![*value],
-                InstKind::MemoryObjectElementAddr { object, index, .. } => {
-                    vec![*object, *index]
-                }
-                _ => continue,
-            };
-            let mut propagated = DenseBitSet::new_empty(params);
-            for operand in operands {
-                propagated.union(&sources[operand]);
+    for inst_id in func.instructions() {
+        let Some(result) = func.inst_result_value(inst_id) else { continue };
+        let mut add_user = |operand: ValueId| users[operand].push(result);
+        match &func.inst(inst_id).kind {
+            InstKind::Add(first, second)
+            | InstKind::Sub(first, second)
+            | InstKind::MakeSlice { ptr: first, len: second, .. } => {
+                add_user(*first);
+                add_user(*second);
             }
-            changed |= sources[value_id].union(&propagated);
+            InstKind::Select(_, first, second) => {
+                add_user(*first);
+                add_user(*second);
+            }
+            InstKind::Phi(incoming) => {
+                for &(_, value) in incoming {
+                    add_user(value);
+                }
+            }
+            InstKind::SlicePtr(value)
+            | InstKind::MemoryObjectData(value, _)
+            | InstKind::MemoryObjectFieldAddr { object: value, .. } => add_user(*value),
+            InstKind::MemoryObjectElementAddr { object, index, .. } => {
+                add_user(*object);
+                add_user(*index);
+            }
+            _ => {}
         }
-        if !changed {
-            break;
+    }
+
+    while let Some(value) = worklist.pop_front() {
+        queued.remove(value);
+        let propagated = sources[value].clone();
+        for &user in &users[value] {
+            if sources[user].union(&propagated) && queued.insert(user) {
+                worklist.push_back(user);
+            }
         }
     }
     sources
