@@ -458,47 +458,57 @@ impl LowerSlicesCx {
             })
             .collect();
 
-        loop {
-            let mut removed = FxHashSet::default();
-            let mut seen = FxHashSet::default();
-            for (caller_id, caller) in module.functions.iter_enumerated() {
-                for inst_id in caller.instructions() {
-                    let inst = caller.inst(inst_id);
-                    let InstKind::InternalCall { function: callee, args, .. } = &inst.kind else {
+        let mut dependents = FxHashMap::<_, Vec<_>>::default();
+        let mut removed = FxHashSet::default();
+        let mut seen = FxHashSet::default();
+        for (caller_id, caller) in module.functions.iter_enumerated() {
+            for inst_id in caller.instructions() {
+                let inst = caller.inst(inst_id);
+                let InstKind::InternalCall { function: callee, args, .. } = &inst.kind else {
+                    continue;
+                };
+                for index in 0..module.function(*callee).params.len() {
+                    let candidate = (*callee, index);
+                    if !compact.contains(&candidate) {
+                        continue;
+                    }
+                    seen.insert(candidate);
+                    let Some(&arg) = args.get(index) else {
+                        removed.insert(candidate);
                         continue;
                     };
-                    for index in 0..module.function(*callee).params.len() {
-                        let candidate = (*callee, index);
-                        if !compact.contains(&candidate) {
-                            continue;
-                        }
-                        seen.insert(candidate);
-                        let Some(&arg) = args.get(index) else {
-                            removed.insert(candidate);
-                            continue;
-                        };
-                        let is_compact = match caller.value(arg) {
-                            Value::Arg {
-                                index: source,
-                                ty: MirType::Slice(SliceLocation::Calldata),
-                            } => {
-                                caller.selector.is_some()
-                                    || compact.contains(&(caller_id, *source as usize))
+                    match caller.value(arg) {
+                        Value::Arg { ty: MirType::Slice(SliceLocation::Calldata), .. }
+                            if caller.selector.is_some() => {}
+                        Value::Arg {
+                            index: source,
+                            ty: MirType::Slice(SliceLocation::Calldata),
+                        } => {
+                            let source = (caller_id, *source as usize);
+                            if compact.contains(&source) {
+                                dependents.entry(source).or_default().push(candidate);
+                            } else {
+                                removed.insert(candidate);
                             }
-                            _ => false,
-                        };
-                        if !is_compact {
+                        }
+                        _ => {
                             removed.insert(candidate);
                         }
                     }
                 }
             }
-            removed.extend(compact.iter().filter(|candidate| !seen.contains(candidate)).copied());
-            if removed.is_empty() {
-                return compact;
-            }
-            compact.retain(|candidate| !removed.contains(candidate));
         }
+        removed.extend(compact.iter().filter(|candidate| !seen.contains(candidate)).copied());
+
+        let mut pending: Vec<_> = removed.into_iter().collect();
+        while let Some(candidate) = pending.pop() {
+            if compact.remove(&candidate)
+                && let Some(candidate_dependents) = dependents.get(&candidate)
+            {
+                pending.extend(candidate_dependents);
+            }
+        }
+        compact
     }
 
     const fn is_slice(ty: &MirType) -> bool {
