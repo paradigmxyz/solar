@@ -1,7 +1,6 @@
 //! Compiler integration test support.
 //!
 //! `crates/solar/tests.rs` uses [`run_tests`] for the compiler test suites.
-//! `crates/solar/tests/it/foundry.rs` registers the tests backed by [`foundry`].
 
 #![allow(unreachable_pub)]
 
@@ -23,7 +22,7 @@ use ui_test::{
 };
 
 mod errors;
-pub mod foundry;
+mod foundry;
 mod solc;
 mod standard_json;
 mod utils;
@@ -34,6 +33,14 @@ mod utils;
 /// invokes it as `solar mir-opt …`; `Mode::EvmIr` invokes it as
 /// `solar evm-opt …`.
 pub fn run_tests(cmd: &'static Path) -> Result<()> {
+    if runs_foundry_mode() {
+        if std::env::args_os().any(|arg| arg == "--list") {
+            return Ok(());
+        }
+        foundry::run_default_suite(cmd);
+        return Ok(());
+    }
+
     ui_test::color_eyre::install()?;
 
     let mut args = ui_test::Args::test()?;
@@ -99,6 +106,10 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
     )?;
 
     Ok(())
+}
+
+fn runs_foundry_mode() -> bool {
+    std::env::var("TESTER_MODE").is_ok_and(|mode| mode.trim() == "foundry")
 }
 
 fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Config {

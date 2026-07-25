@@ -7,9 +7,8 @@ MIR, EVM IR, standard JSON, and upstream compatibility test runners. Run these
 suites through the `cargo tq` aliases, such as `cargo tq ui` or
 `cargo tq solc-solidity`.
 
-`crates/solar/tests/it/foundry.rs` registers the Foundry tests and delegates
-their implementation to `solar_tester::foundry`. Run them with:
+The same entry point runs the Foundry suite when `TESTER_MODE=foundry`. Use:
 
 ```console
-cargo test -p solar-compiler --test it foundry:: -- --test-threads=1
+cargo tq foundry
 ```
