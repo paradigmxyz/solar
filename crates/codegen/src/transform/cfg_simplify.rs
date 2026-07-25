@@ -15,7 +15,7 @@
 //! (public/external functions, constructor, fallback, receive).
 
 use crate::{
-    analysis::{CallGraphInfo, CfgInfo},
+    analysis::{CallGraphInfo, CfgInfo, may_have_cycle},
     mir::{
         AbiLayoutRef, AllocationKind, AllocationSemantics, BlockId, EffectKind, Function,
         FunctionId, Immediate, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout,
@@ -796,6 +796,10 @@ impl CfgSimplifier {
     }
 
     fn loop_preheader_forwarders(&self, func: &Function, cfg: &CfgInfo) -> DenseBitSet<BlockId> {
+        if !may_have_cycle(func) {
+            return DenseBitSet::new_empty(func.blocks.len());
+        }
+
         let mut first_backedge = index_vec![None; func.blocks.len()];
         let mut multiple_backedges = DenseBitSet::new_empty(func.blocks.len());
         for (target, block) in func.blocks.iter_enumerated() {
