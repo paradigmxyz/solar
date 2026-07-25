@@ -677,7 +677,6 @@ impl SccpCx {
         // replacement may allocate new ValueIds that don't have lattice entries.
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         let mut control_rewrites: Vec<(BlockId, BlockId)> = Vec::new();
-        let mut executable_successors = DenseBitSet::new_empty(func.blocks.len());
         for &block_id in &block_ids {
             if !executable_blocks.contains(block_id) {
                 continue;
@@ -689,14 +688,18 @@ impl SccpCx {
                 continue;
             }
 
-            executable_successors.clear();
+            let mut executable_target = None;
+            let mut has_multiple_targets = false;
             for successor in term.successors() {
                 if executable_edges.contains(&(block_id, successor)) {
-                    executable_successors.insert(successor);
+                    if executable_target.is_some_and(|target| target != successor) {
+                        has_multiple_targets = true;
+                        break;
+                    }
+                    executable_target = Some(successor);
                 }
             }
-            if executable_successors.count() == 1 {
-                let target = executable_successors.iter().next().expect("checked count");
+            if !has_multiple_targets && let Some(target) = executable_target {
                 control_rewrites.push((block_id, target));
             }
         }
@@ -722,19 +725,8 @@ impl SccpCx {
 
         // Phase 5: Apply branch/switch rewrites.
         for (block_id, target) in control_rewrites {
-            let old_successors = func.blocks[block_id]
-                .terminator
-                .as_ref()
-                .map(Terminator::successors)
-                .unwrap_or_default();
             let was_switch =
                 matches!(func.blocks[block_id].terminator, Some(Terminator::Switch { .. }));
-            for successor in old_successors {
-                func.blocks[successor].predecessors.retain(|pred| *pred != block_id);
-            }
-            if !func.blocks[target].predecessors.contains(&block_id) {
-                func.blocks[target].predecessors.push(block_id);
-            }
             func.blocks[block_id].terminator = Some(Terminator::Jump(target));
             if was_switch {
                 self.stats.switches_folded += 1;

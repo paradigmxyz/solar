@@ -13,6 +13,7 @@ use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
+    map::FxHashSet,
     newtype_index,
 };
 
@@ -76,16 +77,30 @@ impl CfgInfo {
     /// Returns whether every edge in `func` existed in the snapshot.
     #[must_use]
     pub(crate) fn contains_edges_of(&self, func: &Function) -> bool {
-        self.successors.len() == func.blocks.len()
-            && func.blocks.iter_enumerated().all(|(block, basic_block)| {
-                basic_block
-                    .terminator
-                    .as_ref()
-                    .map(|terminator| terminator.successors())
-                    .unwrap_or_default()
-                    .iter()
-                    .all(|successor| self.successors[block].contains(successor))
-            })
+        if self.successors.len() != func.blocks.len() {
+            return false;
+        }
+        let mut old_set = FxHashSet::default();
+        for (block, basic_block) in func.blocks.iter_enumerated() {
+            let current = basic_block
+                .terminator
+                .as_ref()
+                .map(|terminator| terminator.successors())
+                .unwrap_or_default();
+            let old = &self.successors[block];
+            if old.len() <= 4 {
+                if current.iter().any(|successor| !old.contains(successor)) {
+                    return false;
+                }
+            } else {
+                old_set.clear();
+                old_set.extend(old.iter().copied());
+                if current.iter().any(|successor| !old_set.contains(successor)) {
+                    return false;
+                }
+            }
+        }
+        true
     }
 
     /// Returns the blocks reachable from the entry.
