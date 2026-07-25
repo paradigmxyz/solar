@@ -11,11 +11,11 @@
 
 use crate::{
     analysis::Loop,
-    mir::{Function, InstKind, Value, ValueId},
+    mir::{BlockId, Function, InstId, InstKind, Value, ValueId},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{index::IndexVec, map::FxHashMap};
 
 /// One affine induction-variable term.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -111,8 +111,9 @@ impl ScalarEvolution {
     #[must_use]
     pub(crate) fn analyze(func: &Function, loop_data: &Loop) -> Self {
         let mut analysis = Self::default();
+        let inst_blocks = func.inst_blocks();
         for value in func.values.indices() {
-            let _ = analysis.affine_expr(func, loop_data, value);
+            let _ = analysis.affine_expr(func, loop_data, &inst_blocks, value);
         }
         analysis
     }
@@ -127,6 +128,7 @@ impl ScalarEvolution {
         &mut self,
         func: &Function,
         loop_data: &Loop,
+        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
         value: ValueId,
     ) -> Option<AffineExpr> {
         if let Some(expr) = self.expressions.get(&value) {
@@ -137,7 +139,7 @@ impl ScalarEvolution {
             Value::Immediate(imm) => AffineExpr::constant(u256_to_i128(imm.as_u256()?)?),
             Value::Arg { .. } => AffineExpr::base(value),
             Value::Undef(_) | Value::Error(_) => return None,
-            Value::Inst(_) if !value_defined_in_loop(func, value, loop_data) => {
+            Value::Inst(_) if !value_defined_in_loop(func, value, loop_data, inst_blocks) => {
                 AffineExpr::base(value)
             }
             Value::Inst(inst_id) => {
@@ -146,18 +148,18 @@ impl ScalarEvolution {
                 } else {
                     match func.inst(*inst_id).kind {
                         InstKind::Add(a, b) => {
-                            let a = self.affine_expr(func, loop_data, a)?;
-                            let b = self.affine_expr(func, loop_data, b)?;
+                            let a = self.affine_expr(func, loop_data, inst_blocks, a)?;
+                            let b = self.affine_expr(func, loop_data, inst_blocks, b)?;
                             a.add(b)?
                         }
                         InstKind::Sub(a, b) => {
-                            let a = self.affine_expr(func, loop_data, a)?;
-                            let b = self.affine_expr(func, loop_data, b)?;
+                            let a = self.affine_expr(func, loop_data, inst_blocks, a)?;
+                            let b = self.affine_expr(func, loop_data, inst_blocks, b)?;
                             a.sub(b)?
                         }
                         InstKind::Mul(a, b) => {
-                            let a_expr = self.affine_expr(func, loop_data, a);
-                            let b_expr = self.affine_expr(func, loop_data, b);
+                            let a_expr = self.affine_expr(func, loop_data, inst_blocks, a);
+                            let b_expr = self.affine_expr(func, loop_data, inst_blocks, b);
                             match (a_expr, b_expr) {
                                 (Some(expr), Some(scale))
                                     if scale.base.is_none() && scale.terms.is_empty() =>
@@ -173,13 +175,14 @@ impl ScalarEvolution {
                             }
                         }
                         InstKind::Shl(shift, value) => {
-                            let shift = self.affine_expr(func, loop_data, shift)?;
+                            let shift = self.affine_expr(func, loop_data, inst_blocks, shift)?;
                             if shift.base.is_some() || !shift.terms.is_empty() {
                                 return None;
                             }
                             let shift = u32::try_from(shift.constant).ok()?;
                             let scale = 1i128.checked_shl(shift)?;
-                            self.affine_expr(func, loop_data, value)?.mul_const(scale)?
+                            self.affine_expr(func, loop_data, inst_blocks, value)?
+                                .mul_const(scale)?
                         }
                         _ => return None,
                     }
@@ -192,9 +195,16 @@ impl ScalarEvolution {
     }
 }
 
-fn value_defined_in_loop(func: &Function, value: ValueId, loop_data: &Loop) -> bool {
+fn value_defined_in_loop(
+    func: &Function,
+    value: ValueId,
+    loop_data: &Loop,
+    inst_blocks: &IndexVec<InstId, Option<BlockId>>,
+) -> bool {
     match func.value(value) {
-        Value::Inst(inst_id) => loop_data.instructions.contains(*inst_id),
+        Value::Inst(inst_id) => {
+            inst_blocks[*inst_id].is_some_and(|block| loop_data.blocks.contains(block))
+        }
         Value::Undef(_) | Value::Error(_) => true,
         Value::Arg { .. } | Value::Immediate(_) => false,
     }
