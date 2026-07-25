@@ -82,7 +82,7 @@ use crate::{
         MemoryRegion, MirType, Module, StorageAlias, Terminator, Value, ValueId,
         utils as mir_utils,
     },
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_filtered},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -109,12 +109,29 @@ impl MirPass for LoadPre {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
-            let mut eliminator = LoadRedundancyEliminator::new();
-            eliminator.alias = Some(Rc::clone(&analyses.alias));
-            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
-            eliminator.run(func).total() != 0
-        })
+        run_function_pass_filtered(
+            module,
+            analyses,
+            |_, func| {
+                func.instructions().any(|inst_id| {
+                    matches!(
+                        func.inst(inst_id).kind,
+                        InstKind::SLoad(_)
+                            | InstKind::TLoad(_)
+                            | InstKind::MLoad(_)
+                            | InstKind::Fmp
+                            | InstKind::MemoryObjectLen(_, _)
+                            | InstKind::Keccak256(_, _)
+                    )
+                })
+            },
+            |func, analyses| {
+                let mut eliminator = LoadRedundancyEliminator::new();
+                eliminator.alias = Some(Rc::clone(&analyses.alias));
+                eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+                eliminator.run(func).total() != 0
+            },
+        )
     }
 }
 

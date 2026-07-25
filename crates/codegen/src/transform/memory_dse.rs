@@ -16,7 +16,7 @@ use crate::{
         BlockId, Function, Immediate, InstId, InstKind, MemoryObjectKind, Module, Terminator,
         Value, ValueId, utils as mir_utils,
     },
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_filtered},
 };
 use alloy_primitives::{U256, keccak256};
 use solar_data_structures::{
@@ -40,13 +40,36 @@ impl MirPass for MemoryDse {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
-            let mut eliminator = MemoryStoreEliminator::new();
-            eliminator.alias = Some(Rc::clone(&analyses.alias));
-            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
-            eliminator.run_to_fixpoint(func) != 0
-        })
+        run_function_pass_filtered(
+            module,
+            analyses,
+            |_, func| has_memory_writes(func),
+            |func, analyses| {
+                let mut eliminator = MemoryStoreEliminator::new();
+                eliminator.alias = Some(Rc::clone(&analyses.alias));
+                eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+                eliminator.run_to_fixpoint(func) != 0
+            },
+        )
     }
+}
+
+fn has_memory_writes(func: &Function) -> bool {
+    func.instructions().any(|inst_id| {
+        matches!(
+            func.inst(inst_id).kind,
+            InstKind::MStore(_, _)
+                | InstKind::MStore8(_, _)
+                | InstKind::MCopy(_, _, _)
+                | InstKind::CalldataCopy(_, _, _)
+                | InstKind::CodeCopy(_, _, _)
+                | InstKind::ReturnDataCopy(_, _, _)
+                | InstKind::ExtCodeCopy(_, _, _, _)
+                | InstKind::SetMemoryObjectLen(_, _, _)
+                | InstKind::StorageToMemory { .. }
+                | InstKind::AbiEncode { .. }
+        )
+    })
 }
 
 /// Local dead memory optimization.
@@ -249,28 +272,6 @@ impl MemoryStoreEliminator {
 
     fn run_with_scratch(&mut self, func: &mut Function, scratch: &mut BlockScratch) -> usize {
         self.eliminated_count = 0;
-
-        // Both store elimination and store-to-load forwarding need at least
-        // one memory write to act on; functions without any skip the whole
-        // scan and never build the alias snapshot.
-        let has_memory_writes = func.instructions().any(|inst_id| {
-            matches!(
-                func.inst(inst_id).kind,
-                InstKind::MStore(_, _)
-                    | InstKind::MStore8(_, _)
-                    | InstKind::MCopy(_, _, _)
-                    | InstKind::CalldataCopy(_, _, _)
-                    | InstKind::CodeCopy(_, _, _)
-                    | InstKind::ReturnDataCopy(_, _, _)
-                    | InstKind::ExtCodeCopy(_, _, _, _)
-                    | InstKind::SetMemoryObjectLen(_, _, _)
-                    | InstKind::StorageToMemory { .. }
-                    | InstKind::AbiEncode { .. }
-            )
-        });
-        if !has_memory_writes {
-            return 0;
-        }
 
         // Reuse one provenance snapshot across fixpoint iterations: removing
         // stores keeps the allocation facts conservative, so only the
