@@ -199,12 +199,11 @@ pub(crate) fn redirect_successor_predecessors(
         let instruction_count = func.blocks[successor].instructions.len();
         for index in 0..instruction_count {
             let inst_id = func.blocks[successor].instructions[index];
-            let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind else {
-                break;
-            };
-            for (predecessor, _) in incoming {
-                if *predecessor == old_predecessor {
-                    *predecessor = new_predecessor;
+            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind {
+                for (predecessor, _) in incoming {
+                    if *predecessor == old_predecessor {
+                        *predecessor = new_predecessor;
+                    }
                 }
             }
         }

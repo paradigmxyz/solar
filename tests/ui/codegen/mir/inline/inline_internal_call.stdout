@@ -14,6 +14,29 @@
 +     jump bb1
   }
   
+  fn @redirect_non_leading_phi(arg0: u256, arg1: bool) -> u256 {
+    bb0:
+-     v0 = internal_call @callee, 1, arg0
+-     jump bb1
++     jump bb5
+    bb1:
+      v1 = add arg0, 2
+-     v2 = phi [bb0: v0], [bb2: v3]
++     v2 = phi [bb4: v5], [bb2: v3]
+      jumpi arg1, bb2, bb3
+    bb2:
+      v3 = add v2, 1
+      jump bb1
+    bb3:
+      ret v2
++   bb4:
++     v5 = phi [bb5: v4]
++     jump bb1
++   bb5:
++     v4 = add arg0, 1
++     jump bb4
+  }
+  
   fn @callee(arg0: u256) -> u256 {
     bb0:
       v0 = add arg0, 1
