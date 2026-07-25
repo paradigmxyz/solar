@@ -18,7 +18,7 @@ use lsp_types::{
 };
 use std::{
     future::Future,
-    path::{Path, PathBuf},
+    path::Path,
     sync::{Barrier, mpsc as std_mpsc},
     task::{Context, Poll, Waker},
     time::{Duration, Instant},
@@ -165,7 +165,7 @@ fn analysis_result_accumulator_finishes_empty() {
 fn analysis_result_accumulator_preserves_single_batch_indexes() {
     let mut batch = analyze(AnalysisBatch::from_files(
         CompileOpts::default(),
-        [(PathBuf::from("/workspace/One.sol"), "contract One {}".into())],
+        [(std::env::temp_dir().join("One.sol"), "contract One {}".into())],
     ));
     let uri = diagnostic_uri();
     batch.diagnostics.insert(uri.clone(), vec![diagnostic("one")]);
@@ -196,11 +196,11 @@ fn analysis_result_accumulator_preserves_single_batch_indexes() {
 fn analysis_result_accumulator_merges_multiple_batches() {
     let mut first = analyze(AnalysisBatch::from_files(
         CompileOpts::default(),
-        [(PathBuf::from("/workspace/One.sol"), "contract One {}".into())],
+        [(std::env::temp_dir().join("One.sol"), "contract One {}".into())],
     ));
     let mut second = analyze(AnalysisBatch::from_files(
         CompileOpts::default(),
-        [(PathBuf::from("/workspace/Two.sol"), "contract Two {}".into())],
+        [(std::env::temp_dir().join("Two.sol"), "contract Two {}".into())],
     ));
     let uri = diagnostic_uri();
     first.diagnostics.insert(uri.clone(), vec![diagnostic("first")]);
