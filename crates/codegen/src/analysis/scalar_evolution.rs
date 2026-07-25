@@ -194,10 +194,7 @@ impl ScalarEvolution {
 
 fn value_defined_in_loop(func: &Function, value: ValueId, loop_data: &Loop) -> bool {
     match func.value(value) {
-        Value::Inst(inst_id) => loop_data
-            .blocks
-            .iter()
-            .any(|block_id| func.blocks[block_id].instructions.contains(inst_id)),
+        Value::Inst(inst_id) => loop_data.instructions.contains(*inst_id),
         Value::Undef(_) | Value::Error(_) => true,
         Value::Arg { .. } | Value::Immediate(_) => false,
     }
