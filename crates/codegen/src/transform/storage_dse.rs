@@ -10,10 +10,8 @@ use crate::{
     mir::{BlockId, Function, InstId, InstKind, Module, StorageAlias, ValueId, utils as mir_utils},
     pass::{MirPass, run_function_pass},
 };
-use solar_data_structures::{
-    bit_set::DenseBitSet,
-    map::{FxHashMap, FxHashSet},
-};
+use alloy_primitives::U256;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use std::rc::Rc;
 
 /// Function pass for local dead storage-store elimination.
@@ -47,17 +45,70 @@ struct StorageStoreEliminator {
 }
 
 struct RunState {
-    later_writes: FxHashSet<StorageAlias>,
-    stored_values: FxHashMap<StorageAlias, ValueId>,
+    later_writes: StorageAliases<()>,
+    stored_values: StorageAliases<ValueId>,
     dead: DenseBitSet<InstId>,
 }
 
 impl RunState {
     fn new(func: &Function) -> Self {
         Self {
-            later_writes: FxHashSet::default(),
-            stored_values: FxHashMap::default(),
+            later_writes: StorageAliases::default(),
+            stored_values: StorageAliases::default(),
             dead: DenseBitSet::new_empty(func.num_insts()),
+        }
+    }
+}
+
+/// Separates exact slots, which only alias on equality, from symbolic aliases.
+#[derive(Debug)]
+struct StorageAliases<T> {
+    slots: FxHashMap<U256, T>,
+    symbolic: FxHashMap<StorageAlias, T>,
+}
+
+impl<T> Default for StorageAliases<T> {
+    fn default() -> Self {
+        Self { slots: FxHashMap::default(), symbolic: FxHashMap::default() }
+    }
+}
+
+impl<T> StorageAliases<T> {
+    fn clear(&mut self) {
+        self.slots.clear();
+        self.symbolic.clear();
+    }
+
+    fn get(&self, alias: StorageAlias) -> Option<&T> {
+        match alias {
+            StorageAlias::Slot(slot) => self.slots.get(&slot),
+            alias => self.symbolic.get(&alias),
+        }
+    }
+
+    fn insert(&mut self, alias: StorageAlias, value: T) {
+        match alias {
+            StorageAlias::Slot(slot) => {
+                self.slots.insert(slot, value);
+            }
+            alias => {
+                self.symbolic.insert(alias, value);
+            }
+        }
+    }
+
+    fn remove_aliasing(&mut self, aa: &AliasAnalysis, alias: StorageAlias) {
+        match alias {
+            StorageAlias::Slot(slot) => {
+                self.slots.remove(&slot);
+                self.symbolic.clear();
+            }
+            alias => {
+                self.slots.clear();
+                self.symbolic.retain(|cached, _| {
+                    !aa.alias(Location::Storage(*cached), Location::Storage(alias)).may_alias()
+                });
+            }
         }
     }
 }
@@ -107,7 +158,7 @@ impl StorageStoreEliminator {
         &mut self,
         func: &mut Function,
         block_id: BlockId,
-        later_writes: &mut FxHashSet<StorageAlias>,
+        later_writes: &mut StorageAliases<()>,
         dead: &mut DenseBitSet<InstId>,
     ) {
         let aa = self.alias.as_ref().expect("storage DSE alias snapshot is initialized");
@@ -118,18 +169,18 @@ impl StorageStoreEliminator {
             match &func.inst(inst_id).kind {
                 InstKind::SStore(slot, _) => {
                     let alias = aa.storage_alias(func, inst_id, *slot);
-                    if later_writes.contains(&alias) {
+                    if later_writes.get(alias).is_some() {
                         dead.insert(inst_id);
                         self.eliminated_count += 1;
                         continue;
                     }
 
-                    Self::remove_aliasing_set(aa, later_writes, alias);
-                    later_writes.insert(alias);
+                    later_writes.remove_aliasing(aa, alias);
+                    later_writes.insert(alias, ());
                 }
                 InstKind::SLoad(slot) => {
                     let alias = aa.storage_alias(func, inst_id, *slot);
-                    Self::remove_aliasing_set(aa, later_writes, alias);
+                    later_writes.remove_aliasing(aa, alias);
                 }
                 _ => {
                     let effects = aa.instruction_mod_ref(func, inst_id);
@@ -149,7 +200,7 @@ impl StorageStoreEliminator {
         &mut self,
         func: &mut Function,
         block_id: BlockId,
-        stored_values: &mut FxHashMap<StorageAlias, ValueId>,
+        stored_values: &mut StorageAliases<ValueId>,
         dead: &mut DenseBitSet<InstId>,
     ) {
         let aa = self.alias.as_ref().expect("storage DSE alias snapshot is initialized");
@@ -160,13 +211,13 @@ impl StorageStoreEliminator {
             match &func.inst(inst_id).kind {
                 InstKind::SStore(slot, value) => {
                     let alias = aa.storage_alias(func, inst_id, *slot);
-                    if stored_values.get(&alias).is_some_and(|&stored| stored == *value) {
+                    if stored_values.get(alias).is_some_and(|&stored| stored == *value) {
                         dead.insert(inst_id);
                         self.eliminated_count += 1;
                         continue;
                     }
 
-                    Self::remove_aliasing_map(aa, stored_values, alias);
+                    stored_values.remove_aliasing(aa, alias);
                     stored_values.insert(alias, *value);
                 }
                 _ => {
@@ -183,30 +234,10 @@ impl StorageStoreEliminator {
         func.blocks[block_id].instructions.retain(|&id| !dead.contains(id));
     }
 
-    fn remove_aliasing_set(
-        aa: &AliasAnalysis,
-        aliases: &mut FxHashSet<StorageAlias>,
-        alias: StorageAlias,
-    ) {
-        aliases.retain(|cached| {
-            !aa.alias(Location::Storage(*cached), Location::Storage(alias)).may_alias()
-        });
-    }
-
-    fn remove_aliasing_map(
-        aa: &AliasAnalysis,
-        values: &mut FxHashMap<StorageAlias, ValueId>,
-        alias: StorageAlias,
-    ) {
-        values.retain(|cached, _| {
-            !aa.alias(Location::Storage(*cached), Location::Storage(alias)).may_alias()
-        });
-    }
-
     fn apply_reverse_effects(
         aa: &AliasAnalysis,
         effects: &ModRef,
-        later_writes: &mut FxHashSet<StorageAlias>,
+        later_writes: &mut StorageAliases<()>,
     ) {
         if effects.reads_anywhere(AddressSpace::Storage)
             || effects.writes_anywhere(AddressSpace::Storage)
@@ -217,13 +248,13 @@ impl StorageStoreEliminator {
 
         for &access in effects.reads() {
             if let Access::Location(Location::Storage(alias)) = access {
-                Self::remove_aliasing_set(aa, later_writes, alias);
+                later_writes.remove_aliasing(aa, alias);
             }
         }
         for &access in effects.writes() {
             if let Access::Location(Location::Storage(alias)) = access {
-                Self::remove_aliasing_set(aa, later_writes, alias);
-                later_writes.insert(alias);
+                later_writes.remove_aliasing(aa, alias);
+                later_writes.insert(alias, ());
             }
         }
     }
@@ -231,7 +262,7 @@ impl StorageStoreEliminator {
     fn apply_forward_writes(
         aa: &AliasAnalysis,
         effects: &ModRef,
-        stored_values: &mut FxHashMap<StorageAlias, ValueId>,
+        stored_values: &mut StorageAliases<ValueId>,
     ) {
         if effects.writes_anywhere(AddressSpace::Storage) {
             stored_values.clear();
@@ -239,7 +270,7 @@ impl StorageStoreEliminator {
         }
         for &access in effects.writes() {
             if let Access::Location(Location::Storage(alias)) = access {
-                Self::remove_aliasing_map(aa, stored_values, alias);
+                stored_values.remove_aliasing(aa, alias);
             }
         }
     }

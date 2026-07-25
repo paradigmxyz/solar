@@ -47,6 +47,26 @@ fn @keep_may_alias_symbolic_store(arg0: u256, arg1: u256) {
     stop
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @keep_symbolic_before_constant
+// CHECK: + sstore arg0, 1
+// CHECK: + sstore 0, 2
+fn @keep_symbolic_before_constant(arg0: u256) {
+  bb0:
+    sstore arg0, 1
+    sstore 0, 2
+    stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @keep_constant_before_symbolic
+// CHECK: + sstore 0, 1
+// CHECK: + sstore arg0, 2
+fn @keep_constant_before_symbolic(arg0: u256) {
+  bb0:
+    sstore 0, 1
+    sstore arg0, 2
+    stop
+}
+
 // CHECK-LABEL: {{^[ +].*}}fn @remove_disjoint_offset_overwrite{{[( ]}}
 // CHECK: - sstore {{v[0-9]+}}, 1
 // CHECK: + sstore {{v[0-9]+}}, 3
