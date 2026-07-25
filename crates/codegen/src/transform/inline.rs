@@ -206,7 +206,7 @@ impl MirInliner {
                         .saturating_sub(old_size)
                         .saturating_add(new_summary.estimated_code_size);
                     summaries.insert(caller_id, new_summary);
-                    call_counts = self.call_counts(module);
+                    Self::update_call_counts(&mut call_counts, site.callee, &callee);
                     cursor = (site.block.index(), 0);
                 } else {
                     stats.skipped += 1;
@@ -235,6 +235,21 @@ impl MirInliner {
             }
         }
         counts
+    }
+
+    fn update_call_counts(
+        counts: &mut FxHashMap<MirFunctionId, usize>,
+        callee_id: MirFunctionId,
+        callee: &Function,
+    ) {
+        if let Some(count) = counts.get_mut(&callee_id) {
+            *count -= 1;
+        }
+        for inst_id in callee.instructions() {
+            if let InstKind::InternalCall { function, .. } = callee.inst(inst_id).kind {
+                *counts.entry(function).or_default() += 1;
+            }
+        }
     }
 
     fn recursive_functions(&self, module: &Module) -> DenseBitSet<MirFunctionId> {
@@ -703,6 +718,7 @@ fn inline_call_impl(
     let mut cloner = InlineCloner::new(caller, callee, frame_base, callee_frame_prefix, &args);
     let cloned_entry = cloner.clone_blocks(continuation)?;
     cloner.caller.blocks[call_block].terminator = Some(Terminator::Jump(cloned_entry));
+    cloner.caller.blocks[cloned_entry].predecessors.push(call_block);
 
     let mut replacements = FxHashMap::default();
     if returns > 0 {
@@ -717,8 +733,6 @@ fn inline_call_impl(
     }
 
     cloner.caller.replace_uses(&replacements);
-    recompute_cfg(cloner.caller);
-    prune_phi_incoming_to_predecessors(cloner.caller);
     Some(())
 }
 
@@ -784,7 +798,11 @@ impl<'a> InlineCloner<'a> {
             let caller_block = self.block_map[&callee_block];
             let term =
                 self.clone_terminator(block.terminator.as_ref()?, caller_block, continuation)?;
+            let successors = term.successors();
             self.caller.blocks[caller_block].terminator = Some(term);
+            for successor in successors {
+                self.caller.blocks[successor].predecessors.push(caller_block);
+            }
         }
 
         Some(self.block_map[&BlockId::ENTRY])
@@ -1174,6 +1192,11 @@ fn redirect_phi_predecessors(
     }
 
     for &succ in successors {
+        for predecessor in &mut func.blocks[succ].predecessors {
+            if *predecessor == old_pred {
+                *predecessor = new_pred;
+            }
+        }
         let instruction_count = func.blocks[succ].instructions.len();
         for index in 0..instruction_count {
             let inst_id = func.blocks[succ].instructions[index];
@@ -1183,38 +1206,6 @@ fn redirect_phi_predecessors(
                         *pred = new_pred;
                     }
                 }
-            }
-        }
-    }
-}
-
-fn recompute_cfg(func: &mut Function) {
-    let mut edges = Vec::new();
-    for (block, bb) in func.blocks.iter_enumerated() {
-        if let Some(term) = &bb.terminator {
-            edges.push((block, term.successors()));
-        }
-    }
-
-    for block in func.blocks.iter_mut() {
-        block.predecessors.clear();
-    }
-
-    for (block, successors) in edges {
-        for succ in successors {
-            func.blocks[succ].predecessors.push(block);
-        }
-    }
-}
-
-fn prune_phi_incoming_to_predecessors(func: &mut Function) {
-    for block_id in func.blocks.indices() {
-        let predecessors = func.blocks[block_id].predecessors.clone();
-        let instruction_count = func.blocks[block_id].instructions.len();
-        for index in 0..instruction_count {
-            let inst_id = func.blocks[block_id].instructions[index];
-            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind {
-                incoming.retain(|(pred, _)| predecessors.contains(pred));
             }
         }
     }
