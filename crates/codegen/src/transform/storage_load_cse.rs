@@ -159,22 +159,17 @@ impl StorageLoadCseCx {
                 block.instructions.retain(|&id| !state.dead.contains(id));
             }
         }
+        if !state.replacements.is_empty() {
+            func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
+        }
 
         self.eliminated_count
     }
 
     /// Runs storage-load CSE to a fixed point.
     fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
-        let mut total = 0;
         let mut state = RunState::new(func);
-        loop {
-            let eliminated = self.run_with_state(func, &mut state);
-            if eliminated == 0 {
-                break;
-            }
-            total += eliminated;
-        }
-        total
+        self.run_with_state(func, &mut state)
     }
 
     fn process_block(
