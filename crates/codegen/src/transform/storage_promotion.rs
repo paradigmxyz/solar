@@ -844,14 +844,7 @@ impl StorageScalarPromoter {
         func.blocks[continuation].instructions = continuation_instructions;
         func.blocks[continuation].terminator = old_terminator;
 
-        self.redirect_successor_phi_incoming(func, exit, continuation, &old_successors);
-        for successor in old_successors {
-            for pred in &mut func.blocks[successor].predecessors {
-                if *pred == exit {
-                    *pred = continuation;
-                }
-            }
-        }
+        mir_utils::redirect_successor_predecessors(func, old_successors, exit, continuation);
     }
 
     fn allocate_temp_addr(&self, func: &mut Function) -> ValueId {
@@ -859,31 +852,6 @@ impl StorageScalarPromoter {
         let temp_addr = EvmMemoryLayout::HEAP_START + frame_offset;
         func.internal_frame_size = func.internal_frame_size.max(frame_offset + 32);
         func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(temp_addr))))
-    }
-
-    fn redirect_successor_phi_incoming(
-        &self,
-        func: &mut Function,
-        old_pred: BlockId,
-        new_pred: BlockId,
-        successors: &[BlockId],
-    ) {
-        for &successor in successors {
-            for idx in 0..func.blocks[successor].instructions.len() {
-                let inst_id = func.blocks[successor].instructions[idx];
-                if !matches!(func.inst(inst_id).kind, InstKind::Phi(_)) {
-                    break;
-                }
-                let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind else {
-                    continue;
-                };
-                for (pred, _) in incoming {
-                    if *pred == old_pred {
-                        *pred = new_pred;
-                    }
-                }
-            }
-        }
     }
 
     fn bool_word(&self, func: &mut Function, value: bool) -> ValueId {

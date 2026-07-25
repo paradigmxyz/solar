@@ -3,7 +3,7 @@
 use crate::{
     mir::{
         AbiLayout, AbiType, BlockId, Function, FunctionBuilder, InstKind, MemoryObjectKind, Module,
-        SliceLocation, Terminator, Value, ValueId,
+        SliceLocation, Terminator, Value, ValueId, utils::redirect_successor_predecessors,
     },
     pass::MirPass,
 };
@@ -105,27 +105,12 @@ fn move_terminator(
     let final_block = builder.current_block();
     let Some(terminator) = terminator else { return };
     if final_block != original_block {
-        let mut successors = terminator.successors();
-        successors.sort_unstable();
-        successors.dedup();
-        for successor in successors {
-            for predecessor in &mut builder.func_mut().blocks[successor].predecessors {
-                if *predecessor == original_block {
-                    *predecessor = final_block;
-                }
-            }
-            let instruction_count = builder.func().blocks[successor].instructions.len();
-            for index in 0..instruction_count {
-                let inst = builder.func().blocks[successor].instructions[index];
-                if let InstKind::Phi(incoming) = &mut builder.func_mut().inst_mut(inst).kind {
-                    for (predecessor, _) in incoming {
-                        if *predecessor == original_block {
-                            *predecessor = final_block;
-                        }
-                    }
-                }
-            }
-        }
+        redirect_successor_predecessors(
+            builder.func_mut(),
+            terminator.successors(),
+            original_block,
+            final_block,
+        );
     }
     builder.func_mut().blocks[final_block].terminator = Some(terminator);
 }

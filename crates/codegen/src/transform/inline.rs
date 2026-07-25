@@ -8,7 +8,7 @@ use crate::{
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
         BlockId, Function, FunctionId as MirFunctionId, Immediate, InstKind, Instruction, MirType,
-        Module, Terminator, Value, ValueId,
+        Module, Terminator, Value, ValueId, utils::redirect_successor_predecessors,
     },
     pass::MirPass,
 };
@@ -700,7 +700,7 @@ fn inline_call_impl(
     caller.blocks[call_block].instructions.pop();
     caller.blocks[continuation].instructions = suffix;
     caller.blocks[continuation].terminator = old_terminator;
-    redirect_phi_predecessors(caller, &old_successors, call_block, continuation);
+    redirect_successor_predecessors(caller, old_successors, call_block, continuation);
 
     let caller_is_external =
         caller.selector.is_some() || caller.attributes.is_receive || caller.attributes.is_fallback;
@@ -1179,34 +1179,4 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
     ))));
     let publish = caller.alloc_inst(Instruction::new(InstKind::MStore(ptr_slot, base), None));
     caller.blocks[continuation].instructions.insert(insert_at, publish);
-}
-
-fn redirect_phi_predecessors(
-    func: &mut Function,
-    successors: &[BlockId],
-    old_pred: BlockId,
-    new_pred: BlockId,
-) {
-    if successors.is_empty() {
-        return;
-    }
-
-    for &succ in successors {
-        for predecessor in &mut func.blocks[succ].predecessors {
-            if *predecessor == old_pred {
-                *predecessor = new_pred;
-            }
-        }
-        let instruction_count = func.blocks[succ].instructions.len();
-        for index in 0..instruction_count {
-            let inst_id = func.blocks[succ].instructions[index];
-            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind {
-                for (pred, _) in incoming {
-                    if *pred == old_pred {
-                        *pred = new_pred;
-                    }
-                }
-            }
-        }
-    }
 }

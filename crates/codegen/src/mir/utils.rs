@@ -181,6 +181,36 @@ pub(crate) fn remove_predecessors(
     }
 }
 
+/// Redirects one predecessor identity in successor edge lists and phi inputs.
+pub(crate) fn redirect_successor_predecessors(
+    func: &mut Function,
+    mut successors: SmallVec<[BlockId; 2]>,
+    old_predecessor: BlockId,
+    new_predecessor: BlockId,
+) {
+    successors.sort_unstable();
+    successors.dedup();
+    for successor in successors {
+        for predecessor in &mut func.blocks[successor].predecessors {
+            if *predecessor == old_predecessor {
+                *predecessor = new_predecessor;
+            }
+        }
+        let instruction_count = func.blocks[successor].instructions.len();
+        for index in 0..instruction_count {
+            let inst_id = func.blocks[successor].instructions[index];
+            let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind else {
+                break;
+            };
+            for (predecessor, _) in incoming {
+                if *predecessor == old_predecessor {
+                    *predecessor = new_predecessor;
+                }
+            }
+        }
+    }
+}
+
 pub(crate) struct TerminatorEdgeUpdate {
     predecessor: BlockId,
     affected_successors: SmallVec<[BlockId; 2]>,
