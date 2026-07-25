@@ -931,6 +931,12 @@ impl<'gcx> Lowerer<'gcx> {
                     .span(exprs[0].span)
                     .emit())
             }
+            Builtin::AbiEncodeCall => {
+                // `abi.encodeCall(F, (args))` as a `bytes memory` value.
+                let (data, len) = self.abi_encode_call_from_args(builder, args)?;
+                let slice = builder.make_slice(data, len, crate::mir::SliceLocation::Memory);
+                Ok(self.materialize_memory_slice_bytes(builder, slice))
+            }
             Builtin::AbiDecode => {
                 let exprs = self.collect_builtin_args(builtin, args)?;
                 self.lower_abi_decode(builder, exprs[0], exprs[1], args.span)
