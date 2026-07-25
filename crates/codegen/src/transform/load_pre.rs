@@ -299,8 +299,8 @@ struct Analysis {
     ins: IndexVec<BlockId, Option<KeySet>>,
     /// Availability at block exit.
     outs: IndexVec<BlockId, Option<KeySet>>,
-    inst_results: FxHashMap<InstId, ValueId>,
-    inst_blocks: FxHashMap<InstId, BlockId>,
+    inst_results: IndexVec<InstId, Option<ValueId>>,
+    inst_blocks: IndexVec<InstId, Option<BlockId>>,
 }
 
 #[derive(Default)]
@@ -561,7 +561,7 @@ impl LoadRedundancyEliminator {
                 {
                     gen_set.insert(idx);
                     let value = match source {
-                        GenSource::LoadResult => inst_results.get(&inst_id).copied(),
+                        GenSource::LoadResult => inst_results[inst_id],
                         GenSource::Stored(value) => Some(value),
                     };
                     if let Some(value) = value {
@@ -725,7 +725,7 @@ impl LoadRedundancyEliminator {
             if let Some((key, GenSource::LoadResult)) = self.gen_key_value(func, inst_id) {
                 if let Some(&idx) = analysis.key_index.get(&key)
                     && !blocked.contains(idx)
-                    && let Some(&value) = analysis.inst_results.get(&inst_id)
+                    && let Some(value) = analysis.inst_results[inst_id]
                 {
                     if loads[idx].is_empty() {
                         order.push(idx);
@@ -776,7 +776,7 @@ impl LoadRedundancyEliminator {
     ) -> Option<Candidate> {
         let inst = loads[0].0;
         let instruction = func.inst(inst);
-        let result = *cx.analysis.inst_results.get(&inst)?;
+        let result = cx.analysis.inst_results[inst]?;
         let result_ty = instruction.result_ty?;
         let key = cx.analysis.keys[key_idx];
 
@@ -1175,10 +1175,8 @@ impl LoadRedundancyEliminator {
     ) -> bool {
         kind.operands().into_iter().all(|value| match func.value(value) {
             Value::Immediate(_) | Value::Arg { .. } | Value::Undef(_) | Value::Error(_) => true,
-            Value::Inst(inst_id) => analysis
-                .inst_blocks
-                .get(inst_id)
-                .is_some_and(|def_block| analysis.cfg.dominators().dominates(*def_block, block)),
+            Value::Inst(inst_id) => analysis.inst_blocks[*inst_id]
+                .is_some_and(|def_block| analysis.cfg.dominators().dominates(def_block, block)),
         })
     }
 

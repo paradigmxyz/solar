@@ -7,7 +7,7 @@ use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     fmt::{self, FmtIteratorExt},
-    index::IndexVec,
+    index::{IndexVec, index_vec},
     map::FxHashMap,
 };
 use solar_interface::Ident;
@@ -150,27 +150,19 @@ impl Function {
         self.inst_results[id]
     }
 
-    /// Returns a map from each instruction to its result value.
+    /// Returns the result value allocated for each instruction.
     #[must_use]
-    pub(crate) fn inst_results(&self) -> FxHashMap<InstId, ValueId> {
-        let mut results =
-            FxHashMap::with_capacity_and_hasher(self.instructions.len(), Default::default());
-        for (inst_id, result) in self.inst_results.iter_enumerated() {
-            if let Some(value_id) = *result {
-                results.insert(inst_id, value_id);
-            }
-        }
-        results
+    pub(crate) fn inst_results(&self) -> IndexVec<InstId, Option<ValueId>> {
+        self.inst_results.clone()
     }
 
-    /// Returns a map from each instruction to the block containing it.
+    /// Returns the active block containing each instruction.
     #[must_use]
-    pub(crate) fn inst_blocks(&self) -> FxHashMap<InstId, BlockId> {
-        let mut inst_blocks =
-            FxHashMap::with_capacity_and_hasher(self.instructions.len(), Default::default());
+    pub(crate) fn inst_blocks(&self) -> IndexVec<InstId, Option<BlockId>> {
+        let mut inst_blocks = index_vec![None; self.instructions.len()];
         for (block_id, block) in self.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
-                inst_blocks.insert(inst_id, block_id);
+                inst_blocks[inst_id] = Some(block_id);
             }
         }
         inst_blocks

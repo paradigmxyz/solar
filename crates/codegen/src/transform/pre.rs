@@ -220,8 +220,8 @@ impl PartialRedundancyEliminator {
         &self,
         func: &Function,
         dominators: &DominatorTree,
-        inst_results: &FxHashMap<InstId, ValueId>,
-        inst_blocks: &FxHashMap<InstId, BlockId>,
+        inst_results: &IndexVec<InstId, Option<ValueId>>,
+        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
         eliminated_keys: &FxHashSet<(ExprKey, BlockId)>,
         inserted_insts: &GrowableBitSet<InstId>,
         limit: usize,
@@ -242,7 +242,7 @@ impl PartialRedundancyEliminator {
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst in &block.instructions {
                 let instruction = func.inst(inst);
-                if let Some(&result) = inst_results.get(&inst)
+                if let Some(result) = inst_results[inst]
                     && let Some(key) = Self::make_expr_key(func, &instruction.kind)
                 {
                     available[block_id].insert(key, result);
@@ -272,7 +272,7 @@ impl PartialRedundancyEliminator {
                 let Some(result_ty) = instruction.result_ty else {
                     continue;
                 };
-                let Some(&result) = inst_results.get(&inst) else {
+                let Some(result) = inst_results[inst] else {
                     continue;
                 };
 
@@ -326,7 +326,7 @@ impl PartialRedundancyEliminator {
         result_ty: MirType,
         metadata: InstructionMetadata,
         predecessors: &[BlockId],
-        inst_blocks: &FxHashMap<InstId, BlockId>,
+        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
         phi_incoming: &FxHashMap<(InstId, BlockId), ValueId>,
         available: &IndexVec<BlockId, FxHashMap<ExprKey, ValueId>>,
         dominators: &DominatorTree,
@@ -381,8 +381,8 @@ impl PartialRedundancyEliminator {
         &mut self,
         func: &mut Function,
         candidate: PreCandidate,
-        inst_results: &mut FxHashMap<InstId, ValueId>,
-        inst_blocks: &mut FxHashMap<InstId, BlockId>,
+        inst_results: &mut IndexVec<InstId, Option<ValueId>>,
+        inst_blocks: &mut IndexVec<InstId, Option<BlockId>>,
         eliminated_keys: &mut FxHashSet<(ExprKey, BlockId)>,
         inserted_insts: &mut GrowableBitSet<InstId>,
         replacements: &mut FxHashMap<ValueId, ValueId>,
@@ -430,8 +430,8 @@ impl PartialRedundancyEliminator {
             let value = func.alloc_value(Value::Inst(new_inst));
             func.blocks[block].instructions.push(new_inst);
             incoming.push((block, value));
-            inst_results.insert(new_inst, value);
-            inst_blocks.insert(new_inst, block);
+            debug_assert_eq!(inst_results.push(Some(value)), new_inst);
+            debug_assert_eq!(inst_blocks.push(Some(block)), new_inst);
             inserted_insts.insert(new_inst);
             self.stats.expressions_inserted += 1;
         }
@@ -458,16 +458,16 @@ impl PartialRedundancyEliminator {
                     .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
                     .count();
                 func.blocks[target].instructions.insert(phi_count, phi_inst);
-                inst_results.insert(phi_inst, phi_value);
-                inst_blocks.insert(phi_inst, target);
+                debug_assert_eq!(inst_results.push(Some(phi_value)), phi_inst);
+                debug_assert_eq!(inst_blocks.push(Some(target)), phi_inst);
                 phi_value
             }
         };
 
         replacements.insert(result, replacement);
         dead.insert(inst);
-        inst_results.remove(&inst);
-        inst_blocks.remove(&inst);
+        inst_results[inst] = None;
+        inst_blocks[inst] = None;
         self.stats.expressions_eliminated += 1;
     }
 
@@ -476,7 +476,7 @@ impl PartialRedundancyEliminator {
         kind: &InstKind,
         target: BlockId,
         pred: BlockId,
-        inst_blocks: &FxHashMap<InstId, BlockId>,
+        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
         phi_incoming: &FxHashMap<(InstId, BlockId), ValueId>,
     ) -> Option<InstKind> {
         let mut translated = kind.clone();
@@ -503,12 +503,12 @@ impl PartialRedundancyEliminator {
         value: ValueId,
         target: BlockId,
         pred: BlockId,
-        inst_blocks: &FxHashMap<InstId, BlockId>,
+        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
         phi_incoming: &FxHashMap<(InstId, BlockId), ValueId>,
     ) -> Option<ValueId> {
         match func.value(value) {
             Value::Inst(inst_id)
-                if inst_blocks.get(inst_id).copied() == Some(target)
+                if inst_blocks[*inst_id] == Some(target)
                     && matches!(func.inst(*inst_id).kind, InstKind::Phi(_)) =>
             {
                 phi_incoming.get(&(*inst_id, pred)).copied()
@@ -521,7 +521,7 @@ impl PartialRedundancyEliminator {
         func: &Function,
         kind: &InstKind,
         block: BlockId,
-        inst_blocks: &FxHashMap<InstId, BlockId>,
+        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
         dominators: &DominatorTree,
     ) -> bool {
         kind.operands()
@@ -533,14 +533,14 @@ impl PartialRedundancyEliminator {
         func: &Function,
         value: ValueId,
         block: BlockId,
-        inst_blocks: &FxHashMap<InstId, BlockId>,
+        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
         dominators: &DominatorTree,
     ) -> bool {
         match func.value(value) {
             Value::Immediate(_) | Value::Arg { .. } | Value::Undef(_) | Value::Error(_) => true,
-            Value::Inst(inst) => inst_blocks
-                .get(inst)
-                .is_some_and(|def_block| dominators.dominates(*def_block, block)),
+            Value::Inst(inst) => {
+                inst_blocks[*inst].is_some_and(|def_block| dominators.dominates(def_block, block))
+            }
         }
     }
 

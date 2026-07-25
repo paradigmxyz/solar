@@ -50,7 +50,7 @@ use crate::{
 use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
-    index::index_vec,
+    index::{IndexVec, index_vec},
     map::FxHashMap,
 };
 use std::{cmp::Ordering, rc::Rc, sync::Arc};
@@ -238,7 +238,7 @@ struct PhiExpressionCandidate {
 
 struct PhiSinkContext<'a> {
     dominators: &'a DominatorTree,
-    inst_blocks: &'a FxHashMap<InstId, BlockId>,
+    inst_blocks: &'a IndexVec<InstId, Option<BlockId>>,
     replacements: &'a FxHashMap<ValueId, ValueId>,
 }
 
@@ -1019,7 +1019,7 @@ impl CommonSubexprEliminator {
         func: &Function,
         kind: &InstKind,
         block_id: BlockId,
-        inst_blocks: &FxHashMap<InstId, BlockId>,
+        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
         dominators: &DominatorTree,
     ) -> bool {
         kind.operands().into_iter().all(|value| {
@@ -1031,14 +1031,13 @@ impl CommonSubexprEliminator {
         func: &Function,
         value: ValueId,
         block_id: BlockId,
-        inst_blocks: &FxHashMap<InstId, BlockId>,
+        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
         dominators: &DominatorTree,
     ) -> bool {
         match func.value(value) {
             Value::Immediate(_) | Value::Arg { .. } | Value::Undef(_) | Value::Error(_) => true,
-            Value::Inst(inst_id) => inst_blocks
-                .get(inst_id)
-                .is_some_and(|&def_block| dominators.dominates(def_block, block_id)),
+            Value::Inst(inst_id) => inst_blocks[*inst_id]
+                .is_some_and(|def_block| dominators.dominates(def_block, block_id)),
         }
     }
 
