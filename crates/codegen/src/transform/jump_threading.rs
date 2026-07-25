@@ -116,7 +116,17 @@ impl JumpThreader {
         if !forwarders.is_empty() {
             // Resolve the final target for each forwarder (following chains)
             let mut final_targets = self.resolve_final_targets(&forwarders, func.blocks.len());
-            final_targets.retain(|block, target| block != target && !func.block_has_phi(*target));
+            let mut phi_blocks = DenseBitSet::new_empty(func.blocks.len());
+            for (block_id, block) in func.blocks.iter_enumerated() {
+                if block
+                    .instructions
+                    .iter()
+                    .any(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+                {
+                    phi_blocks.insert(block_id);
+                }
+            }
+            final_targets.retain(|block, target| block != target && !phi_blocks.contains(*target));
 
             // Update all terminators to use final targets
             self.thread_jumps(func, &final_targets, &mut edge_updates);
