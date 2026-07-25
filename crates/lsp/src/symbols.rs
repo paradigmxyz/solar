@@ -596,8 +596,21 @@ impl SymbolTables {
         if self.rename.conflicting_contents().contains(uri) {
             return None;
         }
-        let symbol_ids = self.symbol_ids_at_position(uri, position)?;
-        self.type_hierarchy.prepare(&symbol_ids)
+        if let Some(reference) = self.reference_at_position(uri, position) {
+            let range = reference.location.range;
+            let prepared = self.type_hierarchy.prepare(&reference.targets);
+            let references = self.file_references.get(uri)?;
+            let agree = references
+                .candidates_at(position, |index| self.references[index].location.range)
+                .filter(|&index| self.references[index].location.range == range)
+                .all(|index| {
+                    self.type_hierarchy.prepare(&self.references[index].targets) == prepared
+                });
+            return if agree { prepared } else { None };
+        }
+
+        let symbol_id = self.declaration_at_position(uri, position)?;
+        self.type_hierarchy.prepare(std::slice::from_ref(&symbol_id))
     }
 
     pub(crate) fn type_hierarchy_supertypes(

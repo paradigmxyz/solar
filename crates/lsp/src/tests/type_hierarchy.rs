@@ -437,6 +437,7 @@ fn merges_identical_cross_batch_nodes_and_edges_in_both_orders() {
     let source = r#"
         //- /Shared.sol
         contract $1Base {}
+        contract Holder { $4Base value; }
 
         //- /first/Main.sol
         import "../Shared.sol";
@@ -454,6 +455,7 @@ fn merges_identical_cross_batch_nodes_and_edges_in_both_orders() {
         let zed = prepared(&fixture, "$2");
         let alpha = prepared(&fixture, "$3");
 
+        assert_eq!(prepared(&fixture, "$4"), base);
         assert_eq!(
             names(fixture.type_hierarchy_subtypes(base)),
             ["Zed", "Alpha"],
@@ -527,6 +529,11 @@ fn incompatible_compile_contexts_exclude_nodes_and_incident_edges_in_both_orders
             "batch order {batches:?}"
         );
         assert_eq!(
+            tables.prepare_type_hierarchy(&shared_uri, Position::new(1, 20)),
+            None,
+            "Base reference, batch order {batches:?}"
+        );
+        assert_eq!(
             tables.prepare_type_hierarchy(&shared_uri, Position::new(2, 20)),
             None,
             "batch order {batches:?}"
@@ -535,6 +542,11 @@ fn incompatible_compile_contexts_exclude_nodes_and_incident_edges_in_both_orders
             tables.prepare_type_hierarchy(&shared_uri, Position::new(3, 14)),
             None,
             "batch order {batches:?}"
+        );
+        assert_eq!(
+            tables.prepare_type_hierarchy(&shared_uri, Position::new(3, 22)),
+            None,
+            "Value reference, batch order {batches:?}"
         );
         let stable = tables
             .prepare_type_hierarchy(&shared_uri, Position::new(5, 10))
