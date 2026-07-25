@@ -514,6 +514,10 @@ impl<'gcx> Lowerer<'gcx> {
         len: u64,
         pos: ValueId,
     ) -> ValueId {
+        // A field/element sema type carries the canonical `Ref(_, Storage)`
+        // location; peel it so ABI head sizing does not mistake an inline
+        // aggregate for a one-word storage slot.
+        let elem = elem.peel_refs();
         let size = len.checked_mul(32).expect("fixed array memory size overflow");
         let ptr = self.allocate_memory(builder, size);
         let mut head_offset = 0;
@@ -541,6 +545,10 @@ impl<'gcx> Lowerer<'gcx> {
         let ptr = self.allocate_memory(builder, size);
         let mut head_offset = 0;
         for (i, &field) in fields.iter().enumerate() {
+            // A field sema type carries the canonical `Ref(_, Storage)`
+            // location; peel it so ABI head sizing does not mistake an inline
+            // aggregate field for a one-word storage slot.
+            let field = field.peel_refs();
             let head_pos = self.offset_ptr(builder, pos, head_offset);
             let field_pos = self.calldata_abi_value_pos(builder, source, field, head_pos, pos);
             let value = self.materialize_calldata_value_at(builder, source, field, field_pos);

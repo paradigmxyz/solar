@@ -31,8 +31,9 @@ fn @full(arg0: u256) {
     v15 = memory_object_data memorybytes, v14
     returndatacopy v15, v8, v9
     v16 = memory_object_len memorybytes, v14
-    v17 = lt v16, 64
-    br v17, bb6, bb7
+    v17 = memory_object_data memorybytes, v14
+    v18 = lt v16, 64
+    br v18, bb6, bb7
   bb4:
     v59 = returndatasize
     v60 = lt v59, 4
@@ -65,9 +66,8 @@ fn @full(arg0: u256) {
   bb6:
     revert 0, 0
   bb7:
-    v18 = memory_object_data memorybytes, v14
-    v19 = mload v18
-    v20 = add v18, 32
+    v19 = mload v17
+    v20 = add v17, 32
     v21 = mload v20
     v22 = lt v21, 64
     br v22, bb8, bb9
@@ -85,7 +85,7 @@ fn @full(arg0: u256) {
   bb12:
     revert 0, 0
   bb13:
-    v26 = add v18, v21
+    v26 = add v17, v21
     v27 = mload v26
     v28 = add v27, 31
     v29 = lt v28, v27
@@ -376,8 +376,9 @@ fn @rethrows(arg0: u256) {
     v15 = memory_object_data memorybytes, v14
     returndatacopy v15, v8, v9
     v16 = memory_object_len memorybytes, v14
-    v17 = lt v16, 64
-    br v17, bb6, bb7
+    v17 = memory_object_data memorybytes, v14
+    v18 = lt v16, 64
+    br v18, bb6, bb7
   bb4:
     v44 = returndatasize
     v45 = lt v44, 4
@@ -397,9 +398,8 @@ fn @rethrows(arg0: u256) {
   bb6:
     revert 0, 0
   bb7:
-    v18 = memory_object_data memorybytes, v14
-    v19 = mload v18
-    v20 = add v18, 32
+    v19 = mload v17
+    v20 = add v17, 32
     v21 = mload v20
     v22 = lt v21, 64
     br v22, bb8, bb9
@@ -417,7 +417,7 @@ fn @rethrows(arg0: u256) {
   bb12:
     revert 0, 0
   bb13:
-    v26 = add v18, v21
+    v26 = add v17, v21
     v27 = mload v26
     v28 = add v27, 31
     v29 = lt v28, v27

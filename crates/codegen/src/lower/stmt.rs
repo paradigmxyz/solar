@@ -1,6 +1,6 @@
 //! Statement lowering.
 
-use super::{LoopContext, Lowerer, expr::AbiDecodeTy};
+use super::{LoopContext, Lowerer};
 use crate::{
     memory::EvmMemoryLayout,
     mir::{FunctionBuilder, MemoryObjectKind, ValueId},
@@ -1176,52 +1176,33 @@ impl<'gcx> Lowerer<'gcx> {
         vars: &[hir::VariableId],
         span: Span,
     ) {
-        let slice = self.returndata_slice(builder);
-        let ptr = self.materialize_returndata_slice(builder, slice);
-        let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
-        let head_size = (vars.len() * 32) as u64;
-        let required = builder.imm_u64(head_size);
-        let is_short = builder.lt(len, required);
-        self.emit_abi_decode_revert_if(builder, is_short);
-        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-
-        for (i, &var_id) in vars.iter().enumerate() {
+        // Validate every binding is decodable before emitting; report the
+        // first that is not.
+        let mut tys = Vec::with_capacity(vars.len());
+        for &var_id in vars {
             let var = self.gcx.hir.variable(var_id);
-            let Some(target) = self.abi_decode_ty_of_hir_ty(&var.ty) else {
+            let ty = self.gcx.type_of_hir_ty(&var.ty);
+            if self.abi_decode_strategy(ty).is_none() {
                 self.gcx
                     .dcx()
                     .err("codegen does not support this try return type yet")
                     .span(var.span)
                     .emit();
                 return;
-            };
-            let addr = self.offset_ptr(builder, data_start, (i * 32) as u64);
-            let head = builder.mload(addr);
-            let decoded = match target {
-                AbiDecodeTy::Value(hir::ElementaryType::Bytes | hir::ElementaryType::String) => {
-                    let head_size = builder.imm_u64(head_size);
-                    self.lower_abi_decode_dynamic_bytes(builder, data_start, len, head_size, head)
-                }
-                AbiDecodeTy::Value(elem) => self.lower_abi_decode_word(builder, &elem, head),
-                AbiDecodeTy::Array(elem) => self
-                    .lower_abi_decode_dyn_array(builder, data_start, len, head_size, &elem, head),
-            };
-            self.bind_local_value(builder, var_id, decoded);
+            }
+            tys.push(ty);
+        }
+
+        let slice = self.returndata_slice(builder);
+        let ptr = self.materialize_returndata_slice(builder, slice);
+        let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
+        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+
+        let decoded = self.decode_abi_region(builder, data_start, len, &tys);
+        for (&var_id, value) in vars.iter().zip(decoded) {
+            self.bind_local_value(builder, var_id, value);
         }
         let _ = span;
-    }
-
-    /// The `abi.decode`-style target of a variable's declared type, if codegen
-    /// can decode it.
-    fn abi_decode_ty_of_hir_ty(&self, ty: &hir::Type<'_>) -> Option<AbiDecodeTy> {
-        match &ty.kind {
-            hir::TypeKind::Elementary(elem) => Some(AbiDecodeTy::Value(*elem)),
-            hir::TypeKind::Array(arr) if arr.size.is_none() => match &arr.element.kind {
-                hir::TypeKind::Elementary(elem) => Some(AbiDecodeTy::Array(*elem)),
-                _ => None,
-            },
-            _ => None,
-        }
     }
 
     fn lower_catch_clauses(
