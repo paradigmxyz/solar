@@ -49,7 +49,7 @@ use crate::{
         BlockId, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout,
         MirType, Module, Value, ValueId, utils as mir_utils,
     },
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_filtered},
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use std::rc::Rc;
@@ -68,12 +68,32 @@ impl MirPass for Gvn {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
-            let mut numberer = GlobalValueNumberer::new();
-            numberer.cfg = Some(Rc::clone(&analyses.cfg));
-            numberer.run(func) != 0
-        })
+        run_function_pass_filtered(
+            module,
+            analyses,
+            |_, func| may_have_congruent_values(func),
+            |func, analyses| {
+                let mut numberer = GlobalValueNumberer::new();
+                numberer.cfg = Some(Rc::clone(&analyses.cfg));
+                numberer.run(func) != 0
+            },
+        )
     }
+}
+
+fn may_have_congruent_values(func: &Function) -> bool {
+    let mut found = false;
+    for inst_id in func.instructions() {
+        let inst = func.inst(inst_id);
+        if func.inst_result_value(inst_id).is_none() || inst.kind.has_side_effects() {
+            continue;
+        }
+        if matches!(inst.kind, InstKind::Phi(_)) || found {
+            return true;
+        }
+        found = true;
+    }
+    false
 }
 
 /// Hard cap on value-numbering sweeps per round.
