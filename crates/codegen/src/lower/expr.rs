@@ -29,12 +29,17 @@ enum MappingBaseSlot {
     Value(ValueId),
 }
 
-/// One member of an `abi.decode` target tuple.
-pub(super) enum AbiDecodeTy {
-    /// An elementary value, including `bytes` and `string`.
-    Value(ElementaryType),
+/// How one member of an ABI tuple region is decoded into memory.
+pub(super) enum DecodeStrategy<'gcx> {
+    /// An elementary value word, validated for cleanliness.
+    Word(ElementaryType),
+    /// A dynamic `bytes`/`string`.
+    DynBytes,
     /// A dynamic array with an elementary element type.
-    Array(ElementaryType),
+    ElementaryArray(ElementaryType),
+    /// A struct, tuple, fixed array, or aggregate array, decoded through the
+    /// general recursive materializer.
+    General(Ty<'gcx>),
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -2151,7 +2156,7 @@ impl<'gcx> Lowerer<'gcx> {
         types: &hir::Expr<'_>,
         span: Span,
     ) -> Result<ValueId, ErrorGuaranteed> {
-        let elems = self.abi_decode_target_types(types, span)?;
+        let tys = self.abi_decode_tuple_tys(types, span)?;
 
         // The decode logic below expects a memory `[length][data...]` pointer.
         // Calldata values and subslices carry `(ptr, len)` explicitly and are
@@ -2163,38 +2168,111 @@ impl<'gcx> Lowerer<'gcx> {
             self.lower_value_expr(builder, data)
         };
         let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
-        let head_size = (elems.len() * 32) as u64;
-        let required = builder.imm_u64(head_size);
-        let is_short = builder.lt(len, required);
-        self.emit_abi_decode_revert_if(builder, is_short);
-
         let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-        let mut decoded_values = Vec::with_capacity(elems.len());
-        for (i, elem) in elems.iter().enumerate() {
-            let addr = self.offset_ptr(builder, data_start, (i * 32) as u64);
-            let value = builder.mload(addr);
-            let decoded = match elem {
-                AbiDecodeTy::Value(ElementaryType::Bytes | ElementaryType::String) => {
-                    let head_size = builder.imm_u64(head_size);
-                    self.lower_abi_decode_dynamic_bytes(builder, data_start, len, head_size, value)
-                }
-                AbiDecodeTy::Value(elem) => self.lower_abi_decode_word(builder, elem, value),
-                AbiDecodeTy::Array(elem) => self
-                    .lower_abi_decode_dyn_array(builder, data_start, len, head_size, elem, value),
-            };
-            decoded_values.push(decoded);
-        }
+
+        let decoded_values = self.decode_abi_region(builder, data_start, len, &tys);
         self.stage_multi_return_tail(builder, &decoded_values);
         decoded_values.first().copied().ok_or_else(|| {
             self.gcx.dcx().err("`abi.decode` must decode at least one value").span(span).emit()
         })
     }
 
-    fn abi_decode_target_types(
+    /// Decodes an ABI tuple `(T...)` from the memory region `[data_start,
+    /// data_start + len)` into one memory value per member. The region base is
+    /// the tuple's head base: static members occupy their head bytes inline;
+    /// dynamic members store an offset (relative to `data_start`) to their
+    /// tail. Reverts, like solc, when the region is too short for the heads.
+    pub(super) fn decode_abi_region(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        data_start: ValueId,
+        len: ValueId,
+        tys: &[Ty<'gcx>],
+    ) -> Vec<ValueId> {
+        let head_size: u64 = tys.iter().map(|&ty| self.abi_head_size(ty)).sum();
+        let required = builder.imm_u64(head_size);
+        let is_short = builder.lt(len, required);
+        self.emit_abi_decode_revert_if(builder, is_short);
+
+        let head_size_val = builder.imm_u64(head_size);
+        let mut out = Vec::with_capacity(tys.len());
+        let mut head_offset = 0u64;
+        for &ty in tys {
+            let head_pos = self.offset_ptr(builder, data_start, head_offset);
+            let decoded =
+                match self.abi_decode_strategy(ty).expect("callers validate every decode member") {
+                    DecodeStrategy::Word(elem) => {
+                        let word = builder.mload(head_pos);
+                        self.lower_abi_decode_word(builder, &elem, word)
+                    }
+                    DecodeStrategy::DynBytes => {
+                        let head = builder.mload(head_pos);
+                        self.lower_abi_decode_dynamic_bytes(
+                            builder,
+                            data_start,
+                            len,
+                            head_size_val,
+                            head,
+                        )
+                    }
+                    DecodeStrategy::ElementaryArray(elem) => {
+                        let head = builder.mload(head_pos);
+                        self.lower_abi_decode_dyn_array(
+                            builder, data_start, len, head_size, &elem, head,
+                        )
+                    }
+                    DecodeStrategy::General(ty) => {
+                        // Resolve the member's body position, then decode it with
+                        // the same recursive materializer that decodes calldata
+                        // struct-array parameters.
+                        let pos = if self.abi_is_dynamic(ty) {
+                            let offset = builder.mload(head_pos);
+                            builder.add(data_start, offset)
+                        } else {
+                            head_pos
+                        };
+                        self.materialize_calldata_value_at(
+                            builder,
+                            super::bytes::AbiSource::Memory,
+                            ty,
+                            pos,
+                        )
+                    }
+                };
+            out.push(decoded);
+            head_offset += self.abi_head_size(ty);
+        }
+        out
+    }
+
+    /// The decode strategy for an ABI member type, or `None` when codegen
+    /// cannot decode it.
+    pub(super) fn abi_decode_strategy(&self, ty: Ty<'gcx>) -> Option<DecodeStrategy<'gcx>> {
+        let peeled = ty.peel_refs();
+        match peeled.kind {
+            TyKind::Udvt(inner, _) => self.abi_decode_strategy(inner),
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                Some(DecodeStrategy::DynBytes)
+            }
+            TyKind::Elementary(elem) => Some(DecodeStrategy::Word(elem)),
+            TyKind::DynArray(elem) => match elem.peel_refs().kind {
+                TyKind::Elementary(elem) => Some(DecodeStrategy::ElementaryArray(elem)),
+                _ => self
+                    .abi_type(peeled, false)
+                    .is_some()
+                    .then_some(DecodeStrategy::General(peeled)),
+            },
+            _ => self.abi_type(peeled, false).is_some().then_some(DecodeStrategy::General(peeled)),
+        }
+    }
+
+    /// The sema types of an `abi.decode(data, (T...))` target tuple, reporting
+    /// any member codegen cannot decode.
+    fn abi_decode_tuple_tys(
         &self,
         types: &hir::Expr<'_>,
         span: Span,
-    ) -> Result<Vec<AbiDecodeTy>, ErrorGuaranteed> {
+    ) -> Result<Vec<Ty<'gcx>>, ErrorGuaranteed> {
         let unsupported = |span: Span| {
             self.gcx
                 .dcx()
@@ -2211,19 +2289,19 @@ impl<'gcx> Lowerer<'gcx> {
             let Some(elem_expr) = elem else {
                 return Err(unsupported(span));
             };
-            let ExprKind::Type(ty) = &elem_expr.kind else {
+            // Type checking records each tuple component's resolved type as
+            // `Type(inner)` on the expression, regardless of whether it is
+            // written as a builtin type keyword, a user type name, or an
+            // array of one.
+            let Some(TyKind::Type(sema_ty)) = self.get_expr_type(elem_expr).map(|ty| ty.kind)
+            else {
                 return Err(unsupported(elem_expr.span));
             };
-            match &ty.kind {
-                hir::TypeKind::Elementary(elem) => out.push(AbiDecodeTy::Value(*elem)),
-                hir::TypeKind::Array(arr) if arr.size.is_none() => {
-                    let hir::TypeKind::Elementary(elem) = &arr.element.kind else {
-                        return Err(unsupported(arr.element.span));
-                    };
-                    out.push(AbiDecodeTy::Array(*elem));
-                }
-                _ => return Err(unsupported(ty.span)),
+            let sema_ty = sema_ty.with_loc_if_ref(self.gcx, solar_ast::DataLocation::Memory);
+            if self.abi_decode_strategy(sema_ty).is_none() {
+                return Err(unsupported(elem_expr.span));
             }
+            out.push(sema_ty);
         }
         Ok(out)
     }
