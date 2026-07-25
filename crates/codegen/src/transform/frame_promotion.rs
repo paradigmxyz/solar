@@ -26,6 +26,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
+use std::cell::OnceCell;
 
 /// Function pass for internal-frame scalar promotion.
 pub(crate) struct FrameSlotPromotion;
@@ -132,11 +133,18 @@ struct SlotStore {
     value: ValueId,
 }
 
+#[derive(Clone, Copy, Debug)]
+enum SlotAccess {
+    Load(SlotLoad),
+    Store(SlotStore),
+}
+
 #[derive(Clone, Debug)]
 struct SlotAccessInfo {
     slot: PromotableSlot,
     loads: Vec<SlotLoad>,
     stores: Vec<SlotStore>,
+    accesses: FxHashMap<BlockId, Vec<SlotAccess>>,
     use_blocks: DenseBitSet<BlockId>,
     def_blocks: DenseBitSet<BlockId>,
     access_blocks: DenseBitSet<BlockId>,
@@ -148,6 +156,7 @@ impl SlotAccessInfo {
             slot,
             loads: Vec::new(),
             stores: Vec::new(),
+            accesses: FxHashMap::default(),
             use_blocks: DenseBitSet::new_empty(block_count),
             def_blocks: DenseBitSet::new_empty(block_count),
             access_blocks: DenseBitSet::new_empty(block_count),
@@ -155,13 +164,17 @@ impl SlotAccessInfo {
     }
 
     fn note_load(&mut self, block: BlockId, inst: InstId, position: usize) {
-        self.loads.push(SlotLoad { block, inst, position });
+        let load = SlotLoad { block, inst, position };
+        self.loads.push(load);
+        self.accesses.entry(block).or_default().push(SlotAccess::Load(load));
         self.use_blocks.insert(block);
         self.access_blocks.insert(block);
     }
 
     fn note_store(&mut self, block: BlockId, inst: InstId, position: usize, value: ValueId) {
-        self.stores.push(SlotStore { block, inst, position, value });
+        let store = SlotStore { block, inst, position, value };
+        self.stores.push(store);
+        self.accesses.entry(block).or_default().push(SlotAccess::Store(store));
         self.def_blocks.insert(block);
         self.access_blocks.insert(block);
     }
@@ -186,7 +199,7 @@ struct PendingPhi {
 struct SlotSsaBuilder<'a> {
     info: &'a SlotAccessInfo,
     cfg: &'a CfgInfo,
-    aa: &'a AliasAnalysis,
+    dominance_frontiers: &'a OnceCell<IndexVec<BlockId, Vec<BlockId>>>,
     replacements: FxHashMap<ValueId, ValueId>,
     dead: GrowableBitSet<InstId>,
     phis: FxHashMap<BlockId, PendingPhi>,
@@ -231,8 +244,10 @@ impl FrameSlotPromoter {
         let mut replacements = FxHashMap::default();
         let mut dead = GrowableBitSet::with_capacity(func.num_insts());
         let mut phis = Vec::new();
+        let dominance_frontiers = OnceCell::new();
         for info in slots {
-            let mut builder = SlotSsaBuilder::new(&info, &cfg, &aa, func.num_insts());
+            let mut builder =
+                SlotSsaBuilder::new(&info, &cfg, &dominance_frontiers, func.num_insts());
             if builder.run(func) {
                 self.stats.slots_promoted += 1;
                 self.stats.loads_promoted += builder.loads_promoted;
@@ -327,16 +342,23 @@ impl FrameSlotPromoter {
         dead: &GrowableBitSet<InstId>,
         phis: Vec<PendingPhi>,
     ) {
+        let mut new_phis = index_vec![Vec::new(); func.blocks.len()];
         for pending in phis {
             let mut incoming = pending.incoming;
             incoming.sort_by_key(|(block, _)| block.index());
             func.inst_mut(pending.inst).kind = InstKind::Phi(incoming);
-            let insert_pos = func.blocks[pending.block]
+            new_phis[pending.block].push(pending.inst);
+        }
+        for (block, phis) in new_phis.iter_mut_enumerated() {
+            if phis.is_empty() {
+                continue;
+            }
+            let insert_pos = func.blocks[block]
                 .instructions
                 .iter()
                 .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
                 .count();
-            func.blocks[pending.block].instructions.insert(insert_pos, pending.inst);
+            func.blocks[block].instructions.splice(insert_pos..insert_pos, phis.drain(..));
         }
 
         func.replace_uses_canonicalized(&replacements);
@@ -796,13 +818,13 @@ impl<'a> SlotSsaBuilder<'a> {
     fn new(
         info: &'a SlotAccessInfo,
         cfg: &'a CfgInfo,
-        aa: &'a AliasAnalysis,
+        dominance_frontiers: &'a OnceCell<IndexVec<BlockId, Vec<BlockId>>>,
         instruction_count: usize,
     ) -> Self {
         Self {
             info,
             cfg,
-            aa,
+            dominance_frontiers,
             replacements: FxHashMap::default(),
             dead: GrowableBitSet::with_capacity(instruction_count),
             phis: FxHashMap::default(),
@@ -844,34 +866,17 @@ impl<'a> SlotSsaBuilder<'a> {
 
     fn compute_live_in(&self, func: &Function) -> DenseBitSet<BlockId> {
         let mut gen_set = DenseBitSet::new_empty(func.blocks.len());
-        let mut kill = DenseBitSet::new_empty(func.blocks.len());
-
-        for block in func.blocks.indices() {
-            if !self.cfg.is_reachable(block) {
-                continue;
-            }
-
+        let kill = self.info.def_blocks.clone();
+        for (&block, accesses) in &self.info.accesses {
             let mut saw_store = false;
-            for &inst_id in &func.blocks[block].instructions {
-                match func.inst(inst_id).kind {
-                    InstKind::MLoad(addr)
-                        if !saw_store
-                            && FrameSlotPromoter::promotable_slot(func, self.aa, addr)
-                                == Some(self.info.slot) =>
-                    {
+            for access in accesses {
+                match access {
+                    SlotAccess::Load(_) if !saw_store => {
                         gen_set.insert(block);
                     }
-                    InstKind::MStore(addr, _)
-                        if FrameSlotPromoter::promotable_slot(func, self.aa, addr)
-                            == Some(self.info.slot) =>
-                    {
-                        saw_store = true;
-                    }
-                    _ => {}
+                    SlotAccess::Store(_) => saw_store = true,
+                    SlotAccess::Load(_) => {}
                 }
-            }
-            if saw_store {
-                kill.insert(block);
             }
         }
 
@@ -895,7 +900,8 @@ impl<'a> SlotSsaBuilder<'a> {
         func: &Function,
         live_in: &DenseBitSet<BlockId>,
     ) -> DenseBitSet<BlockId> {
-        let frontiers = self.compute_dominance_frontiers(func);
+        let frontiers =
+            self.dominance_frontiers.get_or_init(|| self.compute_dominance_frontiers(func));
         let mut phi_blocks = DenseBitSet::new_empty(func.blocks.len());
         let mut worklist = sorted_blocks(&self.info.def_blocks);
 
@@ -1051,28 +1057,22 @@ impl<'a> SlotSsaBuilder<'a> {
             current = Some(phi.value);
         }
 
-        let instruction_count = func.blocks[block].instructions.len();
-        for index in 0..instruction_count {
-            let inst_id = func.blocks[block].instructions[index];
-            match func.inst(inst_id).kind {
-                InstKind::MLoad(addr)
-                    if FrameSlotPromoter::promotable_slot(func, self.aa, addr)
-                        == Some(self.info.slot) =>
-                {
-                    let Some(value) = current else {
-                        self.failed = true;
-                        return;
-                    };
-                    self.replace_load(func, inst_id, value);
+        if let Some(accesses) = self.info.accesses.get(&block) {
+            for access in accesses {
+                match *access {
+                    SlotAccess::Load(load) => {
+                        let Some(value) = current else {
+                            self.failed = true;
+                            return;
+                        };
+                        self.replace_load(func, load.inst, value);
+                    }
+                    SlotAccess::Store(store) => {
+                        current =
+                            Some(mir_utils::resolve_replacement(store.value, &self.replacements));
+                        self.remove_store(store.inst);
+                    }
                 }
-                InstKind::MStore(addr, value)
-                    if FrameSlotPromoter::promotable_slot(func, self.aa, addr)
-                        == Some(self.info.slot) =>
-                {
-                    current = Some(mir_utils::resolve_replacement(value, &self.replacements));
-                    self.remove_store(inst_id);
-                }
-                _ => {}
             }
         }
 
