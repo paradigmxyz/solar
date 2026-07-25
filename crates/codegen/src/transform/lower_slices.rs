@@ -519,7 +519,7 @@ impl LowerSlicesCx {
 
     fn lower_projections(&mut self, func: &mut Function) -> bool {
         let mut components = FxHashMap::<ValueId, (ValueId, ValueId, InstId)>::default();
-        let mut projections = FxHashMap::<ValueId, (ValueId, InstId, bool)>::default();
+        let mut projections = FxHashMap::<ValueId, Vec<(ValueId, InstId, bool)>>::default();
         for inst in func.instructions() {
             let Some(result) = func.inst_result_value(inst) else { continue };
             match func.inst(inst).kind {
@@ -527,10 +527,10 @@ impl LowerSlicesCx {
                     components.insert(result, (ptr, len, inst));
                 }
                 InstKind::SlicePtr(slice) => {
-                    projections.insert(result, (slice, inst, true));
+                    projections.entry(slice).or_default().push((result, inst, true));
                 }
                 InstKind::SliceLen(slice) => {
-                    projections.insert(result, (slice, inst, false));
+                    projections.entry(slice).or_default().push((result, inst, false));
                 }
                 _ => {}
             }
@@ -569,8 +569,8 @@ impl LowerSlicesCx {
             if removable.contains(&slice) {
                 removed.insert(constructor);
                 self.stats.slices += 1;
-                for (&result, &(projected_slice, inst, is_ptr)) in &projections {
-                    if projected_slice == slice {
+                if let Some(slice_projections) = projections.get(&slice) {
+                    for &(result, inst, is_ptr) in slice_projections {
                         replacements.insert(result, if is_ptr { ptr } else { len });
                         removed.insert(inst);
                         self.stats.projections += 1;
