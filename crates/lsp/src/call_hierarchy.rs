@@ -19,6 +19,7 @@ use solar_interface::{
 use solar_sema::{
     Gcx,
     hir::{self, ItemId, Visit},
+    ty::TyKind,
 };
 use std::{cmp::Ordering, ops::ControlFlow};
 
@@ -36,6 +37,7 @@ pub(crate) struct CallHierarchyIndex {
     outgoing_by_key: CallRelations,
     incoming_by_key: CallRelations,
     incomplete_outgoing: FxHashSet<CallableKey>,
+    incomplete_incoming: FxHashSet<CallableKey>,
     call_sites_by_uri: FxHashMap<Url, Vec<CallSite>>,
     bodies_by_uri: FxHashMap<Url, Vec<CallableBody>>,
 }
@@ -224,11 +226,15 @@ impl CallHierarchyIndex {
         }
 
         for call in &self.direct_calls {
-            let Some(caller) = self.key_by_symbol.get(&call.caller) else {
-                continue;
-            };
-            let Some(callee) = self.key_by_symbol.get(&call.callee) else {
-                self.incomplete_outgoing.insert(caller.clone());
+            let caller = self.key_by_symbol.get(&call.caller);
+            let callee = self.key_by_symbol.get(&call.callee);
+            let (Some(caller), Some(callee)) = (caller, callee) else {
+                if let Some(caller) = caller {
+                    self.incomplete_outgoing.insert(caller.clone());
+                }
+                if let Some(callee) = callee {
+                    self.incomplete_incoming.insert(callee.clone());
+                }
                 continue;
             };
             self.outgoing_by_key
@@ -296,6 +302,9 @@ impl CallHierarchyIndex {
         item: &CallHierarchyItem,
     ) -> Option<Vec<CallHierarchyIncomingCall>> {
         let key = self.resolve_item(item)?;
+        if self.incomplete_incoming.contains(&key) {
+            return None;
+        }
         let mut callers = self.incoming_by_key.get(&key).into_iter().flatten().collect::<Vec<_>>();
         callers.sort_by_key(|(caller, _)| *caller);
         Some(
@@ -378,6 +387,7 @@ impl CallHierarchyIndex {
         self.outgoing_by_key.clear();
         self.incoming_by_key.clear();
         self.incomplete_outgoing.clear();
+        self.incomplete_incoming.clear();
         self.call_sites_by_uri.clear();
         self.bodies_by_uri.clear();
     }
@@ -427,7 +437,12 @@ impl<'gcx> Visit<'gcx> for CallCollector<'_, 'gcx> {
         &mut self,
         modifier: &'gcx hir::Modifier<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
-        if let ItemId::Function(callee) = modifier.id {
+        let callee = match modifier.id {
+            ItemId::Function(callee) => Some(callee),
+            ItemId::Contract(contract) => self.gcx.hir.contract(contract).ctor,
+            _ => None,
+        };
+        if let Some(callee) = callee {
             self.push_call(callee, modifier.name_span);
         }
         self.walk_modifier(modifier)
@@ -494,8 +509,15 @@ fn resolved_source_call<'gcx>(
     let hir::ExprKind::Call(callee, ..) = expr.kind else {
         return None;
     };
-    let callee_id = gcx.resolved_call(expr)?.res.as_function()?;
     let callee = callee.peel_parens();
+    if let hir::ExprKind::New(ty) = &callee.kind
+        && let TyKind::Fn(function) = gcx.type_of_expr(callee.id)?.kind
+        && function.is_creation()
+        && let hir::TypeKind::Custom(ItemId::Contract(contract_id)) = ty.kind
+    {
+        return Some((gcx.hir.contract(contract_id).ctor?, ty.span));
+    }
+    let callee_id = gcx.resolved_call(expr)?.res.as_function()?;
     let span = match callee.kind {
         hir::ExprKind::Member(_, member) => member.span,
         _ => callee.span,

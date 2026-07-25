@@ -381,11 +381,99 @@ fn resolves_parenthesized_direct_calls() {
 }
 
 #[test]
+fn indexes_contract_creation_calls() {
+    let marked = MarkedProject::from_fixture(
+        r#"
+        //- /Creation.sol
+        contract Target {
+            $1constructor(uint256 value) {}
+        }
+
+        contract C {
+            function $2deploy() external {
+                new $3Target(1);
+            }
+        }
+        "#,
+    );
+    let project = marked.project();
+    let path = project.path("/Creation.sol");
+    let tables = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(path.clone(), project.read_file("/Creation.sol"))],
+    ))
+    .symbol_tables;
+    let uri = Url::from_file_path(path).unwrap();
+    let constructor =
+        tables.prepare_call_hierarchy(&uri, marked.marker("$1").position()).unwrap().pop().unwrap();
+    let deploy =
+        tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()).unwrap().pop().unwrap();
+
+    assert_eq!(
+        tables.prepare_call_hierarchy(&uri, marked.marker("$3").position()),
+        Some(vec![constructor.clone()])
+    );
+    let outgoing = tables.call_hierarchy_outgoing(&deploy).unwrap();
+    assert_eq!(outgoing.len(), 1);
+    assert_eq!(outgoing[0].to, constructor);
+    assert_eq!(outgoing[0].from_ranges, [marker_range(&marked, "$3", 6)]);
+    let incoming = tables.call_hierarchy_incoming(&outgoing[0].to).unwrap();
+    assert_eq!(incoming.len(), 1);
+    assert_eq!(incoming[0].from, deploy);
+    assert_eq!(incoming[0].from_ranges, outgoing[0].from_ranges);
+}
+
+#[test]
+fn indexes_base_constructor_invocations() {
+    let marked = MarkedProject::from_fixture(
+        r#"
+        //- /Inheritance.sol
+        contract Base {
+            $1constructor(uint256 value) {}
+        }
+
+        contract Derived is Base {
+            $2constructor() $3Base(1) {}
+        }
+        "#,
+    );
+    let project = marked.project();
+    let path = project.path("/Inheritance.sol");
+    let tables = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(path.clone(), project.read_file("/Inheritance.sol"))],
+    ))
+    .symbol_tables;
+    let uri = Url::from_file_path(path).unwrap();
+    let base =
+        tables.prepare_call_hierarchy(&uri, marked.marker("$1").position()).unwrap().pop().unwrap();
+    let derived =
+        tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()).unwrap().pop().unwrap();
+
+    assert_eq!(
+        tables.prepare_call_hierarchy(&uri, marked.marker("$3").position()),
+        Some(vec![base.clone()])
+    );
+    let outgoing = tables.call_hierarchy_outgoing(&derived).unwrap();
+    assert_eq!(outgoing.len(), 1);
+    assert_eq!(outgoing[0].to, base);
+    assert_eq!(outgoing[0].from_ranges, [marker_range(&marked, "$3", 4)]);
+    let incoming = tables.call_hierarchy_incoming(&outgoing[0].to).unwrap();
+    assert_eq!(incoming.len(), 1);
+    assert_eq!(incoming[0].from, derived);
+    assert_eq!(incoming[0].from_ranges, outgoing[0].from_ranges);
+}
+
+#[test]
 fn excludes_non_direct_and_non_source_calls() {
     let marked = MarkedProject::from_fixture(
         r#"
         //- /Excluded.sol
         contract Created {}
+
+        abstract contract AbstractCreated {
+            constructor() {}
+        }
 
         contract C {
             uint256 public value;
@@ -401,6 +489,7 @@ fn excludes_non_direct_and_non_source_calls() {
                 address(this).call("");
                 this.value();
                 new Created();
+                new AbstractCreated();
                 emit Called();
                 $3target();
                 assembly {
@@ -676,6 +765,65 @@ fn isolates_identical_callers_with_conflicting_outgoing_facts() {
 
     assert_eq!(tables.prepare_call_hierarchy(&caller_uri, marked.marker("$1").position()), None);
     assert_eq!(tables.call_hierarchy_outgoing(&caller), None);
+}
+
+#[test]
+fn rejects_partial_incoming_results_for_conflicting_callers() {
+    let marked = MarkedProject::from_fixture(
+        r#"
+        //- /Target.sol
+        library Target {
+            function $1target() internal pure {}
+        }
+        //- /Caller.sol
+        import {Target} from "./Target.sol";
+
+        contract C {
+            function $2caller() external {
+                Target.target();
+            }
+        }
+        //- /RootA.sol
+        import "./Caller.sol";
+        //- /RootB.sol
+        import "./Caller.sol";
+        "#,
+    );
+    let project = marked.project();
+    let caller_contents = project.read_file("/Caller.sol");
+    let mut tables = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(project.path("/RootA.sol"), project.read_file("/RootA.sol"))],
+    ))
+    .symbol_tables;
+    let target_uri = Url::from_file_path(project.path("/Target.sol")).unwrap();
+    let target = tables
+        .prepare_call_hierarchy(&target_uri, marked.marker("$1").position())
+        .unwrap()
+        .pop()
+        .unwrap();
+    let caller_uri = Url::from_file_path(project.path("/Caller.sol")).unwrap();
+    let caller = tables
+        .prepare_call_hierarchy(&caller_uri, marked.marker("$2").position())
+        .unwrap()
+        .pop()
+        .unwrap();
+    let changed_caller = caller_contents.replace(
+        "        Target.target();",
+        "        uint256 value = 1;\n        Target.target();",
+    );
+    project.write_file("/Caller.sol", &changed_caller);
+    let conflicting = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(project.path("/RootB.sol"), project.read_file("/RootB.sol"))],
+    ))
+    .symbol_tables;
+
+    tables.extend(conflicting);
+
+    assert_eq!(tables.prepare_call_hierarchy(&caller_uri, marked.marker("$2").position()), None);
+    assert_eq!(tables.call_hierarchy_outgoing(&caller), None);
+    assert_eq!(tables.call_hierarchy_incoming(&target), None);
 }
 
 #[test]
