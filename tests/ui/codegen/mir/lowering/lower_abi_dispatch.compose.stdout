@@ -1,6 +1,6 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_then_dispatch.mir (before lower-abi) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_then_dispatch.mir (after lower-abi) ===
-  @module LowerAbiThenDispatch
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (before lower-abi) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (after lower-abi) ===
+  @module LowerAbiDispatch
 - fn @get(arg0: u256) {
 + @phase abi
 + fn @get() {
@@ -9,9 +9,9 @@
       returndata 128, 32
   }
   
-- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_then_dispatch.mir (before lower-dispatch) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_then_dispatch.mir (after lower-dispatch) ===
-  @module LowerAbiThenDispatch
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (before lower-dispatch) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (after lower-dispatch) ===
+  @module LowerAbiDispatch
 - @phase abi
 + @phase dispatch
   fn @get() {

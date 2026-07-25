@@ -110,6 +110,7 @@ solar-codegen = { version = "=0.2.0", path = "crates/codegen", default-features 
 solar-config = { version = "=0.2.0", path = "crates/config", default-features = false }
 solar-data-structures = { version = "=0.2.0", path = "crates/data-structures", default-features = false }
 solar-interface = { version = "=0.2.0", path = "crates/interface", default-features = false }
+solar-lint = { version = "=0.2.0", path = "crates/lint", default-features = false }
 solar-lsp = { version = "=0.2.0", path = "crates/lsp", default-features = false }
 solar-macros = { version = "=0.2.0", path = "crates/macros", default-features = false }
 solar-parse = { version = "=0.2.0", path = "crates/parse", default-features = false }
