@@ -21,7 +21,7 @@ use crate::{
     },
     pass::{MirPass, run_function_pass},
 };
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::index_vec, map::FxHashMap};
 
 /// Function pass for jump threading.
 pub(crate) struct JumpThreading;
@@ -89,7 +89,8 @@ impl JumpThreader {
 
         if !forwarders.is_empty() {
             // Resolve the final target for each forwarder (following chains)
-            let final_targets = self.resolve_final_targets(&forwarders, func.blocks.len());
+            let mut final_targets = self.resolve_final_targets(&forwarders, func.blocks.len());
+            final_targets.retain(|block, target| block != target && !func.block_has_phi(*target));
 
             // Update all terminators to use final targets
             self.thread_jumps(func, &final_targets);
@@ -102,8 +103,6 @@ impl JumpThreader {
             return 0;
         }
 
-        // Update predecessor/successor information
-        self.update_cfg_edges(func);
         changed += usize::from(repair_reachability_phis(func));
 
         changed
@@ -159,59 +158,61 @@ impl JumpThreader {
         block_count: usize,
     ) -> FxHashMap<BlockId, BlockId> {
         let mut final_targets = FxHashMap::default();
+        let mut path = Vec::new();
+        let mut positions = index_vec![usize::MAX; block_count];
 
         for &block_id in forwarders.keys() {
-            let final_target = self.follow_chain(block_id, forwarders, block_count);
-            if final_target != block_id {
-                final_targets.insert(block_id, final_target);
+            if final_targets.contains_key(&block_id) {
+                continue;
+            }
+            path.clear();
+            let mut current = block_id;
+            let final_target = loop {
+                if let Some(&target) = final_targets.get(&current) {
+                    break target;
+                }
+                if positions[current] != usize::MAX {
+                    let cycle_start = positions[current];
+                    for &cycle_block in &path[cycle_start..] {
+                        final_targets.insert(cycle_block, cycle_block);
+                    }
+                    break current;
+                }
+                let Some(&next) = forwarders.get(&current) else {
+                    break current;
+                };
+                positions[current] = path.len();
+                path.push(current);
+                current = next;
+            };
+            for &path_block in &path {
+                final_targets.entry(path_block).or_insert(final_target);
+                positions[path_block] = usize::MAX;
             }
         }
 
         final_targets
     }
 
-    /// Follows a chain of forwarders to find the final non-forwarder target.
-    fn follow_chain(
-        &self,
-        start: BlockId,
-        forwarders: &FxHashMap<BlockId, BlockId>,
-        block_count: usize,
-    ) -> BlockId {
-        let mut visited = DenseBitSet::new_empty(block_count);
-        let mut current = start;
-
-        while let Some(&next) = forwarders.get(&current) {
-            if !visited.insert(current) {
-                break;
-            }
-            current = next;
-        }
-
-        current
-    }
-
     /// Updates all terminators to use the final targets.
     fn thread_jumps(&mut self, func: &mut Function, final_targets: &FxHashMap<BlockId, BlockId>) {
-        let block_ids: Vec<_> = func.blocks.indices().collect();
-        for block_id in block_ids {
-            let Some(mut term) = func.blocks[block_id].terminator.clone() else {
+        for block in &mut func.blocks {
+            let Some(term) = &mut block.terminator else {
                 continue;
             };
-            self.thread_terminator(func, &mut term, final_targets);
-            func.blocks[block_id].terminator = Some(term);
+            self.thread_terminator(term, final_targets);
         }
     }
 
     /// Threads a single terminator's targets.
     fn thread_terminator(
         &mut self,
-        func: &Function,
         term: &mut Terminator,
         final_targets: &FxHashMap<BlockId, BlockId>,
     ) {
         match term {
             Terminator::Jump(target) => {
-                if let Some(final_target) = Self::threaded_target(func, *target, final_targets) {
+                if let Some(&final_target) = final_targets.get(target) {
                     *target = final_target;
                     self.stats.jumps_threaded += 1;
                     self.stats.gas_saved += 8;
@@ -220,13 +221,11 @@ impl JumpThreader {
 
             Terminator::Branch { then_block, else_block, .. } => {
                 let mut changed = false;
-                if let Some(final_target) = Self::threaded_target(func, *then_block, final_targets)
-                {
+                if let Some(&final_target) = final_targets.get(then_block) {
                     *then_block = final_target;
                     changed = true;
                 }
-                if let Some(final_target) = Self::threaded_target(func, *else_block, final_targets)
-                {
+                if let Some(&final_target) = final_targets.get(else_block) {
                     *else_block = final_target;
                     changed = true;
                 }
@@ -238,13 +237,12 @@ impl JumpThreader {
 
             Terminator::Switch { default, cases, .. } => {
                 let mut changed = false;
-                if let Some(final_target) = Self::threaded_target(func, *default, final_targets) {
+                if let Some(&final_target) = final_targets.get(default) {
                     *default = final_target;
                     changed = true;
                 }
                 for (_, target) in cases.iter_mut() {
-                    if let Some(final_target) = Self::threaded_target(func, *target, final_targets)
-                    {
+                    if let Some(&final_target) = final_targets.get(target) {
                         *target = final_target;
                         changed = true;
                     }
@@ -265,65 +263,61 @@ impl JumpThreader {
         }
     }
 
-    fn threaded_target(
-        func: &Function,
-        target: BlockId,
-        final_targets: &FxHashMap<BlockId, BlockId>,
-    ) -> Option<BlockId> {
-        let final_target = final_targets.get(&target).copied()?;
-        (!func.block_has_phi(final_target)).then_some(final_target)
-    }
-
-    fn block_phi_results_have_external_uses(func: &Function, block_id: BlockId) -> bool {
-        let phi_results = func.block_phi_results(block_id);
-        if phi_results.is_empty() {
-            return false;
+    fn externally_used_phi_results(func: &Function) -> DenseBitSet<ValueId> {
+        let mut owners = index_vec![BlockId::MAX; func.values.len()];
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            if !func.block_has_only_phis(block_id) {
+                continue;
+            }
+            for &inst_id in &block.instructions {
+                if let Some(value) = func.inst_result_value(inst_id) {
+                    owners[value] = block_id;
+                }
+            }
         }
 
-        for (other_block, block) in func.blocks.iter_enumerated() {
-            if other_block != block_id {
-                for &inst_id in &block.instructions {
-                    if func
-                        .inst(inst_id)
-                        .kind
-                        .operands()
-                        .iter()
-                        .any(|&operand| phi_results.contains(operand))
-                    {
-                        return true;
+        let mut external = DenseBitSet::new_empty(func.values.len());
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                for operand in func.inst(inst_id).kind.operands() {
+                    if owners[operand] != BlockId::MAX && owners[operand] != block_id {
+                        external.insert(operand);
                     }
                 }
             }
-
-            if other_block == block_id {
-                continue;
-            }
-            if let Some(term) = &block.terminator
-                && term.operands().iter().any(|&operand| phi_results.contains(operand))
-            {
-                return true;
+            if let Some(term) = &block.terminator {
+                for operand in term.operands() {
+                    if owners[operand] != BlockId::MAX && owners[operand] != block_id {
+                        external.insert(operand);
+                    }
+                }
             }
         }
 
-        false
+        external
     }
 
     fn thread_phi_constant_edges(&mut self, func: &mut Function) -> usize {
         let mut rewrites = Vec::new();
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let externally_used_phis = Self::externally_used_phi_results(func);
 
-        for block_id in block_ids {
+        for block_id in func.blocks.indices() {
             if !func.block_has_only_phis(block_id) {
                 continue;
             }
-            if Self::block_phi_results_have_external_uses(func, block_id) {
+            if func.blocks[block_id]
+                .instructions
+                .iter()
+                .filter_map(|&inst_id| func.inst_result_value(inst_id))
+                .any(|value| externally_used_phis.contains(value))
+            {
                 continue;
             }
 
             let Some(term) = &func.blocks[block_id].terminator else {
                 continue;
             };
-            let predecessors = func.blocks[block_id].predecessors.clone();
+            let predecessors = func.unique_predecessors(block_id);
             if predecessors.is_empty() {
                 continue;
             }
@@ -464,26 +458,6 @@ impl JumpThreader {
             | Terminator::SelfDestruct { .. }
             | Terminator::TailCall { .. }
             | Terminator::Invalid => false,
-        }
-    }
-
-    /// Updates CFG edges after threading.
-    fn update_cfg_edges(&self, func: &mut Function) {
-        let block_ids: Vec<_> = func.blocks.indices().collect();
-        for block_id in &block_ids {
-            func.blocks[*block_id].predecessors.clear();
-        }
-
-        for block_id in block_ids {
-            let successors = func.blocks[block_id]
-                .terminator
-                .as_ref()
-                .map(|t| t.successors())
-                .unwrap_or_default();
-
-            for succ in successors {
-                func.blocks[succ].predecessors.push(block_id);
-            }
         }
     }
 }
