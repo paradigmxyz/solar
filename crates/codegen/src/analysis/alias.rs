@@ -18,7 +18,6 @@ use crate::{
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    index::index_vec,
     map::{FxHashMap, FxHashSet},
 };
 use std::{cell::RefCell, collections::VecDeque, sync::Arc};
@@ -580,95 +579,9 @@ impl AliasAnalysis {
         func.storage_alias_after_replacements(inst_id, slot, replacements)
     }
 
-    /// Returns whether a pointer-derived value can escape its function.
-    ///
-    /// Address-only uses are non-capturing. Stores of the pointer value,
-    /// returns, and arguments to capturing internal-call parameters escape.
-    /// Unsupported uses stay conservative.
+    /// Returns whether one instruction use lets a pointer-derived operand escape.
     #[must_use]
-    pub(crate) fn value_escapes(&self, func: &Function, root: ValueId) -> bool {
-        let mut propagating_users = index_vec![Vec::new(); func.values.len()];
-        for inst_id in func.instructions() {
-            let Some(result) = func.inst_result_value(inst_id) else { continue };
-            match &func.inst(inst_id).kind {
-                InstKind::Add(first, second)
-                | InstKind::Sub(first, second)
-                | InstKind::MakeSlice { ptr: first, len: second, .. } => {
-                    propagating_users[*first].push(result);
-                    propagating_users[*second].push(result);
-                }
-                InstKind::Phi(incoming) => {
-                    for &(_, value) in incoming {
-                        propagating_users[value].push(result);
-                    }
-                }
-                InstKind::Select(_, first, second) => {
-                    propagating_users[*first].push(result);
-                    propagating_users[*second].push(result);
-                }
-                InstKind::SlicePtr(value)
-                | InstKind::MemoryObjectData(value, _)
-                | InstKind::MemoryObjectFieldAddr { object: value, .. } => {
-                    propagating_users[*value].push(result);
-                }
-                InstKind::MemoryObjectElementAddr { object, .. } => {
-                    propagating_users[*object].push(result);
-                }
-                _ => {}
-            }
-        }
-
-        let mut derived = DenseBitSet::new_empty(func.values.len());
-        derived.insert(root);
-        let mut pending = vec![root];
-        while let Some(value) = pending.pop() {
-            for &user in &propagating_users[value] {
-                if derived.insert(user) {
-                    pending.push(user);
-                }
-            }
-        }
-
-        for inst_id in func.instructions() {
-            let kind = &func.inst(inst_id).kind;
-            for operand in kind.operands() {
-                if derived.contains(operand) && self.instruction_operand_escapes(kind, operand) {
-                    return true;
-                }
-            }
-        }
-        for block in &func.blocks {
-            if let Some(terminator) = &block.terminator {
-                for operand in terminator.operands() {
-                    if !derived.contains(operand) {
-                        continue;
-                    }
-                    match terminator {
-                        Terminator::Revert { offset, .. }
-                        | Terminator::ReturnData { offset, .. }
-                            if operand == *offset => {}
-                        Terminator::TailCall { function, args } => {
-                            let summary = self
-                                .call_summaries
-                                .as_deref()
-                                .and_then(|summaries| summaries.get(*function));
-                            if summary.is_none_or(|summary| {
-                                args.iter().enumerate().any(|(index, &arg)| {
-                                    arg == operand && summary.captures_param(index)
-                                })
-                            }) {
-                                return true;
-                            }
-                        }
-                        _ => return true,
-                    }
-                }
-            }
-        }
-        false
-    }
-
-    fn instruction_operand_escapes(&self, kind: &InstKind, operand: ValueId) -> bool {
+    pub(crate) fn instruction_operand_escapes(&self, kind: &InstKind, operand: ValueId) -> bool {
         match kind {
             InstKind::Add(_, _)
             | InstKind::Sub(_, _)
