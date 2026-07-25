@@ -16,7 +16,7 @@
 use crate::{
     analysis::AliasAnalysis,
     mir::{Function, InstId, InstKind, Module, ValueId},
-    pass::{MirPass, run_function_pass_filtered},
+    pass::{MirPass, run_function_pass_with_alias_filtered},
 };
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -38,14 +38,14 @@ impl MirPass for CopyElision {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass_filtered(
+        run_function_pass_with_alias_filtered(
             module,
             analyses,
             |_, func| {
                 func.instructions()
                     .any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::Alloc { .. }))
             },
-            |func, analyses| CopyElisionCx::default().run(func, &analyses.alias),
+            |func, alias| CopyElisionCx::default().run(func, alias),
         )
     }
 }
