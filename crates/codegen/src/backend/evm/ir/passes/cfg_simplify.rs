@@ -26,32 +26,26 @@ impl EvmPass for CfgSimplify {
 fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
     state.reserve(module.blocks.len());
-    let mut changed = false;
-    loop {
-        let truncated = truncate_after_terminal(module);
-        let degenerate = simplify_degenerate_branches(module);
-        let redirected = redirect_jump_thunks(
-            module,
-            &mut state.thunks,
-            &mut state.resolved,
-            &mut state.positions,
-            &mut state.path,
-            &mut state.addressed,
-            &mut state.order,
-        );
-        let swept = remove_unreachable_blocks(
-            module,
-            &mut state.reachable,
-            &mut state.pending,
-            &mut state.order,
-        );
-        let coalesced =
-            coalesce_blocks(module, &mut state.references, &mut state.retained, &mut state.order);
-        changed |= truncated || degenerate || redirected || swept || coalesced;
-        if !truncated && !degenerate && !redirected && !swept && !coalesced {
-            return changed;
-        }
-    }
+    let truncated = truncate_after_terminal(module);
+    let degenerate = simplify_degenerate_branches(module);
+    let redirected = redirect_jump_thunks(
+        module,
+        &mut state.thunks,
+        &mut state.resolved,
+        &mut state.positions,
+        &mut state.path,
+        &mut state.addressed,
+        &mut state.order,
+    );
+    let swept = remove_unreachable_blocks(
+        module,
+        &mut state.reachable,
+        &mut state.pending,
+        &mut state.order,
+    );
+    let coalesced =
+        coalesce_blocks(module, &mut state.references, &mut state.retained, &mut state.order);
+    truncated || degenerate || redirected || swept || coalesced
 }
 
 struct RunState {
