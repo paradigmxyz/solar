@@ -298,10 +298,14 @@ impl TransitiveReachability {
                 let successor_component = components[successor];
                 if successor_component == component {
                     cyclic.insert(component);
-                } else if !component_successors[component].contains(&successor_component) {
+                } else {
                     component_successors[component].push(successor_component);
                 }
             }
+        }
+        for successors in &mut component_successors {
+            successors.sort_unstable();
+            successors.dedup();
         }
 
         let mut incoming = index_vec![0usize; component_count];
