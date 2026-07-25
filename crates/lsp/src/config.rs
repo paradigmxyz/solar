@@ -6,11 +6,12 @@ use crate::{
 };
 use lsp_types::{
     CompletionOptions, DeclarationCapability, DiagnosticOptions, DiagnosticServerCapabilities,
-    DocumentLinkOptions, ExecuteCommandOptions, HoverProviderCapability,
-    ImplementationProviderCapability, InitializeParams, OneOf, RenameOptions, SaveOptions,
-    SelectionRangeProviderCapability, ServerCapabilities, SignatureHelpOptions,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-    TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WorkDoneProgressOptions,
+    DocumentLinkOptions, ExecuteCommandOptions, FoldingRangeProviderCapability,
+    HoverProviderCapability, ImplementationProviderCapability, InitializeParams, OneOf,
+    RenameOptions, SaveOptions, SelectionRangeProviderCapability, ServerCapabilities,
+    SignatureHelpOptions, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextDocumentSyncOptions, TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability,
+    WorkDoneProgressOptions,
 };
 use solar_interface::data_structures::map::FxHashSet;
 use std::{
@@ -286,6 +287,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             implementation_provider: Some(ImplementationProviderCapability::Simple(true)),
             type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(true)),
             document_formatting_provider: Some(OneOf::Left(true)),
+            folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
             diagnostic_provider: Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
                 identifier: None,
                 inter_file_dependencies: true,
@@ -432,6 +434,10 @@ mod tests {
             Some(TypeDefinitionProviderCapability::Simple(true))
         );
         assert_eq!(capabilities.document_formatting_provider, Some(OneOf::Left(true)));
+        assert_eq!(
+            capabilities.folding_range_provider,
+            Some(FoldingRangeProviderCapability::Simple(true))
+        );
         assert_eq!(capabilities.document_symbol_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.hover_provider, Some(HoverProviderCapability::Simple(true)));
         let document_link_provider = capabilities.document_link_provider.unwrap();
