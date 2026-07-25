@@ -20,7 +20,7 @@ use crate::{
         AbiLayoutRef, AllocationKind, AllocationSemantics, BlockId, EffectKind, Function,
         FunctionId, Immediate, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout,
         MemoryRegion, MirType, Module, StorageAlias, StorageLayoutRef, Terminator, Value, ValueId,
-        utils::retain_blocks,
+        utils::{TerminatorEdgeUpdate, apply_terminator_edge_updates, retain_blocks},
     },
     pass::{MirPass, run_function_pass},
 };
@@ -543,8 +543,7 @@ impl CfgSimplifier {
     }
 
     fn simplify_degenerate_terminators(&mut self, func: &mut Function) {
-        let mut predecessor_counts =
-            func.blocks.indices().map(|_| None).collect::<IndexVec<BlockId, _>>();
+        let mut edge_updates = Vec::new();
         for block_id in func.blocks.indices() {
             let old_successors = func.blocks[block_id]
                 .terminator
@@ -593,59 +592,14 @@ impl CfgSimplifier {
                 .as_ref()
                 .map(Terminator::successors)
                 .unwrap_or_default();
-            if old_successors == new_successors {
-                continue;
-            }
-            let mut new_counts = FxHashMap::default();
-            for successor in &new_successors {
-                *new_counts.entry(*successor).or_insert(0usize) += 1;
-            }
-            for successor in old_successors.iter().chain(&new_successors) {
-                let count = new_counts.get(successor).copied().unwrap_or(0);
-                predecessor_counts[*successor]
-                    .get_or_insert_with(FxHashMap::default)
-                    .insert(block_id, (count, count != 0));
+            if let Some(update) =
+                TerminatorEdgeUpdate::new(block_id, old_successors, new_successors)
+            {
+                edge_updates.push(update);
             }
         }
 
-        Self::apply_predecessor_counts(func, predecessor_counts);
-    }
-
-    fn apply_predecessor_counts(
-        func: &mut Function,
-        mut updates: IndexVec<BlockId, Option<FxHashMap<BlockId, (usize, bool)>>>,
-    ) {
-        let mut removed = FxHashSet::default();
-        for (block_id, counts) in
-            updates.iter_mut_enumerated().filter_map(|(id, counts)| Some((id, counts.as_mut()?)))
-        {
-            let predecessors = &mut func.blocks[block_id].predecessors;
-            predecessors.retain(|predecessor| {
-                let Some((remaining, _)) = counts.get_mut(predecessor) else {
-                    return true;
-                };
-                let keep = *remaining != 0;
-                *remaining = remaining.saturating_sub(1);
-                keep
-            });
-            for (&predecessor, &(remaining, keep_phi)) in counts.iter() {
-                predecessors.extend(std::iter::repeat_n(predecessor, remaining));
-                if !keep_phi {
-                    removed.insert(predecessor);
-                }
-            }
-            if removed.is_empty() {
-                continue;
-            }
-            let instruction_count = func.blocks[block_id].instructions.len();
-            for index in 0..instruction_count {
-                let inst_id = func.blocks[block_id].instructions[index];
-                if let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind {
-                    incoming.retain(|(predecessor, _)| !removed.contains(predecessor));
-                }
-            }
-            removed.clear();
-        }
+        apply_terminator_edge_updates(func, &edge_updates);
     }
 
     /// Runs CFG simplification iteratively until no more changes.

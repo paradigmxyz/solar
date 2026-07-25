@@ -18,7 +18,7 @@ use crate::{
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, MirType, Module, Terminator, Value,
         ValueId,
-        utils::{self as mir_utils, repair_reachability_phis},
+        utils::{self as mir_utils, TerminatorEdgeUpdate, apply_terminator_edge_updates},
     },
     pass::{MirPass, run_function_pass},
     utils::evm_word,
@@ -653,6 +653,7 @@ impl SccpCx {
         // immediate values, and remove the instruction from the block.
         let mut const_values: FxHashMap<ValueId, ValueId> = FxHashMap::default();
         let mut dead_insts = DenseBitSet::new_empty(func.num_insts());
+        let mut edge_updates = Vec::new();
 
         let inst_results = func
             .instructions()
@@ -725,9 +726,25 @@ impl SccpCx {
 
         // Phase 5: Apply branch/switch rewrites.
         for (block_id, target) in control_rewrites {
+            let old_successors = func.blocks[block_id]
+                .terminator
+                .as_ref()
+                .map(Terminator::successors)
+                .unwrap_or_default();
             let was_switch =
                 matches!(func.blocks[block_id].terminator, Some(Terminator::Switch { .. }));
             func.blocks[block_id].terminator = Some(Terminator::Jump(target));
+            if let Some(update) = TerminatorEdgeUpdate::new(
+                block_id,
+                old_successors,
+                func.blocks[block_id]
+                    .terminator
+                    .as_ref()
+                    .map(Terminator::successors)
+                    .unwrap_or_default(),
+            ) {
+                edge_updates.push(update);
+            }
             if was_switch {
                 self.stats.switches_folded += 1;
             } else {
@@ -741,28 +758,31 @@ impl SccpCx {
                 continue;
             }
             let block = &mut func.blocks[block_id];
-            // Predecessor lists are rebuilt from terminators by
-            // `repair_reachability_phis` below, so a never-taken switch target
-            // keeps a predecessor entry; checking it here would re-count the
-            // block as invalidated on every run.
+            // A never-taken switch target can remain structurally referenced
+            // by a switch, so its predecessor list may stay non-empty.
             let already_invalid = block.instructions.is_empty()
                 && matches!(block.terminator, Some(Terminator::Invalid));
             if already_invalid {
                 continue;
             }
+            let old_successors =
+                block.terminator.as_ref().map(Terminator::successors).unwrap_or_default();
             block.instructions.clear();
             block.terminator = Some(Terminator::Invalid);
-            block.predecessors.clear();
+            if let Some(update) =
+                TerminatorEdgeUpdate::new(block_id, old_successors, Default::default())
+            {
+                edge_updates.push(update);
+            }
             self.stats.blocks_invalidated += 1;
         }
 
-        let reachability_repaired = repair_reachability_phis(func);
+        apply_terminator_edge_updates(func, &edge_updates);
 
         self.stats.constants_folded
             + self.stats.branches_folded
             + self.stats.switches_folded
             + self.stats.blocks_invalidated
-            + usize::from(reachability_repaired)
     }
 }
 

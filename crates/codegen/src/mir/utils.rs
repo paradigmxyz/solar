@@ -2,7 +2,7 @@
 
 use crate::mir::{BasicBlock, BlockId, Function, InstKind, Terminator, ValueId};
 use alloy_primitives::U256;
-use smallvec::smallvec;
+use smallvec::{SmallVec, smallvec};
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
@@ -179,6 +179,95 @@ pub(crate) fn remove_predecessors(
         if let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind {
             incoming.retain(|(predecessor, _)| !removed.contains(predecessor));
         }
+    }
+}
+
+pub(crate) struct TerminatorEdgeUpdate {
+    predecessor: BlockId,
+    affected_successors: SmallVec<[BlockId; 2]>,
+}
+
+impl TerminatorEdgeUpdate {
+    pub(crate) fn new(
+        predecessor: BlockId,
+        old_successors: SmallVec<[BlockId; 2]>,
+        new_successors: SmallVec<[BlockId; 2]>,
+    ) -> Option<Self> {
+        if old_successors == new_successors {
+            return None;
+        }
+        let mut affected_successors = old_successors;
+        affected_successors.extend(new_successors);
+        Some(Self { predecessor, affected_successors })
+    }
+
+    pub(crate) fn replace_successor(
+        predecessor: BlockId,
+        old_successor: BlockId,
+        new_successor: BlockId,
+    ) -> Option<Self> {
+        (old_successor != new_successor).then_some(Self {
+            predecessor,
+            affected_successors: smallvec![old_successor, new_successor],
+        })
+    }
+}
+
+/// Applies exact predecessor multiplicities and removes phi inputs for deleted edges.
+pub(crate) fn apply_terminator_edge_updates(func: &mut Function, updates: &[TerminatorEdgeUpdate]) {
+    let mut affected = FxHashMap::<BlockId, FxHashSet<BlockId>>::default();
+    for update in updates {
+        affected
+            .entry(update.predecessor)
+            .or_default()
+            .extend(update.affected_successors.iter().copied());
+    }
+
+    let mut counts = FxHashMap::<BlockId, FxHashMap<BlockId, (usize, bool)>>::default();
+    for (predecessor, affected_successors) in affected {
+        for &successor in &affected_successors {
+            counts.entry(successor).or_default().insert(predecessor, (0, false));
+        }
+        if let Some(terminator) = &func.blocks[predecessor].terminator {
+            for successor in terminator.successors() {
+                if affected_successors.contains(&successor) {
+                    let (count, keep_phi) =
+                        counts.get_mut(&successor).unwrap().get_mut(&predecessor).unwrap();
+                    *count += 1;
+                    *keep_phi = true;
+                }
+            }
+        }
+    }
+
+    let mut removed = FxHashSet::default();
+    for (block_id, mut counts) in counts {
+        let predecessors = &mut func.blocks[block_id].predecessors;
+        predecessors.retain(|predecessor| {
+            let Some((remaining, _)) = counts.get_mut(predecessor) else {
+                return true;
+            };
+            let keep = *remaining != 0;
+            *remaining = remaining.saturating_sub(1);
+            keep
+        });
+        for (&predecessor, &(remaining, keep_phi)) in &counts {
+            predecessors.extend(std::iter::repeat_n(predecessor, remaining));
+            if !keep_phi {
+                removed.insert(predecessor);
+            }
+        }
+        if removed.is_empty() {
+            continue;
+        }
+        let instruction_count = func.blocks[block_id].instructions.len();
+        for index in 0..instruction_count {
+            let inst_id = func.blocks[block_id].instructions[index];
+            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind {
+                incoming.retain(|(predecessor, _)| !removed.contains(predecessor));
+            }
+        }
+        removed.clear();
     }
 }
 

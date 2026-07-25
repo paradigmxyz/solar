@@ -17,7 +17,7 @@
 use crate::{
     mir::{
         BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
-        utils::repair_reachability_phis,
+        utils::{TerminatorEdgeUpdate, apply_terminator_edge_updates},
     },
     pass::{MirPass, run_function_pass},
 };
@@ -83,6 +83,7 @@ impl JumpThreader {
     fn run(&mut self, func: &mut Function) -> usize {
         self.stats = JumpThreadingStats::default();
         let mut changed = 0;
+        let mut edge_updates = Vec::new();
 
         // Build a map of blocks that are "forwarders" - blocks that only jump unconditionally
         let forwarders = self.find_forwarder_blocks(func);
@@ -93,17 +94,17 @@ impl JumpThreader {
             final_targets.retain(|block, target| block != target && !func.block_has_phi(*target));
 
             // Update all terminators to use final targets
-            self.thread_jumps(func, &final_targets);
+            self.thread_jumps(func, &final_targets, &mut edge_updates);
             changed += self.stats.total_threaded();
         }
 
-        changed += self.thread_phi_constant_edges(func);
+        changed += self.thread_phi_constant_edges(func, &mut edge_updates);
 
         if changed == 0 {
             return 0;
         }
 
-        changed += usize::from(repair_reachability_phis(func));
+        apply_terminator_edge_updates(func, &edge_updates);
 
         changed
     }
@@ -195,39 +196,64 @@ impl JumpThreader {
     }
 
     /// Updates all terminators to use the final targets.
-    fn thread_jumps(&mut self, func: &mut Function, final_targets: &FxHashMap<BlockId, BlockId>) {
-        for block in &mut func.blocks {
+    fn thread_jumps(
+        &mut self,
+        func: &mut Function,
+        final_targets: &FxHashMap<BlockId, BlockId>,
+        edge_updates: &mut Vec<TerminatorEdgeUpdate>,
+    ) {
+        for (block_id, block) in func.blocks.iter_mut_enumerated() {
             let Some(term) = &mut block.terminator else {
                 continue;
             };
-            self.thread_terminator(term, final_targets);
+            self.thread_terminator(block_id, term, final_targets, edge_updates);
         }
     }
 
     /// Threads a single terminator's targets.
     fn thread_terminator(
         &mut self,
+        block_id: BlockId,
         term: &mut Terminator,
         final_targets: &FxHashMap<BlockId, BlockId>,
+        edge_updates: &mut Vec<TerminatorEdgeUpdate>,
     ) {
         match term {
             Terminator::Jump(target) => {
                 if let Some(&final_target) = final_targets.get(target) {
+                    let old_target = *target;
                     *target = final_target;
-                    self.stats.jumps_threaded += 1;
-                    self.stats.gas_saved += 8;
+                    if let Some(update) =
+                        TerminatorEdgeUpdate::replace_successor(block_id, old_target, final_target)
+                    {
+                        edge_updates.push(update);
+                        self.stats.jumps_threaded += 1;
+                        self.stats.gas_saved += 8;
+                    }
                 }
             }
 
             Terminator::Branch { then_block, else_block, .. } => {
                 let mut changed = false;
                 if let Some(&final_target) = final_targets.get(then_block) {
+                    let old_target = *then_block;
                     *then_block = final_target;
-                    changed = true;
+                    if let Some(update) =
+                        TerminatorEdgeUpdate::replace_successor(block_id, old_target, final_target)
+                    {
+                        edge_updates.push(update);
+                        changed = true;
+                    }
                 }
                 if let Some(&final_target) = final_targets.get(else_block) {
+                    let old_target = *else_block;
                     *else_block = final_target;
-                    changed = true;
+                    if let Some(update) =
+                        TerminatorEdgeUpdate::replace_successor(block_id, old_target, final_target)
+                    {
+                        edge_updates.push(update);
+                        changed = true;
+                    }
                 }
                 if changed {
                     self.stats.branches_threaded += 1;
@@ -238,13 +264,27 @@ impl JumpThreader {
             Terminator::Switch { default, cases, .. } => {
                 let mut changed = false;
                 if let Some(&final_target) = final_targets.get(default) {
+                    let old_target = *default;
                     *default = final_target;
-                    changed = true;
+                    if let Some(update) =
+                        TerminatorEdgeUpdate::replace_successor(block_id, old_target, final_target)
+                    {
+                        edge_updates.push(update);
+                        changed = true;
+                    }
                 }
                 for (_, target) in cases.iter_mut() {
                     if let Some(&final_target) = final_targets.get(target) {
+                        let old_target = *target;
                         *target = final_target;
-                        changed = true;
+                        if let Some(update) = TerminatorEdgeUpdate::replace_successor(
+                            block_id,
+                            old_target,
+                            final_target,
+                        ) {
+                            edge_updates.push(update);
+                            changed = true;
+                        }
                     }
                 }
                 if changed {
@@ -297,7 +337,11 @@ impl JumpThreader {
         external
     }
 
-    fn thread_phi_constant_edges(&mut self, func: &mut Function) -> usize {
+    fn thread_phi_constant_edges(
+        &mut self,
+        func: &mut Function,
+        edge_updates: &mut Vec<TerminatorEdgeUpdate>,
+    ) -> usize {
         let mut rewrites = Vec::new();
         let externally_used_phis = Self::externally_used_phi_results(func);
         let mut phi_incoming = FxHashMap::default();
@@ -354,6 +398,11 @@ impl JumpThreader {
         let mut threaded = 0;
         for (pred, old_target, new_target) in rewrites {
             if Self::replace_successor(func, pred, old_target, new_target) {
+                if let Some(update) =
+                    TerminatorEdgeUpdate::replace_successor(pred, old_target, new_target)
+                {
+                    edge_updates.push(update);
+                }
                 threaded += 1;
             }
         }
