@@ -185,3 +185,17 @@ fn @revisit_loop_header_phi(arg0: u256, arg1: bool) -> u256 {
   bb3:
     ret v2
 }
+
+// CHECK-LABEL: {{^[ +].*}}fn @revisit_earlier_user{{[( ]}}
+// CHECK: - {{v[0-9]+}} = sub
+// CHECK: + ret 0
+fn @revisit_earlier_user(arg0: u256, arg1: bool) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = sub v2, arg0
+    v2 = add arg0, 0
+    jumpi arg1, bb1, bb2
+  bb2:
+    ret v1
+}

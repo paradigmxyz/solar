@@ -20,7 +20,8 @@ use crate::{
     utils::evm_word,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::GrowableBitSet, index::IndexVec, map::FxHashMap};
+use std::collections::VecDeque;
 
 /// Function pass for local instruction simplification.
 pub(crate) struct InstSimplify;
@@ -39,7 +40,7 @@ impl MirPass for InstSimplify {
         let mut simplifier = InstSimplifier::new();
         let mut state = RunState::new();
         run_function_pass_no_analyses(module, analyses, |func| {
-            simplifier.run_to_fixpoint_with_state(func, &mut state) != 0
+            simplifier.run_with_state(func, &mut state) != 0
         })
     }
 }
@@ -54,9 +55,9 @@ struct InstSimplifier {
 struct RunState {
     replacements: FxHashMap<ValueId, ValueId>,
     dead: GrowableBitSet<InstId>,
-    instructions: Vec<InstId>,
-    seen_phi_operands: GrowableBitSet<ValueId>,
-    needs_rescan: bool,
+    users: IndexVec<ValueId, Vec<InstId>>,
+    worklist: VecDeque<InstId>,
+    queued: GrowableBitSet<InstId>,
 }
 
 impl RunState {
@@ -64,9 +65,9 @@ impl RunState {
         Self {
             replacements: FxHashMap::default(),
             dead: GrowableBitSet::new_empty(),
-            instructions: Vec::new(),
-            seen_phi_operands: GrowableBitSet::new_empty(),
-            needs_rescan: false,
+            users: IndexVec::new(),
+            worklist: VecDeque::new(),
+            queued: GrowableBitSet::new_empty(),
         }
     }
 }
@@ -82,21 +83,28 @@ impl InstSimplifier {
 
         state.replacements.clear();
         state.dead.truncate(0);
-        state.instructions.clear();
-        state.instructions.extend(func.instructions());
-        state.seen_phi_operands.truncate(0);
-        state.needs_rescan = false;
+        for users in &mut state.users {
+            users.clear();
+        }
+        state.users.resize_with(func.values.len().max(state.users.len()), Vec::new);
+        state.worklist.clear();
+        state.queued.truncate(0);
+        for inst_id in func.instructions() {
+            state.worklist.push_back(inst_id);
+            state.queued.insert(inst_id);
+            for operand in func.inst(inst_id).kind.operands() {
+                state.users[operand].push(inst_id);
+            }
+        }
 
-        for &inst_id in &state.instructions {
+        while let Some(inst_id) = state.worklist.pop_front() {
+            state.queued.remove(inst_id);
+            if state.dead.contains(inst_id) {
+                continue;
+            }
+
             loop {
                 let kind = func.inst(inst_id).kind.clone();
-                if let InstKind::Phi(incoming) = &kind {
-                    for &(_, value) in incoming {
-                        state
-                            .seen_phi_operands
-                            .insert(mir_utils::resolve_replacement(value, &state.replacements));
-                    }
-                }
 
                 if self.is_dead_noop_inst(func, &kind, &state.replacements) {
                     tracing::trace!(
@@ -120,6 +128,14 @@ impl InstSimplifier {
                         output = %new_kind,
                         "mir_inst_simplify"
                     );
+                    for operand in new_kind.operands() {
+                        if operand.index() >= state.users.len() {
+                            state.users.resize_with(operand.index() + 1, Vec::new);
+                        }
+                        if !state.users[operand].contains(&inst_id) {
+                            state.users[operand].push(inst_id);
+                        }
+                    }
                     func.inst_mut(inst_id).kind = new_kind;
                     self.simplified_count += 1;
                     continue;
@@ -145,7 +161,15 @@ impl InstSimplifier {
                     state.replacements.insert(result, replacement);
                     state.dead.insert(inst_id);
                     self.simplified_count += 1;
-                    state.needs_rescan |= state.seen_phi_operands.contains(result);
+                    let mut users = std::mem::take(&mut state.users[result]);
+                    for &user in &users {
+                        if !state.dead.contains(user) && state.queued.insert(user) {
+                            state.worklist.push_back(user);
+                        }
+                    }
+                    if matches!(func.value(replacement), Value::Inst(_)) {
+                        state.users[replacement].append(&mut users);
+                    }
                 }
                 break;
             }
@@ -162,26 +186,6 @@ impl InstSimplifier {
         self.simplified_count += self.rewrite_terminators(func, &state.replacements);
 
         self.simplified_count
-    }
-
-    fn run_to_fixpoint_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
-        let mut total = 0;
-        for round in 1.. {
-            let simplified = self.run_with_state(func, state);
-            tracing::trace!(
-                target: "solar::codegen::mir::inst_simplify",
-                function = %func.name,
-                round,
-                simplified,
-                rescan = state.needs_rescan,
-                "mir_inst_simplify_round"
-            );
-            total += simplified;
-            if !state.needs_rescan {
-                break;
-            }
-        }
-        total
     }
 
     fn rewrite_inst(
