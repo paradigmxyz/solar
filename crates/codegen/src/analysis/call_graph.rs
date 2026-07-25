@@ -2,15 +2,14 @@
 
 use crate::mir::{Function, FunctionId, InstKind, Module, Terminator};
 use solar_data_structures::{bit_set::DenseBitSet, index::index_vec, map::FxHashMap};
-use std::collections::VecDeque;
+use std::{cell::OnceCell, collections::VecDeque};
 
 /// Module-level internal-call graph facts.
 #[derive(Clone, Debug)]
 pub(crate) struct CallGraphInfo {
     callees: FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
     reachable_from_entries: DenseBitSet<FunctionId>,
-    recursive_cycle_members: DenseBitSet<FunctionId>,
-    recursive_functions: DenseBitSet<FunctionId>,
+    recursion: OnceCell<(DenseBitSet<FunctionId>, DenseBitSet<FunctionId>)>,
 }
 
 impl CallGraphInfo {
@@ -34,10 +33,8 @@ impl CallGraphInfo {
 
         let reachable_from_entries =
             Self::reachable_from_roots_in_graph(&callees, &entry_functions);
-        let (recursive_cycle_members, recursive_functions) =
-            Self::recursive_functions_in_graph(&callees, function_count);
 
-        Self { callees, reachable_from_entries, recursive_cycle_members, recursive_functions }
+        Self { callees, reachable_from_entries, recursion: OnceCell::new() }
     }
 
     /// Returns all functions reachable from entry functions.
@@ -49,13 +46,13 @@ impl CallGraphInfo {
     /// Returns true if `func` is directly or indirectly recursive.
     #[must_use]
     pub(crate) fn is_recursive(&self, func: FunctionId) -> bool {
-        self.recursive_functions.contains(func)
+        self.recursion().1.contains(func)
     }
 
     /// Returns true if `func` belongs to a recursive call-graph component.
     #[must_use]
     pub(crate) fn is_recursive_cycle_member(&self, func: FunctionId) -> bool {
-        self.recursive_cycle_members.contains(func)
+        self.recursion().0.contains(func)
     }
 
     /// Returns functions reachable from `roots` through MIR call edges.
@@ -77,6 +74,15 @@ impl CallGraphInfo {
         }
 
         reachable
+    }
+
+    fn recursion(&self) -> &(DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
+        self.recursion.get_or_init(|| {
+            Self::recursive_functions_in_graph(
+                &self.callees,
+                self.reachable_from_entries.domain_size(),
+            )
+        })
     }
 
     fn collect_internal_callees(func: &Function, function_count: usize) -> DenseBitSet<FunctionId> {
