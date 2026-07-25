@@ -1,0 +1,46 @@
+// === ROOT/tests/ui/codegen/lowering/user_defined_operators.sol:UserDefinedOperators ===
+@module UserDefinedOperators
+fn @doAdd(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v3 = add arg0, arg1
+    v4 = slt arg0, 0
+    v5 = slt v3, arg1
+    v6 = xor v4, v5
+    br v6, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    mstore 128, v3
+    returndata 128, 32
+}
+fn @doNeg(arg0: i256) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v3 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    br v3, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v4 = sub 0, arg0
+    mstore 128, v4
+    returndata 128, 32
+}
