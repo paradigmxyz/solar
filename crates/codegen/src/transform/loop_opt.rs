@@ -53,6 +53,7 @@ impl MirPass for Licm {
     }
 }
 
+#[must_use]
 fn may_have_loop_or_storage_access(func: &Function) -> bool {
     func.instructions().any(|inst_id| {
         matches!(

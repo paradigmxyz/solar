@@ -282,6 +282,7 @@ fn is_wrappable_external(func: &Function) -> bool {
 /// leaving the signature stale. What matters is whether every value-carrying
 /// `Return` terminator can be fused. Parameters of any type and any count are
 /// fine: each stays an `Arg` head word the backend rematerializes lazily.
+#[must_use]
 fn has_unfusable_value_return(func: &Function) -> bool {
     func.blocks.iter().any(|block| {
         matches!(

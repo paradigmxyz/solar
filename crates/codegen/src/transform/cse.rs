@@ -101,6 +101,7 @@ impl MirPass for Cse {
     }
 }
 
+#[must_use]
 fn has_internal_calls(module: &Module) -> bool {
     module.functions.iter().any(|func| {
         func.instructions()
@@ -112,6 +113,7 @@ fn has_internal_calls(module: &Module) -> bool {
     })
 }
 
+#[must_use]
 fn may_have_common_subexpression(func: &Function) -> bool {
     let mut found = false;
     for inst_id in func.instructions() {

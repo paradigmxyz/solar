@@ -644,6 +644,7 @@ impl LowerSlicesCx {
     }
 }
 
+#[must_use]
 fn function_has_slices(func: &Function) -> bool {
     func.params.iter().chain(&func.returns).any(LowerSlicesCx::is_slice)
         || func.values.iter().any(|value| match value {

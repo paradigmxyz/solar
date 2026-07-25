@@ -79,6 +79,7 @@ pub fn run_passes(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn EvmPass]) ->
     changed
 }
 
+#[must_use]
 fn run_one(gcx: Gcx<'_>, module: &mut Module, pass: &'static dyn EvmPass) -> bool {
     run_passes(gcx, module, &[pass])
 }

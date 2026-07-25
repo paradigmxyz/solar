@@ -81,6 +81,7 @@ impl MirPass for Gvn {
     }
 }
 
+#[must_use]
 fn may_have_congruent_values(func: &Function) -> bool {
     let mut found = false;
     for inst_id in func.instructions() {

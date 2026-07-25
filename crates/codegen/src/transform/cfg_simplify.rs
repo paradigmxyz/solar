@@ -158,6 +158,7 @@ impl MirPass for CfgSimplify {
     }
 }
 
+#[must_use]
 fn may_simplify_cfg(func: &Function) -> bool {
     if func.blocks.len() != 1 {
         return true;

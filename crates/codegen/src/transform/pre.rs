@@ -68,6 +68,7 @@ impl MirPass for Pre {
     }
 }
 
+#[must_use]
 fn may_have_partial_redundancy(func: &Function) -> bool {
     let has_join = func.blocks.iter().any(|block| {
         let Some(&first) = block.predecessors.first() else { return false };

@@ -52,6 +52,7 @@ impl MirPass for JumpThreading {
     }
 }
 
+#[must_use]
 fn may_thread_jumps(func: &Function) -> bool {
     func.blocks.iter_enumerated().any(|(block_id, block)| {
         let is_forwarder = !block.predecessors.is_empty()

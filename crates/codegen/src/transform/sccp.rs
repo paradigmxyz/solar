@@ -55,6 +55,7 @@ impl MirPass for Sccp {
     }
 }
 
+#[must_use]
 fn may_propagate_constants(func: &Function) -> bool {
     if func
         .values

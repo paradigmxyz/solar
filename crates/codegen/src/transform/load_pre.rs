@@ -1046,6 +1046,7 @@ impl LoadRedundancyEliminator {
         self.effects_kill_key(&effects, key)
     }
 
+    #[must_use]
     fn effects_kill_key(&self, effects: &ModRef, key: LoadKey) -> bool {
         let aa = self.alias();
         match key {

@@ -108,6 +108,7 @@ fn is_entry(func: &Function) -> bool {
         && (func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback)
 }
 
+#[must_use]
 fn run_on_entry(func: &mut Function, shadow: u64) -> bool {
     apply_candidates(func, &eligible_static_allocations(func), shadow)
 }
@@ -284,6 +285,7 @@ fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate, uses: &
 
 /// Rewrites eligible allocations using the conservative placement retained for
 /// the explicit `static-alloc` MIR pass.
+#[must_use]
 fn apply_candidates(func: &mut Function, candidates: &[StaticAllocCandidate], shadow: u64) -> bool {
     let mut replacements = FxHashMap::default();
     let mut dead = DenseBitSet::new_empty(func.num_insts());

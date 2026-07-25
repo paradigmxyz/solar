@@ -54,6 +54,7 @@ impl MirPass for MemoryDse {
     }
 }
 
+#[must_use]
 fn has_memory_writes(func: &Function) -> bool {
     func.instructions().any(|inst_id| {
         matches!(
@@ -102,6 +103,7 @@ impl<T> MemoryWordMap<T> {
         self.groups.clear();
     }
 
+    #[must_use]
     fn contains_key(&self, key: &MemAddrKey) -> bool {
         self.get(key).is_some()
     }
@@ -1449,6 +1451,7 @@ impl MemoryStoreEliminator {
         Some(merged)
     }
 
+    #[must_use]
     fn frame_ranges_overlap(reads: &[(u64, u64)], offset: u64, size: u64) -> bool {
         let Some(end) = offset.checked_add(size) else {
             return !reads.is_empty();
