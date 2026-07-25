@@ -78,29 +78,31 @@ impl LoopCanonicalizer {
         Self::default()
     }
 
-    /// Runs loop canonicalization to a fixed point.
+    /// Runs loop canonicalization.
     fn run(&mut self, func: &mut Function) -> &LoopCanonicalizeStats {
         self.stats = LoopCanonicalizeStats::default();
 
-        loop {
-            let mut analyzer = LoopAnalyzer::new();
-            let loop_info = analyzer.analyze(func);
-            let mut headers: Vec<_> = loop_info.loops.keys().copied().collect();
-            headers.sort_by_key(|header| header.index());
-
-            let Some(header) = headers.into_iter().find(|&header| {
+        let mut analyzer = LoopAnalyzer::new();
+        let loop_info = analyzer.analyze(func);
+        let mut headers: Vec<_> = loop_info.loops.keys().copied().collect();
+        headers.sort_by_key(|header| header.index());
+        let candidates = headers
+            .into_iter()
+            .filter_map(|header| {
                 let loop_data = &loop_info.loops[&header];
                 let outside_preds = self.outside_predecessors(func, loop_data);
-                loop_data.preheader.is_none()
+                (loop_data.preheader.is_none()
                     && !outside_preds.is_empty()
-                    && self.can_split_preheader(func, header, &outside_preds)
-            }) else {
-                break;
-            };
+                    && self.can_split_preheader(func, header, &outside_preds))
+                .then_some((header, outside_preds))
+            })
+            .collect::<Vec<_>>();
 
-            let loop_data = &loop_info.loops[&header];
-            let outside_preds = self.outside_predecessors(func, loop_data);
-            self.insert_preheader(func, header, &outside_preds);
+        for (header, outside_preds) in &candidates {
+            self.insert_preheader(func, *header, outside_preds);
+        }
+        if !candidates.is_empty() {
+            self.stats.reachability_repaired |= repair_reachability_phis(func);
         }
 
         &self.stats
@@ -169,7 +171,6 @@ impl LoopCanonicalizer {
         }
 
         self.rewrite_header_phis(func, header, preheader, outside_preds);
-        self.stats.reachability_repaired |= repair_reachability_phis(func);
         self.stats.preheaders_inserted += 1;
     }
 

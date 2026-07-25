@@ -96,12 +96,13 @@ impl LoopAnalyzer {
 
         self.cfg = Some(CfgInfo::new(func));
         let loops = self.find_natural_loops(func);
+        let inst_blocks = func.inst_blocks();
 
         for mut loop_info in loops {
             self.find_exit_blocks(func, &mut loop_info);
             self.find_preheader(func, &mut loop_info);
             self.analyze_induction_vars(func, &mut loop_info);
-            self.find_invariant_instructions(func, &mut loop_info);
+            self.find_invariant_instructions(func, &mut loop_info, &inst_blocks);
             self.analyze_trip_count(func, &mut loop_info);
 
             for block in &loop_info.blocks {
@@ -289,7 +290,12 @@ impl LoopAnalyzer {
         }
     }
 
-    fn find_invariant_instructions(&self, func: &Function, loop_info: &mut Loop) {
+    fn find_invariant_instructions(
+        &self,
+        func: &Function,
+        loop_info: &mut Loop,
+        inst_blocks: &FxHashMap<InstId, BlockId>,
+    ) {
         let mut invariant_values = DenseBitSet::new_empty(func.values.len());
 
         for (value_id, value) in func.values.iter_enumerated() {
@@ -298,11 +304,10 @@ impl LoopAnalyzer {
                     invariant_values.insert(value_id);
                 }
                 Value::Inst(inst_id) => {
-                    let in_loop = loop_info
-                        .blocks
-                        .iter()
-                        .any(|block| func.blocks[block].instructions.contains(inst_id));
-                    if !in_loop {
+                    if !inst_blocks
+                        .get(inst_id)
+                        .is_some_and(|block| loop_info.blocks.contains(*block))
+                    {
                         invariant_values.insert(value_id);
                     }
                 }
@@ -439,14 +444,7 @@ impl LoopAnalyzer {
     }
 
     fn find_result_value(&self, func: &Function, inst_id: InstId) -> Option<ValueId> {
-        for (value_id, value) in func.values.iter_enumerated() {
-            if let Value::Inst(id) = value
-                && *id == inst_id
-            {
-                return Some(value_id);
-            }
-        }
-        None
+        func.inst_result_value(inst_id)
     }
 }
 
