@@ -152,3 +152,17 @@
 +     ret 12, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 42, 8, 0, 2, 256, 2, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 1, 1, 15, 17, 12, 256, 16, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc, 255, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 5
   }
   
+  fn @revisit_loop_header_phi(arg0: u256, arg1: bool) -> u256 {
+    bb0:
+      jump bb1
+    bb1:
+-     v0 = phi [bb0: arg0], [bb2: v1]
+      jumpi arg1, bb2, bb3
+    bb2:
+-     v1 = add arg0, 0
+      jump bb1
+    bb3:
+-     ret v0
++     ret arg0
+  }
+  

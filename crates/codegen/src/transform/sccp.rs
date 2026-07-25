@@ -57,10 +57,16 @@ impl MirPass for Sccp {
 
 #[must_use]
 fn may_propagate_constants(func: &Function) -> bool {
+    let is_constant = |value| func.value_u256(value).is_some();
     if func
-        .values
-        .iter()
-        .any(|value| matches!(value, Value::Immediate(immediate) if immediate.as_u256().is_some()))
+        .instructions()
+        .any(|inst_id| func.inst(inst_id).kind.operands().into_iter().any(is_constant))
+        || func.blocks.iter().any(|block| {
+            block
+                .terminator
+                .as_ref()
+                .is_some_and(|terminator| terminator.operands().into_iter().any(is_constant))
+        })
     {
         return true;
     }

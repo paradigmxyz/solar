@@ -169,3 +169,19 @@ fn @fold_constant_ops() -> (u256, u256, u256, u256, u256, u256, u256, u256, u256
     v23 = mulmod 5, 7, 10
     ret v1, v2, v3, v4, v5, v6, v7, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23
 }
+
+// CHECK-LABEL: {{^[ +].*}}fn @revisit_loop_header_phi{{[( ]}}
+// CHECK: - {{v[0-9]+}} = phi
+// CHECK: + ret arg0
+fn @revisit_loop_header_phi(arg0: u256, arg1: bool) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v2 = phi [bb0: arg0], [bb2: v4]
+    jumpi arg1, bb2, bb3
+  bb2:
+    v4 = add arg0, 0
+    jump bb1
+  bb3:
+    ret v2
+}

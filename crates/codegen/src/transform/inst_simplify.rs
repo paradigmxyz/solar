@@ -20,7 +20,8 @@ use crate::{
     utils::evm_word,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::GrowableBitSet, index::IndexVec, map::FxHashMap};
+use std::collections::VecDeque;
 
 /// Function pass for local instruction simplification.
 pub(crate) struct InstSimplify;
@@ -54,11 +55,20 @@ struct InstSimplifier {
 struct RunState {
     replacements: FxHashMap<ValueId, ValueId>,
     dead: GrowableBitSet<InstId>,
+    users: IndexVec<ValueId, Vec<InstId>>,
+    worklist: VecDeque<InstId>,
+    queued: GrowableBitSet<InstId>,
 }
 
 impl RunState {
     fn new() -> Self {
-        Self { replacements: FxHashMap::default(), dead: GrowableBitSet::new_empty() }
+        Self {
+            replacements: FxHashMap::default(),
+            dead: GrowableBitSet::new_empty(),
+            users: IndexVec::new(),
+            worklist: VecDeque::new(),
+            queued: GrowableBitSet::new_empty(),
+        }
     }
 }
 
@@ -73,67 +83,87 @@ impl InstSimplifier {
 
         state.replacements.clear();
         state.dead.truncate(0);
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        for users in &mut state.users {
+            users.clear();
+        }
+        state.users.resize_with(func.values.len().max(state.users.len()), Vec::new);
+        state.worklist.clear();
+        state.queued.truncate(0);
+        for inst_id in func.instructions() {
+            state.worklist.push_back(inst_id);
+            state.queued.insert(inst_id);
+            for operand in func.inst(inst_id).kind.operands() {
+                state.users[operand].push(inst_id);
+            }
+        }
 
-        for block_id in block_ids {
-            let instruction_count = func.blocks[block_id].instructions.len();
-            for index in 0..instruction_count {
-                let inst_id = func.blocks[block_id].instructions[index];
-                loop {
-                    let kind = func.inst(inst_id).kind.clone();
+        while let Some(inst_id) = state.worklist.pop_front() {
+            state.queued.remove(inst_id);
+            if state.dead.contains(inst_id) {
+                continue;
+            }
 
-                    if self.is_dead_noop_inst(func, &kind, &state.replacements) {
-                        tracing::trace!(
-                            target: "solar::codegen::mir::inst_simplify",
-                            function = %func.name,
-                            action = "delete",
-                            instruction = %kind,
-                            "mir_inst_simplify"
-                        );
-                        state.dead.insert(inst_id);
-                        self.simplified_count += 1;
-                        break;
-                    }
+            loop {
+                let kind = func.inst(inst_id).kind.clone();
 
-                    if let Some(new_kind) = self.rewrite_inst(func, &kind, &state.replacements) {
-                        tracing::trace!(
-                            target: "solar::codegen::mir::inst_simplify",
-                            function = %func.name,
-                            action = "rewrite",
-                            input = %kind,
-                            output = %new_kind,
-                            "mir_inst_simplify"
-                        );
-                        func.inst_mut(inst_id).kind = new_kind;
-                        self.simplified_count += 1;
-                        continue;
-                    }
-
-                    let Some(result) = func.inst_result_value(inst_id) else {
-                        break;
-                    };
-                    let Some(replacement) = self.simplify_inst(func, &kind, &state.replacements)
-                    else {
-                        break;
-                    };
-                    let replacement =
-                        mir_utils::resolve_replacement(replacement, &state.replacements);
-                    if replacement != result {
-                        tracing::trace!(
-                            target: "solar::codegen::mir::inst_simplify",
-                            function = %func.name,
-                            action = "replace",
-                            instruction = %kind,
-                            ?result,
-                            ?replacement,
-                            "mir_inst_simplify"
-                        );
-                        state.replacements.insert(result, replacement);
-                        state.dead.insert(inst_id);
-                        self.simplified_count += 1;
-                    }
+                if self.is_dead_noop_inst(func, &kind, &state.replacements) {
+                    tracing::trace!(
+                        target: "solar::codegen::mir::inst_simplify",
+                        function = %func.name,
+                        action = "delete",
+                        instruction = %kind,
+                        "mir_inst_simplify"
+                    );
+                    state.dead.insert(inst_id);
+                    self.simplified_count += 1;
                     break;
                 }
+
+                if let Some(new_kind) = self.rewrite_inst(func, &kind, &state.replacements) {
+                    tracing::trace!(
+                        target: "solar::codegen::mir::inst_simplify",
+                        function = %func.name,
+                        action = "rewrite",
+                        input = %kind,
+                        output = %new_kind,
+                        "mir_inst_simplify"
+                    );
+                    func.inst_mut(inst_id).kind = new_kind;
+                    self.simplified_count += 1;
+                    continue;
+                }
+
+                let Some(result) = func.inst_result_value(inst_id) else {
+                    break;
+                };
+                let Some(replacement) = self.simplify_inst(func, &kind, &state.replacements) else {
+                    break;
+                };
+                let replacement = mir_utils::resolve_replacement(replacement, &state.replacements);
+                if replacement != result {
+                    tracing::trace!(
+                        target: "solar::codegen::mir::inst_simplify",
+                        function = %func.name,
+                        action = "replace",
+                        instruction = %kind,
+                        ?result,
+                        ?replacement,
+                        "mir_inst_simplify"
+                    );
+                    state.replacements.insert(result, replacement);
+                    state.dead.insert(inst_id);
+                    self.simplified_count += 1;
+                    let mut users = std::mem::take(&mut state.users[result]);
+                    for &user in &users {
+                        if !state.dead.contains(user) && state.queued.insert(user) {
+                            state.worklist.push_back(user);
+                        }
+                    }
+                    if matches!(func.value(replacement), Value::Inst(_)) {
+                        state.users[replacement].append(&mut users);
+                    }
+                }
+                break;
             }
         }
 
