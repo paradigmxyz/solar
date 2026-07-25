@@ -9,8 +9,9 @@
 //! 2. Handle cycles by detecting when copies form a cycle and using a temporary.
 //! 3. Remove the phi instructions after copies are inserted.
 
-use crate::mir::{BlockId, Function, InstId, InstKind, MirType, Value, ValueId};
+use crate::mir::{BlockId, Function, InstKind, MirType, ValueId};
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use std::collections::BTreeSet;
 
 /// Source for a parallel copy - either a regular value or a temporary.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -74,24 +75,21 @@ impl PhiEliminator {
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
                 let inst = func.inst(inst_id);
 
-                if let InstKind::Phi(incoming) = &inst.kind {
-                    // Find the value defined by this phi
-                    let phi_dst = find_phi_dst(func, inst_id);
+                if let InstKind::Phi(incoming) = &inst.kind
+                    && let Some(dst) = func.inst_result_value(inst_id)
+                {
+                    let ty = func.value(dst).ty();
 
-                    if let Some(dst) = phi_dst {
-                        let ty = func.value(dst).ty();
-
-                        // For each predecessor, insert a copy
-                        for &(pred_block, src_val) in incoming {
-                            block_copies.entry(pred_block).or_default().copies.push(ParallelCopy {
-                                src: CopySource::Value(src_val),
-                                dst: CopyDest::Value(dst),
-                                ty,
-                            });
-                        }
-
-                        phis_to_remove.push((block_id, inst_idx));
+                    // For each predecessor, insert a copy
+                    for &(pred_block, src_val) in incoming {
+                        block_copies.entry(pred_block).or_default().copies.push(ParallelCopy {
+                            src: CopySource::Value(src_val),
+                            dst: CopyDest::Value(dst),
+                            ty,
+                        });
                     }
+
+                    phis_to_remove.push((block_id, inst_idx));
                 }
             }
         }
@@ -104,18 +102,6 @@ impl PhiEliminator {
 
         PhiEliminationResult { block_copies, phis_to_remove }
     }
-}
-
-/// Finds the ValueId that is defined by a phi instruction.
-fn find_phi_dst(func: &Function, inst_id: InstId) -> Option<ValueId> {
-    for (val_id, val) in func.values.iter_enumerated() {
-        if let Value::Inst(def_inst) = val
-            && *def_inst == inst_id
-        {
-            return Some(val_id);
-        }
-    }
-    None
 }
 
 /// Helper to extract ValueId from CopySource if it's a value (not a temp).
@@ -173,36 +159,45 @@ fn sequentialize_copies(copies: &mut Vec<ParallelCopy>, temp_counter: &mut u32) 
     }
 
     let mut emitted = DenseBitSet::new_empty(pending.len());
+    let mut ready = blocked_by
+        .iter()
+        .enumerate()
+        .filter_map(|(index, &blocked)| (blocked == 0).then_some(index))
+        .collect::<BTreeSet<_>>();
 
-    // Emit copies in dependency order until we hit cycles
-    loop {
-        let mut made_progress = false;
+    // Emit the acyclic portion in the same scan order as the simple iterative
+    // algorithm, without revisiting blocked copies on each sweep.
+    let mut cursor = 0;
+    while !ready.is_empty() {
+        let index = if let Some(&index) = ready.range(cursor..).next() {
+            index
+        } else {
+            *ready.first().expect("ready is not empty")
+        };
+        ready.remove(&index);
+        result.push(pending[index].clone());
+        emitted.insert(index);
+        cursor = index + 1;
 
-        for i in 0..pending.len() {
-            if emitted.contains(i) {
-                continue;
-            }
-
-            // Can emit if no one is blocking us (all readers of our dst have been emitted)
-            if blocked_by[i] == 0 {
-                result.push(pending[i].clone());
-                emitted.insert(i);
-                made_progress = true;
-
-                // Unblock anyone who was waiting for us to read their dst
-                if let Some(src) = src_value(&pending[i].src)
-                    && let Some(&blocked_writer) = writes_to.get(&src)
-                    && blocked_writer != i
-                    && !emitted.contains(blocked_writer)
-                {
-                    blocked_by[blocked_writer] = blocked_by[blocked_writer].saturating_sub(1);
-                }
+        // Unblock the writer whose destination this copy just finished reading.
+        if let Some(src) = src_value(&pending[index].src)
+            && let Some(&blocked_writer) = writes_to.get(&src)
+            && blocked_writer != index
+            && !emitted.contains(blocked_writer)
+        {
+            blocked_by[blocked_writer] -= 1;
+            if blocked_by[blocked_writer] == 0 {
+                ready.insert(blocked_writer);
             }
         }
+    }
 
-        if !made_progress {
-            // All remaining copies form cycles - break one cycle at a time
-            break_cycles(
+    // Every remaining component is a cycle: each node is blocked, and every
+    // copy has at most one dependency. Break each one at its first index.
+    for start_idx in 0..pending.len() {
+        if !emitted.contains(start_idx) {
+            break_cycle(
+                start_idx,
                 &pending,
                 &mut emitted,
                 &mut blocked_by,
@@ -210,16 +205,6 @@ fn sequentialize_copies(copies: &mut Vec<ParallelCopy>, temp_counter: &mut u32) 
                 &mut result,
                 temp_counter,
             );
-
-            // If we broke at least one cycle, continue to see if more copies are now unblocked
-            if emitted.count() != pending.len() {
-                continue;
-            }
-            break;
-        }
-
-        if emitted.count() == pending.len() {
-            break;
         }
     }
 
@@ -233,7 +218,8 @@ fn sequentialize_copies(copies: &mut Vec<ParallelCopy>, temp_counter: &mut u32) 
 /// 2. Save its source to a temporary: tmp = a
 /// 3. Emit all copies in the cycle normally: a = b
 /// 4. Replace the broken copy's source with temp: b = tmp
-fn break_cycles(
+fn break_cycle(
+    start_idx: usize,
     pending: &[ParallelCopy],
     emitted: &mut DenseBitSet<usize>,
     blocked_by: &mut [usize],
@@ -241,24 +227,6 @@ fn break_cycles(
     result: &mut Vec<ParallelCopy>,
     temp_counter: &mut u32,
 ) {
-    // Find a copy that's part of a cycle (not emitted and blocking > 0)
-    let cycle_start = pending
-        .iter()
-        .enumerate()
-        .find(|(i, _)| !emitted.contains(*i) && blocked_by[*i] > 0)
-        .map(|(i, _)| i);
-
-    let Some(start_idx) = cycle_start else {
-        // No cycles, emit remaining in order
-        for (i, copy) in pending.iter().enumerate() {
-            if !emitted.contains(i) {
-                result.push(copy.clone());
-                emitted.insert(i);
-            }
-        }
-        return;
-    };
-
     // Trace the cycle to find all participants
     let mut cycle_indices = vec![start_idx];
     let mut current = start_idx;
