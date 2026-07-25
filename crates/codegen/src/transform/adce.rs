@@ -29,8 +29,8 @@ impl MirPass for Adce {
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
             let changed = AggressiveDeadCodeEliminator::new().run(func).total() != 0;
-            repair_reachability_phis(func);
-            changed
+            let repaired = repair_reachability_phis(func);
+            changed || repaired
         })
     }
 }
@@ -42,12 +42,14 @@ struct AdceStats {
     control_edges_removed: usize,
     /// Number of instructions removed by cleanup DCE after control rewrites.
     instructions_removed: usize,
+    /// Whether CFG backlinks or phi inputs were repaired.
+    reachability_repaired: bool,
 }
 
 impl AdceStats {
     /// Returns the total number of MIR edits made by this pass.
     const fn total(self) -> usize {
-        self.control_edges_removed + self.instructions_removed
+        self.control_edges_removed + self.instructions_removed + self.reachability_repaired as usize
     }
 }
 
@@ -95,7 +97,7 @@ impl AggressiveDeadCodeEliminator {
                 break;
             }
             self.stats.control_edges_removed += rewrites;
-            repair_reachability_phis(func);
+            self.stats.reachability_repaired |= repair_reachability_phis(func);
         }
 
         let removed = super::dce::DeadCodeEliminator::new().run_to_fixpoint(func);
@@ -205,7 +207,7 @@ impl AggressiveDeadCodeEliminator {
         func.blocks[block_id]
             .instructions
             .iter()
-            .any(|&inst_id| func.instructions[inst_id].kind.has_side_effects())
+            .any(|&inst_id| func.inst(inst_id).kind.has_side_effects())
     }
 
     fn block_def_escapes(&self, func: &Function, ctx: &AdceContext, block_id: BlockId) -> bool {
@@ -248,7 +250,7 @@ impl AdceContext {
         let mut uses = FxHashMap::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
-                for operand in func.instructions[inst_id].kind.operands() {
+                for operand in func.inst(inst_id).kind.operands() {
                     uses.entry(operand)
                         .or_insert_with(|| DenseBitSet::new_empty(func.blocks.len()))
                         .insert(block_id);

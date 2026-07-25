@@ -108,14 +108,7 @@ impl PureEvaluator {
     }
 
     fn is_side_effect_free(&self, func: &Function) -> bool {
-        for block in &func.blocks {
-            for &inst_id in &block.instructions {
-                if func.instructions[inst_id].kind.has_side_effects() {
-                    return false;
-                }
-            }
-        }
-        true
+        func.instructions().all(|inst_id| !func.inst(inst_id).kind.has_side_effects())
     }
 
     fn evaluate(&self, func: &Function) -> Option<Vec<U256>> {
@@ -136,7 +129,7 @@ impl PureEvaluator {
             let block = &func.blocks[current];
 
             for &inst_id in &block.instructions {
-                let inst = &func.instructions[inst_id];
+                let inst = func.inst(inst_id);
                 let result = match &inst.kind {
                     InstKind::Phi(incoming) => {
                         let pred = predecessor?;
@@ -163,12 +156,13 @@ impl PureEvaluator {
                 Terminator::Switch { value, default, cases } => {
                     let value = self.value_const(&env, *value)?;
                     predecessor = Some(current);
-                    current = cases
-                        .iter()
-                        .find_map(|(case, target)| {
-                            (self.value_const(&env, *case)? == value).then_some(*target)
-                        })
-                        .unwrap_or(*default);
+                    current = *default;
+                    for (case, target) in cases {
+                        if self.value_const(&env, *case)? == value {
+                            current = *target;
+                            break;
+                        }
+                    }
                 }
                 Terminator::Return { values } => {
                     return values

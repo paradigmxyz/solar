@@ -1,0 +1,8 @@
+error: codegen does not support `fallback(bytes) returns (bytes)` yet
+   ╭▸ ROOT/tests/ui/codegen/lowering/fallback_bytes_unsupported.sol:LL:CC
+   │
+LL │ contract FallbackBytesUnsupported {
+   ╰╴         ━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

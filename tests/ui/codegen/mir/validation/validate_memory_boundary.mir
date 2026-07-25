@@ -4,6 +4,9 @@
 //~? ERROR: [fn1] [bb0, inst0] ABI encoding instruction `abi_encode` survives the `evm-shaped` phase boundary
 //~? ERROR: [fn2] memory-object signature type `memorystruct` survives the `evm-shaped` phase boundary
 //~? ERROR: [fn2] [bb0, inst0] aggregate instruction `storage_to_memory` survives the `evm-shaped` phase boundary
+//~? ERROR: [fn3] [bb0, inst0] abstract allocation instruction `fmp` survives the `evm-shaped` phase boundary
+//~? ERROR: [fn3] [bb0, inst1] abstract allocation instruction `set_fmp` survives the `evm-shaped` phase boundary
+//~? ERROR: [fn3] [bb0, inst2] abstract allocation instruction `alloc` survives the `evm-shaped` phase boundary
 // EVM-shaped MIR is the word-backend boundary. Semantic memory operations
 // must be rejected here if their named lowering pass did not consume them.
 @module ValidateMemoryBoundary
@@ -22,5 +25,12 @@ fn @abi(arg0: u256) -> memoryslice {
 fn @aggregate(arg0: u256, arg1: memorystruct) {
   bb0:
     storage_to_memory struct<word>, arg0, arg1
+    stop
+}
+fn @allocation() {
+  bb0:
+    v0 = fmp
+    set_fmp v0
+    v1 = alloc raw, exact, uninitialized, infallible, 32
     stop
 }

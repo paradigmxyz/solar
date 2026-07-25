@@ -2,23 +2,58 @@
 //@filecheck:
 @module module
 
-// CHECK-LABEL: {{^[ +].*}}bb0:
-// CHECK: - jump bb1
-// CHECK: - jump bb2
-// CHECK: {{^[ +].*}}push 1
-// CHECK: + stop
-// CHECK-LABEL: {{^[ +].*}}bb3:
-// CHECK: {{^[ +].*}}jump bb0
+// CHECK-LABEL: bb0:
+// CHECK: - push bb1
+// CHECK: + push bb2
 bb0:
-  push bb3
-  jump bb1
+  push bb1
+  jump
+
+// CHECK: - bb1:
+// CHECK: - jump bb2
 bb1:
   jump bb2
+
+// CHECK-LABEL: bb2:
+// CHECK: {{^[ +].*}}push bb3
+// CHECK: {{^[ +].*}}push bb7
+// CHECK: - jump bb4
+// CHECK: + push 1
+// CHECK-NEXT: + pop
+// CHECK-NEXT: + stop
 bb2:
   push 1
+  push bb3
+  pop
+  push bb7
+  pop
   jump bb4
+
+// CHECK-LABEL: bb3:
+// CHECK: {{^[ +].*}}jump bb2
 bb3:
   push 2
-  jump bb0
+  jump bb2
+
+// CHECK: - bb4:
+// CHECK: - jump bb5
+// CHECK: - bb5:
+// CHECK: - jumpi bb6, bb6
+// CHECK: - bb6:
+// CHECK: - stop
 bb4:
+  jump bb5
+bb5:
+  push 1
+  jumpi bb6, bb6
+bb6:
+  stop
+
+// CHECK-LABEL: bb7:
+// CHECK: - jump bb8
+// CHECK: - bb8:
+// CHECK: {{^[ +].*}}stop
+bb7:
+  jump bb8
+bb8:
   stop

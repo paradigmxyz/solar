@@ -454,6 +454,7 @@ fn ensure_contract_bytecode(
     gcx.dcx().has_errors()?;
     let mut codegen = EvmCodegen::new(gcx);
     let (deployment, runtime) = codegen.generate_deployment_bytecode(&mut module);
+    gcx.dcx().has_errors()?;
     all_bytecodes.insert(contract_id, deployment.clone());
     artifacts.insert(
         contract_id,

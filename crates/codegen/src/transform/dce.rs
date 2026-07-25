@@ -26,9 +26,9 @@ impl MirPass for Dce {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
-            let changed = DeadCodeEliminator::new().run_to_fixpoint(func) != 0;
-            repair_reachability_phis(func);
-            changed
+            let removed = DeadCodeEliminator::new().run_to_fixpoint(func);
+            let repaired = repair_reachability_phis(func);
+            removed != 0 || repaired
         })
     }
 }
@@ -66,7 +66,7 @@ impl DeadCodeEliminator {
         self.eliminated_count = 0;
 
         // Phase 1: Remove unreachable blocks
-        self.eliminate_unreachable_blocks(func);
+        self.eliminated_count += self.eliminate_unreachable_blocks(func);
 
         // Phase 2: Find all used values
         self.collect_used_values(func);
@@ -99,7 +99,7 @@ impl DeadCodeEliminator {
     }
 
     /// Eliminates unreachable blocks using CFG reachability analysis.
-    fn eliminate_unreachable_blocks(&mut self, func: &mut Function) {
+    fn eliminate_unreachable_blocks(&mut self, func: &mut Function) -> usize {
         let cfg = CfgInfo::new(func);
 
         // Collect unreachable block IDs
@@ -111,12 +111,19 @@ impl DeadCodeEliminator {
 
         // Clear unreachable blocks (we can't actually remove from IndexVec,
         // but we can clear their contents to prevent codegen)
-        for block_id in &unreachable {
-            let block = func.block_mut(*block_id);
+        let mut changed = 0;
+        for block_id in unreachable {
+            let block = func.block_mut(block_id);
+            changed += usize::from(
+                !block.instructions.is_empty()
+                    || !matches!(block.terminator, Some(Terminator::Invalid))
+                    || !block.predecessors.is_empty(),
+            );
             block.instructions.clear();
             block.terminator = Some(Terminator::Invalid);
             block.predecessors.clear();
         }
+        changed
     }
 
     /// Collects all values that are used (appear in instructions or terminators).
@@ -134,12 +141,10 @@ impl DeadCodeEliminator {
         }
 
         // Add values used as operands in instructions
-        for (_, block) in func.blocks.iter_enumerated() {
-            for &inst_id in &block.instructions {
-                let inst = &func.instructions[inst_id];
-                for val in inst.kind.operands() {
-                    self.used_values.insert(val);
-                }
+        for inst_id in func.instructions() {
+            let inst = func.inst(inst_id);
+            for val in inst.kind.operands() {
+                self.used_values.insert(val);
             }
         }
     }
@@ -154,7 +159,7 @@ impl DeadCodeEliminator {
 
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
-                let inst = &func.instructions[inst_id];
+                let inst = func.inst(inst_id);
 
                 // Instructions with side effects are always kept.
                 if inst.kind.has_side_effects() {

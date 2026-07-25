@@ -71,7 +71,7 @@ contract SF {
     // CHECK-NEXT: jump [[DYN_EPILOGUE]]
 
     // rec -> rec uses the same dynamic allocator and epilogue.
-    // CHECK: push bb63
+    // CHECK: push [[PANIC:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push [[REC_RECUR_CONT:bb[0-9]+]]
     // CHECK-NEXT: jump [[DYN_ALLOC]]
@@ -84,7 +84,7 @@ contract SF {
     // CHECK: swap2
     // CHECK-NEXT: pop
     // CHECK-NEXT: pop
-    // CHECK-NEXT: push bb63
+    // CHECK-NEXT: push [[PANIC]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push [[M1_M2_CONT:bb[0-9]+]]
     // CHECK-NEXT: jump [[DYN_ALLOC]]
@@ -147,7 +147,7 @@ contract SF {
     // CHECK: gt
     // CHECK-NEXT: swap1
     // CHECK-NEXT: pop
-    // CHECK-NEXT: push bb63
+    // CHECK-NEXT: push [[PANIC]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push [[M2_M1_CONT]]
     // CHECK-NEXT: jump [[DYN_ALLOC]]

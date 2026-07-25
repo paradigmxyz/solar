@@ -8,17 +8,16 @@ bb0:
   push 1
   jumpi bb1, bb2
 
-// CHECK-LABEL: {{^[ +].*}}bb1 [cold]:
+// CHECK-LABEL: + bb1:
 // CHECK: {{^[ +].*}}revert
 bb1 [cold]:
   push 64
   push 32
   push 0
   revert
-
-// CHECK-LABEL: {{^[ +].*}}bb2 [cold]:
+// CHECK-LABEL: {{^[ +].*}}bb2:
 // CHECK: + jump bb1
-bb2 [cold]:
+bb2:
   push 64
   push 32
   push 0
