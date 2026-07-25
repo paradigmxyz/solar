@@ -620,14 +620,16 @@ impl CfgSimplifier {
 
     /// Merges blocks where A unconditionally jumps to B and B has only A as predecessor.
     fn merge_blocks(&mut self, func: &mut Function) {
+        let mut replacements = FxHashMap::default();
         let block_count = func.blocks.len();
         for block_id in (0..block_count).map(BlockId::from_usize) {
             while let Some(target) = self.can_merge(func, block_id) {
-                self.do_merge(func, block_id, target);
+                self.do_merge(func, block_id, target, &mut replacements);
                 self.stats.blocks_merged += 1;
                 self.stats.gas_saved += 8;
             }
         }
+        func.replace_uses_canonicalized(&replacements);
     }
 
     /// Checks if block_id can be merged with its successor.
@@ -665,8 +667,14 @@ impl CfgSimplifier {
     }
 
     /// Merges block_id with target, appending target's instructions and terminator to block_id.
-    fn do_merge(&self, func: &mut Function, block_id: BlockId, target: BlockId) {
-        let phi_replacements = self.fold_target_phis_for_merge(func, block_id, target);
+    fn do_merge(
+        &self,
+        func: &mut Function,
+        block_id: BlockId,
+        target: BlockId,
+        replacements: &mut FxHashMap<ValueId, ValueId>,
+    ) {
+        self.fold_target_phis_for_merge(func, block_id, target, replacements);
         let target_instructions: Vec<_> = func.blocks[target]
             .instructions
             .iter()
@@ -674,8 +682,10 @@ impl CfgSimplifier {
             .filter(|&inst_id| !matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
             .collect();
         let target_terminator = func.blocks[target].terminator.take();
-        let target_successors =
+        let mut target_successors =
             target_terminator.as_ref().map(Terminator::successors).unwrap_or_default();
+        target_successors.sort_unstable();
+        target_successors.dedup();
 
         func.blocks[block_id].instructions.extend(target_instructions);
         func.blocks[block_id].terminator = target_terminator;
@@ -694,8 +704,6 @@ impl CfgSimplifier {
         func.blocks[target].instructions.clear();
         func.blocks[target].terminator = Some(Terminator::Invalid);
         func.blocks[target].predecessors.clear();
-
-        func.replace_uses(&phi_replacements);
     }
 
     fn fold_target_phis_for_merge(
@@ -703,8 +711,8 @@ impl CfgSimplifier {
         func: &Function,
         pred: BlockId,
         target: BlockId,
-    ) -> FxHashMap<ValueId, ValueId> {
-        let mut replacements = FxHashMap::default();
+        replacements: &mut FxHashMap<ValueId, ValueId>,
+    ) {
         for &inst_id in &func.blocks[target].instructions {
             let InstKind::Phi(incoming) = &func.inst(inst_id).kind else {
                 continue;
@@ -719,7 +727,6 @@ impl CfgSimplifier {
             };
             replacements.insert(phi_value, *incoming_value);
         }
-        replacements
     }
 
     /// Eliminates empty blocks that only contain an unconditional jump.
