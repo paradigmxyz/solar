@@ -277,7 +277,13 @@ impl CommonSubexprEliminator {
             dead: &mut dead,
         };
 
-        self.process_global_blocks(func, &mut ctx);
+        if block_clobbers.is_empty()
+            && !func.instructions().any(|inst_id| func.inst(inst_id).kind.has_side_effects())
+        {
+            self.process_global_blocks_scoped(func, &mut ctx);
+        } else {
+            self.process_global_blocks(func, &mut ctx);
+        }
 
         if !replacements.is_empty() {
             self.apply_replacements_to_all_blocks(func, &replacements);
@@ -458,6 +464,54 @@ impl CommonSubexprEliminator {
             }
             self.filter_inherited_cache(block_id, first_child, &mut cache, ctx);
             worklist.push((first_child, cache));
+        }
+    }
+
+    fn process_global_blocks_scoped(&mut self, func: &Function, ctx: &mut GlobalCseContext<'_>) {
+        enum Visit {
+            Enter(BlockId),
+            Exit(usize),
+        }
+
+        let mut cache = FxHashMap::default();
+        let mut inserted = Vec::new();
+        let mut worklist = vec![Visit::Enter(BlockId::ENTRY)];
+        while let Some(visit) = worklist.pop() {
+            let block_id = match visit {
+                Visit::Enter(block_id) => block_id,
+                Visit::Exit(mark) => {
+                    while inserted.len() > mark {
+                        cache.remove(&inserted.pop().expect("scope insertion exists"));
+                    }
+                    continue;
+                }
+            };
+            let mark = inserted.len();
+
+            for &inst_id in &func.blocks[block_id].instructions {
+                let kind = &func.inst(inst_id).kind;
+                if kind.has_side_effects() {
+                    continue;
+                }
+                let Some(key) = self.make_expr_key(func, inst_id, kind, ctx.replacements) else {
+                    continue;
+                };
+                let Some(result) = func.inst_result_value(inst_id) else {
+                    continue;
+                };
+                if let Some(&cached) = cache.get(&key) {
+                    ctx.replacements.insert(result, cached);
+                    ctx.dead.insert(inst_id);
+                    self.eliminated_count += 1;
+                } else {
+                    inserted.push(key.clone());
+                    cache.insert(key, result);
+                }
+            }
+
+            worklist.push(Visit::Exit(mark));
+            worklist
+                .extend(ctx.dom_tree.children(block_id).iter().rev().copied().map(Visit::Enter));
         }
     }
 
