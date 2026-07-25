@@ -39,7 +39,7 @@ use crate::{
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
-    map::FxHashMap,
+    map::{FxHashMap, FxHashSet},
 };
 use solar_interface::{diagnostics::DiagCtxt, sym};
 use std::fmt;
@@ -143,7 +143,32 @@ impl<'a> Validator<'a> {
             }
         }
 
+        let mut terminator_edges = FxHashSet::default();
+        let mut stored_edges = FxHashSet::default();
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            if let Some(term) = &block.terminator {
+                terminator_edges.extend(
+                    term.successors()
+                        .into_iter()
+                        .filter(|successor| successor.index() < num_blocks)
+                        .map(|successor| (block_id, successor)),
+                );
+            }
+            stored_edges.extend(
+                block
+                    .predecessors
+                    .iter()
+                    .copied()
+                    .filter(|predecessor| predecessor.index() < num_blocks)
+                    .map(|predecessor| (predecessor, block_id)),
+            );
+        }
+
         // ----- Walk every block -----
+        let mut predecessor_set = DenseBitSet::new_empty(num_blocks);
+        let mut incoming_values = index_vec![None; num_blocks];
+        let mut incoming_conflicts = DenseBitSet::new_empty(num_blocks);
+        let mut incoming_blocks = Vec::new();
         for (block_id, block) in func.blocks.iter_enumerated() {
             // Check terminator presence.
             let term = match &block.terminator {
@@ -165,7 +190,7 @@ impl<'a> Validator<'a> {
                     );
                     continue;
                 }
-                if !func.blocks[succ].predecessors.contains(&block_id) {
+                if !stored_edges.contains(&(block_id, succ)) {
                     self.emit_at_block(
                         format_args!(
                             "successor bb{} does not list bb{} as a predecessor",
@@ -189,14 +214,14 @@ impl<'a> Validator<'a> {
                     );
                     continue;
                 }
-                let Some(pred_term) = &func.blocks[pred].terminator else {
+                if func.blocks[pred].terminator.is_none() {
                     self.emit_at_block(
                         format_args!("stored predecessor bb{} has no terminator", pred.index()),
                         block_id,
                     );
                     continue;
-                };
-                if !pred_term.successors().contains(&block_id) {
+                }
+                if !terminator_edges.contains(&(pred, block_id)) {
                     self.emit_at_block(
                         format_args!(
                             "stored predecessor bb{} does not branch to bb{}",
@@ -223,7 +248,12 @@ impl<'a> Validator<'a> {
             }
 
             // ----- Walk instructions in this block -----
-            let block_preds: Vec<BlockId> = block.predecessors.iter().copied().collect();
+            predecessor_set.clear();
+            for &predecessor in &block.predecessors {
+                if predecessor.index() < num_blocks {
+                    predecessor_set.insert(predecessor);
+                }
+            }
             for &inst_id in &block.instructions {
                 if inst_id.index() >= num_insts {
                     self.emit_at_block(
@@ -264,7 +294,7 @@ impl<'a> Validator<'a> {
                             );
                             continue;
                         }
-                        if !block_preds.contains(pred_block) {
+                        if !predecessor_set.contains(*pred_block) {
                             self.emit_at_inst(
                                 format_args!(
                                     "phi incoming from bb{} but bb{} is not a predecessor",
@@ -276,9 +306,60 @@ impl<'a> Validator<'a> {
                             );
                         }
                     }
+                    // Incoming lists are keyed per predecessor block, so duplicate
+                    // entries for one block must agree on the value; conflicting
+                    // duplicates make the chosen value depend on consumer order.
+                    incoming_blocks.clear();
+                    let mut invalid_incoming = FxHashMap::default();
+                    for &(pred_block, value) in incoming {
+                        if pred_block.index() >= num_blocks {
+                            if let Some((first, conflicted)) = invalid_incoming.get_mut(&pred_block)
+                            {
+                                *conflicted |= *first != value;
+                                if *conflicted {
+                                    self.emit_at_inst(
+                                        format_args!(
+                                            "phi has conflicting incoming values for predecessor \
+                                             bb{}",
+                                            pred_block.index()
+                                        ),
+                                        block_id,
+                                        inst_id,
+                                    );
+                                }
+                            } else {
+                                invalid_incoming.insert(pred_block, (value, false));
+                            }
+                            continue;
+                        }
+
+                        if let Some(first) = incoming_values[pred_block] {
+                            let conflicted =
+                                incoming_conflicts.contains(pred_block) || first != value;
+                            if conflicted {
+                                incoming_conflicts.insert(pred_block);
+                                self.emit_at_inst(
+                                    format_args!(
+                                        "phi has conflicting incoming values for predecessor bb{}",
+                                        pred_block.index()
+                                    ),
+                                    block_id,
+                                    inst_id,
+                                );
+                            }
+                        } else {
+                            incoming_values[pred_block] = Some(value);
+                            incoming_blocks.push(pred_block);
+                        }
+                    }
                     // Every predecessor must appear in the incoming list.
-                    for pred in &block_preds {
-                        if !incoming.iter().any(|(b, _)| b == pred) {
+                    for &pred in &block.predecessors {
+                        let present = if pred.index() < num_blocks {
+                            incoming_values[pred].is_some()
+                        } else {
+                            invalid_incoming.contains_key(&pred)
+                        };
+                        if !present {
                             self.emit_at_inst(
                                 format_args!(
                                     "phi missing incoming entry for predecessor bb{}",
@@ -289,24 +370,9 @@ impl<'a> Validator<'a> {
                             );
                         }
                     }
-                    // Incoming lists are keyed per predecessor block, so duplicate
-                    // entries for one block must agree on the value; conflicting
-                    // duplicates make the chosen value depend on consumer order.
-                    for (index, (pred_block, value)) in incoming.iter().enumerate() {
-                        if incoming
-                            .iter()
-                            .take(index)
-                            .any(|(other, other_value)| other == pred_block && other_value != value)
-                        {
-                            self.emit_at_inst(
-                                format_args!(
-                                    "phi has conflicting incoming values for predecessor bb{}",
-                                    pred_block.index()
-                                ),
-                                block_id,
-                                inst_id,
-                            );
-                        }
+                    for &pred in &incoming_blocks {
+                        incoming_values[pred] = None;
+                        incoming_conflicts.remove(pred);
                     }
                 }
             }
