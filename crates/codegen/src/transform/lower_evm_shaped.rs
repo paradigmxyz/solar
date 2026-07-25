@@ -20,7 +20,10 @@
 
 use crate::{
     analysis::{CallGraphInfo, CfgInfo},
-    mir::{Function, InstKind, MirPhase, Module, Terminator, utils::repair_reachability_phis},
+    mir::{
+        Function, InstKind, MirPhase, Module, Terminator,
+        utils::{TerminatorEdgeUpdate, apply_terminator_edge_updates},
+    },
     pass::MirPass,
 };
 use solar_data_structures::bit_set::DenseBitSet;
@@ -136,6 +139,7 @@ impl LowerEvmShapedCx {
         for func_id in function_ids {
             let func = &mut module.functions[func_id];
             let mut function_changed = false;
+            let mut edge_updates = Vec::new();
             for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
                 let insts = &func.blocks[block_id].instructions;
                 let Some(position) = insts.iter().position(|&inst_id| {
@@ -159,14 +163,24 @@ impl LowerEvmShapedCx {
                 let (function, args) = (*function, args.iter().copied().collect());
 
                 // Control never comes back: everything after the call is dead.
+                let old_successors = func.blocks[block_id]
+                    .terminator
+                    .as_ref()
+                    .map(Terminator::successors)
+                    .unwrap_or_default();
                 func.blocks[block_id].instructions.truncate(position);
                 func.blocks[block_id].terminator = Some(Terminator::TailCall { function, args });
+                if let Some(update) =
+                    TerminatorEdgeUpdate::new(block_id, old_successors, Default::default())
+                {
+                    edge_updates.push(update);
+                }
                 self.stats.tail_calls += 1;
                 function_changed = true;
             }
             changed |= function_changed;
             if function_changed {
-                changed |= repair_reachability_phis(func);
+                apply_terminator_edge_updates(func, &edge_updates);
             }
         }
 

@@ -4,7 +4,6 @@ use crate::mir::{BasicBlock, BlockId, Function, InstKind, Terminator, ValueId};
 use alloy_primitives::U256;
 use smallvec::{SmallVec, smallvec};
 use solar_data_structures::{
-    bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
@@ -273,43 +272,6 @@ pub(crate) fn apply_terminator_edge_updates(func: &mut Function, updates: &[Term
         }
         removed.clear();
     }
-}
-
-/// Rebuilds CFG edge lists from terminators and drops phi inputs from blocks
-/// that are no longer predecessors. Returns true if either changed.
-#[must_use]
-pub(crate) fn repair_reachability_phis(func: &mut Function) -> bool {
-    let mut predecessors = index_vec![smallvec![]; func.blocks.len()];
-    for (block, bb) in func.blocks.iter_enumerated() {
-        if let Some(term) = &bb.terminator {
-            for succ in term.successors() {
-                predecessors[succ].push(block);
-            }
-        }
-    }
-
-    let mut changed = false;
-    let mut predecessor_set = DenseBitSet::new_empty(func.blocks.len());
-    for (block_id, block_predecessors) in predecessors.into_iter_enumerated() {
-        changed |= func.blocks[block_id].predecessors != block_predecessors;
-        for &predecessor in &block_predecessors {
-            predecessor_set.insert(predecessor);
-        }
-        let instruction_count = func.blocks[block_id].instructions.len();
-        for index in 0..instruction_count {
-            let inst_id = func.blocks[block_id].instructions[index];
-            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind {
-                let len_before = incoming.len();
-                incoming.retain(|(pred, _)| predecessor_set.contains(*pred));
-                changed |= incoming.len() != len_before;
-            }
-        }
-        for &predecessor in &block_predecessors {
-            predecessor_set.remove(predecessor);
-        }
-        func.blocks[block_id].predecessors = block_predecessors;
-    }
-    changed
 }
 
 /// Resolves a value through a replacement map until it reaches its canonical value.
