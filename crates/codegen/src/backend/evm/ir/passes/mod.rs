@@ -51,32 +51,6 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &block_layout::BlockLayout,
 ];
 
-/// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
-pub(crate) static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
-    // Normalize and establish the first physical layout.
-    &peephole::Peephole,
-    &compact_pushes::CompactPushes,
-    &cfg_simplify::CfgSimplify,
-    &block_layout::BlockLayout,
-    &share_reverts::ShareReverts,
-    // Simplify and merge the explicit control-flow graph.
-    &terminal_dedup::TerminalDedup,
-    &cfg_simplify::CfgSimplify,
-    &tail_merge::TailMerge,
-    &cfg_simplify::CfgSimplify,
-    &tail_merge::TailMerge,
-    // Outline only after straight-line paths and terminal tails are canonical.
-    &outline::Outline,
-    &cfg_simplify::CfgSimplify,
-    &compact_pushes::CompactPushes,
-    // Pack address-sensitive terminal blocks, then clean up any adjacent
-    // revert branch that remains profitable in the final layout.
-    &block_layout::BlockLayout,
-    &share_reverts::ShareReverts,
-    &cfg_simplify::CfgSimplify,
-    &block_layout::BlockLayout,
-];
-
 /// Finds an EVM IR pass by command-line name.
 pub fn lookup_pass(name: &str) -> Option<&'static dyn EvmPass> {
     ALL_PASSES.iter().copied().find(|pass| pass.name() == name)
@@ -102,5 +76,68 @@ pub fn run_passes(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn EvmPass]) ->
             print!("{}", module.to_text());
         }
     }
+    changed
+}
+
+fn run_one(gcx: Gcx<'_>, module: &mut Module, pass: &'static dyn EvmPass) -> bool {
+    run_passes(gcx, module, &[pass])
+}
+
+/// Runs the canonical EVM IR layout and code-size pipeline.
+#[must_use]
+pub(crate) fn run_default_pipeline(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    // Normalize the machine instructions and establish the first physical layout.
+    let mut changed = run_passes(
+        gcx,
+        module,
+        &[
+            &peephole::Peephole,
+            &compact_pushes::CompactPushes,
+            &cfg_simplify::CfgSimplify,
+            &block_layout::BlockLayout,
+        ],
+    );
+
+    // CFG cleanup is only needed when terminal sharing changed an edge.
+    let shared = run_one(gcx, module, &share_reverts::ShareReverts);
+    changed |= shared;
+    let deduplicated = run_one(gcx, module, &terminal_dedup::TerminalDedup);
+    changed |= deduplicated;
+    if shared || deduplicated {
+        changed |= run_one(gcx, module, &cfg_simplify::CfgSimplify);
+    }
+
+    // Tail merging itself reaches a fixed point. Run it again only when CFG
+    // cleanup exposes new cross-block suffixes.
+    let tails_merged = run_one(gcx, module, &tail_merge::TailMerge);
+    changed |= tails_merged;
+    let mut second_tail_merge = false;
+    if tails_merged {
+        let cfg_changed = run_one(gcx, module, &cfg_simplify::CfgSimplify);
+        changed |= cfg_changed;
+        if cfg_changed {
+            second_tail_merge = run_one(gcx, module, &tail_merge::TailMerge);
+            changed |= second_tail_merge;
+        }
+    }
+
+    // Outline after straight-line paths and terminal tails are canonical.
+    let outlined = run_one(gcx, module, &outline::Outline);
+    changed |= outlined;
+    if second_tail_merge || outlined {
+        changed |= run_one(gcx, module, &cfg_simplify::CfgSimplify);
+    }
+    changed |= run_one(gcx, module, &compact_pushes::CompactPushes);
+
+    // Pack address-sensitive terminal blocks, then clean up a shared adjacent
+    // revert path only when branch inversion changed the final layout.
+    changed |= run_one(gcx, module, &block_layout::BlockLayout);
+    let shared = run_one(gcx, module, &share_reverts::ShareReverts);
+    changed |= shared;
+    if shared {
+        changed |=
+            run_passes(gcx, module, &[&cfg_simplify::CfgSimplify, &block_layout::BlockLayout]);
+    }
+
     changed
 }
