@@ -80,7 +80,7 @@ impl JumpThreader {
 
     /// Runs jump threading on a function.
     /// Returns the number of MIR mutations performed.
-    fn run(&mut self, func: &mut Function) -> usize {
+    fn run(&mut self, func: &mut Function) -> (usize, bool) {
         self.stats = JumpThreadingStats::default();
         let mut changed = 0;
         let mut edge_updates = Vec::new();
@@ -98,22 +98,23 @@ impl JumpThreader {
             changed += self.stats.total_threaded();
         }
 
-        changed += self.thread_phi_constant_edges(func, &mut edge_updates);
+        let phi_edges_threaded = self.thread_phi_constant_edges(func, &mut edge_updates);
+        changed += phi_edges_threaded;
 
         if changed == 0 {
-            return 0;
+            return (0, false);
         }
 
         apply_terminator_edge_updates(func, &edge_updates);
 
-        changed
+        (changed, phi_edges_threaded != 0)
     }
 
     /// Runs jump threading iteratively until no more changes.
     fn run_to_fixpoint(&mut self, func: &mut Function) -> JumpThreadingStats {
         let mut total_stats = JumpThreadingStats::default();
         loop {
-            let changed = self.run(func);
+            let (changed, rerun) = self.run(func);
             if changed == 0 {
                 break;
             }
@@ -121,6 +122,9 @@ impl JumpThreader {
             total_stats.branches_threaded += self.stats.branches_threaded;
             total_stats.switches_threaded += self.stats.switches_threaded;
             total_stats.gas_saved += self.stats.gas_saved;
+            if !rerun {
+                break;
+            }
         }
         total_stats
     }
