@@ -210,6 +210,14 @@ impl PartialRedundancyEliminator {
         // candidate in this batch are deferred to the next scan.
         let mut modified_blocks = DenseBitSet::new_empty(func.blocks.len());
         let mut eliminated_values = DenseBitSet::new_empty(func.values.len());
+        let mut phi_incoming = FxHashMap::default();
+        for inst in func.instructions() {
+            if let InstKind::Phi(incoming) = &func.inst(inst).kind {
+                for &(pred, value) in incoming {
+                    phi_incoming.insert((inst, pred), value);
+                }
+            }
+        }
 
         'targets: for target in func.blocks.indices() {
             let predecessors = func.unique_predecessors(target);
@@ -247,6 +255,7 @@ impl PartialRedundancyEliminator {
                     &predecessors,
                     inst_results,
                     inst_blocks,
+                    &phi_incoming,
                     dominators,
                     eliminated_keys,
                 ) else {
@@ -296,6 +305,7 @@ impl PartialRedundancyEliminator {
         predecessors: &[BlockId],
         inst_results: &FxHashMap<InstId, ValueId>,
         inst_blocks: &FxHashMap<InstId, BlockId>,
+        phi_incoming: &FxHashMap<(InstId, BlockId), ValueId>,
         dominators: &DominatorTree,
         eliminated_keys: &FxHashSet<(ExprKey, BlockId)>,
     ) -> Option<PreCandidate> {
@@ -305,8 +315,14 @@ impl PartialRedundancyEliminator {
         let mut available = 0usize;
 
         for &pred in predecessors {
-            let translated =
-                Self::translate_kind_for_predecessor(func, original, target, pred, inst_blocks)?;
+            let translated = Self::translate_kind_for_predecessor(
+                func,
+                original,
+                target,
+                pred,
+                inst_blocks,
+                phi_incoming,
+            )?;
             if !Self::operands_available_at_end(func, &translated, pred, inst_blocks, dominators) {
                 return None;
             }
@@ -426,13 +442,19 @@ impl PartialRedundancyEliminator {
         target: BlockId,
         pred: BlockId,
         inst_blocks: &FxHashMap<InstId, BlockId>,
+        phi_incoming: &FxHashMap<(InstId, BlockId), ValueId>,
     ) -> Option<InstKind> {
         let mut translated = kind.clone();
         let mut ok = true;
         translated.visit_operands_mut(|value| {
-            if let Some(translated) =
-                Self::translate_value_for_predecessor(func, *value, target, pred, inst_blocks)
-            {
+            if let Some(translated) = Self::translate_value_for_predecessor(
+                func,
+                *value,
+                target,
+                pred,
+                inst_blocks,
+                phi_incoming,
+            ) {
                 *value = translated;
             } else {
                 ok = false;
@@ -447,18 +469,14 @@ impl PartialRedundancyEliminator {
         target: BlockId,
         pred: BlockId,
         inst_blocks: &FxHashMap<InstId, BlockId>,
+        phi_incoming: &FxHashMap<(InstId, BlockId), ValueId>,
     ) -> Option<ValueId> {
         match func.value(value) {
             Value::Inst(inst_id)
                 if inst_blocks.get(inst_id).copied() == Some(target)
                     && matches!(func.inst(*inst_id).kind, InstKind::Phi(_)) =>
             {
-                let InstKind::Phi(incoming) = &func.inst(*inst_id).kind else {
-                    return None;
-                };
-                incoming.iter().find_map(|(incoming_pred, incoming_value)| {
-                    (*incoming_pred == pred).then_some(*incoming_value)
-                })
+                phi_incoming.get(&(*inst_id, pred)).copied()
             }
             _ => Some(value),
         }
