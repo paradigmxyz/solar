@@ -59,7 +59,7 @@ impl MirPass for StaticAlloc {
 
         let mut changed = false;
         for func in module.functions.iter_mut() {
-            if !is_entry(func) || has_msize(func) {
+            if !is_entry(func) {
                 continue;
             }
             changed |= run_on_entry(func, shadow);
@@ -123,7 +123,18 @@ struct StaticAllocCandidate {
 /// Returns constant-size, non-escaping allocations that the backend may place
 /// in an entry-local static region.
 fn eligible_static_allocations(func: &Function) -> Vec<StaticAllocCandidate> {
-    if !is_entry(func) || has_msize(func) {
+    if !is_entry(func) {
+        return Vec::new();
+    }
+    let mut has_alloc = false;
+    for inst_id in func.instructions() {
+        match func.inst(inst_id).kind {
+            InstKind::MSize => return Vec::new(),
+            InstKind::Alloc { .. } => has_alloc = true,
+            _ => {}
+        }
+    }
+    if !has_alloc {
         return Vec::new();
     }
 
@@ -157,10 +168,6 @@ fn eligible_static_allocations(func: &Function) -> Vec<StaticAllocCandidate> {
     // The bounded-use proof rejects every unrecognized use, so it also proves non-escape.
     candidates.retain(|candidate| candidate_uses_are_safe(func, candidate, &uses));
     candidates
-}
-
-fn has_msize(func: &Function) -> bool {
-    func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize))
 }
 
 struct ValueUses {
