@@ -7,12 +7,8 @@ use crate::backend::evm::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::{
-    bit_set::DenseBitSet,
-    map::{FxHashMap, FxHasher},
-};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_sema::Gcx;
-use std::hash::{Hash, Hasher};
 
 pub(super) struct Outline;
 
@@ -38,7 +34,8 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
 }
 
 fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> bool {
-    let mut candidates = FxHashMap::<(u64, usize), SmallVec<[CandidateGroup; 1]>>::default();
+    let ranks = SubstringRanks::new(module);
+    let mut candidates = FxHashMap::<SequenceKey, CandidateGroup>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         let effects: Vec<_> = block.instructions.iter().map(whitelisted_effect).collect();
         let mut remaining_drops = vec![0usize; effects.len() + 1];
@@ -51,26 +48,20 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
 
         for start in 0..block.instructions.len() {
             let mut height = 0i32;
-            let mut hasher = FxHasher::default();
             for end in start..block.instructions.len() {
-                let inst = &block.instructions[end];
                 let Some((reads, pops, pushes)) = effects[end] else { break };
                 if height < i32::from(reads) {
                     break;
                 }
                 height = height - i32::from(pops) + i32::from(pushes);
-                hash_machine_inst(inst, &mut hasher);
                 let len = end + 1 - start;
                 if len >= MIN_CLOSED_RUN && matches!(height, 0 | 1) {
                     let site = Site { block: block_id, start, len, height: height as u16 };
-                    let bucket = candidates.entry((hasher.finish(), len)).or_default();
-                    if let Some(group) =
-                        bucket.iter_mut().find(|group| sites_match(module, group.sites[0], site))
-                    {
-                        group.sites.push(site);
-                    } else {
-                        bucket.push(CandidateGroup { sites: smallvec::smallvec![site] });
-                    }
+                    candidates
+                        .entry(ranks.key(block_id, start, len))
+                        .or_insert_with(|| CandidateGroup { sites: SmallVec::new() })
+                        .sites
+                        .push(site);
                 }
                 if (height as usize).saturating_sub(remaining_drops[end + 1]) > 1 {
                     break;
@@ -80,7 +71,7 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
     }
 
     let mut groups: Vec<_> =
-        candidates.into_values().flatten().filter(|group| group.sites.len() >= 2).collect();
+        candidates.into_values().filter(|group| group.sites.len() >= 2).collect();
     groups.sort_unstable_by_key(|group| {
         let first = group.sites[0];
         (std::cmp::Reverse(first.len), first.block.index(), first.start)
@@ -142,19 +133,85 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
     true
 }
 
-fn hash_machine_inst(inst: &Instruction, state: &mut impl Hasher) {
-    inst.opcode.hash(state);
-    inst.encoding.hash(state);
-    inst.value.hash(state);
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct SequenceKey {
+    len: usize,
+    prefix: usize,
+    suffix: usize,
 }
 
-fn sites_match(module: &Module, a: Site, b: Site) -> bool {
-    let a = &module.blocks[a.block].instructions[a.start..a.start + a.len];
-    let b = &module.blocks[b.block].instructions[b.start..b.start + b.len];
-    a.len() == b.len()
-        && a.iter()
-            .zip(b)
-            .all(|(a, b)| a.opcode == b.opcode && a.encoding == b.encoding && a.value == b.value)
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct MachineInstructionKey {
+    opcode: u8,
+    encoding: u8,
+    value: Option<PushValue>,
+}
+
+struct SubstringRanks {
+    levels: Vec<Vec<Vec<usize>>>,
+}
+
+impl SubstringRanks {
+    fn new(module: &Module) -> Self {
+        let mut instructions = FxHashMap::default();
+        let mut next_rank = 0;
+        let base = module
+            .blocks
+            .iter()
+            .map(|block| {
+                block
+                    .instructions
+                    .iter()
+                    .map(|inst| {
+                        let key = MachineInstructionKey {
+                            opcode: inst.opcode,
+                            encoding: inst.encoding,
+                            value: inst.value,
+                        };
+                        *instructions.entry(key).or_insert_with(|| {
+                            let rank = next_rank;
+                            next_rank += 1;
+                            rank
+                        })
+                    })
+                    .collect()
+            })
+            .collect::<Vec<Vec<_>>>();
+        let max_len = base.iter().map(Vec::len).max().unwrap_or(0);
+        let mut levels = vec![base];
+        let mut width = 2;
+        while width <= max_len {
+            let half = width / 2;
+            let previous = levels.last().expect("base rank level exists");
+            let mut pairs = FxHashMap::default();
+            let mut next_rank = 0;
+            let level = previous
+                .iter()
+                .map(|block| {
+                    (0..block.len().saturating_sub(half))
+                        .map(|start| {
+                            let key = (block[start], block[start + half]);
+                            *pairs.entry(key).or_insert_with(|| {
+                                let rank = next_rank;
+                                next_rank += 1;
+                                rank
+                            })
+                        })
+                        .collect()
+                })
+                .collect();
+            levels.push(level);
+            width *= 2;
+        }
+        Self { levels }
+    }
+
+    fn key(&self, block: BlockId, start: usize, len: usize) -> SequenceKey {
+        let level = len.ilog2() as usize;
+        let width = 1usize << level;
+        let ranks = &self.levels[level][block.index()];
+        SequenceKey { len, prefix: ranks[start], suffix: ranks[start + len - width] }
+    }
 }
 
 fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
