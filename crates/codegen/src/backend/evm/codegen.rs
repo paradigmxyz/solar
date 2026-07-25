@@ -92,7 +92,7 @@ struct StackArgRetentionPlan {
 struct StackPhiPlan {
     entries: FxHashMap<BlockId, Vec<ValueId>>,
     edges: FxHashMap<BlockId, StackPhiEdge>,
-    edge_sources: FxHashMap<BlockId, DenseBitSet<ValueId>>,
+    edge_sources: FxHashMap<BlockId, Vec<ValueId>>,
 }
 
 #[derive(Clone, Debug)]
@@ -436,11 +436,7 @@ impl<'a> StackPhiPlanner<'a> {
 
         plan.entries.insert(loop_info.header, entry.clone());
         for (pred, sources) in edges {
-            let mut source_set = DenseBitSet::new_empty(self.func.values.len());
-            for &source in &sources {
-                source_set.insert(source);
-            }
-            plan.edge_sources.insert(pred, source_set);
+            plan.edge_sources.insert(pred, sources.clone());
             plan.edges.insert(pred, StackPhiEdge { sources, results: entry.clone() });
         }
     }
@@ -478,11 +474,7 @@ impl<'a> StackPhiPlanner<'a> {
 
         plan.entries.insert(block_id, results.clone());
         for (pred, sources) in edges {
-            let mut source_set = DenseBitSet::new_empty(self.func.values.len());
-            for &source in &sources {
-                source_set.insert(source);
-            }
-            plan.edge_sources.insert(pred, source_set);
+            plan.edge_sources.insert(pred, sources.clone());
             plan.edges.insert(pred, StackPhiEdge { sources, results: results.clone() });
         }
     }
@@ -619,7 +611,7 @@ pub struct EvmCodegen<'gcx> {
     /// Copies to insert at block exits (from phi elimination).
     block_copies: FxHashMap<BlockId, Vec<ParallelCopy>>,
     /// Values carried by planned stack-resident phi edges, keyed by predecessor block.
-    stack_phi_sources: FxHashMap<BlockId, DenseBitSet<ValueId>>,
+    stack_phi_sources: FxHashMap<BlockId, Vec<ValueId>>,
     /// Whether the current function has canonical cross-block argument layouts.
     global_stack_active: bool,
     /// Calldata words physically identical to arguments in the active global
@@ -1972,7 +1964,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn is_stack_phi_source(&self, block: BlockId, value: ValueId) -> bool {
-        self.stack_phi_sources.get(&block).is_some_and(|sources| sources.contains(value))
+        self.stack_phi_sources.get(&block).is_some_and(|sources| sources.contains(&value))
     }
 
     /// Preallocates stable spill slots for values that may cross block boundaries.
