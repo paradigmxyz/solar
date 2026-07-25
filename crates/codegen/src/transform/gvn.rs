@@ -148,7 +148,6 @@ enum ExprKind {
 struct ReplaceCtx<'a> {
     vn: &'a IndexVec<ValueId, ClassId>,
     cfg: &'a CfgInfo,
-    inst_results: &'a FxHashMap<InstId, ValueId>,
     replacements: &'a mut FxHashMap<ValueId, ValueId>,
     dead: &'a mut DenseBitSet<InstId>,
 }
@@ -174,8 +173,7 @@ impl GlobalValueNumberer {
     /// Runs one numbering and replacement round. Returns true if MIR changed.
     fn run_round(&mut self, func: &mut Function) -> bool {
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
-        let inst_results = func.inst_results();
-        let Some(vn) = Self::compute_value_numbers(func, cfg.rpo(), &inst_results) else {
+        let Some(vn) = Self::compute_value_numbers(func, cfg.rpo()) else {
             return false;
         };
 
@@ -190,14 +188,9 @@ impl GlobalValueNumberer {
 
         let mut replacements = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.num_insts());
-        let mut ctx = ReplaceCtx {
-            vn: &vn,
-            cfg: &cfg,
-            inst_results: &inst_results,
-            replacements: &mut replacements,
-            dead: &mut dead,
-        };
-        self.replace_in_block(func, BlockId::ENTRY, &mut leaders, &mut ctx);
+        let mut ctx =
+            ReplaceCtx { vn: &vn, cfg: &cfg, replacements: &mut replacements, dead: &mut dead };
+        self.replace_in_dominator_tree(func, &mut leaders, &mut ctx);
 
         if replacements.is_empty() {
             return false;
@@ -216,7 +209,6 @@ impl GlobalValueNumberer {
     fn compute_value_numbers(
         func: &Function,
         rpo: &[BlockId],
-        inst_results: &FxHashMap<InstId, ValueId>,
     ) -> Option<IndexVec<ValueId, ClassId>> {
         let mut vn = func.values.indices().collect::<IndexVec<ValueId, _>>();
         let mut immediate_reps: FxHashMap<Immediate, ValueId> = FxHashMap::default();
@@ -238,7 +230,7 @@ impl GlobalValueNumberer {
             let mut changed = false;
             for &block_id in rpo {
                 for &inst_id in &func.blocks[block_id].instructions {
-                    let Some(&result) = inst_results.get(&inst_id) else { continue };
+                    let Some(result) = func.inst_result_value(inst_id) else { continue };
                     let inst = func.inst(inst_id);
                     let Some(ty) = inst.result_ty else { continue };
                     let Some(class) =
@@ -396,34 +388,54 @@ impl GlobalValueNumberer {
     // ----- replacement -----
 
     /// Dominator-tree preorder walk with a scoped class-to-leader map.
-    fn replace_in_block(
+    fn replace_in_dominator_tree(
         &mut self,
         func: &Function,
-        block_id: BlockId,
         leaders: &mut FxHashMap<ClassId, ValueId>,
         ctx: &mut ReplaceCtx<'_>,
     ) {
-        for &inst_id in &func.blocks[block_id].instructions {
-            let Some(&result) = ctx.inst_results.get(&inst_id) else { continue };
-            let kind = &func.inst(inst_id).kind;
-            if !matches!(kind, InstKind::Phi(_)) && Self::expr_kind(kind, ctx.vn).is_none() {
-                continue;
-            }
-            let class = ctx.vn[result];
-            if let Some(&leader) = leaders.get(&class) {
-                if leader != result {
-                    ctx.replacements.insert(result, leader);
-                    ctx.dead.insert(inst_id);
-                    self.eliminated_count += 1;
-                }
-            } else {
-                leaders.insert(class, result);
-            }
+        enum Event {
+            Enter(BlockId),
+            Exit(usize),
         }
 
-        for &child in ctx.cfg.dominators().children(block_id) {
-            let mut child_leaders = leaders.clone();
-            self.replace_in_block(func, child, &mut child_leaders, ctx);
+        let mut stack = vec![Event::Enter(BlockId::ENTRY)];
+        let mut undo = Vec::new();
+        while let Some(event) = stack.pop() {
+            let block_id = match event {
+                Event::Enter(block_id) => block_id,
+                Event::Exit(checkpoint) => {
+                    for class in undo.drain(checkpoint..) {
+                        leaders.remove(&class);
+                    }
+                    continue;
+                }
+            };
+
+            let checkpoint = undo.len();
+            for &inst_id in &func.blocks[block_id].instructions {
+                let Some(result) = func.inst_result_value(inst_id) else { continue };
+                let kind = &func.inst(inst_id).kind;
+                if !matches!(kind, InstKind::Phi(_)) && Self::expr_kind(kind, ctx.vn).is_none() {
+                    continue;
+                }
+                let class = ctx.vn[result];
+                if let Some(&leader) = leaders.get(&class) {
+                    if leader != result {
+                        ctx.replacements.insert(result, leader);
+                        ctx.dead.insert(inst_id);
+                        self.eliminated_count += 1;
+                    }
+                } else {
+                    leaders.insert(class, result);
+                    undo.push(class);
+                }
+            }
+
+            stack.push(Event::Exit(checkpoint));
+            for &child in ctx.cfg.dominators().children(block_id).iter().rev() {
+                stack.push(Event::Enter(child));
+            }
         }
     }
 
