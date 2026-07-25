@@ -378,7 +378,7 @@ impl<'a> StackPhiPlanner<'a> {
     fn collect_header_results(&mut self) {
         for loop_info in &self.loops {
             let block = &self.func.blocks[loop_info.header];
-            let phi_insts = self.leading_phi_insts(block);
+            let phi_insts = self.phi_insts(block);
             if let Some(results) = self.phi_result_values(&phi_insts) {
                 self.header_results.insert(loop_info.header, results);
             }
@@ -402,7 +402,7 @@ impl<'a> StackPhiPlanner<'a> {
         }
 
         let block = &self.func.blocks[loop_info.header];
-        let phi_insts = self.leading_phi_insts(block);
+        let phi_insts = self.phi_insts(block);
         if phi_insts.is_empty() || phi_insts.len() > STACK_PHI_LAYOUT_LIMIT {
             return;
         }
@@ -451,7 +451,7 @@ impl<'a> StackPhiPlanner<'a> {
             return;
         }
 
-        let phi_insts = self.leading_phi_insts(block);
+        let phi_insts = self.phi_insts(block);
         if phi_insts.is_empty() || phi_insts.len() > STACK_PHI_LAYOUT_LIMIT {
             return;
         }
@@ -487,12 +487,12 @@ impl<'a> StackPhiPlanner<'a> {
         }
     }
 
-    fn leading_phi_insts(&self, block: &crate::mir::BasicBlock) -> Vec<InstId> {
+    fn phi_insts(&self, block: &crate::mir::BasicBlock) -> Vec<InstId> {
         block
             .instructions
             .iter()
             .copied()
-            .take_while(|&inst| matches!(self.func.inst(inst).kind, InstKind::Phi(_)))
+            .filter(|&inst| matches!(self.func.inst(inst).kind, InstKind::Phi(_)))
             .collect()
     }
 
