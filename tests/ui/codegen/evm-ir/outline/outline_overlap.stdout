@@ -1,0 +1,46 @@
+- // === ROOT/tests/ui/codegen/evm-ir/outline/outline_overlap.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/outline_overlap.evmir (after outline) ===
+  @module module
+  bb0:
++   push bb3
++   jump bb1
++ bb1:
+    push 2
+    pop
+    push 2
+    pop
+    push 2
+    pop
+    push 2
+    pop
+    push 2
+    pop
+    push 2
+    pop
+    push 2
+    pop
+    push 2
+    pop
+-   push 2
+-   pop
+-   push 2
+-   pop
+-   push 2
+-   pop
+-   push 2
+-   pop
+-   push 2
+-   pop
+-   push 2
+-   pop
+-   push 2
+-   pop
+-   push 2
+-   pop
++   jump
++ bb2:
+    stop
++ bb3:
++   push bb2
++   jump bb1
+  

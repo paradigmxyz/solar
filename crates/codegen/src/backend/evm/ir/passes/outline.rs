@@ -89,14 +89,19 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
     let mut chosen = Vec::new();
     for group in groups {
         let mut free = SmallVec::<[Site; 2]>::new();
+        let mut last_site = None;
         for site in group.sites {
             let instruction_count = module.blocks[site.block].instructions.len();
             let claimed = claimed
                 .entry(site.block)
                 .or_insert_with(|| DenseBitSet::new_empty(instruction_count));
-            if !claimed.contains_any(site.start..site.start + site.len) {
-                free.push(site);
+            if claimed.contains_any(site.start..site.start + site.len)
+                || last_site.is_some_and(|(block, end)| block == site.block && site.start < end)
+            {
+                continue;
             }
+            free.push(site);
+            last_site = Some((site.block, site.start + site.len));
         }
         if free.len() < 2 {
             continue;

@@ -1,0 +1,49 @@
+//@compile-flags: --pass outline
+//@filecheck:
+@module module
+
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: + push [[SECOND:bb[0-9]+]]
+// CHECK: + jump [[OUTLINE:bb[0-9]+]]
+// CHECK: + [[OUTLINE]]:
+// CHECK-COUNT-8: {{^[ +].*}}push 2
+// CHECK: + jump
+// CHECK: + [[END:bb[0-9]+]]:
+// CHECK: {{^[ +].*}}stop
+// CHECK: + [[SECOND]]:
+// CHECK: + push [[END]]
+// CHECK: + jump [[OUTLINE]]
+bb0:
+  push 2
+  pop
+  push 2
+  pop
+  push 2
+  pop
+  push 2
+  pop
+  push 2
+  pop
+  push 2
+  pop
+  push 2
+  pop
+  push 2
+  pop
+  push 2
+  pop
+  push 2
+  pop
+  push 2
+  pop
+  push 2
+  pop
+  push 2
+  pop
+  push 2
+  pop
+  push 2
+  pop
+  push 2
+  pop
+  stop
