@@ -106,18 +106,17 @@ impl LowerAbiCx {
         }
 
         // Snapshot the ids to wrap first; wrapping appends new functions, and we
-        // must not revisit them. Preflight return fusion on clones so an
+        // must not revisit them. Preflight return fusion without mutating so an
         // unsupported dynamic return cannot leave earlier functions partially
-        // mutated when this all-or-nothing phase transition bails.
+        // changed when this all-or-nothing phase transition bails.
         let wrappable: Vec<FunctionId> = module
             .functions
             .iter_enumerated()
             .filter_map(|(id, func)| is_wrappable_external(func).then_some(id))
             .collect();
         for &id in &wrappable {
-            let mut preflight = module.function(id).clone();
-            fuse_static_word_returns(&mut preflight);
-            self.stats.skipped_dynamic += usize::from(has_live_value_return(&preflight));
+            self.stats.skipped_dynamic +=
+                usize::from(has_unfusable_value_return(module.function(id)));
         }
         if self.stats.skipped_dynamic != 0 {
             return false;
@@ -280,13 +279,17 @@ fn is_wrappable_external(func: &Function) -> bool {
 /// caller (which would then need to encode them) makes the whole pass bail.
 /// The signature's `returns` list is not the test: external lowering fuses
 /// the encode and rewrites every value-carrying `ret` into `returndata`,
-/// leaving the signature stale. What matters is whether any value-carrying
-/// `Return` terminator is still live in the body. Parameters of any type and
-/// any count are fine: each stays an `Arg` head word the backend
-/// rematerializes lazily.
-fn has_live_value_return(func: &Function) -> bool {
+/// leaving the signature stale. What matters is whether every value-carrying
+/// `Return` terminator can be fused. Parameters of any type and any count are
+/// fine: each stays an `Arg` head word the backend rematerializes lazily.
+fn has_unfusable_value_return(func: &Function) -> bool {
     func.blocks.iter().any(|block| {
-        matches!(&block.terminator, Some(Terminator::Return { values }) if !values.is_empty())
+        matches!(
+            &block.terminator,
+            Some(Terminator::Return { values })
+                if !values.is_empty()
+                    && !values.iter().all(|&value| is_static_word_return(func, value))
+        )
     })
 }
 
