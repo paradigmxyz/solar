@@ -288,6 +288,7 @@ impl LoadPreCostModel {
 struct Analysis {
     keys: Vec<LoadKey>,
     key_index: FxHashMap<LoadKey, usize>,
+    kill_index: KillIndex,
     cfg: Rc<CfgInfo>,
     /// Per-block keys killed at any point in the block; only blocks that kill
     /// something have an entry.
@@ -624,6 +625,7 @@ impl LoadRedundancyEliminator {
         Some(Analysis {
             keys,
             key_index,
+            kill_index,
             cfg,
             kills,
             gen_values,
@@ -738,21 +740,23 @@ impl LoadRedundancyEliminator {
                 // candidate.
                 InstKind::Gas => break,
                 InstKind::MSize => {
-                    for (idx, key) in analysis.keys.iter().enumerate() {
-                        if matches!(key, LoadKey::Memory(_) | LoadKey::Keccak(_, _)) {
-                            blocked.insert(idx);
-                        }
+                    for &idx in &analysis.kill_index.memory {
+                        blocked.insert(idx);
                     }
                 }
                 _ if kind.has_side_effects() => {
                     // Kills block their keys; a store's own-key gen is also a
                     // kill here (the value differs from the predecessor-end
                     // state), which the may-alias check already covers.
-                    for (idx, &key) in analysis.keys.iter().enumerate() {
-                        if !blocked.contains(idx) && self.inst_kills_key(func, inst_id, key) {
+                    let effects = self.alias().instruction_mod_ref(func, inst_id);
+                    self.for_each_killed_key(
+                        &effects,
+                        &analysis.keys,
+                        &analysis.kill_index,
+                        |idx| {
                             blocked.insert(idx);
-                        }
-                    }
+                        },
+                    );
                 }
                 _ => {}
             }
@@ -1037,32 +1041,6 @@ impl LoadRedundancyEliminator {
                 Some((LoadKey::Keccak(addr, size), GenSource::LoadResult))
             }
             _ => None,
-        }
-    }
-
-    /// Returns true if an instruction may invalidate the value of `key`.
-    fn inst_kills_key(&self, func: &Function, inst_id: InstId, key: LoadKey) -> bool {
-        let effects = self.alias().instruction_mod_ref(func, inst_id);
-        self.effects_kill_key(&effects, key)
-    }
-
-    #[must_use]
-    fn effects_kill_key(&self, effects: &ModRef, key: LoadKey) -> bool {
-        let aa = self.alias();
-        match key {
-            LoadKey::Storage(alias) => effects.may_write(aa, Location::Storage(alias)),
-            LoadKey::Transient(alias) => effects.may_write(aa, Location::Transient(alias)),
-            LoadKey::Memory(address) => effects.may_write(
-                aa,
-                Location::Memory(MemoryLocation::new(address, LocationSize::Const(32))),
-            ),
-            LoadKey::Keccak(address, size) => {
-                let size = match size {
-                    KeccakSize::Const(size) => LocationSize::Const(size),
-                    KeccakSize::Dyn(size) => LocationSize::Dynamic(size),
-                };
-                effects.may_write(aa, Location::Memory(MemoryLocation::new(address, size)))
-            }
         }
     }
 
