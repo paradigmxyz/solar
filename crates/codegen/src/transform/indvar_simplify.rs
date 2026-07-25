@@ -20,7 +20,7 @@
 //! - preserve the original address value when it is still used outside the loop
 
 use crate::{
-    analysis::{AffineExpr, Loop, LoopAnalyzer, ScalarEvolution},
+    analysis::{AffineExpr, Loop, LoopAnalyzer, ScalarEvolution, may_have_cycle},
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, Value,
         ValueId, utils as mir_utils,
@@ -45,6 +45,9 @@ impl MirPass for IndVarSimplify {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass_no_analyses(module, analyses, |func| {
+            if !may_have_cycle(func) {
+                return false;
+            }
             IndVarSimplifier::new().run(func).total() != 0
         })
     }

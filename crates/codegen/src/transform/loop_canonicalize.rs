@@ -12,7 +12,7 @@
 //! - repair reachability-dependent phis after CFG rewrites
 
 use crate::{
-    analysis::LoopAnalyzer,
+    analysis::{LoopAnalyzer, may_have_cycle},
     mir::{
         BlockId, Function, InstId, InstKind, Instruction, Module, Terminator, Value, ValueId,
         utils::repair_reachability_phis,
@@ -36,6 +36,9 @@ impl MirPass for LoopCanonicalize {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass_no_analyses(module, analyses, |func| {
+            if !may_have_cycle(func) {
+                return false;
+            }
             LoopCanonicalizer::new().run(func).total() != 0
         })
     }
