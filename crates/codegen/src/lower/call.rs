@@ -1893,15 +1893,24 @@ impl<'gcx> Lowerer<'gcx> {
     /// named return from `locals` after such a body observes its final value
     /// with no branch merge to reconstruct, so inlining it is sound.
     fn is_straight_line_body(body: &hir::Block<'_>) -> bool {
-        body.stmts.iter().all(|stmt| {
-            matches!(
-                stmt.kind,
-                hir::StmtKind::DeclSingle(_)
-                    | hir::StmtKind::Expr(_)
-                    | hir::StmtKind::AssemblyBlock(_)
-                    | hir::StmtKind::Return(_)
-            )
-        })
+        body.stmts.iter().all(Self::is_straight_line_stmt)
+    }
+
+    /// A statement with no branching control flow. An assembly block counts only
+    /// when it holds no Yul `if`/`switch`/`for`: those lower to real MIR
+    /// branches, and a named return reassigned under one cannot merge on the
+    /// simple SSA inline path — it needs the slot-based
+    /// [`Self::inline_slice_return_body`].
+    fn is_straight_line_stmt(stmt: &hir::Stmt<'_>) -> bool {
+        match &stmt.kind {
+            hir::StmtKind::DeclSingle(_) | hir::StmtKind::Expr(_) | hir::StmtKind::Return(_) => {
+                true
+            }
+            hir::StmtKind::AssemblyBlock(block) => {
+                block.stmts.iter().all(Self::is_straight_line_stmt)
+            }
+            _ => false,
+        }
     }
 
     /// Lowers a call to an internal function that returns a calldata slice by
