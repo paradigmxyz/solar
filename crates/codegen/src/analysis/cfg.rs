@@ -13,8 +13,12 @@ use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
-    map::FxHashMap,
+    newtype_index,
 };
+
+newtype_index! {
+    struct ComponentId;
+}
 
 /// Control-flow facts for one MIR function.
 #[derive(Clone, Debug)]
@@ -23,7 +27,7 @@ pub(crate) struct CfgInfo {
     reachable: OnceCell<DenseBitSet<BlockId>>,
     rpo: OnceCell<Vec<BlockId>>,
     dominators: OnceCell<DominatorTree>,
-    reachability: OnceCell<FxHashMap<BlockId, DenseBitSet<BlockId>>>,
+    transitive_reachability: OnceCell<TransitiveReachability>,
 }
 
 impl CfgInfo {
@@ -42,7 +46,7 @@ impl CfgInfo {
             reachable: OnceCell::new(),
             rpo: OnceCell::new(),
             dominators: OnceCell::new(),
-            reachability: OnceCell::new(),
+            transitive_reachability: OnceCell::new(),
         }
     }
 
@@ -107,25 +111,129 @@ impl CfgInfo {
 
     /// Returns block-to-block reachability through at least one CFG edge.
     ///
-    /// The map is computed lazily because only memory/state-aware passes need
+    /// The result is computed lazily because only memory/state-aware passes need
     /// this more expensive transitive query.
-    pub(crate) fn transitive_reachability(&self) -> &FxHashMap<BlockId, DenseBitSet<BlockId>> {
-        self.reachability.get_or_init(|| {
-            let mut reachability = FxHashMap::default();
-            let mut stack = Vec::new();
-            for block_id in self.successors.indices() {
-                let mut reachable = DenseBitSet::new_empty(self.successors.len());
-                stack.clear();
-                stack.extend(self.successors[block_id].iter().copied());
-                while let Some(block) = stack.pop() {
-                    if reachable.insert(block) {
-                        stack.extend(self.successors[block].iter().copied());
+    pub(crate) fn transitive_reachability(&self) -> &TransitiveReachability {
+        self.transitive_reachability
+            .get_or_init(|| TransitiveReachability::compute(&self.successors))
+    }
+}
+
+/// Block reachability compressed through the CFG's strongly connected components.
+#[derive(Clone, Debug)]
+pub(crate) struct TransitiveReachability {
+    components: IndexVec<BlockId, ComponentId>,
+    reachable: IndexVec<ComponentId, DenseBitSet<ComponentId>>,
+    cyclic: DenseBitSet<ComponentId>,
+}
+
+impl TransitiveReachability {
+    fn compute(successors: &IndexVec<BlockId, SmallVec<[BlockId; 2]>>) -> Self {
+        let block_count = successors.len();
+        let mut predecessors = index_vec![Vec::new(); block_count];
+        for (block, block_successors) in successors.iter_enumerated() {
+            for &successor in block_successors {
+                predecessors[successor].push(block);
+            }
+        }
+
+        let mut visited = DenseBitSet::new_empty(block_count);
+        let mut postorder = Vec::with_capacity(block_count);
+        let mut stack = Vec::new();
+        for root in successors.indices() {
+            if !visited.insert(root) {
+                continue;
+            }
+            stack.push((root, 0));
+            while let Some((block, next)) = stack.last_mut() {
+                if let Some(&successor) = successors[*block].get(*next) {
+                    *next += 1;
+                    if visited.insert(successor) {
+                        stack.push((successor, 0));
+                    }
+                } else {
+                    postorder.push(*block);
+                    stack.pop();
+                }
+            }
+        }
+
+        let mut components = index_vec![ComponentId::MAX; block_count];
+        let mut component_ids = IndexVec::<ComponentId, ()>::new();
+        let mut pending = Vec::new();
+        for root in postorder.into_iter().rev() {
+            if components[root] != ComponentId::MAX {
+                continue;
+            }
+            let component = component_ids.push(());
+            components[root] = component;
+            pending.push(root);
+            while let Some(block) = pending.pop() {
+                for &predecessor in &predecessors[block] {
+                    if components[predecessor] == ComponentId::MAX {
+                        components[predecessor] = component;
+                        pending.push(predecessor);
                     }
                 }
-                reachability.insert(block_id, reachable);
             }
-            reachability
-        })
+        }
+
+        let component_count = component_ids.len();
+        let mut component_successors = index_vec![Vec::new(); component_count];
+        let mut cyclic = DenseBitSet::new_empty(component_count);
+        for (block, block_successors) in successors.iter_enumerated() {
+            let component = components[block];
+            for &successor in block_successors {
+                let successor_component = components[successor];
+                if successor_component == component {
+                    cyclic.insert(component);
+                } else if !component_successors[component].contains(&successor_component) {
+                    component_successors[component].push(successor_component);
+                }
+            }
+        }
+
+        let mut incoming = index_vec![0usize; component_count];
+        for successors in &component_successors {
+            for &successor in successors {
+                incoming[successor] += 1;
+            }
+        }
+        let mut component_pending = incoming
+            .iter_enumerated()
+            .filter_map(|(component, &count)| (count == 0).then_some(component))
+            .collect::<Vec<_>>();
+        let mut topological = Vec::with_capacity(component_count);
+        while let Some(component) = component_pending.pop() {
+            topological.push(component);
+            for &successor in &component_successors[component] {
+                incoming[successor] -= 1;
+                if incoming[successor] == 0 {
+                    component_pending.push(successor);
+                }
+            }
+        }
+        debug_assert_eq!(topological.len(), component_count);
+
+        let mut reachable = index_vec![DenseBitSet::new_empty(component_count); component_count];
+        for &component in topological.iter().rev() {
+            let mut component_reachable = DenseBitSet::new_empty(component_count);
+            for &successor in &component_successors[component] {
+                component_reachable.insert(successor);
+                component_reachable.union(&reachable[successor]);
+            }
+            reachable[component] = component_reachable;
+        }
+
+        Self { components, reachable, cyclic }
+    }
+
+    /// Returns whether `to` is reachable from `from` through at least one CFG edge.
+    #[must_use]
+    pub(crate) fn can_reach(&self, from: BlockId, to: BlockId) -> bool {
+        let from = self.components[from];
+        let to = self.components[to];
+        if from == to { self.cyclic.contains(from) } else { self.reachable[from].contains(to) }
     }
 }
 

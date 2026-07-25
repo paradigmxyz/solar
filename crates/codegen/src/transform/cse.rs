@@ -38,7 +38,7 @@
 use crate::{
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Location, LocationSize,
-        MemoryCallSummaries, MemoryLocation,
+        MemoryCallSummaries, MemoryLocation, TransitiveReachability,
     },
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, MemoryObjectKind,
@@ -162,7 +162,7 @@ struct GlobalCseContext<'a> {
     dom_tree: &'a DominatorTree,
     inst_results: &'a FxHashMap<InstId, ValueId>,
     block_clobbers: &'a FxHashMap<BlockId, Vec<Clobber>>,
-    reachability: &'a FxHashMap<BlockId, DenseBitSet<BlockId>>,
+    reachability: Option<&'a TransitiveReachability>,
     replacements: &'a mut FxHashMap<ValueId, ValueId>,
     dead: &'a mut DenseBitSet<InstId>,
 }
@@ -269,11 +269,10 @@ impl CommonSubexprEliminator {
         } else {
             FxHashMap::default()
         };
-        let empty_reachability = FxHashMap::default();
         let (dom_tree, reachability) = if block_clobbers.is_empty() {
-            (cfg.dominators(), &empty_reachability)
+            (cfg.dominators(), None)
         } else {
-            (cfg.dominators(), cfg.transitive_reachability())
+            (cfg.dominators(), Some(cfg.transitive_reachability()))
         };
         let mut replacements = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.num_insts());
@@ -486,13 +485,14 @@ impl CommonSubexprEliminator {
         if ctx.block_clobbers.is_empty() || !cache.keys().any(Self::is_path_sensitive_expr) {
             return;
         }
-        let Some(reachable_from_parent) = ctx.reachability.get(&parent) else { return };
+        let reachability =
+            ctx.reachability.expect("clobber-aware CSE must compute CFG reachability");
         for (&mid, clobbers) in ctx.block_clobbers {
             // Clobbers in `parent` itself were already applied while processing it sequentially.
-            if mid == parent || !reachable_from_parent.contains(mid) {
+            if mid == parent || !reachability.can_reach(parent, mid) {
                 continue;
             }
-            if !ctx.reachability.get(&mid).is_some_and(|reachable| reachable.contains(child)) {
+            if !reachability.can_reach(mid, child) {
                 continue;
             }
             for clobber in clobbers {

@@ -170,6 +170,7 @@ impl CfgSimplifier {
         self.stats = CfgSimplifyStats::default();
 
         self.simplify_degenerate_terminators(func);
+        self.stats.unreachable_blocks_removed += self.remove_unreachable_blocks(func);
         self.merge_blocks(func);
         self.eliminate_empty_blocks(func);
         self.deduplicate_terminal_blocks(func);
@@ -414,7 +415,6 @@ impl CfgSimplifier {
             }
             total_stats.combine(&self.stats);
         }
-        total_stats.unreachable_blocks_removed = self.remove_unreachable_blocks(func);
         total_stats
     }
 
@@ -431,19 +431,12 @@ impl CfgSimplifier {
 
     /// Merges blocks where A unconditionally jumps to B and B has only A as predecessor.
     fn merge_blocks(&mut self, func: &mut Function) {
-        let mut merged = true;
-        while merged {
-            merged = false;
-
-            let block_ids: Vec<_> = func.blocks.indices().collect();
-            for block_id in block_ids {
-                if let Some(target) = self.can_merge(func, block_id) {
-                    self.do_merge(func, block_id, target);
-                    merged = true;
-                    self.stats.blocks_merged += 1;
-                    self.stats.gas_saved += 8;
-                    break;
-                }
+        let block_count = func.blocks.len();
+        for block_id in (0..block_count).map(BlockId::from_usize) {
+            while let Some(target) = self.can_merge(func, block_id) {
+                self.do_merge(func, block_id, target);
+                self.stats.blocks_merged += 1;
+                self.stats.gas_saved += 8;
             }
         }
     }
@@ -542,27 +535,27 @@ impl CfgSimplifier {
 
     /// Eliminates empty blocks that only contain an unconditional jump.
     fn eliminate_empty_blocks(&mut self, func: &mut Function) {
-        let mut eliminated = true;
-        while eliminated {
-            eliminated = false;
+        let cfg = CfgInfo::new(func);
+        let mut loop_preheaders = DenseBitSet::new_empty(func.blocks.len());
+        for block_id in func.blocks.indices() {
+            if self.is_loop_preheader_forwarder(func, &cfg, block_id) {
+                loop_preheaders.insert(block_id);
+            }
+        }
 
-            let cfg = CfgInfo::new(func);
-            let block_ids: Vec<_> = func.blocks.indices().collect();
-            for block_id in block_ids {
-                if func.blocks[block_id].predecessors.is_empty() && cfg.is_reachable(block_id) {
-                    continue;
-                }
+        let block_count = func.blocks.len();
+        for block_id in (0..block_count).map(BlockId::from_usize) {
+            if func.blocks[block_id].predecessors.is_empty() && cfg.is_reachable(block_id) {
+                continue;
+            }
 
-                if self.is_empty_forwarder(func, block_id)
-                    && !self.is_loop_preheader_forwarder(func, block_id)
-                    && self.forwarder_elimination_preserves_phis(func, block_id)
-                {
-                    self.eliminate_forwarder(func, block_id);
-                    eliminated = true;
-                    self.stats.empty_blocks_eliminated += 1;
-                    self.stats.gas_saved += 8;
-                    break;
-                }
+            if self.is_empty_forwarder(func, block_id)
+                && !loop_preheaders.contains(block_id)
+                && self.forwarder_elimination_preserves_phis(func, block_id)
+            {
+                self.eliminate_forwarder(func, block_id);
+                self.stats.empty_blocks_eliminated += 1;
+                self.stats.gas_saved += 8;
             }
         }
     }
@@ -578,7 +571,12 @@ impl CfgSimplifier {
         matches!(&block.terminator, Some(Terminator::Jump(target)) if *target != block_id)
     }
 
-    fn is_loop_preheader_forwarder(&self, func: &Function, block_id: BlockId) -> bool {
+    fn is_loop_preheader_forwarder(
+        &self,
+        func: &Function,
+        cfg: &CfgInfo,
+        block_id: BlockId,
+    ) -> bool {
         let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator else {
             return false;
         };
@@ -589,7 +587,6 @@ impl CfgSimplifier {
             return false;
         }
 
-        let cfg = CfgInfo::new(func);
         func.blocks[target]
             .predecessors
             .iter()

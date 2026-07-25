@@ -284,15 +284,12 @@ impl Analysis {
         if self.kills.is_empty() {
             return false;
         }
-        let reach = self.cfg.transitive_reachability();
-        let Some(reachable_from) = reach.get(&from) else { return true };
+        let reachability = self.cfg.transitive_reachability();
         for (&mid, kills) in &self.kills {
             if mid == from || !kills.contains(key_idx) {
                 continue;
             }
-            if reachable_from.contains(mid)
-                && reach.get(&mid).is_some_and(|reachable| reachable.contains(to))
-            {
+            if reachability.can_reach(from, mid) && reachability.can_reach(mid, to) {
                 return true;
             }
         }
