@@ -22,13 +22,13 @@ fn @words(arg0: memorybytes) {
     calldatacopy v10, v11, v4
     mstore 128, 0
     v12 = memory_object_len memorybytes, v9
-    v13 = lt v12, 32
-    br v13, bb3, bb4
+    v13 = memory_object_data memorybytes, v9
+    v14 = lt v12, 32
+    br v14, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v14 = memory_object_data memorybytes, v9
-    v15 = mload v14
+    v15 = mload v13
     v16 = lt v15, 32
     br v16, bb5, bb6
   bb5:
@@ -45,7 +45,7 @@ fn @words(arg0: memorybytes) {
   bb9:
     revert 0, 0
   bb10:
-    v20 = add v14, v15
+    v20 = add v13, v15
     v21 = mload v20
     v22 = shr 250, v21
     v23 = iszero v22
@@ -104,13 +104,13 @@ fn @bools(arg0: memorybytes) {
     calldatacopy v10, v11, v4
     mstore 128, 0
     v12 = memory_object_len memorybytes, v9
-    v13 = lt v12, 32
-    br v13, bb3, bb4
+    v13 = memory_object_data memorybytes, v9
+    v14 = lt v12, 32
+    br v14, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v14 = memory_object_data memorybytes, v9
-    v15 = mload v14
+    v15 = mload v13
     v16 = lt v15, 32
     br v16, bb5, bb6
   bb5:
@@ -127,7 +127,7 @@ fn @bools(arg0: memorybytes) {
   bb9:
     revert 0, 0
   bb10:
-    v20 = add v14, v15
+    v20 = add v13, v15
     v21 = mload v20
     v22 = shr 250, v21
     v23 = iszero v22
@@ -206,13 +206,13 @@ fn @strs(arg0: memorybytes) {
     calldatacopy v10, v11, v4
     mstore 128, 0
     v12 = memory_object_len memorybytes, v9
-    v13 = lt v12, 32
-    br v13, bb3, bb4
+    v13 = memory_object_data memorybytes, v9
+    v14 = lt v12, 32
+    br v14, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v14 = memory_object_data memorybytes, v9
-    v15 = mload v14
+    v15 = mload v13
     v16 = lt v15, 32
     br v16, bb5, bb6
   bb5:
@@ -229,7 +229,7 @@ fn @strs(arg0: memorybytes) {
   bb9:
     revert 0, 0
   bb10:
-    v20 = add v14, v15
+    v20 = add v13, v15
     v21 = mload v20
     v22 = shr 250, v21
     v23 = iszero v22
@@ -411,14 +411,14 @@ fn @mixed(arg0: memorybytes) {
     mstore 160, 0
     mstore 192, 0
     v12 = memory_object_len memorybytes, v9
-    v13 = lt v12, 96
-    br v13, bb3, bb4
+    v13 = memory_object_data memorybytes, v9
+    v14 = lt v12, 96
+    br v14, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v14 = memory_object_data memorybytes, v9
-    v15 = mload v14
-    v16 = add v14, 32
+    v15 = mload v13
+    v16 = add v13, 32
     v17 = mload v16
     v18 = lt v17, 96
     br v18, bb5, bb6
@@ -436,7 +436,7 @@ fn @mixed(arg0: memorybytes) {
   bb9:
     revert 0, 0
   bb10:
-    v22 = add v14, v17
+    v22 = add v13, v17
     v23 = mload v22
     v24 = shr 250, v23
     v25 = iszero v24
@@ -458,7 +458,7 @@ fn @mixed(arg0: memorybytes) {
     set_memory_object_len memoryarray, v32, v23
     v33 = memory_object_data memoryarray, v32
     mcopy v33, v31, v27
-    v34 = add v14, 64
+    v34 = add v13, 64
     v35 = mload v34
     v36 = lt v35, 96
     br v36, bb15, bb16
@@ -476,7 +476,7 @@ fn @mixed(arg0: memorybytes) {
   bb19:
     revert 0, 0
   bb20:
-    v40 = add v14, v35
+    v40 = add v13, v35
     v41 = mload v40
     v42 = add v41, 31
     v43 = lt v42, v41

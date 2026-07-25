@@ -27,7 +27,7 @@ struct LoweredAbiItems<'gcx> {
 }
 
 impl<'gcx> Lowerer<'gcx> {
-    fn abi_type(&self, ty: Ty<'gcx>, calldata: bool) -> Option<AbiType> {
+    pub(super) fn abi_type(&self, ty: Ty<'gcx>, calldata: bool) -> Option<AbiType> {
         let mut visiting = FxHashSet::default();
         self.abi_type_inner(ty, calldata, &mut visiting)
     }
