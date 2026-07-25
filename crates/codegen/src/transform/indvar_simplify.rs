@@ -28,7 +28,7 @@ use crate::{
     pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Function pass for induction-variable simplification and strength reduction.
 pub(crate) struct IndVarSimplify;
@@ -114,6 +114,7 @@ impl IndVarSimplifier {
 
         let scev = ScalarEvolution::analyze(func, loop_data);
         let mut candidates: FxHashMap<AddressKey, Vec<ValueId>> = FxHashMap::default();
+        let non_address_uses = self.non_address_loop_uses(func, loop_data);
 
         let mut blocks: Vec<_> = loop_data.blocks.iter().collect();
         blocks.sort_by_key(|block| block.index());
@@ -127,7 +128,7 @@ impl IndVarSimplifier {
                     continue;
                 };
                 let Some(delta) = key.scale.checked_mul(step) else { continue };
-                if delta <= 0 || !self.has_non_address_loop_use(func, loop_data, value) {
+                if delta <= 0 || !non_address_uses.contains(value) {
                     continue;
                 }
                 candidates.entry(key).or_default().push(value);
@@ -139,10 +140,16 @@ impl IndVarSimplifier {
         }
 
         let mut replacements = FxHashMap::default();
+        let mut new_phis = Vec::new();
         for (key, values) in candidates {
-            let Some(pointer) =
-                self.materialize_pointer_phi(func, loop_data, preheader, *latch, key)
-            else {
+            let Some(pointer) = self.materialize_pointer_phi(
+                func,
+                loop_data,
+                preheader,
+                *latch,
+                key,
+                &mut new_phis,
+            ) else {
                 continue;
             };
             for value in values {
@@ -154,6 +161,7 @@ impl IndVarSimplifier {
             return;
         }
 
+        self.insert_header_phis(func, loop_data.header, &new_phis);
         self.stats.address_uses_replaced += self.replace_loop_uses(func, loop_data, &replacements);
     }
 
@@ -202,6 +210,7 @@ impl IndVarSimplifier {
         preheader: BlockId,
         latch: BlockId,
         key: AddressKey,
+        new_phis: &mut Vec<InstId>,
     ) -> Option<ValueId> {
         let iv = loop_data.induction_vars.iter().find(|iv| iv.value == key.iv)?;
         let init = self.value_i128(func, iv.init)?;
@@ -217,7 +226,7 @@ impl IndVarSimplifier {
             Some(MirType::uint256()),
         ));
         let phi_value = func.alloc_value(Value::Inst(phi_inst));
-        self.insert_header_phi(func, loop_data.header, phi_inst);
+        new_phis.push(phi_inst);
 
         let delta = self.offset_value(func, delta)?;
         let next = self.append_inst_value(
@@ -272,13 +281,13 @@ impl IndVarSimplifier {
         func.alloc_value(Value::Inst(inst))
     }
 
-    fn insert_header_phi(&self, func: &mut Function, header: BlockId, phi_inst: InstId) {
+    fn insert_header_phis(&self, func: &mut Function, header: BlockId, phis: &[InstId]) {
         let insert_pos = func.blocks[header]
             .instructions
             .iter()
             .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
             .count();
-        func.blocks[header].instructions.insert(insert_pos, phi_inst);
+        func.blocks[header].instructions.splice(insert_pos..insert_pos, phis.iter().copied());
     }
 
     fn is_reducible_result(&self, func: &Function, inst_id: InstId) -> bool {
@@ -299,23 +308,24 @@ impl IndVarSimplifier {
         if value <= U256::from(i128::MAX as u128) { Some(value.to::<u128>() as i128) } else { None }
     }
 
-    fn has_non_address_loop_use(&self, func: &Function, loop_data: &Loop, value: ValueId) -> bool {
+    fn non_address_loop_uses(&self, func: &Function, loop_data: &Loop) -> DenseBitSet<ValueId> {
+        let mut uses = DenseBitSet::new_empty(func.values.len());
         for block in &loop_data.blocks {
             for &inst_id in &func.blocks[block].instructions {
                 let kind = &func.inst(inst_id).kind;
-                if kind.operands().contains(&value) && !Self::is_address_builder(kind) {
-                    return true;
+                if !Self::is_address_builder(kind) {
+                    for operand in kind.operands() {
+                        uses.insert(operand);
+                    }
                 }
             }
-            if func.blocks[block]
-                .terminator
-                .as_ref()
-                .is_some_and(|term| term.operands().contains(&value))
-            {
-                return true;
+            if let Some(terminator) = &func.blocks[block].terminator {
+                for operand in terminator.operands() {
+                    uses.insert(operand);
+                }
             }
         }
-        false
+        uses
     }
 
     fn is_address_builder(kind: &InstKind) -> bool {
