@@ -21,7 +21,7 @@ use crate::{
         Terminator, Value, ValueId,
         utils::{repair_reachability_phis, retain_blocks},
     },
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_no_analyses},
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 
@@ -39,7 +39,7 @@ impl MirPass for CfgSimplify {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass_no_analyses(module, analyses, |func| {
             CfgSimplifier::new().run_to_fixpoint(func).total() != 0
         })
     }

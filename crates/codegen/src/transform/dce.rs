@@ -7,7 +7,7 @@ use crate::{
     mir::{
         BlockId, Function, InstId, Module, Terminator, ValueId, utils::repair_reachability_phis,
     },
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_no_analyses},
 };
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 
@@ -25,7 +25,7 @@ impl MirPass for Dce {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass_no_analyses(module, analyses, |func| {
             let removed = DeadCodeEliminator::new().run_to_fixpoint(func);
             let repaired = repair_reachability_phis(func);
             removed != 0 || repaired

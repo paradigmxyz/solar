@@ -36,7 +36,7 @@ use crate::{
         MemoryObjectKind, MemoryObjectLayout, MirType, Module, Terminator, Value, ValueId,
         utils::{repair_reachability_phis, split_edge},
     },
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_no_analyses},
 };
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -58,7 +58,7 @@ impl MirPass for Pre {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass_no_analyses(module, analyses, |func| {
             PartialRedundancyEliminator::new().run(func).total() != 0
         })
     }

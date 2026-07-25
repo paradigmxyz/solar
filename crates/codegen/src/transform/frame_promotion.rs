@@ -20,7 +20,7 @@ use crate::{
         ValueId,
         utils::{self as mir_utils, repair_reachability_phis},
     },
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_no_analyses},
 };
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -42,7 +42,7 @@ impl MirPass for FrameSlotPromotion {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass_no_analyses(module, analyses, |func| {
             let changed = FrameSlotPromoter::new().run(func).total() != 0;
             let repaired = repair_reachability_phis(func);
             changed || repaired

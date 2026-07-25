@@ -7,7 +7,7 @@
 
 use crate::{
     mir::{BlockId, Function, Immediate, InstKind, Module, Terminator, Value, ValueId},
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_no_analyses},
     utils::evm_word,
 };
 use alloy_primitives::U256;
@@ -27,7 +27,7 @@ impl MirPass for PureEval {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass_no_analyses(module, analyses, |func| {
             let changed = PureEvaluator::new().run(func).functions_folded != 0;
             let repaired = crate::mir::utils::repair_reachability_phis(func);
             changed || repaired

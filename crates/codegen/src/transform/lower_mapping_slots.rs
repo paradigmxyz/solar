@@ -7,7 +7,7 @@
 
 use crate::{
     mir::{BlockId, FunctionBuilder, InstKind, Module},
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_no_analyses},
 };
 use solar_data_structures::map::FxHashMap;
 
@@ -29,7 +29,7 @@ impl MirPass for LowerMappingSlots {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass_no_analyses(module, analyses, |func| {
             let has_mapping_slots = func.instructions().any(|inst_id| {
                 matches!(
                     func.inst(inst_id).kind,
