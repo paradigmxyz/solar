@@ -8,7 +8,7 @@ use crate::backend::evm::{
     ir::{Block, BlockId, Module, PushValue, Terminator, TerminatorKind},
     op,
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;
 
 pub(super) struct CfgSimplify;
@@ -49,8 +49,8 @@ fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
 }
 
 struct RunState {
-    thunks: FxHashMap<BlockId, BlockId>,
-    resolved: FxHashMap<BlockId, BlockId>,
+    thunks: IndexVec<BlockId, Option<BlockId>>,
+    resolved: IndexVec<BlockId, Option<BlockId>>,
     positions: IndexVec<BlockId, usize>,
     path: Vec<BlockId>,
     addressed: DenseBitSet<BlockId>,
@@ -64,8 +64,8 @@ struct RunState {
 impl Default for RunState {
     fn default() -> Self {
         Self {
-            thunks: FxHashMap::default(),
-            resolved: FxHashMap::default(),
+            thunks: IndexVec::new(),
+            resolved: IndexVec::new(),
             positions: IndexVec::new(),
             path: Vec::new(),
             addressed: DenseBitSet::new_empty(0),
@@ -131,8 +131,8 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
 
 fn redirect_jump_thunks(
     module: &mut Module,
-    thunks: &mut FxHashMap<BlockId, BlockId>,
-    resolved: &mut FxHashMap<BlockId, BlockId>,
+    thunks: &mut IndexVec<BlockId, Option<BlockId>>,
+    resolved: &mut IndexVec<BlockId, Option<BlockId>>,
     positions: &mut IndexVec<BlockId, usize>,
     path: &mut Vec<BlockId>,
     addressed: &mut DenseBitSet<BlockId>,
@@ -154,40 +154,44 @@ fn redirect_jump_thunks(
     }
 
     thunks.clear();
+    thunks.resize(module.blocks.len(), None);
+    let mut has_thunks = false;
     for (block_id, block) in module.blocks.iter_enumerated() {
         if !addressed.contains(block_id)
             && block.instructions.is_empty()
             && let Some(TerminatorKind::Jump(target)) =
                 block.terminator.as_ref().map(|term| &term.kind)
         {
-            thunks.insert(block_id, *target);
+            thunks[block_id] = Some(*target);
+            has_thunks = true;
         }
     }
-    if thunks.is_empty() {
+    if !has_thunks {
         return false;
     }
 
     resolved.clear();
+    resolved.resize(module.blocks.len(), None);
     positions.clear();
     positions.resize(module.blocks.len(), usize::MAX);
-    for &start in thunks.keys() {
-        if resolved.contains_key(&start) {
+    for start in thunks.indices() {
+        if thunks[start].is_none() || resolved[start].is_some() {
             continue;
         }
         path.clear();
         let mut current = start;
         let final_target = loop {
-            if let Some(&target) = resolved.get(&current) {
+            if let Some(target) = resolved[current] {
                 break target;
             }
             if positions[current] != usize::MAX {
                 let cycle_start = positions[current];
                 for &cycle_block in &path[cycle_start..] {
-                    resolved.insert(cycle_block, cycle_block);
+                    resolved[cycle_block] = Some(cycle_block);
                 }
                 break current;
             }
-            let Some(&next) = thunks.get(&current) else {
+            let Some(next) = thunks[current] else {
                 break current;
             };
             positions[current] = path.len();
@@ -195,11 +199,11 @@ fn redirect_jump_thunks(
             current = next;
         };
         for &path_block in path.iter() {
-            resolved.entry(path_block).or_insert(final_target);
+            resolved[path_block].get_or_insert(final_target);
             positions[path_block] = usize::MAX;
         }
     }
-    let resolve = |target: BlockId| resolved.get(&target).copied().filter(|&next| next != target);
+    let resolve = |target: BlockId| resolved[target].filter(|&next| next != target);
 
     let mut changed = false;
     for block in &mut module.blocks {
