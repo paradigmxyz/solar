@@ -211,6 +211,10 @@ impl TerminatorEdgeUpdate {
             affected_successors: smallvec![old_successor, new_successor],
         })
     }
+
+    pub(crate) fn affected_successor(predecessor: BlockId, successor: BlockId) -> Self {
+        Self { predecessor, affected_successors: smallvec![successor] }
+    }
 }
 
 /// Applies exact predecessor multiplicities and removes phi inputs for deleted edges.

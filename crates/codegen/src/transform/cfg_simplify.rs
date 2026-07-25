@@ -24,6 +24,7 @@ use crate::{
     },
     pass::{MirPass, run_function_pass},
 };
+use smallvec::smallvec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
@@ -545,11 +546,6 @@ impl CfgSimplifier {
     fn simplify_degenerate_terminators(&mut self, func: &mut Function) {
         let mut edge_updates = Vec::new();
         for block_id in func.blocks.indices() {
-            let old_successors = func.blocks[block_id]
-                .terminator
-                .as_ref()
-                .map(Terminator::successors)
-                .unwrap_or_default();
             if let Some(Terminator::Switch { default, cases, .. }) =
                 func.blocks[block_id].terminator.as_mut()
             {
@@ -558,6 +554,7 @@ impl CfgSimplifier {
                     cases.pop();
                 }
                 if cases.len() != old_len {
+                    edge_updates.push(TerminatorEdgeUpdate::affected_successor(block_id, *default));
                     self.stats.terminators_simplified += old_len - cases.len();
                 }
             }
@@ -582,20 +579,19 @@ impl CfgSimplifier {
                 _ => None,
             };
             if let Some(target) = replacement {
+                let old_successors = func.blocks[block_id]
+                    .terminator
+                    .as_ref()
+                    .map(Terminator::successors)
+                    .unwrap_or_default();
                 func.blocks[block_id].terminator = Some(Terminator::Jump(target));
+                if let Some(update) =
+                    TerminatorEdgeUpdate::new(block_id, old_successors, smallvec![target])
+                {
+                    edge_updates.push(update);
+                }
                 self.stats.terminators_simplified += 1;
                 self.stats.gas_saved += 10;
-            }
-
-            let new_successors = func.blocks[block_id]
-                .terminator
-                .as_ref()
-                .map(Terminator::successors)
-                .unwrap_or_default();
-            if let Some(update) =
-                TerminatorEdgeUpdate::new(block_id, old_successors, new_successors)
-            {
-                edge_updates.push(update);
             }
         }
 
