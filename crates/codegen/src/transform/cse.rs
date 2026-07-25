@@ -461,8 +461,26 @@ impl CommonSubexprEliminator {
     }
 
     fn process_global_blocks(&mut self, func: &Function, ctx: &mut GlobalCseContext<'_>) {
-        let mut worklist = vec![(BlockId::ENTRY, FxHashMap::default())];
-        while let Some((block_id, mut cache)) = worklist.pop() {
+        enum Visit {
+            Enter(BlockId, FxHashMap<ExprKey, ValueId>),
+            Exit(usize),
+        }
+
+        let mut pure_cache = FxHashMap::default();
+        let mut pure_insertions = Vec::new();
+        let mut worklist = vec![Visit::Enter(BlockId::ENTRY, FxHashMap::default())];
+        while let Some(visit) = worklist.pop() {
+            let (block_id, mut path_cache) = match visit {
+                Visit::Enter(block_id, path_cache) => (block_id, path_cache),
+                Visit::Exit(mark) => {
+                    while pure_insertions.len() > mark {
+                        pure_cache.remove(&pure_insertions.pop().expect("scope insertion exists"));
+                    }
+                    continue;
+                }
+            };
+            let mark = pure_insertions.len();
+
             for &inst_id in &func.blocks[block_id].instructions {
                 let kind = &func.inst(inst_id).kind;
                 if kind.has_side_effects() {
@@ -471,7 +489,7 @@ impl CommonSubexprEliminator {
                         inst_id,
                         kind,
                         ctx.replacements,
-                        &mut cache,
+                        &mut path_cache,
                     );
                     continue;
                 }
@@ -483,27 +501,33 @@ impl CommonSubexprEliminator {
                 let Some(result) = func.inst_result_value(inst_id) else {
                     continue;
                 };
-                if let Some(cached) = cache.get(&key) {
-                    ctx.replacements.insert(result, *cached);
+                let path_sensitive = Self::is_path_sensitive_expr(&key);
+                let cache = if path_sensitive { &mut path_cache } else { &mut pure_cache };
+                if let Some(&cached) = cache.get(&key) {
+                    ctx.replacements.insert(result, cached);
                     ctx.dead.insert(inst_id);
                     self.eliminated_count += 1;
                 } else {
+                    if !path_sensitive {
+                        pure_insertions.push(key.clone());
+                    }
                     cache.insert(key, result);
                 }
             }
 
+            worklist.push(Visit::Exit(mark));
             let Some((&first_child, remaining_children)) =
                 ctx.dom_tree.children(block_id).split_first()
             else {
                 continue;
             };
             for &child in remaining_children.iter().rev() {
-                let mut child_cache = cache.clone();
+                let mut child_cache = path_cache.clone();
                 self.filter_inherited_cache(block_id, child, &mut child_cache, ctx);
-                worklist.push((child, child_cache));
+                worklist.push(Visit::Enter(child, child_cache));
             }
-            self.filter_inherited_cache(block_id, first_child, &mut cache, ctx);
-            worklist.push((first_child, cache));
+            self.filter_inherited_cache(block_id, first_child, &mut path_cache, ctx);
+            worklist.push(Visit::Enter(first_child, path_cache));
         }
     }
 
