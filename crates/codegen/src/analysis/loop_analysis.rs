@@ -67,8 +67,6 @@ pub(crate) struct InductionVariable {
 pub(crate) struct LoopInfo {
     /// All loops in the function, keyed by header block.
     pub loops: FxHashMap<BlockId, Loop>,
-    /// Mapping from block to the innermost loop containing it.
-    pub block_to_loop: FxHashMap<BlockId, BlockId>,
 }
 
 impl LoopInfo {
@@ -127,9 +125,6 @@ impl LoopAnalyzer {
             self.find_invariant_instructions(func, &mut loop_info);
             self.analyze_trip_count(func, &mut loop_info);
 
-            for block in &loop_info.blocks {
-                info.block_to_loop.insert(block, loop_info.header);
-            }
             info.loops.insert(loop_info.header, loop_info);
         }
 
