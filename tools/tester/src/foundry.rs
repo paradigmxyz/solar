@@ -1,11 +1,9 @@
-//! Foundry integration test harness.
+//! Foundry integration test support.
 //!
-//! This module tests Solar's codegen by:
-//! 1. Running `forge test` with `FOUNDRY_SOLC=solar` (compiles everything with Solar)
-//! 2. Running `forge test` with solc (baseline)
-//! 3. Comparing gas usage and test results
+//! The tests run `forge test` with both this compiler and solc, then compare
+//! gas usage and test results.
 //!
-//! Run with: cargo test -p solar-compiler --test foundry
+//! Run them with `cargo test -p solar-compiler --test it foundry::`.
 #![allow(clippy::uninlined_format_args, clippy::collapsible_if, clippy::disallowed_methods)]
 
 use std::{
@@ -22,7 +20,9 @@ use std::{
 
 /// Configuration for running a test project.
 #[derive(Debug, Clone)]
-struct TestConfig {
+pub struct TestConfig {
+    /// Compiler binary used by Foundry.
+    solar: PathBuf,
     /// Project name (used for display).
     name: String,
     /// Path to project relative to the workspace root.
@@ -37,8 +37,13 @@ struct TestConfig {
 
 impl TestConfig {
     /// Creates a new config with default settings.
-    fn new(name: impl Into<String>, path: impl Into<String>) -> Self {
+    pub fn new(
+        solar: impl Into<PathBuf>,
+        name: impl Into<String>,
+        path: impl Into<String>,
+    ) -> Self {
         Self {
+            solar: solar.into(),
             name: name.into(),
             path: path.into(),
             test_filter: None,
@@ -49,26 +54,26 @@ impl TestConfig {
 
     /// Sets test function filter (substring match on test names).
     #[allow(dead_code)]
-    fn test_filter(mut self, filter: impl Into<String>) -> Self {
+    pub fn test_filter(mut self, filter: impl Into<String>) -> Self {
         self.test_filter = Some(filter.into());
         self
     }
 
     /// Sets contract filter (substring match on contract names).
     #[allow(dead_code)]
-    fn contract_filter(mut self, filter: impl Into<String>) -> Self {
+    pub fn contract_filter(mut self, filter: impl Into<String>) -> Self {
         self.contract_filter = Some(filter.into());
         self
     }
 
     /// Sets whether to run Solar-only (no solc comparison).
-    fn solar_only(mut self, value: bool) -> Self {
+    pub fn solar_only(mut self, value: bool) -> Self {
         self.solar_only = value;
         self
     }
 
     /// Runs the test with this configuration.
-    fn run(&self) {
+    pub fn run(&self) {
         run_test_with_config(self);
     }
 }
@@ -142,27 +147,6 @@ impl ForgeCompiler {
 // Helpers
 // ============================================================================
 
-/// Gets the path to the Solar binary.
-///
-/// Prefers `CARGO_BIN_EXE_solar`, which Cargo sets to the `solar` binary it
-/// built for this test run. That binary is always rebuilt from the current
-/// sources before the test runs, so it cannot go stale — avoiding the race
-/// where the harness picked up an out-of-date `target/release/solar` and
-/// produced flaky failures. Falls back to a binary on disk when the variable
-/// is absent (e.g. when the harness is reused outside `cargo test`).
-fn get_solar_binary() -> PathBuf {
-    if let Some(path) = option_env!("CARGO_BIN_EXE_solar") {
-        return PathBuf::from(path);
-    }
-
-    let workspace_root = workspace_root();
-    let release_binary = workspace_root.join("target/release/solar");
-    if release_binary.exists() {
-        return release_binary;
-    }
-    workspace_root.join("target/debug/solar")
-}
-
 /// Gets the path to the workspace root.
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap().to_path_buf()
@@ -176,8 +160,7 @@ fn workspace_root() -> PathBuf {
 /// We therefore point it at a tiny wrapper script that forwards every call to
 /// Solar with `-Zcodegen` prepended; otherwise Forge would receive empty
 /// bytecode.
-fn foundry_solc() -> FoundrySolc {
-    let solar = get_solar_binary();
+fn foundry_solc(solar: &Path) -> FoundrySolc {
     let temp_dir = tempfile::Builder::new()
         .prefix("solar-zcodegen-")
         .tempdir()
@@ -206,7 +189,7 @@ fn foundry_solc() -> FoundrySolc {
             fs::write(&path, script).expect("failed to write Solar codegen wrapper");
             FoundrySolc { path, _temp_dir: temp_dir }
         } else {
-            FoundrySolc { path: solar, _temp_dir: temp_dir }
+            FoundrySolc { path: solar.to_path_buf(), _temp_dir: temp_dir }
         }
     }
 }
@@ -389,7 +372,7 @@ fn write_runtime_report(
             "solar_only": config.solar_only,
         },
         "rerun": {
-            "command": "cargo test -p solar-compiler --test foundry -- --test-threads=1",
+            "command": "cargo test -p solar-compiler --test it foundry:: -- --test-threads=1",
             "env": {
                 "SOLAR_FOUNDRY_REPORT_DIR": report_dir.display().to_string(),
             },
@@ -423,7 +406,7 @@ fn run_forge_test(
         .tempdir()
         .expect("failed to create Foundry output directory");
     let foundry_solc = match compiler {
-        ForgeCompiler::Solar => Some(foundry_solc()),
+        ForgeCompiler::Solar => Some(foundry_solc(&config.solar)),
         ForgeCompiler::Solc => None,
     };
 
@@ -681,9 +664,8 @@ fn run_test_with_config(config: &TestConfig) {
         return;
     }
 
-    let solar_binary = get_solar_binary();
-    if !solar_binary.exists() {
-        eprintln!("Skipping {}: Solar binary not found at {:?}", config.name, solar_binary);
+    if !config.solar.exists() {
+        eprintln!("Skipping {}: Solar binary not found at {:?}", config.name, config.solar);
         return;
     }
 
@@ -750,55 +732,54 @@ fn run_test_with_comparison(config: &TestConfig) {
 }
 
 // ============================================================================
-// Legacy API (for backward compatibility)
+// Public API
 // ============================================================================
 
-/// Tests a project with Solar vs solc comparison (legacy API).
-fn test_project_solar(project_name: &str, project_path: &str) {
-    TestConfig::new(project_name, project_path).run();
+/// Tests a project with Solar and compares its results with solc.
+pub fn test_project(solar: &Path, project_name: &str, project_path: &str) {
+    TestConfig::new(solar, project_name, project_path).run();
 }
 
-/// Tests a project where solc can't compile (legacy API).
-fn test_project_solar_only(project_name: &str, project_path: &str) {
-    TestConfig::new(project_name, project_path).solar_only(true).run();
+/// Tests a project that solc cannot compile.
+pub fn test_project_solar_only(solar: &Path, project_name: &str, project_path: &str) {
+    TestConfig::new(solar, project_name, project_path).solar_only(true).run();
 }
 
 /// Runs the default Foundry suite.
 ///
 /// This is used by `crates/solar/tests.rs` when invoked with
 /// `TESTER_MODE=foundry`, so Foundry can be selected like the other compiler
-/// test modes. The dedicated `foundry` integration-test target still exists to
-/// keep per-project Rust test discovery in nextest.
-#[allow(dead_code)]
-pub(crate) fn run_default_suite() {
-    test_project_solar("arithmetic", "tests/foundry/arithmetic");
-    test_project_solar("control_flow", "tests/foundry/control-flow");
-    test_project_solar("storage", "tests/foundry/storage");
-    test_project_solar("events", "tests/foundry/events");
-    test_project_solar("calls", "tests/foundry/calls");
-    test_project_solar("interfaces", "tests/foundry/interfaces");
-    test_project_solar("libraries", "tests/foundry/libraries");
-    test_project_solar("constructor_args", "tests/foundry/constructor-args");
-    test_project_solar("multi_return", "tests/foundry/multi-return");
-    test_project_solar("correctness", "tests/foundry/correctness");
-    test_project_solar("inheritance", "tests/foundry/inheritance");
-    test_project_solar_only("stack_deep", "tests/foundry/stack-deep");
-    run_compilation_smoke();
+/// test modes. The `it` integration-test target keeps per-project Rust test
+/// discovery in nextest.
+pub fn run_default_suite(solar: &Path) {
+    test_project(solar, "arithmetic", "tests/foundry/arithmetic");
+    test_project(solar, "control_flow", "tests/foundry/control-flow");
+    test_project(solar, "storage", "tests/foundry/storage");
+    test_project(solar, "events", "tests/foundry/events");
+    test_project(solar, "calls", "tests/foundry/calls");
+    test_project(solar, "interfaces", "tests/foundry/interfaces");
+    test_project(solar, "libraries", "tests/foundry/libraries");
+    test_project(solar, "constructor_args", "tests/foundry/constructor-args");
+    test_project(solar, "multi_return", "tests/foundry/multi-return");
+    test_project(solar, "correctness", "tests/foundry/correctness");
+    test_project(solar, "inheritance", "tests/foundry/inheritance");
+    test_project_solar_only(solar, "stack_deep", "tests/foundry/stack-deep");
+    run_compilation_smoke(solar);
 }
 
-fn run_compilation_smoke() {
+/// Runs a Foundry compilation smoke test.
+pub fn run_compilation_smoke(solar: &Path) {
     if !forge_available() {
         eprintln!("Skipping: forge not found");
         return;
     }
 
-    let solar_binary = get_solar_binary();
-    if !solar_binary.exists() {
+    if !solar.exists() {
         eprintln!("Skipping: Solar binary not found");
         return;
     }
 
-    let config = TestConfig::new("compilation-test", "tests/foundry/arithmetic");
+    let config = TestConfig::new(solar, "compilation-test", "tests/foundry/arithmetic");
     let project_dir = workspace_root().join(&config.path);
     let (test_time, tests, sizes) =
         run_forge_test(&project_dir, "compilation-test", &config, ForgeCompiler::Solar);
@@ -808,124 +789,4 @@ fn run_compilation_smoke() {
     println!("Bytecode sizes: {:?}", sizes);
 
     assert!(!tests.is_empty(), "No tests ran");
-}
-
-// ============================================================================
-// Tests
-// ============================================================================
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_arithmetic() {
-        super::test_project_solar("arithmetic", "tests/foundry/arithmetic");
-    }
-
-    #[test]
-    fn test_control_flow() {
-        super::test_project_solar("control_flow", "tests/foundry/control-flow");
-    }
-
-    #[test]
-    fn test_storage() {
-        super::test_project_solar("storage", "tests/foundry/storage");
-    }
-
-    #[test]
-    fn test_events() {
-        super::test_project_solar("events", "tests/foundry/events");
-    }
-
-    #[test]
-    fn test_calls() {
-        super::test_project_solar("calls", "tests/foundry/calls");
-    }
-
-    #[test]
-    fn test_interfaces() {
-        super::test_project_solar("interfaces", "tests/foundry/interfaces");
-    }
-
-    #[test]
-    fn test_libraries() {
-        super::test_project_solar("libraries", "tests/foundry/libraries");
-    }
-
-    #[test]
-    fn test_constructor_args() {
-        super::test_project_solar("constructor_args", "tests/foundry/constructor-args");
-    }
-
-    #[test]
-    fn test_multi_return() {
-        super::test_project_solar("multi_return", "tests/foundry/multi-return");
-    }
-
-    #[test]
-    fn test_correctness() {
-        super::test_project_solar("correctness", "tests/foundry/correctness");
-    }
-
-    #[test]
-    fn test_inheritance() {
-        super::test_project_solar("inheritance", "tests/foundry/inheritance");
-    }
-
-    #[test]
-    fn test_stack_deep() {
-        super::test_project_solar_only("stack_deep", "tests/foundry/stack-deep");
-    }
-
-    #[test]
-    fn test_compilation() {
-        super::run_compilation_smoke();
-    }
-
-    #[test]
-    #[ignore] // Requires forge-std which is not available in CI
-    fn test_unifap_v2() {
-        super::test_project_solar("unifap-v2", "tests/foundry/unifap-v2");
-    }
-
-    #[test]
-    #[ignore] // Requires forge-std which is not available in CI
-    fn test_unifap_v2_create() {
-        super::test_project_solar("unifap-v2-create", "tests/foundry/unifap-v2-create");
-    }
-
-    // Example: run only mint-related tests
-    #[test]
-    #[ignore] // Example - enable when debugging specific tests
-    fn test_unifap_mint_only() {
-        super::TestConfig::new("unifap-v2-create", "tests/foundry/unifap-v2-create")
-            .test_filter("testMint")
-            .run();
-    }
-
-    // Example: run only tests in a specific contract
-    #[test]
-    #[ignore] // Example - enable when debugging specific contracts
-    fn test_unifap_pair_only() {
-        super::TestConfig::new("unifap-v2-create", "tests/foundry/unifap-v2-create")
-            .contract_filter("UnifapV2Pair")
-            .run();
-    }
-
-    // Example: combine test + contract filters
-    #[test]
-    #[ignore] // Example - enable when debugging
-    fn test_unifap_pair_swap() {
-        super::TestConfig::new("unifap-v2-create", "tests/foundry/unifap-v2-create")
-            .contract_filter("UnifapV2Pair")
-            .test_filter("testSwap")
-            .run();
-    }
-
-    // ========== Struct Tests ==========
-
-    #[test]
-    #[ignore] // WIP: 8 struct tests have StackUnderflow issues to fix
-    fn test_structs() {
-        super::test_project_solar("structs", "tests/foundry/structs");
-    }
 }

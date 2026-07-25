@@ -3476,9 +3476,7 @@ name = "solar-compiler"
 version = "0.2.0"
 dependencies = [
  "alloy-primitives",
- "cfg-if",
  "idna_adapter",
- "serde_json",
  "solar-ast",
  "solar-cli",
  "solar-codegen",
@@ -3490,7 +3488,6 @@ dependencies = [
  "solar-parse",
  "solar-sema",
  "solar-tester",
- "tempfile",
 ]
 
 [[package]]
@@ -3655,6 +3652,7 @@ dependencies = [
 name = "solar-tester"
 version = "0.2.0"
 dependencies = [
+ "cfg-if",
  "regex",
  "serde_json",
  "tempfile",

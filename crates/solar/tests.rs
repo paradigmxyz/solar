@@ -1,7 +1,5 @@
 #![allow(unused_crate_dependencies)]
 
-mod foundry_harness;
-
 const CMD: &str = env!("CARGO_BIN_EXE_solar");
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -9,7 +7,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if std::env::args_os().any(|arg| arg == "--list") {
             return Ok(());
         }
-        foundry_harness::run_default_suite();
+        solar_tester::foundry::run_default_suite(CMD.as_ref());
         Ok(())
     } else {
         solar_tester::run_tests(CMD.as_ref()).map_err(Into::into)

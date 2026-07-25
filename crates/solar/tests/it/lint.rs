@@ -1,5 +1,3 @@
-#![allow(unused_crate_dependencies)]
-
 use solar::{
     ast,
     interface::{

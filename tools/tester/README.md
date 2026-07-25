@@ -1,7 +1,15 @@
 # solar-tester
 
-Test runner for the Solar compiler.
+Integration test support for the compiler.
 
-This crate is invoked in `crates/solar/tests.rs` with the path to the `solar` binary.
+`crates/solar/tests.rs` passes the freshly built `solar` binary to the UI,
+MIR, EVM IR, standard JSON, and upstream compatibility test runners. Run these
+suites through the `cargo tq` aliases, such as `cargo tq ui` or
+`cargo tq solc-solidity`.
 
-It uses the `ui_test` framework to run tests located in the `tests/` directory.
+`crates/solar/tests/it/foundry.rs` registers the Foundry tests and delegates
+their implementation to `solar_tester::foundry`. Run them with:
+
+```console
+cargo test -p solar-compiler --test it foundry:: -- --test-threads=1
+```

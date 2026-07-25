@@ -33,14 +33,6 @@ name = "tests"
 path = "./tests.rs"
 harness = false
 
-[[test]]
-name = "foundry"
-path = "./foundry.rs"
-
-[[test]]
-name = "lint"
-path = "./lint.rs"
-
 [dependencies]
 solar-ast.workspace = true
 solar-config.workspace = true
@@ -57,10 +49,7 @@ solar-cli = { workspace = true, optional = true }
 alloy-primitives.workspace = true
 
 [dev-dependencies]
-cfg-if.workspace = true
 solar-tester.workspace = true
-serde_json.workspace = true
-tempfile.workspace = true
 
 # Pinned dependencies. See /Cargo.toml.
 [target.'cfg(any())'.dependencies]

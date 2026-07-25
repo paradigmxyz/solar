@@ -1,6 +1,7 @@
-//! Solar test runner.
+//! Compiler integration test support.
 //!
-//! This crate is invoked in `crates/solar/tests.rs` with the path to the `solar` binary.
+//! `crates/solar/tests.rs` uses [`run_tests`] for the compiler test suites.
+//! `crates/solar/tests/it/foundry.rs` registers the tests backed by [`foundry`].
 
 #![allow(unreachable_pub)]
 
@@ -22,6 +23,7 @@ use ui_test::{
 };
 
 mod errors;
+pub mod foundry;
 mod solc;
 mod standard_json;
 mod utils;
