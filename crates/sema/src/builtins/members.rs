@@ -209,6 +209,7 @@ fn reference<'gcx>(
             } else {
                 gcx.types.fixed_bytes(1)
             };
+            let value = inner.with_loc_if_ref(gcx, DataLocation::Memory);
             vec![
                 Member::of_builtin(gcx, Builtin::ArrayLength),
                 Member::with_attached_builtin(
@@ -217,7 +218,7 @@ fn reference<'gcx>(
                 ),
                 Member::with_attached_builtin(
                     Builtin::ArrayPush,
-                    gcx.mk_builtin_fn(&[this, inner], SM::NonPayable, &[]),
+                    gcx.mk_builtin_fn(&[this, value], SM::NonPayable, &[]),
                 ),
                 Member::with_attached_builtin(
                     Builtin::ArrayPop,

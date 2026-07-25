@@ -6,6 +6,8 @@
 //@ run-call: mappingValue 19 => 19, 1
 //@ run-call: structField 23 => 23, 1
 //@ run-call: structLvalue 29 => 29, 1
+//@ run-call: bytesValue => 1
+//@ run-call: structValue 41, 43 => 41, 43, 1
 //@ run-call: structPopThenPush => 0, 1
 //@ run-call: popThenPush => 0, 1
 //@ run-call-fail: popEmpty() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000031
@@ -25,6 +27,7 @@ contract StorageArrayPush {
     mapping(uint256 => uint256[]) mapped;
     Bucket bucket;
     Pair[] pairs;
+    bytes[] byteValues;
 
     function direct(uint256 value) external returns (uint256, uint256) {
         values.push(value);
@@ -65,6 +68,20 @@ contract StorageArrayPush {
     function structLvalue(uint256 value) external returns (uint256, uint256) {
         pairs.push().first = value;
         return (pairs[0].first, pairs.length);
+    }
+
+    function bytesValue() external returns (uint256) {
+        bytes memory value = hex"010203";
+        byteValues.push(value);
+        return byteValues.length;
+    }
+
+    function structValue(uint256 first, uint256 second)
+        external
+        returns (uint256, uint256, uint256)
+    {
+        pairs.push(Pair(first, second));
+        return (pairs[0].first, pairs[0].second, pairs.length);
     }
 
     function structPopThenPush() external returns (uint256, uint256) {
