@@ -34,12 +34,13 @@ use crate::{
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, InstructionMetadata,
         MemoryObjectKind, MemoryObjectLayout, MirType, Module, Terminator, Value, ValueId,
-        utils::{repair_reachability_phis, split_edge},
+        utils::split_edge,
     },
     pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
+    index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
 use std::cmp::Ordering;
@@ -73,16 +74,12 @@ struct PreStats {
     expressions_eliminated: usize,
     /// Number of predecessor computations inserted.
     expressions_inserted: usize,
-    /// Whether CFG backlinks or phi inputs were repaired.
-    reachability_repaired: bool,
 }
 
 impl PreStats {
     /// Returns the total number of MIR edits made by this pass.
     const fn total(self) -> usize {
-        self.expressions_eliminated
-            + self.expressions_inserted
-            + self.reachability_repaired as usize
+        self.expressions_eliminated + self.expressions_inserted
     }
 }
 
@@ -176,6 +173,9 @@ impl PartialRedundancyEliminator {
                 break;
             }
             rewrites += batch.len();
+            let mut replacements = FxHashMap::default();
+            let mut dead = GrowableBitSet::with_capacity(func.num_insts());
+            let mut split_edges = FxHashMap::default();
             for candidate in batch {
                 self.apply_candidate(
                     func,
@@ -184,9 +184,15 @@ impl PartialRedundancyEliminator {
                     &mut inst_blocks,
                     &mut eliminated_keys,
                     &mut inserted_insts,
+                    &mut replacements,
+                    &mut dead,
+                    &mut split_edges,
                 );
             }
-            self.stats.reachability_repaired |= repair_reachability_phis(func);
+            func.replace_uses_canonicalized(&replacements);
+            for block in &mut func.blocks {
+                block.instructions.retain(|&inst| !dead.contains(inst));
+            }
         }
 
         self.stats
@@ -206,15 +212,25 @@ impl PartialRedundancyEliminator {
         limit: usize,
     ) -> Vec<PreCandidate> {
         let mut batch = Vec::new();
-        // Candidates whose analysis would be invalidated by an earlier
-        // candidate in this batch are deferred to the next scan.
-        let mut modified_blocks = DenseBitSet::new_empty(func.blocks.len());
+        // Candidates that consume a value eliminated by an earlier candidate
+        // in this batch are deferred to the next scan.
         let mut eliminated_values = DenseBitSet::new_empty(func.values.len());
         let mut phi_incoming = FxHashMap::default();
         for inst in func.instructions() {
             if let InstKind::Phi(incoming) = &func.inst(inst).kind {
                 for &(pred, value) in incoming {
                     phi_incoming.insert((inst, pred), value);
+                }
+            }
+        }
+        let mut available = index_vec![FxHashMap::default(); func.blocks.len()];
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst in &block.instructions {
+                let instruction = func.inst(inst);
+                if let Some(&result) = inst_results.get(&inst)
+                    && let Some(key) = Self::make_expr_key(func, &instruction.kind)
+                {
+                    available[block_id].insert(key, result);
                 }
             }
         }
@@ -253,21 +269,17 @@ impl PartialRedundancyEliminator {
                     result_ty,
                     instruction.metadata.clone(),
                     &predecessors,
-                    inst_results,
                     inst_blocks,
                     &phi_incoming,
+                    &available,
                     dominators,
                     eliminated_keys,
                 ) else {
                     continue;
                 };
 
-                if Self::interferes_with_batch(&candidate, &modified_blocks, &eliminated_values) {
+                if Self::interferes_with_batch(&candidate, &eliminated_values) {
                     continue;
-                }
-                modified_blocks.insert(candidate.target);
-                for &(block, _) in &candidate.insertions {
-                    modified_blocks.insert(block);
                 }
                 eliminated_values.insert(candidate.result);
                 batch.push(candidate);
@@ -277,17 +289,13 @@ impl PartialRedundancyEliminator {
         batch
     }
 
-    /// Returns true if applying earlier candidates in the batch invalidates
-    /// this candidate's analysis: its blocks were already rewritten, or it
-    /// references a value whose defining instruction the batch removes.
+    /// Returns true if this candidate references a value whose defining
+    /// instruction an earlier candidate in the batch removes.
     fn interferes_with_batch(
         candidate: &PreCandidate,
-        modified_blocks: &DenseBitSet<BlockId>,
         eliminated_values: &DenseBitSet<ValueId>,
     ) -> bool {
-        modified_blocks.contains(candidate.target)
-            || candidate.insertions.iter().any(|&(block, _)| modified_blocks.contains(block))
-            || candidate.incoming.iter().any(|&(_, value)| eliminated_values.contains(value))
+        candidate.incoming.iter().any(|&(_, value)| eliminated_values.contains(value))
             || candidate.insertions.iter().any(|(_, kind)| {
                 kind.operands().into_iter().any(|value| eliminated_values.contains(value))
             })
@@ -303,16 +311,16 @@ impl PartialRedundancyEliminator {
         result_ty: MirType,
         metadata: InstructionMetadata,
         predecessors: &[BlockId],
-        inst_results: &FxHashMap<InstId, ValueId>,
         inst_blocks: &FxHashMap<InstId, BlockId>,
         phi_incoming: &FxHashMap<(InstId, BlockId), ValueId>,
+        available: &IndexVec<BlockId, FxHashMap<ExprKey, ValueId>>,
         dominators: &DominatorTree,
         eliminated_keys: &FxHashSet<(ExprKey, BlockId)>,
     ) -> Option<PreCandidate> {
         let original = &func.inst(inst).kind;
         let mut incoming = Vec::with_capacity(predecessors.len());
         let mut insertions = Vec::new();
-        let mut available = 0usize;
+        let mut available_paths = 0usize;
 
         for &pred in predecessors {
             let translated = Self::translate_kind_for_predecessor(
@@ -327,10 +335,8 @@ impl PartialRedundancyEliminator {
                 return None;
             }
             let key = Self::make_expr_key(func, &translated)?;
-            if let Some(value) =
-                Self::available_value_at_end(func, dominators, pred, &key, inst_results)
-            {
-                available += 1;
+            if let Some(value) = Self::available_value_at_end(dominators, pred, &key, available) {
+                available_paths += 1;
                 incoming.push((pred, value));
                 continue;
             }
@@ -349,7 +355,7 @@ impl PartialRedundancyEliminator {
         // than before; paths through available predecessors compute it
         // strictly less often. The constant bounds code growth at joins with
         // many predecessors.
-        if insertions.len() > available || insertions.len() > MAX_INSERTIONS_PER_REWRITE {
+        if insertions.len() > available_paths || insertions.len() > MAX_INSERTIONS_PER_REWRITE {
             return None;
         }
 
@@ -364,6 +370,9 @@ impl PartialRedundancyEliminator {
         inst_blocks: &mut FxHashMap<InstId, BlockId>,
         eliminated_keys: &mut FxHashSet<(ExprKey, BlockId)>,
         inserted_insts: &mut GrowableBitSet<InstId>,
+        replacements: &mut FxHashMap<ValueId, ValueId>,
+        dead: &mut GrowableBitSet<InstId>,
+        split_edges: &mut FxHashMap<(BlockId, BlockId), BlockId>,
     ) {
         let PreCandidate { target, inst, result, result_ty, metadata, mut incoming, insertions } =
             candidate;
@@ -373,18 +382,30 @@ impl PartialRedundancyEliminator {
         }
 
         let fully_available = insertions.is_empty();
+        for (pred, _) in &mut incoming {
+            if let Some(&split) = split_edges.get(&(*pred, target)) {
+                *pred = split;
+            }
+        }
         for (pred, kind) in insertions {
             // A jump-terminated predecessor owns its single outgoing edge, so
             // the computation can go at its end. Any other terminator makes
             // the edge critical: split it so the computation runs only on the
             // edge into the join. The split block sits on that edge, so the
             // per-edge phi translation that held for `pred` holds for it too.
-            let block = match func.blocks[pred].terminator {
-                Some(Terminator::Jump(jump_target)) => {
-                    debug_assert_eq!(jump_target, target);
-                    pred
-                }
-                _ => split_edge(func, pred, target),
+            let block = match split_edges.get(&(pred, target)).copied() {
+                Some(split) => split,
+                None => match func.blocks[pred].terminator {
+                    Some(Terminator::Jump(jump_target)) => {
+                        debug_assert_eq!(jump_target, target);
+                        pred
+                    }
+                    _ => {
+                        let split = split_edge(func, pred, target);
+                        split_edges.insert((pred, target), split);
+                        split
+                    }
+                },
             };
             let new_inst = func.alloc_inst(Instruction {
                 kind,
@@ -428,9 +449,8 @@ impl PartialRedundancyEliminator {
             }
         };
 
-        let replacements = FxHashMap::from_iter([(result, replacement)]);
-        func.replace_uses(&replacements);
-        func.blocks[target].instructions.retain(|&inst_id| inst_id != inst);
+        replacements.insert(result, replacement);
+        dead.insert(inst);
         inst_results.remove(&inst);
         inst_blocks.remove(&inst);
         self.stats.expressions_eliminated += 1;
@@ -513,32 +533,15 @@ impl PartialRedundancyEliminator {
     /// def in a dominator is available at `block`'s end with no further
     /// checks.
     fn available_value_at_end(
-        func: &Function,
         dominators: &DominatorTree,
         block: BlockId,
         key: &ExprKey,
-        inst_results: &FxHashMap<InstId, ValueId>,
+        available: &IndexVec<BlockId, FxHashMap<ExprKey, ValueId>>,
     ) -> Option<ValueId> {
         dominators
             .self_and_dominators(block)
             .into_iter()
-            .find_map(|block| Self::available_value_in_block(func, block, key, inst_results))
-    }
-
-    fn available_value_in_block(
-        func: &Function,
-        block: BlockId,
-        key: &ExprKey,
-        inst_results: &FxHashMap<InstId, ValueId>,
-    ) -> Option<ValueId> {
-        func.blocks[block].instructions.iter().rev().find_map(|&inst| {
-            let instruction = func.inst(inst);
-            if !Self::is_pre_expression(&instruction.kind) {
-                return None;
-            }
-            let candidate_key = Self::make_expr_key(func, &instruction.kind)?;
-            (candidate_key == *key).then(|| inst_results.get(&inst).copied()).flatten()
-        })
+            .find_map(|block| available[block].get(key).copied())
     }
 
     fn is_pre_expression(kind: &InstKind) -> bool {
