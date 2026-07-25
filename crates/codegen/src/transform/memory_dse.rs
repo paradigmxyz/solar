@@ -20,7 +20,7 @@ use crate::{
 };
 use alloy_primitives::{U256, keccak256};
 use solar_data_structures::{
-    bit_set::DenseBitSet,
+    bit_set::GrowableBitSet,
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
@@ -40,15 +40,16 @@ impl MirPass for MemoryDse {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
+        let mut eliminator = MemoryStoreEliminator::new();
+        let mut scratch = BlockScratch::new();
         run_function_pass_filtered(
             module,
             analyses,
             |_, func| has_memory_writes(func),
             |func, analyses| {
-                let mut eliminator = MemoryStoreEliminator::new();
                 eliminator.alias = Some(Rc::clone(&analyses.alias));
                 eliminator.cfg = Some(Rc::clone(&analyses.cfg));
-                eliminator.run_to_fixpoint(func) != 0
+                eliminator.run_with_scratch(func, &mut scratch) != 0
             },
         )
     }
@@ -250,18 +251,22 @@ struct BlockScratch {
     overwritten: MemoryWordMap<()>,
     stored_values: MemoryWordMap<ValueId>,
     stored_words: MemoryWordMap<U256>,
+    immutable_copies: FxHashMap<ImmutableCopyKey, CachedImmutableCopy>,
     replacements: FxHashMap<ValueId, ValueId>,
-    dead: DenseBitSet<InstId>,
+    dead: GrowableBitSet<InstId>,
+    queued: GrowableBitSet<BlockId>,
 }
 
 impl BlockScratch {
-    fn new(func: &Function) -> Self {
+    fn new() -> Self {
         Self {
             overwritten: MemoryWordMap::default(),
             stored_values: MemoryWordMap::default(),
             stored_words: MemoryWordMap::default(),
+            immutable_copies: FxHashMap::default(),
             replacements: FxHashMap::default(),
-            dead: DenseBitSet::new_empty(func.num_insts()),
+            dead: GrowableBitSet::new_empty(),
+            queued: GrowableBitSet::new_empty(),
         }
     }
 }
@@ -282,9 +287,9 @@ impl MemoryStoreEliminator {
             self.alias = Some(Rc::new(AliasAnalysis::new(func)));
         }
 
-        self.reuse_redundant_immutable_copies(func);
+        self.reuse_redundant_immutable_copies(func, scratch);
         self.alias().clear_cached_addresses();
-        self.remove_unused_internal_frame_stores(func);
+        self.remove_unused_internal_frame_stores(func, scratch);
 
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         let has_precise_reads = func
@@ -301,10 +306,10 @@ impl MemoryStoreEliminator {
                 self.alias().clear_cached_addresses();
             }
         }
-        self.remove_cross_block_equal_const_stores(func);
-        self.remove_cross_block_overwrites(func);
-        self.remove_dead_memory_stores(func);
-        self.remove_unused_internal_frame_stores(func);
+        self.remove_cross_block_equal_const_stores(func, scratch);
+        self.remove_cross_block_overwrites(func, scratch);
+        self.remove_dead_memory_stores(func, scratch);
+        self.remove_unused_internal_frame_stores(func, scratch);
 
         self.eliminated_count
     }
@@ -330,7 +335,7 @@ impl MemoryStoreEliminator {
     /// (whose value may be a memory pointer the caller dereferences), a tail
     /// call, `msize` — widens to all-memory-live, which only ever keeps a
     /// store, never drops a live one.
-    fn remove_dead_memory_stores(&mut self, func: &mut Function) {
+    fn remove_dead_memory_stores(&mut self, func: &mut Function, scratch: &mut BlockScratch) {
         if !func.instructions().any(|inst_id| {
             matches!(func.inst(inst_id).kind, InstKind::MStore(addr, _) if self.word_aligned_const(func, addr).is_some())
         }) {
@@ -353,15 +358,16 @@ impl MemoryStoreEliminator {
 
         let mut live_in = index_vec![MemLive::Only(FxHashSet::default()); func.blocks.len()];
         let mut pending = block_ids.clone();
-        let mut queued = DenseBitSet::new_filled(func.blocks.len());
+        scratch.queued.clear();
+        scratch.queued.insert_range(BlockId::from_usize(0)..BlockId::from_usize(func.blocks.len()));
         while let Some(block_id) = pending.pop() {
-            queued.remove(block_id);
+            scratch.queued.remove(block_id);
             let out = Self::live_out(func, block_id, &live_in);
             let new_in = self.transfer_block(func, block_id, out, &mut None);
             if live_in[block_id] != new_in {
                 live_in[block_id] = new_in;
                 for &predecessor in &predecessors[block_id] {
-                    if queued.insert(predecessor) {
+                    if scratch.queued.insert(predecessor) {
                         pending.push(predecessor);
                     }
                 }
@@ -369,19 +375,19 @@ impl MemoryStoreEliminator {
         }
 
         // Collect dead stores using the stabilized live-out of each block.
-        let mut dead = DenseBitSet::new_empty(func.num_insts());
+        scratch.dead.clear();
         for &block_id in &block_ids {
             let out = Self::live_out(func, block_id, &live_in);
-            let mut collector = Some(&mut dead);
+            let mut collector = Some(&mut scratch.dead);
             self.transfer_block(func, block_id, out, &mut collector);
         }
 
-        if dead.is_empty() {
+        if scratch.dead.is_empty() {
             return;
         }
-        self.eliminated_count += dead.count();
+        self.eliminated_count += scratch.dead.count();
         for block in func.blocks.iter_mut() {
-            block.instructions.retain(|&id| !dead.contains(id));
+            block.instructions.retain(|&id| !scratch.dead.contains(id));
         }
     }
 
@@ -403,7 +409,7 @@ impl MemoryStoreEliminator {
         func: &Function,
         block: BlockId,
         mut live: MemLive,
-        dead: &mut Option<&mut DenseBitSet<InstId>>,
+        dead: &mut Option<&mut GrowableBitSet<InstId>>,
     ) -> MemLive {
         // Terminator first: it executes after every instruction in the block.
         match func.blocks[block].terminator.as_ref() {
@@ -513,13 +519,11 @@ impl MemoryStoreEliminator {
         self.mem_addr_key(func, addr)?.0.as_absolute().filter(|address| address % 32 == 0)
     }
 
-    /// Runs local memory optimization until no more instructions can be eliminated.
-    fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
-        let mut scratch = BlockScratch::new(func);
-        self.run_with_scratch(func, &mut scratch)
-    }
-
-    fn reuse_redundant_immutable_copies(&mut self, func: &mut Function) {
+    fn reuse_redundant_immutable_copies(
+        &mut self,
+        func: &mut Function,
+        scratch: &mut BlockScratch,
+    ) {
         let has_candidate = func.blocks.iter().any(|block| {
             block.instructions.windows(2).any(|window| {
                 matches!(func.inst(window[0]).kind, InstKind::CodeCopy(_, _, _))
@@ -531,9 +535,9 @@ impl MemoryStoreEliminator {
         }
 
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
-        let mut cached: FxHashMap<ImmutableCopyKey, CachedImmutableCopy> = FxHashMap::default();
-        let mut replacements = FxHashMap::default();
-        let mut dead = DenseBitSet::new_empty(func.num_insts());
+        scratch.immutable_copies.clear();
+        scratch.replacements.clear();
+        scratch.dead.clear();
 
         let block_ids: Vec<_> = func.blocks.indices().collect();
         for block_id in block_ids {
@@ -560,15 +564,15 @@ impl MemoryStoreEliminator {
                     continue;
                 };
 
-                if let Some(cached_copy) = cached.get(&key).copied()
+                if let Some(cached_copy) = scratch.immutable_copies.get(&key).copied()
                     && Self::copy_dominates(cfg.dominators(), cached_copy, block_id, index)
                 {
-                    replacements.insert(loaded_value, cached_copy.value);
+                    scratch.replacements.insert(loaded_value, cached_copy.value);
                     func.inst_mut(codecopy).kind = InstKind::MStore(dest, cached_copy.value);
-                    dead.insert(load);
+                    scratch.dead.insert(load);
                     self.eliminated_count += 1;
                 } else {
-                    cached.insert(
+                    scratch.immutable_copies.insert(
                         key,
                         CachedImmutableCopy { block: block_id, index, value: loaded_value },
                     );
@@ -576,17 +580,21 @@ impl MemoryStoreEliminator {
             }
         }
 
-        if replacements.is_empty() && dead.is_empty() {
+        if scratch.replacements.is_empty() && scratch.dead.is_empty() {
             return;
         }
 
-        func.replace_uses_canonicalized(&replacements);
+        func.replace_uses_canonicalized(&scratch.replacements);
         for block in func.blocks.iter_mut() {
-            block.instructions.retain(|&id| !dead.contains(id));
+            block.instructions.retain(|&id| !scratch.dead.contains(id));
         }
     }
 
-    fn remove_unused_internal_frame_stores(&mut self, func: &mut Function) {
+    fn remove_unused_internal_frame_stores(
+        &mut self,
+        func: &mut Function,
+        scratch: &mut BlockScratch,
+    ) {
         let has_candidate = func.instructions().any(|inst_id| {
             matches!(func.inst(inst_id).kind, InstKind::MStore(addr, _) if self.internal_frame_offset(func, addr).is_some())
         });
@@ -600,7 +608,7 @@ impl MemoryStoreEliminator {
         let Some(reads) = self.internal_frame_read_ranges(func) else {
             return;
         };
-        let mut dead = DenseBitSet::new_empty(func.num_insts());
+        scratch.dead.clear();
 
         for inst_id in func.instructions() {
             let InstKind::MStore(addr, _) = func.inst(inst_id).kind else {
@@ -610,17 +618,17 @@ impl MemoryStoreEliminator {
                 continue;
             };
             if !Self::frame_ranges_overlap(&reads, offset, 32) {
-                dead.insert(inst_id);
+                scratch.dead.insert(inst_id);
             }
         }
 
-        if dead.is_empty() {
+        if scratch.dead.is_empty() {
             return;
         }
 
-        self.eliminated_count += dead.count();
+        self.eliminated_count += scratch.dead.count();
         for block in func.blocks.iter_mut() {
-            block.instructions.retain(|&id| !dead.contains(id));
+            block.instructions.retain(|&id| !scratch.dead.contains(id));
         }
     }
 
@@ -877,7 +885,11 @@ impl MemoryStoreEliminator {
     /// Only constant address and constant value are tracked, so availability
     /// needs no SSA reasoning: a single-predecessor block inherits its
     /// predecessor's exit constants, and a store matching one is dead.
-    fn remove_cross_block_equal_const_stores(&mut self, func: &mut Function) {
+    fn remove_cross_block_equal_const_stores(
+        &mut self,
+        func: &mut Function,
+        scratch: &mut BlockScratch,
+    ) {
         if func
             .instructions()
             .filter(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::MStore(_, _)))
@@ -903,7 +915,7 @@ impl MemoryStoreEliminator {
             }
         }
         let mut exit = index_vec![None; func.blocks.len()];
-        let mut dead = DenseBitSet::new_empty(func.num_insts());
+        scratch.dead.clear();
 
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
         for &block_id in cfg.rpo() {
@@ -926,7 +938,7 @@ impl MemoryStoreEliminator {
                     InstKind::MStore(addr, value) => match const_store(func, *addr, *value) {
                         Some((a, v)) => {
                             if known.get(&a) == Some(&v) {
-                                dead.insert(inst_id);
+                                scratch.dead.insert(inst_id);
                                 self.eliminated_count += 1;
                             } else {
                                 known.insert(a, v);
@@ -958,15 +970,15 @@ impl MemoryStoreEliminator {
             }
         }
 
-        if dead.is_empty() {
+        if scratch.dead.is_empty() {
             return;
         }
         for block in func.blocks.iter_mut() {
-            block.instructions.retain(|&id| !dead.contains(id));
+            block.instructions.retain(|&id| !scratch.dead.contains(id));
         }
     }
 
-    fn remove_cross_block_overwrites(&mut self, func: &mut Function) {
+    fn remove_cross_block_overwrites(&mut self, func: &mut Function, scratch: &mut BlockScratch) {
         if func
             .instructions()
             .filter(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::MStore(_, _)))
@@ -977,7 +989,7 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        let mut dead = DenseBitSet::new_empty(func.num_insts());
+        scratch.dead.clear();
 
         for pred in func.blocks.indices() {
             let Some(succ) = Self::single_jump_successor(func, pred) else {
@@ -994,17 +1006,17 @@ impl MemoryStoreEliminator {
                 continue;
             };
             if pred_key == succ_key {
-                dead.insert(store);
+                scratch.dead.insert(store);
             }
         }
 
-        if dead.is_empty() {
+        if scratch.dead.is_empty() {
             return;
         }
 
-        self.eliminated_count += dead.count();
+        self.eliminated_count += scratch.dead.count();
         for block in func.blocks.iter_mut() {
-            block.instructions.retain(|&id| !dead.contains(id));
+            block.instructions.retain(|&id| !scratch.dead.contains(id));
         }
     }
 
