@@ -9,7 +9,11 @@ use crate::{
     mir::{BlockId, Function, Module, Terminator, Value, ValueId, utils::repair_reachability_phis},
     pass::{MirPass, run_function_pass},
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::index_vec, map::FxHashMap};
+use smallvec::SmallVec;
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+};
 
 /// Function pass for aggressive dead-code elimination.
 pub(crate) struct Adce;
@@ -70,12 +74,15 @@ struct TargetSearch {
     /// Blocks on the current depth-first search path, used to detect cycles.
     visiting: DenseBitSet<BlockId>,
     /// Memoized transparent target per fully explored block.
-    targets: FxHashMap<BlockId, Option<BlockId>>,
+    targets: IndexVec<BlockId, Option<Option<BlockId>>>,
 }
 
 impl TargetSearch {
     fn new(block_count: usize) -> Self {
-        Self { visiting: DenseBitSet::new_empty(block_count), targets: FxHashMap::default() }
+        Self {
+            visiting: DenseBitSet::new_empty(block_count),
+            targets: index_vec![None; block_count],
+        }
     }
 }
 
@@ -158,47 +165,93 @@ impl AggressiveDeadCodeEliminator {
         block_id: BlockId,
         search: &mut TargetSearch,
     ) -> Option<BlockId> {
-        if let Some(&target) = search.targets.get(&block_id) {
+        if let Some(target) = search.targets[block_id] {
             return target;
         }
-        // Re-entry along the current search path means a pure cycle: there is
-        // no reconvergence target, so the cycle result is not memoized.
-        if !search.visiting.insert(block_id) {
-            return None;
-        }
-        let target = self.compute_transparent_target(func, ctx, block_id, search);
-        search.visiting.remove(block_id);
-        search.targets.insert(block_id, target);
-        target
-    }
 
-    fn compute_transparent_target(
-        &self,
-        func: &Function,
-        ctx: &AdceContext,
-        block_id: BlockId,
-        search: &mut TargetSearch,
-    ) -> Option<BlockId> {
-        if func.block_has_phi(block_id)
-            || self.block_has_effect(func, block_id)
-            || self.block_def_escapes(func, ctx, block_id)
-        {
-            return Some(block_id);
+        struct Frame {
+            block: BlockId,
+            successors: SmallVec<[BlockId; 2]>,
+            next_successor: usize,
+            common: Option<BlockId>,
         }
 
-        let term = func.blocks[block_id].terminator.as_ref()?;
-        match term {
-            Terminator::Jump(target) => self.transparent_target(func, ctx, *target, search),
-            Terminator::Branch { .. } | Terminator::Switch { .. } => {
-                self.common_transparent_target(func, ctx, term.successors(), search)
+        let mut frames = Vec::new();
+        let mut next_block = Some(block_id);
+        let mut completed = None;
+        loop {
+            if let Some(block) = next_block.take() {
+                if let Some(target) = search.targets[block] {
+                    completed = Some(target);
+                } else if !search.visiting.insert(block) {
+                    // Re-entry along the current search path means a pure
+                    // cycle with no reconvergence target.
+                    completed = Some(None);
+                } else if func.block_has_phi(block)
+                    || self.block_has_effect(func, block)
+                    || self.block_def_escapes(func, ctx, block)
+                {
+                    search.visiting.remove(block);
+                    search.targets[block] = Some(Some(block));
+                    completed = Some(Some(block));
+                } else {
+                    let Some(term) = func.blocks[block].terminator.as_ref() else {
+                        search.visiting.remove(block);
+                        search.targets[block] = Some(None);
+                        completed = Some(None);
+                        continue;
+                    };
+                    match term {
+                        Terminator::Jump(_)
+                        | Terminator::Branch { .. }
+                        | Terminator::Switch { .. } => {
+                            let successors = term.successors();
+                            let successor = successors[0];
+                            frames.push(Frame {
+                                block,
+                                successors,
+                                next_successor: 1,
+                                common: None,
+                            });
+                            next_block = Some(successor);
+                            continue;
+                        }
+                        Terminator::Return { .. }
+                        | Terminator::Revert { .. }
+                        | Terminator::ReturnData { .. }
+                        | Terminator::Stop
+                        | Terminator::SelfDestruct { .. }
+                        | Terminator::TailCall { .. }
+                        | Terminator::Invalid => {
+                            search.visiting.remove(block);
+                            search.targets[block] = Some(Some(block));
+                            completed = Some(Some(block));
+                        }
+                    }
+                }
             }
-            Terminator::Return { .. }
-            | Terminator::Revert { .. }
-            | Terminator::ReturnData { .. }
-            | Terminator::Stop
-            | Terminator::SelfDestruct { .. }
-            | Terminator::TailCall { .. }
-            | Terminator::Invalid => Some(block_id),
+
+            let target = completed.take().expect("a transparent search completed");
+            let Some(frame) = frames.last_mut() else {
+                return target;
+            };
+            if target.is_none() || frame.common.is_some_and(|common| Some(common) != target) {
+                let frame = frames.pop().expect("checked last frame");
+                search.visiting.remove(frame.block);
+                search.targets[frame.block] = Some(None);
+                completed = Some(None);
+            } else {
+                frame.common = target;
+                if let Some(&successor) = frame.successors.get(frame.next_successor) {
+                    frame.next_successor += 1;
+                    next_block = Some(successor);
+                } else {
+                    let frame = frames.pop().expect("checked last frame");
+                    search.visiting.remove(frame.block);
+                    search.targets[frame.block] = Some(frame.common);
+                    completed = Some(frame.common);
+                }
+            }
         }
     }
 
