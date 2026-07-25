@@ -86,3 +86,33 @@
       stop
   }
   
+  fn @keep_distinct_immutable_offsets(arg0: bool) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb1:
+      v0 = loadimmutable 0
+      ret v0
+    bb2:
+      v1 = loadimmutable 32
+      ret v1
+  }
+  
+  fn @tail_callee_a() {
+    bb0:
+      stop
+  }
+  
+  fn @tail_callee_b() {
+    bb0:
+      stop
+  }
+  
+  fn @keep_distinct_tail_callees(arg0: bool) {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb1:
+      tail_call @tail_callee_a
+    bb2:
+      tail_call @tail_callee_b
+  }
+  

@@ -17,8 +17,9 @@
 use crate::{
     analysis::{CallGraphInfo, CfgInfo},
     mir::{
-        BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
-        Terminator, Value, ValueId,
+        AbiLayoutRef, AllocationKind, AllocationSemantics, BlockId, EffectKind, Function,
+        FunctionId, Immediate, InstKind, MemoryObjectKind, MemoryObjectLayout, MemoryRegion,
+        MirType, Module, StorageAlias, StorageLayoutRef, Terminator, Value, ValueId,
         utils::{repair_reachability_phis, retain_blocks},
     },
     pass::{MirPass, run_function_pass},
@@ -65,34 +66,59 @@ impl MirPass for FunctionDce {
 
 /// Alpha-equivalence key for a terminal block used by
 /// [`CfgSimplifier::deduplicate_terminal_blocks`].
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 struct CanonBlock {
     insts: Vec<CanonInst>,
     term_mnemonic: &'static str,
+    term_payload: CanonTermPayload,
     term_operands: Vec<CanonOperand>,
 }
 
 /// Alpha-equivalence key for one instruction of a terminal block.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 struct CanonInst {
     mnemonic: &'static str,
     payload: CanonPayload,
     operands: Vec<CanonOperand>,
     result_ty: Option<MirType>,
-    metadata: InstructionMetadata,
+    metadata: CanonMetadata,
 }
 
 /// Non-operand payload carried by an instruction kind.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 enum CanonPayload {
     None,
+    Alloc(AllocationKind, AllocationSemantics),
+    MemoryObjectKind(MemoryObjectKind),
+    MemoryObjectField(MemoryObjectLayout, u64),
+    MemoryObjectElement(MemoryObjectLayout),
+    AbiEncode(AbiLayoutRef),
+    StorageLayout(StorageLayoutRef),
     FrameAddr(u64),
+    Immutable(u32),
     Call(FunctionId, usize),
+}
+
+/// Non-operand payload carried by a terminal instruction.
+#[derive(Debug, PartialEq, Eq, Hash)]
+enum CanonTermPayload {
+    None,
+    TailCall(FunctionId),
+}
+
+/// Optimization-relevant instruction metadata.
+#[derive(Debug, PartialEq, Eq, Hash)]
+struct CanonMetadata {
+    storage_alias: Option<StorageAlias>,
+    memory_region: Option<MemoryRegion>,
+    effect: Option<EffectKind>,
+    unchecked: bool,
+    deferred_alloc: bool,
 }
 
 /// A canonicalized operand: block-local results compare by definition
 /// position, immediates by value, and everything else by exact [`ValueId`].
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 enum CanonOperand {
     Local(usize),
     Imm(Immediate),
@@ -191,7 +217,7 @@ impl CfgSimplifier {
     fn deduplicate_terminal_blocks(&mut self, func: &mut Function) {
         let inst_results = func.inst_results();
 
-        let mut kept: Vec<(BlockId, CanonBlock)> = Vec::new();
+        let mut kept = FxHashMap::default();
         let mut merges: Vec<(BlockId, BlockId)> = Vec::new();
         for block_id in func.blocks.indices() {
             if func.blocks[block_id].predecessors.is_empty() {
@@ -201,10 +227,10 @@ impl CfgSimplifier {
             else {
                 continue;
             };
-            if let Some((keep, _)) = kept.iter().find(|(_, existing)| *existing == canon) {
-                merges.push((block_id, *keep));
+            if let Some(&keep) = kept.get(&canon) {
+                merges.push((block_id, keep));
             } else {
-                kept.push((block_id, canon));
+                kept.insert(canon, block_id);
             }
         }
 
@@ -258,16 +284,36 @@ impl CfgSimplifier {
             let inst = func.inst(inst_id);
             let extra = match &inst.kind {
                 InstKind::Phi(_) => return None,
+                InstKind::Alloc { kind, semantics, .. } => CanonPayload::Alloc(*kind, *semantics),
+                InstKind::MemoryObjectLen(_, kind)
+                | InstKind::SetMemoryObjectLen(_, _, kind)
+                | InstKind::MemoryObjectData(_, kind) => CanonPayload::MemoryObjectKind(*kind),
+                InstKind::MemoryObjectFieldAddr { layout, field, .. } => {
+                    CanonPayload::MemoryObjectField(*layout, *field)
+                }
+                InstKind::MemoryObjectElementAddr { layout, .. } => {
+                    CanonPayload::MemoryObjectElement(*layout)
+                }
+                InstKind::AbiEncode { layout, .. } => CanonPayload::AbiEncode(layout.clone()),
+                InstKind::StorageToMemory { layout, .. }
+                | InstKind::MemoryToStorage { layout, .. }
+                | InstKind::ClearStorage { layout, .. } => {
+                    CanonPayload::StorageLayout(layout.clone())
+                }
                 InstKind::InternalFrameAddr(offset) => CanonPayload::FrameAddr(*offset),
+                InstKind::LoadImmutable(offset) => CanonPayload::Immutable(*offset),
                 InstKind::InternalCall { function, returns, .. } => {
                     CanonPayload::Call(*function, *returns as usize)
                 }
                 _ => CanonPayload::None,
             };
-            let mut metadata = inst.metadata.clone();
-            metadata.set_hir_expr(None);
-            metadata.set_source_span(None);
-            metadata.loop_depth = 0;
+            let metadata = CanonMetadata {
+                storage_alias: inst.metadata.storage_alias(),
+                memory_region: inst.metadata.memory_region(),
+                effect: inst.metadata.effect(),
+                unchecked: inst.metadata.unchecked(),
+                deferred_alloc: inst.metadata.deferred_alloc(),
+            };
             insts.push(CanonInst {
                 mnemonic: inst.kind.mnemonic(),
                 payload: extra,
@@ -277,8 +323,12 @@ impl CfgSimplifier {
             });
         }
 
+        let term_payload = match term {
+            Terminator::TailCall { function, .. } => CanonTermPayload::TailCall(*function),
+            _ => CanonTermPayload::None,
+        };
         let term_operands = term.operands().into_iter().map(canon_operand).collect();
-        Some(CanonBlock { insts, term_mnemonic: term.mnemonic(), term_operands })
+        Some(CanonBlock { insts, term_mnemonic: term.mnemonic(), term_payload, term_operands })
     }
 
     fn simplify_trivial_phis(&mut self, func: &mut Function) {

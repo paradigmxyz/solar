@@ -104,3 +104,43 @@ fn @keep_distinct_outside_operands(arg0: u256, arg1: u256) {
   bb4:
     stop
 }
+
+// Immutable offsets are semantic instruction payloads, not operands.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_immutable_offsets{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = loadimmutable 0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = loadimmutable 32
+fn @keep_distinct_immutable_offsets(arg0: bool) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v1 = loadimmutable 0
+    ret v1
+  bb2:
+    v2 = loadimmutable 32
+    ret v2
+}
+
+fn @tail_callee_a() {
+  bb0:
+    stop
+}
+
+fn @tail_callee_b() {
+  bb0:
+    stop
+}
+
+// The callee is semantic terminator payload, not an operand.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_tail_callees{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
+// CHECK: {{^[ +].*}}tail_call @tail_callee_a
+// CHECK: {{^[ +].*}}tail_call @tail_callee_b
+fn @keep_distinct_tail_callees(arg0: bool) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    tail_call fn6
+  bb2:
+    tail_call fn7
+}
