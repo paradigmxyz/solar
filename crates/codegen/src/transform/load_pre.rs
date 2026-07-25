@@ -270,6 +270,8 @@ struct Analysis {
     /// Per-block keys killed at any point in the block; only blocks that kill
     /// something have an entry.
     kills: FxHashMap<BlockId, KeySet>,
+    /// Concrete values genned after the last kill of each key in a block.
+    gen_values: IndexVec<BlockId, FxHashMap<usize, ValueId>>,
     /// Availability at block entry, over all paths from the entry block.
     ins: IndexVec<BlockId, Option<KeySet>>,
     /// Availability at block exit.
@@ -337,8 +339,34 @@ impl LoadRedundancyEliminator {
                 break;
             }
             rewrites += batch.len();
+            let mut replacements = FxHashMap::default();
+            let mut dead = GrowableBitSet::with_capacity(func.num_insts());
+            let mut new_phis = index_vec![Vec::new(); func.blocks.len()];
             for candidate in batch {
-                self.apply_candidate(func, candidate, &mut eliminated_keys, &mut inserted_insts);
+                self.apply_candidate(
+                    func,
+                    candidate,
+                    &mut eliminated_keys,
+                    &mut inserted_insts,
+                    &mut replacements,
+                    &mut dead,
+                    &mut new_phis,
+                );
+            }
+            for (block_id, phis) in new_phis.iter_mut_enumerated() {
+                if phis.is_empty() {
+                    continue;
+                }
+                let phi_count = func.blocks[block_id]
+                    .instructions
+                    .iter()
+                    .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+                    .count();
+                func.blocks[block_id].instructions.splice(phi_count..phi_count, phis.drain(..));
+            }
+            Self::replace_uses(func, &replacements);
+            for block in &mut func.blocks {
+                block.instructions.retain(|&inst| !dead.contains(inst));
             }
             self.alias().clear_cached_addresses();
         }
@@ -373,36 +401,48 @@ impl LoadRedundancyEliminator {
             return None;
         }
         let key_count = keys.len();
+        let inst_results = func.inst_results();
 
         // Per-block summaries: GEN holds keys genned after the last kill, KILL
         // holds keys killed at any point.
         let mut gens = index_vec![None; func.blocks.len()];
+        let mut gen_values = index_vec![FxHashMap::default(); func.blocks.len()];
         let mut kills = FxHashMap::default();
         for &block in rpo {
             let mut gen_set = KeySet::new_empty(key_count);
             let mut kill_set = KeySet::new_empty(key_count);
+            let mut block_gen_values = FxHashMap::default();
             for &inst_id in &func.blocks[block].instructions {
                 if func.inst(inst_id).kind.has_side_effects() {
                     for (idx, &key) in keys.iter().enumerate() {
                         if self.inst_kills_key(func, inst_id, key) {
                             kill_set.insert(idx);
                             gen_set.remove(idx);
+                            block_gen_values.remove(&idx);
                         }
                     }
                 }
                 // A store both kills aliases and gens its exact key; the gen
                 // wins for the exact key because the slot then holds the
                 // stored value.
-                if let Some((key, _)) = self.gen_key_value(func, inst_id)
+                if let Some((key, source)) = self.gen_key_value(func, inst_id)
                     && let Some(&idx) = key_index.get(&key)
                 {
                     gen_set.insert(idx);
+                    let value = match source {
+                        GenSource::LoadResult => inst_results.get(&inst_id).copied(),
+                        GenSource::Stored(value) => Some(value),
+                    };
+                    if let Some(value) = value {
+                        block_gen_values.insert(idx, value);
+                    }
                 }
             }
             if !kill_set.is_empty() {
                 kills.insert(block, kill_set);
             }
             gens[block] = Some(gen_set);
+            gen_values[block] = block_gen_values;
         }
 
         // Availability fixpoint with optimistic initialization.
@@ -456,9 +496,10 @@ impl LoadRedundancyEliminator {
             key_index,
             cfg,
             kills,
+            gen_values,
             ins,
             outs,
-            inst_results: func.inst_results(),
+            inst_results,
             inst_blocks: func.inst_blocks(),
         })
     }
@@ -472,9 +513,8 @@ impl LoadRedundancyEliminator {
         limit: usize,
     ) -> Vec<Candidate> {
         let mut batch = Vec::new();
-        // Candidates whose analysis would be invalidated by an earlier
-        // candidate in this batch are deferred to the next round.
-        let mut modified_blocks = DenseBitSet::new_empty(func.blocks.len());
+        // Candidates that consume a value eliminated by an earlier candidate
+        // in this batch are deferred to the next round.
         let mut eliminated_values = DenseBitSet::new_empty(func.values.len());
 
         'targets: for target in func.blocks.indices() {
@@ -488,25 +528,22 @@ impl LoadRedundancyEliminator {
                 continue;
             }
 
-            for (inst, key_idx) in self.first_loads(func, cx.analysis, target) {
+            for (key_idx, loads) in self.first_loads(func, cx.analysis, target) {
                 if batch.len() >= limit {
                     break 'targets;
                 }
+                let inst = loads[0].0;
                 // Termination rule 1: never rewrite a load this run inserted.
                 if cx.inserted_insts.contains(inst) {
                     continue;
                 }
                 let Some(candidate) =
-                    self.candidate_for_load(func, cx, target, inst, key_idx, &predecessors)
+                    self.candidate_for_load(func, cx, target, loads, key_idx, &predecessors)
                 else {
                     continue;
                 };
-                if Self::interferes_with_batch(&candidate, &modified_blocks, &eliminated_values) {
+                if Self::interferes_with_batch(&candidate, &eliminated_values) {
                     continue;
-                }
-                modified_blocks.insert(candidate.target);
-                for &block in &candidate.insertions {
-                    modified_blocks.insert(block);
                 }
                 for &(_, value) in &candidate.loads {
                     eliminated_values.insert(value);
@@ -518,17 +555,13 @@ impl LoadRedundancyEliminator {
         batch
     }
 
-    /// Returns true if applying earlier candidates in the batch invalidates
-    /// this candidate's analysis: its blocks were already rewritten, or it
-    /// references a value whose defining load the batch removes.
+    /// Returns true if this candidate references a value whose defining load
+    /// an earlier candidate in the batch removes.
     fn interferes_with_batch(
         candidate: &Candidate,
-        modified_blocks: &DenseBitSet<BlockId>,
         eliminated_values: &DenseBitSet<ValueId>,
     ) -> bool {
-        modified_blocks.contains(candidate.target)
-            || candidate.insertions.iter().any(|&block| modified_blocks.contains(block))
-            || candidate.incoming.iter().any(|&(_, value)| eliminated_values.contains(value))
+        candidate.incoming.iter().any(|&(_, value)| eliminated_values.contains(value))
             || candidate.loads.iter().any(|&(_, value)| eliminated_values.contains(value))
             || (!candidate.insertions.is_empty()
                 && candidate
@@ -538,8 +571,8 @@ impl LoadRedundancyEliminator {
                     .any(|value| eliminated_values.contains(value)))
     }
 
-    /// Returns, in program order, the first load of each key in `target` that
-    /// no kill of that key precedes.
+    /// Groups, in first-occurrence order, loads of each key in `target` before
+    /// the first kill of that key.
     ///
     /// `gas` and `msize` conservatively end or restrict the scan: a
     /// partial-redundancy insertion moves the read to a predecessor's end, so
@@ -550,19 +583,22 @@ impl LoadRedundancyEliminator {
         func: &Function,
         analysis: &Analysis,
         target: BlockId,
-    ) -> Vec<(InstId, usize)> {
+    ) -> Vec<(usize, Vec<(InstId, ValueId)>)> {
         let key_count = analysis.keys.len();
         let mut blocked = KeySet::new_empty(key_count);
-        let mut taken = KeySet::new_empty(key_count);
-        let mut found = Vec::new();
+        let mut loads = vec![Vec::new(); key_count];
+        let mut order = Vec::new();
 
         for &inst_id in &func.blocks[target].instructions {
             if let Some((key, GenSource::LoadResult)) = self.gen_key_value(func, inst_id) {
                 if let Some(&idx) = analysis.key_index.get(&key)
                     && !blocked.contains(idx)
-                    && taken.insert(idx)
+                    && let Some(&value) = analysis.inst_results.get(&inst_id)
                 {
-                    found.push((inst_id, idx));
+                    if loads[idx].is_empty() {
+                        order.push(idx);
+                    }
+                    loads[idx].push((inst_id, value));
                 }
                 continue;
             }
@@ -592,52 +628,7 @@ impl LoadRedundancyEliminator {
             }
         }
 
-        found
-    }
-
-    fn same_key_loads_in_target(
-        &self,
-        func: &Function,
-        analysis: &Analysis,
-        target: BlockId,
-        first_inst: InstId,
-        key: LoadKey,
-    ) -> Vec<(InstId, ValueId)> {
-        let mut loads = Vec::new();
-        let mut past_first = false;
-
-        for &inst_id in &func.blocks[target].instructions {
-            if inst_id == first_inst {
-                past_first = true;
-            }
-            if !past_first {
-                continue;
-            }
-
-            if inst_id != first_inst {
-                let kind = &func.inst(inst_id).kind;
-                if matches!(kind, InstKind::Gas) {
-                    break;
-                }
-                if matches!(kind, InstKind::MSize)
-                    && matches!(key, LoadKey::Memory(_) | LoadKey::Keccak(_, _))
-                {
-                    break;
-                }
-                if kind.has_side_effects() && self.inst_kills_key(func, inst_id, key) {
-                    break;
-                }
-            }
-
-            if let Some((load_key, GenSource::LoadResult)) = self.gen_key_value(func, inst_id)
-                && load_key == key
-                && let Some(&value) = analysis.inst_results.get(&inst_id)
-            {
-                loads.push((inst_id, value));
-            }
-        }
-
-        loads
+        order.into_iter().map(|idx| (idx, std::mem::take(&mut loads[idx]))).collect()
     }
 
     fn candidate_for_load(
@@ -645,18 +636,15 @@ impl LoadRedundancyEliminator {
         func: &Function,
         cx: &mut CandidateCx<'_>,
         target: BlockId,
-        inst: InstId,
+        loads: Vec<(InstId, ValueId)>,
         key_idx: usize,
         predecessors: &[BlockId],
     ) -> Option<Candidate> {
+        let inst = loads[0].0;
         let instruction = func.inst(inst);
         let result = *cx.analysis.inst_results.get(&inst)?;
         let result_ty = instruction.result_ty?;
         let key = cx.analysis.keys[key_idx];
-        let loads = self.same_key_loads_in_target(func, cx.analysis, target, inst, key);
-        if loads.is_empty() {
-            return None;
-        }
 
         let mut incoming = Vec::with_capacity(predecessors.len());
         let mut insertions = Vec::new();
@@ -791,21 +779,11 @@ impl LoadRedundancyEliminator {
         block: BlockId,
         key_idx: usize,
     ) -> Option<ValueId> {
-        let key = cx.analysis.keys[key_idx];
-        for &inst_id in func.blocks[block].instructions.iter().rev() {
-            if let Some((gen_key, source)) = self.gen_key_value(func, inst_id)
-                && gen_key == key
-            {
-                // A store's exact-key gen wins over its own kill: the slot
-                // holds the stored value from this point on.
-                return match source {
-                    GenSource::LoadResult => cx.analysis.inst_results.get(&inst_id).copied(),
-                    GenSource::Stored(value) => Some(value),
-                };
-            }
-            if self.inst_kills_key(func, inst_id, key) {
-                return None;
-            }
+        if let Some(&value) = cx.analysis.gen_values[block].get(&key_idx) {
+            return Some(value);
+        }
+        if cx.analysis.kills.get(&block).is_some_and(|kills| kills.contains(key_idx)) {
+            return None;
         }
 
         // The block is transparent for the key: the value at its end is the
@@ -833,6 +811,9 @@ impl LoadRedundancyEliminator {
         candidate: Candidate,
         eliminated_keys: &mut FxHashSet<(LoadKey, BlockId)>,
         inserted_insts: &mut GrowableBitSet<InstId>,
+        replacements: &mut FxHashMap<ValueId, ValueId>,
+        dead: &mut GrowableBitSet<InstId>,
+        new_phis: &mut IndexVec<BlockId, Vec<InstId>>,
     ) {
         let Candidate { target, key, result_ty, kind, metadata, loads, mut incoming, insertions } =
             candidate;
@@ -870,24 +851,15 @@ impl LoadRedundancyEliminator {
                 let phi_inst =
                     func.alloc_inst(Instruction::new(InstKind::Phi(incoming), Some(result_ty)));
                 let phi_value = func.alloc_value(Value::Inst(phi_inst));
-                let phi_count = func.blocks[target]
-                    .instructions
-                    .iter()
-                    .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-                    .count();
-                func.blocks[target].instructions.insert(phi_count, phi_inst);
+                new_phis[target].push(phi_inst);
                 phi_value
             }
         };
 
-        for &(_, load_result) in &loads {
-            Self::replace_uses(func, load_result, replacement);
+        for &(inst_id, load_result) in &loads {
+            replacements.insert(load_result, replacement);
+            dead.insert(inst_id);
         }
-        let mut load_insts = DenseBitSet::new_empty(func.num_insts());
-        for &(inst_id, _) in &loads {
-            load_insts.insert(inst_id);
-        }
-        func.blocks[target].instructions.retain(|&inst_id| !load_insts.contains(inst_id));
         self.stats.loads_eliminated += loads.len();
     }
 
@@ -1004,16 +976,9 @@ impl LoadRedundancyEliminator {
 
     // ----- Rewriting -----
 
-    fn replace_uses(func: &mut Function, from: ValueId, to: ValueId) {
+    fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) {
         func.for_each_instruction_mut(|_, inst| {
-            let mut changed = false;
-            inst.kind.visit_operands_mut(|value| {
-                if *value == from {
-                    *value = to;
-                    changed = true;
-                }
-            });
-            if changed {
+            if mir_utils::replace_inst_uses_canonicalized(&mut inst.kind, replacements) != 0 {
                 // Operand-derived metadata is stale once the operand changes.
                 if mir_utils::is_memory_inst(&inst.kind) {
                     inst.metadata.set_memory_region(None);
@@ -1032,41 +997,7 @@ impl LoadRedundancyEliminator {
 
         for block in func.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
-                Self::replace_terminator_uses(term, from, to);
-            }
-        }
-    }
-
-    fn replace_terminator_uses(term: &mut Terminator, from: ValueId, to: ValueId) {
-        let replace = |value: &mut ValueId| {
-            if *value == from {
-                *value = to;
-            }
-        };
-
-        match term {
-            Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
-            Terminator::Branch { condition, .. } => replace(condition),
-            Terminator::Switch { value, cases, .. } => {
-                replace(value);
-                for (case, _) in cases {
-                    replace(case);
-                }
-            }
-            Terminator::Return { values } => {
-                for value in values {
-                    replace(value);
-                }
-            }
-            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                replace(offset);
-                replace(size);
-            }
-            Terminator::SelfDestruct { recipient } => replace(recipient),
-            Terminator::TailCall { args, .. } => {
-                for arg in args {
-                    replace(arg);
-                }
+                mir_utils::replace_terminator_uses_canonicalized(term, replacements);
             }
         }
     }
