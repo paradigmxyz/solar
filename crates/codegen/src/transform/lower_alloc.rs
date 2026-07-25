@@ -57,7 +57,6 @@ fn lower_function(func: &mut Function) -> bool {
         return false;
     }
 
-    let inst_results = func.inst_results();
     let mut changed = false;
     let mut block_index = 0;
     while block_index < func.blocks.len() {
@@ -73,7 +72,9 @@ fn lower_function(func: &mut Function) -> bool {
                 ) && !func.inst(*inst).metadata.deferred_alloc()
             });
         if let Some((position, inst)) = checked {
-            lower_checked_alloc(func, block, position, inst, inst_results[&inst]);
+            let result =
+                func.inst_result_value(inst).expect("checked allocation must produce a result");
+            lower_checked_alloc(func, block, position, inst, result);
             changed = true;
         }
         block_index += 1;
@@ -103,7 +104,10 @@ fn lower_function(func: &mut Function) -> bool {
                     }
                     debug_assert_eq!(semantics.failure, AllocationFailure::Infallible);
                     changed = true;
-                    let ptr = inst_results[&inst];
+                    let ptr = builder
+                        .func()
+                        .inst_result_value(inst)
+                        .expect("allocation must produce a result");
                     rewrite_as_fmp_load(&mut builder, inst);
                     builder.func_mut().blocks[block].instructions.push(inst);
                     let size = aligned_size(&mut builder, size, semantics.alignment).0;

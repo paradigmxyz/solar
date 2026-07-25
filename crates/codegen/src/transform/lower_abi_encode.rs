@@ -56,7 +56,6 @@ fn lower_function(func: &mut Function) -> bool {
         return false;
     }
 
-    let inst_results = func.inst_results();
     let mut replacements = FxHashMap::default();
     let blocks: Vec<_> = func.blocks.indices().collect();
     for block in blocks {
@@ -75,7 +74,11 @@ fn lower_function(func: &mut Function) -> bool {
             };
             if let Some((selector, args, layout)) = encode {
                 let replacement = lower_encode(&mut builder, &layout, selector, &args);
-                replacements.insert(inst_results[&inst], replacement);
+                let result = builder
+                    .func()
+                    .inst_result_value(inst)
+                    .expect("ABI encoding must produce a result");
+                replacements.insert(result, replacement);
             } else {
                 let current = builder.current_block();
                 builder.func_mut().blocks[current].instructions.push(inst);

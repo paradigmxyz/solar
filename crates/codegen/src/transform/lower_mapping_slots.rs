@@ -42,7 +42,6 @@ impl MirPass for LowerMappingSlots {
                 return false;
             }
 
-            let inst_results = func.inst_results();
             let mut replacements = FxHashMap::default();
             let block_ids: Vec<BlockId> = func.blocks.indices().collect();
             for block_id in block_ids {
@@ -66,7 +65,11 @@ impl MirPass for LowerMappingSlots {
                         }
                     };
                     if let Some(replacement) = replacement {
-                        replacements.insert(inst_results[&inst_id], replacement);
+                        let result = builder
+                            .func()
+                            .inst_result_value(inst_id)
+                            .expect("mapping slot must produce a result");
+                        replacements.insert(result, replacement);
                     }
                 }
             }

@@ -80,7 +80,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
         return false;
     }
 
-    let inst_results = func.inst_results();
     let mut replacements = FxHashMap::default();
     let mut removed = FxHashSet::default();
     let blocks: Vec<_> = func.blocks.indices().collect();
@@ -119,7 +118,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
                 InstKind::MemoryObjectData(object, kind) => {
                     let offset = P::object_data_offset(kind);
                     if offset == 0 {
-                        if let Some(&result) = inst_results.get(&inst) {
+                        if let Some(result) = builder.func().inst_result_value(inst) {
                             replacements.insert(result, object);
                         }
                         removed.insert(inst);
@@ -135,7 +134,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         continue;
                     };
                     if offset == 0 {
-                        if let Some(&result) = inst_results.get(&inst) {
+                        if let Some(result) = builder.func().inst_result_value(inst) {
                             replacements.insert(result, object);
                         }
                         removed.insert(inst);
