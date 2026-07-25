@@ -18,8 +18,8 @@ use crate::{
     analysis::{CallGraphInfo, CfgInfo},
     mir::{
         AbiLayoutRef, AllocationKind, AllocationSemantics, BlockId, EffectKind, Function,
-        FunctionId, Immediate, InstKind, MemoryObjectKind, MemoryObjectLayout, MemoryRegion,
-        MirType, Module, StorageAlias, StorageLayoutRef, Terminator, Value, ValueId,
+        FunctionId, Immediate, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout,
+        MemoryRegion, MirType, Module, StorageAlias, StorageLayoutRef, Terminator, Value, ValueId,
         utils::{repair_reachability_phis, retain_blocks},
     },
     pass::{MirPass, run_function_pass},
@@ -31,6 +31,132 @@ use solar_data_structures::{
 };
 
 type SwitchTargetIndex = IndexVec<BlockId, Option<FxHashMap<BlockId, Vec<usize>>>>;
+type PhiIncomingIndex = IndexVec<BlockId, Option<Vec<IndexedPhiIncoming>>>;
+
+#[derive(Clone, Copy, Debug)]
+struct PhiIncomingNode {
+    pred: BlockId,
+    value: ValueId,
+    previous: Option<usize>,
+    next: Option<usize>,
+}
+
+#[derive(Debug)]
+struct IndexedPhiIncoming {
+    inst: InstId,
+    nodes: Vec<PhiIncomingNode>,
+    first: Option<usize>,
+    last: Option<usize>,
+    by_predecessor: FxHashMap<BlockId, usize>,
+    dirty: bool,
+}
+
+impl IndexedPhiIncoming {
+    fn new(inst: InstId, incoming: &[(BlockId, ValueId)]) -> Self {
+        let mut this = Self {
+            inst,
+            nodes: Vec::with_capacity(incoming.len()),
+            first: None,
+            last: None,
+            by_predecessor: FxHashMap::default(),
+            dirty: false,
+        };
+        for &(pred, value) in incoming {
+            if this.by_predecessor.contains_key(&pred) {
+                continue;
+            }
+            this.push_back(pred, value);
+        }
+        this
+    }
+
+    fn value_for(&self, pred: BlockId) -> Option<ValueId> {
+        self.by_predecessor.get(&pred).map(|&node| self.nodes[node].value)
+    }
+
+    fn replace_predecessor(&mut self, old: BlockId, new: &[BlockId]) {
+        self.dirty = true;
+        let Some(&old_node) = self.by_predecessor.get(&old) else {
+            return;
+        };
+        if new.iter().any(|pred| *pred != old && self.by_predecessor.contains_key(pred)) {
+            self.replace_predecessor_slow(old, new);
+            return;
+        }
+
+        let node = self.nodes[old_node];
+        self.by_predecessor.remove(&old);
+        let mut previous = node.previous;
+        for &pred in new {
+            if self.by_predecessor.contains_key(&pred) {
+                continue;
+            }
+            let inserted = self.nodes.len();
+            self.nodes.push(PhiIncomingNode { pred, value: node.value, previous, next: None });
+            if let Some(previous) = previous {
+                self.nodes[previous].next = Some(inserted);
+            } else {
+                self.first = Some(inserted);
+            }
+            self.by_predecessor.insert(pred, inserted);
+            previous = Some(inserted);
+        }
+
+        if let Some(previous) = previous {
+            self.nodes[previous].next = node.next;
+        } else {
+            self.first = node.next;
+        }
+        if let Some(next) = node.next {
+            self.nodes[next].previous = previous;
+        } else {
+            self.last = previous;
+        }
+    }
+
+    fn replace_predecessor_slow(&mut self, old: BlockId, new: &[BlockId]) {
+        let mut incoming = Vec::with_capacity(self.by_predecessor.len() + new.len());
+        let mut current = self.first;
+        while let Some(node) = current {
+            let node = self.nodes[node];
+            if node.pred == old {
+                incoming.extend(new.iter().map(|&pred| (pred, node.value)));
+            } else {
+                incoming.push((node.pred, node.value));
+            }
+            current = node.next;
+        }
+
+        let mut seen = FxHashSet::default();
+        incoming.retain(|(pred, _)| seen.insert(*pred));
+        let dirty = self.dirty;
+        *self = Self::new(self.inst, &incoming);
+        self.dirty = dirty;
+    }
+
+    fn push_back(&mut self, pred: BlockId, value: ValueId) {
+        let node = self.nodes.len();
+        self.nodes.push(PhiIncomingNode { pred, value, previous: self.last, next: None });
+        if let Some(last) = self.last {
+            self.nodes[last].next = Some(node);
+        } else {
+            self.first = Some(node);
+        }
+        self.last = Some(node);
+        self.by_predecessor.insert(pred, node);
+    }
+
+    fn materialize(&self) -> Vec<(BlockId, ValueId)> {
+        let mut incoming = Vec::with_capacity(self.by_predecessor.len());
+        let mut current = self.first;
+        while let Some(node) = current {
+            let node = self.nodes[node];
+            incoming.push((node.pred, node.value));
+            current = node.next;
+        }
+        incoming
+    }
+}
 
 /// Function pass for CFG simplification.
 pub(crate) struct CfgSimplify;
@@ -599,17 +725,13 @@ impl CfgSimplifier {
     /// Eliminates empty blocks that only contain an unconditional jump.
     fn eliminate_empty_blocks(&mut self, func: &mut Function) {
         let cfg = CfgInfo::new(func);
-        let mut loop_preheaders = DenseBitSet::new_empty(func.blocks.len());
+        let loop_preheaders = self.loop_preheader_forwarders(func, &cfg);
         let mut switch_targets = index_vec![None; func.blocks.len()];
+        let mut phi_inputs = func.blocks.indices().map(|_| None).collect::<PhiIncomingIndex>();
         // Defer tombstone removal so a group of forwarders into the same
         // target scans its predecessor list only once.
         let mut eliminated = DenseBitSet::new_empty(func.blocks.len());
         let mut dirty_predecessors = DenseBitSet::new_empty(func.blocks.len());
-        for block_id in func.blocks.indices() {
-            if self.is_loop_preheader_forwarder(func, &cfg, block_id) {
-                loop_preheaders.insert(block_id);
-            }
-        }
 
         let block_count = func.blocks.len();
         for block_id in (0..block_count).map(BlockId::from_usize) {
@@ -620,15 +742,29 @@ impl CfgSimplifier {
                 continue;
             }
 
-            if self.is_empty_forwarder(func, block_id)
-                && !loop_preheaders.contains(block_id)
-                && self.forwarder_elimination_preserves_phis(func, block_id)
-            {
+            if self.is_empty_forwarder(func, block_id) && !loop_preheaders.contains(block_id) {
                 let target = match &func.blocks[block_id].terminator {
                     Some(Terminator::Jump(target)) => *target,
                     _ => unreachable!(),
                 };
-                self.eliminate_forwarder(func, block_id, target, &mut switch_targets);
+                let predecessors = func.unique_predecessors(block_id);
+                if !self.forwarder_elimination_preserves_phis(
+                    func,
+                    block_id,
+                    target,
+                    &predecessors,
+                    &mut phi_inputs,
+                ) {
+                    continue;
+                }
+                self.eliminate_forwarder(
+                    func,
+                    block_id,
+                    target,
+                    &predecessors,
+                    &mut switch_targets,
+                    &mut phi_inputs,
+                );
                 eliminated.insert(block_id);
                 dirty_predecessors.insert(target);
                 self.stats.empty_blocks_eliminated += 1;
@@ -638,6 +774,7 @@ impl CfgSimplifier {
         for block_id in dirty_predecessors.iter() {
             func.blocks[block_id].predecessors.retain(|pred| !eliminated.contains(*pred));
         }
+        Self::apply_indexed_phi_incoming(func, phi_inputs);
     }
 
     /// Checks if a block is an empty forwarder (no instructions, just a jump).
@@ -651,27 +788,43 @@ impl CfgSimplifier {
         matches!(&block.terminator, Some(Terminator::Jump(target)) if *target != block_id)
     }
 
-    fn is_loop_preheader_forwarder(
-        &self,
-        func: &Function,
-        cfg: &CfgInfo,
-        block_id: BlockId,
-    ) -> bool {
-        let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator else {
-            return false;
-        };
-        if !matches!(
-            func.blocks[target].instructions.first(),
-            Some(&inst) if matches!(func.inst(inst).kind, InstKind::Phi(_))
-        ) {
-            return false;
+    fn loop_preheader_forwarders(&self, func: &Function, cfg: &CfgInfo) -> DenseBitSet<BlockId> {
+        let mut first_backedge = index_vec![None; func.blocks.len()];
+        let mut multiple_backedges = DenseBitSet::new_empty(func.blocks.len());
+        for (target, block) in func.blocks.iter_enumerated() {
+            if !matches!(
+                block.instructions.first(),
+                Some(&inst) if matches!(func.inst(inst).kind, InstKind::Phi(_))
+            ) {
+                continue;
+            }
+            for &pred in &block.predecessors {
+                if !cfg.dominators().dominates(target, pred) {
+                    continue;
+                }
+                if let Some(first) = first_backedge[target] {
+                    if first != pred {
+                        multiple_backedges.insert(target);
+                    }
+                } else {
+                    first_backedge[target] = Some(pred);
+                }
+            }
         }
 
-        func.blocks[target]
-            .predecessors
-            .iter()
-            .copied()
-            .any(|pred| pred != block_id && cfg.dominators().dominates(target, pred))
+        let mut forwarders = DenseBitSet::new_empty(func.blocks.len());
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            let Some(Terminator::Jump(target)) = block.terminator else {
+                continue;
+            };
+            let Some(first) = first_backedge[target] else {
+                continue;
+            };
+            if first != block_id || multiple_backedges.contains(target) {
+                forwarders.insert(block_id);
+            }
+        }
+        forwarders
     }
 
     /// Checks that redirecting the forwarder's predecessors into its target
@@ -679,25 +832,54 @@ impl CfgSimplifier {
     /// two incoming entries carrying different values (e.g. both arms of one
     /// branch being forwarders into the same join), since phi incoming lists
     /// are keyed per predecessor block, not per CFG edge.
-    fn forwarder_elimination_preserves_phis(&self, func: &Function, block_id: BlockId) -> bool {
-        let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator else {
-            return false;
-        };
-        let predecessors = &func.blocks[block_id].predecessors;
-        for &inst_id in &func.blocks[target].instructions {
-            let InstKind::Phi(incoming) = &func.inst(inst_id).kind else {
+    #[must_use]
+    fn forwarder_elimination_preserves_phis(
+        &self,
+        func: &Function,
+        block_id: BlockId,
+        target: BlockId,
+        predecessors: &[BlockId],
+        phi_inputs: &mut PhiIncomingIndex,
+    ) -> bool {
+        let phis = phi_inputs[target].get_or_insert_with(|| {
+            func.blocks[target]
+                .instructions
+                .iter()
+                .filter_map(|&inst| {
+                    let InstKind::Phi(incoming) = &func.inst(inst).kind else {
+                        return None;
+                    };
+                    Some(IndexedPhiIncoming::new(inst, incoming))
+                })
+                .collect()
+        });
+        for phi in phis {
+            let Some(forwarded) = phi.value_for(block_id) else {
                 continue;
             };
-            let Some(&(_, forwarded)) = incoming.iter().find(|(pred, _)| *pred == block_id) else {
-                continue;
-            };
-            for &pred in predecessors {
-                if incoming.iter().any(|&(other, value)| other == pred && value != forwarded) {
-                    return false;
-                }
+            if predecessors
+                .iter()
+                .any(|&pred| phi.value_for(pred).is_some_and(|value| value != forwarded))
+            {
+                return false;
             }
         }
         true
+    }
+
+    fn apply_indexed_phi_incoming(func: &mut Function, phi_inputs: PhiIncomingIndex) {
+        for phis in phi_inputs.into_iter().flatten() {
+            for phi in phis {
+                if !phi.dirty {
+                    continue;
+                }
+                let incoming = phi.materialize();
+                let InstKind::Phi(current) = &mut func.inst_mut(phi.inst).kind else {
+                    unreachable!()
+                };
+                *current = incoming;
+            }
+        }
     }
 
     /// Eliminates an empty forwarder block by redirecting its predecessors.
@@ -706,12 +888,15 @@ impl CfgSimplifier {
         func: &mut Function,
         block_id: BlockId,
         target: BlockId,
+        predecessors: &[BlockId],
         switch_targets: &mut SwitchTargetIndex,
+        phi_inputs: &mut PhiIncomingIndex,
     ) {
-        let predecessors = func.unique_predecessors(block_id);
-        self.redirect_target_phi_incoming(func, block_id, target, &predecessors);
+        for phi in phi_inputs[target].as_mut().expect("target phis must be indexed") {
+            phi.replace_predecessor(block_id, predecessors);
+        }
 
-        for pred_id in predecessors {
+        for &pred_id in predecessors {
             self.redirect_terminator_indexed(func, pred_id, block_id, target, switch_targets);
 
             func.blocks[target].predecessors.push(pred_id);
