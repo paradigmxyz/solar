@@ -9,6 +9,7 @@ use std::collections::VecDeque;
 pub(crate) struct CallGraphInfo {
     callees: FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
     reachable_from_entries: DenseBitSet<FunctionId>,
+    recursive_cycle_members: DenseBitSet<FunctionId>,
     recursive_functions: DenseBitSet<FunctionId>,
 }
 
@@ -33,9 +34,10 @@ impl CallGraphInfo {
 
         let reachable_from_entries =
             Self::reachable_from_roots_in_graph(&callees, &entry_functions);
-        let recursive_functions = Self::recursive_functions_in_graph(&callees, function_count);
+        let (recursive_cycle_members, recursive_functions) =
+            Self::recursive_functions_in_graph(&callees, function_count);
 
-        Self { callees, reachable_from_entries, recursive_functions }
+        Self { callees, reachable_from_entries, recursive_cycle_members, recursive_functions }
     }
 
     /// Returns all functions reachable from entry functions.
@@ -48,6 +50,12 @@ impl CallGraphInfo {
     #[must_use]
     pub(crate) fn is_recursive(&self, func: FunctionId) -> bool {
         self.recursive_functions.contains(func)
+    }
+
+    /// Returns true if `func` belongs to a recursive call-graph component.
+    #[must_use]
+    pub(crate) fn is_recursive_cycle_member(&self, func: FunctionId) -> bool {
+        self.recursive_cycle_members.contains(func)
     }
 
     /// Returns functions reachable from `roots` through MIR call edges.
@@ -121,7 +129,7 @@ impl CallGraphInfo {
     fn recursive_functions_in_graph(
         callees: &FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
         function_count: usize,
-    ) -> DenseBitSet<FunctionId> {
+    ) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
         let mut outgoing = index_vec![Vec::new(); function_count];
         let mut callers = index_vec![Vec::new(); function_count];
         for (&caller, direct_callees) in callees {
@@ -153,7 +161,7 @@ impl CallGraphInfo {
         }
 
         let mut assigned = DenseBitSet::new_empty(function_count);
-        let mut recursive = DenseBitSet::new_empty(function_count);
+        let mut recursive_cycle_members = DenseBitSet::new_empty(function_count);
         let mut component = Vec::new();
         for root in postorder.into_iter().rev() {
             if !assigned.insert(root) {
@@ -175,11 +183,12 @@ impl CallGraphInfo {
             }
             if component.len() > 1 || outgoing[root].contains(&root) {
                 for &function in &component {
-                    recursive.insert(function);
+                    recursive_cycle_members.insert(function);
                 }
             }
         }
 
+        let mut recursive = recursive_cycle_members.clone();
         let mut pending = recursive.iter().collect::<Vec<_>>();
         while let Some(function) = pending.pop() {
             for &caller in &callers[function] {
@@ -188,6 +197,6 @@ impl CallGraphInfo {
                 }
             }
         }
-        recursive
+        (recursive_cycle_members, recursive)
     }
 }

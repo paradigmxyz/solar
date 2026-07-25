@@ -4,7 +4,7 @@
 //! protocol and expose further optimization opportunities.
 
 use crate::{
-    analysis::LoopAnalyzer,
+    analysis::{CallGraphInfo, LoopAnalyzer},
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
         BlockId, Function, FunctionId as MirFunctionId, Immediate, InstKind, Instruction, MirType,
@@ -14,7 +14,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
 
 /// Module pass for metadata-backed MIR inlining.
@@ -161,7 +161,7 @@ impl MirInliner {
         }
 
         let mut call_counts = self.call_counts(module);
-        let recursive_functions = self.recursive_functions(module);
+        let call_graph = CallGraphInfo::new(module);
 
         for caller_id in module.functions.indices().collect::<Vec<_>>() {
             let loop_depths = block_loop_depths(module.function(caller_id));
@@ -188,7 +188,7 @@ impl MirInliner {
                 });
                 if module_code_size >= self.max_module_code_size
                     || grew_too_much
-                    || recursive_functions.contains(site.callee)
+                    || call_graph.is_recursive_cycle_member(site.callee)
                     || !self.is_inlineable(caller_id, site, summary, call_count)
                 {
                     stats.skipped += 1;
@@ -250,48 +250,6 @@ impl MirInliner {
                 *counts.entry(function).or_default() += 1;
             }
         }
-    }
-
-    fn recursive_functions(&self, module: &Module) -> DenseBitSet<MirFunctionId> {
-        let mut recursive = DenseBitSet::new_empty(module.functions.len());
-        let mut visiting = DenseBitSet::new_empty(module.functions.len());
-        for func_id in module.functions.indices() {
-            visiting.clear();
-            if self.function_reaches(module, func_id, func_id, &mut visiting) {
-                recursive.insert(func_id);
-            }
-        }
-        recursive
-    }
-
-    fn function_reaches(
-        &self,
-        module: &Module,
-        current: MirFunctionId,
-        target: MirFunctionId,
-        visiting: &mut DenseBitSet<MirFunctionId>,
-    ) -> bool {
-        if !visiting.insert(current) {
-            return false;
-        }
-
-        for callee in self.function_callees(module.function(current)) {
-            if callee == target || self.function_reaches(module, callee, target, visiting) {
-                return true;
-            }
-        }
-
-        false
-    }
-
-    fn function_callees(&self, func: &Function) -> Vec<MirFunctionId> {
-        let mut callees = Vec::new();
-        for inst_id in func.instructions() {
-            if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
-                callees.push(function);
-            }
-        }
-        callees
     }
 
     fn find_next_call(
