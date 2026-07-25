@@ -85,9 +85,10 @@ use crate::{
 };
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
+    index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
-use std::rc::Rc;
+use std::{collections::VecDeque, rc::Rc};
 
 /// Function pass for load PRE.
 pub(crate) struct LoadPre;
@@ -270,9 +271,9 @@ struct Analysis {
     /// something have an entry.
     kills: FxHashMap<BlockId, KeySet>,
     /// Availability at block entry, over all paths from the entry block.
-    ins: FxHashMap<BlockId, KeySet>,
+    ins: IndexVec<BlockId, Option<KeySet>>,
     /// Availability at block exit.
-    outs: FxHashMap<BlockId, KeySet>,
+    outs: IndexVec<BlockId, Option<KeySet>>,
     inst_results: FxHashMap<InstId, ValueId>,
     inst_blocks: FxHashMap<InstId, BlockId>,
 }
@@ -375,7 +376,7 @@ impl LoadRedundancyEliminator {
 
         // Per-block summaries: GEN holds keys genned after the last kill, KILL
         // holds keys killed at any point.
-        let mut gens = FxHashMap::default();
+        let mut gens = index_vec![None; func.blocks.len()];
         let mut kills = FxHashMap::default();
         for &block in rpo {
             let mut gen_set = KeySet::new_empty(key_count);
@@ -401,51 +402,52 @@ impl LoadRedundancyEliminator {
             if !kill_set.is_empty() {
                 kills.insert(block, kill_set);
             }
-            gens.insert(block, gen_set);
+            gens[block] = Some(gen_set);
         }
 
         // Availability fixpoint with optimistic initialization.
-        let mut ins: FxHashMap<BlockId, KeySet> = FxHashMap::default();
-        let mut outs: FxHashMap<BlockId, KeySet> = rpo
-            .iter()
-            .map(|&block| {
-                let out = if func.blocks[block].predecessors.is_empty() {
-                    gens[&block].clone()
-                } else {
-                    KeySet::new_filled(key_count)
-                };
-                (block, out)
-            })
-            .collect();
-        loop {
-            let mut changed = false;
-            for &block in rpo {
-                let mut acc: Option<KeySet> = None;
-                for &pred in &func.blocks[block].predecessors {
-                    // Unreachable predecessors never execute and cannot
-                    // contribute a path.
-                    let Some(out) = outs.get(&pred) else { continue };
-                    match &mut acc {
-                        Some(acc) => {
-                            acc.intersect(out);
-                        }
-                        None => acc = Some(out.clone()),
+        let mut ins = index_vec![None; func.blocks.len()];
+        let mut outs = index_vec![None; func.blocks.len()];
+        let mut pending = VecDeque::with_capacity(rpo.len());
+        let mut queued = DenseBitSet::new_empty(func.blocks.len());
+        for &block in rpo {
+            let out = if func.blocks[block].predecessors.is_empty() {
+                gens[block].as_ref().expect("reachable block has a gen set").clone()
+            } else {
+                KeySet::new_filled(key_count)
+            };
+            outs[block] = Some(out);
+            pending.push_back(block);
+            queued.insert(block);
+        }
+        while let Some(block) = pending.pop_front() {
+            queued.remove(block);
+            let mut acc: Option<KeySet> = None;
+            for &pred in &func.blocks[block].predecessors {
+                // Unreachable predecessors never execute and cannot
+                // contribute a path.
+                let Some(out) = &outs[pred] else { continue };
+                match &mut acc {
+                    Some(acc) => {
+                        acc.intersect(out);
                     }
-                }
-                let in_set = acc.unwrap_or_else(|| KeySet::new_empty(key_count));
-                let mut out = in_set.clone();
-                if let Some(kill) = kills.get(&block) {
-                    out.subtract(kill);
-                }
-                out.union(&gens[&block]);
-                ins.insert(block, in_set);
-                if outs.get(&block) != Some(&out) {
-                    outs.insert(block, out);
-                    changed = true;
+                    None => acc = Some(out.clone()),
                 }
             }
-            if !changed {
-                break;
+            let in_set = acc.unwrap_or_else(|| KeySet::new_empty(key_count));
+            let mut out = in_set.clone();
+            if let Some(kill) = kills.get(&block) {
+                out.subtract(kill);
+            }
+            out.union(gens[block].as_ref().expect("reachable block has a gen set"));
+            ins[block] = Some(in_set);
+            if outs[block].as_ref() != Some(&out) {
+                outs[block] = Some(out);
+                for &successor in cfg.successors(block) {
+                    if cfg.is_reachable(successor) && queued.insert(successor) {
+                        pending.push_back(successor);
+                    }
+                }
             }
         }
 
@@ -659,7 +661,7 @@ impl LoadRedundancyEliminator {
         let mut incoming = Vec::with_capacity(predecessors.len());
         let mut insertions = Vec::new();
         for &pred in predecessors {
-            if cx.analysis.outs.get(&pred).is_some_and(|out| out.contains(key_idx))
+            if cx.analysis.outs[pred].as_ref().is_some_and(|out| out.contains(key_idx))
                 && let Some(value) = self.locate_value(func, cx, pred, key_idx)
             {
                 incoming.push((pred, value));
@@ -809,7 +811,7 @@ impl LoadRedundancyEliminator {
         // The block is transparent for the key: the value at its end is the
         // value at its entry, which the dataflow must prove available on all
         // paths before the dominator walk may locate it.
-        if !cx.analysis.ins.get(&block).is_some_and(|in_set| in_set.contains(key_idx)) {
+        if !cx.analysis.ins[block].as_ref().is_some_and(|in_set| in_set.contains(key_idx)) {
             return None;
         }
         let idom = cx.analysis.cfg.dominators().idom(block)?;
