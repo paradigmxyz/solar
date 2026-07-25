@@ -6,12 +6,10 @@
 //! and values escaping a candidate dead block all prevent rewriting.
 
 use crate::{
-    mir::{
-        BlockId, Function, InstId, Module, Terminator, ValueId, utils::repair_reachability_phis,
-    },
+    mir::{BlockId, Function, Module, Terminator, Value, ValueId, utils::repair_reachability_phis},
     pass::{MirPass, run_function_pass},
 };
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::index_vec, map::FxHashMap};
 
 /// Function pass for aggressive dead-code elimination.
 pub(crate) struct Adce;
@@ -61,8 +59,7 @@ struct AggressiveDeadCodeEliminator {
 
 #[derive(Debug)]
 struct AdceContext {
-    inst_results: FxHashMap<InstId, ValueId>,
-    value_uses: FxHashMap<ValueId, DenseBitSet<BlockId>>,
+    escaping_values: DenseBitSet<ValueId>,
 }
 
 /// Shared state for one transparent-target search sweep over an unmodified CFG.
@@ -212,12 +209,10 @@ impl AggressiveDeadCodeEliminator {
 
     fn block_def_escapes(&self, func: &Function, ctx: &AdceContext, block_id: BlockId) -> bool {
         func.blocks[block_id].instructions.iter().any(|&inst_id| {
-            let Some(&value) = ctx.inst_results.get(&inst_id) else {
+            let Some(value) = func.inst_result_value(inst_id) else {
                 return false;
             };
-            ctx.value_uses
-                .get(&value)
-                .is_some_and(|uses| uses.iter().any(|use_block| use_block != block_id))
+            ctx.escaping_values.contains(value)
         })
     }
 
@@ -241,29 +236,33 @@ impl AggressiveDeadCodeEliminator {
 
 impl AdceContext {
     fn new(func: &Function) -> Self {
-        let inst_results = func.inst_results();
-        let value_uses = Self::value_uses(func);
-        Self { inst_results, value_uses }
-    }
+        let mut inst_blocks = index_vec![None; func.num_insts()];
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                inst_blocks[inst_id] = Some(block_id);
+            }
+        }
 
-    fn value_uses(func: &Function) -> FxHashMap<ValueId, DenseBitSet<BlockId>> {
-        let mut uses = FxHashMap::default();
+        let mut escaping_values = DenseBitSet::new_empty(func.values.len());
+        let mut visit_operand = |block_id, operand| {
+            if let Value::Inst(inst_id) = func.value(operand)
+                && inst_blocks[*inst_id] != Some(block_id)
+            {
+                escaping_values.insert(operand);
+            }
+        };
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 for operand in func.inst(inst_id).kind.operands() {
-                    uses.entry(operand)
-                        .or_insert_with(|| DenseBitSet::new_empty(func.blocks.len()))
-                        .insert(block_id);
+                    visit_operand(block_id, operand);
                 }
             }
             if let Some(term) = &block.terminator {
                 for operand in term.operands() {
-                    uses.entry(operand)
-                        .or_insert_with(|| DenseBitSet::new_empty(func.blocks.len()))
-                        .insert(block_id);
+                    visit_operand(block_id, operand);
                 }
             }
         }
-        uses
+        Self { escaping_values }
     }
 }
