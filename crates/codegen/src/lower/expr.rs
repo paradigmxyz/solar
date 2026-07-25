@@ -1198,7 +1198,7 @@ impl<'gcx> Lowerer<'gcx> {
         None
     }
 
-    fn lower_resolved_function_selector(&self, expr: &hir::Expr<'_>) -> Option<u32> {
+    pub(super) fn lower_resolved_function_selector(&self, expr: &hir::Expr<'_>) -> Option<u32> {
         let hir::Res::Item(item_id) = self.gcx.resolved_expr(expr)? else {
             return None;
         };
