@@ -15,7 +15,7 @@
 //! - leave loop-variant mapping/array slots in storage
 
 use crate::{
-    analysis::{AliasAnalysis, Loop, LoopAnalyzer},
+    analysis::{AliasAnalysis, Loop, LoopAnalyzer, may_have_cycle},
     memory::EvmMemoryLayout,
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, StorageAlias,
@@ -41,6 +41,13 @@ impl MirPass for StorageScalarPromotion {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass_no_analyses(module, analyses, |func| {
+            if func.selector.is_none()
+                || !func.instructions().any(|inst_id| {
+                    matches!(func.inst(inst_id).kind, InstKind::SLoad(_) | InstKind::SStore(_, _))
+                })
+            {
+                return false;
+            }
             let mut promoter = StorageScalarPromoter::new();
             let stats = promoter.run(func);
             stats.loops_promoted + stats.loads_promoted + stats.stores_promoted != 0
@@ -99,6 +106,9 @@ impl StorageScalarPromoter {
         }
 
         func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
+        if !may_have_cycle(func) {
+            return &self.stats;
+        }
 
         // Promoting a loop can split its exit blocks and relocate the final
         // stores into new blocks, which invalidates the block sets of every
