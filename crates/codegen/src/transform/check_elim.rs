@@ -26,8 +26,7 @@
 use crate::{
     analysis::CfgInfo,
     mir::{
-        BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
-        utils::repair_reachability_phis,
+        BlockId, Function, InstKind, Module, Terminator, Value, ValueId, utils::remove_predecessors,
     },
     pass::{MirPass, run_function_pass},
 };
@@ -55,11 +54,7 @@ impl MirPass for CheckElim {
         run_function_pass(module, analyses, |func, analyses| {
             let mut eliminator = CheckEliminator::new();
             eliminator.cfg = Some(Rc::clone(&analyses.cfg));
-            let mut changed = eliminator.run(func) != 0;
-            if changed {
-                changed |= repair_reachability_phis(func);
-            }
-            changed
+            eliminator.run(func) != 0
         })
     }
 }
@@ -169,8 +164,19 @@ impl CheckEliminator {
         if folds.is_empty() {
             return 0;
         }
+        let mut removed_predecessors = FxHashMap::default();
         for &(block, keep) in &folds {
+            let Some(Terminator::Branch { then_block, else_block, .. }) =
+                func.blocks[block].terminator.as_ref()
+            else {
+                continue;
+            };
+            let dropped = if *then_block == keep { *else_block } else { *then_block };
             func.blocks[block].terminator = Some(Terminator::Jump(keep));
+            removed_predecessors.entry(dropped).or_insert_with(FxHashSet::default).insert(block);
+        }
+        for (successor, removed) in removed_predecessors {
+            remove_predecessors(func, successor, &removed);
         }
         self.stats.branches_folded = folds.len();
         folds.len()

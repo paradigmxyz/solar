@@ -5,12 +5,15 @@
 use crate::{
     analysis::CfgInfo,
     mir::{
-        BlockId, Function, InstId, Module, Terminator, Value, ValueId,
-        utils::repair_reachability_phis,
+        BlockId, Function, InstId, Module, Terminator, Value, ValueId, utils::remove_predecessors,
     },
     pass::{MirPass, run_function_pass},
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 
 /// Function pass for dead code elimination.
 pub(crate) struct Dce;
@@ -28,9 +31,7 @@ impl MirPass for Dce {
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
             let mut eliminator = DeadCodeEliminator::new();
-            let removed = eliminator.run_to_fixpoint(func);
-            let repaired = eliminator.cfg_changed() && repair_reachability_phis(func);
-            removed != 0 || repaired
+            eliminator.run_to_fixpoint(func) != 0
         })
     }
 }
@@ -54,8 +55,6 @@ pub(crate) struct DeadCodeEliminator {
     worklist: Vec<InstId>,
     /// Dead instructions found in one run.
     dead: DenseBitSet<InstId>,
-    /// Whether unreachable-block cleanup changed the CFG.
-    cfg_changed: bool,
 }
 
 impl DeadCodeEliminator {
@@ -66,18 +65,15 @@ impl DeadCodeEliminator {
             use_counts: IndexVec::new(),
             worklist: Vec::new(),
             dead: DenseBitSet::new_empty(0),
-            cfg_changed: false,
         }
     }
 
     fn run_once(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
-        self.cfg_changed = false;
 
         // Phase 1: Remove unreachable blocks.
         let unreachable_removed = self.eliminate_unreachable_blocks(func);
         self.eliminated_count += unreachable_removed;
-        self.cfg_changed = unreachable_removed != 0;
 
         // Phase 2: Count uses, then propagate liveness losses backwards from
         // initially-unused results.
@@ -100,12 +96,6 @@ impl DeadCodeEliminator {
         self.run_once(func)
     }
 
-    /// Returns whether the last run changed CFG reachability.
-    #[must_use]
-    pub(crate) fn cfg_changed(&self) -> bool {
-        self.cfg_changed
-    }
-
     /// Eliminates unreachable blocks using CFG reachability analysis.
     fn eliminate_unreachable_blocks(&mut self, func: &mut Function) -> usize {
         let cfg = CfgInfo::new(func);
@@ -116,6 +106,24 @@ impl DeadCodeEliminator {
             .iter_enumerated()
             .filter_map(|(id, _)| if !cfg.is_reachable(id) { Some(id) } else { None })
             .collect();
+
+        let mut removed_predecessors = FxHashMap::default();
+        for &block_id in &unreachable {
+            let successors = func.blocks[block_id]
+                .terminator
+                .as_ref()
+                .map(Terminator::successors)
+                .unwrap_or_default();
+            for successor in successors {
+                removed_predecessors
+                    .entry(successor)
+                    .or_insert_with(FxHashSet::default)
+                    .insert(block_id);
+            }
+        }
+        for (successor, removed) in removed_predecessors {
+            remove_predecessors(func, successor, &removed);
+        }
 
         // Clear unreachable blocks (we can't actually remove from IndexVec,
         // but we can clear their contents to prevent codegen)

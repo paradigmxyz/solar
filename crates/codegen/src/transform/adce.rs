@@ -6,13 +6,14 @@
 //! and values escaping a candidate dead block all prevent rewriting.
 
 use crate::{
-    mir::{BlockId, Function, Module, Terminator, Value, ValueId, utils::repair_reachability_phis},
+    mir::{BlockId, Function, Module, Terminator, Value, ValueId, utils::remove_predecessors},
     pass::{MirPass, run_function_pass},
 };
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
+    map::{FxHashMap, FxHashSet},
 };
 
 /// Function pass for aggressive dead-code elimination.
@@ -42,14 +43,12 @@ struct AdceStats {
     control_edges_removed: usize,
     /// Number of instructions removed by cleanup DCE after control rewrites.
     instructions_removed: usize,
-    /// Whether CFG backlinks or phi inputs were repaired.
-    reachability_repaired: bool,
 }
 
 impl AdceStats {
     /// Returns the total number of MIR edits made by this pass.
     const fn total(self) -> usize {
-        self.control_edges_removed + self.instructions_removed + self.reachability_repaired as usize
+        self.control_edges_removed + self.instructions_removed
     }
 }
 
@@ -104,9 +103,6 @@ impl AggressiveDeadCodeEliminator {
         let mut dce = super::dce::DeadCodeEliminator::new();
         let removed = dce.run_to_fixpoint(func);
         self.stats.instructions_removed += removed;
-        if self.stats.control_edges_removed != 0 || dce.cfg_changed() {
-            self.stats.reachability_repaired = repair_reachability_phis(func);
-        }
         self.stats
     }
 
@@ -131,9 +127,7 @@ impl AggressiveDeadCodeEliminator {
             rewrites.push((block_id, target));
         }
 
-        for (block_id, target) in &rewrites {
-            self.rewrite_to_jump(func, *block_id, *target);
-        }
+        self.rewrite_to_jumps(func, &rewrites);
 
         rewrites.len()
     }
@@ -270,8 +264,30 @@ impl AggressiveDeadCodeEliminator {
         })
     }
 
-    fn rewrite_to_jump(&self, func: &mut Function, block_id: BlockId, target: BlockId) {
-        func.blocks[block_id].terminator = Some(Terminator::Jump(target));
+    fn rewrite_to_jumps(&self, func: &mut Function, rewrites: &[(BlockId, BlockId)]) {
+        let mut removed_predecessors = FxHashMap::default();
+        for &(block_id, _) in rewrites {
+            let successors = func.blocks[block_id]
+                .terminator
+                .as_ref()
+                .map(Terminator::successors)
+                .unwrap_or_default();
+            for successor in successors {
+                removed_predecessors
+                    .entry(successor)
+                    .or_insert_with(FxHashSet::default)
+                    .insert(block_id);
+            }
+        }
+        for &(block_id, target) in rewrites {
+            func.blocks[block_id].terminator = Some(Terminator::Jump(target));
+        }
+        for (successor, removed) in removed_predecessors {
+            remove_predecessors(func, successor, &removed);
+        }
+        for &(block_id, target) in rewrites {
+            func.blocks[target].predecessors.push(block_id);
+        }
     }
 }
 

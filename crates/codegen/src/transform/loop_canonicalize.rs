@@ -9,14 +9,10 @@
 //! Safety contract:
 //! - only split header edges whose terminators explicitly target the header
 //! - preserve header phi semantics by moving outside incoming values through the inserted preheader
-//! - repair reachability-dependent phis after CFG rewrites
 
 use crate::{
     analysis::LoopAnalyzer,
-    mir::{
-        BlockId, Function, InstId, InstKind, Instruction, Module, Terminator, Value, ValueId,
-        utils::repair_reachability_phis,
-    },
+    mir::{BlockId, Function, InstId, InstKind, Instruction, Module, Terminator, Value, ValueId},
     pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::{
@@ -53,18 +49,13 @@ struct LoopCanonicalizeStats {
     header_phis_rewritten: usize,
     /// Number of new preheader phi nodes inserted.
     preheader_phis_inserted: usize,
-    /// Whether CFG backlinks or phi inputs were repaired.
-    reachability_repaired: bool,
 }
 
 impl LoopCanonicalizeStats {
     /// Returns total canonicalization changes performed.
     #[must_use]
     const fn total(&self) -> usize {
-        self.preheaders_inserted
-            + self.header_phis_rewritten
-            + self.preheader_phis_inserted
-            + self.reachability_repaired as usize
+        self.preheaders_inserted + self.header_phis_rewritten + self.preheader_phis_inserted
     }
 }
 
@@ -103,9 +94,6 @@ impl LoopCanonicalizer {
 
         for (header, outside_preds) in &candidates {
             self.insert_preheader(func, *header, outside_preds);
-        }
-        if !candidates.is_empty() {
-            self.stats.reachability_repaired |= repair_reachability_phis(func);
         }
 
         &self.stats
@@ -178,8 +166,15 @@ impl LoopCanonicalizer {
         func.blocks[preheader].terminator = Some(Terminator::Jump(header));
 
         for &pred in outside_preds {
-            self.redirect_terminator(func, pred, header, preheader);
+            let edge_count = self.redirect_terminator(func, pred, header, preheader);
+            func.blocks[preheader].predecessors.extend(std::iter::repeat_n(pred, edge_count));
         }
+        let mut outside = DenseBitSet::new_empty(func.blocks.len());
+        for &pred in outside_preds {
+            outside.insert(pred);
+        }
+        func.blocks[header].predecessors.retain(|pred| !outside.contains(*pred));
+        func.blocks[header].predecessors.push(preheader);
 
         self.rewrite_header_phis(func, header, preheader, outside_preds);
         self.stats.preheaders_inserted += 1;
@@ -277,31 +272,37 @@ impl LoopCanonicalizer {
         block_id: BlockId,
         old_target: BlockId,
         new_target: BlockId,
-    ) {
+    ) -> usize {
+        let mut redirected = 0;
         let Some(term) = &mut func.blocks[block_id].terminator else {
-            return;
+            return 0;
         };
         match term {
             Terminator::Jump(target) => {
                 if *target == old_target {
                     *target = new_target;
+                    redirected += 1;
                 }
             }
             Terminator::Branch { then_block, else_block, .. } => {
                 if *then_block == old_target {
                     *then_block = new_target;
+                    redirected += 1;
                 }
                 if *else_block == old_target {
                     *else_block = new_target;
+                    redirected += 1;
                 }
             }
             Terminator::Switch { default, cases, .. } => {
                 if *default == old_target {
                     *default = new_target;
+                    redirected += 1;
                 }
                 for (_, target) in cases {
                     if *target == old_target {
                         *target = new_target;
+                        redirected += 1;
                     }
                 }
             }
@@ -313,5 +314,6 @@ impl LoopCanonicalizer {
             | Terminator::SelfDestruct { .. }
             | Terminator::Invalid => {}
         }
+        redirected
     }
 }

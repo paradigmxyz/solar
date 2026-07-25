@@ -6,7 +6,7 @@ use smallvec::smallvec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
-    map::FxHashMap,
+    map::{FxHashMap, FxHashSet},
 };
 
 pub(crate) fn remap_block_order(
@@ -164,6 +164,22 @@ pub(crate) fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> B
     }
 
     new_block
+}
+
+/// Removes CFG and phi references to a set of predecessors from one block.
+pub(crate) fn remove_predecessors(
+    func: &mut Function,
+    block: BlockId,
+    removed: &FxHashSet<BlockId>,
+) {
+    func.blocks[block].predecessors.retain(|predecessor| !removed.contains(predecessor));
+    let instruction_count = func.blocks[block].instructions.len();
+    for index in 0..instruction_count {
+        let inst_id = func.blocks[block].instructions[index];
+        if let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind {
+            incoming.retain(|(predecessor, _)| !removed.contains(predecessor));
+        }
+    }
 }
 
 /// Rebuilds CFG edge lists from terminators and drops phi inputs from blocks
