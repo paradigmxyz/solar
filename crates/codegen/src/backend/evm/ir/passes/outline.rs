@@ -7,7 +7,10 @@ use crate::backend::evm::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHasher},
+};
 use solar_sema::Gcx;
 use std::hash::{Hash, Hasher};
 
@@ -35,10 +38,11 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
 }
 
 fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> bool {
-    let mut candidates = FxHashMap::<MachineInstSlice<'_>, SmallVec<[Site; 2]>>::default();
+    let mut candidates = FxHashMap::<(u64, usize), SmallVec<[CandidateGroup; 1]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         for start in 0..block.instructions.len() {
             let mut height = 0i32;
+            let mut hasher = FxHasher::default();
             for end in start..block.instructions.len() {
                 let inst = &block.instructions[end];
                 let Some((reads, pops, pushes)) = whitelisted_effect(inst) else { break };
@@ -46,30 +50,34 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
                     break;
                 }
                 height = height - i32::from(pops) + i32::from(pushes);
+                hash_machine_inst(inst, &mut hasher);
                 let len = end + 1 - start;
                 if len >= MIN_CLOSED_RUN && matches!(height, 0 | 1) {
-                    let key = MachineInstSlice(&block.instructions[start..=end]);
-                    candidates.entry(key).or_default().push(Site {
-                        block: block_id,
-                        start,
-                        len,
-                        height: height as u16,
-                    });
+                    let site = Site { block: block_id, start, len, height: height as u16 };
+                    let bucket = candidates.entry((hasher.finish(), len)).or_default();
+                    if let Some(group) =
+                        bucket.iter_mut().find(|group| sites_match(module, group.sites[0], site))
+                    {
+                        group.sites.push(site);
+                    } else {
+                        bucket.push(CandidateGroup { sites: smallvec::smallvec![site] });
+                    }
                 }
             }
         }
     }
 
-    let mut groups: Vec<_> = candidates.into_iter().filter(|(_, sites)| sites.len() >= 2).collect();
-    groups.sort_unstable_by_key(|(key, sites)| {
-        let first = sites[0];
-        (std::cmp::Reverse(key.0.len()), first.block.index(), first.start)
+    let mut groups: Vec<_> =
+        candidates.into_values().flatten().filter(|group| group.sites.len() >= 2).collect();
+    groups.sort_unstable_by_key(|group| {
+        let first = group.sites[0];
+        (std::cmp::Reverse(first.len), first.block.index(), first.start)
     });
     let mut claimed = FxHashMap::<BlockId, DenseBitSet<usize>>::default();
     let mut chosen = Vec::new();
-    for (_, sites) in groups {
+    for group in groups {
         let mut free = SmallVec::<[Site; 2]>::new();
-        for site in sites {
+        for site in group.sites {
             let instruction_count = module.blocks[site.block].instructions.len();
             let claimed = claimed
                 .entry(site.block)
@@ -120,6 +128,21 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
     }
     apply_outline_edits(module, edits, state);
     true
+}
+
+fn hash_machine_inst(inst: &Instruction, state: &mut impl Hasher) {
+    inst.opcode.hash(state);
+    inst.encoding.hash(state);
+    inst.value.hash(state);
+}
+
+fn sites_match(module: &Module, a: Site, b: Site) -> bool {
+    let a = &module.blocks[a.block].instructions[a.start..a.start + a.len];
+    let b = &module.blocks[b.block].instructions[b.start..b.start + b.len];
+    a.len() == b.len()
+        && a.iter()
+            .zip(b)
+            .all(|(a, b)| a.opcode == b.opcode && a.encoding == b.encoding && a.value == b.value)
 }
 
 fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
@@ -249,29 +272,8 @@ struct ChosenGroup {
     height: u16,
 }
 
-#[derive(Clone, Copy)]
-struct MachineInstSlice<'a>(&'a [Instruction]);
-
-impl PartialEq for MachineInstSlice<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.len() == other.0.len()
-            && self.0.iter().zip(other.0).all(|(a, b)| {
-                a.opcode == b.opcode && a.encoding == b.encoding && a.value == b.value
-            })
-    }
-}
-
-impl Eq for MachineInstSlice<'_> {}
-
-impl Hash for MachineInstSlice<'_> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.len().hash(state);
-        for inst in self.0 {
-            inst.opcode.hash(state);
-            inst.encoding.hash(state);
-            inst.value.hash(state);
-        }
-    }
+struct CandidateGroup {
+    sites: SmallVec<[Site; 2]>,
 }
 
 #[derive(Default)]
