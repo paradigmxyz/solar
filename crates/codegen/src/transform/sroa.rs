@@ -18,13 +18,15 @@
 //! stores and addresses are removed.
 
 use crate::{
-    analysis::AliasAnalysis,
     mir::{
         AllocationKind, BlockId, Function, InstId, InstKind, MemoryObjectLayout, Module, ValueId,
     },
     pass::{MirPass, run_function_pass},
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    index::{IndexVec, index_vec},
+    map::{FxHashMap, FxHashSet},
+};
 
 /// Scalar-replacement-of-aggregates pass for memory objects.
 pub(crate) struct Sroa;
@@ -40,9 +42,7 @@ impl MirPass for Sroa {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
-            SroaCx::default().run(func, &analyses.alias)
-        })
+        run_function_pass(module, analyses, |func, _| SroaCx::default().run(func))
     }
 }
 
@@ -60,7 +60,7 @@ fn is_fixed_aggregate(layout: MemoryObjectLayout) -> bool {
 }
 
 impl SroaCx {
-    fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
+    fn run(&mut self, func: &mut Function) -> bool {
         let mut allocs: Vec<(BlockId, ValueId)> = Vec::new();
         for block_id in func.blocks.indices() {
             for &inst_id in &func.blocks[block_id].instructions {
@@ -77,16 +77,24 @@ impl SroaCx {
             return false;
         }
 
-        let inst_results = func.inst_results();
-        let mut changed = false;
+        let uses = ValueUses::new(func);
+        let mut replacements = FxHashMap::default();
+        let mut dead = FxHashSet::default();
         for (block_id, object) in allocs {
-            if let Some(plan) = self.plan(func, alias, &inst_results, block_id, object) {
-                self.apply(func, block_id, plan);
+            if let Some(plan) = self.plan(func, &uses, block_id, object) {
+                replacements.extend(plan.replacements);
+                dead.extend(plan.dead);
                 self.eliminated += 1;
-                changed = true;
             }
         }
-        changed
+        if self.eliminated == 0 {
+            return false;
+        }
+        func.replace_uses_canonicalized(&replacements);
+        for block in func.blocks.iter_mut() {
+            block.instructions.retain(|inst| !dead.contains(inst));
+        }
+        true
     }
 
     /// Verifies eligibility and computes the load replacements and dead
@@ -94,12 +102,11 @@ impl SroaCx {
     fn plan(
         &self,
         func: &Function,
-        alias: &AliasAnalysis,
-        inst_results: &FxHashMap<InstId, ValueId>,
+        uses: &ValueUses,
         block_id: BlockId,
         object: ValueId,
     ) -> Option<Plan> {
-        if alias.value_escapes(func, object) {
+        if !uses.terminators[object].is_empty() {
             return None;
         }
 
@@ -108,7 +115,7 @@ impl SroaCx {
         // address, in this block.
         let mut slot_of: FxHashMap<ValueId, u64> = FxHashMap::default();
         let mut address_insts: FxHashSet<InstId> = FxHashSet::default();
-        for inst_id in func.instructions() {
+        for &inst_id in &uses.instructions[object] {
             let kind = &func.inst(inst_id).kind;
             let slot = match *kind {
                 InstKind::MemoryObjectFieldAddr { object: base, field, .. } if base == object => {
@@ -128,49 +135,48 @@ impl SroaCx {
                 }
             };
             let slot = slot?;
-            let addr = inst_results.get(&inst_id).copied()?;
+            if uses.inst_blocks[inst_id] != Some(block_id) {
+                return None;
+            }
+            let addr = func.inst_result_value(inst_id)?;
             slot_of.insert(addr, slot);
             address_insts.insert(inst_id);
+        }
+        if slot_of.is_empty() {
+            return None;
         }
 
         // Every field address must be used only as the address of an
         // `MStore`/`MLoad` in this block.
-        let block = &func.blocks[block_id];
-        let block_insts: FxHashSet<InstId> = block.instructions.iter().copied().collect();
-        for inst_id in func.instructions() {
-            let inst = func.inst(inst_id);
-            let kind = &inst.kind;
-            let addr = match *kind {
-                InstKind::MStore(addr, value) => {
-                    // The address may be a field address; the stored value must
-                    // not be one (that would leak the interior pointer).
-                    if slot_of.contains_key(&value) {
-                        return None;
-                    }
-                    addr
-                }
-                InstKind::MLoad(addr) => addr,
-                _ => {
-                    if kind.operands().iter().any(|op| slot_of.contains_key(op)) {
-                        return None;
-                    }
-                    continue;
-                }
-            };
-            if slot_of.contains_key(&addr) {
-                if !block_insts.contains(&inst_id) {
-                    return None;
-                }
-            } else if kind.operands().iter().any(|op| slot_of.contains_key(op)) {
+        let mut accesses = Vec::new();
+        for &address in slot_of.keys() {
+            if !uses.terminators[address].is_empty() {
                 return None;
             }
+            for &inst_id in &uses.instructions[address] {
+                if uses.inst_blocks[inst_id] != Some(block_id) {
+                    return None;
+                }
+                match func.inst(inst_id).kind {
+                    InstKind::MStore(addr, value)
+                        if addr == address && !slot_of.contains_key(&value) =>
+                    {
+                        accesses.push(inst_id);
+                    }
+                    InstKind::MLoad(addr) if addr == address => accesses.push(inst_id),
+                    _ => return None,
+                }
+            }
         }
+        accesses.sort_by_key(|&inst_id| {
+            uses.inst_positions[inst_id].expect("indexed instruction position")
+        });
 
         // Walk the block, forwarding stores to loads per slot.
         let mut current: FxHashMap<u64, ValueId> = FxHashMap::default();
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
-        for &inst_id in &block.instructions {
+        for inst_id in accesses {
             match func.inst(inst_id).kind {
                 InstKind::MStore(addr, value) if slot_of.contains_key(&addr) => {
                     current.insert(slot_of[&addr], value);
@@ -180,8 +186,8 @@ impl SroaCx {
                     // A load with no dominating store observes uninitialized or
                     // zeroed memory; keep the allocation rather than guess.
                     let value = *current.get(&slot_of[&addr])?;
-                    if let Some(result) = inst_results.get(&inst_id) {
-                        replacements.insert(*result, value);
+                    if let Some(result) = func.inst_result_value(inst_id) {
+                        replacements.insert(result, value);
                     }
                     dead.insert(inst_id);
                 }
@@ -192,15 +198,36 @@ impl SroaCx {
         dead.extend(address_insts);
         Some(Plan { replacements, dead })
     }
+}
 
-    fn apply(&self, func: &mut Function, block_id: BlockId, plan: Plan) {
-        func.replace_uses_canonicalized(&plan.replacements);
-        func.blocks[block_id].instructions.retain(|inst| !plan.dead.contains(inst));
-        // Address instructions live in the same block; remove any that ended up
-        // elsewhere defensively.
-        for block in func.blocks.iter_mut() {
-            block.instructions.retain(|inst| !plan.dead.contains(inst));
+struct ValueUses {
+    instructions: IndexVec<ValueId, Vec<InstId>>,
+    terminators: IndexVec<ValueId, Vec<BlockId>>,
+    inst_blocks: IndexVec<InstId, Option<BlockId>>,
+    inst_positions: IndexVec<InstId, Option<usize>>,
+}
+
+impl ValueUses {
+    fn new(func: &Function) -> Self {
+        let mut instructions = index_vec![Vec::new(); func.values.len()];
+        let mut terminators = index_vec![Vec::new(); func.values.len()];
+        let mut inst_blocks = index_vec![None; func.num_insts()];
+        let mut inst_positions = index_vec![None; func.num_insts()];
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for (position, &inst_id) in block.instructions.iter().enumerate() {
+                inst_blocks[inst_id] = Some(block_id);
+                inst_positions[inst_id] = Some(position);
+                for operand in func.inst(inst_id).operands() {
+                    instructions[operand].push(inst_id);
+                }
+            }
+            if let Some(terminator) = &block.terminator {
+                for operand in terminator.operands() {
+                    terminators[operand].push(block_id);
+                }
+            }
         }
+        Self { instructions, terminators, inst_blocks, inst_positions }
     }
 }
 
