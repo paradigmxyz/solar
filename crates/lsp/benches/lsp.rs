@@ -1,7 +1,7 @@
 #![allow(unused_crate_dependencies)]
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use lsp_types::{GotoDefinitionResponse, HoverContents, Position};
+use lsp_types::{GotoDefinitionResponse, HoverContents, OneOf, Position, Url};
 use solar_config::CompileOpts;
 use solar_lsp::{
     BenchmarkAnalysis, BenchmarkProject, BenchmarkRequest, BenchmarkResponse,
@@ -133,18 +133,38 @@ fn symbol_table_aggregation(c: &mut Criterion) {
     let batches = project.clone().analyze_file_batches();
     assert_eq!(batches.len(), AGGREGATION_BATCH_COUNT);
     assert!(batches.iter().all(|batch| batch.diagnostic_count() == 0));
-    let merged = BenchmarkAnalysis::merge(batches.clone());
-    assert_clean(&merged);
-    let response = merged.execute(&BenchmarkRequest::WorkspaceSymbols {
-        query: format!("function_{:04}", AGGREGATION_FUNCTION_COUNT - 1),
-    });
-    let BenchmarkResponse::WorkspaceSymbols(symbols) = response else {
-        panic!("the aggregation check should return workspace symbols")
-    };
-    assert_eq!(symbols.len(), AGGREGATION_BATCH_COUNT);
 
+    let query = format!("function_{:04}", AGGREGATION_FUNCTION_COUNT - 1);
     let mut group = c.benchmark_group("lsp/symbol-table-aggregation");
     for batch_count in [1, AGGREGATION_BATCH_COUNT] {
+        let merged = BenchmarkAnalysis::merge(batches[..batch_count].to_vec());
+        assert_clean(&merged);
+        let response = merged.execute(&BenchmarkRequest::WorkspaceSymbols { query: query.clone() });
+        let BenchmarkResponse::WorkspaceSymbols(symbols) = response else {
+            panic!("the aggregation check should return workspace symbols")
+        };
+        let mut uris = symbols
+            .into_iter()
+            .map(|symbol| {
+                let OneOf::Left(location) = symbol.location else {
+                    panic!("workspace symbols should contain full locations")
+                };
+                location.uri
+            })
+            .collect::<Vec<_>>();
+        uris.sort_unstable_by(|a, b| a.as_str().cmp(b.as_str()));
+        let expected_uris = (0..batch_count)
+            .map(|index| {
+                Url::from_file_path(
+                    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                        .join("benches/aggregation")
+                        .join(format!("batch-{index}.sol")),
+                )
+                .expect("the aggregation benchmark path should be a file URI")
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(uris, expected_uris);
+
         group.throughput(Throughput::Elements(batch_count as u64));
         group.bench_with_input(
             BenchmarkId::from_parameter(batch_count),

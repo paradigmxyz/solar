@@ -79,7 +79,7 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
 
     // Lifecycle
     router
-        .request::<global_state::Initialize, _>(GlobalState::on_initialize)
+        .request::<proto::Initialize, _>(GlobalState::on_initialize)
         .notification::<notif::Initialized>(GlobalState::on_initialized)
         .request::<req::Shutdown, _>(|_, _| std::future::ready(Ok(())))
         .notification::<notif::Exit>(|_, _| ControlFlow::Break(Ok(())));
@@ -944,6 +944,8 @@ mod tests {
         let response = router.call(request).await.unwrap();
 
         assert_eq!(response["capabilities"]["typeHierarchyProvider"], true);
+        assert_eq!(response["capabilities"]["hoverProvider"], true);
+        assert_eq!(response["serverInfo"]["name"], "solar");
     }
 
     #[tokio::test(flavor = "current_thread")]

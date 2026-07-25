@@ -1,10 +1,10 @@
 //! Benchmark-only, in-memory LSP analysis support.
 
-use super::{AnalysisBatch, DiagnosticMap, SymbolTables, analyze, analyze_with_source_map};
-use crate::{
-    project_fixture::ProjectFixture, symbols::SymbolTablesAggregator,
-    utils::apply_document_changes, workspace::Workspace,
+use super::{
+    AnalysisBatch, AnalysisResult, AnalysisResultAccumulator, DiagnosticMap, SymbolTables, analyze,
+    analyze_with_source_map,
 };
+use crate::{project_fixture::ProjectFixture, utils::apply_document_changes, workspace::Workspace};
 use crop::Rope;
 use lsp_types::{
     Diagnostic, GotoDefinitionResponse, Hover, HoverContents, Location, Position, Range,
@@ -439,28 +439,16 @@ impl BenchmarkAnalysis {
     pub fn merge(batches: Vec<Self>) -> Self {
         let mut batches = batches.into_iter();
         let first = batches.next().expect("benchmark analysis needs at least one batch");
-        let Self { root, diagnostics, symbol_tables: first_symbol_tables, default_uri } = first;
-        let mut merged = Self {
-            root,
-            diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
-            default_uri,
-        };
-        let mut symbol_tables = SymbolTablesAggregator::default();
-
-        for (uri, mut batch_diagnostics) in diagnostics {
-            merged.diagnostics.entry(uri).or_default().append(&mut batch_diagnostics);
-        }
-        symbol_tables.push(first_symbol_tables);
+        let Self { root, diagnostics, symbol_tables, default_uri } = first;
+        let mut accumulator = AnalysisResultAccumulator::default();
+        accumulator.push(AnalysisResult { diagnostics, symbol_tables });
 
         for batch in batches {
-            for (uri, mut batch_diagnostics) in batch.diagnostics {
-                merged.diagnostics.entry(uri).or_default().append(&mut batch_diagnostics);
-            }
-            symbol_tables.push(batch.symbol_tables);
+            let Self { diagnostics, symbol_tables, .. } = batch;
+            accumulator.push(AnalysisResult { diagnostics, symbol_tables });
         }
-        merged.symbol_tables = symbol_tables.finish();
-        merged
+        let AnalysisResult { diagnostics, symbol_tables } = accumulator.finish();
+        Self { root, diagnostics, symbol_tables, default_uri }
     }
 
     /// Execute one synchronous query against the analyzed symbol tables.

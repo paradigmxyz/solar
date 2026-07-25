@@ -1,11 +1,13 @@
-use super::{AnalysisBatch, GlobalState, SymbolTables, analyze, support::RequestFixture};
+use super::{
+    AnalysisBatch, GlobalState, SymbolTables, analyze,
+    support::{
+        RequestFixture, type_hierarchy_prepare_params, type_hierarchy_subtypes_params,
+        type_hierarchy_supertypes_params,
+    },
+};
 use crate::test_support::TestProject;
 use async_lsp::ClientSocket;
-use lsp_types::{
-    PartialResultParams, Position, Range, SymbolKind, SymbolTag, TextDocumentIdentifier,
-    TextDocumentPositionParams, TypeHierarchyItem, TypeHierarchyPrepareParams,
-    TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, Url, WorkDoneProgressParams,
-};
+use lsp_types::{Position, Range, SymbolKind, SymbolTag, TypeHierarchyItem, Url};
 use serde_json::json;
 use solar_config::CompileOpts;
 use std::{
@@ -538,15 +540,15 @@ fn requests_read_the_latest_published_analysis() {
 
     let mut prepare = std::pin::pin!(crate::handlers::prepare_type_hierarchy(
         &mut state,
-        prepare_params(uri, Position::new(0, 10)),
+        type_hierarchy_prepare_params(uri, Position::new(0, 10)),
     ));
     let mut supertypes = std::pin::pin!(crate::handlers::type_hierarchy_supertypes(
         &mut state,
-        supertypes_params(super_child),
+        type_hierarchy_supertypes_params(super_child),
     ));
     let mut subtypes = std::pin::pin!(crate::handlers::type_hierarchy_subtypes(
         &mut state,
-        subtypes_params(sub_base),
+        type_hierarchy_subtypes_params(sub_base),
     ));
     let waker = Waker::noop();
     let mut context = Context::from_waker(waker);
@@ -583,15 +585,15 @@ fn requests_capture_the_analysis_epoch_when_created() {
 
     let mut prepare = std::pin::pin!(crate::handlers::prepare_type_hierarchy(
         &mut state,
-        prepare_params(uri, Position::new(0, 10)),
+        type_hierarchy_prepare_params(uri, Position::new(0, 10)),
     ));
     let mut supertypes = std::pin::pin!(crate::handlers::type_hierarchy_supertypes(
         &mut state,
-        supertypes_params(child),
+        type_hierarchy_supertypes_params(child),
     ));
     let mut subtypes = std::pin::pin!(crate::handlers::type_hierarchy_subtypes(
         &mut state,
-        subtypes_params(base),
+        type_hierarchy_subtypes_params(base),
     ));
 
     state.mark_analysis_pending_for_test();
@@ -675,32 +677,6 @@ fn analyze_tables(path: &std::path::Path, source: &str) -> SymbolTables {
         [(path.to_path_buf(), source.to_owned())],
     ))
     .symbol_tables
-}
-
-fn prepare_params(uri: Url, position: Position) -> TypeHierarchyPrepareParams {
-    TypeHierarchyPrepareParams {
-        text_document_position_params: TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier::new(uri),
-            position,
-        },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-    }
-}
-
-fn supertypes_params(item: TypeHierarchyItem) -> TypeHierarchySupertypesParams {
-    TypeHierarchySupertypesParams {
-        item,
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    }
-}
-
-fn subtypes_params(item: TypeHierarchyItem) -> TypeHierarchySubtypesParams {
-    TypeHierarchySubtypesParams {
-        item,
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    }
 }
 
 fn ready_names(

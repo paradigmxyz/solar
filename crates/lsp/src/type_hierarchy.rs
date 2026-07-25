@@ -1,3 +1,9 @@
+//! Type hierarchy indexing.
+//!
+//! The index retains declaration items and direct hierarchy edges as facts that can be merged
+//! across analysis batches. After merging, [`TypeHierarchyIndex::rebuild`] derives the canonical
+//! query indexes that are published to request handlers.
+
 use crate::symbols::{DeclarationSymbol, SymbolId};
 use lsp_types::{Range, SymbolKind, TypeHierarchyItem, Url};
 use serde::{Deserialize, Serialize};
@@ -15,12 +21,18 @@ const DATA_VERSION: u8 = 1;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct TypeHierarchyIndex {
-    raw_nodes: FxHashMap<SymbolId, TypeHierarchyItem>,
-    raw_edges: Vec<(SymbolId, SymbolId)>,
-    nodes: FxHashMap<NodeKey, SymbolId>,
-    symbol_keys: FxHashMap<SymbolId, NodeKey>,
-    direct_bases: FxHashMap<NodeKey, Vec<NodeKey>>,
-    direct_children: FxHashMap<NodeKey, Vec<NodeKey>>,
+    items_by_symbol: FxHashMap<SymbolId, TypeHierarchyItem>,
+    direct_edges: Vec<HierarchyEdge>,
+    canonical_symbol_by_key: FxHashMap<NodeKey, SymbolId>,
+    key_by_symbol: FxHashMap<SymbolId, NodeKey>,
+    bases_by_key: FxHashMap<NodeKey, Vec<NodeKey>>,
+    children_by_key: FxHashMap<NodeKey, Vec<NodeKey>>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct HierarchyEdge {
+    derived: SymbolId,
+    base: SymbolId,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -61,8 +73,8 @@ impl TypeHierarchyIndex {
         let mut index = Self::default();
 
         for item_id in gcx.hir.item_ids() {
-            let Some((name, kind)) = node_presentation(gcx, item_id) else { continue };
             let Some(&symbol_id) = item_symbols.get(&item_id) else { continue };
+            let Some((name, kind)) = node_presentation(gcx, item_id) else { continue };
             let declaration = &declarations[symbol_id];
             let uri = declaration.location.uri.clone();
             let selection_range = declaration.name_range;
@@ -80,20 +92,20 @@ impl TypeHierarchyIndex {
                     serde_json::to_value(data).expect("type hierarchy data is serializable"),
                 ),
             };
-            index.raw_nodes.insert(symbol_id, item);
+            index.items_by_symbol.insert(symbol_id, item);
 
             match item_id {
                 ItemId::Contract(id) => {
                     for &base_id in gcx.hir.contract(id).bases {
                         if let Some(&base) = item_symbols.get(&ItemId::Contract(base_id)) {
-                            index.raw_edges.push((symbol_id, base));
+                            index.direct_edges.push(HierarchyEdge { derived: symbol_id, base });
                         }
                     }
                 }
                 ItemId::Function(_) | ItemId::Variable(_) => {
                     for &base_item in gcx.base_override_items(item_id) {
                         if let Some(&base) = item_symbols.get(&base_item) {
-                            index.raw_edges.push((symbol_id, base));
+                            index.direct_edges.push(HierarchyEdge { derived: symbol_id, base });
                         }
                     }
                 }
@@ -109,55 +121,58 @@ impl TypeHierarchyIndex {
     }
 
     pub(crate) fn extend(&mut self, other: Self, symbol_offset: usize) {
-        self.raw_nodes.extend(
+        self.items_by_symbol.extend(
             other
-                .raw_nodes
+                .items_by_symbol
                 .into_iter()
                 .map(|(symbol_id, item)| (remap_symbol_id(symbol_id, symbol_offset), item)),
         );
-        self.raw_edges.extend(other.raw_edges.into_iter().map(|(derived, base)| {
-            (remap_symbol_id(derived, symbol_offset), remap_symbol_id(base, symbol_offset))
+        self.direct_edges.extend(other.direct_edges.into_iter().map(|edge| HierarchyEdge {
+            derived: remap_symbol_id(edge.derived, symbol_offset),
+            base: remap_symbol_id(edge.base, symbol_offset),
         }));
-        self.clear_derived();
+        self.invalidate_query_indexes();
     }
 
     pub(crate) fn rebuild(&mut self, conflicting_contents: &FxHashSet<Url>) {
-        self.clear_derived();
+        self.invalidate_query_indexes();
 
-        for (&symbol_id, item) in &self.raw_nodes {
+        for (&symbol_id, item) in &self.items_by_symbol {
             if conflicting_contents.contains(&item.uri) {
                 continue;
             }
             let key = NodeKey { uri: item.uri.clone(), selection_range: item.selection_range };
-            self.symbol_keys.insert(symbol_id, key.clone());
-            match self.nodes.get_mut(&key) {
-                Some(existing) if item_order(item, &self.raw_nodes[existing]).is_lt() => {
+            self.key_by_symbol.insert(symbol_id, key.clone());
+            match self.canonical_symbol_by_key.get_mut(&key) {
+                Some(existing)
+                    if canonical_item_order(item, &self.items_by_symbol[existing]).is_lt() =>
+                {
                     *existing = symbol_id;
                 }
                 Some(_) => {}
                 None => {
-                    self.nodes.insert(key, symbol_id);
+                    self.canonical_symbol_by_key.insert(key, symbol_id);
                 }
             }
         }
 
-        for &(derived, base) in &self.raw_edges {
+        for edge in &self.direct_edges {
             let (Some(derived), Some(base)) =
-                (self.symbol_keys.get(&derived), self.symbol_keys.get(&base))
+                (self.key_by_symbol.get(&edge.derived), self.key_by_symbol.get(&edge.base))
             else {
                 continue;
             };
             if derived == base {
                 continue;
             }
-            self.direct_bases.entry(derived.clone()).or_default().push(base.clone());
-            self.direct_children.entry(base.clone()).or_default().push(derived.clone());
+            self.bases_by_key.entry(derived.clone()).or_default().push(base.clone());
+            self.children_by_key.entry(base.clone()).or_default().push(derived.clone());
         }
 
-        for bases in self.direct_bases.values_mut() {
+        for bases in self.bases_by_key.values_mut() {
             sort_and_dedup_keys(bases);
         }
-        for children in self.direct_children.values_mut() {
+        for children in self.children_by_key.values_mut() {
             sort_and_dedup_keys(children);
         }
     }
@@ -165,21 +180,25 @@ impl TypeHierarchyIndex {
     pub(crate) fn prepare(&self, symbol_ids: &[SymbolId]) -> Option<Vec<TypeHierarchyItem>> {
         let mut keys = symbol_ids
             .iter()
-            .filter_map(|symbol_id| self.symbol_keys.get(symbol_id))
+            .filter_map(|symbol_id| self.key_by_symbol.get(symbol_id))
             .collect::<Vec<_>>();
         if keys.is_empty() {
             return None;
         }
         sort_and_dedup_keys(&mut keys);
-        Some(keys.into_iter().map(|key| self.raw_nodes[&self.nodes[key]].clone()).collect())
+        Some(
+            keys.into_iter()
+                .map(|key| self.items_by_symbol[&self.canonical_symbol_by_key[key]].clone())
+                .collect(),
+        )
     }
 
     pub(crate) fn supertypes(&self, item: &TypeHierarchyItem) -> Option<Vec<TypeHierarchyItem>> {
-        self.neighbors(item, &self.direct_bases)
+        self.neighbors(item, &self.bases_by_key)
     }
 
     pub(crate) fn subtypes(&self, item: &TypeHierarchyItem) -> Option<Vec<TypeHierarchyItem>> {
-        self.neighbors(item, &self.direct_children)
+        self.neighbors(item, &self.children_by_key)
     }
 
     fn neighbors(
@@ -193,7 +212,9 @@ impl TypeHierarchyIndex {
                 .get(&key)
                 .into_iter()
                 .flatten()
-                .map(|neighbor| self.raw_nodes[&self.nodes[neighbor]].clone())
+                .map(|neighbor| {
+                    self.items_by_symbol[&self.canonical_symbol_by_key[neighbor]].clone()
+                })
                 .collect(),
         )
     }
@@ -204,43 +225,20 @@ impl TypeHierarchyIndex {
             return None;
         }
         let key = NodeKey { uri: data.uri, selection_range: data.selection_range };
-        (self.raw_nodes.get(self.nodes.get(&key)?)? == item).then_some(key)
+        let symbol_id = self.canonical_symbol_by_key.get(&key)?;
+        let canonical_item = self.items_by_symbol.get(symbol_id)?;
+        (canonical_item == item).then_some(key)
     }
 
-    fn clear_derived(&mut self) {
-        self.nodes.clear();
-        self.symbol_keys.clear();
-        self.direct_bases.clear();
-        self.direct_children.clear();
-    }
-}
-
-fn is_eligible_item(gcx: Gcx<'_>, item_id: ItemId) -> bool {
-    match item_id {
-        ItemId::Contract(_) => true,
-        ItemId::Function(id) => {
-            let function = gcx.hir.function(id);
-            !function.is_yul && !function.is_getter()
-        }
-        ItemId::Variable(id) => {
-            let variable = gcx.hir.variable(id);
-            variable.is_state_variable()
-                && variable.is_public()
-                && variable.override_
-                && variable.getter.is_some()
-        }
-        ItemId::Struct(_)
-        | ItemId::Enum(_)
-        | ItemId::Udvt(_)
-        | ItemId::Error(_)
-        | ItemId::Event(_) => false,
+    fn invalidate_query_indexes(&mut self) {
+        self.canonical_symbol_by_key.clear();
+        self.key_by_symbol.clear();
+        self.bases_by_key.clear();
+        self.children_by_key.clear();
     }
 }
 
 fn node_presentation(gcx: Gcx<'_>, item_id: ItemId) -> Option<(String, SymbolKind)> {
-    if !is_eligible_item(gcx, item_id) {
-        return None;
-    }
     Some(match item_id {
         ItemId::Contract(id) => {
             let contract = gcx.hir.contract(id);
@@ -253,6 +251,9 @@ fn node_presentation(gcx: Gcx<'_>, item_id: ItemId) -> Option<(String, SymbolKin
         }
         ItemId::Function(id) => {
             let function = gcx.hir.function(id);
+            if function.is_yul || function.is_getter() {
+                return None;
+            }
             let mut name = String::new();
             if let Some(contract_id) = function.contract {
                 name.push_str(gcx.hir.contract(contract_id).name.as_str());
@@ -282,6 +283,13 @@ fn node_presentation(gcx: Gcx<'_>, item_id: ItemId) -> Option<(String, SymbolKin
         }
         ItemId::Variable(id) => {
             let variable = gcx.hir.variable(id);
+            if !variable.is_state_variable()
+                || !variable.is_public()
+                || !variable.override_
+                || variable.getter.is_none()
+            {
+                return None;
+            }
             let contract_id = variable.contract?;
             let name = variable.name?;
             (format!("{}.{}", gcx.hir.contract(contract_id).name, name), SymbolKind::VARIABLE)
@@ -303,12 +311,9 @@ fn sort_and_dedup_keys<T: Ord>(keys: &mut Vec<T>) {
     keys.dedup();
 }
 
-fn item_order(a: &TypeHierarchyItem, b: &TypeHierarchyItem) -> Ordering {
-    a.uri
-        .as_str()
-        .cmp(b.uri.as_str())
-        .then_with(|| range_key(a.selection_range).cmp(&range_key(b.selection_range)))
-        .then_with(|| range_key(a.range).cmp(&range_key(b.range)))
+fn canonical_item_order(a: &TypeHierarchyItem, b: &TypeHierarchyItem) -> Ordering {
+    range_key(a.range)
+        .cmp(&range_key(b.range))
         .then_with(|| a.name.cmp(&b.name))
         .then_with(|| hierarchy_kind_order(a.kind).cmp(&hierarchy_kind_order(b.kind)))
 }

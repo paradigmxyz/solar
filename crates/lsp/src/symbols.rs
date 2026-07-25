@@ -90,8 +90,6 @@ impl SymbolTablesAggregator {
         if needs_rebuild {
             tables.rebuild_indexes();
         }
-        // HIR IDs are scoped to one compiler run and cannot back published LSP queries.
-        tables.symbols_by_key.clear();
         tables
     }
 }
@@ -319,6 +317,8 @@ impl SymbolTables {
         tables.build_receiver_member_completions(gcx);
         tables.build_member_completions(gcx);
         tables.build_references(gcx, &item_symbols);
+        // HIR IDs are scoped to this compiler run and cannot back published LSP queries.
+        tables.symbols_by_key = FxHashMap::default();
         tables.document_links = DocumentLinkIndex::build(gcx, document_link_sources);
         tables.inlay_hints = InlayHintIndex::build(gcx);
         tables.natspec_completion = NatSpecCompletionIndex::build(gcx);
@@ -2037,10 +2037,12 @@ fn member_completion_item_kind(gcx: Gcx<'_>, member: Member<'_>) -> CompletionIt
     match member.res {
         Some(res) if res.enum_variant_index(&gcx.hir).is_some() => CompletionItemKind::ENUM_MEMBER,
         Some(res) if res.struct_field_index(&gcx.hir).is_some() => CompletionItemKind::FIELD,
-        Some(Res::Item(item_id)) => completion_item_kind(item_symbol_kind(gcx, item_id)),
-        Some(Res::Namespace(_)) => CompletionItemKind::MODULE,
-        Some(Res::Builtin(_)) => CompletionItemKind::METHOD,
-        Some(Res::Err(_)) | None => CompletionItemKind::FIELD,
+        Some(_) | None => match member.res {
+            Some(Res::Item(item_id)) => completion_item_kind(item_symbol_kind(gcx, item_id)),
+            Some(Res::Namespace(_)) => CompletionItemKind::MODULE,
+            Some(Res::Builtin(_)) => CompletionItemKind::METHOD,
+            Some(Res::Err(_)) | None => CompletionItemKind::FIELD,
+        },
     }
 }
 

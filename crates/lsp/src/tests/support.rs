@@ -1,5 +1,7 @@
-use super::super::{AnalysisBatch, AnalysisResult, GlobalState, analyze};
-use crate::{symbols::SymbolTablesAggregator, test_support::MarkedProject};
+use super::super::{
+    AnalysisBatch, AnalysisResult, AnalysisResultAccumulator, GlobalState, analyze,
+};
+use crate::test_support::MarkedProject;
 use async_lsp::{ClientSocket, ErrorCode};
 use lsp_types::{
     CompletionContext, CompletionItem, CompletionParams, CompletionResponse, CompletionTextEdit,
@@ -66,23 +68,19 @@ impl RequestFixture {
         paths: &[&str],
         open_file: Option<(&str, String)>,
     ) -> Self {
-        let mut result =
-            AnalysisResult { diagnostics: Default::default(), symbol_tables: Default::default() };
-        let mut symbol_tables = SymbolTablesAggregator::default();
+        let mut results = AnalysisResultAccumulator::default();
         for path in paths {
             let contents = open_file
                 .as_ref()
                 .filter(|(open_path, _)| open_path == path)
                 .map_or_else(|| marked.project().read_file(path), |(_, contents)| contents.clone());
             let path = marked.project().path(path);
-            let batch =
-                analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, contents)]));
-            symbol_tables.push(batch.symbol_tables);
-            for (uri, mut diagnostics) in batch.diagnostics {
-                result.diagnostics.entry(uri).or_default().append(&mut diagnostics);
-            }
+            results.push(analyze(AnalysisBatch::from_files(
+                CompileOpts::default(),
+                [(path, contents)],
+            )));
         }
-        result.symbol_tables = symbol_tables.finish();
+        let result = results.finish();
         assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
         Self { marked, result }
     }
@@ -1117,14 +1115,19 @@ fn goto_params(uri: Url, position: Position) -> GotoDefinitionParams {
     }
 }
 
-fn type_hierarchy_prepare_params(uri: Url, position: Position) -> TypeHierarchyPrepareParams {
+pub(super) fn type_hierarchy_prepare_params(
+    uri: Url,
+    position: Position,
+) -> TypeHierarchyPrepareParams {
     TypeHierarchyPrepareParams {
         text_document_position_params: text_document_position(uri, position),
         work_done_progress_params: WorkDoneProgressParams::default(),
     }
 }
 
-fn type_hierarchy_supertypes_params(item: TypeHierarchyItem) -> TypeHierarchySupertypesParams {
+pub(super) fn type_hierarchy_supertypes_params(
+    item: TypeHierarchyItem,
+) -> TypeHierarchySupertypesParams {
     TypeHierarchySupertypesParams {
         item,
         work_done_progress_params: WorkDoneProgressParams::default(),
@@ -1132,7 +1135,9 @@ fn type_hierarchy_supertypes_params(item: TypeHierarchyItem) -> TypeHierarchySup
     }
 }
 
-fn type_hierarchy_subtypes_params(item: TypeHierarchyItem) -> TypeHierarchySubtypesParams {
+pub(super) fn type_hierarchy_subtypes_params(
+    item: TypeHierarchyItem,
+) -> TypeHierarchySubtypesParams {
     TypeHierarchySubtypesParams {
         item,
         work_done_progress_params: WorkDoneProgressParams::default(),
