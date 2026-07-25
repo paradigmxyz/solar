@@ -65,11 +65,12 @@ impl RunState {
 struct StorageAliases<T> {
     slots: FxHashMap<U256, T>,
     symbolic: FxHashMap<StorageAlias, T>,
+    symbolic_base: Option<ValueId>,
 }
 
 impl<T> Default for StorageAliases<T> {
     fn default() -> Self {
-        Self { slots: FxHashMap::default(), symbolic: FxHashMap::default() }
+        Self { slots: FxHashMap::default(), symbolic: FxHashMap::default(), symbolic_base: None }
     }
 }
 
@@ -77,6 +78,7 @@ impl<T> StorageAliases<T> {
     fn clear(&mut self) {
         self.slots.clear();
         self.symbolic.clear();
+        self.symbolic_base = None;
     }
 
     fn get(&self, alias: StorageAlias) -> Option<&T> {
@@ -92,22 +94,44 @@ impl<T> StorageAliases<T> {
                 self.slots.insert(slot, value);
             }
             alias => {
+                let base = alias.symbolic_base().expect("symbolic alias has a base");
+                if self.symbolic_base.is_some_and(|current| current != base) {
+                    self.symbolic.clear();
+                }
+                self.symbolic_base = Some(base);
                 self.symbolic.insert(alias, value);
             }
         }
     }
 
-    fn remove_aliasing(&mut self, aa: &AliasAnalysis, alias: StorageAlias) {
+    fn remove_aliasing(&mut self, alias: StorageAlias) {
         match alias {
             StorageAlias::Slot(slot) => {
                 self.slots.remove(&slot);
                 self.symbolic.clear();
+                self.symbolic_base = None;
             }
-            alias => {
+            StorageAlias::Symbolic(base) => {
                 self.slots.clear();
-                self.symbolic.retain(|cached, _| {
-                    !aa.alias(Location::Storage(*cached), Location::Storage(alias)).may_alias()
-                });
+                if self.symbolic_base != Some(base) {
+                    self.symbolic.clear();
+                    self.symbolic_base = None;
+                    return;
+                }
+                self.symbolic.remove(&StorageAlias::Symbolic(base));
+                self.symbolic.remove(&StorageAlias::Offset { base, offset: U256::ZERO });
+            }
+            StorageAlias::Offset { base, offset } => {
+                self.slots.clear();
+                if self.symbolic_base != Some(base) {
+                    self.symbolic.clear();
+                    self.symbolic_base = None;
+                    return;
+                }
+                self.symbolic.remove(&StorageAlias::Offset { base, offset });
+                if offset.is_zero() {
+                    self.symbolic.remove(&StorageAlias::Symbolic(base));
+                }
             }
         }
     }
@@ -175,16 +199,16 @@ impl StorageStoreEliminator {
                         continue;
                     }
 
-                    later_writes.remove_aliasing(aa, alias);
+                    later_writes.remove_aliasing(alias);
                     later_writes.insert(alias, ());
                 }
                 InstKind::SLoad(slot) => {
                     let alias = aa.storage_alias(func, inst_id, *slot);
-                    later_writes.remove_aliasing(aa, alias);
+                    later_writes.remove_aliasing(alias);
                 }
                 _ => {
                     let effects = aa.instruction_mod_ref(func, inst_id);
-                    Self::apply_reverse_effects(aa, &effects, later_writes);
+                    Self::apply_reverse_effects(&effects, later_writes);
                 }
             }
         }
@@ -217,12 +241,12 @@ impl StorageStoreEliminator {
                         continue;
                     }
 
-                    stored_values.remove_aliasing(aa, alias);
+                    stored_values.remove_aliasing(alias);
                     stored_values.insert(alias, *value);
                 }
                 _ => {
                     let effects = aa.instruction_mod_ref(func, inst_id);
-                    Self::apply_forward_writes(aa, &effects, stored_values);
+                    Self::apply_forward_writes(&effects, stored_values);
                 }
             }
         }
@@ -234,11 +258,7 @@ impl StorageStoreEliminator {
         func.blocks[block_id].instructions.retain(|&id| !dead.contains(id));
     }
 
-    fn apply_reverse_effects(
-        aa: &AliasAnalysis,
-        effects: &ModRef,
-        later_writes: &mut StorageAliases<()>,
-    ) {
+    fn apply_reverse_effects(effects: &ModRef, later_writes: &mut StorageAliases<()>) {
         if effects.reads_anywhere(AddressSpace::Storage)
             || effects.writes_anywhere(AddressSpace::Storage)
         {
@@ -248,29 +268,25 @@ impl StorageStoreEliminator {
 
         for &access in effects.reads() {
             if let Access::Location(Location::Storage(alias)) = access {
-                later_writes.remove_aliasing(aa, alias);
+                later_writes.remove_aliasing(alias);
             }
         }
         for &access in effects.writes() {
             if let Access::Location(Location::Storage(alias)) = access {
-                later_writes.remove_aliasing(aa, alias);
+                later_writes.remove_aliasing(alias);
                 later_writes.insert(alias, ());
             }
         }
     }
 
-    fn apply_forward_writes(
-        aa: &AliasAnalysis,
-        effects: &ModRef,
-        stored_values: &mut StorageAliases<ValueId>,
-    ) {
+    fn apply_forward_writes(effects: &ModRef, stored_values: &mut StorageAliases<ValueId>) {
         if effects.writes_anywhere(AddressSpace::Storage) {
             stored_values.clear();
             return;
         }
         for &access in effects.writes() {
             if let Access::Location(Location::Storage(alias)) = access {
-                stored_values.remove_aliasing(aa, alias);
+                stored_values.remove_aliasing(alias);
             }
         }
     }
