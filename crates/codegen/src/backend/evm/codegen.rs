@@ -220,7 +220,7 @@ impl GlobalStackPlan {
             }
         }
 
-        // Switch lowering owns the selector stack, and stack-phi loop headers
+        // Switch lowering owns the selector stack, and stack-phi entries
         // own their edge layouts. Disable their whole branch-sibling component
         // so every predecessor of every affected block still agrees.
         let mut disabled = DenseBitSet::new_empty(func.blocks.len());
