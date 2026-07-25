@@ -23,6 +23,9 @@ impl EvmPass for Outline {
 }
 
 const MIN_CLOSED_RUN: usize = 4;
+// Bound substring enumeration while still letting long repeated regions be
+// outlined as several disjoint windows.
+const MAX_CLOSED_RUN: usize = 256;
 
 type BlockEdits = SmallVec<[(usize, usize, BlockId); 1]>;
 type OutlineEdits = FxHashMap<BlockId, BlockEdits>;
@@ -57,7 +60,8 @@ fn outline_closed_computations(module: &mut Module, state: &mut RunState) -> boo
                 continue;
             }
             let mut height = 0i32;
-            for end in start..block.instructions.len() {
+            let end = block.instructions.len().min(start + MAX_CLOSED_RUN);
+            for end in start..end {
                 let Some((reads, pops, pushes)) = effects[end] else { break };
                 if height < i32::from(reads) {
                     break;
@@ -209,7 +213,7 @@ impl SubstringRanks {
                     .collect()
             })
             .collect::<Vec<Vec<_>>>();
-        let max_len = base.iter().map(Vec::len).max().unwrap_or(0);
+        let max_len = base.iter().map(Vec::len).max().unwrap_or(0).min(MAX_CLOSED_RUN);
         let mut levels = vec![base];
         let mut width = 2;
         while width <= max_len {
