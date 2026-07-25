@@ -24,7 +24,7 @@ use crate::{
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     index::{IndexVec, index_vec},
-    map::FxHashMap,
+    map::{FxHashMap, FxHashSet},
 };
 
 /// Function pass for internal-frame scalar promotion.
@@ -121,12 +121,14 @@ impl From<PromotableSlot> for PromotedSlot {
 struct SlotLoad {
     block: BlockId,
     inst: InstId,
+    position: usize,
 }
 
 #[derive(Clone, Copy, Debug)]
 struct SlotStore {
     block: BlockId,
     inst: InstId,
+    position: usize,
     value: ValueId,
 }
 
@@ -152,14 +154,14 @@ impl SlotAccessInfo {
         }
     }
 
-    fn note_load(&mut self, block: BlockId, inst: InstId) {
-        self.loads.push(SlotLoad { block, inst });
+    fn note_load(&mut self, block: BlockId, inst: InstId, position: usize) {
+        self.loads.push(SlotLoad { block, inst, position });
         self.use_blocks.insert(block);
         self.access_blocks.insert(block);
     }
 
-    fn note_store(&mut self, block: BlockId, inst: InstId, value: ValueId) {
-        self.stores.push(SlotStore { block, inst, value });
+    fn note_store(&mut self, block: BlockId, inst: InstId, position: usize, value: ValueId) {
+        self.stores.push(SlotStore { block, inst, position, value });
         self.def_blocks.insert(block);
         self.access_blocks.insert(block);
     }
@@ -184,7 +186,6 @@ struct PendingPhi {
 struct SlotSsaBuilder<'a> {
     info: &'a SlotAccessInfo,
     cfg: &'a CfgInfo,
-    inst_results: &'a FxHashMap<InstId, ValueId>,
     aa: &'a AliasAnalysis,
     replacements: FxHashMap<ValueId, ValueId>,
     dead: GrowableBitSet<InstId>,
@@ -227,20 +228,25 @@ impl FrameSlotPromoter {
             return self.stats;
         };
 
+        let mut replacements = FxHashMap::default();
+        let mut dead = GrowableBitSet::with_capacity(func.num_insts());
+        let mut phis = Vec::new();
         for info in slots {
-            let inst_results = func.inst_results();
-            let mut builder =
-                SlotSsaBuilder::new(&info, &cfg, &inst_results, &aa, func.num_insts());
+            let mut builder = SlotSsaBuilder::new(&info, &cfg, &aa, func.num_insts());
             if builder.run(func) {
                 self.stats.slots_promoted += 1;
                 self.stats.loads_promoted += builder.loads_promoted;
                 self.stats.stores_promoted += builder.stores_promoted;
                 self.stats.phis_inserted += builder.phis.len();
                 self.summaries.push(builder.summary());
-                builder.apply(func);
-                aa.clear_cached_addresses();
+                replacements.extend(builder.replacements);
+                for inst in &builder.dead {
+                    dead.insert(inst);
+                }
+                phis.extend(builder.phis.into_values());
             }
         }
+        Self::apply_promotions(func, replacements, &dead, phis);
 
         self.stats
     }
@@ -262,7 +268,7 @@ impl FrameSlotPromoter {
                 continue;
             }
 
-            for &inst_id in &block.instructions {
+            for (position, &inst_id) in block.instructions.iter().enumerate() {
                 let kind = &func.inst(inst_id).kind;
                 match *kind {
                     InstKind::MLoad(addr) => {
@@ -270,7 +276,7 @@ impl FrameSlotPromoter {
                             accesses
                                 .entry(slot)
                                 .or_insert_with(|| SlotAccessInfo::new(slot, func.blocks.len()))
-                                .note_load(block_id, inst_id);
+                                .note_load(block_id, inst_id, position);
                         }
                     }
                     InstKind::MStore(addr, value) => {
@@ -278,7 +284,7 @@ impl FrameSlotPromoter {
                             accesses
                                 .entry(slot)
                                 .or_insert_with(|| SlotAccessInfo::new(slot, func.blocks.len()))
-                                .note_store(block_id, inst_id, value);
+                                .note_store(block_id, inst_id, position, value);
                         }
                     }
                     _ => {}
@@ -286,12 +292,25 @@ impl FrameSlotPromoter {
             }
         }
 
+        let internal_offsets = {
+            let mut offsets: Vec<_> = accesses
+                .keys()
+                .filter_map(|slot| match *slot {
+                    PromotableSlot::InternalFrame(offset) => Some(offset),
+                    PromotableSlot::ExternalLocal(_) => None,
+                })
+                .collect();
+            offsets.sort_unstable();
+            offsets
+        };
+        let (all_internal_unsafe, unsafe_internal) =
+            Self::unsafe_internal_frame_slots(func, aa, &internal_offsets);
         let mut slots: Vec<SlotAccessInfo> = accesses
             .into_values()
             .filter(|info| !info.loads.is_empty() && !info.stores.is_empty())
             .filter(|info| match info.slot {
                 PromotableSlot::InternalFrame(offset) => {
-                    Self::internal_frame_slot_safe(func, aa, offset)
+                    !all_internal_unsafe && !unsafe_internal.contains(&offset)
                 }
                 PromotableSlot::ExternalLocal(addr) => {
                     Self::external_local_slot_safe(func, aa, addr)
@@ -300,6 +319,30 @@ impl FrameSlotPromoter {
             .collect();
         slots.sort_by_key(|info| info.slot);
         slots
+    }
+
+    fn apply_promotions(
+        func: &mut Function,
+        replacements: FxHashMap<ValueId, ValueId>,
+        dead: &GrowableBitSet<InstId>,
+        phis: Vec<PendingPhi>,
+    ) {
+        for pending in phis {
+            let mut incoming = pending.incoming;
+            incoming.sort_by_key(|(block, _)| block.index());
+            func.inst_mut(pending.inst).kind = InstKind::Phi(incoming);
+            let insert_pos = func.blocks[pending.block]
+                .instructions
+                .iter()
+                .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+                .count();
+            func.blocks[pending.block].instructions.insert(insert_pos, pending.inst);
+        }
+
+        func.replace_uses_canonicalized(&replacements);
+        for block in func.blocks.iter_mut() {
+            block.instructions.retain(|&id| !dead.contains(id));
+        }
     }
 
     fn promotable_slot(
@@ -375,140 +418,281 @@ impl FrameSlotPromoter {
         true
     }
 
-    fn internal_frame_slot_safe(func: &Function, aa: &AliasAnalysis, slot_offset: u64) -> bool {
-        for block in func.blocks.iter() {
-            for &inst_id in &block.instructions {
-                if Self::inst_may_observe_internal_slot(
-                    func,
-                    aa,
-                    &func.inst(inst_id).kind,
-                    slot_offset,
-                ) {
-                    return false;
-                }
-            }
-            if let Some(term) = &block.terminator
-                && Self::terminator_may_observe_internal_slot(func, aa, term, slot_offset)
-            {
-                return false;
+    fn unsafe_internal_frame_slots(
+        func: &Function,
+        aa: &AliasAnalysis,
+        candidates: &[u64],
+    ) -> (bool, FxHashSet<u64>) {
+        let mut unsafe_slots = FxHashSet::default();
+        for inst_id in func.instructions() {
+            if Self::mark_internal_frame_inst(
+                func,
+                aa,
+                &func.inst(inst_id).kind,
+                candidates,
+                &mut unsafe_slots,
+            ) {
+                return (true, unsafe_slots);
             }
         }
-
-        true
+        for block in func.blocks.iter() {
+            if let Some(term) = &block.terminator
+                && Self::mark_internal_frame_terminator(
+                    func,
+                    aa,
+                    term,
+                    candidates,
+                    &mut unsafe_slots,
+                )
+            {
+                return (true, unsafe_slots);
+            }
+        }
+        (false, unsafe_slots)
     }
 
-    fn inst_may_observe_internal_slot(
+    fn mark_internal_frame_inst(
         func: &Function,
         aa: &AliasAnalysis,
         kind: &InstKind,
-        slot_offset: u64,
+        candidates: &[u64],
+        unsafe_slots: &mut FxHashSet<u64>,
     ) -> bool {
         match *kind {
             InstKind::MLoad(addr) => {
-                !Self::is_exact_internal_slot_access(func, aa, addr, slot_offset)
-                    && Self::internal_frame_range_may_overlap(func, aa, addr, Some(32), slot_offset)
+                let exact = Self::internal_frame_offset(func, aa, addr);
+                Self::mark_internal_frame_range(
+                    func,
+                    aa,
+                    addr,
+                    Some(32),
+                    exact,
+                    candidates,
+                    unsafe_slots,
+                )
             }
             InstKind::MStore(addr, value) => {
-                (!Self::is_exact_internal_slot_access(func, aa, addr, slot_offset)
-                    && Self::internal_frame_range_may_overlap(
-                        func,
-                        aa,
-                        addr,
-                        Some(32),
-                        slot_offset,
-                    ))
-                    || Self::internal_frame_offset(func, aa, value) == Some(slot_offset)
+                Self::mark_internal_frame_value(func, aa, value, candidates, unsafe_slots);
+                let exact = Self::internal_frame_offset(func, aa, addr);
+                Self::mark_internal_frame_range(
+                    func,
+                    aa,
+                    addr,
+                    Some(32),
+                    exact,
+                    candidates,
+                    unsafe_slots,
+                )
             }
-            InstKind::MStore8(addr, _) => {
-                Self::internal_frame_range_may_overlap(func, aa, addr, Some(1), slot_offset)
-            }
+            InstKind::MStore8(addr, _) => Self::mark_internal_frame_range(
+                func,
+                aa,
+                addr,
+                Some(1),
+                None,
+                candidates,
+                unsafe_slots,
+            ),
             InstKind::Keccak256(addr, size)
             | InstKind::Log0(addr, size)
             | InstKind::ReturnDataCopy(addr, _, size)
             | InstKind::CodeCopy(addr, _, size)
-            | InstKind::CalldataCopy(addr, _, size) => Self::internal_frame_range_may_overlap(
+            | InstKind::CalldataCopy(addr, _, size) => Self::mark_internal_frame_range(
                 func,
                 aa,
                 addr,
                 func.value_u64(size),
-                slot_offset,
+                None,
+                candidates,
+                unsafe_slots,
             ),
             InstKind::MCopy(dest, src, size) => {
                 let size = func.value_u64(size);
-                Self::internal_frame_range_may_overlap(func, aa, dest, size, slot_offset)
-                    || Self::internal_frame_range_may_overlap(func, aa, src, size, slot_offset)
+                Self::mark_internal_frame_range(
+                    func,
+                    aa,
+                    dest,
+                    size,
+                    None,
+                    candidates,
+                    unsafe_slots,
+                ) || Self::mark_internal_frame_range(
+                    func,
+                    aa,
+                    src,
+                    size,
+                    None,
+                    candidates,
+                    unsafe_slots,
+                )
             }
-            InstKind::ExtCodeCopy(_, dest, _, size) => Self::internal_frame_range_may_overlap(
+            InstKind::ExtCodeCopy(_, dest, _, size) => Self::mark_internal_frame_range(
                 func,
                 aa,
                 dest,
                 func.value_u64(size),
-                slot_offset,
+                None,
+                candidates,
+                unsafe_slots,
             ),
             InstKind::Log1(addr, size, _)
             | InstKind::Log2(addr, size, _, _)
             | InstKind::Log3(addr, size, _, _, _)
-            | InstKind::Log4(addr, size, _, _, _, _) => Self::internal_frame_range_may_overlap(
+            | InstKind::Log4(addr, size, _, _, _, _) => Self::mark_internal_frame_range(
                 func,
                 aa,
                 addr,
                 func.value_u64(size),
-                slot_offset,
+                None,
+                candidates,
+                unsafe_slots,
             ),
             InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::DelegateCall { args_offset, args_size, ret_offset, ret_size, .. } => {
-                Self::internal_frame_range_may_overlap(
+                Self::mark_internal_frame_range(
                     func,
                     aa,
                     args_offset,
                     func.value_u64(args_size),
-                    slot_offset,
-                ) || Self::internal_frame_range_may_overlap(
+                    None,
+                    candidates,
+                    unsafe_slots,
+                ) || Self::mark_internal_frame_range(
                     func,
                     aa,
                     ret_offset,
                     func.value_u64(ret_size),
-                    slot_offset,
+                    None,
+                    candidates,
+                    unsafe_slots,
                 )
             }
             InstKind::Add(a, b) => {
                 let exact_frame_addr = Self::internal_frame_add_offset(func, aa, a, b, 0)
                     .or_else(|| Self::internal_frame_add_offset(func, aa, b, a, 0))
                     .is_some();
-                !exact_frame_addr
-                    && kind.operands().iter().any(|&value| {
-                        Self::internal_frame_offset(func, aa, value) == Some(slot_offset)
-                    })
+                if !exact_frame_addr {
+                    Self::mark_internal_frame_operands(
+                        func,
+                        aa,
+                        kind.operands(),
+                        candidates,
+                        unsafe_slots,
+                    );
+                }
+                false
             }
-            _ => kind
-                .operands()
-                .iter()
-                .any(|&value| Self::internal_frame_offset(func, aa, value) == Some(slot_offset)),
+            _ => {
+                Self::mark_internal_frame_operands(
+                    func,
+                    aa,
+                    kind.operands(),
+                    candidates,
+                    unsafe_slots,
+                );
+                false
+            }
         }
     }
 
-    fn terminator_may_observe_internal_slot(
+    fn mark_internal_frame_terminator(
         func: &Function,
         aa: &AliasAnalysis,
         term: &Terminator,
-        slot_offset: u64,
+        candidates: &[u64],
+        unsafe_slots: &mut FxHashSet<u64>,
     ) -> bool {
         match term {
             Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                Self::internal_frame_range_may_overlap(
+                Self::mark_internal_frame_range(
                     func,
                     aa,
                     *offset,
                     func.value_u64(*size),
-                    slot_offset,
+                    None,
+                    candidates,
+                    unsafe_slots,
                 )
             }
-            _ => term
-                .operands()
-                .iter()
-                .any(|&value| Self::internal_frame_offset(func, aa, value) == Some(slot_offset)),
+            _ => {
+                Self::mark_internal_frame_operands(
+                    func,
+                    aa,
+                    term.operands(),
+                    candidates,
+                    unsafe_slots,
+                );
+                false
+            }
         }
+    }
+
+    fn mark_internal_frame_operands(
+        func: &Function,
+        aa: &AliasAnalysis,
+        operands: impl IntoIterator<Item = ValueId>,
+        candidates: &[u64],
+        unsafe_slots: &mut FxHashSet<u64>,
+    ) {
+        for value in operands {
+            Self::mark_internal_frame_value(func, aa, value, candidates, unsafe_slots);
+        }
+    }
+
+    fn mark_internal_frame_value(
+        func: &Function,
+        aa: &AliasAnalysis,
+        value: ValueId,
+        candidates: &[u64],
+        unsafe_slots: &mut FxHashSet<u64>,
+    ) {
+        if let Some(offset) = Self::internal_frame_offset(func, aa, value)
+            && candidates.binary_search(&offset).is_ok()
+        {
+            unsafe_slots.insert(offset);
+        }
+    }
+
+    fn mark_internal_frame_range(
+        func: &Function,
+        aa: &AliasAnalysis,
+        addr: ValueId,
+        size: Option<u64>,
+        exclude: Option<u64>,
+        candidates: &[u64],
+        unsafe_slots: &mut FxHashSet<u64>,
+    ) -> bool {
+        let Some(start) =
+            aa.memory_address(func, addr).and_then(MemoryAddress::as_internal_frame_offset)
+        else {
+            return false;
+        };
+        let Some(size) = size else { return true };
+        if size == 0 {
+            return false;
+        }
+        let Some(end) = start.checked_add(size) else {
+            for &candidate in candidates {
+                if Some(candidate) != exclude {
+                    unsafe_slots.insert(candidate);
+                }
+            }
+            return false;
+        };
+
+        let first = candidates.partition_point(|&candidate| {
+            candidate.checked_add(EvmMemoryLayout::WORD_SIZE).is_some_and(|end| end <= start)
+        });
+        for &candidate in &candidates[first..] {
+            if candidate >= end && candidate.checked_add(EvmMemoryLayout::WORD_SIZE).is_some() {
+                break;
+            }
+            if Some(candidate) != exclude {
+                unsafe_slots.insert(candidate);
+            }
+        }
+        false
     }
 
     fn inst_may_observe_external_slot(
@@ -589,39 +773,6 @@ impl FrameSlotPromoter {
         Self::external_local_addr(func, aa, addr) == Some(slot_addr)
     }
 
-    fn is_exact_internal_slot_access(
-        func: &Function,
-        aa: &AliasAnalysis,
-        addr: ValueId,
-        slot_offset: u64,
-    ) -> bool {
-        Self::internal_frame_offset(func, aa, addr) == Some(slot_offset)
-    }
-
-    fn internal_frame_range_may_overlap(
-        func: &Function,
-        aa: &AliasAnalysis,
-        addr: ValueId,
-        size: Option<u64>,
-        slot_offset: u64,
-    ) -> bool {
-        let Some(address) = aa.memory_address(func, addr) else {
-            return false;
-        };
-        if address.as_internal_frame_offset().is_none() {
-            return false;
-        }
-        let Some(size) = size else { return true };
-        aa.memory_alias(
-            MemoryLocation::new(address, LocationSize::Const(size)),
-            MemoryLocation::new(
-                MemoryAddress::internal_frame(slot_offset),
-                LocationSize::Const(32),
-            ),
-        )
-        .may_alias()
-    }
-
     fn memory_range_may_overlap(
         func: &Function,
         aa: &AliasAnalysis,
@@ -645,14 +796,12 @@ impl<'a> SlotSsaBuilder<'a> {
     fn new(
         info: &'a SlotAccessInfo,
         cfg: &'a CfgInfo,
-        inst_results: &'a FxHashMap<InstId, ValueId>,
         aa: &'a AliasAnalysis,
         instruction_count: usize,
     ) -> Self {
         Self {
             info,
             cfg,
-            inst_results,
             aa,
             replacements: FxHashMap::default(),
             dead: GrowableBitSet::with_capacity(instruction_count),
@@ -819,26 +968,6 @@ impl<'a> SlotSsaBuilder<'a> {
         !self.failed
     }
 
-    fn apply(self, func: &mut Function) {
-        for pending in self.phis.values() {
-            let mut incoming = pending.incoming.clone();
-            incoming.sort_by_key(|(block, _)| block.index());
-            func.inst_mut(pending.inst).kind = InstKind::Phi(incoming);
-            let insert_pos = func.blocks[pending.block]
-                .instructions
-                .iter()
-                .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-                .count();
-            func.blocks[pending.block].instructions.insert(insert_pos, pending.inst);
-        }
-
-        func.replace_uses_canonicalized(&self.replacements);
-
-        for block in func.blocks.iter_mut() {
-            block.instructions.retain(|&id| !self.dead.contains(id));
-        }
-    }
-
     fn rewrite_single_block(&mut self, func: &Function) -> bool {
         if self.info.access_blocks.count() != 1 {
             return false;
@@ -851,25 +980,27 @@ impl<'a> SlotSsaBuilder<'a> {
 
         let mut current = None;
         let mut changed = false;
-        for &inst_id in &func.blocks[block].instructions {
-            match func.inst(inst_id).kind {
-                InstKind::MLoad(addr)
-                    if FrameSlotPromoter::promotable_slot(func, self.aa, addr)
-                        == Some(self.info.slot) =>
-                {
-                    let Some(value) = current else { return false };
-                    self.replace_load(inst_id, value);
-                    changed = true;
-                }
-                InstKind::MStore(addr, value)
-                    if FrameSlotPromoter::promotable_slot(func, self.aa, addr)
-                        == Some(self.info.slot) =>
-                {
-                    current = Some(mir_utils::resolve_replacement(value, &self.replacements));
-                    self.remove_store(inst_id);
-                    changed = true;
-                }
-                _ => {}
+        let mut loads = self.info.loads.iter().peekable();
+        let mut stores = self.info.stores.iter().peekable();
+        while loads.peek().is_some() || stores.peek().is_some() {
+            let next_is_load = match (loads.peek(), stores.peek()) {
+                (Some(load), Some(store)) => load.position < store.position,
+                (Some(_), None) => true,
+                (None, Some(_)) => false,
+                (None, None) => unreachable!(),
+            };
+            if next_is_load {
+                let load = loads.next().expect("checked next load");
+                debug_assert_eq!(load.block, block);
+                let Some(value) = current else { return false };
+                self.replace_load(func, load.inst, value);
+                changed = true;
+            } else {
+                let store = stores.next().expect("checked next store");
+                debug_assert_eq!(store.block, block);
+                current = Some(mir_utils::resolve_replacement(store.value, &self.replacements));
+                self.remove_store(store.inst);
+                changed = true;
             }
         }
         changed
@@ -881,13 +1012,7 @@ impl<'a> SlotSsaBuilder<'a> {
 
         for load in &self.info.loads {
             let dominated = if load.block == store.block {
-                let Some(store_pos) = Self::inst_position(func, store.block, store.inst) else {
-                    return false;
-                };
-                let Some(load_pos) = Self::inst_position(func, load.block, load.inst) else {
-                    return false;
-                };
-                store_pos < load_pos
+                store.position < load.position
             } else {
                 self.cfg.dominators().dominates(store.block, load.block)
             };
@@ -898,18 +1023,14 @@ impl<'a> SlotSsaBuilder<'a> {
         }
 
         for load in &self.info.loads {
-            self.replace_load(load.inst, stored_value);
+            self.replace_load(func, load.inst, stored_value);
         }
         self.remove_store(store.inst);
         true
     }
 
-    fn inst_position(func: &Function, block: BlockId, inst: InstId) -> Option<usize> {
-        func.blocks[block].instructions.iter().position(|&candidate| candidate == inst)
-    }
-
-    fn replace_load(&mut self, inst_id: InstId, value: ValueId) {
-        if let Some(&load_value) = self.inst_results.get(&inst_id) {
+    fn replace_load(&mut self, func: &Function, inst_id: InstId, value: ValueId) {
+        if let Some(load_value) = func.inst_result_value(inst_id) {
             self.replacements
                 .insert(load_value, mir_utils::resolve_replacement(value, &self.replacements));
             self.dead.insert(inst_id);
@@ -942,7 +1063,7 @@ impl<'a> SlotSsaBuilder<'a> {
                         self.failed = true;
                         return;
                     };
-                    self.replace_load(inst_id, value);
+                    self.replace_load(func, inst_id, value);
                 }
                 InstKind::MStore(addr, value)
                     if FrameSlotPromoter::promotable_slot(func, self.aa, addr)
