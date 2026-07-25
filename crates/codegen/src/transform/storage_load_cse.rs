@@ -9,7 +9,7 @@ use crate::{
     pass::{AnalysisManager, LivenessAnalysis, MirPass, run_function_pass_with_alias_filtered},
 };
 use alloy_primitives::U256;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use std::rc::Rc;
 
 /// Function pass for straight-line storage-load CSE.
@@ -26,6 +26,8 @@ impl MirPass for StorageLoadCse {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
+        let mut cse = StorageLoadCseCx::new();
+        let mut state = RunState::new();
         run_function_pass_with_alias_filtered(
             module,
             analyses,
@@ -35,9 +37,8 @@ impl MirPass for StorageLoadCse {
                 })
             },
             |func, alias| {
-                let mut cse = StorageLoadCseCx::new();
                 cse.alias = Some(Rc::clone(alias));
-                cse.run_to_fixpoint(func) != 0
+                cse.run_with_state(func, &mut state) != 0
             },
         )
     }
@@ -53,15 +54,15 @@ struct StorageLoadCseCx {
 
 struct RunState {
     replacements: FxHashMap<ValueId, ValueId>,
-    dead: DenseBitSet<InstId>,
+    dead: GrowableBitSet<InstId>,
     cached_loads: CachedStorageLoads,
 }
 
 impl RunState {
-    fn new(func: &Function) -> Self {
+    fn new() -> Self {
         Self {
             replacements: FxHashMap::default(),
-            dead: DenseBitSet::new_empty(func.num_insts()),
+            dead: GrowableBitSet::new_empty(),
             cached_loads: CachedStorageLoads::default(),
         }
     }
@@ -173,12 +174,6 @@ impl StorageLoadCseCx {
         }
 
         self.eliminated_count
-    }
-
-    /// Runs storage-load CSE to a fixed point.
-    fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
-        let mut state = RunState::new(func);
-        self.run_with_state(func, &mut state)
     }
 
     fn process_block(

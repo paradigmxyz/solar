@@ -11,7 +11,7 @@ use crate::{
     pass::{MirPass, run_function_pass_with_alias_filtered},
 };
 use alloy_primitives::U256;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use std::rc::Rc;
 
 /// Function pass for local dead storage-store elimination.
@@ -28,6 +28,8 @@ impl MirPass for StorageDse {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
+        let mut eliminator = StorageStoreEliminator::new();
+        let mut state = RunState::new();
         run_function_pass_with_alias_filtered(
             module,
             analyses,
@@ -37,9 +39,8 @@ impl MirPass for StorageDse {
                 })
             },
             |func, alias| {
-                let mut eliminator = StorageStoreEliminator::new();
                 eliminator.alias = Some(Rc::clone(alias));
-                eliminator.run_to_fixpoint(func) != 0
+                eliminator.run_with_state(func, &mut state) != 0
             },
         )
     }
@@ -56,15 +57,15 @@ struct StorageStoreEliminator {
 struct RunState {
     later_writes: StorageAliases<()>,
     stored_values: StorageAliases<ValueId>,
-    dead: DenseBitSet<InstId>,
+    dead: GrowableBitSet<InstId>,
 }
 
 impl RunState {
-    fn new(func: &Function) -> Self {
+    fn new() -> Self {
         Self {
             later_writes: StorageAliases::default(),
             stored_values: StorageAliases::default(),
-            dead: DenseBitSet::new_empty(func.num_insts()),
+            dead: GrowableBitSet::new_empty(),
         }
     }
 }
@@ -173,18 +174,12 @@ impl StorageStoreEliminator {
         self.eliminated_count
     }
 
-    /// Runs local storage DSE to a fixed point.
-    fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
-        let mut state = RunState::new(func);
-        self.run_with_state(func, &mut state)
-    }
-
     fn remove_overwritten_stores(
         &mut self,
         func: &mut Function,
         block_id: BlockId,
         later_writes: &mut StorageAliases<()>,
-        dead: &mut DenseBitSet<InstId>,
+        dead: &mut GrowableBitSet<InstId>,
     ) {
         let aa = self.alias.as_ref().expect("storage DSE alias snapshot is initialized");
         later_writes.clear();
@@ -226,7 +221,7 @@ impl StorageStoreEliminator {
         func: &mut Function,
         block_id: BlockId,
         stored_values: &mut StorageAliases<ValueId>,
-        dead: &mut DenseBitSet<InstId>,
+        dead: &mut GrowableBitSet<InstId>,
     ) {
         let aa = self.alias.as_ref().expect("storage DSE alias snapshot is initialized");
         stored_values.clear();
