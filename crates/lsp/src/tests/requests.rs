@@ -2,14 +2,17 @@ use super::*;
 use crate::{
     config::negotiate_capabilities,
     symbols::{SymbolTables, push_symbol_for_test as push},
+    test_support::{
+        type_hierarchy_prepare_params, type_hierarchy_subtypes_params,
+        type_hierarchy_supertypes_params,
+    },
 };
 use async_lsp::ClientSocket;
 use lsp_types::{
     DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
     DocumentSymbolClientCapabilities, DocumentSymbolResponse, InitializeParams,
     PartialResultParams, ReferenceContext, SymbolKind, TextDocumentClientCapabilities,
-    TextDocumentIdentifier, TypeHierarchyItem, TypeHierarchyPrepareParams,
-    TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, Url, WorkDoneProgressParams,
+    TextDocumentIdentifier, TypeHierarchyItem, Url, WorkDoneProgressParams,
     WorkspaceSymbolResponse,
 };
 use serde_json::json;
@@ -134,15 +137,15 @@ fn semantic_requests_wait_for_latest_analysis() {
     assert_pending(inlay_hints(&mut state, inlay_hint_params(uri)));
     assert_pending(prepare_type_hierarchy(
         &mut state,
-        type_hierarchy_prepare_params(file_uri("Test.sol")),
+        type_hierarchy_prepare_params(file_uri("Test.sol"), Position::new(0, 0)),
     ));
     assert_pending(type_hierarchy_supertypes(
         &mut state,
-        type_hierarchy_supertypes_params(file_uri("Test.sol")),
+        type_hierarchy_supertypes_params(type_hierarchy_item(file_uri("Test.sol"))),
     ));
     assert_pending(type_hierarchy_subtypes(
         &mut state,
-        type_hierarchy_subtypes_params(file_uri("Test.sol")),
+        type_hierarchy_subtypes_params(type_hierarchy_item(file_uri("Test.sol"))),
     ));
 }
 
@@ -163,15 +166,15 @@ fn semantic_requests_skip_analysis_for_non_file_uris() {
     assert_ready(inlay_hints(&mut state, inlay_hint_params(uri)));
     assert_ready(prepare_type_hierarchy(
         &mut state,
-        type_hierarchy_prepare_params(parse_uri("untitled:Test.sol")),
+        type_hierarchy_prepare_params(parse_uri("untitled:Test.sol"), Position::new(0, 0)),
     ));
     assert_ready(type_hierarchy_supertypes(
         &mut state,
-        type_hierarchy_supertypes_params(parse_uri("untitled:Test.sol")),
+        type_hierarchy_supertypes_params(type_hierarchy_item(parse_uri("untitled:Test.sol"))),
     ));
     assert_ready(type_hierarchy_subtypes(
         &mut state,
-        type_hierarchy_subtypes_params(parse_uri("untitled:Test.sol")),
+        type_hierarchy_subtypes_params(type_hierarchy_item(parse_uri("untitled:Test.sol"))),
     ));
 }
 
@@ -184,21 +187,18 @@ fn type_hierarchy_requests_wait_using_the_top_level_item_uri() {
     let file_item = type_hierarchy_item_with_data_uri(file, non_file.clone());
     assert_pending(type_hierarchy_supertypes(
         &mut state,
-        type_hierarchy_supertypes_params_for_item(file_item.clone()),
+        type_hierarchy_supertypes_params(file_item.clone()),
     ));
-    assert_pending(type_hierarchy_subtypes(
-        &mut state,
-        type_hierarchy_subtypes_params_for_item(file_item),
-    ));
+    assert_pending(type_hierarchy_subtypes(&mut state, type_hierarchy_subtypes_params(file_item)));
 
     let non_file_item = type_hierarchy_item_with_data_uri(non_file, file_uri("Data.sol"));
     assert_ready(type_hierarchy_supertypes(
         &mut state,
-        type_hierarchy_supertypes_params_for_item(non_file_item.clone()),
+        type_hierarchy_supertypes_params(non_file_item.clone()),
     ));
     assert_ready(type_hierarchy_subtypes(
         &mut state,
-        type_hierarchy_subtypes_params_for_item(non_file_item),
+        type_hierarchy_subtypes_params(non_file_item),
     ));
 }
 
@@ -286,39 +286,6 @@ fn inlay_hint_params(uri: Url) -> InlayHintParams {
         text_document: TextDocumentIdentifier::new(uri),
         range: lsp_types::Range::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
         work_done_progress_params: WorkDoneProgressParams::default(),
-    }
-}
-
-fn type_hierarchy_prepare_params(uri: Url) -> TypeHierarchyPrepareParams {
-    TypeHierarchyPrepareParams {
-        text_document_position_params: position_params(uri),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-    }
-}
-
-fn type_hierarchy_supertypes_params(uri: Url) -> TypeHierarchySupertypesParams {
-    type_hierarchy_supertypes_params_for_item(type_hierarchy_item(uri))
-}
-
-fn type_hierarchy_supertypes_params_for_item(
-    item: TypeHierarchyItem,
-) -> TypeHierarchySupertypesParams {
-    TypeHierarchySupertypesParams {
-        item,
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    }
-}
-
-fn type_hierarchy_subtypes_params(uri: Url) -> TypeHierarchySubtypesParams {
-    type_hierarchy_subtypes_params_for_item(type_hierarchy_item(uri))
-}
-
-fn type_hierarchy_subtypes_params_for_item(item: TypeHierarchyItem) -> TypeHierarchySubtypesParams {
-    TypeHierarchySubtypesParams {
-        item,
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
     }
 }
 

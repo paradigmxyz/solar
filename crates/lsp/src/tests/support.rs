@@ -1,7 +1,10 @@
 use super::super::{
     AnalysisBatch, AnalysisResult, AnalysisResultAccumulator, GlobalState, analyze,
 };
-use crate::test_support::MarkedProject;
+use crate::test_support::{
+    MarkedProject, type_hierarchy_prepare_params, type_hierarchy_subtypes_params,
+    type_hierarchy_supertypes_params,
+};
 use async_lsp::{ClientSocket, ErrorCode};
 use lsp_types::{
     CompletionContext, CompletionItem, CompletionParams, CompletionResponse, CompletionTextEdit,
@@ -12,8 +15,7 @@ use lsp_types::{
     ParameterLabel, PartialResultParams, Position, PrepareRenameResponse, Range, ReferenceContext,
     ReferenceParams, RenameParams, SelectionRange, SelectionRangeParams, SignatureHelp,
     SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams, TypeHierarchyItem,
-    TypeHierarchyPrepareParams, TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, Url,
-    WorkDoneProgressParams, WorkspaceEdit,
+    Url, WorkDoneProgressParams, WorkspaceEdit,
 };
 use snapbox::{IntoData, assert_data_eq};
 use solar_config::CompileOpts;
@@ -1110,36 +1112,6 @@ fn completion_params_with_trigger(
 fn goto_params(uri: Url, position: Position) -> GotoDefinitionParams {
     GotoDefinitionParams {
         text_document_position_params: text_document_position(uri, position),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    }
-}
-
-pub(super) fn type_hierarchy_prepare_params(
-    uri: Url,
-    position: Position,
-) -> TypeHierarchyPrepareParams {
-    TypeHierarchyPrepareParams {
-        text_document_position_params: text_document_position(uri, position),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-    }
-}
-
-pub(super) fn type_hierarchy_supertypes_params(
-    item: TypeHierarchyItem,
-) -> TypeHierarchySupertypesParams {
-    TypeHierarchySupertypesParams {
-        item,
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    }
-}
-
-pub(super) fn type_hierarchy_subtypes_params(
-    item: TypeHierarchyItem,
-) -> TypeHierarchySubtypesParams {
-    TypeHierarchySubtypesParams {
-        item,
         work_done_progress_params: WorkDoneProgressParams::default(),
         partial_result_params: PartialResultParams::default(),
     }

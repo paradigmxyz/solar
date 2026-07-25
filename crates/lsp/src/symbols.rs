@@ -102,6 +102,12 @@ newtype_index! {
     pub(crate) struct ScopeId;
 }
 
+impl SymbolId {
+    pub(crate) fn offset_by(self, offset: usize) -> Self {
+        Self::from_usize(self.index() + offset)
+    }
+}
+
 type TypeDefinitionTargets = SmallVec<[SymbolId; 1]>;
 type ReferenceTargets = SmallVec<[SymbolId; 1]>;
 
@@ -360,32 +366,32 @@ impl SymbolTables {
         self.override_families.extend(other.override_families, symbol_offset);
         let scope_offset = self.scopes.len();
         for declaration in &mut other.declarations {
-            declaration.id = remap_symbol_id(declaration.id, symbol_offset);
-            declaration.parent =
-                declaration.parent.map(|parent| remap_symbol_id(parent, symbol_offset));
+            declaration.id = declaration.id.offset_by(symbol_offset);
+            declaration.parent = declaration.parent.map(|parent| parent.offset_by(symbol_offset));
         }
         for (symbol_id, mut targets) in other.type_definitions.drain() {
             for target in &mut targets {
-                *target = remap_symbol_id(*target, symbol_offset);
+                *target = target.offset_by(symbol_offset);
             }
-            self.type_definitions.insert(remap_symbol_id(symbol_id, symbol_offset), targets);
+            self.type_definitions.insert(symbol_id.offset_by(symbol_offset), targets);
         }
         for scope in &mut other.scopes {
             scope.parent = scope.parent.map(|parent| remap_scope_id(parent, scope_offset));
             for declaration in &mut scope.declarations {
-                declaration.symbol_id = remap_symbol_id(declaration.symbol_id, symbol_offset);
+                declaration.symbol_id = declaration.symbol_id.offset_by(symbol_offset);
             }
         }
         for reference in &mut other.references {
             for target in &mut reference.targets {
-                *target = remap_symbol_id(*target, symbol_offset);
+                *target = target.offset_by(symbol_offset);
             }
         }
 
         for (uri, symbols) in other.files {
-            self.files.entry(uri).or_default().extend(
-                symbols.into_iter().map(|symbol_id| remap_symbol_id(symbol_id, symbol_offset)),
-            );
+            self.files
+                .entry(uri)
+                .or_default()
+                .extend(symbols.into_iter().map(|symbol_id| symbol_id.offset_by(symbol_offset)));
         }
         self.declarations.extend(other.declarations);
         self.scopes.extend(other.scopes);
@@ -393,7 +399,7 @@ impl SymbolTables {
             other
                 .receiver_member_completions
                 .into_iter()
-                .map(|(symbol_id, items)| (remap_symbol_id(symbol_id, symbol_offset), items)),
+                .map(|(symbol_id, items)| (symbol_id.offset_by(symbol_offset), items)),
         );
         self.member_completions.extend(other.member_completions);
         self.references.extend(other.references);
@@ -1272,10 +1278,6 @@ impl SymbolTables {
         self.type_hierarchy.rebuild(self.rename.conflicting_contents());
         self.rename.rebuild(&self.override_families);
     }
-}
-
-fn remap_symbol_id(symbol_id: SymbolId, offset: usize) -> SymbolId {
-    SymbolId::from_usize(symbol_id.index() + offset)
 }
 
 fn remap_scope_id(scope_id: ScopeId, offset: usize) -> ScopeId {

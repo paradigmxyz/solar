@@ -1,15 +1,15 @@
 use super::{
-    AnalysisBatch, GlobalState, SymbolTables, analyze,
-    support::{
-        RequestFixture, type_hierarchy_prepare_params, type_hierarchy_subtypes_params,
-        type_hierarchy_supertypes_params,
-    },
+    AnalysisBatch, AnalysisResultAccumulator, GlobalState, SymbolTables, analyze,
+    support::RequestFixture,
 };
-use crate::test_support::TestProject;
+use crate::test_support::{
+    TestProject, type_hierarchy_prepare_params, type_hierarchy_subtypes_params,
+    type_hierarchy_supertypes_params,
+};
 use async_lsp::ClientSocket;
 use lsp_types::{Position, Range, SymbolKind, SymbolTag, TypeHierarchyItem, Url};
 use serde_json::json;
-use solar_config::CompileOpts;
+use solar_config::{CompileOpts, ImportRemapping};
 use std::{
     future::Future,
     sync::atomic::Ordering,
@@ -117,10 +117,14 @@ fn presents_all_supported_declarations_and_callable_edges() {
     assert_item(&prepared(&fixture, "$6"), "Base.run(uint256)", SymbolKind::METHOD);
     assert_item(&prepared(&fixture, "$7"), "Base.guard", SymbolKind::FUNCTION);
     assert_item(&prepared(&fixture, "$8"), "Derived", SymbolKind::CLASS);
-    assert_item(&prepared(&fixture, "$9"), "Derived.value", SymbolKind::VARIABLE);
-    assert_item(&prepared(&fixture, "$10"), "Derived.constructor(uint256)", SymbolKind::METHOD);
-    assert_item(&prepared(&fixture, "$11"), "Derived.fallback()", SymbolKind::METHOD);
-    assert_item(&prepared(&fixture, "$12"), "Derived.receive()", SymbolKind::METHOD);
+    assert_item(&prepared(&fixture, "$9"), "Derived.value", SymbolKind::PROPERTY);
+    assert_item(
+        &prepared(&fixture, "$10"),
+        "Derived.constructor(uint256)",
+        SymbolKind::CONSTRUCTOR,
+    );
+    assert_item(&prepared(&fixture, "$11"), "Derived.fallback()", SymbolKind::FUNCTION);
+    assert_item(&prepared(&fixture, "$12"), "Derived.receive()", SymbolKind::FUNCTION);
     assert_item(&prepared(&fixture, "$13"), "Derived.run(uint256)", SymbolKind::METHOD);
     assert_item(&prepared(&fixture, "$14"), "Derived.guard", SymbolKind::FUNCTION);
     assert_eq!(prepared(&fixture, "$15"), prepared(&fixture, "$9"));
@@ -138,6 +142,32 @@ fn presents_all_supported_declarations_and_callable_edges() {
     );
     assert_eq!(names(fixture.type_hierarchy_supertypes(prepared(&fixture, "$14"))), ["Base.guard"]);
     assert_eq!(names(fixture.type_hierarchy_subtypes(prepared(&fixture, "$5"))), ["Derived.value"]);
+}
+
+#[test]
+fn indexes_implicit_interface_getter_overrides() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Getter.sol
+        interface Interface {
+            function $1value() external view returns (uint256);
+        }
+
+        contract Implementation is Interface {
+            uint256 public $2value;
+        }
+        "#,
+        "/Getter.sol",
+    );
+
+    assert_eq!(
+        names(fixture.type_hierarchy_supertypes(prepared(&fixture, "$2"))),
+        ["Interface.value()"]
+    );
+    assert_eq!(
+        names(fixture.type_hierarchy_subtypes(prepared(&fixture, "$1"))),
+        ["Implementation.value"]
+    );
 }
 
 #[test]
@@ -431,6 +461,121 @@ fn merges_identical_cross_batch_nodes_and_edges_in_both_orders() {
         );
         assert_eq!(names(fixture.type_hierarchy_supertypes(zed)), ["Base"]);
         assert_eq!(names(fixture.type_hierarchy_supertypes(alpha)), ["Base"]);
+    }
+}
+
+#[test]
+fn incompatible_compile_contexts_exclude_nodes_and_incident_edges_in_both_orders() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Shared.sol
+        import {Base, Value} from "@dep/Types.sol";
+        contract Shared is Base {
+            uint256 public value;
+            function inspect(Value value) external {}
+        }
+        contract Stable {}
+
+        //- /left/Main.sol
+        import {Shared} from "../Shared.sol";
+        contract LeftChild is Shared {}
+
+        //- /left/Types.sol
+        interface Base {
+            function value() external view returns (uint256);
+        }
+        contract Value {}
+
+        //- /right/Main.sol
+        import {Shared} from "../Shared.sol";
+        contract RightChild is Shared {}
+
+        //- /right/Types.sol
+        contract Base {}
+        enum Value { Item }
+        "#,
+    );
+    let shared_path = project.path("/Shared.sol");
+
+    for batches in [
+        [("/left/Main.sol", "/left"), ("/right/Main.sol", "/right")],
+        [("/right/Main.sol", "/right"), ("/left/Main.sol", "/left")],
+    ] {
+        let mut results = AnalysisResultAccumulator::default();
+        for (entry_path, remapping_dir) in batches {
+            let opts = CompileOpts {
+                base_path: Some(project.root().to_path_buf()),
+                import_remappings: vec![ImportRemapping {
+                    context: String::new(),
+                    prefix: "@dep/".into(),
+                    path: project.path(remapping_dir).to_string_lossy().into_owned(),
+                }],
+                ..Default::default()
+            };
+            let entry_contents = project.read_file(entry_path);
+            let entry_path = project.path(entry_path);
+            results.push(analyze(AnalysisBatch::from_files(opts, [(entry_path, entry_contents)])));
+        }
+        let result = results.finish();
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+        let tables = result.symbol_tables;
+        let shared_uri = Url::from_file_path(&shared_path).unwrap();
+
+        assert_eq!(
+            tables.prepare_type_hierarchy(&shared_uri, Position::new(1, 10)),
+            None,
+            "batch order {batches:?}"
+        );
+        assert_eq!(
+            tables.prepare_type_hierarchy(&shared_uri, Position::new(2, 20)),
+            None,
+            "batch order {batches:?}"
+        );
+        assert_eq!(
+            tables.prepare_type_hierarchy(&shared_uri, Position::new(3, 14)),
+            None,
+            "batch order {batches:?}"
+        );
+        let stable = tables
+            .prepare_type_hierarchy(&shared_uri, Position::new(5, 10))
+            .unwrap()
+            .pop()
+            .unwrap();
+        assert_item(&stable, "Stable", SymbolKind::CLASS);
+
+        for (path, child_name) in
+            [("/left/Main.sol", "LeftChild"), ("/right/Main.sol", "RightChild")]
+        {
+            let uri = Url::from_file_path(project.path(path)).unwrap();
+            let child =
+                tables.prepare_type_hierarchy(&uri, Position::new(1, 10)).unwrap().pop().unwrap();
+            assert_item(&child, child_name, SymbolKind::CLASS);
+            assert_eq!(
+                tables.type_hierarchy_supertypes(&child),
+                Some(Vec::new()),
+                "child {path}, batch order {batches:?}"
+            );
+        }
+
+        for path in ["/left/Types.sol", "/right/Types.sol"] {
+            let uri = Url::from_file_path(project.path(path)).unwrap();
+            let base =
+                tables.prepare_type_hierarchy(&uri, Position::new(0, 10)).unwrap().pop().unwrap();
+            assert_eq!(
+                tables.type_hierarchy_subtypes(&base),
+                Some(Vec::new()),
+                "base {path}, batch order {batches:?}"
+            );
+        }
+
+        let left_uri = Url::from_file_path(project.path("/left/Types.sol")).unwrap();
+        let base_getter =
+            tables.prepare_type_hierarchy(&left_uri, Position::new(1, 14)).unwrap().pop().unwrap();
+        assert_eq!(
+            tables.type_hierarchy_subtypes(&base_getter),
+            Some(Vec::new()),
+            "batch order {batches:?}"
+        );
     }
 }
 
