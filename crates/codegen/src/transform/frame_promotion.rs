@@ -43,6 +43,11 @@ impl MirPass for FrameSlotPromotion {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass_no_analyses(module, analyses, |func| {
+            if !func.instructions().any(|inst_id| {
+                matches!(func.inst(inst_id).kind, InstKind::MLoad(_) | InstKind::MStore(_, _))
+            }) {
+                return false;
+            }
             let changed = FrameSlotPromoter::new().run(func).total() != 0;
             let repaired = repair_reachability_phis(func);
             changed || repaired
