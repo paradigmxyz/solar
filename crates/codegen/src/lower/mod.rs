@@ -1740,13 +1740,29 @@ impl<'gcx> Lowerer<'gcx> {
         len: ValueId,
         span: Option<Span>,
     ) {
+        let _ = span;
         if self.gcx.sess.opts.evm_version.has_mcopy() {
             builder.mcopy(dest, src, len);
-        } else {
-            let err = self.gcx.dcx().err("codegen requires Cancun-compatible EVM for memory copy");
-            let err = if let Some(span) = span { err.span(span) } else { err };
-            err.help("compile with `--evm-version cancun` or newer").emit();
+            return;
         }
+        // Pre-Cancun targets have no `MCOPY`. Copy exactly `len` bytes through
+        // the identity precompile (address 0x04), which returns its input —
+        // the historical memory-copy technique solc lowers to when `MCOPY` is
+        // unavailable. It copies the exact length with no tail over-write, so
+        // it is safe for callers whose destination is not word-padded.
+        let gas = builder.gas();
+        let identity = builder.imm_u64(4);
+        let ok = builder.staticcall(gas, identity, src, len, dest, len);
+        // The identity precompile only fails on out-of-gas; surface that as a
+        // revert like solc rather than silently leaving the copy incomplete.
+        let failed = builder.iszero(ok);
+        let revert_block = builder.create_block();
+        let continue_block = builder.create_block();
+        builder.branch(failed, revert_block, continue_block);
+        builder.switch_to_block(revert_block);
+        let zero = builder.imm_u64(0);
+        builder.revert(zero, zero);
+        builder.switch_to_block(continue_block);
     }
 
     /// Lowers a type from a variable declaration.
