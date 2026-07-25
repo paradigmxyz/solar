@@ -24,7 +24,13 @@ use crate::{
     },
     pass::{MirPass, run_function_pass},
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+    map::FxHashMap,
+};
+
+type SwitchTargetIndex = IndexVec<BlockId, Option<FxHashMap<BlockId, Vec<usize>>>>;
 
 /// Function pass for CFG simplification.
 pub(crate) struct CfgSimplify;
@@ -232,7 +238,7 @@ impl CfgSimplifier {
         }
 
         for (dup, keep) in merges {
-            let predecessors: Vec<_> = func.blocks[dup].predecessors.to_vec();
+            let predecessors = func.unique_predecessors(dup);
             for pred in predecessors {
                 self.redirect_terminator(func, pred, dup, keep);
                 if !func.blocks[keep].predecessors.contains(&pred) {
@@ -586,6 +592,11 @@ impl CfgSimplifier {
     fn eliminate_empty_blocks(&mut self, func: &mut Function) {
         let cfg = CfgInfo::new(func);
         let mut loop_preheaders = DenseBitSet::new_empty(func.blocks.len());
+        let mut switch_targets = index_vec![None; func.blocks.len()];
+        // Defer tombstone removal so a group of forwarders into the same
+        // target scans its predecessor list only once.
+        let mut eliminated = DenseBitSet::new_empty(func.blocks.len());
+        let mut dirty_predecessors = DenseBitSet::new_empty(func.blocks.len());
         for block_id in func.blocks.indices() {
             if self.is_loop_preheader_forwarder(func, &cfg, block_id) {
                 loop_preheaders.insert(block_id);
@@ -594,6 +605,9 @@ impl CfgSimplifier {
 
         let block_count = func.blocks.len();
         for block_id in (0..block_count).map(BlockId::from_usize) {
+            if dirty_predecessors.remove(block_id) {
+                func.blocks[block_id].predecessors.retain(|pred| !eliminated.contains(*pred));
+            }
             if func.blocks[block_id].predecessors.is_empty() && cfg.is_reachable(block_id) {
                 continue;
             }
@@ -602,10 +616,19 @@ impl CfgSimplifier {
                 && !loop_preheaders.contains(block_id)
                 && self.forwarder_elimination_preserves_phis(func, block_id)
             {
-                self.eliminate_forwarder(func, block_id);
+                let target = match &func.blocks[block_id].terminator {
+                    Some(Terminator::Jump(target)) => *target,
+                    _ => unreachable!(),
+                };
+                self.eliminate_forwarder(func, block_id, target, &mut switch_targets);
+                eliminated.insert(block_id);
+                dirty_predecessors.insert(target);
                 self.stats.empty_blocks_eliminated += 1;
                 self.stats.gas_saved += 8;
             }
+        }
+        for block_id in dirty_predecessors.iter() {
+            func.blocks[block_id].predecessors.retain(|pred| !eliminated.contains(*pred));
         }
     }
 
@@ -670,22 +693,21 @@ impl CfgSimplifier {
     }
 
     /// Eliminates an empty forwarder block by redirecting its predecessors.
-    fn eliminate_forwarder(&self, func: &mut Function, block_id: BlockId) {
-        let target = match &func.blocks[block_id].terminator {
-            Some(Terminator::Jump(t)) => *t,
-            _ => return,
-        };
-
-        let predecessors: Vec<_> = func.blocks[block_id].predecessors.to_vec();
+    fn eliminate_forwarder(
+        &self,
+        func: &mut Function,
+        block_id: BlockId,
+        target: BlockId,
+        switch_targets: &mut SwitchTargetIndex,
+    ) {
+        let predecessors = func.unique_predecessors(block_id);
         self.redirect_target_phi_incoming(func, block_id, target, &predecessors);
 
         for pred_id in predecessors {
-            self.redirect_terminator(func, pred_id, block_id, target);
+            self.redirect_terminator_indexed(func, pred_id, block_id, target, switch_targets);
 
             func.blocks[target].predecessors.push(pred_id);
         }
-
-        func.blocks[target].predecessors.retain(|p| *p != block_id);
 
         func.blocks[block_id].instructions.clear();
         func.blocks[block_id].terminator = Some(Terminator::Invalid);
@@ -700,6 +722,7 @@ impl CfgSimplifier {
         new_preds: &[BlockId],
     ) {
         let instruction_count = func.blocks[target].instructions.len();
+        let mut seen = DenseBitSet::new_empty(func.blocks.len());
         for index in 0..instruction_count {
             let inst_id = func.blocks[target].instructions[index];
             let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind else {
@@ -717,17 +740,47 @@ impl CfgSimplifier {
             }
             // The safety check guarantees colliding entries carry equal values;
             // keep one entry per predecessor block.
-            let mut seen = Vec::with_capacity(rewritten.len());
-            rewritten.retain(|&(pred, _)| {
-                if seen.contains(&pred) {
-                    false
-                } else {
-                    seen.push(pred);
-                    true
-                }
-            });
+            seen.clear();
+            rewritten.retain(|&(pred, _)| seen.insert(pred));
             *incoming = rewritten;
         }
+    }
+
+    /// Redirects a terminator while indexing switch target positions lazily.
+    fn redirect_terminator_indexed(
+        &self,
+        func: &mut Function,
+        block_id: BlockId,
+        old_target: BlockId,
+        new_target: BlockId,
+        switch_targets: &mut SwitchTargetIndex,
+    ) {
+        let Some(Terminator::Switch { default, cases, .. }) =
+            func.blocks[block_id].terminator.as_mut()
+        else {
+            self.redirect_terminator(func, block_id, old_target, new_target);
+            return;
+        };
+
+        let targets = switch_targets[block_id].get_or_insert_with(|| {
+            let mut targets = FxHashMap::<_, Vec<_>>::default();
+            targets.entry(*default).or_default().push(0);
+            for (position, &(_, target)) in cases.iter().enumerate() {
+                targets.entry(target).or_default().push(position + 1);
+            }
+            targets
+        });
+        let Some(positions) = targets.remove(&old_target) else {
+            return;
+        };
+        for &position in &positions {
+            if position == 0 {
+                *default = new_target;
+            } else {
+                cases[position - 1].1 = new_target;
+            }
+        }
+        targets.entry(new_target).or_default().extend(positions);
     }
 
     /// Redirects a terminator from old_target to new_target.
