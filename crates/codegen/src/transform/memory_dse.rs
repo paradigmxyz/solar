@@ -1453,7 +1453,7 @@ impl MemoryStoreEliminator {
         reads.sort_unstable_by_key(|&(offset, _)| offset);
         let mut merged: Vec<(u64, u64)> = Vec::with_capacity(reads.len());
         for (start, size) in reads {
-            let end = start.checked_add(size).unwrap_or(u64::MAX);
+            let end = start.saturating_add(size);
             if let Some((_, previous_end)) = merged.last_mut()
                 && start <= *previous_end
             {
