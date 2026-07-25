@@ -431,8 +431,10 @@ impl PartialRedundancyEliminator {
             let value = func.alloc_value(Value::Inst(new_inst));
             func.blocks[block].instructions.push(new_inst);
             incoming.push((block, value));
-            debug_assert_eq!(state.inst_results.push(Some(value)), new_inst);
-            debug_assert_eq!(state.inst_blocks.push(Some(block)), new_inst);
+            let result_inst = state.inst_results.push(Some(value));
+            let block_inst = state.inst_blocks.push(Some(block));
+            debug_assert_eq!(result_inst, new_inst);
+            debug_assert_eq!(block_inst, new_inst);
             state.inserted_insts.insert(new_inst);
             self.stats.expressions_inserted += 1;
         }
@@ -459,8 +461,10 @@ impl PartialRedundancyEliminator {
                     .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
                     .count();
                 func.blocks[target].instructions.insert(phi_count, phi_inst);
-                debug_assert_eq!(state.inst_results.push(Some(phi_value)), phi_inst);
-                debug_assert_eq!(state.inst_blocks.push(Some(target)), phi_inst);
+                let result_inst = state.inst_results.push(Some(phi_value));
+                let block_inst = state.inst_blocks.push(Some(target));
+                debug_assert_eq!(result_inst, phi_inst);
+                debug_assert_eq!(block_inst, phi_inst);
                 phi_value
             }
         };
