@@ -439,6 +439,17 @@ struct CandidateCx<'a> {
     locate_cache: FxHashMap<(BlockId, usize), Option<ValueId>>,
 }
 
+struct RewriteState {
+    eliminated_keys: FxHashSet<(LoadKey, BlockId)>,
+    inserted_insts: GrowableBitSet<InstId>,
+}
+
+struct RewriteBatch {
+    replacements: FxHashMap<ValueId, ValueId>,
+    dead: GrowableBitSet<InstId>,
+    new_phis: IndexVec<BlockId, Vec<InstId>>,
+}
+
 impl LoadRedundancyEliminator {
     /// Creates a new load PRE pass.
     fn new() -> Self {
@@ -454,15 +465,17 @@ impl LoadRedundancyEliminator {
 
         let rewrite_limit = func.num_insts().saturating_mul(2).max(64);
         let mut rewrites = 0usize;
-        let mut eliminated_keys: FxHashSet<(LoadKey, BlockId)> = FxHashSet::default();
-        let mut inserted_insts = GrowableBitSet::with_capacity(func.num_insts());
+        let mut state = RewriteState {
+            eliminated_keys: FxHashSet::default(),
+            inserted_insts: GrowableBitSet::with_capacity(func.num_insts()),
+        };
 
         while rewrites < rewrite_limit {
             let Some(analysis) = self.compute_analysis(func) else { break };
             let mut cx = CandidateCx {
                 analysis: &analysis,
-                eliminated_keys: &eliminated_keys,
-                inserted_insts: &inserted_insts,
+                eliminated_keys: &state.eliminated_keys,
+                inserted_insts: &state.inserted_insts,
                 locate_cache: FxHashMap::default(),
             };
             let batch = self.collect_candidates(func, &mut cx, rewrite_limit - rewrites);
@@ -470,21 +483,15 @@ impl LoadRedundancyEliminator {
                 break;
             }
             rewrites += batch.len();
-            let mut replacements = FxHashMap::default();
-            let mut dead = GrowableBitSet::with_capacity(func.num_insts());
-            let mut new_phis = index_vec![Vec::new(); func.blocks.len()];
+            let mut edits = RewriteBatch {
+                replacements: FxHashMap::default(),
+                dead: GrowableBitSet::with_capacity(func.num_insts()),
+                new_phis: index_vec![Vec::new(); func.blocks.len()],
+            };
             for candidate in batch {
-                self.apply_candidate(
-                    func,
-                    candidate,
-                    &mut eliminated_keys,
-                    &mut inserted_insts,
-                    &mut replacements,
-                    &mut dead,
-                    &mut new_phis,
-                );
+                self.apply_candidate(func, candidate, &mut state, &mut edits);
             }
-            for (block_id, phis) in new_phis.iter_mut_enumerated() {
+            for (block_id, phis) in edits.new_phis.iter_mut_enumerated() {
                 if phis.is_empty() {
                     continue;
                 }
@@ -495,9 +502,9 @@ impl LoadRedundancyEliminator {
                     .count();
                 func.blocks[block_id].instructions.splice(phi_count..phi_count, phis.drain(..));
             }
-            Self::replace_uses(func, &replacements);
+            Self::replace_uses(func, &edits.replacements);
             for block in &mut func.blocks {
-                block.instructions.retain(|&inst| !dead.contains(inst));
+                block.instructions.retain(|&inst| !edits.dead.contains(inst));
             }
             self.alias().clear_cached_addresses();
         }
@@ -943,16 +950,13 @@ impl LoadRedundancyEliminator {
         &mut self,
         func: &mut Function,
         candidate: Candidate,
-        eliminated_keys: &mut FxHashSet<(LoadKey, BlockId)>,
-        inserted_insts: &mut GrowableBitSet<InstId>,
-        replacements: &mut FxHashMap<ValueId, ValueId>,
-        dead: &mut GrowableBitSet<InstId>,
-        new_phis: &mut IndexVec<BlockId, Vec<InstId>>,
+        state: &mut RewriteState,
+        edits: &mut RewriteBatch,
     ) {
         let Candidate { target, key, result_ty, kind, metadata, loads, mut incoming, insertions } =
             candidate;
 
-        eliminated_keys.insert((key, target));
+        state.eliminated_keys.insert((key, target));
 
         let fully_available = insertions.is_empty();
         for block in insertions {
@@ -964,7 +968,7 @@ impl LoadRedundancyEliminator {
             let value = func.alloc_value(Value::Inst(new_inst));
             func.blocks[block].instructions.push(new_inst);
             incoming.push((block, value));
-            inserted_insts.insert(new_inst);
+            state.inserted_insts.insert(new_inst);
             self.stats.loads_inserted += 1;
         }
         incoming.sort_by_key(|(block, _)| block.index());
@@ -985,14 +989,14 @@ impl LoadRedundancyEliminator {
                 let phi_inst =
                     func.alloc_inst(Instruction::new(InstKind::Phi(incoming), Some(result_ty)));
                 let phi_value = func.alloc_value(Value::Inst(phi_inst));
-                new_phis[target].push(phi_inst);
+                edits.new_phis[target].push(phi_inst);
                 phi_value
             }
         };
 
         for &(inst_id, load_result) in &loads {
-            replacements.insert(load_result, replacement);
-            dead.insert(inst_id);
+            edits.replacements.insert(load_result, replacement);
+            edits.dead.insert(inst_id);
         }
         self.stats.loads_eliminated += loads.len();
     }

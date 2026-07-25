@@ -153,6 +153,19 @@ struct PreCandidate {
     insertions: Vec<(BlockId, InstKind)>,
 }
 
+struct RewriteState {
+    inst_results: IndexVec<InstId, Option<ValueId>>,
+    inst_blocks: IndexVec<InstId, Option<BlockId>>,
+    eliminated_keys: FxHashSet<(ExprKey, BlockId)>,
+    inserted_insts: GrowableBitSet<InstId>,
+}
+
+struct RewriteBatch {
+    replacements: FxHashMap<ValueId, ValueId>,
+    dead: GrowableBitSet<InstId>,
+    split_edges: FxHashMap<(BlockId, BlockId), BlockId>,
+}
+
 impl PartialRedundancyEliminator {
     /// Creates a new PRE pass.
     fn new() -> Self {
@@ -163,11 +176,12 @@ impl PartialRedundancyEliminator {
     fn run(&mut self, func: &mut Function) -> PreStats {
         self.stats = PreStats::default();
 
-        let mut inst_results = func.inst_results();
-        let mut inst_blocks = func.inst_blocks();
-
-        let mut eliminated_keys = FxHashSet::default();
-        let mut inserted_insts = GrowableBitSet::with_capacity(func.num_insts());
+        let mut state = RewriteState {
+            inst_results: func.inst_results(),
+            inst_blocks: func.inst_blocks(),
+            eliminated_keys: FxHashSet::default(),
+            inserted_insts: GrowableBitSet::with_capacity(func.num_insts()),
+        };
         let rewrite_limit = func.num_insts().saturating_mul(2).max(64);
         let mut rewrites = 0usize;
 
@@ -178,35 +192,27 @@ impl PartialRedundancyEliminator {
             let batch = self.collect_candidates(
                 func,
                 cfg.dominators(),
-                &inst_results,
-                &inst_blocks,
-                &eliminated_keys,
-                &inserted_insts,
+                &state.inst_results,
+                &state.inst_blocks,
+                &state.eliminated_keys,
+                &state.inserted_insts,
                 rewrite_limit - rewrites,
             );
             if batch.is_empty() {
                 break;
             }
             rewrites += batch.len();
-            let mut replacements = FxHashMap::default();
-            let mut dead = GrowableBitSet::with_capacity(func.num_insts());
-            let mut split_edges = FxHashMap::default();
+            let mut edits = RewriteBatch {
+                replacements: FxHashMap::default(),
+                dead: GrowableBitSet::with_capacity(func.num_insts()),
+                split_edges: FxHashMap::default(),
+            };
             for candidate in batch {
-                self.apply_candidate(
-                    func,
-                    candidate,
-                    &mut inst_results,
-                    &mut inst_blocks,
-                    &mut eliminated_keys,
-                    &mut inserted_insts,
-                    &mut replacements,
-                    &mut dead,
-                    &mut split_edges,
-                );
+                self.apply_candidate(func, candidate, &mut state, &mut edits);
             }
-            func.replace_uses_canonicalized(&replacements);
+            func.replace_uses_canonicalized(&edits.replacements);
             for block in &mut func.blocks {
-                block.instructions.retain(|&inst| !dead.contains(inst));
+                block.instructions.retain(|&inst| !edits.dead.contains(inst));
             }
         }
 
@@ -381,24 +387,19 @@ impl PartialRedundancyEliminator {
         &mut self,
         func: &mut Function,
         candidate: PreCandidate,
-        inst_results: &mut IndexVec<InstId, Option<ValueId>>,
-        inst_blocks: &mut IndexVec<InstId, Option<BlockId>>,
-        eliminated_keys: &mut FxHashSet<(ExprKey, BlockId)>,
-        inserted_insts: &mut GrowableBitSet<InstId>,
-        replacements: &mut FxHashMap<ValueId, ValueId>,
-        dead: &mut GrowableBitSet<InstId>,
-        split_edges: &mut FxHashMap<(BlockId, BlockId), BlockId>,
+        state: &mut RewriteState,
+        edits: &mut RewriteBatch,
     ) {
         let PreCandidate { target, inst, result, result_ty, metadata, mut incoming, insertions } =
             candidate;
 
         if let Some(key) = Self::make_expr_key(func, &func.inst(inst).kind) {
-            eliminated_keys.insert((key, target));
+            state.eliminated_keys.insert((key, target));
         }
 
         let fully_available = insertions.is_empty();
         for (pred, _) in &mut incoming {
-            if let Some(&split) = split_edges.get(&(*pred, target)) {
+            if let Some(&split) = edits.split_edges.get(&(*pred, target)) {
                 *pred = split;
             }
         }
@@ -408,7 +409,7 @@ impl PartialRedundancyEliminator {
             // the edge critical: split it so the computation runs only on the
             // edge into the join. The split block sits on that edge, so the
             // per-edge phi translation that held for `pred` holds for it too.
-            let block = match split_edges.get(&(pred, target)).copied() {
+            let block = match edits.split_edges.get(&(pred, target)).copied() {
                 Some(split) => split,
                 None => match func.blocks[pred].terminator {
                     Some(Terminator::Jump(jump_target)) => {
@@ -417,7 +418,7 @@ impl PartialRedundancyEliminator {
                     }
                     _ => {
                         let split = split_edge(func, pred, target);
-                        split_edges.insert((pred, target), split);
+                        edits.split_edges.insert((pred, target), split);
                         split
                     }
                 },
@@ -430,9 +431,9 @@ impl PartialRedundancyEliminator {
             let value = func.alloc_value(Value::Inst(new_inst));
             func.blocks[block].instructions.push(new_inst);
             incoming.push((block, value));
-            debug_assert_eq!(inst_results.push(Some(value)), new_inst);
-            debug_assert_eq!(inst_blocks.push(Some(block)), new_inst);
-            inserted_insts.insert(new_inst);
+            debug_assert_eq!(state.inst_results.push(Some(value)), new_inst);
+            debug_assert_eq!(state.inst_blocks.push(Some(block)), new_inst);
+            state.inserted_insts.insert(new_inst);
             self.stats.expressions_inserted += 1;
         }
         incoming.sort_by_key(|(block, _)| block.index());
@@ -458,16 +459,16 @@ impl PartialRedundancyEliminator {
                     .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
                     .count();
                 func.blocks[target].instructions.insert(phi_count, phi_inst);
-                debug_assert_eq!(inst_results.push(Some(phi_value)), phi_inst);
-                debug_assert_eq!(inst_blocks.push(Some(target)), phi_inst);
+                debug_assert_eq!(state.inst_results.push(Some(phi_value)), phi_inst);
+                debug_assert_eq!(state.inst_blocks.push(Some(target)), phi_inst);
                 phi_value
             }
         };
 
-        replacements.insert(result, replacement);
-        dead.insert(inst);
-        inst_results[inst] = None;
-        inst_blocks[inst] = None;
+        edits.replacements.insert(result, replacement);
+        edits.dead.insert(inst);
+        state.inst_results[inst] = None;
+        state.inst_blocks[inst] = None;
         self.stats.expressions_eliminated += 1;
     }
 
