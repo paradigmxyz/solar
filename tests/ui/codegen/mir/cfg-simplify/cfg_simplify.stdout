@@ -31,12 +31,32 @@
       ret 1
   }
   
+  fn @constant_branch() -> u256 {
+    bb0:
+-     jumpi 2, bb1, bb2
+-   bb1:
+      ret 1
+-   bb2:
+-     ret 2
+  }
+  
   fn @ordered_switch(arg0: u256) -> u256 {
     bb0:
       switch 5, default bb1, [arg0 => bb1, 5 => bb2]
     bb1:
       ret 1
     bb2:
+      ret 2
+  }
+  
+  fn @constant_switch() -> u256 {
+    bb0:
+-     switch 2, default bb1, [1 => bb2, 2 => bb3]
+-   bb1:
+-     ret 0
+-   bb2:
+-     ret 1
+-   bb3:
       ret 2
   }
   

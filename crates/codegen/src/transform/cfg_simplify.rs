@@ -359,23 +359,36 @@ impl CfgSimplifier {
     fn simplify_degenerate_terminators(&mut self, func: &mut Function) {
         let mut changed = false;
         for block_id in func.blocks.indices() {
-            let replacement = match func.blocks[block_id].terminator.as_mut() {
-                Some(Terminator::Branch { then_block, else_block, .. })
-                    if then_block == else_block =>
-                {
-                    Some(*then_block)
+            if let Some(Terminator::Switch { default, cases, .. }) =
+                func.blocks[block_id].terminator.as_mut()
+            {
+                let old_len = cases.len();
+                while cases.last().is_some_and(|(_, target)| target == default) {
+                    cases.pop();
                 }
-                Some(Terminator::Switch { default, cases, .. }) => {
-                    let old_len = cases.len();
-                    while cases.last().is_some_and(|(_, target)| target == default) {
-                        cases.pop();
-                    }
-                    if cases.len() != old_len {
-                        self.stats.terminators_simplified += old_len - cases.len();
-                        changed = true;
-                    }
-                    cases.is_empty().then_some(*default)
+                if cases.len() != old_len {
+                    self.stats.terminators_simplified += old_len - cases.len();
+                    changed = true;
                 }
+            }
+
+            let replacement = match func.blocks[block_id].terminator.as_ref() {
+                Some(Terminator::Branch { condition, then_block, else_block }) => func
+                    .value_u256(*condition)
+                    .map(|condition| if condition.is_zero() { *else_block } else { *then_block })
+                    .or((*then_block == *else_block).then_some(*then_block)),
+                Some(Terminator::Switch { value, default, cases }) => func
+                    .value_u256(*value)
+                    .and_then(|value| {
+                        for &(case, target) in cases {
+                            let case = func.value_u256(case)?;
+                            if case == value {
+                                return Some(target);
+                            }
+                        }
+                        Some(*default)
+                    })
+                    .or_else(|| cases.is_empty().then_some(*default)),
                 _ => None,
             };
             if let Some(target) = replacement {

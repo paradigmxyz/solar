@@ -40,6 +40,18 @@ fn @degenerate_branch_refreshes_successors(arg0: bool) -> u256 {
     ret 1
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @constant_branch{{[( ]}}
+// CHECK: -     jumpi 2, bb1, bb2
+// CHECK: {{^[ +].*}}ret 1
+fn @constant_branch() -> u256 {
+  bb0:
+    jumpi 2, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    ret 2
+}
+
 // An earlier dynamic case may equal 5 and must keep shadowing the later
 // constant case, even though it routes to the default.
 // CHECK-LABEL: {{^[ +].*}}fn @ordered_switch{{[( ]}}
@@ -50,6 +62,20 @@ fn @ordered_switch(arg0: u256) -> u256 {
   bb1:
     ret 1
   bb2:
+    ret 2
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @constant_switch{{[( ]}}
+// CHECK: -     switch 2, default bb1, [1 => bb2, 2 => bb3]
+// CHECK: {{^[ +].*}}ret 2
+fn @constant_switch() -> u256 {
+  bb0:
+    switch 2, default bb1, [1 => bb2, 2 => bb3]
+  bb1:
+    ret 0
+  bb2:
+    ret 1
+  bb3:
     ret 2
 }
 
