@@ -943,7 +943,9 @@ impl<'a> SlotSsaBuilder<'a> {
             let Some(idom) = self.cfg.dominators().idom(block) else { continue };
             for mut runner in preds {
                 while runner != idom {
-                    if !frontiers[runner].contains(&block) {
+                    // Blocks are visited in index order, so a duplicate can only
+                    // match the last frontier entry.
+                    if frontiers[runner].last().copied() != Some(block) {
                         frontiers[runner].push(block);
                     }
 
