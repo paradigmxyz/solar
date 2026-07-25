@@ -19,7 +19,7 @@ use crate::{
         BlockId, Function, InstId, InstKind, Module, StorageAlias, Terminator, Value, ValueId,
         utils as mir_utils,
     },
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_filtered},
 };
 use alloy_primitives::U256;
 use arrayvec::ArrayVec;
@@ -40,12 +40,34 @@ impl MirPass for Licm {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
-            let mut optimizer = LoopOptimizer::with_limits(3, 8);
-            optimizer.alias = Some(Rc::clone(&analyses.alias));
-            optimizer.optimize(func).instructions_hoisted != 0
-        })
+        run_function_pass_filtered(
+            module,
+            analyses,
+            |_, func| may_have_loop_or_storage_access(func),
+            |func, analyses| {
+                let mut optimizer = LoopOptimizer::with_limits(3, 8);
+                optimizer.alias = Some(Rc::clone(&analyses.alias));
+                optimizer.optimize(func).instructions_hoisted != 0
+            },
+        )
     }
+}
+
+fn may_have_loop_or_storage_access(func: &Function) -> bool {
+    func.instructions().any(|inst_id| {
+        matches!(
+            func.inst(inst_id).kind,
+            InstKind::SLoad(_)
+                | InstKind::SStore(_, _)
+                | InstKind::TLoad(_)
+                | InstKind::TStore(_, _)
+        )
+    }) || func.blocks.iter_enumerated().any(|(block_id, block)| {
+        block
+            .terminator
+            .as_ref()
+            .is_some_and(|term| term.successors().iter().any(|&successor| successor <= block_id))
+    })
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

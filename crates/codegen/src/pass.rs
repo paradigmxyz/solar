@@ -257,16 +257,6 @@ pub(crate) trait AnalysisPass {
     fn run(&self, func: &Function) -> Self::Result;
 }
 
-/// Runs a function-local transform over every bodied function in a module.
-#[must_use]
-pub(crate) fn run_function_pass(
-    module: &mut Module,
-    analyses: &mut ModuleAnalyses,
-    run: impl FnMut(&mut Function, &FunctionAnalyses) -> bool,
-) -> bool {
-    run_function_pass_filtered(module, analyses, |_, _| true, run)
-}
-
 /// Runs a function-local transform over selected bodied functions in a module.
 #[must_use]
 pub(crate) fn run_function_pass_filtered(
