@@ -19,7 +19,10 @@ use crate::{
     },
     pass::{MirPass, run_function_pass},
 };
-use solar_data_structures::bit_set::DenseBitSet;
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+};
 
 /// Function pass for loop canonicalization.
 pub(crate) struct LoopCanonicalize;
@@ -135,14 +138,22 @@ impl LoopCanonicalizer {
             }
         }
 
+        let mut outside = DenseBitSet::new_empty(func.blocks.len());
+        for &pred in outside_preds {
+            outside.insert(pred);
+        }
+        let mut seen = DenseBitSet::new_empty(func.blocks.len());
         for &inst_id in &func.blocks[header].instructions {
             let InstKind::Phi(incoming) = &func.inst(inst_id).kind else {
                 continue;
             };
-            if outside_preds
-                .iter()
-                .any(|pred| !incoming.iter().any(|(incoming_pred, _)| incoming_pred == pred))
-            {
+            seen.clear();
+            for &(pred, _) in incoming {
+                if outside.contains(pred) {
+                    seen.insert(pred);
+                }
+            }
+            if seen.count() != outside_preds.len() {
                 return false;
             }
         }
@@ -188,30 +199,28 @@ impl LoopCanonicalizer {
             .take_while(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
             .collect();
 
-        let mut preheader_insert_pos = 0;
+        let mut outside = DenseBitSet::new_empty(func.blocks.len());
+        for &pred in outside_preds {
+            outside.insert(pred);
+        }
+        let mut outside_values = index_vec![None; func.blocks.len()];
         for inst_id in phi_insts {
-            let external_incoming = self.external_phi_incoming(func, inst_id, outside_preds);
+            let external_incoming = self.external_phi_incoming(
+                func,
+                inst_id,
+                outside_preds,
+                &outside,
+                &mut outside_values,
+            );
             let preheader_value =
                 self.canonical_preheader_value(func, inst_id, external_incoming, preheader);
 
             let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind else {
                 continue;
             };
-            incoming.retain(|(pred, _)| !outside_preds.contains(pred));
+            incoming.retain(|(pred, _)| !outside.contains(*pred));
             incoming.push((preheader, preheader_value));
             self.stats.header_phis_rewritten += 1;
-
-            if let Value::Inst(phi_inst) = func.values[preheader_value]
-                && func.blocks[preheader].instructions.contains(&phi_inst)
-                && let Some(pos) = func.blocks[preheader]
-                    .instructions
-                    .iter()
-                    .position(|&existing| existing == phi_inst)
-            {
-                let phi_inst = func.blocks[preheader].instructions.remove(pos);
-                func.blocks[preheader].instructions.insert(preheader_insert_pos, phi_inst);
-                preheader_insert_pos += 1;
-            }
         }
     }
 
@@ -220,18 +229,23 @@ impl LoopCanonicalizer {
         func: &Function,
         inst_id: InstId,
         outside_preds: &[BlockId],
+        outside: &DenseBitSet<BlockId>,
+        values: &mut IndexVec<BlockId, Option<ValueId>>,
     ) -> Vec<(BlockId, ValueId)> {
         let InstKind::Phi(incoming) = &func.inst(inst_id).kind else {
             return Vec::new();
         };
+        for &pred in outside_preds {
+            values[pred] = None;
+        }
+        for &(pred, value) in incoming {
+            if outside.contains(pred) && values[pred].is_none() {
+                values[pred] = Some(value);
+            }
+        }
         outside_preds
             .iter()
-            .filter_map(|pred| {
-                incoming
-                    .iter()
-                    .find(|(incoming_pred, _)| incoming_pred == pred)
-                    .map(|(_, value)| (*pred, *value))
-            })
+            .map(|&pred| (pred, values[pred].expect("outside predecessor must have a phi input")))
             .collect()
     }
 
