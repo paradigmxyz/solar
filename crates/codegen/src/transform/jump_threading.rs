@@ -44,9 +44,27 @@ impl MirPass for JumpThreading {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass_no_analyses(module, analyses, |func| {
+            if !may_thread_jumps(func) {
+                return false;
+            }
             JumpThreader::new().run_to_fixpoint(func).total_threaded() != 0
         })
     }
+}
+
+fn may_thread_jumps(func: &Function) -> bool {
+    func.blocks.iter_enumerated().any(|(block_id, block)| {
+        let is_forwarder = !block.predecessors.is_empty()
+            && block.instructions.is_empty()
+            && matches!(block.terminator, Some(Terminator::Jump(target)) if target != block_id);
+        let is_phi_control = func.block_has_phi(block_id)
+            && func.block_has_only_phis(block_id)
+            && matches!(
+                block.terminator,
+                Some(Terminator::Branch { .. } | Terminator::Switch { .. })
+            );
+        is_forwarder || is_phi_control
+    })
 }
 
 /// Statistics from jump threading optimization.
