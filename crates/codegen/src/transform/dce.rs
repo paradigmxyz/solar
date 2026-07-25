@@ -28,8 +28,11 @@ impl MirPass for Dce {
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
             let removed = DeadCodeEliminator::new().run_to_fixpoint(func);
-            let repaired = repair_reachability_phis(func);
-            removed != 0 || repaired
+            let mut changed = removed != 0;
+            if changed {
+                changed |= repair_reachability_phis(func);
+            }
+            changed
         })
     }
 }

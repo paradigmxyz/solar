@@ -26,9 +26,11 @@ impl MirPass for Adce {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
-            let changed = AggressiveDeadCodeEliminator::new().run(func).total() != 0;
-            let repaired = repair_reachability_phis(func);
-            changed || repaired
+            let mut changed = AggressiveDeadCodeEliminator::new().run(func).total() != 0;
+            if changed {
+                changed |= repair_reachability_phis(func);
+            }
+            changed
         })
     }
 }

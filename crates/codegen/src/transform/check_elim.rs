@@ -55,9 +55,11 @@ impl MirPass for CheckElim {
         run_function_pass(module, analyses, |func, analyses| {
             let mut eliminator = CheckEliminator::new();
             eliminator.cfg = Some(Rc::clone(&analyses.cfg));
-            let changed = eliminator.run(func) != 0;
-            let repaired = repair_reachability_phis(func);
-            changed || repaired
+            let mut changed = eliminator.run(func) != 0;
+            if changed {
+                changed |= repair_reachability_phis(func);
+            }
+            changed
         })
     }
 }

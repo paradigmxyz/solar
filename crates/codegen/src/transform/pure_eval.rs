@@ -28,9 +28,11 @@ impl MirPass for PureEval {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
-            let changed = PureEvaluator::new().run(func).functions_folded != 0;
-            let repaired = crate::mir::utils::repair_reachability_phis(func);
-            changed || repaired
+            let mut changed = PureEvaluator::new().run(func).functions_folded != 0;
+            if changed {
+                changed |= crate::mir::utils::repair_reachability_phis(func);
+            }
+            changed
         })
     }
 }

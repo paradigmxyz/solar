@@ -17,8 +17,7 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{
         BlockId, Function, InstId, InstKind, Instruction, MirType, Module, Terminator, Value,
-        ValueId,
-        utils::{self as mir_utils, repair_reachability_phis},
+        ValueId, utils as mir_utils,
     },
     pass::{MirPass, run_function_pass},
 };
@@ -43,9 +42,7 @@ impl MirPass for FrameSlotPromotion {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
-            let changed = FrameSlotPromoter::new().run(func).total() != 0;
-            let repaired = repair_reachability_phis(func);
-            changed || repaired
+            FrameSlotPromoter::new().run(func).total() != 0
         })
     }
 }
