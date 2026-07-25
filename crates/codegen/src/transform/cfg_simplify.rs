@@ -364,6 +364,7 @@ impl CfgSimplifier {
             return;
         }
 
+        let mut switch_targets = index_vec![None; func.blocks.len()];
         let mut predecessor_edges = FxHashSet::default();
         for (block, basic_block) in func.blocks.iter_enumerated() {
             predecessor_edges.extend(basic_block.predecessors.iter().map(|&pred| (pred, block)));
@@ -371,7 +372,7 @@ impl CfgSimplifier {
         for (dup, keep) in merges {
             let predecessors = func.unique_predecessors(dup);
             for pred in predecessors {
-                self.redirect_terminator(func, pred, dup, keep);
+                self.redirect_terminator_indexed(func, pred, dup, keep, &mut switch_targets);
                 if predecessor_edges.insert((pred, keep)) {
                     func.blocks[keep].predecessors.push(pred);
                 }
