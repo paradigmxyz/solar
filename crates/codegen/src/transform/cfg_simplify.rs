@@ -197,10 +197,11 @@ impl CfgSimplifier {
 
         self.simplify_degenerate_terminators(func);
         self.stats.unreachable_blocks_removed += self.remove_unreachable_blocks(func);
-        self.merge_blocks(func);
+        let inst_results = func.inst_results();
+        self.merge_blocks(func, &inst_results);
         self.eliminate_empty_blocks(func);
-        self.deduplicate_terminal_blocks(func);
-        self.simplify_trivial_phis(func);
+        self.deduplicate_terminal_blocks(func, &inst_results);
+        self.simplify_trivial_phis(func, &inst_results);
 
         self.stats.total()
     }
@@ -214,16 +215,18 @@ impl CfgSimplifier {
     /// function. The rewrite is phi-safe by construction: the kept block has
     /// no phis and a terminal block has no successors, so no phi inputs
     /// elsewhere can mention it.
-    fn deduplicate_terminal_blocks(&mut self, func: &mut Function) {
-        let inst_results = func.inst_results();
-
+    fn deduplicate_terminal_blocks(
+        &mut self,
+        func: &mut Function,
+        inst_results: &FxHashMap<crate::mir::InstId, ValueId>,
+    ) {
         let mut kept = FxHashMap::default();
         let mut merges: Vec<(BlockId, BlockId)> = Vec::new();
         for block_id in func.blocks.indices() {
             if func.blocks[block_id].predecessors.is_empty() {
                 continue;
             }
-            let Some(canon) = Self::canonicalize_terminal_block(func, block_id, &inst_results)
+            let Some(canon) = Self::canonicalize_terminal_block(func, block_id, inst_results)
             else {
                 continue;
             };
@@ -331,22 +334,23 @@ impl CfgSimplifier {
         Some(CanonBlock { insts, term_mnemonic: term.mnemonic(), term_payload, term_operands })
     }
 
-    fn simplify_trivial_phis(&mut self, func: &mut Function) {
+    fn simplify_trivial_phis(
+        &mut self,
+        func: &mut Function,
+        inst_results: &FxHashMap<crate::mir::InstId, ValueId>,
+    ) {
         let mut candidates = Vec::new();
         let mut raw = FxHashMap::default();
 
         for block_id in func.blocks.indices() {
-            let same_block_phi_results = func.block_phi_results(block_id);
             for &inst_id in &func.blocks[block_id].instructions {
                 let InstKind::Phi(incoming) = &func.inst(inst_id).kind else {
                     continue;
                 };
-                let Some(phi_value) = func.inst_result_value(inst_id) else {
+                let Some(&phi_value) = inst_results.get(&inst_id) else {
                     continue;
                 };
-                let Some(replacement) =
-                    Self::trivial_phi_replacement(incoming, phi_value, &same_block_phi_results)
-                else {
+                let Some(replacement) = Self::trivial_phi_replacement(incoming, phi_value) else {
                     continue;
                 };
                 candidates.push((inst_id, phi_value));
@@ -364,20 +368,33 @@ impl CfgSimplifier {
         // Mutually-trivial cycles have no outside source; keep those phis.
         let mut replacements = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.num_insts());
-        let mut seen = DenseBitSet::new_empty(func.values.len());
+        let mut resolved = FxHashMap::default();
+        let mut visiting = DenseBitSet::new_empty(func.values.len());
+        let mut path = Vec::new();
         for &(inst_id, phi_value) in &candidates {
-            seen.clear();
-            seen.insert(phi_value);
-            let mut target = raw[&phi_value];
-            let mut cyclic = false;
-            while let Some(&next) = raw.get(&target) {
-                if !seen.insert(target) {
-                    cyclic = true;
-                    break;
+            if !resolved.contains_key(&phi_value) {
+                path.clear();
+                let mut current = phi_value;
+                let target = loop {
+                    if let Some(&target) = resolved.get(&current) {
+                        break target;
+                    }
+                    let Some(&next) = raw.get(&current) else {
+                        break Some(current);
+                    };
+                    if !visiting.insert(current) {
+                        break None;
+                    }
+                    path.push(current);
+                    current = next;
+                };
+                for &value in &path {
+                    visiting.remove(value);
+                    resolved.insert(value, target);
                 }
-                target = next;
             }
-            if !cyclic {
+
+            if let Some(target) = resolved[&phi_value] {
                 replacements.insert(phi_value, target);
                 dead.insert(inst_id);
             }
@@ -397,13 +414,9 @@ impl CfgSimplifier {
     fn trivial_phi_replacement(
         incoming: &[(BlockId, ValueId)],
         phi_value: ValueId,
-        same_block_phi_results: &DenseBitSet<ValueId>,
     ) -> Option<ValueId> {
         let mut incoming_values = incoming.iter().map(|(_, value)| *value);
         let first = incoming_values.find(|value| *value != phi_value)?;
-        if same_block_phi_results.contains(first) {
-            return None;
-        }
         incoming_values.all(|value| value == phi_value || value == first).then_some(first)
     }
 
@@ -480,11 +493,15 @@ impl CfgSimplifier {
     }
 
     /// Merges blocks where A unconditionally jumps to B and B has only A as predecessor.
-    fn merge_blocks(&mut self, func: &mut Function) {
+    fn merge_blocks(
+        &mut self,
+        func: &mut Function,
+        inst_results: &FxHashMap<crate::mir::InstId, ValueId>,
+    ) {
         let block_count = func.blocks.len();
         for block_id in (0..block_count).map(BlockId::from_usize) {
             while let Some(target) = self.can_merge(func, block_id) {
-                self.do_merge(func, block_id, target);
+                self.do_merge(func, block_id, target, inst_results);
                 self.stats.blocks_merged += 1;
                 self.stats.gas_saved += 8;
             }
@@ -526,8 +543,15 @@ impl CfgSimplifier {
     }
 
     /// Merges block_id with target, appending target's instructions and terminator to block_id.
-    fn do_merge(&self, func: &mut Function, block_id: BlockId, target: BlockId) {
-        let phi_replacements = self.fold_target_phis_for_merge(func, block_id, target);
+    fn do_merge(
+        &self,
+        func: &mut Function,
+        block_id: BlockId,
+        target: BlockId,
+        inst_results: &FxHashMap<crate::mir::InstId, ValueId>,
+    ) {
+        let phi_replacements =
+            self.fold_target_phis_for_merge(func, block_id, target, inst_results);
         let target_instructions: Vec<_> = func.blocks[target]
             .instructions
             .iter()
@@ -564,13 +588,14 @@ impl CfgSimplifier {
         func: &Function,
         pred: BlockId,
         target: BlockId,
+        inst_results: &FxHashMap<crate::mir::InstId, ValueId>,
     ) -> FxHashMap<ValueId, ValueId> {
         let mut replacements = FxHashMap::default();
         for &inst_id in &func.blocks[target].instructions {
             let InstKind::Phi(incoming) = &func.inst(inst_id).kind else {
                 continue;
             };
-            let Some(phi_value) = func.inst_result_value(inst_id) else {
+            let Some(&phi_value) = inst_results.get(&inst_id) else {
                 continue;
             };
             let Some((_, incoming_value)) =

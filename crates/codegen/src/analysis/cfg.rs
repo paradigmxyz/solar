@@ -56,6 +56,36 @@ impl CfgInfo {
         &self.successors[block]
     }
 
+    /// Returns whether `func` has exactly the snapshotted CFG.
+    #[must_use]
+    pub(crate) fn has_same_edges(&self, func: &Function) -> bool {
+        self.successors.len() == func.blocks.len()
+            && func.blocks.iter_enumerated().all(|(block, basic_block)| {
+                basic_block
+                    .terminator
+                    .as_ref()
+                    .map(|terminator| terminator.successors())
+                    .unwrap_or_default()
+                    .as_slice()
+                    == self.successors[block].as_slice()
+            })
+    }
+
+    /// Returns whether every edge in `func` existed in the snapshot.
+    #[must_use]
+    pub(crate) fn contains_edges_of(&self, func: &Function) -> bool {
+        self.successors.len() == func.blocks.len()
+            && func.blocks.iter_enumerated().all(|(block, basic_block)| {
+                basic_block
+                    .terminator
+                    .as_ref()
+                    .map(|terminator| terminator.successors())
+                    .unwrap_or_default()
+                    .iter()
+                    .all(|successor| self.successors[block].contains(successor))
+            })
+    }
+
     /// Returns the blocks reachable from the entry.
     #[must_use]
     pub(crate) fn reachable(&self) -> &DenseBitSet<BlockId> {

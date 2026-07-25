@@ -5,7 +5,6 @@ use super::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
-    bit_set::DenseBitSet,
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
     map::FxHashMap,
@@ -201,20 +200,6 @@ impl Function {
             .instructions
             .iter()
             .all(|&inst_id| matches!(self.instructions[inst_id].kind, InstKind::Phi(_)))
-    }
-
-    /// Returns the result values produced by phi instructions in the block.
-    #[must_use]
-    pub(crate) fn block_phi_results(&self, block: BlockId) -> DenseBitSet<ValueId> {
-        let mut results = DenseBitSet::new_empty(self.values.len());
-        for &inst_id in &self.blocks[block].instructions {
-            if matches!(self.instructions[inst_id].kind, InstKind::Phi(_))
-                && let Some(result) = self.inst_result_value(inst_id)
-            {
-                results.insert(result);
-            }
-        }
-        results
     }
 
     /// Returns the basic block for the given ID.
