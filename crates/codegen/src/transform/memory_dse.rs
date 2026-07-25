@@ -185,16 +185,7 @@ impl MemoryStoreEliminator {
             self.alias = Some(Rc::new(AliasAnalysis::new(func)));
         }
 
-        let needs_inst_results = func.instructions().any(|inst_id| {
-            matches!(
-                func.inst(inst_id).kind,
-                InstKind::MLoad(_) | InstKind::MemoryObjectLen(_, _) | InstKind::Keccak256(_, _)
-            )
-        });
-        let inst_results =
-            if needs_inst_results { func.inst_results() } else { FxHashMap::default() };
-
-        self.reuse_redundant_immutable_copies(func, &inst_results);
+        self.reuse_redundant_immutable_copies(func);
         self.alias().clear_cached_addresses();
         self.remove_unused_internal_frame_stores(func);
 
@@ -204,12 +195,12 @@ impl MemoryStoreEliminator {
             .any(|inst_id| Self::constant_range_read(&func.inst(inst_id).kind).is_some());
         if has_precise_reads {
             for block_id in block_ids {
-                self.process_block::<true>(func, block_id, &inst_results, scratch);
+                self.process_block::<true>(func, block_id, scratch);
                 self.alias().clear_cached_addresses();
             }
         } else {
             for block_id in block_ids {
-                self.process_block::<false>(func, block_id, &inst_results, scratch);
+                self.process_block::<false>(func, block_id, scratch);
                 self.alias().clear_cached_addresses();
             }
         }
@@ -441,11 +432,7 @@ impl MemoryStoreEliminator {
         total
     }
 
-    fn reuse_redundant_immutable_copies(
-        &mut self,
-        func: &mut Function,
-        inst_results: &FxHashMap<InstId, ValueId>,
-    ) {
+    fn reuse_redundant_immutable_copies(&mut self, func: &mut Function) {
         let has_candidate = func.blocks.iter().any(|block| {
             block.instructions.windows(2).any(|window| {
                 matches!(func.inst(window[0]).kind, InstKind::CodeCopy(_, _, _))
@@ -482,7 +469,7 @@ impl MemoryStoreEliminator {
                 if self.mem_addr_key(func, dest) != self.mem_addr_key(func, load_addr) {
                     continue;
                 }
-                let Some(&loaded_value) = inst_results.get(&load) else {
+                let Some(loaded_value) = func.inst_result_value(load) else {
                     continue;
                 };
 
@@ -567,7 +554,6 @@ impl MemoryStoreEliminator {
         &mut self,
         func: &mut Function,
         block_id: BlockId,
-        inst_results: &FxHashMap<InstId, ValueId>,
         scratch: &mut BlockScratch,
     ) {
         let mut mstores = 0;
@@ -601,10 +587,10 @@ impl MemoryStoreEliminator {
         }
 
         if has_keccak && mstores != 0 {
-            self.fold_constant_keccak(func, block_id, inst_results, scratch);
+            self.fold_constant_keccak(func, block_id, scratch);
         }
         if has_load && mstores != 0 {
-            self.forward_loads(func, block_id, inst_results, scratch);
+            self.forward_loads(func, block_id, scratch);
         }
         if mstores >= 2 {
             self.remove_equal_stores(func, block_id, scratch);
@@ -976,7 +962,6 @@ impl MemoryStoreEliminator {
         &mut self,
         func: &mut Function,
         block_id: BlockId,
-        inst_results: &FxHashMap<InstId, ValueId>,
         scratch: &mut BlockScratch,
     ) {
         scratch.stored_words.clear();
@@ -1002,7 +987,7 @@ impl MemoryStoreEliminator {
                     else {
                         continue;
                     };
-                    let Some(&result) = inst_results.get(&inst_id) else {
+                    let Some(result) = func.inst_result_value(inst_id) else {
                         continue;
                     };
                     let hash = keccak256(&bytes);
@@ -1073,7 +1058,6 @@ impl MemoryStoreEliminator {
         &mut self,
         func: &mut Function,
         block_id: BlockId,
-        inst_results: &FxHashMap<InstId, ValueId>,
         scratch: &mut BlockScratch,
     ) {
         scratch.stored_values.clear();
@@ -1120,7 +1104,7 @@ impl MemoryStoreEliminator {
                     let Some(&stored_value) = scratch.stored_values.get(&key) else {
                         continue;
                     };
-                    if let Some(&loaded_value) = inst_results.get(&inst_id) {
+                    if let Some(loaded_value) = func.inst_result_value(inst_id) {
                         scratch.replacements.insert(loaded_value, stored_value);
                         scratch.dead.insert(inst_id);
                     }
@@ -1133,7 +1117,7 @@ impl MemoryStoreEliminator {
                     let Some(&stored_value) = scratch.stored_values.get(&key) else {
                         continue;
                     };
-                    if let Some(&loaded_value) = inst_results.get(&inst_id) {
+                    if let Some(loaded_value) = func.inst_result_value(inst_id) {
                         scratch.replacements.insert(loaded_value, stored_value);
                         scratch.dead.insert(inst_id);
                     }
