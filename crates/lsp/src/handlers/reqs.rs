@@ -9,6 +9,8 @@ use crate::{
 use async_lsp::{ErrorCode, ResponseError};
 use crop::Rope;
 use lsp_types::{
+    CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
+    CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
     CompletionParams, CompletionResponse, DocumentChanges, DocumentDiagnosticParams,
     DocumentDiagnosticReport, DocumentDiagnosticReportResult, DocumentFormattingParams,
     DocumentHighlight, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
@@ -369,6 +371,49 @@ pub(crate) fn goto_implementation(
         let symbol_tables = latest_analysis.await?;
         let response =
             symbol_tables.read().goto_implementation(&params.text_document.uri, params.position);
+        Ok(response)
+    }
+}
+
+pub(crate) fn prepare_call_hierarchy(
+    state: &mut GlobalState,
+    params: CallHierarchyPrepareParams,
+) -> impl Future<Output = Result<Option<Vec<CallHierarchyItem>>, ResponseError>> + use<> {
+    let params = params.text_document_position_params;
+    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response =
+            symbol_tables.read().prepare_call_hierarchy(&params.text_document.uri, params.position);
+        Ok(response)
+    }
+}
+
+pub(crate) fn call_hierarchy_incoming(
+    state: &mut GlobalState,
+    params: CallHierarchyIncomingCallsParams,
+) -> impl Future<Output = Result<Option<Vec<CallHierarchyIncomingCall>>, ResponseError>> + use<> {
+    let item = params.item;
+    let latest_analysis = latest_analysis_for_uri(state, &item.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response = symbol_tables.read().call_hierarchy_incoming(&item);
+        Ok(response)
+    }
+}
+
+pub(crate) fn call_hierarchy_outgoing(
+    state: &mut GlobalState,
+    params: CallHierarchyOutgoingCallsParams,
+) -> impl Future<Output = Result<Option<Vec<CallHierarchyOutgoingCall>>, ResponseError>> + use<> {
+    let item = params.item;
+    let latest_analysis = latest_analysis_for_uri(state, &item.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response = symbol_tables.read().call_hierarchy_outgoing(&item);
         Ok(response)
     }
 }

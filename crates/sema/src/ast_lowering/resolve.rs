@@ -416,7 +416,12 @@ impl<'gcx> ResolveContext<'gcx> {
                         }
                     }
                     let args = self.lower_call_args(&modifier.arguments);
-                    modifiers.push(hir::Modifier { span: modifier.span(), id, args });
+                    modifiers.push(hir::Modifier {
+                        span: modifier.span(),
+                        name_span: modifier.name.last().span,
+                        id,
+                        args,
+                    });
                 }
                 self.arena.alloc_smallvec(modifiers)
             };
@@ -581,6 +586,7 @@ impl<'gcx> ResolveContext<'gcx> {
             std::iter::zip(&*ast_contract.bases, self.hir.contract(c_id).bases).map(
                 |(ast_base, &base_id)| hir::Modifier {
                     span: ast_base.span(),
+                    name_span: ast_base.name.last().span,
                     id: base_id.into(),
                     args: self.lower_call_args(&ast_base.arguments),
                 },

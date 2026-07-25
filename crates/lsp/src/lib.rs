@@ -18,6 +18,7 @@ use solar_config::LspArgs;
 use std::ops::ControlFlow;
 use tower::ServiceBuilder;
 
+mod call_hierarchy;
 mod commands;
 mod config;
 mod diagnostics;
@@ -94,6 +95,9 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
         .request::<req::GotoDeclaration, _>(handlers::goto_declaration)
         .request::<req::GotoImplementation, _>(handlers::goto_implementation)
         .request::<req::References, _>(handlers::references)
+        .request::<req::CallHierarchyPrepare, _>(handlers::prepare_call_hierarchy)
+        .request::<req::CallHierarchyIncomingCalls, _>(handlers::call_hierarchy_incoming)
+        .request::<req::CallHierarchyOutgoingCalls, _>(handlers::call_hierarchy_outgoing)
         .request::<req::DocumentHighlightRequest, _>(handlers::document_highlight)
         .request::<req::HoverRequest, _>(handlers::hover)
         .request::<req::PrepareRenameRequest, _>(handlers::prepare_rename)
@@ -165,13 +169,14 @@ mod tests {
         router::Router,
     };
     use lsp_types::{
-        CancelParams, CompletionParams, CompletionResponse,
+        CallHierarchyIncomingCallsParams, CallHierarchyItem, CallHierarchyOutgoingCallsParams,
+        CallHierarchyPrepareParams, CancelParams, CompletionParams, CompletionResponse,
         DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
         DidSaveTextDocumentParams, DocumentFormattingParams, DocumentHighlightParams,
         DocumentLinkParams, DocumentSymbolParams, ExecuteCommandParams, FileChangeType, FileEvent,
         FoldingRangeParams, FormattingOptions, HoverParams, InitializeParams, InitializedParams,
         NumberOrString, PartialResultParams, Position, ProgressParams, ProgressParamsValue,
-        PublishDiagnosticsParams, SelectionRangeParams, SignatureHelpParams,
+        PublishDiagnosticsParams, Range, SelectionRangeParams, SignatureHelpParams, SymbolKind,
         TextDocumentIdentifier, TextDocumentPositionParams, TextDocumentSaveReason,
         WillSaveTextDocumentParams, WindowClientCapabilities, WorkDoneProgress,
         WorkDoneProgressCancelParams, WorkDoneProgressCreateParams, WorkDoneProgressParams,
@@ -515,6 +520,60 @@ mod tests {
         let response = router.call(request).await.unwrap();
 
         assert_eq!(response, serde_json::Value::Null);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_call_hierarchy_requests() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let uri = lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap();
+        let range = Range::new(Position::new(0, 0), Position::new(0, 1));
+        let item = CallHierarchyItem {
+            name: "f".into(),
+            kind: SymbolKind::FUNCTION,
+            tags: None,
+            detail: None,
+            uri: uri.clone(),
+            range,
+            selection_range: range,
+            data: None,
+        };
+        let requests = [
+            serde_json::json!({
+                "id": 1,
+                "method": request::CallHierarchyPrepare::METHOD,
+                "params": CallHierarchyPrepareParams {
+                    text_document_position_params: TextDocumentPositionParams {
+                        text_document: TextDocumentIdentifier { uri },
+                        position: Position::new(0, 0),
+                    },
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                },
+            }),
+            serde_json::json!({
+                "id": 2,
+                "method": request::CallHierarchyIncomingCalls::METHOD,
+                "params": CallHierarchyIncomingCallsParams {
+                    item: item.clone(),
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                    partial_result_params: PartialResultParams::default(),
+                },
+            }),
+            serde_json::json!({
+                "id": 3,
+                "method": request::CallHierarchyOutgoingCalls::METHOD,
+                "params": CallHierarchyOutgoingCallsParams {
+                    item,
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                    partial_result_params: PartialResultParams::default(),
+                },
+            }),
+        ];
+
+        for request in requests {
+            let request = serde_json::from_value::<AnyRequest>(request).unwrap();
+            let response = router.call(request).await.unwrap();
+            assert_eq!(response, serde_json::Value::Null);
+        }
     }
 
     #[tokio::test(flavor = "current_thread")]

@@ -29,6 +29,7 @@ use std::{
 };
 
 use crate::{
+    call_hierarchy::CallHierarchyIndex,
     document_links::DocumentLinkIndex,
     inlay_hints::InlayHintIndex,
     natspec_completion::{DeclarationKey, NatSpecCompletionIndex, NatSpecTargetSemantics},
@@ -64,6 +65,7 @@ pub(crate) struct SymbolTables {
     inlay_hints: InlayHintIndex,
     natspec_completion: NatSpecCompletionIndex,
     signature_help: SignatureHelpIndex,
+    call_hierarchy: CallHierarchyIndex,
 }
 
 newtype_index! {
@@ -274,6 +276,7 @@ impl SymbolTables {
         }
 
         tables.build_type_definitions(gcx, &item_symbols);
+        tables.call_hierarchy = CallHierarchyIndex::build(gcx, &item_symbols, &tables.declarations);
 
         // Public state-variable getters are compiler-generated functions, but source member calls
         // such as `this.value()` still name the state variable. Point getter resolutions back to
@@ -325,6 +328,7 @@ impl SymbolTables {
         self.signature_help.extend(other.signature_help);
 
         let symbol_offset = self.declarations.len();
+        self.call_hierarchy.extend(other.call_hierarchy, symbol_offset);
         self.override_families.extend(other.override_families, symbol_offset);
         let scope_offset = self.scopes.len();
         for declaration in &mut other.declarations {
@@ -598,6 +602,28 @@ impl SymbolTables {
         sort_locations(&mut locations);
         locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
         Some(locations)
+    }
+
+    pub(crate) fn prepare_call_hierarchy(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<Vec<lsp_types::CallHierarchyItem>> {
+        self.call_hierarchy.prepare(uri, position, self.declaration_at_position(uri, position))
+    }
+
+    pub(crate) fn call_hierarchy_incoming(
+        &self,
+        item: &lsp_types::CallHierarchyItem,
+    ) -> Option<Vec<lsp_types::CallHierarchyIncomingCall>> {
+        self.call_hierarchy.incoming(item)
+    }
+
+    pub(crate) fn call_hierarchy_outgoing(
+        &self,
+        item: &lsp_types::CallHierarchyItem,
+    ) -> Option<Vec<lsp_types::CallHierarchyOutgoingCall>> {
+        self.call_hierarchy.outgoing(item)
     }
 
     pub(crate) fn document_highlights(
@@ -1215,10 +1241,11 @@ impl SymbolTables {
         }
         self.override_families.rebuild(&self.declarations, self.rename.conflicting_contents());
         self.rename.rebuild(&self.override_families);
+        self.call_hierarchy.rebuild(self.rename.conflicting_contents());
     }
 }
 
-fn remap_symbol_id(symbol_id: SymbolId, offset: usize) -> SymbolId {
+pub(crate) fn remap_symbol_id(symbol_id: SymbolId, offset: usize) -> SymbolId {
     SymbolId::from_usize(symbol_id.index() + offset)
 }
 
