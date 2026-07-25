@@ -42,6 +42,10 @@ pub(crate) struct Function {
     instructions: IndexVec<InstId, Instruction>,
     /// Result value allocated for each instruction, if any.
     inst_results: IndexVec<InstId, Option<ValueId>>,
+    /// Display index allocated for each value-producing instruction.
+    inst_result_indices: IndexVec<InstId, Option<usize>>,
+    /// Next display index for a value-producing instruction.
+    next_inst_result_index: usize,
     /// All basic blocks in this function. This is never empty; block zero is the entry.
     pub(crate) blocks: IndexVec<BlockId, BasicBlock>,
 }
@@ -65,6 +69,8 @@ impl Function {
             values: IndexVec::new(),
             instructions: IndexVec::new(),
             inst_results: IndexVec::new(),
+            inst_result_indices: IndexVec::new(),
+            next_inst_result_index: 0,
             blocks,
         }
     }
@@ -134,10 +140,7 @@ impl Function {
     /// Returns an instruction's position among allocated value-producing instructions.
     #[must_use]
     pub(crate) fn inst_result_index(&self, id: InstId) -> Option<usize> {
-        self.instructions
-            .iter_enumerated()
-            .filter(|(_, inst)| inst.result_ty.is_some())
-            .position(|(inst_id, _)| inst_id == id)
+        self.inst_result_indices[id]
     }
 
     /// Returns the value produced by the given instruction, if it has one.
@@ -245,9 +248,16 @@ impl Function {
 
     /// Allocates a new instruction.
     pub(crate) fn alloc_inst(&mut self, inst: Instruction) -> InstId {
+        let result_index = inst.result_ty.map(|_| {
+            let index = self.next_inst_result_index;
+            self.next_inst_result_index += 1;
+            index
+        });
         let inst_id = self.instructions.push(inst);
         let result_id = self.inst_results.push(None);
+        let result_index_id = self.inst_result_indices.push(result_index);
         debug_assert_eq!(inst_id, result_id);
+        debug_assert_eq!(inst_id, result_index_id);
         inst_id
     }
 
