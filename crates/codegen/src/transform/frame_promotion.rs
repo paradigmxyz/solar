@@ -729,22 +729,15 @@ impl<'a> SlotSsaBuilder<'a> {
             }
         }
 
-        // Backward fixpoint. `live_in` only grows, so a block already in the set
-        // can be skipped on later rounds.
         let mut live_in = gen_set;
-        let mut changed = true;
-        while changed {
-            changed = false;
-            for block in func.blocks.indices() {
-                if !self.cfg.is_reachable(block) || live_in.contains(block) || kill.contains(block)
+        let mut worklist: Vec<_> = live_in.iter().collect();
+        while let Some(block) = worklist.pop() {
+            for &predecessor in &func.blocks[block].predecessors {
+                if self.cfg.is_reachable(predecessor)
+                    && !kill.contains(predecessor)
+                    && live_in.insert(predecessor)
                 {
-                    continue;
-                }
-                let live_out =
-                    self.cfg.successors(block).iter().any(|&succ| live_in.contains(succ));
-                if live_out {
-                    live_in.insert(block);
-                    changed = true;
+                    worklist.push(predecessor);
                 }
             }
         }
