@@ -5,11 +5,12 @@
 use crate::{
     analysis::CfgInfo,
     mir::{
-        BlockId, Function, InstId, Module, Terminator, ValueId, utils::repair_reachability_phis,
+        BlockId, Function, InstId, Module, Terminator, Value, ValueId,
+        utils::repair_reachability_phis,
     },
     pass::{MirPass, run_function_pass},
 };
-use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 
 /// Function pass for dead code elimination.
 pub(crate) struct Dce;
@@ -42,20 +43,27 @@ impl MirPass for Dce {
 /// 4. Are instructions after a terminator (unreachable code)
 ///
 /// Side-effect instructions (SSTORE, MSTORE, CALL, LOG, etc.) are always kept.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct DeadCodeEliminator {
     /// Number of instructions eliminated in the last run.
     eliminated_count: usize,
-    /// Values used by instructions or terminators.
-    used_values: GrowableBitSet<ValueId>,
-    /// Dead instructions found in one iteration.
-    dead: Vec<(BlockId, InstId)>,
+    /// Number of active uses of each value.
+    use_counts: IndexVec<ValueId, usize>,
+    /// Instructions whose result just became unused.
+    worklist: Vec<InstId>,
+    /// Dead instructions found in one run.
+    dead: DenseBitSet<InstId>,
 }
 
 impl DeadCodeEliminator {
     /// Creates a new dead code eliminator.
     pub(crate) fn new() -> Self {
-        Self::default()
+        Self {
+            eliminated_count: 0,
+            use_counts: IndexVec::new(),
+            worklist: Vec::new(),
+            dead: DenseBitSet::new_empty(0),
+        }
     }
 
     fn run_with_inst_results(
@@ -65,37 +73,29 @@ impl DeadCodeEliminator {
     ) -> usize {
         self.eliminated_count = 0;
 
-        // Phase 1: Remove unreachable blocks
+        // Phase 1: Remove unreachable blocks.
         self.eliminated_count += self.eliminate_unreachable_blocks(func);
 
-        // Phase 2: Find all used values
-        self.collect_used_values(func);
-
-        // Phase 3: Find dead instructions
+        // Phase 2: Count uses, then propagate liveness losses backwards from
+        // initially-unused results.
+        self.collect_use_counts(func);
         self.find_dead_instructions(func, inst_to_value);
 
-        // Remove dead instructions from blocks
-        self.eliminated_count += self.dead.len();
-        for &(block_id, inst_id) in &self.dead {
-            let block = func.block_mut(block_id);
-            block.instructions.retain(|&id| id != inst_id);
+        // Remove dead instructions from blocks.
+        self.eliminated_count += self.dead.count();
+        if !self.dead.is_empty() {
+            for block in &mut func.blocks {
+                block.instructions.retain(|&inst_id| !self.dead.contains(inst_id));
+            }
         }
 
         self.eliminated_count
     }
 
-    /// Runs dead code elimination iteratively until no more changes.
+    /// Runs dead code elimination to a fixed point.
     pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
-        let mut total_eliminated = 0;
         let inst_to_value = func.inst_results();
-        loop {
-            let eliminated = self.run_with_inst_results(func, &inst_to_value);
-            if eliminated == 0 {
-                break;
-            }
-            total_eliminated += eliminated;
-        }
-        total_eliminated
+        self.run_with_inst_results(func, &inst_to_value)
     }
 
     /// Eliminates unreachable blocks using CFG reachability analysis.
@@ -126,51 +126,58 @@ impl DeadCodeEliminator {
         changed
     }
 
-    /// Collects all values that are used (appear in instructions or terminators).
-    fn collect_used_values(&mut self, func: &Function) {
-        self.used_values.clear();
-        self.used_values.ensure(func.values.len());
+    /// Counts all active instruction and terminator uses.
+    fn collect_use_counts(&mut self, func: &Function) {
+        self.use_counts.clear();
+        self.use_counts.resize(func.values.len(), 0);
 
-        // Add values used in terminators
-        for (_, block) in func.blocks.iter_enumerated() {
+        for block in &func.blocks {
             if let Some(term) = &block.terminator {
                 for operand in term.operands() {
-                    self.used_values.insert(operand);
+                    self.use_counts[operand] += 1;
                 }
             }
-        }
-
-        // Add values used as operands in instructions
-        for inst_id in func.instructions() {
-            let inst = func.inst(inst_id);
-            for val in inst.kind.operands() {
-                self.used_values.insert(val);
+            for &inst_id in &block.instructions {
+                for operand in func.inst(inst_id).kind.operands() {
+                    self.use_counts[operand] += 1;
+                }
             }
         }
     }
 
-    /// Finds instructions that are dead (unused result, no side effects).
+    /// Finds dead instructions and propagates each removed use to its operands.
     fn find_dead_instructions(
         &mut self,
         func: &Function,
         inst_to_value: &FxHashMap<InstId, ValueId>,
     ) {
-        self.dead.clear();
+        self.dead = DenseBitSet::new_empty(func.num_insts());
+        self.worklist.clear();
 
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for block in &func.blocks {
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
-
-                // Instructions with side effects are always kept.
-                if inst.kind.has_side_effects() {
-                    continue;
-                }
-
-                // O(1) lookup via precomputed map (was O(V) linear scan).
                 if let Some(&result) = inst_to_value.get(&inst_id)
-                    && !self.used_values.contains(result)
+                    && self.use_counts[result] == 0
+                    && !inst.kind.has_side_effects()
                 {
-                    self.dead.push((block_id, inst_id));
+                    self.worklist.push(inst_id);
+                }
+            }
+        }
+
+        while let Some(inst_id) = self.worklist.pop() {
+            if !self.dead.insert(inst_id) {
+                continue;
+            }
+            for operand in func.inst(inst_id).kind.operands() {
+                debug_assert_ne!(self.use_counts[operand], 0);
+                self.use_counts[operand] -= 1;
+                if self.use_counts[operand] == 0
+                    && let Value::Inst(def) = func.value(operand)
+                    && !func.inst(*def).kind.has_side_effects()
+                {
+                    self.worklist.push(*def);
                 }
             }
         }
