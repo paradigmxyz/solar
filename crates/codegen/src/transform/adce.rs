@@ -217,19 +217,6 @@ impl AggressiveDeadCodeEliminator {
     }
 
     fn rewrite_to_jump(&self, func: &mut Function, block_id: BlockId, target: BlockId) {
-        let old_successors = func.blocks[block_id]
-            .terminator
-            .as_ref()
-            .map(|term| term.successors())
-            .unwrap_or_default();
-
-        for successor in old_successors {
-            func.blocks[successor].predecessors.retain(|pred| *pred != block_id);
-        }
-        if !func.blocks[target].predecessors.contains(&block_id) {
-            func.blocks[target].predecessors.push(block_id);
-        }
-
         func.blocks[block_id].terminator = Some(Terminator::Jump(target));
     }
 }
