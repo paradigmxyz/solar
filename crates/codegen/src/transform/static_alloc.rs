@@ -23,6 +23,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
+    bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
@@ -108,17 +109,12 @@ fn is_entry(func: &Function) -> bool {
 }
 
 fn run_on_entry(func: &mut Function, shadow: u64) -> bool {
-    let mut changed = false;
-    for cand in eligible_static_allocations(func) {
-        changed |= apply_candidate(func, &cand, shadow);
-    }
-    changed
+    apply_candidates(func, &eligible_static_allocations(func), shadow)
 }
 
 /// One constant-size allocation eligible for static placement.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct StaticAllocCandidate {
-    block: BlockId,
     alloc: InstId,
     ptr: ValueId,
     size: u64,
@@ -151,7 +147,7 @@ fn eligible_static_allocations(func: &Function) -> Vec<StaticAllocCandidate> {
                 continue;
             }
             let Some(ptr) = func.inst_result_value(alloc) else { continue };
-            candidates.push(StaticAllocCandidate { block, alloc, ptr, size });
+            candidates.push(StaticAllocCandidate { alloc, ptr, size });
         }
     }
     if candidates.is_empty() {
@@ -279,25 +275,35 @@ fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate, uses: &
     true
 }
 
-/// Rewrites an eligible allocation using the conservative placement retained
-/// for the explicit `static-alloc` MIR pass.
-fn apply_candidate(func: &mut Function, cand: &StaticAllocCandidate, shadow: u64) -> bool {
-    // The region lives past the locals and the static return
-    // buffer. It must stay inside the tallest entry's shadow — growing past
-    // it pushes the shared static-frame region and can widen every helper
-    // and spill push behind it — and must not drag this entry's own spill
-    // base across the one-byte address boundary.
-    let base = EvmMemoryLayout::HEAP_START
-        + func.internal_frame_size.max(func.external_static_return_size);
-    if base + cand.size > shadow || (base < 0x100 && base + cand.size > 0x100) {
+/// Rewrites eligible allocations using the conservative placement retained for
+/// the explicit `static-alloc` MIR pass.
+fn apply_candidates(func: &mut Function, candidates: &[StaticAllocCandidate], shadow: u64) -> bool {
+    let mut replacements = FxHashMap::default();
+    let mut dead = DenseBitSet::new_empty(func.num_insts());
+
+    for cand in candidates {
+        // The region lives past the locals and the static return buffer. It
+        // must stay inside the tallest entry's shadow — growing past it pushes
+        // the shared static-frame region and can widen every helper and spill
+        // push behind it — and must not drag this entry's own spill base across
+        // the one-byte address boundary.
+        let base = EvmMemoryLayout::HEAP_START
+            + func.internal_frame_size.max(func.external_static_return_size);
+        if base + cand.size > shadow || (base < 0x100 && base + cand.size > 0x100) {
+            continue;
+        }
+        func.internal_frame_size = (base - EvmMemoryLayout::HEAP_START) + cand.size;
+        let replacement = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(base))));
+        replacements.insert(cand.ptr, replacement);
+        dead.insert(cand.alloc);
+    }
+
+    if replacements.is_empty() {
         return false;
     }
-    func.internal_frame_size = (base - EvmMemoryLayout::HEAP_START) + cand.size;
-    let replacement = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(base))));
-    let mut replacements = FxHashMap::default();
-    replacements.insert(cand.ptr, replacement);
     func.replace_uses_canonicalized(&replacements);
-    let block = &mut func.blocks[cand.block];
-    block.instructions.retain(|&inst| inst != cand.alloc);
+    for block in &mut func.blocks {
+        block.instructions.retain(|&inst| !dead.contains(inst));
+    }
     true
 }
