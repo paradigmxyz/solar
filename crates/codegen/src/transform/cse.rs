@@ -23,7 +23,7 @@
 //! ```
 //!
 //! The pass performs dominator-tree CSE with path-local invalidation for
-//! alias-sensitive memory/storage reads, then runs a local cleanup pass.
+//! alias-sensitive memory/storage reads. Unreachable blocks use local cleanup.
 //!
 //! Safety contract:
 //! - cache only pure expressions, classified memory reads, and exact storage or transient-storage
@@ -160,7 +160,6 @@ type MemRangeKey = MemoryLocation;
 
 struct GlobalCseContext<'a> {
     dom_tree: &'a DominatorTree,
-    inst_results: &'a FxHashMap<InstId, ValueId>,
     block_clobbers: &'a FxHashMap<BlockId, Vec<Clobber>>,
     reachability: Option<&'a TransitiveReachability>,
     replacements: &'a mut FxHashMap<ValueId, ValueId>,
@@ -196,7 +195,6 @@ struct PhiExpressionCandidate {
 struct PhiSinkContext<'a> {
     dominators: &'a DominatorTree,
     inst_blocks: &'a FxHashMap<InstId, BlockId>,
-    inst_results: &'a FxHashMap<InstId, ValueId>,
     replacements: &'a FxHashMap<ValueId, ValueId>,
 }
 
@@ -226,16 +224,16 @@ impl CommonSubexprEliminator {
         self.refresh_alias(func);
         self.sink_redundant_phi_expressions(func, cfg);
 
-        // Neither the global nor the local pass allocates values, so the map stays valid.
-        let inst_results = func.inst_results();
         self.alias().clear_cached_addresses();
-        self.process_global_pure(func, &inst_results, cfg);
+        self.process_global_pure(func, cfg);
 
-        // Process each block independently (local CSE)
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
-        for block_id in block_ids {
-            self.alias().clear_cached_addresses();
-            self.process_block(func, block_id, &inst_results);
+        // The dominator walk covers every reachable block. Retain local CSE
+        // only for unreachable blocks that have not been cleaned up yet.
+        for block_id in func.blocks.indices().collect::<Vec<_>>() {
+            if !cfg.is_reachable(block_id) {
+                self.alias().clear_cached_addresses();
+                self.process_block(func, block_id);
+            }
         }
 
         self.eliminated_count
@@ -255,12 +253,7 @@ impl CommonSubexprEliminator {
         total
     }
 
-    fn process_global_pure(
-        &mut self,
-        func: &mut Function,
-        inst_results: &FxHashMap<InstId, ValueId>,
-        cfg: &CfgInfo,
-    ) {
+    fn process_global_pure(&mut self, func: &mut Function, cfg: &CfgInfo) {
         let has_path_sensitive_expr = func
             .instructions()
             .any(|inst_id| Self::is_path_sensitive_kind(&func.inst(inst_id).kind));
@@ -278,7 +271,6 @@ impl CommonSubexprEliminator {
         let mut dead = DenseBitSet::new_empty(func.num_insts());
         let mut ctx = GlobalCseContext {
             dom_tree,
-            inst_results,
             block_clobbers: &block_clobbers,
             reachability,
             replacements: &mut replacements,
@@ -302,14 +294,12 @@ impl CommonSubexprEliminator {
             return;
         }
 
-        let inst_results = func.inst_results();
         let inst_blocks = func.inst_blocks();
         let use_counts = Self::value_use_counts(func);
         let replacements = FxHashMap::default();
         let ctx = PhiSinkContext {
             dominators: cfg.dominators(),
             inst_blocks: &inst_blocks,
-            inst_results: &inst_results,
             replacements: &replacements,
         };
         let mut candidates = Vec::new();
@@ -377,7 +367,7 @@ impl CommonSubexprEliminator {
     ) -> Option<PhiExpressionCandidate> {
         let inst = func.inst(phi_inst);
         let result_ty = inst.result_ty?;
-        let phi_result = *ctx.inst_results.get(&phi_inst)?;
+        let phi_result = func.inst_result_value(phi_inst)?;
         let InstKind::Phi(incoming) = &inst.kind else { return None };
         if incoming.len() < 2 {
             return None;
@@ -428,23 +418,23 @@ impl CommonSubexprEliminator {
         let mut worklist = vec![(BlockId::ENTRY, FxHashMap::default())];
         while let Some((block_id, mut cache)) = worklist.pop() {
             for &inst_id in &func.blocks[block_id].instructions {
-                let kind = func.inst(inst_id).kind.clone();
+                let kind = &func.inst(inst_id).kind;
                 if kind.has_side_effects() {
                     self.invalidate_for_side_effect(
                         func,
                         inst_id,
-                        &kind,
+                        kind,
                         ctx.replacements,
                         &mut cache,
                     );
                     continue;
                 }
 
-                let Some(key) = self.make_expr_key(func, inst_id, &kind, ctx.replacements) else {
+                let Some(key) = self.make_expr_key(func, inst_id, kind, ctx.replacements) else {
                     continue;
                 };
 
-                let Some(&result) = ctx.inst_results.get(&inst_id) else {
+                let Some(result) = func.inst_result_value(inst_id) else {
                     continue;
                 };
                 if let Some(cached) = cache.get(&key) {
@@ -547,12 +537,7 @@ impl CommonSubexprEliminator {
     }
 
     /// Processes a single basic block.
-    fn process_block(
-        &mut self,
-        func: &mut Function,
-        block_id: BlockId,
-        inst_results: &FxHashMap<InstId, ValueId>,
-    ) {
+    fn process_block(&mut self, func: &mut Function, block_id: BlockId) {
         // Map from expression key to the ValueId that computed it
         let mut expr_cache: FxHashMap<ExprKey, ValueId> = FxHashMap::default();
 
@@ -565,14 +550,13 @@ impl CommonSubexprEliminator {
         let instruction_count = func.blocks[block_id].instructions.len();
         for index in 0..instruction_count {
             let inst_id = func.blocks[block_id].instructions[index];
-            let inst = func.inst(inst_id);
-            let kind = inst.kind.clone();
+            let kind = &func.inst(inst_id).kind;
 
             if kind.has_side_effects() {
                 self.invalidate_for_side_effect(
                     func,
                     inst_id,
-                    &kind,
+                    kind,
                     &replacements,
                     &mut expr_cache,
                 );
@@ -580,8 +564,8 @@ impl CommonSubexprEliminator {
             }
 
             // Try to create an expression key
-            if let Some(key) = self.make_expr_key(func, inst_id, &kind, &replacements)
-                && let Some(&result) = inst_results.get(&inst_id)
+            if let Some(key) = self.make_expr_key(func, inst_id, kind, &replacements)
+                && let Some(result) = func.inst_result_value(inst_id)
             {
                 if let Some(&cached_value) = expr_cache.get(&key) {
                     // This expression was already computed - mark for elimination
