@@ -21,7 +21,13 @@ use crate::{
     },
     pass::{MirPass, run_function_pass_no_analyses},
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::index_vec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+    map::FxHashMap,
+};
+
+type SwitchTargetIndex = IndexVec<BlockId, Option<FxHashMap<BlockId, Vec<usize>>>>;
 
 /// Function pass for jump threading.
 pub(crate) struct JumpThreading;
@@ -347,6 +353,7 @@ impl JumpThreader {
         edge_updates: &mut Vec<TerminatorEdgeUpdate>,
     ) -> usize {
         let mut rewrites = Vec::new();
+        let mut switch_targets = index_vec![None; func.blocks.len()];
         let externally_used_phis = Self::externally_used_phi_results(func);
         let mut phi_incoming = FxHashMap::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
@@ -384,7 +391,9 @@ impl JumpThreader {
             }
 
             for pred in predecessors {
-                if pred == block_id || Self::successor_count(func, pred, block_id) != 1 {
+                if pred == block_id
+                    || Self::successor_count(func, pred, block_id, &mut switch_targets) != 1
+                {
                     continue;
                 }
                 let Some(target) =
@@ -401,7 +410,7 @@ impl JumpThreader {
 
         let mut threaded = 0;
         for (pred, old_target, new_target) in rewrites {
-            if Self::replace_successor(func, pred, old_target, new_target) {
+            if Self::replace_successor(func, pred, old_target, new_target, &mut switch_targets) {
                 if let Some(update) =
                     TerminatorEdgeUpdate::replace_successor(pred, old_target, new_target)
                 {
@@ -462,15 +471,21 @@ impl JumpThreader {
         phi_incoming.get(&(block_id, value, pred)).copied()
     }
 
-    fn successor_count(func: &Function, pred: BlockId, target: BlockId) -> usize {
+    fn successor_count(
+        func: &Function,
+        pred: BlockId,
+        target: BlockId,
+        switch_targets: &mut SwitchTargetIndex,
+    ) -> usize {
         match func.blocks[pred].terminator.as_ref() {
             Some(Terminator::Jump(successor)) => usize::from(*successor == target),
             Some(Terminator::Branch { then_block, else_block, .. }) => {
                 usize::from(*then_block == target) + usize::from(*else_block == target)
             }
             Some(Terminator::Switch { default, cases, .. }) => {
-                usize::from(*default == target)
-                    + cases.iter().filter(|(_, successor)| *successor == target).count()
+                let targets = switch_targets[pred]
+                    .get_or_insert_with(|| Self::index_switch_targets(*default, cases));
+                targets.get(&target).map_or(0, Vec::len)
             }
             _ => 0,
         }
@@ -481,6 +496,7 @@ impl JumpThreader {
         pred: BlockId,
         old_target: BlockId,
         new_target: BlockId,
+        switch_targets: &mut SwitchTargetIndex,
     ) -> bool {
         let Some(term) = &mut func.blocks[pred].terminator else {
             return false;
@@ -507,18 +523,20 @@ impl JumpThreader {
                 changed
             }
             Terminator::Switch { default, cases, .. } => {
-                let mut changed = false;
-                if *default == old_target {
-                    *default = new_target;
-                    changed = true;
-                }
-                for (_, target) in cases {
-                    if *target == old_target {
-                        *target = new_target;
-                        changed = true;
+                let targets = switch_targets[pred]
+                    .get_or_insert_with(|| Self::index_switch_targets(*default, cases));
+                let Some(positions) = targets.remove(&old_target) else {
+                    return false;
+                };
+                for &position in &positions {
+                    if position == 0 {
+                        *default = new_target;
+                    } else {
+                        cases[position - 1].1 = new_target;
                     }
                 }
-                changed
+                targets.entry(new_target).or_default().extend(positions);
+                true
             }
             Terminator::Return { .. }
             | Terminator::Revert { .. }
@@ -528,5 +546,17 @@ impl JumpThreader {
             | Terminator::TailCall { .. }
             | Terminator::Invalid => false,
         }
+    }
+
+    fn index_switch_targets(
+        default: BlockId,
+        cases: &[(ValueId, BlockId)],
+    ) -> FxHashMap<BlockId, Vec<usize>> {
+        let mut targets = FxHashMap::<_, Vec<_>>::default();
+        targets.entry(default).or_default().push(0);
+        for (position, &(_, target)) in cases.iter().enumerate() {
+            targets.entry(target).or_default().push(position + 1);
+        }
+        targets
     }
 }
