@@ -1160,11 +1160,21 @@ impl<'gcx> Lowerer<'gcx> {
             return self.lower_storage_bytes_method_call(builder, slot, method, args);
         }
 
-        // Handle dynamic array methods (push, pop)
-        if let Some(method) = array_method
-            && let Some((var_id, slot)) = self.get_dyn_array_base_slot(base)
+        // Resolve the receiver's slot at runtime so storage dynamic-array methods
+        // work on references, nested arrays, mapping values, and struct fields.
+        if let Some(builtin @ (Builtin::ArrayPush0 | Builtin::ArrayPush | Builtin::ArrayPop)) =
+            builtin
+            && let Some((slot, element_ty, element_slots)) =
+                self.storage_dynamic_array_info(builder, base)
         {
-            return self.lower_array_method_call(builder, var_id, slot, method, args);
+            return self.lower_array_method_call(
+                builder,
+                slot,
+                element_ty,
+                element_slots,
+                builtin,
+                args,
+            );
         }
 
         // Handle `using X for Y` library calls: x.method(args) -> Library.method(x, args)
