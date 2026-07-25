@@ -5,6 +5,7 @@ use super::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
+    bit_set::DenseBitSet,
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
     map::FxHashMap,
@@ -178,9 +179,20 @@ impl Function {
     /// Returns predecessors with duplicate CFG edges collapsed.
     #[must_use]
     pub(crate) fn unique_predecessors(&self, block: BlockId) -> Vec<BlockId> {
-        let mut predecessors = Vec::new();
-        for &pred in &self.blocks[block].predecessors {
-            if !predecessors.contains(&pred) {
+        let block_predecessors = &self.blocks[block].predecessors;
+        let mut predecessors = Vec::with_capacity(block_predecessors.len());
+        if block_predecessors.len() <= 4 {
+            for &pred in block_predecessors {
+                if !predecessors.contains(&pred) {
+                    predecessors.push(pred);
+                }
+            }
+            return predecessors;
+        }
+
+        let mut seen = DenseBitSet::new_empty(self.blocks.len());
+        for &pred in block_predecessors {
+            if seen.insert(pred) {
                 predecessors.push(pred);
             }
         }
