@@ -1,11 +1,9 @@
-//! Foundry integration test harness.
+//! Foundry integration test support.
 //!
-//! This module tests Solar's codegen by:
-//! 1. Running `forge test` with `FOUNDRY_SOLC=solar` (compiles everything with Solar)
-//! 2. Running `forge test` with solc (baseline)
-//! 3. Comparing gas usage and test results
+//! The tests run `forge test` with both this compiler and solc, then compare
+//! gas usage and test results.
 //!
-//! Run with: cargo test -p solar-compiler --test foundry
+//! Run them with `cargo tq foundry`.
 #![allow(clippy::uninlined_format_args, clippy::collapsible_if, clippy::disallowed_methods)]
 
 use std::{
@@ -13,6 +11,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
+    sync::OnceLock,
     time::{Duration, Instant},
 };
 
@@ -142,17 +141,15 @@ impl ForgeCompiler {
 // Helpers
 // ============================================================================
 
+static SOLAR_BINARY: OnceLock<PathBuf> = OnceLock::new();
+
 /// Gets the path to the Solar binary.
 ///
-/// Prefers `CARGO_BIN_EXE_solar`, which Cargo sets to the `solar` binary it
-/// built for this test run. That binary is always rebuilt from the current
-/// sources before the test runs, so it cannot go stale — avoiding the race
-/// where the harness picked up an out-of-date `target/release/solar` and
-/// produced flaky failures. Falls back to a binary on disk when the variable
-/// is absent (e.g. when the harness is reused outside `cargo test`).
+/// Uses the binary supplied by the compiler test runner when available and
+/// falls back to a binary on disk for this crate's unit tests.
 fn get_solar_binary() -> PathBuf {
-    if let Some(path) = option_env!("CARGO_BIN_EXE_solar") {
-        return PathBuf::from(path);
+    if let Some(path) = SOLAR_BINARY.get() {
+        return path.clone();
     }
 
     let workspace_root = workspace_root();
@@ -389,7 +386,7 @@ fn write_runtime_report(
             "solar_only": config.solar_only,
         },
         "rerun": {
-            "command": "cargo test -p solar-compiler --test foundry -- --test-threads=1",
+            "command": "cargo tq foundry",
             "env": {
                 "SOLAR_FOUNDRY_REPORT_DIR": report_dir.display().to_string(),
             },
@@ -765,12 +762,9 @@ fn test_project_solar_only(project_name: &str, project_path: &str) {
 
 /// Runs the default Foundry suite.
 ///
-/// This is used by `crates/solar/tests.rs` when invoked with
-/// `TESTER_MODE=foundry`, so Foundry can be selected like the other compiler
-/// test modes. The dedicated `foundry` integration-test target still exists to
-/// keep per-project Rust test discovery in nextest.
-#[allow(dead_code)]
-pub(crate) fn run_default_suite() {
+/// [`crate::run_tests`] calls this when `TESTER_MODE=foundry`.
+pub(super) fn run_default_suite(solar: &Path) {
+    let _ = SOLAR_BINARY.set(solar.to_path_buf());
     test_project_solar("arithmetic", "tests/foundry/arithmetic");
     test_project_solar("control_flow", "tests/foundry/control-flow");
     test_project_solar("storage", "tests/foundry/storage");
@@ -811,99 +805,97 @@ fn run_compilation_smoke() {
     assert!(!tests.is_empty(), "No tests ran");
 }
 
-// ============================================================================
-// Tests
-// ============================================================================
-
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn test_arithmetic() {
-        super::test_project_solar("arithmetic", "tests/foundry/arithmetic");
+        test_project_solar("arithmetic", "tests/foundry/arithmetic");
     }
 
     #[test]
     fn test_control_flow() {
-        super::test_project_solar("control_flow", "tests/foundry/control-flow");
+        test_project_solar("control_flow", "tests/foundry/control-flow");
     }
 
     #[test]
     fn test_storage() {
-        super::test_project_solar("storage", "tests/foundry/storage");
+        test_project_solar("storage", "tests/foundry/storage");
     }
 
     #[test]
     fn test_events() {
-        super::test_project_solar("events", "tests/foundry/events");
+        test_project_solar("events", "tests/foundry/events");
     }
 
     #[test]
     fn test_calls() {
-        super::test_project_solar("calls", "tests/foundry/calls");
+        test_project_solar("calls", "tests/foundry/calls");
     }
 
     #[test]
     fn test_interfaces() {
-        super::test_project_solar("interfaces", "tests/foundry/interfaces");
+        test_project_solar("interfaces", "tests/foundry/interfaces");
     }
 
     #[test]
     fn test_libraries() {
-        super::test_project_solar("libraries", "tests/foundry/libraries");
+        test_project_solar("libraries", "tests/foundry/libraries");
     }
 
     #[test]
     fn test_constructor_args() {
-        super::test_project_solar("constructor_args", "tests/foundry/constructor-args");
+        test_project_solar("constructor_args", "tests/foundry/constructor-args");
     }
 
     #[test]
     fn test_multi_return() {
-        super::test_project_solar("multi_return", "tests/foundry/multi-return");
+        test_project_solar("multi_return", "tests/foundry/multi-return");
     }
 
     #[test]
     fn test_correctness() {
-        super::test_project_solar("correctness", "tests/foundry/correctness");
+        test_project_solar("correctness", "tests/foundry/correctness");
     }
 
     #[test]
     fn test_receive_fallback() {
-        super::test_project_solar("receive_fallback", "tests/foundry/receive-fallback");
+        test_project_solar("receive_fallback", "tests/foundry/receive-fallback");
     }
 
     #[test]
     fn test_inheritance() {
-        super::test_project_solar("inheritance", "tests/foundry/inheritance");
+        test_project_solar("inheritance", "tests/foundry/inheritance");
     }
 
     #[test]
     fn test_stack_deep() {
-        super::test_project_solar_only("stack_deep", "tests/foundry/stack-deep");
+        test_project_solar_only("stack_deep", "tests/foundry/stack-deep");
     }
 
     #[test]
     fn test_compilation() {
-        super::run_compilation_smoke();
+        run_compilation_smoke();
     }
 
     #[test]
     #[ignore] // Requires forge-std which is not available in CI
     fn test_unifap_v2() {
-        super::test_project_solar("unifap-v2", "tests/foundry/unifap-v2");
+        test_project_solar("unifap-v2", "tests/foundry/unifap-v2");
     }
 
     #[test]
     #[ignore] // Requires forge-std which is not available in CI
     fn test_unifap_v2_create() {
-        super::test_project_solar("unifap-v2-create", "tests/foundry/unifap-v2-create");
+        test_project_solar("unifap-v2-create", "tests/foundry/unifap-v2-create");
     }
 
     // Example: run only mint-related tests
     #[test]
     #[ignore] // Example - enable when debugging specific tests
     fn test_unifap_mint_only() {
-        super::TestConfig::new("unifap-v2-create", "tests/foundry/unifap-v2-create")
+        TestConfig::new("unifap-v2-create", "tests/foundry/unifap-v2-create")
             .test_filter("testMint")
             .run();
     }
@@ -912,7 +904,7 @@ mod tests {
     #[test]
     #[ignore] // Example - enable when debugging specific contracts
     fn test_unifap_pair_only() {
-        super::TestConfig::new("unifap-v2-create", "tests/foundry/unifap-v2-create")
+        TestConfig::new("unifap-v2-create", "tests/foundry/unifap-v2-create")
             .contract_filter("UnifapV2Pair")
             .run();
     }
@@ -921,7 +913,7 @@ mod tests {
     #[test]
     #[ignore] // Example - enable when debugging
     fn test_unifap_pair_swap() {
-        super::TestConfig::new("unifap-v2-create", "tests/foundry/unifap-v2-create")
+        TestConfig::new("unifap-v2-create", "tests/foundry/unifap-v2-create")
             .contract_filter("UnifapV2Pair")
             .test_filter("testSwap")
             .run();
@@ -932,6 +924,6 @@ mod tests {
     #[test]
     #[ignore] // WIP: 8 struct tests have StackUnderflow issues to fix
     fn test_structs() {
-        super::test_project_solar("structs", "tests/foundry/structs");
+        test_project_solar("structs", "tests/foundry/structs");
     }
 }

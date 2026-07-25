@@ -4365,20 +4365,18 @@ name = "solar-compiler"
 version = "0.2.0"
 dependencies = [
  "alloy-primitives",
- "cfg-if",
  "idna_adapter",
- "serde_json",
  "solar-ast",
  "solar-cli",
  "solar-codegen",
  "solar-config",
  "solar-data-structures",
  "solar-interface",
+ "solar-lint",
  "solar-macros",
  "solar-parse",
  "solar-sema",
  "solar-tester",
- "tempfile",
 ]
 
 [[package]]
@@ -4442,6 +4440,16 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "unicode-width",
+]
+
+[[package]]
+name = "solar-lint"
+version = "0.2.0"
+dependencies = [
+ "rayon",
+ "solar-ast",
+ "solar-interface",
+ "solar-sema",
 ]
 
 [[package]]
@@ -4537,6 +4545,7 @@ dependencies = [
  "alloy-dyn-abi",
  "alloy-json-abi",
  "alloy-primitives",
+ "cfg-if",
  "evm2",
  "regex",
  "serde_json",

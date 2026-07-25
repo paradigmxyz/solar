@@ -18,6 +18,8 @@ pub use solar_data_structures as data_structures;
 #[doc(inline)]
 pub use solar_interface as interface;
 #[doc(inline)]
+pub use solar_lint as lint;
+#[doc(inline)]
 pub use solar_macros as macros;
 #[doc(inline)]
 pub use solar_parse as parse;
