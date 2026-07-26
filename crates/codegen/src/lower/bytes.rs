@@ -981,6 +981,18 @@ impl<'gcx> Lowerer<'gcx> {
             return Ok((data, len));
         }
 
+        // A storage `bytes`/`string`: decode its short/long form into memory,
+        // which a low-level call reads its input from. This arises in reentrancy
+        // harnesses that stash the payload in storage and replay it.
+        if self.is_storage_bytes_expr(expr)
+            && let Some(slot) = self.lower_lvalue_slot(builder, expr)
+        {
+            let ptr = self.materialize_storage_bytes(builder, slot);
+            let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
+            let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+            return (data, len);
+        }
+
         let guar = self
             .gcx
             .dcx()
