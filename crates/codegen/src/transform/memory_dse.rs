@@ -216,7 +216,6 @@ impl MemoryStoreEliminator {
         self.remove_cross_block_equal_const_stores(func);
         self.remove_cross_block_overwrites(func);
         self.remove_dead_memory_stores(func);
-        self.remove_unused_internal_frame_stores(func);
 
         self.eliminated_count
     }
@@ -428,8 +427,19 @@ impl MemoryStoreEliminator {
 
     /// Runs local memory optimization until no more instructions can be eliminated.
     fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+        let mut total = 0;
         let mut scratch = BlockScratch::new(func);
-        self.run_with_scratch(func, &mut scratch)
+        loop {
+            let eliminated = self.run_with_scratch(func, &mut scratch);
+            if eliminated == 0 {
+                break;
+            }
+            if let Some(alias) = &self.alias {
+                alias.clear_cached_addresses();
+            }
+            total += eliminated;
+        }
+        total
     }
 
     fn reuse_redundant_immutable_copies(
