@@ -143,52 +143,24 @@ pub(crate) fn run_default_pipeline(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut empty_reverts = GrowableBitSet::new_empty();
     let mut tail_merge_state = tail_merge::RunState::default();
 
-    // Normalize the machine instructions and establish the first physical layout.
+    // Keep this sequence identical to the canonical pipeline.
     let mut changed = run_one(gcx, module, &peephole::Peephole);
     changed |= run_compact_pushes(gcx, module, &mut compact_scratch);
     changed |= run_cfg(gcx, module, &mut cfg_state);
     changed |= run_layout(gcx, module, &mut layout_state);
-
-    // CFG cleanup is only needed when terminal sharing changed an edge.
-    let shared = run_share_reverts(gcx, module, &mut empty_reverts);
-    changed |= shared;
-    let deduplicated = run_one(gcx, module, &terminal_dedup::TerminalDedup);
-    changed |= deduplicated;
-    if shared || deduplicated {
-        changed |= run_cfg(gcx, module, &mut cfg_state);
-    }
-
-    // Tail merging itself reaches a fixed point. Run it again only when CFG
-    // cleanup exposes new cross-block suffixes.
-    let tails_merged = run_tail_merge(gcx, module, &mut tail_merge_state);
-    changed |= tails_merged;
-    let mut second_tail_merge = false;
-    if tails_merged {
-        let cfg_changed = run_cfg(gcx, module, &mut cfg_state);
-        changed |= cfg_changed;
-        if cfg_changed {
-            second_tail_merge = run_tail_merge(gcx, module, &mut tail_merge_state);
-            changed |= second_tail_merge;
-        }
-    }
-
-    // Outline after straight-line paths and terminal tails are canonical.
-    let outlined = run_one(gcx, module, &outline::Outline);
-    changed |= outlined;
-    if second_tail_merge || outlined {
-        changed |= run_cfg(gcx, module, &mut cfg_state);
-    }
+    changed |= run_share_reverts(gcx, module, &mut empty_reverts);
+    changed |= run_one(gcx, module, &terminal_dedup::TerminalDedup);
+    changed |= run_cfg(gcx, module, &mut cfg_state);
+    changed |= run_tail_merge(gcx, module, &mut tail_merge_state);
+    changed |= run_cfg(gcx, module, &mut cfg_state);
+    changed |= run_tail_merge(gcx, module, &mut tail_merge_state);
+    changed |= run_one(gcx, module, &outline::Outline);
+    changed |= run_cfg(gcx, module, &mut cfg_state);
     changed |= run_compact_pushes(gcx, module, &mut compact_scratch);
-
-    // Pack address-sensitive terminal blocks, then clean up a shared adjacent
-    // revert path only when branch inversion changed the final layout.
     changed |= run_layout(gcx, module, &mut layout_state);
-    let shared = run_share_reverts(gcx, module, &mut empty_reverts);
-    changed |= shared;
-    if shared {
-        changed |= run_cfg(gcx, module, &mut cfg_state);
-        changed |= run_layout(gcx, module, &mut layout_state);
-    }
+    changed |= run_share_reverts(gcx, module, &mut empty_reverts);
+    changed |= run_cfg(gcx, module, &mut cfg_state);
+    changed |= run_layout(gcx, module, &mut layout_state);
 
     changed
 }

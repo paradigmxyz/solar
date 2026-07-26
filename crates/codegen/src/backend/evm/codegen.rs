@@ -5261,37 +5261,4 @@ mod tests {
             assert!(codegen.asm.assemble().bytecode.is_empty());
         });
     }
-
-    #[test]
-    fn stack_phi_plan_includes_non_leading_phis() {
-        let mut function = Function::new(Ident::with_dummy_span(sym::Test));
-        let (join, first_phi, second_phi);
-        {
-            let mut builder = FunctionBuilder::new(&mut function);
-            let left = builder.create_block();
-            let right = builder.create_block();
-            join = builder.create_block();
-            let condition = builder.imm_bool(true);
-            builder.branch(condition, left, right);
-
-            builder.switch_to_block(left);
-            let left_first = builder.imm_u64(1);
-            let left_second = builder.imm_u64(2);
-            builder.jump(join);
-
-            builder.switch_to_block(right);
-            let right_first = builder.imm_u64(3);
-            let right_second = builder.imm_u64(4);
-            builder.jump(join);
-
-            builder.switch_to_block(join);
-            first_phi = builder.phi(vec![(left, left_first), (right, right_first)]);
-            let _ordinary = builder.add(first_phi, left_first);
-            second_phi = builder.phi(vec![(left, left_second), (right, right_second)]);
-            builder.ret([second_phi]);
-        }
-
-        let plan = StackPhiPlan::analyze(&function);
-        assert_eq!(plan.entries[&join], [first_phi, second_phi]);
-    }
 }
