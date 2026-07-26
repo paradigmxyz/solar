@@ -4,7 +4,12 @@ use crate::{
     vfs::{Vfs, VfsPath},
 };
 use crop::Rope;
-use lsp_types::{InitializeParams, Url, WorkspaceFolder};
+use lsp_types::{
+    InitializeParams, PartialResultParams, Position, TextDocumentIdentifier,
+    TextDocumentPositionParams, TypeHierarchyItem, TypeHierarchyPrepareParams,
+    TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, Url, WorkDoneProgressParams,
+    WorkspaceFolder,
+};
 use std::{
     fs,
     io::Read,
@@ -31,6 +36,39 @@ pub(crate) struct TestProject {
 pub(crate) struct MarkedProject {
     project: TestProject,
     fixture: ProjectFixture,
+}
+
+pub(crate) fn type_hierarchy_prepare_params(
+    uri: Url,
+    position: Position,
+) -> TypeHierarchyPrepareParams {
+    TypeHierarchyPrepareParams {
+        text_document_position_params: TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier { uri },
+            position,
+        },
+        work_done_progress_params: WorkDoneProgressParams::default(),
+    }
+}
+
+pub(crate) fn type_hierarchy_supertypes_params(
+    item: TypeHierarchyItem,
+) -> TypeHierarchySupertypesParams {
+    TypeHierarchySupertypesParams {
+        item,
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
+    }
+}
+
+pub(crate) fn type_hierarchy_subtypes_params(
+    item: TypeHierarchyItem,
+) -> TypeHierarchySubtypesParams {
+    TypeHierarchySubtypesParams {
+        item,
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
+    }
 }
 
 impl TestProject {

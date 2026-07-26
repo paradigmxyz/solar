@@ -16,6 +16,16 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         index: Option<&hir::Expr<'_>>,
     ) -> ValueId {
+        if let Some((slot_val, fixed_len, elem_slots)) =
+            self.storage_array_slot_of_base(builder, base)
+        {
+            let index_val = self.lower_index_or_zero(builder, index);
+            let element_slot = self.lower_storage_array_element_slot(
+                builder, slot_val, fixed_len, index_val, elem_slots,
+            );
+            return builder.sload(element_slot);
+        }
+
         if let Some(mapping) = self.lower_mapping_element_slot(builder, base, index) {
             if mapping.value_is_mapping {
                 return mapping.slot;
@@ -36,16 +46,6 @@ impl<'gcx> Lowerer<'gcx> {
                 return self.materialize_storage_bytes(builder, mapping.slot);
             }
             return builder.sload(mapping.slot);
-        }
-
-        if let Some((slot_val, fixed_len, elem_slots)) =
-            self.storage_array_slot_of_base(builder, base)
-        {
-            let index_val = self.lower_index_or_zero(builder, index);
-            let element_slot = self.lower_storage_array_element_slot(
-                builder, slot_val, fixed_len, index_val, elem_slots,
-            );
-            return builder.sload(element_slot);
         }
 
         if let Some((slice, is_bytes)) = self.calldata_bytes_source(builder, base) {
@@ -136,6 +136,17 @@ impl<'gcx> Lowerer<'gcx> {
         index: Option<&hir::Expr<'_>>,
         rhs: ValueId,
     ) {
+        if let Some((slot_val, fixed_len, elem_slots)) =
+            self.storage_array_slot_of_base(builder, base)
+        {
+            let index_val = self.lower_index_or_zero(builder, index);
+            let element_slot = self.lower_storage_array_element_slot(
+                builder, slot_val, fixed_len, index_val, elem_slots,
+            );
+            builder.sstore(element_slot, rhs);
+            return;
+        }
+
         if let Some(mapping) = self.lower_mapping_element_slot(builder, base, index) {
             if let Some(ty) = self.get_expr_type(lhs)
                 && let TyKind::Struct(struct_id) = ty.peel_refs().kind
@@ -154,17 +165,6 @@ impl<'gcx> Lowerer<'gcx> {
         {
             let index_val = self.lower_index_or_zero(builder, index);
             self.store_storage_bytes_element(builder, slot, index_val, rhs);
-            return;
-        }
-
-        if let Some((slot_val, fixed_len, elem_slots)) =
-            self.storage_array_slot_of_base(builder, base)
-        {
-            let index_val = self.lower_index_or_zero(builder, index);
-            let element_slot = self.lower_storage_array_element_slot(
-                builder, slot_val, fixed_len, index_val, elem_slots,
-            );
-            builder.sstore(element_slot, rhs);
             return;
         }
 
@@ -204,9 +204,6 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         index: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
-        if let Some(mapping) = self.lower_mapping_element_slot(builder, base, index) {
-            return Some(mapping.slot);
-        }
         if let Some((slot_val, fixed_len, elem_slots)) =
             self.storage_array_slot_of_base(builder, base)
         {
@@ -214,6 +211,9 @@ impl<'gcx> Lowerer<'gcx> {
             return Some(self.lower_storage_array_element_slot(
                 builder, slot_val, fixed_len, index_val, elem_slots,
             ));
+        }
+        if let Some(mapping) = self.lower_mapping_element_slot(builder, base, index) {
+            return Some(mapping.slot);
         }
         None
     }

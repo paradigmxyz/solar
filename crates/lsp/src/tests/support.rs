@@ -1,5 +1,10 @@
-use super::super::{AnalysisBatch, AnalysisResult, GlobalState, analyze};
-use crate::test_support::MarkedProject;
+use super::super::{
+    AnalysisBatch, AnalysisResult, AnalysisResultAccumulator, GlobalState, analyze,
+};
+use crate::test_support::{
+    MarkedProject, type_hierarchy_prepare_params, type_hierarchy_subtypes_params,
+    type_hierarchy_supertypes_params,
+};
 use async_lsp::{ClientSocket, ErrorCode};
 use lsp_types::{
     CompletionContext, CompletionItem, CompletionParams, CompletionResponse, CompletionTextEdit,
@@ -9,8 +14,8 @@ use lsp_types::{
     HoverParams, InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams, Location, MarkupKind,
     ParameterLabel, PartialResultParams, Position, PrepareRenameResponse, Range, ReferenceContext,
     ReferenceParams, RenameParams, SelectionRange, SelectionRangeParams, SignatureHelp,
-    SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams, Url,
-    WorkDoneProgressParams, WorkspaceEdit,
+    SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams, TypeHierarchyItem,
+    Url, WorkDoneProgressParams, WorkspaceEdit,
 };
 use snapbox::{IntoData, assert_data_eq};
 use solar_config::CompileOpts;
@@ -65,27 +70,29 @@ impl RequestFixture {
         paths: &[&str],
         open_file: Option<(&str, String)>,
     ) -> Self {
-        let mut result =
-            AnalysisResult { diagnostics: Default::default(), symbol_tables: Default::default() };
+        let mut results = AnalysisResultAccumulator::default();
         for path in paths {
             let contents = open_file
                 .as_ref()
                 .filter(|(open_path, _)| open_path == path)
                 .map_or_else(|| marked.project().read_file(path), |(_, contents)| contents.clone());
             let path = marked.project().path(path);
-            let batch =
-                analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, contents)]));
-            result.symbol_tables.extend(batch.symbol_tables);
-            for (uri, mut diagnostics) in batch.diagnostics {
-                result.diagnostics.entry(uri).or_default().append(&mut diagnostics);
-            }
+            results.push(analyze(AnalysisBatch::from_files(
+                CompileOpts::default(),
+                [(path, contents)],
+            )));
         }
+        let result = results.finish();
         assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
         Self { marked, result }
     }
 
     pub(super) fn project_contents(&self, path: &str) -> String {
         self.marked.project().read_file(path)
+    }
+
+    pub(super) fn project_path(&self, path: &str) -> std::path::PathBuf {
+        self.marked.project().path(path)
     }
 
     pub(super) fn rename_state_and_params(
@@ -285,6 +292,40 @@ impl RequestFixture {
         ))
         .unwrap();
         assert_data_eq!(self.goto_output(response), expected);
+    }
+
+    pub(super) fn prepare_type_hierarchy(&self, marker: &str) -> Option<Vec<TypeHierarchyItem>> {
+        let mut state = self.state();
+        let (uri, position) = self.marker_location(marker);
+        expect_ready(crate::handlers::prepare_type_hierarchy(
+            &mut state,
+            type_hierarchy_prepare_params(uri, position),
+        ))
+        .unwrap()
+    }
+
+    pub(super) fn type_hierarchy_supertypes(
+        &self,
+        item: TypeHierarchyItem,
+    ) -> Option<Vec<TypeHierarchyItem>> {
+        let mut state = self.state();
+        expect_ready(crate::handlers::type_hierarchy_supertypes(
+            &mut state,
+            type_hierarchy_supertypes_params(item),
+        ))
+        .unwrap()
+    }
+
+    pub(super) fn type_hierarchy_subtypes(
+        &self,
+        item: TypeHierarchyItem,
+    ) -> Option<Vec<TypeHierarchyItem>> {
+        let mut state = self.state();
+        expect_ready(crate::handlers::type_hierarchy_subtypes(
+            &mut state,
+            type_hierarchy_subtypes_params(item),
+        ))
+        .unwrap()
     }
 
     pub(super) fn check_references(

@@ -7,7 +7,7 @@ use super::{
 use crate::mir::{FunctionBuilder, MemoryObjectKind, MirType, ValueId};
 use alloy_primitives::U256;
 use solar_ast::{LitKind, StrKind};
-use solar_interface::{Ident, Span, Symbol, kw, sym};
+use solar_interface::{Ident, Span, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ElementaryType, ExprKind},
@@ -1437,6 +1437,13 @@ impl<'gcx> Lowerer<'gcx> {
                 let base_val = self.lower_expr(builder, base);
                 builder.mstore(base_val, rhs);
             }
+            ExprKind::Call(..) => {
+                if let Some(slot) = self.lower_lvalue_slot(builder, lhs)
+                    && let Some(ty) = self.get_expr_type(lhs)
+                {
+                    self.store_storage_value_at(builder, ty, slot, rhs);
+                }
+            }
             ExprKind::YulMember(base, member) => {
                 // `r.slot := x` sets the storage pointer's slot value. The pointer
                 // is modeled as an SSA slot in `locals`, marked as a storage ref so
@@ -1668,66 +1675,48 @@ impl<'gcx> Lowerer<'gcx> {
         None
     }
 
-    /// Checks if an expression is a dynamic array state variable and returns its var_id and
-    /// storage slot.
-    pub(super) fn get_dyn_array_base_slot(
-        &self,
-        expr: &hir::Expr<'_>,
-    ) -> Option<(hir::VariableId, u64)> {
-        if let ExprKind::Ident(res_slice) = &expr.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-        {
-            let var = self.gcx.hir.variable(*var_id);
-            // Check if this variable has dynamic array type (Array with no size)
-            if let hir::TypeKind::Array(arr) = &var.ty.kind
-                && arr.size.is_none()
-                && let Some(&slot) = self.storage_slots.get(var_id)
-            {
-                return Some((*var_id, slot));
-            }
+    /// Resolves an array living in storage and returns its element type and
+    /// constant length (`None` for a dynamic array).
+    fn storage_array_type_of_expr(&self, expr: &hir::Expr<'_>) -> Option<(Ty<'gcx>, Option<u64>)> {
+        let ty = self.get_expr_type(expr)?;
+        let TyKind::Ref(inner, solar_ast::DataLocation::Storage) = ty.kind else {
+            return None;
+        };
+        match inner.kind {
+            TyKind::Array(element, len) => Some((element, Some(u64::try_from(len).ok()?))),
+            TyKind::DynArray(element) => Some((element, None)),
+            _ => None,
         }
-        None
     }
 
-    /// Resolves an indexing base that is an array living in storage: an array state variable
-    /// or an array storage-reference local. Returns the base slot as a runtime value and the
-    /// constant length for fixed-size arrays (`None` for dynamic arrays, whose length is
-    /// stored at the base slot). Fixed-size elements occupy one slot each starting at the
-    /// base slot (this codebase does not pack storage).
+    /// Resolves an array living in storage: a state variable, storage-reference
+    /// local, mapping value, struct field, or nested array element. Returns its
+    /// runtime base slot, constant length (`None` for dynamic arrays), and the
+    /// number of storage slots occupied by one element.
     pub(super) fn storage_array_slot_of_base(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> Option<(ValueId, Option<u64>, u64)> {
-        let ExprKind::Ident(res_slice) = &expr.kind else { return None };
-        let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
+        let (element, fixed_len) = self.storage_array_type_of_expr(expr)?;
+        let elem_slots = self.calculate_storage_slots_for_ty(element, expr.span);
+        let slot = self.lower_lvalue_slot(builder, expr)?;
+        Some((slot, fixed_len, elem_slots))
+    }
+
+    /// Resolves a dynamic array living in storage.
+    pub(super) fn storage_dynamic_array_info(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> Option<(ValueId, Ty<'gcx>, u64)> {
+        let (element, fixed_len) = self.storage_array_type_of_expr(expr)?;
+        if fixed_len.is_some() {
             return None;
-        };
-        let var = self.gcx.hir.variable(*var_id);
-        let hir::TypeKind::Array(arr) = &var.ty.kind else { return None };
-        let fixed_len = if arr.size.is_some() {
-            let solar_sema::ty::TyKind::Array(_, len) =
-                self.gcx.type_of_hir_ty(&var.ty).peel_refs().kind
-            else {
-                return None;
-            };
-            // Larger lengths already produced a layout diagnostic.
-            Some(u64::try_from(len).ok()?)
-        } else {
-            None
-        };
-        let elem_slots = self.calculate_storage_slots_for_ty(
-            self.gcx.type_of_hir_ty(&arr.element),
-            arr.element.span,
-        );
-        if let Some(&slot) = self.storage_slots.get(var_id) {
-            return Some((builder.imm_u64(slot), fixed_len, elem_slots));
         }
-        if self.storage_ref_locals.contains(*var_id) {
-            let slot_val = self.locals.get(var_id).copied()?;
-            return Some((slot_val, fixed_len, elem_slots));
-        }
-        None
+        let element_slots = self.calculate_storage_slots_for_ty(element, expr.span);
+        let slot = self.lower_lvalue_slot(builder, expr)?;
+        Some((slot, element, element_slots))
     }
 
     /// Emits the bounds check for a storage array access and returns the element slot.
@@ -2389,6 +2378,20 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 None
             }
+            ExprKind::Call(callee, args, _)
+                if self.gcx.builtin_callee(callee.id) == Some(Builtin::ArrayPush0) =>
+            {
+                let ExprKind::Member(base, _) = &callee.kind else { return None };
+                let (slot, element_ty, element_slots) =
+                    self.storage_dynamic_array_info(builder, base)?;
+                Some(self.lower_storage_array_push_slot(
+                    builder,
+                    slot,
+                    element_ty,
+                    element_slots,
+                    args,
+                ))
+            }
             // A call to a function returning a storage reference (e.g. the
             // ERC-7201 `_layout()` getter) yields the slot value directly.
             ExprKind::Call(callee, ..) if self.call_returns_storage_ref(callee) => {
@@ -2586,86 +2589,103 @@ impl<'gcx> Lowerer<'gcx> {
         None
     }
 
-    /// Lowers dynamic array method calls (push, pop).
-    /// For dynamic arrays:
-    /// - Length is stored at the base slot
-    /// - Elements are stored at keccak256(slot) + index
+    /// Appends a zero-initialized element and returns its storage slot.
+    fn lower_storage_array_push_slot(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slot: ValueId,
+        element_ty: Ty<'gcx>,
+        element_slots: u64,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        debug_assert!(args.is_empty());
+
+        let length = builder.sload(slot);
+        let one = builder.imm_u64(1);
+        let new_length = builder.add(length, one);
+        let overflow = builder.lt(new_length, length);
+        self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
+
+        let scratch = builder.imm_u64(0);
+        builder.mstore(scratch, slot);
+        let word = builder.imm_u64(32);
+        let data_slot = builder.keccak256(scratch, word);
+        let offset = Self::scale_index_by_slots(builder, length, element_slots);
+        let element_slot = builder.add(data_slot, offset);
+
+        self.clear_storage_value_at(builder, element_ty, element_slot);
+        builder.sstore(slot, new_length);
+        element_slot
+    }
+
+    /// Lowers dynamic storage-array method calls.
     pub(super) fn lower_array_method_call(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        _var_id: hir::VariableId,
-        slot: u64,
-        method: Symbol,
+        slot: ValueId,
+        element_ty: Ty<'gcx>,
+        element_slots: u64,
+        builtin: Builtin,
         args: &CallArgs<'_>,
     ) -> ValueId {
-        let slot_val = builder.imm_u64(slot);
+        match builtin {
+            Builtin::ArrayPush0 => {
+                let element_slot = self.lower_storage_array_push_slot(
+                    builder,
+                    slot,
+                    element_ty,
+                    element_slots,
+                    args,
+                );
+                if element_ty.is_reference_type() { element_slot } else { builder.imm_u64(0) }
+            }
+            Builtin::ArrayPush => {
+                let value = args
+                    .exprs()
+                    .next()
+                    .map(|arg| match element_ty.peel_refs().kind {
+                        TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                            self.lower_expr_as_memory_bytes(builder, arg)
+                        }
+                        TyKind::DynArray(_) => self.lower_expr_as_memory_dyn_array(builder, arg),
+                        _ => self.lower_expr(builder, arg),
+                    })
+                    .unwrap_or_else(|| builder.imm_u64(0));
 
-        match method {
-            sym::push => {
-                // 1. Load current length from slot
-                let length = builder.sload(slot_val);
-
-                // 2. Compute data slot: keccak256(slot)
-                let mem_0 = builder.imm_u64(0);
-                builder.mstore(mem_0, slot_val);
-                let size_32 = builder.imm_u64(32);
-                let data_slot = builder.keccak256(mem_0, size_32);
-
-                // 3. Compute element slot: data_slot + length
-                let element_slot = builder.add(data_slot, length);
-
-                // 4. Store the new value at element slot
-                let mut exprs = args.exprs();
-                let value = if let Some(first) = exprs.next() {
-                    self.lower_expr(builder, first)
-                } else {
-                    builder.imm_u64(0)
-                };
-                builder.sstore(element_slot, value);
-
-                // 5. Increment length and store back
+                let length = builder.sload(slot);
                 let one = builder.imm_u64(1);
                 let new_length = builder.add(length, one);
-                let slot_val2 = builder.imm_u64(slot);
-                builder.sstore(slot_val2, new_length);
+                let overflow = builder.lt(new_length, length);
+                self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
 
-                // push returns void, return dummy
+                let scratch = builder.imm_u64(0);
+                builder.mstore(scratch, slot);
+                let word = builder.imm_u64(32);
+                let data_slot = builder.keccak256(scratch, word);
+                let offset = Self::scale_index_by_slots(builder, length, element_slots);
+                let element_slot = builder.add(data_slot, offset);
+                self.store_storage_value_at(builder, element_ty, element_slot, value);
+                builder.sstore(slot, new_length);
                 builder.imm_u64(0)
             }
-            kw::Pop => {
-                // pop() decrements length and clears the last element
-                // Storage layout:
-                // - Length at slot
-                // - Elements at keccak256(slot) + index
-
-                // 1. Load current length and decrement
-                let length = builder.sload(slot_val);
+            Builtin::ArrayPop => {
+                let length = builder.sload(slot);
+                self.emit_panic_if_zero(builder, length, PanicCode::PopEmptyArray);
                 let one = builder.imm_u64(1);
                 let new_length = builder.sub(length, one);
 
-                // 2. Store decremented length back
-                let slot_val2 = builder.imm_u64(slot);
-                builder.sstore(slot_val2, new_length);
-
-                // 3. Compute data slot: keccak256(slot)
-                let slot_val3 = builder.imm_u64(slot);
-                let mem_0 = builder.imm_u64(0);
-                builder.mstore(mem_0, slot_val3);
-                let size_32 = builder.imm_u64(32);
-                let data_slot = builder.keccak256(mem_0, size_32);
-
-                // 4. Compute element slot using stored length (already decremented)
-                let slot_val4 = builder.imm_u64(slot);
-                let length2 = builder.sload(slot_val4);
-                let element_slot = builder.add(data_slot, length2);
-
-                // 5. Clear the popped element
-                let zero = builder.imm_u64(0);
-                builder.sstore(element_slot, zero);
+                let scratch = builder.imm_u64(0);
+                builder.mstore(scratch, slot);
+                let word = builder.imm_u64(32);
+                let data_slot = builder.keccak256(scratch, word);
+                let offset = Self::scale_index_by_slots(builder, new_length, element_slots);
+                let element_slot = builder.add(data_slot, offset);
+                self.clear_storage_value_at(builder, element_ty, element_slot);
+                builder.sstore(slot, new_length);
 
                 builder.imm_u64(0)
             }
-            s => unreachable!("{s}"),
+            _ => unreachable!("{builtin:?}"),
         }
     }
 

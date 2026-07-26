@@ -118,6 +118,7 @@ struct SccpStats {
 /// Active instruction and terminator users of each value.
 struct ValueUsers {
     inst_blocks: IndexVec<InstId, BlockId>,
+    inst_results: IndexVec<InstId, Option<ValueId>>,
     instructions: IndexVec<ValueId, Vec<InstId>>,
     terminators: IndexVec<ValueId, Vec<BlockId>>,
 }
@@ -125,8 +126,14 @@ struct ValueUsers {
 impl ValueUsers {
     fn new(func: &Function) -> Self {
         let mut inst_blocks = index_vec![BlockId::MAX; func.num_insts()];
+        let mut inst_results = index_vec![None; func.num_insts()];
         let mut instructions = index_vec![Vec::new(); func.values.len()];
         let mut terminators = index_vec![Vec::new(); func.values.len()];
+        for (value_id, value) in func.values.iter_enumerated() {
+            if let Value::Inst(inst_id) = value {
+                inst_results[*inst_id] = Some(value_id);
+            }
+        }
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 inst_blocks[inst_id] = block_id;
@@ -148,10 +155,9 @@ impl ValueUsers {
             users.sort_unstable();
             users.dedup();
         }
-        Self { inst_blocks, instructions, terminators }
+        Self { inst_blocks, inst_results, instructions, terminators }
     }
 }
-
 /// Sparse Conditional Constant Propagation pass.
 #[derive(Debug, Default)]
 struct SccpCx {
@@ -207,6 +213,7 @@ impl SccpCx {
         self.evaluate_phis_in_block(
             func,
             BlockId::ENTRY,
+            &users,
             &mut lattice,
             &executable_edges,
             &mut ssa_worklist,
@@ -215,6 +222,7 @@ impl SccpCx {
         self.evaluate_block(
             func,
             BlockId::ENTRY,
+            &users,
             &mut lattice,
             &executable_blocks,
             &executable_edges,
@@ -239,6 +247,7 @@ impl SccpCx {
                 self.evaluate_phis_in_block(
                     func,
                     to,
+                    &users,
                     &mut lattice,
                     &executable_edges,
                     &mut ssa_worklist,
@@ -249,6 +258,7 @@ impl SccpCx {
                     self.evaluate_block(
                         func,
                         to,
+                        &users,
                         &mut lattice,
                         &executable_blocks,
                         &executable_edges,
@@ -280,7 +290,7 @@ impl SccpCx {
         }
 
         // Rewrite phase: apply the lattice results to the function.
-        self.rewrite(func, &lattice, &executable_blocks, &executable_edges)
+        self.rewrite(func, &users, &lattice, &executable_blocks, &executable_edges)
     }
 
     /// Evaluates all instructions in a block.
@@ -289,6 +299,7 @@ impl SccpCx {
         &self,
         func: &Function,
         block_id: BlockId,
+        users: &ValueUsers,
         lattice: &mut IndexVec<ValueId, LatticeValue>,
         _executable_blocks: &DenseBitSet<BlockId>,
         _executable_edges: &FxHashSet<(BlockId, BlockId)>,
@@ -301,7 +312,7 @@ impl SccpCx {
             if matches!(func.inst(inst_id).kind, InstKind::Phi(_)) {
                 continue;
             }
-            if let Some(vid) = func.inst_result_value(inst_id) {
+            if let Some(vid) = users.inst_results[inst_id] {
                 let new_val = self.evaluate_instruction(func, &func.inst(inst_id).kind, lattice);
                 if self.update_lattice(lattice, vid, new_val) {
                     ssa_worklist.push_back(vid);
@@ -320,6 +331,7 @@ impl SccpCx {
         &self,
         func: &Function,
         block_id: BlockId,
+        users: &ValueUsers,
         lattice: &mut IndexVec<ValueId, LatticeValue>,
         executable_edges: &FxHashSet<(BlockId, BlockId)>,
         ssa_worklist: &mut VecDeque<ValueId>,
@@ -327,7 +339,15 @@ impl SccpCx {
         let block = &func.blocks[block_id];
         for &inst_id in &block.instructions {
             if matches!(func.inst(inst_id).kind, InstKind::Phi(_)) {
-                self.evaluate_phi(func, block_id, inst_id, lattice, executable_edges, ssa_worklist);
+                self.evaluate_phi(
+                    func,
+                    block_id,
+                    inst_id,
+                    users,
+                    lattice,
+                    executable_edges,
+                    ssa_worklist,
+                );
             }
         }
     }
@@ -338,12 +358,13 @@ impl SccpCx {
         func: &Function,
         block_id: BlockId,
         inst_id: InstId,
+        users: &ValueUsers,
         lattice: &mut IndexVec<ValueId, LatticeValue>,
         executable_edges: &FxHashSet<(BlockId, BlockId)>,
         ssa_worklist: &mut VecDeque<ValueId>,
     ) {
         let InstKind::Phi(incoming) = &func.inst(inst_id).kind else { return };
-        let Some(vid) = func.inst_result_value(inst_id) else { return };
+        let Some(vid) = users.inst_results[inst_id] else { return };
         let mut result = LatticeValue::Top;
         for &(pred, operand) in incoming {
             if executable_edges.contains(&(pred, block_id)) {
@@ -647,8 +668,16 @@ impl SccpCx {
             }
             let inst = func.inst(inst_id);
             if matches!(inst.kind, InstKind::Phi(_)) {
-                self.evaluate_phi(func, block_id, inst_id, lattice, executable_edges, ssa_worklist);
-            } else if let Some(result_vid) = func.inst_result_value(inst_id) {
+                self.evaluate_phi(
+                    func,
+                    block_id,
+                    inst_id,
+                    users,
+                    lattice,
+                    executable_edges,
+                    ssa_worklist,
+                );
+            } else if let Some(result_vid) = users.inst_results[inst_id] {
                 let new_val = self.evaluate_instruction(func, &inst.kind, lattice);
                 if self.update_lattice(lattice, result_vid, new_val) {
                     ssa_worklist.push_back(result_vid);
@@ -669,6 +698,7 @@ impl SccpCx {
     fn rewrite(
         &mut self,
         func: &mut Function,
+        users: &ValueUsers,
         lattice: &IndexVec<ValueId, LatticeValue>,
         executable_blocks: &DenseBitSet<BlockId>,
         executable_edges: &FxHashSet<(BlockId, BlockId)>,
@@ -681,7 +711,7 @@ impl SccpCx {
 
         let inst_results = func
             .instructions()
-            .filter_map(|inst_id| func.inst_result_value(inst_id).map(|value| (inst_id, value)))
+            .filter_map(|inst_id| users.inst_results[inst_id].map(|value| (inst_id, value)))
             .collect::<Vec<_>>();
         for (inst_id, vid) in inst_results {
             if let LatticeValue::Constant(c) = &lattice[vid] {
