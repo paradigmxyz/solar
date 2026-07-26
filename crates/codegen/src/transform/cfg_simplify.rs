@@ -189,6 +189,7 @@ impl CfgSimplifier {
         self.stats = CfgSimplifyStats::default();
 
         self.simplify_degenerate_terminators(func);
+        self.stats.unreachable_blocks_removed += self.remove_unreachable_blocks(func);
         self.merge_blocks(func);
         self.eliminate_empty_blocks(func);
         self.deduplicate_terminal_blocks(func);
