@@ -22,7 +22,7 @@ use crate::{
     mir::{
         AllocationKind, BlockId, Function, InstId, InstKind, MemoryObjectLayout, Module, ValueId,
     },
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_filtered},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
@@ -40,9 +40,20 @@ impl MirPass for Sroa {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
-            SroaCx::default().run(func, &analyses.alias)
-        })
+        run_function_pass_filtered(
+            module,
+            analyses,
+            |_, func| {
+                func.instructions().any(|inst_id| {
+                    matches!(
+                        func.inst(inst_id).kind,
+                        InstKind::Alloc { kind: AllocationKind::Object(layout), .. }
+                            if is_fixed_aggregate(layout)
+                    )
+                })
+            },
+            |func, analyses| SroaCx::default().run(func, &analyses.alias),
+        )
     }
 }
 
