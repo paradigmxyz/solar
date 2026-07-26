@@ -306,12 +306,12 @@ pub(crate) fn run_function_pass_with_alias_filtered(
         let alias = analyses.alias(func_id);
         let func = &mut module.functions[func_id];
         #[cfg(debug_assertions)]
-        let edges_before = cfg_edges(func);
+        let cfg_before = CfgInfo::new(func);
         let insts_before = func.num_insts();
         let func_changed = run(func, &alias);
         if func_changed {
             #[cfg(debug_assertions)]
-            debug_assert_eq!(edges_before, cfg_edges(func));
+            debug_assert!(cfg_before.has_same_edges(func));
             let keep_alias = (insts_before..func.num_insts())
                 .map(InstId::from_usize)
                 .all(|inst_id| !func.inst(inst_id).kind.has_side_effects());
@@ -420,31 +420,16 @@ impl ModuleAnalyses {
     }
 }
 
-fn cfg_edges(func: &Function) -> Vec<(u32, u32)> {
-    let mut edges = Vec::new();
-    for (block_id, block) in func.blocks.iter_enumerated() {
-        if let Some(terminator) = &block.terminator {
-            for successor in terminator.successors() {
-                edges.push((block_id.index() as u32, successor.index() as u32));
-            }
-        }
-    }
-    edges.sort_unstable();
-    edges
-}
-
 fn verified_preservation(
     func: &Function,
-    edges_before: &[(u32, u32)],
+    cfg_before: &CfgInfo,
     insts_before: usize,
 ) -> (bool, bool) {
-    let edges_after = cfg_edges(func);
-    let keep_cfg = edges_after == edges_before;
+    let keep_cfg = cfg_before.has_same_edges(func);
     let no_new_side_effects = (insts_before..func.num_insts())
         .map(InstId::from_usize)
         .all(|inst_id| !func.inst(inst_id).kind.has_side_effects());
-    let keep_alias = no_new_side_effects
-        && (keep_cfg || edges_after.iter().all(|edge| edges_before.binary_search(edge).is_ok()));
+    let keep_alias = no_new_side_effects && (keep_cfg || cfg_before.contains_edges_of(func));
     (keep_alias, keep_cfg)
 }
 
@@ -457,11 +442,10 @@ fn run_function_pass_cached(
 ) -> bool {
     let bundle = analyses.bundle(func_id, &module.functions[func_id]);
     let func = &mut module.functions[func_id];
-    let edges_before = cfg_edges(func);
     let insts_before = func.num_insts();
     let changed = run(func, &bundle);
     if changed {
-        let (keep_alias, keep_cfg) = verified_preservation(func, &edges_before, insts_before);
+        let (keep_alias, keep_cfg) = verified_preservation(func, &bundle.cfg, insts_before);
         analyses.retain(func_id, keep_alias, keep_cfg);
     }
     changed
@@ -474,14 +458,13 @@ fn run_function_pass_without_bundle(
     func_id: FunctionId,
     run: &mut impl FnMut(&mut Function) -> bool,
 ) -> bool {
-    let edges_before =
-        analyses.cfg.contains_key(&func_id).then(|| cfg_edges(&module.functions[func_id]));
+    let cfg_before = analyses.cfg.get(&func_id).cloned();
     let func = &mut module.functions[func_id];
     let insts_before = func.num_insts();
     let changed = run(func);
     if changed {
-        if let Some(edges_before) = edges_before {
-            let (keep_alias, keep_cfg) = verified_preservation(func, &edges_before, insts_before);
+        if let Some(cfg_before) = cfg_before {
+            let (keep_alias, keep_cfg) = verified_preservation(func, &cfg_before, insts_before);
             analyses.retain(func_id, keep_alias, keep_cfg);
         } else {
             analyses.retain(func_id, false, false);
