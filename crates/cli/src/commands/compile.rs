@@ -1,4 +1,5 @@
-use solar_config::CompileOpts;
+use solar_codegen::ContractSelection;
+use solar_config::{CompileOpts, CompilerOutput};
 use solar_interface::{Result, Session};
 use solar_sema::{CompilerRef, ParsingContext};
 use std::{ops::ControlFlow, process::ExitCode};
@@ -21,7 +22,7 @@ pub fn run_compiler_args(opts: CompileOpts) -> Result {
 }
 
 fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
-    run_pipeline(
+    let control_flow = run_pipeline(
         compiler,
         |pcx| {
             // Partition arguments into three categories:
@@ -49,8 +50,25 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
             pcx.par_load_files(paths)
         },
         |_| {},
-    )
-    .map(|_| ())
+    )?;
+    if control_flow.is_break() {
+        return Ok(());
+    }
+
+    let bytecode_contracts = if compiler
+        .gcx()
+        .sess
+        .opts
+        .emit
+        .iter()
+        .any(|output| matches!(output, CompilerOutput::Bin | CompilerOutput::BinRuntime))
+    {
+        ContractSelection::All
+    } else {
+        ContractSelection::Specific([])
+    };
+    crate::emit::emit_requested(compiler, bytecode_contracts)?;
+    Ok(())
 }
 
 pub(crate) fn run_pipeline(
@@ -95,8 +113,6 @@ pub(crate) fn run_pipeline(
             .help("pass `-Zcodegen` to emit bytecode or dump MIR or EVM IR")
             .emit());
     }
-
-    crate::emit::emit_requested(compiler)?;
 
     Ok(ControlFlow::Continue(()))
 }
