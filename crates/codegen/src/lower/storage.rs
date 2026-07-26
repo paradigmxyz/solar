@@ -15,7 +15,7 @@ use std::sync::Arc;
 /// Storage position for a state variable.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct StorageLocation {
-    pub(super) slot: u64,
+    pub(super) slot: U256,
     pub(super) offset: u8,
     pub(super) size: u8,
 }
@@ -23,7 +23,7 @@ pub(super) struct StorageLocation {
 impl StorageLocation {
     const WORD_SIZE: u8 = 32;
 
-    const fn full_word(slot: u64) -> Self {
+    const fn full_word(slot: U256) -> Self {
         Self { slot, offset: 0, size: Self::WORD_SIZE }
     }
 
@@ -160,7 +160,7 @@ impl<'gcx> Lowerer<'gcx> {
             && size < StorageLocation::WORD_SIZE
         {
             if self.next_storage_offset + size > StorageLocation::WORD_SIZE {
-                self.next_storage_slot += 1;
+                self.next_storage_slot += U256::from(1);
                 self.next_storage_offset = 0;
             }
             let location = StorageLocation {
@@ -170,20 +170,31 @@ impl<'gcx> Lowerer<'gcx> {
             };
             self.next_storage_offset += size;
             if self.next_storage_offset == StorageLocation::WORD_SIZE {
-                self.next_storage_slot += 1;
+                self.next_storage_slot += U256::from(1);
                 self.next_storage_offset = 0;
             }
             return location;
         }
 
         if self.next_storage_offset != 0 {
-            self.next_storage_slot += 1;
+            self.next_storage_slot += U256::from(1);
             self.next_storage_offset = 0;
         }
 
         let slot = self.next_storage_slot;
         let num_slots = self.calculate_storage_slots_for_ty(ty, span);
-        self.next_storage_slot += num_slots;
+        // Storage slots span the EVM's full 2^256 space; a layout that walks
+        // past its end wraps back onto earlier variables, so reject it.
+        match self.next_storage_slot.checked_add(U256::from(num_slots)) {
+            Some(next) => self.next_storage_slot = next,
+            None => {
+                self.gcx
+                    .dcx()
+                    .err("contract storage layout exceeds the addressable storage space")
+                    .span(span)
+                    .emit();
+            }
+        }
         StorageLocation::full_word(slot)
     }
 
@@ -202,7 +213,19 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::Struct(struct_id) => {
                 let mut total = 0u64;
                 for &field_ty in self.gcx.struct_field_types(struct_id) {
-                    total += self.calculate_storage_slots_for_ty(field_ty, span);
+                    total = match total
+                        .checked_add(self.calculate_storage_slots_for_ty(field_ty, span))
+                    {
+                        Some(total) => total,
+                        None => {
+                            self.gcx
+                                .dcx()
+                                .err("storage structs this large are not supported")
+                                .span(span)
+                                .emit();
+                            return 1;
+                        }
+                    };
                 }
                 total.max(1)
             }
@@ -254,7 +277,7 @@ impl<'gcx> Lowerer<'gcx> {
         location: StorageLocation,
         value: ValueId,
     ) {
-        let slot = builder.imm_u64(location.slot);
+        let slot = builder.imm_u256(location.slot);
         if !location.is_packed() {
             builder.sstore(slot, value);
             return;
@@ -364,11 +387,11 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         struct_id: hir::StructId,
-        base_slot: u64,
+        base_slot: U256,
         mem_ptr: ValueId,
         mem_offset: u64,
     ) -> u64 {
-        let base_slot = builder.imm_u64(base_slot);
+        let base_slot = builder.imm_u256(base_slot);
         self.copy_storage_to_memory_at(builder, struct_id, base_slot, mem_ptr, mem_offset)
     }
 
@@ -410,11 +433,11 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         struct_id: hir::StructId,
-        base_slot: u64,
+        base_slot: U256,
         mem_ptr: ValueId,
         mem_offset: u64,
     ) -> u64 {
-        let base_slot = builder.imm_u64(base_slot);
+        let base_slot = builder.imm_u256(base_slot);
         self.copy_memory_to_storage_at(builder, struct_id, base_slot, mem_ptr, mem_offset)
     }
 

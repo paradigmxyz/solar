@@ -99,11 +99,11 @@ pub(crate) struct Lowerer<'gcx> {
     /// The current contract being lowered.
     current_contract_id: Option<ContractId>,
     /// Mapping from HIR variable IDs to storage slots.
-    storage_slots: FxHashMap<VariableId, u64>,
+    storage_slots: FxHashMap<VariableId, U256>,
     /// Mapping from HIR variable IDs to full storage locations.
     storage_locations: FxHashMap<VariableId, StorageLocation>,
     /// Next available storage slot.
-    next_storage_slot: u64,
+    next_storage_slot: U256,
     /// Next available byte offset in `next_storage_slot` for packed variables.
     next_storage_offset: u8,
     /// Mapping from HIR immutable variable IDs to runtime immutable byte offsets.
@@ -190,7 +190,7 @@ pub(crate) struct Lowerer<'gcx> {
     /// return), used to ABI-encode external returns.
     current_return_tys: Vec<Ty<'gcx>>,
     /// Mapping from struct state variable ID to base storage slot.
-    pub(crate) struct_storage_base_slots: FxHashMap<VariableId, u64>,
+    pub(crate) struct_storage_base_slots: FxHashMap<VariableId, U256>,
     /// Cached struct field slot offsets: (struct_type_id, field_index) -> slot offset from base.
     pub(crate) struct_field_offsets: FxHashMap<(hir::StructId, usize), u64>,
     /// Interned semantic memory/storage layout for each lowered struct type.
@@ -226,7 +226,7 @@ impl<'gcx> Lowerer<'gcx> {
             current_contract_id: None,
             storage_slots: FxHashMap::default(),
             storage_locations: FxHashMap::default(),
-            next_storage_slot: 0,
+            next_storage_slot: U256::ZERO,
             next_storage_offset: 0,
             immutable_slots: FxHashMap::default(),
             next_immutable_offset: 0,
