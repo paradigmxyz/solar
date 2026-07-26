@@ -85,7 +85,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Replaces an allocated value.
     pub(crate) fn set_value(&mut self, id: ValueId, value: Value) {
-        self.func.set_value(id, value);
+        self.func.values[id] = value;
     }
 
     fn emit_inst_raw(&mut self, kind: InstKind, result_ty: Option<MirType>) -> InstId {

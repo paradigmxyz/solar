@@ -859,7 +859,7 @@ mod tests {
             Some(MirType::uint256()),
         ));
         func.blocks[header].instructions.insert(0, phi_inst);
-        func.set_value(phi_val, crate::mir::Value::Inst(phi_inst));
+        func.values[phi_val] = crate::mir::Value::Inst(phi_inst);
 
         let liveness = Liveness::compute(&func);
 
