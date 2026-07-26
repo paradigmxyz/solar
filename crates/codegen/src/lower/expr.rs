@@ -2925,6 +2925,10 @@ impl<'gcx> Lowerer<'gcx> {
             ExprKind::Call(callee, ..) if self.call_returns_storage_ref(callee) => {
                 Some(self.lower_value_expr(builder, expr))
             }
+            // A parenthesized lvalue, `(m[k])`, reaches HIR as a one-element
+            // tuple. Parentheses do not change what is being addressed, so
+            // resolve the slot of the inner expression.
+            ExprKind::Tuple([Some(inner)]) => self.lower_lvalue_slot(builder, inner),
             _ => None,
         }
     }
