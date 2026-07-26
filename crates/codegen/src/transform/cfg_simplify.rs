@@ -430,7 +430,6 @@ impl CfgSimplifier {
                 break;
             }
         }
-        total_stats.unreachable_blocks_removed = self.remove_unreachable_blocks(func);
         total_stats
     }
 
