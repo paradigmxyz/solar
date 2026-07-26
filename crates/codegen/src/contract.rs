@@ -28,16 +28,24 @@ pub struct ContractArtifact {
 #[derive(Clone, Debug)]
 pub enum ContractSelection {
     /// Generate only the listed contracts and their dependencies.
-    Specific(Vec<ContractId>),
+    Specific(DenseBitSet<ContractId>),
     /// Generate every deployable contract.
     All,
 }
 
 impl ContractSelection {
+    /// Creates an empty contract selection.
+    pub fn empty(gcx: Gcx<'_>) -> Self {
+        Self::Specific(DenseBitSet::new_empty(gcx.hir.contract_ids().len()))
+    }
+
     /// Returns the specific contracts or every deployable contract.
-    pub fn into_iter<'gcx>(self, gcx: Gcx<'gcx>) -> impl Iterator<Item = ContractId> + use<'gcx> {
+    pub fn into_iter<'a, 'gcx>(
+        &'a self,
+        gcx: Gcx<'gcx>,
+    ) -> impl Iterator<Item = ContractId> + use<'a, 'gcx> {
         match self {
-            Self::Specific(contracts) => Either::Left(contracts.into_iter()),
+            Self::Specific(contracts) => Either::Left(contracts.iter()),
             Self::All => Either::Right(gcx.hir.contract_ids().filter(move |&contract_id| {
                 let contract = gcx.hir.contract(contract_id);
                 !contract.kind.is_interface() && !contract.kind.is_abstract_contract()
@@ -50,10 +58,17 @@ impl ContractSelection {
         match other {
             Self::Specific(other) => {
                 if let Self::Specific(contracts) = self {
-                    contracts.extend_from_slice(other);
+                    contracts.union(other);
                 }
             }
             Self::All => *self = Self::All,
+        }
+    }
+
+    /// Selects `contract_id`.
+    pub fn insert(&mut self, contract_id: ContractId) {
+        if let Self::Specific(contracts) = self {
+            contracts.insert(contract_id);
         }
     }
 
@@ -65,7 +80,7 @@ impl ContractSelection {
     /// Returns whether `contract_id` is selected.
     fn contains(&self, contract_id: ContractId) -> bool {
         match self {
-            Self::Specific(contracts) => contracts.contains(&contract_id),
+            Self::Specific(contracts) => contracts.contains(contract_id),
             Self::All => true,
         }
     }
@@ -76,7 +91,7 @@ impl ContractSelection {
 /// Contracts in `capture_evm_ir` retain their final EVM IR in the returned artifact.
 pub fn generate_contract_bytecodes(
     gcx: Gcx<'_>,
-    contracts: ContractSelection,
+    contracts: &ContractSelection,
     capture_evm_ir: &ContractSelection,
 ) -> Result<FxHashMap<ContractId, ContractArtifact>> {
     let mut artifacts = FxHashMap::default();

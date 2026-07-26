@@ -4,7 +4,7 @@ use solar_codegen::{
     ContractArtifact, ContractSelection, backend::evm::ir, generate_contract_bytecodes, lower,
 };
 use solar_config::{CompilerOutput, Dump, DumpKind};
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::map::FxHashMap;
 use solar_interface::Result;
 use solar_sema::{CompilerRef, Gcx, hir::ContractId};
 use std::{
@@ -49,17 +49,17 @@ pub(crate) fn emit_requested(
         bytecode_contracts.union_with(dump_contracts);
     }
 
-    let no_contracts = ContractSelection::Specific(Vec::new());
+    let no_contracts = ContractSelection::empty(gcx);
     let capture_evm_ir = dump_contracts.as_ref().unwrap_or(&no_contracts);
     let generate_bytecode = !bytecode_contracts.is_empty() || dump_contracts.is_some();
     let artifacts = if generate_bytecode {
-        Some(generate_contract_bytecodes(gcx, bytecode_contracts, capture_evm_ir)?)
+        Some(generate_contract_bytecodes(gcx, &bytecode_contracts, capture_evm_ir)?)
     } else {
         None
     };
 
     emit_combined_json(gcx, artifacts.as_ref())?;
-    if let Some(contracts) = dump_contracts {
+    if let Some(contracts) = &dump_contracts {
         dump_evm_ir(gcx, contracts, artifacts.as_ref().expect("artifacts should be generated"))?;
     }
     Ok(artifacts)
@@ -151,7 +151,8 @@ fn dump_mir(gcx: Gcx<'_>) -> Result {
 
     let mut writer = out_writer(None)
         .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
-    for id in matching_dump_contracts(gcx, dump)?.into_iter(gcx) {
+    let contracts = matching_dump_contracts(gcx, dump)?;
+    for id in contracts.into_iter(gcx) {
         dump_mir_contract(&mut writer, gcx, dump, id)?;
     }
     writer.flush().map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
@@ -192,8 +193,7 @@ fn matching_dump_contracts(gcx: Gcx<'_>, dump: &Dump) -> Result<ContractSelectio
         return Ok(ContractSelection::All);
     };
 
-    let mut seen = DenseBitSet::new_empty(gcx.hir.contract_ids().len());
-    let mut contracts = Vec::new();
+    let mut contracts = ContractSelection::empty(gcx);
     for path in paths {
         let mut matched = false;
         for id in gcx.hir.contract_ids() {
@@ -201,9 +201,7 @@ fn matching_dump_contracts(gcx: Gcx<'_>, dump: &Dump) -> Result<ContractSelectio
                 continue;
             }
             matched = true;
-            if seen.insert(id) {
-                contracts.push(id);
-            }
+            contracts.insert(id);
         }
         if !matched {
             let kinds = dump.kinds.iter().map(ToString::to_string).collect::<Vec<_>>().join(",");
@@ -212,7 +210,7 @@ fn matching_dump_contracts(gcx: Gcx<'_>, dump: &Dump) -> Result<ContractSelectio
             return Err(gcx.sess.dcx.err(msg).note(note).emit());
         }
     }
-    Ok(ContractSelection::Specific(contracts))
+    Ok(contracts)
 }
 
 fn write_mir_dump_contract(
@@ -253,7 +251,7 @@ fn evm_ir_dump_contracts(gcx: Gcx<'_>) -> Result<Option<ContractSelection>> {
 
 fn dump_evm_ir(
     gcx: Gcx<'_>,
-    contracts: ContractSelection,
+    contracts: &ContractSelection,
     artifacts: &FxHashMap<ContractId, ContractArtifact>,
 ) -> Result {
     let sess = gcx.sess;

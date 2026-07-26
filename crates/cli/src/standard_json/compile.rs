@@ -201,7 +201,7 @@ fn compile(
             let bytecode_contracts = if gcx.sess.opts.unstable.codegen {
                 requested_bytecode_contracts(gcx, &output_selection)
             } else {
-                ContractSelection::Specific(Vec::new())
+                ContractSelection::empty(gcx)
             };
             let bytecodes = crate::emit::emit_requested(compiler, bytecode_contracts)?;
 
@@ -391,22 +391,18 @@ fn requested_bytecode_contracts(
         return ContractSelection::All;
     }
 
-    ContractSelection::Specific(
-        gcx.hir
-            .contracts_enumerated()
-            .filter_map(|(contract_id, contract)| {
-                if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
-                    return None;
-                }
+    let mut contracts = ContractSelection::empty(gcx);
+    for (contract_id, contract) in gcx.hir.contracts_enumerated() {
+        if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
+            continue;
+        }
 
-                let source = gcx.hir.source(contract.source);
-                let source_name = standard_json_source_name(&source.file.name);
-                let contract_name = contract.name.as_str();
-                output_selection
-                    .contract(&source_name, contract_name)
-                    .intersects(bytecode_outputs)
-                    .then_some(contract_id)
-            })
-            .collect(),
-    )
+        let source = gcx.hir.source(contract.source);
+        let source_name = standard_json_source_name(&source.file.name);
+        let contract_name = contract.name.as_str();
+        if output_selection.contract(&source_name, contract_name).intersects(bytecode_outputs) {
+            contracts.insert(contract_id);
+        }
+    }
+    contracts
 }
