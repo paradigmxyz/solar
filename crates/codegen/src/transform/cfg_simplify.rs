@@ -15,7 +15,7 @@
 //! (public/external functions, constructor, fallback, receive).
 
 use crate::{
-    analysis::{CallGraphInfo, CfgInfo},
+    analysis::{CallGraphInfo, CfgInfo, may_have_cycle},
     mir::{
         BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
         Terminator, Value, ValueId,
@@ -23,7 +23,11 @@ use crate::{
     },
     pass::{MirPass, run_function_pass_no_analyses},
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+    map::FxHashMap,
+};
 
 /// Function pass for CFG simplification.
 pub(crate) struct CfgSimplify;
@@ -553,6 +557,8 @@ impl CfgSimplifier {
 
     /// Eliminates empty blocks that only contain an unconditional jump.
     fn eliminate_empty_blocks(&mut self, func: &mut Function) {
+        let cfg = CfgInfo::new(func);
+        let loop_preheaders = self.loop_preheader_forwarders(func, &cfg);
         let mut eliminated = true;
         while eliminated {
             eliminated = false;
@@ -565,7 +571,7 @@ impl CfgSimplifier {
                 }
 
                 if self.is_empty_forwarder(func, block_id)
-                    && !self.is_loop_preheader_forwarder(func, block_id)
+                    && !loop_preheaders.contains(block_id)
                     && self.forwarder_elimination_preserves_phis(func, block_id)
                 {
                     self.eliminate_forwarder(func, block_id);
@@ -589,23 +595,47 @@ impl CfgSimplifier {
         matches!(&block.terminator, Some(Terminator::Jump(target)) if *target != block_id)
     }
 
-    fn is_loop_preheader_forwarder(&self, func: &Function, block_id: BlockId) -> bool {
-        let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator else {
-            return false;
-        };
-        if !matches!(
-            func.blocks[target].instructions.first(),
-            Some(&inst) if matches!(func.inst(inst).kind, InstKind::Phi(_))
-        ) {
-            return false;
+    fn loop_preheader_forwarders(&self, func: &Function, cfg: &CfgInfo) -> DenseBitSet<BlockId> {
+        if !may_have_cycle(func) {
+            return DenseBitSet::new_empty(func.blocks.len());
         }
 
-        let cfg = CfgInfo::new(func);
-        func.blocks[target]
-            .predecessors
-            .iter()
-            .copied()
-            .any(|pred| pred != block_id && cfg.dominators().dominates(target, pred))
+        let mut first_backedge = index_vec![None; func.blocks.len()];
+        let mut multiple_backedges = DenseBitSet::new_empty(func.blocks.len());
+        for (target, block) in func.blocks.iter_enumerated() {
+            if !matches!(
+                block.instructions.first(),
+                Some(&inst) if matches!(func.inst(inst).kind, InstKind::Phi(_))
+            ) {
+                continue;
+            }
+            for &pred in &block.predecessors {
+                if !cfg.dominators().dominates(target, pred) {
+                    continue;
+                }
+                if let Some(first) = first_backedge[target] {
+                    if first != pred {
+                        multiple_backedges.insert(target);
+                    }
+                } else {
+                    first_backedge[target] = Some(pred);
+                }
+            }
+        }
+
+        let mut forwarders = DenseBitSet::new_empty(func.blocks.len());
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            let Some(Terminator::Jump(target)) = block.terminator else {
+                continue;
+            };
+            let Some(first) = first_backedge[target] else {
+                continue;
+            };
+            if first != block_id || multiple_backedges.contains(target) {
+                forwarders.insert(block_id);
+            }
+        }
+        forwarders
     }
 
     /// Checks that redirecting the forwarder's predecessors into its target
