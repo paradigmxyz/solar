@@ -151,7 +151,6 @@ impl PartialRedundancyEliminator {
     fn run(&mut self, func: &mut Function) -> PreStats {
         self.stats = PreStats::default();
 
-        let mut inst_results = func.inst_results();
         let mut inst_blocks = func.inst_blocks();
 
         let mut eliminated_keys = FxHashSet::default();
@@ -166,7 +165,6 @@ impl PartialRedundancyEliminator {
             let batch = self.collect_candidates(
                 func,
                 cfg.dominators(),
-                &inst_results,
                 &inst_blocks,
                 &eliminated_keys,
                 &inserted_insts,
@@ -180,7 +178,6 @@ impl PartialRedundancyEliminator {
                 self.apply_candidate(
                     func,
                     candidate,
-                    &mut inst_results,
                     &mut inst_blocks,
                     &mut eliminated_keys,
                     &mut inserted_insts,
@@ -199,7 +196,6 @@ impl PartialRedundancyEliminator {
         &self,
         func: &Function,
         dominators: &DominatorTree,
-        inst_results: &FxHashMap<InstId, ValueId>,
         inst_blocks: &FxHashMap<InstId, BlockId>,
         eliminated_keys: &FxHashSet<(ExprKey, BlockId)>,
         inserted_insts: &GrowableBitSet<InstId>,
@@ -233,7 +229,7 @@ impl PartialRedundancyEliminator {
                 let Some(result_ty) = instruction.result_ty else {
                     continue;
                 };
-                let Some(&result) = inst_results.get(&inst) else {
+                let Some(result) = func.inst_result_value(inst) else {
                     continue;
                 };
 
@@ -245,7 +241,6 @@ impl PartialRedundancyEliminator {
                     result_ty,
                     instruction.metadata.clone(),
                     &predecessors,
-                    inst_results,
                     inst_blocks,
                     dominators,
                     eliminated_keys,
@@ -294,7 +289,6 @@ impl PartialRedundancyEliminator {
         result_ty: MirType,
         metadata: InstructionMetadata,
         predecessors: &[BlockId],
-        inst_results: &FxHashMap<InstId, ValueId>,
         inst_blocks: &FxHashMap<InstId, BlockId>,
         dominators: &DominatorTree,
         eliminated_keys: &FxHashSet<(ExprKey, BlockId)>,
@@ -311,9 +305,7 @@ impl PartialRedundancyEliminator {
                 return None;
             }
             let key = Self::make_expr_key(func, &translated)?;
-            if let Some(value) =
-                Self::available_value_at_end(func, dominators, pred, &key, inst_results)
-            {
+            if let Some(value) = Self::available_value_at_end(func, dominators, pred, &key) {
                 available += 1;
                 incoming.push((pred, value));
                 continue;
@@ -344,7 +336,6 @@ impl PartialRedundancyEliminator {
         &mut self,
         func: &mut Function,
         candidate: PreCandidate,
-        inst_results: &mut FxHashMap<InstId, ValueId>,
         inst_blocks: &mut FxHashMap<InstId, BlockId>,
         eliminated_keys: &mut FxHashSet<(ExprKey, BlockId)>,
         inserted_insts: &mut GrowableBitSet<InstId>,
@@ -370,15 +361,11 @@ impl PartialRedundancyEliminator {
                 }
                 _ => split_edge(func, pred, target),
             };
-            let new_inst = func.alloc_inst(Instruction {
-                kind,
-                result_ty: Some(result_ty),
-                metadata: metadata.clone(),
-            });
-            let value = func.alloc_value(Value::Inst(new_inst));
+            let mut instruction = Instruction::new(kind, Some(result_ty));
+            instruction.metadata = metadata.clone();
+            let (new_inst, value) = func.alloc_value_inst(instruction);
             func.blocks[block].instructions.push(new_inst);
             incoming.push((block, value));
-            inst_results.insert(new_inst, value);
             inst_blocks.insert(new_inst, block);
             inserted_insts.insert(new_inst);
             self.stats.expressions_inserted += 1;
@@ -397,16 +384,14 @@ impl PartialRedundancyEliminator {
                 first
             }
             _ => {
-                let phi_inst =
-                    func.alloc_inst(Instruction::new(InstKind::Phi(incoming), Some(result_ty)));
-                let phi_value = func.alloc_value(Value::Inst(phi_inst));
+                let (phi_inst, phi_value) = func
+                    .alloc_value_inst(Instruction::new(InstKind::Phi(incoming), Some(result_ty)));
                 let phi_count = func.blocks[target]
                     .instructions
                     .iter()
                     .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
                     .count();
                 func.blocks[target].instructions.insert(phi_count, phi_inst);
-                inst_results.insert(phi_inst, phi_value);
                 inst_blocks.insert(phi_inst, target);
                 phi_value
             }
@@ -415,7 +400,6 @@ impl PartialRedundancyEliminator {
         let replacements = FxHashMap::from_iter([(result, replacement)]);
         func.replace_uses(&replacements);
         func.blocks[target].instructions.retain(|&inst_id| inst_id != inst);
-        inst_results.remove(&inst);
         inst_blocks.remove(&inst);
         self.stats.expressions_eliminated += 1;
     }
@@ -499,27 +483,21 @@ impl PartialRedundancyEliminator {
         dominators: &DominatorTree,
         block: BlockId,
         key: &ExprKey,
-        inst_results: &FxHashMap<InstId, ValueId>,
     ) -> Option<ValueId> {
         dominators
             .self_and_dominators(block)
             .into_iter()
-            .find_map(|block| Self::available_value_in_block(func, block, key, inst_results))
+            .find_map(|block| Self::available_value_in_block(func, block, key))
     }
 
-    fn available_value_in_block(
-        func: &Function,
-        block: BlockId,
-        key: &ExprKey,
-        inst_results: &FxHashMap<InstId, ValueId>,
-    ) -> Option<ValueId> {
+    fn available_value_in_block(func: &Function, block: BlockId, key: &ExprKey) -> Option<ValueId> {
         func.blocks[block].instructions.iter().rev().find_map(|&inst| {
             let instruction = func.inst(inst);
             if !Self::is_pre_expression(&instruction.kind) {
                 return None;
             }
             let candidate_key = Self::make_expr_key(func, &instruction.kind)?;
-            (candidate_key == *key).then(|| inst_results.get(&inst).copied()).flatten()
+            (candidate_key == *key).then(|| func.inst_result_value(inst)).flatten()
         })
     }
 

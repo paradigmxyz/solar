@@ -520,19 +520,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         label: u32,
-        inst_id: InstId,
-    ) -> PResult<'sess, ()> {
+    ) -> PResult<'sess, Option<ValueId>> {
         if let Some(value) = self.value_labels.get(&label).copied() {
             if matches!(builder.func().values[value], Value::Undef(_)) {
-                builder.set_value(value, Value::Inst(inst_id));
-                return Ok(());
+                return Ok(Some(value));
             }
             return Err(self.parser.error(format!("duplicate value `v{label}`")));
         }
 
-        let value = builder.alloc_value(Value::Inst(inst_id));
-        self.value_labels.insert(label, value);
-        Ok(())
+        Ok(None)
     }
 
     fn reject_unresolved_value_labels(&self, func: &Function) -> PResult<'sess, ()> {
@@ -930,10 +926,28 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let metadata = self.parse_metadata(builder)?;
         let mut inst = Instruction::new(kind, result_ty);
         inst.metadata = metadata;
-        let inst_id = builder.append_instruction(inst);
+        if result_label.is_some() && result_ty.is_none() {
+            return Err(self
+                .parser
+                .error_at(mnemonic_span, "instruction does not produce a result value"));
+        }
+        let existing_result = match result_label {
+            Some(label) => self.resolve_result_label(builder, label)?,
+            None => None,
+        };
+        let (inst_id, result) = if let Some(result) = existing_result {
+            (builder.append_instruction_with_result(inst, result), Some(result))
+        } else {
+            builder.append_instruction(inst)
+        };
         self.finish_function_ref(FunctionRefTarget::Instruction(inst_id));
-        if let Some(label) = result_label {
-            self.resolve_result_label(builder, label, inst_id)?;
+        if let Some(label) = result_label
+            && existing_result.is_none()
+        {
+            let result = result.ok_or_else(|| {
+                self.parser.error_at(mnemonic_span, "instruction does not produce a result value")
+            })?;
+            self.value_labels.insert(label, result);
         }
         Ok(())
     }

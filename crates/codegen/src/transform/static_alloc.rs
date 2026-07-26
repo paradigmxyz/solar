@@ -133,7 +133,6 @@ fn eligible_static_allocations(func: &Function, aa: &AliasAnalysis) -> Vec<Stati
         return Vec::new();
     }
 
-    let inst_results = func.inst_results();
     let cfg = CfgInfo::new(func);
     let mut cyclic = FxHashMap::default();
     let mut candidates = Vec::new();
@@ -154,7 +153,8 @@ fn eligible_static_allocations(func: &Function, aa: &AliasAnalysis) -> Vec<Stati
             {
                 continue;
             }
-            let candidate = StaticAllocCandidate { block, alloc, ptr: inst_results[&alloc], size };
+            let ptr = func.inst_result_value(alloc).expect("allocation must produce a value");
+            let candidate = StaticAllocCandidate { block, alloc, ptr, size };
             if !aa.value_escapes(func, candidate.ptr) && candidate_uses_are_safe(func, &candidate) {
                 candidates.push(candidate);
             }
@@ -187,8 +187,6 @@ fn block_in_cycle(func: &Function, block: BlockId) -> bool {
 
 /// Verifies every use of the pointer stays in bounds and never escapes.
 fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool {
-    let inst_results = func.inst_results();
-
     // In-bounds address derivations from the pointer, to a fixpoint so
     // definition order does not matter.
     let mut derived: FxHashMap<ValueId, u64> = FxHashMap::default();
@@ -197,7 +195,7 @@ fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool
         let mut grew = false;
         for inst_id in func.instructions() {
             if let InstKind::Add(a, b) = func.inst(inst_id).kind
-                && let Some(&result) = inst_results.get(&inst_id)
+                && let Some(result) = func.inst_result_value(inst_id)
                 && !derived.contains_key(&result)
             {
                 let (base, offset) = if derived.contains_key(&a) {
@@ -261,9 +259,9 @@ fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool
                     }
                     // In-bounds derivations were collected above; anything
                     // else consuming an address is an escape.
-                    InstKind::Add(_, _) => {
-                        inst_results.get(&inst_id).is_some_and(|r| derived.contains_key(r))
-                    }
+                    InstKind::Add(_, _) => func
+                        .inst_result_value(inst_id)
+                        .is_some_and(|result| derived.contains_key(&result)),
                     _ => false,
                 };
                 if !ok {

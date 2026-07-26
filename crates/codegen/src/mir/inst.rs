@@ -470,6 +470,8 @@ pub(crate) struct Instruction {
     pub(crate) kind: InstKind,
     /// The result type (if any).
     pub(crate) result_ty: Option<MirType>,
+    /// The value allocated for this instruction's result.
+    result: Option<ValueId>,
     /// Metadata produced by lowering or analysis.
     pub(crate) metadata: InstructionMetadata,
 }
@@ -478,7 +480,18 @@ impl Instruction {
     /// Creates a new instruction.
     #[must_use]
     pub(crate) const fn new(kind: InstKind, result_ty: Option<MirType>) -> Self {
-        Self { kind, result_ty, metadata: InstructionMetadata::EMPTY }
+        Self { kind, result_ty, result: None, metadata: InstructionMetadata::EMPTY }
+    }
+
+    /// Returns the value allocated for this instruction's result.
+    #[must_use]
+    pub(super) const fn result(&self) -> Option<ValueId> {
+        self.result
+    }
+
+    /// Replaces the value allocated for this instruction's result.
+    pub(super) fn set_result(&mut self, result: Option<ValueId>) -> Option<ValueId> {
+        std::mem::replace(&mut self.result, result)
     }
 
     /// Returns the operands of this instruction.

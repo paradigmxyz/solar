@@ -10,7 +10,7 @@
 //! treated as uses at the phi instruction in the merge block, and the phi result is
 //! defined like any other instruction result.
 
-use crate::mir::{BlockId, Function, InstId, Terminator, Value, ValueId};
+use crate::mir::{BlockId, Function, Terminator, Value, ValueId};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -59,15 +59,6 @@ impl Liveness {
         let num_values = func.values.len();
         let num_blocks = func.blocks.len();
 
-        // Precompute InstId → ValueId mapping.
-        // This replaces the O(n) linear scans that were previously done per-instruction.
-        let mut inst_to_value: FxHashMap<InstId, ValueId> = FxHashMap::default();
-        for (val_id, val) in func.values.iter_enumerated() {
-            if let Value::Inst(inst_id) = val {
-                inst_to_value.insert(*inst_id, val_id);
-            }
-        }
-
         // Initialize per-block liveness
         let mut block_liveness = (0..num_blocks)
             .map(|_| BlockLiveness {
@@ -100,8 +91,7 @@ impl Liveness {
                     }
                 }
 
-                // Record definition using precomputed map (O(1) instead of O(n)).
-                if let Some(&val_id) = inst_to_value.get(&inst_id) {
+                if let Some(val_id) = func.inst_result_value(inst_id) {
                     block_defs[block_id].insert(val_id);
                 }
             }
@@ -278,7 +268,6 @@ impl Liveness {
     #[cfg(test)]
     fn live_at_inst(&self, func: &Function, block_id: BlockId, inst_idx: usize) -> LivenessInfo {
         let block = &func.blocks[block_id];
-        let inst_to_value = func.inst_results();
         let mut live = self.block_liveness[block_id].live_out.clone();
 
         if let Some(term) = &block.terminator {
@@ -292,7 +281,7 @@ impl Liveness {
         let mut operand_buf = SmallVec::<[ValueId; 8]>::new();
         for (idx, &inst_id) in block.instructions.iter().enumerate().rev() {
             let live_after = (idx == inst_idx).then(|| live.clone());
-            if let Some(&value) = inst_to_value.get(&inst_id) {
+            if let Some(value) = func.inst_result_value(inst_id) {
                 live.remove(value);
             }
             operand_buf.clear();
@@ -854,12 +843,14 @@ mod tests {
         // Phase 2: insert the phi instruction at the head of `header` and point
         // the placeholder value at its result.
         let phi_val = phi_placeholder;
-        let phi_inst = func.alloc_inst(crate::mir::Instruction::new(
-            crate::mir::InstKind::Phi(vec![(entry, init), (body, updated)]),
-            Some(MirType::uint256()),
-        ));
+        let phi_inst = func.alloc_inst_with_result(
+            crate::mir::Instruction::new(
+                crate::mir::InstKind::Phi(vec![(entry, init), (body, updated)]),
+                Some(MirType::uint256()),
+            ),
+            phi_val,
+        );
         func.blocks[header].instructions.insert(0, phi_inst);
-        func.values[phi_val] = crate::mir::Value::Inst(phi_inst);
 
         let liveness = Liveness::compute(&func);
 

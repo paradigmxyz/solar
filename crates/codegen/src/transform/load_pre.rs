@@ -276,7 +276,6 @@ struct Analysis {
     ins: FxHashMap<BlockId, KeySet>,
     /// Availability at block exit.
     outs: FxHashMap<BlockId, KeySet>,
-    inst_results: FxHashMap<InstId, ValueId>,
     inst_blocks: FxHashMap<InstId, BlockId>,
 }
 
@@ -571,7 +570,6 @@ impl LoadRedundancyEliminator {
             kills,
             ins,
             outs,
-            inst_results: func.inst_results(),
             inst_blocks: func.inst_blocks(),
         })
     }
@@ -713,7 +711,6 @@ impl LoadRedundancyEliminator {
     fn same_key_loads_in_target(
         &self,
         func: &Function,
-        analysis: &Analysis,
         target: BlockId,
         first_inst: InstId,
         key: LoadKey,
@@ -746,7 +743,7 @@ impl LoadRedundancyEliminator {
 
             if let Some((load_key, GenSource::LoadResult)) = self.gen_key_value(func, inst_id)
                 && load_key == key
-                && let Some(&value) = analysis.inst_results.get(&inst_id)
+                && let Some(value) = func.inst_result_value(inst_id)
             {
                 loads.push((inst_id, value));
             }
@@ -765,10 +762,10 @@ impl LoadRedundancyEliminator {
         predecessors: &[BlockId],
     ) -> Option<Candidate> {
         let instruction = func.inst(inst);
-        let result = *cx.analysis.inst_results.get(&inst)?;
+        let result = func.inst_result_value(inst)?;
         let result_ty = instruction.result_ty?;
         let key = cx.analysis.keys[key_idx];
-        let loads = self.same_key_loads_in_target(func, cx.analysis, target, inst, key);
+        let loads = self.same_key_loads_in_target(func, target, inst, key);
         if loads.is_empty() {
             return None;
         }
@@ -914,7 +911,7 @@ impl LoadRedundancyEliminator {
                 // A store's exact-key gen wins over its own kill: the slot
                 // holds the stored value from this point on.
                 return match source {
-                    GenSource::LoadResult => cx.analysis.inst_results.get(&inst_id).copied(),
+                    GenSource::LoadResult => func.inst_result_value(inst_id),
                     GenSource::Stored(value) => Some(value),
                 };
             }
@@ -956,12 +953,9 @@ impl LoadRedundancyEliminator {
 
         let fully_available = insertions.is_empty();
         for block in insertions {
-            let new_inst = func.alloc_inst(Instruction {
-                kind: kind.clone(),
-                result_ty: Some(result_ty),
-                metadata: metadata.clone(),
-            });
-            let value = func.alloc_value(Value::Inst(new_inst));
+            let mut instruction = Instruction::new(kind.clone(), Some(result_ty));
+            instruction.metadata = metadata.clone();
+            let (new_inst, value) = func.alloc_value_inst(instruction);
             func.blocks[block].instructions.push(new_inst);
             incoming.push((block, value));
             inserted_insts.insert(new_inst);
@@ -982,9 +976,8 @@ impl LoadRedundancyEliminator {
                 first
             }
             _ => {
-                let phi_inst =
-                    func.alloc_inst(Instruction::new(InstKind::Phi(incoming), Some(result_ty)));
-                let phi_value = func.alloc_value(Value::Inst(phi_inst));
+                let (phi_inst, phi_value) = func
+                    .alloc_value_inst(Instruction::new(InstKind::Phi(incoming), Some(result_ty)));
                 let phi_count = func.blocks[target]
                     .instructions
                     .iter()

@@ -77,10 +77,9 @@ impl SroaCx {
             return false;
         }
 
-        let inst_results = func.inst_results();
         let mut changed = false;
         for (block_id, object) in allocs {
-            if let Some(plan) = self.plan(func, alias, &inst_results, block_id, object) {
+            if let Some(plan) = self.plan(func, alias, block_id, object) {
                 self.apply(func, block_id, plan);
                 self.eliminated += 1;
                 changed = true;
@@ -95,7 +94,6 @@ impl SroaCx {
         &self,
         func: &Function,
         alias: &AliasAnalysis,
-        inst_results: &FxHashMap<InstId, ValueId>,
         block_id: BlockId,
         object: ValueId,
     ) -> Option<Plan> {
@@ -128,7 +126,7 @@ impl SroaCx {
                 }
             };
             let slot = slot?;
-            let addr = inst_results.get(&inst_id).copied()?;
+            let addr = func.inst_result_value(inst_id)?;
             slot_of.insert(addr, slot);
             address_insts.insert(inst_id);
         }
@@ -180,8 +178,8 @@ impl SroaCx {
                     // A load with no dominating store observes uninitialized or
                     // zeroed memory; keep the allocation rather than guess.
                     let value = *current.get(&slot_of[&addr])?;
-                    if let Some(result) = inst_results.get(&inst_id) {
-                        replacements.insert(*result, value);
+                    if let Some(result) = func.inst_result_value(inst_id) {
+                        replacements.insert(result, value);
                     }
                     dead.insert(inst_id);
                 }
