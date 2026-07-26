@@ -21,7 +21,7 @@ use crate::{
     },
     pass::{MirPass, run_function_pass_no_analyses},
 };
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{index::index_vec, map::FxHashMap};
 
 /// Function pass for jump threading.
 pub(crate) struct JumpThreading;
@@ -107,7 +107,8 @@ impl JumpThreader {
 
         if !forwarders.is_empty() {
             // Resolve the final target for each forwarder (following chains)
-            let final_targets = self.resolve_final_targets(&forwarders, func.blocks.len());
+            let mut final_targets = self.resolve_final_targets(&forwarders, func.blocks.len());
+            final_targets.retain(|block, target| block != target && !func.block_has_phi(*target));
 
             // Update all terminators to use final targets
             self.thread_jumps(func, &final_targets);
@@ -177,59 +178,61 @@ impl JumpThreader {
         block_count: usize,
     ) -> FxHashMap<BlockId, BlockId> {
         let mut final_targets = FxHashMap::default();
+        let mut path = Vec::new();
+        let mut positions = index_vec![usize::MAX; block_count];
 
         for &block_id in forwarders.keys() {
-            let final_target = self.follow_chain(block_id, forwarders, block_count);
-            if final_target != block_id {
-                final_targets.insert(block_id, final_target);
+            if final_targets.contains_key(&block_id) {
+                continue;
+            }
+            path.clear();
+            let mut current = block_id;
+            let final_target = loop {
+                if let Some(&target) = final_targets.get(&current) {
+                    break target;
+                }
+                if positions[current] != usize::MAX {
+                    let cycle_start = positions[current];
+                    for &cycle_block in &path[cycle_start..] {
+                        final_targets.insert(cycle_block, cycle_block);
+                    }
+                    break current;
+                }
+                let Some(&next) = forwarders.get(&current) else {
+                    break current;
+                };
+                positions[current] = path.len();
+                path.push(current);
+                current = next;
+            };
+            for &path_block in &path {
+                final_targets.entry(path_block).or_insert(final_target);
+                positions[path_block] = usize::MAX;
             }
         }
 
         final_targets
     }
 
-    /// Follows a chain of forwarders to find the final non-forwarder target.
-    fn follow_chain(
-        &self,
-        start: BlockId,
-        forwarders: &FxHashMap<BlockId, BlockId>,
-        block_count: usize,
-    ) -> BlockId {
-        let mut visited = DenseBitSet::new_empty(block_count);
-        let mut current = start;
-
-        while let Some(&next) = forwarders.get(&current) {
-            if !visited.insert(current) {
-                break;
-            }
-            current = next;
-        }
-
-        current
-    }
-
     /// Updates all terminators to use the final targets.
     fn thread_jumps(&mut self, func: &mut Function, final_targets: &FxHashMap<BlockId, BlockId>) {
-        let block_ids: Vec<_> = func.blocks.indices().collect();
-        for block_id in block_ids {
-            let Some(mut term) = func.blocks[block_id].terminator.clone() else {
+        for block in &mut func.blocks {
+            let Some(term) = &mut block.terminator else {
                 continue;
             };
-            self.thread_terminator(func, &mut term, final_targets);
-            func.blocks[block_id].terminator = Some(term);
+            self.thread_terminator(term, final_targets);
         }
     }
 
     /// Threads a single terminator's targets.
     fn thread_terminator(
         &mut self,
-        func: &Function,
         term: &mut Terminator,
         final_targets: &FxHashMap<BlockId, BlockId>,
     ) {
         match term {
             Terminator::Jump(target) => {
-                if let Some(final_target) = Self::threaded_target(func, *target, final_targets) {
+                if let Some(&final_target) = final_targets.get(target) {
                     *target = final_target;
                     self.stats.jumps_threaded += 1;
                     self.stats.gas_saved += 8;
@@ -238,13 +241,11 @@ impl JumpThreader {
 
             Terminator::Branch { then_block, else_block, .. } => {
                 let mut changed = false;
-                if let Some(final_target) = Self::threaded_target(func, *then_block, final_targets)
-                {
+                if let Some(&final_target) = final_targets.get(then_block) {
                     *then_block = final_target;
                     changed = true;
                 }
-                if let Some(final_target) = Self::threaded_target(func, *else_block, final_targets)
-                {
+                if let Some(&final_target) = final_targets.get(else_block) {
                     *else_block = final_target;
                     changed = true;
                 }
@@ -256,13 +257,12 @@ impl JumpThreader {
 
             Terminator::Switch { default, cases, .. } => {
                 let mut changed = false;
-                if let Some(final_target) = Self::threaded_target(func, *default, final_targets) {
+                if let Some(&final_target) = final_targets.get(default) {
                     *default = final_target;
                     changed = true;
                 }
                 for (_, target) in cases.iter_mut() {
-                    if let Some(final_target) = Self::threaded_target(func, *target, final_targets)
-                    {
+                    if let Some(&final_target) = final_targets.get(target) {
                         *target = final_target;
                         changed = true;
                     }
@@ -281,15 +281,6 @@ impl JumpThreader {
             | Terminator::TailCall { .. }
             | Terminator::Invalid => {}
         }
-    }
-
-    fn threaded_target(
-        func: &Function,
-        target: BlockId,
-        final_targets: &FxHashMap<BlockId, BlockId>,
-    ) -> Option<BlockId> {
-        let final_target = final_targets.get(&target).copied()?;
-        (!func.block_has_phi(final_target)).then_some(final_target)
     }
 
     fn block_phi_results_have_external_uses(func: &Function, block_id: BlockId) -> bool {
