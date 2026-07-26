@@ -372,6 +372,13 @@ impl<'a> Validator<'a> {
                 match &func.inst(inst_id).kind {
                     InstKind::Phi(incoming) => {
                         for &(pred, value) in incoming {
+                            // An edge from an unreachable predecessor never
+                            // executes, so whatever it names is vacuous. A pass
+                            // that makes a predecessor unreachable need not also
+                            // rewrite every phi that still lists it.
+                            if !cfg.is_reachable(pred) {
+                                continue;
+                            }
                             if let Some((def, _)) = def_location_of[value]
                                 && def != pred
                                 && !reaches(def, pred)
