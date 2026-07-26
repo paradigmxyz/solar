@@ -609,21 +609,32 @@ impl SymbolTables {
         uri: &Url,
         position: Position,
     ) -> Option<Vec<lsp_types::CallHierarchyItem>> {
-        self.call_hierarchy.prepare(uri, position, self.declaration_at_position(uri, position))
+        self.call_hierarchy.prepare(
+            &self.declarations,
+            self.rename.conflicting_contents(),
+            uri,
+            position,
+            self.declaration_at_position(uri, position),
+        )
     }
 
     pub(crate) fn call_hierarchy_incoming(
         &self,
         item: &lsp_types::CallHierarchyItem,
     ) -> Option<Vec<lsp_types::CallHierarchyIncomingCall>> {
-        self.call_hierarchy.incoming(item)
+        self.call_hierarchy.incoming(&self.declarations, self.rename.conflicting_contents(), item)
     }
 
     pub(crate) fn call_hierarchy_outgoing(
         &self,
         item: &lsp_types::CallHierarchyItem,
     ) -> Option<Vec<lsp_types::CallHierarchyOutgoingCall>> {
-        self.call_hierarchy.outgoing(item)
+        self.call_hierarchy.outgoing(&self.declarations, self.rename.conflicting_contents(), item)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn call_hierarchy_is_initialized(&self) -> bool {
+        self.call_hierarchy.is_query_initialized()
     }
 
     pub(crate) fn document_highlights(
@@ -1241,7 +1252,7 @@ impl SymbolTables {
         }
         self.override_families.rebuild(&self.declarations, self.rename.conflicting_contents());
         self.rename.rebuild(&self.override_families);
-        self.call_hierarchy.rebuild(self.rename.conflicting_contents());
+        self.call_hierarchy.rebuild();
     }
 }
 

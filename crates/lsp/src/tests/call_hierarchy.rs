@@ -465,6 +465,52 @@ fn indexes_base_constructor_invocations() {
 }
 
 #[test]
+fn indexes_inheritance_list_constructor_invocations_and_arguments() {
+    let marked = MarkedProject::from_fixture(
+        r#"
+        //- /InheritanceList.sol
+        function $1argument() pure returns (uint256) { return 1; }
+
+        contract Base {
+            $2constructor(uint256 value) {}
+        }
+
+        contract Derived is $4Base($5argument()) {
+            $3constructor() {}
+        }
+        "#,
+    );
+    let project = marked.project();
+    let path = project.path("/InheritanceList.sol");
+    let tables = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(path.clone(), project.read_file("/InheritanceList.sol"))],
+    ))
+    .symbol_tables;
+    let uri = Url::from_file_path(path).unwrap();
+    let item = |marker: &str| {
+        tables
+            .prepare_call_hierarchy(&uri, marked.marker(marker).position())
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap()
+    };
+    let argument = item("$1");
+    let base = item("$2");
+    let derived = item("$3");
+
+    assert_eq!(item("$4"), base);
+    assert_eq!(item("$5"), argument);
+    let outgoing = tables.call_hierarchy_outgoing(&derived).unwrap();
+    assert_eq!(outgoing.len(), 2);
+    let base_call = outgoing.iter().find(|call| call.to == base).unwrap();
+    assert_eq!(base_call.from_ranges, [marker_range(&marked, "$4", 4)]);
+    let argument_call = outgoing.iter().find(|call| call.to == argument).unwrap();
+    assert_eq!(argument_call.from_ranges, [marker_range(&marked, "$5", 8)]);
+}
+
+#[test]
 fn excludes_non_direct_and_non_source_calls() {
     let marked = MarkedProject::from_fixture(
         r#"
@@ -569,18 +615,24 @@ fn merges_identical_analysis_contexts_without_duplicate_edges() {
         [(path.clone(), contents.clone())],
     ))
     .symbol_tables;
+    assert!(!tables.call_hierarchy_is_initialized());
     let uri = Url::from_file_path(&path).unwrap();
     let caller =
         tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()).unwrap().pop().unwrap();
+    assert!(tables.call_hierarchy_is_initialized());
+    assert!(!tables.clone().call_hierarchy_is_initialized());
     let duplicate = analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, contents)]))
         .symbol_tables;
+    assert!(!duplicate.call_hierarchy_is_initialized());
 
     tables.extend(duplicate);
+    assert!(!tables.call_hierarchy_is_initialized());
 
     assert_eq!(
         tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()),
         Some(vec![caller.clone()])
     );
+    assert!(tables.call_hierarchy_is_initialized());
     let outgoing = tables.call_hierarchy_outgoing(&caller).unwrap();
     assert_eq!(outgoing.len(), 1);
     assert_eq!(outgoing[0].from_ranges, [marker_range(&marked, "$3", 6)]);

@@ -21,17 +21,39 @@ use solar_sema::{
     hir::{self, ItemId, Visit},
     ty::TyKind,
 };
-use std::{cmp::Ordering, ops::ControlFlow};
+use std::{cmp::Ordering, ops::ControlFlow, sync::OnceLock};
 
 const DATA_VERSION: u8 = 1;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default)]
 pub(crate) struct CallHierarchyIndex {
+    facts: CallHierarchyFacts,
+    query: OnceLock<QueryIndex>,
+}
+
+impl Clone for CallHierarchyIndex {
+    fn clone(&self) -> Self {
+        Self { facts: self.facts.clone(), query: OnceLock::new() }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct CallHierarchyFacts {
+    callables: Vec<CallableFact>,
+    direct_calls: Vec<DirectCall>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct CallableFact {
+    symbol: SymbolId,
+    body_range: Option<Range>,
+}
+
+#[derive(Debug, Default)]
+struct QueryIndex {
     items_by_symbol: FxHashMap<SymbolId, CallHierarchyItem>,
     candidate_key_by_symbol: FxHashMap<SymbolId, CallableKey>,
     body_range_by_symbol: FxHashMap<SymbolId, Range>,
-    direct_calls: Vec<DirectCall>,
-
     canonical_symbol_by_key: FxHashMap<CallableKey, SymbolId>,
     key_by_symbol: FxHashMap<SymbolId, CallableKey>,
     outgoing_by_key: CallRelations,
@@ -93,6 +115,11 @@ struct CallHierarchyData {
 }
 
 impl CallHierarchyIndex {
+    #[cfg(test)]
+    pub(crate) fn is_query_initialized(&self) -> bool {
+        self.query.get().is_some()
+    }
+
     pub(crate) fn build(
         gcx: Gcx<'_>,
         item_symbols: &FxHashMap<ItemId, SymbolId>,
@@ -107,7 +134,91 @@ impl CallHierarchyIndex {
             let Some(&symbol_id) = item_symbols.get(&ItemId::Function(function_id)) else {
                 continue;
             };
-            let declaration = &declarations[symbol_id];
+            let body_range = if function.body.is_some() {
+                proto::span_to_location(gcx.sess.source_map(), function.body_span)
+                    .map(|location| location.range)
+            } else {
+                None
+            };
+            index.facts.callables.push(CallableFact { symbol: symbol_id, body_range });
+        }
+
+        if gcx.has_typeck_results() {
+            collect_direct_calls(&mut index.facts, gcx, item_symbols, declarations);
+        }
+        index
+    }
+
+    pub(crate) fn extend(&mut self, other: Self, symbol_offset: usize) {
+        let Self { facts, query: _ } = other;
+        self.facts.callables.extend(facts.callables.into_iter().map(|fact| CallableFact {
+            symbol: remap_symbol_id(fact.symbol, symbol_offset),
+            body_range: fact.body_range,
+        }));
+        self.facts.direct_calls.extend(facts.direct_calls.into_iter().map(|call| DirectCall {
+            caller: remap_symbol_id(call.caller, symbol_offset),
+            callee: remap_symbol_id(call.callee, symbol_offset),
+            from_range: call.from_range,
+        }));
+        self.invalidate_query();
+    }
+
+    pub(crate) fn rebuild(&mut self) {
+        self.invalidate_query();
+    }
+
+    pub(crate) fn prepare(
+        &self,
+        declarations: &IndexVec<SymbolId, DeclarationSymbol>,
+        conflicting_contents: &FxHashSet<Url>,
+        uri: &Url,
+        position: Position,
+        declaration: Option<SymbolId>,
+    ) -> Option<Vec<CallHierarchyItem>> {
+        self.query(declarations, conflicting_contents).prepare(uri, position, declaration)
+    }
+
+    pub(crate) fn incoming(
+        &self,
+        declarations: &IndexVec<SymbolId, DeclarationSymbol>,
+        conflicting_contents: &FxHashSet<Url>,
+        item: &CallHierarchyItem,
+    ) -> Option<Vec<CallHierarchyIncomingCall>> {
+        self.query(declarations, conflicting_contents).incoming(item)
+    }
+
+    pub(crate) fn outgoing(
+        &self,
+        declarations: &IndexVec<SymbolId, DeclarationSymbol>,
+        conflicting_contents: &FxHashSet<Url>,
+        item: &CallHierarchyItem,
+    ) -> Option<Vec<CallHierarchyOutgoingCall>> {
+        self.query(declarations, conflicting_contents).outgoing(item)
+    }
+
+    fn query(
+        &self,
+        declarations: &IndexVec<SymbolId, DeclarationSymbol>,
+        conflicting_contents: &FxHashSet<Url>,
+    ) -> &QueryIndex {
+        self.query
+            .get_or_init(|| QueryIndex::build(&self.facts, declarations, conflicting_contents))
+    }
+
+    fn invalidate_query(&mut self) {
+        let _ = self.query.take();
+    }
+}
+
+impl QueryIndex {
+    fn build(
+        facts: &CallHierarchyFacts,
+        declarations: &IndexVec<SymbolId, DeclarationSymbol>,
+        conflicting_contents: &FxHashSet<Url>,
+    ) -> Self {
+        let mut index = Self::default();
+        for fact in &facts.callables {
+            let declaration = &declarations[fact.symbol];
             let key = CallableKey {
                 uri: declaration.location.uri.clone(),
                 selection_range: declaration.name_range,
@@ -119,7 +230,7 @@ impl CallHierarchyIndex {
             };
             let detail = declaration.parent.map(|parent| declarations[parent].name.clone());
             index.items_by_symbol.insert(
-                symbol_id,
+                fact.symbol,
                 CallHierarchyItem {
                     name: declaration.name.clone(),
                     kind: declaration.kind,
@@ -134,53 +245,18 @@ impl CallHierarchyIndex {
                     ),
                 },
             );
-            index.candidate_key_by_symbol.insert(symbol_id, key);
-            if function.body.is_some()
-                && let Some(location) =
-                    proto::span_to_location(gcx.sess.source_map(), function.body_span)
-            {
-                index.body_range_by_symbol.insert(symbol_id, location.range);
+            index.candidate_key_by_symbol.insert(fact.symbol, key);
+            if let Some(range) = fact.body_range {
+                index.body_range_by_symbol.insert(fact.symbol, range);
             }
         }
-
-        if gcx.has_typeck_results() {
-            collect_direct_calls(&mut index, gcx, item_symbols);
-        }
+        index.rebuild(&facts.direct_calls, conflicting_contents);
         index
     }
 
-    pub(crate) fn extend(&mut self, other: Self, symbol_offset: usize) {
-        self.items_by_symbol.extend(
-            other
-                .items_by_symbol
-                .into_iter()
-                .map(|(symbol, item)| (remap_symbol_id(symbol, symbol_offset), item)),
-        );
-        self.candidate_key_by_symbol.extend(
-            other
-                .candidate_key_by_symbol
-                .into_iter()
-                .map(|(symbol, key)| (remap_symbol_id(symbol, symbol_offset), key)),
-        );
-        self.body_range_by_symbol.extend(
-            other
-                .body_range_by_symbol
-                .into_iter()
-                .map(|(symbol, range)| (remap_symbol_id(symbol, symbol_offset), range)),
-        );
-        self.direct_calls.extend(other.direct_calls.into_iter().map(|call| DirectCall {
-            caller: remap_symbol_id(call.caller, symbol_offset),
-            callee: remap_symbol_id(call.callee, symbol_offset),
-            from_range: call.from_range,
-        }));
-        self.invalidate_query_indexes();
-    }
-
-    pub(crate) fn rebuild(&mut self, conflicting_contents: &FxHashSet<Url>) {
-        self.invalidate_query_indexes();
-
+    fn rebuild(&mut self, direct_calls: &[DirectCall], conflicting_contents: &FxHashSet<Url>) {
         let mut outgoing_facts_by_symbol = FxHashMap::<SymbolId, Vec<_>>::default();
-        for call in &self.direct_calls {
+        for call in direct_calls {
             let Some(callee) = self.candidate_key_by_symbol.get(&call.callee) else {
                 continue;
             };
@@ -225,7 +301,7 @@ impl CallHierarchyIndex {
             }
         }
 
-        for call in &self.direct_calls {
+        for call in direct_calls {
             let caller = self.key_by_symbol.get(&call.caller);
             let callee = self.key_by_symbol.get(&call.callee);
             let (Some(caller), Some(callee)) = (caller, callee) else {
@@ -380,23 +456,13 @@ impl CallHierarchyIndex {
             && item.kind == current.kind)
             .then_some(key)
     }
-
-    fn invalidate_query_indexes(&mut self) {
-        self.canonical_symbol_by_key.clear();
-        self.key_by_symbol.clear();
-        self.outgoing_by_key.clear();
-        self.incoming_by_key.clear();
-        self.incomplete_outgoing.clear();
-        self.incomplete_incoming.clear();
-        self.call_sites_by_uri.clear();
-        self.bodies_by_uri.clear();
-    }
 }
 
 fn collect_direct_calls<'gcx>(
-    index: &mut CallHierarchyIndex,
+    facts: &mut CallHierarchyFacts,
     gcx: Gcx<'gcx>,
     item_symbols: &FxHashMap<ItemId, SymbolId>,
+    declarations: &IndexVec<SymbolId, DeclarationSymbol>,
 ) {
     for caller_id in gcx.hir.function_ids() {
         let function = gcx.hir.function(caller_id);
@@ -407,7 +473,16 @@ fn collect_direct_calls<'gcx>(
             continue;
         };
 
-        let mut collector = CallCollector { gcx, item_symbols, index, caller };
+        let mut collector = CallCollector { gcx, item_symbols, declarations, facts, caller };
+        if function.is_constructor()
+            && let Some(contract_id) = function.contract
+        {
+            for base in gcx.hir.contract(contract_id).bases_args {
+                if !base.args.is_dummy() {
+                    let _ = collector.visit_modifier(base);
+                }
+            }
+        }
         for modifier in function.modifiers {
             let _ = collector.visit_modifier(modifier);
         }
@@ -422,7 +497,8 @@ fn collect_direct_calls<'gcx>(
 struct CallCollector<'a, 'gcx> {
     gcx: Gcx<'gcx>,
     item_symbols: &'a FxHashMap<ItemId, SymbolId>,
-    index: &'a mut CallHierarchyIndex,
+    declarations: &'a IndexVec<SymbolId, DeclarationSymbol>,
+    facts: &'a mut CallHierarchyFacts,
     caller: SymbolId,
 }
 
@@ -482,15 +558,10 @@ impl CallCollector<'_, '_> {
         let Some(location) = proto::span_to_location(self.gcx.sess.source_map(), span) else {
             return;
         };
-        if self
-            .index
-            .candidate_key_by_symbol
-            .get(&self.caller)
-            .is_none_or(|key| key.uri != location.uri)
-        {
+        if self.declarations[self.caller].location.uri != location.uri {
             return;
         }
-        self.index.direct_calls.push(DirectCall {
+        self.facts.direct_calls.push(DirectCall {
             caller: self.caller,
             callee,
             from_range: location.range,
