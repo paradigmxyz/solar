@@ -292,6 +292,9 @@ impl<'gcx> Lowerer<'gcx> {
                                     self.compute_member_selector(receiver, *function_name);
                                 return builder.imm_u256(U256::from(selector) << 224);
                             }
+                            if let Some(selector) = self.ident_function_selector(base) {
+                                return builder.imm_u256(U256::from(selector) << 224);
+                            }
                         }
                         Builtin::EventSelector => {
                             if let Some(selector) = self.lower_resolved_event_selector(base) {
@@ -1249,6 +1252,34 @@ impl<'gcx> Lowerer<'gcx> {
             hir::ItemId::Error(id) => Some(u32::from_be_bytes(self.gcx.function_selector(id).0)),
             _ => None,
         }
+    }
+
+    /// The selector of a bare function name used as `f.selector`.
+    ///
+    /// Name resolution hands back every candidate for the name without
+    /// accounting for overloading, and the type checker only disambiguates
+    /// callees, so a name reached through an override chain or visible along
+    /// several inheritance paths arrives here as a multi-candidate set. Those
+    /// candidates all describe the same signature and so share one selector;
+    /// take it. A set that genuinely disagrees is ambiguous in Solidity too,
+    /// and keeps the caller's diagnostic.
+    fn ident_function_selector(&self, expr: &hir::Expr<'_>) -> Option<u32> {
+        let ExprKind::Ident(res_slice) = &expr.kind else { return None };
+        let mut selector = None;
+        for res in res_slice.iter() {
+            let hir::Res::Item(item_id) = res else { return None };
+            let candidate = match *item_id {
+                hir::ItemId::Function(id) => u32::from_be_bytes(self.gcx.function_selector(id).0),
+                hir::ItemId::Error(id) => u32::from_be_bytes(self.gcx.function_selector(id).0),
+                _ => return None,
+            };
+            match selector {
+                None => selector = Some(candidate),
+                Some(selector) if selector == candidate => {}
+                Some(_) => return None,
+            }
+        }
+        selector
     }
 
     fn lower_resolved_event_selector(&self, expr: &hir::Expr<'_>) -> Option<U256> {
