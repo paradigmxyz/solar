@@ -108,7 +108,7 @@ impl JumpThreader {
         if !forwarders.is_empty() {
             // Resolve the final target for each forwarder (following chains)
             let mut final_targets = self.resolve_final_targets(&forwarders, func.blocks.len());
-            final_targets.retain(|block, target| block != target && !func.block_has_phi(*target));
+            final_targets.retain(|block, target| block != target);
 
             // Update all terminators to use final targets
             self.thread_jumps(func, &final_targets);
@@ -216,23 +216,26 @@ impl JumpThreader {
 
     /// Updates all terminators to use the final targets.
     fn thread_jumps(&mut self, func: &mut Function, final_targets: &FxHashMap<BlockId, BlockId>) {
-        for block in &mut func.blocks {
-            let Some(term) = &mut block.terminator else {
+        let block_ids: Vec<_> = func.blocks.indices().collect();
+        for block_id in block_ids {
+            let Some(mut term) = func.blocks[block_id].terminator.clone() else {
                 continue;
             };
-            self.thread_terminator(term, final_targets);
+            self.thread_terminator(func, &mut term, final_targets);
+            func.blocks[block_id].terminator = Some(term);
         }
     }
 
     /// Threads a single terminator's targets.
     fn thread_terminator(
         &mut self,
+        func: &Function,
         term: &mut Terminator,
         final_targets: &FxHashMap<BlockId, BlockId>,
     ) {
         match term {
             Terminator::Jump(target) => {
-                if let Some(&final_target) = final_targets.get(target) {
+                if let Some(final_target) = Self::threaded_target(func, *target, final_targets) {
                     *target = final_target;
                     self.stats.jumps_threaded += 1;
                     self.stats.gas_saved += 8;
@@ -241,11 +244,13 @@ impl JumpThreader {
 
             Terminator::Branch { then_block, else_block, .. } => {
                 let mut changed = false;
-                if let Some(&final_target) = final_targets.get(then_block) {
+                if let Some(final_target) = Self::threaded_target(func, *then_block, final_targets)
+                {
                     *then_block = final_target;
                     changed = true;
                 }
-                if let Some(&final_target) = final_targets.get(else_block) {
+                if let Some(final_target) = Self::threaded_target(func, *else_block, final_targets)
+                {
                     *else_block = final_target;
                     changed = true;
                 }
@@ -257,12 +262,13 @@ impl JumpThreader {
 
             Terminator::Switch { default, cases, .. } => {
                 let mut changed = false;
-                if let Some(&final_target) = final_targets.get(default) {
+                if let Some(final_target) = Self::threaded_target(func, *default, final_targets) {
                     *default = final_target;
                     changed = true;
                 }
                 for (_, target) in cases.iter_mut() {
-                    if let Some(&final_target) = final_targets.get(target) {
+                    if let Some(final_target) = Self::threaded_target(func, *target, final_targets)
+                    {
                         *target = final_target;
                         changed = true;
                     }
@@ -281,6 +287,15 @@ impl JumpThreader {
             | Terminator::TailCall { .. }
             | Terminator::Invalid => {}
         }
+    }
+
+    fn threaded_target(
+        func: &Function,
+        target: BlockId,
+        final_targets: &FxHashMap<BlockId, BlockId>,
+    ) -> Option<BlockId> {
+        let final_target = final_targets.get(&target).copied()?;
+        (!func.block_has_phi(final_target)).then_some(final_target)
     }
 
     fn block_phi_results_have_external_uses(func: &Function, block_id: BlockId) -> bool {
