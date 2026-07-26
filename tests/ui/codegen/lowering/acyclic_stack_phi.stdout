@@ -1,0 +1,80 @@
+// === ROOT/tests/ui/codegen/lowering/acyclic_stack_phi.sol:AcyclicStackPhi (runtime) ===
+@module runtime
+bb0:
+  push 416
+  push 64
+  mstore
+  callvalue
+  push bb4
+  jumpi
+  calldatasize
+  iszero
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x341fda35
+  sub
+  push bb4
+  jumpi
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  sgt
+  push bb4
+  jumpi
+  push 4
+  push 4
+  calldataload
+  add
+  calldataload
+  dup1
+  push 224
+  mstore
+  push 4
+  dup2
+  gt
+  push bb9
+  jumpi
+  push 36
+  push 4
+  calldataload
+  add
+  jump bb8
+bb8:
+  dup2
+  dup1
+  push 256
+  mstore
+  push 128
+  mstore
+  pop
+  pop
+  push 32
+  push 128
+  return
+bb4 [cold]:
+  push 0
+  dup1
+  revert
+bb9:
+  push 36
+  push 4
+  calldataload
+  add
+  push 4
+  dup3
+  sub
+  push 4
+  dup3
+  add
+  swap2
+  pop
+  swap2
+  pop
+  jump bb8

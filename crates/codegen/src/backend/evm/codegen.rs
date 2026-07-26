@@ -92,7 +92,7 @@ struct StackArgRetentionPlan {
 struct StackPhiPlan {
     entries: FxHashMap<BlockId, Vec<ValueId>>,
     edges: FxHashMap<BlockId, StackPhiEdge>,
-    edge_sources: FxHashMap<BlockId, DenseBitSet<ValueId>>,
+    edge_sources: FxHashMap<BlockId, Vec<ValueId>>,
 }
 
 #[derive(Clone, Debug)]
@@ -220,7 +220,7 @@ impl GlobalStackPlan {
             }
         }
 
-        // Switch lowering owns the selector stack, and stack-phi loop headers
+        // Switch lowering owns the selector stack, and stack-phi entries
         // own their edge layouts. Disable their whole branch-sibling component
         // so every predecessor of every affected block still agrees.
         let mut disabled = DenseBitSet::new_empty(func.blocks.len());
@@ -369,13 +369,16 @@ impl<'a> StackPhiPlanner<'a> {
         for loop_info in &self.loops {
             self.plan_loop(loop_info, &mut plan);
         }
+        for block in self.func.blocks.indices() {
+            self.plan_join(block, &mut plan);
+        }
         plan
     }
 
     fn collect_header_results(&mut self) {
         for loop_info in &self.loops {
             let block = &self.func.blocks[loop_info.header];
-            let phi_insts = self.leading_phi_insts(block);
+            let phi_insts = self.phi_insts(block);
             if let Some(results) = self.phi_result_values(&phi_insts) {
                 self.header_results.insert(loop_info.header, results);
             }
@@ -399,7 +402,7 @@ impl<'a> StackPhiPlanner<'a> {
         }
 
         let block = &self.func.blocks[loop_info.header];
-        let phi_insts = self.leading_phi_insts(block);
+        let phi_insts = self.phi_insts(block);
         if phi_insts.is_empty() || phi_insts.len() > STACK_PHI_LAYOUT_LIMIT {
             return;
         }
@@ -433,21 +436,55 @@ impl<'a> StackPhiPlanner<'a> {
 
         plan.entries.insert(loop_info.header, entry.clone());
         for (pred, sources) in edges {
-            let mut source_set = DenseBitSet::new_empty(self.func.values.len());
-            for &source in &sources {
-                source_set.insert(source);
-            }
-            plan.edge_sources.insert(pred, source_set);
+            plan.edge_sources.insert(pred, sources.clone());
             plan.edges.insert(pred, StackPhiEdge { sources, results: entry.clone() });
         }
     }
 
-    fn leading_phi_insts(&self, block: &crate::mir::BasicBlock) -> Vec<InstId> {
+    fn plan_join(&self, block_id: BlockId, plan: &mut StackPhiPlan) {
+        let block = &self.func.blocks[block_id];
+        if plan.entries.contains_key(&block_id) || block.predecessors.len() < 2 {
+            return;
+        }
+
+        let phi_insts = self.phi_insts(block);
+        if phi_insts.is_empty() || phi_insts.len() > STACK_PHI_LAYOUT_LIMIT {
+            return;
+        }
+        let Some(results) = self.phi_result_values(&phi_insts) else {
+            return;
+        };
+        if block.predecessors.iter().any(|pred| {
+            plan.edges.contains_key(pred)
+                || !matches!(
+                    self.func.blocks[*pred].terminator,
+                    Some(Terminator::Jump(target)) if target == block_id
+                )
+        }) {
+            return;
+        }
+
+        let mut edges = Vec::with_capacity(block.predecessors.len());
+        for &pred in &block.predecessors {
+            let Some(sources) = self.phi_sources_for_pred(&phi_insts, pred) else {
+                return;
+            };
+            edges.push((pred, sources));
+        }
+
+        plan.entries.insert(block_id, results.clone());
+        for (pred, sources) in edges {
+            plan.edge_sources.insert(pred, sources.clone());
+            plan.edges.insert(pred, StackPhiEdge { sources, results: results.clone() });
+        }
+    }
+
+    fn phi_insts(&self, block: &crate::mir::BasicBlock) -> Vec<InstId> {
         block
             .instructions
             .iter()
             .copied()
-            .take_while(|&inst| matches!(self.func.inst(inst).kind, InstKind::Phi(_)))
+            .filter(|&inst| matches!(self.func.inst(inst).kind, InstKind::Phi(_)))
             .collect()
     }
 
@@ -574,7 +611,7 @@ pub struct EvmCodegen<'gcx> {
     /// Copies to insert at block exits (from phi elimination).
     block_copies: FxHashMap<BlockId, Vec<ParallelCopy>>,
     /// Values carried by planned stack-resident phi edges, keyed by predecessor block.
-    stack_phi_sources: FxHashMap<BlockId, DenseBitSet<ValueId>>,
+    stack_phi_sources: FxHashMap<BlockId, Vec<ValueId>>,
     /// Whether the current function has canonical cross-block argument layouts.
     global_stack_active: bool,
     /// Calldata words physically identical to arguments in the active global
@@ -1927,7 +1964,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn is_stack_phi_source(&self, block: BlockId, value: ValueId) -> bool {
-        self.stack_phi_sources.get(&block).is_some_and(|sources| sources.contains(value))
+        self.stack_phi_sources.get(&block).is_some_and(|sources| sources.contains(&value))
     }
 
     /// Preallocates stable spill slots for values that may cross block boundaries.
