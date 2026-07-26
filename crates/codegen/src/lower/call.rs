@@ -1852,7 +1852,7 @@ impl<'gcx> Lowerer<'gcx> {
         // Bind parameters to argument values directly (SSA style)
         for (i, &param_id) in func.parameters.iter().enumerate() {
             if let Some(&arg_val) = arg_vals.get(i) {
-                self.locals.insert(param_id, arg_val);
+                self.bind_param_value(builder, param_id, arg_val);
             }
         }
 
@@ -1942,7 +1942,7 @@ impl<'gcx> Lowerer<'gcx> {
                 let saved_pending = self.pending_inline_returns.take();
                 for (i, &param_id) in func.parameters.iter().enumerate() {
                     if let Some(&arg_val) = arg_vals.get(i) {
-                        self.locals.insert(param_id, arg_val);
+                        self.bind_param_value(builder, param_id, arg_val);
                     }
                 }
                 let result = self.lower_library_body_simple(builder, &body, func);
@@ -2012,7 +2012,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         for (i, &param_id) in func.parameters.iter().enumerate() {
             if let Some(&arg_val) = arg_vals.get(i) {
-                self.locals.insert(param_id, arg_val);
+                self.bind_param_value(builder, param_id, arg_val);
             }
         }
 
@@ -2162,7 +2162,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         for (i, &param_id) in parameters.iter().enumerate() {
             if let Some(&arg_val) = arg_vals.get(i) {
-                self.locals.insert(param_id, arg_val);
+                self.bind_param_value(builder, param_id, arg_val);
             }
         }
 
@@ -2557,7 +2557,7 @@ impl<'gcx> Lowerer<'gcx> {
             // Bind parameters to argument values directly (SSA style)
             for (i, &param_id) in func.parameters.iter().enumerate() {
                 if let Some(&arg_val) = arg_vals.get(i) {
-                    self.locals.insert(param_id, arg_val);
+                    self.bind_param_value(builder, param_id, arg_val);
                 }
             }
 
