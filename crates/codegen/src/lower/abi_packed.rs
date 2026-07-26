@@ -120,6 +120,16 @@ impl<'gcx> Lowerer<'gcx> {
             // `[len][data]` memory buffer and pack its data like any other
             // dynamic bytes value.
             if self.expr_is_calldata_dynamic_bytes(arg) {
+                // A member of a calldata struct is decoded to memory in the
+                // prologue, so despite its calldata-located type it is already
+                // the `[length][data...]` pointer this packs from. Checked
+                // before `calldata_bytes_source`, which would lower the
+                // expression a second time into whichever block is current.
+                if self.expr_is_calldata_struct_member(arg) {
+                    let ptr = self.lower_expr(builder, arg);
+                    packed_args.push(PackedAbiArg::DynamicBytes(ptr));
+                    continue;
+                }
                 if let Some((slice, _)) = self.calldata_bytes_source(builder, arg) {
                     let ptr = self.materialize_calldata_bytes(builder, slice);
                     packed_args.push(PackedAbiArg::DynamicBytes(ptr));
