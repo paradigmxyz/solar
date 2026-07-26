@@ -141,23 +141,7 @@ impl Function {
     /// Returns the value produced by the given instruction, if it has one.
     #[must_use]
     pub(crate) fn inst_result_value(&self, id: InstId) -> Option<ValueId> {
-        self.values
-            .iter_enumerated()
-            .find(|(_, value)| matches!(value, Value::Inst(inst) if *inst == id))
-            .map(|(value_id, _)| value_id)
-    }
-
-    /// Returns a map from each instruction to its result value.
-    #[must_use]
-    pub(crate) fn inst_results(&self) -> FxHashMap<InstId, ValueId> {
-        let mut results =
-            FxHashMap::with_capacity_and_hasher(self.instructions.len(), Default::default());
-        for (value_id, value) in self.values.iter_enumerated() {
-            if let Value::Inst(inst_id) = value {
-                results.insert(*inst_id, value_id);
-            }
-        }
-        results
+        self.instructions[id].result()
     }
 
     /// Returns a map from each instruction to the block containing it.
@@ -230,11 +214,51 @@ impl Function {
 
     /// Allocates a new value.
     pub(crate) fn alloc_value(&mut self, value: Value) -> ValueId {
+        assert!(
+            !matches!(value, Value::Inst(_)),
+            "instruction results must be allocated with their instruction"
+        );
         self.values.push(value)
     }
 
-    /// Allocates a new instruction.
-    pub(crate) fn alloc_inst(&mut self, inst: Instruction) -> InstId {
+    /// Allocates a value-producing instruction and its result value.
+    pub(crate) fn alloc_value_inst(&mut self, mut inst: Instruction) -> (InstId, ValueId) {
+        assert!(inst.result_ty.is_some(), "value-producing instruction must have a result type");
+
+        let inst_id = self.instructions.next_idx();
+        let value_id = self.values.next_idx();
+        assert!(inst.set_result(Some(value_id)).is_none(), "new instruction already has a result");
+        let allocated_inst = self.instructions.push(inst);
+        let allocated_value = self.values.push(Value::Inst(inst_id));
+        debug_assert_eq!(allocated_inst, inst_id);
+        debug_assert_eq!(allocated_value, value_id);
+        (inst_id, value_id)
+    }
+
+    /// Allocates a value-producing instruction for a preallocated undefined result value.
+    pub(crate) fn alloc_inst_with_result(
+        &mut self,
+        mut inst: Instruction,
+        result: ValueId,
+    ) -> InstId {
+        assert!(inst.result_ty.is_some(), "value-producing instruction must have a result type");
+        assert!(
+            matches!(self.values[result], Value::Undef(_)),
+            "preallocated instruction result must be undefined"
+        );
+
+        let inst_id = self.instructions.next_idx();
+        assert!(inst.set_result(Some(result)).is_none(), "new instruction already has a result");
+        self.values[result] = Value::Inst(inst_id);
+        let allocated_inst = self.instructions.push(inst);
+        debug_assert_eq!(allocated_inst, inst_id);
+        inst_id
+    }
+
+    /// Allocates an instruction that produces no value.
+    pub(crate) fn alloc_inst(&mut self, mut inst: Instruction) -> InstId {
+        assert!(inst.result_ty.is_none(), "value-producing instruction must allocate its result");
+        inst.set_result(None);
         self.instructions.push(inst)
     }
 

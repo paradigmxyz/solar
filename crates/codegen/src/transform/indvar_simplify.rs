@@ -113,14 +113,13 @@ impl IndVarSimplifier {
         };
 
         let scev = ScalarEvolution::analyze(func, loop_data);
-        let inst_results = func.inst_results();
         let mut candidates: FxHashMap<AddressKey, Vec<ValueId>> = FxHashMap::default();
 
         let mut blocks: Vec<_> = loop_data.blocks.iter().collect();
         blocks.sort_by_key(|block| block.index());
         for block in blocks {
             for &inst_id in &func.blocks[block].instructions {
-                let Some(&value) = inst_results.get(&inst_id) else { continue };
+                let Some(value) = func.inst_result_value(inst_id) else { continue };
                 if !self.is_reducible_result(func, inst_id) {
                     continue;
                 }
@@ -213,11 +212,10 @@ impl IndVarSimplifier {
         }
 
         let initial = self.build_base_plus_offset(func, preheader, key.base, init_offset)?;
-        let phi_inst = func.alloc_inst(Instruction::new(
+        let (phi_inst, phi_value) = func.alloc_value_inst(Instruction::new(
             InstKind::Phi(vec![(preheader, initial)]),
             Some(MirType::uint256()),
         ));
-        let phi_value = func.alloc_value(Value::Inst(phi_inst));
         self.insert_header_phi(func, loop_data.header, phi_inst);
 
         let delta = self.offset_value(func, delta)?;
@@ -268,9 +266,9 @@ impl IndVarSimplifier {
         kind: InstKind,
         ty: Option<MirType>,
     ) -> ValueId {
-        let inst = func.alloc_inst(Instruction::new(kind, ty));
+        let (inst, value) = func.alloc_value_inst(Instruction::new(kind, ty));
         func.blocks[block].instructions.push(inst);
-        func.alloc_value(Value::Inst(inst))
+        value
     }
 
     fn insert_header_phi(&self, func: &mut Function, header: BlockId, phi_inst: InstId) {

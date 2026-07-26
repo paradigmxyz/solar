@@ -249,11 +249,11 @@ impl LoopCanonicalizer {
 
         let result_ty =
             func.inst(header_phi).result_ty.expect("header phi should have result type");
-        let preheader_phi =
-            func.alloc_inst(Instruction::new(InstKind::Phi(incoming), Some(result_ty)));
+        let (preheader_phi, result) =
+            func.alloc_value_inst(Instruction::new(InstKind::Phi(incoming), Some(result_ty)));
         func.blocks[preheader].instructions.push(preheader_phi);
         self.stats.preheader_phis_inserted += 1;
-        func.alloc_value(Value::Inst(preheader_phi))
+        result
     }
 
     fn redirect_terminator(

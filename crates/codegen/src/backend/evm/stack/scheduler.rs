@@ -335,9 +335,8 @@ mod tests {
         let mut func = make_test_func();
         let v0 = ValueId::from_usize(0);
         let v1 = ValueId::from_usize(1);
-        let inst =
-            func.alloc_inst(Instruction::new(InstKind::Add(v0, v1), Some(MirType::uint256())));
-        let deep = func.alloc_value(Value::Inst(inst));
+        let (_, deep) = func
+            .alloc_value_inst(Instruction::new(InstKind::Add(v0, v1), Some(MirType::uint256())));
         let mut scheduler = StackScheduler::new();
 
         scheduler.stack.push(deep);

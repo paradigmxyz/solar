@@ -93,9 +93,7 @@ fn slice_param_ptr_type(location: SliceLocation) -> MirType {
 
 /// Allocates a word-typed instruction and its result value, returning both.
 fn new_word_inst(func: &mut Function, kind: InstKind) -> (InstId, ValueId) {
-    let inst = func.alloc_inst(Instruction::new(kind, Some(MirType::uint256())));
-    let value = func.alloc_value(Value::Inst(inst));
-    (inst, value)
+    func.alloc_value_inst(Instruction::new(kind, Some(MirType::uint256())))
 }
 
 /// Allocates a `make_slice` instruction and its slice-typed result value.
@@ -105,12 +103,10 @@ fn new_slice_inst(
     len: ValueId,
     location: SliceLocation,
 ) -> (InstId, ValueId) {
-    let inst = func.alloc_inst(Instruction::new(
+    func.alloc_value_inst(Instruction::new(
         InstKind::MakeSlice { ptr, len, location },
         Some(MirType::Slice(location)),
-    ));
-    let value = func.alloc_value(Value::Inst(inst));
-    (inst, value)
+    ))
 }
 
 impl LowerSlicesCx {
@@ -346,7 +342,6 @@ impl LowerSlicesCx {
         }
         builder.func_mut().params = new_params;
 
-        let inst_results = builder.func().inst_results();
         let mut replacements = FxHashMap::default();
         let mut removed = FxHashSet::default();
         for inst_id in builder.func().instructions() {
@@ -356,7 +351,7 @@ impl LowerSlicesCx {
                 _ => None,
             };
             if let Some(replacement) = replacement
-                && let Some(&result) = inst_results.get(&inst_id)
+                && let Some(result) = builder.func().inst_result_value(inst_id)
             {
                 replacements.insert(result, replacement);
                 removed.insert(inst_id);
@@ -378,7 +373,6 @@ impl LowerSlicesCx {
         func: &mut Function,
         raw_heads: &FxHashMap<ValueId, ValueId>,
     ) {
-        let inst_results = func.inst_results();
         let mut replacements = raw_heads.clone();
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         for block_id in block_ids {
@@ -406,7 +400,11 @@ impl LowerSlicesCx {
                             builder.calldataload(len_pos)
                         })
                     };
-                    replacements.insert(inst_results[&inst_id], replacement);
+                    let result = builder
+                        .func()
+                        .inst_result_value(inst_id)
+                        .expect("slice projection must produce a value");
+                    replacements.insert(result, replacement);
                     self.stats.projections += 1;
                 } else {
                     builder.func_mut().blocks[block_id].instructions.push(inst_id);
@@ -506,14 +504,11 @@ impl LowerSlicesCx {
     }
 
     fn lower_projections(&mut self, func: &mut Function) -> bool {
-        let inst_results = func.inst_results();
         let live_insts: FxHashSet<_> = func.instructions().collect();
         let mut components = FxHashMap::<ValueId, (ValueId, ValueId, InstId)>::default();
         let mut projections = FxHashMap::<ValueId, (ValueId, InstId, bool)>::default();
-        for (&inst, &result) in &inst_results {
-            if !live_insts.contains(&inst) {
-                continue;
-            }
+        for &inst in &live_insts {
+            let Some(result) = func.inst_result_value(inst) else { continue };
             match func.inst(inst).kind {
                 InstKind::MakeSlice { ptr, len, .. } => {
                     components.insert(result, (ptr, len, inst));

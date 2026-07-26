@@ -9,7 +9,7 @@ use crate::{
     },
     pass::{MirPass, run_function_pass},
 };
-use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
+use solar_data_structures::bit_set::GrowableBitSet;
 
 /// Function pass for dead code elimination.
 pub(crate) struct Dce;
@@ -58,11 +58,7 @@ impl DeadCodeEliminator {
         Self::default()
     }
 
-    fn run_with_inst_results(
-        &mut self,
-        func: &mut Function,
-        inst_to_value: &FxHashMap<InstId, ValueId>,
-    ) -> usize {
+    fn run_once(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
 
         // Phase 1: Remove unreachable blocks
@@ -72,7 +68,7 @@ impl DeadCodeEliminator {
         self.collect_used_values(func);
 
         // Phase 3: Find dead instructions
-        self.find_dead_instructions(func, inst_to_value);
+        self.find_dead_instructions(func);
 
         // Remove dead instructions from blocks
         self.eliminated_count += self.dead.len();
@@ -87,9 +83,8 @@ impl DeadCodeEliminator {
     /// Runs dead code elimination iteratively until no more changes.
     pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total_eliminated = 0;
-        let inst_to_value = func.inst_results();
         loop {
-            let eliminated = self.run_with_inst_results(func, &inst_to_value);
+            let eliminated = self.run_once(func);
             if eliminated == 0 {
                 break;
             }
@@ -150,11 +145,7 @@ impl DeadCodeEliminator {
     }
 
     /// Finds instructions that are dead (unused result, no side effects).
-    fn find_dead_instructions(
-        &mut self,
-        func: &Function,
-        inst_to_value: &FxHashMap<InstId, ValueId>,
-    ) {
+    fn find_dead_instructions(&mut self, func: &Function) {
         self.dead.clear();
 
         for (block_id, block) in func.blocks.iter_enumerated() {
@@ -166,8 +157,7 @@ impl DeadCodeEliminator {
                     continue;
                 }
 
-                // O(1) lookup via precomputed map (was O(V) linear scan).
-                if let Some(&result) = inst_to_value.get(&inst_id)
+                if let Some(result) = func.inst_result_value(inst_id)
                     && !self.used_values.contains(result)
                 {
                     self.dead.push((block_id, inst_id));

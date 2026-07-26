@@ -762,9 +762,10 @@ impl StorageScalarPromoter {
         slot_value: ValueId,
         temp_addr: ValueId,
     ) {
-        let load_inst =
-            func.alloc_inst(Instruction::new(InstKind::MLoad(temp_addr), Some(MirType::uint256())));
-        let load_value = func.alloc_value(Value::Inst(load_inst));
+        let (load_inst, load_value) = func.alloc_value_inst(Instruction::new(
+            InstKind::MLoad(temp_addr),
+            Some(MirType::uint256()),
+        ));
         let store_inst =
             func.alloc_inst(Instruction::new(InstKind::SStore(slot_value, load_value), None));
 
@@ -801,9 +802,8 @@ impl StorageScalarPromoter {
         let mut exit_instructions = old_instructions[..split_pos].to_vec();
         let continuation_instructions = old_instructions[split_pos..].to_vec();
 
-        let dirty_load_inst =
-            func.alloc_inst(Instruction::new(InstKind::MLoad(dirty_addr), Some(MirType::Bool)));
-        let dirty_value = func.alloc_value(Value::Inst(dirty_load_inst));
+        let (dirty_load_inst, dirty_value) = func
+            .alloc_value_inst(Instruction::new(InstKind::MLoad(dirty_addr), Some(MirType::Bool)));
         exit_instructions.push(dirty_load_inst);
 
         func.blocks[exit].instructions = exit_instructions;
@@ -813,9 +813,10 @@ impl StorageScalarPromoter {
             else_block: continuation,
         });
 
-        let load_inst =
-            func.alloc_inst(Instruction::new(InstKind::MLoad(temp_addr), Some(MirType::uint256())));
-        let load_value = func.alloc_value(Value::Inst(load_inst));
+        let (load_inst, load_value) = func.alloc_value_inst(Instruction::new(
+            InstKind::MLoad(temp_addr),
+            Some(MirType::uint256()),
+        ));
         let store_inst =
             func.alloc_inst(Instruction::new(InstKind::SStore(slot_value, load_value), None));
 
@@ -881,9 +882,7 @@ impl StorageScalarPromoter {
         kind: InstKind,
         ty: MirType,
     ) -> (InstId, ValueId) {
-        let inst = func.alloc_inst(Instruction::new(kind, Some(ty)));
-        let value = func.alloc_value(Value::Inst(inst));
-        (inst, value)
+        func.alloc_value_inst(Instruction::new(kind, Some(ty)))
     }
 
     /// Allocates an instruction that produces no value, so no result [`Value`]
