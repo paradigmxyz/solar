@@ -587,7 +587,19 @@ impl<'gcx> Lowerer<'gcx> {
                 .emit(),
 
             ExprKind::Slice(base, start, end) => {
-                if let Some((slice, is_bytes)) = self.calldata_bytes_source(builder, base) {
+                // A calldata struct is decoded into memory, so slicing one of
+                // its dynamic fields slices that memory copy and stays a memory
+                // slice. Every other use of such a field already reads the copy.
+                let source = if self.expr_is_calldata_struct_member(base) {
+                    self.memory_struct_field_slice(builder, base).map(|(slice, is_bytes)| {
+                        (slice, is_bytes, crate::mir::SliceLocation::Memory)
+                    })
+                } else {
+                    self.calldata_bytes_source(builder, base).map(|(slice, is_bytes)| {
+                        (slice, is_bytes, crate::mir::SliceLocation::Calldata)
+                    })
+                };
+                if let Some((slice, is_bytes, location)) = source {
                     // A slice of a calldata array whose elements are dynamic
                     // keeps element offset words relative to the original
                     // array base, which the slice value does not carry, so a
@@ -634,7 +646,7 @@ impl<'gcx> Lowerer<'gcx> {
                         builder.mul(start_val, word)
                     };
                     let ptr = builder.add(base_ptr, offset);
-                    return builder.make_slice(ptr, len, crate::mir::SliceLocation::Calldata);
+                    return builder.make_slice(ptr, len, location);
                 }
                 // Solidity only permits slicing calldata arrays, so a base that
                 // is not a calldata slice is unreachable in valid input.
@@ -1834,6 +1846,13 @@ impl<'gcx> Lowerer<'gcx> {
             }
             ElementaryType::FixedBytes(size) => {
                 let bytes = size.bytes();
+                // `bytesN(someBytesSlice)` takes the slice's leading word,
+                // which is already left-aligned like every fixed-bytes value.
+                // Without this the slice value itself would be shifted as if it
+                // were a number, and the slice would survive to the backend.
+                if let Some(word) = self.slice_leading_word(builder, value) {
+                    return self.clean_fixed_bytes(builder, word, bytes);
+                }
                 if self.expr_is_fixed_bytes(source) {
                     self.clean_fixed_bytes(builder, value, bytes)
                 } else {
@@ -1845,6 +1864,21 @@ impl<'gcx> Lowerer<'gcx> {
             | ElementaryType::Fixed(_, _)
             | ElementaryType::UFixed(_, _) => value,
         }
+    }
+
+    /// The first data word of a lowered slice value, read from wherever the
+    /// slice lives. `None` when the value is not a slice.
+    fn slice_leading_word(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+    ) -> Option<ValueId> {
+        let calldata = Self::value_is_calldata_slice(builder, value);
+        if !calldata && !Self::value_is_memory_slice(builder, value) {
+            return None;
+        }
+        let ptr = builder.slice_ptr(value);
+        Some(if calldata { builder.calldataload(ptr) } else { builder.mload(ptr) })
     }
 
     fn shift_numeric_to_fixed_bytes(
@@ -2062,6 +2096,53 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let slice = self.locals.get(&var_id).copied()?;
         Some((slice, is_bytes))
+    }
+
+    /// Whether the expression reads a member of a calldata struct. The
+    /// prologue decodes such a struct into memory, so the member lowers to a
+    /// memory object even though its type is calldata-located. Answering this
+    /// without lowering lets callers pick the right path up front and lower the
+    /// expression exactly once: lowering it twice puts the second copy in
+    /// whichever block is current, which need not dominate the use.
+    pub(super) fn expr_is_calldata_struct_member(&self, expr: &hir::Expr<'_>) -> bool {
+        let ExprKind::Member(object, _) = &expr.kind else { return false };
+        let Some(object_var) = self.ident_variable(object) else { return false };
+        self.gcx.hir.variable(object_var).data_location == Some(solar_ast::DataLocation::Calldata)
+            && self
+                .get_expr_type(object)
+                .is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::Struct(_)))
+    }
+
+    /// A dynamic field read off a calldata struct that reached this function as
+    /// a memory copy, as a *memory* slice over that copy.
+    ///
+    /// The prologue decodes a calldata struct into memory, so the field's
+    /// calldata position is not available here. The memory copy holds the same
+    /// bytes, and a `bytes calldata` slice is read-only, so a memory slice over
+    /// the copy answers every read identically — length, indexing, hashing and
+    /// encoding all agree.
+    fn memory_struct_field_slice(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        base: &hir::Expr<'_>,
+    ) -> Option<(ValueId, bool)> {
+        let is_bytes = match self.get_expr_type(base)?.peel_refs().kind {
+            TyKind::DynArray(_) => false,
+            TyKind::Elementary(
+                solar_ast::ElementaryType::Bytes | solar_ast::ElementaryType::String,
+            ) => true,
+            _ => return None,
+        };
+
+        let object = self.lower_value_expr(builder, base);
+        let kind = if is_bytes {
+            crate::mir::MemoryObjectKind::Bytes
+        } else {
+            crate::mir::MemoryObjectKind::DynamicArray
+        };
+        let len = builder.memory_object_len(object, kind);
+        let data = builder.memory_object_data(object, kind);
+        Some((builder.make_slice(data, len, crate::mir::SliceLocation::Memory), is_bytes))
     }
 
     pub(super) fn calldata_dynamic_var_kind(var: &hir::Variable<'_>) -> Option<bool> {
