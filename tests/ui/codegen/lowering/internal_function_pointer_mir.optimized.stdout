@@ -1,0 +1,322 @@
+// === ROOT/tests/ui/codegen/lowering/internal_function_pointer_mir.sol:InternalFunctionPointerMir (runtime) ===
+@module runtime
+bb0:
+  push 608
+  push 64
+  mstore
+  callvalue
+  push bb10
+  jumpi
+  calldatasize
+  iszero
+  push bb10
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x560cf94
+  eq
+  push bb19
+  jumpi
+  dup1
+  push 0x46e2b562
+  eq
+  push bb47
+  jumpi
+  dup1
+  push 0x62548c7b
+  eq
+  push bb26
+  jumpi
+  dup1
+  push 0x85ead1f5
+  eq
+  push bb29
+  jumpi
+  dup1
+  push 0xb67d6f95
+  eq
+  push bb27
+  jumpi
+  dup1
+  push 0xc1419383
+  eq
+  push bb11
+  jumpi
+  dup1
+  push 0xd04622c6
+  eq
+  push bb24
+  jumpi
+  jump bb10
+bb10 [cold]:
+  push 0
+  dup1
+  revert
+bb48 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  jump bb52
+bb52 [cold]:
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+bb11:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 64
+  sgt
+  push bb10
+  jumpi
+  push 4
+  calldataload
+  dup1
+  push 256
+  mstore
+  iszero
+  iszero
+  push 256
+  mload
+  sub
+  push bb10
+  jumpi
+  push 0
+  push 128
+  mstore
+  push 4
+  calldataload
+  push bb15
+  jumpi
+  push 3
+  jump bb49
+bb49:
+  push 0
+  mstore
+  push 0
+  mload
+  dup1
+  push 384
+  mstore
+  push 36
+  calldataload
+  push 416
+  mstore
+  pop
+  push bb18
+  push 2
+  push 384
+  mload
+  eq
+  push bb41
+  jumpi
+  push 3
+  push 384
+  mload
+  sub
+  push bb47
+  jumpi
+  push 1
+  push 416
+  mload
+  sub
+  dup1
+  push 576
+  mstore
+  push 416
+  mload
+  swap1
+  pop
+  iszero
+  push bb47
+  jumpi
+  push 576
+  mload
+  push 448
+  mstore
+  jump
+bb15:
+  push 2
+  jump bb49
+bb18:
+  push 448
+  mload
+  jump bb51
+bb51:
+  dup1
+  push 224
+  mstore
+  jump bb50
+bb50:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb19:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  sgt
+  push bb10
+  jumpi
+  push 1
+  push 4
+  calldataload
+  add
+  dup1
+  push 224
+  mstore
+  push 4
+  calldataload
+  dup2
+  lt
+  push bb48
+  jumpi
+  jump bb51
+bb24:
+  push 0
+  push 128
+  mstore
+  push bb25
+  jump bb46
+bb46:
+  push 0
+  sload
+  push 255
+  not
+  and
+  push 1
+  or
+  push 0
+  sstore
+  jump
+bb26:
+  push 0
+  sload
+  push 255
+  not
+  and
+  push 1
+  or
+  push 0
+  sstore
+  stop
+bb27:
+  push 0
+  push 128
+  mstore
+  push 1
+  sload
+  dup1
+  push 384
+  mstore
+  pop
+  push bb28
+  push 6
+  push 384
+  mload
+  sub
+  push bb47
+  jumpi
+  push bb44
+  jump bb46
+bb28:
+  jump bb25
+bb25:
+  push 0
+  sload
+  push 255
+  and
+  jump bb50
+bb29:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  sgt
+  push bb10
+  jumpi
+  push 1
+  push 4
+  calldataload
+  add
+  dup1
+  push 256
+  mstore
+  push 4
+  calldataload
+  dup2
+  lt
+  push bb48
+  jumpi
+  push 64
+  mload
+  dup1
+  push 288
+  mstore
+  push 32
+  add
+  dup2
+  dup1
+  push 256
+  mstore
+  swap1
+  mstore
+  push 4
+  calldataload
+  push 128
+  mstore
+  dup1
+  push 256
+  mstore
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+bb40:
+  push 416
+  mload
+  push 1
+  add
+  push 448
+  mstore
+  jump
+bb41:
+  push 1
+  push 416
+  mload
+  add
+  dup1
+  push 544
+  mstore
+  push 416
+  mload
+  gt
+  iszero
+  push bb40
+  jumpi
+  jump bb47
+bb47 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 81
+  jump bb52
+bb44:
+  jump

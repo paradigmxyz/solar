@@ -135,6 +135,7 @@ struct MirInlineSummary {
     is_entry_point: bool,
     is_constructor: bool,
     no_inline: bool,
+    has_function_selector: bool,
 }
 
 impl MirInliner {
@@ -163,7 +164,14 @@ impl MirInliner {
         let mut call_counts = self.call_counts(module);
         let recursive_functions = self.recursive_functions(module);
 
-        for caller_id in module.functions.indices().collect::<Vec<_>>() {
+        // Specialize dispatcher calls before helper-local inlining introduces phis.
+        let mut caller_ids = module.functions.indices().collect::<Vec<_>>();
+        caller_ids.sort_by_key(|caller| {
+            summaries
+                .get(caller)
+                .is_some_and(|summary| summary.no_inline && summary.has_function_selector)
+        });
+        for caller_id in caller_ids {
             let loop_depths = block_loop_depths(module.function(caller_id));
             // Bound how much each caller may grow from inlining so a function
             // calling many internal helpers (e.g. a large verifier) cannot
@@ -298,6 +306,9 @@ impl MirInliner {
                         args_len: args.len(),
                         returns: returns as usize,
                         loop_depth: loop_depths.get(&block).copied().unwrap_or_default(),
+                        has_constant_function_selector: args
+                            .first()
+                            .is_some_and(|&arg| func.value(arg).as_immediate().is_some()),
                     });
                 }
             }
@@ -314,11 +325,13 @@ impl MirInliner {
     ) -> bool {
         let single_call = self.inline_single_call && call_count == 1;
 
-        // `no_inline` prevents cloning a shared helper into every caller; with
-        // a single call site there is nothing to duplicate, and absorbing the
-        // helper removes the call protocol around its only use.
+        // Keep shared helpers intact unless a constant function selector lets
+        // later passes discard all but one dispatcher arm.
+        let can_specialize_dispatcher = summary.no_inline
+            && summary.has_function_selector
+            && site.has_constant_function_selector;
         if caller == site.callee
-            || (summary.no_inline && !single_call)
+            || (summary.no_inline && !single_call && !can_specialize_dispatcher)
             || summary.is_entry_point
             || summary.is_constructor
             || summary.has_phi
@@ -326,6 +339,10 @@ impl MirInliner {
             || summary.return_count == 0
         {
             return false;
+        }
+
+        if can_specialize_dispatcher {
+            return summary.instruction_count <= self.max_single_call_sanity_instructions;
         }
 
         if single_call {
@@ -373,6 +390,7 @@ struct CallSite {
     args_len: usize,
     returns: usize,
     loop_depth: usize,
+    has_constant_function_selector: bool,
 }
 
 fn summarize_function(func: &Function) -> MirInlineSummary {
@@ -386,6 +404,7 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
             || func.selector.is_some(),
         is_constructor: func.attributes.is_constructor,
         no_inline: func.attributes.no_inline,
+        has_function_selector: func.params.first() == Some(&MirType::Function),
         ..MirInlineSummary::default()
     };
 
