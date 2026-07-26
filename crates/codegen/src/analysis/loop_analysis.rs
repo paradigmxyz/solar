@@ -227,7 +227,7 @@ impl LoopAnalyzer {
                 }
 
                 if let (Some(init), Some(step_val)) = (init_value, step_value) {
-                    let phi_value = self.find_result_value(func, inst_id);
+                    let phi_value = func.inst_result_value(inst_id);
                     if let Some(phi_val) = phi_value
                         && let Some(update_inst) =
                             self.find_update_instruction(func, phi_val, step_val)
@@ -330,7 +330,7 @@ impl LoopAnalyzer {
                     let operands = inst.kind.operands();
                     if operands.iter().all(|&op| invariant_values.contains(op)) {
                         loop_info.invariant_insts.insert(inst_id);
-                        if let Some(result) = self.find_result_value(func, inst_id) {
+                        if let Some(result) = func.inst_result_value(inst_id) {
                             invariant_values.insert(result);
                         }
                         changed = true;
@@ -436,17 +436,6 @@ impl LoopAnalyzer {
             }
         }
         bound
-    }
-
-    fn find_result_value(&self, func: &Function, inst_id: InstId) -> Option<ValueId> {
-        for (value_id, value) in func.values.iter_enumerated() {
-            if let Value::Inst(id) = value
-                && *id == inst_id
-            {
-                return Some(value_id);
-            }
-        }
-        None
     }
 }
 

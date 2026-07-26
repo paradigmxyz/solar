@@ -144,19 +144,6 @@ impl Function {
         self.instructions[id].result()
     }
 
-    /// Returns a map from each instruction to its result value.
-    #[must_use]
-    pub(crate) fn inst_results(&self) -> FxHashMap<InstId, ValueId> {
-        let mut results =
-            FxHashMap::with_capacity_and_hasher(self.instructions.len(), Default::default());
-        for (inst_id, instruction) in self.instructions.iter_enumerated() {
-            if let Some(value_id) = instruction.result() {
-                results.insert(inst_id, value_id);
-            }
-        }
-        results
-    }
-
     /// Returns a map from each instruction to the block containing it.
     #[must_use]
     pub(crate) fn inst_blocks(&self) -> FxHashMap<InstId, BlockId> {

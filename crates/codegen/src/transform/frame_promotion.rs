@@ -186,7 +186,6 @@ struct PendingPhi {
 struct SlotSsaBuilder<'a> {
     info: &'a SlotAccessInfo,
     cfg: &'a CfgInfo,
-    inst_results: &'a FxHashMap<InstId, ValueId>,
     aa: &'a AliasAnalysis,
     replacements: FxHashMap<ValueId, ValueId>,
     dead: GrowableBitSet<InstId>,
@@ -230,9 +229,7 @@ impl FrameSlotPromoter {
         };
 
         for info in slots {
-            let inst_results = func.inst_results();
-            let mut builder =
-                SlotSsaBuilder::new(&info, &cfg, &inst_results, &aa, func.num_insts());
+            let mut builder = SlotSsaBuilder::new(&info, &cfg, &aa, func.num_insts());
             if builder.run(func) {
                 self.stats.slots_promoted += 1;
                 self.stats.loads_promoted += builder.loads_promoted;
@@ -647,14 +644,12 @@ impl<'a> SlotSsaBuilder<'a> {
     fn new(
         info: &'a SlotAccessInfo,
         cfg: &'a CfgInfo,
-        inst_results: &'a FxHashMap<InstId, ValueId>,
         aa: &'a AliasAnalysis,
         instruction_count: usize,
     ) -> Self {
         Self {
             info,
             cfg,
-            inst_results,
             aa,
             replacements: FxHashMap::default(),
             dead: GrowableBitSet::with_capacity(instruction_count),
@@ -867,7 +862,7 @@ impl<'a> SlotSsaBuilder<'a> {
                         == Some(self.info.slot) =>
                 {
                     let Some(value) = current else { return false };
-                    self.replace_load(inst_id, value);
+                    self.replace_load(func, inst_id, value);
                     changed = true;
                 }
                 InstKind::MStore(addr, value)
@@ -907,7 +902,7 @@ impl<'a> SlotSsaBuilder<'a> {
         }
 
         for load in &self.info.loads {
-            self.replace_load(load.inst, stored_value);
+            self.replace_load(func, load.inst, stored_value);
         }
         self.remove_store(store.inst);
         true
@@ -917,8 +912,8 @@ impl<'a> SlotSsaBuilder<'a> {
         func.blocks[block].instructions.iter().position(|&candidate| candidate == inst)
     }
 
-    fn replace_load(&mut self, inst_id: InstId, value: ValueId) {
-        if let Some(&load_value) = self.inst_results.get(&inst_id) {
+    fn replace_load(&mut self, func: &Function, inst_id: InstId, value: ValueId) {
+        if let Some(load_value) = func.inst_result_value(inst_id) {
             self.replacements
                 .insert(load_value, mir_utils::resolve_replacement(value, &self.replacements));
             self.dead.insert(inst_id);
@@ -951,7 +946,7 @@ impl<'a> SlotSsaBuilder<'a> {
                         self.failed = true;
                         return;
                     };
-                    self.replace_load(inst_id, value);
+                    self.replace_load(func, inst_id, value);
                 }
                 InstKind::MStore(addr, value)
                     if FrameSlotPromoter::promotable_slot(func, self.aa, addr)

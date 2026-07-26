@@ -188,16 +188,13 @@ impl CfgSimplifier {
     /// no phis and a terminal block has no successors, so no phi inputs
     /// elsewhere can mention it.
     fn deduplicate_terminal_blocks(&mut self, func: &mut Function) {
-        let inst_results = func.inst_results();
-
         let mut kept: Vec<(BlockId, CanonBlock)> = Vec::new();
         let mut merges: Vec<(BlockId, BlockId)> = Vec::new();
         for block_id in func.blocks.indices() {
             if func.blocks[block_id].predecessors.is_empty() {
                 continue;
             }
-            let Some(canon) = Self::canonicalize_terminal_block(func, block_id, &inst_results)
-            else {
+            let Some(canon) = Self::canonicalize_terminal_block(func, block_id) else {
                 continue;
             };
             if let Some((keep, _)) = kept.iter().find(|(_, existing)| *existing == canon) {
@@ -224,11 +221,7 @@ impl CfgSimplifier {
 
     /// Builds the alpha-equivalence key of a terminal block, or `None` if the
     /// block is not a dedup candidate.
-    fn canonicalize_terminal_block(
-        func: &Function,
-        block_id: BlockId,
-        inst_results: &FxHashMap<crate::mir::InstId, ValueId>,
-    ) -> Option<CanonBlock> {
+    fn canonicalize_terminal_block(func: &Function, block_id: BlockId) -> Option<CanonBlock> {
         let block = &func.blocks[block_id];
         let term = block.terminator.as_ref()?;
         if matches!(term, Terminator::Invalid) || !term.successors().is_empty() {
@@ -237,7 +230,7 @@ impl CfgSimplifier {
 
         let mut local_defs: FxHashMap<ValueId, usize> = FxHashMap::default();
         for (position, &inst_id) in block.instructions.iter().enumerate() {
-            if let Some(&result) = inst_results.get(&inst_id) {
+            if let Some(result) = func.inst_result_value(inst_id) {
                 local_defs.insert(result, position);
             }
         }

@@ -6,9 +6,7 @@
 //! and values escaping a candidate dead block all prevent rewriting.
 
 use crate::{
-    mir::{
-        BlockId, Function, InstId, Module, Terminator, ValueId, utils::repair_reachability_phis,
-    },
+    mir::{BlockId, Function, Module, Terminator, ValueId, utils::repair_reachability_phis},
     pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
@@ -61,7 +59,6 @@ struct AggressiveDeadCodeEliminator {
 
 #[derive(Debug)]
 struct AdceContext {
-    inst_results: FxHashMap<InstId, ValueId>,
     value_uses: FxHashMap<ValueId, DenseBitSet<BlockId>>,
 }
 
@@ -212,7 +209,7 @@ impl AggressiveDeadCodeEliminator {
 
     fn block_def_escapes(&self, func: &Function, ctx: &AdceContext, block_id: BlockId) -> bool {
         func.blocks[block_id].instructions.iter().any(|&inst_id| {
-            let Some(&value) = ctx.inst_results.get(&inst_id) else {
+            let Some(value) = func.inst_result_value(inst_id) else {
                 return false;
             };
             ctx.value_uses
@@ -241,9 +238,8 @@ impl AggressiveDeadCodeEliminator {
 
 impl AdceContext {
     fn new(func: &Function) -> Self {
-        let inst_results = func.inst_results();
         let value_uses = Self::value_uses(func);
-        Self { inst_results, value_uses }
+        Self { value_uses }
     }
 
     fn value_uses(func: &Function) -> FxHashMap<ValueId, DenseBitSet<BlockId>> {

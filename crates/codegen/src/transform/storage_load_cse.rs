@@ -72,13 +72,12 @@ impl StorageLoadCseCx {
 
         let mut analyses = AnalysisManager::new();
         let liveness = analyses.get_or_compute(&LivenessAnalysis, func);
-        let inst_results = func.inst_results();
         state.replacements.clear();
         state.dead.clear();
 
         for block_id in func.blocks.indices() {
             state.cached_loads.clear();
-            self.process_block(func, block_id, liveness, &inst_results, state);
+            self.process_block(func, block_id, liveness, state);
         }
 
         if !state.replacements.is_empty() {
@@ -112,7 +111,6 @@ impl StorageLoadCseCx {
         func: &Function,
         block_id: BlockId,
         liveness: &Liveness,
-        inst_results: &FxHashMap<InstId, ValueId>,
         state: &mut RunState,
     ) {
         let aa = self.alias.as_ref().expect("storage-load CSE alias snapshot is initialized");
@@ -125,7 +123,7 @@ impl StorageLoadCseCx {
                         *slot,
                         &state.replacements,
                     );
-                    let Some(&result) = inst_results.get(&inst_id) else {
+                    let Some(result) = func.inst_result_value(inst_id) else {
                         continue;
                     };
                     if let Some(&cached) = state.cached_loads.get(&alias) {

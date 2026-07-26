@@ -9,7 +9,7 @@
 //! 2. Handle cycles by detecting when copies form a cycle and using a temporary.
 //! 3. Remove the phi instructions after copies are inserted.
 
-use crate::mir::{BlockId, Function, InstId, InstKind, MirType, Value, ValueId};
+use crate::mir::{BlockId, Function, InstKind, MirType, ValueId};
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Source for a parallel copy - either a regular value or a temporary.
@@ -76,7 +76,7 @@ impl PhiEliminator {
 
                 if let InstKind::Phi(incoming) = &inst.kind {
                     // Find the value defined by this phi
-                    let phi_dst = find_phi_dst(func, inst_id);
+                    let phi_dst = func.inst_result_value(inst_id);
 
                     if let Some(dst) = phi_dst {
                         let ty = func.value(dst).ty();
@@ -104,18 +104,6 @@ impl PhiEliminator {
 
         PhiEliminationResult { block_copies, phis_to_remove }
     }
-}
-
-/// Finds the ValueId that is defined by a phi instruction.
-fn find_phi_dst(func: &Function, inst_id: InstId) -> Option<ValueId> {
-    for (val_id, val) in func.values.iter_enumerated() {
-        if let Value::Inst(def_inst) = val
-            && *def_inst == inst_id
-        {
-            return Some(val_id);
-        }
-    }
-    None
 }
 
 /// Helper to extract ValueId from CopySource if it's a value (not a temp).
