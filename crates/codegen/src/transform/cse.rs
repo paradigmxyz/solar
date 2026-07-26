@@ -336,9 +336,8 @@ impl CommonSubexprEliminator {
         let mut inserted_by_block: FxHashMap<BlockId, usize> = FxHashMap::default();
 
         for candidate in candidates {
-            let new_inst =
-                func.alloc_inst(Instruction::new(candidate.kind, Some(candidate.result_ty)));
-            let new_value = func.alloc_value(Value::Inst(new_inst));
+            let (new_inst, new_value) =
+                func.alloc_value_inst(Instruction::new(candidate.kind, Some(candidate.result_ty)));
 
             let phi_count = func.blocks[candidate.block_id]
                 .instructions

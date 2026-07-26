@@ -93,9 +93,7 @@ fn slice_param_ptr_type(location: SliceLocation) -> MirType {
 
 /// Allocates a word-typed instruction and its result value, returning both.
 fn new_word_inst(func: &mut Function, kind: InstKind) -> (InstId, ValueId) {
-    let inst = func.alloc_inst(Instruction::new(kind, Some(MirType::uint256())));
-    let value = func.alloc_value(Value::Inst(inst));
-    (inst, value)
+    func.alloc_value_inst(Instruction::new(kind, Some(MirType::uint256())))
 }
 
 /// Allocates a `make_slice` instruction and its slice-typed result value.
@@ -105,12 +103,10 @@ fn new_slice_inst(
     len: ValueId,
     location: SliceLocation,
 ) -> (InstId, ValueId) {
-    let inst = func.alloc_inst(Instruction::new(
+    func.alloc_value_inst(Instruction::new(
         InstKind::MakeSlice { ptr, len, location },
         Some(MirType::Slice(location)),
-    ));
-    let value = func.alloc_value(Value::Inst(inst));
-    (inst, value)
+    ))
 }
 
 impl LowerSlicesCx {

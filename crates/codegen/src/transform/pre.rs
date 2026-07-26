@@ -372,8 +372,7 @@ impl PartialRedundancyEliminator {
             };
             let mut instruction = Instruction::new(kind, Some(result_ty));
             instruction.metadata = metadata.clone();
-            let new_inst = func.alloc_inst(instruction);
-            let value = func.alloc_value(Value::Inst(new_inst));
+            let (new_inst, value) = func.alloc_value_inst(instruction);
             func.blocks[block].instructions.push(new_inst);
             incoming.push((block, value));
             inst_results.insert(new_inst, value);
@@ -395,9 +394,8 @@ impl PartialRedundancyEliminator {
                 first
             }
             _ => {
-                let phi_inst =
-                    func.alloc_inst(Instruction::new(InstKind::Phi(incoming), Some(result_ty)));
-                let phi_value = func.alloc_value(Value::Inst(phi_inst));
+                let (phi_inst, phi_value) = func
+                    .alloc_value_inst(Instruction::new(InstKind::Phi(incoming), Some(result_ty)));
                 let phi_count = func.blocks[target]
                     .instructions
                     .iter()

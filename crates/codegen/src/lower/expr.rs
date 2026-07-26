@@ -682,40 +682,44 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.make_slice(zero, size, crate::mir::SliceLocation::Calldata)
             }
             Builtin::BlockTimestamp => {
-                let inst = builder.func_mut().alloc_inst(crate::mir::Instruction::new(
-                    crate::mir::InstKind::Timestamp,
-                    Some(MirType::uint256()),
-                ));
+                let (inst, result) =
+                    builder.func_mut().alloc_value_inst(crate::mir::Instruction::new(
+                        crate::mir::InstKind::Timestamp,
+                        Some(MirType::uint256()),
+                    ));
                 let block = builder.current_block();
                 builder.func_mut().block_mut(block).instructions.push(inst);
-                builder.func_mut().alloc_value(crate::mir::Value::Inst(inst))
+                result
             }
             Builtin::BlockNumber => {
-                let inst = builder.func_mut().alloc_inst(crate::mir::Instruction::new(
-                    crate::mir::InstKind::BlockNumber,
-                    Some(MirType::uint256()),
-                ));
+                let (inst, result) =
+                    builder.func_mut().alloc_value_inst(crate::mir::Instruction::new(
+                        crate::mir::InstKind::BlockNumber,
+                        Some(MirType::uint256()),
+                    ));
                 let block = builder.current_block();
                 builder.func_mut().block_mut(block).instructions.push(inst);
-                builder.func_mut().alloc_value(crate::mir::Value::Inst(inst))
+                result
             }
             Builtin::TxOrigin => {
-                let inst = builder.func_mut().alloc_inst(crate::mir::Instruction::new(
-                    crate::mir::InstKind::Origin,
-                    Some(MirType::Address),
-                ));
+                let (inst, result) =
+                    builder.func_mut().alloc_value_inst(crate::mir::Instruction::new(
+                        crate::mir::InstKind::Origin,
+                        Some(MirType::Address),
+                    ));
                 let block = builder.current_block();
                 builder.func_mut().block_mut(block).instructions.push(inst);
-                builder.func_mut().alloc_value(crate::mir::Value::Inst(inst))
+                result
             }
             Builtin::TxGasPrice => {
-                let inst = builder.func_mut().alloc_inst(crate::mir::Instruction::new(
-                    crate::mir::InstKind::GasPrice,
-                    Some(MirType::uint256()),
-                ));
+                let (inst, result) =
+                    builder.func_mut().alloc_value_inst(crate::mir::Instruction::new(
+                        crate::mir::InstKind::GasPrice,
+                        Some(MirType::uint256()),
+                    ));
                 let block = builder.current_block();
                 builder.func_mut().block_mut(block).instructions.push(inst);
-                builder.func_mut().alloc_value(crate::mir::Value::Inst(inst))
+                result
             }
             Builtin::Gasleft => builder.gas(),
             Builtin::This => builder.address(),

@@ -770,12 +770,15 @@ impl<'a> InlineCloner<'a> {
             for &inst_id in &block.instructions {
                 let inst = self.callee.inst(inst_id).clone();
                 let kind = self.clone_inst_kind(inst.kind)?;
-                let new_inst = self.caller.alloc_inst(Instruction::new(kind, inst.result_ty));
-                instructions.push(new_inst);
-                if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
-                    let new_result = self.caller.alloc_value(Value::Inst(new_inst));
+                let instruction = Instruction::new(kind, inst.result_ty);
+                let new_inst = if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
+                    let (new_inst, new_result) = self.caller.alloc_value_inst(instruction);
                     self.value_map.insert(callee_result, new_result);
-                }
+                    new_inst
+                } else {
+                    self.caller.alloc_inst(instruction)
+                };
+                instructions.push(new_inst);
             }
             self.caller.blocks[caller_block].instructions = instructions;
         }
@@ -1119,9 +1122,10 @@ fn build_return_values(
             .iter()
             .map(|(block, edge_values)| Some((*block, *edge_values.get(index)?)))
             .collect::<Option<Vec<_>>>()?;
-        let phi = caller.alloc_inst(Instruction::new(InstKind::Phi(incoming), Some(ty)));
+        let (phi, value) =
+            caller.alloc_value_inst(Instruction::new(InstKind::Phi(incoming), Some(ty)));
         caller.blocks[continuation].instructions.insert(index, phi);
-        values.push(caller.alloc_value(Value::Inst(phi)));
+        values.push(value);
     }
     Some(values)
 }
@@ -1138,8 +1142,8 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
         .take_while(|&&inst_id| matches!(caller.inst(inst_id).kind, InstKind::Phi(_)))
         .count();
 
-    let base_load = caller.alloc_inst(Instruction::new(InstKind::Fmp, Some(MirType::MemPtr)));
-    let base = caller.alloc_value(Value::Inst(base_load));
+    let (base_load, base) =
+        caller.alloc_value_inst(Instruction::new(InstKind::Fmp, Some(MirType::MemPtr)));
     let mut insert_at = phi_count;
     caller.blocks[continuation].instructions.insert(insert_at, base_load);
     insert_at += 1;
@@ -1147,9 +1151,10 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
     for (index, &value) in values.iter().enumerate() {
         let offset = caller
             .alloc_value(Value::Immediate(Immediate::uint256(U256::from((index as u64 + 1) * 32))));
-        let addr = caller
-            .alloc_inst(Instruction::new(InstKind::Add(base, offset), Some(MirType::uint256())));
-        let addr_value = caller.alloc_value(Value::Inst(addr));
+        let (addr, addr_value) = caller.alloc_value_inst(Instruction::new(
+            InstKind::Add(base, offset),
+            Some(MirType::uint256()),
+        ));
         let store = caller.alloc_inst(Instruction::new(InstKind::MStore(addr_value, value), None));
         caller.blocks[continuation].instructions.insert(insert_at, addr);
         caller.blocks[continuation].instructions.insert(insert_at + 1, store);

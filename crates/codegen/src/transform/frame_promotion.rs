@@ -16,8 +16,7 @@ use crate::{
     analysis::{AliasAnalysis, CfgInfo, LocationSize, MemoryAddress, MemoryLocation},
     memory::EvmMemoryLayout,
     mir::{
-        BlockId, Function, InstId, InstKind, Instruction, MirType, Module, Terminator, Value,
-        ValueId,
+        BlockId, Function, InstId, InstKind, Instruction, MirType, Module, Terminator, ValueId,
         utils::{self as mir_utils, repair_reachability_phis},
     },
     pass::{MirPass, run_function_pass},
@@ -987,9 +986,10 @@ impl<'a> SlotSsaBuilder<'a> {
             return pending.value;
         }
 
-        let inst =
-            func.alloc_inst(Instruction::new(InstKind::Phi(Vec::new()), Some(MirType::uint256())));
-        let value = func.alloc_value(Value::Inst(inst));
+        let (inst, value) = func.alloc_value_inst(Instruction::new(
+            InstKind::Phi(Vec::new()),
+            Some(MirType::uint256()),
+        ));
         self.phis.insert(
             block,
             PendingPhi {

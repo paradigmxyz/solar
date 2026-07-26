@@ -854,12 +854,14 @@ mod tests {
         // Phase 2: insert the phi instruction at the head of `header` and point
         // the placeholder value at its result.
         let phi_val = phi_placeholder;
-        let phi_inst = func.alloc_inst(crate::mir::Instruction::new(
-            crate::mir::InstKind::Phi(vec![(entry, init), (body, updated)]),
-            Some(MirType::uint256()),
-        ));
+        let phi_inst = func.alloc_inst_with_result(
+            crate::mir::Instruction::new(
+                crate::mir::InstKind::Phi(vec![(entry, init), (body, updated)]),
+                Some(MirType::uint256()),
+            ),
+            phi_val,
+        );
         func.blocks[header].instructions.insert(0, phi_inst);
-        func.set_value(phi_val, crate::mir::Value::Inst(phi_inst));
 
         let liveness = Liveness::compute(&func);
 
