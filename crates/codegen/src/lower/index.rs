@@ -69,7 +69,7 @@ impl<'gcx> Lowerer<'gcx> {
         // storage reference): its value lowers to a `[length][data...]` memory
         // copy; index into that with a bounds check.
         if self.expr_is_storage_bytes_lvalue(base) {
-            let base_val = self.lower_expr(builder, base);
+            let base_val = self.lower_value_expr(builder, base);
             let index_val = self.lower_index_or_zero(builder, index);
             let len = builder.memory_object_len(base_val, MemoryObjectKind::Bytes);
             self.emit_index_bounds_check(builder, index_val, len);
@@ -81,7 +81,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         if self.is_memory_bytes_expr(base) {
-            let base_val = self.lower_expr(builder, base);
+            let base_val = self.lower_value_expr(builder, base);
             let index_val = self.lower_index_or_zero(builder, index);
             let len = builder.memory_object_len(base_val, MemoryObjectKind::Bytes);
             self.emit_index_bounds_check(builder, index_val, len);
@@ -95,7 +95,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(ty) = self.get_expr_type(base)
             && let TyKind::Elementary(ElementaryType::FixedBytes(n)) = ty.peel_refs().kind
         {
-            let base_val = self.lower_expr(builder, base);
+            let base_val = self.lower_value_expr(builder, base);
             let index_val = self.lower_index_or_zero(builder, index);
             let n_val = builder.imm_u64(u64::from(n.bytes()));
             self.emit_index_bounds_check(builder, index_val, n_val);
@@ -105,7 +105,7 @@ impl<'gcx> Lowerer<'gcx> {
             return self.clean_fixed_bytes(builder, shifted, 1);
         }
 
-        let base_val = self.lower_expr(builder, base);
+        let base_val = self.lower_value_expr(builder, base);
         let index_val = self.lower_index_or_zero(builder, index);
         let layout = if self.is_dynamic_memory_array_expr(base) {
             let len = self
@@ -169,7 +169,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         if self.is_memory_bytes_expr(base) {
-            let base_val = self.lower_expr(builder, base);
+            let base_val = self.lower_value_expr(builder, base);
             let index_val = self.lower_index_or_zero(builder, index);
             let len = builder.memory_object_len(base_val, MemoryObjectKind::Bytes);
             self.emit_index_bounds_check(builder, index_val, len);
@@ -180,7 +180,7 @@ impl<'gcx> Lowerer<'gcx> {
             return;
         }
 
-        let base_val = self.lower_expr(builder, base);
+        let base_val = self.lower_value_expr(builder, base);
         let index_val = self.lower_index_or_zero(builder, index);
         let layout = if self.is_dynamic_memory_array_expr(base) {
             let len = builder.memory_object_len(base_val, MemoryObjectKind::DynamicArray);
@@ -224,7 +224,7 @@ impl<'gcx> Lowerer<'gcx> {
         index: Option<&hir::Expr<'_>>,
     ) -> ValueId {
         match index {
-            Some(index) => self.lower_expr(builder, index),
+            Some(index) => self.lower_value_expr(builder, index),
             None => builder.imm_u64(0),
         }
     }

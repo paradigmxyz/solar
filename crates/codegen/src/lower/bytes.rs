@@ -98,7 +98,7 @@ impl<'gcx> Lowerer<'gcx> {
             return ptr;
         }
         if self.expr_is_calldata_dynamic_bytes(expr) {
-            let value = self.lower_expr(builder, expr);
+            let value = self.lower_value_expr(builder, expr);
             // A decoded calldata-struct member is already a memory bytes
             // pointer despite its calldata-located type.
             if Self::value_is_calldata_slice(builder, value) {
@@ -106,7 +106,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
             return value;
         }
-        let value = self.lower_expr(builder, expr);
+        let value = self.lower_value_expr(builder, expr);
         self.coerce_memory_slice_value(builder, value)
     }
 
@@ -302,7 +302,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
             return self.materialize_calldata_dyn_array(builder, slice);
         }
-        self.lower_expr(builder, expr)
+        self.lower_value_expr(builder, expr)
     }
 
     /// Copies a single-word calldata array whose absolute length-word position
@@ -707,7 +707,8 @@ impl<'gcx> Lowerer<'gcx> {
         slot: ValueId,
         method: Symbol,
         args: &CallArgs<'_>,
-    ) -> ValueId {
+    ) -> Option<ValueId> {
+        let returns_value = method == sym::push && args.is_empty();
         let current = self.materialize_storage_bytes(builder, slot);
         let len = builder.memory_object_len(current, MemoryObjectKind::Bytes);
         match method {
@@ -722,7 +723,7 @@ impl<'gcx> Lowerer<'gcx> {
                     .exprs()
                     .next()
                     .map(|arg| {
-                        let value = self.lower_expr(builder, arg);
+                        let value = self.lower_value_expr(builder, arg);
                         self.bytes1_store_byte(builder, value)
                     })
                     .unwrap_or_else(|| builder.imm_u64(0));
@@ -740,7 +741,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
             _ => {}
         }
-        builder.imm_u64(0)
+        returns_value.then(|| builder.imm_u64(0))
     }
 
     pub(super) fn resize_memory_bytes(
@@ -990,7 +991,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         // A `bytes memory` value: `[length][data...]` pointer.
         if self.expr_yields_memory_bytes(expr) {
-            let ptr = self.lower_expr(builder, expr);
+            let ptr = self.lower_value_expr(builder, expr);
             let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
             let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
             return (data, len);
@@ -1000,7 +1001,7 @@ impl<'gcx> Lowerer<'gcx> {
         // call reads its input from memory), then use that region. This arises in
         // proxy fallbacks such as `impl.delegatecall(data)` with `bytes calldata`.
         if self.expr_is_calldata_dynamic_bytes(expr) {
-            let slice = self.lower_expr(builder, expr);
+            let slice = self.lower_value_expr(builder, expr);
             let ptr = self.materialize_calldata_bytes(builder, slice);
             let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
             let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
@@ -1060,7 +1061,7 @@ impl<'gcx> Lowerer<'gcx> {
         // Calldata `bytes`/`string`: copy the data into memory, then hash it
         // (`keccak256` only reads memory).
         if self.expr_is_calldata_dynamic_bytes(inner) {
-            let slice = self.lower_expr(builder, inner);
+            let slice = self.lower_value_expr(builder, inner);
             let ptr = self.materialize_calldata_bytes(builder, slice);
             return Some(builder.keccak256_bytes(ptr));
         }
@@ -1069,7 +1070,7 @@ impl<'gcx> Lowerer<'gcx> {
         // object; hash its contents through the object reference, so the
         // optimizer sees one whole-object read instead of separate length and
         // data projections.
-        let ptr = self.lower_expr(builder, inner);
+        let ptr = self.lower_value_expr(builder, inner);
         Some(builder.keccak256_bytes(ptr))
     }
 

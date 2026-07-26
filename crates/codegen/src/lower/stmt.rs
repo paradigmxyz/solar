@@ -100,7 +100,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             StmtKind::Expr(expr) => {
-                self.lower_expr(builder, expr);
+                let _ = self.lower_expr(builder, expr);
             }
 
             StmtKind::Block(block) => {
@@ -214,14 +214,31 @@ impl<'gcx> Lowerer<'gcx> {
         // allocated in proper memory, so they don't need extra local memory storage
         let is_struct_type = matches!(var_ty.peel_refs().kind, TyKind::Struct(_));
 
+        // Variables need memory storage if:
+        // 1. They are assigned after declaration, OR
+        // 2. They are initialized from external calls (which write to shared memory at offset 0)
+        //    EXCEPT for struct types, which already have properly allocated memory
+        let needs_local_memory =
+            self.is_var_assigned(&var_id) || (has_external_call && !is_struct_type);
+        let is_calldata_dynamic = Lowerer::calldata_dynamic_var_kind(var).is_some();
+
+        // An uninitialized SSA value local is semantically zero. Leave it absent from the map
+        // until it is actually read; `lower_ident` materializes that zero on demand.
+        if var.initializer.is_none() && !needs_local_memory && var_ty.is_value_type() {
+            return;
+        }
+
         let initial_value = if let Some(init) = var.initializer {
             if self.var_expects_memory_bytes_value(var) {
                 self.lower_expr_as_memory_bytes(builder, init)
             } else if self.var_expects_memory_dyn_array_value(var) {
                 self.lower_expr_as_memory_dyn_array(builder, init)
             } else {
-                self.lower_expr(builder, init)
+                self.lower_value_expr(builder, init)
             }
+        } else if is_calldata_dynamic && needs_local_memory {
+            let zero = builder.imm_u64(0);
+            builder.make_slice(zero, zero, crate::mir::SliceLocation::Calldata)
         } else if is_struct_type {
             // Struct without initializer: allocate memory and zero-initialize
             let struct_size = self.memory_struct_size(&var.ty);
@@ -239,28 +256,15 @@ impl<'gcx> Lowerer<'gcx> {
             builder.imm_u256(U256::ZERO)
         };
 
-        // Variables need memory storage if:
-        // 1. They are assigned after declaration, OR
-        // 2. They are initialized from external calls (which write to shared memory at offset 0)
-        //    EXCEPT for struct types, which already have properly allocated memory
-        let needs_local_memory =
-            self.is_var_assigned(&var_id) || (has_external_call && !is_struct_type);
-
         if needs_local_memory {
-            if Lowerer::calldata_dynamic_var_kind(var).is_some() {
+            if is_calldata_dynamic {
                 // A rebindable calldata slice local keeps its two words in a
                 // dedicated slot so joins read one merged representation. An
                 // uninitialized one seeds an empty slice, not a zero word, so
                 // the slot store projects a real `make_slice` that folds away
                 // rather than a `slice_ptr`/`slice_len` of a non-slice value.
-                let initial = if var.initializer.is_some() {
-                    initial_value
-                } else {
-                    let zero = builder.imm_u64(0);
-                    builder.make_slice(zero, zero, crate::mir::SliceLocation::Calldata)
-                };
                 let offset = self.alloc_local_slice_memory(var_id);
-                self.store_slice_slot(builder, offset, initial);
+                self.store_slice_slot(builder, offset, initial_value);
                 return;
             }
             let offset = self.alloc_local_memory(var_id);
@@ -453,7 +457,7 @@ impl<'gcx> Lowerer<'gcx> {
             // lowering returns the success flag, and the full returndata is
             // copied into a fresh `bytes memory` allocation right after the
             // call (nothing can clobber the return buffer in between).
-            let success = self.lower_expr(builder, init);
+            let success = self.lower_value_expr(builder, init);
             for (i, var_id_opt) in var_ids.iter().enumerate() {
                 let Some(var_id) = var_id_opt else { continue };
                 let val = if i == 0 { success } else { self.materialize_returndata_bytes(builder) };
@@ -468,7 +472,7 @@ impl<'gcx> Lowerer<'gcx> {
         // the unbumped return buffer independent of subsequent memory writes.
         let init_delivers_pending = self.is_slice_multi_return_call(init);
         self.pending_inline_returns = None;
-        let first_val = self.lower_expr(builder, init);
+        let first_val = self.lower_value_expr(builder, init);
         // An inlined multi-return callee with calldata-slice returns delivers
         // its values directly — a slice cannot ride the one-word-per-value
         // buffer — so bind them here instead of reading the buffer.
@@ -553,7 +557,7 @@ impl<'gcx> Lowerer<'gcx> {
         // old values.
         if let hir::ExprKind::Tuple(rhs_elems) = &rhs.kind {
             let vals: Vec<Option<ValueId>> =
-                rhs_elems.iter().map(|e| e.map(|e| self.lower_expr(builder, e))).collect();
+                rhs_elems.iter().map(|e| e.map(|e| self.lower_value_expr(builder, e))).collect();
             for (i, &elem) in elements.iter().enumerate() {
                 if let Some(elem) = elem
                     && let Some(Some(val)) = vals.get(i)
@@ -567,7 +571,7 @@ impl<'gcx> Lowerer<'gcx> {
         if self.is_low_level_call_expr(rhs) {
             // `(ok, data) = addr.call(...)`: the call lowering yields the success
             // flag; the full returndata is copied out right after the call.
-            let success = self.lower_expr(builder, rhs);
+            let success = self.lower_value_expr(builder, rhs);
             for (i, &elem) in elements.iter().enumerate() {
                 let Some(elem) = elem else { continue };
                 let val = if i == 0 { success } else { self.materialize_returndata_bytes(builder) };
@@ -581,7 +585,7 @@ impl<'gcx> Lowerer<'gcx> {
         // their destination and must not corrupt later tuple elements.
         let rhs_delivers_pending = self.is_slice_multi_return_call(rhs);
         self.pending_inline_returns = None;
-        let first_val = self.lower_expr(builder, rhs);
+        let first_val = self.lower_value_expr(builder, rhs);
         // An inlined multi-return callee with calldata-slice returns delivers
         // its values directly; assign them through the regular lvalue path,
         // which routes slice-slot locals through their two-word slots.
@@ -695,7 +699,7 @@ impl<'gcx> Lowerer<'gcx> {
         then_stmt: &hir::Stmt<'_>,
         else_stmt: Option<&hir::Stmt<'_>>,
     ) {
-        let cond_val = self.lower_expr(builder, cond);
+        let cond_val = self.lower_value_expr(builder, cond);
 
         let then_block = builder.create_block();
         let merge_block = builder.create_block();
@@ -722,7 +726,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Lowers a switch statement.
     fn lower_switch(&mut self, builder: &mut FunctionBuilder<'_>, switch: &hir::StmtSwitch<'_>) {
-        let selector = self.lower_expr(builder, switch.selector);
+        let selector = self.lower_value_expr(builder, switch.selector);
         let merge_block = builder.create_block();
         let mut case_blocks = Vec::new();
         let mut body_blocks = Vec::new();
@@ -849,7 +853,7 @@ impl<'gcx> Lowerer<'gcx> {
         let then_block = builder.create_block();
         let else_block = builder.create_block();
 
-        let cond_val = self.lower_expr(builder, cond);
+        let cond_val = self.lower_value_expr(builder, cond);
         builder.branch(cond_val, then_block, else_block);
 
         // Then branch: lower all statements except the last (update)
@@ -881,6 +885,22 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Lowers a return statement.
     fn lower_return(&mut self, builder: &mut FunctionBuilder<'_>, value: Option<&hir::Expr<'_>>) {
+        if let Some(expr) = value
+            && self.get_expr_type(expr).is_some_and(|ty| ty.is_unit())
+        {
+            let _ = self.lower_expr(builder, expr);
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                if let Some(ctx) = &self.inline_returns {
+                    builder.jump(ctx.exit_block);
+                } else if builder.func().is_public() && !self.lowering_internal_function {
+                    self.emit_abi_return(builder, &[]);
+                } else {
+                    builder.ret([]);
+                }
+            }
+            return;
+        }
+
         // A `return` inside a body being inlined delivers its values to the
         // call site: store them into the callee's return-variable slots and
         // jump to the inline exit block. This must precede the external check —
@@ -900,12 +920,12 @@ impl<'gcx> Lowerer<'gcx> {
                 let ret_vals: Vec<_> = elements
                     .iter()
                     .filter_map(|elem_opt| {
-                        elem_opt.as_ref().map(|elem| self.lower_expr(builder, elem))
+                        elem_opt.as_ref().map(|elem| self.lower_value_expr(builder, elem))
                     })
                     .collect();
                 builder.ret(ret_vals);
             } else if let Some(arity) = self.get_ternary_tuple_arity(expr) {
-                let first = self.lower_expr(builder, expr);
+                let first = self.lower_value_expr(builder, expr);
                 let mut ret_vals = Vec::with_capacity(arity);
                 ret_vals.push(first);
                 if arity > 1 {
@@ -916,7 +936,7 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 builder.ret(ret_vals);
             } else {
-                let ret_val = self.lower_expr(builder, expr);
+                let ret_val = self.lower_value_expr(builder, expr);
                 let n = builder.func().returns.len();
                 if n > 1 {
                     let mut ret_vals = Vec::with_capacity(n);
@@ -951,11 +971,11 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(expr) = value {
             if let hir::ExprKind::Tuple(elements) = &expr.kind {
                 for elem in elements.iter().flatten() {
-                    values.push(self.lower_expr(builder, elem));
+                    values.push(self.lower_value_expr(builder, elem));
                 }
             } else {
                 self.pending_inline_returns = None;
-                let first = self.lower_expr(builder, expr);
+                let first = self.lower_value_expr(builder, expr);
                 if n > 1 {
                     // A forwarded multi-return call: an inlined slice-returning
                     // callee leaves its values pending; anything else staged
@@ -1208,7 +1228,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Fallback: lower as normal and use the result
         // This is incorrect but allows compilation to continue
-        let result = self.lower_expr(builder, expr);
+        let result = self.lower_value_expr(builder, expr);
         let is_zero = builder.iszero(result);
         builder.iszero(is_zero)
     }
@@ -1232,10 +1252,10 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Evaluate all arguments FIRST
         let arg_vals: Vec<crate::mir::ValueId> =
-            args.exprs().map(|arg| self.lower_expr(builder, arg)).collect();
+            args.exprs().map(|arg| self.lower_value_expr(builder, arg)).collect();
 
         // Evaluate the address
-        let addr = self.lower_expr(builder, base);
+        let addr = self.lower_value_expr(builder, base);
 
         // Write selector to memory
         let selector_word = U256::from(selector) << 224;

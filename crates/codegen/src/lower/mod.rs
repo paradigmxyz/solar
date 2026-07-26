@@ -1524,7 +1524,7 @@ impl<'gcx> Lowerer<'gcx> {
                     && !var.is_constant()
                     && let Some(init) = var.initializer
                 {
-                    let init_val = self.lower_expr(builder, init);
+                    let init_val = self.lower_value_expr(builder, init);
                     if let Some(&offset) = self.immutable_slots.get(&var_id) {
                         self.store_immutable_value(builder, offset, init_val);
                     } else if let Some(&location) = self.storage_locations.get(&var_id) {

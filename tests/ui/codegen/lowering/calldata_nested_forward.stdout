@@ -65,7 +65,7 @@ fn @forward(arg0: calldataslice, arg1: address) {
     v46 = mload 0 !metadata(memory=scratch)
     v47 = gas
     v48 = mload 32 !metadata(memory=scratch)
-    v49 = call v47, v46, 0, v48, v45, 0, 32
+    v49 = call v47, v46, 0, v48, v45, 0, 0
     v50 = iszero v49
     jumpi v50, bb16, bb17
   bb12:
@@ -110,7 +110,6 @@ fn @forward(arg0: calldataslice, arg1: address) {
     returndatacopy 0, 0, v51 !metadata(memory=scratch)
     revert 0, v51
   bb17:
-    v52 = mload 0 !metadata(memory=scratch)
     stop
 }
 
@@ -185,7 +184,7 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) {
     v52 = mload 0 !metadata(memory=scratch)
     v53 = gas
     v54 = mload 32 !metadata(memory=scratch)
-    v55 = call v53, v52, 0, v54, v51, 0, 32
+    v55 = call v53, v52, 0, v54, v51, 0, 0
     v56 = iszero v55
     jumpi v56, bb16, bb17
   bb12:
@@ -232,7 +231,6 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) {
     returndatacopy 0, 0, v57 !metadata(memory=scratch)
     revert 0, v57
   bb17:
-    v58 = mload 0 !metadata(memory=scratch)
     stop
 }
 

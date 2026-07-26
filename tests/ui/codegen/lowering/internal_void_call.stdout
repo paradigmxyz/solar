@@ -57,3 +57,67 @@ fn @writeIfNonZero(arg0: u256) {
     stop
 }
 
+fn @returnVoidCall(arg0: u256) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = eq arg0, 0
+    v4 = iszero v3
+    jumpi v4, bb3, bb4
+  bb3:
+    sstore 0, arg0 !metadata(storage=slot(0))
+    jump bb4
+  bb4:
+    stop
+}
+
+fn @returnRevert() {
+  bb0:
+    revert 0, 0
+}
+
+fn @unitTernary(arg0: bool, arg1: u256) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = iszero v3
+    v5 = iszero v4
+    v6 = eq v3, v5
+    jumpi v6, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    jumpi arg0, bb5, bb6
+  bb5:
+    v7 = eq arg1, 0
+    v8 = iszero v7
+    jumpi v8, bb8, bb9
+  bb6:
+    sstore 0, 0 !metadata(storage=slot(0))
+    jump bb7
+  bb7:
+    stop
+  bb8:
+    sstore 0, arg1 !metadata(storage=slot(0))
+    jump bb9
+  bb9:
+    jump bb7
+}
+
+fn @clear() {
+  bb0:
+    sstore 0, 0 !metadata(storage=slot(0))
+    stop
+}
+

@@ -105,3 +105,36 @@ fn @pair(arg0: u256) -> (u256, u256) {
     ret arg0, v2
 }
 
+fn @callVoid(arg0: u256) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    internal_call @branchingVoid, 0, arg0
+    stop
+}
+
+fn @branchingVoid(arg0: u256) {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = sub arg0, 1
+    v3 = lt arg0, 1
+    jumpi v3, bb3, bb4
+  bb2:
+    stop
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    internal_call @branchingVoid, 0, v2
+    jump bb2
+}
+

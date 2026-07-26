@@ -185,21 +185,21 @@ impl<'gcx> Lowerer<'gcx> {
         let selector = builder.imm_u256(selector);
         builder.mstore(buf, selector);
 
-        let args_base = self.offset_ptr(builder, buf, 4);
-        let args_size = if items.is_empty() {
-            builder.imm_u64(0)
+        let size = if items.is_empty() {
+            builder.imm_u64(4)
         } else {
+            let args_base = self.offset_ptr(builder, buf, 4);
             let calldata_slices = FxHashSet::default();
-            self.abi_encode_tuple(
+            let args_size = self.abi_encode_tuple(
                 builder,
                 items,
                 args_base,
                 &calldata_slices,
                 lower_abi_encode::AbiScratch { base: scratch_base, depth: 0 },
-            )
+            );
+            let selector_size = builder.imm_u64(4);
+            builder.add(args_size, selector_size)
         };
-        let selector_size = builder.imm_u64(4);
-        let size = builder.add(args_size, selector_size);
         builder.revert(buf, size);
     }
 
@@ -330,7 +330,7 @@ impl<'gcx> Lowerer<'gcx> {
                 calldata_slices.insert(slice);
                 slice
             } else if self.expr_is_calldata_dynamic_bytes(arg) {
-                let value = self.lower_expr(builder, arg);
+                let value = self.lower_value_expr(builder, arg);
                 // A decoded calldata-struct member is already a memory bytes
                 // pointer despite its calldata-located type; only genuine
                 // slices stay lazy in the payload.
@@ -427,8 +427,8 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         items: &[(ValueId, Ty<'gcx>)],
     ) -> (ValueId, ValueId) {
-        let zero = builder.imm_u64(0);
         if items.is_empty() {
+            let zero = builder.imm_u64(0);
             return (zero, zero);
         }
 
@@ -494,7 +494,7 @@ impl<'gcx> Lowerer<'gcx> {
             };
         }
         if self.expr_is_calldata_dynamic_bytes(expr) {
-            let value = self.lower_expr(builder, expr);
+            let value = self.lower_value_expr(builder, expr);
             if Self::value_is_calldata_slice(builder, value) {
                 return self.materialize_calldata_bytes(builder, value);
             }
@@ -503,7 +503,7 @@ impl<'gcx> Lowerer<'gcx> {
             return value;
         }
         if matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Calldata)) {
-            let value = self.lower_expr(builder, expr);
+            let value = self.lower_value_expr(builder, expr);
             if !Self::value_is_calldata_slice(builder, value) {
                 return value;
             }
@@ -525,7 +525,7 @@ impl<'gcx> Lowerer<'gcx> {
         {
             return ptr;
         }
-        let value = self.lower_expr(builder, expr);
+        let value = self.lower_value_expr(builder, expr);
         self.coerce_memory_slice_value(builder, value)
     }
 
@@ -796,7 +796,7 @@ impl<'gcx> Lowerer<'gcx> {
                 .collect();
         }
         if let Some(arity) = self.get_ternary_tuple_arity(expr) {
-            let first = self.lower_expr(builder, expr);
+            let first = self.lower_value_expr(builder, expr);
             let mut items = Vec::with_capacity(arity);
             items.push((first, tys[0]));
             if arity > 1 {

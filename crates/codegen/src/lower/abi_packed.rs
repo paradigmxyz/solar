@@ -134,14 +134,14 @@ impl<'gcx> Lowerer<'gcx> {
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
                 )
             {
-                let ptr = self.lower_expr(builder, arg);
+                let ptr = self.lower_value_expr(builder, arg);
                 packed_args.push(PackedAbiArg::DynamicBytes(ptr));
                 continue;
             }
 
             let size = self.get_packed_size_from_expr(arg);
             let left_aligned = self.expr_is_fixed_bytes(arg);
-            let value = self.lower_expr(builder, arg);
+            let value = self.lower_value_expr(builder, arg);
             packed_args.push(PackedAbiArg::Value { value, size, left_aligned });
         }
 
@@ -176,7 +176,7 @@ impl<'gcx> Lowerer<'gcx> {
         {
             return builder.imm_u256(*n << 224);
         }
-        self.lower_expr(builder, expr)
+        self.lower_value_expr(builder, expr)
     }
 
     pub(super) fn expr_is_calldata_dynamic_bytes(&self, expr: &hir::Expr<'_>) -> bool {

@@ -27,8 +27,22 @@ enum MappingBaseSlot {
 }
 
 impl<'gcx> Lowerer<'gcx> {
-    /// Lowers an expression to MIR.
+    /// Lowers an expression, preserving whether it has semantic unit type.
     pub(super) fn lower_expr(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> Option<ValueId> {
+        if self.get_expr_type(expr).is_some_and(|ty| ty.is_unit()) {
+            self.lower_unit_expr(builder, expr);
+            None
+        } else {
+            Some(self.lower_value_expr(builder, expr))
+        }
+    }
+
+    /// Lowers an expression which is required to produce a MIR value.
+    pub(super) fn lower_value_expr(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
@@ -90,7 +104,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // must not be treated as a `bytesN` sibling of the left operand.
                 let is_shift = matches!(op.kind, hir::BinOpKind::Shl | hir::BinOpKind::Shr);
                 let (lhs_val, rhs_val) = if is_shift {
-                    (self.lower_expr(builder, lhs), self.lower_expr(builder, rhs))
+                    (self.lower_value_expr(builder, lhs), self.lower_value_expr(builder, rhs))
                 } else {
                     (
                         self.lower_fixed_bytes_operand(builder, lhs, rhs),
@@ -123,7 +137,7 @@ impl<'gcx> Lowerer<'gcx> {
                 match op.kind {
                     UnOpKind::PreInc | UnOpKind::PostInc | UnOpKind::PreDec | UnOpKind::PostDec => {
                         // Increment/decrement need to read, compute, store, and return
-                        let operand_val = self.lower_expr(builder, operand);
+                        let operand_val = self.lower_value_expr(builder, operand);
                         let one = builder.imm_u64(1);
                         let int_info = self.integer_info_for_expr(operand);
                         if self.gcx.unsupported_udvt_operator(expr.id) {
@@ -159,7 +173,7 @@ impl<'gcx> Lowerer<'gcx> {
                         }
                     }
                     _ => {
-                        let operand_val = self.lower_expr(builder, operand);
+                        let operand_val = self.lower_value_expr(builder, operand);
                         let int_info = self
                             .integer_info_for_expr(expr)
                             .or_else(|| self.integer_info_for_expr(operand));
@@ -176,9 +190,15 @@ impl<'gcx> Lowerer<'gcx> {
                 self.lower_ternary(builder, expr, cond, then_expr, else_expr)
             }
 
-            ExprKind::Call(callee, args, call_opts) => {
-                self.lower_call(builder, callee, args, (*call_opts).map(|opts| opts.args))
-            }
+            ExprKind::Call(callee, args, call_opts) => self
+                .lower_call(builder, callee, args, (*call_opts).map(|opts| opts.args))
+                .unwrap_or_else(|| {
+                    self.gcx
+                        .dcx()
+                        .bug("unit call expression lowered in value context")
+                        .span(expr.span)
+                        .emit()
+                }),
 
             ExprKind::Index(base, index) => {
                 self.lower_index_expr(builder, expr, base, index.as_deref())
@@ -189,7 +209,7 @@ impl<'gcx> Lowerer<'gcx> {
                     match builtin {
                         // Handle address member access: addr.balance
                         Builtin::AddressBalance => {
-                            let addr = self.lower_expr(builder, base);
+                            let addr = self.lower_value_expr(builder, base);
                             return builder.balance(addr);
                         }
                         // Handle function and error selector member access.
@@ -272,7 +292,7 @@ impl<'gcx> Lowerer<'gcx> {
                     if var.is_constant()
                         && let Some(init) = var.initializer
                     {
-                        return self.lower_expr(builder, init);
+                        return self.lower_value_expr(builder, init);
                     }
                 }
 
@@ -341,7 +361,7 @@ impl<'gcx> Lowerer<'gcx> {
                 if let Some((struct_id, field_index)) = self.resolved_struct_field(expr)
                     && self.is_memory_struct_base(base, struct_id)
                 {
-                    let base_val = self.lower_expr(builder, base);
+                    let base_val = self.lower_value_expr(builder, base);
                     let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
                     let field_addr = builder.memory_object_field_addr(
                         base_val,
@@ -354,7 +374,7 @@ impl<'gcx> Lowerer<'gcx> {
                 if let Some((struct_id, field_index)) =
                     self.get_memory_struct_field_info(base, *member)
                 {
-                    let base_val = self.lower_expr(builder, base);
+                    let base_val = self.lower_value_expr(builder, base);
                     let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
                     let field_addr = builder.memory_object_field_addr(
                         base_val,
@@ -365,7 +385,7 @@ impl<'gcx> Lowerer<'gcx> {
                 }
 
                 // Fallback: just load from base address
-                let base_val = self.lower_expr(builder, base);
+                let base_val = self.lower_value_expr(builder, base);
                 builder.mload(base_val)
             }
 
@@ -384,12 +404,12 @@ impl<'gcx> Lowerer<'gcx> {
                 } else if op.is_none() && self.lhs_expects_memory_dyn_array_value(lhs) {
                     self.lower_expr_as_memory_dyn_array(builder, rhs)
                 } else {
-                    self.lower_expr(builder, rhs)
+                    self.lower_value_expr(builder, rhs)
                 };
                 // Handle compound assignment (+=, -=, etc.)
                 let final_val = if let Some(bin_op) = op {
                     // Read current value, apply operator, then assign
-                    let lhs_val = self.lower_expr(builder, lhs);
+                    let lhs_val = self.lower_value_expr(builder, lhs);
                     let int_info = self.integer_info_for_expr(lhs);
                     let is_signed =
                         int_info.map_or_else(|| self.is_expr_signed(lhs), |info| info.signed);
@@ -415,7 +435,7 @@ impl<'gcx> Lowerer<'gcx> {
 
             ExprKind::Tuple(elements) => {
                 if let Some(Some(expr)) = elements.first() {
-                    return self.lower_expr(builder, expr);
+                    return self.lower_value_expr(builder, expr);
                 }
                 builder.imm_u64(0)
             }
@@ -438,7 +458,7 @@ impl<'gcx> Lowerer<'gcx> {
                     crate::mir::MemoryObjectKind::FixedArray,
                 );
                 for (i, elem) in elements.iter().enumerate() {
-                    let elem_val = self.lower_expr(builder, elem);
+                    let elem_val = self.lower_value_expr(builder, elem);
                     let offset_const = builder.imm_u64(i as u64 * 32);
                     let addr = builder.add(ptr, offset_const);
                     builder.mstore(addr, elem_val);
@@ -448,48 +468,16 @@ impl<'gcx> Lowerer<'gcx> {
 
             ExprKind::TypeCall(_ty) => builder.imm_u64(0),
 
-            ExprKind::Payable(inner) => self.lower_expr(builder, inner),
+            ExprKind::Payable(inner) => self.lower_value_expr(builder, inner),
 
             ExprKind::New(_ty) => builder.imm_u64(0),
 
-            ExprKind::Delete(target) => {
-                let zero = builder.imm_u256(U256::ZERO);
-                if let Some(ty) = self.get_expr_type(target)
-                    && let TyKind::Struct(struct_id) = ty.peel_refs().kind
-                    && let Some(slot) = self.lower_lvalue_slot(builder, target)
-                {
-                    self.clear_storage_struct_at(builder, struct_id, slot);
-                    return zero;
-                }
-                // Deleting a memory fixed-size array zeroes its elements in
-                // place; nulling the pointer would alias scratch memory on the
-                // next access. Storage targets keep the assignment path.
-                if let Some(var_id) = self.ident_variable(target)
-                    && !self.storage_ref_locals.contains(var_id)
-                    && !self.storage_slots.contains_key(&var_id)
-                {
-                    let var = self.gcx.hir.variable(var_id);
-                    if self.is_fixed_memory_array_type(&var.ty, var.data_location)
-                        && let Some(len) = self.fixed_memory_array_len(&var.ty)
-                        && let hir::TypeKind::Array(array) = &var.ty.kind
-                    {
-                        let ptr = self.lower_expr(builder, target);
-                        for i in 0..len {
-                            let value = self.zero_memory_field_value(builder, &array.element);
-                            if i == 0 {
-                                builder.mstore(ptr, value);
-                            } else {
-                                let offset = builder.imm_u64(i * 32);
-                                let addr = builder.add(ptr, offset);
-                                builder.mstore(addr, value);
-                            }
-                        }
-                        return zero;
-                    }
-                }
-                self.lower_assign(builder, target, zero);
-                zero
-            }
+            ExprKind::Delete(_) => self
+                .gcx
+                .dcx()
+                .bug("unit `delete` expression lowered in value context")
+                .span(expr.span)
+                .emit(),
 
             ExprKind::Slice(base, start, end) => {
                 if let Some((slice, is_bytes)) = self.calldata_bytes_source(builder, base) {
@@ -513,9 +501,10 @@ impl<'gcx> Lowerer<'gcx> {
                     let base_ptr = builder.slice_ptr(slice);
                     let base_len = builder.slice_len(slice);
                     let start_val = start
-                        .map(|s| self.lower_expr(builder, s))
+                        .map(|s| self.lower_value_expr(builder, s))
                         .unwrap_or_else(|| builder.imm_u64(0));
-                    let end_val = end.map(|e| self.lower_expr(builder, e)).unwrap_or(base_len);
+                    let end_val =
+                        end.map(|e| self.lower_value_expr(builder, e)).unwrap_or(base_len);
                     if end_val != base_len {
                         let end_out_of_bounds = builder.gt(end_val, base_len);
                         self.emit_panic_if(
@@ -550,6 +539,103 @@ impl<'gcx> Lowerer<'gcx> {
 
             ExprKind::Err(_) => builder.imm_u64(0),
         }
+    }
+
+    fn lower_unit_expr(&mut self, builder: &mut FunctionBuilder<'_>, expr: &hir::Expr<'_>) {
+        match &expr.kind {
+            ExprKind::Call(callee, args, call_opts) => {
+                let result =
+                    self.lower_call(builder, callee, args, (*call_opts).map(|opts| opts.args));
+                if result.is_some() {
+                    self.gcx
+                        .dcx()
+                        .bug("unit call expression produced a MIR value")
+                        .span(expr.span)
+                        .emit();
+                }
+            }
+            ExprKind::Delete(target) => self.lower_delete(builder, target),
+            ExprKind::Ternary(cond, then_expr, else_expr) => {
+                self.lower_unit_ternary(builder, cond, then_expr, else_expr);
+            }
+            ExprKind::Tuple(elements) => {
+                for element in elements.iter().flatten() {
+                    let _ = self.lower_expr(builder, element);
+                }
+            }
+            ExprKind::Err(_) => {}
+            _ => {
+                self.gcx
+                    .dcx()
+                    .bug(format!("unexpected unit expression in codegen: {:?}", expr.kind))
+                    .span(expr.span)
+                    .emit();
+            }
+        }
+    }
+
+    fn lower_delete(&mut self, builder: &mut FunctionBuilder<'_>, target: &hir::Expr<'_>) {
+        if let Some(ty) = self.get_expr_type(target)
+            && let TyKind::Struct(struct_id) = ty.peel_refs().kind
+            && let Some(slot) = self.lower_lvalue_slot(builder, target)
+        {
+            self.clear_storage_struct_at(builder, struct_id, slot);
+            return;
+        }
+
+        // Deleting a memory fixed-size array zeroes its elements in place;
+        // nulling the pointer would alias scratch memory on the next access.
+        // Storage targets keep the assignment path.
+        if let Some(var_id) = self.ident_variable(target)
+            && !self.storage_ref_locals.contains(var_id)
+            && !self.storage_slots.contains_key(&var_id)
+        {
+            let var = self.gcx.hir.variable(var_id);
+            if self.is_fixed_memory_array_type(&var.ty, var.data_location)
+                && let Some(len) = self.fixed_memory_array_len(&var.ty)
+                && let hir::TypeKind::Array(array) = &var.ty.kind
+            {
+                let ptr = self.lower_value_expr(builder, target);
+                for i in 0..len {
+                    let value = self.zero_memory_field_value(builder, &array.element);
+                    if i == 0 {
+                        builder.mstore(ptr, value);
+                    } else {
+                        let offset = builder.imm_u64(i * 32);
+                        let addr = builder.add(ptr, offset);
+                        builder.mstore(addr, value);
+                    }
+                }
+                return;
+            }
+        }
+
+        let zero = builder.imm_u256(U256::ZERO);
+        self.lower_assign(builder, target, zero);
+    }
+
+    fn lower_unit_ternary(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        cond: &hir::Expr<'_>,
+        then_expr: &hir::Expr<'_>,
+        else_expr: &hir::Expr<'_>,
+    ) {
+        let cond = self.lower_value_expr(builder, cond);
+        let then_block = builder.create_block();
+        let else_block = builder.create_block();
+        let merge_block = builder.create_block();
+        builder.branch(cond, then_block, else_block);
+
+        for (block, arm) in [(then_block, then_expr), (else_block, else_expr)] {
+            builder.switch_to_block(block);
+            let _ = self.lower_expr(builder, arm);
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                builder.jump(merge_block);
+            }
+        }
+
+        builder.switch_to_block(merge_block);
     }
 
     /// Lowers a literal to a MIR value.
@@ -613,7 +699,7 @@ impl<'gcx> Lowerer<'gcx> {
                     if var.is_constant()
                         && let Some(init) = var.initializer
                     {
-                        return self.lower_expr(builder, init);
+                        return self.lower_value_expr(builder, init);
                     }
 
                     // Check if it's an immutable - load from appended runtime data.
@@ -793,7 +879,7 @@ impl<'gcx> Lowerer<'gcx> {
         rhs: &hir::Expr<'_>,
         is_and: bool,
     ) -> ValueId {
-        let lhs_val = self.lower_expr(builder, lhs);
+        let lhs_val = self.lower_value_expr(builder, lhs);
         let pred_block = builder.current_block();
         let rhs_block = builder.create_block();
         let merge_block = builder.create_block();
@@ -804,7 +890,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         builder.switch_to_block(rhs_block);
-        let rhs_val = self.lower_expr(builder, rhs);
+        let rhs_val = self.lower_value_expr(builder, rhs);
         let rhs_end = builder.current_block();
         let rhs_terminated = builder.func().block(rhs_end).is_terminated();
         if !rhs_terminated {
@@ -899,7 +985,7 @@ impl<'gcx> Lowerer<'gcx> {
             if !matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::String)) {
                 return false;
             }
-            self.lower_expr(builder, expr)
+            self.lower_value_expr(builder, expr)
         };
 
         self.emit_revert_error_string_from_memory(builder, ptr);
@@ -1148,7 +1234,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(tuple_arity) = tuple_arity {
             // For tuple ternaries, use branching to stage values in the
             // ephemeral multi-return buffer.
-            let cond_val = self.lower_expr(builder, cond);
+            let cond_val = self.lower_value_expr(builder, cond);
 
             let then_block = builder.create_block();
             let else_block = builder.create_block();
@@ -1186,7 +1272,7 @@ impl<'gcx> Lowerer<'gcx> {
                 },
                 _ => None,
             });
-            let cond_val = self.lower_expr(builder, cond);
+            let cond_val = self.lower_value_expr(builder, cond);
 
             let then_block = builder.create_block();
             let else_block = builder.create_block();
@@ -1197,7 +1283,7 @@ impl<'gcx> Lowerer<'gcx> {
             for (block, arm) in [(then_block, then_expr), (else_block, else_expr)] {
                 builder.switch_to_block(block);
                 if slice_location.is_some() {
-                    let value = self.lower_expr(builder, arm);
+                    let value = self.lower_value_expr(builder, arm);
                     let ptr = builder.slice_ptr(value);
                     let len = builder.slice_len(value);
                     let ptr_slot = builder.imm_u64(0);
@@ -1259,7 +1345,7 @@ impl<'gcx> Lowerer<'gcx> {
                 _ => {}
             }
         }
-        self.lower_expr(builder, arm)
+        self.lower_value_expr(builder, arm)
     }
 
     /// Lowers a tuple expression by evaluating every element before staging
@@ -1273,10 +1359,10 @@ impl<'gcx> Lowerer<'gcx> {
         let values = if let ExprKind::Tuple(elements) = &expr.kind {
             elements
                 .iter()
-                .filter_map(|elem| elem.map(|elem| self.lower_expr(builder, elem)))
+                .filter_map(|elem| elem.map(|elem| self.lower_value_expr(builder, elem)))
                 .collect::<Vec<_>>()
         } else {
-            let first = self.lower_expr(builder, expr);
+            let first = self.lower_value_expr(builder, expr);
             let base = self.multi_return_buffer_base(builder);
             let mut values = Vec::with_capacity(arity);
             values.push(first);
@@ -1306,7 +1392,7 @@ impl<'gcx> Lowerer<'gcx> {
         {
             return builder.imm_u256(*n << (usize::from(32 - width) * 8));
         }
-        self.lower_expr(builder, operand)
+        self.lower_value_expr(builder, operand)
     }
 
     /// Lowers an assignment.
@@ -1407,7 +1493,7 @@ impl<'gcx> Lowerer<'gcx> {
                 if let Some((struct_id, field_index)) = self.resolved_struct_field(lhs)
                     && self.is_memory_struct_base(base, struct_id)
                 {
-                    let base_val = self.lower_expr(builder, base);
+                    let base_val = self.lower_value_expr(builder, base);
                     let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
                     let field_addr = builder.memory_object_field_addr(
                         base_val,
@@ -1421,7 +1507,7 @@ impl<'gcx> Lowerer<'gcx> {
                 if let Some((struct_id, field_index)) =
                     self.get_memory_struct_field_info(base, *member)
                 {
-                    let base_val = self.lower_expr(builder, base);
+                    let base_val = self.lower_value_expr(builder, base);
                     let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
                     let field_addr = builder.memory_object_field_addr(
                         base_val,
@@ -1434,7 +1520,7 @@ impl<'gcx> Lowerer<'gcx> {
 
                 // Fallback: store at base address
                 // This should only be reached for memory structs, not storage
-                let base_val = self.lower_expr(builder, base);
+                let base_val = self.lower_value_expr(builder, base);
                 builder.mstore(base_val, rhs);
             }
             ExprKind::Call(..) => {
@@ -1781,7 +1867,7 @@ impl<'gcx> Lowerer<'gcx> {
             return Some(found);
         }
         if self.expr_is_msg_data(base) {
-            let slice = self.lower_expr(builder, base);
+            let slice = self.lower_value_expr(builder, base);
             return Some((slice, true));
         }
         // Any other calldata dynamic bytes/array expression (for example a
@@ -1796,7 +1882,7 @@ impl<'gcx> Lowerer<'gcx> {
         // element, so it distinguishes a byte-strided bytes slice from a
         // word-strided array slice.
         let is_bytes = self.expr_is_calldata_dynamic_bytes(base);
-        let value = self.lower_expr(builder, base);
+        let value = self.lower_value_expr(builder, base);
         Self::value_is_calldata_slice(builder, value).then_some((value, is_bytes))
     }
 
@@ -1964,10 +2050,10 @@ impl<'gcx> Lowerer<'gcx> {
         // Calldata values and subslices carry `(ptr, len)` explicitly and are
         // copied only at this memory-consuming boundary.
         let ptr = if self.expr_is_calldata_dynamic_bytes(data) {
-            let slice = self.lower_expr(builder, data);
+            let slice = self.lower_value_expr(builder, data);
             self.materialize_calldata_bytes(builder, slice)
         } else {
-            self.lower_expr(builder, data)
+            self.lower_value_expr(builder, data)
         };
         let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
         let head_size = (elems.len() * 32) as u64;
@@ -2395,7 +2481,7 @@ impl<'gcx> Lowerer<'gcx> {
             // A call to a function returning a storage reference (e.g. the
             // ERC-7201 `_layout()` getter) yields the slot value directly.
             ExprKind::Call(callee, ..) if self.call_returns_storage_ref(callee) => {
-                Some(self.lower_expr(builder, expr))
+                Some(self.lower_value_expr(builder, expr))
             }
             _ => None,
         }
@@ -2622,12 +2708,11 @@ impl<'gcx> Lowerer<'gcx> {
     pub(super) fn lower_array_method_call(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        slot: ValueId,
-        element_ty: Ty<'gcx>,
-        element_slots: u64,
+        array: (ValueId, Ty<'gcx>, u64),
         builtin: Builtin,
         args: &CallArgs<'_>,
-    ) -> ValueId {
+    ) -> Option<ValueId> {
+        let (slot, element_ty, element_slots) = array;
         match builtin {
             Builtin::ArrayPush0 => {
                 let element_slot = self.lower_storage_array_push_slot(
@@ -2637,7 +2722,11 @@ impl<'gcx> Lowerer<'gcx> {
                     element_slots,
                     args,
                 );
-                if element_ty.is_reference_type() { element_slot } else { builder.imm_u64(0) }
+                if element_ty.is_reference_type() {
+                    Some(element_slot)
+                } else {
+                    Some(builder.imm_u64(0))
+                }
             }
             Builtin::ArrayPush => {
                 let value = args
@@ -2648,7 +2737,7 @@ impl<'gcx> Lowerer<'gcx> {
                             self.lower_expr_as_memory_bytes(builder, arg)
                         }
                         TyKind::DynArray(_) => self.lower_expr_as_memory_dyn_array(builder, arg),
-                        _ => self.lower_expr(builder, arg),
+                        _ => self.lower_value_expr(builder, arg),
                     })
                     .unwrap_or_else(|| builder.imm_u64(0));
 
@@ -2666,7 +2755,7 @@ impl<'gcx> Lowerer<'gcx> {
                 let element_slot = builder.add(data_slot, offset);
                 self.store_storage_value_at(builder, element_ty, element_slot, value);
                 builder.sstore(slot, new_length);
-                builder.imm_u64(0)
+                None
             }
             Builtin::ArrayPop => {
                 let length = builder.sload(slot);
@@ -2683,7 +2772,7 @@ impl<'gcx> Lowerer<'gcx> {
                 self.clear_storage_value_at(builder, element_ty, element_slot);
                 builder.sstore(slot, new_length);
 
-                builder.imm_u64(0)
+                None
             }
             _ => unreachable!("{builtin:?}"),
         }
@@ -2816,7 +2905,7 @@ impl<'gcx> Lowerer<'gcx> {
             if let Some((_var_id, slot)) = self.get_mapping_base_slot(inner_base) {
                 // Compute the slot for the inner access
                 let inner_index_val = match inner_index {
-                    Some(idx) => self.lower_expr(builder, idx),
+                    Some(idx) => self.lower_value_expr(builder, idx),
                     None => builder.imm_u64(0),
                 };
                 let slot_val = builder.imm_u64(slot);
@@ -2832,7 +2921,7 @@ impl<'gcx> Lowerer<'gcx> {
             // Recursively compute deeper nesting slot
             let deeper_slot = self.lower_nested_mapping_slot(builder, inner_base);
             let inner_index_val = match inner_index {
-                Some(idx) => self.lower_expr(builder, idx),
+                Some(idx) => self.lower_value_expr(builder, idx),
                 None => builder.imm_u64(0),
             };
             return self.compute_mapping_slot_for_index(

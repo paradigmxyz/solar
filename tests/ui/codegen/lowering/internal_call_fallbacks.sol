@@ -36,4 +36,15 @@ contract InternalCallFallbacks {
     function pair(uint256 x) internal pure returns (uint256, uint256) {
         return (x, x + 1);
     }
+
+    // CHECK-LABEL: fn @callVoid{{[( ]}}
+    // CHECK-NOT: = internal_call @branchingVoid, 0, arg0
+    // CHECK: internal_call @branchingVoid, 0, arg0
+    function callVoid(uint256 x) public pure {
+        branchingVoid(x);
+    }
+
+    function branchingVoid(uint256 x) internal pure {
+        if (x != 0) branchingVoid(x - 1);
+    }
 }
