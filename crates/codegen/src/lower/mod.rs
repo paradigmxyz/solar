@@ -949,6 +949,17 @@ impl<'gcx> Lowerer<'gcx> {
                 Self::emit_external_calldata_head_size_check(&mut builder, external_arg_head_size);
             }
 
+            // Register the return types before binding parameters. A
+            // reassigned parameter's slot address goes through
+            // `local_memory_addr`, which spans the complete return area, so a
+            // later return registration would shift the address its own reads
+            // resolve to.
+            for &ret_id in hir_func.returns {
+                let ty = self.lower_type_from_var(ret_id);
+                builder.add_return(ty);
+            }
+
+            let mut deferred_param_slots: Vec<(u64, ValueId)> = Vec::new();
             for &param_id in hir_func.parameters {
                 let param = self.gcx.hir.variable(param_id);
                 let param_ty = self.gcx.type_of_item(param_id.into());
@@ -993,7 +1004,7 @@ impl<'gcx> Lowerer<'gcx> {
                     let base = builder.add(args_base, offset);
                     let struct_ptr =
                         self.materialize_calldata_value_at(&mut builder, source, param_ty, base);
-                    self.locals.insert(param_id, struct_ptr);
+                    self.bind_param_value_deferred(param_id, struct_ptr, &mut deferred_param_slots);
                 } else if decodes_abi_params
                     && !self.param_is_storage_ref(param_id)
                     && let TyKind::Struct(struct_id) = param_ty.peel_refs().kind
@@ -1128,7 +1139,7 @@ impl<'gcx> Lowerer<'gcx> {
                     }
 
                     // Store the memory pointer as the local (not the Arg value)
-                    self.locals.insert(param_id, struct_ptr);
+                    self.bind_param_value_deferred(param_id, struct_ptr, &mut deferred_param_slots);
                 } else if decodes_abi_params
                     && !self.param_is_storage_ref(param_id)
                     && let Some((elem_ty, len)) = self.fixed_word_array_param(param_id)
@@ -1158,7 +1169,7 @@ impl<'gcx> Lowerer<'gcx> {
                         );
                         builder.mstore(elem_addr, elem_val);
                     }
-                    self.locals.insert(param_id, array_ptr);
+                    self.bind_param_value_deferred(param_id, array_ptr, &mut deferred_param_slots);
                 } else if decodes_abi_params && self.is_dyn_word_array_memory_param(param_id) {
                     // Dynamic array of word elements in memory: the ABI head is
                     // an offset to `[length][elements...]` in the ABI argument
@@ -1193,7 +1204,7 @@ impl<'gcx> Lowerer<'gcx> {
                     } else {
                         builder.calldatacopy(dst, src, data_bytes);
                     }
-                    self.locals.insert(param_id, array_ptr);
+                    self.bind_param_value_deferred(param_id, array_ptr, &mut deferred_param_slots);
                 } else if decodes_abi_params
                     && param.data_location == Some(solar_ast::DataLocation::Memory)
                     && matches!(
@@ -1237,7 +1248,7 @@ impl<'gcx> Lowerer<'gcx> {
                     } else {
                         builder.calldatacopy(data_ptr, src, len);
                     }
-                    self.locals.insert(param_id, ptr);
+                    self.bind_param_value_deferred(param_id, ptr, &mut deferred_param_slots);
                 } else {
                     // Non-struct parameters: use normal Arg handling
                     let arg_index = builder.func().params.len() as u64;
@@ -1260,10 +1271,13 @@ impl<'gcx> Lowerer<'gcx> {
                         self.store_slice_slot(&mut builder, offset, head_or_value);
                     } else if is_storage_ref && is_reassigned {
                         let offset = self.alloc_local_memory(param_id);
-                        let addr = self.local_memory_addr(&mut builder, offset);
-                        builder.mstore(addr, head_or_value);
+                        deferred_param_slots.push((offset, head_or_value));
                     } else {
-                        self.locals.insert(param_id, head_or_value);
+                        self.bind_param_value_deferred(
+                            param_id,
+                            head_or_value,
+                            &mut deferred_param_slots,
+                        );
                     }
                     // A storage-reference parameter (`mapping`/`storage`) is passed
                     // by slot: its value *is* the base slot, so mark it so mapping
@@ -1275,14 +1289,15 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
 
-            // Finalize the return prefix before calculating any named-return
-            // local address. `local_memory_addr` includes the complete return
-            // area; adding and initializing one return at a time placed the
-            // first initializer too early in multi-return functions.
-            for &ret_id in hir_func.returns {
-                let ty = self.lower_type_from_var(ret_id);
-                builder.add_return(ty);
+            // Every parameter is registered now, so a staged slot address
+            // resolves the same way the body's reads will.
+            for (offset, value) in std::mem::take(&mut deferred_param_slots) {
+                let addr = self.local_memory_addr(&mut builder, offset);
+                builder.mstore(addr, value);
             }
+
+            // Initialize named-return slots only after the complete return
+            // prefix and parameter area have been registered.
             for &ret_id in hir_func.returns {
                 let ret_var = self.gcx.hir.variable(ret_id);
                 // An unnamed return cannot be assigned or read by the body.
@@ -2017,6 +2032,52 @@ impl<'gcx> Lowerer<'gcx> {
     /// Returns true if a variable is assigned after declaration.
     pub(crate) fn is_var_assigned(&self, var_id: &VariableId) -> bool {
         self.assigned_vars.contains(*var_id)
+    }
+
+    /// Binds a parameter's lowered value, mirroring local-declaration lowering:
+    /// a reassigned parameter gets a memory slot, everything else stays an SSA
+    /// value.
+    ///
+    /// A parameter reassigned in the body — including in inline assembly, as in
+    /// `subject := add(subject, 1)` — needs one representation on every path
+    /// and across a loop back edge. A plain SSA binding only updates within a
+    /// block, so a sibling branch or the next iteration would read a definition
+    /// that cannot reach it. A storage-reference parameter is excluded: its
+    /// value *is* a slot, and its uses resolve through `storage_ref_locals`
+    /// rather than a memory read.
+    /// Like [`Self::bind_param_value`], but records the slot store to emit once
+    /// every parameter is registered.
+    ///
+    /// `local_memory_addr` derives a frame address from the parameter and return
+    /// counts, so an address computed while parameters are still being added
+    /// resolves differently from the reads that follow. Callers inside the
+    /// parameter loop stage their stores and flush them afterwards.
+    fn bind_param_value_deferred(
+        &mut self,
+        param_id: hir::VariableId,
+        value: ValueId,
+        deferred: &mut Vec<(u64, ValueId)>,
+    ) {
+        if self.is_var_assigned(&param_id) && !self.param_is_storage_ref(param_id) {
+            deferred.push((self.alloc_local_memory(param_id), value));
+            return;
+        }
+        self.locals.insert(param_id, value);
+    }
+
+    pub(super) fn bind_param_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        param_id: hir::VariableId,
+        value: ValueId,
+    ) {
+        if self.is_var_assigned(&param_id) && !self.param_is_storage_ref(param_id) {
+            let offset = self.alloc_local_memory(param_id);
+            let addr = self.local_memory_addr(builder, offset);
+            builder.mstore(addr, value);
+            return;
+        }
+        self.locals.insert(param_id, value);
     }
 
     /// Checks if an expression contains an external call.
