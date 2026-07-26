@@ -145,10 +145,10 @@ bb6:
   mload
   and
   dup1
-  push 384
+  push 416
   mstore
   iszero
-  push 384
+  push 416
   mload
   push 32
   dup3
@@ -188,7 +188,7 @@ bb27:
   push 64
   mload
   dup1
-  push 416
+  push 384
   mstore
   push 256
   mload
@@ -284,10 +284,10 @@ bb15:
   mload
   and
   dup1
-  push 384
+  push 448
   mstore
   iszero
-  push 384
+  push 448
   mload
   push 32
   dup3
@@ -355,7 +355,7 @@ bb28:
   mstore
   dup3
   dup1
-  push 416
+  push 384
   mstore
   mload
   swap3
@@ -417,7 +417,7 @@ bb29:
   push 64
   mload
   dup1
-  push 448
+  push 416
   mstore
   push 112
   push 248
@@ -429,7 +429,7 @@ bb29:
   add
   dup4
   dup1
-  push 416
+  push 384
   mstore
   mload
   swap4
@@ -454,7 +454,7 @@ bb29:
   add
   dup2
   dup1
-  push 448
+  push 416
   mstore
   swap1
   sub
