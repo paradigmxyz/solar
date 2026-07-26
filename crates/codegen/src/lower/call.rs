@@ -1,9 +1,9 @@
 //! Call and member-call lowering.
 
-use super::{Lowerer, checked_arith::PanicCode};
+use super::{InternalFunctionPointerShape, Lowerer, checked_arith::PanicCode};
 use crate::{
     memory::EvmMemoryLayout,
-    mir::{FunctionBuilder, ValueId},
+    mir::{Function, FunctionBuilder, FunctionId, MirType, ValueId},
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{DataLocation, LitKind, Span};
@@ -58,7 +58,13 @@ impl<'gcx> Lowerer<'gcx> {
             return builder.imm_u64(0);
         }
 
-        if let Some(function) = self.internal_function_pointer_callee(callee) {
+        if let Some(TyKind::Fn(function)) = self.get_expr_type(callee).map(|ty| ty.kind)
+            && function.is_internal()
+            && function.function_id.is_none()
+            && !self.gcx.resolved_callee(callee.id).is_some_and(|resolved| {
+                matches!(resolved.res, hir::Res::Item(hir::ItemId::Function(_)))
+            })
+        {
             return self.lower_internal_function_pointer_call(builder, callee, args, function);
         }
 
@@ -108,21 +114,6 @@ impl<'gcx> Lowerer<'gcx> {
         builder.imm_u64(0)
     }
 
-    fn internal_function_pointer_callee(&self, callee: &hir::Expr<'_>) -> Option<&'gcx TyFn<'gcx>> {
-        let TyKind::Fn(function) = self.get_expr_type(callee)?.kind else { return None };
-        if !function.is_internal() {
-            return None;
-        }
-        if function.function_id.is_some()
-            || self.gcx.resolved_callee(callee.id).is_some_and(|resolved| {
-                matches!(resolved.res, hir::Res::Item(hir::ItemId::Function(_)))
-            })
-        {
-            return None;
-        }
-        Some(function)
-    }
-
     fn lower_internal_function_pointer_call(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -131,7 +122,7 @@ impl<'gcx> Lowerer<'gcx> {
         function: &'gcx TyFn<'gcx>,
     ) -> ValueId {
         let function_value = self.lower_expr(builder, callee);
-        let arg_values = args
+        let mut arg_values = args
             .exprs()
             .enumerate()
             .map(|(index, arg)| {
@@ -147,58 +138,142 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             })
             .collect::<Vec<_>>();
+        arg_values.insert(0, function_value);
 
+        let dispatcher = self.ensure_internal_function_pointer_dispatcher(function);
+        let returns = function.returns.len();
+        let Some(&return_ty) = function.returns.first() else {
+            builder.internal_call_void(dispatcher, arg_values, returns);
+            return builder.imm_u64(0);
+        };
+        builder.internal_call(dispatcher, arg_values, self.lower_type_from_ty(return_ty), returns)
+    }
+
+    fn ensure_internal_function_pointer_dispatcher(
+        &mut self,
+        function: &'gcx TyFn<'gcx>,
+    ) -> FunctionId {
+        let shape = self.internal_function_pointer_shape(function);
+        if let Some(&dispatcher) = self.internal_function_pointer_dispatchers.get(&shape) {
+            return dispatcher;
+        }
+
+        let name = Ident::from_str(&format!(
+            "__internal_dispatch_{}",
+            self.internal_function_pointer_dispatchers.len()
+        ));
+        let dispatcher = self.module.add_function(Function::new(name));
+        self.internal_function_pointer_dispatchers.insert(shape, dispatcher);
+        dispatcher
+    }
+
+    /// Lowers address-taken targets to a fixed point, then fills the reserved dispatchers.
+    pub(super) fn generate_internal_function_pointer_dispatchers(&mut self) {
+        if self.internal_function_pointer_dispatchers.is_empty() {
+            return;
+        }
+        let mut lowered_targets = GrowableBitSet::new_empty();
+        while let Some(function_id) = self
+            .internal_function_pointer_targets
+            .iter()
+            .find(|&function_id| !lowered_targets.contains(function_id))
+        {
+            lowered_targets.insert(function_id);
+            let function = self.gcx.hir.function(function_id);
+            if function.kind != hir::FunctionKind::Function || function.body.is_none() {
+                self.internal_function_pointer_targets.remove(function_id);
+                continue;
+            }
+            if matches!(function.visibility, hir::Visibility::Internal | hir::Visibility::Private) {
+                self.ensure_function_lowered(function_id);
+            } else {
+                self.ensure_internal_mir_function(function_id);
+            }
+        }
+
+        let dispatchers = self
+            .internal_function_pointer_dispatchers
+            .iter()
+            .map(|(shape, &function_id)| (shape.clone(), function_id))
+            .collect::<Vec<_>>();
+        for (shape, dispatcher) in dispatchers {
+            self.generate_internal_function_pointer_dispatcher(shape, dispatcher);
+        }
+    }
+
+    fn generate_internal_function_pointer_dispatcher(
+        &mut self,
+        shape: InternalFunctionPointerShape,
+        dispatcher: FunctionId,
+    ) {
         let candidates = self
             .internal_function_pointer_targets
             .iter()
             .filter(|&function_id| {
-                let candidate = self.gcx.hir.function(function_id);
-                if candidate.kind != hir::FunctionKind::Function || candidate.body.is_none() {
-                    return false;
-                }
                 let TyKind::Fn(candidate_ty) = self.gcx.type_of_item(function_id.into()).kind
                 else {
                     return false;
                 };
-                // Mutability does not change the internal calling convention. Assembly can also
-                // retag a pointer, as the view-to-pure cast in `console.sol` does.
-                candidate_ty.parameters == function.parameters
-                    && candidate_ty.returns == function.returns
+                self.internal_function_pointer_shape(candidate_ty) == shape
             })
             .collect::<Vec<_>>();
 
-        let invalid_block = builder.create_block();
-        let merge_block = builder.create_block();
-        let case_blocks = candidates
-            .iter()
-            .map(|&function_id| {
-                let value = builder.imm_u64(Self::internal_function_pointer_id(function_id));
-                let block = builder.create_block();
-                (value, block)
-            })
-            .collect::<Vec<_>>();
-        builder.switch(function_value, invalid_block, case_blocks.clone());
-
-        builder.switch_to_block(invalid_block);
-        self.emit_panic_revert(builder, PanicCode::InvalidInternalFunction);
-
-        let mut incoming = Vec::with_capacity(candidates.len());
-        for (function_id, (_, block)) in candidates.into_iter().zip(case_blocks) {
-            builder.switch_to_block(block);
-            let result =
-                self.lower_internal_call_fallback(builder, function_id, arg_values.clone());
-            if !function.returns.is_empty() {
-                incoming.push((block, result));
+        let name = self.module.function(dispatcher).name;
+        let mut dispatcher_function = Function::new(name);
+        dispatcher_function.attributes.no_inline = true;
+        {
+            let mut builder = FunctionBuilder::new(&mut dispatcher_function);
+            let function_value = builder.add_param(MirType::Function);
+            let arg_values = shape.0.iter().map(|&ty| builder.add_param(ty)).collect::<Vec<_>>();
+            for &ty in &shape.1 {
+                builder.add_return(ty);
             }
-            builder.jump(merge_block);
-        }
 
-        builder.switch_to_block(merge_block);
-        if function.returns.is_empty() || incoming.is_empty() {
-            builder.imm_u64(0)
-        } else {
-            builder.phi(incoming)
+            for function_id in candidates {
+                let case_block = builder.create_block();
+                let next_block = builder.create_block();
+                let id = builder.imm_u64(Self::internal_function_pointer_id(function_id));
+                let is_match = builder.eq(function_value, id);
+                builder.branch(is_match, case_block, next_block);
+
+                builder.switch_to_block(case_block);
+                let result = self.lower_internal_call_fallback(
+                    &mut builder,
+                    function_id,
+                    arg_values.clone(),
+                );
+                if shape.1.is_empty() {
+                    builder.ret([]);
+                } else {
+                    let mut return_values = Vec::with_capacity(shape.1.len());
+                    return_values.push(result);
+                    if shape.1.len() > 1 {
+                        let base = self.multi_return_buffer_base(&mut builder);
+                        for index in 1..shape.1.len() {
+                            return_values.push(self.load_multi_return_value(
+                                &mut builder,
+                                base,
+                                index,
+                            ));
+                        }
+                    }
+                    builder.ret(return_values);
+                }
+                builder.switch_to_block(next_block);
+            }
+            self.emit_panic_revert(&mut builder, PanicCode::InvalidInternalFunction);
         }
+        *self.module.function_mut(dispatcher) = dispatcher_function;
+    }
+
+    fn internal_function_pointer_shape(
+        &self,
+        function: &TyFn<'gcx>,
+    ) -> InternalFunctionPointerShape {
+        (
+            function.parameters.iter().map(|&ty| self.lower_type_from_ty(ty)).collect(),
+            function.returns.iter().map(|&ty| self.lower_type_from_ty(ty)).collect(),
+        )
     }
 
     fn builtin_uses_direct_call_lowering(builtin: Builtin) -> bool {

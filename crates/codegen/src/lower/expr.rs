@@ -264,8 +264,10 @@ impl<'gcx> Lowerer<'gcx> {
                     return builder.imm_u64(variant_index as u64);
                 }
 
-                if let Some(hir::Res::Item(hir::ItemId::Function(function_id))) =
-                    self.resolved_member(expr)
+                if let Some(TyKind::Fn(function)) = self.get_expr_type(expr).map(|ty| ty.kind)
+                    && function.is_internal()
+                    && let Some(hir::Res::Item(hir::ItemId::Function(function_id))) =
+                        self.resolved_member(expr)
                 {
                     self.internal_function_pointer_targets.insert(function_id);
                     return builder.imm_u64(Self::internal_function_pointer_id(function_id));

@@ -1,28 +1,14 @@
-//@ run-call: throughReturn => 42
 //@ run-call: choose true, 7 => 8
 //@ run-call: choose false, 7 => 6
 //@ run-call: throughCast 9 => 10
 //@ run-call: callVoid => true
+//@ run-call: callPair 7 => 7, 8
+//@ run-call: callState => true
 //@ run-call-fail: callZero => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
-
-// ported-from: test/libsolidity/semanticTests/functionCall/call_internal_function_via_expression.sol
 
 contract InternalFunctionPointerCall {
     bool flag;
-
-    function throughReturn() public returns (uint256) {
-        return getPointer(answer)();
-    }
-
-    function getPointer(
-        function() internal returns (uint256) fn
-    ) internal pure returns (function() internal returns (uint256)) {
-        return fn;
-    }
-
-    function answer() internal pure returns (uint256) {
-        return 42;
-    }
+    function() internal stateFn = setFlag;
 
     function choose(bool add, uint256 value) public returns (uint256) {
         function(uint256) internal returns (uint256) fn = add ? increment : decrement;
@@ -60,8 +46,22 @@ contract InternalFunctionPointerCall {
         return flag;
     }
 
-    function setFlag() internal {
+    function setFlag() public {
         flag = true;
+    }
+
+    function callState() public returns (bool) {
+        stateFn();
+        return flag;
+    }
+
+    function callPair(uint256 value) public returns (uint256, uint256) {
+        function(uint256) internal returns (uint256, uint256) fn = pair;
+        return fn(value);
+    }
+
+    function pair(uint256 value) internal pure returns (uint256, uint256) {
+        return (value, value + 1);
     }
 
     function callZero() public {

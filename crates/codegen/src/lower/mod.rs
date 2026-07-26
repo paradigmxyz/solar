@@ -75,6 +75,8 @@ struct InlineReturnCtx {
     return_vars: Vec<VariableId>,
 }
 
+type InternalFunctionPointerShape = (Vec<MirType>, Vec<MirType>);
+
 /// Lowering context for converting HIR to MIR.
 pub(crate) struct Lowerer<'gcx> {
     /// The global context.
@@ -143,6 +145,8 @@ pub(crate) struct Lowerer<'gcx> {
     lowering_functions: GrowableBitSet<HirFunctionId>,
     /// Functions whose declarations are used as internal function values.
     internal_function_pointer_targets: GrowableBitSet<HirFunctionId>,
+    /// Shared internal function-pointer dispatchers keyed by MIR parameter and return types.
+    internal_function_pointer_dispatchers: FxHashMap<InternalFunctionPointerShape, FunctionId>,
     /// Whether the current function body is constructor code.
     lowering_constructor: bool,
     /// Whether local memory slots should be addressed through the internal-call frame.
@@ -220,6 +224,7 @@ impl<'gcx> Lowerer<'gcx> {
             recursive_functions: FxHashMap::default(),
             lowering_functions: GrowableBitSet::new_empty(),
             internal_function_pointer_targets: GrowableBitSet::new_empty(),
+            internal_function_pointer_dispatchers: FxHashMap::default(),
             lowering_constructor: false,
             lowering_internal_function: false,
             revert_error_helper: None,
@@ -397,12 +402,6 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Track the current contract for using directive resolution.
         self.current_contract_id = Some(contract_id);
-        InternalFunctionPointerCollector {
-            gcx: self.gcx,
-            targets: &mut self.internal_function_pointer_targets,
-            skipped_direct_callee: None,
-        }
-        .collect_contract(contract_id);
 
         // Mark interfaces - they don't generate deployable bytecode.
         if contract.kind == hir::ContractKind::Interface {
@@ -1617,7 +1616,8 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Returns the completed module.
     #[must_use]
-    pub(crate) fn finish(self) -> Module {
+    pub(crate) fn finish(mut self) -> Module {
+        self.generate_internal_function_pointer_dispatchers();
         self.module
     }
 
@@ -1871,67 +1871,6 @@ pub fn contract_bytecode_dependencies(
 struct BytecodeDependencyCollector<'a, 'gcx> {
     gcx: Gcx<'gcx>,
     deps: &'a mut GrowableBitSet<ContractId>,
-}
-
-struct InternalFunctionPointerCollector<'a, 'gcx> {
-    gcx: Gcx<'gcx>,
-    targets: &'a mut GrowableBitSet<HirFunctionId>,
-    skipped_direct_callee: Option<hir::ExprId>,
-}
-
-impl<'gcx> InternalFunctionPointerCollector<'_, 'gcx> {
-    fn collect_contract(&mut self, contract_id: ContractId) {
-        let contract = self.gcx.hir.contract(contract_id);
-
-        for &base_id in contract.linearized_bases {
-            let base = self.gcx.hir.contract(base_id);
-
-            for var_id in base.variables() {
-                let ControlFlow::Continue(()) = self.visit_nested_var(var_id);
-            }
-
-            for func_id in base.all_functions() {
-                let ControlFlow::Continue(()) = self.visit_nested_function(func_id);
-            }
-        }
-    }
-}
-
-impl<'gcx> Visit<'gcx> for InternalFunctionPointerCollector<'_, 'gcx> {
-    type BreakValue = Never;
-
-    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
-        &self.gcx.hir
-    }
-
-    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
-        if let hir::ExprKind::Call(callee, ref args, opts) = expr.kind {
-            let saved_skip = self.skipped_direct_callee;
-            self.skipped_direct_callee = self.gcx.resolved_callee(callee.id).and_then(|resolved| {
-                matches!(resolved.res, hir::Res::Item(hir::ItemId::Function(_)))
-                    .then_some(callee.id)
-            });
-            self.visit_expr(callee)?;
-            self.skipped_direct_callee = saved_skip;
-            if let Some(opts) = opts {
-                for arg in opts.args {
-                    self.visit_expr(&arg.value)?;
-                }
-            }
-            return self.visit_call_args(args);
-        }
-
-        if self.skipped_direct_callee != Some(expr.id)
-            && matches!(expr.kind, hir::ExprKind::Ident(_) | hir::ExprKind::Member(..))
-            && let Some(TyKind::Fn(function)) = self.gcx.type_of_expr(expr.id).map(|ty| ty.kind)
-            && function.is_internal()
-            && let Some(function_id) = function.function_id
-        {
-            self.targets.insert(function_id);
-        }
-
-        self.walk_expr(expr)
-    }
 }
 
 impl<'a, 'gcx> BytecodeDependencyCollector<'a, 'gcx> {
