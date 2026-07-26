@@ -12,7 +12,10 @@ use crate::{
     },
     pass::MirPass,
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_sema::Gcx;
 
 /// Lowers logical slices to the word-based backend convention.
@@ -295,18 +298,18 @@ impl LowerSlicesCx {
             next_index += 1;
         }
 
-        for value in func.values.iter_mut() {
-            if let Value::Arg { index, ty } = value
+        let argument_values = argument_values(func);
+        for &value in &argument_values {
+            if let Value::Arg { index, ty } = func.value_mut(value)
                 && !matches!(ty, MirType::Slice(_))
             {
                 *index = physical_indices[*index as usize];
             }
         }
 
-        let slice_args: Vec<_> = func
-            .values
-            .iter_enumerated()
-            .filter_map(|(value, kind)| match kind {
+        let slice_args: Vec<_> = argument_values
+            .into_iter()
+            .filter_map(|value| match func.value(value) {
                 Value::Arg { index, ty: MirType::Slice(location) } => {
                     Some((value, *index, *location))
                 }
@@ -418,10 +421,9 @@ impl LowerSlicesCx {
         if func.selector.is_none() || func.blocks.is_empty() {
             return false;
         }
-        let slice_args: FxHashMap<_, _> = func
-            .values
-            .iter_enumerated()
-            .filter_map(|(value, kind)| match kind {
+        let slice_args: FxHashMap<_, _> = argument_values(func)
+            .into_iter()
+            .filter_map(|value| match func.value(value) {
                 Value::Arg { index, ty: MirType::Slice(SliceLocation::Calldata) } => {
                     Some((value, *index))
                 }
@@ -572,6 +574,27 @@ impl LowerSlicesCx {
         }
         true
     }
+}
+
+fn argument_values(func: &Function) -> Vec<ValueId> {
+    let mut arguments = DenseBitSet::new_empty(func.num_values());
+    for inst_id in func.instructions() {
+        for operand in func.inst(inst_id).kind.operands() {
+            if matches!(func.value(operand), Value::Arg { .. }) {
+                arguments.insert(operand);
+            }
+        }
+    }
+    for block in &func.blocks {
+        if let Some(terminator) = &block.terminator {
+            for operand in terminator.operands() {
+                if matches!(func.value(operand), Value::Arg { .. }) {
+                    arguments.insert(operand);
+                }
+            }
+        }
+    }
+    arguments.iter().collect()
 }
 
 impl LowerSlicesCx {

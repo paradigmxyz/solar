@@ -200,12 +200,12 @@ impl LoopCanonicalizer {
             incoming.push((preheader, preheader_value));
             self.stats.header_phis_rewritten += 1;
 
-            if let Value::Inst(phi_inst) = func.values[preheader_value]
-                && func.blocks[preheader].instructions.contains(&phi_inst)
+            if let Value::Inst(phi_inst) = func.value(preheader_value)
+                && func.blocks[preheader].instructions.contains(phi_inst)
                 && let Some(pos) = func.blocks[preheader]
                     .instructions
                     .iter()
-                    .position(|&existing| existing == phi_inst)
+                    .position(|&existing| existing == *phi_inst)
             {
                 let phi_inst = func.blocks[preheader].instructions.remove(pos);
                 func.blocks[preheader].instructions.insert(preheader_insert_pos, phi_inst);

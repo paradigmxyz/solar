@@ -590,9 +590,9 @@ impl AliasAnalysis {
         derived.insert(root);
         loop {
             let mut changed = false;
-            for (value_id, value) in func.values.iter_enumerated() {
-                let Value::Inst(inst_id) = value else { continue };
-                let propagates = match &func.inst(*inst_id).kind {
+            for inst_id in func.instructions() {
+                let Some(value_id) = func.inst_result_value(inst_id) else { continue };
+                let propagates = match &func.inst(inst_id).kind {
                     InstKind::Add(first, second)
                     | InstKind::Sub(first, second)
                     | InstKind::MakeSlice { ptr: first, len: second, .. } => {

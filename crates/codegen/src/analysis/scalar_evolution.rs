@@ -111,8 +111,22 @@ impl ScalarEvolution {
     #[must_use]
     pub(crate) fn analyze(func: &Function, loop_data: &Loop) -> Self {
         let mut analysis = Self::default();
-        for value in func.values.indices() {
-            let _ = analysis.affine_expr(func, loop_data, value);
+        for block_id in &loop_data.blocks {
+            let block = &func.blocks[block_id];
+            for &inst_id in &block.instructions {
+                let inst = func.inst(inst_id);
+                for operand in inst.kind.operands() {
+                    let _ = analysis.affine_expr(func, loop_data, operand);
+                }
+                if let Some(result) = func.inst_result_value(inst_id) {
+                    let _ = analysis.affine_expr(func, loop_data, result);
+                }
+            }
+            if let Some(terminator) = &block.terminator {
+                for operand in terminator.operands() {
+                    let _ = analysis.affine_expr(func, loop_data, operand);
+                }
+            }
         }
         analysis
     }

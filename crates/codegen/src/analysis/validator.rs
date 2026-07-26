@@ -6,11 +6,12 @@
 //!
 //! # Checks performed
 //!
-//! 1. **Defined-before-use**: every `ValueId` referenced as an operand has an entry in
-//!    `func.values`.
+//! 1. **Defined-before-use**: every `ValueId` referenced as an operand has an entry in the
+//!    function's value arena.
 //! 2. **Block reference validity**: every `BlockId` mentioned in a terminator or phi has an entry
 //!    in `func.blocks`.
-//! 3. **Single definition**: each `InstId` is referenced by at most one `Value::Inst` entry.
+//! 3. **Result consistency**: every value-producing instruction records a matching `Value::Inst`
+//!    entry.
 //! 4. **Terminator presence**: every block has a terminator.
 //! 5. **Predecessor back-link**: if A's terminator targets B, then B's `predecessors` contains A.
 //! 6. **Entry block has no predecessors**.
@@ -94,58 +95,13 @@ impl<'a> Validator<'a> {
 
     fn validate_function_body(&mut self, func: &Function) {
         let errors_before = self.error_count;
-        let num_values = func.values.len();
+        let num_values = func.num_values();
         let num_blocks = func.blocks.len();
         let num_insts = func.num_insts();
 
         if num_blocks == 0 {
             self.emit("function has no entry block");
             return;
-        }
-
-        // ----- Single-definition check -----
-        // Count how many Value entries claim to be the result of each InstId.
-        let mut inst_def_count: IndexVec<InstId, usize> = index_vec![0; num_insts];
-        let mut invalid_inst_def_count: FxHashMap<InstId, usize> = FxHashMap::default();
-        for (value_id, v) in func.values.iter_enumerated() {
-            if let Value::Inst(inst_id) = v {
-                if inst_id.index() < num_insts {
-                    inst_def_count[*inst_id] += 1;
-                    if func.inst_result_value(*inst_id) != Some(value_id) {
-                        self.emit(format_args!(
-                            "value v{} is not the recorded result of instruction inst{}",
-                            value_id.index(),
-                            inst_id.index()
-                        ));
-                    }
-                } else {
-                    *invalid_inst_def_count.entry(*inst_id).or_default() += 1;
-                }
-            }
-        }
-        for (inst_id, &count) in inst_def_count.iter_enumerated() {
-            if count > 1 {
-                self.emit(format_args!(
-                    "instruction inst{} is defined by {count} Value entries (must be 1)",
-                    inst_id.index()
-                ));
-            }
-            // Only value-producing instructions may have a result value.
-            if count != 0 && func.inst(inst_id).result_ty.is_none() {
-                self.emit(format_args!(
-                    "instruction inst{} (`{:?}`) has a result Value entry but no result type",
-                    inst_id.index(),
-                    func.inst(inst_id).kind
-                ));
-            }
-        }
-        for (inst_id, count) in invalid_inst_def_count {
-            if count > 1 {
-                self.emit(format_args!(
-                    "instruction inst{} is defined by {count} Value entries (must be 1)",
-                    inst_id.index()
-                ));
-            }
         }
 
         // ----- Walk every block -----
@@ -238,6 +194,51 @@ impl<'a> Validator<'a> {
                     continue;
                 }
                 let inst = func.inst(inst_id);
+
+                match (inst.result_ty, func.inst_result_value(inst_id)) {
+                    (Some(_), Some(result)) if result.index() >= num_values => {
+                        self.emit_at_inst(
+                            format_args!(
+                                "instruction result references undefined value v{} \
+                                 (only {num_values} values exist)",
+                                result.index()
+                            ),
+                            block_id,
+                            inst_id,
+                        );
+                    }
+                    (Some(_), Some(result)) => {
+                        if !matches!(func.value(result), Value::Inst(def) if *def == inst_id) {
+                            self.emit_at_inst(
+                                format_args!(
+                                    "instruction result v{} does not refer back to inst{}",
+                                    result.index(),
+                                    inst_id.index()
+                                ),
+                                block_id,
+                                inst_id,
+                            );
+                        }
+                    }
+                    (Some(_), None) => {
+                        self.emit_at_inst(
+                            "value-producing instruction has no result value",
+                            block_id,
+                            inst_id,
+                        );
+                    }
+                    (None, Some(result)) => {
+                        self.emit_at_inst(
+                            format_args!(
+                                "instruction records result v{} but has no result type",
+                                result.index()
+                            ),
+                            block_id,
+                            inst_id,
+                        );
+                    }
+                    (None, None) => {}
+                }
 
                 // Operand range check.
                 for op in inst.kind.operands() {
@@ -535,8 +536,25 @@ impl<'a> Validator<'a> {
                     ));
                 }
             }
-            for value in func.values.iter() {
-                if let Value::Undef(ty) = value
+            let mut operands = DenseBitSet::new_empty(func.num_values());
+            for inst_id in func.instructions() {
+                for operand in func.inst(inst_id).kind.operands() {
+                    if operand.index() < func.num_values() {
+                        operands.insert(operand);
+                    }
+                }
+            }
+            for block in &func.blocks {
+                if let Some(terminator) = &block.terminator {
+                    for operand in terminator.operands() {
+                        if operand.index() < func.num_values() {
+                            operands.insert(operand);
+                        }
+                    }
+                }
+            }
+            for value in operands.iter() {
+                if let Value::Undef(ty) = func.value(value)
                     && matches!(ty, crate::mir::MirType::MemoryObject(_))
                 {
                     self.emit(format_args!(

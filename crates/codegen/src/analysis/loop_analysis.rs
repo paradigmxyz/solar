@@ -253,7 +253,7 @@ impl LoopAnalyzer {
         phi_val: ValueId,
         step_val: ValueId,
     ) -> Option<InstId> {
-        if let Value::Inst(inst_id) = &func.values[step_val] {
+        if let Value::Inst(inst_id) = func.value(step_val) {
             let inst = func.inst(*inst_id);
             match &inst.kind {
                 InstKind::Add(a, b) if *a == phi_val || *b == phi_val => return Some(*inst_id),
@@ -279,7 +279,7 @@ impl LoopAnalyzer {
                 // constant (two's-complement negative); classify it as
                 // descending so trip-count and range reasoning bail out.
                 let descending = matches!(
-                    &func.values[step],
+                    func.value(step),
                     Value::Immediate(imm) if imm.as_u256().is_some_and(|v| v.bit(255))
                 );
                 Some((step, descending))
@@ -290,23 +290,25 @@ impl LoopAnalyzer {
     }
 
     fn find_invariant_instructions(&self, func: &Function, loop_info: &mut Loop) {
-        let mut invariant_values = DenseBitSet::new_empty(func.values.len());
-
-        for (value_id, value) in func.values.iter_enumerated() {
-            match value {
-                Value::Immediate(_) | Value::Arg { .. } => {
-                    invariant_values.insert(value_id);
-                }
-                Value::Inst(inst_id) => {
-                    let in_loop = loop_info
-                        .blocks
-                        .iter()
-                        .any(|block| func.blocks[block].instructions.contains(inst_id));
-                    if !in_loop {
-                        invariant_values.insert(value_id);
+        let mut invariant_values = DenseBitSet::new_empty(func.num_values());
+        let mut loop_insts = DenseBitSet::new_empty(func.num_insts());
+        for block in &loop_info.blocks {
+            for &inst_id in &func.blocks[block].instructions {
+                loop_insts.insert(inst_id);
+            }
+        }
+        for block in &loop_info.blocks {
+            for &inst_id in &func.blocks[block].instructions {
+                for operand in func.inst(inst_id).kind.operands() {
+                    if matches!(func.value(operand), Value::Immediate(_) | Value::Arg { .. })
+                        || matches!(
+                            func.value(operand),
+                            Value::Inst(def) if !loop_insts.contains(*def)
+                        )
+                    {
+                        invariant_values.insert(operand);
                     }
                 }
-                Value::Undef(_) | Value::Error(_) => {}
             }
         }
 
@@ -347,12 +349,12 @@ impl LoopAnalyzer {
 
         let iv = &loop_info.induction_vars[0];
 
-        let init = match &func.values[iv.init] {
+        let init = match func.value(iv.init) {
             Value::Immediate(imm) => imm.as_u256(),
             _ => return,
         };
 
-        let step = match &func.values[iv.step] {
+        let step = match func.value(iv.step) {
             Value::Immediate(imm) => imm.as_u256(),
             _ => return,
         };
@@ -417,13 +419,13 @@ impl LoopAnalyzer {
             if !loop_info.back_edges.iter().all(|&latch| self.dominates(block_id, latch)) {
                 continue;
             }
-            let Value::Inst(cond_inst) = &func.values[*condition] else { continue };
+            let Value::Inst(cond_inst) = func.value(*condition) else { continue };
             let imm = match &func.inst(*cond_inst).kind {
                 InstKind::Lt(a, b) if *a == iv_value => *b,
                 InstKind::Gt(a, b) if *b == iv_value => *a,
                 _ => continue,
             };
-            let Value::Immediate(imm) = &func.values[imm] else { continue };
+            let Value::Immediate(imm) = func.value(imm) else { continue };
             let Some(this_bound) = imm.as_u256() else { continue };
             match bound {
                 None => bound = Some((this_bound, block_id)),

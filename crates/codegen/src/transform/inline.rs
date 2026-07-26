@@ -727,6 +727,7 @@ struct InlineCloner<'a> {
     callee: &'a Function,
     frame_base: u64,
     callee_frame_prefix: u64,
+    args: Vec<ValueId>,
     value_map: FxHashMap<ValueId, ValueId>,
     block_map: FxHashMap<BlockId, BlockId>,
     return_edges: Vec<(BlockId, SmallVec<[ValueId; 2]>)>,
@@ -740,20 +741,13 @@ impl<'a> InlineCloner<'a> {
         callee_frame_prefix: u64,
         args: &[ValueId],
     ) -> Self {
-        let mut value_map = FxHashMap::default();
-        for (callee_value, value) in callee.values.iter_enumerated() {
-            if let Value::Arg { index, .. } = value
-                && let Some(&arg) = args.get(*index as usize)
-            {
-                value_map.insert(callee_value, arg);
-            }
-        }
         Self {
             caller,
             callee,
             frame_base,
             callee_frame_prefix,
-            value_map,
+            args: args.to_vec(),
+            value_map: FxHashMap::default(),
             block_map: FxHashMap::default(),
             return_edges: Vec::new(),
         }
@@ -798,11 +792,12 @@ impl<'a> InlineCloner<'a> {
             return Some(mapped);
         }
 
-        let cloned = match self.callee.values[value].clone() {
+        let cloned = match self.callee.value(value).clone() {
+            Value::Arg { index, .. } => *self.args.get(index as usize)?,
             Value::Immediate(imm) => self.caller.alloc_value(Value::Immediate(imm)),
             Value::Undef(ty) => self.caller.alloc_value(Value::Undef(ty)),
             Value::Error(guar) => self.caller.alloc_value(Value::Error(guar)),
-            Value::Arg { .. } | Value::Inst(_) => return None,
+            Value::Inst(_) => return None,
         };
         self.value_map.insert(value, cloned);
         Some(cloned)

@@ -5,7 +5,10 @@ use crate::{
     mir::{AllocationKind, Function, FunctionBuilder, InstKind, MirPhase, MirType, Module, Value},
     pass::MirPass,
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_sema::Gcx;
 
 /// Lowers semantic object layouts under the selected physical memory policy.
@@ -57,10 +60,19 @@ fn lower_function<P: MemoryLayoutPolicy>(
     func: &mut Function,
     stats: &mut LowerMemoryObjectsStats,
 ) -> bool {
+    let is_object_value = |value| match func.value(value) {
+        Value::Arg { ty, .. } | Value::Undef(ty) => is_object_type(ty),
+        Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => false,
+    };
     let has_objects = func.params.iter().chain(&func.returns).any(is_object_type)
-        || func.values.iter().any(|value| match value {
-            Value::Arg { ty, .. } | Value::Undef(ty) => is_object_type(ty),
-            Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => false,
+        || func
+            .instructions()
+            .any(|inst_id| func.inst(inst_id).kind.operands().into_iter().any(&is_object_value))
+        || func.blocks.iter().any(|block| {
+            block
+                .terminator
+                .as_ref()
+                .is_some_and(|terminator| terminator.operands().into_iter().any(&is_object_value))
         })
         || func.instructions().any(|inst_id| {
             let inst = func.inst(inst_id);
@@ -201,8 +213,21 @@ fn erase_object_types(func: &mut Function, stats: &mut LowerMemoryObjectsStats) 
     for ty in func.params.iter_mut().chain(&mut func.returns) {
         erase_object_type(ty, stats);
     }
-    for value in func.values.iter_mut() {
-        match value {
+    let mut operands = DenseBitSet::new_empty(func.num_values());
+    for inst_id in func.instructions() {
+        for operand in func.inst(inst_id).kind.operands() {
+            operands.insert(operand);
+        }
+    }
+    for block in &func.blocks {
+        if let Some(terminator) = &block.terminator {
+            for operand in terminator.operands() {
+                operands.insert(operand);
+            }
+        }
+    }
+    for value in operands.iter() {
+        match func.value_mut(value) {
             Value::Arg { ty, .. } | Value::Undef(ty) => erase_object_type(ty, stats),
             Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => {}
         }

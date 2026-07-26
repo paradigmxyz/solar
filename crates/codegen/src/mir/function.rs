@@ -33,8 +33,12 @@ pub(crate) struct Function {
     pub(crate) internal_frame_size: u64,
     /// Bytes reserved for the low-memory external ABI return buffer.
     pub(crate) external_static_return_size: u64,
-    /// All values in this function.
-    pub(crate) values: IndexVec<ValueId, Value>,
+    /// All values allocated in this function.
+    ///
+    /// Values remain allocated after their uses or defining instruction are removed, so this is
+    /// not an active value list. Use [`Self::value`] or [`Self::value_mut`] for ID-based access
+    /// and [`Self::num_values`] for the allocated ID-domain size.
+    values: IndexVec<ValueId, Value>,
     /// All instructions allocated in this function.
     ///
     /// Instructions remain allocated after removal from their block, so this is not the active
@@ -71,6 +75,18 @@ impl Function {
     #[must_use]
     pub(crate) fn value(&self, id: ValueId) -> &Value {
         &self.values[id]
+    }
+
+    /// Returns a mutable reference to the value for the given ID.
+    #[must_use]
+    pub(crate) fn value_mut(&mut self, id: ValueId) -> &mut Value {
+        &mut self.values[id]
+    }
+
+    /// Returns the size of the allocated value ID domain.
+    #[must_use]
+    pub(crate) fn num_values(&self) -> usize {
+        self.values.len()
     }
 
     /// Returns an immediate value as U256.
@@ -190,7 +206,7 @@ impl Function {
     /// Returns the result values produced by phi instructions in the block.
     #[must_use]
     pub(crate) fn block_phi_results(&self, block: BlockId) -> DenseBitSet<ValueId> {
-        let mut results = DenseBitSet::new_empty(self.values.len());
+        let mut results = DenseBitSet::new_empty(self.num_values());
         for &inst_id in &self.blocks[block].instructions {
             if matches!(self.instructions[inst_id].kind, InstKind::Phi(_))
                 && let Some(result) = self.inst_result_value(inst_id)

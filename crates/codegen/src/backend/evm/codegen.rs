@@ -121,14 +121,23 @@ impl GlobalStackPlan {
         }
 
         let mut entries = FxHashMap::default();
-        let args_by_index: FxHashMap<_, _> = func
-            .values
-            .iter_enumerated()
-            .filter_map(|(value, kind)| match kind {
-                crate::mir::Value::Arg { index, .. } => Some((*index, value)),
-                _ => None,
-            })
-            .collect();
+        let mut args_by_index = FxHashMap::default();
+        for inst_id in func.instructions() {
+            for value in func.inst(inst_id).kind.operands() {
+                if let crate::mir::Value::Arg { index, .. } = func.value(value) {
+                    args_by_index.insert(*index, value);
+                }
+            }
+        }
+        for block in &func.blocks {
+            if let Some(terminator) = &block.terminator {
+                for value in terminator.operands() {
+                    if let crate::mir::Value::Arg { index, .. } = func.value(value) {
+                        args_by_index.insert(*index, value);
+                    }
+                }
+            }
+        }
         if !(2..=GLOBAL_STACK_MAX_ARGS).contains(&args_by_index.len()) {
             return Self::default();
         }
@@ -1561,7 +1570,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let targets = [*then_block, *else_block];
-        let mut live_in_any_target = DenseBitSet::new_empty(func.values.len());
+        let mut live_in_any_target = DenseBitSet::new_empty(func.num_values());
         for target in targets {
             for value in liveness.live_in(target) {
                 live_in_any_target.insert(value);
@@ -1972,7 +1981,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn cross_block_spill_values(func: &Function, liveness: &Liveness) -> DenseBitSet<ValueId> {
-        let mut values = DenseBitSet::new_empty(func.values.len());
+        let mut values = DenseBitSet::new_empty(func.num_values());
         for block_id in func.blocks.indices() {
             for val in liveness.live_in(block_id).iter().chain(liveness.live_out(block_id).iter()) {
                 if matches!(func.value(val), crate::mir::Value::Inst(_)) {
@@ -2037,7 +2046,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         block_id: BlockId,
         exempt: &[ValueId],
     ) {
-        let mut exempt_values = DenseBitSet::new_empty(func.values.len());
+        let mut exempt_values = DenseBitSet::new_empty(func.num_values());
         for &value in exempt {
             exempt_values.insert(value);
         }
@@ -3849,7 +3858,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // The scheduler may allocate spill slots lazily while exposing deep stack values, not only
         // for values preallocated as cross-block live-ins/live-outs. Use this only when a body's
         // exact post-emission spill size is unavailable.
-        func.values.len() as u64 * 32
+        func.num_values() as u64 * 32
     }
 
     fn external_spill_base(func: &Function) -> u64 {

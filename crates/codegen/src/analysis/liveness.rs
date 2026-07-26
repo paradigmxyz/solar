@@ -56,7 +56,7 @@ impl Liveness {
     /// Computes liveness for a function.
     #[must_use]
     pub(crate) fn compute(func: &Function) -> Self {
-        let num_values = func.values.len();
+        let num_values = func.num_values();
         let num_blocks = func.blocks.len();
 
         // Initialize per-block liveness
@@ -180,21 +180,13 @@ impl Liveness {
 
     /// Computes the subset of liveness needed by codegen when every computed
     /// value is consumed in its defining block and the function has no
-    /// arguments. Returns `None` when the function needs full dataflow.
+    /// referenced arguments. Returns `None` when the function needs full dataflow.
     ///
     /// Immediate and undefined values are rematerializable, so they do not
     /// need live-in/live-out tracking. Instruction results still retain exact
     /// last-use information for stack scheduling.
     pub(crate) fn compute_block_local_for_codegen(func: &Function) -> Option<Self> {
-        let num_values = func.values.len();
-        for val in &func.values {
-            match val {
-                Value::Inst(_) => {}
-                Value::Arg { .. } => return None,
-                Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => {}
-            }
-        }
-
+        let num_values = func.num_values();
         let mut defining_blocks = index_vec![None; func.num_insts()];
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
@@ -584,6 +576,19 @@ mod tests {
 
         assert!(!liveness.live_in(entry).contains(_x), "unused param not live");
         assert!(liveness.live_in(entry).contains(y), "used param is live");
+    }
+
+    #[test]
+    fn block_local_codegen_ignores_unused_param() {
+        let mut func = make_func();
+        let mut b = FunctionBuilder::new(&mut func);
+        let _unused = b.add_param(MirType::uint256());
+        let one = b.imm_u64(1);
+        let two = b.imm_u64(2);
+        let sum = b.add(one, two);
+        b.ret([sum]);
+
+        assert!(Liveness::compute_block_local_for_codegen(&func).is_some());
     }
 
     #[test]

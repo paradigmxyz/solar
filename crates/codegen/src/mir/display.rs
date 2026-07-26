@@ -421,7 +421,7 @@ fn display_function_ref(
 }
 
 fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
-    fmt::from_fn(move |f| match &func.values[vid] {
+    fmt::from_fn(move |f| match func.value(vid) {
         Value::Immediate(imm) if let Some(u256) = imm.as_u256() => {
             write!(f, "{}", display_u256(u256))
         }
