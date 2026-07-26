@@ -310,6 +310,7 @@ pub(crate) fn run_function_pass_with_alias_filtered(
         let insts_before = func.num_insts();
         let func_changed = run(func, &alias);
         if func_changed {
+            #[cfg(debug_assertions)]
             debug_assert_eq!(edges_before, cfg_edges(func));
             let keep_alias = (insts_before..func.num_insts())
                 .map(InstId::from_usize)
