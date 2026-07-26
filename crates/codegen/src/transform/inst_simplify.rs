@@ -16,7 +16,7 @@ use crate::{
         Function, Immediate, InstId, InstKind, MirType, Module, Terminator, Value, ValueId,
         utils as mir_utils,
     },
-    pass::{MirPass, run_function_pass_no_analyses},
+    pass::{MirPass, run_function_pass},
     utils::evm_word,
 };
 use alloy_primitives::U256;
@@ -36,7 +36,7 @@ impl MirPass for InstSimplify {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass_no_analyses(module, analyses, |func| {
+        run_function_pass(module, analyses, |func, _| {
             InstSimplifier::new().run_to_fixpoint(func) != 0
         })
     }
