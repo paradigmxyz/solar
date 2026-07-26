@@ -1,11 +1,56 @@
 use crate::vfs::{self, VfsPath};
 use crop::Rope;
-use lsp_types::{DiagnosticSeverity, NumberOrString};
+use lsp_types::{
+    DiagnosticSeverity, InitializeParams, NumberOrString, ServerCapabilities, ServerInfo,
+    request::{Initialize as LspInitialize, Request},
+};
+use solar_config::version::SHORT_VERSION;
 use solar_interface::{
     CharPos, SourceMap, Span,
     diagnostics::{Diag, Level},
     source_map::SpanLoc,
 };
+
+#[derive(Debug)]
+pub(crate) enum Initialize {}
+
+impl Request for Initialize {
+    type Params = InitializeParams;
+    type Result = InitializeResponse;
+    const METHOD: &'static str = LspInitialize::METHOD;
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct InitializeResponse {
+    capabilities: AdvertisedServerCapabilities,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    server_info: Option<ServerInfo>,
+}
+
+impl InitializeResponse {
+    pub(crate) fn new(capabilities: ServerCapabilities) -> Self {
+        Self {
+            capabilities: AdvertisedServerCapabilities {
+                base: capabilities,
+                type_hierarchy_provider: true,
+            },
+            server_info: Some(ServerInfo {
+                name: "solar".into(),
+                version: Some(SHORT_VERSION.into()),
+            }),
+        }
+    }
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AdvertisedServerCapabilities {
+    #[serde(flatten)]
+    base: ServerCapabilities,
+    // The pinned lsp-types release omits this LSP 3.17 server capability.
+    type_hierarchy_provider: bool,
+}
 
 pub(crate) fn vfs_path(url: &lsp_types::Url) -> Option<vfs::VfsPath> {
     url.to_file_path().map(VfsPath::from).ok()

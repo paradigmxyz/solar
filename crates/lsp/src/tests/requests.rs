@@ -2,14 +2,20 @@ use super::*;
 use crate::{
     config::negotiate_capabilities,
     symbols::{SymbolTables, push_symbol_for_test as push},
+    test_support::{
+        type_hierarchy_prepare_params, type_hierarchy_subtypes_params,
+        type_hierarchy_supertypes_params,
+    },
 };
 use async_lsp::ClientSocket;
 use lsp_types::{
     DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
     DocumentSymbolClientCapabilities, DocumentSymbolResponse, InitializeParams,
     PartialResultParams, ReferenceContext, SymbolKind, TextDocumentClientCapabilities,
-    TextDocumentIdentifier, Url, WorkDoneProgressParams, WorkspaceSymbolResponse,
+    TextDocumentIdentifier, TypeHierarchyItem, Url, WorkDoneProgressParams,
+    WorkspaceSymbolResponse,
 };
+use serde_json::json;
 use std::{
     future::Future,
     sync::Arc,
@@ -129,6 +135,18 @@ fn semantic_requests_wait_for_latest_analysis() {
     assert_pending(prepare_rename(&mut state, position_params(uri.clone())));
     assert_pending(rename(&mut state, rename_params(uri.clone(), "renamed")));
     assert_pending(inlay_hints(&mut state, inlay_hint_params(uri)));
+    assert_pending(prepare_type_hierarchy(
+        &mut state,
+        type_hierarchy_prepare_params(file_uri("Test.sol"), Position::new(0, 0)),
+    ));
+    assert_pending(type_hierarchy_supertypes(
+        &mut state,
+        type_hierarchy_supertypes_params(type_hierarchy_item(file_uri("Test.sol"))),
+    ));
+    assert_pending(type_hierarchy_subtypes(
+        &mut state,
+        type_hierarchy_subtypes_params(type_hierarchy_item(file_uri("Test.sol"))),
+    ));
 }
 
 #[test]
@@ -146,6 +164,42 @@ fn semantic_requests_skip_analysis_for_non_file_uris() {
     assert_ready(prepare_rename(&mut state, position_params(uri.clone())));
     assert_ready(rename(&mut state, rename_params(uri.clone(), "renamed")));
     assert_ready(inlay_hints(&mut state, inlay_hint_params(uri)));
+    assert_ready(prepare_type_hierarchy(
+        &mut state,
+        type_hierarchy_prepare_params(parse_uri("untitled:Test.sol"), Position::new(0, 0)),
+    ));
+    assert_ready(type_hierarchy_supertypes(
+        &mut state,
+        type_hierarchy_supertypes_params(type_hierarchy_item(parse_uri("untitled:Test.sol"))),
+    ));
+    assert_ready(type_hierarchy_subtypes(
+        &mut state,
+        type_hierarchy_subtypes_params(type_hierarchy_item(parse_uri("untitled:Test.sol"))),
+    ));
+}
+
+#[test]
+fn type_hierarchy_requests_wait_using_the_top_level_item_uri() {
+    let file = file_uri("Test.sol");
+    let non_file = parse_uri("untitled:Test.sol");
+    let mut state = pending_analysis_state();
+
+    let file_item = type_hierarchy_item_with_data_uri(file, non_file.clone());
+    assert_pending(type_hierarchy_supertypes(
+        &mut state,
+        type_hierarchy_supertypes_params(file_item.clone()),
+    ));
+    assert_pending(type_hierarchy_subtypes(&mut state, type_hierarchy_subtypes_params(file_item)));
+
+    let non_file_item = type_hierarchy_item_with_data_uri(non_file, file_uri("Data.sol"));
+    assert_ready(type_hierarchy_supertypes(
+        &mut state,
+        type_hierarchy_supertypes_params(non_file_item.clone()),
+    ));
+    assert_ready(type_hierarchy_subtypes(
+        &mut state,
+        type_hierarchy_subtypes_params(non_file_item),
+    ));
 }
 
 #[test]
@@ -232,6 +286,28 @@ fn inlay_hint_params(uri: Url) -> InlayHintParams {
         text_document: TextDocumentIdentifier::new(uri),
         range: lsp_types::Range::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
         work_done_progress_params: WorkDoneProgressParams::default(),
+    }
+}
+
+fn type_hierarchy_item(uri: Url) -> TypeHierarchyItem {
+    type_hierarchy_item_with_data_uri(uri.clone(), uri)
+}
+
+fn type_hierarchy_item_with_data_uri(uri: Url, data_uri: Url) -> TypeHierarchyItem {
+    let range = lsp_types::Range::new(Position::new(0, 0), Position::new(0, 1));
+    TypeHierarchyItem {
+        name: "C".into(),
+        kind: SymbolKind::CLASS,
+        tags: None,
+        detail: None,
+        uri,
+        range,
+        selection_range: range,
+        data: Some(json!({
+            "version": 1,
+            "uri": data_uri,
+            "selectionRange": range,
+        })),
     }
 }
 

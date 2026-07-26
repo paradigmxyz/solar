@@ -42,6 +42,7 @@ mod selection_range;
 mod serde;
 mod signature_help;
 mod symbols;
+mod type_hierarchy;
 mod utils;
 mod vfs;
 mod workspace;
@@ -78,7 +79,7 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
 
     // Lifecycle
     router
-        .request::<req::Initialize, _>(GlobalState::on_initialize)
+        .request::<proto::Initialize, _>(GlobalState::on_initialize)
         .notification::<notif::Initialized>(GlobalState::on_initialized)
         .request::<req::Shutdown, _>(|_, _| std::future::ready(Ok(())))
         .notification::<notif::Exit>(|_, _| ControlFlow::Break(Ok(())));
@@ -102,6 +103,9 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
         .request::<req::InlayHintRequest, _>(handlers::inlay_hints)
         .request::<req::FoldingRangeRequest, _>(handlers::folding_range)
         .request::<req::SelectionRangeRequest, _>(handlers::selection_range)
+        .request::<req::TypeHierarchyPrepare, _>(handlers::prepare_type_hierarchy)
+        .request::<req::TypeHierarchySupertypes, _>(handlers::type_hierarchy_supertypes)
+        .request::<req::TypeHierarchySubtypes, _>(handlers::type_hierarchy_subtypes)
         .request::<req::Completion, _>(handlers::completion)
         .request::<req::DocumentDiagnosticRequest, _>(handlers::document_diagnostic)
         .request::<req::Formatting, _>(handlers::formatting);
@@ -171,7 +175,7 @@ mod tests {
         DocumentLinkParams, DocumentSymbolParams, ExecuteCommandParams, FileChangeType, FileEvent,
         FoldingRangeParams, FormattingOptions, HoverParams, InitializeParams, InitializedParams,
         NumberOrString, PartialResultParams, Position, ProgressParams, ProgressParamsValue,
-        PublishDiagnosticsParams, SelectionRangeParams, SignatureHelpParams,
+        PublishDiagnosticsParams, SelectionRangeParams, SignatureHelpParams, SymbolKind,
         TextDocumentIdentifier, TextDocumentPositionParams, TextDocumentSaveReason,
         WillSaveTextDocumentParams, WindowClientCapabilities, WorkDoneProgress,
         WorkDoneProgressCancelParams, WorkDoneProgressCreateParams, WorkDoneProgressParams,
@@ -491,6 +495,47 @@ mod tests {
         let response = router.call(request).await.unwrap();
 
         assert_eq!(response, serde_json::Value::Null);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_type_hierarchy_requests() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let uri = lsp_types::Url::parse("untitled:Test.sol").unwrap();
+        let item = serde_json::json!({
+            "name": "C",
+            "kind": SymbolKind::CLASS,
+            "uri": uri,
+            "range": {
+                "start": { "line": 0, "character": 0 },
+                "end": { "line": 0, "character": 1 },
+            },
+            "selectionRange": {
+                "start": { "line": 0, "character": 0 },
+                "end": { "line": 0, "character": 1 },
+            },
+        });
+        let requests = [
+            (
+                request::TypeHierarchyPrepare::METHOD,
+                serde_json::json!({
+                    "textDocument": { "uri": uri },
+                    "position": { "line": 0, "character": 0 },
+                }),
+            ),
+            (request::TypeHierarchySupertypes::METHOD, serde_json::json!({ "item": item })),
+            (request::TypeHierarchySubtypes::METHOD, serde_json::json!({ "item": item })),
+        ];
+
+        for (id, (method, params)) in requests.into_iter().enumerate() {
+            let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+                "id": id,
+                "method": method,
+                "params": params,
+            }))
+            .unwrap();
+            let response = router.call(request).await.unwrap();
+            assert_eq!(response, serde_json::Value::Null, "request `{method}`");
+        }
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -884,6 +929,23 @@ mod tests {
             assert!(server_task.await.unwrap().is_ok());
             assert!(matches!(client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
         });
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn initialize_advertises_type_hierarchy_statically() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 1,
+            "method": request::Initialize::METHOD,
+            "params": InitializeParams::default(),
+        }))
+        .unwrap();
+
+        let response = router.call(request).await.unwrap();
+
+        assert_eq!(response["capabilities"]["typeHierarchyProvider"], true);
+        assert_eq!(response["capabilities"]["hoverProvider"], true);
+        assert_eq!(response["serverInfo"]["name"], "solar");
     }
 
     #[tokio::test(flavor = "current_thread")]

@@ -40,6 +40,7 @@ mod selection_range;
 mod signature_help;
 mod support;
 mod type_definition;
+mod type_hierarchy;
 
 const ASYNC_TEST_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -150,6 +151,81 @@ fn snapshot_with_config(config: Config, vfs: Vfs) -> GlobalStateSnapshot {
         symbol_tables: Arc::new(Default::default()),
         diagnostics: Arc::new(Default::default()),
     }
+}
+
+#[test]
+fn analysis_result_accumulator_finishes_empty() {
+    let result = AnalysisResultAccumulator::default().finish();
+
+    assert!(result.diagnostics.is_empty());
+    assert!(result.symbol_tables.workspace_symbols("").is_empty());
+}
+
+#[test]
+fn analysis_result_accumulator_preserves_single_batch_indexes() {
+    let mut batch = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(std::env::temp_dir().join("One.sol"), "contract One {}".into())],
+    ));
+    let uri = diagnostic_uri();
+    batch.diagnostics.insert(uri.clone(), vec![diagnostic("one")]);
+    let mut results = AnalysisResultAccumulator::default();
+
+    results.push(batch);
+    let result = results.finish();
+
+    assert_eq!(
+        result.diagnostics[&uri]
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>(),
+        ["one"]
+    );
+    assert_eq!(
+        result
+            .symbol_tables
+            .workspace_symbols("")
+            .into_iter()
+            .map(|symbol| symbol.name)
+            .collect::<Vec<_>>(),
+        vec!["One".to_owned()]
+    );
+}
+
+#[test]
+fn analysis_result_accumulator_merges_multiple_batches() {
+    let mut first = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(std::env::temp_dir().join("One.sol"), "contract One {}".into())],
+    ));
+    let mut second = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(std::env::temp_dir().join("Two.sol"), "contract Two {}".into())],
+    ));
+    let uri = diagnostic_uri();
+    first.diagnostics.insert(uri.clone(), vec![diagnostic("first")]);
+    second.diagnostics.insert(uri.clone(), vec![diagnostic("second")]);
+    let mut results = AnalysisResultAccumulator::default();
+
+    results.push(first);
+    results.push(second);
+    let result = results.finish();
+
+    assert_eq!(
+        result.diagnostics[&uri]
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>(),
+        ["first", "second"]
+    );
+    let mut names = result
+        .symbol_tables
+        .workspace_symbols("")
+        .into_iter()
+        .map(|symbol| symbol.name)
+        .collect::<Vec<_>>();
+    names.sort_unstable();
+    assert_eq!(names, vec!["One".to_owned(), "Two".to_owned()]);
 }
 
 #[test]
@@ -1577,12 +1653,13 @@ fn goto_implementation_finds_unopened_naked_workspace_files() {
         "#,
     );
     let snapshot = snapshot(marked.project());
-    let mut symbol_tables = SymbolTables::default();
+    let mut results = AnalysisResultAccumulator::default();
     for batch in snapshot.analysis_batches(Vec::new()) {
         let result = analyze(batch);
         assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
-        symbol_tables.extend(result.symbol_tables);
+        results.push(result);
     }
+    let symbol_tables = results.finish().symbol_tables;
 
     let marker = marked.marker("$1");
     let uri = Url::from_file_path(marked.project().path(marker.path())).unwrap();

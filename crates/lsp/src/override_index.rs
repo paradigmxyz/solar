@@ -31,13 +31,10 @@ impl OverrideFamilyIndex {
 
     pub(crate) fn extend(&mut self, other: Self, symbol_offset: usize) {
         self.edges.extend(other.edges.into_iter().map(|(derived, base)| {
-            (remap_symbol_id(derived, symbol_offset), remap_symbol_id(base, symbol_offset))
+            (derived.offset_by(symbol_offset), base.offset_by(symbol_offset))
         }));
         self.overridable.extend(
-            other
-                .overridable
-                .into_iter()
-                .map(|symbol_id| remap_symbol_id(symbol_id, symbol_offset)),
+            other.overridable.into_iter().map(|symbol_id| symbol_id.offset_by(symbol_offset)),
         );
         self.families.clear();
         self.canonical.clear();
@@ -132,10 +129,6 @@ impl OverrideFamilyIndex {
         }
         descendants.iter().collect()
     }
-}
-
-fn remap_symbol_id(symbol_id: SymbolId, offset: usize) -> SymbolId {
-    SymbolId::from_usize(symbol_id.index() + offset)
 }
 
 fn find(parents: &mut IndexVec<SymbolId, SymbolId>, index: SymbolId) -> SymbolId {

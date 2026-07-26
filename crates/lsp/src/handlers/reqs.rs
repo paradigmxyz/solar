@@ -18,8 +18,9 @@ use lsp_types::{
     PrepareRenameResponse, ReferenceParams, RelatedFullDocumentDiagnosticReport,
     RelatedUnchangedDocumentDiagnosticReport, RenameParams, SelectionRange, SelectionRangeParams,
     SignatureHelp, SignatureHelpParams, TextDocumentEdit, TextDocumentPositionParams, TextEdit,
-    UnchangedDocumentDiagnosticReport, Url, WorkspaceEdit, WorkspaceSymbolParams,
-    WorkspaceSymbolResponse, request::GotoImplementationParams,
+    TypeHierarchyItem, TypeHierarchyPrepareParams, TypeHierarchySubtypesParams,
+    TypeHierarchySupertypesParams, UnchangedDocumentDiagnosticReport, Url, WorkspaceEdit,
+    WorkspaceSymbolParams, WorkspaceSymbolResponse, request::GotoImplementationParams,
 };
 use solar_interface::{data_structures::sync::RwLock, source_map::SourceMap};
 use solar_parse::lexer::is_ident;
@@ -311,6 +312,47 @@ pub(crate) fn workspace_symbol(
 ) -> impl Future<Output = Result<Option<WorkspaceSymbolResponse>, ResponseError>> + use<> {
     let symbols = state.symbol_tables.read().workspace_symbols(&params.query);
     ready(Ok(Some(WorkspaceSymbolResponse::Nested(symbols))))
+}
+
+pub(crate) fn prepare_type_hierarchy(
+    state: &mut GlobalState,
+    params: TypeHierarchyPrepareParams,
+) -> impl Future<Output = Result<Option<Vec<TypeHierarchyItem>>, ResponseError>> + use<> {
+    let params = params.text_document_position_params;
+    let uri = params.text_document.uri;
+    let latest_analysis = latest_analysis_for_uri(state, &uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response = symbol_tables.read().prepare_type_hierarchy(&uri, params.position);
+        Ok(response)
+    }
+}
+
+pub(crate) fn type_hierarchy_supertypes(
+    state: &mut GlobalState,
+    params: TypeHierarchySupertypesParams,
+) -> impl Future<Output = Result<Option<Vec<TypeHierarchyItem>>, ResponseError>> + use<> {
+    let latest_analysis = latest_analysis_for_uri(state, &params.item.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response = symbol_tables.read().type_hierarchy_supertypes(&params.item);
+        Ok(response)
+    }
+}
+
+pub(crate) fn type_hierarchy_subtypes(
+    state: &mut GlobalState,
+    params: TypeHierarchySubtypesParams,
+) -> impl Future<Output = Result<Option<Vec<TypeHierarchyItem>>, ResponseError>> + use<> {
+    let latest_analysis = latest_analysis_for_uri(state, &params.item.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response = symbol_tables.read().type_hierarchy_subtypes(&params.item);
+        Ok(response)
+    }
 }
 
 pub(crate) fn goto_definition(
