@@ -1,0 +1,40 @@
+//@compile-flags: --pass cfg-simplify
+//@filecheck:
+@module CfgDedupTailCalls
+
+fn @target_a() {
+  bb0:
+    stop
+}
+
+fn @target_b() {
+  bb0:
+    stop
+}
+
+// Tail calls with different targets must NOT merge.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_targets{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
+// CHECK: {{^[ +].*}}tail_call @target_a
+// CHECK: {{^[ +].*}}tail_call @target_b
+fn @keep_distinct_targets(arg0: bool) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    tail_call fn0
+  bb2:
+    tail_call fn1
+}
+
+// Tail calls with the same target still merge.
+// CHECK-LABEL: {{^[ +].*}}fn @dedup_same_target{{[( ]}}
+// CHECK: - jumpi arg0, bb1, bb2
+// CHECK: {{^[ +].*}}tail_call @target_a
+fn @dedup_same_target(arg0: bool) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    tail_call fn0
+  bb2:
+    tail_call fn0
+}
