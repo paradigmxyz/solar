@@ -92,7 +92,7 @@ impl MirPass for Cse {
                     None => CommonSubexprEliminator::default(),
                 };
                 eliminator.cfg = Some(Rc::clone(&analyses.cfg));
-                eliminator.run_to_fixpoint(func) != 0
+                eliminator.run(func) != 0
             },
         );
         analyses.clear_call_summaries();
@@ -282,8 +282,7 @@ impl CommonSubexprEliminator {
         self.eliminated_count
     }
 
-    /// Runs CSE iteratively until no more changes.
-    fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+    fn run(&mut self, func: &mut Function) -> usize {
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
         self.run_with_cfg(func, &cfg)
     }
