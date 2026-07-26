@@ -155,8 +155,23 @@ impl InstSimplifier {
 
     /// Runs instruction simplification until no more changes are found.
     fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+        let mut total = 0;
         let mut state = RunState::new(func);
-        self.run_with_state(func, &mut state)
+        for round in 1.. {
+            let simplified = self.run_with_state(func, &mut state);
+            tracing::trace!(
+                target: "solar::codegen::mir::inst_simplify",
+                function = %func.name,
+                round,
+                simplified,
+                "mir_inst_simplify_round"
+            );
+            if simplified == 0 {
+                break;
+            }
+            total += simplified;
+        }
+        total
     }
 
     fn rewrite_inst(
