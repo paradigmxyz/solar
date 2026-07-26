@@ -912,24 +912,11 @@ impl<'gcx> Lowerer<'gcx> {
             }
             Builtin::AbiEncodeWithSignature => {
                 let exprs = self.collect_builtin_args(builtin, args)?;
-                if let hir::ExprKind::Lit(lit) = &exprs[0].kind
-                    && let solar_ast::LitKind::Str(_, sig, _) = &lit.kind
-                {
-                    let hash = alloy_primitives::keccak256(sig.as_byte_str());
-                    let selector =
-                        U256::from(u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]])) << 224;
-                    let selector = builder.imm_u256(selector);
-                    let (data, len) =
-                        self.abi_encode_call_payload(builder, Some(selector), &exprs[1..])?;
-                    let slice = builder.make_slice(data, len, crate::mir::SliceLocation::Memory);
-                    return Ok(self.materialize_memory_slice_bytes(builder, slice));
-                }
-                Err(self
-                    .gcx
-                    .dcx()
-                    .err("codegen requires a literal `abi.encodeWithSignature` signature")
-                    .span(exprs[0].span)
-                    .emit())
+                let selector = self.lower_signature_selector(builder, exprs[0]);
+                let (data, len) =
+                    self.abi_encode_call_payload(builder, Some(selector), &exprs[1..])?;
+                let slice = builder.make_slice(data, len, crate::mir::SliceLocation::Memory);
+                Ok(self.materialize_memory_slice_bytes(builder, slice))
             }
             Builtin::AbiEncodeCall => {
                 // `abi.encodeCall(F, (args))` as a `bytes memory` value.

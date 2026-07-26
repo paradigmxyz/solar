@@ -941,16 +941,8 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 sym::encodeWithSignature => {
                     let exprs = self.collect_builtin_args(Builtin::AbiEncodeWithSignature, args)?;
-                    if let ExprKind::Lit(lit) = &exprs[0].kind
-                        && let LitKind::Str(_, sig, _) = &lit.kind
-                    {
-                        let hash = keccak256(sig.as_byte_str());
-                        let selector =
-                            U256::from(u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]]))
-                                << 224;
-                        let selector = builder.imm_u256(selector);
-                        return self.abi_encode_call_payload(builder, Some(selector), &exprs[1..]);
-                    }
+                    let selector = self.lower_signature_selector(builder, exprs[0]);
+                    return self.abi_encode_call_payload(builder, Some(selector), &exprs[1..]);
                 }
                 sym::encodeCall => {
                     return self.abi_encode_call_from_args(builder, args);
@@ -996,6 +988,49 @@ impl<'gcx> Lowerer<'gcx> {
             .span(expr.span)
             .emit();
         Err(guar)
+    }
+
+    /// The left-aligned selector word for an `abi.encodeWithSignature`
+    /// signature.
+    ///
+    /// A string literal hashes at compile time. A conditional between
+    /// signatures resolves each side and selects between the two constants,
+    /// which keeps the common `cond ? "f(uint256)" : "g(uint256)"` free of a
+    /// runtime hash. Any other string is hashed at runtime and truncated to its
+    /// leading four bytes.
+    pub(super) fn lower_signature_selector(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        sig_expr: &hir::Expr<'_>,
+    ) -> ValueId {
+        if let ExprKind::Lit(lit) = &sig_expr.kind
+            && let LitKind::Str(_, sig, _) = &lit.kind
+        {
+            let hash = keccak256(sig.as_byte_str());
+            let selector =
+                U256::from(u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]])) << 224;
+            return builder.imm_u256(selector);
+        }
+
+        if let ExprKind::Ternary(cond, then_expr, else_expr) = &sig_expr.kind {
+            let cond = self.lower_value_expr(builder, cond);
+            let then_selector = self.lower_signature_selector(builder, then_expr);
+            let else_selector = self.lower_signature_selector(builder, else_expr);
+            return builder.select(cond, then_selector, else_selector);
+        }
+
+        // A signature only known at runtime: hash the string's bytes and keep
+        // the leading four, which occupy the word's high bytes.
+        let hash = match self.keccak_dynamic_bytes(builder, sig_expr) {
+            Some(hash) => hash,
+            None => {
+                let ptr = self.lower_expr_as_memory_bytes(builder, sig_expr);
+                builder.keccak256_bytes(ptr)
+            }
+        };
+        let shift = builder.imm_u64(224);
+        let truncated = builder.shr(shift, hash);
+        builder.shl(shift, truncated)
     }
 
     /// Looks through a `bytes(x)` / `string(x)` conversion to the underlying
