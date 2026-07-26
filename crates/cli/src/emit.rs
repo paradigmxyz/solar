@@ -38,43 +38,20 @@ struct CombinedJsonContract<'a> {
 
 pub(crate) fn emit_requested(
     compiler: &mut CompilerRef<'_>,
-    bytecode_contracts: ContractSelection<Vec<ContractId>>,
+    mut bytecode_contracts: ContractSelection,
 ) -> Result<Option<FxHashMap<ContractId, ContractArtifact>>> {
     let gcx = compiler.gcx();
     dump_mir(gcx)?;
 
     let dump_contracts = evm_ir_dump_contracts(gcx)?;
 
-    let mut selected_contracts = Vec::new();
-    let mut all_contracts = false;
-    match bytecode_contracts {
-        ContractSelection::Specific(contracts) => selected_contracts.extend(contracts),
-        ContractSelection::All => all_contracts = true,
-    }
     if let Some(dump_contracts) = &dump_contracts {
-        match dump_contracts {
-            ContractSelection::Specific(contracts) => {
-                selected_contracts.extend(contracts.iter().copied())
-            }
-            ContractSelection::All => all_contracts = true,
-        }
+        bytecode_contracts.union_with(dump_contracts);
     }
 
-    let no_contracts: &[ContractId] = &[];
-    let capture_evm_ir = match dump_contracts.as_ref() {
-        Some(ContractSelection::Specific(contracts)) => {
-            ContractSelection::Specific(contracts.iter().copied())
-        }
-        Some(ContractSelection::All) => ContractSelection::All,
-        None => ContractSelection::Specific(no_contracts.iter().copied()),
-    };
-    let generate_bytecode =
-        all_contracts || !selected_contracts.is_empty() || dump_contracts.is_some();
-    let bytecode_contracts = if all_contracts {
-        ContractSelection::All
-    } else {
-        ContractSelection::Specific(selected_contracts)
-    };
+    let no_contracts = ContractSelection::Specific(Vec::new());
+    let capture_evm_ir = dump_contracts.as_ref().unwrap_or(&no_contracts);
+    let generate_bytecode = !bytecode_contracts.is_empty() || dump_contracts.is_some();
     let artifacts = if generate_bytecode {
         Some(generate_contract_bytecodes(gcx, bytecode_contracts, capture_evm_ir)?)
     } else {
@@ -210,10 +187,7 @@ fn contract_dump_path_matches(gcx: Gcx<'_>, id: ContractId, path: &str) -> bool 
     path == gcx.contract_fully_qualified_name(id).to_string().replace('\\', "/")
 }
 
-fn matching_dump_contracts(
-    gcx: Gcx<'_>,
-    dump: &Dump,
-) -> Result<ContractSelection<Vec<ContractId>>> {
+fn matching_dump_contracts(gcx: Gcx<'_>, dump: &Dump) -> Result<ContractSelection> {
     let Some(paths) = dump.paths.as_deref() else {
         return Ok(ContractSelection::All);
     };
@@ -269,7 +243,7 @@ fn available_dump_contracts(gcx: Gcx<'_>) -> String {
         .join(", ")
 }
 
-fn evm_ir_dump_contracts(gcx: Gcx<'_>) -> Result<Option<ContractSelection<Vec<ContractId>>>> {
+fn evm_ir_dump_contracts(gcx: Gcx<'_>) -> Result<Option<ContractSelection>> {
     let Some(dump) = &gcx.sess.opts.unstable.dump else { return Ok(None) };
     if !dump.kinds.contains(&DumpKind::EvmIr) && !dump.kinds.contains(&DumpKind::EvmIrRuntime) {
         return Ok(None);
@@ -277,14 +251,11 @@ fn evm_ir_dump_contracts(gcx: Gcx<'_>) -> Result<Option<ContractSelection<Vec<Co
     matching_dump_contracts(gcx, dump).map(Some)
 }
 
-fn dump_evm_ir<T>(
+fn dump_evm_ir(
     gcx: Gcx<'_>,
-    contracts: ContractSelection<T>,
+    contracts: ContractSelection,
     artifacts: &FxHashMap<ContractId, ContractArtifact>,
-) -> Result
-where
-    T: IntoIterator<Item = ContractId>,
-{
+) -> Result {
     let sess = gcx.sess;
     let dump = sess.opts.unstable.dump.as_ref().expect("dump options should be present");
     let mut writer = out_writer(None)

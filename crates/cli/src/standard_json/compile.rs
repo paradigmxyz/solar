@@ -384,7 +384,7 @@ fn make_contract_output(
 fn requested_bytecode_contracts(
     gcx: solar_sema::Gcx<'_>,
     output_selection: &OutputSelection<'_>,
-) -> ContractSelection<Vec<ContractId>> {
+) -> ContractSelection {
     let bytecode_outputs =
         OutputSelectionFlags::BYTECODE_OBJECT | OutputSelectionFlags::DEPLOYED_BYTECODE_OBJECT;
     if output_selection.contract("*", "*").intersects(bytecode_outputs) {

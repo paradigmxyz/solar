@@ -25,23 +25,17 @@ pub struct ContractArtifact {
 }
 
 /// A contract selection.
-#[derive(Clone, Copy, Debug)]
-pub enum ContractSelection<T> {
+#[derive(Clone, Debug)]
+pub enum ContractSelection {
     /// Generate only the listed contracts and their dependencies.
-    Specific(T),
+    Specific(Vec<ContractId>),
     /// Generate every deployable contract.
     All,
 }
 
-impl<T> ContractSelection<T>
-where
-    T: IntoIterator<Item = ContractId>,
-{
+impl ContractSelection {
     /// Returns the specific contracts or every deployable contract.
-    pub fn into_iter<'gcx>(
-        self,
-        gcx: Gcx<'gcx>,
-    ) -> impl Iterator<Item = ContractId> + use<'gcx, T> {
+    pub fn into_iter<'gcx>(self, gcx: Gcx<'gcx>) -> impl Iterator<Item = ContractId> + use<'gcx> {
         match self {
             Self::Specific(contracts) => Either::Left(contracts.into_iter()),
             Self::All => Either::Right(gcx.hir.contract_ids().filter(move |&contract_id| {
@@ -50,42 +44,45 @@ where
             })),
         }
     }
+
+    /// Adds another selection to this one.
+    pub fn union_with(&mut self, other: &Self) {
+        match other {
+            Self::Specific(other) => {
+                if let Self::Specific(contracts) = self {
+                    contracts.extend_from_slice(other);
+                }
+            }
+            Self::All => *self = Self::All,
+        }
+    }
+
+    /// Returns whether no contracts are selected.
+    pub fn is_empty(&self) -> bool {
+        matches!(self, Self::Specific(contracts) if contracts.is_empty())
+    }
+
+    /// Returns whether `contract_id` is selected.
+    fn contains(&self, contract_id: ContractId) -> bool {
+        match self {
+            Self::Specific(contracts) => contracts.contains(&contract_id),
+            Self::All => true,
+        }
+    }
 }
 
 /// Generates bytecode for selected contracts and their creation-bytecode dependencies.
 ///
 /// Contracts in `capture_evm_ir` retain their final EVM IR in the returned artifact.
-pub fn generate_contract_bytecodes<T, U>(
+pub fn generate_contract_bytecodes(
     gcx: Gcx<'_>,
-    contracts: ContractSelection<T>,
-    capture_evm_ir: ContractSelection<U>,
-) -> Result<FxHashMap<ContractId, ContractArtifact>>
-where
-    T: IntoIterator<Item = ContractId>,
-    U: IntoIterator<Item = ContractId>,
-{
-    let mut capture_evm_ir_set = DenseBitSet::new_empty(gcx.hir.contract_ids().len());
-    let capture_all_evm_ir = match capture_evm_ir {
-        ContractSelection::Specific(contracts) => {
-            for contract_id in contracts {
-                capture_evm_ir_set.insert(contract_id);
-            }
-            false
-        }
-        ContractSelection::All => true,
-    };
-
+    contracts: ContractSelection,
+    capture_evm_ir: &ContractSelection,
+) -> Result<FxHashMap<ContractId, ContractArtifact>> {
     let mut artifacts = FxHashMap::default();
     let mut visiting = DenseBitSet::new_empty(gcx.hir.contract_ids().len());
     for contract_id in contracts.into_iter(gcx) {
-        ensure_contract_bytecode(
-            gcx,
-            contract_id,
-            capture_all_evm_ir,
-            &capture_evm_ir_set,
-            &mut artifacts,
-            &mut visiting,
-        )?;
+        ensure_contract_bytecode(gcx, contract_id, capture_evm_ir, &mut artifacts, &mut visiting)?;
     }
     Ok(artifacts)
 }
@@ -93,8 +90,7 @@ where
 fn ensure_contract_bytecode(
     gcx: Gcx<'_>,
     contract_id: ContractId,
-    capture_all_evm_ir: bool,
-    capture_evm_ir: &DenseBitSet<ContractId>,
+    capture_evm_ir: &ContractSelection,
     artifacts: &mut FxHashMap<ContractId, ContractArtifact>,
     visiting: &mut DenseBitSet<ContractId>,
 ) -> Result {
@@ -121,14 +117,7 @@ fn ensure_contract_bytecode(
 
     let dependencies = contract_bytecode_dependencies(gcx, contract_id);
     for dependency in &dependencies {
-        ensure_contract_bytecode(
-            gcx,
-            dependency,
-            capture_all_evm_ir,
-            capture_evm_ir,
-            artifacts,
-            visiting,
-        )?;
+        ensure_contract_bytecode(gcx, dependency, capture_evm_ir, artifacts, visiting)?;
     }
 
     let child_bytecodes = dependencies
@@ -146,7 +135,7 @@ fn ensure_contract_bytecode(
     gcx.dcx().has_errors()?;
 
     let mut codegen = EvmCodegen::new(gcx);
-    codegen.set_capture_evm_ir(capture_all_evm_ir || capture_evm_ir.contains(contract_id));
+    codegen.set_capture_evm_ir(capture_evm_ir.contains(contract_id));
     let artifact = codegen.lower_module(&mut module);
     gcx.dcx().has_errors()?;
 
