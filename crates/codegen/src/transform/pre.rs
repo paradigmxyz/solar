@@ -370,11 +370,9 @@ impl PartialRedundancyEliminator {
                 }
                 _ => split_edge(func, pred, target),
             };
-            let new_inst = func.alloc_inst(Instruction {
-                kind,
-                result_ty: Some(result_ty),
-                metadata: metadata.clone(),
-            });
+            let mut instruction = Instruction::new(kind, Some(result_ty));
+            instruction.metadata = metadata.clone();
+            let new_inst = func.alloc_inst(instruction);
             let value = func.alloc_value(Value::Inst(new_inst));
             func.blocks[block].instructions.push(new_inst);
             incoming.push((block, value));

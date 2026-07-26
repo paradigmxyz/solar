@@ -141,10 +141,7 @@ impl Function {
     /// Returns the value produced by the given instruction, if it has one.
     #[must_use]
     pub(crate) fn inst_result_value(&self, id: InstId) -> Option<ValueId> {
-        self.values
-            .iter_enumerated()
-            .find(|(_, value)| matches!(value, Value::Inst(inst) if *inst == id))
-            .map(|(value_id, _)| value_id)
+        self.instructions[id].result()
     }
 
     /// Returns a map from each instruction to its result value.
@@ -152,9 +149,9 @@ impl Function {
     pub(crate) fn inst_results(&self) -> FxHashMap<InstId, ValueId> {
         let mut results =
             FxHashMap::with_capacity_and_hasher(self.instructions.len(), Default::default());
-        for (value_id, value) in self.values.iter_enumerated() {
-            if let Value::Inst(inst_id) = value {
-                results.insert(*inst_id, value_id);
+        for (inst_id, instruction) in self.instructions.iter_enumerated() {
+            if let Some(value_id) = instruction.result() {
+                results.insert(inst_id, value_id);
             }
         }
         results
@@ -230,11 +227,37 @@ impl Function {
 
     /// Allocates a new value.
     pub(crate) fn alloc_value(&mut self, value: Value) -> ValueId {
-        self.values.push(value)
+        let result = match &value {
+            Value::Inst(inst) => Some(*inst),
+            _ => None,
+        };
+        let value = self.values.push(value);
+        if let Some(inst) = result {
+            let previous = self.instructions[inst].set_result(Some(value));
+            assert!(previous.is_none(), "instruction cannot have multiple result values");
+        }
+        value
+    }
+
+    /// Replaces an allocated value and updates its instruction-result mapping.
+    pub(crate) fn set_value(&mut self, id: ValueId, value: Value) {
+        if let Value::Inst(inst) = self.values[id] {
+            self.instructions[inst].set_result(None);
+        }
+        let result = match &value {
+            Value::Inst(inst) => Some(*inst),
+            _ => None,
+        };
+        self.values[id] = value;
+        if let Some(inst) = result {
+            let previous = self.instructions[inst].set_result(Some(id));
+            assert!(previous.is_none(), "instruction cannot have multiple result values");
+        }
     }
 
     /// Allocates a new instruction.
-    pub(crate) fn alloc_inst(&mut self, inst: Instruction) -> InstId {
+    pub(crate) fn alloc_inst(&mut self, mut inst: Instruction) -> InstId {
+        inst.set_result(None);
         self.instructions.push(inst)
     }
 
