@@ -843,7 +843,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // First generate the runtime code
         let mut runtime_code = self.generate_runtime_code(module);
         if let Some(evm_ir) = &mut runtime_code.evm_ir {
-            evm_ir.set_name("runtime");
+            evm_ir.set_name(sym::runtime);
         }
         let runtime_len = runtime_code.bytecode.len();
         let immutable_refs = std::mem::take(&mut self.runtime_immutable_refs);
@@ -901,26 +901,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         // PUSH<n> copy_base     ; memory offset
         // RETURN                ; return the runtime code
         if let Some(evm_ir) = &mut deploy_code.evm_ir {
-            evm_ir.set_name("deployment");
+            evm_ir.set_name(sym::deployment);
         }
 
         let mut deploy_bytecode = deploy_code.bytecode;
         deploy_bytecode.extend_from_slice(&runtime_code.bytecode);
-
-        let mut deployment_evm_ir = Vec::new();
-        if let Some(evm_ir) = deploy_code.evm_ir {
-            deployment_evm_ir.push(evm_ir);
-        }
-        if let Some(evm_ir) = runtime_code.evm_ir.clone() {
-            deployment_evm_ir.push(evm_ir);
-        }
 
         // The returned runtime artifact keeps the zero placeholders, like
         // solc's `deployedBytecode` for contracts with immutables.
         EvmArtifact {
             deployment: deploy_bytecode,
             runtime: runtime_code.bytecode,
-            deployment_evm_ir,
+            deployment_evm_ir: deploy_code.evm_ir,
             runtime_evm_ir: runtime_code.evm_ir,
         }
     }
@@ -5223,8 +5215,8 @@ pub struct EvmArtifact {
     pub deployment: Vec<u8>,
     /// Runtime bytecode, i.e. the code stored on-chain.
     pub runtime: Vec<u8>,
-    /// Final creation-code EVM IR segments in bytecode order.
-    pub deployment_evm_ir: Vec<ir::Module>,
+    /// Final deployment-prefix EVM IR immediately before byte emission.
+    pub deployment_evm_ir: Option<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.
     pub runtime_evm_ir: Option<ir::Module>,
 }

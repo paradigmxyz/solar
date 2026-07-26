@@ -5,15 +5,14 @@ use super::data::{
     Optimizer, OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings, SourceOutput,
     StandardJsonReadCallback, print_standard_json_stats, strip_json_comments,
 };
-use alloy_primitives::Bytes;
 use serde_json::json;
-use solar_codegen::{EvmCodegen, lower};
+use solar_codegen::{ContractArtifact, ContractSelection};
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, OptimizationMode,
 };
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::map::FxHashMap;
 use solar_interface::{
-    Result, SourceMap,
+    SourceMap,
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
     source_map::FileLoader,
 };
@@ -172,7 +171,7 @@ fn compile(
     let _ = crate::commands::compile::run_compiler_session_with(
         sess,
         |compiler| {
-            let _control_flow = crate::commands::compile::run_pipeline(
+            let control_flow = crate::commands::compile::run_pipeline(
                 compiler,
                 |pcx| {
                     let mut files = Vec::with_capacity(sources.len());
@@ -191,18 +190,20 @@ fn compile(
                 },
                 |compiler| output.sources = source_outputs_from_compiler(compiler),
             )?;
+            if control_flow.is_break() {
+                return Ok(());
+            }
 
             let gcx = compiler.gcx();
 
             // Code generation is experimental and gated behind `-Zcodegen`;
             // without it, no bytecode is produced even when requested.
-            let bytecodes = if gcx.sess.opts.unstable.codegen
-                && needs_bytecode_output(gcx, &output_selection)
-            {
-                Some(generate_contract_bytecodes(gcx)?)
+            let bytecode_contracts = if gcx.sess.opts.unstable.codegen {
+                requested_bytecode_contracts(gcx, &output_selection)
             } else {
-                None
+                ContractSelection::empty(gcx)
             };
+            let bytecodes = crate::emit::emit_requested(compiler, bytecode_contracts)?;
 
             gcx.dcx().has_errors()?;
 
@@ -226,11 +227,6 @@ fn compile(
         },
         false,
     );
-}
-
-struct GeneratedBytecodes {
-    deployment: Bytes,
-    runtime: Bytes,
 }
 
 struct StandardJsonFileLoader {
@@ -326,7 +322,7 @@ fn make_contract_output(
     gcx: Gcx<'_>,
     contract_id: solar_sema::hir::ContractId,
     output_selection: OutputSelectionFlags,
-    bytecodes: Option<&FxHashMap<ContractId, GeneratedBytecodes>>,
+    bytecodes: Option<&FxHashMap<ContractId, ContractArtifact>>,
 ) -> ContractOutput {
     let mut output = ContractOutput::default();
 
@@ -385,82 +381,28 @@ fn make_contract_output(
     output
 }
 
-fn needs_bytecode_output(gcx: solar_sema::Gcx<'_>, output_selection: &OutputSelection<'_>) -> bool {
-    gcx.hir.contracts_enumerated().any(|(_, contract)| {
-        let source = gcx.hir.source(contract.source);
-        let source_name = source.file.name.display().to_string();
-        let contract_name = contract.name.as_str();
-        output_selection.contract(&source_name, contract_name).intersects(
-            OutputSelectionFlags::BYTECODE_OBJECT | OutputSelectionFlags::DEPLOYED_BYTECODE_OBJECT,
-        )
-    })
-}
-
-fn generate_contract_bytecodes(
+fn requested_bytecode_contracts(
     gcx: solar_sema::Gcx<'_>,
-) -> Result<FxHashMap<ContractId, GeneratedBytecodes>> {
-    let mut all_bytecodes = FxHashMap::default();
-    let mut artifacts = FxHashMap::default();
-    let mut visiting = DenseBitSet::new_empty(gcx.hir.contract_ids().len());
-    for contract_id in gcx.hir.contract_ids() {
-        let contract = gcx.hir.contract(contract_id);
-        if !contract.kind.is_interface() && !contract.kind.is_abstract_contract() {
-            ensure_contract_bytecode(
-                gcx,
-                contract_id,
-                &mut all_bytecodes,
-                &mut artifacts,
-                &mut visiting,
-            )?;
+    output_selection: &OutputSelection<'_>,
+) -> ContractSelection {
+    let bytecode_outputs =
+        OutputSelectionFlags::BYTECODE_OBJECT | OutputSelectionFlags::DEPLOYED_BYTECODE_OBJECT;
+    if output_selection.contract("*", "*").intersects(bytecode_outputs) {
+        return ContractSelection::All;
+    }
+
+    let mut contracts = ContractSelection::empty(gcx);
+    for (contract_id, contract) in gcx.hir.contracts_enumerated() {
+        if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
+            continue;
+        }
+
+        let source = gcx.hir.source(contract.source);
+        let source_name = standard_json_source_name(&source.file.name);
+        let contract_name = contract.name.as_str();
+        if output_selection.contract(&source_name, contract_name).intersects(bytecode_outputs) {
+            contracts.insert(contract_id);
         }
     }
-    Ok(artifacts)
-}
-
-fn ensure_contract_bytecode(
-    gcx: solar_sema::Gcx<'_>,
-    contract_id: ContractId,
-    all_bytecodes: &mut FxHashMap<ContractId, Vec<u8>>,
-    artifacts: &mut FxHashMap<ContractId, GeneratedBytecodes>,
-    visiting: &mut DenseBitSet<ContractId>,
-) -> Result {
-    let contract = gcx.hir.contract(contract_id);
-
-    if artifacts.contains_key(&contract_id) {
-        return Ok(());
-    }
-
-    if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
-        return Err(gcx
-            .dcx()
-            .err("cannot generate creation bytecode for non-deployable contract")
-            .span(contract.span)
-            .emit());
-    }
-
-    if !visiting.insert(contract_id) {
-        return Err(gcx
-            .dcx()
-            .err("recursive contract creation bytecode dependency")
-            .span(contract.span)
-            .emit());
-    }
-
-    for dep in &lower::contract_bytecode_dependencies(gcx, contract_id) {
-        ensure_contract_bytecode(gcx, dep, all_bytecodes, artifacts, visiting)?;
-    }
-
-    let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, all_bytecodes);
-    gcx.dcx().has_errors()?;
-    let mut codegen = EvmCodegen::new(gcx);
-    let (deployment, runtime) = codegen.generate_deployment_bytecode(&mut module);
-    gcx.dcx().has_errors()?;
-    all_bytecodes.insert(contract_id, deployment.clone());
-    artifacts.insert(
-        contract_id,
-        GeneratedBytecodes { deployment: deployment.into(), runtime: runtime.into() },
-    );
-    visiting.remove(contract_id);
-
-    Ok(())
+    contracts
 }

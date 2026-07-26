@@ -20,7 +20,7 @@ use crate::{
         MemoryObjectKind, MirType, Module, SliceLocation, StorageLayoutRef, ValueId,
     },
 };
-use alloy_primitives::U256;
+use alloy_primitives::{Bytes, U256};
 use solar_data_structures::{
     Never,
     bit_set::GrowableBitSet,
@@ -118,8 +118,7 @@ pub(crate) struct Lowerer<'gcx> {
     /// Next available memory offset for locals.
     next_local_memory_offset: u64,
     /// Bytecodes of other contracts (for `new` expressions).
-    /// Maps contract ID to (deployment_bytecode, data_segment_index).
-    contract_bytecodes: FxHashMap<ContractId, Vec<u8>>,
+    contract_bytecodes: FxHashMap<ContractId, Bytes>,
     /// Stack of loop contexts for nested loops.
     loop_stack: Vec<LoopContext>,
     /// Variables that are assigned after declaration (need memory storage).
@@ -380,11 +379,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Registers a contract's bytecode for use in `new` expressions.
-    pub(crate) fn register_contract_bytecode(
-        &mut self,
-        contract_id: ContractId,
-        bytecode: Vec<u8>,
-    ) {
+    pub(crate) fn register_contract_bytecode(&mut self, contract_id: ContractId, bytecode: Bytes) {
         self.contract_bytecodes.insert(contract_id, bytecode);
     }
 
@@ -1850,7 +1845,6 @@ pub fn contract_bytecode_dependencies(
 ) -> GrowableBitSet<ContractId> {
     let mut deps = GrowableBitSet::new_empty();
     BytecodeDependencyCollector { gcx, deps: &mut deps }.collect_contract(contract_id);
-    deps.remove(contract_id);
     deps
 }
 
@@ -1926,7 +1920,7 @@ impl<'gcx> Visit<'gcx> for BytecodeDependencyCollector<'_, 'gcx> {
 pub fn lower_contract_with_bytecodes(
     gcx: Gcx<'_>,
     contract_id: ContractId,
-    child_bytecodes: &FxHashMap<ContractId, Vec<u8>>,
+    child_bytecodes: &FxHashMap<ContractId, Bytes>,
 ) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut lowerer = Lowerer::new(gcx, contract.name);
