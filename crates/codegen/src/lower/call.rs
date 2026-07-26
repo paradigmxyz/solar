@@ -6,14 +6,14 @@ use crate::{
     mir::{FunctionBuilder, ValueId},
 };
 use alloy_primitives::{U256, keccak256};
-use solar_ast::{LitKind, Span};
+use solar_ast::{DataLocation, LitKind, Span};
 use solar_data_structures::bit_set::GrowableBitSet;
 use solar_interface::{Ident, Symbol, kw, sym};
 use solar_sema::{
     builtins::Builtin,
     eval::erc7201_slot,
     hir::{self, CallArgs, ElementaryType, ExprKind},
-    ty::{Ty, TyKind},
+    ty::{Ty, TyFn, TyKind},
 };
 
 /// How a value travels across a linked-library delegatecall boundary.
@@ -56,6 +56,10 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(error_id) = self.custom_error_id_from_callee(callee) {
             self.emit_custom_error_revert(builder, error_id, args);
             return builder.imm_u64(0);
+        }
+
+        if let Some(function) = self.internal_function_pointer_callee(callee) {
+            return self.lower_internal_function_pointer_call(builder, callee, args, function);
         }
 
         if let ExprKind::Member(base, member) = &callee.kind {
@@ -102,6 +106,99 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         builder.imm_u64(0)
+    }
+
+    fn internal_function_pointer_callee(&self, callee: &hir::Expr<'_>) -> Option<&'gcx TyFn<'gcx>> {
+        let TyKind::Fn(function) = self.get_expr_type(callee)?.kind else { return None };
+        if !function.is_internal() {
+            return None;
+        }
+        if function.function_id.is_some()
+            || self.gcx.resolved_callee(callee.id).is_some_and(|resolved| {
+                matches!(resolved.res, hir::Res::Item(hir::ItemId::Function(_)))
+            })
+        {
+            return None;
+        }
+        Some(function)
+    }
+
+    fn lower_internal_function_pointer_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        callee: &hir::Expr<'_>,
+        args: &CallArgs<'_>,
+        function: &'gcx TyFn<'gcx>,
+    ) -> ValueId {
+        let function_value = self.lower_expr(builder, callee);
+        let arg_values = args
+            .exprs()
+            .enumerate()
+            .map(|(index, arg)| {
+                let parameter = function.parameters.get(index).copied();
+                if parameter.is_some_and(|ty| {
+                    matches!(ty.kind, TyKind::Mapping(..) | TyKind::Ref(_, DataLocation::Storage))
+                }) && let Some(slot) = self.lower_lvalue_slot(builder, arg)
+                {
+                    slot
+                } else {
+                    let value = self.lower_expr(builder, arg);
+                    self.coerce_memory_slice_value(builder, value)
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let candidates = self
+            .internal_function_pointer_targets
+            .iter()
+            .filter(|&function_id| {
+                let candidate = self.gcx.hir.function(function_id);
+                if candidate.kind != hir::FunctionKind::Function || candidate.body.is_none() {
+                    return false;
+                }
+                let TyKind::Fn(candidate_ty) = self.gcx.type_of_item(function_id.into()).kind
+                else {
+                    return false;
+                };
+                // Mutability does not change the internal calling convention. Assembly can also
+                // retag a pointer, as the view-to-pure cast in `console.sol` does.
+                candidate_ty.parameters == function.parameters
+                    && candidate_ty.returns == function.returns
+            })
+            .collect::<Vec<_>>();
+
+        let invalid_block = builder.create_block();
+        let merge_block = builder.create_block();
+        let case_blocks = candidates
+            .iter()
+            .map(|&function_id| {
+                let value = builder.imm_u64(Self::internal_function_pointer_id(function_id));
+                let block = builder.create_block();
+                (value, block)
+            })
+            .collect::<Vec<_>>();
+        builder.switch(function_value, invalid_block, case_blocks.clone());
+
+        builder.switch_to_block(invalid_block);
+        self.emit_panic_revert(builder, PanicCode::InvalidInternalFunction);
+
+        let mut incoming = Vec::with_capacity(candidates.len());
+        for (function_id, (_, block)) in candidates.into_iter().zip(case_blocks) {
+            builder.switch_to_block(block);
+            let result =
+                self.lower_internal_call_fallback(builder, function_id, arg_values.clone());
+            if !function.returns.is_empty() {
+                incoming.push((block, result));
+            }
+            builder.jump(merge_block);
+        }
+
+        builder.switch_to_block(merge_block);
+        if function.returns.is_empty() || incoming.is_empty() {
+            builder.imm_u64(0)
+        } else {
+            builder.phi(incoming)
+        }
     }
 
     fn builtin_uses_direct_call_lowering(builtin: Builtin) -> bool {

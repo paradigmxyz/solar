@@ -264,6 +264,13 @@ impl<'gcx> Lowerer<'gcx> {
                     return builder.imm_u64(variant_index as u64);
                 }
 
+                if let Some(hir::Res::Item(hir::ItemId::Function(function_id))) =
+                    self.resolved_member(expr)
+                {
+                    self.internal_function_pointer_targets.insert(function_id);
+                    return builder.imm_u64(Self::internal_function_pointer_id(function_id));
+                }
+
                 // Handle contract/library constants (e.g. MachineLib.NO_RECOVERY_PC).
                 if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) =
                     self.resolved_member(expr)
@@ -588,6 +595,10 @@ impl<'gcx> Lowerer<'gcx> {
     fn lower_ident(&mut self, builder: &mut FunctionBuilder<'_>, res: &hir::Res) -> ValueId {
         match res {
             hir::Res::Item(item_id) => {
+                if let hir::ItemId::Function(function_id) = item_id {
+                    self.internal_function_pointer_targets.insert(*function_id);
+                    return builder.imm_u64(Self::internal_function_pointer_id(*function_id));
+                }
                 if let hir::ItemId::Variable(var_id) = item_id {
                     let var = self.gcx.hir.variable(*var_id);
 
