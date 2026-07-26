@@ -54,7 +54,7 @@ impl MirPass for SpecializeFunctionPointers {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        MirInliner::for_function_pointer_specialization().run(module).inlined != 0
+        specialize_function_pointers(module) != 0
     }
 }
 
@@ -87,8 +87,6 @@ struct MirInliner {
     /// under the EIP-170 deployable-code limit. Small contracts never reach it
     /// and inline normally.
     max_module_code_size: usize,
-    /// Whether to inline only constant function-pointer casts and dispatches.
-    specialize_function_pointers_only: bool,
 }
 
 impl Default for MirInliner {
@@ -109,7 +107,6 @@ impl Default for MirInliner {
             // limit, so further (growth-only) inlining is skipped to keep it
             // deployable. Ordinary contracts are far smaller and inline normally.
             max_module_code_size: 7450,
-            specialize_function_pointers_only: false,
         }
     }
 }
@@ -123,18 +120,6 @@ impl MirInliner {
     #[must_use]
     fn for_size() -> Self {
         Self { max_module_code_size: 0, ..Self::default() }
-    }
-
-    /// Creates an inliner that only propagates constant values through
-    /// transparent function-pointer casts and specializes their dispatchers.
-    #[must_use]
-    fn for_function_pointer_specialization() -> Self {
-        Self {
-            max_caller_inlined_instructions: usize::MAX,
-            max_module_code_size: usize::MAX,
-            specialize_function_pointers_only: true,
-            ..Self::default()
-        }
     }
 }
 
@@ -165,12 +150,10 @@ struct MirInlineSummary {
     has_log: bool,
     has_control_flow: bool,
     has_unsupported_terminator: bool,
-    has_tail_call: bool,
     is_entry_point: bool,
     is_constructor: bool,
     no_inline: bool,
     has_function_selector: bool,
-    is_transparent_function_pointer_cast: bool,
 }
 
 impl MirInliner {
@@ -242,12 +225,7 @@ impl MirInliner {
                 let old_size =
                     summaries.get(&caller_id).map(|s| s.estimated_code_size).unwrap_or_default();
                 let caller = module.function_mut(caller_id);
-                let changed = if summary.is_transparent_function_pointer_cast {
-                    propagate_function_pointer_cast(caller, site.block, site.inst_index)
-                } else {
-                    inline_call(caller, site.block, site.inst_index, &callee)
-                };
-                if changed {
+                if inline_call(caller, site.block, site.inst_index, &callee) {
                     stats.inlined += 1;
                     let new_summary = summarize_function(module.function(caller_id));
                     module_code_size = module_code_size
@@ -370,27 +348,18 @@ impl MirInliner {
         let can_specialize_dispatcher = summary.no_inline
             && summary.has_function_selector
             && site.has_constant_function_selector;
-        let can_propagate_function_pointer =
-            summary.is_transparent_function_pointer_cast && site.has_constant_function_selector;
-        if self.specialize_function_pointers_only
-            && !can_specialize_dispatcher
-            && !can_propagate_function_pointer
-        {
-            return false;
-        }
         if caller == site.callee
             || (summary.no_inline && !single_call && !can_specialize_dispatcher)
             || summary.is_entry_point
             || summary.is_constructor
-            || (summary.has_phi && !can_specialize_dispatcher)
-            || (summary.has_tail_call && !can_specialize_dispatcher)
+            || summary.has_phi
             || summary.has_unsupported_terminator
             || summary.return_count == 0
         {
             return false;
         }
 
-        if can_specialize_dispatcher || can_propagate_function_pointer {
+        if can_specialize_dispatcher {
             return summary.instruction_count <= self.max_single_call_sanity_instructions;
         }
 
@@ -454,7 +423,6 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
         is_constructor: func.attributes.is_constructor,
         no_inline: func.attributes.no_inline,
         has_function_selector: func.params.first() == Some(&MirType::Function),
-        is_transparent_function_pointer_cast: is_transparent_function_pointer_cast(func),
         ..MirInlineSummary::default()
     };
 
@@ -515,15 +483,10 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
                 summary.estimated_code_size += term_cost.code_size;
                 summary.estimated_runtime_gas += term_cost.runtime_gas;
             }
-            Some(Terminator::TailCall { .. }) => {
-                summary.has_tail_call = true;
-                let term_cost = estimate_terminator_cost(block.terminator.as_ref().unwrap());
-                summary.estimated_code_size += term_cost.code_size;
-                summary.estimated_runtime_gas += term_cost.runtime_gas;
-            }
             Some(Terminator::ReturnData { .. })
             | Some(Terminator::Stop)
             | Some(Terminator::SelfDestruct { .. })
+            | Some(Terminator::TailCall { .. })
             | None => summary.has_unsupported_terminator = true,
             Some(Terminator::Invalid) => {}
         }
@@ -732,6 +695,147 @@ fn block_loop_depths(func: &Function) -> FxHashMap<BlockId, usize> {
         }
     }
     depths
+}
+
+fn specialize_function_pointers(module: &mut Module) -> usize {
+    let mut casts = DenseBitSet::new_empty(module.functions.len());
+    let mut dispatchers = DenseBitSet::new_empty(module.functions.len());
+    for (function, func) in module.functions.iter_enumerated() {
+        if is_transparent_function_pointer_cast(func) {
+            casts.insert(function);
+        } else if func.attributes.no_inline && func.params.first() == Some(&MirType::Function) {
+            dispatchers.insert(function);
+        }
+    }
+    if casts.is_empty() && dispatchers.is_empty() {
+        return 0;
+    }
+
+    let mut specialized = 0;
+    for caller in module.functions.indices().collect::<Vec<_>>() {
+        let mut cursor = (0, 0);
+        while let Some((block, inst_index, callee, selector)) =
+            find_next_constant_function_call(module.function(caller), cursor)
+        {
+            cursor = (block.index(), inst_index + 1);
+            if caller == callee {
+                continue;
+            }
+
+            if casts.contains(callee) {
+                if propagate_function_pointer_cast(module.function_mut(caller), block, inst_index) {
+                    specialized += 1;
+                    cursor = (block.index(), 0);
+                }
+                continue;
+            }
+            if !dispatchers.contains(callee) {
+                continue;
+            }
+
+            let dispatcher = module.function(callee).clone();
+            if let Some(target) = direct_dispatch_target(&dispatcher, &selector) {
+                if rewrite_dispatch_call(module.function_mut(caller), block, inst_index, target) {
+                    specialized += 1;
+                }
+            } else if dispatcher.instructions().take(4097).count() <= 4096
+                && inline_call(module.function_mut(caller), block, inst_index, &dispatcher)
+            {
+                specialized += 1;
+                cursor = (block.index(), 0);
+            }
+        }
+    }
+    specialized
+}
+
+fn find_next_constant_function_call(
+    func: &Function,
+    start: (usize, usize),
+) -> Option<(BlockId, usize, MirFunctionId, Immediate)> {
+    for (block, bb) in func.blocks.iter_enumerated().skip(start.0) {
+        let start_inst = if block.index() == start.0 { start.1 } else { 0 };
+        for (inst_index, &inst_id) in bb.instructions.iter().enumerate().skip(start_inst) {
+            if let InstKind::InternalCall { function, ref args, .. } = func.inst(inst_id).kind
+                && let Some(selector) =
+                    args.first().and_then(|&arg| func.value(arg).as_immediate()).cloned()
+            {
+                return Some((block, inst_index, function, selector));
+            }
+        }
+    }
+    None
+}
+
+fn direct_dispatch_target(dispatcher: &Function, selector: &Immediate) -> Option<MirFunctionId> {
+    let selector = selector.as_u256()?;
+    for block in dispatcher.blocks.iter() {
+        let Terminator::Branch { condition, then_block, .. } = block.terminator.as_ref()? else {
+            continue;
+        };
+        let Value::Inst(condition) = dispatcher.value(*condition) else {
+            continue;
+        };
+        let InstKind::Eq(lhs, rhs) = dispatcher.inst(*condition).kind else {
+            continue;
+        };
+        let matches_selector = [(lhs, rhs), (rhs, lhs)].into_iter().any(|(arg, value)| {
+            matches!(dispatcher.value(arg), Value::Arg { index: 0, ty: MirType::Function })
+                && dispatcher.value(value).as_immediate().and_then(Immediate::as_u256)
+                    == Some(selector)
+        });
+        if matches_selector {
+            return direct_dispatch_case_target(dispatcher, *then_block);
+        }
+    }
+    None
+}
+
+fn direct_dispatch_case_target(dispatcher: &Function, block: BlockId) -> Option<MirFunctionId> {
+    let block = &dispatcher.blocks[block];
+    let [call] = block.instructions.as_slice() else {
+        return None;
+    };
+    let InstKind::InternalCall { function, args, returns } = &dispatcher.inst(*call).kind else {
+        return None;
+    };
+    if !args.iter().enumerate().all(|(index, &arg)| {
+        matches!(
+            dispatcher.value(arg),
+            Value::Arg { index: arg_index, .. } if *arg_index as usize == index + 1
+        )
+    }) {
+        return None;
+    }
+
+    let Some(Terminator::Return { values }) = &block.terminator else {
+        return None;
+    };
+    match *returns {
+        0 if values.is_empty() => Some(*function),
+        1 if values.as_slice() == [dispatcher.inst_result_value(*call)?] => Some(*function),
+        _ => None,
+    }
+}
+
+fn rewrite_dispatch_call(
+    caller: &mut Function,
+    call_block: BlockId,
+    call_inst_index: usize,
+    target: MirFunctionId,
+) -> bool {
+    let Some(&call) = caller.blocks[call_block].instructions.get(call_inst_index) else {
+        return false;
+    };
+    let InstKind::InternalCall { function, args, .. } = &mut caller.inst_mut(call).kind else {
+        return false;
+    };
+    if args.is_empty() {
+        return false;
+    }
+    *function = target;
+    *args = args[1..].into();
+    true
 }
 
 fn propagate_function_pointer_cast(
