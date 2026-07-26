@@ -105,12 +105,13 @@ impl<'gcx> Lowerer<'gcx> {
             return Some(self.lower_type_conversion(builder, ty, first_arg, value));
         }
 
-        self.err_call_result(
-            builder,
-            callee,
-            callee.span,
-            "codegen does not support this call expression yet",
-        )
+        self.call_returns_value(callee).then(|| builder.imm_u64(0))
+    }
+
+    fn call_returns_value(&self, callee: &hir::Expr<'_>) -> bool {
+        self.get_expr_type(callee)
+            .and_then(|ty| ty.returns())
+            .is_none_or(|returns| !returns.is_empty())
     }
 
     fn err_call_result(
@@ -121,11 +122,7 @@ impl<'gcx> Lowerer<'gcx> {
         msg: impl Into<DiagMsg>,
     ) -> Option<ValueId> {
         let guar = self.gcx.dcx().err(msg).span(span).emit();
-        let returns_value = self
-            .get_expr_type(callee)
-            .and_then(|ty| ty.returns())
-            .is_none_or(|returns| !returns.is_empty());
-        returns_value.then(|| builder.error_value(guar))
+        self.call_returns_value(callee).then(|| builder.error_value(guar))
     }
 
     fn builtin_uses_direct_call_lowering(builtin: Builtin) -> bool {

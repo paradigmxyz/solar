@@ -115,6 +115,34 @@ fn @unitTernary(arg0: bool, arg1: u256) {
     jump bb7
 }
 
+fn @callCastedFunctionPointer(arg0: u256) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    stop
+}
+
+fn @castToPure(arg0: function) -> function {
+  bb0:
+    v0 = internal_frame_addr 128
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = internal_frame_addr 128
+    mstore v1, arg0 !metadata(memory=internal_frame)
+    v2 = internal_frame_addr 128
+    v3 = mload v2 !metadata(memory=internal_frame)
+    ret v3
+}
+
+fn @consume(arg0: u256) {
+  bb0:
+    stop
+}
+
 fn @clear() {
   bb0:
     sstore 0, 0 !metadata(storage=slot(0))

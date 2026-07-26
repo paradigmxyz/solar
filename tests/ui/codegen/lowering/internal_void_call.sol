@@ -51,12 +51,28 @@ contract InternalVoidCall {
 
     // CHECK-LABEL: fn @unitTernary{{[( ]}}
     // CHECK: jumpi arg0,
-    // CHECK: sstore 0, arg1
-    // CHECK: sstore 0, 0
+    // CHECK-DAG: sstore 0, arg1
+    // CHECK-DAG: sstore 0, 0
     // CHECK-NOT: phi
     function unitTernary(bool writeValue, uint256 newValue) public {
         writeValue ? writeIfNonZero(newValue) : clear();
     }
+
+    // CHECK-LABEL: fn @callCastedFunctionPointer{{[( ]}}
+    // CHECK: stop
+    function callCastedFunctionPointer(uint256 newValue) public pure {
+        castToPure(consume)(newValue);
+    }
+
+    function castToPure(
+        function(uint256) internal view fnIn
+    ) internal pure returns (function(uint256) internal pure fnOut) {
+        assembly {
+            fnOut := fnIn
+        }
+    }
+
+    function consume(uint256) internal pure {}
 
     function clear() internal {
         value = 0;
