@@ -1034,16 +1034,27 @@ impl<'gcx> Lowerer<'gcx> {
             return Some(builder.imm_u256(U256::from_be_bytes(hash.0)));
         }
 
-        if !self.expr_has_bytes_or_string_type(inner) {
-            return None;
-        }
-
+        // Checked before the `bytes`/`string` type guard below, which does not
+        // recognize a slice type (`b[a:c]`).
+        //
         // Calldata `bytes`/`string`: copy the data into memory, then hash it
         // (`keccak256` only reads memory).
         if self.expr_is_calldata_dynamic_bytes(inner) {
             let slice = self.lower_value_expr(builder, inner);
+            // Slicing a calldata struct's field yields a memory slice, because
+            // the struct is decoded to memory in the prologue. Hash it where it
+            // already is: copying it as calldata would read the wrong region.
+            if Self::value_is_memory_slice(builder, slice) {
+                let ptr = builder.slice_ptr(slice);
+                let len = builder.slice_len(slice);
+                return Some(builder.keccak256(ptr, len));
+            }
             let ptr = self.materialize_calldata_bytes(builder, slice);
             return Some(builder.keccak256_bytes(ptr));
+        }
+
+        if !self.expr_has_bytes_or_string_type(inner) {
+            return None;
         }
 
         // Memory and storage values lower to a memory `[length][data...]`
