@@ -2,7 +2,7 @@
 
 use crate::{
     proto,
-    symbols::{DeclarationSymbol, SymbolId, remap_symbol_id},
+    symbols::{DeclarationSymbol, SymbolId},
 };
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyItem, CallHierarchyOutgoingCall, Position, Range, Url,
@@ -152,12 +152,12 @@ impl CallHierarchyIndex {
     pub(crate) fn extend(&mut self, other: Self, symbol_offset: usize) {
         let Self { facts, query: _ } = other;
         self.facts.callables.extend(facts.callables.into_iter().map(|fact| CallableFact {
-            symbol: remap_symbol_id(fact.symbol, symbol_offset),
+            symbol: fact.symbol.offset_by(symbol_offset),
             body_range: fact.body_range,
         }));
         self.facts.direct_calls.extend(facts.direct_calls.into_iter().map(|call| DirectCall {
-            caller: remap_symbol_id(call.caller, symbol_offset),
-            callee: remap_symbol_id(call.callee, symbol_offset),
+            caller: call.caller.offset_by(symbol_offset),
+            callee: call.callee.offset_by(symbol_offset),
             from_range: call.from_range,
         }));
         self.invalidate_query();

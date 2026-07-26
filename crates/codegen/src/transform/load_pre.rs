@@ -74,20 +74,22 @@
 
 use crate::{
     analysis::{
-        AliasAnalysis, CfgInfo, DominatorTree, Location, LocationSize, MemoryAddress,
-        MemoryLocation,
+        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Location, LocationSize,
+        MemoryAddress, MemoryLocation, ModRef,
     },
     mir::{
         BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
-        MirType, Module, StorageAlias, Terminator, Value, ValueId, utils as mir_utils,
+        MemoryRegion, MirType, Module, StorageAlias, Terminator, Value, ValueId,
+        utils as mir_utils,
     },
     pass::{MirPass, run_function_pass},
 };
+use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
 };
-use std::rc::Rc;
+use std::{collections::BTreeMap, rc::Rc};
 
 /// Function pass for load PRE.
 pub(crate) struct LoadPre;
@@ -265,6 +267,7 @@ impl LoadPreCostModel {
 struct Analysis {
     keys: Vec<LoadKey>,
     key_index: FxHashMap<LoadKey, usize>,
+    kill_index: KillIndex,
     cfg: Rc<CfgInfo>,
     /// Per-block keys killed at any point in the block; only blocks that kill
     /// something have an entry.
@@ -275,6 +278,114 @@ struct Analysis {
     outs: FxHashMap<BlockId, KeySet>,
     inst_results: FxHashMap<InstId, ValueId>,
     inst_blocks: FxHashMap<InstId, BlockId>,
+}
+
+#[derive(Default)]
+struct KillIndex {
+    storage: Vec<usize>,
+    transient: Vec<usize>,
+    storage_aliases: StorageKillIndex,
+    transient_aliases: StorageKillIndex,
+    memory: Vec<usize>,
+    memory_words: FxHashMap<MemoryAddress, BTreeMap<u64, usize>>,
+    keccak: Vec<usize>,
+}
+
+#[derive(Default)]
+struct StorageKillIndex {
+    slots: FxHashMap<U256, usize>,
+    symbolic: FxHashMap<ValueId, FxHashMap<U256, usize>>,
+}
+
+impl StorageKillIndex {
+    fn insert(&mut self, alias: StorageAlias, idx: usize) {
+        match alias {
+            StorageAlias::Slot(slot) => {
+                self.slots.insert(slot, idx);
+            }
+            StorageAlias::Symbolic(base) => {
+                self.symbolic.entry(base).or_default().insert(U256::ZERO, idx);
+            }
+            StorageAlias::Offset { base, offset } => {
+                self.symbolic.entry(base).or_default().insert(offset, idx);
+            }
+        }
+    }
+
+    fn for_each_alias(&self, written: StorageAlias, mut kill: impl FnMut(usize)) {
+        match written {
+            StorageAlias::Slot(slot) => {
+                if let Some(&idx) = self.slots.get(&slot) {
+                    kill(idx);
+                }
+                for group in self.symbolic.values() {
+                    for &idx in group.values() {
+                        kill(idx);
+                    }
+                }
+            }
+            StorageAlias::Symbolic(base) => {
+                self.for_each_symbolic_alias(base, U256::ZERO, &mut kill);
+            }
+            StorageAlias::Offset { base, offset } => {
+                self.for_each_symbolic_alias(base, offset, &mut kill);
+            }
+        }
+    }
+
+    fn for_each_symbolic_alias(&self, base: ValueId, offset: U256, kill: &mut impl FnMut(usize)) {
+        for &idx in self.slots.values() {
+            kill(idx);
+        }
+        for (&key_base, group) in &self.symbolic {
+            if key_base == base {
+                if let Some(&idx) = group.get(&offset) {
+                    kill(idx);
+                }
+            } else {
+                for &idx in group.values() {
+                    kill(idx);
+                }
+            }
+        }
+    }
+}
+
+impl KillIndex {
+    fn new(keys: &[LoadKey]) -> Self {
+        let mut this = Self::default();
+        for (idx, &key) in keys.iter().enumerate() {
+            match key {
+                LoadKey::Storage(alias) => {
+                    this.storage.push(idx);
+                    this.storage_aliases.insert(alias, idx);
+                }
+                LoadKey::Transient(alias) => {
+                    this.transient.push(idx);
+                    this.transient_aliases.insert(alias, idx);
+                }
+                LoadKey::Memory(mut address) => {
+                    this.memory.push(idx);
+                    let offset = address.offset;
+                    address.offset = 0;
+                    this.memory_words.entry(address).or_default().insert(offset, idx);
+                }
+                LoadKey::Keccak(_, _) => {
+                    this.memory.push(idx);
+                    this.keccak.push(idx);
+                }
+            }
+        }
+        this
+    }
+
+    fn space(&self, space: AddressSpace) -> &[usize] {
+        match space {
+            AddressSpace::Storage => &self.storage,
+            AddressSpace::Transient => &self.transient,
+            AddressSpace::Memory => &self.memory,
+        }
+    }
 }
 
 impl Analysis {
@@ -375,6 +486,7 @@ impl LoadRedundancyEliminator {
             return None;
         }
         let key_count = keys.len();
+        let kill_index = KillIndex::new(&keys);
 
         // Per-block summaries: GEN holds keys genned after the last kill, KILL
         // holds keys killed at any point.
@@ -385,12 +497,11 @@ impl LoadRedundancyEliminator {
             let mut kill_set = KeySet::new_empty(key_count);
             for &inst_id in &func.blocks[block].instructions {
                 if func.inst(inst_id).kind.has_side_effects() {
-                    for (idx, &key) in keys.iter().enumerate() {
-                        if self.inst_kills_key(func, inst_id, key) {
-                            kill_set.insert(idx);
-                            gen_set.remove(idx);
-                        }
-                    }
+                    let effects = self.alias().instruction_mod_ref(func, inst_id);
+                    self.for_each_killed_key(&effects, &keys, &kill_index, |idx| {
+                        kill_set.insert(idx);
+                        gen_set.remove(idx);
+                    });
                 }
                 // A store both kills aliases and gens its exact key; the gen
                 // wins for the exact key because the slot then holds the
@@ -455,6 +566,7 @@ impl LoadRedundancyEliminator {
         Some(Analysis {
             keys,
             key_index,
+            kill_index,
             cfg,
             kills,
             ins,
@@ -573,21 +685,23 @@ impl LoadRedundancyEliminator {
                 // candidate.
                 InstKind::Gas => break,
                 InstKind::MSize => {
-                    for (idx, key) in analysis.keys.iter().enumerate() {
-                        if matches!(key, LoadKey::Memory(_) | LoadKey::Keccak(_, _)) {
-                            blocked.insert(idx);
-                        }
+                    for &idx in &analysis.kill_index.memory {
+                        blocked.insert(idx);
                     }
                 }
                 _ if kind.has_side_effects() => {
                     // Kills block their keys; a store's own-key gen is also a
                     // kill here (the value differs from the predecessor-end
                     // state), which the may-alias check already covers.
-                    for (idx, &key) in analysis.keys.iter().enumerate() {
-                        if !blocked.contains(idx) && self.inst_kills_key(func, inst_id, key) {
+                    let effects = self.alias().instruction_mod_ref(func, inst_id);
+                    self.for_each_killed_key(
+                        &effects,
+                        &analysis.keys,
+                        &analysis.kill_index,
+                        |idx| {
                             blocked.insert(idx);
-                        }
-                    }
+                        },
+                    );
                 }
                 _ => {}
             }
@@ -940,9 +1054,15 @@ impl LoadRedundancyEliminator {
     }
 
     /// Returns true if an instruction may invalidate the value of `key`.
+    #[must_use]
     fn inst_kills_key(&self, func: &Function, inst_id: InstId, key: LoadKey) -> bool {
+        let effects = self.alias().instruction_mod_ref(func, inst_id);
+        self.effects_kill_key(&effects, key)
+    }
+
+    #[must_use]
+    fn effects_kill_key(&self, effects: &ModRef, key: LoadKey) -> bool {
         let aa = self.alias();
-        let effects = aa.instruction_mod_ref(func, inst_id);
         match key {
             LoadKey::Storage(alias) => effects.may_write(aa, Location::Storage(alias)),
             LoadKey::Transient(alias) => effects.may_write(aa, Location::Transient(alias)),
@@ -956,6 +1076,101 @@ impl LoadRedundancyEliminator {
                     KeccakSize::Dyn(size) => LocationSize::Dynamic(size),
                 };
                 effects.may_write(aa, Location::Memory(MemoryLocation::new(address, size)))
+            }
+        }
+    }
+
+    fn for_each_killed_key(
+        &self,
+        effects: &ModRef,
+        keys: &[LoadKey],
+        index: &KillIndex,
+        mut kill: impl FnMut(usize),
+    ) {
+        for &write in effects.writes() {
+            match write {
+                Access::Any(space) => {
+                    for &idx in index.space(space) {
+                        kill(idx);
+                    }
+                }
+                Access::Location(Location::Storage(written)) => {
+                    index.storage_aliases.for_each_alias(written, &mut kill);
+                }
+                Access::Location(Location::Transient(written)) => {
+                    index.transient_aliases.for_each_alias(written, &mut kill);
+                }
+                Access::Location(Location::Memory(written)) => {
+                    self.for_each_killed_memory_key(written, keys, index, &mut kill);
+                }
+            }
+        }
+    }
+
+    fn for_each_killed_memory_key(
+        &self,
+        written: MemoryLocation,
+        keys: &[LoadKey],
+        index: &KillIndex,
+        kill: &mut impl FnMut(usize),
+    ) {
+        if matches!(written.size, LocationSize::Const(0)) {
+            return;
+        }
+        let mut written_group = written.address;
+        written_group.offset = 0;
+        for (&group, words) in &index.memory_words {
+            if group == written_group {
+                // Alias analysis conservatively treats a word whose end
+                // overflows `u64` as overlapping every access on this base.
+                for &idx in words.range((u64::MAX - 31)..).map(|(_, idx)| idx) {
+                    kill(idx);
+                }
+                if let LocationSize::Const(size) = written.size
+                    && let Some(end) = written.address.offset.checked_add(size)
+                {
+                    let start = written.address.offset.saturating_sub(31);
+                    for &idx in words.range(start..end).map(|(_, idx)| idx) {
+                        kill(idx);
+                    }
+                    continue;
+                }
+                for &idx in words.values() {
+                    kill(idx);
+                }
+                continue;
+            }
+            if group.region != MemoryRegion::Unknown
+                && written.address.region != MemoryRegion::Unknown
+                && group.region != written.address.region
+            {
+                continue;
+            }
+            if group.base == written.address.base {
+                for &idx in words.values() {
+                    kill(idx);
+                }
+                continue;
+            }
+            let probe = MemoryLocation::new(group, LocationSize::Const(1));
+            if AliasAnalysis::memory_alias_locations(written, probe).may_alias() {
+                for &idx in words.values() {
+                    kill(idx);
+                }
+            }
+        }
+        for &idx in &index.keccak {
+            let key = match keys[idx] {
+                LoadKey::Keccak(address, KeccakSize::Const(size)) => {
+                    MemoryLocation::new(address, LocationSize::Const(size))
+                }
+                LoadKey::Keccak(address, KeccakSize::Dyn(size)) => {
+                    MemoryLocation::new(address, LocationSize::Dynamic(size))
+                }
+                _ => unreachable!(),
+            };
+            if AliasAnalysis::memory_alias_locations(written, key).may_alias() {
+                kill(idx);
             }
         }
     }

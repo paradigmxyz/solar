@@ -5,19 +5,18 @@ use crate::{
     flycheck,
     progress::{ProgressCoordinator, ProgressTicket},
     proto,
-    symbols::SymbolTables,
+    symbols::{SymbolTables, SymbolTablesAggregator},
     vfs::Vfs,
     workspace::WorkspacePathIndex,
 };
 use async_lsp::{ClientSocket, LanguageClient, ResponseError};
 use lsp_types::{
     Diagnostic, DidChangeWatchedFilesRegistrationOptions, FileSystemWatcher, GlobPattern,
-    InitializeParams, InitializeResult, InitializedParams, LogMessageParams, MessageType,
-    PublishDiagnosticsParams, Registration, RegistrationParams, ServerInfo, Url, WatchKind,
-    WorkDoneProgressCancelParams,
+    InitializeParams, InitializedParams, LogMessageParams, MessageType, PublishDiagnosticsParams,
+    Registration, RegistrationParams, Url, WatchKind, WorkDoneProgressCancelParams,
     notification::{DidChangeWatchedFiles, Notification},
 };
-use solar_config::{CompileOpts, version::SHORT_VERSION};
+use solar_config::CompileOpts;
 use solar_interface::{
     Session,
     data_structures::{
@@ -103,20 +102,14 @@ impl GlobalState {
     pub(crate) fn on_initialize(
         &mut self,
         params: InitializeParams,
-    ) -> impl Future<Output = Result<InitializeResult, ResponseError>> + use<> {
+    ) -> impl Future<Output = Result<proto::InitializeResponse, ResponseError>> + use<> {
         let (capabilities, mut config) = negotiate_capabilities(params);
 
         config.rediscover_workspaces();
 
         self.analysis_progress.set_enabled(config.supports_work_done_progress());
         self.config = Arc::new(config);
-        std::future::ready(Ok(InitializeResult {
-            capabilities,
-            server_info: Some(ServerInfo {
-                name: "solar".into(),
-                version: Some(SHORT_VERSION.into()),
-            }),
-        }))
+        std::future::ready(Ok(proto::InitializeResponse::new(capabilities)))
     }
 
     pub(crate) fn on_initialized(&mut self, _: InitializedParams) -> NotifyResult {
@@ -253,8 +246,7 @@ impl GlobalState {
                 return AnalysisTaskOutcome::Superseded;
             }
 
-            let mut diagnostics = DiagnosticMap::default();
-            let mut symbol_tables = SymbolTables::default();
+            let mut results = AnalysisResultAccumulator::default();
 
             for batch in batches {
                 if batch.files.is_empty() {
@@ -265,19 +257,16 @@ impl GlobalState {
                     return AnalysisTaskOutcome::Superseded;
                 }
 
-                let result = analyze(batch);
-                symbol_tables.extend(result.symbol_tables);
-                for (uri, mut batch_diagnostics) in result.diagnostics {
-                    diagnostics.entry(uri).or_default().append(&mut batch_diagnostics);
-                }
+                results.push(analyze(batch));
 
                 if !snapshot.is_current(version) {
                     return AnalysisTaskOutcome::Superseded;
                 }
             }
 
+            let result = results.finish();
             worker_progress.report("Publishing workspace index");
-            if snapshot.publish_analysis(version, AnalysisResult { diagnostics, symbol_tables }) {
+            if snapshot.publish_analysis(version, result) {
                 AnalysisTaskOutcome::Published
             } else {
                 AnalysisTaskOutcome::Superseded
@@ -634,6 +623,26 @@ fn handle_analysis_failure(
 struct AnalysisResult {
     diagnostics: DiagnosticMap,
     symbol_tables: SymbolTables,
+}
+
+#[derive(Default)]
+struct AnalysisResultAccumulator {
+    diagnostics: DiagnosticMap,
+    symbol_tables: SymbolTablesAggregator,
+}
+
+impl AnalysisResultAccumulator {
+    fn push(&mut self, result: AnalysisResult) {
+        let AnalysisResult { diagnostics, symbol_tables } = result;
+        for (uri, mut batch_diagnostics) in diagnostics {
+            self.diagnostics.entry(uri).or_default().append(&mut batch_diagnostics);
+        }
+        self.symbol_tables.push(symbol_tables);
+    }
+
+    fn finish(self) -> AnalysisResult {
+        AnalysisResult { diagnostics: self.diagnostics, symbol_tables: self.symbol_tables.finish() }
+    }
 }
 
 fn watched_file_registration_params() -> RegistrationParams {

@@ -1,5 +1,8 @@
 use super::{AnalysisBatch, analyze};
-use crate::test_support::MarkedProject;
+use crate::{
+    symbols::{SymbolTables, SymbolTablesAggregator},
+    test_support::MarkedProject,
+};
 use lsp_types::{Position, Range, Url};
 use solar_config::CompileOpts;
 
@@ -620,12 +623,13 @@ fn merges_identical_analysis_contexts_without_duplicate_edges() {
     let caller =
         tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()).unwrap().pop().unwrap();
     assert!(tables.call_hierarchy_is_initialized());
-    assert!(!tables.clone().call_hierarchy_is_initialized());
+    let cloned_tables = tables.clone();
+    assert!(!cloned_tables.call_hierarchy_is_initialized());
     let duplicate = analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, contents)]))
         .symbol_tables;
     assert!(!duplicate.call_hierarchy_is_initialized());
 
-    tables.extend(duplicate);
+    tables = merge_symbol_tables(tables, duplicate);
     assert!(!tables.call_hierarchy_is_initialized());
 
     assert_eq!(
@@ -764,7 +768,7 @@ fn isolates_conflicting_source_snapshots() {
         analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, conflicting_contents)]))
             .symbol_tables;
 
-    tables.extend(conflicting);
+    tables = merge_symbol_tables(tables, conflicting);
 
     assert_eq!(tables.prepare_call_hierarchy(&uri, marked.marker("$1").position()), None);
     assert_eq!(tables.call_hierarchy_outgoing(&caller), None);
@@ -813,7 +817,7 @@ fn isolates_identical_callers_with_conflicting_outgoing_facts() {
     ))
     .symbol_tables;
 
-    tables.extend(conflicting);
+    tables = merge_symbol_tables(tables, conflicting);
 
     assert_eq!(tables.prepare_call_hierarchy(&caller_uri, marked.marker("$1").position()), None);
     assert_eq!(tables.call_hierarchy_outgoing(&caller), None);
@@ -871,7 +875,7 @@ fn rejects_partial_incoming_results_for_conflicting_callers() {
     ))
     .symbol_tables;
 
-    tables.extend(conflicting);
+    tables = merge_symbol_tables(tables, conflicting);
 
     assert_eq!(tables.prepare_call_hierarchy(&caller_uri, marked.marker("$2").position()), None);
     assert_eq!(tables.call_hierarchy_outgoing(&caller), None);
@@ -924,13 +928,20 @@ fn rejects_partial_outgoing_results_for_conflicting_callees() {
     ))
     .symbol_tables;
 
-    tables.extend(conflicting);
+    tables = merge_symbol_tables(tables, conflicting);
 
     assert_eq!(
         tables.prepare_call_hierarchy(&caller_uri, marked.marker("$1").position()),
         Some(vec![caller.clone()])
     );
     assert_eq!(tables.call_hierarchy_outgoing(&caller), None);
+}
+
+fn merge_symbol_tables(first: SymbolTables, second: SymbolTables) -> SymbolTables {
+    let mut aggregator = SymbolTablesAggregator::default();
+    aggregator.push(first);
+    aggregator.push(second);
+    aggregator.finish()
 }
 
 fn marker_range(marked: &MarkedProject, marker: &str, utf16_len: u32) -> Range {
