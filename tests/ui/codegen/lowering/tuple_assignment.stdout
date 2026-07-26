@@ -99,10 +99,10 @@ bb7:
   mload
   and
   dup1
-  push 288
+  push 320
   mstore
   iszero
-  push 288
+  push 320
   mload
   push 32
   dup3
@@ -139,7 +139,7 @@ bb7:
   push 64
   mload
   dup1
-  push 320
+  push 288
   mstore
   push 224
   mload
@@ -184,7 +184,7 @@ bb7:
   pop
   dup2
   dup1
-  push 320
+  push 288
   mstore
   mload
   swap2
