@@ -41,6 +41,8 @@ pub(crate) struct Function {
     /// instruction list. Use [`Self::instructions`] to iterate active instructions and
     /// [`Self::inst`] or [`Self::inst_mut`] for ID-based access.
     instructions: IndexVec<InstId, Instruction>,
+    /// Result value allocated for each instruction, if any.
+    inst_results: IndexVec<InstId, Option<ValueId>>,
     /// All basic blocks in this function. This is never empty; block zero is the entry.
     pub(crate) blocks: IndexVec<BlockId, BasicBlock>,
 }
@@ -63,6 +65,7 @@ impl Function {
             external_static_return_size: 0,
             values: IndexVec::new(),
             instructions: IndexVec::new(),
+            inst_results: IndexVec::new(),
             blocks,
         }
     }
@@ -141,10 +144,7 @@ impl Function {
     /// Returns the value produced by the given instruction, if it has one.
     #[must_use]
     pub(crate) fn inst_result_value(&self, id: InstId) -> Option<ValueId> {
-        self.values
-            .iter_enumerated()
-            .find(|(_, value)| matches!(value, Value::Inst(inst) if *inst == id))
-            .map(|(value_id, _)| value_id)
+        self.inst_results[id]
     }
 
     /// Returns a map from each instruction to its result value.
@@ -152,9 +152,9 @@ impl Function {
     pub(crate) fn inst_results(&self) -> FxHashMap<InstId, ValueId> {
         let mut results =
             FxHashMap::with_capacity_and_hasher(self.instructions.len(), Default::default());
-        for (value_id, value) in self.values.iter_enumerated() {
-            if let Value::Inst(inst_id) = value {
-                results.insert(*inst_id, value_id);
+        for (inst_id, result) in self.inst_results.iter_enumerated() {
+            if let Some(value_id) = *result {
+                results.insert(inst_id, value_id);
             }
         }
         results
@@ -230,12 +230,40 @@ impl Function {
 
     /// Allocates a new value.
     pub(crate) fn alloc_value(&mut self, value: Value) -> ValueId {
-        self.values.push(value)
+        let result = match &value {
+            Value::Inst(inst) => Some(*inst),
+            _ => None,
+        };
+        let value = self.values.push(value);
+        if let Some(inst) = result {
+            let previous = self.inst_results[inst].replace(value);
+            assert!(previous.is_none(), "instruction cannot have multiple result values");
+        }
+        value
+    }
+
+    /// Replaces an allocated value and updates its instruction-result mapping.
+    pub(crate) fn set_value(&mut self, id: ValueId, value: Value) {
+        if let Value::Inst(inst) = self.values[id] {
+            self.inst_results[inst] = None;
+        }
+        let result = match &value {
+            Value::Inst(inst) => Some(*inst),
+            _ => None,
+        };
+        self.values[id] = value;
+        if let Some(inst) = result {
+            let previous = self.inst_results[inst].replace(id);
+            assert!(previous.is_none(), "instruction cannot have multiple result values");
+        }
     }
 
     /// Allocates a new instruction.
     pub(crate) fn alloc_inst(&mut self, inst: Instruction) -> InstId {
-        self.instructions.push(inst)
+        let inst_id = self.instructions.push(inst);
+        let result_id = self.inst_results.push(None);
+        debug_assert_eq!(inst_id, result_id);
+        inst_id
     }
 
     /// Allocates a new basic block.
