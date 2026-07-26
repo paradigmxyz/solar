@@ -25,7 +25,7 @@ pub(super) struct MappingElementSlot {
 /// The base storage slot of a mapping: a compile-time constant for a state
 /// variable, or a runtime value for a storage-reference parameter/local.
 enum MappingBaseSlot {
-    Const(u64),
+    Const(U256),
     Value(ValueId),
 }
 
@@ -422,14 +422,14 @@ impl<'gcx> Lowerer<'gcx> {
                     self.get_storage_struct_field_info(base, *member)
                 {
                     let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
-                    let slot = base_slot + field_offset;
-                    let slot_val = builder.imm_u64(slot);
+                    let slot = base_slot + U256::from(field_offset);
+                    let slot_val = builder.imm_u256(slot);
                     return builder.sload(slot_val);
                 }
 
                 // Check if this is a nested storage struct access (e.g., storedNested.point.x)
                 if let Some(slot) = self.compute_nested_storage_slot(base, *member) {
-                    let slot_val = builder.imm_u64(slot);
+                    let slot_val = builder.imm_u256(slot);
                     return builder.sload(slot_val);
                 }
 
@@ -880,7 +880,7 @@ impl<'gcx> Lowerer<'gcx> {
                         // short-storage slot to the memory layout expected by
                         // the ABI encoder. `.length` and indexing use dedicated
                         // storage-slot paths and do not come through here.
-                        let slot_val = builder.imm_u64(slot);
+                        let slot_val = builder.imm_u256(slot);
                         if matches!(
                             var.ty.kind,
                             hir::TypeKind::Elementary(
@@ -996,7 +996,7 @@ impl<'gcx> Lowerer<'gcx> {
         match member.name {
             sym::slot => {
                 if let Some(&slot) = self.storage_slots.get(&var_id) {
-                    return builder.imm_u64(slot);
+                    return builder.imm_u256(slot);
                 }
                 if let Some(&slot) = self.locals.get(&var_id) {
                     return slot;
@@ -1619,7 +1619,7 @@ impl<'gcx> Lowerer<'gcx> {
                             // `[length][data...]` pointer; encode it into the
                             // short/long storage form instead of storing the
                             // pointer word.
-                            let slot_val = builder.imm_u64(base_slot);
+                            let slot_val = builder.imm_u256(base_slot);
                             self.copy_memory_bytes_to_storage(builder, slot_val, rhs);
                         } else {
                             // Simple scalar storage assignment
@@ -1649,8 +1649,8 @@ impl<'gcx> Lowerer<'gcx> {
                     self.get_storage_struct_field_info(base, *member)
                 {
                     let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
-                    let slot = base_slot + field_offset;
-                    let slot_val = builder.imm_u64(slot);
+                    let slot = base_slot + U256::from(field_offset);
+                    let slot_val = builder.imm_u256(slot);
                     builder.sstore(slot_val, rhs);
                     return;
                 }
@@ -1658,7 +1658,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // Check if this is a nested storage struct assignment (e.g., storedNested.point.x =
                 // value)
                 if let Some(slot) = self.compute_nested_storage_slot(base, *member) {
-                    let slot_val = builder.imm_u64(slot);
+                    let slot_val = builder.imm_u256(slot);
                     builder.sstore(slot_val, rhs);
                     return;
                 }
@@ -1943,7 +1943,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Returns the compile-time slot of a mapping state variable.
-    fn get_mapping_base_slot(&self, expr: &hir::Expr<'_>) -> Option<u64> {
+    fn get_mapping_base_slot(&self, expr: &hir::Expr<'_>) -> Option<U256> {
         let var_id = self.gcx.resolved_variable(expr)?;
         self.storage_slots.get(&var_id).copied()
     }
@@ -2664,7 +2664,7 @@ impl<'gcx> Lowerer<'gcx> {
         &self,
         base: &hir::Expr<'_>,
         member: Ident,
-    ) -> Option<(u64, hir::StructId, usize)> {
+    ) -> Option<(U256, hir::StructId, usize)> {
         if let Some(var_id) = self.gcx.resolved_variable(base) {
             let var = self.gcx.hir.variable(var_id);
             // Check if the variable has a struct type and is stored in storage
@@ -2829,10 +2829,10 @@ impl<'gcx> Lowerer<'gcx> {
                     }
                     // A state variable: its base slot is known at compile time.
                     if let Some(&slot) = self.storage_slots.get(&var_id) {
-                        return Some(builder.imm_u64(slot));
+                        return Some(builder.imm_u256(slot));
                     }
                     if let Some(&slot) = self.struct_storage_base_slots.get(&var_id) {
-                        return Some(builder.imm_u64(slot));
+                        return Some(builder.imm_u256(slot));
                     }
                 }
                 None
@@ -2857,7 +2857,7 @@ impl<'gcx> Lowerer<'gcx> {
                     self.get_storage_struct_field_info(base, *member)
                 {
                     let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
-                    return Some(builder.imm_u64(base_slot + field_offset));
+                    return Some(builder.imm_u256(base_slot + U256::from(field_offset)));
                 }
                 // Storage-reference local struct field.
                 if let Some((var_id, struct_id, field_index)) =
@@ -2874,7 +2874,7 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 // Nested state-variable storage struct field.
                 if let Some(slot) = self.compute_nested_storage_slot(base, *member) {
-                    return Some(builder.imm_u64(slot));
+                    return Some(builder.imm_u256(slot));
                 }
                 None
             }
@@ -2989,14 +2989,14 @@ impl<'gcx> Lowerer<'gcx> {
     fn compute_nested_storage_slot_with_type(
         &mut self,
         expr: &hir::Expr<'_>,
-    ) -> Option<(u64, Option<hir::StructId>)> {
+    ) -> Option<(U256, Option<hir::StructId>)> {
         if let ExprKind::Member(base, member) = &expr.kind {
             // First try: base is a direct storage struct variable
             if let Some((base_slot, struct_id, field_index)) =
                 self.get_storage_struct_field_info(base, *member)
             {
                 let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
-                let slot = base_slot + field_offset;
+                let slot = base_slot + U256::from(field_offset);
 
                 // Check if the field itself is a struct
                 let strukt = self.gcx.hir.strukt(struct_id);
@@ -3021,7 +3021,7 @@ impl<'gcx> Lowerer<'gcx> {
                         && field_name.name == member.name
                     {
                         let field_offset = self.get_struct_field_slot_offset(parent_struct_id, i);
-                        let slot = parent_slot + field_offset;
+                        let slot = parent_slot + U256::from(field_offset);
 
                         // Check if this field is also a struct
                         if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) =
@@ -3038,7 +3038,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Computes the storage slot for a nested struct member access (scalar fields only).
-    fn compute_nested_storage_slot(&mut self, base: &hir::Expr<'_>, member: Ident) -> Option<u64> {
+    fn compute_nested_storage_slot(&mut self, base: &hir::Expr<'_>, member: Ident) -> Option<U256> {
         // Check if base is a Member expression (needed for 2+ level nesting)
         if let ExprKind::Member(inner_base, inner_member) = &base.kind {
             // Get the slot and type info for the base member expression
@@ -3053,7 +3053,7 @@ impl<'gcx> Lowerer<'gcx> {
                         && field_name.name == member.name
                     {
                         let field_offset = self.get_struct_field_slot_offset(parent_struct_id, i);
-                        return Some(parent_slot + field_offset);
+                        return Some(parent_slot + U256::from(field_offset));
                     }
                 }
             }
@@ -3070,7 +3070,7 @@ impl<'gcx> Lowerer<'gcx> {
                     {
                         let inner_field_offset =
                             self.get_struct_field_slot_offset(struct_id, field_index);
-                        let nested_base_slot = base_slot + inner_field_offset;
+                        let nested_base_slot = base_slot + U256::from(inner_field_offset);
 
                         let inner_strukt = self.gcx.hir.strukt(*inner_struct_id);
                         for (i, &inner_field_id) in inner_strukt.fields.iter().enumerate() {
@@ -3080,7 +3080,7 @@ impl<'gcx> Lowerer<'gcx> {
                             {
                                 let inner_offset =
                                     self.get_struct_field_slot_offset(*inner_struct_id, i);
-                                return Some(nested_base_slot + inner_offset);
+                                return Some(nested_base_slot + U256::from(inner_offset));
                             }
                         }
                     }
@@ -3240,7 +3240,7 @@ impl<'gcx> Lowerer<'gcx> {
         // Materialize the base slot after the index so a constant state-variable
         // slot keeps its original emission order (the index is lowered first).
         let slot_val = match base_slot {
-            MappingBaseSlot::Const(slot) => builder.imm_u64(slot),
+            MappingBaseSlot::Const(slot) => builder.imm_u256(slot),
             MappingBaseSlot::Value(val) => val,
         };
         let slot = self.compute_mapping_slot_for_index(
