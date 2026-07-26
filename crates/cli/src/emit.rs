@@ -36,13 +36,10 @@ struct CombinedJsonContract<'a> {
     hashes: Option<Hashes>,
 }
 
-pub(crate) fn emit_requested<T>(
+pub(crate) fn emit_requested(
     compiler: &mut CompilerRef<'_>,
-    bytecode_contracts: ContractSelection<T>,
-) -> Result<Option<FxHashMap<ContractId, ContractArtifact>>>
-where
-    T: IntoIterator<Item = ContractId>,
-{
+    bytecode_contracts: ContractSelection<Vec<ContractId>>,
+) -> Result<Option<FxHashMap<ContractId, ContractArtifact>>> {
     let gcx = compiler.gcx();
     dump_mir(gcx)?;
 

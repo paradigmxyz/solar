@@ -65,7 +65,7 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
     {
         ContractSelection::All
     } else {
-        ContractSelection::Specific([])
+        ContractSelection::Specific(Vec::new())
     };
     crate::emit::emit_requested(compiler, bytecode_contracts)?;
     Ok(())
