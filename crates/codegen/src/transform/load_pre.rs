@@ -960,11 +960,9 @@ impl LoadRedundancyEliminator {
 
         let fully_available = insertions.is_empty();
         for block in insertions {
-            let new_inst = func.alloc_inst(Instruction {
-                kind: kind.clone(),
-                result_ty: Some(result_ty),
-                metadata: metadata.clone(),
-            });
+            let mut instruction = Instruction::new(kind.clone(), Some(result_ty));
+            instruction.metadata = metadata.clone();
+            let new_inst = func.alloc_inst(instruction);
             let value = func.alloc_value(Value::Inst(new_inst));
             func.blocks[block].instructions.push(new_inst);
             incoming.push((block, value));

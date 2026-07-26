@@ -41,12 +41,6 @@ pub(crate) struct Function {
     /// instruction list. Use [`Self::instructions`] to iterate active instructions and
     /// [`Self::inst`] or [`Self::inst_mut`] for ID-based access.
     instructions: IndexVec<InstId, Instruction>,
-    /// Result value allocated for each instruction, if any.
-    inst_results: IndexVec<InstId, Option<ValueId>>,
-    /// Display index allocated for each value-producing instruction.
-    inst_result_indices: IndexVec<InstId, Option<usize>>,
-    /// Next display index for a value-producing instruction.
-    next_inst_result_index: usize,
     /// All basic blocks in this function. This is never empty; block zero is the entry.
     pub(crate) blocks: IndexVec<BlockId, BasicBlock>,
 }
@@ -69,9 +63,6 @@ impl Function {
             external_static_return_size: 0,
             values: IndexVec::new(),
             instructions: IndexVec::new(),
-            inst_results: IndexVec::new(),
-            inst_result_indices: IndexVec::new(),
-            next_inst_result_index: 0,
             blocks,
         }
     }
@@ -141,19 +132,22 @@ impl Function {
     /// Returns an instruction's position among allocated value-producing instructions.
     #[must_use]
     pub(crate) fn inst_result_index(&self, id: InstId) -> Option<usize> {
-        self.inst_result_indices[id]
+        self.instructions
+            .iter_enumerated()
+            .filter(|(_, inst)| inst.result_ty.is_some())
+            .position(|(inst_id, _)| inst_id == id)
     }
 
     /// Returns the value produced by the given instruction, if it has one.
     #[must_use]
     pub(crate) fn inst_result_value(&self, id: InstId) -> Option<ValueId> {
-        self.inst_results[id]
+        self.instructions[id].result()
     }
 
     /// Returns the result value allocated for each instruction.
     #[must_use]
     pub(crate) fn inst_results(&self) -> IndexVec<InstId, Option<ValueId>> {
-        self.inst_results.clone()
+        self.instructions.iter().map(Instruction::result).collect()
     }
 
     /// Returns the active block containing each instruction.
@@ -228,7 +222,7 @@ impl Function {
         };
         let value = self.values.push(value);
         if let Some(inst) = result {
-            let previous = self.inst_results[inst].replace(value);
+            let previous = self.instructions[inst].set_result(Some(value));
             assert!(previous.is_none(), "instruction cannot have multiple result values");
         }
         value
@@ -237,7 +231,7 @@ impl Function {
     /// Replaces an allocated value and updates its instruction-result mapping.
     pub(crate) fn set_value(&mut self, id: ValueId, value: Value) {
         if let Value::Inst(inst) = self.values[id] {
-            self.inst_results[inst] = None;
+            self.instructions[inst].set_result(None);
         }
         let result = match &value {
             Value::Inst(inst) => Some(*inst),
@@ -245,24 +239,15 @@ impl Function {
         };
         self.values[id] = value;
         if let Some(inst) = result {
-            let previous = self.inst_results[inst].replace(id);
+            let previous = self.instructions[inst].set_result(Some(id));
             assert!(previous.is_none(), "instruction cannot have multiple result values");
         }
     }
 
     /// Allocates a new instruction.
-    pub(crate) fn alloc_inst(&mut self, inst: Instruction) -> InstId {
-        let result_index = inst.result_ty.map(|_| {
-            let index = self.next_inst_result_index;
-            self.next_inst_result_index += 1;
-            index
-        });
-        let inst_id = self.instructions.push(inst);
-        let result_id = self.inst_results.push(None);
-        let result_index_id = self.inst_result_indices.push(result_index);
-        debug_assert_eq!(inst_id, result_id);
-        debug_assert_eq!(inst_id, result_index_id);
-        inst_id
+    pub(crate) fn alloc_inst(&mut self, mut inst: Instruction) -> InstId {
+        inst.set_result(None);
+        self.instructions.push(inst)
     }
 
     /// Allocates a new basic block.
