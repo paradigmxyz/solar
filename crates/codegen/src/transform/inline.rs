@@ -40,6 +40,24 @@ impl MirPass for Inline {
     }
 }
 
+/// Module pass for specializing calls through constant internal function pointers.
+pub(crate) struct SpecializeFunctionPointers;
+
+impl MirPass for SpecializeFunctionPointers {
+    fn name(&self) -> &'static str {
+        "specialize-function-pointers"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        MirInliner::for_function_pointer_specialization().run(module).inlined != 0
+    }
+}
+
 /// Module-level MIR internal-call inliner.
 ///
 /// This pass clones small internal/private callees into their callers. Each
@@ -69,6 +87,8 @@ struct MirInliner {
     /// under the EIP-170 deployable-code limit. Small contracts never reach it
     /// and inline normally.
     max_module_code_size: usize,
+    /// Whether to inline only constant function-pointer casts and dispatches.
+    specialize_function_pointers_only: bool,
 }
 
 impl Default for MirInliner {
@@ -89,6 +109,7 @@ impl Default for MirInliner {
             // limit, so further (growth-only) inlining is skipped to keep it
             // deployable. Ordinary contracts are far smaller and inline normally.
             max_module_code_size: 7450,
+            specialize_function_pointers_only: false,
         }
     }
 }
@@ -102,6 +123,18 @@ impl MirInliner {
     #[must_use]
     fn for_size() -> Self {
         Self { max_module_code_size: 0, ..Self::default() }
+    }
+
+    /// Creates an inliner that only propagates constant values through
+    /// transparent function-pointer casts and specializes their dispatchers.
+    #[must_use]
+    fn for_function_pointer_specialization() -> Self {
+        Self {
+            max_caller_inlined_instructions: usize::MAX,
+            max_module_code_size: usize::MAX,
+            specialize_function_pointers_only: true,
+            ..Self::default()
+        }
     }
 }
 
@@ -132,10 +165,12 @@ struct MirInlineSummary {
     has_log: bool,
     has_control_flow: bool,
     has_unsupported_terminator: bool,
+    has_tail_call: bool,
     is_entry_point: bool,
     is_constructor: bool,
     no_inline: bool,
     has_function_selector: bool,
+    is_transparent_function_pointer_cast: bool,
 }
 
 impl MirInliner {
@@ -207,7 +242,12 @@ impl MirInliner {
                 let old_size =
                     summaries.get(&caller_id).map(|s| s.estimated_code_size).unwrap_or_default();
                 let caller = module.function_mut(caller_id);
-                if inline_call(caller, site.block, site.inst_index, &callee) {
+                let changed = if summary.is_transparent_function_pointer_cast {
+                    propagate_function_pointer_cast(caller, site.block, site.inst_index)
+                } else {
+                    inline_call(caller, site.block, site.inst_index, &callee)
+                };
+                if changed {
                     stats.inlined += 1;
                     let new_summary = summarize_function(module.function(caller_id));
                     module_code_size = module_code_size
@@ -330,18 +370,27 @@ impl MirInliner {
         let can_specialize_dispatcher = summary.no_inline
             && summary.has_function_selector
             && site.has_constant_function_selector;
+        let can_propagate_function_pointer =
+            summary.is_transparent_function_pointer_cast && site.has_constant_function_selector;
+        if self.specialize_function_pointers_only
+            && !can_specialize_dispatcher
+            && !can_propagate_function_pointer
+        {
+            return false;
+        }
         if caller == site.callee
             || (summary.no_inline && !single_call && !can_specialize_dispatcher)
             || summary.is_entry_point
             || summary.is_constructor
-            || summary.has_phi
+            || (summary.has_phi && !can_specialize_dispatcher)
+            || (summary.has_tail_call && !can_specialize_dispatcher)
             || summary.has_unsupported_terminator
             || summary.return_count == 0
         {
             return false;
         }
 
-        if can_specialize_dispatcher {
+        if can_specialize_dispatcher || can_propagate_function_pointer {
             return summary.instruction_count <= self.max_single_call_sanity_instructions;
         }
 
@@ -405,6 +454,7 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
         is_constructor: func.attributes.is_constructor,
         no_inline: func.attributes.no_inline,
         has_function_selector: func.params.first() == Some(&MirType::Function),
+        is_transparent_function_pointer_cast: is_transparent_function_pointer_cast(func),
         ..MirInlineSummary::default()
     };
 
@@ -465,16 +515,41 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
                 summary.estimated_code_size += term_cost.code_size;
                 summary.estimated_runtime_gas += term_cost.runtime_gas;
             }
+            Some(Terminator::TailCall { .. }) => {
+                summary.has_tail_call = true;
+                let term_cost = estimate_terminator_cost(block.terminator.as_ref().unwrap());
+                summary.estimated_code_size += term_cost.code_size;
+                summary.estimated_runtime_gas += term_cost.runtime_gas;
+            }
             Some(Terminator::ReturnData { .. })
             | Some(Terminator::Stop)
             | Some(Terminator::SelfDestruct { .. })
-            | Some(Terminator::TailCall { .. })
             | None => summary.has_unsupported_terminator = true,
             Some(Terminator::Invalid) => {}
         }
     }
 
     summary
+}
+
+fn is_transparent_function_pointer_cast(func: &Function) -> bool {
+    if func.params != [MirType::Function]
+        || func.returns != [MirType::Function]
+        || func.blocks.len() != 1
+    {
+        return false;
+    }
+
+    let block = &func.blocks[BlockId::ENTRY];
+    if !block.instructions.is_empty() {
+        return false;
+    }
+
+    let Some(Terminator::Return { values }) = &block.terminator else {
+        return false;
+    };
+    values.len() == 1
+        && matches!(func.value(values[0]), Value::Arg { index: 0, ty: MirType::Function })
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -659,6 +734,29 @@ fn block_loop_depths(func: &Function) -> FxHashMap<BlockId, usize> {
     depths
 }
 
+fn propagate_function_pointer_cast(
+    caller: &mut Function,
+    call_block: BlockId,
+    call_inst_index: usize,
+) -> bool {
+    let Some(&call_inst) = caller.blocks[call_block].instructions.get(call_inst_index) else {
+        return false;
+    };
+    let InstKind::InternalCall { ref args, returns: 1, .. } = caller.inst(call_inst).kind else {
+        return false;
+    };
+    let Some(&arg) = args.first() else {
+        return false;
+    };
+    let Some(result) = caller.inst_result_value(call_inst) else {
+        return false;
+    };
+
+    caller.blocks[call_block].instructions.remove(call_inst_index);
+    caller.replace_uses(&FxHashMap::from_iter([(result, arg)]));
+    true
+}
+
 fn inline_call(
     caller: &mut Function,
     call_block: BlockId,
@@ -788,8 +886,8 @@ impl<'a> InlineCloner<'a> {
             let mut instructions = Vec::with_capacity(block.instructions.len());
             for &inst_id in &block.instructions {
                 let inst = self.callee.inst(inst_id).clone();
-                let kind = self.clone_inst_kind(inst.kind)?;
-                let new_inst = self.caller.alloc_inst(Instruction::new(kind, inst.result_ty));
+                let new_inst =
+                    self.caller.alloc_inst(Instruction::new(inst.kind.clone(), inst.result_ty));
                 instructions.push(new_inst);
                 if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
                     let new_result = self.caller.alloc_value(Value::Inst(new_inst));
@@ -797,6 +895,15 @@ impl<'a> InlineCloner<'a> {
                 }
             }
             self.caller.blocks[caller_block].instructions = instructions;
+        }
+
+        for (callee_block, block) in self.callee.blocks.iter_enumerated() {
+            let caller_block = self.block_map[&callee_block];
+            for (index, &inst_id) in block.instructions.iter().enumerate() {
+                let kind = self.clone_inst_kind(self.callee.inst(inst_id).kind.clone())?;
+                let new_inst = self.caller.blocks[caller_block].instructions[index];
+                self.caller.inst_mut(new_inst).kind = kind;
+            }
         }
 
         for (callee_block, block) in self.callee.blocks.iter_enumerated() {
@@ -1065,7 +1172,14 @@ impl<'a> InlineCloner<'a> {
                 self.clone_value(e)?,
                 self.clone_value(f)?,
             ),
-            InstKind::Phi(_) => return None,
+            InstKind::Phi(incoming) => InstKind::Phi(
+                incoming
+                    .into_iter()
+                    .map(|(block, value)| {
+                        Some((self.clone_block(block)?, self.clone_value(value)?))
+                    })
+                    .collect::<Option<Vec<_>>>()?,
+            ),
             InstKind::Select(a, b, c) => {
                 InstKind::Select(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
             }
@@ -1115,10 +1229,14 @@ impl<'a> InlineCloner<'a> {
                 offset: self.clone_value(*offset)?,
                 size: self.clone_value(*size)?,
             },
-            Terminator::ReturnData { .. }
-            | Terminator::Stop
-            | Terminator::SelfDestruct { .. }
-            | Terminator::TailCall { .. } => {
+            Terminator::TailCall { function, args } => Terminator::TailCall {
+                function: *function,
+                args: args
+                    .iter()
+                    .map(|arg| self.clone_value(*arg))
+                    .collect::<Option<SmallVec<_>>>()?,
+            },
+            Terminator::ReturnData { .. } | Terminator::Stop | Terminator::SelfDestruct { .. } => {
                 return None;
             }
             Terminator::Invalid => Terminator::Invalid,

@@ -1,6 +1,9 @@
 //@ run-call: choose true, 7 => 8
 //@ run-call: choose false, 7 => 6
+//@ run-call-fail: choose true, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call-fail: choose false, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: throughCast 9 => 10
+//@ run-call-fail: throughCast 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: callVoid => true
 //@ run-call: callPair 7 => 7, 8
 //@ run-call: callState => true

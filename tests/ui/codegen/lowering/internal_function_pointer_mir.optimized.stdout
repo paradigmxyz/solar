@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/internal_function_pointer_mir.sol:InternalFunctionPointerMir (runtime) ===
 @module runtime
 bb0:
-  push 608
+  push 736
   push 64
   mstore
   callvalue
-  push bb10
+  push bb11
   jumpi
   calldatasize
   iszero
-  push bb10
+  push bb11
   jumpi
   push 0
   calldataload
@@ -18,65 +18,91 @@ bb0:
   dup1
   push 0x560cf94
   eq
-  push bb19
+  push bb20
   jumpi
   dup1
   push 0x46e2b562
   eq
-  push bb47
+  push bb59
   jumpi
   dup1
   push 0x62548c7b
   eq
-  push bb26
+  push bb33
   jumpi
   dup1
   push 0x85ead1f5
   eq
-  push bb29
+  push bb36
   jumpi
   dup1
   push 0xb67d6f95
   eq
-  push bb27
+  push bb34
   jumpi
   dup1
   push 0xc1419383
   eq
-  push bb11
+  push bb12
   jumpi
   dup1
   push 0xd04622c6
   eq
-  push bb24
+  push bb31
   jumpi
-  jump bb10
-bb10 [cold]:
+  dup1
+  push 0xe09cd08b
+  eq
+  push bb25
+  jumpi
+  jump bb11
+bb11 [cold]:
   push 0
   dup1
   revert
-bb48 [cold]:
+bb52:
+  push 704
+  mload
+  push 480
+  mstore
+  jump
+bb59 [cold]:
   push 0x4e487b71
   push 224
   shl
   push 0
   mstore
-  push 17
-  jump bb52
-bb52 [cold]:
+  push 81
+  jump bb61
+bb61 [cold]:
   push 4
   mstore
   push 36
   push 0
   revert
-bb11:
+bb29:
+  push 288
+  mload
+  dup1
+  push 288
+  jump bb64
+bb64:
+  mstore
+  jump bb63
+bb63:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb12:
   calldatasize
   push 4
   swap1
   sub
   push 64
   sgt
-  push bb10
+  push bb11
   jumpi
   push 4
   calldataload
@@ -88,110 +114,170 @@ bb11:
   push 256
   mload
   sub
-  push bb10
+  push bb11
   jumpi
   push 0
   push 128
   mstore
   push 4
   calldataload
-  push bb15
+  push bb16
   jumpi
   push 3
-  jump bb49
-bb49:
+  jump bb62
+bb62:
   push 0
   mstore
   push 0
   mload
   dup1
-  push 384
+  push 416
   mstore
   push 36
   calldataload
-  push 416
+  push 448
   mstore
   pop
-  push bb18
+  push bb19
   push 2
-  push 384
+  push 416
   mload
   eq
-  push bb41
+  push bb48
   jumpi
   push 3
-  push 384
+  push 416
+  mload
+  eq
+  push bb51
+  jumpi
+  push 7
+  push 416
   mload
   sub
-  push bb47
+  push bb59
+  jumpi
+  number
+  push 0
+  not
+  eq
+  push 448
+  mload
+  push 704
+  mstore
+  push bb52
   jumpi
   push 1
-  push 416
+  push 448
   mload
-  sub
+  add
   dup1
-  push 576
+  push 672
   mstore
-  push 416
+  push 448
   mload
+  dup2
+  lt
+  dup2
+  push 704
+  mstore
   swap1
   pop
   iszero
-  push bb47
+  push bb52
   jumpi
-  push 576
-  mload
-  push 448
+  jump bb60
+bb60 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
   mstore
-  jump
-bb15:
+  push 17
+  jump bb61
+bb16:
   push 2
-  jump bb49
-bb18:
-  push 448
+  jump bb62
+bb19:
+  push 480
   mload
-  jump bb51
-bb51:
   dup1
   push 224
-  mstore
-  jump bb50
-bb50:
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb19:
+  jump bb64
+bb20:
   calldatasize
   push 4
   swap1
   sub
   push 32
   sgt
-  push bb10
+  push bb11
   jumpi
   push 1
   push 4
   calldataload
   add
   dup1
-  push 224
+  push 256
   mstore
   push 4
   calldataload
   dup2
   lt
-  push bb48
+  push bb60
   jumpi
-  jump bb51
-bb24:
+  dup1
+  push 256
+  jump bb64
+bb25:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  sgt
+  push bb11
+  jumpi
   push 0
   push 128
   mstore
-  push bb25
-  jump bb46
-bb46:
+  number
+  push 0
+  not
+  eq
+  push 4
+  calldataload
+  push 288
+  mstore
+  push bb29
+  jumpi
+  push 1
+  push 4
+  calldataload
+  add
+  dup1
+  push 320
+  mstore
+  push 4
+  calldataload
+  dup2
+  lt
+  dup2
+  push 288
+  mstore
+  swap1
+  pop
+  iszero
+  push bb29
+  jumpi
+  jump bb60
+bb31:
+  push 0
+  push 128
+  mstore
+  push bb32
+  jump bb58
+bb58:
   push 0
   sload
   push 255
@@ -202,7 +288,7 @@ bb46:
   push 0
   sstore
   jump
-bb26:
+bb33:
   push 0
   sload
   push 255
@@ -213,41 +299,41 @@ bb26:
   push 0
   sstore
   stop
-bb27:
+bb34:
   push 0
   push 128
   mstore
   push 1
   sload
   dup1
-  push 384
+  push 416
   mstore
   pop
-  push bb28
-  push 6
-  push 384
+  push bb35
+  push 9
+  push 416
   mload
   sub
-  push bb47
+  push bb59
   jumpi
-  push bb44
-  jump bb46
-bb28:
-  jump bb25
-bb25:
+  push bb56
+  jump bb58
+bb35:
+  jump bb32
+bb32:
   push 0
   sload
   push 255
   and
-  jump bb50
-bb29:
+  jump bb63
+bb36:
   calldatasize
   push 4
   swap1
   sub
   push 32
   sgt
-  push bb10
+  push bb11
   jumpi
   push 1
   push 4
@@ -260,7 +346,7 @@ bb29:
   calldataload
   dup2
   lt
-  push bb48
+  push bb60
   jumpi
   push 64
   mload
@@ -287,36 +373,51 @@ bb29:
   push 64
   push 128
   return
-bb40:
-  push 416
+bb47:
+  push 448
   mload
   push 1
   add
-  push 448
+  push 480
   mstore
   jump
-bb41:
+bb48:
   push 1
-  push 416
+  push 448
   mload
   add
   dup1
-  push 544
+  push 608
   mstore
-  push 416
+  push 448
   mload
   gt
   iszero
-  push bb40
+  push bb47
   jumpi
-  jump bb47
-bb47 [cold]:
-  push 0x4e487b71
-  push 224
-  shl
-  push 0
+  jump bb60
+bb50:
+  push 1
+  push 448
+  mload
+  sub
+  push 480
   mstore
-  push 81
-  jump bb52
-bb44:
+  jump
+bb51:
+  push 1
+  push 448
+  mload
+  sub
+  dup1
+  push 640
+  mstore
+  push 448
+  mload
+  swap1
+  pop
+  push bb50
+  jumpi
+  jump bb60
+bb56:
   jump

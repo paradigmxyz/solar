@@ -2,7 +2,7 @@
 @module InternalFunctionPointerMir
 fn @constructor() {
   bb0:
-    sstore 1, 6 !metadata(storage=slot(1))
+    sstore 1, 9 !metadata(storage=slot(1))
     stop
 }
 
@@ -52,6 +52,12 @@ fn @__internal_dispatch_0(arg0: function, arg1: u256) -> u256 {
     v3 = internal_call @decrement, 1, arg1
     ret v3
   bb4:
+    v4 = eq arg0, 7
+    jumpi v4, bb5, bb6
+  bb5:
+    v5 = internal_call @incrementView, 1, arg1
+    ret v5
+  bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
@@ -102,10 +108,58 @@ fn @callConstant(arg0: u256) {
     returndata 128, 32
 }
 
+fn @callCast(arg0: u256) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v3 = internal_call @castViewToPure, 1, 7
+    v4 = internal_call @__internal_dispatch_0, 1, v3, arg0
+    mstore 128, v4
+    returndata 128, 32
+}
+
+fn @castViewToPure(arg0: function) -> function {
+  bb0:
+    v0 = internal_frame_addr 128
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = internal_frame_addr 128
+    mstore v1, arg0 !metadata(memory=internal_frame)
+    v2 = internal_frame_addr 128
+    v3 = mload v2 !metadata(memory=internal_frame)
+    ret v3
+}
+
+fn @incrementView(arg0: u256) -> u256 {
+  bb0:
+    v0 = internal_frame_addr 128
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = number
+    v2 = eq v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v2, bb1, bb2
+  bb1:
+    ret arg0
+  bb2:
+    v3 = add arg0, 1
+    v4 = lt v3, arg0
+    jumpi v4, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    ret v3
+}
+
 fn @callVoid() {
   bb0:
     mstore 128, 0
-    internal_call @__internal_dispatch_1, 0, 6
+    internal_call @__internal_dispatch_1, 0, 9
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
     mstore 128, v1
@@ -114,10 +168,10 @@ fn @callVoid() {
 
 fn @__internal_dispatch_1(arg0: function) {
   bb0:
-    v0 = eq arg0, 6
+    v0 = eq arg0, 9
     jumpi v0, bb1, bb2
   bb1:
-    internal_call fn14, 0
+    internal_call fn17, 0
     ret
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -157,7 +211,7 @@ fn @callPair(arg0: u256) {
   bb2:
     mstore 128, 0
     mstore 160, 0
-    v3 = internal_call @__internal_dispatch_2, 2, 9, arg0
+    v3 = internal_call @__internal_dispatch_2, 2, 12, arg0
     v4 = mload 32 !metadata(memory=scratch)
     v5 = add v4, 32
     v6 = mload v5
@@ -169,7 +223,7 @@ fn @callPair(arg0: u256) {
 
 fn @__internal_dispatch_2(arg0: function, arg1: u256) -> (u256, u256) {
   bb0:
-    v0 = eq arg0, 9
+    v0 = eq arg0, 12
     jumpi v0, bb1, bb2
   bb1:
     v1 = internal_call @pair, 2, arg1

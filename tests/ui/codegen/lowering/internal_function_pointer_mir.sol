@@ -31,6 +31,14 @@
 // EVMIR: eq
 // EVMIR-NEXT: push [[VOID:bb[0-9]+]]
 // EVMIR-NEXT: jumpi
+// EVMIR: push 0xe09cd08b
+// EVMIR: eq
+// EVMIR-NEXT: push [[CAST:bb[0-9]+]]
+// EVMIR-NEXT: jumpi
+// EVMIR: [[INVALID]] [cold]:
+// EVMIR: push 0x4e487b71
+// EVMIR: mstore
+// EVMIR: push 81
 contract InternalFunctionPointerMir {
     bool flag;
     function() internal stateFn = setFlag;
@@ -44,6 +52,8 @@ contract InternalFunctionPointerMir {
     // BUILT: internal_call @increment, 1, arg1
     // BUILT: eq arg0, [[DECREMENT]]
     // BUILT: internal_call @decrement, 1, arg1
+    // BUILT: eq arg0, [[INCREMENT_VIEW:[0-9]+]]
+    // BUILT: internal_call @incrementView, 1, arg1
     // BUILT: mstore 4, 81
     // BUILT: revert 0, 36
     // EVMIR: [[DYNAMIC]]:
@@ -81,6 +91,33 @@ contract InternalFunctionPointerMir {
         return fn(value);
     }
 
+    // BUILT-LABEL: fn @callCast(
+    // BUILT: [[CASTED:v[0-9]+]] = internal_call @castViewToPure, 1, [[INCREMENT_VIEW]]
+    // BUILT: internal_call @__internal_dispatch_0, 1, [[CASTED]], arg0
+    // BUILT-LABEL: fn @castViewToPure(
+    // BUILT: mstore {{v[0-9]+}}, arg0
+    // BUILT: ret {{v[0-9]+}}
+    // EVMIR: [[CAST]]:
+    // EVMIR: number
+    // EVMIR: push 1
+    // EVMIR: add
+    function callCast(uint256 value) public pure returns (uint256) {
+        return castViewToPure(incrementView)(value);
+    }
+
+    function castViewToPure(
+        function(uint256) internal view returns (uint256) fnIn
+    ) internal pure returns (function(uint256) internal pure returns (uint256) fnOut) {
+        assembly {
+            fnOut := fnIn
+        }
+    }
+
+    function incrementView(uint256 value) internal view returns (uint256) {
+        if (block.number == type(uint256).max) return value;
+        return value + 1;
+    }
+
     // BUILT-LABEL: fn @callVoid(
     // BUILT: internal_call @__internal_dispatch_1, 0, [[SET_FLAG]]
     // BUILT-LABEL: fn @__internal_dispatch_1(
@@ -109,7 +146,7 @@ contract InternalFunctionPointerMir {
     // EVMIR: [[STATE]]:
     // EVMIR: {{^  push 1$}}
     // EVMIR-NEXT: sload
-    // EVMIR: push 6
+    // EVMIR: push 9
     // EVMIR: sub
     // EVMIR: push [[INVALID]]
     // EVMIR-NEXT: jumpi
@@ -147,11 +184,6 @@ contract InternalFunctionPointerMir {
 
     // BUILT-LABEL: fn @callZero(
     // BUILT: internal_call @__internal_dispatch_1, 0, 0
-    // EVMIR: [[INVALID]] [cold]:
-    // EVMIR: push 0x4e487b71
-    // EVMIR: mstore
-    // EVMIR: push 81
-    // EVMIR-NEXT: jump {{bb[0-9]+}}
     function callZero() public {
         function() internal fn;
         fn();
