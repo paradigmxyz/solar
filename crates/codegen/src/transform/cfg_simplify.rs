@@ -69,6 +69,7 @@ impl MirPass for FunctionDce {
 struct CanonBlock {
     insts: Vec<CanonInst>,
     term_mnemonic: &'static str,
+    term_function: Option<FunctionId>,
     term_operands: Vec<CanonOperand>,
 }
 
@@ -276,8 +277,10 @@ impl CfgSimplifier {
             });
         }
 
+        let term_function =
+            if let Terminator::TailCall { function, .. } = term { Some(*function) } else { None };
         let term_operands = term.operands().into_iter().map(canon_operand).collect();
-        Some(CanonBlock { insts, term_mnemonic: term.mnemonic(), term_operands })
+        Some(CanonBlock { insts, term_mnemonic: term.mnemonic(), term_function, term_operands })
     }
 
     fn simplify_trivial_phis(&mut self, func: &mut Function) {
