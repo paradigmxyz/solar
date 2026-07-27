@@ -1,0 +1,14 @@
+//@compile-flags: --pass dce
+
+@module DuplicateFunctionNames
+
+fn @duplicate() {
+  bb0:
+    stop
+}
+
+//~? ERROR: [fn1] function name `@duplicate` duplicates fn0
+fn @duplicate() {
+  bb0:
+    stop
+}

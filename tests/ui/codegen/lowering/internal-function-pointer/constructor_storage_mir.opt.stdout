@@ -1,0 +1,40 @@
+// === ROOT/tests/ui/codegen/lowering/internal-function-pointer/constructor_storage_mir.sol:ConstructorStoredFunctionPointer ===
+@module ConstructorStoredFunctionPointer
+@phase evm-shaped
+fn @_anonymous() {
+  bb0:
+    sstore 0, 2 !metadata(storage=slot(0))
+    stop
+}
+
+fn @callStoredOnly() {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v2 = eq v0, 2
+    jumpi v2, bb2, bb1
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 81
+    revert 0, 36
+  bb2:
+    mstore 128, 7
+    returndata 128, 32
+}
+
+fn @entry() {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb4, bb1
+  bb1:
+    v1 = calldatasize
+    jumpi v1, bb2, bb4
+  bb2:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb4, [0x11cfff8f => bb3]
+  bb3:
+    tail_call @callStoredOnly
+  bb4:
+    revert 0, 0
+}
+

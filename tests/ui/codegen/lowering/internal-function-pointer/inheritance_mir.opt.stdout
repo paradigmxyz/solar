@@ -1,0 +1,59 @@
+// === ROOT/tests/ui/codegen/lowering/internal-function-pointer/inheritance_mir.sol:PointerBase ===
+@module PointerBase
+@phase optimized
+fn @target() -> u256 {
+  bb0:
+    ret 1
+}
+
+fn @callThroughVirtualPointer() -> u256 {
+  bb0:
+    ret 1
+}
+
+fn @__internal_dispatch_0(arg0: function) -> u256 {
+  bb0:
+    v0 = eq arg0, 1
+    jumpi v0, bb2, bb1
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    ret 1
+}
+
+// === ROOT/tests/ui/codegen/lowering/internal-function-pointer/inheritance_mir.sol:PointerDerived ===
+@module PointerDerived
+@phase evm-shaped
+fn @callQualified() {
+  bb0:
+    mstore 128, 1
+    returndata 128, 32
+}
+
+fn @callVirtual() {
+  bb0:
+    mstore 128, 2
+    returndata 128, 32
+}
+
+fn @entry() {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb5, bb1
+  bb1:
+    v1 = calldatasize
+    jumpi v1, bb2, bb5
+  bb2:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb5, [0x1a18d84f => bb3, 0xe9cdf645 => bb4]
+  bb3:
+    tail_call @callQualified
+  bb4:
+    tail_call @callVirtual
+  bb5:
+    revert 0, 0
+}
+

@@ -143,8 +143,36 @@ impl Module {
     }
 
     /// Adds a function to the module.
-    pub(crate) fn add_function(&mut self, function: Function) -> FunctionId {
+    pub(crate) fn add_function(&mut self, mut function: Function) -> FunctionId {
+        function.name = self.unique_function_name(function.name);
         self.functions.push(function)
+    }
+
+    /// Renames existing functions so `name` is available for a reserved function.
+    pub(crate) fn reserve_function_name(&mut self, name: Symbol) {
+        let conflicts = self
+            .functions
+            .iter_enumerated()
+            .filter_map(|(id, function)| (function.name.name == name).then_some(id))
+            .collect::<Vec<_>>();
+        for id in conflicts {
+            let unique_name = self.unique_function_name(self.functions[id].name);
+            self.functions[id].name = unique_name;
+        }
+    }
+
+    fn unique_function_name(&self, name: Ident) -> Ident {
+        if self.functions.iter().all(|function| function.name.name != name.name) {
+            return name;
+        }
+
+        for suffix in 1usize.. {
+            let symbol = Symbol::intern(&format!("{}._{suffix}", name.name));
+            if self.functions.iter().all(|function| function.name.name != symbol) {
+                return Ident::new(symbol, name.span);
+            }
+        }
+        unreachable!()
     }
 
     /// Returns the function for the given ID.

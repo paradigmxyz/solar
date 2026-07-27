@@ -11,9 +11,9 @@
 contract Recursive {
     // CHECK-LABEL: fn @fact{{[( ]}}
     // CHECK: [[NEXT:v[0-9]+]] = sub arg0, 1
-    // CHECK: [[RECURSED:v[0-9]+]] = internal_call [[FACT:fn[0-9]+]], 1, [[NEXT]]
+    // CHECK: [[RECURSED:v[0-9]+]] = internal_call [[FACT:@fact._1]], 1, [[NEXT]]
     // CHECK: mul arg0, [[RECURSED]]
-    // CHECK-LABEL: fn @fact{{[( ]}}
+    // CHECK-LABEL: fn @fact._1{{[( ]}}
     // CHECK: internal_call [[FACT]], 1,
     function fact(uint256 n) public pure returns (uint256) {
         if (n <= 1) return 1;
@@ -21,10 +21,10 @@ contract Recursive {
     }
 
     // CHECK-LABEL: fn @fib{{[( ]}}
-    // CHECK: internal_call [[FIB:fn[0-9]+]], 1,
+    // CHECK: internal_call [[FIB:@fib._1]], 1,
     // CHECK: internal_call [[FIB]], 1,
     // CHECK: add
-    // CHECK-LABEL: fn @fib{{[( ]}}
+    // CHECK-LABEL: fn @fib._1{{[( ]}}
     // CHECK: internal_call [[FIB]], 1,
     // CHECK: internal_call [[FIB]], 1,
     function fib(uint256 n) public pure returns (uint256) {
@@ -35,17 +35,17 @@ contract Recursive {
     // Mutual recursion also resolves: each non-simple callee is lowered as an
     // internal-frame copy, so neither partner is inlined. `isEven(10) == true`.
     // CHECK-LABEL: fn @isEven{{[( ]}}
-    // CHECK: internal_call [[ODD:fn[0-9]+]], 1,
+    // CHECK: internal_call [[ODD:@isOdd]], 1,
     // CHECK-LABEL: fn @isOdd{{[( ]}}
-    // CHECK: internal_call [[EVEN:fn[0-9]+]], 1,
-    // CHECK-LABEL: fn @isEven{{[( ]}}
+    // CHECK: internal_call [[EVEN:@isEven._1]], 1,
+    // CHECK-LABEL: fn @isEven._1{{[( ]}}
     // CHECK: internal_call [[ODD]], 1,
     function isEven(uint256 n) public pure returns (bool) {
         if (n == 0) return true;
         return isOdd(n - 1);
     }
 
-    // CHECK-LABEL: fn @isOdd{{[( ]}}
+    // CHECK-LABEL: fn @isOdd._1{{[( ]}}
     // CHECK: internal_call [[EVEN]], 1,
     function isOdd(uint256 n) public pure returns (bool) {
         if (n == 0) return false;

@@ -141,7 +141,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses a function name: an identifier, optionally with `.`-joined
-    /// segments (`f.body`), as minted by the ABI lowering.
+    /// segments (`f.body`), as minted by MIR transforms.
     fn parse_function_name(&mut self) -> PResult<'sess, Symbol> {
         let first = self.parser.parse_ident()?;
         if !self.parser.eat(TokenKind::Dot) {
@@ -186,7 +186,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         while !self.parser.is_eof() {
             let func = self.parse_function()?;
-            let function = module.add_function(func);
+            // Preserve names from textual MIR so the validator can diagnose
+            // duplicates rather than silently uniquifying invalid input.
+            let function = module.functions.push(func);
             function_refs
                 .extend(self.function_refs.drain(..).map(|reference| (function, reference)));
         }

@@ -25,7 +25,7 @@ fn @fact(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v7 = internal_call fn1, 1, v5
+    v7 = internal_call @fact._1, 1, v5
     v8 = mul arg0, v7
     v9 = iszero v7
     v10 = div v8, v7
@@ -42,7 +42,7 @@ fn @fact(arg0: u256) {
     returndata 128, 32
 }
 
-fn @fact(arg0: u256) -> u256 {
+fn @fact._1(arg0: u256) -> u256 {
   bb0:
     v0 = internal_frame_addr 128
     mstore v0, 0 !metadata(memory=internal_frame)
@@ -60,7 +60,7 @@ fn @fact(arg0: u256) -> u256 {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v5 = internal_call fn1, 1, v3
+    v5 = internal_call @fact._1, 1, v3
     v6 = mul arg0, v5
     v7 = iszero v5
     v8 = div v6, v5
@@ -101,7 +101,7 @@ fn @fib(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v7 = internal_call fn3, 1, v5
+    v7 = internal_call @fib._1, 1, v5
     v8 = sub arg0, 2
     v9 = lt arg0, 2
     jumpi v9, bb7, bb8
@@ -110,7 +110,7 @@ fn @fib(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v10 = internal_call fn3, 1, v8
+    v10 = internal_call @fib._1, 1, v8
     v11 = add v7, v10
     v12 = lt v11, v7
     jumpi v12, bb9, bb10
@@ -123,7 +123,7 @@ fn @fib(arg0: u256) {
     returndata 128, 32
 }
 
-fn @fib(arg0: u256) -> u256 {
+fn @fib._1(arg0: u256) -> u256 {
   bb0:
     v0 = internal_frame_addr 128
     mstore v0, 0 !metadata(memory=internal_frame)
@@ -141,7 +141,7 @@ fn @fib(arg0: u256) -> u256 {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v5 = internal_call fn3, 1, v3
+    v5 = internal_call @fib._1, 1, v3
     v6 = sub arg0, 2
     v7 = lt arg0, 2
     jumpi v7, bb5, bb6
@@ -150,7 +150,7 @@ fn @fib(arg0: u256) -> u256 {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v8 = internal_call fn3, 1, v6
+    v8 = internal_call @fib._1, 1, v6
     v9 = add v5, v8
     v10 = lt v9, v5
     jumpi v10, bb7, bb8
@@ -186,7 +186,7 @@ fn @isEven(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v6 = internal_call fn5, 1, v4
+    v6 = internal_call @isOdd, 1, v4
     mstore 128, v6
     returndata 128, 32
 }
@@ -208,11 +208,11 @@ fn @isOdd(arg0: u256) -> bool {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v4 = internal_call fn6, 1, v2
+    v4 = internal_call @isEven._1, 1, v2
     ret v4
 }
 
-fn @isEven(arg0: u256) -> bool {
+fn @isEven._1(arg0: u256) -> bool {
   bb0:
     v0 = internal_frame_addr 128
     mstore v0, 0 !metadata(memory=internal_frame)
@@ -229,11 +229,11 @@ fn @isEven(arg0: u256) -> bool {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v4 = internal_call fn5, 1, v2
+    v4 = internal_call @isOdd, 1, v2
     ret v4
 }
 
-fn @isOdd(arg0: u256) {
+fn @isOdd._1(arg0: u256) {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -257,7 +257,7 @@ fn @isOdd(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v6 = internal_call fn6, 1, v4
+    v6 = internal_call @isEven._1, 1, v4
     mstore 128, v6
     returndata 128, 32
 }

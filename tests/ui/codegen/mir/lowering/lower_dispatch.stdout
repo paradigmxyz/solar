@@ -11,6 +11,12 @@
   fn @pong() {
     bb0:
       stop
+  }
+  
+- fn @entry() {
++ fn @entry._1() {
+    bb0:
+      stop
 + }
 + 
 + fn @entry() {

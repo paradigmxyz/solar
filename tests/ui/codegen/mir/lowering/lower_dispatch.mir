@@ -7,6 +7,8 @@
 @module LowerDispatch
 @phase abi
 // CHECK-LABEL: after lower-dispatch
+// CHECK: - fn @entry{{[( ]}}
+// CHECK: + fn @entry._1(
 // CHECK: + fn @entry{{[( ]}}
 // CHECK: + [[SIZE:v[0-9]+]] = calldatasize
 // CHECK: + jumpi [[SIZE]]
@@ -21,6 +23,10 @@ fn @ping() [selector=0x12000000] {
     stop
 }
 fn @pong() [selector=0x8d3a3e57] {
+  bb0:
+    stop
+}
+fn @entry() {
   bb0:
     stop
 }
