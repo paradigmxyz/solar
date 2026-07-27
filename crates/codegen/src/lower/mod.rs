@@ -202,6 +202,7 @@ impl<'gcx> Lowerer<'gcx> {
         Self {
             gcx,
             module: Module::new(name),
+            contract_id: None,
             current_contract_id: None,
             storage_slots: FxHashMap::default(),
             storage_locations: FxHashMap::default(),
@@ -237,7 +238,6 @@ impl<'gcx> Lowerer<'gcx> {
             struct_storage_base_slots: FxHashMap::default(),
             struct_field_offsets: FxHashMap::default(),
             struct_storage_layouts: FxHashMap::default(),
-            contract_id: None,
         }
     }
 
