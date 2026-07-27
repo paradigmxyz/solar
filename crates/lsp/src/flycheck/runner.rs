@@ -49,8 +49,8 @@ fn parse_output(
         return parser::parse(&output.stdout, &config.cwd, config.output);
     }
 
-    let stdout = parse_nonempty(&output.stdout, config);
-    let stderr = parse_nonempty(&output.stderr, config);
+    let stdout = parse_json_records(&output.stdout, config);
+    let stderr = parse_json_records(&output.stderr, config);
     match (stdout, stderr) {
         (None, None) => Ok(DiagnosticMap::default()),
         (Some(result), None) | (None, Some(result)) => result,
@@ -65,15 +65,36 @@ fn parse_output(
     }
 }
 
-fn parse_nonempty(
+fn parse_json_records(
     output: &[u8],
     config: &FlycheckConfig,
 ) -> Option<Result<DiagnosticMap, parser::ParseError>> {
-    if output.iter().all(u8::is_ascii_whitespace) {
-        None
-    } else {
-        Some(parser::parse(output, &config.cwd, config.output))
+    let mut has_json = false;
+    let mut has_plain_text = false;
+    for line in output.split(|byte| *byte == b'\n') {
+        match line.trim_ascii().first() {
+            Some(b'{' | b'[') => has_json = true,
+            Some(_) => has_plain_text = true,
+            None => {}
+        }
     }
+    if !has_json {
+        return None;
+    }
+    if !has_plain_text {
+        return Some(parser::parse(output, &config.cwd, config.output));
+    }
+
+    let mut json = Vec::new();
+    for line in output.split(|byte| *byte == b'\n') {
+        let line = line.trim_ascii();
+        if matches!(line.first(), Some(b'{' | b'[')) {
+            json.extend_from_slice(line);
+            json.push(b'\n');
+        }
+    }
+
+    (!json.is_empty()).then(|| parser::parse(&json, &config.cwd, config.output))
 }
 
 fn merge_diagnostics(into: &mut DiagnosticMap, diagnostics: DiagnosticMap) {
@@ -157,7 +178,8 @@ mod tests {
             "#,
         );
         let stdout = br#"{"$message_type":"build_finished","success":true}"#.to_vec();
-        let stderr = solc_diagnostic("stderr diagnostic");
+        let mut stderr = b"forge warning\n".to_vec();
+        stderr.extend(solc_diagnostic("stderr diagnostic"));
         let output = Output { status: success_status(), stdout, stderr };
         let config = forge_lint_config(&project);
 
@@ -188,6 +210,19 @@ mod tests {
         let uri = lsp_types::Url::from_file_path(project.path("/src/Test.sol")).unwrap();
         assert_eq!(diagnostics[&uri].len(), 1);
         assert_eq!(diagnostics[&uri][0].message, "stdout diagnostic");
+    }
+
+    #[test]
+    fn forge_lint_plain_warnings_without_diagnostics_are_ignored() {
+        let project = TestProject::new();
+        let output = Output {
+            status: success_status(),
+            stdout: Vec::new(),
+            stderr: b"forge warning\nanother warning\n".to_vec(),
+        };
+        let config = forge_lint_config(&project);
+
+        assert!(parse_output(&output, &config).unwrap().is_empty());
     }
 
     fn forge_lint_config(project: &TestProject) -> FlycheckConfig {
