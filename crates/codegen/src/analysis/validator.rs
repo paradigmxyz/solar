@@ -23,8 +23,7 @@
 //!     can reach the using block (phi inputs: their incoming predecessor). Within an acyclic block,
 //!     the definition must also precede an instruction use. MIR is deliberately loose SSA, but a
 //!     use its definition can never reach is garbage on every execution.
-//! 11. **Unique function names**: every function in a module has a distinct name.
-//! 12. **Call consistency**: internal and tail-call targets exist and their argument counts match
+//! 11. **Call consistency**: internal and tail-call targets exist and their argument counts match
 //!     the callee.
 //!
 //! # Usage
@@ -42,7 +41,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use solar_interface::{Symbol, diagnostics::DiagCtxt, sym};
+use solar_interface::{diagnostics::DiagCtxt, sym};
 use std::fmt;
 
 /// Stateful MIR verifier.
@@ -441,26 +440,10 @@ impl<'a> Validator<'a> {
 
     /// Validates every function in a module.
     fn validate_module(mut self, module: &Module) {
-        self.validate_function_names(module);
         self.validate_module_phase(module);
         for (id, func) in module.iter_functions() {
             self.function = Some(id);
             self.validate_function(module, func);
-        }
-        self.function = None;
-    }
-
-    fn validate_function_names(&mut self, module: &Module) {
-        let mut names = FxHashMap::<Symbol, FunctionId>::default();
-        for (id, function) in module.iter_functions() {
-            if let Some(previous) = names.insert(function.name.name, id) {
-                self.function = Some(id);
-                self.emit(format_args!(
-                    "function name `@{}` duplicates fn{}",
-                    function.name,
-                    previous.index()
-                ));
-            }
         }
         self.function = None;
     }

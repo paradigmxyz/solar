@@ -243,7 +243,6 @@ impl LowerDispatchCx {
             builder.revert(zero, zero);
         }
 
-        module.reserve_function_name(sym::entry);
         module.add_function(entry);
     }
 

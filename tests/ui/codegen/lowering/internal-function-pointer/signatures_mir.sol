@@ -15,11 +15,11 @@ contract FunctionPointerSignatures {
     // BUILT: internal_call @__internal_dispatch_0, 0, [[SET_FLAG]]
     // BUILT-LABEL: fn @__internal_dispatch_0(
     // BUILT: eq arg0, [[SET_FLAG]]
-    // BUILT: internal_call @setFlag._1, 0
+    // BUILT: internal_call setFlag{{[0-9]+}}, 0
     // BUILT: mstore 4, 81
     // OPT-LABEL: fn @callVoid(
     // OPT-NOT: internal_call @__internal_dispatch
-    // OPT: internal_call @setFlag._1, 0
+    // OPT: internal_call setFlag{{[0-9]+}}, 0
     // OPT: returndata 128, 32
     // OPT-LABEL: fn @__internal_dispatch_0(
     // OPT: eq arg0, {{[0-9]+}}

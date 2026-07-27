@@ -60,10 +60,10 @@ contract HigherOrderFunctionPointer {
     // BUILT: internal_call @higher3, 1
     // BUILT-LABEL: fn @__internal_dispatch_1(
     // BUILT: eq arg0, [[HIGHER0]]
-    // BUILT: internal_call @higher0._1, 1
+    // BUILT: internal_call higher0{{[0-9]+}}, 1
     // OPT-LABEL: fn @callReturned(
     // OPT: internal_call @__internal_dispatch_0, 1, {{[0-9]+}}
-    // OPT: internal_call @higher0._1, 1
+    // OPT: internal_call higher0{{[0-9]+}}, 1
     // OPT-LABEL: fn @__internal_dispatch_0(
     // OPT: ret {{[0-9]+}}
     // OPT: ret {{[0-9]+}}

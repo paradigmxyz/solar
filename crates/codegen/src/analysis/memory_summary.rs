@@ -244,15 +244,10 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<usize>> {
 mod tests {
     use super::*;
     use crate::mir::{FunctionBuilder, MirType};
-    use solar_interface::{ColorChoice, Ident, Session};
+    use solar_interface::Ident;
 
     #[test]
     fn propagates_captures_and_fmp_resets() {
-        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        sess.enter(propagates_captures_and_fmp_resets_inner);
-    }
-
-    fn propagates_captures_and_fmp_resets_inner() {
         let mut module = Module::new(Ident::DUMMY);
 
         let mut reader = Function::new(Ident::DUMMY);

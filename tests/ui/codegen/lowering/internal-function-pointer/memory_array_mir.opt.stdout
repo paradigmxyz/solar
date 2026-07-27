@@ -128,31 +128,31 @@ fn @callArray() {
     mstore 128, v39
     returndata 128, 32
   bb6:
-    v30 = internal_call @arrayA._1, 1, arg0
+    v30 = internal_call arrayA6, 1, arg0
     jump bb5
   bb7:
     v31 = eq v27, 2
     jumpi v31, bb8, bb9
   bb8:
-    v32 = internal_call @arrayB._1, 1, arg0
+    v32 = internal_call arrayB7, 1, arg0
     jump bb5
   bb9:
     v33 = eq v27, 3
     jumpi v33, bb10, bb11
   bb10:
-    v34 = internal_call @arrayC._1, 1, arg0
+    v34 = internal_call arrayC8, 1, arg0
     jump bb5
   bb11:
     v35 = eq v27, 4
     jumpi v35, bb12, bb13
   bb12:
-    v36 = internal_call @arrayD._1, 1, arg0
+    v36 = internal_call arrayD9, 1, arg0
     jump bb5
   bb13:
     v37 = eq v27, 5
     jumpi v37, bb14, bb15
   bb14:
-    v38 = internal_call @arrayE._1, 1, arg0
+    v38 = internal_call arrayE10, 1, arg0
     jump bb5
   bb15:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
@@ -191,7 +191,7 @@ fn @callArray() {
     revert 0, 36
 }
 
-fn @arrayA._1(arg0: u256) -> u256 {
+fn @arrayA(arg0: u256) -> u256 {
   bb0:
     v1 = add arg0, 1
     v2 = lt v1, arg0
@@ -202,7 +202,7 @@ fn @arrayA._1(arg0: u256) -> u256 {
     ret v1
 }
 
-fn @arrayB._1(arg0: u256) -> u256 {
+fn @arrayB(arg0: u256) -> u256 {
   bb0:
     v1 = add arg0, 2
     v2 = lt v1, arg0
@@ -213,7 +213,7 @@ fn @arrayB._1(arg0: u256) -> u256 {
     ret v1
 }
 
-fn @arrayC._1(arg0: u256) -> u256 {
+fn @arrayC(arg0: u256) -> u256 {
   bb0:
     v1 = add arg0, 3
     v2 = lt v1, arg0
@@ -224,7 +224,7 @@ fn @arrayC._1(arg0: u256) -> u256 {
     ret v1
 }
 
-fn @arrayD._1(arg0: u256) -> u256 {
+fn @arrayD(arg0: u256) -> u256 {
   bb0:
     v1 = add arg0, 5
     v2 = lt v1, arg0
@@ -235,7 +235,7 @@ fn @arrayD._1(arg0: u256) -> u256 {
     ret v1
 }
 
-fn @arrayE._1(arg0: u256) -> u256 {
+fn @arrayE(arg0: u256) -> u256 {
   bb0:
     v1 = add arg0, 8
     v2 = lt v1, arg0
@@ -265,15 +265,15 @@ fn @entry() {
     v3 = shr 224, v2
     switch v3, default bb9, [0x794b7d08 => bb3, 0x866ce1e6 => bb4, 0x9b889676 => bb5, 0xad3149a4 => bb6, 0xd82c9b10 => bb7, 0xefc06ab0 => bb8]
   bb3:
-    tail_call @arrayC
+    tail_call arrayC2
   bb4:
-    tail_call @arrayE
+    tail_call arrayE4
   bb5:
-    tail_call @arrayB
+    tail_call arrayB1
   bb6:
-    tail_call @arrayA
+    tail_call arrayA0
   bb7:
-    tail_call @arrayD
+    tail_call arrayD3
   bb8:
     tail_call @callArray
   bb9:

@@ -25,9 +25,9 @@ contract PointerBase {
 // BUILT: internal_call @__internal_dispatch_0, 1, [[BASE_TARGET:[0-9]+]]
 // BUILT-LABEL: fn @__internal_dispatch_0(
 // BUILT: eq arg0, [[BASE_TARGET]]
-// BUILT: internal_call @target._1, 1
+// BUILT: internal_call target{{[0-9]+}}, 1
 // BUILT: eq arg0, [[DERIVED_TARGET:[0-9]+]]
-// BUILT: internal_call @target, 1
+// BUILT: internal_call target{{[0-9]+}}, 1
 // BUILT-LABEL: fn @callVirtual(
 // BUILT: internal_call @__internal_dispatch_0, 1, [[DERIVED_TARGET]]
 // BUILT-LABEL: fn @callThroughVirtualPointer(

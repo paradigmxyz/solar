@@ -840,7 +840,6 @@ impl<'gcx> Lowerer<'gcx> {
         // Reserve and register the MIR id before lowering the body so recursive
         // self-calls can resolve to this function.
         let mir_id = self.module.add_function(Function::new(func_name));
-        let func_name = self.module.function(mir_id).name;
         if force_internal {
             self.hir_to_internal_mir_functions.insert(func_id, mir_id);
         } else {
