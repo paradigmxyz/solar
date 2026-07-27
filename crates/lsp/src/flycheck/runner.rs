@@ -21,11 +21,7 @@ pub(crate) async fn run(
     cancel: oneshot::Receiver<()>,
 ) -> Result<DiagnosticMap, FlycheckError> {
     let output = command_output(&config, timeout, cancel).await?;
-    let diagnostics = match parser::parse(
-        diagnostic_output(&output.stdout, &output.stderr, config.output),
-        &config.cwd,
-        config.output,
-    ) {
+    let diagnostics = match parse_output(&output, &config) {
         Ok(diagnostics) => diagnostics,
         Err(_) if !output.status.success() => return Err(command_failed(&output)),
         Err(error) => return Err(error.into()),
@@ -45,8 +41,45 @@ fn command_failed(output: &Output) -> FlycheckError {
     }
 }
 
-fn diagnostic_output<'a>(stdout: &'a [u8], stderr: &'a [u8], format: FlycheckOutput) -> &'a [u8] {
-    if format == FlycheckOutput::ForgeLintJson && stdout.is_empty() { stderr } else { stdout }
+fn parse_output(
+    output: &Output,
+    config: &FlycheckConfig,
+) -> Result<DiagnosticMap, parser::ParseError> {
+    if config.output != FlycheckOutput::ForgeLintJson {
+        return parser::parse(&output.stdout, &config.cwd, config.output);
+    }
+
+    let stdout = parse_nonempty(&output.stdout, config);
+    let stderr = parse_nonempty(&output.stderr, config);
+    match (stdout, stderr) {
+        (None, None) => Ok(DiagnosticMap::default()),
+        (Some(result), None) | (None, Some(result)) => result,
+        (Some(Ok(mut stdout)), Some(Ok(stderr))) => {
+            merge_diagnostics(&mut stdout, stderr);
+            Ok(stdout)
+        }
+        (Some(Ok(diagnostics)), Some(Err(_))) | (Some(Err(_)), Some(Ok(diagnostics))) => {
+            Ok(diagnostics)
+        }
+        (Some(Err(error)), Some(Err(_))) => Err(error),
+    }
+}
+
+fn parse_nonempty(
+    output: &[u8],
+    config: &FlycheckConfig,
+) -> Option<Result<DiagnosticMap, parser::ParseError>> {
+    if output.iter().all(u8::is_ascii_whitespace) {
+        None
+    } else {
+        Some(parser::parse(output, &config.cwd, config.output))
+    }
+}
+
+fn merge_diagnostics(into: &mut DiagnosticMap, diagnostics: DiagnosticMap) {
+    for (uri, mut diagnostics) in diagnostics {
+        into.entry(uri).or_default().append(&mut diagnostics);
+    }
 }
 
 async fn command_output(
@@ -110,37 +143,90 @@ mod tests {
     #[cfg(unix)]
     use crate::test_support::process_exists;
     use crate::{config::negotiate_capabilities, test_support::TestProject};
+    #[cfg(unix)]
+    use std::os::unix::process::ExitStatusExt;
+    #[cfg(windows)]
+    use std::os::windows::process::ExitStatusExt;
 
     #[test]
-    fn forge_lint_json_diagnostics_prefer_stdout() {
-        assert_eq!(
-            diagnostic_output(
-                br#"{"message":"stdout"}"#,
-                br#"{"message":"stderr"}"#,
-                FlycheckOutput::ForgeLintJson
-            ),
-            br#"{"message":"stdout"}"#
+    fn forge_lint_json_diagnostics_are_collected_from_stderr_when_stdout_is_nonempty() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /src/Test.sol
+            contract Test {}
+            "#,
         );
+        let stdout = br#"{"$message_type":"build_finished","success":true}"#.to_vec();
+        let stderr = solc_diagnostic("stderr diagnostic");
+        let output = Output { status: success_status(), stdout, stderr };
+        let config = forge_lint_config(&project);
+
+        let diagnostics = parse_output(&output, &config).unwrap();
+
+        let uri = lsp_types::Url::from_file_path(project.path("/src/Test.sol")).unwrap();
+        assert_eq!(diagnostics[&uri].len(), 1);
+        assert_eq!(diagnostics[&uri][0].message, "stderr diagnostic");
     }
 
     #[test]
-    fn forge_lint_json_diagnostics_fall_back_to_stderr() {
-        assert_eq!(
-            diagnostic_output(b"", br#"{"message":"stderr"}"#, FlycheckOutput::ForgeLintJson),
-            br#"{"message":"stderr"}"#
+    fn forge_lint_json_diagnostics_are_collected_from_stdout_with_plain_stderr() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /src/Test.sol
+            contract Test {}
+            "#,
         );
+        let output = Output {
+            status: success_status(),
+            stdout: solc_diagnostic("stdout diagnostic"),
+            stderr: b"forge warning".to_vec(),
+        };
+        let config = forge_lint_config(&project);
+
+        let diagnostics = parse_output(&output, &config).unwrap();
+
+        let uri = lsp_types::Url::from_file_path(project.path("/src/Test.sol")).unwrap();
+        assert_eq!(diagnostics[&uri].len(), 1);
+        assert_eq!(diagnostics[&uri][0].message, "stdout diagnostic");
     }
 
-    #[test]
-    fn solc_json_diagnostics_are_read_from_stdout() {
-        assert_eq!(
-            diagnostic_output(
-                br#"{"message":"stdout"}"#,
-                br#"{"message":"stderr"}"#,
-                FlycheckOutput::SolcJson
-            ),
-            br#"{"message":"stdout"}"#
-        );
+    fn forge_lint_config(project: &TestProject) -> FlycheckConfig {
+        FlycheckConfig {
+            id: "forge-lint".into(),
+            command: "forge".into(),
+            args: Vec::new(),
+            cwd: project.root().to_path_buf(),
+            workspace_root: project.root().to_path_buf(),
+            output: FlycheckOutput::ForgeLintJson,
+        }
+    }
+
+    fn solc_diagnostic(message: &str) -> Vec<u8> {
+        serde_json::to_vec(&serde_json::json!({
+            "sourceLocation": {
+                "file": "src/Test.sol",
+                "start": 9,
+                "end": 13,
+            },
+            "secondarySourceLocations": [],
+            "type": "Warning",
+            "component": "general",
+            "severity": "warning",
+            "errorCode": "1234",
+            "message": message,
+            "formattedMessage": null,
+        }))
+        .unwrap()
+    }
+
+    #[cfg(unix)]
+    fn success_status() -> std::process::ExitStatus {
+        std::process::ExitStatus::from_raw(0)
+    }
+
+    #[cfg(windows)]
+    fn success_status() -> std::process::ExitStatus {
+        std::process::ExitStatus::from_raw(0)
     }
 
     #[cfg(unix)]
