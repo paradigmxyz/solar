@@ -513,7 +513,8 @@ fn is_transparent_function_pointer_cast(func: &Function) -> bool {
         return false;
     };
     values.len() == 1
-        && matches!(func.value(values[0]), Value::Arg { index: 0, ty: MirType::Function })
+        && matches!(func.value(values[0]), Value::Arg(index) if index.index() == 0)
+        && func.value_ty(values[0]) == Some(MirType::Function)
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -783,7 +784,8 @@ fn direct_dispatch_target(dispatcher: &Function, selector: &Immediate) -> Option
             continue;
         };
         let matches_selector = [(lhs, rhs), (rhs, lhs)].into_iter().any(|(arg, value)| {
-            matches!(dispatcher.value(arg), Value::Arg { index: 0, ty: MirType::Function })
+            matches!(dispatcher.value(arg), Value::Arg(index) if index.index() == 0)
+                && dispatcher.value_ty(arg) == Some(MirType::Function)
                 && dispatcher.value(value).as_immediate().and_then(Immediate::as_u256)
                     == Some(selector)
         });
@@ -805,7 +807,7 @@ fn direct_dispatch_case_target(dispatcher: &Function, block: BlockId) -> Option<
     if !args.iter().enumerate().all(|(index, &arg)| {
         matches!(
             dispatcher.value(arg),
-            Value::Arg { index: arg_index, .. } if *arg_index as usize == index + 1
+            Value::Arg(arg_index) if arg_index.index() == index + 1
         )
     }) {
         return None;
