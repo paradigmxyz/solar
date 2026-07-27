@@ -1,0 +1,76 @@
+- // === ROOT/tests/ui/codegen/mir/inst-simplify/clz.mir (before inst-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/inst-simplify/clz.mir (after inst-simplify) ===
+  @module ClzInstSimplify
+  fn @simplify_clz_predicates(arg0: u256) -> (bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool) {
+    bb0:
+      v0 = clz arg0
+-     v1 = iszero v0
+-     v2 = eq v0, 0
+-     v3 = eq v0, 255
+-     v4 = eq 256, v0
+-     v5 = eq v0, 257
+-     v6 = gt v0, 255
+-     v7 = lt 255, v0
+-     v8 = lt v0, 256
+-     v9 = gt 256, v0
+-     v10 = lt v0, 257
+-     v11 = gt v0, 256
+-     v12 = lt 256, v0
+-     v13 = gt 257, v0
+-     ret v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13
++     v1 = slt arg0, 0
++     v2 = slt arg0, 0
++     v3 = eq arg0, 1
++     v4 = iszero arg0
++     v6 = iszero arg0
++     v7 = iszero arg0
++     v8 = gt arg0, 0
++     v9 = gt arg0, 0
++     ret v1, v2, v3, v4, 0, v6, v7, v8, v9, 1, 0, 0, 1
+  }
+  
+  fn @simplify_clz_range_ops(arg0: u256) -> (u256, u256, u256, u256, i256, u256, u256, u256, u256, u256, u256) {
+    bb0:
+      v0 = clz arg0
+-     v1 = shr 8, v0
+-     v2 = shr 9, v0
+-     v3 = and v0, 511
+-     v4 = and 0x3ff, v0
+-     v5 = signextend 1, v0
+-     v6 = byte 0, v0
+-     v7 = byte 29, v0
+-     v8 = byte 30, v0
+-     v9 = div v0, 256
+-     v10 = div v0, 257
+-     v11 = mod v0, 257
+-     ret v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11
++     v1 = iszero arg0
++     v8 = iszero arg0
++     v9 = iszero arg0
++     ret v1, 0, v0, v0, v0, 0, 0, v8, v9, 0, v0
+  }
+  
+  fn @preserve_clz_range_boundaries(arg0: u256) -> (u256, u256, i256, u256, u256) {
+    bb0:
+      v0 = clz arg0
+      v1 = shr 7, v0
+      v2 = and v0, 255
+      v3 = signextend 0, v0
+      v4 = byte 31, v0
+-     v5 = mod v0, 256
++     v5 = and v0, 255
+      ret v1, v2, v3, v4, v5
+  }
+  
+  fn @fold_clz_known_sign(arg0: u256, arg1: u256) -> (u256, u256, u256) {
+    bb0:
+      v0 = or arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+-     v1 = clz v0
+      v2 = sar arg1, 0x8000000000000000000000000000000000000000000000000000000000000000
+-     v3 = clz v2
+      v4 = sar arg1, v0
+-     v5 = clz v4
+-     ret v1, v3, v5
++     ret 0, 0, 0
+  }
+  
