@@ -8,6 +8,7 @@ use lsp_types::{Range, Url};
 use solar_interface::data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
+    smallvec::SmallVec,
 };
 use solar_sema::{
     Gcx,
@@ -24,7 +25,6 @@ pub(crate) struct CodeLensIndex {
 #[derive(Clone, Debug)]
 struct CodeLensCandidate {
     symbol_id: SymbolId,
-    key: NodeKey,
     selector: Option<[u8; 4]>,
     inheritance: bool,
 }
@@ -32,37 +32,29 @@ struct CodeLensCandidate {
 #[derive(Clone, Debug)]
 pub(crate) struct CodeLensEntry {
     pub(crate) range: Range,
-    pub(crate) symbol_ids: Vec<SymbolId>,
+    pub(crate) symbol_ids: SmallVec<[SymbolId; 1]>,
     pub(crate) selector: Option<[u8; 4]>,
     pub(crate) inheritance: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct NodeKey {
-    uri: Url,
-    range: Range,
+#[derive(Debug)]
+struct CodeLensGroup {
+    symbol_ids: SmallVec<[SymbolId; 1]>,
+    selector: Option<[u8; 4]>,
+    inheritance: bool,
+    compatible: bool,
 }
 
 impl CodeLensIndex {
-    pub(crate) fn build(
-        gcx: Gcx<'_>,
-        item_symbols: &FxHashMap<ItemId, SymbolId>,
-        declarations: &IndexVec<SymbolId, DeclarationSymbol>,
-    ) -> Self {
+    pub(crate) fn build(gcx: Gcx<'_>, item_symbols: &FxHashMap<ItemId, SymbolId>) -> Self {
         let mut index = Self::default();
         for item_id in gcx.hir.item_ids() {
             let Some(&symbol_id) = item_symbols.get(&item_id) else { continue };
             if !has_reference_lens(gcx, item_id) {
                 continue;
             }
-
-            let declaration = &declarations[symbol_id];
             index.candidates.push(CodeLensCandidate {
                 symbol_id,
-                key: NodeKey {
-                    uri: declaration.location.uri.clone(),
-                    range: declaration.name_range,
-                },
                 selector: selector(gcx, item_id),
                 inheritance: matches!(item_id, ItemId::Contract(_)),
             });
@@ -78,40 +70,61 @@ impl CodeLensIndex {
         self.entries_by_uri.clear();
     }
 
-    pub(crate) fn rebuild(&mut self, conflicting_contents: &FxHashSet<Url>) {
+    pub(crate) fn rebuild(
+        &mut self,
+        declarations: &IndexVec<SymbolId, DeclarationSymbol>,
+        conflicting_contents: &FxHashSet<Url>,
+    ) {
         self.entries_by_uri.clear();
 
-        let mut grouped = FxHashMap::<NodeKey, Vec<&CodeLensCandidate>>::default();
+        let mut grouped = FxHashMap::<&Url, FxHashMap<Range, CodeLensGroup>>::default();
         for candidate in &self.candidates {
-            if !conflicting_contents.contains(&candidate.key.uri) {
-                grouped.entry(candidate.key.clone()).or_default().push(candidate);
-            }
-        }
-
-        for (key, candidates) in grouped {
-            let Some(first) = candidates.first() else { continue };
-            if candidates.iter().any(|candidate| {
-                candidate.selector != first.selector || candidate.inheritance != first.inheritance
-            }) {
-                // A source declaration compiled under incompatible contexts must not expose a
-                // potentially stale or contradictory lens.
+            let declaration = &declarations[candidate.symbol_id];
+            if conflicting_contents.contains(&declaration.location.uri) {
                 continue;
             }
 
-            let mut symbol_ids: Vec<_> =
-                candidates.iter().map(|candidate| candidate.symbol_id).collect();
-            symbol_ids.sort_unstable_by_key(|symbol_id| symbol_id.index());
-            symbol_ids.dedup();
-            self.entries_by_uri.entry(key.uri.clone()).or_default().push(CodeLensEntry {
-                range: key.range,
-                symbol_ids,
-                selector: first.selector,
-                inheritance: first.inheritance,
-            });
+            let group = grouped
+                .entry(&declaration.location.uri)
+                .or_default()
+                .entry(declaration.name_range)
+                .or_insert_with(|| CodeLensGroup {
+                    symbol_ids: SmallVec::new(),
+                    selector: candidate.selector,
+                    inheritance: candidate.inheritance,
+                    compatible: true,
+                });
+            if !group.compatible {
+                continue;
+            }
+            if candidate.selector != group.selector || candidate.inheritance != group.inheritance {
+                // A source declaration compiled under incompatible contexts must not expose a
+                // potentially stale or contradictory lens.
+                group.compatible = false;
+                group.symbol_ids.clear();
+            } else {
+                group.symbol_ids.push(candidate.symbol_id);
+            }
         }
 
-        for entries in self.entries_by_uri.values_mut() {
-            entries.sort_unstable_by(|lhs, rhs| range_cmp(lhs.range, rhs.range));
+        for (uri, groups) in grouped {
+            let mut entries = Vec::with_capacity(groups.len());
+            for (range, mut group) in groups {
+                if group.compatible {
+                    group.symbol_ids.sort_unstable_by_key(|symbol_id| symbol_id.index());
+                    group.symbol_ids.dedup();
+                    entries.push(CodeLensEntry {
+                        range,
+                        symbol_ids: group.symbol_ids,
+                        selector: group.selector,
+                        inheritance: group.inheritance,
+                    });
+                }
+            }
+            if !entries.is_empty() {
+                entries.sort_unstable_by(|lhs, rhs| range_cmp(lhs.range, rhs.range));
+                self.entries_by_uri.insert(uri.clone(), entries);
+            }
         }
     }
 

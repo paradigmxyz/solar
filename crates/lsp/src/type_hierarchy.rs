@@ -242,22 +242,16 @@ impl TypeHierarchyIndex {
     }
 
     pub(crate) fn direct_counts(&self, symbol_ids: &[SymbolId]) -> Option<(usize, usize)> {
-        let mut keys = symbol_ids
-            .iter()
-            .filter_map(|symbol_id| self.key_by_symbol.get(symbol_id))
-            .collect::<Vec<_>>();
-        if keys.is_empty() {
-            return None;
-        }
-        sort_and_dedup_keys(&mut keys);
-
-        let mut bases = FxHashSet::default();
-        let mut derived = FxHashSet::default();
-        for key in keys {
-            bases.extend(self.bases_by_key.get(key).into_iter().flatten().cloned());
-            derived.extend(self.children_by_key.get(key).into_iter().flatten().cloned());
-        }
-        Some((bases.len(), derived.len()))
+        let key = symbol_ids.iter().find_map(|symbol_id| self.key_by_symbol.get(symbol_id))?;
+        debug_assert!(
+            symbol_ids
+                .iter()
+                .filter_map(|symbol_id| self.key_by_symbol.get(symbol_id))
+                .all(|candidate| candidate == key)
+        );
+        let bases = self.bases_by_key.get(key).map_or(0, Vec::len);
+        let derived = self.children_by_key.get(key).map_or(0, Vec::len);
+        Some((bases, derived))
     }
 
     fn neighbors(
