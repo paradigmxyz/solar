@@ -60,7 +60,7 @@ pub(crate) struct StackShuffler<'a> {
 impl<'a> StackShuffler<'a> {
     /// Creates a new shuffler to transform source to target layout.
     pub(crate) fn new(source: &StackModel, target: &'a [TargetSlot]) -> Self {
-        let source_stack: Layout = source.as_slice().iter().copied().collect();
+        let source_stack = source.as_slice().iter().copied().collect::<Layout>();
 
         // Count multiplicities in the target.
         let mut multiplicities = FxHashMap::default();
@@ -508,11 +508,11 @@ mod tests {
 
     #[test]
     fn test_shuffle_uses_swap16() {
-        let values: Vec<_> = (0..=MAX_STACK_ACCESS).map(ValueId::from_usize).collect();
+        let values = (0..=MAX_STACK_ACCESS).map(ValueId::from_usize).collect::<Vec<_>>();
         let source = make_model(&values.iter().copied().map(Some).collect::<Vec<_>>());
         let mut target_values = values;
         target_values.swap(0, MAX_STACK_ACCESS);
-        let target: Vec<_> = target_values.into_iter().map(TargetSlot::Value).collect();
+        let target = target_values.into_iter().map(TargetSlot::Value).collect::<Vec<_>>();
 
         let result = StackShuffler::new(&source, &target).shuffle().unwrap();
 
@@ -533,8 +533,8 @@ mod tests {
     #[test]
     fn exhaustive_small_reachable_layouts_are_optimal() {
         let values = [ValueId::from_usize(0), ValueId::from_usize(1), ValueId::from_usize(2)];
-        let sources: Vec<_> = (1..=4).flat_map(|len| sequences(&values, len)).collect();
-        let targets: Vec<_> = (0..=4).flat_map(|len| sequences(&values, len)).collect();
+        let sources = (1..=4).flat_map(|len| sequences(&values, len)).collect::<Vec<_>>();
+        let targets = (0..=4).flat_map(|len| sequences(&values, len)).collect::<Vec<_>>();
 
         for source_values in &sources {
             let source = make_model(
@@ -544,7 +544,8 @@ mod tests {
                 if target_values.iter().any(|value| !source_values.contains(value)) {
                     continue;
                 }
-                let target: Vec<_> = target_values.iter().copied().map(TargetSlot::Value).collect();
+                let target =
+                    target_values.iter().copied().map(TargetSlot::Value).collect::<Vec<_>>();
                 let result = StackShuffler::new(&source, &target).shuffle().unwrap_or_else(|| {
                     panic!("failed to shuffle {source_values:?} to {target_values:?}")
                 });

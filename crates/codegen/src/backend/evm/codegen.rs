@@ -2143,7 +2143,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // closure: every non-rematerializable leaf needs a stable slot even if
         // it is only live in the defining block. A worklist makes this robust
         // to shared subexpressions and any future cyclic low-level value forms.
-        let mut worklist: Vec<ValueId> = values.iter().collect();
+        let mut worklist = values.iter().collect::<Vec<_>>();
         let mut expanded = GrowableBitSet::new_empty();
         while let Some(val) = worklist.pop() {
             if !expanded.insert(val) || !Self::is_cheap_recomputable_value(func, val) {

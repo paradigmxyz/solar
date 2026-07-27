@@ -127,11 +127,11 @@ impl SpillManager {
 
     /// Releases every block-local slot while retaining cross-block reservations.
     pub(crate) fn release_block_locals(&mut self) {
-        let mut values: Vec<_> = self
+        let mut values = self
             .slots
             .iter()
             .filter_map(|(&value, &slot)| (!self.stable.contains(value)).then_some((value, slot)))
-            .collect();
+            .collect::<Vec<_>>();
         values.sort_by_key(|(_, slot)| std::cmp::Reverse(slot.offset));
         for (value, _) in values {
             self.release(value);
