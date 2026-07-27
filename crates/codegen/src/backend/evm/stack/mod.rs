@@ -30,7 +30,12 @@
 //!   improvements in action count and static gas; larger layouts use the verified greedy result and
 //!   reserve the search for failures.
 //! - [`spill`] assigns memory slots. Values visible across blocks receive function-stable
-//!   reservations, while block-local slots are released and reused after the block is emitted.
+//!   reservations, while block-local slots are released and reused after the block is emitted. In
+//!   gas mode, non-overlapping cross-block live ranges share reservations to reduce frame size and
+//!   memory expansion. Values reserved only for backend rematerialization dependencies stay
+//!   separate because MIR liveness does not include those synthetic uses. Size mode also retains
+//!   separate reservations: changing frame addresses can disturb whole-program block sharing even
+//!   when the local frame becomes smaller.
 //!
 //! Local instruction scheduling and CFG-edge shuffling are intentionally
 //! separate. The former optimizes a small operand head without imposing one
@@ -75,6 +80,12 @@
 //! a different calling and memory model. Fe delegates EVM code generation to Sonatina through its
 //! [Sonatina integration], so it does not add another stack scheduler to adapt.
 //!
+//! Cross-block spill-slot coloring follows the same live-range reuse principle as LLVM's
+//! [stack-slot coloring], which is part of the pipeline used by the [solx LLVM EVM target]. Our
+//! implementation colors MIR values directly, before physical spill emission, and keeps the
+//! conservative dependency-only reservations described above. It does not import LLVM's machine
+//! frame objects, register allocation, or target pass pipeline.
+//!
 //! [scheduler pipeline]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/lib.rs
 //! [Plank's intra-operation scheduler]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/greedy_intra_op_scheduler/mod.rs
 //! [greedy edge shuffler]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/greedy_shuffler/mod.rs
@@ -85,6 +96,8 @@
 //! [Sonatina's operand preparer]: https://github.com/fe-lang/sonatina/blob/55ca888f1fc83077e5eee803c0619231e9b50998/crates/codegen/src/stackalloc/stackify/planner/operand_prep.rs
 //! [normalized search]: https://github.com/fe-lang/sonatina/blob/55ca888f1fc83077e5eee803c0619231e9b50998/crates/codegen/src/stackalloc/stackify/planner/normalize_search.rs
 //! [Sonatina integration]: https://github.com/fe-lang/fe/blob/636607d1a859bb68d88460c5ee63dd9532791aa8/crates/codegen/src/sonatina/mod.rs
+//! [stack-slot coloring]: https://github.com/NomicFoundation/solx-llvm/blob/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/CodeGen/StackSlotColoring.cpp
+//! [solx LLVM EVM target]: https://github.com/NomicFoundation/solx-llvm/tree/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/Target/EVM
 //!
 //! ## Operand planning
 //!

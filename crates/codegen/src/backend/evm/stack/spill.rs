@@ -4,8 +4,9 @@
 //! cross-block home can be spilled to memory. Slots are logical word offsets:
 //! lowering places them after the external function's static memory, inside an
 //! internal function's frame, or in the constructor's reserved spill region.
-//! Cross-block reservations remain stable for the function, while block-local
-//! offsets are reused.
+//! Cross-block reservations remain stable for the function. Compatible live
+//! ranges may share a stable offset, while block-local offsets are released
+//! and reused.
 
 use crate::{memory::EvmMemoryLayout, mir::ValueId};
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
@@ -88,6 +89,25 @@ impl SpillManager {
     pub(crate) fn reserve(&mut self, value: ValueId) -> SpillSlot {
         let slot = self.allocate(value);
         self.stable.insert(value);
+        slot
+    }
+
+    /// Reserves a specific function-stable offset for a value.
+    ///
+    /// Multiple values may use the same offset when their live ranges do not
+    /// overlap. This must run before block-local slots are allocated.
+    pub(crate) fn reserve_at(&mut self, value: ValueId, offset: u32) -> SpillSlot {
+        if let Some(&slot) = self.slots.get(&value) {
+            debug_assert_eq!(slot.offset, offset);
+            self.stable.insert(value);
+            return slot;
+        }
+
+        let slot = SpillSlot { offset };
+        self.slots.insert(value, slot);
+        self.stable.insert(value);
+        self.next_offset = self.next_offset.max(offset + 1);
+        self.max_offset = self.max_offset.max(offset + 1);
         slot
     }
 
@@ -253,6 +273,21 @@ mod tests {
 
         assert!(!manager.release(value));
         assert_eq!(manager.get(value), Some(slot));
+    }
+
+    #[test]
+    fn test_stable_slots_can_share_an_offset() {
+        let mut manager = SpillManager::new();
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+        let local = ValueId::from_usize(2);
+
+        let slot0 = manager.reserve_at(v0, 0);
+        let slot1 = manager.reserve_at(v1, 0);
+
+        assert_eq!(slot0, slot1);
+        assert_eq!(manager.spill_area_size(), 32);
+        assert_eq!(manager.allocate(local).offset, 1);
     }
 
     #[test]

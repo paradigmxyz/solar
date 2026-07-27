@@ -30,6 +30,7 @@ use smallvec::SmallVec;
 use solar_config::OptimizationMode;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
+    index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
 use solar_interface::sym;
@@ -101,6 +102,35 @@ struct StackPhiPlan {
 struct StackPhiEdge {
     sources: Vec<ValueId>,
     results: Vec<ValueId>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SpillLiveRange {
+    start: usize,
+    end: usize,
+}
+
+#[derive(Default)]
+struct SpillColor {
+    ranges: FxHashMap<BlockId, SmallVec<[SpillLiveRange; 4]>>,
+}
+
+impl SpillColor {
+    fn accepts(&self, ranges: &FxHashMap<BlockId, SpillLiveRange>) -> bool {
+        ranges.iter().all(|(block, candidate)| {
+            self.ranges.get(block).is_none_or(|assigned| {
+                assigned
+                    .iter()
+                    .all(|range| candidate.end < range.start || range.end < candidate.start)
+            })
+        })
+    }
+
+    fn insert(&mut self, ranges: &FxHashMap<BlockId, SpillLiveRange>) {
+        for (&block, &range) in ranges {
+            self.ranges.entry(block).or_default().push(range);
+        }
+    }
 }
 
 /// Canonical argument layouts carried between MIR basic blocks.
@@ -1975,9 +2005,113 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// front lets the later load use a stable memory location; stores still happen only when the
     /// value is actually available on the stack.
     fn preallocate_cross_block_spills(&mut self, func: &Function, liveness: &Liveness) {
-        for val in &Self::cross_block_spill_values(func, liveness) {
-            self.scheduler.spills.reserve(val);
+        let values = Self::cross_block_spill_values(func, liveness);
+        if !self.gcx.sess.opts.optimization.is_gas() {
+            for value in &values {
+                self.scheduler.spills.reserve(value);
+            }
+            return;
         }
+
+        let colorable = Self::cross_block_live_values(func, liveness);
+        let ranges = Self::spill_live_ranges(func, liveness, &colorable);
+
+        let mut colors = Vec::<SpillColor>::new();
+        for value in &colorable {
+            let value_ranges = &ranges[value];
+            let color =
+                colors.iter().position(|color| color.accepts(value_ranges)).unwrap_or_else(|| {
+                    colors.push(SpillColor::default());
+                    colors.len() - 1
+                });
+            colors[color].insert(value_ranges);
+            self.scheduler.spills.reserve_at(value, color as u32);
+        }
+
+        for value in &values {
+            if !colorable.contains(value) {
+                self.scheduler.spills.reserve(value);
+            }
+        }
+    }
+
+    fn cross_block_live_values(func: &Function, liveness: &Liveness) -> DenseBitSet<ValueId> {
+        let mut values = DenseBitSet::new_empty(func.values.len());
+        for block in func.blocks.indices() {
+            for value in liveness.live_in(block).iter().chain(liveness.live_out(block).iter()) {
+                if matches!(func.value(value), crate::mir::Value::Inst(_)) {
+                    values.insert(value);
+                }
+            }
+        }
+        values
+    }
+
+    fn spill_live_ranges(
+        func: &Function,
+        liveness: &Liveness,
+        colorable: &DenseBitSet<ValueId>,
+    ) -> IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>> {
+        let mut ranges = index_vec![FxHashMap::default(); func.values.len()];
+        let mut operands = SmallVec::<[ValueId; 8]>::new();
+
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for value in liveness.live_in(block_id) {
+                Self::extend_spill_live_range(&mut ranges, colorable, value, block_id, 0);
+            }
+            for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
+                operands.clear();
+                func.inst(inst_id).kind.collect_operands(&mut operands);
+                for &value in &operands {
+                    Self::extend_spill_live_range(
+                        &mut ranges,
+                        colorable,
+                        value,
+                        block_id,
+                        inst_idx * 2,
+                    );
+                }
+                if let Some(value) = func.inst_result_value(inst_id) {
+                    Self::extend_spill_live_range(
+                        &mut ranges,
+                        colorable,
+                        value,
+                        block_id,
+                        inst_idx * 2 + 1,
+                    );
+                }
+            }
+            if let Some(terminator) = &block.terminator {
+                let point = block.instructions.len() * 2;
+                for value in terminator.operands() {
+                    Self::extend_spill_live_range(&mut ranges, colorable, value, block_id, point);
+                }
+            }
+            let point = block.instructions.len() * 2 + 1;
+            for value in liveness.live_out(block_id) {
+                Self::extend_spill_live_range(&mut ranges, colorable, value, block_id, point);
+            }
+        }
+        ranges
+    }
+
+    fn extend_spill_live_range(
+        ranges: &mut IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>>,
+        colorable: &DenseBitSet<ValueId>,
+        value: ValueId,
+        block: BlockId,
+        point: usize,
+    ) {
+        if !colorable.contains(value) {
+            return;
+        }
+        ranges[value]
+            .entry(block)
+            .and_modify(|range| {
+                range.start = range.start.min(point);
+                range.end = range.end.max(point);
+            })
+            .or_insert(SpillLiveRange { start: point, end: point });
     }
 
     fn cross_block_spill_values(func: &Function, liveness: &Liveness) -> DenseBitSet<ValueId> {

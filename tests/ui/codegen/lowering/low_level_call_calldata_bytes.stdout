@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_call_calldata_bytes.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 448
+  push 416
   push 64
   mstore
   callvalue
@@ -74,13 +74,13 @@ bb23:
   add
   calldataload
   dup1
-  push 192
+  push 224
   mstore
   push 31
   dup2
   add
   dup1
-  push 224
+  push 192
   mstore
   lt
   swap1
@@ -112,7 +112,7 @@ bb25:
   dup2
   add
   push 32
-  push 256
+  push 192
   mload
   sub
   dup2
@@ -124,10 +124,10 @@ bb25:
   push 36
   calldataload
   add
-  push 192
+  push 224
   mload
   dup1
-  push 192
+  push 224
   mstore
   dup2
   dup4
@@ -137,13 +137,13 @@ bb25:
   mload
   gas
   dup1
-  push 352
+  push 320
   mstore
   dup3
-  push 384
+  push 352
   mstore
   dup2
-  push 416
+  push 384
   mstore
   push 0
   push 0
@@ -174,18 +174,18 @@ bb24:
   push 64
   mload
   dup1
-  push 320
-  mstore
   push 288
+  mstore
+  push 256
   mload
   dup2
   add
   push 64
   mstore
-  push 192
+  push 224
   mload
   dup1
-  push 192
+  push 224
   mstore
   dup2
   mstore
@@ -199,7 +199,7 @@ bb27:
 bb22:
   push 31
   not
-  push 224
+  push 192
   mload
   and
   dup1
@@ -214,13 +214,13 @@ bb22:
   pop
   add
   dup1
-  push 256
+  push 192
   mstore
   push 32
   dup2
   add
   dup1
-  push 288
+  push 256
   mstore
   lt
   swap1
@@ -230,7 +230,7 @@ bb28:
   dup2
   add
   push 32
-  push 256
+  push 192
   mload
   sub
   dup2
@@ -242,10 +242,10 @@ bb28:
   push 36
   calldataload
   add
-  push 192
+  push 224
   mload
   dup1
-  push 192
+  push 224
   mstore
   dup2
   dup4
@@ -255,13 +255,13 @@ bb28:
   mload
   gas
   dup1
-  push 352
+  push 320
   mstore
   dup3
-  push 384
+  push 352
   mstore
   dup2
-  push 416
+  push 384
   mstore
   push 0
   push 0
