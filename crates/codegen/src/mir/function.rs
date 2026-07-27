@@ -5,6 +5,7 @@ use super::{
     ValueId,
 };
 use alloy_primitives::U256;
+use smallvec::{IntoIter as SmallVecIntoIter, SmallVec};
 use solar_data_structures::{
     bit_set::DenseBitSet,
     fmt::{self, FmtIteratorExt},
@@ -52,6 +53,62 @@ pub(crate) struct Function {
     instructions: IndexVec<InstId, Instruction>,
     /// All basic blocks in this function. This is never empty; block zero is the entry.
     pub(crate) blocks: IndexVec<BlockId, BasicBlock>,
+}
+
+struct LiveValues<'a> {
+    func: &'a Function,
+    blocks: std::slice::Iter<'a, BasicBlock>,
+    instructions: std::slice::Iter<'a, InstId>,
+    operands: SmallVecIntoIter<[ValueId; 8]>,
+    result: Option<ValueId>,
+    terminator_operands: SmallVecIntoIter<[ValueId; 4]>,
+}
+
+impl<'a> LiveValues<'a> {
+    fn new(func: &'a Function) -> Self {
+        Self {
+            func,
+            blocks: func.blocks.iter(),
+            instructions: [].iter(),
+            operands: SmallVec::new().into_iter(),
+            result: None,
+            terminator_operands: SmallVec::new().into_iter(),
+        }
+    }
+}
+
+impl Iterator for LiveValues<'_> {
+    type Item = ValueId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(value) = self.operands.next() {
+                return Some(value);
+            }
+            if let Some(value) = self.result.take() {
+                return Some(value);
+            }
+            if let Some(&inst_id) = self.instructions.next() {
+                let inst = self.func.inst(inst_id);
+                self.operands = inst.operands().into_iter();
+                self.result = inst.result();
+                continue;
+            }
+            if let Some(value) = self.terminator_operands.next() {
+                return Some(value);
+            }
+            if let Some(block) = self.blocks.next() {
+                self.instructions = block.instructions.iter();
+                self.terminator_operands = block
+                    .terminator
+                    .as_ref()
+                    .map_or_else(SmallVec::new, |terminator| terminator.operands())
+                    .into_iter();
+            } else {
+                return None;
+            }
+        }
+    }
 }
 
 impl Function {
@@ -193,16 +250,7 @@ impl Function {
     /// Each instruction yields its operands followed by its result, if any. Terminator operands
     /// follow the instructions in their block. A value is yielded once for every occurrence.
     pub(crate) fn live_values(&self) -> impl Iterator<Item = ValueId> + '_ {
-        self.blocks.iter().flat_map(|block| {
-            block
-                .instructions
-                .iter()
-                .flat_map(|&inst_id| {
-                    let inst = self.inst(inst_id);
-                    inst.operands().into_iter().chain(inst.result())
-                })
-                .chain(block.terminator.iter().flat_map(|terminator| terminator.operands()))
-        })
+        LiveValues::new(self)
     }
 
     /// Calls `f` for every active instruction in block order.

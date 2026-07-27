@@ -199,12 +199,11 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
     for _ in 0..func.num_values() {
         sources.push(DenseBitSet::new_empty(params));
     }
-    for (index, uses) in func.arg_uses().iter_enumerated() {
-        if index.index() >= params {
-            break;
-        }
-        for &value in uses {
-            sources[value].insert(index);
+    for value in func.live_values() {
+        if let crate::mir::Value::Arg(index) = func.value(value)
+            && index.index() < params
+        {
+            sources[value].insert(*index);
         }
     }
 
