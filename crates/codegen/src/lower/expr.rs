@@ -2304,8 +2304,14 @@ impl<'gcx> Lowerer<'gcx> {
         // Calldata values and subslices carry `(ptr, len)` explicitly and are
         // copied only at this memory-consuming boundary.
         let ptr = if self.expr_is_calldata_dynamic_bytes(data) {
-            let slice = self.lower_value_expr(builder, data);
-            self.materialize_calldata_bytes(builder, slice)
+            let value = self.lower_value_expr(builder, data);
+            // A decoded calldata-struct member is already a memory bytes
+            // pointer despite its calldata-located type.
+            if Self::value_is_calldata_slice(builder, value) {
+                self.materialize_calldata_bytes(builder, value)
+            } else {
+                value
+            }
         } else {
             self.lower_value_expr(builder, data)
         };
