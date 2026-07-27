@@ -231,24 +231,41 @@ def run_cases(
     gas_profile: str,
     labels: dict[str, list[str]] | None = None,
 ) -> list[dict[str, Any]]:
+    previous = {}
+    if output.is_file():
+        payload = json.loads(output.read_text())
+        previous_metadata = payload.get("metadata") or {}
+        cache_keys = ("solar_sha256", "benchmark_pin", "methods", "scope", "optimization")
+        if all(previous_metadata.get(key) == metadata.get(key) for key in cache_keys):
+            previous = {result["test_id"]: result for result in payload["results"]}
+
     results = []
     cases = list(cases)
     for index, case in enumerate(cases, 1):
+        if case.test_id in previous and not gas_failed(previous[case.test_id]):
+            print(f"[{index}/{len(cases)}] {case.test_id} (cached)", flush=True)
+            results.append(previous[case.test_id])
+            continue
+
         print(f"[{index}/{len(cases)}] {case.test_id}", flush=True)
-        anvil = start_anvil() if include_gas else None
-        try:
-            result = bench.run_test_case(
-                case,
-                specs,
-                include_gas,
-                gas_profile,
-                bench.DEFAULT_RPC_URL,
-                bench.DEFAULT_PRIVATE_KEY,
-                True,
-            )
-        finally:
-            if anvil is not None:
-                stop_anvil(anvil)
+        for attempt in range(1, 4):
+            anvil = start_anvil() if include_gas else None
+            try:
+                result = bench.run_test_case(
+                    case,
+                    specs,
+                    include_gas,
+                    gas_profile,
+                    bench.DEFAULT_RPC_URL,
+                    bench.DEFAULT_PRIVATE_KEY,
+                    True,
+                )
+            finally:
+                if anvil is not None:
+                    stop_anvil(anvil)
+            if not gas_failed(result):
+                break
+            print(f"[{case.test_id}] retrying failed gas call ({attempt}/3)", flush=True)
 
         if labels is not None:
             expected = labels[case.test_id]
@@ -259,6 +276,13 @@ def run_cases(
         results.append(result)
         write_results(output, metadata, results)
     return results
+
+
+def gas_failed(result: dict[str, Any]) -> bool:
+    return any(
+        compiler.get("status") == "ok" and compiler.get("gas_status") == "failed"
+        for compiler in result["compilers"].values()
+    )
 
 
 def successful_intersection(results: Sequence[dict[str, Any]], methods: Sequence[str]) -> list[dict[str, Any]]:
