@@ -5547,4 +5547,22 @@ mod tests {
             assert!(codegen.asm.assemble().bytecode.is_empty());
         });
     }
+
+    #[test]
+    fn spill_color_accepts_only_disjoint_ranges() {
+        let block0 = BlockId::from_usize(0);
+        let block1 = BlockId::from_usize(1);
+        let mut color = SpillColor::default();
+        color.insert(&FxHashMap::from_iter([(block0, SpillLiveRange { start: 2, end: 4 })]));
+
+        assert!(
+            color.accepts(&FxHashMap::from_iter([(block0, SpillLiveRange { start: 5, end: 7 })]))
+        );
+        assert!(
+            !color.accepts(&FxHashMap::from_iter([(block0, SpillLiveRange { start: 4, end: 7 })]))
+        );
+        assert!(
+            color.accepts(&FxHashMap::from_iter([(block1, SpillLiveRange { start: 2, end: 4 })]))
+        );
+    }
 }
