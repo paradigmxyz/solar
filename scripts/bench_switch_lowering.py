@@ -242,7 +242,10 @@ def run_cases(
     results = []
     cases = list(cases)
     for index, case in enumerate(cases, 1):
-        if case.test_id in previous and not gas_failed(previous[case.test_id]):
+        expected_calls = len(labels[case.test_id]) if labels is not None else None
+        if case.test_id in previous and result_is_complete(
+            previous[case.test_id], specs, include_gas, expected_calls
+        ):
             print(f"[{index}/{len(cases)}] {case.test_id} (cached)", flush=True)
             results.append(previous[case.test_id])
             continue
@@ -265,7 +268,7 @@ def run_cases(
                         )
                     finally:
                         stop_anvil(anvil)
-                    if not gas_failed(partial):
+                    if result_is_complete(partial, (spec,), True, expected_calls):
                         break
                     print(
                         f"[{case.test_id}/{spec.compiler_id}] retrying failed gas call "
@@ -274,8 +277,8 @@ def run_cases(
                     )
                 if result is None:
                     result = partial
-                    result["compilers"] = {}
-                result["compilers"].update(partial["compilers"])
+                else:
+                    result["compilers"].update(partial["compilers"])
             bench.compare_runtime_results(result, specs)
         else:
             result = bench.run_test_case(
@@ -308,6 +311,31 @@ def gas_failed(result: dict[str, Any]) -> bool:
         )
         for compiler in result["compilers"].values()
     )
+
+
+def result_is_complete(
+    result: dict[str, Any],
+    specs: Sequence[Any],
+    include_gas: bool,
+    expected_calls: int | None,
+) -> bool:
+    compilers = result.get("compilers") or {}
+    if any(spec.compiler_id not in compilers for spec in specs):
+        return False
+    if not include_gas:
+        return True
+    for compiler in compilers.values():
+        if compiler.get("status") != "ok":
+            continue
+        if compiler.get("deploy_status") != "ok" or compiler.get("gas_status") != "ok":
+            return False
+        gas_results = compiler.get("gas_results") or []
+        if expected_calls is not None and (
+            len(gas_results) != expected_calls
+            or any(item.get("gas") is None for item in gas_results)
+        ):
+            return False
+    return True
 
 
 def successful_intersection(results: Sequence[dict[str, Any]], methods: Sequence[str]) -> list[dict[str, Any]]:
