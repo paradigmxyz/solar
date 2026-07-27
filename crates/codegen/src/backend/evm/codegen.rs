@@ -2531,6 +2531,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 block,
                 inst_idx,
             ),
+            InstKind::Clz(a) => self.emit_unary_op_with_result(
+                func,
+                *a,
+                op::CLZ,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
             InstKind::Shl(shift, val) => self.emit_binary_op_with_result(
                 func,
                 *shift,
@@ -2994,6 +3003,31 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // CALL consumes 7 values and produces 1 (success bool)
                 let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
                 self.emit_op_with_effect(op::CALL, StackEffect { pops: 7, pushes: 1 }, push);
+            }
+
+            InstKind::CallCode {
+                gas,
+                addr,
+                value,
+                args_offset,
+                args_size,
+                ret_offset,
+                ret_size,
+            } => {
+                self.prepare_fresh_operands(
+                    func,
+                    &[*gas, *addr, *value, *args_offset, *args_size, *ret_offset, *ret_size],
+                );
+                self.emit_value_fresh(func, *ret_size);
+                self.emit_value_fresh(func, *ret_offset);
+                self.emit_value_fresh(func, *args_size);
+                self.emit_value_fresh(func, *args_offset);
+                self.emit_value_fresh(func, *value);
+                self.emit_value_fresh(func, *addr);
+                self.emit_value_fresh(func, *gas);
+
+                let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
+                self.emit_op_with_effect(op::CALLCODE, StackEffect { pops: 7, pushes: 1 }, push);
             }
 
             InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {

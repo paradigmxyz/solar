@@ -1,9 +1,11 @@
 //@compile-flags: -Zcodegen -Zdump=mir
 
 contract YulUnsupportedBuiltins {
-    function unsupportedBuiltin() public pure returns (uint256 result) {
+    function unsupportedBuiltins() public returns (uint256 result) {
         assembly {
-            result := clz(1) //~ ERROR: unsupported Yul builtin `clz`
+            result := extcall(0, 0, 0, 0) //~ ERROR: unsupported Yul builtin `extcall`
+            result := extdelegatecall(0, 0, 0) //~ ERROR: unsupported Yul builtin `extdelegatecall`
+            result := extstaticcall(0, 0, 0) //~ ERROR: unsupported Yul builtin `extstaticcall`
         }
     }
 }

@@ -21,6 +21,25 @@ fn @keep_balance_with_call() -> u256 {
     ret v1
 }
 
+// CALLCODE executes arbitrary code in the current account context, so it can
+// invalidate the queried balance between iterations.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_balance_with_callcode{{[( ]}}
+// CHECK: {{^[ +].*}}[[BALANCE:v[0-9]+]] = balance 0xbeef
+// CHECK: {{^[ +].*[ =]callcode[[:space:]]}}
+fn @keep_balance_with_callcode() -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    jumpi true, bb2, bb3
+  bb2:
+    v0 = balance 0xbeef
+    v1 = mul v0, 3
+    v2 = callcode 1000, 0xbeef, 1, 0, 0, 0, 0
+    jump bb1
+  bb3:
+    ret v1
+}
+
 // Without any call or create in the loop the balance is loop-invariant for real.
 // CHECK-LABEL: {{^[ +].*}}fn @hoist_balance_without_calls{{[( ]}}
 // CHECK: + [[BALANCE:v[0-9]+]] = balance 0xbeef

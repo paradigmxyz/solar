@@ -383,6 +383,11 @@ impl InstSimplifier {
                 Self::not_operand(func, a)
                     .or_else(|| func.value_u256(a).map(|v| Self::imm_u256(func, !v)))
             }
+            InstKind::Clz(a) => {
+                let a = resolve(*a);
+                func.value_u256(a)
+                    .map(|v| Self::imm_u256(func, U256::from(v.leading_zeros() as u64)))
+            }
             InstKind::IsZero(a) => {
                 let a = resolve(*a);
                 func.value_u256(a).map(|v| Self::imm_bool(func, v.is_zero())).or_else(|| {
@@ -628,6 +633,9 @@ impl InstSimplifier {
                 Some(Self::imm_u256(func, constant(func, a)? ^ constant(func, b)?))
             }
             InstKind::Not(a) => Some(Self::imm_u256(func, !constant(func, a)?)),
+            InstKind::Clz(a) => {
+                Some(Self::imm_u256(func, U256::from(constant(func, a)?.leading_zeros() as u64)))
+            }
             InstKind::Shl(shift, value) => {
                 let shift = constant(func, shift)?;
                 let value = constant(func, value)?;
