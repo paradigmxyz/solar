@@ -57,6 +57,7 @@ impl Default for Config {
             flychecks: Vec::new(),
             watched_file_dynamic_registration: false,
             workspace_edit_document_changes: false,
+            code_lens_refresh_support: false,
             work_done_progress: false,
             hierarchical_document_symbol_support: false,
             completion: CompletionClientOptions::default(),
@@ -66,6 +67,7 @@ impl Default for Config {
             progress_create_timeout: Duration::from_secs(1),
             formatter_timeout: Duration::from_secs(30),
             flycheck_timeout: Duration::from_secs(30),
+            code_lens: CodeLensConfig::default(),
         }
     }
 }
