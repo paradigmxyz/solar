@@ -791,6 +791,17 @@ def run_cases(
                     )
                 finally:
                     stop_anvil(anvil)
+                reference = partial["compilers"][reference_spec.compiler_id]
+                reference_checks_sha256 = json_sha256(
+                    reference.get("runtime_results") or []
+                )
+                for execution_spec in run_specs:
+                    compiler = partial["compilers"][execution_spec.compiler_id]
+                    compiler["runtime_checks_sha256"] = json_sha256(
+                        compiler.get("runtime_results") or []
+                    )
+                    compiler["reference_checks_sha256"] = reference_checks_sha256
+                    compiler["reference_runtime_status"] = partial.get("runtime_status")
                 if result_is_complete(
                     partial,
                     run_specs,
@@ -804,16 +815,6 @@ def run_cases(
                     f"[{case.test_id}] retrying failed gas calls ({attempt}/3)",
                     flush=True,
                 )
-
-            reference = partial["compilers"][reference_spec.compiler_id]
-            reference_checks_sha256 = json_sha256(reference.get("runtime_results") or [])
-            for execution_spec in run_specs:
-                compiler = partial["compilers"][execution_spec.compiler_id]
-                compiler["runtime_checks_sha256"] = json_sha256(
-                    compiler.get("runtime_results") or []
-                )
-                compiler["reference_checks_sha256"] = reference_checks_sha256
-                compiler["reference_runtime_status"] = partial.get("runtime_status")
 
             result = {**partial, "compilers": {}}
             for equivalent_specs, spec in zip(grouped_specs.values(), execution_specs):
