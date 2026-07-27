@@ -20,20 +20,12 @@ contract StorageBytesMember {
 
     mapping(address => KeccakState) states;
 
-    // CHECK: push 0x72bd964d
-    // CHECK-NEXT: gt
-    // CHECK-NEXT: push [[LOW_SELECTORS:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
-    // CHECK: push 0x72bd964d
-    // CHECK-NEXT: eq
-    // CHECK-NEXT: push [[WHOLE:bb[0-9]+]]
-    // CHECK: push 0xbee6975a
-    // CHECK-NEXT: eq
-    // CHECK-NEXT: push [[SET_AT:bb[0-9]+]]
+    // CHECK: push 15
+    // CHECK-NEXT: and
+    // CHECK-NEXT: indexed_jump
     // CHECK: push 0xe0886f90
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[AT:bb[0-9]+]]
-    // CHECK: [[LOW_SELECTORS]]:
     // CHECK: push 0x4407bb95
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[PUSH_RANGE:bb[0-9]+]]
@@ -43,6 +35,12 @@ contract StorageBytesMember {
     // CHECK: push 0x56d88e27
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[LEN:bb[0-9]+]]
+    // CHECK: push 0xbee6975a
+    // CHECK-NEXT: eq
+    // CHECK-NEXT: push [[SET_AT:bb[0-9]+]]
+    // CHECK: push 0x72bd964d
+    // CHECK-NEXT: eq
+    // CHECK-NEXT: push [[WHOLE:bb[0-9]+]]
     // CHECK: [[PUSH_RANGE]]:
     // CHECK: keccak256
     // CHECK: jump [[LOOP:bb[0-9]+]]

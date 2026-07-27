@@ -15,8 +15,9 @@ use super::{
         MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
     },
     switch::{
-        MAX_GAS_CODE_GROWTH, SwitchDefault, SwitchPlan, SwitchPlanOptions, SwitchSelection,
-        bucket_index, select_switch_plan_with_linear_values_and_budget,
+        MAX_GAS_CODE_GROWTH, PerfectHash, SwitchDefault, SwitchPlan, SwitchPlanOptions,
+        SwitchSelection, bit_slice_index, bucket_index,
+        select_switch_plan_with_linear_values_and_budget,
     },
 };
 use crate::{
@@ -5237,6 +5238,146 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.stack.pop();
     }
 
+    fn emit_perfect_mir_switch(
+        &mut self,
+        func: &Function,
+        entries: &[MirSwitchEntry],
+        default: BlockId,
+        can_fallthrough: bool,
+        hash: PerfectHash,
+    ) {
+        match hash {
+            PerfectHash::BitSlice { shift, mask } => {
+                self.emit_bit_slice_mir_switch(func, entries, default, can_fallthrough, shift, mask)
+            }
+            PerfectHash::Affine { low, multiplier, rotate } => {
+                self.emit_affine_mir_switch(entries, default, low, multiplier, rotate)
+            }
+        }
+    }
+
+    fn emit_bit_slice_mir_switch(
+        &mut self,
+        func: &Function,
+        entries: &[MirSwitchEntry],
+        default: BlockId,
+        can_fallthrough: bool,
+        shift: usize,
+        mask: usize,
+    ) {
+        let mut slots = vec![None; mask + 1];
+        for &entry in entries {
+            let slot = &mut slots[bit_slice_index(entry.value, shift, mask)];
+            assert!(slot.replace(entry).is_none(), "perfect switch hash must not collide");
+        }
+        let default_label = self.block_labels[&default];
+        let empty_label = (!self.emitting_entry && slots.iter().any(Option::is_none))
+            .then(|| self.asm.new_label());
+        let slot_labels = slots
+            .iter()
+            .map(|slot| {
+                if slot.is_some() {
+                    self.asm.new_label()
+                } else {
+                    empty_label.unwrap_or(default_label)
+                }
+            })
+            .collect::<Vec<_>>();
+
+        self.asm.emit_op(op::DUP1);
+        self.scheduler.stack.dup(1);
+        if shift != 0 {
+            self.asm.emit_push(U256::from(shift));
+            self.scheduler.stack.push_unknown();
+            self.asm.emit_op(op::SHR);
+            self.scheduler.instruction_executed_untracked(2);
+        }
+        self.asm.emit_push(U256::from(mask));
+        self.scheduler.stack.push_unknown();
+        self.asm.emit_op(op::AND);
+        self.scheduler.instruction_executed_untracked(2);
+        self.asm.emit_indexed_jump(slot_labels.clone());
+        self.scheduler.stack.pop();
+
+        let entry_stack = self.scheduler.stack.clone();
+        if let Some(empty_label) = empty_label {
+            self.asm.define_label(empty_label);
+            self.scheduler.stack = entry_stack.clone();
+            self.emit_mir_switch_default(default, false);
+        }
+        let last_slot = slots.iter().rposition(Option::is_some).unwrap();
+        for (index, (label, entry)) in slot_labels.into_iter().zip(slots).enumerate() {
+            let Some(entry) = entry else { continue };
+            self.asm.define_label(label);
+            self.scheduler.stack = entry_stack.clone();
+            self.emit_mir_switch_eq_jump(func, entry.value_id, Some(entry.value), entry.target);
+            self.emit_mir_switch_default(default, can_fallthrough && index == last_slot);
+        }
+    }
+
+    fn emit_affine_mir_switch(
+        &mut self,
+        entries: &[MirSwitchEntry],
+        default: BlockId,
+        low: U256,
+        multiplier: U256,
+        rotate: usize,
+    ) {
+        let targets = entries.iter().map(|entry| self.block_labels[&entry.target]).collect();
+        let in_range = self.asm.new_label();
+
+        if !low.is_zero() {
+            self.asm.emit_push(low);
+            self.scheduler.stack.push_unknown();
+            self.asm.emit_op(op::SWAP1);
+            self.scheduler.stack_swapped();
+            self.asm.emit_op(op::SUB);
+            self.scheduler.instruction_executed_untracked(2);
+        }
+        if multiplier != U256::ONE {
+            self.asm.emit_push(multiplier);
+            self.scheduler.stack.push_unknown();
+            self.asm.emit_op(op::MUL);
+            self.scheduler.instruction_executed_untracked(2);
+        }
+        if rotate != 0 {
+            self.asm.emit_op(op::DUP1);
+            self.scheduler.stack.dup(1);
+            self.asm.emit_push(U256::from(rotate));
+            self.scheduler.stack.push_unknown();
+            self.asm.emit_op(op::SHR);
+            self.scheduler.instruction_executed_untracked(2);
+            self.asm.emit_op(op::SWAP1);
+            self.scheduler.stack_swapped();
+            self.asm.emit_push(U256::from(256 - rotate));
+            self.scheduler.stack.push_unknown();
+            self.asm.emit_op(op::SHL);
+            self.scheduler.instruction_executed_untracked(2);
+            self.asm.emit_op(op::OR);
+            self.scheduler.instruction_executed_untracked(2);
+        }
+        self.asm.emit_op(op::DUP1);
+        self.scheduler.stack.dup(1);
+        self.asm.emit_push(U256::from(entries.len()));
+        self.scheduler.stack.push_unknown();
+        self.asm.emit_op(op::GT);
+        self.scheduler.instruction_executed_untracked(2);
+        self.asm.emit_push_label(in_range);
+        self.asm.emit_op(op::JUMPI);
+        self.scheduler.instruction_executed(1, None);
+
+        let indexed_stack = self.scheduler.stack.clone();
+        self.asm.emit_op(op::POP);
+        self.scheduler.stack.pop();
+        self.asm.emit_push_label(self.block_labels[&default]);
+        self.asm.emit_op(op::JUMP);
+
+        self.asm.define_label(in_range);
+        self.scheduler.stack = indexed_stack;
+        self.asm.emit_indexed_jump(targets);
+        self.scheduler.stack.pop();
+    }
+
     fn emit_mir_switch_eq_jump(
         &mut self,
         func: &Function,
@@ -5469,6 +5610,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                     }
                     (SwitchPlan::Dense { low, range }, Some(entries)) => {
                         self.emit_dense_mir_switch(&entries, *default, low, range);
+                    }
+                    (SwitchPlan::Perfect { hash }, Some(entries)) => {
+                        self.emit_perfect_mir_switch(
+                            func,
+                            &entries,
+                            *default,
+                            fallthrough == Some(*default),
+                            hash,
+                        );
                     }
                     _ => {
                         self.emit_linear_mir_switch(func, cases);

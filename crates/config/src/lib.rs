@@ -181,6 +181,8 @@ str_enum! {
         Buckets,
         /// Dispatch through a dense indexed table.
         Dense,
+        /// Dispatch through a collision-free indexed table.
+        Perfect,
     }
 }
 

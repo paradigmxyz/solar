@@ -1,5 +1,6 @@
-//@ revisions: auto buckets
+//@ revisions: auto buckets perfect
 //@[buckets] compile-flags: -Zswitch-lowering=buckets
+//@[perfect] compile-flags: -Zswitch-lowering=perfect
 //@ run-call: testBucketDispatch()
 //@ run-call: testBucketDispatchMiss()
 //@ run-call: testDenseSwitch()

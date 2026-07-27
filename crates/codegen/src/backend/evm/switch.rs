@@ -24,6 +24,7 @@ const INDEXED_JUMP_BASE_LEN: usize = 7;
 const MIN_BUCKET_CASES: usize = 2;
 // Bound table footprint and the number of bucket blocks processed by EVM IR passes.
 const MAX_BUCKET_CASES: usize = 64;
+const MAX_PERFECT_BIT_TABLE_SIZE: usize = 256;
 const MAX_DENSE_RANGE: usize = 4096;
 const MAX_BUCKET_CANDIDATES: usize = 33;
 /// Bounds cumulative bytecode growth per artifact under the runtime-gas objective.
@@ -42,6 +43,17 @@ pub(super) enum SwitchPlan {
     Buckets { bucket_count: usize },
     /// Bounds-check `value - low` and dispatch through a dense target table.
     Dense { low: U256, range: usize },
+    /// Dispatch through a collision-free hash table.
+    Perfect { hash: PerfectHash },
+}
+
+/// Collision-free hash selected for a switch.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum PerfectHash {
+    /// Extract a collision-free bit slice and verify the key in its table slot.
+    BitSlice { shift: usize, mask: usize },
+    /// Map an arithmetic progression bijectively to consecutive table indices.
+    Affine { low: U256, multiplier: U256, rotate: usize },
 }
 
 /// Selected switch shape and its conservative growth over a linear scan.
@@ -242,6 +254,11 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 dense_lowering_cost(values, evm_version, default, table_target_width)
                     .map(|(low, range, cost)| (cost, SwitchPlan::Dense { low, range }))
             }
+            SwitchLowering::Perfect => {
+                perfect_hash_candidates(values, evm_version, default, table_target_width)
+                    .into_iter()
+                    .min_by_key(|&(cost, _)| forced_cost_key(cost, optimization))
+            }
             _ => None,
         };
         let Some((cost, plan)) = candidate else {
@@ -291,6 +308,16 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         };
         if better {
             best = (cost, SwitchPlan::Dense { low, range });
+        }
+    }
+    for (cost, plan) in perfect_hash_candidates(values, evm_version, default, table_target_width) {
+        let better = match optimization {
+            OptimizationMode::Gas => cost.is_better_for_gas_than(best.0, max_gas_code_size),
+            OptimizationMode::Size => cost.size_key() < best.0.size_key(),
+            _ => false,
+        };
+        if better {
+            best = (cost, plan);
         }
     }
     let gas_code_growth = if optimization == OptimizationMode::Gas && best.1 != SwitchPlan::Linear {
@@ -529,6 +556,211 @@ fn dense_lowering_cost(
     ))
 }
 
+fn perfect_hash_candidates(
+    values: &[U256],
+    evm_version: EvmVersion,
+    default: SwitchDefault,
+    table_target_width: usize,
+) -> Vec<(LoweringCost, SwitchPlan)> {
+    let mut candidates = Vec::new();
+    if let Some(hash @ PerfectHash::Affine { .. }) = affine_hash(values, evm_version) {
+        candidates.push((
+            affine_lowering_cost(values.len(), hash, evm_version, default, table_target_width),
+            SwitchPlan::Perfect { hash },
+        ));
+    }
+
+    if (MIN_BUCKET_CASES..=MAX_BUCKET_CASES).contains(&values.len()) {
+        let minimum_bits = values.len().next_power_of_two().trailing_zeros() as usize;
+        for bits in minimum_bits..=minimum_bits + 2 {
+            let table_size = 1usize << bits;
+            if table_size > MAX_PERFECT_BIT_TABLE_SIZE {
+                break;
+            }
+            let mask = table_size - 1;
+            let last_shift = if evm_version.has_bitwise_shifting() { 256 - bits } else { 0 };
+            for shift in 0..=last_shift {
+                let mut occupied = [0u64; MAX_PERFECT_BIT_TABLE_SIZE / 64];
+                let collision = values.iter().any(|&value| {
+                    let index = bit_slice_index(value, shift, mask);
+                    let bit = 1u64 << (index % 64);
+                    let word = &mut occupied[index / 64];
+                    let collision = *word & bit != 0;
+                    *word |= bit;
+                    collision
+                });
+                if !collision {
+                    let hash = PerfectHash::BitSlice { shift, mask };
+                    candidates.push((
+                        bit_slice_lowering_cost(
+                            values,
+                            hash,
+                            evm_version,
+                            default.without_fallthrough(),
+                            table_target_width,
+                        ),
+                        SwitchPlan::Perfect { hash },
+                    ));
+                }
+            }
+        }
+    }
+    candidates
+}
+
+fn bit_slice_lowering_cost(
+    values: &[U256],
+    hash: PerfectHash,
+    evm_version: EvmVersion,
+    default: SwitchDefault,
+    table_target_width: usize,
+) -> LoweringCost {
+    let PerfectHash::BitSlice { shift, mask } = hash else { unreachable!() };
+    debug_assert!(!default.can_fallthrough());
+    let (shift_len, shift_gas) = immediate_materialization_cost(evm_version, U256::from(shift));
+    let (mask_len, mask_gas) = immediate_materialization_cost(evm_version, U256::from(mask));
+    let hash_len = 1 + usize::from(shift != 0) * (shift_len + 1) + mask_len + 1;
+    let hash_gas = VERY_LOW_GAS
+        + usize::from(shift != 0) * (shift_gas + VERY_LOW_GAS)
+        + mask_gas
+        + VERY_LOW_GAS;
+    let indexed_jump_gas = VERY_LOW_GAS
+        + MUL_GAS
+        + VERY_LOW_GAS
+        + VERY_LOW_GAS
+        + JUMP_GAS
+        + JUMPDEST_GAS
+        + VERY_LOW_GAS
+        + JUMP_GAS
+        + JUMPDEST_GAS;
+    let dispatch_gas = hash_gas + indexed_jump_gas;
+    let table_size = mask + 1;
+    let mut cost = LoweringCost {
+        code_size: hash_len
+            + INDEXED_JUMP_BASE_LEN
+            + table_size * indexed_jump_stub_len(table_target_width),
+        max_code_size: hash_len
+            + max_indexed_jump_base_len(table_target_width)
+            + table_size * indexed_jump_stub_len(table_target_width),
+        hit_gas_sum: dispatch_gas * values.len(),
+        miss_gas: dispatch_gas,
+    };
+
+    for &value in values {
+        let test = equality_test_cost(value, evm_version, table_target_width);
+        cost.code_size += JUMPDEST_LEN + test.code_size + default.code_size(evm_version);
+        cost.max_code_size += JUMPDEST_LEN
+            + test.max_code_size
+            + default.max_code_size(evm_version, table_target_width);
+        cost.hit_gas_sum += test.gas;
+        cost.miss_gas = cost.miss_gas.max(dispatch_gas + test.gas + default.gas(evm_version));
+    }
+    if default.needs_value_cleanup() && table_size > values.len() {
+        let default = default.without_fallthrough();
+        cost.code_size += JUMPDEST_LEN + default.code_size(evm_version);
+        cost.max_code_size += JUMPDEST_LEN + default.max_code_size(evm_version, table_target_width);
+        cost.miss_gas = cost.miss_gas.max(dispatch_gas + default.gas(evm_version));
+    }
+    cost
+}
+
+fn affine_hash(values: &[U256], evm_version: EvmVersion) -> Option<PerfectHash> {
+    if !(MIN_BUCKET_CASES..=MAX_DENSE_RANGE).contains(&values.len()) {
+        return None;
+    }
+    let low = values[0];
+    let stride = values[1] - low;
+    if stride == U256::ONE || values.windows(2).any(|window| window[1] - window[0] != stride) {
+        return None;
+    }
+
+    let rotate = stride.trailing_zeros();
+    if rotate != 0 && !evm_version.has_bitwise_shifting() {
+        return None;
+    }
+    let odd_stride = stride >> rotate;
+    let multiplier = wrapping_inverse_odd(odd_stride);
+    debug_assert_eq!(odd_stride.wrapping_mul(multiplier), U256::ONE);
+    Some(PerfectHash::Affine { low, multiplier, rotate })
+}
+
+fn affine_lowering_cost(
+    len: usize,
+    hash: PerfectHash,
+    evm_version: EvmVersion,
+    default: SwitchDefault,
+    table_target_width: usize,
+) -> LoweringCost {
+    let PerfectHash::Affine { low, multiplier, rotate } = hash else { unreachable!() };
+    let (low_len, low_gas) = immediate_materialization_cost(evm_version, low);
+    let normalize_len = usize::from(!low.is_zero()) * (low_len + 2);
+    let normalize_gas = usize::from(!low.is_zero()) * (low_gas + VERY_LOW_GAS * 2);
+    let (multiplier_len, multiplier_gas) = immediate_materialization_cost(evm_version, multiplier);
+    let multiply_len = usize::from(multiplier != U256::ONE) * (multiplier_len + 1);
+    let multiply_gas = usize::from(multiplier != U256::ONE) * (multiplier_gas + MUL_GAS);
+    let (rotate_len, rotate_gas) = rotate_cost(rotate, evm_version);
+    let hash_len = normalize_len + multiply_len + rotate_len;
+    let hash_gas = normalize_gas + multiply_gas + rotate_gas;
+    let bounds_prefix_len = 1 + push_len(U256::from(len), evm_version) + 1;
+    let bounds_len = bounds_prefix_len + MIN_LABEL_PUSH_LEN + 1;
+    let max_bounds_len = bounds_prefix_len + max_label_push_len(table_target_width) + 1;
+    let bounds_gas = VERY_LOW_GAS * 4 + JUMPI_GAS;
+    let indexed_jump_gas = VERY_LOW_GAS
+        + MUL_GAS
+        + VERY_LOW_GAS
+        + VERY_LOW_GAS
+        + JUMP_GAS
+        + JUMPDEST_GAS
+        + VERY_LOW_GAS
+        + JUMP_GAS;
+    let hit_gas = hash_gas + bounds_gas + JUMPDEST_GAS + indexed_jump_gas;
+    let default_body_gas =
+        if default == SwitchDefault::Revert { JUMPDEST_GAS + default.gas(evm_version) } else { 0 };
+    let miss_gas = hash_gas + bounds_gas + POP_GAS + DEFAULT_JUMP_GAS + default_body_gas;
+    LoweringCost {
+        code_size: hash_len
+            + bounds_len
+            + 1
+            + MIN_DEFAULT_JUMP_LEN
+            + JUMPDEST_LEN
+            + INDEXED_JUMP_BASE_LEN
+            + len * indexed_jump_stub_len(table_target_width),
+        max_code_size: hash_len
+            + max_bounds_len
+            + 1
+            + max_default_jump_len(table_target_width)
+            + JUMPDEST_LEN
+            + max_indexed_jump_base_len(table_target_width)
+            + len * indexed_jump_stub_len(table_target_width),
+        hit_gas_sum: hit_gas * len,
+        miss_gas,
+    }
+}
+
+fn rotate_cost(rotate: usize, evm_version: EvmVersion) -> (usize, usize) {
+    if rotate == 0 {
+        return (0, 0);
+    }
+    let (right_len, right_gas) = immediate_materialization_cost(evm_version, U256::from(rotate));
+    let (left_len, left_gas) =
+        immediate_materialization_cost(evm_version, U256::from(256 - rotate));
+    (5 + right_len + left_len, VERY_LOW_GAS * 5 + right_gas + left_gas)
+}
+
+fn wrapping_inverse_odd(value: U256) -> U256 {
+    debug_assert!(value.bit(0));
+    let mut inverse = U256::ONE;
+    for _ in 0..8 {
+        inverse = inverse.wrapping_mul(U256::from(2).wrapping_sub(value.wrapping_mul(inverse)));
+    }
+    inverse
+}
+
+pub(super) fn bit_slice_index(value: U256, shift: usize, mask: usize) -> usize {
+    usize::try_from((value >> shift) & U256::from(mask))
+        .expect("perfect switch hash must fit usize")
+}
+
 const fn indexed_jump_stub_len(target_width: usize) -> usize {
     // JUMPDEST, PUSH<n> target, JUMP.
     target_width + 3
@@ -636,7 +868,50 @@ mod tests {
         assert!(matches!(select(&values(4), SwitchLowering::Binary), SwitchPlan::Binary { .. }));
         assert!(matches!(select(&values(4), SwitchLowering::Buckets), SwitchPlan::Buckets { .. }));
         assert!(matches!(select(&values(24), SwitchLowering::Dense), SwitchPlan::Dense { .. }));
+        assert!(matches!(select(&values(24), SwitchLowering::Perfect), SwitchPlan::Perfect { .. }));
         assert_eq!(select(&values(32), SwitchLowering::Linear), SwitchPlan::Linear);
+    }
+
+    #[test]
+    fn finds_collision_free_bit_slices() {
+        let values =
+            (0..16).map(|value| U256::from(value * value * 256 + value)).collect::<Vec<_>>();
+        let candidates =
+            perfect_hash_candidates(&values, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2);
+        assert!(candidates.iter().any(|&(_, plan)| matches!(
+            plan,
+            SwitchPlan::Perfect { hash: PerfectHash::BitSlice { shift: 0, mask: 15 } }
+        )));
+    }
+
+    #[test]
+    fn maps_arithmetic_progressions_bijectively() {
+        for stride in [3, 6, 257, 1024] {
+            let low = U256::from(1000);
+            let values = (0..32).map(|index| low + U256::from(index * stride)).collect::<Vec<_>>();
+            let Some(PerfectHash::Affine { low, multiplier, rotate }) =
+                affine_hash(&values, EvmVersion::Cancun)
+            else {
+                panic!("expected affine hash")
+            };
+            for (index, &value) in values.iter().enumerate() {
+                let normalized = (value - low).wrapping_mul(multiplier);
+                let hashed = if rotate == 0 {
+                    normalized
+                } else {
+                    (normalized >> rotate) | (normalized << (256 - rotate))
+                };
+                assert_eq!(hashed, U256::from(index));
+            }
+        }
+    }
+
+    #[test]
+    fn computes_full_width_odd_inverses() {
+        for value in [U256::from(3), U256::from(257), U256::MAX] {
+            let inverse = wrapping_inverse_odd(value);
+            assert_eq!(value.wrapping_mul(inverse), U256::ONE);
+        }
     }
 
     #[test]
@@ -670,7 +945,7 @@ mod tests {
             },
         );
         assert_eq!(binary.plan, SwitchPlan::Binary { leaf_size: 4 });
-        assert!(matches!(
+        assert_eq!(
             select_switch_plan_with_budget(
                 &values,
                 OptimizationMode::Gas,
@@ -678,9 +953,10 @@ mod tests {
                 SwitchDefault::CleanupJump,
                 2,
                 usize::MAX,
-            ),
-            SwitchSelection { plan: SwitchPlan::Buckets { .. }, .. }
-        ));
+            )
+            .plan,
+            SwitchPlan::Perfect { hash: PerfectHash::BitSlice { shift: 0, mask: 7 } }
+        );
     }
 
     #[test]
@@ -795,7 +1071,7 @@ mod tests {
     }
 
     #[test]
-    fn preserves_linear_shape_outside_gas_mode() {
+    fn preserves_linear_shape_without_optimization() {
         let sparse = (0..64).map(|value| U256::from(value * 7919)).collect::<Vec<_>>();
         assert_eq!(
             select_switch_plan(
@@ -807,7 +1083,7 @@ mod tests {
             ),
             SwitchPlan::Linear
         );
-        assert_eq!(
+        assert!(matches!(
             select_switch_plan(
                 &sparse,
                 OptimizationMode::Size,
@@ -815,12 +1091,12 @@ mod tests {
                 SwitchDefault::CleanupJump,
                 2,
             ),
-            SwitchPlan::Linear
-        );
+            SwitchPlan::Perfect { hash: PerfectHash::Affine { .. } }
+        ));
     }
 
     #[test]
-    fn selects_buckets_for_large_sparse_switches() {
+    fn selects_affine_hash_for_arithmetic_progressions() {
         let values = (0..32).map(|value| U256::from(value * 7919)).collect::<Vec<_>>();
         assert!(matches!(
             select_switch_plan_with_budget(
@@ -831,12 +1107,12 @@ mod tests {
                 2,
                 usize::MAX,
             ),
-            SwitchSelection { plan: SwitchPlan::Buckets { .. }, .. }
+            SwitchSelection { plan: SwitchPlan::Perfect { hash: PerfectHash::Affine { .. } }, .. }
         ));
     }
 
     #[test]
-    fn bounds_bucket_table_fanout() {
+    fn selects_affine_hash_beyond_bit_table_limit() {
         let values = (0..100).map(|value| U256::from(value * 7919)).collect::<Vec<_>>();
         assert!(matches!(
             select_switch_plan_with_budget(
@@ -847,14 +1123,14 @@ mod tests {
                 2,
                 usize::MAX,
             ),
-            SwitchSelection { plan: SwitchPlan::Binary { .. }, .. }
+            SwitchSelection { plan: SwitchPlan::Perfect { hash: PerfectHash::Affine { .. } }, .. }
         ));
     }
 
     #[test]
     fn selects_dense_table_for_compact_ranges() {
         let values = values(24);
-        assert_eq!(
+        assert!(matches!(
             select_switch_plan(
                 &values,
                 OptimizationMode::Size,
@@ -863,7 +1139,7 @@ mod tests {
                 2,
             ),
             SwitchPlan::Dense { low: U256::ZERO, range: 24 }
-        );
+        ));
     }
 
     #[test]
@@ -959,7 +1235,7 @@ mod tests {
     fn accounts_for_compact_max_adjacent_constants() {
         let low = U256::MAX - U256::from(64 * 6);
         let values = (0..65).map(|index| low + U256::from(index * 6)).collect::<Vec<_>>();
-        assert_eq!(
+        assert!(matches!(
             select_switch_plan(
                 &values,
                 OptimizationMode::Size,
@@ -967,8 +1243,8 @@ mod tests {
                 SwitchDefault::CleanupJump,
                 2,
             ),
-            SwitchPlan::Linear
-        );
+            SwitchPlan::Perfect { hash: PerfectHash::Affine { .. } }
+        ));
 
         let plan = select_switch_plan(
             &values,
@@ -986,7 +1262,6 @@ mod tests {
         let values = (0..48).map(|value| U256::from(value * 4)).collect::<Vec<_>>();
         let mut remaining = budget;
         let mut growth = 0;
-        let mut linear = 0;
         for _ in 0..21 {
             let selection = select_switch_plan_with_budget(
                 &values,
@@ -998,10 +1273,8 @@ mod tests {
             );
             growth += selection.gas_code_growth;
             remaining = remaining.saturating_sub(selection.gas_code_growth);
-            linear += usize::from(selection.plan == SwitchPlan::Linear);
         }
         assert!(growth <= budget);
         assert!(growth > 0);
-        assert!(linear > 0);
     }
 }
