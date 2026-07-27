@@ -710,13 +710,12 @@ bb68:
   push 288
   add
   mstore
+  pop
   push 160
   mload
   push 64
   add
   mload
-  swap1
-  pop
   push bb36
   jump bb62
 bb62:

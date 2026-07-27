@@ -238,13 +238,11 @@ bb63:
   dup1
   push 0x4e0
   mstore
-  dup5
-  swap6
   pop
   pop
   pop
   pop
-  pop
+  swap1
   pop
   push bb65
   jumpi
@@ -486,12 +484,10 @@ bb20:
   dup1
   push 448
   mstore
-  dup4
-  swap6
   pop
   pop
   pop
-  pop
+  swap2
   pop
   pop
   push bb26
@@ -801,12 +797,10 @@ bb33:
   dup1
   push 384
   mstore
-  dup4
-  swap7
   pop
   pop
   pop
-  pop
+  swap3
   pop
   pop
   pop
@@ -1088,10 +1082,8 @@ bb52:
   dup1
   push 160
   mstore
-  dup2
-  swap4
   pop
-  pop
+  swap2
   pop
   pop
   push bb59

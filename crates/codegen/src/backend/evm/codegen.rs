@@ -5180,21 +5180,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             Terminator::Branch { condition, then_block, else_block } => {
-                // Emit the condition first (it's still on the stack)
-                self.emit_value(func, *condition);
-
-                // Now pop all OTHER values (condition is on top, keep it)
-                // We do this by tracking that condition was just pushed and emitting POPs for
-                // everything else. When this edge preserves its stack into the hot arm, the
-                // values beneath the condition are the carried layout: leave them in place.
-                if !preserve_stack {
-                    while self.scheduler.depth() > 1 {
-                        // SWAP to get unwanted value to top, then POP
-                        self.asm.emit_op(op::SWAP1);
-                        self.scheduler.stack_swapped();
-                        self.asm.emit_op(op::POP);
-                        self.scheduler.stack.pop();
-                    }
+                if preserve_stack {
+                    self.emit_value(func, *condition);
+                } else {
+                    // Retain a resident condition while draining the rest. Materializing it first
+                    // can duplicate an accessible copy only to swap and pop the original.
+                    self.pop_stack_values_not_needed_by(&[*condition]);
+                    self.emit_value(func, *condition);
                 }
 
                 match fallthrough {
