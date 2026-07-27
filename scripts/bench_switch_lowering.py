@@ -79,6 +79,7 @@ def switch_values(count: int) -> list[int]:
 
 
 def selector_case(bench: Any, count: int) -> Any:
+    # The common cold SLOAD lifts dispatch above the transaction calldata floor.
     functions = "\n".join(
         f"    function f{index:02}() external view returns (uint256) {{ return burnSlot + {index}; }}"
         for index in range(count)
@@ -111,6 +112,7 @@ def value_switch_case(
     values: Sequence[int],
     misses: Sequence[int],
 ) -> Any:
+    # The common cold SLOAD lifts dispatch above the transaction calldata floor.
     cases = "\n".join(
         f"            case 0x{value:x} {{ result := {index + 1} }}"
         for index, value in enumerate(values)
