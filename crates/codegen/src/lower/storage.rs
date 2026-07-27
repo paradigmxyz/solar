@@ -27,7 +27,7 @@ impl StorageLocation {
         Self { slot, offset: 0, size: Self::WORD_SIZE }
     }
 
-    const fn is_packed(self) -> bool {
+    pub(super) const fn is_packed(self) -> bool {
         self.offset != 0 || self.size != Self::WORD_SIZE
     }
 }
@@ -186,10 +186,33 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Returns the byte width for scalar types that this lowering can safely pack.
+    ///
+    /// Sizes match the sema storage-layout emitter (`StorageLayoutBuilder::storage_bytes`).
+    /// Left-aligned types (`bytesN`, external function pointers) are excluded until load/store
+    /// learn to shift them into the packed byte window; packing them with a right-aligned mask
+    /// would zero the value.
     fn packed_storage_size(&self, ty: Ty<'gcx>) -> Option<u8> {
         match ty.peel_refs().kind {
-            TyKind::Elementary(ElementaryType::Bool) => Some(1),
+            TyKind::Elementary(elem) => match elem {
+                ElementaryType::Bool => Some(1),
+                ElementaryType::Address(_) => Some(20),
+                ElementaryType::Int(size)
+                | ElementaryType::UInt(size)
+                | ElementaryType::Fixed(size, _)
+                | ElementaryType::UFixed(size, _) => {
+                    let n = size.bytes();
+                    (n < StorageLocation::WORD_SIZE).then_some(n)
+                }
+                // Left-aligned in the EVM word; not packed here yet.
+                ElementaryType::FixedBytes(_) | ElementaryType::String | ElementaryType::Bytes => {
+                    None
+                }
+            },
+            TyKind::Contract(_) => Some(20),
+            TyKind::Enum(_) => Some(1),
             TyKind::Udvt(inner, _) => self.packed_storage_size(inner),
+            // Internal function pointers are right-aligned 8-byte IDs.
+            TyKind::Fn(f) if !f.is_external() => Some(8),
             _ => None,
         }
     }

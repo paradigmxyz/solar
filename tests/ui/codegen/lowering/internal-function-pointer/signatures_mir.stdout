@@ -2,7 +2,12 @@
 @module FunctionPointerSignatures
 fn @constructor() {
   bb0:
-    sstore 1, 2 !metadata(storage=slot(1))
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffff0000000000000000ff
+    v2 = and 2, 0xffffffffffffffff
+    v3 = shl 8, v2
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
     stop
 }
 
@@ -42,11 +47,13 @@ fn @setFlag() {
 fn @callState() {
   bb0:
     mstore 128, 0
-    v0 = sload 1 !metadata(storage=slot(1))
-    internal_call @__internal_dispatch_0, 0, v0
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = and v1, 255
-    mstore 128, v2
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = shr 8, v0
+    v2 = and v1, 0xffffffffffffffff
+    internal_call @__internal_dispatch_0, 0, v2
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = and v3, 255
+    mstore 128, v4
     returndata 128, 32
 }
 
