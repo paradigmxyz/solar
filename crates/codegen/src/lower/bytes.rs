@@ -974,8 +974,14 @@ impl<'gcx> Lowerer<'gcx> {
         // call reads its input from memory), then use that region. This arises in
         // proxy fallbacks such as `impl.delegatecall(data)` with `bytes calldata`.
         if self.expr_is_calldata_dynamic_bytes(expr) {
-            let slice = self.lower_value_expr(builder, expr);
-            let ptr = self.materialize_calldata_bytes(builder, slice);
+            let value = self.lower_value_expr(builder, expr);
+            // A decoded calldata-struct member is already a memory bytes
+            // pointer despite its calldata-located type.
+            let ptr = if Self::value_is_calldata_slice(builder, value) {
+                self.materialize_calldata_bytes(builder, value)
+            } else {
+                value
+            };
             let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
             let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
             return Ok((data, len));
