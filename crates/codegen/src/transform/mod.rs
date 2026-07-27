@@ -6,6 +6,7 @@ pub(crate) mod check_elim;
 pub(crate) mod copy_elision;
 pub(crate) mod cse;
 pub(crate) mod dce;
+pub(crate) mod evm_inst_schedule;
 pub(crate) mod frame_promotion;
 pub(crate) mod gvn;
 pub(crate) mod indvar_simplify;
