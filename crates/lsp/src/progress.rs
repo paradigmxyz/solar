@@ -76,10 +76,9 @@ impl ProgressCoordinator {
 
     /// Starts or joins the progress wave for `version`.
     ///
-    /// A newer version replaces an invisible delayed wave so its progress clock starts over. Once
-    /// token creation has begun, the newer version reuses that wave and reports at most one
-    /// restart. Tickets for older versions remain valid handles but cannot report or finish the
-    /// newer wave.
+    /// A newer version replaces an invisible wave so its progress clock starts over. Once progress
+    /// is visible, the newer version reuses that wave and reports at most one restart. Tickets for
+    /// older versions remain valid handles but cannot report or finish the newer wave.
     #[cfg(test)]
     pub(crate) fn start(&self, version: usize) -> ProgressTicket {
         let ticket = self.reserve(version);
@@ -336,7 +335,7 @@ impl WorkDoneProgressGuard {
             return true;
         }
 
-        if matches!(state.phase, Phase::Pending | Phase::Delayed) {
+        if matches!(state.phase, Phase::Pending | Phase::Delayed | Phase::Creating) {
             state.phase = Phase::Closed;
             state.message = None;
             state.terminal = None;
@@ -947,7 +946,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn replacement_reuses_a_wave_that_finished_while_create_was_pending() {
+    async fn replacement_while_create_is_pending_can_finish_silently() {
         let mut harness = progress_harness();
         let coordinator = ProgressCoordinator::with_timing(
             harness.client.clone(),
@@ -956,46 +955,25 @@ mod tests {
             Duration::from_secs(1),
         );
         let first = coordinator.start(1);
-        let ClientEvent::Create(create) = next_event(&mut harness.events).await else {
+        let ClientEvent::Create(_) = next_event(&mut harness.events).await else {
             panic!("expected create request")
         };
-        let token = create.token;
         first.finish("first finished");
 
         let second = coordinator.start(2);
-        assert!(Arc::ptr_eq(first.guard.as_ref().unwrap(), second.guard.as_ref().unwrap()));
-        harness.acknowledge_create();
-
-        match next_event(&mut harness.events).await {
-            ClientEvent::Progress(ProgressParams {
-                token: actual,
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
-            }) => {
-                assert_eq!(actual, token);
-                assert_eq!(begin.message.as_deref(), Some(RESTART_MESSAGE));
-            }
-            event => panic!("expected progress begin, got {event:?}"),
-        }
-        harness.probe().await;
-        assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
-
+        assert!(!Arc::ptr_eq(first.guard.as_ref().unwrap(), second.guard.as_ref().unwrap()));
         second.finish("second finished");
-        match next_event(&mut harness.events).await {
-            ClientEvent::Progress(ProgressParams {
-                token: actual,
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)),
-            }) => {
-                assert_eq!(actual, token);
-                assert_eq!(end.message.as_deref(), Some("second finished"));
-            }
-            event => panic!("expected current end, got {event:?}"),
-        }
+        harness.acknowledge_create();
+        harness.probe().await;
+
+        assert!(!coordinator.is_active_for_test(2));
+        assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
 
         harness.shutdown().await;
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn replacement_across_create_ack_emits_one_restart_message() {
+    async fn replacement_after_begin_reuses_the_visible_wave() {
         let mut harness = progress_harness();
         let coordinator = ProgressCoordinator::with_timing(
             harness.client.clone(),
@@ -1009,28 +987,29 @@ mod tests {
             panic!("expected create request")
         };
         let token = create.token;
-        let second = coordinator.start(2);
-        assert!(Arc::ptr_eq(first.guard.as_ref().unwrap(), second.guard.as_ref().unwrap()));
-
         harness.acknowledge_create();
+        assert!(matches!(
+            next_event(&mut harness.events).await,
+            ClientEvent::Progress(ProgressParams {
+                token: actual,
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(_)),
+            }) if actual == token
+        ));
+
+        let latest = coordinator.start(2);
+        assert!(Arc::ptr_eq(first.guard.as_ref().unwrap(), latest.guard.as_ref().unwrap()));
         match next_event(&mut harness.events).await {
             ClientEvent::Progress(ProgressParams {
                 token: actual,
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Report(report)),
             }) => {
                 assert_eq!(actual, token);
-                assert_eq!(begin.message.as_deref(), Some(RESTART_MESSAGE));
+                assert_eq!(report.message.as_deref(), Some(RESTART_MESSAGE));
             }
-            event => panic!("expected progress begin, got {event:?}"),
+            event => panic!("expected replacement report, got {event:?}"),
         }
 
-        let latest = coordinator.start(3);
-        assert!(Arc::ptr_eq(first.guard.as_ref().unwrap(), latest.guard.as_ref().unwrap()));
-        harness.probe().await;
-        assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
-
         first.finish("stale");
-        second.finish("stale");
         latest.finish("done");
         match next_event(&mut harness.events).await {
             ClientEvent::Progress(ProgressParams {
@@ -1149,7 +1128,7 @@ mod tests {
         assert!(coordinator.inner.enabled.load(Ordering::Acquire));
 
         let latest = coordinator.start(2);
-        assert!(Arc::ptr_eq(first.guard.as_ref().unwrap(), latest.guard.as_ref().unwrap()));
+        assert!(!Arc::ptr_eq(first.guard.as_ref().unwrap(), latest.guard.as_ref().unwrap()));
         latest.finish("done");
 
         harness.acknowledge_create();
