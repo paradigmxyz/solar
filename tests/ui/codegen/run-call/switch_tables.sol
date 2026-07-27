@@ -1,3 +1,9 @@
+//@ run-call: testBucketDispatch()
+//@ run-call: testBucketDispatchMiss()
+//@ run-call: testDenseSwitch()
+//@ run-call: testSparseInternalSwitch()
+//@ run-call: testBinarySwitch()
+
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
