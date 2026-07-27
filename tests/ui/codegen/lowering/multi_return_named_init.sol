@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck: --check-prefix=INIT
 
 // Finalize the complete return prefix before initializing named return

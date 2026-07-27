@@ -1,0 +1,10 @@
+error: codegen requires Osaka-compatible EVM for `clz`
+   ╭▸ ROOT/tests/ui/codegen/run-call/yul_clz_callcode.sol:LL:CC
+   │
+LL │             result := clz(value)
+   │                       ━━━━━━━━━━
+   │
+   ╰ help: compile with `--evm-version osaka` or newer
+
+error: aborting due to 1 previous error
+
