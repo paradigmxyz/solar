@@ -26,7 +26,25 @@ Use the next ID in the relevant phase.
 
 ## Parsing
 
-No intentional divergences documented yet.
+### PARSE-001: Validation stage differences
+
+Status: intentional.
+
+Difference: `solar` and `solc` do not always perform equivalent validation in
+the same compiler stage. As a result, `--stop-after=parsing` may accept input
+that `solc` rejects during parsing even though a normal `solar` compilation
+rejects it in a later frontend stage. For example, `solar` parses an `unchecked`
+block used directly as an `if`, loop, or `else` body and rejects it during AST
+validation, while `solc` rejects it during parsing.
+
+Rationale: the frontend structures parsing and validation differently from
+`solc`; checks live in the earliest `solar` stage with the context and
+responsibility needed to enforce them rather than mirroring solc's internal
+phase boundaries.
+
+Coverage: `tests/ui/typeck/unchecked_as_single_statement.sol`; the upstream
+`unchecked_while_body` parse-only fixture remains excluded from solc parity
+testing.
 
 ## AST Validation
 
