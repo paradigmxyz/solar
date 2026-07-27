@@ -28,7 +28,7 @@ DEFAULT_METHODS = ("auto", "linear", "binary", "buckets", "dense")
 SYNTHETIC_FIXTURE_VERSION = 3
 ANVIL_HARDFORK = "osaka"
 EXPECTED_UI_FAILURE_RE = re.compile(r"//~[\^v|?]*\s*(?:ERROR|ICE)(?::|\b)")
-GROWTH_SWEEP_CASE_COUNTS = {"synthetic": 28, "ui-gas": 146, "ci-gas": 12}
+GROWTH_SWEEP_CASE_COUNTS = {"synthetic": 28, "ui-gas": 147, "ci-gas": 12}
 GROWTH_SWEEP_PROVENANCE_KEYS = (
     "benchmark_pin",
     "benchmark_tree",
