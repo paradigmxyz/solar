@@ -1367,6 +1367,70 @@ fn configuration_change_invalidates_natspec_context_until_analysis_publishes() {
     });
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn rapid_did_changes_debounce_to_the_latest_source() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Request.sol open
+        contract Before {}
+        "#,
+    );
+    let path = project.path("/Request.sol");
+    let uri = Url::from_file_path(&path).unwrap();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(project.config());
+    state.vfs = Arc::new(RwLock::new(project.vfs()));
+
+    let result = crate::handlers::did_change_text_document(
+        &mut state,
+        DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier::new(uri.clone(), 1),
+            content_changes: vec![TextDocumentContentChangeEvent {
+                range: None,
+                range_length: None,
+                text: "contract Intermediate {}".into(),
+            }],
+        },
+    );
+    assert!(matches!(result, ControlFlow::Continue(())));
+    let first_coordinator =
+        state.analysis_scheduler.tasks.lock().coordinator.as_ref().unwrap().1.clone();
+
+    let result = crate::handlers::did_change_text_document(
+        &mut state,
+        DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier::new(uri, 2),
+            content_changes: vec![TextDocumentContentChangeEvent {
+                range: None,
+                range_length: None,
+                text: "contract Latest {}".into(),
+            }],
+        },
+    );
+    assert!(matches!(result, ControlFlow::Continue(())));
+    let debounce = state.config.source_change_debounce();
+
+    assert!(
+        tokio::time::timeout(debounce / 2, state.latest_analysis()).await.is_err(),
+        "analysis should remain pending during the debounce window"
+    );
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, async {
+        while !first_coordinator.is_finished() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("replacement should cancel the first coordinator");
+
+    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("latest source analysis should finish")
+        .unwrap();
+    let tables = tables.read();
+    assert!(tables.workspace_symbols("Intermediate").is_empty());
+    assert!(tables.workspace_symbols("Latest").iter().any(|symbol| symbol.name == "Latest"));
+}
+
 #[test]
 fn pending_request_source_defers_to_target_specific_natspec_lookup() {
     let project = TestProject::new();

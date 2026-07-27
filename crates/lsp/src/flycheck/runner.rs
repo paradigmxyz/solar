@@ -15,13 +15,12 @@ use tokio::{
     time,
 };
 
-const FLYCHECK_TIMEOUT: Duration = Duration::from_secs(30);
-
 pub(crate) async fn run(
     config: FlycheckConfig,
+    timeout: Duration,
     cancel: oneshot::Receiver<()>,
 ) -> Result<DiagnosticMap, FlycheckError> {
-    let output = command_output(&config, FLYCHECK_TIMEOUT, cancel).await?;
+    let output = command_output(&config, timeout, cancel).await?;
     let diagnostics = match parser::parse(
         diagnostic_output(&output.stdout, &output.stderr, config.output),
         &config.cwd,
@@ -152,7 +151,7 @@ mod tests {
         };
         let (_cancel, cancelled) = oneshot::channel();
 
-        let error = run(config, cancelled).await.unwrap_err();
+        let error = run(config, Duration::from_secs(30), cancelled).await.unwrap_err();
 
         assert!(matches!(
             error,

@@ -22,8 +22,6 @@ use std::{
 use tokio::time::sleep;
 
 const PROGRESS_TITLE: &str = "Indexing workspace";
-const PROGRESS_DELAY: Duration = Duration::from_millis(250);
-const CREATE_TIMEOUT: Duration = Duration::from_secs(1);
 const RESTART_MESSAGE: &str = "Workspace changed, restarting analysis";
 
 #[derive(Clone, Copy)]
@@ -46,11 +44,7 @@ struct CoordinatorInner {
 }
 
 impl ProgressCoordinator {
-    pub(crate) fn new(client: ClientSocket, enabled: bool) -> Self {
-        Self::with_timing(client, enabled, PROGRESS_DELAY, CREATE_TIMEOUT)
-    }
-
-    /// Builds a coordinator with explicit timing values for deterministic tests.
+    /// Builds a coordinator with explicit timing values.
     pub(crate) fn with_timing(
         client: ClientSocket,
         enabled: bool,
@@ -799,7 +793,12 @@ mod tests {
 
     #[test]
     fn disabled_coordinator_returns_noop_ticket() {
-        let coordinator = ProgressCoordinator::new(ClientSocket::new_closed(), false);
+        let coordinator = ProgressCoordinator::with_timing(
+            ClientSocket::new_closed(),
+            false,
+            Duration::ZERO,
+            Duration::from_secs(1),
+        );
         let ticket = coordinator.start(1);
         assert!(ticket.is_disabled());
         ticket.report("ignored");
@@ -1180,14 +1179,27 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn quick_and_disabled_work_are_silent() {
         let mut harness = progress_harness();
-        let quick = ProgressCoordinator::new(harness.client.clone(), true).start(1);
+        let delay = Duration::from_millis(250);
+        let quick = ProgressCoordinator::with_timing(
+            harness.client.clone(),
+            true,
+            delay,
+            Duration::from_secs(1),
+        )
+        .start(1);
         quick.report("quick");
         quick.finish("done");
-        let disabled = ProgressCoordinator::new(harness.client.clone(), false).start(2);
+        let disabled = ProgressCoordinator::with_timing(
+            harness.client.clone(),
+            false,
+            delay,
+            Duration::from_secs(1),
+        )
+        .start(2);
         disabled.report("ignored");
         disabled.finish("ignored");
 
-        sleep(PROGRESS_DELAY + Duration::from_millis(50)).await;
+        sleep(delay + Duration::from_millis(50)).await;
         harness.probe().await;
         assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
 
