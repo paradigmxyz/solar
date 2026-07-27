@@ -2126,7 +2126,13 @@ impl<'gcx> Lowerer<'gcx> {
             return Some((slice, is_bytes));
         }
         let slice = self.locals.get(&var_id).copied()?;
-        Some((slice, is_bytes))
+        // A calldata-located declaration does not guarantee a calldata slice
+        // value. Inlining binds the callee's parameters to the caller's
+        // argument values, and a calldata struct's dynamic member is rebuilt in
+        // memory by the prologue, so a `T[] calldata` parameter can be bound to
+        // a memory object. Projecting a slice off that would read a pointer as
+        // if it were a `(ptr, len)` pair; let callers take the memory path.
+        Self::value_is_calldata_slice(builder, slice).then_some((slice, is_bytes))
     }
 
     /// Whether the expression reads a member of a calldata struct. The

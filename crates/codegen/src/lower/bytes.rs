@@ -1102,6 +1102,11 @@ impl<'gcx> Lowerer<'gcx> {
                 let len = builder.slice_len(slice);
                 return Some(builder.keccak256(ptr, len));
             }
+            // The member itself, unsliced, is that memory copy: a bytes object,
+            // not a slice at all. Hash it through the object reference.
+            if !Self::value_is_calldata_slice(builder, slice) {
+                return Some(builder.keccak256_bytes(slice));
+            }
             let ptr = self.materialize_calldata_bytes(builder, slice);
             return Some(builder.keccak256_bytes(ptr));
         }
