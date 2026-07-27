@@ -1,7 +1,8 @@
 //! CodeLens declaration facts and their cross-analysis merge index.
 //!
 //! The semantic analysis context is short-lived, so this module copies only the facts needed to
-//! render CodeLens items. Query-time reference locations remain owned by [`SymbolTables`].
+//! render CodeLens items. Query-time reference locations remain owned by
+//! [`SymbolTables`](crate::symbols::SymbolTables).
 
 use crate::symbols::{DeclarationSymbol, SymbolId};
 use lsp_types::{Range, Url};
