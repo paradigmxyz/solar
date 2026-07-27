@@ -744,260 +744,257 @@ fn builtin_name(builtin: Builtin) -> impl fmt::Display {
     solar_data_structures::fmt::from_fn(move |f| f.write_str(builtin.name().as_str()))
 }
 
-/// Prints individual HIR declaration headers in Solidity syntax.
-pub struct HirDisplayPrinter<'gcx, W> {
-    gcx: Gcx<'gcx>,
-    buf: W,
+impl ItemId {
+    /// Displays this item's declaration header in Solidity syntax.
+    pub fn display<'gcx>(self, gcx: Gcx<'gcx>) -> impl fmt::Display + use<'gcx> {
+        fmt::from_fn(move |f| HirPrinter::new(gcx).fmt_item(self, f))
+    }
 }
 
-impl<'gcx, W: fmt::Write> HirDisplayPrinter<'gcx, W> {
-    /// Creates a new HIR display printer.
-    pub fn new(gcx: Gcx<'gcx>, buf: W) -> Self {
-        Self { gcx, buf }
-    }
-
-    /// Returns a mutable reference to the underlying buffer.
-    pub fn buf(&mut self) -> &mut W {
-        &mut self.buf
-    }
-
-    /// Consumes the printer and returns the underlying buffer.
-    pub fn into_buf(self) -> W {
-        self.buf
-    }
-
-    /// Prints the declaration header for `item_id`.
-    pub fn print(&mut self, item_id: ItemId) -> fmt::Result {
+impl HirPrinter<'_> {
+    fn fmt_item<W: fmt::Write>(&self, item_id: ItemId, buf: &mut W) -> fmt::Result {
         match item_id {
-            ItemId::Contract(id) => self.print_contract(id),
-            ItemId::Function(id) => self.print_function(id),
-            ItemId::Variable(id) => self.print_variable(id),
-            ItemId::Struct(id) => self.print_struct(id),
-            ItemId::Enum(id) => self.print_enum(id),
-            ItemId::Udvt(id) => self.print_udvt(id),
-            ItemId::Error(id) => self.print_error(id),
-            ItemId::Event(id) => self.print_event(id),
+            ItemId::Contract(id) => self.fmt_contract(id, buf),
+            ItemId::Function(id) => self.fmt_function(id, buf),
+            ItemId::Variable(id) => self.fmt_variable(id, buf),
+            ItemId::Struct(id) => self.fmt_struct(id, buf),
+            ItemId::Enum(id) => self.fmt_enum(id, buf),
+            ItemId::Udvt(id) => self.fmt_udvt(id, buf),
+            ItemId::Error(id) => self.fmt_error(id, buf),
+            ItemId::Event(id) => self.fmt_event(id, buf),
         }
     }
 
-    fn print_contract(&mut self, id: hir::ContractId) -> fmt::Result {
+    fn fmt_contract<W: fmt::Write>(&self, id: hir::ContractId, buf: &mut W) -> fmt::Result {
         let contract = self.gcx.hir.contract(id);
-        write!(self.buf, "{} {}", contract.kind, contract.name)?;
+        write!(buf, "{} {}", contract.kind, contract.name)?;
         if let Some((&first, rest)) = contract.bases.split_first() {
-            write!(self.buf, " is {}", self.gcx.hir.contract(first).name)?;
+            write!(buf, " is {}", self.gcx.hir.contract(first).name)?;
             for &base in rest {
-                write!(self.buf, ", {}", self.gcx.hir.contract(base).name)?;
+                write!(buf, ", {}", self.gcx.hir.contract(base).name)?;
             }
         }
         Ok(())
     }
 
-    fn print_function(&mut self, id: hir::FunctionId) -> fmt::Result {
+    fn fmt_function<W: fmt::Write>(&self, id: hir::FunctionId, buf: &mut W) -> fmt::Result {
         let function = self.gcx.hir.function(id);
         if function.is_yul {
-            self.buf.write_str("yul ")?;
+            buf.write_str("yul ")?;
         }
 
-        write!(self.buf, "{}", function.kind)?;
+        write!(buf, "{}", function.kind)?;
         if let Some(name) = function.name {
-            write!(self.buf, " {name}")?;
+            write!(buf, " {name}")?;
         }
-        self.buf.write_char('(')?;
-        self.print_variables(function.parameters)?;
-        self.buf.write_char(')')?;
+        buf.write_char('(')?;
+        self.fmt_variables(function.parameters, buf)?;
+        buf.write_char(')')?;
 
         match function.kind {
             hir::FunctionKind::Function if !function.is_yul => {
-                write!(self.buf, " {}", function.visibility)?;
-                self.print_state_mutability(function.state_mutability)?;
+                write!(buf, " {}", function.visibility)?;
+                self.fmt_state_mutability(function.state_mutability, buf)?;
             }
             hir::FunctionKind::Function => {}
             hir::FunctionKind::Constructor => {
                 if function.state_mutability == hir::StateMutability::Payable {
-                    self.buf.write_str(" payable")?;
+                    buf.write_str(" payable")?;
                 }
             }
             hir::FunctionKind::Fallback | hir::FunctionKind::Receive => {
-                write!(self.buf, " {}", function.visibility)?;
-                self.print_state_mutability(function.state_mutability)?;
+                write!(buf, " {}", function.visibility)?;
+                self.fmt_state_mutability(function.state_mutability, buf)?;
             }
             hir::FunctionKind::Modifier => {}
         }
 
         if function.marked_virtual {
-            self.buf.write_str(" virtual")?;
+            buf.write_str(" virtual")?;
         }
         if function.override_ {
-            self.buf.write_str(" override")?;
-            self.print_override_list(function.overrides)?;
+            buf.write_str(" override")?;
+            self.fmt_override_list(function.overrides, buf)?;
         }
         for modifier in function.modifiers {
-            self.buf.write_char(' ')?;
-            self.print_item_name(modifier.id)?;
+            buf.write_char(' ')?;
+            self.fmt_item_name(modifier.id, buf)?;
             if !modifier.args.is_dummy() {
                 if let Ok(args) = self.gcx.sess.source_map().span_to_snippet(modifier.args.span) {
-                    self.buf.write_str(args.trim())?;
+                    buf.write_str(args.trim())?;
                 } else {
-                    self.buf.write_str("(...)")?;
+                    buf.write_str("(...)")?;
                 }
             }
         }
         if !function.returns.is_empty() {
-            self.buf.write_str(" returns (")?;
-            self.print_variables(function.returns)?;
-            self.buf.write_char(')')?;
+            buf.write_str(" returns (")?;
+            self.fmt_variables(function.returns, buf)?;
+            buf.write_char(')')?;
         }
         Ok(())
     }
 
-    fn print_variable(&mut self, id: hir::VariableId) -> fmt::Result {
+    fn fmt_variable<W: fmt::Write>(&self, id: hir::VariableId, buf: &mut W) -> fmt::Result {
         let variable = self.gcx.hir.variable(id);
-        self.print_ty(&variable.ty)?;
+        self.fmt_ty(&variable.ty, buf)?;
         if let Some(visibility) = variable.visibility {
-            write!(self.buf, " {visibility}")?;
+            write!(buf, " {visibility}")?;
         }
         if let Some(mutability) = variable.mutability {
-            write!(self.buf, " {mutability}")?;
+            write!(buf, " {mutability}")?;
         }
         if variable.override_ {
-            self.buf.write_str(" override")?;
-            self.print_override_list(variable.overrides)?;
+            buf.write_str(" override")?;
+            self.fmt_override_list(variable.overrides, buf)?;
         }
         if let Some(data_location) = variable.data_location {
-            write!(self.buf, " {data_location}")?;
+            write!(buf, " {data_location}")?;
         }
         if variable.indexed {
-            self.buf.write_str(" indexed")?;
+            buf.write_str(" indexed")?;
         }
         if let Some(name) = variable.name {
-            write!(self.buf, " {name}")?;
+            write!(buf, " {name}")?;
         }
         Ok(())
     }
 
-    fn print_struct(&mut self, id: hir::StructId) -> fmt::Result {
-        write!(self.buf, "struct {}", self.gcx.hir.strukt(id).name)
+    fn fmt_struct<W: fmt::Write>(&self, id: hir::StructId, buf: &mut W) -> fmt::Result {
+        write!(buf, "struct {}", self.gcx.hir.strukt(id).name)
     }
 
-    fn print_enum(&mut self, id: hir::EnumId) -> fmt::Result {
-        write!(self.buf, "enum {}", self.gcx.hir.enumm(id).name)
+    fn fmt_enum<W: fmt::Write>(&self, id: hir::EnumId, buf: &mut W) -> fmt::Result {
+        write!(buf, "enum {}", self.gcx.hir.enumm(id).name)
     }
 
-    fn print_udvt(&mut self, id: hir::UdvtId) -> fmt::Result {
+    fn fmt_udvt<W: fmt::Write>(&self, id: hir::UdvtId, buf: &mut W) -> fmt::Result {
         let udvt = self.gcx.hir.udvt(id);
-        write!(self.buf, "type {} is ", udvt.name)?;
-        self.print_ty(&udvt.ty)
+        write!(buf, "type {} is ", udvt.name)?;
+        self.fmt_ty(&udvt.ty, buf)
     }
 
-    fn print_event(&mut self, id: hir::EventId) -> fmt::Result {
+    fn fmt_event<W: fmt::Write>(&self, id: hir::EventId, buf: &mut W) -> fmt::Result {
         let event = self.gcx.hir.event(id);
-        write!(self.buf, "event {}(", event.name)?;
-        self.print_variables(event.parameters)?;
-        self.buf.write_char(')')?;
+        write!(buf, "event {}(", event.name)?;
+        self.fmt_variables(event.parameters, buf)?;
+        buf.write_char(')')?;
         if event.anonymous {
-            self.buf.write_str(" anonymous")?;
+            buf.write_str(" anonymous")?;
         }
         Ok(())
     }
 
-    fn print_error(&mut self, id: hir::ErrorId) -> fmt::Result {
+    fn fmt_error<W: fmt::Write>(&self, id: hir::ErrorId, buf: &mut W) -> fmt::Result {
         let error = self.gcx.hir.error(id);
-        write!(self.buf, "error {}(", error.name)?;
-        self.print_variables(error.parameters)?;
-        self.buf.write_char(')')
+        write!(buf, "error {}(", error.name)?;
+        self.fmt_variables(error.parameters, buf)?;
+        buf.write_char(')')
     }
 
-    fn print_variables(&mut self, variables: &[hir::VariableId]) -> fmt::Result {
+    fn fmt_variables<W: fmt::Write>(
+        &self,
+        variables: &[hir::VariableId],
+        buf: &mut W,
+    ) -> fmt::Result {
         for (index, &id) in variables.iter().enumerate() {
             if index != 0 {
-                self.buf.write_str(", ")?;
+                buf.write_str(", ")?;
             }
             let variable = self.gcx.hir.variable(id);
-            self.print_ty(&variable.ty)?;
+            self.fmt_ty(&variable.ty, buf)?;
             if let Some(data_location) = variable.data_location {
-                write!(self.buf, " {data_location}")?;
+                write!(buf, " {data_location}")?;
             }
             if variable.indexed {
-                self.buf.write_str(" indexed")?;
+                buf.write_str(" indexed")?;
             }
             if let Some(name) = variable.name {
-                write!(self.buf, " {name}")?;
+                write!(buf, " {name}")?;
             }
         }
         Ok(())
     }
 
-    fn print_ty(&mut self, ty: &hir::Type<'_>) -> fmt::Result {
+    fn fmt_ty<W: fmt::Write>(&self, ty: &hir::Type<'_>, buf: &mut W) -> fmt::Result {
         match &ty.kind {
-            TypeKind::Elementary(elementary) => write!(self.buf, "{elementary}"),
+            TypeKind::Elementary(elementary) => write!(buf, "{elementary}"),
             TypeKind::Array(array) => {
-                self.print_ty(&array.element)?;
-                self.buf.write_char('[')?;
+                self.fmt_ty(&array.element, buf)?;
+                buf.write_char('[')?;
                 if let Some(size) = array.size {
                     if let Ok(size) = self.gcx.sess.source_map().span_to_snippet(size.span) {
-                        self.buf.write_str(size.trim())?;
+                        buf.write_str(size.trim())?;
                     } else {
-                        self.buf.write_str("<error>")?;
+                        buf.write_str("<error>")?;
                     }
                 }
-                self.buf.write_char(']')
+                buf.write_char(']')
             }
             TypeKind::Function(function) => {
-                self.buf.write_str("function(")?;
-                self.print_variables(function.parameters)?;
-                write!(self.buf, ") {}", function.visibility)?;
-                self.print_state_mutability(function.state_mutability)?;
+                buf.write_str("function(")?;
+                self.fmt_variables(function.parameters, buf)?;
+                write!(buf, ") {}", function.visibility)?;
+                self.fmt_state_mutability(function.state_mutability, buf)?;
                 if !function.returns.is_empty() {
-                    self.buf.write_str(" returns (")?;
-                    self.print_variables(function.returns)?;
-                    self.buf.write_char(')')?;
+                    buf.write_str(" returns (")?;
+                    self.fmt_variables(function.returns, buf)?;
+                    buf.write_char(')')?;
                 }
                 Ok(())
             }
             TypeKind::Mapping(mapping) => {
-                self.buf.write_str("mapping(")?;
-                self.print_ty(&mapping.key)?;
+                buf.write_str("mapping(")?;
+                self.fmt_ty(&mapping.key, buf)?;
                 if let Some(name) = mapping.key_name {
-                    write!(self.buf, " {name}")?;
+                    write!(buf, " {name}")?;
                 }
-                self.buf.write_str(" => ")?;
-                self.print_ty(&mapping.value)?;
+                buf.write_str(" => ")?;
+                self.fmt_ty(&mapping.value, buf)?;
                 if let Some(name) = mapping.value_name {
-                    write!(self.buf, " {name}")?;
+                    write!(buf, " {name}")?;
                 }
-                self.buf.write_char(')')
+                buf.write_char(')')
             }
-            TypeKind::Custom(item_id) => self.print_item_name(*item_id),
-            TypeKind::Err(_) => self.buf.write_str("<error>"),
+            TypeKind::Custom(item_id) => self.fmt_item_name(*item_id, buf),
+            TypeKind::Err(_) => buf.write_str("<error>"),
         }
     }
 
-    fn print_state_mutability(&mut self, state_mutability: hir::StateMutability) -> fmt::Result {
+    fn fmt_state_mutability<W: fmt::Write>(
+        &self,
+        state_mutability: hir::StateMutability,
+        buf: &mut W,
+    ) -> fmt::Result {
         if state_mutability != hir::StateMutability::NonPayable {
-            write!(self.buf, " {state_mutability}")?;
+            write!(buf, " {state_mutability}")?;
         }
         Ok(())
     }
 
-    fn print_override_list(&mut self, overrides: &[hir::ContractId]) -> fmt::Result {
+    fn fmt_override_list<W: fmt::Write>(
+        &self,
+        overrides: &[hir::ContractId],
+        buf: &mut W,
+    ) -> fmt::Result {
         if overrides.is_empty() {
             return Ok(());
         }
-        self.buf.write_char('(')?;
+        buf.write_char('(')?;
         for (index, &contract) in overrides.iter().enumerate() {
             if index != 0 {
-                self.buf.write_str(", ")?;
+                buf.write_str(", ")?;
             }
-            self.print_item_name(contract.into())?;
+            self.fmt_item_name(contract.into(), buf)?;
         }
-        self.buf.write_char(')')
+        buf.write_char(')')
     }
 
-    fn print_item_name(&mut self, item_id: ItemId) -> fmt::Result {
+    fn fmt_item_name<W: fmt::Write>(&self, item_id: ItemId, buf: &mut W) -> fmt::Result {
         if let Some(name) = self.gcx.item_name_opt(item_id) {
-            write!(self.buf, "{name}")
+            write!(buf, "{name}")
         } else {
-            self.buf.write_str("<error>")
+            buf.write_str("<error>")
         }
     }
 }
