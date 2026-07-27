@@ -181,6 +181,8 @@ impl GlobalState {
     }
 
     pub(crate) fn clear_analysis_cache(&mut self) {
+        let refresh_code_lenses =
+            self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
         let old_symbol_tables = {
             let Self {
                 client,
@@ -214,6 +216,9 @@ impl GlobalState {
             })
         };
         drop(old_symbol_tables);
+        if refresh_code_lenses {
+            request_code_lens_refresh(&self.client);
+        }
     }
 
     #[cfg(test)]
@@ -750,6 +755,8 @@ impl GlobalStateSnapshot {
     }
 
     fn publish_analysis(&mut self, version: usize, result: AnalysisResult) -> bool {
+        let refresh_code_lenses =
+            self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
         let old_symbol_tables = {
             let analysis_commit = self.analysis_commit.clone();
             let mut commit = analysis_commit.lock();
@@ -770,6 +777,9 @@ impl GlobalStateSnapshot {
             old_symbol_tables
         };
         drop(old_symbol_tables);
+        if refresh_code_lenses {
+            request_code_lens_refresh(&self.client);
+        }
         true
     }
 
@@ -819,6 +829,16 @@ impl GlobalStateSnapshot {
         };
         publish_diagnostic_batches(&mut self.client, batches);
     }
+}
+
+fn request_code_lens_refresh(client: &ClientSocket) {
+    let mut client = client.clone();
+    let Ok(handle) = tokio::runtime::Handle::try_current() else { return };
+    handle.spawn(async move {
+        if let Err(error) = client.code_lens_refresh(()).await {
+            tracing::debug!(%error, "client does not accept CodeLens refresh");
+        }
+    });
 }
 
 struct AnalysisBatch {
