@@ -332,6 +332,7 @@ impl<'gcx> Assembler<'gcx> {
             module.blocks[block].instructions.splice(instruction..=instruction, replacement);
         }
         self.deferred_allocations.clear();
+
         Self::finalize_evm_ir(&mut module);
         for (block, targets) in self.indexed_jump_relocations.drain(..) {
             let targets = targets
@@ -347,16 +348,17 @@ impl<'gcx> Assembler<'gcx> {
             module.blocks[block].terminator =
                 Some(ir::Terminator::new(ir::TerminatorKind::IndexedJump(targets)));
         }
+
         self.label_blocks.clear();
         self.cold_labels.clear();
+
         Some((module, std::mem::take(&mut self.block_labels)))
     }
 
     fn finalize_evm_ir(module: &mut ir::Module) {
-        for index in 0..module.blocks.len() {
-            let block_id = ir::BlockId::from_usize(index);
-            let next =
-                (index + 1 < module.blocks.len()).then(|| ir::BlockId::from_usize(index + 1));
+        for block_id in module.blocks.indices() {
+            let next = (block_id.index() + 1 < module.blocks.len())
+                .then(|| ir::BlockId::from_usize(block_id.index() + 1));
             let block = &mut module.blocks[block_id];
             let (kind, remove) = if let [.., push, jump] = block.instructions.as_slice()
                 && !jump.is_encoded_push()
