@@ -280,7 +280,11 @@ def run_cases(
 
 def gas_failed(result: dict[str, Any]) -> bool:
     return any(
-        compiler.get("status") == "ok" and compiler.get("gas_status") == "failed"
+        compiler.get("status") == "ok"
+        and (
+            compiler.get("deploy_status") == "failed"
+            or compiler.get("gas_status") == "failed"
+        )
         for compiler in result["compilers"].values()
     )
 
