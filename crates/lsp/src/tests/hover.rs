@@ -1076,12 +1076,16 @@ function read(uint256 leafValue) public pure override returns (uint256 leafResul
 }
 
 #[test]
-fn returns_no_hover_for_unsupported_or_non_symbol_positions() {
+fn shows_all_hir_items_and_skips_non_symbol_positions() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Unsupported.sol open
         contract $1C {
+            /// A user ID.
+            type $6UserId is uint256;
+            /// Stored data.
             struct $2Data {}
+            /// An available kind.
             enum $3Kind { A }
 
             function use() public returns (uint256) {
@@ -1106,7 +1110,43 @@ contract C
 
 "#]],
     );
-    for marker in ["$2", "$3", "$4", "$5", "$7", "$8"] {
+    fixture.check_hover(
+        "$2",
+        str![[r#"
+4:11-4:15
+```solidity
+struct Data
+```
+
+Stored data.
+
+"#]],
+    );
+    fixture.check_hover(
+        "$3",
+        str![[r#"
+6:9-6:13
+```solidity
+enum Kind
+```
+
+An available kind.
+
+"#]],
+    );
+    fixture.check_hover(
+        "$6",
+        str![[r#"
+2:9-2:15
+```solidity
+type UserId is uint256
+```
+
+A user ID.
+
+"#]],
+    );
+    for marker in ["$4", "$5", "$7", "$8"] {
         fixture.check_hover(marker, "<none>\n");
     }
 }

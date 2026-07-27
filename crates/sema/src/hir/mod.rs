@@ -20,7 +20,7 @@ pub use ast::{
 };
 
 mod print;
-pub use print::HirPrinter;
+pub use print::{HirDisplayPrinter, HirPrinter};
 
 mod visit;
 pub use visit::Visit;

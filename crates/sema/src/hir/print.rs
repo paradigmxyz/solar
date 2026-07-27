@@ -743,3 +743,261 @@ enum VarMode {
 fn builtin_name(builtin: Builtin) -> impl fmt::Display {
     solar_data_structures::fmt::from_fn(move |f| f.write_str(builtin.name().as_str()))
 }
+
+/// Prints individual HIR declaration headers in Solidity syntax.
+pub struct HirDisplayPrinter<'gcx, W> {
+    gcx: Gcx<'gcx>,
+    buf: W,
+}
+
+impl<'gcx, W: fmt::Write> HirDisplayPrinter<'gcx, W> {
+    /// Creates a new HIR display printer.
+    pub fn new(gcx: Gcx<'gcx>, buf: W) -> Self {
+        Self { gcx, buf }
+    }
+
+    /// Returns a mutable reference to the underlying buffer.
+    pub fn buf(&mut self) -> &mut W {
+        &mut self.buf
+    }
+
+    /// Consumes the printer and returns the underlying buffer.
+    pub fn into_buf(self) -> W {
+        self.buf
+    }
+
+    /// Prints the declaration header for `item_id`.
+    pub fn print(&mut self, item_id: ItemId) -> fmt::Result {
+        match item_id {
+            ItemId::Contract(id) => self.print_contract(id),
+            ItemId::Function(id) => self.print_function(id),
+            ItemId::Variable(id) => self.print_variable(id),
+            ItemId::Struct(id) => self.print_struct(id),
+            ItemId::Enum(id) => self.print_enum(id),
+            ItemId::Udvt(id) => self.print_udvt(id),
+            ItemId::Error(id) => self.print_error(id),
+            ItemId::Event(id) => self.print_event(id),
+        }
+    }
+
+    fn print_contract(&mut self, id: hir::ContractId) -> fmt::Result {
+        let contract = self.gcx.hir.contract(id);
+        write!(self.buf, "{} {}", contract.kind, contract.name)?;
+        if let Some((&first, rest)) = contract.bases.split_first() {
+            write!(self.buf, " is {}", self.gcx.hir.contract(first).name)?;
+            for &base in rest {
+                write!(self.buf, ", {}", self.gcx.hir.contract(base).name)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn print_function(&mut self, id: hir::FunctionId) -> fmt::Result {
+        let function = self.gcx.hir.function(id);
+        if function.is_yul {
+            self.buf.write_str("yul ")?;
+        }
+
+        write!(self.buf, "{}", function.kind)?;
+        if let Some(name) = function.name {
+            write!(self.buf, " {name}")?;
+        }
+        self.buf.write_char('(')?;
+        self.print_variables(function.parameters)?;
+        self.buf.write_char(')')?;
+
+        match function.kind {
+            hir::FunctionKind::Function if !function.is_yul => {
+                write!(self.buf, " {}", function.visibility)?;
+                self.print_state_mutability(function.state_mutability)?;
+            }
+            hir::FunctionKind::Function => {}
+            hir::FunctionKind::Constructor => {
+                if function.state_mutability == hir::StateMutability::Payable {
+                    self.buf.write_str(" payable")?;
+                }
+            }
+            hir::FunctionKind::Fallback | hir::FunctionKind::Receive => {
+                write!(self.buf, " {}", function.visibility)?;
+                self.print_state_mutability(function.state_mutability)?;
+            }
+            hir::FunctionKind::Modifier => {}
+        }
+
+        if function.marked_virtual {
+            self.buf.write_str(" virtual")?;
+        }
+        if function.override_ {
+            self.buf.write_str(" override")?;
+            self.print_override_list(function.overrides)?;
+        }
+        for modifier in function.modifiers {
+            self.buf.write_char(' ')?;
+            self.print_item_name(modifier.id)?;
+            if !modifier.args.is_dummy() {
+                if let Ok(args) = self.gcx.sess.source_map().span_to_snippet(modifier.args.span) {
+                    self.buf.write_str(args.trim())?;
+                } else {
+                    self.buf.write_str("(...)")?;
+                }
+            }
+        }
+        if !function.returns.is_empty() {
+            self.buf.write_str(" returns (")?;
+            self.print_variables(function.returns)?;
+            self.buf.write_char(')')?;
+        }
+        Ok(())
+    }
+
+    fn print_variable(&mut self, id: hir::VariableId) -> fmt::Result {
+        let variable = self.gcx.hir.variable(id);
+        self.print_ty(&variable.ty)?;
+        if let Some(visibility) = variable.visibility {
+            write!(self.buf, " {visibility}")?;
+        }
+        if let Some(mutability) = variable.mutability {
+            write!(self.buf, " {mutability}")?;
+        }
+        if variable.override_ {
+            self.buf.write_str(" override")?;
+            self.print_override_list(variable.overrides)?;
+        }
+        if let Some(data_location) = variable.data_location {
+            write!(self.buf, " {data_location}")?;
+        }
+        if variable.indexed {
+            self.buf.write_str(" indexed")?;
+        }
+        if let Some(name) = variable.name {
+            write!(self.buf, " {name}")?;
+        }
+        Ok(())
+    }
+
+    fn print_struct(&mut self, id: hir::StructId) -> fmt::Result {
+        write!(self.buf, "struct {}", self.gcx.hir.strukt(id).name)
+    }
+
+    fn print_enum(&mut self, id: hir::EnumId) -> fmt::Result {
+        write!(self.buf, "enum {}", self.gcx.hir.enumm(id).name)
+    }
+
+    fn print_udvt(&mut self, id: hir::UdvtId) -> fmt::Result {
+        let udvt = self.gcx.hir.udvt(id);
+        write!(self.buf, "type {} is ", udvt.name)?;
+        self.print_ty(&udvt.ty)
+    }
+
+    fn print_event(&mut self, id: hir::EventId) -> fmt::Result {
+        let event = self.gcx.hir.event(id);
+        write!(self.buf, "event {}(", event.name)?;
+        self.print_variables(event.parameters)?;
+        self.buf.write_char(')')?;
+        if event.anonymous {
+            self.buf.write_str(" anonymous")?;
+        }
+        Ok(())
+    }
+
+    fn print_error(&mut self, id: hir::ErrorId) -> fmt::Result {
+        let error = self.gcx.hir.error(id);
+        write!(self.buf, "error {}(", error.name)?;
+        self.print_variables(error.parameters)?;
+        self.buf.write_char(')')
+    }
+
+    fn print_variables(&mut self, variables: &[hir::VariableId]) -> fmt::Result {
+        for (index, &id) in variables.iter().enumerate() {
+            if index != 0 {
+                self.buf.write_str(", ")?;
+            }
+            let variable = self.gcx.hir.variable(id);
+            self.print_ty(&variable.ty)?;
+            if let Some(data_location) = variable.data_location {
+                write!(self.buf, " {data_location}")?;
+            }
+            if variable.indexed {
+                self.buf.write_str(" indexed")?;
+            }
+            if let Some(name) = variable.name {
+                write!(self.buf, " {name}")?;
+            }
+        }
+        Ok(())
+    }
+
+    fn print_ty(&mut self, ty: &hir::Type<'_>) -> fmt::Result {
+        match &ty.kind {
+            TypeKind::Elementary(elementary) => write!(self.buf, "{elementary}"),
+            TypeKind::Array(array) => {
+                self.print_ty(&array.element)?;
+                self.buf.write_char('[')?;
+                if let Some(size) = array.size {
+                    if let Ok(size) = self.gcx.sess.source_map().span_to_snippet(size.span) {
+                        self.buf.write_str(size.trim())?;
+                    } else {
+                        self.buf.write_str("<error>")?;
+                    }
+                }
+                self.buf.write_char(']')
+            }
+            TypeKind::Function(function) => {
+                self.buf.write_str("function(")?;
+                self.print_variables(function.parameters)?;
+                write!(self.buf, ") {}", function.visibility)?;
+                self.print_state_mutability(function.state_mutability)?;
+                if !function.returns.is_empty() {
+                    self.buf.write_str(" returns (")?;
+                    self.print_variables(function.returns)?;
+                    self.buf.write_char(')')?;
+                }
+                Ok(())
+            }
+            TypeKind::Mapping(mapping) => {
+                self.buf.write_str("mapping(")?;
+                self.print_ty(&mapping.key)?;
+                if let Some(name) = mapping.key_name {
+                    write!(self.buf, " {name}")?;
+                }
+                self.buf.write_str(" => ")?;
+                self.print_ty(&mapping.value)?;
+                if let Some(name) = mapping.value_name {
+                    write!(self.buf, " {name}")?;
+                }
+                self.buf.write_char(')')
+            }
+            TypeKind::Custom(item_id) => self.print_item_name(*item_id),
+            TypeKind::Err(_) => self.buf.write_str("<error>"),
+        }
+    }
+
+    fn print_state_mutability(&mut self, state_mutability: hir::StateMutability) -> fmt::Result {
+        if state_mutability != hir::StateMutability::NonPayable {
+            write!(self.buf, " {state_mutability}")?;
+        }
+        Ok(())
+    }
+
+    fn print_override_list(&mut self, overrides: &[hir::ContractId]) -> fmt::Result {
+        if overrides.is_empty() {
+            return Ok(());
+        }
+        self.buf.write_char('(')?;
+        for (index, &contract) in overrides.iter().enumerate() {
+            if index != 0 {
+                self.buf.write_str(", ")?;
+            }
+            self.print_item_name(contract.into())?;
+        }
+        self.buf.write_char(')')
+    }
+
+    fn print_item_name(&mut self, item_id: ItemId) -> fmt::Result {
+        if let Some(name) = self.gcx.item_name_opt(item_id) {
+            write!(self.buf, "{name}")
+        } else {
+            self.buf.write_str("<error>")
+        }
+    }
+}
