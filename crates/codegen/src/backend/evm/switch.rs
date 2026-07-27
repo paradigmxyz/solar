@@ -21,7 +21,7 @@ const MUL_GAS: usize = 5;
 const JUMPDEST_GAS: usize = 1;
 
 const INDEXED_JUMP_BASE_LEN: usize = 7;
-const MIN_BUCKET_CASES: usize = 8;
+const MIN_BUCKET_CASES: usize = 2;
 // Bound table footprint and the number of bucket blocks processed by EVM IR passes.
 const MAX_BUCKET_CASES: usize = 64;
 const MAX_DENSE_RANGE: usize = 4096;
@@ -637,7 +637,18 @@ mod tests {
     #[test]
     fn accounts_for_taken_binary_split_labels() {
         let values = (0..7).map(|value| U256::from(1 + value * 7919)).collect::<Vec<_>>();
-        assert_eq!(
+        let binary = select_switch_plan_with_linear_values_and_budget(
+            &values,
+            &values,
+            OptimizationMode::Gas,
+            EvmVersion::Cancun,
+            SwitchDefault::CleanupJump,
+            2,
+            MAX_GAS_CODE_GROWTH,
+            SwitchLowering::Binary,
+        );
+        assert_eq!(binary.plan, SwitchPlan::Binary { leaf_size: 4 });
+        assert!(matches!(
             select_switch_plan(
                 &values,
                 OptimizationMode::Gas,
@@ -645,8 +656,8 @@ mod tests {
                 SwitchDefault::CleanupJump,
                 2,
             ),
-            SwitchPlan::Binary { leaf_size: 4 }
-        );
+            SwitchPlan::Buckets { .. }
+        ));
     }
 
     #[test]
