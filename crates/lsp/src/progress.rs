@@ -76,9 +76,10 @@ impl ProgressCoordinator {
 
     /// Starts or joins the progress wave for `version`.
     ///
-    /// A newer version reuses a visible wave and reports at most one restart. If the previous
-    /// wave has already ended or failed, a fresh token is allocated. Tickets for older versions
-    /// remain valid handles but cannot report or finish the newer wave.
+    /// A newer version replaces an invisible delayed wave so its progress clock starts over. Once
+    /// token creation has begun, the newer version reuses that wave and reports at most one
+    /// restart. Tickets for older versions remain valid handles but cannot report or finish the
+    /// newer wave.
     #[cfg(test)]
     pub(crate) fn start(&self, version: usize) -> ProgressTicket {
         let ticket = self.reserve(version);
@@ -335,6 +336,14 @@ impl WorkDoneProgressGuard {
             return true;
         }
 
+        if matches!(state.phase, Phase::Pending | Phase::Delayed) {
+            state.phase = Phase::Closed;
+            state.message = None;
+            state.terminal = None;
+            state.restart_reported = false;
+            return false;
+        }
+
         state.version = version;
         state.terminal = None;
         if state.phase == Phase::Begun {
@@ -354,7 +363,7 @@ impl WorkDoneProgressGuard {
             } else {
                 state.restart_reported = true;
             }
-        } else if state.phase != Phase::Pending && state.message != Some(RESTART_MESSAGE) {
+        } else if state.message != Some(RESTART_MESSAGE) {
             state.message = Some(RESTART_MESSAGE);
         }
         true
@@ -703,6 +712,53 @@ mod tests {
         tokio::task::yield_now().await;
 
         assert!(!coordinator.is_active_for_test(1));
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn finishing_just_before_delay_never_creates_progress() {
+        let delay = Duration::from_millis(100);
+        let coordinator = ProgressCoordinator::with_timing(
+            ClientSocket::new_closed(),
+            true,
+            delay,
+            Duration::from_secs(1),
+        );
+        let ticket = coordinator.start(1);
+
+        tokio::time::advance(delay - Duration::from_millis(1)).await;
+        ticket.finish("done");
+        tokio::time::advance(Duration::from_millis(1)).await;
+        tokio::task::yield_now().await;
+
+        assert!(!coordinator.is_active_for_test(1));
+        assert!(coordinator.inner.enabled.load(Ordering::Acquire));
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn replacement_before_delay_restarts_the_progress_clock() {
+        let delay = Duration::from_millis(100);
+        let coordinator = ProgressCoordinator::with_timing(
+            ClientSocket::new_closed(),
+            true,
+            delay,
+            Duration::from_secs(1),
+        );
+        let first = coordinator.start(1);
+
+        tokio::time::advance(delay / 2).await;
+        let latest = coordinator.start(2);
+        assert!(!Arc::ptr_eq(first.guard.as_ref().unwrap(), latest.guard.as_ref().unwrap()));
+
+        tokio::time::advance(delay / 2).await;
+        tokio::task::yield_now().await;
+        assert!(coordinator.is_active_for_test(2));
+        assert!(coordinator.inner.enabled.load(Ordering::Acquire));
+
+        latest.finish("done");
+        tokio::time::advance(delay / 2).await;
+        tokio::task::yield_now().await;
+        assert!(!coordinator.is_active_for_test(2));
+        assert!(coordinator.inner.enabled.load(Ordering::Acquire));
     }
 
     #[tokio::test(flavor = "current_thread")]
