@@ -1,27 +1,27 @@
 //@compile-flags: -Zcodegen -O none -Zdump=mir
-//@filecheck: --check-prefix=MSGDATA
+//@filecheck:
 
 contract MsgData {
     // `msg.data` is the whole calldata as a lazy slice `(0, calldatasize)`;
     // `.length` reads its length word, indexing reads a calldata byte, and a
     // value use materializes it into memory bytes.
-    // MSGDATA-LABEL: fn @len{{[( ]}}
-    // MSGDATA: calldatasize
+    // CHECK-LABEL: fn @len{{[( ]}}
+    // CHECK: calldatasize
     function len() external pure returns (uint256) {
         return msg.data.length;
     }
 
-    // MSGDATA-LABEL: fn @copy{{[( ]}}
-    // MSGDATA: calldatasize
-    // MSGDATA: calldatacopy
+    // CHECK-LABEL: fn @copy{{[( ]}}
+    // CHECK: calldatasize
+    // CHECK: calldatacopy
     function copy() external pure returns (bytes memory) {
         return msg.data;
     }
 
-    // MSGDATA-LABEL: fn @tail{{[( ]}}
-    // MSGDATA: calldatasize
-    // MSGDATA: make_calldata_slice
-    // MSGDATA: calldatacopy
+    // CHECK-LABEL: fn @tail{{[( ]}}
+    // CHECK: calldatasize
+    // CHECK: make_calldata_slice
+    // CHECK: calldatacopy
     function tail(uint256 a, uint256 b) external pure returns (bytes memory) {
         return msg.data[a:b];
     }

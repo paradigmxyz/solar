@@ -1,5 +1,5 @@
 //@ compile-flags: -Zcodegen -O none -Zdump=mir
-//@ filecheck: --check-prefix=BUILT
+//@ filecheck:
 
 // ported-from: test/libsolidity/semanticTests/inheritance/inherited_function_through_dispatch.sol
 // ported-from: test/libsolidity/semanticTests/virtualFunctions/internal_virtual_function_calls_through_dispatch.sol
@@ -15,20 +15,20 @@ contract PointerBase {
     }
 }
 
-// BUILT-LABEL: @module PointerDerived
-// BUILT-LABEL: fn @target(
-// BUILT: ret 2
-// BUILT-LABEL: fn @callQualified(
-// BUILT: internal_call @__internal_dispatch_0, 1, [[BASE_TARGET:[0-9]+]]
-// BUILT-LABEL: fn @__internal_dispatch_0(
-// BUILT: eq arg0, [[BASE_TARGET]]
-// BUILT: internal_call target{{[0-9]+}}, 1
-// BUILT: eq arg0, [[DERIVED_TARGET:[0-9]+]]
-// BUILT: internal_call target{{[0-9]+}}, 1
-// BUILT-LABEL: fn @callVirtual(
-// BUILT: internal_call @__internal_dispatch_0, 1, [[DERIVED_TARGET]]
-// BUILT-LABEL: fn @callThroughVirtualPointer(
-// BUILT: internal_call @__internal_dispatch_0, 1, [[DERIVED_TARGET]]
+// CHECK-LABEL: @module PointerDerived
+// CHECK-LABEL: fn @target(
+// CHECK: ret 2
+// CHECK-LABEL: fn @callQualified(
+// CHECK: internal_call @__internal_dispatch_0, 1, [[BASE_TARGET:[0-9]+]]
+// CHECK-LABEL: fn @__internal_dispatch_0(
+// CHECK: eq arg0, [[BASE_TARGET]]
+// CHECK: internal_call target{{[0-9]+}}, 1
+// CHECK: eq arg0, [[DERIVED_TARGET:[0-9]+]]
+// CHECK: internal_call target{{[0-9]+}}, 1
+// CHECK-LABEL: fn @callVirtual(
+// CHECK: internal_call @__internal_dispatch_0, 1, [[DERIVED_TARGET]]
+// CHECK-LABEL: fn @callThroughVirtualPointer(
+// CHECK: internal_call @__internal_dispatch_0, 1, [[DERIVED_TARGET]]
 contract PointerDerived is PointerBase {
     function target() internal pure override returns (uint256) {
         return 2;
