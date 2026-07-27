@@ -645,7 +645,7 @@ pub struct EvmCodegen<'gcx> {
     /// runs once and every arm terminates externally, so the leftover word can
     /// neither accumulate nor disturb an internal return.
     emitting_entry: bool,
-    /// Gas-mode switch growth still available in the current runtime or constructor artifact.
+    /// Gas-mode switch growth still available in the current deployment artifact.
     switch_gas_code_growth_remaining: usize,
     capture_mir: bool,
     capture_evm_ir: bool,
@@ -993,7 +993,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         immutable_refs: &[ImmutableRef],
     ) -> PreparedDeploymentPrefix {
         self.asm.clear();
-        self.reset_switch_gas_code_growth();
         let runtime_offset = self.asm.new_deferred_const();
 
         // Find constructor function if it exists
