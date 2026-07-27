@@ -1,5 +1,5 @@
 //@compile-flags: -Zcodegen -O none -Zdump=mir
-//@filecheck: --check-prefix=NESTED
+//@filecheck:
 
 struct NestedItem {
     uint256 id;
@@ -19,14 +19,14 @@ contract NestedCalldataForward {
     // rebuild: each element materializes as a memory pointer, and the encode
     // layout keeps the dynamic element type instead of collapsing it to one
     // word.
-    // NESTED-LABEL: fn @forward{{[( ]}}
-    // NESTED: abi_encode [memory_array<memory_bytes>]
+    // CHECK-LABEL: fn @forward{{[( ]}}
+    // CHECK: abi_encode [memory_array<memory_bytes>]
     function forward(bytes[] calldata data, BytesSink sink) external {
         sink.consume(data);
     }
 
-    // NESTED-LABEL: fn @forwardStructs{{[( ]}}
-    // NESTED: abi_encode [memory_array<tuple<word, memory_bytes>>]
+    // CHECK-LABEL: fn @forwardStructs{{[( ]}}
+    // CHECK: abi_encode [memory_array<tuple<word, memory_bytes>>]
     function forwardStructs(NestedItem[] calldata data, StructSink sink) external {
         sink.consume(data);
     }

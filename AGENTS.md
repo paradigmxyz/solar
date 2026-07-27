@@ -225,7 +225,9 @@ needs to assert selected output properties such as ordering, presence, or
 absence. Put `// CHECK:`, `// CHECK-LABEL:`, `// CHECK-NOT:`, and related
 directives in the test source. Keep checks specific enough to fail for the bug
 being covered, and prefer `CHECK-LABEL` to anchor checks to the relevant
-contract/module section when the output contains multiple sections.
+contract/module section when the output contains multiple sections. Avoid using
+custom `--check-prefix` and use the default `CHECK` if only one prefix is present
+in the file, e.g. no revisions.
 
 Follow the [FileCheck reference](https://llvm.org/docs/CommandGuide/FileCheck.html):
 

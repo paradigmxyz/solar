@@ -1,0 +1,152 @@
+// === ROOT/tests/ui/codegen/lowering/internal-function-pointer/selection_mir.sol:FunctionPointerSelection ===
+@module FunctionPointerSelection
+fn @choose(arg0: bool, arg1: u256) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = iszero v3
+    v5 = iszero v4
+    v6 = eq v3, v5
+    jumpi v6, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    mstore 128, 0
+    jumpi arg0, bb5, bb6
+  bb5:
+    mstore 0, 2 !metadata(memory=scratch)
+    jump bb7
+  bb6:
+    mstore 0, 3 !metadata(memory=scratch)
+    jump bb7
+  bb7:
+    v7 = mload 0 !metadata(memory=scratch)
+    v8 = internal_call @__internal_dispatch_0, 1, v7, arg1
+    mstore 128, v8
+    returndata 128, 32
+}
+
+fn @__internal_dispatch_0(arg0: function, arg1: u256) -> u256 {
+  bb0:
+    v0 = eq arg0, 2
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = internal_call @increment, 1, arg1
+    ret v1
+  bb2:
+    v2 = eq arg0, 3
+    jumpi v2, bb3, bb4
+  bb3:
+    v3 = internal_call @decrement, 1, arg1
+    ret v3
+  bb4:
+    v4 = eq arg0, 7
+    jumpi v4, bb5, bb6
+  bb5:
+    v5 = internal_call @incrementView, 1, arg1
+    ret v5
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @increment(arg0: u256) -> u256 {
+  bb0:
+    v0 = internal_frame_addr 128
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = add arg0, 1
+    v2 = lt v1, arg0
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    ret v1
+}
+
+fn @decrement(arg0: u256) -> u256 {
+  bb0:
+    v0 = internal_frame_addr 128
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = sub arg0, 1
+    v2 = lt arg0, 1
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    ret v1
+}
+
+fn @callConstant(arg0: u256) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v3 = internal_call @__internal_dispatch_0, 1, 2, arg0
+    mstore 128, v3
+    returndata 128, 32
+}
+
+fn @throughCast(arg0: u256) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v3 = internal_call @castViewToPure, 1, 7
+    v4 = internal_call @__internal_dispatch_0, 1, v3, arg0
+    mstore 128, v4
+    returndata 128, 32
+}
+
+fn @castViewToPure(arg0: function) -> function {
+  bb0:
+    v0 = internal_frame_addr 128
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = internal_frame_addr 128
+    mstore v1, arg0 !metadata(memory=internal_frame)
+    v2 = internal_frame_addr 128
+    v3 = mload v2 !metadata(memory=internal_frame)
+    ret v3
+}
+
+fn @incrementView(arg0: u256) -> u256 {
+  bb0:
+    v0 = internal_frame_addr 128
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = number
+    v2 = eq v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v2, bb1, bb2
+  bb1:
+    ret arg0
+  bb2:
+    v3 = add arg0, 1
+    v4 = lt v3, arg0
+    jumpi v4, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    ret v3
+}
+

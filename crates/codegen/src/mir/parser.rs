@@ -75,7 +75,7 @@ pub(super) fn parse_module(sess: &Session, input: &str) -> Result<Module> {
 
 struct Parser<'sess, 'ast> {
     parser: crate::ir_parse::Parser<'sess, 'ast>,
-    pending_function_ref: Option<(Symbol, Span)>,
+    pending_function_ref: Option<(FunctionRefName, Span)>,
     function_refs: Vec<PendingFunctionRef>,
     arg_values: Vec<ValueId>,
     block_labels: FxHashMap<u32, BlockLabel>,
@@ -90,9 +90,15 @@ struct Parser<'sess, 'ast> {
 }
 
 struct PendingFunctionRef {
-    name: Symbol,
+    name: FunctionRefName,
     span: Span,
     target: FunctionRefTarget,
+}
+
+#[derive(Clone, Copy)]
+enum FunctionRefName {
+    Declared(Symbol),
+    Display(Symbol),
 }
 
 enum FunctionRefTarget {
@@ -204,22 +210,26 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         function_refs: Vec<(FunctionId, PendingFunctionRef)>,
     ) -> PResult<'sess, ()> {
         let mut functions = FxHashMap::<Symbol, Vec<FunctionId>>::default();
+        let mut displayed_functions = FxHashMap::<Symbol, Vec<FunctionId>>::default();
         for (id, function) in module.functions.iter_enumerated() {
             functions.entry(function.name.name).or_default().push(id);
+            let displayed_name = Symbol::intern(&format!("{}{}", function.name, id.index()));
+            displayed_functions.entry(displayed_name).or_default().push(id);
         }
         for (owner, reference) in function_refs {
-            let Some(matches) = functions.get(&reference.name) else {
+            let (name, matches) = match reference.name {
+                FunctionRefName::Declared(name) => (name, functions.get(&name)),
+                FunctionRefName::Display(name) => (name, displayed_functions.get(&name)),
+            };
+            let Some(matches) = matches else {
                 return Err(self
                     .parser
-                    .error_at(reference.span, format!("unknown function `@{}`", reference.name)));
+                    .error_at(reference.span, format!("unknown function reference `{name}`")));
             };
             let [function] = matches.as_slice() else {
                 return Err(self.parser.error_at(
                     reference.span,
-                    format!(
-                        "function name `@{}` is ambiguous; use the positional `fnN` form",
-                        reference.name
-                    ),
+                    format!("function reference `{name}` is ambiguous"),
                 ));
             };
             match reference.target {
@@ -786,18 +796,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if self.parser.eat(TokenKind::At) {
             let span = self.parser.token().span;
             let name = self.parse_function_name()?;
-            self.pending_function_ref = Some((name, span));
+            self.pending_function_ref = Some((FunctionRefName::Declared(name), span));
             return Ok(FunctionId::from_usize(0));
         }
-        let id = self.parser.parse_ident()?;
-        let rest = id
-            .as_str()
-            .strip_prefix("fn")
-            .ok_or_else(|| self.parser.error(format!("expected `@name` or `fnN`, got `{id}`")))?;
-        let idx: usize = rest
-            .parse()
-            .map_err(|_| self.parser.error(format!("invalid function index `{id}`")))?;
-        Ok(FunctionId::from_usize(idx))
+        let span = self.parser.token().span;
+        let name = self.parse_function_name()?;
+        if let Some(index) = name.as_str().strip_prefix("fn").and_then(|s| s.parse().ok()) {
+            return Ok(FunctionId::from_usize(index));
+        }
+        self.pending_function_ref = Some((FunctionRefName::Display(name), span));
+        Ok(FunctionId::from_usize(0))
     }
 
     fn finish_function_ref(&mut self, target: FunctionRefTarget) {

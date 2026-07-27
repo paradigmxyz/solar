@@ -1,14 +1,14 @@
 //@compile-flags: -Zcodegen -O none -Zdump=mir
-//@filecheck: --check-prefix=SLICE
+//@filecheck:
 
 interface SliceSink {
     function consume(bytes calldata data) external;
 }
 
 contract CalldataSliceEncode {
-    // SLICE-LABEL: fn @encode{{[( ]}}
-    // SLICE: make_calldata_slice
-    // SLICE: calldatacopy
+    // CHECK-LABEL: fn @encode{{[( ]}}
+    // CHECK: make_calldata_slice
+    // CHECK: calldatacopy
     function encode(bytes calldata data, uint256 start)
         external
         pure
@@ -17,10 +17,10 @@ contract CalldataSliceEncode {
         return abi.encode(data[start:]);
     }
 
-    // SLICE-LABEL: fn @forward{{[( ]}}
-    // SLICE: make_calldata_slice
-    // SLICE: abi_encode [calldata_bytes]
-    // SLICE: {{^.*[ =]call[[:space:]]}}
+    // CHECK-LABEL: fn @forward{{[( ]}}
+    // CHECK: make_calldata_slice
+    // CHECK: abi_encode [calldata_bytes]
+    // CHECK: {{^.*[ =]call[[:space:]]}}
     function forward(bytes calldata data, uint256 start, SliceSink sink) external {
         data = data[start:];
         sink.consume(data);

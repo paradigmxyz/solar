@@ -37,7 +37,7 @@ fn @build(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v16 = internal_call fn1, 1, v14
+    v16 = internal_call build1, 1, v14
     v17 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v18 = memory_object_field_addr memorystruct<2>, v16, 0
     v19 = mload v18
@@ -97,7 +97,7 @@ fn @build(arg0: u256) -> memorystruct {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v8 = internal_call fn1, 1, v6
+    v8 = internal_call build1, 1, v6
     v9 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v10 = memory_object_field_addr memorystruct<2>, v8, 0
     v11 = mload v10
