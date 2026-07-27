@@ -5,7 +5,7 @@
 //! fact only moves from false to true.
 
 use super::{AddressSpace, AliasAnalysis};
-use crate::mir::{ArgIdx, Function, FunctionId, InstKind, Module, Terminator, ValueId};
+use crate::mir::{ArgIdx, Function, FunctionId, InstKind, Module, Terminator, Value, ValueId};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 
 /// Conservative memory effects and pointer captures for one MIR function.
@@ -103,7 +103,7 @@ impl MemoryCallSummaries {
                             summary.merge_effects(&callee);
                             for (index, &arg) in args.iter().enumerate() {
                                 if callee.captures_param(ArgIdx::new(index)) {
-                                    capture_sources(&mut summary, &sources[arg]);
+                                    capture_sources(&mut summary, func, &sources, arg);
                                 }
                             }
                         }
@@ -116,7 +116,7 @@ impl MemoryCallSummaries {
                         summary.merge_effects(&callee);
                         for (index, &arg) in args.iter().enumerate() {
                             if callee.captures_param(ArgIdx::new(index)) {
-                                capture_sources(&mut summary, &sources[arg]);
+                                capture_sources(&mut summary, func, &sources, arg);
                             }
                         }
                     }
@@ -172,39 +172,45 @@ fn local_summary(func: &Function) -> FunctionMemorySummary {
                 | InstKind::MStore8(_, value)
                 | InstKind::SStore(_, value)
                 | InstKind::TStore(_, value)
-                | InstKind::SetFmp(value) => capture_sources(&mut summary, &sources[*value]),
+                | InstKind::SetFmp(value) => {
+                    capture_sources(&mut summary, func, &sources, *value);
+                }
                 _ => {}
             }
         }
 
         if let Some(Terminator::Return { values }) = &block.terminator {
             for &value in values {
-                capture_sources(&mut summary, &sources[value]);
+                capture_sources(&mut summary, func, &sources, value);
             }
         }
     }
     summary
 }
 
-fn capture_sources(summary: &mut FunctionMemorySummary, sources: &DenseBitSet<ArgIdx>) {
-    summary.captures.union(sources);
+fn capture_sources(
+    summary: &mut FunctionMemorySummary,
+    func: &Function,
+    sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
+    value: ValueId,
+) {
+    if let Value::Arg(index) = func.value(value)
+        && index.index() < summary.captures.domain_size()
+    {
+        summary.captures.insert(*index);
+    }
+    summary.captures.union(&sources[value]);
 }
 
 /// Tracks which parameters a value is derived from. Only pointer-preserving
 /// operations propagate sources; loading pointer bits through memory is
 /// deliberately not guessed, and storing a parameter is already a capture.
+/// Direct argument sources are handled lazily while propagating or capturing.
 fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> {
     let params = func.params.len();
     let mut sources = IndexVec::with_capacity(func.num_values());
     for _ in 0..func.num_values() {
         sources.push(DenseBitSet::new_empty(params));
-    }
-    for value in func.live_values() {
-        if let crate::mir::Value::Arg(index) = func.value(value)
-            && index.index() < params
-        {
-            sources[value].insert(*index);
-        }
     }
 
     loop {
@@ -229,6 +235,11 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
             };
             let mut propagated = DenseBitSet::new_empty(params);
             for operand in operands {
+                if let Value::Arg(index) = func.value(operand)
+                    && index.index() < params
+                {
+                    propagated.insert(*index);
+                }
                 propagated.union(&sources[operand]);
             }
             changed |= sources[value_id].union(&propagated);
