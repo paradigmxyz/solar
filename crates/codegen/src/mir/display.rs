@@ -400,11 +400,9 @@ fn display_inst_kind<'a>(
     })
 }
 
-/// Format a value reference.
-/// Formats a function reference as `@name` when the module's functions are
-/// available (module-level printing), falling back to the positional `fnN`
-/// form when they are not (single-function display has no name table) or when
-/// the name is shared by an overload and would not round-trip unambiguously.
+/// Formats a function reference as `@name` when the name is unique, or `nameN`
+/// when it needs the module index to disambiguate it. Falls back to `fnN` when
+/// a single function is printed without its module.
 fn display_function_ref(
     function: FunctionId,
     funcs: Option<&solar_data_structures::index::IndexVec<FunctionId, Function>>,
@@ -415,6 +413,8 @@ fn display_function_ref(
             && funcs.iter().filter(|other| other.name == callee.name).count() == 1
         {
             write!(f, "@{}", callee.name)
+        } else if let Some(callee) = funcs.and_then(|funcs| funcs.get(function)) {
+            write!(f, "{}{}", callee.name, function.index())
         } else {
             write!(f, "fn{}", function.index())
         }

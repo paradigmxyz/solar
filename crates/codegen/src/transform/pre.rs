@@ -108,6 +108,7 @@ enum ExprKey {
     Or(OperandKey, OperandKey),
     Xor(OperandKey, OperandKey),
     Not(OperandKey),
+    Clz(OperandKey),
     Shl(OperandKey, OperandKey),
     Shr(OperandKey, OperandKey),
     Sar(OperandKey, OperandKey),
@@ -518,6 +519,7 @@ impl PartialRedundancyEliminator {
                 | InstKind::Or(_, _)
                 | InstKind::Xor(_, _)
                 | InstKind::Not(_)
+                | InstKind::Clz(_)
                 | InstKind::Shl(_, _)
                 | InstKind::Shr(_, _)
                 | InstKind::Sar(_, _)
@@ -578,6 +580,7 @@ impl PartialRedundancyEliminator {
             InstKind::SMod(a, b) => Some(ExprKey::SMod(operand(*a), operand(*b))),
             InstKind::Exp(a, b) => Some(ExprKey::Exp(operand(*a), operand(*b))),
             InstKind::Not(a) => Some(ExprKey::Not(operand(*a))),
+            InstKind::Clz(a) => Some(ExprKey::Clz(operand(*a))),
             InstKind::Shl(a, b) => Some(ExprKey::Shl(operand(*a), operand(*b))),
             InstKind::Shr(a, b) => Some(ExprKey::Shr(operand(*a), operand(*b))),
             InstKind::Sar(a, b) => Some(ExprKey::Sar(operand(*a), operand(*b))),

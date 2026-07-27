@@ -206,8 +206,7 @@ impl<'gcx> InlayHintCollector<'gcx> {
     /// Returns whether an argument expression already makes the parameter name visible.
     fn argument_name_matches_param(&self, arg: &'gcx hir::Expr<'gcx>, param_name: Symbol) -> bool {
         let arg = arg.peel_parens();
-        if let ExprKind::Ident([res]) = arg.kind
-            && let Some(variable) = res.as_variable()
+        if let Some(variable) = self.gcx.resolved_variable(arg)
             && self.gcx.hir.variable(variable).name.is_some_and(|name| name.name == param_name)
         {
             return true;
@@ -275,7 +274,7 @@ impl<'gcx> Visit<'gcx> for InlayHintCollector<'gcx> {
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
         if let ExprKind::Call(callee, ref args, _) = expr.kind {
             let callee_ty = self.gcx.type_of_expr(callee.id);
-            if self.gcx.builtin_callee(callee.id) == Some(Builtin::AbiEncodeCall) {
+            if self.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncodeCall) {
                 self.push_abi_encode_call_parameter_hints(args);
             }
             self.push_parameter_hints(args, self.gcx.call_param_source(callee));

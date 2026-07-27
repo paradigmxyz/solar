@@ -9,13 +9,15 @@ use crate::{
 use async_lsp::{ErrorCode, ResponseError};
 use crop::Rope;
 use lsp_types::{
-    CompletionParams, CompletionResponse, DocumentChanges, DocumentDiagnosticParams,
-    DocumentDiagnosticReport, DocumentDiagnosticReportResult, DocumentFormattingParams,
-    DocumentHighlight, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
-    DocumentSymbolParams, DocumentSymbolResponse, FoldingRange, FoldingRangeParams,
-    FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
-    InlayHint, InlayHintParams, OneOf, OptionalVersionedTextDocumentIdentifier, Position,
-    PrepareRenameResponse, ReferenceParams, RelatedFullDocumentDiagnosticReport,
+    CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
+    CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
+    CodeLens, CodeLensParams, CompletionParams, CompletionResponse, DocumentChanges,
+    DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
+    DocumentFormattingParams, DocumentHighlight, DocumentHighlightParams, DocumentLink,
+    DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange,
+    FoldingRangeParams, FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse,
+    Hover, HoverParams, InlayHint, InlayHintParams, OneOf, OptionalVersionedTextDocumentIdentifier,
+    Position, PrepareRenameResponse, ReferenceParams, RelatedFullDocumentDiagnosticReport,
     RelatedUnchangedDocumentDiagnosticReport, RenameParams, SelectionRange, SelectionRangeParams,
     SignatureHelp, SignatureHelpParams, TextDocumentEdit, TextDocumentPositionParams, TextEdit,
     TypeHierarchyItem, TypeHierarchyPrepareParams, TypeHierarchySubtypesParams,
@@ -98,17 +100,24 @@ pub(crate) fn formatting(
             let Some(root) = state.config.formatter_root_for_path(&path) else {
                 return Err(request_failed("document has no parent directory"));
             };
-            Ok((VfsPath::from(path.clone()), path, root, state.config.forge_path()))
+            Ok((
+                VfsPath::from(path.clone()),
+                path,
+                root,
+                state.config.forge_path(),
+                state.config.formatter_timeout(),
+            ))
         });
 
     async move {
-        let (vfs_path, path, root, forge) = request?;
-        if formatter::is_ignored(&forge, &path, &root).await.map_err(formatter_failed)? {
+        let (vfs_path, path, root, forge, timeout) = request?;
+        if formatter::is_ignored(&forge, &path, &root, timeout).await.map_err(formatter_failed)? {
             return Ok(None);
         }
         let source =
             document_contents(&vfs, &vfs_path, &path).await.map_err(document_read_failed)?;
-        let formatted = formatter::run(&forge, &root, &source).await.map_err(formatter_failed)?;
+        let formatted =
+            formatter::run(&forge, &root, &source, timeout).await.map_err(formatter_failed)?;
         let is_current = document_is_current(&vfs, &vfs_path, &path, &source)
             .await
             .map_err(document_read_failed)?;
@@ -415,6 +424,49 @@ pub(crate) fn goto_implementation(
     }
 }
 
+pub(crate) fn prepare_call_hierarchy(
+    state: &mut GlobalState,
+    params: CallHierarchyPrepareParams,
+) -> impl Future<Output = Result<Option<Vec<CallHierarchyItem>>, ResponseError>> + use<> {
+    let params = params.text_document_position_params;
+    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response =
+            symbol_tables.read().prepare_call_hierarchy(&params.text_document.uri, params.position);
+        Ok(response)
+    }
+}
+
+pub(crate) fn call_hierarchy_incoming(
+    state: &mut GlobalState,
+    params: CallHierarchyIncomingCallsParams,
+) -> impl Future<Output = Result<Option<Vec<CallHierarchyIncomingCall>>, ResponseError>> + use<> {
+    let item = params.item;
+    let latest_analysis = latest_analysis_for_uri(state, &item.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response = symbol_tables.read().call_hierarchy_incoming(&item);
+        Ok(response)
+    }
+}
+
+pub(crate) fn call_hierarchy_outgoing(
+    state: &mut GlobalState,
+    params: CallHierarchyOutgoingCallsParams,
+) -> impl Future<Output = Result<Option<Vec<CallHierarchyOutgoingCall>>, ResponseError>> + use<> {
+    let item = params.item;
+    let latest_analysis = latest_analysis_for_uri(state, &item.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response = symbol_tables.read().call_hierarchy_outgoing(&item);
+        Ok(response)
+    }
+}
+
 pub(crate) fn references(
     state: &mut GlobalState,
     params: ReferenceParams,
@@ -431,6 +483,22 @@ pub(crate) fn references(
             include_declaration,
         );
         Ok(response)
+    }
+}
+
+pub(crate) fn code_lens(
+    state: &mut GlobalState,
+    params: CodeLensParams,
+) -> impl Future<Output = Result<Option<Vec<CodeLens>>, ResponseError>> + use<> {
+    let uri = params.text_document.uri;
+    let options = state.config.code_lens_options();
+    let latest_analysis =
+        if options.is_active() { latest_analysis_for_uri(state, &uri) } else { None };
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(Some(Vec::new())) };
+        let symbol_tables = latest_analysis.await?;
+        let response = symbol_tables.read().code_lenses(&uri, options);
+        Ok(Some(response))
     }
 }
 

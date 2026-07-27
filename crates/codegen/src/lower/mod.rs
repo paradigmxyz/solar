@@ -75,12 +75,16 @@ struct InlineReturnCtx {
     return_vars: Vec<VariableId>,
 }
 
+type InternalFunctionPointerShape = (Vec<MirType>, Vec<MirType>);
+
 /// Lowering context for converting HIR to MIR.
 pub(crate) struct Lowerer<'gcx> {
     /// The global context.
     gcx: Gcx<'gcx>,
     /// The current module being built.
     module: Module,
+    /// The most-derived contract this module is being built for.
+    contract_id: Option<ContractId>,
     /// The current contract being lowered.
     current_contract_id: Option<ContractId>,
     /// Mapping from HIR variable IDs to storage slots.
@@ -140,6 +144,10 @@ pub(crate) struct Lowerer<'gcx> {
     recursive_functions: FxHashMap<HirFunctionId, bool>,
     /// Functions currently being lowered on demand.
     lowering_functions: GrowableBitSet<HirFunctionId>,
+    /// Functions whose declarations are used as internal function values.
+    internal_function_pointer_targets: GrowableBitSet<HirFunctionId>,
+    /// Shared internal function-pointer dispatchers keyed by MIR parameter and return types.
+    internal_function_pointer_dispatchers: FxHashMap<InternalFunctionPointerShape, FunctionId>,
     /// Whether the current function body is constructor code.
     lowering_constructor: bool,
     /// Whether local memory slots should be addressed through the internal-call frame.
@@ -194,6 +202,7 @@ impl<'gcx> Lowerer<'gcx> {
         Self {
             gcx,
             module: Module::new(name),
+            contract_id: None,
             current_contract_id: None,
             storage_slots: FxHashMap::default(),
             storage_locations: FxHashMap::default(),
@@ -216,6 +225,8 @@ impl<'gcx> Lowerer<'gcx> {
             hir_to_internal_mir_functions: FxHashMap::default(),
             recursive_functions: FxHashMap::default(),
             lowering_functions: GrowableBitSet::new_empty(),
+            internal_function_pointer_targets: GrowableBitSet::new_empty(),
+            internal_function_pointer_dispatchers: FxHashMap::default(),
             lowering_constructor: false,
             lowering_internal_function: false,
             revert_error_helper: None,
@@ -386,6 +397,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// Lowers a contract to MIR.
     pub(crate) fn lower_contract(&mut self, contract_id: ContractId) {
         let contract = self.gcx.hir.contract(contract_id);
+        self.contract_id = Some(contract_id);
 
         // Track the current contract for using directive resolution.
         self.current_contract_id = Some(contract_id);
@@ -1540,6 +1552,11 @@ impl<'gcx> Lowerer<'gcx> {
         self.gcx.function_selector(func_id).0
     }
 
+    /// Returns the nonzero runtime discriminator for an internal function.
+    fn internal_function_pointer_id(func_id: HirFunctionId) -> u64 {
+        u64::try_from(func_id.index()).expect("function index does not fit in u64") + 1
+    }
+
     pub(super) fn mcopy(
         &self,
         builder: &mut FunctionBuilder<'_>,
@@ -1598,7 +1615,8 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Returns the completed module.
     #[must_use]
-    pub(crate) fn finish(self) -> Module {
+    pub(crate) fn finish(mut self) -> Module {
+        self.generate_internal_function_pointer_dispatchers();
         self.module
     }
 
@@ -1745,7 +1763,7 @@ impl<'gcx> Lowerer<'gcx> {
             self.mark_assigned_var(base);
             return;
         }
-        if let Some(var_id) = self.ident_variable(expr) {
+        if let Some(var_id) = self.gcx.resolved_variable(expr) {
             self.assigned_vars.insert(var_id);
         }
     }
@@ -1821,11 +1839,14 @@ impl<'gcx> Lowerer<'gcx> {
     fn is_external_call(&self, callee: &hir::Expr<'_>) -> bool {
         // External calls are Member expressions where the base is a contract
         if let hir::ExprKind::Member(base, _) = &callee.kind
-            && let Some(var_id) = self.ident_variable(base)
+            && let Some(var_id) = self.gcx.resolved_variable(base)
         {
             let var = self.gcx.hir.variable(var_id);
-            // Contract type variables are external call targets
-            if matches!(var.ty.kind, hir::TypeKind::Custom(hir::ItemId::Contract(_))) {
+            // This scan tracks declaration-level contract values; struct fields are lowered as
+            // member expressions.
+            if !var.is_struct_member()
+                && matches!(var.ty.kind, hir::TypeKind::Custom(hir::ItemId::Contract(_)))
+            {
                 return true;
             }
         }

@@ -7,14 +7,15 @@ use crate::{
 };
 use async_lsp::{ClientSocket, ErrorCode, ResponseError, ServerSocket, router::Router};
 use lsp_types::{
-    Diagnostic, DidChangeConfigurationParams, DidChangeTextDocumentParams,
-    DidChangeWatchedFilesParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DidSaveTextDocumentParams, DocumentDiagnosticParams, DocumentDiagnosticReport,
-    DocumentDiagnosticReportResult, DocumentSymbol, FileChangeType, FileEvent, PartialResultParams,
-    Position, ProgressParams, ProgressParamsValue, PublishDiagnosticsParams, Range, SymbolKind,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
-    VersionedTextDocumentIdentifier, WatchKind, WorkDoneProgress, WorkDoneProgressCreateParams,
-    WorkDoneProgressParams, WorkspaceSymbol, notification, notification::Notification, request,
+    CodeLensWorkspaceClientCapabilities, Diagnostic, DidChangeConfigurationParams,
+    DidChangeTextDocumentParams, DidChangeWatchedFilesParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentDiagnosticParams,
+    DocumentDiagnosticReport, DocumentDiagnosticReportResult, DocumentSymbol, FileChangeType,
+    FileEvent, PartialResultParams, Position, ProgressParams, ProgressParamsValue,
+    PublishDiagnosticsParams, Range, SymbolKind, TextDocumentContentChangeEvent,
+    TextDocumentIdentifier, TextDocumentItem, VersionedTextDocumentIdentifier, WatchKind,
+    WorkDoneProgress, WorkDoneProgressCreateParams, WorkDoneProgressParams, WorkspaceSymbol,
+    notification, notification::Notification, request,
 };
 use std::{
     future::Future,
@@ -26,6 +27,8 @@ use std::{
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
+mod call_hierarchy;
+mod code_lens;
 mod completion;
 mod document_highlight;
 mod document_link;
@@ -77,6 +80,10 @@ impl WorkDoneHarness {
         self.create_ack.take().expect("one create acknowledgement").send(()).unwrap();
     }
 
+    async fn probe(&self) {
+        self.client.request::<request::Shutdown>(()).await.unwrap();
+    }
+
     async fn shutdown(self) {
         self.server.notify::<notification::Exit>(()).unwrap();
         assert!(self.server_task.await.unwrap().is_ok());
@@ -105,6 +112,7 @@ fn work_done_harness() -> WorkDoneHarness {
                 Ok(())
             }
         });
+        router.request::<request::Shutdown, _>(|_, ()| async { Ok(()) });
         router.notification::<notification::Progress>(|state, params| {
             state.events.send(WorkDoneEvent::Progress(params)).unwrap();
             ControlFlow::Continue(())
@@ -226,6 +234,86 @@ fn analysis_result_accumulator_merges_multiple_batches() {
         .collect::<Vec<_>>();
     names.sort_unstable();
     assert_eq!(names, vec!["One".to_owned(), "Two".to_owned()]);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn analysis_updates_refresh_code_lenses_only_when_active() {
+    let (server_main, client) = async_lsp::MainLoop::new_server(|_| {
+        let mut router = Router::new(());
+        router.notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())));
+        router
+    });
+    let (refresh_tx, mut refresh_rx) = mpsc::unbounded_channel();
+    let (client_main, server) = async_lsp::MainLoop::new_client(move |_| {
+        let mut router = Router::new(refresh_tx);
+        router.request::<request::CodeLensRefresh, _>(|state, ()| {
+            state.send(()).unwrap();
+            async { Ok(()) }
+        });
+        router
+    });
+    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
+    let (server_rx, server_tx) = tokio::io::split(server_stream);
+    let server_task =
+        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
+    let (client_rx, client_tx) = tokio::io::split(client_stream);
+    let client_task =
+        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+
+    let mut params = InitializeParams::default();
+    params.capabilities.workspace = Some(lsp_types::WorkspaceClientCapabilities {
+        code_lens: Some(CodeLensWorkspaceClientCapabilities { refresh_support: Some(true) }),
+        ..Default::default()
+    });
+    let (_, config) = negotiate_capabilities(params);
+    let mut state = GlobalState::new(client);
+    state.config = Arc::new(config);
+
+    assert!(state.snapshot().publish_analysis(
+        0,
+        AnalysisResult {
+            diagnostics: DiagnosticMap::default(),
+            symbol_tables: SymbolTables::default(),
+        },
+    ));
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, refresh_rx.recv())
+        .await
+        .expect("CodeLens refresh should arrive")
+        .expect("CodeLens refresh channel should stay open");
+
+    state.clear_analysis_cache();
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, refresh_rx.recv())
+        .await
+        .expect("CodeLens refresh should arrive after clearing analysis")
+        .expect("CodeLens refresh channel should stay open");
+
+    let mut params = InitializeParams::default();
+    params.capabilities.workspace = Some(lsp_types::WorkspaceClientCapabilities {
+        code_lens: Some(CodeLensWorkspaceClientCapabilities { refresh_support: Some(true) }),
+        ..Default::default()
+    });
+    params.initialization_options = Some(serde_json::json!({
+        "codeLens": { "enable": false }
+    }));
+    let (_, config) = negotiate_capabilities(params);
+    state.config = Arc::new(config);
+
+    assert!(state.snapshot().publish_analysis(
+        1,
+        AnalysisResult {
+            diagnostics: DiagnosticMap::default(),
+            symbol_tables: SymbolTables::default(),
+        },
+    ));
+    state.clear_analysis_cache();
+    assert!(
+        tokio::time::timeout(Duration::from_millis(100), refresh_rx.recv()).await.is_err(),
+        "inactive CodeLens should not request refresh"
+    );
+
+    server.notify::<notification::Exit>(()).unwrap();
+    assert!(server_task.await.unwrap().is_ok());
+    assert!(matches!(client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
 }
 
 #[test]
@@ -624,6 +712,7 @@ async fn clearing_analysis_cache_publishes_before_ending_progress() {
 
     let (_, progress) =
         state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    progress.begin();
     progress.report("Analyzing workspace");
     let WorkDoneEvent::Create(create) = harness.next_event().await else {
         panic!("expected progress creation")
@@ -665,7 +754,7 @@ async fn clearing_analysis_cache_publishes_before_ending_progress() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn clearing_analysis_cache_supersedes_a_pending_progress_end() {
+async fn clearing_analysis_cache_suppresses_progress_pending_creation() {
     let project = TestProject::from_fixture(
         r#"
         //- /Cleared.sol
@@ -686,10 +775,10 @@ async fn clearing_analysis_cache_supersedes_a_pending_progress_end() {
 
     let (_, progress) =
         state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
-    let WorkDoneEvent::Create(create) = harness.next_event().await else {
+    progress.begin();
+    let WorkDoneEvent::Create(_) = harness.next_event().await else {
         panic!("expected progress creation")
     };
-    let token = create.token;
     progress.report("obsolete analysis");
     progress.finish("obsolete completion");
 
@@ -703,26 +792,8 @@ async fn clearing_analysis_cache_supersedes_a_pending_progress_end() {
         event => panic!("expected cleared diagnostics, got {event:?}"),
     }
     harness.acknowledge_create();
-    match harness.next_event().await {
-        WorkDoneEvent::Progress(ProgressParams {
-            token: actual,
-            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
-        }) => {
-            assert_eq!(actual, token);
-            assert_eq!(begin.message.as_deref(), Some("Workspace index cleared"));
-        }
-        event => panic!("expected progress begin, got {event:?}"),
-    }
-    match harness.next_event().await {
-        WorkDoneEvent::Progress(ProgressParams {
-            token: actual,
-            value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)),
-        }) => {
-            assert_eq!(actual, token);
-            assert_eq!(end.message.as_deref(), Some("Workspace index cleared"));
-        }
-        event => panic!("expected progress end, got {event:?}"),
-    }
+    harness.probe().await;
+    assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
 
     harness.shutdown().await;
 }
@@ -745,6 +816,7 @@ async fn superseded_analysis_cannot_publish_or_end_latest_progress() {
     let (stale_version, stale_progress) =
         state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
     let mut stale_snapshot = state.snapshot();
+    stale_progress.begin();
     let WorkDoneEvent::Create(create) = harness.next_event().await else {
         panic!("expected progress creation")
     };
@@ -874,31 +946,29 @@ async fn failed_current_analysis_ends_visible_progress() {
         ProgressCoordinator::with_timing(client, true, Duration::ZERO, Duration::from_secs(1));
     let (version, progress) =
         state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    progress.begin();
 
     let WorkDoneEvent::Create(create) = harness.next_event().await else {
         panic!("expected progress creation")
     };
     let token = create.token;
+    harness.acknowledge_create();
+    assert!(matches!(
+        harness.next_event().await,
+        WorkDoneEvent::Progress(ProgressParams {
+            token: actual,
+            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(_)),
+        }) if actual == token
+    ));
+
     let task = tokio::spawn(async { panic!("test analysis failure") });
     state.monitor_analysis_task(version, task, progress);
-
     tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
         .await
         .expect("failed analysis should publish its terminal version")
         .unwrap();
     assert!(state.analysis_cache_invalidated());
-    harness.acknowledge_create();
 
-    match harness.next_event().await {
-        WorkDoneEvent::Progress(ProgressParams {
-            token: actual,
-            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
-        }) => {
-            assert_eq!(actual, token);
-            assert_eq!(begin.message.as_deref(), Some("Workspace indexing failed"));
-        }
-        event => panic!("expected progress begin, got {event:?}"),
-    }
     match harness.next_event().await {
         WorkDoneEvent::Progress(ProgressParams {
             token: actual,
@@ -1272,6 +1342,33 @@ fn watched_solidity_change_tracks_the_source_until_analysis_publishes() {
 }
 
 #[test]
+fn watched_solidity_change_ignores_open_document() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Request.sol open
+        contract Request {}
+        "#,
+    );
+    let path = project.path("/Request.sol");
+    let uri = Url::from_file_path(path).unwrap();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(project.config());
+    state.vfs = Arc::new(RwLock::new(project.vfs()));
+    let version = state.analysis_version.load(Ordering::Acquire);
+
+    let result = crate::handlers::did_change_watched_files(
+        &mut state,
+        DidChangeWatchedFilesParams {
+            changes: vec![FileEvent { uri, typ: FileChangeType::CHANGED }],
+        },
+    );
+
+    assert!(matches!(result, ControlFlow::Continue(())));
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), version);
+    assert!(state.analysis_scheduler.tasks.lock().coordinator.is_none());
+}
+
+#[test]
 fn did_change_tracks_the_request_source_until_analysis_publishes() {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -1364,6 +1461,108 @@ fn configuration_change_invalidates_natspec_context_until_analysis_publishes() {
             .unwrap();
         assert!(state.natspec_semantics_are_usable(&request_uri));
     });
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn source_change_debounce_does_not_count_toward_progress_delay() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Request.sol open
+        contract Before {}
+        "#,
+    );
+    let uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
+    let mut harness = work_done_harness();
+    let client = harness.client.clone();
+    let mut state = GlobalState::new(client.clone());
+    state.config = Arc::new(project.config());
+    state.vfs = Arc::new(RwLock::new(project.vfs()));
+    state.analysis_progress =
+        ProgressCoordinator::with_timing(client, true, Duration::ZERO, Duration::from_secs(1));
+
+    let result = crate::handlers::did_change_text_document(
+        &mut state,
+        DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier::new(uri, 1),
+            content_changes: vec![TextDocumentContentChangeEvent {
+                range: None,
+                range_length: None,
+                text: "contract After {}".into(),
+            }],
+        },
+    );
+    assert!(matches!(result, ControlFlow::Continue(())));
+
+    tokio::time::sleep(state.config.source_change_debounce() / 2).await;
+    harness.probe().await;
+    assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
+
+    state.clear_analysis_cache();
+    harness.shutdown().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn rapid_did_changes_debounce_to_the_latest_source() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Request.sol open
+        contract Before {}
+        "#,
+    );
+    let path = project.path("/Request.sol");
+    let uri = Url::from_file_path(&path).unwrap();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(project.config());
+    state.vfs = Arc::new(RwLock::new(project.vfs()));
+
+    let result = crate::handlers::did_change_text_document(
+        &mut state,
+        DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier::new(uri.clone(), 1),
+            content_changes: vec![TextDocumentContentChangeEvent {
+                range: None,
+                range_length: None,
+                text: "contract Intermediate {}".into(),
+            }],
+        },
+    );
+    assert!(matches!(result, ControlFlow::Continue(())));
+    let first_coordinator =
+        state.analysis_scheduler.tasks.lock().coordinator.as_ref().unwrap().1.clone();
+
+    let result = crate::handlers::did_change_text_document(
+        &mut state,
+        DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier::new(uri, 2),
+            content_changes: vec![TextDocumentContentChangeEvent {
+                range: None,
+                range_length: None,
+                text: "contract Latest {}".into(),
+            }],
+        },
+    );
+    assert!(matches!(result, ControlFlow::Continue(())));
+    let debounce = state.config.source_change_debounce();
+
+    assert!(
+        tokio::time::timeout(debounce / 2, state.latest_analysis()).await.is_err(),
+        "analysis should remain pending during the debounce window"
+    );
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, async {
+        while !first_coordinator.is_finished() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("replacement should cancel the first coordinator");
+
+    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("latest source analysis should finish")
+        .unwrap();
+    let tables = tables.read();
+    assert!(tables.workspace_symbols("Intermediate").is_empty());
+    assert!(tables.workspace_symbols("Latest").iter().any(|symbol| symbol.name == "Latest"));
 }
 
 #[test]

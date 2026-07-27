@@ -446,6 +446,10 @@ impl SccpCx {
                 Some(a) => LatticeValue::Constant(!a),
                 None => self.check_any_bottom(&[*a], lattice),
             },
+            InstKind::Clz(a) => match get_const(*a) {
+                Some(a) => LatticeValue::Constant(U256::from(a.leading_zeros() as u64)),
+                None => self.check_any_bottom(&[*a], lattice),
+            },
             InstKind::Shl(shift, val) => match (get_const(*shift), get_const(*val)) {
                 (Some(s), Some(v)) => {
                     if s >= U256::from(256) {

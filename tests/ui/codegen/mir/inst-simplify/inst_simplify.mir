@@ -169,3 +169,15 @@ fn @fold_constant_ops() -> (u256, u256, u256, u256, u256, u256, u256, u256, u256
     v23 = mulmod 5, 7, 10
     ret v1, v2, v3, v4, v5, v6, v7, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23
 }
+
+// CHECK-LABEL: {{^[ +].*}}fn @fold_clz_constants{{[( ]}}
+// CHECK: + ret 256, 255, 248, 1, 0
+fn @fold_clz_constants() -> (u256, u256, u256, u256, u256) {
+  bb0:
+    v0 = clz 0
+    v1 = clz 1
+    v2 = clz 255
+    v3 = clz 0x4000000000000000000000000000000000000000000000000000000000000000
+    v4 = clz 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    ret v0, v1, v2, v3, v4
+}

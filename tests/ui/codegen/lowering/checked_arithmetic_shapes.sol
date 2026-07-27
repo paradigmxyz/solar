@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
 // Pins the per-op checked-arithmetic check shapes so they stay at or below

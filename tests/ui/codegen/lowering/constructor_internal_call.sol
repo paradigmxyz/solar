@@ -1,5 +1,5 @@
 //@ revisions: mir evmir
-//@[mir] compile-flags: -Zcodegen -Zdump=mir
+//@[mir] compile-flags: -Zcodegen -O none -Zdump=mir
 //@[mir] filecheck: --check-prefix=MIR
 //@[evmir] ignore-host: windows
 //@[evmir] compile-flags: -Zcodegen -Zdump=evm-ir --pretty-json

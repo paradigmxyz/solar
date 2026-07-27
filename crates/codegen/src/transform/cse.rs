@@ -125,6 +125,7 @@ enum ExprKey {
     Eq(OperandKey, OperandKey),
     IsZero(OperandKey),
     Not(OperandKey),
+    Clz(OperandKey),
     SignExtend(OperandKey, OperandKey),
     Select(OperandKey, OperandKey, OperandKey),
     MLoad(MemRangeKey),
@@ -664,6 +665,7 @@ impl CommonSubexprEliminator {
             // Unary operations
             InstKind::IsZero(a) => Some(ExprKey::IsZero(operand(*a))),
             InstKind::Not(a) => Some(ExprKey::Not(operand(*a))),
+            InstKind::Clz(a) => Some(ExprKey::Clz(operand(*a))),
             InstKind::CalldataLoad(a) => Some(ExprKey::CalldataLoad(operand(*a))),
             InstKind::ExtCodeSize(a) => Some(ExprKey::ExtCodeSize(operand(*a))),
             InstKind::ExtCodeHash(a) => Some(ExprKey::ExtCodeHash(operand(*a))),
@@ -864,6 +866,7 @@ impl CommonSubexprEliminator {
         matches!(
             kind,
             InstKind::Call { .. }
+                | InstKind::CallCode { .. }
                 | InstKind::DelegateCall { .. }
                 | InstKind::InternalCall { .. }
                 | InstKind::Create(_, _, _)

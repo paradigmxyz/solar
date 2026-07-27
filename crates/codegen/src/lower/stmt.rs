@@ -58,7 +58,7 @@ impl<'gcx> Lowerer<'gcx> {
         let ExprKind::Call(callee, args, _) = &expr.kind else {
             return false;
         };
-        if !matches!(self.callee_res(callee), Some(hir::Res::Builtin(Builtin::Keccak256))) {
+        if self.gcx.resolved_builtin(callee) != Some(Builtin::Keccak256) {
             return false;
         }
 
@@ -66,11 +66,11 @@ impl<'gcx> Lowerer<'gcx> {
         let Some(arg) = exprs.next() else {
             return false;
         };
-        exprs.next().is_none() && self.is_local_ident(arg, var_id)
+        exprs.next().is_none() && self.resolves_to_variable(arg, var_id)
     }
 
-    fn is_local_ident(&self, expr: &hir::Expr<'_>, var_id: hir::VariableId) -> bool {
-        self.ident_variable(expr) == Some(var_id)
+    fn resolves_to_variable(&self, expr: &hir::Expr<'_>, var_id: hir::VariableId) -> bool {
+        self.gcx.resolved_variable(expr) == Some(var_id)
     }
 
     fn lower_immediate_packed_hash_return(
@@ -1017,7 +1017,8 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Get the event from the callee, using the overload target selected by
         // the type checker: `emit E(...)` may name an overloaded event.
-        let Some(hir::Res::Item(hir::ItemId::Event(event_id))) = self.callee_res(callee) else {
+        let Some(hir::Res::Item(hir::ItemId::Event(event_id))) = self.gcx.resolved_expr(callee)
+        else {
             return;
         };
 

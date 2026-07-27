@@ -7,14 +7,12 @@ use std::fmt::Write;
 
 pub(crate) fn render(gcx: Gcx<'_>, item_id: hir::ItemId) -> Option<MarkupContent> {
     let signature = match item_id {
+        hir::ItemId::Contract(id) => render_contract(gcx, id),
         hir::ItemId::Function(id) => render_function(gcx, id),
         hir::ItemId::Variable(id) => render_variable(gcx, id),
         hir::ItemId::Event(id) => render_event(gcx, id),
         hir::ItemId::Error(id) => render_error(gcx, id),
-        hir::ItemId::Contract(_)
-        | hir::ItemId::Struct(_)
-        | hir::ItemId::Enum(_)
-        | hir::ItemId::Udvt(_) => None,
+        hir::ItemId::Struct(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_) => None,
     }?;
     let mut value = format!("```solidity\n{signature}\n```");
     append_documentation(&mut value, &documentation(gcx, item_id));
@@ -31,6 +29,14 @@ struct Documentation {
 
 fn documentation(gcx: Gcx<'_>, item_id: hir::ItemId) -> Documentation {
     match item_id {
+        hir::ItemId::Contract(id) => {
+            let contract = gcx.hir.contract(id);
+            if contract.doc.is_empty() {
+                Documentation::default()
+            } else {
+                item_documentation(gcx.natspec_view(item_id).items())
+            }
+        }
         hir::ItemId::Function(id) => {
             let function = gcx.hir.function(id);
             callable_documentation(
@@ -50,11 +56,22 @@ fn documentation(gcx: Gcx<'_>, item_id: hir::ItemId) -> Documentation {
             let error = gcx.hir.error(id);
             callable_documentation(gcx, hir::ItemId::Error(id), error.doc, error.parameters, &[])
         }
-        hir::ItemId::Contract(_)
-        | hir::ItemId::Struct(_)
-        | hir::ItemId::Enum(_)
-        | hir::ItemId::Udvt(_) => Documentation::default(),
+        hir::ItemId::Struct(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_) => {
+            Documentation::default()
+        }
     }
+}
+
+fn render_contract(gcx: Gcx<'_>, id: hir::ContractId) -> Option<String> {
+    let contract = gcx.hir.contract(id);
+    let mut output = format!("{} {}", contract.kind, contract.name);
+    if let Some((&first, rest)) = contract.bases.split_first() {
+        write!(output, " is {}", gcx.hir.contract(first).name).ok()?;
+        for &base in rest {
+            write!(output, ", {}", gcx.hir.contract(base).name).ok()?;
+        }
+    }
+    Some(output)
 }
 
 fn callable_documentation(

@@ -393,6 +393,7 @@ impl LoopOptimizer {
                 matches!(
                     func.inst(inst_id).kind,
                     InstKind::Call { .. }
+                        | InstKind::CallCode { .. }
                         | InstKind::StaticCall { .. }
                         | InstKind::DelegateCall { .. }
                         | InstKind::InternalCall { .. }
@@ -422,7 +423,8 @@ impl LoopOptimizer {
             | InstKind::Mod(_, _)
             | InstKind::SMod(_, _)
             | InstKind::AddMod(_, _, _)
-            | InstKind::MulMod(_, _, _) => 5,
+            | InstKind::MulMod(_, _, _)
+            | InstKind::Clz(_) => 5,
             InstKind::MLoad(_) | InstKind::CalldataLoad(_) => 3,
             _ => 0,
         }

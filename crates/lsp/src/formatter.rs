@@ -11,18 +11,22 @@ use std::{
 };
 use tokio::{io::AsyncWriteExt, process::Command, time};
 
-const FORMATTER_TIMEOUT: Duration = Duration::from_secs(30);
-
-pub(crate) async fn run(forge: &Path, root: &Path, source: &str) -> Result<String, FormatterError> {
-    run_with_timeout(forge, root, source, FORMATTER_TIMEOUT).await
+pub(crate) async fn run(
+    forge: &Path,
+    root: &Path,
+    source: &str,
+    timeout: Duration,
+) -> Result<String, FormatterError> {
+    run_with_timeout(forge, root, source, timeout).await
 }
 
 pub(crate) async fn is_ignored(
     forge: &Path,
     path: &Path,
     root: &Path,
+    timeout: Duration,
 ) -> Result<bool, FormatterError> {
-    let ignores = resolved_formatter_ignores(forge, root, FORMATTER_TIMEOUT).await?;
+    let ignores = resolved_formatter_ignores(forge, root, timeout).await?;
     Ok(matches_ignore(path, root, &ignores))
 }
 
@@ -349,7 +353,9 @@ printf 'contract Formatted {}'
 "#,
         );
 
-        let output = run(&forge, project.root(), "contract Unformatted{}").await.unwrap();
+        let output = run(&forge, project.root(), "contract Unformatted{}", Duration::from_secs(30))
+            .await
+            .unwrap();
 
         assert_eq!(output, "contract Formatted {}");
         assert_eq!(project.read_file("/fake-forge.stdin"), "contract Unformatted{}");
@@ -364,7 +370,10 @@ printf 'contract Formatted {}'
     async fn missing_forge_reports_io_error() {
         let project = TestProject::new();
 
-        let error = run(&project.path("/missing-forge"), project.root(), "").await.unwrap_err();
+        let error =
+            run(&project.path("/missing-forge"), project.root(), "", Duration::from_secs(30))
+                .await
+                .unwrap_err();
 
         assert!(
             matches!(error, FormatterError::Io(error) if error.kind() == io::ErrorKind::NotFound)
@@ -380,7 +389,7 @@ printf 'contract Formatted {}'
             "#!/bin/sh\nprintf 'format failed' >&2\nexit 7\n",
         );
 
-        let error = run(&forge, project.root(), "").await.unwrap_err();
+        let error = run(&forge, project.root(), "", Duration::from_secs(30)).await.unwrap_err();
 
         assert!(matches!(
             error,
@@ -393,7 +402,7 @@ printf 'contract Formatted {}'
         let project = TestProject::new();
         let forge = write_executable(&project, "/fake-forge", "#!/bin/sh\nprintf '\\377'\n");
 
-        let error = run(&forge, project.root(), "").await.unwrap_err();
+        let error = run(&forge, project.root(), "", Duration::from_secs(30)).await.unwrap_err();
 
         assert!(matches!(error, FormatterError::InvalidUtf8(_)));
     }

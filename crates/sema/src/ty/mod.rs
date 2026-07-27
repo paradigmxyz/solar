@@ -81,8 +81,8 @@ pub struct InterfaceFunctions<'gcx> {
 #[derive(Clone, Debug, Default)]
 pub struct TypeckResults<'gcx> {
     pub(crate) expr_types: FxHashMap<hir::ExprId, Ty<'gcx>>,
+    pub(crate) resolved_exprs: FxHashMap<hir::ExprId, hir::Res>,
     pub(crate) resolved_callees: FxHashMap<hir::ExprId, ResolvedCallee>,
-    pub(crate) resolved_members: FxHashMap<hir::ExprId, hir::Res>,
     pub(crate) unsupported_udvt_operators: GrowableBitSet<hir::ExprId>,
 }
 
@@ -147,22 +147,20 @@ impl<'gcx> TypeckResults<'gcx> {
         self.expr_types.get(&id).copied()
     }
 
+    /// Returns the target selected for an expression, if available.
+    #[inline]
+    pub fn resolved_expr(&self, expr: &hir::Expr<'_>) -> Option<hir::Res> {
+        let expr = expr.peel_parens();
+        self.resolved_callee(expr.id)
+            .map(|callee| callee.res)
+            .or_else(|| self.resolved_exprs.get(&expr.id).copied())
+            .or_else(|| expr.as_res())
+    }
+
     /// Returns the overload/member target selected for a call callee expression, if available.
     #[inline]
     pub fn resolved_callee(&self, id: hir::ExprId) -> Option<ResolvedCallee> {
         self.resolved_callees.get(&id).copied()
-    }
-
-    /// Returns the target selected for a non-call member access expression, if available.
-    #[inline]
-    pub fn resolved_member(&self, id: hir::ExprId) -> Option<hir::Res> {
-        self.resolved_members.get(&id).copied()
-    }
-
-    /// Returns the selected builtin target for a non-call member access expression, if available.
-    #[inline]
-    pub fn builtin_member(&self, id: hir::ExprId) -> Option<Builtin> {
-        self.resolved_member(id)?.as_builtin()
     }
 
     /// Returns the selected builtin target for a call callee expression, if available.
@@ -513,6 +511,36 @@ impl<'gcx> Gcx<'gcx> {
         self.typeck_results.get()?.type_of_expr(id)
     }
 
+    /// Returns the target selected for an expression, if available.
+    ///
+    /// This uses the type checker's selection for overloaded identifiers, member accesses, and
+    /// call callees. Identifier expressions with a single name-resolution candidate do not need a
+    /// type-checker entry and resolve directly from HIR.
+    pub fn resolved_expr(self, expr: &hir::Expr<'_>) -> Option<hir::Res> {
+        if let Some(results) = self.typeck_results.get() {
+            return results.resolved_expr(expr);
+        }
+        expr.as_res()
+    }
+
+    /// Returns the variable selected for an expression, if available.
+    #[inline]
+    pub fn resolved_variable(self, expr: &hir::Expr<'_>) -> Option<hir::VariableId> {
+        self.resolved_expr(expr)?.as_variable()
+    }
+
+    /// Returns the function selected for an expression, if available.
+    #[inline]
+    pub fn resolved_function(self, expr: &hir::Expr<'_>) -> Option<hir::FunctionId> {
+        self.resolved_expr(expr)?.as_function()
+    }
+
+    /// Returns the builtin selected for an expression, if available.
+    #[inline]
+    pub fn resolved_builtin(self, expr: &hir::Expr<'_>) -> Option<Builtin> {
+        self.resolved_expr(expr)?.as_builtin()
+    }
+
     /// Returns the source argument at the given visible parameter index.
     ///
     /// Named arguments are reordered into the selected callable's declaration order. For an
@@ -572,15 +600,7 @@ impl<'gcx> Gcx<'gcx> {
             return Some(source);
         }
 
-        if let hir::ExprKind::Ident([res]) = callee.kind
-            && let Some(id) = res.as_variable()
-            && matches!(self.hir.variable(id).ty.kind, hir::TypeKind::Function(_))
-        {
-            return Some(CallableParamSource::FunctionType(id));
-        }
-        if let hir::ExprKind::Member(..) = callee.kind
-            && let Some(id) =
-                self.resolved_callee(callee.id).and_then(|callee| callee.res.as_variable())
+        if let Some(id) = self.resolved_variable(callee)
             && matches!(self.hir.variable(id).ty.kind, hir::TypeKind::Function(_))
         {
             return Some(CallableParamSource::FunctionType(id));
@@ -591,7 +611,7 @@ impl<'gcx> Gcx<'gcx> {
         {
             return Some(CallableParamSource::Function { id, skips_receiver: false });
         }
-        if let Some(builtin) = self.builtin_callee(callee.id)
+        if let Some(builtin) = self.resolved_builtin(callee)
             && matches!(builtin, Builtin::AbiDecode)
         {
             return Some(CallableParamSource::Builtin(builtin));
@@ -615,12 +635,6 @@ impl<'gcx> Gcx<'gcx> {
         self.resolved_callee(callee.id)
     }
 
-    /// Returns the target selected for a non-call member access expression, if available.
-    #[inline]
-    pub fn resolved_member(self, id: hir::ExprId) -> Option<hir::Res> {
-        self.typeck_results.get()?.resolved_member(id)
-    }
-
     /// Resolves every segment of a source path in its source and contract scopes.
     pub fn source_path_resolutions(
         self,
@@ -642,18 +656,6 @@ impl<'gcx> Gcx<'gcx> {
     /// when documentation must be associated with the current item's parameter or return positions.
     pub fn natspec_doc_comments(self, id: hir::DocId) -> &'gcx [hir::NatSpecItem] {
         if id.is_empty() { &[] } else { self.natspec_resolution(self.hir.doc(id).item).items() }
-    }
-
-    /// Returns the selected builtin target for a non-call member access expression, if available.
-    #[inline]
-    pub fn builtin_member(self, id: hir::ExprId) -> Option<Builtin> {
-        self.typeck_results.get()?.builtin_member(id)
-    }
-
-    /// Returns the selected builtin target for a call callee expression, if available.
-    #[inline]
-    pub fn builtin_callee(self, id: hir::ExprId) -> Option<Builtin> {
-        self.typeck_results.get()?.builtin_callee(id)
     }
 
     /// Returns whether codegen cannot lower the user-defined operator used by this expression.
