@@ -10,8 +10,7 @@ use solar_sema::{
 use std::fmt::Write;
 
 pub(crate) fn render(gcx: Gcx<'_>, item_id: hir::ItemId) -> Option<MarkupContent> {
-    let printer = HirPrinter::new(gcx);
-    let mut value = format!("```solidity\n{}\n```", printer.display(item_id));
+    let mut value = format!("```solidity\n{}\n```", HirPrinter::display(gcx, item_id));
     append_documentation(&mut value, &documentation(gcx, item_id));
     Some(MarkupContent { kind: MarkupKind::Markdown, value })
 }
