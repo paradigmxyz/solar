@@ -72,6 +72,7 @@ pub(crate) struct SymbolTables {
     call_hierarchy: CallHierarchyIndex,
     type_hierarchy: TypeHierarchyIndex,
     code_lens: CodeLensIndex,
+    has_merged_batches: bool,
 }
 
 #[derive(Default)]
@@ -358,6 +359,7 @@ impl SymbolTables {
     }
 
     fn extend_unindexed(&mut self, mut other: Self) {
+        self.has_merged_batches = true;
         if self.global_completions.is_empty() {
             self.global_completions = std::mem::take(&mut other.global_completions);
         }
@@ -1197,6 +1199,11 @@ impl SymbolTables {
         uri: &Url,
         position: Position,
     ) -> Option<ReferenceTargets> {
+        if !self.has_merged_batches {
+            // Duplicate declarations and conflicting snapshots can only come from aggregation.
+            debug_assert!(self.rename.conflicting_contents().is_empty());
+            return self.symbol_ids_at_position(uri, position);
+        }
         if self.rename.conflicting_contents().contains(uri) {
             return None;
         }
