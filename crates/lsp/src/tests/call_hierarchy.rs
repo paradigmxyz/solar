@@ -895,7 +895,8 @@ fn rejects_partial_outgoing_results_for_conflicting_callees() {
 
         contract C {
             function $1caller() external {
-                Target.target();
+                $2uint256 value = 1;
+                Target.$3target();
             }
         }
         //- /RootA.sol
@@ -934,6 +935,11 @@ fn rejects_partial_outgoing_results_for_conflicting_callees() {
         tables.prepare_call_hierarchy(&caller_uri, marked.marker("$1").position()),
         Some(vec![caller.clone()])
     );
+    assert_eq!(
+        tables.prepare_call_hierarchy(&caller_uri, marked.marker("$2").position()),
+        Some(vec![caller.clone()])
+    );
+    assert_eq!(tables.prepare_call_hierarchy(&caller_uri, marked.marker("$3").position()), None);
     assert_eq!(tables.call_hierarchy_outgoing(&caller), None);
 }
 
