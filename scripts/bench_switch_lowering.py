@@ -248,24 +248,45 @@ def run_cases(
             continue
 
         print(f"[{index}/{len(cases)}] {case.test_id}", flush=True)
-        for attempt in range(1, 4):
-            anvil = start_anvil() if include_gas else None
-            try:
-                result = bench.run_test_case(
-                    case,
-                    specs,
-                    include_gas,
-                    gas_profile,
-                    bench.DEFAULT_RPC_URL,
-                    bench.DEFAULT_PRIVATE_KEY,
-                    True,
-                )
-            finally:
-                if anvil is not None:
-                    stop_anvil(anvil)
-            if not gas_failed(result):
-                break
-            print(f"[{case.test_id}] retrying failed gas call ({attempt}/3)", flush=True)
+        if include_gas:
+            result = None
+            for spec in specs:
+                for attempt in range(1, 4):
+                    anvil = start_anvil()
+                    try:
+                        partial = bench.run_test_case(
+                            case,
+                            (spec,),
+                            True,
+                            gas_profile,
+                            bench.DEFAULT_RPC_URL,
+                            bench.DEFAULT_PRIVATE_KEY,
+                            True,
+                        )
+                    finally:
+                        stop_anvil(anvil)
+                    if not gas_failed(partial):
+                        break
+                    print(
+                        f"[{case.test_id}/{spec.compiler_id}] retrying failed gas call "
+                        f"({attempt}/3)",
+                        flush=True,
+                    )
+                if result is None:
+                    result = partial
+                    result["compilers"] = {}
+                result["compilers"].update(partial["compilers"])
+            bench.compare_runtime_results(result, specs)
+        else:
+            result = bench.run_test_case(
+                case,
+                specs,
+                False,
+                gas_profile,
+                bench.DEFAULT_RPC_URL,
+                bench.DEFAULT_PRIVATE_KEY,
+                True,
+            )
 
         if labels is not None:
             expected = labels[case.test_id]
