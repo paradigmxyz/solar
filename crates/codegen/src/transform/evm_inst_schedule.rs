@@ -13,14 +13,20 @@
 //! producers in EVM push order and places values consumed by the following barrier or terminator
 //! last. The pass commits a changed segment only when its active instruction results are
 //! single-use; references left in the arena by eliminated instructions do not count. Shared
-//! results retain their existing order because moving one use changes which physical copy should
-//! survive for later consumers. It also preserves the producer order of binary operations whose
-//! lowering already costs both equivalent operand orientations. Instruction and value identities
-//! do not change; codegen recomputes liveness from the resulting order before stack scheduling.
+//! results make the entire segment retain its existing order because moving one use changes which
+//! physical copy should survive for later consumers. The pass also preserves the producer order of
+//! binary operations whose lowering already costs both equivalent operand orientations.
+//! Instruction and value identities do not change; codegen recomputes liveness from the resulting
+//! order before stack scheduling.
+//!
+//! This is a locality heuristic, not a whole-function profitability search. It does not price the
+//! residual physical stack left by each possible order, so an isolated function can grow even when
+//! aggregate corpus output improves. Keeping the pass separate from physical scheduling makes that
+//! tradeoff measurable and leaves room for a later cost-aware selector.
 //!
 //! The dependency-first shape is adapted from [Vyper Venom's DFT pass]. Venom makes shared values
 //! movable with a preceding single-use expansion pass; this implementation instead rejects those
-//! segments so the late transform cannot inflate MIR or bytecode.
+//! segments so the late transform does not clone shared expressions or inflate MIR.
 //!
 //! [Vyper Venom's DFT pass]: https://github.com/vyperlang/vyper/blob/730a2d36f1fca90be059c75681de5c942560ce0b/vyper/venom/passes/dft.py
 

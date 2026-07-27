@@ -1,10 +1,11 @@
 //! Stack shuffler for stack layout transitions.
 //!
 //! This module converts a source stack layout to a target layout using DUP, SWAP, and POP
-//! operations. Layouts of up to four words compare nontrivial greedy results with a bounded exact
-//! search and take an exact sequence only when it improves one objective without worsening action
-//! count or static gas. Larger layouts use the verified greedy result, with exact search as the
-//! correctness fallback when the greedy pass cannot reach the target.
+//! operations. Layouts of up to four words compare nontrivial greedy results with a bounded
+//! shortest-action search and take the searched sequence only when it improves one objective
+//! without worsening action count or static gas. Larger layouts use the verified greedy result,
+//! with the bounded search as the correctness fallback when the greedy pass cannot reach the
+//! target.
 //!
 //! ## Algorithm overview
 //!
@@ -61,7 +62,7 @@ impl<'a> StackShuffler<'a> {
     pub(crate) fn new(source: &StackModel, target: &'a [TargetSlot]) -> Self {
         let source_stack: Layout = source.as_slice().iter().copied().collect();
 
-        // Count multiplicities in target
+        // Count multiplicities in the target.
         let mut multiplicities = FxHashMap::default();
         for slot in target {
             let TargetSlot::Value(v) = slot;
@@ -264,7 +265,7 @@ impl<'a> StackShuffler<'a> {
                             // value to the top and swap it back.
                             if target_depth <= MAX_STACK_ACCESS && source_depth <= MAX_STACK_ACCESS
                             {
-                                // Swap top with target_depth position
+                                // Swap the top with the `target_depth` position.
                                 let swap1 = target_depth as u8;
                                 if (1..=16).contains(&swap1) {
                                     self.swap(target_depth);
@@ -275,7 +276,7 @@ impl<'a> StackShuffler<'a> {
                                 // `target_depth` and disturb the prefix.
                                 self.swap(source_depth);
 
-                                // Swap back to put the value at target_depth
+                                // Swap back to put the value at `target_depth`.
                                 if (1..=16).contains(&swap1) {
                                     self.swap(target_depth);
                                 }
@@ -350,7 +351,7 @@ mod tests {
 
     fn make_model(values: &[Option<ValueId>]) -> StackModel {
         let mut model = StackModel::new();
-        // Push in reverse order so first element ends up on top
+        // Push in reverse order so the first element ends up on top.
         for &v in values.iter().rev() {
             if let Some(val) = v {
                 model.push(val);
@@ -409,9 +410,9 @@ mod tests {
         let v0 = ValueId::from_usize(0);
         let v1 = ValueId::from_usize(1);
 
-        // Source: [v1, v0] (v1 on top)
+        // Source: [v1, v0] (v1 on top).
         let source = make_model(&[Some(v1), Some(v0)]);
-        // Target: [v0, v1] (v0 on top)
+        // Target: [v0, v1] (v0 on top).
         let target = [TargetSlot::Value(v0), TargetSlot::Value(v1)];
 
         let result = StackShuffler::new(&source, &target).shuffle().unwrap();
@@ -423,9 +424,9 @@ mod tests {
     fn test_shuffle_dup_needed() {
         let v0 = ValueId::from_usize(0);
 
-        // Source: [v0]
+        // Source: [v0].
         let source = make_model(&[Some(v0)]);
-        // Target: [v0, v0] (need two copies)
+        // Target: [v0, v0] (needs two copies).
         let target = [TargetSlot::Value(v0), TargetSlot::Value(v0)];
 
         let result = StackShuffler::new(&source, &target).shuffle().unwrap();
@@ -438,13 +439,13 @@ mod tests {
         let v0 = ValueId::from_usize(0);
         let v1 = ValueId::from_usize(1);
 
-        // Source: [v0, v1] (v0 on top)
+        // Source: [v0, v1] (v0 on top).
         let source = make_model(&[Some(v0), Some(v1)]);
-        // Target: [v1] (only need v1)
+        // Target: [v1] (only needs v1).
         let target = [TargetSlot::Value(v1)];
 
         let result = StackShuffler::new(&source, &target).shuffle().unwrap();
-        // Should swap v1 to top, then pop v0
+        // Should swap v1 to the top, then pop v0.
         assert!(result.ops.iter().any(|op| matches!(op, StackOp::Pop | StackOp::Swap(_))));
         assert_reaches(&source, &target, &result);
     }
@@ -455,14 +456,14 @@ mod tests {
         let v1 = ValueId::from_usize(1);
         let v2 = ValueId::from_usize(2);
 
-        // Source: [v0, v1, v2] (v0 on top)
+        // Source: [v0, v1, v2] (v0 on top).
         let source = make_model(&[Some(v0), Some(v1), Some(v2)]);
-        // Target: [v2, v0, v1] (v2 on top)
+        // Target: [v2, v0, v1] (v2 on top).
         let target = [TargetSlot::Value(v2), TargetSlot::Value(v0), TargetSlot::Value(v1)];
 
         let result = StackShuffler::new(&source, &target).shuffle().unwrap();
 
-        // Should use swaps to rearrange
+        // Should use swaps to rearrange.
         assert!(result.ops.iter().any(|op| matches!(op, StackOp::Swap(_))));
         assert_reaches(&source, &target, &result);
     }

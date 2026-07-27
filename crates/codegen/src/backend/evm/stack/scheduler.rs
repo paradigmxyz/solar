@@ -1308,7 +1308,7 @@ impl StackScheduler {
 
         if let Some(depth) = self.stack.find(value) {
             if depth < MAX_STACK_ACCESS {
-                // Value is accessible via DUP
+                // The value is accessible via DUP.
                 let dup_n = (depth + 1) as u8;
                 self.ops.push(ScheduledOp::Stack(StackOp::Dup(dup_n)));
                 self.stack.dup(dup_n);
@@ -1326,7 +1326,7 @@ impl StackScheduler {
         } else if self.spills.is_reloadable(value)
             && let Some(slot) = self.spills.get(value)
         {
-            // Value is spilled, load it
+            // The value is spilled, so load it.
             self.ops.push(ScheduledOp::LoadSpill(slot));
             self.stack.push(value);
             return &self.ops;
@@ -1334,7 +1334,7 @@ impl StackScheduler {
 
         match func.value(value) {
             crate::mir::Value::Immediate(imm) => {
-                // It's an immediate, push it directly
+                // Push an immediate directly.
                 if let Some(u256) = imm.as_u256() {
                     self.ops.push(ScheduledOp::PushImmediate(u256));
                     self.stack.push(value);
@@ -1366,23 +1366,23 @@ impl StackScheduler {
         if let Some(depth) = self.stack.find(value) {
             return depth < MAX_STACK_ACCESS || self.spills.is_reloadable(value);
         }
-        // Check if spilled
+        // Check whether the value is spilled.
         if self.spills.is_reloadable(value) {
             return true;
         }
-        // Check value type
+        // Check the value type.
         matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. })
     }
 
     /// Records that an instruction consumed its operands and produced a result.
     /// This updates the stack model accordingly.
     pub(crate) fn instruction_executed(&mut self, consumed: usize, produced: Option<ValueId>) {
-        // Pop consumed values
+        // Pop consumed values.
         for _ in 0..consumed {
             self.stack.pop();
         }
 
-        // Push produced value
+        // Push the produced value.
         if let Some(val) = produced {
             self.stack.push(val);
         }
@@ -1394,11 +1394,11 @@ impl StackScheduler {
     /// The output is on the EVM stack but we don't track which ValueId it corresponds to.
     /// This is used for MLOAD where the value may become stale in loops.
     pub(crate) fn instruction_executed_untracked(&mut self, consumed: usize) {
-        // Pop consumed values
+        // Pop consumed values.
         for _ in 0..consumed {
             self.stack.pop();
         }
-        // Push an unknown value to keep stack depth correct
+        // Push an unknown value to keep the stack depth correct.
         self.stack.push_unknown();
     }
 
@@ -1427,7 +1427,7 @@ impl StackScheduler {
     ) -> Vec<StackOp> {
         let mut ops = Vec::new();
 
-        // First, pop dead values from the top
+        // First, pop dead values from the top.
         while let Some(top_val) = self.stack.top() {
             if liveness.is_dead_after(top_val, block, inst_idx) {
                 self.stack.pop();
@@ -1462,13 +1462,13 @@ impl StackScheduler {
                     continue;
                 }
 
-                // Swap this dead value to the top and pop it
+                // Swap this dead value to the top and pop it.
                 let swap_n = depth as u8;
                 ops.push(StackOp::Swap(swap_n));
                 self.stack.swap(swap_n);
                 ops.push(StackOp::Pop);
                 self.stack.pop();
-                // Don't increment depth since we removed an element
+                // Do not increment the depth since we removed an element.
                 continue;
             }
             depth += 1;
@@ -1501,7 +1501,7 @@ impl StackScheduler {
         let shuffler = StackShuffler::new(&self.stack, target);
         let result = shuffler.shuffle()?;
 
-        // Apply the operations to our stack model
+        // Apply the operations to the stack model.
         for op in &result.ops {
             match op {
                 StackOp::Dup(n) => self.stack.dup(*n),
@@ -1534,7 +1534,7 @@ mod tests {
         let name = Ident::DUMMY;
         let mut func = Function::new(name);
 
-        // Add some values
+        // Add some values.
         func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(42))));
         func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(100))));
 
@@ -1681,7 +1681,7 @@ mod tests {
         // Stack: [v1, v0]
 
         let ops = scheduler.ensure_on_top(v0, &func);
-        // Should emit DUP2 to get v0 on top
+        // Should emit DUP2 to get v0 on top.
 
         assert_eq!(ops.len(), 1);
         if let ScheduledOp::Stack(StackOp::Dup(n)) = &ops[0] {

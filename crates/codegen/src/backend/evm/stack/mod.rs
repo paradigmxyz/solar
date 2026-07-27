@@ -13,7 +13,7 @@
 //! single-use expression trees in backend consumption order immediately before this subsystem.
 //! Effectful instructions, `gas`, `msize`, phis, and shared results constrain that order; so does
 //! producer order for operations whose lowering already costs both equivalent operand
-//! orientations. This shortens avoidable producer-to-consumer distances without putting physical
+//! orientations. This usually shortens producer-to-consumer distances without putting physical
 //! stack layouts into MIR; liveness is then recomputed over the selected order and remains the
 //! scheduler's source of preservation requirements.
 //!
@@ -26,9 +26,9 @@
 //!   immediates, arguments, or stored spills. Plans are replayable and are applied to the model
 //!   only when chosen.
 //! - [`shuffler`] canonicalizes complete layouts on selected CFG edges. Layouts of up to four words
-//!   compare nontrivial greedy sequences with bounded exact search and accept only Pareto
+//!   compare nontrivial greedy sequences with bounded shortest-action search and accept only Pareto
 //!   improvements in action count and static gas; larger layouts use the verified greedy result and
-//!   reserve exact search for failures.
+//!   reserve the search for failures.
 //! - [`spill`] assigns memory slots. Values visible across blocks receive function-stable
 //!   reservations, while block-local slots are released and reused after the block is emitted.
 //!
@@ -49,15 +49,15 @@
 //!
 //! ## Design lineage
 //!
-//! Plank's current [scheduler pipeline] derives block layout sets, builds an effect-aware operation
-//! graph, selects ready operations, and lets [Plank's intra-operation scheduler] and [greedy edge
-//! shuffler] drive a tracked stack with scheduler-owned static allocation. We adapt its
-//! instruction-local boundary and last-use-aware operand preparation, not the whole pipeline. In
-//! particular, we do not inherit Plank's unique-value stack invariant, greedy preparer, operation
-//! graph, or static allocator. Our representation permits repeated MIR values and anonymous words,
-//! uses one-action and lower-bound-certified fast paths before bounded A*, and fits the existing
-//! direct MIR-to-EVM lowering and memory conventions. This is an original implementation rather
-//! than vendored Plank code.
+//! Plank's [scheduler pipeline] at the pinned revision derives block layout sets, builds an
+//! effect-aware operation graph, selects ready operations, and lets [Plank's intra-operation
+//! scheduler] and [greedy edge shuffler] drive a tracked stack with scheduler-owned static
+//! allocation. We adapt its instruction-local boundary and last-use-aware operand preparation, not
+//! the whole pipeline. In particular, we do not inherit Plank's unique-value stack invariant,
+//! greedy preparer, operation graph, or static allocator. Our representation permits repeated MIR
+//! values and anonymous words, uses one-action and lower-bound-certified fast paths before bounded
+//! A*, and fits the existing direct MIR-to-EVM lowering and memory conventions. This is an original
+//! implementation rather than vendored Plank code.
 //!
 //! The preceding MIR ordering pass is adapted from [Venom's dependency-first traversal]. Venom
 //! first applies [single-use expansion], then orders both data and effect dependencies with
