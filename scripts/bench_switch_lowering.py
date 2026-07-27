@@ -10,6 +10,7 @@ import json
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
@@ -197,6 +198,24 @@ def compiler_specs(bench: Any, solar: Path, methods: Sequence[str], optimization
     ]
 
 
+def start_anvil() -> subprocess.Popen[bytes]:
+    process = subprocess.Popen(
+        ["anvil", "--port", "8545", "--steps-tracing"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    time.sleep(2)
+    return process
+
+
+def stop_anvil(process: subprocess.Popen[bytes]) -> None:
+    process.terminate()
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+
+
 def write_results(path: Path, metadata: dict[str, Any], results: Sequence[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"metadata": metadata, "results": results}, indent=2) + "\n")
@@ -216,7 +235,7 @@ def run_cases(
     cases = list(cases)
     for index, case in enumerate(cases, 1):
         print(f"[{index}/{len(cases)}] {case.test_id}", flush=True)
-        anvil = bench.start_anvil() if include_gas else None
+        anvil = start_anvil() if include_gas else None
         try:
             result = bench.run_test_case(
                 case,
@@ -229,7 +248,7 @@ def run_cases(
             )
         finally:
             if anvil is not None:
-                bench.stop_anvil(anvil)
+                stop_anvil(anvil)
 
         if labels is not None:
             expected = labels[case.test_id]
