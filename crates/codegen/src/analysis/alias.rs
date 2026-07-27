@@ -1729,4 +1729,27 @@ mod tests {
         assert!(effects.reads_space(AddressSpace::Memory));
         assert!(effects.writes_space(AddressSpace::Memory));
     }
+
+    #[test]
+    fn callcode_reads_and_writes_state_and_memory() {
+        let mut func = function();
+        let call = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let gas = builder.imm_u64(100_000);
+            let address = builder.imm_u64(1);
+            let value = builder.imm_u64(2);
+            let offset = builder.imm_u64(0x80);
+            let size = builder.imm_u64(32);
+            builder.callcode(gas, address, value, offset, size, offset, size);
+            *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
+        };
+        let effects = AliasAnalysis::new(&func).instruction_mod_ref(&func, call);
+
+        assert!(effects.reads_space(AddressSpace::Storage));
+        assert!(effects.writes_space(AddressSpace::Storage));
+        assert!(effects.reads_space(AddressSpace::Transient));
+        assert!(effects.writes_space(AddressSpace::Transient));
+        assert!(effects.reads_space(AddressSpace::Memory));
+        assert!(effects.writes_space(AddressSpace::Memory));
+    }
 }

@@ -15,6 +15,20 @@
       ret v1
   }
   
+  fn @keep_balance_with_callcode() -> u256 {
+    bb0:
+      jump bb1
+    bb1:
+      jumpi 1, bb2, bb3
+    bb2:
+      v0 = balance 0xbeef
+      v1 = mul v0, 3
+      v2 = callcode 0x3e8, 0xbeef, 1, 0, 0, 0, 0
+      jump bb1
+    bb3:
+      ret v1
+  }
+  
   fn @hoist_balance_without_calls() -> u256 {
     bb0:
 +     v0 = balance 0xbeef
