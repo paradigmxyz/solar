@@ -775,63 +775,55 @@ def run_cases(
                 )
                 grouped_specs.setdefault(key, []).append(spec)
 
-            result = None
-            for equivalent_specs in grouped_specs.values():
-                spec = equivalent_specs[0]
-                for attempt in range(1, 4):
-                    anvil = start_anvil()
-                    try:
-                        partial = bench.run_test_case(
-                            case,
-                            (spec, reference_spec),
-                            True,
-                            gas_profile,
-                            bench.DEFAULT_RPC_URL,
-                            bench.DEFAULT_PRIVATE_KEY,
-                            True,
-                        )
-                        reference = partial["compilers"][reference_spec.compiler_id]
-                        reference_checks_sha256 = json_sha256(
-                            reference.get("runtime_results") or []
-                        )
-                        for execution_spec in (spec, reference_spec):
-                            compiler = partial["compilers"][execution_spec.compiler_id]
-                            compiler["runtime_checks_sha256"] = json_sha256(
-                                compiler.get("runtime_results") or []
-                            )
-                            compiler["reference_checks_sha256"] = (
-                                reference_checks_sha256
-                            )
-                            compiler["reference_runtime_status"] = partial.get(
-                                "runtime_status"
-                            )
-                    finally:
-                        stop_anvil(anvil)
-                    if result_is_complete(
-                        partial,
-                        (spec, reference_spec),
+            execution_specs = tuple(group[0] for group in grouped_specs.values())
+            run_specs = (*execution_specs, reference_spec)
+            for attempt in range(1, 4):
+                anvil = start_anvil()
+                try:
+                    partial = bench.run_test_case(
+                        case,
+                        run_specs,
                         True,
-                        expected_calls,
-                        expected_status,
-                        expected_status == "ok",
-                    ):
-                        break
-                    print(
-                        f"[{case.test_id}/{spec.compiler_id}] retrying failed gas call "
-                        f"({attempt}/3)",
-                        flush=True,
+                        gas_profile,
+                        bench.DEFAULT_RPC_URL,
+                        bench.DEFAULT_PRIVATE_KEY,
+                        True,
                     )
-                if result is None:
-                    result = {**partial, "compilers": {}}
+                finally:
+                    stop_anvil(anvil)
+                if result_is_complete(
+                    partial,
+                    run_specs,
+                    True,
+                    expected_calls,
+                    expected_status,
+                    expected_status == "ok",
+                ):
+                    break
+                print(
+                    f"[{case.test_id}] retrying failed gas calls ({attempt}/3)",
+                    flush=True,
+                )
+
+            reference = partial["compilers"][reference_spec.compiler_id]
+            reference_checks_sha256 = json_sha256(reference.get("runtime_results") or [])
+            for execution_spec in run_specs:
+                compiler = partial["compilers"][execution_spec.compiler_id]
+                compiler["runtime_checks_sha256"] = json_sha256(
+                    compiler.get("runtime_results") or []
+                )
+                compiler["reference_checks_sha256"] = reference_checks_sha256
+                compiler["reference_runtime_status"] = partial.get("runtime_status")
+
+            result = {**partial, "compilers": {}}
+            for equivalent_specs, spec in zip(grouped_specs.values(), execution_specs):
                 compiler = partial["compilers"][spec.compiler_id]
                 for equivalent_spec in equivalent_specs:
                     equivalent = copy.deepcopy(compiler)
                     equivalent.update(compiled["compilers"][equivalent_spec.compiler_id])
                     result["compilers"][equivalent_spec.compiler_id] = equivalent
-                if partial.get("runtime_status") != "ok" and expected_status == "ok":
-                    raise RuntimeError(
-                        f"{case.test_id}/{spec.compiler_id} did not match the reference compiler"
-                    )
+            if partial.get("runtime_status") != "ok" and expected_status == "ok":
+                raise RuntimeError(f"{case.test_id} did not match the reference compiler")
             bench.compare_runtime_results(result, specs)
             if not result_is_complete(
                 result,
