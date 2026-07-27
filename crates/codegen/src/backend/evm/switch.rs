@@ -203,9 +203,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                     )
                 })
                 .min_by_key(|&(cost, _)| forced_cost_key(cost, optimization)),
-            SwitchLowering::Buckets
-                if (MIN_BUCKET_CASES..=MAX_BUCKET_CASES).contains(&values.len()) =>
-            {
+            SwitchLowering::Buckets if (2..=MAX_BUCKET_CASES).contains(&values.len()) => {
                 bucket_count_candidates(values.len())
                     .into_iter()
                     .map(|bucket_count| {
@@ -616,7 +614,7 @@ mod tests {
         };
 
         assert!(matches!(select(&values(4), SwitchLowering::Binary), SwitchPlan::Binary { .. }));
-        assert!(matches!(select(&values(8), SwitchLowering::Buckets), SwitchPlan::Buckets { .. }));
+        assert!(matches!(select(&values(4), SwitchLowering::Buckets), SwitchPlan::Buckets { .. }));
         assert!(matches!(select(&values(24), SwitchLowering::Dense), SwitchPlan::Dense { .. }));
         assert_eq!(select(&values(32), SwitchLowering::Linear), SwitchPlan::Linear);
     }
