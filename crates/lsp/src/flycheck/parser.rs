@@ -31,14 +31,11 @@ pub(super) fn parse(
             }
         }
         FlycheckOutput::ForgeLintJson => {
-            let mut stream =
-                serde_json::Deserializer::from_slice(output).into_iter::<serde_json::Value>();
-            let mut record_start = 0;
-            while let Some(value) = stream.next() {
-                let value = value?;
-                let record_end = stream.byte_offset();
-                let record = serde_json::from_slice(&output[record_start..record_end]);
-                record_start = record_end;
+            let stream = serde_json::Deserializer::from_slice(output)
+                .into_iter::<&serde_json::value::RawValue>();
+            for raw in stream {
+                let raw = raw?;
+                let record = serde_json::from_str(raw.get());
 
                 match record {
                     Ok(record) => collect_json_emitter(
@@ -48,8 +45,12 @@ pub(super) fn parse(
                         &mut diagnostics,
                         &mut range_cache,
                     ),
-                    Err(_) if !is_json_emitter_diagnostic(&value) => {}
-                    Err(error) => return Err(error.into()),
+                    Err(error) => {
+                        let value = serde_json::from_str(raw.get())?;
+                        if is_json_emitter_diagnostic(&value) {
+                            return Err(error.into());
+                        }
+                    }
                 }
             }
         }

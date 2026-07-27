@@ -35,7 +35,7 @@ glob.workspace = true
 lsp-types.workspace = true
 normalize-path.workspace = true
 serde.workspace = true
-serde_json.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
 thiserror.workspace = true
 toml_edit = { workspace = true, features = ["serde"] }
 tower.workspace = true
