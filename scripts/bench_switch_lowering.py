@@ -1112,7 +1112,7 @@ def main() -> int:
         solc_version, solc_error = bench.binary_version(solc)
         if solc_error:
             raise RuntimeError(f"could not identify solc: {solc_error}")
-        if solc_version != DEFAULT_SOLC_VERSION:
+        if solc_version.split("+", maxsplit=1)[0] != DEFAULT_SOLC_VERSION:
             raise RuntimeError(
                 f"solc is {solc_version}, but CI is pinned to {DEFAULT_SOLC_VERSION}"
             )
