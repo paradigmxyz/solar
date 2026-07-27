@@ -73,12 +73,16 @@ struct PreStats {
     expressions_eliminated: usize,
     /// Number of predecessor computations inserted.
     expressions_inserted: usize,
+    /// Whether CFG backlinks or phi inputs were repaired.
+    reachability_repaired: bool,
 }
 
 impl PreStats {
     /// Returns the total number of MIR edits made by this pass.
     const fn total(self) -> usize {
-        self.expressions_eliminated + self.expressions_inserted
+        self.expressions_eliminated
+            + self.expressions_inserted
+            + self.reachability_repaired as usize
     }
 }
 
@@ -146,14 +150,12 @@ impl PartialRedundancyEliminator {
     /// Runs PRE to a fixed point.
     fn run(&mut self, func: &mut Function) -> PreStats {
         self.stats = PreStats::default();
-        repair_reachability_phis(func);
 
-        let mut inst_results = func.inst_results();
         let mut inst_blocks = func.inst_blocks();
 
         let mut eliminated_keys = FxHashSet::default();
-        let mut inserted_insts = GrowableBitSet::with_capacity(func.instructions.len());
-        let rewrite_limit = func.instructions.len().saturating_mul(2).max(64);
+        let mut inserted_insts = GrowableBitSet::with_capacity(func.num_insts());
+        let rewrite_limit = func.num_insts().saturating_mul(2).max(64);
         let mut rewrites = 0usize;
 
         while rewrites < rewrite_limit {
@@ -163,7 +165,6 @@ impl PartialRedundancyEliminator {
             let batch = self.collect_candidates(
                 func,
                 cfg.dominators(),
-                &inst_results,
                 &inst_blocks,
                 &eliminated_keys,
                 &inserted_insts,
@@ -177,13 +178,12 @@ impl PartialRedundancyEliminator {
                 self.apply_candidate(
                     func,
                     candidate,
-                    &mut inst_results,
                     &mut inst_blocks,
                     &mut eliminated_keys,
                     &mut inserted_insts,
                 );
             }
-            repair_reachability_phis(func);
+            self.stats.reachability_repaired |= repair_reachability_phis(func);
         }
 
         self.stats
@@ -196,7 +196,6 @@ impl PartialRedundancyEliminator {
         &self,
         func: &Function,
         dominators: &DominatorTree,
-        inst_results: &FxHashMap<InstId, ValueId>,
         inst_blocks: &FxHashMap<InstId, BlockId>,
         eliminated_keys: &FxHashSet<(ExprKey, BlockId)>,
         inserted_insts: &GrowableBitSet<InstId>,
@@ -223,14 +222,14 @@ impl PartialRedundancyEliminator {
                 if inserted_insts.contains(inst) {
                     continue;
                 }
-                let instruction = &func.instructions[inst];
+                let instruction = func.inst(inst);
                 if !Self::is_pre_expression(&instruction.kind) {
                     continue;
                 }
                 let Some(result_ty) = instruction.result_ty else {
                     continue;
                 };
-                let Some(&result) = inst_results.get(&inst) else {
+                let Some(result) = func.inst_result_value(inst) else {
                     continue;
                 };
 
@@ -242,7 +241,6 @@ impl PartialRedundancyEliminator {
                     result_ty,
                     instruction.metadata.clone(),
                     &predecessors,
-                    inst_results,
                     inst_blocks,
                     dominators,
                     eliminated_keys,
@@ -291,12 +289,11 @@ impl PartialRedundancyEliminator {
         result_ty: MirType,
         metadata: InstructionMetadata,
         predecessors: &[BlockId],
-        inst_results: &FxHashMap<InstId, ValueId>,
         inst_blocks: &FxHashMap<InstId, BlockId>,
         dominators: &DominatorTree,
         eliminated_keys: &FxHashSet<(ExprKey, BlockId)>,
     ) -> Option<PreCandidate> {
-        let original = &func.instructions[inst].kind;
+        let original = &func.inst(inst).kind;
         let mut incoming = Vec::with_capacity(predecessors.len());
         let mut insertions = Vec::new();
         let mut available = 0usize;
@@ -308,9 +305,7 @@ impl PartialRedundancyEliminator {
                 return None;
             }
             let key = Self::make_expr_key(func, &translated)?;
-            if let Some(value) =
-                Self::available_value_at_end(func, dominators, pred, &key, inst_results)
-            {
+            if let Some(value) = Self::available_value_at_end(func, dominators, pred, &key) {
                 available += 1;
                 incoming.push((pred, value));
                 continue;
@@ -330,9 +325,7 @@ impl PartialRedundancyEliminator {
         // than before; paths through available predecessors compute it
         // strictly less often. The constant bounds code growth at joins with
         // many predecessors.
-        if insertions.len() > available
-            || insertions.len() > MAX_INSERTIONS_PER_REWRITE.max(available)
-        {
+        if insertions.len() > available || insertions.len() > MAX_INSERTIONS_PER_REWRITE {
             return None;
         }
 
@@ -343,7 +336,6 @@ impl PartialRedundancyEliminator {
         &mut self,
         func: &mut Function,
         candidate: PreCandidate,
-        inst_results: &mut FxHashMap<InstId, ValueId>,
         inst_blocks: &mut FxHashMap<InstId, BlockId>,
         eliminated_keys: &mut FxHashSet<(ExprKey, BlockId)>,
         inserted_insts: &mut GrowableBitSet<InstId>,
@@ -351,7 +343,7 @@ impl PartialRedundancyEliminator {
         let PreCandidate { target, inst, result, result_ty, metadata, mut incoming, insertions } =
             candidate;
 
-        if let Some(key) = Self::make_expr_key(func, &func.instructions[inst].kind) {
+        if let Some(key) = Self::make_expr_key(func, &func.inst(inst).kind) {
             eliminated_keys.insert((key, target));
         }
 
@@ -369,15 +361,11 @@ impl PartialRedundancyEliminator {
                 }
                 _ => split_edge(func, pred, target),
             };
-            let new_inst = func.alloc_inst(Instruction {
-                kind,
-                result_ty: Some(result_ty),
-                metadata: metadata.clone(),
-            });
-            let value = func.alloc_value(Value::Inst(new_inst));
+            let mut instruction = Instruction::new(kind, Some(result_ty));
+            instruction.metadata = metadata.clone();
+            let (new_inst, value) = func.alloc_value_inst(instruction);
             func.blocks[block].instructions.push(new_inst);
             incoming.push((block, value));
-            inst_results.insert(new_inst, value);
             inst_blocks.insert(new_inst, block);
             inserted_insts.insert(new_inst);
             self.stats.expressions_inserted += 1;
@@ -396,18 +384,14 @@ impl PartialRedundancyEliminator {
                 first
             }
             _ => {
-                let phi_inst =
-                    func.alloc_inst(Instruction::new(InstKind::Phi(incoming), Some(result_ty)));
-                let phi_value = func.alloc_value(Value::Inst(phi_inst));
+                let (phi_inst, phi_value) = func
+                    .alloc_value_inst(Instruction::new(InstKind::Phi(incoming), Some(result_ty)));
                 let phi_count = func.blocks[target]
                     .instructions
                     .iter()
-                    .take_while(|&&inst_id| {
-                        matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
-                    })
+                    .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
                     .count();
                 func.blocks[target].instructions.insert(phi_count, phi_inst);
-                inst_results.insert(phi_inst, phi_value);
                 inst_blocks.insert(phi_inst, target);
                 phi_value
             }
@@ -416,7 +400,6 @@ impl PartialRedundancyEliminator {
         let replacements = FxHashMap::from_iter([(result, replacement)]);
         func.replace_uses(&replacements);
         func.blocks[target].instructions.retain(|&inst_id| inst_id != inst);
-        inst_results.remove(&inst);
         inst_blocks.remove(&inst);
         self.stats.expressions_eliminated += 1;
     }
@@ -452,9 +435,9 @@ impl PartialRedundancyEliminator {
         match func.value(value) {
             Value::Inst(inst_id)
                 if inst_blocks.get(inst_id).copied() == Some(target)
-                    && matches!(func.instructions[*inst_id].kind, InstKind::Phi(_)) =>
+                    && matches!(func.inst(*inst_id).kind, InstKind::Phi(_)) =>
             {
-                let InstKind::Phi(incoming) = &func.instructions[*inst_id].kind else {
+                let InstKind::Phi(incoming) = &func.inst(*inst_id).kind else {
                     return None;
                 };
                 incoming.iter().find_map(|(incoming_pred, incoming_value)| {
@@ -500,27 +483,21 @@ impl PartialRedundancyEliminator {
         dominators: &DominatorTree,
         block: BlockId,
         key: &ExprKey,
-        inst_results: &FxHashMap<InstId, ValueId>,
     ) -> Option<ValueId> {
         dominators
             .self_and_dominators(block)
             .into_iter()
-            .find_map(|block| Self::available_value_in_block(func, block, key, inst_results))
+            .find_map(|block| Self::available_value_in_block(func, block, key))
     }
 
-    fn available_value_in_block(
-        func: &Function,
-        block: BlockId,
-        key: &ExprKey,
-        inst_results: &FxHashMap<InstId, ValueId>,
-    ) -> Option<ValueId> {
+    fn available_value_in_block(func: &Function, block: BlockId, key: &ExprKey) -> Option<ValueId> {
         func.blocks[block].instructions.iter().rev().find_map(|&inst| {
-            let instruction = &func.instructions[inst];
+            let instruction = func.inst(inst);
             if !Self::is_pre_expression(&instruction.kind) {
                 return None;
             }
             let candidate_key = Self::make_expr_key(func, &instruction.kind)?;
-            (candidate_key == *key).then(|| inst_results.get(&inst).copied()).flatten()
+            (candidate_key == *key).then(|| func.inst_result_value(inst)).flatten()
         })
     }
 

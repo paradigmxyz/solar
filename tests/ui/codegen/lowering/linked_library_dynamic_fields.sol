@@ -1,4 +1,5 @@
 //@compile-flags: -Zcodegen --libraries L=0x1000000000000000000000000000000000000001 -Zdump=evm-ir-runtime
+//@ filecheck:
 
 // A linked library call whose struct parameter carries dynamic fields:
 // the head word of each dynamic field holds an args-relative offset and the
@@ -16,6 +17,16 @@ library L {
         address who;
     }
 
+    // CHECK-LABEL: @module runtime
+    // CHECK: push 0xfa06cb96
+    // CHECK: eq
+    // CHECK-NEXT: push [[APPLY:bb[0-9]+]]
+    // CHECK: [[APPLY]]:
+    // CHECK: calldatacopy
+    // CHECK: calldatacopy
+    // CHECK: keccak256
+    // CHECK: sstore
+    // CHECK: return
     function apply_(mapping(address => uint256) storage m, P memory p)
         public
         returns (uint256)
@@ -31,8 +42,29 @@ library L {
 }
 
 contract C {
+    // CHECK-LABEL: @module runtime
+    // CHECK: push 0x2220ae27
+    // CHECK: eq
+    // CHECK-NEXT: push [[GO:bb[0-9]+]]
+    // CHECK: push 0x776f3843
+    // CHECK: eq
+    // CHECK-NEXT: push [[SCORE:bb[0-9]+]]
+    // CHECK: [[SCORE]]:
+    // CHECK: keccak256
+    // CHECK-NEXT: sload
+    // CHECK: return
     mapping(address => uint256) public score;
 
+    // CHECK: [[GO]]:
+    // CHECK: calldatacopy
+    // CHECK: calldatacopy
+    // CHECK: push 0xfa06cb96
+    // CHECK: mcopy
+    // CHECK: mcopy
+    // CHECK: push 0x1000000000000000000000000000000000000001
+    // CHECK: delegatecall
+    // CHECK: returndatacopy
+    // CHECK: revert
     function go(uint256 base, uint256[] calldata xs, bytes calldata tag, address who)
         external
         returns (uint256)

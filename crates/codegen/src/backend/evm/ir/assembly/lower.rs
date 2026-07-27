@@ -371,12 +371,12 @@ mod tests {
         ir::{Block, Instruction, Terminator, TerminatorKind},
     };
     use alloy_primitives::U256;
-    use solar_interface::Session;
+    use solar_interface::{Session, sym};
     use solar_sema::Compiler;
 
     #[test]
     fn branch_inverts_when_then_target_falls_through() {
-        let mut module = ir::Module::new("module");
+        let mut module = ir::Module::new(sym::module);
         let entry = module.add_block(Block::new(0));
         let then_block = module.add_block(Block::new(1));
         let else_block = module.add_block(Block::new(2));
@@ -409,7 +409,7 @@ mod tests {
 
     #[test]
     fn indexed_jump_entries_are_reachable_blocks() {
-        let mut module = ir::Module::new("module");
+        let mut module = ir::Module::new(sym::module);
         let entry = module.add_block(Block::new(0));
         let left = module.add_block(Block::new(1));
         let right = module.add_block(Block::new(2));
@@ -456,7 +456,7 @@ mod tests {
 
     #[test]
     fn widens_table_targets_when_program_exceeds_push1() {
-        let mut module = ir::Module::new("module");
+        let mut module = ir::Module::new(sym::module);
         let entry = module.add_block(Block::new(0));
         let target = module.add_block(Block::new(1));
         for id in 0..8 {
@@ -473,7 +473,7 @@ mod tests {
 
     #[test]
     fn packs_early_table_targets_in_large_modules() {
-        let mut module = ir::Module::new("module");
+        let mut module = ir::Module::new(sym::module);
         let entry = module.add_block(Block::new(0));
         let target = module.add_block(Block::new(1));
         let padding = module.add_block(Block::new(2));

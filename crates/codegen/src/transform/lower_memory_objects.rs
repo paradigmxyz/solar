@@ -36,6 +36,7 @@ impl MirPass for LowerMemoryObjects {
         }
         if module.phase == MirPhase::Dispatch {
             module.advance_phase(MirPhase::MemoryLowered);
+            changed = true;
         }
         changed
     }
@@ -61,7 +62,8 @@ fn lower_function<P: MemoryLayoutPolicy>(
             Value::Arg { ty, .. } | Value::Undef(ty) => is_object_type(ty),
             Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => false,
         })
-        || func.instructions.iter().any(|inst| {
+        || func.instructions().any(|inst_id| {
+            let inst = func.inst(inst_id);
             inst.result_ty.as_ref().is_some_and(is_object_type)
                 || matches!(
                     inst.kind,
@@ -78,7 +80,6 @@ fn lower_function<P: MemoryLayoutPolicy>(
         return false;
     }
 
-    let inst_results = func.inst_results();
     let mut replacements = FxHashMap::default();
     let mut removed = FxHashSet::default();
     let blocks: Vec<_> = func.blocks.indices().collect();
@@ -88,10 +89,10 @@ fn lower_function<P: MemoryLayoutPolicy>(
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for inst in instructions {
-            let kind = builder.func().instructions[inst].kind.clone();
+            let kind = builder.func().inst(inst).kind.clone();
             match kind {
                 InstKind::Alloc { size, kind: AllocationKind::Object(_), semantics } => {
-                    let instruction = &mut builder.func_mut().instructions[inst];
+                    let instruction = builder.func_mut().inst_mut(inst);
                     instruction.kind =
                         InstKind::Alloc { size, kind: AllocationKind::Raw, semantics };
                     stats.allocations += 1;
@@ -102,7 +103,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         continue;
                     };
                     let address = offset_address(&mut builder, object, offset);
-                    builder.func_mut().instructions[inst].kind = InstKind::MLoad(address);
+                    builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
                     stats.accesses += 1;
                 }
                 InstKind::SetMemoryObjectLen(object, len, kind) => {
@@ -111,19 +112,19 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         continue;
                     };
                     let address = offset_address(&mut builder, object, offset);
-                    builder.func_mut().instructions[inst].kind = InstKind::MStore(address, len);
+                    builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, len);
                     stats.accesses += 1;
                 }
                 InstKind::MemoryObjectData(object, kind) => {
                     let offset = P::object_data_offset(kind);
                     if offset == 0 {
-                        if let Some(&result) = inst_results.get(&inst) {
+                        if let Some(result) = builder.func().inst_result_value(inst) {
                             replacements.insert(result, object);
                         }
                         removed.insert(inst);
                     } else {
                         let offset = builder.imm_u64(offset);
-                        builder.func_mut().instructions[inst].kind = InstKind::Add(object, offset);
+                        builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
                     }
                     stats.accesses += 1;
                 }
@@ -133,13 +134,13 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         continue;
                     };
                     if offset == 0 {
-                        if let Some(&result) = inst_results.get(&inst) {
+                        if let Some(result) = builder.func().inst_result_value(inst) {
                             replacements.insert(result, object);
                         }
                         removed.insert(inst);
                     } else {
                         let offset = builder.imm_u64(offset);
-                        builder.func_mut().instructions[inst].kind = InstKind::Add(object, offset);
+                        builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
                     }
                     stats.accesses += 1;
                 }
@@ -152,7 +153,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
                     let length_address = offset_address(&mut builder, object, length_offset);
                     let len = builder.mload(length_address);
                     let data = offset_address(&mut builder, object, P::object_data_offset(kind));
-                    builder.func_mut().instructions[inst].kind = InstKind::Keccak256(data, len);
+                    builder.func_mut().inst_mut(inst).kind = InstKind::Keccak256(data, len);
                     stats.accesses += 1;
                 }
                 InstKind::MemoryObjectElementAddr { object, layout, index } => {
@@ -165,7 +166,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
                         offset_address(&mut builder, object, P::object_data_offset(layout.kind()));
                     let stride = builder.imm_u64(stride);
                     let offset = builder.mul(index, stride);
-                    builder.func_mut().instructions[inst].kind = InstKind::Add(base, offset);
+                    builder.func_mut().inst_mut(inst).kind = InstKind::Add(base, offset);
                     stats.accesses += 1;
                 }
                 _ => {}
@@ -206,11 +207,11 @@ fn erase_object_types(func: &mut Function, stats: &mut LowerMemoryObjectsStats) 
             Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => {}
         }
     }
-    for inst in func.instructions.iter_mut() {
+    func.for_each_instruction_mut(|_, inst| {
         if let Some(ty) = &mut inst.result_ty {
             erase_object_type(ty, stats);
         }
-    }
+    });
 }
 
 fn erase_object_type(ty: &mut MirType, stats: &mut LowerMemoryObjectsStats) {

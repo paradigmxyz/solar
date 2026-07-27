@@ -5,7 +5,7 @@ fn @lookup(arg0: calldataslice) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -21,7 +21,7 @@ fn @set(arg0: memorybytes, arg1: address) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -39,7 +39,7 @@ fn @set(arg0: memorybytes, arg1: address) {
     v12 = calldataload 36
     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
     v14 = eq v12, v13
-    br v14, bb4, bb3
+    jumpi v14, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -53,7 +53,7 @@ fn @get(arg0: memorybytes) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -82,7 +82,7 @@ fn @flat(arg0: calldataslice) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -98,14 +98,14 @@ fn @nestedFirst(arg0: calldataslice, arg1: address) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = calldataload 36
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = eq v3, v4
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -122,14 +122,14 @@ fn @nestedSecond(arg0: address, arg1: calldataslice) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = eq v3, v4
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -168,7 +168,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v14 = alloc memorybytes, exact, uninitialized, infallible, v12
     set_memory_object_len memorybytes, v14, v6
     v15 = memory_object_data memorybytes, v14
-    br v2, bb2, bb1
+    jumpi v2, bb2, bb1
   bb1:
     v16 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     mstore v15, v16
@@ -185,7 +185,7 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v20 = phi [bb2: v17], [bb5: v24]
     v21 = phi [bb2: v15], [bb5: v25]
     v22 = gt v19, 0
-    br v22, bb5, bb3
+    jumpi v22, bb5, bb3
   bb5:
     v23 = sload v20 !metadata(storage=symbolic(v20))
     mstore v21, v23
@@ -220,7 +220,7 @@ fn @setLit(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -240,7 +240,7 @@ fn @setLitLong(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -262,7 +262,7 @@ fn @setNestedFirst(arg0: memorybytes, arg1: address, arg2: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -280,7 +280,7 @@ fn @setNestedFirst(arg0: memorybytes, arg1: address, arg2: u256) {
     v12 = calldataload 36
     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
     v14 = eq v12, v13
-    br v14, bb4, bb3
+    jumpi v14, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -295,7 +295,7 @@ fn @getNestedFirst(arg0: memorybytes, arg1: address) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -313,7 +313,7 @@ fn @getNestedFirst(arg0: memorybytes, arg1: address) {
     v12 = calldataload 36
     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
     v14 = eq v12, v13
-    br v14, bb4, bb3
+    jumpi v14, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -330,14 +330,14 @@ fn @setNestedSecond(arg0: address, arg1: memorybytes, arg2: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 96
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = eq v3, v4
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -363,7 +363,7 @@ fn @setSkey(arg0: memorybytes) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -400,7 +400,7 @@ fn @setSkey(arg0: memorybytes) {
     v31 = alloc raw, exact, uninitialized, infallible, 32
     mstore v31, 3
     v32 = keccak256 v31, 32
-    br v29, bb4, bb3
+    jumpi v29, bb4, bb3
   bb3:
     v33 = mload v13
     v34 = mul v12, 8
@@ -420,7 +420,7 @@ fn @setSkey(arg0: memorybytes) {
   bb5:
     v42 = mload v31
     v43 = lt v42, v30
-    br v43, bb6, bb7
+    jumpi v43, bb6, bb7
   bb6:
     v44 = mload v31
     v45 = add v32, v44
@@ -437,7 +437,7 @@ fn @setSkey(arg0: memorybytes) {
   bb8:
     v50 = mload v31
     v51 = lt v50, v25
-    br v51, bb9, bb10
+    jumpi v51, bb9, bb10
   bb9:
     v52 = mload v31
     v53 = add v32, v52
@@ -454,7 +454,7 @@ fn @setViaStorageKey(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -469,7 +469,7 @@ fn @setThenAlloc(arg0: calldataslice, arg1: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -478,7 +478,7 @@ fn @setThenAlloc(arg0: calldataslice, arg1: u256) {
     sstore v3, arg1 !metadata(storage=symbolic(v3))
     v4 = add 32, 31
     v5 = lt v4, 32
-    br v5, bb3, bb4
+    jumpi v5, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -488,7 +488,7 @@ fn @setThenAlloc(arg0: calldataslice, arg1: u256) {
     v7 = and v4, v6
     v8 = add v7, 32
     v9 = lt v8, v7
-    br v9, bb5, bb6
+    jumpi v9, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

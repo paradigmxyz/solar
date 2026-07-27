@@ -1,0 +1,5 @@
+@module DeferredBlock
+
+bb0:
+  push_deferred bb1 //~ ERROR: expected integer literal
+  stop

@@ -6,7 +6,7 @@
 +     v0 = mload 0
       jump bb1
     bb1:
-      br 1, bb2, bb3
+      jumpi 1, bb2, bb3
     bb2:
 -     v0 = mload 0
       mstore 64, 1
@@ -19,7 +19,7 @@
     bb0:
       jump bb1
     bb1:
-      br 1, bb2, bb3
+      jumpi 1, bb2, bb3
     bb2:
       v0 = mload 0
       mstore 16, 1
@@ -33,7 +33,7 @@
 +     v0 = keccak256 0, 32
       jump bb1
     bb1:
-      br 1, bb2, bb3
+      jumpi 1, bb2, bb3
     bb2:
 -     v0 = keccak256 0, 32
       mstore 64, 1
@@ -46,7 +46,7 @@
     bb0:
       jump bb1
     bb1:
-      br 1, bb2, bb3
+      jumpi 1, bb2, bb3
     bb2:
       v0 = keccak256 0, 32
       mstore 16, 1

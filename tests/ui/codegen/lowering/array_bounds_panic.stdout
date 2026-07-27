@@ -5,7 +5,7 @@ fn @memFix(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -20,7 +20,7 @@ fn @memFix(arg0: u256) {
     v7 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 1
     mstore v7, 20
     v8 = lt arg0, 3
-    br v8, bb4, bb3
+    jumpi v8, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -60,7 +60,7 @@ fn @memFixConstOob() {
     mstore v2, 0
     v3 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
     mstore v3, 0
-    br 1, bb1, bb2
+    jumpi 1, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -77,7 +77,7 @@ fn @memDyn(arg0: u256, arg1: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -85,7 +85,7 @@ fn @memDyn(arg0: u256, arg1: u256) {
     v3 = mul arg0, 32
     v4 = div v3, 32
     v5 = eq v4, arg0
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -93,7 +93,7 @@ fn @memDyn(arg0: u256, arg1: u256) {
   bb4:
     v6 = add v3, 32
     v7 = lt v6, v3
-    br v7, bb5, bb6
+    jumpi v7, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -103,7 +103,7 @@ fn @memDyn(arg0: u256, arg1: u256) {
     set_memory_object_len memoryarray, v8, arg0
     v9 = memory_object_len memoryarray, v8
     v10 = lt arg1, v9
-    br v10, bb8, bb7
+    jumpi v10, bb8, bb7
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -120,14 +120,14 @@ fn @stDyn(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = lt arg0, v3
-    br v4, bb4, bb3
+    jumpi v4, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -146,13 +146,13 @@ fn @stDynWrite(arg0: u256, arg1: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = lt arg0, v3
-    br v4, bb4, bb3
+    jumpi v4, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -170,13 +170,13 @@ fn @stFix(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
     v3 = lt arg0, 3
-    br v3, bb4, bb3
+    jumpi v3, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -193,14 +193,14 @@ fn @cdDyn(arg0: calldataslice, arg1: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
     v3 = slice_len arg0
     v4 = lt arg1, v3
-    br v4, bb4, bb3
+    jumpi v4, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -219,7 +219,7 @@ fn @cdFix(arg0: u256, arg1: u256, arg2: u256, arg3: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 128
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -232,7 +232,7 @@ fn @cdFix(arg0: u256, arg1: u256, arg2: u256, arg3: u256) {
     mstore v6, arg2
     mstore 128, 0
     v7 = lt arg3, 3
-    br v7, bb4, bb3
+    jumpi v7, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -249,14 +249,14 @@ fn @cdBytes(arg0: calldataslice, arg1: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
     v3 = slice_len arg0
     v4 = lt arg1, v3
-    br v4, bb4, bb3
+    jumpi v4, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

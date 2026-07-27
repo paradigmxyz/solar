@@ -3,7 +3,7 @@
   @module Adce
   fn @removes_dead_branch_region(arg0: bool) -> u256 {
     bb0:
--     br arg0, bb1, bb2
+-     jumpi arg0, bb1, bb2
 -   bb1:
 -     v0 = add 1, 2
       jump bb3
@@ -19,7 +19,7 @@
   
   fn @keeps_effectful_branch_region(arg0: bool) -> u256 {
     bb0:
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
       mstore 0, 1
       jump bb3
@@ -31,7 +31,7 @@
   
   fn @keeps_phi_target(arg0: bool) -> u256 {
     bb0:
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
       jump bb3
     bb2:

@@ -1,0 +1,20 @@
+//@compile-flags: --pass none
+//@filecheck: --enable-var-scope
+
+@module BasicValidation
+
+// CHECK-LABEL: @linear
+// CHECK: {{^ +}}[[SUM:v[0-9]+]] = add arg0, 1
+// CHECK: {{^ +}}ret [[SUM]]
+fn @linear(arg0: u256) -> u256 {
+  bb0:
+    v0 = add arg0, 1
+    ret v0
+}
+
+// CHECK-LABEL: @empty
+// CHECK: {{^ +}}stop
+fn @empty() {
+  bb0:
+    stop
+}

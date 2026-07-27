@@ -6,9 +6,7 @@
 //! and values escaping a candidate dead block all prevent rewriting.
 
 use crate::{
-    mir::{
-        BlockId, Function, InstId, Module, Terminator, ValueId, utils::repair_reachability_phis,
-    },
+    mir::{BlockId, Function, Module, Terminator, ValueId, utils::repair_reachability_phis},
     pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
@@ -29,8 +27,8 @@ impl MirPass for Adce {
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
             let changed = AggressiveDeadCodeEliminator::new().run(func).total() != 0;
-            repair_reachability_phis(func);
-            changed
+            let repaired = repair_reachability_phis(func);
+            changed || repaired
         })
     }
 }
@@ -42,12 +40,14 @@ struct AdceStats {
     control_edges_removed: usize,
     /// Number of instructions removed by cleanup DCE after control rewrites.
     instructions_removed: usize,
+    /// Whether CFG backlinks or phi inputs were repaired.
+    reachability_repaired: bool,
 }
 
 impl AdceStats {
     /// Returns the total number of MIR edits made by this pass.
     const fn total(self) -> usize {
-        self.control_edges_removed + self.instructions_removed
+        self.control_edges_removed + self.instructions_removed + self.reachability_repaired as usize
     }
 }
 
@@ -59,7 +59,6 @@ struct AggressiveDeadCodeEliminator {
 
 #[derive(Debug)]
 struct AdceContext {
-    inst_results: FxHashMap<InstId, ValueId>,
     value_uses: FxHashMap<ValueId, DenseBitSet<BlockId>>,
 }
 
@@ -95,7 +94,7 @@ impl AggressiveDeadCodeEliminator {
                 break;
             }
             self.stats.control_edges_removed += rewrites;
-            repair_reachability_phis(func);
+            self.stats.reachability_repaired |= repair_reachability_phis(func);
         }
 
         let removed = super::dce::DeadCodeEliminator::new().run_to_fixpoint(func);
@@ -205,12 +204,12 @@ impl AggressiveDeadCodeEliminator {
         func.blocks[block_id]
             .instructions
             .iter()
-            .any(|&inst_id| func.instructions[inst_id].kind.has_side_effects())
+            .any(|&inst_id| func.inst(inst_id).kind.has_side_effects())
     }
 
     fn block_def_escapes(&self, func: &Function, ctx: &AdceContext, block_id: BlockId) -> bool {
         func.blocks[block_id].instructions.iter().any(|&inst_id| {
-            let Some(&value) = ctx.inst_results.get(&inst_id) else {
+            let Some(value) = func.inst_result_value(inst_id) else {
                 return false;
             };
             ctx.value_uses
@@ -239,16 +238,15 @@ impl AggressiveDeadCodeEliminator {
 
 impl AdceContext {
     fn new(func: &Function) -> Self {
-        let inst_results = func.inst_results();
         let value_uses = Self::value_uses(func);
-        Self { inst_results, value_uses }
+        Self { value_uses }
     }
 
     fn value_uses(func: &Function) -> FxHashMap<ValueId, DenseBitSet<BlockId>> {
         let mut uses = FxHashMap::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
-                for operand in func.instructions[inst_id].kind.operands() {
+                for operand in func.inst(inst_id).kind.operands() {
                     uses.entry(operand)
                         .or_insert_with(|| DenseBitSet::new_empty(func.blocks.len()))
                         .insert(block_id);

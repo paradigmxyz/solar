@@ -9,22 +9,54 @@ use crate::{
 use async_lsp::{ErrorCode, ResponseError};
 use crop::Rope;
 use lsp_types::{
+    CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
+    CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
     CompletionParams, CompletionResponse, DocumentChanges, DocumentDiagnosticParams,
     DocumentDiagnosticReport, DocumentDiagnosticReportResult, DocumentFormattingParams,
     DocumentHighlight, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
-    DocumentSymbolParams, DocumentSymbolResponse, FullDocumentDiagnosticReport,
-    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InlayHint, InlayHintParams,
-    OneOf, OptionalVersionedTextDocumentIdentifier, Position, PrepareRenameResponse,
-    ReferenceParams, RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport,
-    RenameParams, SelectionRange, SelectionRangeParams, SignatureHelp, SignatureHelpParams,
-    TextDocumentEdit, TextDocumentPositionParams, TextEdit, UnchangedDocumentDiagnosticReport, Url,
-    WorkspaceEdit, WorkspaceSymbolParams, WorkspaceSymbolResponse,
-    request::GotoImplementationParams,
+    DocumentSymbolParams, DocumentSymbolResponse, FoldingRange, FoldingRangeParams,
+    FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
+    InlayHint, InlayHintParams, OneOf, OptionalVersionedTextDocumentIdentifier, Position,
+    PrepareRenameResponse, ReferenceParams, RelatedFullDocumentDiagnosticReport,
+    RelatedUnchangedDocumentDiagnosticReport, RenameParams, SelectionRange, SelectionRangeParams,
+    SignatureHelp, SignatureHelpParams, TextDocumentEdit, TextDocumentPositionParams, TextEdit,
+    TypeHierarchyItem, TypeHierarchyPrepareParams, TypeHierarchySubtypesParams,
+    TypeHierarchySupertypesParams, UnchangedDocumentDiagnosticReport, Url, WorkspaceEdit,
+    WorkspaceSymbolParams, WorkspaceSymbolResponse, request::GotoImplementationParams,
 };
 use solar_interface::{data_structures::sync::RwLock, source_map::SourceMap};
 use solar_parse::lexer::is_ident;
 use std::{collections::HashMap, future::ready, io, path::Path, sync::Arc};
 use tracing::warn;
+
+pub(crate) fn folding_range(
+    state: &mut GlobalState,
+    params: FoldingRangeParams,
+) -> impl Future<Output = Result<Option<Vec<FoldingRange>>, ResponseError>> + use<> {
+    let vfs = state.vfs.clone();
+    let request = params
+        .text_document
+        .uri
+        .to_file_path()
+        .ok()
+        .map(|path| (VfsPath::from(path.clone()), path));
+
+    async move {
+        let Some((vfs_path, path)) = request else { return Ok(None) };
+        let source = match document_contents(&vfs, &vfs_path, &path).await {
+            Ok(source) => source,
+            Err(error) => {
+                warn!(%error, "failed to read document");
+                return Ok(None);
+            }
+        };
+        let ranges =
+            tokio::task::spawn_blocking(move || crate::folding_range::folding_ranges(source))
+                .await
+                .map_err(folding_range_task_failed)?;
+        Ok(Some(ranges))
+    }
+}
 
 pub(crate) fn selection_range(
     state: &mut GlobalState,
@@ -131,6 +163,11 @@ fn rope_to_string(contents: &Rope) -> String {
 fn document_read_failed(error: io::Error) -> ResponseError {
     warn!(%error, "failed to read document");
     request_failed("failed to read document")
+}
+
+fn folding_range_task_failed(error: tokio::task::JoinError) -> ResponseError {
+    warn!(%error, "folding-range task failed");
+    ResponseError::new(ErrorCode::INTERNAL_ERROR, "folding-range task failed")
 }
 
 fn selection_range_task_failed(error: tokio::task::JoinError) -> ResponseError {
@@ -279,6 +316,47 @@ pub(crate) fn workspace_symbol(
     ready(Ok(Some(WorkspaceSymbolResponse::Nested(symbols))))
 }
 
+pub(crate) fn prepare_type_hierarchy(
+    state: &mut GlobalState,
+    params: TypeHierarchyPrepareParams,
+) -> impl Future<Output = Result<Option<Vec<TypeHierarchyItem>>, ResponseError>> + use<> {
+    let params = params.text_document_position_params;
+    let uri = params.text_document.uri;
+    let latest_analysis = latest_analysis_for_uri(state, &uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response = symbol_tables.read().prepare_type_hierarchy(&uri, params.position);
+        Ok(response)
+    }
+}
+
+pub(crate) fn type_hierarchy_supertypes(
+    state: &mut GlobalState,
+    params: TypeHierarchySupertypesParams,
+) -> impl Future<Output = Result<Option<Vec<TypeHierarchyItem>>, ResponseError>> + use<> {
+    let latest_analysis = latest_analysis_for_uri(state, &params.item.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response = symbol_tables.read().type_hierarchy_supertypes(&params.item);
+        Ok(response)
+    }
+}
+
+pub(crate) fn type_hierarchy_subtypes(
+    state: &mut GlobalState,
+    params: TypeHierarchySubtypesParams,
+) -> impl Future<Output = Result<Option<Vec<TypeHierarchyItem>>, ResponseError>> + use<> {
+    let latest_analysis = latest_analysis_for_uri(state, &params.item.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response = symbol_tables.read().type_hierarchy_subtypes(&params.item);
+        Ok(response)
+    }
+}
+
 pub(crate) fn goto_definition(
     state: &mut GlobalState,
     params: GotoDefinitionParams,
@@ -335,6 +413,49 @@ pub(crate) fn goto_implementation(
         let symbol_tables = latest_analysis.await?;
         let response =
             symbol_tables.read().goto_implementation(&params.text_document.uri, params.position);
+        Ok(response)
+    }
+}
+
+pub(crate) fn prepare_call_hierarchy(
+    state: &mut GlobalState,
+    params: CallHierarchyPrepareParams,
+) -> impl Future<Output = Result<Option<Vec<CallHierarchyItem>>, ResponseError>> + use<> {
+    let params = params.text_document_position_params;
+    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response =
+            symbol_tables.read().prepare_call_hierarchy(&params.text_document.uri, params.position);
+        Ok(response)
+    }
+}
+
+pub(crate) fn call_hierarchy_incoming(
+    state: &mut GlobalState,
+    params: CallHierarchyIncomingCallsParams,
+) -> impl Future<Output = Result<Option<Vec<CallHierarchyIncomingCall>>, ResponseError>> + use<> {
+    let item = params.item;
+    let latest_analysis = latest_analysis_for_uri(state, &item.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response = symbol_tables.read().call_hierarchy_incoming(&item);
+        Ok(response)
+    }
+}
+
+pub(crate) fn call_hierarchy_outgoing(
+    state: &mut GlobalState,
+    params: CallHierarchyOutgoingCallsParams,
+) -> impl Future<Output = Result<Option<Vec<CallHierarchyOutgoingCall>>, ResponseError>> + use<> {
+    let item = params.item;
+    let latest_analysis = latest_analysis_for_uri(state, &item.uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let response = symbol_tables.read().call_hierarchy_outgoing(&item);
         Ok(response)
     }
 }

@@ -1,6 +1,20 @@
 //@compile-flags: --pass outline
+//@filecheck:
 @module module
 
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: + push [[RET0:bb[0-9]+]]
+// CHECK: + jump [[OUTLINE:bb[0-9]+]]
+// CHECK: + [[OUTLINE]]:
+// CHECK: {{^[ +].*}}push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// CHECK: + swap1
+// CHECK: + jump
+// CHECK: + [[RET1:bb[0-9]+]]:
+// CHECK: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}stop
+// CHECK: + [[RET0]]:
+// CHECK: + push [[RET1]]
+// CHECK: + jump [[OUTLINE]]
 bb0:
   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   pop

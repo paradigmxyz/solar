@@ -12,7 +12,7 @@
 -     v2 = mload v1
 -     v3 = lt v2, arg0
 +     v3 = lt v10, arg0
-      br v3, bb2, bb3
+      jumpi v3, bb2, bb3
     bb2:
       v4 = internal_frame_addr 128
 -     v5 = mload v4
@@ -39,7 +39,7 @@
       v10 = phi [bb0: 0], [bb2: v6]
 -     v1 = internal_frame_addr 128
       v3 = lt v10, arg0
-      br v3, bb2, bb3
+      jumpi v3, bb2, bb3
     bb2:
 -     v4 = internal_frame_addr 128
       v6 = add v10, 1

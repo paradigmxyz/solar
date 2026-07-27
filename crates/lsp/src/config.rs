@@ -5,12 +5,13 @@ use crate::{
     workspace::{Workspace, WorkspacePathIndex, manifest::ProjectManifest},
 };
 use lsp_types::{
-    CompletionOptions, DeclarationCapability, DiagnosticOptions, DiagnosticServerCapabilities,
-    DocumentLinkOptions, ExecuteCommandOptions, HoverProviderCapability,
-    ImplementationProviderCapability, InitializeParams, OneOf, RenameOptions, SaveOptions,
-    SelectionRangeProviderCapability, ServerCapabilities, SignatureHelpOptions,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-    TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WorkDoneProgressOptions,
+    CallHierarchyServerCapability, CompletionOptions, DeclarationCapability, DiagnosticOptions,
+    DiagnosticServerCapabilities, DocumentLinkOptions, ExecuteCommandOptions,
+    FoldingRangeProviderCapability, HoverProviderCapability, ImplementationProviderCapability,
+    InitializeParams, OneOf, RenameOptions, SaveOptions, SelectionRangeProviderCapability,
+    ServerCapabilities, SignatureHelpOptions, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextDocumentSyncOptions, TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability,
+    WorkDoneProgressOptions,
 };
 use solar_interface::data_structures::map::FxHashSet;
 use std::{
@@ -32,6 +33,7 @@ pub(crate) struct Config {
     flychecks: Vec<FlycheckConfig>,
     watched_file_dynamic_registration: bool,
     workspace_edit_document_changes: bool,
+    work_done_progress: bool,
     hierarchical_document_symbol_support: bool,
     completion: CompletionClientOptions,
     signature_help: SignatureHelpClientOptions,
@@ -56,6 +58,10 @@ impl Config {
 
     pub(crate) fn supports_workspace_edit_document_changes(&self) -> bool {
         self.workspace_edit_document_changes
+    }
+
+    pub(crate) fn supports_work_done_progress(&self) -> bool {
+        self.work_done_progress
     }
 
     pub(crate) fn supports_hierarchical_document_symbols(&self) -> bool {
@@ -221,6 +227,8 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
         .and_then(|workspace| workspace.workspace_edit.as_ref())
         .and_then(|capabilities| capabilities.document_changes)
         .unwrap_or(false);
+    let work_done_progress =
+        capabilities.window.as_ref().and_then(|window| window.work_done_progress).unwrap_or(false);
     let hierarchical_document_symbol_support = capabilities
         .text_document
         .as_ref()
@@ -279,6 +287,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             implementation_provider: Some(ImplementationProviderCapability::Simple(true)),
             type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(true)),
             document_formatting_provider: Some(OneOf::Left(true)),
+            folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
             diagnostic_provider: Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
                 identifier: None,
                 inter_file_dependencies: true,
@@ -298,6 +307,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             hover_provider: Some(HoverProviderCapability::Simple(true)),
             inlay_hint_provider: Some(OneOf::Left(true)),
             references_provider: Some(OneOf::Left(true)),
+            call_hierarchy_provider: Some(CallHierarchyServerCapability::Simple(true)),
             selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
             rename_provider: Some(OneOf::Right(RenameOptions {
                 prepare_provider: Some(true),
@@ -327,6 +337,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             flycheck_options,
             watched_file_dynamic_registration,
             workspace_edit_document_changes,
+            work_done_progress,
             hierarchical_document_symbol_support,
             completion,
             signature_help,
@@ -340,13 +351,32 @@ mod tests {
     use super::*;
     use crate::{test_support::TestProject, workspace::WorkspaceKind};
     use lsp_types::{
-        CompletionClientCapabilities, CompletionItemCapability,
+        CallHierarchyServerCapability, CompletionClientCapabilities, CompletionItemCapability,
         DidChangeWatchedFilesClientCapabilities, DocumentSymbolClientCapabilities, MarkupKind,
         OneOf, ParameterInformationSettings, RenameOptions, SignatureHelpClientCapabilities,
         SignatureInformationSettings, TextDocumentClientCapabilities, TextDocumentSyncCapability,
-        TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WorkspaceClientCapabilities,
-        WorkspaceEditClientCapabilities,
+        TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WindowClientCapabilities,
+        WorkspaceClientCapabilities, WorkspaceEditClientCapabilities,
     };
+
+    #[test]
+    fn negotiate_capabilities_records_work_done_progress_support() {
+        let (_, config) = negotiate_capabilities(InitializeParams::default());
+        assert!(!config.supports_work_done_progress());
+
+        let mut params = InitializeParams::default();
+        params.capabilities.window = Some(WindowClientCapabilities {
+            work_done_progress: Some(false),
+            ..Default::default()
+        });
+        let (_, config) = negotiate_capabilities(params.clone());
+        assert!(!config.supports_work_done_progress());
+
+        params.capabilities.window.as_mut().unwrap().work_done_progress = Some(true);
+        let (_, config) = negotiate_capabilities(params);
+        assert!(config.supports_work_done_progress());
+    }
+
     #[test]
     fn negotiate_capabilities_records_watched_file_dynamic_registration_support() {
         let (_, config) = negotiate_capabilities(InitializeParams::default());
@@ -405,6 +435,10 @@ mod tests {
             Some(TypeDefinitionProviderCapability::Simple(true))
         );
         assert_eq!(capabilities.document_formatting_provider, Some(OneOf::Left(true)));
+        assert_eq!(
+            capabilities.folding_range_provider,
+            Some(FoldingRangeProviderCapability::Simple(true))
+        );
         assert_eq!(capabilities.document_symbol_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.hover_provider, Some(HoverProviderCapability::Simple(true)));
         let document_link_provider = capabilities.document_link_provider.unwrap();
@@ -412,6 +446,10 @@ mod tests {
         assert_eq!(capabilities.inlay_hint_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.document_highlight_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.references_provider, Some(OneOf::Left(true)));
+        assert_eq!(
+            capabilities.call_hierarchy_provider,
+            Some(CallHierarchyServerCapability::Simple(true))
+        );
         assert_eq!(
             capabilities.selection_range_provider,
             Some(SelectionRangeProviderCapability::Simple(true))

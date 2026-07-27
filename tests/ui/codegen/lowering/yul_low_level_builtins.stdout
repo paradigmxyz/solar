@@ -5,21 +5,21 @@ fn @safeCall(arg0: address, arg1: bytes4) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 64
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v3 = calldataload 4
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = eq v3, v4
-    br v5, bb4, bb3
+    jumpi v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
     v6 = calldataload 36
     v7 = and v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v8 = eq v6, v7
-    br v8, bb6, bb5
+    jumpi v8, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
@@ -36,7 +36,7 @@ fn @safeCall(arg0: address, arg1: bytes4) {
     v16 = iszero v15
     v17 = eq v16, 0
     v18 = iszero v17
-    br v18, bb7, bb8
+    jumpi v18, bb7, bb8
   bb7:
     v19 = returndatasize
     returndatacopy v9, 0, v19

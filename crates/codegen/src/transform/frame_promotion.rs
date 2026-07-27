@@ -16,8 +16,7 @@ use crate::{
     analysis::{AliasAnalysis, CfgInfo, LocationSize, MemoryAddress, MemoryLocation},
     memory::EvmMemoryLayout,
     mir::{
-        BlockId, Function, InstId, InstKind, Instruction, MirType, Module, Terminator, Value,
-        ValueId,
+        BlockId, Function, InstId, InstKind, Instruction, MirType, Module, Terminator, ValueId,
         utils::{self as mir_utils, repair_reachability_phis},
     },
     pass::{MirPass, run_function_pass},
@@ -44,8 +43,8 @@ impl MirPass for FrameSlotPromotion {
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
             let changed = FrameSlotPromoter::new().run(func).total() != 0;
-            repair_reachability_phis(func);
-            changed
+            let repaired = repair_reachability_phis(func);
+            changed || repaired
         })
     }
 }
@@ -187,7 +186,6 @@ struct PendingPhi {
 struct SlotSsaBuilder<'a> {
     info: &'a SlotAccessInfo,
     cfg: &'a CfgInfo,
-    inst_results: &'a FxHashMap<InstId, ValueId>,
     aa: &'a AliasAnalysis,
     replacements: FxHashMap<ValueId, ValueId>,
     dead: GrowableBitSet<InstId>,
@@ -231,9 +229,7 @@ impl FrameSlotPromoter {
         };
 
         for info in slots {
-            let inst_results = func.inst_results();
-            let mut builder =
-                SlotSsaBuilder::new(&info, &cfg, &inst_results, &aa, func.instructions.len());
+            let mut builder = SlotSsaBuilder::new(&info, &cfg, &aa, func.num_insts());
             if builder.run(func) {
                 self.stats.slots_promoted += 1;
                 self.stats.loads_promoted += builder.loads_promoted;
@@ -249,11 +245,8 @@ impl FrameSlotPromoter {
     }
 
     fn has_global_observation_barrier(func: &Function) -> bool {
-        func.blocks.iter().any(|block| {
-            block.instructions.iter().any(|&inst_id| {
-                matches!(func.instructions[inst_id].kind, InstKind::Gas | InstKind::MSize)
-            })
-        })
+        func.instructions()
+            .any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::Gas | InstKind::MSize))
     }
 
     fn collect_promotable_slots(
@@ -269,7 +262,7 @@ impl FrameSlotPromoter {
             }
 
             for &inst_id in &block.instructions {
-                let kind = &func.instructions[inst_id].kind;
+                let kind = &func.inst(inst_id).kind;
                 match *kind {
                     InstKind::MLoad(addr) => {
                         if let Some(slot) = Self::promotable_slot(func, aa, addr) {
@@ -365,7 +358,7 @@ impl FrameSlotPromoter {
                 if Self::inst_may_observe_external_slot(
                     func,
                     aa,
-                    &func.instructions[inst_id].kind,
+                    &func.inst(inst_id).kind,
                     slot_addr,
                 ) {
                     return false;
@@ -387,7 +380,7 @@ impl FrameSlotPromoter {
                 if Self::inst_may_observe_internal_slot(
                     func,
                     aa,
-                    &func.instructions[inst_id].kind,
+                    &func.inst(inst_id).kind,
                     slot_offset,
                 ) {
                     return false;
@@ -651,14 +644,12 @@ impl<'a> SlotSsaBuilder<'a> {
     fn new(
         info: &'a SlotAccessInfo,
         cfg: &'a CfgInfo,
-        inst_results: &'a FxHashMap<InstId, ValueId>,
         aa: &'a AliasAnalysis,
         instruction_count: usize,
     ) -> Self {
         Self {
             info,
             cfg,
-            inst_results,
             aa,
             replacements: FxHashMap::default(),
             dead: GrowableBitSet::with_capacity(instruction_count),
@@ -710,7 +701,7 @@ impl<'a> SlotSsaBuilder<'a> {
 
             let mut saw_store = false;
             for &inst_id in &func.blocks[block].instructions {
-                match func.instructions[inst_id].kind {
+                match func.inst(inst_id).kind {
                     InstKind::MLoad(addr)
                         if !saw_store
                             && FrameSlotPromoter::promotable_slot(func, self.aa, addr)
@@ -836,11 +827,11 @@ impl<'a> SlotSsaBuilder<'a> {
         for pending in self.phis.values() {
             let mut incoming = pending.incoming.clone();
             incoming.sort_by_key(|(block, _)| block.index());
-            func.instructions[pending.inst].kind = InstKind::Phi(incoming);
+            func.inst_mut(pending.inst).kind = InstKind::Phi(incoming);
             let insert_pos = func.blocks[pending.block]
                 .instructions
                 .iter()
-                .take_while(|&&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+                .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
                 .count();
             func.blocks[pending.block].instructions.insert(insert_pos, pending.inst);
         }
@@ -865,13 +856,13 @@ impl<'a> SlotSsaBuilder<'a> {
         let mut current = None;
         let mut changed = false;
         for &inst_id in &func.blocks[block].instructions {
-            match func.instructions[inst_id].kind {
+            match func.inst(inst_id).kind {
                 InstKind::MLoad(addr)
                     if FrameSlotPromoter::promotable_slot(func, self.aa, addr)
                         == Some(self.info.slot) =>
                 {
                     let Some(value) = current else { return false };
-                    self.replace_load(inst_id, value);
+                    self.replace_load(func, inst_id, value);
                     changed = true;
                 }
                 InstKind::MStore(addr, value)
@@ -911,7 +902,7 @@ impl<'a> SlotSsaBuilder<'a> {
         }
 
         for load in &self.info.loads {
-            self.replace_load(load.inst, stored_value);
+            self.replace_load(func, load.inst, stored_value);
         }
         self.remove_store(store.inst);
         true
@@ -921,8 +912,8 @@ impl<'a> SlotSsaBuilder<'a> {
         func.blocks[block].instructions.iter().position(|&candidate| candidate == inst)
     }
 
-    fn replace_load(&mut self, inst_id: InstId, value: ValueId) {
-        if let Some(&load_value) = self.inst_results.get(&inst_id) {
+    fn replace_load(&mut self, func: &Function, inst_id: InstId, value: ValueId) {
+        if let Some(load_value) = func.inst_result_value(inst_id) {
             self.replacements
                 .insert(load_value, mir_utils::resolve_replacement(value, &self.replacements));
             self.dead.insert(inst_id);
@@ -946,7 +937,7 @@ impl<'a> SlotSsaBuilder<'a> {
         let instruction_count = func.blocks[block].instructions.len();
         for index in 0..instruction_count {
             let inst_id = func.blocks[block].instructions[index];
-            match func.instructions[inst_id].kind {
+            match func.inst(inst_id).kind {
                 InstKind::MLoad(addr)
                     if FrameSlotPromoter::promotable_slot(func, self.aa, addr)
                         == Some(self.info.slot) =>
@@ -955,7 +946,7 @@ impl<'a> SlotSsaBuilder<'a> {
                         self.failed = true;
                         return;
                     };
-                    self.replace_load(inst_id, value);
+                    self.replace_load(func, inst_id, value);
                 }
                 InstKind::MStore(addr, value)
                     if FrameSlotPromoter::promotable_slot(func, self.aa, addr)
@@ -990,9 +981,10 @@ impl<'a> SlotSsaBuilder<'a> {
             return pending.value;
         }
 
-        let inst =
-            func.alloc_inst(Instruction::new(InstKind::Phi(Vec::new()), Some(MirType::uint256())));
-        let value = func.alloc_value(Value::Inst(inst));
+        let (inst, value) = func.alloc_value_inst(Instruction::new(
+            InstKind::Phi(Vec::new()),
+            Some(MirType::uint256()),
+        ));
         self.phis.insert(
             block,
             PendingPhi {
@@ -1003,170 +995,5 @@ impl<'a> SlotSsaBuilder<'a> {
             },
         );
         value
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::{FunctionBuilder, FunctionId};
-    use solar_interface::Ident;
-
-    fn test_func() -> Function {
-        Function::new(Ident::DUMMY)
-    }
-
-    fn count_active_frame_ops(func: &Function, offset: u64) -> (usize, usize) {
-        let mut loads = 0;
-        let mut stores = 0;
-        let aa = AliasAnalysis::new(func);
-
-        for block in func.blocks.iter() {
-            for &inst_id in &block.instructions {
-                match func.instructions[inst_id].kind {
-                    InstKind::MLoad(addr)
-                        if FrameSlotPromoter::internal_frame_offset(func, &aa, addr)
-                            == Some(offset) =>
-                    {
-                        loads += 1;
-                    }
-                    InstKind::MStore(addr, _)
-                        if FrameSlotPromoter::internal_frame_offset(func, &aa, addr)
-                            == Some(offset) =>
-                    {
-                        stores += 1;
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        (loads, stores)
-    }
-
-    #[test]
-    fn promotes_loop_carried_frame_slot() {
-        let mut func = test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-        let header = builder.create_block();
-        let body = builder.create_block();
-        let exit = builder.create_block();
-
-        let frame = builder.internal_frame_addr(128);
-        let zero = builder.imm_u64(0);
-        let limit = builder.imm_u64(4);
-        builder.mstore(frame, zero);
-        builder.jump(header);
-
-        builder.switch_to_block(header);
-        let header_frame = builder.internal_frame_addr(128);
-        let i = builder.mload(header_frame);
-        let cond = builder.lt(i, limit);
-        builder.branch(cond, body, exit);
-
-        builder.switch_to_block(body);
-        let body_frame = builder.internal_frame_addr(128);
-        let current = builder.mload(body_frame);
-        let one = builder.imm_u64(1);
-        let next = builder.add(current, one);
-        let body_frame = builder.internal_frame_addr(128);
-        builder.mstore(body_frame, next);
-        builder.jump(header);
-
-        builder.switch_to_block(exit);
-        let exit_frame = builder.internal_frame_addr(128);
-        let result = builder.mload(exit_frame);
-        builder.ret([result]);
-
-        let mut pass = FrameSlotPromoter::new();
-        let stats = pass.run(&mut func);
-
-        assert_eq!(stats.slots_promoted, 1);
-        assert_eq!(stats.loads_promoted, 3);
-        assert_eq!(stats.stores_promoted, 2);
-        assert_eq!(stats.phis_inserted, 1);
-        assert_eq!(count_active_frame_ops(&func, 128), (0, 0));
-
-        let Some(Terminator::Return { values }) = &func.blocks[exit].terminator else {
-            panic!("expected return");
-        };
-        assert_ne!(values.as_slice(), &[result]);
-    }
-
-    #[test]
-    fn skips_escaped_frame_address() {
-        let mut func = test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-        let frame = builder.internal_frame_addr(128);
-        let value = builder.imm_u64(42);
-        let size = builder.imm_u64(32);
-        builder.mstore(frame, value);
-        let hash = builder.keccak256(frame, size);
-        let loaded = builder.mload(frame);
-        builder.ret([hash, loaded]);
-
-        let mut pass = FrameSlotPromoter::new();
-        let stats = pass.run(&mut func);
-
-        assert_eq!(stats.total(), 0);
-        assert_eq!(count_active_frame_ops(&func, 128), (1, 1));
-    }
-
-    #[test]
-    fn skips_gas_observed_functions() {
-        let mut func = test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-        let frame = builder.internal_frame_addr(128);
-        let value = builder.imm_u64(42);
-        builder.mstore(frame, value);
-        builder.gas();
-        let loaded = builder.mload(frame);
-        builder.ret([loaded]);
-
-        let mut pass = FrameSlotPromoter::new();
-        let stats = pass.run(&mut func);
-
-        assert_eq!(stats.total(), 0);
-        assert_eq!(count_active_frame_ops(&func, 128), (1, 1));
-    }
-
-    #[test]
-    fn promotes_across_internal_calls() {
-        let mut func = test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-        let frame = builder.internal_frame_addr(128);
-        let value = builder.imm_u64(42);
-        builder.mstore(frame, value);
-        builder.internal_call_void(FunctionId::from_usize(0), Vec::new(), 0);
-        let loaded = builder.mload(frame);
-        builder.ret([loaded]);
-
-        let mut pass = FrameSlotPromoter::new();
-        let stats = pass.run(&mut func);
-
-        assert_eq!(stats.slots_promoted, 1);
-        assert_eq!(count_active_frame_ops(&func, 128), (0, 0));
-    }
-
-    #[test]
-    fn promotes_frame_address_with_constant_offset() {
-        let mut func = test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-        let base = builder.internal_frame_addr(128);
-        let offset = builder.imm_u64(32);
-        let addr = builder.add(base, offset);
-        let value = builder.imm_u64(99);
-        builder.mstore(addr, value);
-        let base = builder.internal_frame_addr(128);
-        let offset = builder.imm_u64(32);
-        let addr = builder.add(base, offset);
-        let loaded = builder.mload(addr);
-        builder.ret([loaded]);
-
-        let mut pass = FrameSlotPromoter::new();
-        let stats = pass.run(&mut func);
-
-        assert_eq!(stats.slots_promoted, 1);
-        assert_eq!(count_active_frame_ops(&func, 160), (0, 0));
     }
 }

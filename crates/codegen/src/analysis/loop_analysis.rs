@@ -129,7 +129,7 @@ impl LoopAnalyzer {
                             exit_blocks: SmallVec::new(),
                             preheader: None,
                             induction_vars: Vec::new(),
-                            invariant_insts: DenseBitSet::new_empty(func.instructions.len()),
+                            invariant_insts: DenseBitSet::new_empty(func.num_insts()),
                             trip_count: None,
                             trip_guard_is_header: false,
                         });
@@ -197,7 +197,7 @@ impl LoopAnalyzer {
 
     fn analyze_induction_vars(&self, func: &Function, loop_info: &mut Loop) {
         for &inst_id in &func.blocks[loop_info.header].instructions {
-            let inst = &func.instructions[inst_id];
+            let inst = func.inst(inst_id);
 
             if let InstKind::Phi(incoming) = &inst.kind {
                 let mut init_value: Option<ValueId> = None;
@@ -227,7 +227,7 @@ impl LoopAnalyzer {
                 }
 
                 if let (Some(init), Some(step_val)) = (init_value, step_value) {
-                    let phi_value = self.find_result_value(func, inst_id);
+                    let phi_value = func.inst_result_value(inst_id);
                     if let Some(phi_val) = phi_value
                         && let Some(update_inst) =
                             self.find_update_instruction(func, phi_val, step_val)
@@ -254,7 +254,7 @@ impl LoopAnalyzer {
         step_val: ValueId,
     ) -> Option<InstId> {
         if let Value::Inst(inst_id) = &func.values[step_val] {
-            let inst = &func.instructions[*inst_id];
+            let inst = func.inst(*inst_id);
             match &inst.kind {
                 InstKind::Add(a, b) if *a == phi_val || *b == phi_val => return Some(*inst_id),
                 InstKind::Sub(a, _) if *a == phi_val => return Some(*inst_id),
@@ -271,7 +271,7 @@ impl LoopAnalyzer {
         inst_id: InstId,
         phi_val: ValueId,
     ) -> Option<(ValueId, bool)> {
-        let inst = &func.instructions[inst_id];
+        let inst = func.inst(inst_id);
         match &inst.kind {
             InstKind::Add(a, b) => {
                 let step = if *a == phi_val { *b } else { *a };
@@ -315,7 +315,7 @@ impl LoopAnalyzer {
             changed = false;
             for block_id in &loop_info.blocks {
                 for &inst_id in &func.blocks[block_id].instructions {
-                    let inst = &func.instructions[inst_id];
+                    let inst = func.inst(inst_id);
 
                     if loop_info.invariant_insts.contains(inst_id) {
                         continue;
@@ -330,7 +330,7 @@ impl LoopAnalyzer {
                     let operands = inst.kind.operands();
                     if operands.iter().all(|&op| invariant_values.contains(op)) {
                         loop_info.invariant_insts.insert(inst_id);
-                        if let Some(result) = self.find_result_value(func, inst_id) {
+                        if let Some(result) = func.inst_result_value(inst_id) {
                             invariant_values.insert(result);
                         }
                         changed = true;
@@ -418,7 +418,7 @@ impl LoopAnalyzer {
                 continue;
             }
             let Value::Inst(cond_inst) = &func.values[*condition] else { continue };
-            let imm = match &func.instructions[*cond_inst].kind {
+            let imm = match &func.inst(*cond_inst).kind {
                 InstKind::Lt(a, b) if *a == iv_value => *b,
                 InstKind::Gt(a, b) if *b == iv_value => *a,
                 _ => continue,
@@ -436,17 +436,6 @@ impl LoopAnalyzer {
             }
         }
         bound
-    }
-
-    fn find_result_value(&self, func: &Function, inst_id: InstId) -> Option<ValueId> {
-        for (value_id, value) in func.values.iter_enumerated() {
-            if let Value::Inst(id) = value
-                && *id == inst_id
-            {
-                return Some(value_id);
-            }
-        }
-        None
     }
 }
 

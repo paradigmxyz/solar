@@ -4,10 +4,10 @@
   fn @fold_const_len_check(arg0: u256) -> u256 {
     bb0:
       v0 = lt arg0, 3
-      br v0, bb1, bb4
+      jumpi v0, bb1, bb4
     bb1:
       v1 = lt arg0, 3
--     br v1, bb3, bb2
+-     jumpi v1, bb3, bb2
 +     jump bb3
     bb2:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
@@ -25,10 +25,10 @@
     bb0:
       v0 = sload 0
       v1 = lt arg0, v0
-      br v1, bb1, bb4
+      jumpi v1, bb1, bb4
     bb1:
       v2 = lt arg0, v0
--     br v2, bb3, bb2
+-     jumpi v2, bb3, bb2
 +     jump bb3
     bb2:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
@@ -45,10 +45,10 @@
   fn @keep_weaker_guard(arg0: u256) -> u256 {
     bb0:
       v0 = lt arg0, 5
-      br v0, bb1, bb4
+      jumpi v0, bb1, bb4
     bb1:
       v1 = lt arg0, 3
-      br v1, bb3, bb2
+      jumpi v1, bb3, bb2
     bb2:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 50

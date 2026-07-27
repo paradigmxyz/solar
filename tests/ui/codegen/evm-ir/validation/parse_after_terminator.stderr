@@ -1,0 +1,8 @@
+error: instruction after terminator in block `bb0`
+   ╭▸ ROOT/tests/ui/codegen/evm-ir/validation/parse_after_terminator.evmir:LL:CC
+   │
+LL │   invalid
+   ╰╴  ━━━━━━━
+
+error: aborting due to 1 previous error
+

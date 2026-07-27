@@ -1,22 +1,29 @@
 //@compile-flags: --pipeline-default
+//@filecheck:
 @module CheckElimPipelineRequireSub
 
 // Exact lowering of `require(b <= a); return a - b;`. Through the full
 // default pipeline the require guard must fold the subtraction's
 // Panic(0x11) underflow branch.
+// CHECK-LABEL: fn @guarded{{[( ]}}
+// CHECK-NOT: {{mstore 4, 17|revert 0, 36}}
+// CHECK: [[SUB:v[0-9]+]] = sub arg0, arg1
+// CHECK-NOT: {{mstore 4, 17|revert 0, 36}}
+// CHECK: mstore 128, [[SUB]]
+// CHECK-NOT: {{mstore 4, 17|revert 0, 36}}
 fn @guarded(arg0: u256, arg1: u256) {
   bb0:
     mstore 128, 0
     v5 = gt arg1, arg0
     v6 = iszero v5
     v7 = iszero v6
-    br v7, bb1, bb2
+    jumpi v7, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     v10 = sub arg0, arg1
     v11 = lt arg0, arg1
-    br v11, bb3, bb4
+    jumpi v11, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -28,12 +35,18 @@ fn @guarded(arg0: u256, arg1: u256) {
 
 // Negative control: without the require, the underflow check must survive
 // the full pipeline.
+// CHECK-LABEL: fn @unguarded{{[( ]}}
+// CHECK: [[SUB:v[0-9]+]] = sub arg0, arg1
+// CHECK: [[UNDERFLOW:v[0-9]+]] = lt arg0, arg1
+// CHECK: jumpi [[UNDERFLOW]], bb1, bb2
+// CHECK: mstore 4, 17 !metadata(memory=scratch)
+// CHECK: revert 0, 36
 fn @unguarded(arg0: u256, arg1: u256) {
   bb0:
     mstore 128, 0
     v5 = sub arg0, arg1
     v6 = lt arg0, arg1
-    br v6, bb1, bb2
+    jumpi v6, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

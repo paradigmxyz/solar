@@ -1,6 +1,11 @@
 //@compile-flags: --pass inline
+//@filecheck:
 @module InlineV2Profitability
 
+// CHECK-LABEL: {{^[ +].*}}fn @single_large_caller{{[( ]}}
+// CHECK: - {{.*}}internal_call @single_large_callee
+// CHECK: + {{v[0-9]+}} = phi [bb13: [[INLINED:v[0-9]+]]]
+// CHECK: + [[INLINED]] = add arg0, 1
 fn @single_large_caller(arg0: u256) -> u256 {
   bb0:
     v1 = internal_call fn1, 1, arg0
@@ -37,6 +42,10 @@ fn @single_large_callee(arg0: u256) -> u256 {
     ret v1
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @multi_return_caller{{[( ]}}
+// CHECK: - {{.*}}internal_call @multi_return_callee
+// CHECK: + {{v[0-9]+}} = phi [bb2: {{v[0-9]+}}]
+// CHECK: + {{v[0-9]+}} = phi [bb2: {{v[0-9]+}}]
 fn @multi_return_caller(arg0: u256) -> u256 {
   bb0:
     v1 = internal_call fn3, 2, arg0
@@ -52,6 +61,10 @@ fn @multi_return_callee(arg0: u256) -> (u256, u256) {
     ret v1, v2
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @tiny_stateful_caller{{[( ]}}
+// CHECK: - {{.*}}internal_call @tiny_stateful_callee
+// CHECK: + sstore 0, arg0
+// CHECK: + sstore 0, arg1
 fn @tiny_stateful_caller(arg0: u256, arg1: u256) {
   bb0:
     internal_call fn5, 0, arg0

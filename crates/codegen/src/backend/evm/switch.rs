@@ -139,6 +139,7 @@ pub(super) fn select_switch_plan(
 }
 
 /// Selects a switch shape within the remaining artifact-wide gas-mode growth budget.
+#[cfg(test)]
 pub(super) fn select_switch_plan_with_budget(
     values: &[U256],
     optimization: OptimizationMode,

@@ -16,7 +16,7 @@ use super::{
     },
     switch::{
         MAX_GAS_CODE_GROWTH, SwitchDefault, SwitchPlan, SwitchSelection, bucket_index,
-        select_switch_plan_with_budget, select_switch_plan_with_linear_values_and_budget,
+        select_switch_plan_with_linear_values_and_budget,
     },
 };
 use crate::{
@@ -25,7 +25,7 @@ use crate::{
         PhiEliminator,
     },
     memory::EvmMemoryLayout,
-    mir::{BlockId, Function, FunctionId, InstId, InstKind, Module, Terminator, ValueId},
+    mir::{BlockId, Function, FunctionId, InstId, InstKind, MirPhase, Module, Terminator, ValueId},
     pass::run_default_pipeline,
 };
 use alloy_primitives::U256;
@@ -34,8 +34,8 @@ use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
 };
-use solar_interface::{Span, sym};
-use solar_sema::{Gcx, hir::StateMutability};
+use solar_interface::sym;
+use solar_sema::Gcx;
 
 const STACK_PHI_LAYOUT_LIMIT: usize = 8;
 const GLOBAL_STACK_LAYOUT_LIMIT: usize = 8;
@@ -93,12 +93,6 @@ struct StackArgRetentionPlan {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct SelectorDispatchEntry {
-    selector: u32,
-    label: Label,
-}
-
-#[derive(Clone, Copy, Debug)]
 struct MirSwitchEntry {
     value: U256,
     value_id: ValueId,
@@ -109,7 +103,7 @@ struct MirSwitchEntry {
 struct StackPhiPlan {
     entries: FxHashMap<BlockId, Vec<ValueId>>,
     edges: FxHashMap<BlockId, StackPhiEdge>,
-    edge_sources: FxHashMap<BlockId, DenseBitSet<ValueId>>,
+    edge_sources: FxHashMap<BlockId, Vec<ValueId>>,
 }
 
 #[derive(Clone, Debug)]
@@ -158,7 +152,7 @@ impl GlobalStackPlan {
         let mut aliases = FxHashMap::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
-                let InstKind::CalldataLoad(offset) = &func.instructions[inst_id].kind else {
+                let InstKind::CalldataLoad(offset) = &func.inst(inst_id).kind else {
                     continue;
                 };
                 let Some(offset) = func.value_u64(*offset) else {
@@ -237,7 +231,7 @@ impl GlobalStackPlan {
             }
         }
 
-        // Switch lowering owns the selector stack, and stack-phi loop headers
+        // Switch lowering owns the selector stack, and stack-phi entries
         // own their edge layouts. Disable their whole branch-sibling component
         // so every predecessor of every affected block still agrees.
         let mut disabled = DenseBitSet::new_empty(func.blocks.len());
@@ -282,7 +276,8 @@ impl GlobalStackPlan {
         let mut arg_uses = 0usize;
         for block in func.blocks.iter() {
             for &inst_id in &block.instructions {
-                arg_uses += func.instructions[inst_id]
+                arg_uses += func
+                    .inst(inst_id)
                     .kind
                     .operands()
                     .iter()
@@ -385,13 +380,16 @@ impl<'a> StackPhiPlanner<'a> {
         for loop_info in &self.loops {
             self.plan_loop(loop_info, &mut plan);
         }
+        for block in self.func.blocks.indices() {
+            self.plan_join(block, &mut plan);
+        }
         plan
     }
 
     fn collect_header_results(&mut self) {
         for loop_info in &self.loops {
             let block = &self.func.blocks[loop_info.header];
-            let phi_insts = self.leading_phi_insts(block);
+            let phi_insts = self.phi_insts(block);
             if let Some(results) = self.phi_result_values(&phi_insts) {
                 self.header_results.insert(loop_info.header, results);
             }
@@ -415,7 +413,7 @@ impl<'a> StackPhiPlanner<'a> {
         }
 
         let block = &self.func.blocks[loop_info.header];
-        let phi_insts = self.leading_phi_insts(block);
+        let phi_insts = self.phi_insts(block);
         if phi_insts.is_empty() || phi_insts.len() > STACK_PHI_LAYOUT_LIMIT {
             return;
         }
@@ -449,21 +447,55 @@ impl<'a> StackPhiPlanner<'a> {
 
         plan.entries.insert(loop_info.header, entry.clone());
         for (pred, sources) in edges {
-            let mut source_set = DenseBitSet::new_empty(self.func.values.len());
-            for &source in &sources {
-                source_set.insert(source);
-            }
-            plan.edge_sources.insert(pred, source_set);
+            plan.edge_sources.insert(pred, sources.clone());
             plan.edges.insert(pred, StackPhiEdge { sources, results: entry.clone() });
         }
     }
 
-    fn leading_phi_insts(&self, block: &crate::mir::BasicBlock) -> Vec<InstId> {
+    fn plan_join(&self, block_id: BlockId, plan: &mut StackPhiPlan) {
+        let block = &self.func.blocks[block_id];
+        if plan.entries.contains_key(&block_id) || block.predecessors.len() < 2 {
+            return;
+        }
+
+        let phi_insts = self.phi_insts(block);
+        if phi_insts.is_empty() || phi_insts.len() > STACK_PHI_LAYOUT_LIMIT {
+            return;
+        }
+        let Some(results) = self.phi_result_values(&phi_insts) else {
+            return;
+        };
+        if block.predecessors.iter().any(|pred| {
+            plan.edges.contains_key(pred)
+                || !matches!(
+                    self.func.blocks[*pred].terminator,
+                    Some(Terminator::Jump(target)) if target == block_id
+                )
+        }) {
+            return;
+        }
+
+        let mut edges = Vec::with_capacity(block.predecessors.len());
+        for &pred in &block.predecessors {
+            let Some(sources) = self.phi_sources_for_pred(&phi_insts, pred) else {
+                return;
+            };
+            edges.push((pred, sources));
+        }
+
+        plan.entries.insert(block_id, results.clone());
+        for (pred, sources) in edges {
+            plan.edge_sources.insert(pred, sources.clone());
+            plan.edges.insert(pred, StackPhiEdge { sources, results: results.clone() });
+        }
+    }
+
+    fn phi_insts(&self, block: &crate::mir::BasicBlock) -> Vec<InstId> {
         block
             .instructions
             .iter()
             .copied()
-            .take_while(|&inst| matches!(self.func.instructions[inst].kind, InstKind::Phi(_)))
+            .filter(|&inst| matches!(self.func.inst(inst).kind, InstKind::Phi(_)))
             .collect()
     }
 
@@ -492,10 +524,10 @@ impl<'a> StackPhiPlanner<'a> {
         for block_id in blocks {
             let block = &self.func.blocks[block_id];
             for &inst_id in &block.instructions {
-                if matches!(self.func.instructions[inst_id].kind, InstKind::Phi(_)) {
+                if matches!(self.func.inst(inst_id).kind, InstKind::Phi(_)) {
                     continue;
                 }
-                if self.func.instructions[inst_id].kind.operands().contains(&value) {
+                if self.func.inst(inst_id).kind.operands().contains(&value) {
                     return true;
                 }
             }
@@ -514,7 +546,7 @@ impl<'a> StackPhiPlanner<'a> {
         phi_insts
             .iter()
             .map(|&inst| {
-                let InstKind::Phi(incoming) = &self.func.instructions[inst].kind else {
+                let InstKind::Phi(incoming) = &self.func.inst(inst).kind else {
                     return None;
                 };
                 incoming.iter().find_map(|&(block, value)| (block == pred).then_some(value))
@@ -590,7 +622,7 @@ pub struct EvmCodegen<'gcx> {
     /// Copies to insert at block exits (from phi elimination).
     block_copies: FxHashMap<BlockId, Vec<ParallelCopy>>,
     /// Values carried by planned stack-resident phi edges, keyed by predecessor block.
-    stack_phi_sources: FxHashMap<BlockId, DenseBitSet<ValueId>>,
+    stack_phi_sources: FxHashMap<BlockId, Vec<ValueId>>,
     /// Whether the current function has canonical cross-block argument layouts.
     global_stack_active: bool,
     /// Calldata words physically identical to arguments in the active global
@@ -607,22 +639,15 @@ pub struct EvmCodegen<'gcx> {
     constructor_param_count: u32,
     /// Whether we're emitting an internal function body.
     in_internal_function: bool,
-    /// Whether we're emitting the MIR dispatch `entry` function. Its switch
+    /// Whether we're emitting the MIR `entry` function. Its switch
     /// keeps the selector on the physical stack through the case chain and
-    /// leaves it inert below the taken arm, like the backend dispatcher. Only
-    /// sound there: the entry runs once and every arm terminates externally,
-    /// so the leftover word can neither accumulate nor disturb an internal
-    /// return.
-    emitting_dispatch_entry: bool,
+    /// leaves it inert below the taken arm. This is only sound for `entry`: it
+    /// runs once and every arm terminates externally, so the leftover word can
+    /// neither accumulate nor disturb an internal return.
+    emitting_entry: bool,
     /// Gas-mode switch growth still available in the current runtime or constructor artifact.
     switch_gas_code_growth_remaining: usize,
     capture_evm_ir: bool,
-    /// Instructions that survive MIR lowering and the word-based backend cannot
-    /// emit — an unsupported high-level construct rather than a miscompile. Each
-    /// is a `(span, message)` the caller turns into a diagnostic instead of the
-    /// backend panicking. Populated after the lowering passes and, when
-    /// non-empty, generation is skipped for the affected module.
-    unsupported: Vec<(Option<Span>, String)>,
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -660,19 +685,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             constructor_exit: None,
             constructor_param_count: 0,
             in_internal_function: false,
-            emitting_dispatch_entry: false,
+            emitting_entry: false,
             switch_gas_code_growth_remaining: MAX_GAS_CODE_GROWTH,
             capture_evm_ir: false,
-            unsupported: Vec::new(),
         }
-    }
-
-    /// Drains the unsupported-construct diagnostics collected during lowering.
-    /// The caller emits these against its diagnostic context, turning a
-    /// construct the backend cannot lower into a clean error rather than a
-    /// panic.
-    pub fn take_unsupported(&mut self) -> Vec<(Option<Span>, String)> {
-        std::mem::take(&mut self.unsupported)
     }
 
     /// Whether a function is an external interface of its module: an ABI entry,
@@ -685,32 +701,46 @@ impl<'gcx> EvmCodegen<'gcx> {
             || func.attributes.is_receive
     }
 
-    /// Records any instruction that survives MIR lowering but the word-based
-    /// backend cannot emit — chiefly logical slices whose aggregate use slice
-    /// lowering could not fold. When this finds anything the module is left
-    /// ungenerated so the caller reports it instead of the backend panicking.
+    /// Reports MIR constructs the backend cannot emit yet.
+    ///
+    /// This includes argument-taking fallbacks and logical slices whose
+    /// aggregate use slice lowering could not fold.
     ///
     /// Only live instructions — those still in a block — are checked, since the
     /// instruction arena retains folded-away slices the backend never emits.
-    fn collect_unsupported(&mut self, module: &Module) {
+    #[must_use]
+    fn emit_unsupported(&self, module: &Module) -> bool {
+        if module
+            .functions
+            .iter()
+            .any(|func| func.attributes.is_fallback && !func.params.is_empty())
+        {
+            self.gcx
+                .dcx()
+                .err("codegen does not support `fallback(bytes) returns (bytes)` yet")
+                .span(module.name.span)
+                .emit();
+            return true;
+        }
+
+        let mut emitted = false;
         'func: for func in module.functions.iter() {
-            for block in func.blocks.iter() {
-                for &inst_id in &block.instructions {
-                    let inst = &func.instructions[inst_id];
-                    let message = match inst.kind {
-                        InstKind::MakeSlice { .. }
-                        | InstKind::SlicePtr(_)
-                        | InstKind::SliceLen(_) => {
-                            "codegen does not support this calldata-slice usage yet"
-                        }
-                        _ => continue,
-                    };
-                    self.unsupported.push((inst.metadata.source_span(), message.to_string()));
-                    // One diagnostic per function is enough to explain the bail.
-                    continue 'func;
-                }
+            for inst_id in func.instructions() {
+                let inst = func.inst(inst_id);
+                let message = match inst.kind {
+                    InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => {
+                        "codegen does not support this calldata-slice usage yet"
+                    }
+                    _ => continue,
+                };
+                let span = inst.metadata.source_span().unwrap_or(module.name.span);
+                self.gcx.dcx().err(message).span(span).emit();
+                emitted = true;
+                // One diagnostic per function is enough to explain the bail.
+                continue 'func;
             }
         }
+        emitted
     }
 
     /// Controls whether generated artifacts include final EVM IR.
@@ -810,13 +840,24 @@ impl<'gcx> EvmCodegen<'gcx> {
             panic!("cannot codegen MIR function `{}` without an entry block", func.name);
         }
         self.run_optimization_passes(module);
-        if !self.unsupported.is_empty() {
+        if self.emit_unsupported(module) {
+            return EvmArtifact::default();
+        }
+        if module.phase != MirPhase::EvmShaped {
+            self.gcx
+                .dcx()
+                .err(format!(
+                    "EVM codegen requires MIR in the `evm-shaped` phase, stopped at `{}`",
+                    module.phase.name()
+                ))
+                .span(module.name.span)
+                .emit();
             return EvmArtifact::default();
         }
         // First generate the runtime code
         let mut runtime_code = self.generate_runtime_code(module);
         if let Some(evm_ir) = &mut runtime_code.evm_ir {
-            evm_ir.set_name("runtime");
+            evm_ir.set_name(sym::runtime);
         }
         let runtime_len = runtime_code.bytecode.len();
         let immutable_refs = std::mem::take(&mut self.runtime_immutable_refs);
@@ -874,26 +915,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         // PUSH<n> copy_base     ; memory offset
         // RETURN                ; return the runtime code
         if let Some(evm_ir) = &mut deploy_code.evm_ir {
-            evm_ir.set_name("deployment");
+            evm_ir.set_name(sym::deployment);
         }
 
         let mut deploy_bytecode = deploy_code.bytecode;
         deploy_bytecode.extend_from_slice(&runtime_code.bytecode);
-
-        let mut deployment_evm_ir = Vec::new();
-        if let Some(evm_ir) = deploy_code.evm_ir {
-            deployment_evm_ir.push(evm_ir);
-        }
-        if let Some(evm_ir) = runtime_code.evm_ir.clone() {
-            deployment_evm_ir.push(evm_ir);
-        }
 
         // The returned runtime artifact keeps the zero placeholders, like
         // solc's `deployedBytecode` for contracts with immutables.
         EvmArtifact {
             deployment: deploy_bytecode,
             runtime: runtime_code.bytecode,
-            deployment_evm_ir,
+            deployment_evm_ir: deploy_code.evm_ir,
             runtime_evm_ir: runtime_code.evm_ir,
         }
     }
@@ -1086,18 +1119,16 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
-        run_default_pipeline(self.gcx, module);
-
-        // A logical slice still live in a block after slice lowering is an
-        // aggregate use it could not fold — an unsupported pattern, not a
-        // miscompile. `LowerEvmShaped` leaves such a module at the
-        // `memory-lowered` boundary; record it and stop before emission so the
-        // caller reports it rather than the emitter panicking on it.
-        self.collect_unsupported(module);
+        let _changed = run_default_pipeline(self.gcx, module);
     }
 
     /// Generates runtime bytecode for a module.
     fn generate_runtime_code(&mut self, module: &Module) -> GeneratedCode {
+        assert_eq!(
+            module.phase,
+            MirPhase::EvmShaped,
+            "EVM codegen requires MIR in the final phase"
+        );
         self.asm.clear();
         self.block_labels.clear();
         self.function_labels.clear();
@@ -1121,16 +1152,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.stack_phi_sources.clear();
         self.stack_arg_masks.clear();
         self.runtime_stack_args = true;
-        self.emitting_dispatch_entry = false;
+        self.emitting_entry = false;
         self.switch_gas_code_growth_remaining = MAX_GAS_CODE_GROWTH;
 
         if !module.functions.is_empty() {
-            if module.phase >= crate::mir::MirPhase::Dispatch {
-                self.generate_mir_dispatched(module);
-            } else {
-                // The dispatcher generates function bodies inline
-                self.generate_dispatcher(module);
-            }
+            self.emit_runtime(module);
         }
 
         let result = self.asm.assemble_with_evm_ir(self.capture_evm_ir);
@@ -1138,21 +1164,20 @@ impl<'gcx> EvmCodegen<'gcx> {
         GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir }
     }
 
-    /// Generates the runtime from a `dispatch`-phase module: the MIR `entry`
-    /// function is the runtime prologue, its `tail_call`s jump to the ABI
-    /// wrappers, and no backend dispatcher is synthesized.
+    /// Emits a runtime from final-phase MIR.
     ///
     /// Selector matching, receive/fallback routing, and callvalue checks all
-    /// live in the MIR `entry`, so wrappers are emitted without the selector
-    /// pop and payable check the backend dispatcher would add.
-    fn generate_mir_dispatched(&mut self, module: &Module) {
+    /// live in the MIR `entry`, whose `tail_call`s jump to the ABI wrappers.
+    fn emit_runtime(&mut self, module: &Module) {
         let Some((entry_id, _)) = module
             .functions
             .iter_enumerated()
             .find(|(_, f)| f.selector.is_none() && f.name.name == sym::entry)
         else {
-            // Phase says dispatch but there is nothing to route; fall back.
-            self.generate_dispatcher(module);
+            assert!(
+                !module.functions.iter().any(Self::is_external_entry),
+                "evm-shaped module with a runtime interface must have a MIR `entry` function"
+            );
             return;
         };
 
@@ -1195,11 +1220,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         // The MIR entry is the runtime prologue: one shared free-memory
         // store covers every wrapper reached through it.
         self.in_internal_function = false;
-        self.emitting_dispatch_entry = true;
+        self.emitting_entry = true;
         let entry_free = self.emit_external_free_memory_start();
         self.runtime_free_memory_const = Some(entry_free);
         self.generate_function_body(entry_id, &module.functions[entry_id]);
-        self.emitting_dispatch_entry = false;
+        self.emitting_entry = false;
         self.record_function_spill_size(entry_id);
         self.runtime_entry_funcs.push(entry_id);
 
@@ -1216,7 +1241,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.runtime_entry_funcs.push(func_id);
         }
 
-        // Internal-call targets, exactly as in the backend dispatcher path.
+        // Internal-call targets.
         for (func_id, func) in module.functions.iter_enumerated() {
             if func_id == entry_id
                 || Self::is_external_entry(func)
@@ -1234,187 +1259,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.current_internal_function = None;
             self.record_function_spill_size(func_id);
         }
-
-        self.resolve_pending_frame_size_consts(module);
-        self.resolve_static_frames(module);
-    }
-
-    /// Generates the function dispatcher.
-    ///
-    /// The dispatcher logic is:
-    /// ```text
-    /// if calldatasize == 0:
-    ///     if has_receive: jump to receive
-    ///     elif has_fallback: jump to fallback
-    ///     else: revert
-    /// else:
-    ///     match selector...
-    ///     if no match and has_fallback: jump to fallback
-    ///     else: revert
-    /// ```
-    fn generate_dispatcher(&mut self, module: &Module) {
-        let receive_idx = module
-            .functions
-            .iter_enumerated()
-            .find_map(|(func_id, func)| func.attributes.is_receive.then_some(func_id));
-        let fallback_idx = module
-            .functions
-            .iter_enumerated()
-            .find_map(|(func_id, func)| func.attributes.is_fallback.then_some(func_id));
-
-        let call_graph = CallGraphInfo::new(module);
-        let internal_targets = call_graph.reachable_callees_from(
-            module
-                .functions
-                .iter_enumerated()
-                .filter_map(|(func_id, func)| Self::is_external_entry(func).then_some(func_id)),
-        );
-
-        for (func_id, func) in module.functions.iter_enumerated() {
-            self.function_static_frame_sizes.insert(func_id, func.internal_frame_size);
-            if !func.params.iter().chain(&func.returns).any(|ty| ty.is_memory_reference()) {
-                self.restorable_internal_frames.insert(func_id);
-            }
-            // Non-recursive internal functions get compile-time-fixed frames.
-            if !Self::is_external_entry(func)
-                && Self::is_runtime_function(func)
-                && !call_graph.is_recursive(func_id)
-            {
-                self.static_frame_functions.insert(func_id);
-            }
-        }
-        self.compute_stack_arg_masks(module);
-
-        // Create labels for externally reachable runtime entry points and internal-call targets.
-        for (func_id, func) in module.functions.iter_enumerated() {
-            let external = Self::is_external_entry(func);
-            let needs_body =
-                external || (Self::is_runtime_function(func) && internal_targets.contains(func_id));
-            let label = needs_body.then(|| self.new_function_label(func_id));
-            if let Some(label) = label {
-                self.function_labels.insert(func_id, label);
-            }
-        }
-        let revert_label = self.asm.new_label();
-        self.asm.mark_label_cold(revert_label);
-        let has_calldata_label = self.asm.new_label();
-        let all_external_entries_reject_value =
-            module.functions.iter().any(Self::is_external_entry)
-                && module
-                    .functions
-                    .iter()
-                    .filter(|func| Self::is_external_entry(func))
-                    .all(Self::rejects_callvalue);
-
-        // One shared free-memory store for every entry reached through the
-        // dispatcher (solc does the same); its value is the maximum entry
-        // frame end, or the static-frame region end.
-        let dispatcher_free = self.emit_external_free_memory_start();
-        self.runtime_free_memory_const = Some(dispatcher_free);
-
-        if all_external_entries_reject_value {
-            self.emit_callvalue_check(revert_label);
-        }
-
-        // Empty calldata: route to receive/fallback when they exist; with
-        // neither, invert the check so nonempty calldata falls straight
-        // through to the selector load and empty calldata takes the shared
-        // revert stub (a byte shorter than a dedicated arm).
-        if receive_idx.is_some() || fallback_idx.is_some() {
-            self.asm.emit_op(op::CALLDATASIZE);
-            self.asm.emit_push_label(has_calldata_label);
-            self.asm.emit_op(op::JUMPI);
-            if let Some(recv_idx) = receive_idx {
-                self.asm.emit_push_label(self.function_labels[&recv_idx]);
-                self.asm.emit_op(op::JUMP);
-            } else if let Some(fb_idx) = fallback_idx {
-                self.asm.emit_push_label(self.function_labels[&fb_idx]);
-                self.asm.emit_op(op::JUMP);
-            }
-        } else {
-            self.asm.emit_op(op::CALLDATASIZE);
-            self.asm.emit_op(op::ISZERO);
-            self.asm.emit_push_label(revert_label);
-            self.asm.emit_op(op::JUMPI);
-        }
-
-        // calldatasize > 0: Load selector and match
-        self.asm.define_label(has_calldata_label);
-
-        // Load selector from calldata
-        self.asm.emit_push(U256::ZERO);
-        self.asm.emit_op(op::CALLDATALOAD);
-        self.asm.emit_push(U256::from(0xe0));
-        self.asm.emit_op(op::SHR);
-
-        let mut selectors: Vec<_> = module
-            .functions
-            .iter_enumerated()
-            .filter_map(|(func_id, func)| {
-                if !Self::is_external_entry(func) {
-                    return None;
-                }
-                let selector = func.selector?;
-                Some(SelectorDispatchEntry {
-                    selector: u32::from_be_bytes(selector),
-                    label: self.function_labels[&func_id],
-                })
-            })
-            .collect();
-        selectors.sort_by_key(|entry| entry.selector);
-
-        let fallback_label = fallback_idx.map(|idx| self.function_labels[&idx]);
-        self.emit_selector_dispatch(&selectors, fallback_label, revert_label);
-
-        // Define external function entry points.
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if !Self::is_external_entry(func) {
-                continue;
-            }
-            let Some(&label) = self.function_labels.get(&func_id) else { continue };
-            self.asm.define_label(label);
-
-            // The dispatcher's shr'd selector is still on the physical stack
-            // for regular functions. It is untracked and below everything the
-            // wrapper's stack model describes, so it is inert (the same
-            // invariant stack-passed return addresses rely on) — the wrapper
-            // terminates externally and never reaches it; popping it per
-            // wrapper was a wasted byte each.
-
-            if !all_external_entries_reject_value {
-                self.emit_payable_check(func, revert_label);
-            }
-
-            // Generate function body
-            self.in_internal_function = false;
-            self.generate_function_body(func_id, func);
-
-            self.record_function_spill_size(func_id);
-            self.runtime_entry_funcs.push(func_id);
-        }
-
-        // Define internal-call targets once. Calls jump here and return
-        // through the stack-passed return address.
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if Self::is_external_entry(func) || !Self::is_runtime_function(func) {
-                continue;
-            }
-            let Some(&label) = self.function_labels.get(&func_id) else { continue };
-            self.asm.define_label(label);
-            self.emit_stack_arg_prologue(func_id, func);
-            self.in_internal_function = true;
-            self.current_internal_function = Some(func_id);
-            self.generate_function_body(func_id, func);
-            self.in_internal_function = false;
-            self.current_internal_function = None;
-            self.record_function_spill_size(func_id);
-        }
-
-        // Revert label
-        self.asm.define_label(revert_label);
-        self.asm.emit_push(U256::ZERO);
-        self.asm.emit_push(U256::ZERO);
-        self.asm.emit_op(op::REVERT);
 
         self.resolve_pending_frame_size_consts(module);
         self.resolve_static_frames(module);
@@ -1461,224 +1305,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    fn emit_selector_dispatch(
-        &mut self,
-        selectors: &[SelectorDispatchEntry],
-        fallback_label: Option<Label>,
-        revert_label: Label,
-    ) {
-        let values: Vec<_> = selectors.iter().map(|entry| U256::from(entry.selector)).collect();
-        let default =
-            if fallback_label.is_some() { SwitchDefault::Jump } else { SwitchDefault::Revert };
-        let selection = select_switch_plan_with_budget(
-            &values,
-            self.gcx.sess.opts.optimization,
-            self.gcx.sess.opts.evm_version,
-            default,
-            self.switch_table_target_width(),
-            self.switch_gas_code_growth_remaining,
-        );
-        self.switch_gas_code_growth_remaining =
-            self.switch_gas_code_growth_remaining.saturating_sub(selection.gas_code_growth);
-        match selection.plan {
-            SwitchPlan::Linear => {
-                self.emit_linear_selector_dispatch(selectors, fallback_label, revert_label);
-            }
-            SwitchPlan::Binary { leaf_size } => {
-                self.emit_binary_selector_dispatch(
-                    selectors,
-                    fallback_label,
-                    revert_label,
-                    leaf_size,
-                );
-            }
-            SwitchPlan::Buckets { bucket_count } => {
-                self.emit_bucketed_selector_dispatch(
-                    selectors,
-                    fallback_label,
-                    revert_label,
-                    bucket_count,
-                );
-            }
-            SwitchPlan::Dense { low, range } => {
-                self.emit_dense_selector_dispatch(
-                    selectors,
-                    fallback_label.unwrap_or(revert_label),
-                    low,
-                    range,
-                );
-            }
-        }
-    }
-
-    fn emit_linear_selector_dispatch(
-        &mut self,
-        selectors: &[SelectorDispatchEntry],
-        fallback_label: Option<Label>,
-        revert_label: Label,
-    ) {
-        for entry in selectors {
-            self.emit_selector_eq_jump(*entry);
-        }
-        self.emit_selector_dispatch_miss(fallback_label, revert_label);
-    }
-
-    fn emit_binary_selector_dispatch(
-        &mut self,
-        selectors: &[SelectorDispatchEntry],
-        fallback_label: Option<Label>,
-        revert_label: Label,
-        leaf_size: usize,
-    ) {
-        if selectors.len() <= leaf_size {
-            self.emit_linear_selector_dispatch(selectors, fallback_label, revert_label);
-            return;
-        }
-
-        let mid = selectors.len() / 2;
-        let left_label = self.asm.new_label();
-
-        // Stack has the selector. With the pivot pushed on top, GT checks
-        // `pivot > selector`, so jump left when selector < pivot.
-        self.asm.emit_op(op::dup(1));
-        self.asm.emit_push(U256::from(selectors[mid].selector));
-        self.asm.emit_op(op::GT);
-        self.asm.emit_push_label(left_label);
-        self.asm.emit_op(op::JUMPI);
-
-        self.emit_binary_selector_dispatch(
-            &selectors[mid..],
-            fallback_label,
-            revert_label,
-            leaf_size,
-        );
-
-        self.asm.define_label(left_label);
-        self.emit_binary_selector_dispatch(
-            &selectors[..mid],
-            fallback_label,
-            revert_label,
-            leaf_size,
-        );
-    }
-
-    fn emit_bucketed_selector_dispatch(
-        &mut self,
-        selectors: &[SelectorDispatchEntry],
-        fallback_label: Option<Label>,
-        revert_label: Label,
-        bucket_count: usize,
-    ) {
-        let mut buckets = vec![Vec::new(); bucket_count];
-        for &entry in selectors {
-            buckets[bucket_index(U256::from(entry.selector), bucket_count)].push(entry);
-        }
-        let default_label = fallback_label.unwrap_or(revert_label);
-        let bucket_labels: Vec<_> = buckets
-            .iter()
-            .map(|bucket| if bucket.is_empty() { default_label } else { self.asm.new_label() })
-            .collect();
-
-        self.asm.emit_op(op::DUP1);
-        self.asm.emit_push(U256::from(bucket_count));
-        self.asm.emit_op(op::SWAP1);
-        self.asm.emit_op(op::MOD);
-        self.asm.emit_indexed_jump(bucket_labels.clone());
-
-        for (label, bucket) in bucket_labels.into_iter().zip(buckets) {
-            if bucket.is_empty() {
-                continue;
-            }
-            self.asm.define_label(label);
-            self.emit_linear_selector_dispatch(&bucket, fallback_label, revert_label);
-        }
-    }
-
-    fn emit_dense_selector_dispatch(
-        &mut self,
-        selectors: &[SelectorDispatchEntry],
-        default_label: Label,
-        low: U256,
-        range: usize,
-    ) {
-        let mut targets = vec![default_label; range];
-        for entry in selectors {
-            let index = usize::try_from(U256::from(entry.selector) - low)
-                .expect("dense selector table index must fit usize");
-            targets[index] = entry.label;
-        }
-        let in_range = self.asm.new_label();
-
-        if !low.is_zero() {
-            self.asm.emit_push(low);
-            self.asm.emit_op(op::SWAP1);
-            self.asm.emit_op(op::SUB);
-        }
-        self.asm.emit_op(op::DUP1);
-        self.asm.emit_push(U256::from(range));
-        self.asm.emit_op(op::GT);
-        self.asm.emit_push_label(in_range);
-        self.asm.emit_op(op::JUMPI);
-        self.asm.emit_op(op::POP);
-        self.asm.emit_push_label(default_label);
-        self.asm.emit_op(op::JUMP);
-
-        self.asm.define_label(in_range);
-        self.asm.emit_indexed_jump(targets);
-    }
-
-    fn emit_selector_eq_jump(&mut self, entry: SelectorDispatchEntry) {
-        self.asm.emit_op(op::dup(1));
-        if entry.selector == 0 && self.gcx.sess.opts.optimization != OptimizationMode::None {
-            self.asm.emit_op(op::ISZERO);
-        } else {
-            self.asm.emit_push(U256::from(entry.selector));
-            self.asm.emit_op(op::EQ);
-        }
-        self.asm.emit_push_label(entry.label);
-        self.asm.emit_op(op::JUMPI);
-    }
-
-    fn emit_selector_dispatch_miss(&mut self, fallback_label: Option<Label>, _revert_label: Label) {
-        if let Some(fallback_label) = fallback_label {
-            // The unmatched selector below the fallback's stack model is
-            // inert, like the one below regular wrappers.
-            self.asm.emit_push_label(fallback_label);
-            self.asm.emit_op(op::JUMP);
-        } else {
-            // Reverting inline is a byte shorter than jumping to the shared
-            // revert stub, and terminal-span dedup still merges the copies.
-            self.asm.emit_push(U256::ZERO);
-            self.asm.emit_push(U256::ZERO);
-            self.asm.emit_op(op::REVERT);
-        }
-    }
-
-    /// Emits a payable check for non-payable functions.
-    /// Non-payable, view, and pure functions revert if called with value.
-    fn emit_payable_check(&mut self, func: &Function, revert_label: Label) {
-        if Self::rejects_callvalue(func) {
-            self.emit_callvalue_check(revert_label);
-        }
-    }
-
-    fn rejects_callvalue(func: &Function) -> bool {
-        matches!(
-            func.attributes.state_mutability,
-            StateMutability::NonPayable | StateMutability::View | StateMutability::Pure
-        )
-    }
-
-    fn emit_callvalue_check(&mut self, revert_label: Label) {
-        self.asm.emit_op(op::CALLVALUE);
-        self.asm.emit_push_label(revert_label);
-        self.asm.emit_op(op::JUMPI);
-    }
-
     /// Generates the body of a function.
     fn generate_function_body(&mut self, func_id: FunctionId, func: &Function) {
         let liveness = self
-            .emitting_dispatch_entry
+            .emitting_entry
             .then(|| Liveness::compute_block_local_for_codegen(func))
             .flatten()
             .unwrap_or_else(|| Liveness::compute(func));
@@ -1765,7 +1395,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             // Generate instructions
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
-                let inst = &func.instructions[inst_id];
+                let inst = func.inst(inst_id);
 
                 // Skip phi instructions (they're handled by copies)
                 if matches!(inst.kind, InstKind::Phi(_)) {
@@ -1908,7 +1538,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let has_phi = func.blocks[*target]
             .instructions
             .iter()
-            .any(|&inst| matches!(func.instructions[inst].kind, InstKind::Phi(_)));
+            .any(|&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)));
         (!has_phi).then_some(*target)
     }
 
@@ -1972,7 +1602,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 || func.blocks[target]
                     .instructions
                     .iter()
-                    .any(|&inst| matches!(func.instructions[inst].kind, InstKind::Phi(_)))
+                    .any(|&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)))
             {
                 return Vec::new();
             }
@@ -2007,7 +1637,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let block = &func.blocks[block_id];
                     if block.instructions.iter().any(|&inst_id| {
                         matches!(
-                            func.instructions[inst_id].kind,
+                            func.inst(inst_id).kind,
                             InstKind::InternalCall { function, .. } if cold.contains(function)
                         )
                     }) {
@@ -2092,7 +1722,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             )
             || block.instructions.iter().any(|&inst_id| {
                 matches!(
-                    func.instructions[inst_id].kind,
+                    func.inst(inst_id).kind,
                     InstKind::InternalCall { function, .. }
                         if self.cold_functions.contains(function)
                 )
@@ -2350,7 +1980,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn is_stack_phi_source(&self, block: BlockId, value: ValueId) -> bool {
-        self.stack_phi_sources.get(&block).is_some_and(|sources| sources.contains(value))
+        self.stack_phi_sources.get(&block).is_some_and(|sources| sources.contains(&value))
     }
 
     /// Preallocates stable spill slots for values that may cross block boundaries.
@@ -2374,7 +2004,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             for &inst_id in &func.blocks[block_id].instructions {
-                if matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
+                if matches!(func.inst(inst_id).kind, InstKind::Phi(_))
                     && let Some(val) = func.inst_result_value(inst_id)
                 {
                     values.insert(val);
@@ -2402,7 +2032,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let crate::mir::Value::Inst(inst_id) = func.value(val) else {
             return;
         };
-        for op in func.instructions[*inst_id].kind.operands() {
+        for op in func.inst(*inst_id).kind.operands() {
             if Self::is_rematerializable_value(func, op) {
                 continue;
             }
@@ -2480,7 +2110,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let carried: Vec<ValueId> = self.scheduler.stack.iter().flatten().collect();
         for value in carried {
             if let crate::mir::Value::Inst(inst_id) = func.value(value)
-                && matches!(func.instructions[*inst_id].kind, InstKind::Phi(_))
+                && matches!(func.inst(*inst_id).kind, InstKind::Phi(_))
             {
                 self.scheduler.spills.invalidate_stored(value);
             }
@@ -2497,7 +2127,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         for &inst_id in &func.blocks[block_id].instructions {
-            if matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
+            if matches!(func.inst(inst_id).kind, InstKind::Phi(_))
                 && let Some(val) = func.inst_result_value(inst_id)
                 && !self.scheduler.stack.contains(val)
                 && self.scheduler.spills.get(val).is_some()
@@ -2692,7 +2322,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return false;
         };
         matches!(
-            func.instruction(*inst_id).kind,
+            func.inst(*inst_id).kind,
             InstKind::Add(_, _)
                 | InstKind::Sub(_, _)
                 | InstKind::Mul(_, _)
@@ -3039,7 +2669,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::Alloc { size, .. } => {
-                debug_assert!(func.instructions[inst_id].metadata.deferred_alloc());
+                debug_assert!(func.inst(inst_id).metadata.deferred_alloc());
                 let size =
                     func.value_u64(*size).expect("deferred allocation must have a constant size");
                 let alloc = self.asm.emit_deferred_alloc();
@@ -3705,7 +3335,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 has_candidate_call |= block.instructions.iter().any(|&inst_id| {
                     matches!(
-                        &func.instructions[inst_id].kind,
+                        &func.inst(inst_id).kind,
                         InstKind::InternalCall { function, .. }
                             if self.static_frame_functions.contains(*function)
                     )
@@ -3725,7 +3355,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             for (block_idx, block) in func.blocks.iter().enumerate() {
                 for &inst_id in &block.instructions {
                     inst_block.insert(inst_id, block_idx);
-                    for operand in func.instructions[inst_id].kind.operands() {
+                    for operand in func.inst(inst_id).kind.operands() {
                         *use_counts.entry(operand).or_default() += 1;
                     }
                 }
@@ -3737,8 +3367,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             for (block_idx, block) in func.blocks.iter().enumerate() {
                 for &inst_id in &block.instructions {
-                    let InstKind::InternalCall { function, args, .. } =
-                        &func.instructions[inst_id].kind
+                    let InstKind::InternalCall { function, args, .. } = &func.inst(inst_id).kind
                     else {
                         continue;
                     };
@@ -4076,7 +3705,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // Longest live-chain depth below each function, over all call edges.
         // Only emitted callers count: an unemitted function (an internal
-        // `.body` clone nobody calls, dispatched-away dead code) stacks no
+        // `.body` clone nobody calls, unreachable dead code) stacks no
         // real frame below its callees, and its conservative spill estimate
         // would inflate every callee's depth — and with it the free-memory
         // start and the width of every frame push in the runtime.
@@ -4085,8 +3714,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !self.function_labels.contains_key(&func_id) {
                 continue;
             }
-            for inst in &func.instructions {
-                if let InstKind::InternalCall { function, .. } = inst.kind {
+            for inst_id in func.instructions() {
+                if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
                     edges.push((func_id, function));
                 }
             }
@@ -4135,7 +3764,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Prefer eligible allocations before each entry's exact spill area,
         // then fall back to appending them after spills when only spill pushes
         // prevent the lower placement.
-        // Entries overlay because only one dispatcher arm executes per call.
+        // Entries overlay because only one runtime entry executes per call.
         // Reject any proposal that widens a shared heap/static-frame or
         // ranked-spill push.
         let mut static_alloc_sizes: FxHashMap<FunctionId, u64> = FxHashMap::default();
@@ -4261,7 +3890,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn uses_internal_frame_slot(func: &Function) -> bool {
-        func.instructions.iter().any(|inst| matches!(inst.kind, InstKind::InternalCall { .. }))
+        func.instructions()
+            .any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::InternalCall { .. }))
     }
 
     fn emit_external_free_memory_start(&mut self) -> DeferredConst {
@@ -4760,7 +4390,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     // Check if the instruction is one that we can "re-execute" to get a fresh value
                     // This handles GAS (which is always fresh) and MLOAD (which re-reads from
                     // memory)
-                    let inst_kind = &func.instruction(*inst_id).kind;
+                    let inst_kind = &func.inst(*inst_id).kind;
                     match inst_kind {
                         crate::mir::InstKind::Gas => {
                             self.asm.emit_op(op::GAS);
@@ -4948,7 +4578,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 panic!(
                                     "emit_value_fresh: value {val:?} ({:?}) is neither on the \
                                      stack, spilled, nor re-executable",
-                                    func.instruction(*inst_id).kind
+                                    func.inst(*inst_id).kind
                                 );
                             }
                         }
@@ -5465,9 +5095,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             buckets[bucket_index(entry.value, bucket_count)].push(entry);
         }
         let default_label = self.block_labels[&default];
-        let empty_label = (!self.emitting_dispatch_entry
-            && buckets.iter().any(|bucket| bucket.is_empty()))
-        .then(|| self.asm.new_label());
+        let empty_label = (!self.emitting_entry && buckets.iter().any(|bucket| bucket.is_empty()))
+            .then(|| self.asm.new_label());
         let bucket_labels: Vec<_> = buckets
             .iter()
             .map(|bucket| {
@@ -5580,7 +5209,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_mir_switch_default(&mut self, default: BlockId, can_fallthrough: bool) {
-        if !self.emitting_dispatch_entry {
+        if !self.emitting_entry {
             self.asm.emit_op(op::POP);
             self.scheduler.stack.pop();
         }
@@ -5716,13 +5345,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                     SwitchSelection { plan: SwitchPlan::Linear, gas_code_growth: 0 },
                     |(linear_values, entries)| {
                         let values: Vec<_> = entries.iter().map(|entry| entry.value).collect();
-                        let default =
-                            match (self.emitting_dispatch_entry, fallthrough == Some(*default)) {
-                                (true, true) => SwitchDefault::Fallthrough,
-                                (true, false) => SwitchDefault::Jump,
-                                (false, true) => SwitchDefault::CleanupFallthrough,
-                                (false, false) => SwitchDefault::CleanupJump,
-                            };
+                        let default = match (self.emitting_entry, fallthrough == Some(*default)) {
+                            (true, true) => SwitchDefault::Fallthrough,
+                            (true, false) => SwitchDefault::Jump,
+                            (false, true) => SwitchDefault::CleanupFallthrough,
+                            (false, false) => SwitchDefault::CleanupJump,
+                        };
                         select_switch_plan_with_linear_values_and_budget(
                             &values,
                             linear_values,
@@ -5739,15 +5367,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let plan = plan.plan;
                 let constant_entries = constant_entries.map(|(_, entries)| entries);
 
-                if self.emitting_dispatch_entry {
-                    // The dispatch entry's selector switch mirrors the backend
-                    // dispatcher's shape: the just-computed selector stays on
-                    // the stack through the case chain — no spill, clear and
-                    // reload — and is left inert below the taken arm instead
-                    // of paying a POP ("popping it per wrapper was a wasted
-                    // byte each"). Every successor terminates externally and
-                    // the entry runs once, so the leftover word is unreachable
-                    // and cannot accumulate.
+                if self.emitting_entry {
+                    // The entry's just-computed selector stays on the stack
+                    // through the case chain — no spill, clear, and reload —
+                    // and is left inert below the taken arm instead of paying
+                    // a POP. Every successor terminates externally and the
+                    // entry runs once, so the leftover word cannot accumulate.
                     self.emit_value(func, *value);
                     while self.scheduler.depth() > 1 {
                         self.emit_stack_op(StackOp::Swap(1));
@@ -5848,8 +5473,8 @@ pub struct EvmArtifact {
     pub deployment: Vec<u8>,
     /// Runtime bytecode, i.e. the code stored on-chain.
     pub runtime: Vec<u8>,
-    /// Final creation-code EVM IR segments in bytecode order.
-    pub deployment_evm_ir: Vec<ir::Module>,
+    /// Final deployment-prefix EVM IR immediately before byte emission.
+    pub deployment_evm_ir: Option<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.
     pub runtime_evm_ir: Option<ir::Module>,
 }
@@ -5865,77 +5490,14 @@ impl crate::backend::Backend for EvmCodegen<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        backend::evm::test_utils::disassemble,
-        lower,
-        mir::{FunctionBuilder, MirType},
-    };
-    use snapbox::assert_data_eq;
-    use solar_config::{CompileOpts, UnstableOpts};
-    use solar_interface::{Ident, Session, kw, sym};
+    use crate::mir::FunctionBuilder;
+    use solar_config::CompileOpts;
+    use solar_interface::{Ident, Session, sym};
     use solar_sema::{Compiler, hir::Visibility};
-    use std::{ops::ControlFlow, path::PathBuf};
 
     fn with_codegen<T: Send>(opts: CompileOpts, f: impl FnOnce(EvmCodegen<'_>) -> T + Send) -> T {
         let compiler = Compiler::new(Session::builder().opts(opts).build());
         compiler.enter(|c| f(EvmCodegen::new(c.gcx())))
-    }
-
-    #[test]
-    fn constructor_success_jumps_to_deployment_postlude() {
-        with_codegen(CompileOpts::default(), |mut codegen| {
-            let mut module = Module::new(Ident::with_dummy_span(sym::Test));
-            let mut constructor = Function::new(Ident::with_dummy_span(kw::Constructor));
-            constructor.attributes.is_constructor = true;
-            {
-                let mut builder = FunctionBuilder::new(&mut constructor);
-                let condition = builder.imm_u64(1);
-                let revert = builder.create_block();
-                let success = builder.create_block();
-                builder.branch(condition, revert, success);
-
-                builder.switch_to_block(revert);
-                let zero = builder.imm_u64(0);
-                builder.revert(zero, zero);
-
-                builder.switch_to_block(success);
-                builder.stop();
-            }
-            module.add_function(constructor);
-            let prepared = codegen.prepare_deployment_prefix(&module, 0, 0, &[]);
-            let mut deploy_code_len = 0;
-            let deployment = loop {
-                let code = codegen.assemble_deployment_prefix(&prepared, 0, deploy_code_len);
-                if code.bytecode.len() == deploy_code_len {
-                    break code;
-                }
-                deploy_code_len = code.bytecode.len();
-            };
-
-            assert_data_eq!(
-                disassemble(&deployment.bytecode),
-                snapbox::str![[r#"
-PUSH2 0x4000
-PUSH1 0x40
-MSTORE
-PUSH1 0x01
-PUSH1 0x13
-JUMPI
-PUSH0
-DUP1
-PUSH1 0x17
-PUSH0
-CODECOPY
-PUSH0
-RETURN
-JUMPDEST
-PUSH0
-DUP1
-REVERT
-
-"#]]
-            );
-        });
     }
 
     #[test]
@@ -5948,255 +5510,5 @@ REVERT
 
             assert!(codegen.asm.assemble().bytecode.is_empty());
         });
-    }
-
-    #[test]
-    fn cold_forwarder_selects_hot_fallthrough() {
-        let (module, caller_id, entry, cold_forwarder, cold_block, hot_block) =
-            with_codegen(CompileOpts::default(), |mut codegen| {
-                let mut module = Module::new(Ident::with_dummy_span(sym::Test));
-
-                let mut cold_func = Function::new(Ident::with_dummy_span(sym::__revert_error));
-                {
-                    let mut builder = FunctionBuilder::new(&mut cold_func);
-                    let zero = builder.imm_u64(0);
-                    builder.revert(zero, zero);
-                }
-                let cold_func = module.add_function(cold_func);
-
-                let mut cold_wrapper = Function::new(Ident::with_dummy_span(sym::Test));
-                {
-                    let mut builder = FunctionBuilder::new(&mut cold_wrapper);
-                    builder.internal_call_void(cold_func, Vec::new(), 0);
-                    builder.ret(Vec::new());
-                }
-                let cold_wrapper = module.add_function(cold_wrapper);
-
-                let mut caller = Function::new(Ident::with_dummy_span(sym::Test));
-                let entry = BlockId::ENTRY;
-                let (cold_forwarder, cold_block, hot_block);
-                {
-                    let mut builder = FunctionBuilder::new(&mut caller);
-                    let condition = builder.add_param(MirType::Bool);
-                    cold_forwarder = builder.create_block();
-                    cold_block = builder.create_block();
-                    hot_block = builder.create_block();
-                    builder.branch(condition, cold_forwarder, hot_block);
-
-                    builder.switch_to_block(cold_forwarder);
-                    builder.jump(cold_block);
-
-                    builder.switch_to_block(cold_block);
-                    builder.tail_call(cold_wrapper, Vec::new());
-
-                    builder.switch_to_block(hot_block);
-                    builder.ret(Vec::new());
-                }
-                let caller_id = module.add_function(caller);
-                codegen.cold_functions = EvmCodegen::collect_cold_functions(&module);
-                let caller = &module.functions[caller_id];
-                codegen.cold_blocks = codegen.collect_cold_blocks(caller);
-
-                assert!(codegen.cold_functions.contains(cold_func));
-                assert!(codegen.cold_functions.contains(cold_wrapper));
-                assert!(codegen.block_aborts(caller, cold_block));
-                assert!(!codegen.block_aborts(caller, cold_forwarder));
-                assert!(codegen.block_is_cold(cold_forwarder));
-                assert_eq!(
-                    codegen.block_layout_order(caller),
-                    [entry, hot_block, cold_forwarder, cold_block]
-                );
-
-                (module, caller_id, entry, cold_forwarder, cold_block, hot_block)
-            });
-
-        let opts = CompileOpts { optimization: OptimizationMode::None, ..Default::default() };
-        with_codegen(opts, |mut codegen| {
-            codegen.cold_functions = EvmCodegen::collect_cold_functions(&module);
-            let caller = &module.functions[caller_id];
-            codegen.cold_blocks = codegen.collect_cold_blocks(caller);
-            assert_eq!(
-                codegen.block_layout_order(caller),
-                [entry, cold_forwarder, cold_block, hot_block]
-            );
-        });
-    }
-
-    /// Helper to compile Solidity source to bytecode, returning Result.
-    fn compile_source(source: &str) -> Result<Vec<u8>, String> {
-        let opts = CompileOpts {
-            unstable: UnstableOpts { codegen: true, ..Default::default() },
-            ..Default::default()
-        };
-        let sess = Session::builder().with_buffer_emitter(Default::default()).opts(opts).build();
-        let mut compiler = Compiler::new(sess);
-
-        // Parse
-        let parse_result = compiler.enter_mut(|c| -> solar_interface::Result<_> {
-            let mut ctx = c.parse();
-            let file = c
-                .sess()
-                .source_map()
-                .new_source_file(PathBuf::from("test.sol"), source.to_string())
-                .unwrap();
-            ctx.add_file(file);
-            ctx.parse();
-            Ok(())
-        });
-        if parse_result.is_err() {
-            return Err("Parse error".to_string());
-        }
-
-        // Lower and codegen
-        compiler.enter_mut(|c| -> Result<Vec<u8>, String> {
-            let ControlFlow::Continue(()) = c.lower_asts().map_err(|_| "Lower AST error")? else {
-                return Err("Lower AST break".to_string());
-            };
-            let ControlFlow::Continue(()) = c.analysis().map_err(|_| "Analysis error")? else {
-                return Err("Analysis break".to_string());
-            };
-
-            let gcx = c.gcx();
-            for (contract_id, contract) in gcx.hir.contracts_enumerated() {
-                if contract.name.name == sym::Test {
-                    let mut module = lower::lower_contract(gcx, contract_id);
-                    let mut codegen = EvmCodegen::new(gcx);
-                    let bytecode = codegen.generate_deployment_artifact(&mut module).runtime;
-                    return Ok(bytecode);
-                }
-            }
-            Err("Contract 'Test' not found".to_string())
-        })
-    }
-
-    #[test]
-    fn test_local_var_in_conditional_ice() {
-        // Minimal repro for stack underflow ICE:
-        // 1. Read storage into local variable
-        // 2. Use local variable in conditional check
-        // 3. Use local variable inside the conditional body
-        let source = r#"
-            // SPDX-License-Identifier: MIT
-            pragma solidity ^0.8.0;
-            contract Test {
-                uint256 public value;
-                function test() public {
-                    uint256 v = value;
-                    if (v != 0) value = v - 1;
-                }
-            }
-        "#;
-
-        let result = compile_source(source);
-        assert!(result.is_ok(), "Compilation failed: {:?}", result.err());
-        let bytecode = result.unwrap();
-        assert!(!bytecode.is_empty(), "Bytecode should not be empty");
-    }
-
-    #[test]
-    fn test_direct_storage_in_conditional_works() {
-        // This works: directly referencing storage in both condition and body
-        let source = r#"
-            // SPDX-License-Identifier: MIT
-            pragma solidity ^0.8.0;
-            contract Test {
-                uint256 public value;
-                function test() public {
-                    if (value != 0) value = value - 1;
-                }
-            }
-        "#;
-
-        let result = compile_source(source);
-        assert!(result.is_ok(), "Compilation failed: {:?}", result.err());
-    }
-
-    #[test]
-    fn test_phi_value_used_after_if_else() {
-        // Test case for phi node handling when a variable is assigned in both
-        // if/else branches and then used after the if/else.
-        // This pattern is common in Uniswap V2 and similar contracts.
-        let source = r#"
-            // SPDX-License-Identifier: MIT
-            pragma solidity ^0.8.0;
-            contract Test {
-                uint256 public totalSupply;
-                function mint() external returns (uint256 liquidity) {
-                    if (totalSupply == 0) {
-                        liquidity = 1;
-                    } else {
-                        liquidity = 2;
-                    }
-                    totalSupply += liquidity;
-                }
-            }
-        "#;
-
-        let result = compile_source(source);
-        assert!(result.is_ok(), "Compilation failed: {:?}", result.err());
-        let bytecode = result.unwrap();
-        assert!(!bytecode.is_empty(), "Bytecode should not be empty");
-    }
-
-    #[test]
-    fn test_phi_value_used_multiple_times_after_if_else() {
-        // Test case where the phi result is used multiple times after the if/else
-        let source = r#"
-            // SPDX-License-Identifier: MIT
-            pragma solidity ^0.8.0;
-            contract Test {
-                uint256 public totalSupply;
-                function mint() external returns (uint256 result) {
-                    uint256 liquidity;
-                    if (totalSupply == 0) {
-                        liquidity = 1;
-                    } else {
-                        liquidity = 2;
-                    }
-                    totalSupply += liquidity;
-                    uint256 x = liquidity * 2;
-                    result = x + liquidity;
-                }
-            }
-        "#;
-
-        let result = compile_source(source);
-        assert!(result.is_ok(), "Compilation failed: {:?}", result.err());
-        let bytecode = result.unwrap();
-        assert!(!bytecode.is_empty(), "Bytecode should not be empty");
-    }
-
-    #[test]
-    fn test_phi_with_ternary_in_branch() {
-        // Complex phi case with nested ternary operators
-        let source = r#"
-            // SPDX-License-Identifier: MIT
-            pragma solidity ^0.8.0;
-            contract Test {
-                uint256 public totalSupply;
-                uint256 public reserve0;
-                uint256 public reserve1;
-
-                function mint() external returns (uint256 liquidity) {
-                    uint256 amount0 = 100;
-                    uint256 amount1 = 200;
-
-                    if (totalSupply == 0) {
-                        liquidity = amount0 * amount1;
-                    } else {
-                        uint256 l1 = (amount0 * totalSupply) / reserve0;
-                        uint256 l2 = (amount1 * totalSupply) / reserve1;
-                        liquidity = l1 < l2 ? l1 : l2;
-                    }
-
-                    totalSupply += liquidity;
-                }
-            }
-        "#;
-
-        let result = compile_source(source);
-        assert!(result.is_ok(), "Compilation failed: {:?}", result.err());
-        let bytecode = result.unwrap();
-        assert!(!bytecode.is_empty(), "Bytecode should not be empty");
     }
 }

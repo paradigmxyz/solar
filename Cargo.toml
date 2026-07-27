@@ -6,7 +6,7 @@ resolver = "2"
 [workspace.package]
 version = "0.2.0"
 edition = "2024"
-rust-version = "1.95" # MSRV
+rust-version = "1.96" # MSRV
 authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/paradigmxyz/solar"
@@ -110,6 +110,7 @@ solar-codegen = { version = "=0.2.0", path = "crates/codegen", default-features 
 solar-config = { version = "=0.2.0", path = "crates/config", default-features = false }
 solar-data-structures = { version = "=0.2.0", path = "crates/data-structures", default-features = false }
 solar-interface = { version = "=0.2.0", path = "crates/interface", default-features = false }
+solar-lint = { version = "=0.2.0", path = "crates/lint", default-features = false }
 solar-lsp = { version = "=0.2.0", path = "crates/lsp", default-features = false }
 solar-macros = { version = "=0.2.0", path = "crates/macros", default-features = false }
 solar-parse = { version = "=0.2.0", path = "crates/parse", default-features = false }
@@ -119,8 +120,15 @@ solar-sema = { version = "=0.2.0", path = "crates/sema", default-features = fals
 solar-tester = { path = "tools/tester" }
 
 # Ethereum
+alloy-consensus = "2.2"
+alloy-dyn-abi = "1.6"
 alloy-primitives = "1.3"
 alloy-json-abi = "1.3"
+evm2 = { git = "https://github.com/alloy-rs/evm2", rev = "f85cf2657362c742ce7f6e4e6d39d4ac14823cb3", default-features = false, features = [
+    "std",
+    "map-foldhash",
+    "asm-keccak",
+] }
 ruint = { version = "1.16", features = ["num-integer"] }
 
 num-bigint = "0.4"

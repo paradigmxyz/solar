@@ -35,8 +35,12 @@ pub(crate) struct Function {
     pub(crate) external_static_return_size: u64,
     /// All values in this function.
     pub(crate) values: IndexVec<ValueId, Value>,
-    /// All instructions in this function.
-    pub(crate) instructions: IndexVec<InstId, Instruction>,
+    /// All instructions allocated in this function.
+    ///
+    /// Instructions remain allocated after removal from their block, so this is not the active
+    /// instruction list. Use [`Self::instructions`] to iterate active instructions and
+    /// [`Self::inst`] or [`Self::inst_mut`] for ID-based access.
+    instructions: IndexVec<InstId, Instruction>,
     /// All basic blocks in this function. This is never empty; block zero is the entry.
     pub(crate) blocks: IndexVec<BlockId, BasicBlock>,
 }
@@ -93,30 +97,51 @@ impl Function {
 
     /// Returns the instruction for the given ID.
     #[must_use]
-    pub(crate) fn instruction(&self, id: InstId) -> &Instruction {
+    pub(crate) fn inst(&self, id: InstId) -> &Instruction {
         &self.instructions[id]
+    }
+
+    /// Returns a mutable reference to the instruction for the given ID.
+    #[must_use]
+    pub(crate) fn inst_mut(&mut self, id: InstId) -> &mut Instruction {
+        &mut self.instructions[id]
+    }
+
+    /// Returns the size of the allocated instruction ID domain.
+    #[must_use]
+    pub(crate) fn num_insts(&self) -> usize {
+        self.instructions.len()
+    }
+
+    /// Returns the IDs of all active instructions in block order.
+    pub(crate) fn instructions(&self) -> impl Iterator<Item = InstId> + '_ {
+        self.blocks.iter().flat_map(|block| block.instructions.iter().copied())
+    }
+
+    /// Calls `f` for every active instruction in block order.
+    pub(crate) fn for_each_instruction_mut(&mut self, mut f: impl FnMut(InstId, &mut Instruction)) {
+        let blocks = &self.blocks;
+        let instructions = &mut self.instructions;
+        for block in blocks {
+            for &inst_id in &block.instructions {
+                f(inst_id, &mut instructions[inst_id]);
+            }
+        }
+    }
+
+    /// Returns an instruction's position among allocated value-producing instructions.
+    #[must_use]
+    pub(crate) fn inst_result_index(&self, id: InstId) -> Option<usize> {
+        self.instructions
+            .iter_enumerated()
+            .filter(|(_, inst)| inst.result_ty.is_some())
+            .position(|(inst_id, _)| inst_id == id)
     }
 
     /// Returns the value produced by the given instruction, if it has one.
     #[must_use]
     pub(crate) fn inst_result_value(&self, id: InstId) -> Option<ValueId> {
-        self.values
-            .iter_enumerated()
-            .find(|(_, value)| matches!(value, Value::Inst(inst) if *inst == id))
-            .map(|(value_id, _)| value_id)
-    }
-
-    /// Returns a map from each instruction to its result value.
-    #[must_use]
-    pub(crate) fn inst_results(&self) -> FxHashMap<InstId, ValueId> {
-        let mut results =
-            FxHashMap::with_capacity_and_hasher(self.instructions.len(), Default::default());
-        for (value_id, value) in self.values.iter_enumerated() {
-            if let Value::Inst(inst_id) = value {
-                results.insert(*inst_id, value_id);
-            }
-        }
-        results
+        self.instructions[id].result()
     }
 
     /// Returns a map from each instruction to the block containing it.
@@ -189,11 +214,51 @@ impl Function {
 
     /// Allocates a new value.
     pub(crate) fn alloc_value(&mut self, value: Value) -> ValueId {
+        assert!(
+            !matches!(value, Value::Inst(_)),
+            "instruction results must be allocated with their instruction"
+        );
         self.values.push(value)
     }
 
-    /// Allocates a new instruction.
-    pub(crate) fn alloc_inst(&mut self, inst: Instruction) -> InstId {
+    /// Allocates a value-producing instruction and its result value.
+    pub(crate) fn alloc_value_inst(&mut self, mut inst: Instruction) -> (InstId, ValueId) {
+        assert!(inst.result_ty.is_some(), "value-producing instruction must have a result type");
+
+        let inst_id = self.instructions.next_idx();
+        let value_id = self.values.next_idx();
+        assert!(inst.set_result(Some(value_id)).is_none(), "new instruction already has a result");
+        let allocated_inst = self.instructions.push(inst);
+        let allocated_value = self.values.push(Value::Inst(inst_id));
+        debug_assert_eq!(allocated_inst, inst_id);
+        debug_assert_eq!(allocated_value, value_id);
+        (inst_id, value_id)
+    }
+
+    /// Allocates a value-producing instruction for a preallocated undefined result value.
+    pub(crate) fn alloc_inst_with_result(
+        &mut self,
+        mut inst: Instruction,
+        result: ValueId,
+    ) -> InstId {
+        assert!(inst.result_ty.is_some(), "value-producing instruction must have a result type");
+        assert!(
+            matches!(self.values[result], Value::Undef(_)),
+            "preallocated instruction result must be undefined"
+        );
+
+        let inst_id = self.instructions.next_idx();
+        assert!(inst.set_result(Some(result)).is_none(), "new instruction already has a result");
+        self.values[result] = Value::Inst(inst_id);
+        let allocated_inst = self.instructions.push(inst);
+        debug_assert_eq!(allocated_inst, inst_id);
+        inst_id
+    }
+
+    /// Allocates an instruction that produces no value.
+    pub(crate) fn alloc_inst(&mut self, mut inst: Instruction) -> InstId {
+        assert!(inst.result_ty.is_none(), "value-producing instruction must allocate its result");
+        inst.set_result(None);
         self.instructions.push(inst)
     }
 
@@ -208,9 +273,9 @@ impl Function {
             return;
         }
 
-        for inst in self.instructions.iter_mut() {
+        self.for_each_instruction_mut(|_, inst| {
             super::utils::replace_inst_uses(&mut inst.kind, replacements);
-        }
+        });
         for block in self.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
                 super::utils::replace_terminator_uses(term, replacements);
@@ -227,9 +292,9 @@ impl Function {
             return;
         }
 
-        for inst in self.instructions.iter_mut() {
+        self.for_each_instruction_mut(|_, inst| {
             super::utils::replace_inst_uses_canonicalized(&mut inst.kind, replacements);
-        }
+        });
         for block in self.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
                 super::utils::replace_terminator_uses_canonicalized(term, replacements);
@@ -239,10 +304,9 @@ impl Function {
 
     /// Annotates storage-alias metadata for state-access instructions.
     pub(crate) fn annotate_storage_aliases(&mut self, scope: super::utils::StorageAliasScope) {
-        let inst_ids: Vec<_> =
-            self.instructions.iter_enumerated().map(|(inst_id, _)| inst_id).collect();
+        let inst_ids: Vec<_> = self.instructions().collect();
         for inst_id in inst_ids {
-            let slot = match self.instructions[inst_id].kind {
+            let slot = match self.inst(inst_id).kind {
                 InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(slot),
                 InstKind::TLoad(slot) | InstKind::TStore(slot, _)
                     if scope == super::utils::StorageAliasScope::StorageAndTransient =>
@@ -252,14 +316,14 @@ impl Function {
                 _ => None,
             };
             let alias = slot.map(|slot| StorageAlias::for_value(self, slot));
-            self.instructions[inst_id].metadata.set_storage_alias(alias);
+            self.inst_mut(inst_id).metadata.set_storage_alias(alias);
         }
     }
 
     /// Returns stored storage-alias metadata, or computes a conservative alias key.
     #[must_use]
     pub(crate) fn storage_alias(&self, inst_id: InstId, slot: ValueId) -> StorageAlias {
-        self.instructions[inst_id]
+        self.inst(inst_id)
             .metadata
             .storage_alias()
             .unwrap_or_else(|| StorageAlias::for_value(self, slot))
@@ -286,18 +350,6 @@ impl Function {
     #[must_use]
     pub(crate) fn is_public(&self) -> bool {
         matches!(self.attributes.visibility, Visibility::Public | Visibility::External)
-    }
-
-    /// Returns the human-readable textual MIR representation of this function.
-    #[cfg(test)]
-    pub(crate) fn to_text(&self) -> impl fmt::Display + '_ {
-        super::display::display_function_text(self, None)
-    }
-
-    /// Returns this function's DOT-format CFG.
-    #[cfg(test)]
-    pub(crate) fn to_dot(&self) -> impl fmt::Display + '_ {
-        super::display::display_function_dot(self, None)
     }
 }
 

@@ -1,15 +1,20 @@
 //@compile-flags: --pass licm
+//@filecheck:
 @module LicmStaticcallStorage
 
 // STATICCALL cannot write storage, even reentrantly: the sload stays invariant
 // and is hoisted out of this view-heavy loop.
+// CHECK-LABEL: {{^[ +].*}}fn @hoist_sload_with_staticcall{{[( ]}}
+// CHECK: + [[LOAD:v[0-9]+]] = sload 5
+// CHECK: - [[LOAD]] = sload 5
+// CHECK: {{^[ +].*}}staticcall
 fn @hoist_sload_with_staticcall() -> u256 {
   bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, 10
-    br v2, bb2, bb3
+    jumpi v2, bb2, bb3
   bb2:
     v3 = sload 5
     v4 = staticcall 1000, 0xbeef, 0, 0, 0, 0
@@ -20,13 +25,17 @@ fn @hoist_sload_with_staticcall() -> u256 {
 }
 
 // Transient storage is equally unwritable from a static context.
+// CHECK-LABEL: {{^[ +].*}}fn @hoist_tload_with_staticcall{{[( ]}}
+// CHECK: + [[LOAD:v[0-9]+]] = tload 5
+// CHECK: - [[LOAD]] = tload 5
+// CHECK: {{^[ +].*}}staticcall
 fn @hoist_tload_with_staticcall() -> u256 {
   bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, 10
-    br v2, bb2, bb3
+    jumpi v2, bb2, bb3
   bb2:
     v3 = tload 5
     v4 = staticcall 1000, 0xbeef, 0, 0, 0, 0
@@ -37,13 +46,16 @@ fn @hoist_tload_with_staticcall() -> u256 {
 }
 
 // A plain call may write any slot; the sload must stay in the loop.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_sload_with_call{{[( ]}}
+// CHECK: + [[LOAD:v[0-9]+]] = sload 5
+// CHECK: {{^[ +].*[ =]call[[:space:]]}}
 fn @keep_sload_with_call() -> u256 {
   bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, 10
-    br v2, bb2, bb3
+    jumpi v2, bb2, bb3
   bb2:
     v3 = sload 5
     v4 = call 1000, 0xbeef, 0, 0, 0, 0, 0

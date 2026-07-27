@@ -28,9 +28,9 @@ pub(crate) const IMMUTABLE_WORD_SIZE: usize = 32;
 /// Optimization runs on the compact high-level form first; the progressive
 /// lowering phases then rewrite high-level constructs into MIR itself instead
 /// of leaving them as backend special cases. The codegen pipeline runs ABI,
-/// dispatch, memory-object, and EVM-shape lowering by default, and the backend
-/// consumes the `evm-shaped` module. A module where ABI/dispatch lowering bails
-/// keeps its earlier phase and uses the backend dispatcher.
+/// dispatch, memory-object, allocation, and EVM-shape lowering by default. The
+/// backend only consumes an `evm-shaped` module; a lowering pass that cannot
+/// complete leaves the module at an earlier phase and codegen reports it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MirPhase {
     /// Fresh from HIR lowering: typed values, internal calls by function id,
@@ -45,8 +45,7 @@ pub enum MirPhase {
     /// The wrapper keeps its selector but takes no MIR arguments.
     Abi,
     /// The selector switch has been materialized as an ordinary MIR `entry`
-    /// function that routes to the ABI wrappers, instead of being generated
-    /// inside the backend.
+    /// function that routes to the ABI wrappers.
     Dispatch,
     /// Semantic memory objects have been lowered to physical pointer and word
     /// operations. Produced by the `lower-memory-objects` pass.
@@ -54,7 +53,7 @@ pub enum MirPhase {
     /// Functions take the shape the backend expects: every call edge either
     /// returns or is an explicit `tail_call` (a call to a callee that cannot
     /// return is rewritten into one, arguments included). Produced by the
-    /// `lower-evm-shaped` pass.
+    /// `lower-evm-shaped` pass after all required representation lowering.
     EvmShaped,
 }
 

@@ -44,13 +44,17 @@ pub fn get_srcs() -> &'static [Source] {
                 "../testdata/solidity/test/benchmarks/OptimizorClub.sol",
                 Capabilities::all(),
             ),
-            include_source("../testdata/UniswapV3.sol", Capabilities::no_codegen()), // TODO: old 0.8 semantics
+            // Pre-0.8 source semantics: rejected by 0.8 type rules (unary `-` on
+            // unsigned, one-step sign+width conversions).
+            include_source("../testdata/UniswapV3.sol", Capabilities::no_codegen()),
             include_source("../testdata/Solarray.sol", Capabilities::all()),
             include_source("../testdata/console.sol", Capabilities::all()),
             include_source("../testdata/Vm.sol", Capabilities::all()),
             include_source("../testdata/safeconsole.sol", Capabilities::all()),
-            include_source("../testdata/Seaport.sol", Capabilities::no_codegen()), // TODO: unsupported yul `return`
+            include_source("../testdata/Seaport.sol", Capabilities::all()),
             include_source("../testdata/Solady.sol", Capabilities::all()),
+            // Multi-file concatenation: top-level redeclarations fail symbol
+            // resolution in `lower_asts`, so parsing is this source's ceiling.
             include_source("../testdata/Optimism.sol", Capabilities::lex_and_parse()),
         ];
         extend_repro_sources(&mut sources);
@@ -66,14 +70,12 @@ fn extend_repro_sources(sources: &mut Vec<Source>) {
     const PATTERNS: &[&str] = &[
         "many_symbols",
         "many_functions",
-        // TODO: hits recursion limit in parser
-        // "deep_nesting",
+        "deep_nesting",
         "many_types",
         "large_literals",
         "many_storage",
         "many_events",
-        // TODO: super slow in `find_matching_in_contract` recursion
-        // "complex_inheritance",
+        "complex_inheritance",
         "many_mappings",
         "many_modifiers",
     ];

@@ -4,7 +4,7 @@ fn @lt() {
   bb0:
     mstore 128, 0
     v0 = eq 1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    br v0, bb1, bb2
+    jumpi v0, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -20,14 +20,14 @@ fn @div() {
   bb0:
     mstore 128, 0
     v0 = eq 7, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8
-    br v0, bb1, bb2
+    jumpi v0, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb2:
     v1 = sub 0, 7
-    br 2, bb4, bb3
+    jumpi 2, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 18 !metadata(memory=scratch)
@@ -36,7 +36,7 @@ fn @div() {
     v2 = eq v1, 0x8000000000000000000000000000000000000000000000000000000000000000
     v3 = eq 2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v4 = and v2, v3
-    br v4, bb5, bb6
+    jumpi v4, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -51,7 +51,7 @@ fn @shr() {
   bb0:
     mstore 128, 0
     v0 = eq 8, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8
-    br v0, bb1, bb2
+    jumpi v0, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

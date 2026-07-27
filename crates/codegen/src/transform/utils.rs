@@ -3,8 +3,7 @@
 use crate::mir::Function;
 use solar_sema::hir::StateMutability;
 
-/// Whether an external entry must reject nonzero callvalue, mirroring the
-/// backend dispatcher's rule.
+/// Whether an external entry must reject nonzero callvalue.
 pub(super) fn rejects_callvalue(func: &Function) -> bool {
     matches!(
         func.attributes.state_mutability,

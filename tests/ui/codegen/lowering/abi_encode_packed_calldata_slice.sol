@@ -1,4 +1,5 @@
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
+//@ filecheck:
 
 // `abi.encodePacked(...)` may include a slice of a `bytes`/`string` calldata
 // value, `data[start:end]` (open bounds default to `0`/`data.length`). The
@@ -7,6 +8,26 @@
 // separately, for bounded, open, and prefixed slices.
 
 contract AbiEncodePackedCalldataSlice {
+    // CHECK: push 0xd07523
+    // CHECK: eq
+    // CHECK-NEXT: push [[HASH_BODY:bb[0-9]+]]
+    // CHECK: push 0x2a5dea89
+    // CHECK: eq
+    // CHECK-NEXT: push [[OPEN_BODY:bb[0-9]+]]
+    // CHECK: [[HASH_BODY]]:
+    // CHECK: jump [[PACK:bb[0-9]+]]
+    // CHECK: [[PACK]]:
+    // CHECK: [[OPEN_BODY]]:
+    // CHECK: jump [[PACK]]
+    // CHECK: calldatacopy
+    // CHECK: mcopy
+    // CHECK: jump [[DONE:bb[0-9]+]]
+    // CHECK: [[DONE]]:
+    // CHECK: keccak256
+    // CHECK: calldatacopy
+    // CHECK: push 112
+    // CHECK: mcopy
+    // CHECK: jump [[DONE]]
     function hash(bytes calldata data, uint256 start, uint256 end) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(data[start:end]));
     }

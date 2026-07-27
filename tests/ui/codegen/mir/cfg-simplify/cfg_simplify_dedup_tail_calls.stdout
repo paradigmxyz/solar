@@ -1,0 +1,31 @@
+- // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_dedup_tail_calls.mir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_dedup_tail_calls.mir (after cfg-simplify) ===
+  @module CfgDedupTailCalls
+  fn @target_a() {
+    bb0:
+      stop
+  }
+  
+  fn @target_b() {
+    bb0:
+      stop
+  }
+  
+  fn @keep_distinct_targets(arg0: bool) {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb1:
+      tail_call @target_a
+    bb2:
+      tail_call @target_b
+  }
+  
+  fn @dedup_same_target(arg0: bool) {
+    bb0:
+-     jumpi arg0, bb1, bb2
+-   bb1:
+-     tail_call @target_a
+-   bb2:
+      tail_call @target_a
+  }
+  

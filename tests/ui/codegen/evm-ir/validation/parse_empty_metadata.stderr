@@ -1,0 +1,8 @@
+error: expected metadata value
+   ╭▸ ROOT/tests/ui/codegen/evm-ir/validation/parse_empty_metadata.evmir:LL:CC
+   │
+LL │   add !meta(foo= )
+   ╰╴                 ━
+
+error: aborting due to 1 previous error
+

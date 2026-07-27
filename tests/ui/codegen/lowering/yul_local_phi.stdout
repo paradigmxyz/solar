@@ -5,7 +5,7 @@ fn @branchLocal(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -13,7 +13,7 @@ fn @branchLocal(arg0: u256) {
     mstore 160, 1
     v3 = eq arg0, 0
     v4 = iszero v3
-    br v4, bb3, bb4
+    jumpi v4, bb3, bb4
   bb3:
     mstore 160, 2
     jump bb4

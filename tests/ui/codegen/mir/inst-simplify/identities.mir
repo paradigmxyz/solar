@@ -1,0 +1,141 @@
+//@compile-flags: --pass inst-simplify
+//@filecheck: --enable-var-scope
+@module InstSimplifyIdentities
+
+// CHECK-LABEL: @add_zero
+// CHECK: - [[SUM:v[0-9]+]] = add arg0, 0
+// CHECK: - ret [[SUM]]
+// CHECK: ret arg0
+fn @add_zero(arg0: u256) -> u256 {
+  bb0:
+    v1 = add arg0, 0
+    ret v1
+}
+
+// CHECK-LABEL: @mul_one
+// CHECK: - [[PRODUCT:v[0-9]+]] = mul 1, arg0
+// CHECK: - ret [[PRODUCT]]
+// CHECK: ret arg0
+fn @mul_one(arg0: u256) -> u256 {
+  bb0:
+    v1 = mul 1, arg0
+    ret v1
+}
+
+// CHECK-LABEL: @self_sub
+// CHECK: - [[DIFF:v[0-9]+]] = sub arg0, arg0
+// CHECK: - ret [[DIFF]]
+// CHECK: ret 0
+fn @self_sub(arg0: u256) -> u256 {
+  bb0:
+    v1 = sub arg0, arg0
+    ret v1
+}
+
+// CHECK-LABEL: @idempotent_logic
+// CHECK: - [[AND:v[0-9]+]] = and arg0, arg0
+// CHECK: - [[OR:v[0-9]+]] = or arg0, arg0
+// CHECK: - [[XOR:v[0-9]+]] = xor arg0, arg0
+// CHECK: - ret [[AND]], [[OR]], [[XOR]]
+// CHECK: ret arg0, arg0, 0
+fn @idempotent_logic(arg0: u256) -> (u256, u256, u256) {
+  bb0:
+    v1 = and arg0, arg0
+    v2 = or arg0, arg0
+    v3 = xor arg0, arg0
+    ret v1, v2, v3
+}
+
+// CHECK-LABEL: @not_not
+// CHECK:       [[NOT:v[0-9]+]] = not arg0
+// CHECK: -     [[DOUBLE_NOT:v[0-9]+]] = not [[NOT]]
+// CHECK: -     ret [[DOUBLE_NOT]]
+// CHECK: ret arg0
+fn @not_not(arg0: u256) -> u256 {
+  bb0:
+    v1 = not arg0
+    v2 = not v1
+    ret v2
+}
+
+// CHECK-LABEL: @iszero_immediate
+// CHECK: - [[ZERO:v[0-9]+]] = iszero 0
+// CHECK: - ret [[ZERO]]
+// CHECK: ret 1
+fn @iszero_immediate() -> bool {
+  bb0:
+    v0 = iszero 0
+    ret v0
+}
+
+// CHECK-LABEL: @eq_zero
+// CHECK: -     {{v[0-9]+}} = eq arg0, 0
+// CHECK:       [[ZERO:v[0-9]+]] = iszero arg0
+// CHECK:       ret [[ZERO]]
+fn @eq_zero(arg0: u256) -> bool {
+  bb0:
+    v1 = eq arg0, 0
+    ret v1
+}
+
+// CHECK-LABEL: @and_all_ones
+// CHECK: - [[MASKED:v[0-9]+]] = and {{0x[0-9a-f]+}}, arg0
+// CHECK: - ret [[MASKED]]
+// CHECK: ret arg0
+fn @and_all_ones(arg0: u256) -> u256 {
+  bb0:
+    v1 = and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
+    ret v1
+}
+
+// CHECK-LABEL: @address_mask
+// CHECK:       [[ADDRESS:v[0-9]+]] = address
+// CHECK: -     [[MASKED:v[0-9]+]] = and [[ADDRESS]], {{0x[0-9a-f]+}}
+// CHECK: -     ret [[MASKED]]
+// CHECK:       ret [[ADDRESS]]
+fn @address_mask() -> address {
+  bb0:
+    v0 = address
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v1
+}
+
+// CHECK-LABEL: @own_balance
+// CHECK:       [[ADDRESS:v[0-9]+]] = address
+// CHECK: -     {{v[0-9]+}} = balance [[ADDRESS]]
+// CHECK:       [[BALANCE:v[0-9]+]] = selfbalance
+// CHECK:       ret [[BALANCE]]
+fn @own_balance() -> u256 {
+  bb0:
+    v0 = address
+    v1 = balance v0
+    ret v1
+}
+
+// CHECK-LABEL: @invert_iszero_branch
+// CHECK: -     jumpi {{v[0-9]+}}, [[THEN:bb[0-9]+]], [[ELSE:bb[0-9]+]]
+// CHECK:       jumpi arg0, [[ELSE]], [[THEN]]
+fn @invert_iszero_branch(arg0: u256) {
+  bb0:
+    v1 = lt 0, arg0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb1:
+    stop
+  bb2:
+    stop
+}
+
+// CHECK-LABEL: @masked_own_balance
+// CHECK:       [[ADDRESS:v[0-9]+]] = address
+// CHECK: -     [[MASKED:v[0-9]+]] = and [[ADDRESS]], {{0x[0-9a-f]+}}
+// CHECK: -     {{v[0-9]+}} = balance [[MASKED]]
+// CHECK:       [[BALANCE:v[0-9]+]] = selfbalance
+// CHECK:       ret [[BALANCE]]
+fn @masked_own_balance() -> u256 {
+  bb0:
+    v0 = address
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = balance v1
+    ret v2
+}

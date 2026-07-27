@@ -1,5 +1,27 @@
 //@compile-flags: --passes cse,memory-dse,storage-load-cse,storage-dse,dce
+//@filecheck:
 @module AggregateEffects
+
+// CSE forwards across aggregate effects only when their ranges are disjoint.
+// CHECK: + // === {{.*}} (after cse) ===
+// CHECK: {{^[ +].*}}fn @flat_memory_write_is_precise{{[( ]}}
+// CHECK: - {{v[0-9]+}} = mload 128
+// CHECK: + {{v[0-9]+}} = add [[FLAT:v[0-9]+]], [[FLAT]]
+// CHECK: {{^[ +].*}}fn @nested_memory_write_is_barrier{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 128
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 128
+// CHECK: {{^[ +].*}}fn @disjoint_storage{{[( ]}}
+// CHECK: + {{v[0-9]+}} = add [[SLOAD:v[0-9]+]], [[SLOAD]]
+// CHECK: {{^[ +].*}}fn @overlapping_storage{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload 0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload 0
+// Aggregate writes kill preceding stores only when they overwrite the value.
+// CHECK: + // === {{.*}} (after memory-dse) ===
+// CHECK: {{^[ +].*}}fn @overwrites_memory{{[( ]}}
+// CHECK: - mstore arg0, 7
+// CHECK: + // === {{.*}} (after storage-dse) ===
+// CHECK: {{^[ +].*}}fn @clobbers_stored_value{{[( ]}}
+// CHECK: - sstore 0, 1 !metadata(storage=slot(0))
 
 fn @reads_memory(arg0: memptr) {
   bb0:

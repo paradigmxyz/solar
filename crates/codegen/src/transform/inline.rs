@@ -228,12 +228,9 @@ impl MirInliner {
     fn call_counts(&self, module: &Module) -> FxHashMap<MirFunctionId, usize> {
         let mut counts = FxHashMap::default();
         for func in module.functions.iter() {
-            for block in func.blocks.iter() {
-                for &inst_id in &block.instructions {
-                    if let InstKind::InternalCall { function, .. } = func.instructions[inst_id].kind
-                    {
-                        *counts.entry(function).or_default() += 1;
-                    }
+            for inst_id in func.instructions() {
+                if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
+                    *counts.entry(function).or_default() += 1;
                 }
             }
         }
@@ -274,11 +271,9 @@ impl MirInliner {
 
     fn function_callees(&self, func: &Function) -> Vec<MirFunctionId> {
         let mut callees = Vec::new();
-        for block in func.blocks.iter() {
-            for &inst_id in &block.instructions {
-                if let InstKind::InternalCall { function, .. } = func.instructions[inst_id].kind {
-                    callees.push(function);
-                }
+        for inst_id in func.instructions() {
+            if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
+                callees.push(function);
             }
         }
         callees
@@ -294,7 +289,7 @@ impl MirInliner {
             let start_inst = if block.index() == start.0 { start.1 } else { 0 };
             for (inst_index, &inst_id) in bb.instructions.iter().enumerate().skip(start_inst) {
                 if let InstKind::InternalCall { function, ref args, returns } =
-                    func.instructions[inst_id].kind
+                    func.inst(inst_id).kind
                 {
                     return Some(CallSite {
                         block,
@@ -396,7 +391,7 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
 
     for block in func.blocks.iter() {
         for &inst_id in &block.instructions {
-            let kind = &func.instructions[inst_id].kind;
+            let kind = &func.inst(inst_id).kind;
             summary.instruction_count += match kind {
                 InstKind::MappingSlot(..) => 3,
                 InstKind::MappingSlotMemory(..) => 8,
@@ -667,8 +662,7 @@ fn inline_call_impl(
     callee: &Function,
 ) -> Option<()> {
     let call_inst = caller.blocks[call_block].instructions[call_inst_index];
-    let InstKind::InternalCall { args, returns, .. } = caller.instructions[call_inst].kind.clone()
-    else {
+    let InstKind::InternalCall { args, returns, .. } = caller.inst(call_inst).kind.clone() else {
         return None;
     };
     let returns = returns as usize;
@@ -774,14 +768,17 @@ impl<'a> InlineCloner<'a> {
             let caller_block = self.block_map[&callee_block];
             let mut instructions = Vec::with_capacity(block.instructions.len());
             for &inst_id in &block.instructions {
-                let inst = self.callee.instructions[inst_id].clone();
+                let inst = self.callee.inst(inst_id).clone();
                 let kind = self.clone_inst_kind(inst.kind)?;
-                let new_inst = self.caller.alloc_inst(Instruction::new(kind, inst.result_ty));
-                instructions.push(new_inst);
-                if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
-                    let new_result = self.caller.alloc_value(Value::Inst(new_inst));
+                let instruction = Instruction::new(kind, inst.result_ty);
+                let new_inst = if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
+                    let (new_inst, new_result) = self.caller.alloc_value_inst(instruction);
                     self.value_map.insert(callee_result, new_result);
-                }
+                    new_inst
+                } else {
+                    self.caller.alloc_inst(instruction)
+                };
+                instructions.push(new_inst);
             }
             self.caller.blocks[caller_block].instructions = instructions;
         }
@@ -1125,9 +1122,10 @@ fn build_return_values(
             .iter()
             .map(|(block, edge_values)| Some((*block, *edge_values.get(index)?)))
             .collect::<Option<Vec<_>>>()?;
-        let phi = caller.alloc_inst(Instruction::new(InstKind::Phi(incoming), Some(ty)));
+        let (phi, value) =
+            caller.alloc_value_inst(Instruction::new(InstKind::Phi(incoming), Some(ty)));
         caller.blocks[continuation].instructions.insert(index, phi);
-        values.push(caller.alloc_value(Value::Inst(phi)));
+        values.push(value);
     }
     Some(values)
 }
@@ -1141,11 +1139,11 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
     let phi_count = caller.blocks[continuation]
         .instructions
         .iter()
-        .take_while(|&&inst_id| matches!(caller.instructions[inst_id].kind, InstKind::Phi(_)))
+        .take_while(|&&inst_id| matches!(caller.inst(inst_id).kind, InstKind::Phi(_)))
         .count();
 
-    let base_load = caller.alloc_inst(Instruction::new(InstKind::Fmp, Some(MirType::MemPtr)));
-    let base = caller.alloc_value(Value::Inst(base_load));
+    let (base_load, base) =
+        caller.alloc_value_inst(Instruction::new(InstKind::Fmp, Some(MirType::MemPtr)));
     let mut insert_at = phi_count;
     caller.blocks[continuation].instructions.insert(insert_at, base_load);
     insert_at += 1;
@@ -1153,9 +1151,10 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
     for (index, &value) in values.iter().enumerate() {
         let offset = caller
             .alloc_value(Value::Immediate(Immediate::uint256(U256::from((index as u64 + 1) * 32))));
-        let addr = caller
-            .alloc_inst(Instruction::new(InstKind::Add(base, offset), Some(MirType::uint256())));
-        let addr_value = caller.alloc_value(Value::Inst(addr));
+        let (addr, addr_value) = caller.alloc_value_inst(Instruction::new(
+            InstKind::Add(base, offset),
+            Some(MirType::uint256()),
+        ));
         let store = caller.alloc_inst(Instruction::new(InstKind::MStore(addr_value, value), None));
         caller.blocks[continuation].instructions.insert(insert_at, addr);
         caller.blocks[continuation].instructions.insert(insert_at + 1, store);
@@ -1180,8 +1179,10 @@ fn redirect_phi_predecessors(
     }
 
     for &succ in successors {
-        for &inst_id in &func.blocks[succ].instructions {
-            if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
+        let instruction_count = func.blocks[succ].instructions.len();
+        for index in 0..instruction_count {
+            let inst_id = func.blocks[succ].instructions[index];
+            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind {
                 for (pred, _) in incoming {
                     if *pred == old_pred {
                         *pred = new_pred;
@@ -1214,91 +1215,12 @@ fn recompute_cfg(func: &mut Function) {
 fn prune_phi_incoming_to_predecessors(func: &mut Function) {
     for block_id in func.blocks.indices() {
         let predecessors = func.blocks[block_id].predecessors.clone();
-        for &inst_id in &func.blocks[block_id].instructions {
-            if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
+        let instruction_count = func.blocks[block_id].instructions.len();
+        for index in 0..instruction_count {
+            let inst_id = func.blocks[block_id].instructions[index];
+            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind {
                 incoming.retain(|(pred, _)| predecessors.contains(pred));
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::FunctionBuilder;
-    use solar_interface::Ident;
-    use solar_sema::hir::Visibility;
-
-    #[test]
-    fn inlines_loop_return_through_continuation_phi() {
-        let mut module = Module::new(Ident::DUMMY);
-
-        let mut callee = Function::new(Ident::DUMMY);
-        {
-            let mut builder = FunctionBuilder::new(&mut callee);
-            let limit = builder.add_param(MirType::uint256());
-            builder.add_return(MirType::uint256());
-            let frame_offset = 64 + 2 * 32;
-
-            let header = builder.create_block();
-            let body = builder.create_block();
-            let exit = builder.create_block();
-
-            let frame = builder.internal_frame_addr(frame_offset);
-            let zero = builder.imm_u64(0);
-            builder.mstore(frame, zero);
-            builder.jump(header);
-
-            builder.switch_to_block(header);
-            let frame = builder.internal_frame_addr(frame_offset);
-            let current = builder.mload(frame);
-            let cond = builder.lt(current, limit);
-            builder.branch(cond, body, exit);
-
-            builder.switch_to_block(body);
-            let frame = builder.internal_frame_addr(frame_offset);
-            let current = builder.mload(frame);
-            let one = builder.imm_u64(1);
-            let next = builder.add(current, one);
-            let frame = builder.internal_frame_addr(frame_offset);
-            builder.mstore(frame, next);
-            builder.jump(header);
-
-            builder.switch_to_block(exit);
-            let frame = builder.internal_frame_addr(frame_offset);
-            let result = builder.mload(frame);
-            builder.ret([result]);
-        }
-        callee.internal_frame_size = 32;
-        let callee_id = module.add_function(callee);
-
-        let mut caller = Function::new(Ident::DUMMY);
-        caller.attributes.visibility = Visibility::Public;
-        {
-            let mut builder = FunctionBuilder::new(&mut caller);
-            let limit = builder.imm_u64(4);
-            let value = builder.internal_call(callee_id, vec![limit], MirType::uint256(), 1);
-            let one = builder.imm_u64(1);
-            let result = builder.add(value, one);
-            builder.ret([result]);
-        }
-        let caller_id = module.add_function(caller);
-
-        let mut inliner = MirInliner::default();
-        let stats = inliner.run(&mut module);
-        assert_eq!(stats.inlined, 1);
-
-        let caller = module.function(caller_id);
-        assert!(caller.blocks.iter().all(|block| {
-            block.instructions.iter().all(|&inst| {
-                !matches!(caller.instructions[inst].kind, InstKind::InternalCall { .. })
-            })
-        }));
-        assert!(caller.blocks.iter().any(|block| {
-            block
-                .instructions
-                .iter()
-                .any(|&inst| matches!(caller.instructions[inst].kind, InstKind::Phi(_)))
-        }));
     }
 }

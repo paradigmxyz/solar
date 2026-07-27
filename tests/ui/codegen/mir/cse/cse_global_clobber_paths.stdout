@@ -4,7 +4,7 @@
   fn @diamond_sload_clobbered_arm(arg0: bool) -> u256 {
     bb0:
       v0 = sload 0
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
       sstore 0, 7
       jump bb3
@@ -19,7 +19,7 @@
   fn @diamond_sload_clean_arms(arg0: bool) -> u256 {
     bb0:
       v0 = sload 0
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
       jump bb3
     bb2:
@@ -34,7 +34,7 @@
   fn @diamond_sload_distinct_slot_store(arg0: bool) -> u256 {
     bb0:
       v0 = sload 0
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
       sstore 1, 7
       jump bb3
@@ -54,7 +54,7 @@
     bb1:
       v1 = sload 0
       v2 = lt v1, arg0
-      br v2, bb2, bb3
+      jumpi v2, bb2, bb3
     bb2:
       sstore 0, 7
       jump bb1
@@ -71,7 +71,7 @@
 -     v1 = sload 0
 -     v2 = lt v1, arg0
 +     v2 = lt v0, arg0
-      br v2, bb2, bb3
+      jumpi v2, bb2, bb3
     bb2:
       jump bb1
     bb3:
@@ -84,7 +84,7 @@
     bb0:
       mstore 0, 11
       v0 = mload 0
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
       mstore 0, 22
       jump bb3
@@ -100,7 +100,7 @@
     bb0:
       v0 = balance arg1
       v1 = extcodesize arg1
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
       v2 = call 0x186a0, arg1, 0, 0, 0, 0, 0
       jump bb3

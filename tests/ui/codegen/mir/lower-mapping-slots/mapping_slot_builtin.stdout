@@ -13,7 +13,7 @@
   fn @word_across_reverting_branch(arg0: u256, arg1: bool) -> u256 {
     bb0:
       v0 = mapping_slot arg0, 7
-      br arg1, bb1, bb2
+      jumpi arg1, bb1, bb2
     bb1:
       mstore 0, 1
       revert 0, 0
@@ -62,7 +62,7 @@
 +     mstore 0, arg0 !metadata(memory=scratch)
 +     mstore 32, 7 !metadata(memory=scratch)
 +     v3 = keccak256 0, 64 !metadata(memory=scratch)
-      br arg1, bb1, bb2
+      jumpi arg1, bb1, bb2
     bb1:
       mstore 0, 1
       revert 0, 0
@@ -131,7 +131,7 @@
       mstore 0, arg0 !metadata(memory=scratch)
       mstore 32, 7 !metadata(memory=scratch)
       v3 = keccak256 0, 64 !metadata(memory=scratch)
-      br arg1, bb1, bb2
+      jumpi arg1, bb1, bb2
     bb1:
       mstore 0, 1
       revert 0, 0

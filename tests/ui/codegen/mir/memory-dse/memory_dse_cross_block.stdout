@@ -24,7 +24,7 @@
   
   fn @keep_store_into_multi_pred_successor(arg0: bool) -> u256 {
     bb0:
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
       mstore 128, 1
       jump bb3

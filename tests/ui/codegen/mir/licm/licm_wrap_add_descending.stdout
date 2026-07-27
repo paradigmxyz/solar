@@ -7,7 +7,7 @@
     bb1:
       v0 = phi [bb0: 64], [bb2: v4]
       v1 = lt v0, 100
-      br v1, bb2, bb3
+      jumpi v1, bb2, bb3
     bb2:
       v2 = mul v0, 32
       mstore v2, 1

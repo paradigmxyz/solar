@@ -51,7 +51,7 @@ impl RunState {
     fn new(func: &Function) -> Self {
         Self {
             replacements: FxHashMap::default(),
-            dead: DenseBitSet::new_empty(func.instructions.len()),
+            dead: DenseBitSet::new_empty(func.num_insts()),
             cached_loads: FxHashMap::default(),
         }
     }
@@ -72,13 +72,12 @@ impl StorageLoadCseCx {
 
         let mut analyses = AnalysisManager::new();
         let liveness = analyses.get_or_compute(&LivenessAnalysis, func);
-        let inst_results = func.inst_results();
         state.replacements.clear();
         state.dead.clear();
 
         for block_id in func.blocks.indices() {
             state.cached_loads.clear();
-            self.process_block(func, block_id, liveness, &inst_results, state);
+            self.process_block(func, block_id, liveness, state);
         }
 
         if !state.replacements.is_empty() {
@@ -112,12 +111,11 @@ impl StorageLoadCseCx {
         func: &Function,
         block_id: BlockId,
         liveness: &Liveness,
-        inst_results: &FxHashMap<InstId, ValueId>,
         state: &mut RunState,
     ) {
         let aa = self.alias.as_ref().expect("storage-load CSE alias snapshot is initialized");
         for (inst_idx, &inst_id) in func.blocks[block_id].instructions.iter().enumerate() {
-            match &func.instructions[inst_id].kind {
+            match &func.inst(inst_id).kind {
                 InstKind::SLoad(slot) => {
                     let alias = aa.storage_alias_after_replacements(
                         func,
@@ -125,7 +123,7 @@ impl StorageLoadCseCx {
                         *slot,
                         &state.replacements,
                     );
-                    let Some(&result) = inst_results.get(&inst_id) else {
+                    let Some(result) = func.inst_result_value(inst_id) else {
                         continue;
                     };
                     if let Some(&cached) = state.cached_loads.get(&alias) {
@@ -187,12 +185,12 @@ impl StorageLoadCseCx {
             return;
         }
 
-        for inst in func.instructions.iter_mut() {
+        func.for_each_instruction_mut(|_, inst| {
             mir_utils::replace_inst_uses_canonicalized(&mut inst.kind, replacements);
             if matches!(inst.kind, InstKind::SLoad(_) | InstKind::SStore(_, _)) {
                 inst.metadata.set_storage_alias(None);
             }
-        }
+        });
 
         for block in func.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {

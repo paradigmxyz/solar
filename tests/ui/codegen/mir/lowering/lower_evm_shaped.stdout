@@ -26,6 +26,8 @@
     bb0:
       mstore 128, arg0
       returndata 128, 32
+    bb1:
+      stop
   }
   
   fn @spin(arg0: u256) {

@@ -1,6 +1,10 @@
 //@compile-flags: --pass peephole
+//@filecheck:
 @module module
 
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK-COUNT-2: - iszero
+// CHECK: {{^[ +].*}}jumpi
 bb0:
   push 1
   iszero
@@ -8,6 +12,12 @@ bb0:
   push bb2
   jumpi
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: - eq
+// CHECK: - iszero
+// CHECK: + sub
+// CHECK: {{^[ +].*}}jumpi
 bb1:
   push 1
   push 2

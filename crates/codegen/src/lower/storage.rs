@@ -1,5 +1,8 @@
 use super::Lowerer;
-use crate::mir::{FunctionBuilder, StorageField, StorageLayout, StorageLayoutRef, ValueId};
+use crate::mir::{
+    FunctionBuilder, MemoryObjectKind, MemoryObjectLayout, StorageField, StorageLayout,
+    StorageLayoutRef, ValueId,
+};
 use alloy_primitives::U256;
 use solar_interface::Span;
 use solar_sema::{
@@ -30,6 +33,121 @@ impl StorageLocation {
 }
 
 impl<'gcx> Lowerer<'gcx> {
+    /// Stores one Solidity value at a runtime-computed storage slot.
+    pub(super) fn store_storage_value_at(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: Ty<'gcx>,
+        slot: ValueId,
+        value: ValueId,
+    ) {
+        match ty.peel_refs().kind {
+            TyKind::Struct(struct_id) => {
+                let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+                let fields = field_tys.len() as u64;
+                let mut storage_offset = 0;
+                for (index, field_ty) in field_tys.into_iter().enumerate() {
+                    let memory = builder.memory_object_field_addr(
+                        value,
+                        MemoryObjectLayout::structure(fields),
+                        index as u64,
+                    );
+                    let field_value = builder.mload(memory);
+                    let field_slot = self.offset_storage_slot(builder, slot, storage_offset);
+                    self.store_storage_value_at(builder, field_ty, field_slot, field_value);
+                    storage_offset += self.calculate_storage_slots_for_ty(field_ty, Span::DUMMY);
+                }
+            }
+            TyKind::Array(element_ty, len) => {
+                let Ok(len) = u64::try_from(len) else {
+                    self.gcx.dcx().err("fixed-size storage array is too large for codegen").emit();
+                    return;
+                };
+                let element_slots = self.calculate_storage_slots_for_ty(element_ty, Span::DUMMY);
+                for index in 0..len {
+                    let index_value = builder.imm_u64(index);
+                    let memory = builder.memory_object_element_addr(
+                        value,
+                        MemoryObjectLayout::word_fixed_array(len),
+                        index_value,
+                    );
+                    let element_value = builder.mload(memory);
+                    let storage_offset = index.saturating_mul(element_slots);
+                    let element_slot = self.offset_storage_slot(builder, slot, storage_offset);
+                    self.store_storage_value_at(builder, element_ty, element_slot, element_value);
+                }
+            }
+            TyKind::DynArray(_) => {
+                self.gcx
+                    .dcx()
+                    .err("codegen does not support pushing a dynamic array value yet")
+                    .emit();
+            }
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                self.copy_memory_bytes_to_storage(builder, slot, value);
+            }
+            TyKind::Mapping(..) => {}
+            _ => builder.sstore(slot, value),
+        }
+    }
+
+    /// Clears one Solidity value at a runtime-computed storage slot.
+    pub(super) fn clear_storage_value_at(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: Ty<'gcx>,
+        slot: ValueId,
+    ) {
+        match ty.peel_refs().kind {
+            TyKind::Struct(struct_id) => {
+                let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+                let mut storage_offset = 0;
+                for field_ty in field_tys {
+                    let field_slot = self.offset_storage_slot(builder, slot, storage_offset);
+                    self.clear_storage_value_at(builder, field_ty, field_slot);
+                    storage_offset += self.calculate_storage_slots_for_ty(field_ty, Span::DUMMY);
+                }
+            }
+            TyKind::Array(element_ty, len) => {
+                let Ok(len) = u64::try_from(len) else {
+                    self.gcx.dcx().err("fixed-size storage array is too large for codegen").emit();
+                    return;
+                };
+                let element_slots = self.calculate_storage_slots_for_ty(element_ty, Span::DUMMY);
+                for index in 0..len {
+                    let storage_offset = index.saturating_mul(element_slots);
+                    let element_slot = self.offset_storage_slot(builder, slot, storage_offset);
+                    self.clear_storage_value_at(builder, element_ty, element_slot);
+                }
+            }
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                let empty = self.allocate_memory_object(builder, 32, MemoryObjectKind::Bytes);
+                let zero = builder.imm_u64(0);
+                builder.set_memory_object_len(empty, zero, MemoryObjectKind::Bytes);
+                self.copy_memory_bytes_to_storage(builder, slot, empty);
+            }
+            TyKind::Mapping(..) => {}
+            _ => {
+                let zero = builder.imm_u64(0);
+                builder.sstore(slot, zero);
+            }
+        }
+    }
+
+    fn offset_storage_slot(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        slot: ValueId,
+        offset: u64,
+    ) -> ValueId {
+        if offset == 0 {
+            slot
+        } else {
+            let offset = builder.imm_u64(offset);
+            builder.add(slot, offset)
+        }
+    }
+
     /// Allocates the storage location for a state variable.
     pub(super) fn allocate_storage_location(
         &mut self,
