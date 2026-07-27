@@ -100,17 +100,24 @@ pub(crate) fn formatting(
             let Some(root) = state.config.formatter_root_for_path(&path) else {
                 return Err(request_failed("document has no parent directory"));
             };
-            Ok((VfsPath::from(path.clone()), path, root, state.config.forge_path()))
+            Ok((
+                VfsPath::from(path.clone()),
+                path,
+                root,
+                state.config.forge_path(),
+                state.config.formatter_timeout(),
+            ))
         });
 
     async move {
-        let (vfs_path, path, root, forge) = request?;
-        if formatter::is_ignored(&forge, &path, &root).await.map_err(formatter_failed)? {
+        let (vfs_path, path, root, forge, timeout) = request?;
+        if formatter::is_ignored(&forge, &path, &root, timeout).await.map_err(formatter_failed)? {
             return Ok(None);
         }
         let source =
             document_contents(&vfs, &vfs_path, &path).await.map_err(document_read_failed)?;
-        let formatted = formatter::run(&forge, &root, &source).await.map_err(formatter_failed)?;
+        let formatted =
+            formatter::run(&forge, &root, &source, timeout).await.map_err(formatter_failed)?;
         let is_current = document_is_current(&vfs, &vfs_path, &path, &source)
             .await
             .map_err(document_read_failed)?;

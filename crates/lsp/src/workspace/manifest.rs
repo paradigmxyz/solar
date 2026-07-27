@@ -92,7 +92,7 @@ fn find_foundry_toml_in_child_dirs(
 fn is_heavy_dir(path: &Path) -> bool {
     matches!(
         path.file_name().and_then(|name| name.to_str()),
-        Some(".git" | "cache" | "lib" | "node_modules" | "out")
+        Some(".git" | "cache" | "lib" | "node_modules" | "out" | "target")
     )
 }
 

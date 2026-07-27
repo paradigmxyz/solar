@@ -35,7 +35,7 @@ glob.workspace = true
 lsp-types.workspace = true
 normalize-path.workspace = true
 serde.workspace = true
-serde_json.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
 thiserror.workspace = true
 toml_edit = { workspace = true, features = ["serde"] }
 tower.workspace = true
@@ -51,7 +51,7 @@ tokio = { workspace = true, features = ["rt", "io-std"] }
 criterion.workspace = true
 snapbox.workspace = true
 tempfile.workspace = true
-tokio = { workspace = true, features = ["io-util", "macros", "rt", "sync", "time"] }
+tokio = { workspace = true, features = ["io-util", "macros", "rt", "sync", "test-util", "time"] }
 tokio-util = { workspace = true, features = ["compat"] }
 
 [features]

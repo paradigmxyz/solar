@@ -18,6 +18,7 @@ use solar_interface::data_structures::map::FxHashSet;
 use std::{
     env,
     path::{Path, PathBuf},
+    time::Duration,
 };
 use tracing::{info, warn};
 
@@ -26,7 +27,7 @@ use tracing::{info, warn};
 /// This struct is internal only and should not be serialized or deserialized. Instead, values in
 /// this struct are the full view of all merged config sources, such as `initialization_opts`,
 /// on-disk config files (e.g. `foundry.toml`).
-#[derive(Default, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Config {
     workspace_roots: Vec<PathBuf>,
     workspaces: Vec<Workspace>,
@@ -39,7 +40,36 @@ pub(crate) struct Config {
     hierarchical_document_symbol_support: bool,
     completion: CompletionClientOptions,
     signature_help: SignatureHelpClientOptions,
+    source_change_debounce: Duration,
+    progress_delay: Duration,
+    progress_create_timeout: Duration,
+    formatter_timeout: Duration,
+    flycheck_timeout: Duration,
     code_lens: CodeLensConfig,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            workspace_roots: Vec::new(),
+            workspaces: Vec::new(),
+            flycheck_options: FlycheckInitializationOptions::default(),
+            flychecks: Vec::new(),
+            watched_file_dynamic_registration: false,
+            workspace_edit_document_changes: false,
+            code_lens_refresh_support: false,
+            work_done_progress: false,
+            hierarchical_document_symbol_support: false,
+            completion: CompletionClientOptions::default(),
+            signature_help: SignatureHelpClientOptions::default(),
+            source_change_debounce: Duration::from_millis(250),
+            progress_delay: Duration::from_millis(250),
+            progress_create_timeout: Duration::from_secs(1),
+            formatter_timeout: Duration::from_secs(30),
+            flycheck_timeout: Duration::from_secs(30),
+            code_lens: CodeLensConfig::default(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -109,6 +139,26 @@ impl Config {
 
     pub(crate) fn supports_hierarchical_document_symbols(&self) -> bool {
         self.hierarchical_document_symbol_support
+    }
+
+    pub(crate) fn source_change_debounce(&self) -> Duration {
+        self.source_change_debounce
+    }
+
+    pub(crate) fn progress_delay(&self) -> Duration {
+        self.progress_delay
+    }
+
+    pub(crate) fn progress_create_timeout(&self) -> Duration {
+        self.progress_create_timeout
+    }
+
+    pub(crate) fn formatter_timeout(&self) -> Duration {
+        self.formatter_timeout
+    }
+
+    pub(crate) fn flycheck_timeout(&self) -> Duration {
+        self.flycheck_timeout
     }
 
     pub(crate) fn completion_options(&self) -> CompletionClientOptions {
