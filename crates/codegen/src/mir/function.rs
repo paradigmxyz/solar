@@ -127,6 +127,8 @@ impl Function {
     }
 
     /// Returns active argument uses grouped by argument index.
+    ///
+    /// Each operand occurrence is retained, including operands in terminators.
     #[must_use]
     pub(crate) fn arg_uses(&self) -> IndexVec<ArgIdx, Vec<ValueId>> {
         let mut uses = IndexVec::with_capacity(self.arg_types.len());
@@ -505,5 +507,37 @@ impl fmt::Display for Function {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::FunctionBuilder;
+
+    #[test]
+    fn live_values_include_terminator_operands() {
+        let mut func = Function::new(Ident::DUMMY);
+        let (instruction_arg, terminator_arg, unused_arg, immediate, result) = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let instruction_arg = builder.add_param(MirType::uint256());
+            let terminator_arg = builder.add_param(MirType::uint256());
+            let unused_arg = builder.add_param(MirType::uint256());
+            let immediate = builder.imm_u64(1);
+            let result = builder.add(instruction_arg, immediate);
+            builder.ret([terminator_arg, result]);
+            (instruction_arg, terminator_arg, unused_arg, immediate, result)
+        };
+
+        assert_eq!(
+            func.live_values().collect::<Vec<_>>(),
+            [instruction_arg, immediate, result, terminator_arg, result]
+        );
+
+        let arg_uses = func.arg_uses();
+        assert_eq!(arg_uses[ArgIdx::new(0)], [instruction_arg]);
+        assert_eq!(arg_uses[ArgIdx::new(1)], [terminator_arg]);
+        assert!(arg_uses[ArgIdx::new(2)].is_empty());
+        assert!(!func.live_values().any(|value| value == unused_arg));
     }
 }

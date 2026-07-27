@@ -5,7 +5,7 @@
 //! fact only moves from false to true.
 
 use super::{AddressSpace, AliasAnalysis};
-use crate::mir::{Function, FunctionId, InstKind, Module, Terminator, ValueId};
+use crate::mir::{ArgIdx, Function, FunctionId, InstKind, Module, Terminator, ValueId};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 
 /// Conservative memory effects and pointer captures for one MIR function.
@@ -17,7 +17,7 @@ pub(crate) struct FunctionMemorySummary {
     writes: u8,
     may_reset_fmp: bool,
     /// Parameters whose pointer value may escape the call.
-    captures: DenseBitSet<usize>,
+    captures: DenseBitSet<ArgIdx>,
 }
 
 impl FunctionMemorySummary {
@@ -54,8 +54,8 @@ impl FunctionMemorySummary {
 
     /// Returns whether a parameter's pointer value may escape the call.
     #[must_use]
-    pub(crate) fn captures_param(&self, index: usize) -> bool {
-        index >= self.captures.domain_size() || self.captures.contains(index)
+    pub(crate) fn captures_param(&self, index: ArgIdx) -> bool {
+        index.index() >= self.captures.domain_size() || self.captures.contains(index)
     }
 
     fn merge_effects(&mut self, other: &Self) {
@@ -102,7 +102,7 @@ impl MemoryCallSummaries {
                                 .unwrap_or_else(|| FunctionMemorySummary::conservative(args.len()));
                             summary.merge_effects(&callee);
                             for (index, &arg) in args.iter().enumerate() {
-                                if callee.captures_param(index) {
+                                if callee.captures_param(ArgIdx::new(index)) {
                                     capture_sources(&mut summary, &sources[arg]);
                                 }
                             }
@@ -115,7 +115,7 @@ impl MemoryCallSummaries {
                             .unwrap_or_else(|| FunctionMemorySummary::conservative(args.len()));
                         summary.merge_effects(&callee);
                         for (index, &arg) in args.iter().enumerate() {
-                            if callee.captures_param(index) {
+                            if callee.captures_param(ArgIdx::new(index)) {
                                 capture_sources(&mut summary, &sources[arg]);
                             }
                         }
@@ -186,14 +186,14 @@ fn local_summary(func: &Function) -> FunctionMemorySummary {
     summary
 }
 
-fn capture_sources(summary: &mut FunctionMemorySummary, sources: &DenseBitSet<usize>) {
+fn capture_sources(summary: &mut FunctionMemorySummary, sources: &DenseBitSet<ArgIdx>) {
     summary.captures.union(sources);
 }
 
 /// Tracks which parameters a value is derived from. Only pointer-preserving
 /// operations propagate sources; loading pointer bits through memory is
 /// deliberately not guessed, and storing a parameter is already a capture.
-fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<usize>> {
+fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> {
     let params = func.params.len();
     let mut sources = IndexVec::with_capacity(func.num_values());
     for _ in 0..func.num_values() {
@@ -204,7 +204,7 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<usize>> {
             break;
         }
         for &value in uses {
-            sources[value].insert(index.index());
+            sources[value].insert(index);
         }
     }
 
@@ -298,8 +298,8 @@ mod tests {
         let returning_caller = module.add_function(returning_caller);
 
         let summaries = MemoryCallSummaries::new(&module);
-        assert!(!summaries.get(reader_caller).unwrap().captures_param(0));
-        assert!(summaries.get(returning_caller).unwrap().captures_param(0));
+        assert!(!summaries.get(reader_caller).unwrap().captures_param(ArgIdx::new(0)));
+        assert!(summaries.get(returning_caller).unwrap().captures_param(ArgIdx::new(0)));
         assert!(summaries.get(resetter).unwrap().may_reset_fmp());
     }
 }

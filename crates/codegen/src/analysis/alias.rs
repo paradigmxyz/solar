@@ -11,7 +11,7 @@ use super::MemoryCallSummaries;
 use crate::{
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
-        AbiType, BlockId, Function, InstId, InstKind, MemoryObjectKind, MemoryRegion,
+        AbiType, ArgIdx, BlockId, Function, InstId, InstKind, MemoryObjectKind, MemoryRegion,
         SliceLocation, StorageAlias, Terminator, Value, ValueId,
     },
 };
@@ -647,7 +647,7 @@ impl AliasAnalysis {
                                 .and_then(|summaries| summaries.get(*function));
                             if summary.is_none_or(|summary| {
                                 args.iter().enumerate().any(|(index, &arg)| {
-                                    arg == operand && summary.captures_param(index)
+                                    arg == operand && summary.captures_param(ArgIdx::new(index))
                                 })
                             }) {
                                 return true;
@@ -712,9 +712,9 @@ impl AliasAnalysis {
                 .as_deref()
                 .and_then(|summaries| summaries.get(*function))
                 .is_none_or(|summary| {
-                    args.iter()
-                        .enumerate()
-                        .any(|(index, &arg)| arg == operand && summary.captures_param(index))
+                    args.iter().enumerate().any(|(index, &arg)| {
+                        arg == operand && summary.captures_param(ArgIdx::new(index))
+                    })
                 }),
             _ => true,
         }
