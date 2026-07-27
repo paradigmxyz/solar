@@ -1,5 +1,5 @@
-//@compile-flags: -Zcodegen -Zdump=mir
-//@filecheck: --check-prefix=ORDER
+//@compile-flags: -Zcodegen -O none -Zdump=mir
+//@filecheck:
 // Multi-return tails live at the free-memory pointer, and every tail word is
 // loaded before the first tuple lvalue is evaluated. Computing `stored[key]`
 // may use mapping-slot scratch during later lowering, so assigning it first
@@ -13,15 +13,15 @@ contract MultiReturnScratch {
         return (x, x + 1, x + 2);
     }
 
-    // ORDER-LABEL: fn @assign{{[( ]}}
-    // ORDER: internal_call
-    // ORDER: = mload 32
-    // ORDER: = add {{.*}}, 32
-    // ORDER: = mload
-    // ORDER: = add {{.*}}, 64
-    // ORDER: = mload
-    // ORDER: = mapping_slot
-    // ORDER: sstore
+    // CHECK-LABEL: fn @assign{{[( ]}}
+    // CHECK: internal_call
+    // CHECK: = mload 32
+    // CHECK: = add {{.*}}, 32
+    // CHECK: = mload
+    // CHECK: = add {{.*}}, 64
+    // CHECK: = mload
+    // CHECK: = mapping_slot
+    // CHECK: sstore
     function assign(uint256 key, uint256 seed)
         external
         returns (uint256 second, uint256 third, uint256 beforePtr, uint256 afterPtr)

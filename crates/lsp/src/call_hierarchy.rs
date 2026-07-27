@@ -76,7 +76,7 @@ struct DirectCall {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct CallSite {
     range: Range,
-    callee: CallableKey,
+    callee: Option<CallableKey>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -305,6 +305,12 @@ impl QueryIndex {
         for call in direct_calls {
             let caller = self.key_by_symbol.get(&call.caller);
             let callee = self.key_by_symbol.get(&call.callee);
+            if let Some(caller) = caller {
+                self.call_sites_by_uri
+                    .entry(caller.uri.clone())
+                    .or_default()
+                    .push(CallSite { range: call.from_range, callee: callee.cloned() });
+            }
             let (Some(caller), Some(callee)) = (caller, callee) else {
                 if let Some(caller) = caller {
                     self.incomplete_outgoing.insert(caller.clone());
@@ -326,10 +332,6 @@ impl QueryIndex {
                 .entry(caller.clone())
                 .or_default()
                 .push(call.from_range);
-            self.call_sites_by_uri
-                .entry(caller.uri.clone())
-                .or_default()
-                .push(CallSite { range: call.from_range, callee: callee.clone() });
         }
         normalize_relations(&mut self.outgoing_by_key);
         normalize_relations(&mut self.incoming_by_key);
@@ -364,7 +366,8 @@ impl QueryIndex {
         position: Position,
         declaration: Option<SymbolId>,
     ) -> Option<Vec<CallHierarchyItem>> {
-        if let Some(key) = self.call_site_key(uri, position) {
+        if let Some(site) = self.call_site(uri, position) {
+            let key = site.callee.as_ref()?;
             return Some(vec![self.item(key)?.clone()]);
         }
         if let Some(key) = declaration.and_then(|symbol| self.key_by_symbol.get(&symbol)) {
@@ -420,13 +423,12 @@ impl QueryIndex {
         )
     }
 
-    fn call_site_key(&self, uri: &Url, position: Position) -> Option<&CallableKey> {
+    fn call_site(&self, uri: &Url, position: Position) -> Option<&CallSite> {
         self.call_sites_by_uri
             .get(uri)?
             .iter()
             .filter(|site| range_contains(site.range, position))
             .min_by_key(|site| (range_size_key(site.range), range_key(site.range)))
-            .map(|site| &site.callee)
     }
 
     fn enclosing_body_key(&self, uri: &Url, position: Position) -> Option<&CallableKey> {

@@ -1,7 +1,7 @@
 use alloy_json_abi::AbiItem;
 use alloy_primitives::Bytes;
 use solar_codegen::{
-    ContractArtifact, ContractSelection, backend::evm::ir, generate_contract_bytecodes, lower,
+    ContractArtifact, ContractSelection, backend::evm::ir, generate_contract_bytecodes,
 };
 use solar_config::{CompilerOutput, Dump, DumpKind};
 use solar_data_structures::map::FxHashMap;
@@ -38,28 +38,31 @@ struct CombinedJsonContract<'a> {
 
 pub(crate) fn emit_requested(
     compiler: &mut CompilerRef<'_>,
-    mut bytecode_contracts: ContractSelection,
+    bytecode_contracts: ContractSelection,
 ) -> Result<Option<FxHashMap<ContractId, ContractArtifact>>> {
     let gcx = compiler.gcx();
-    dump_mir(gcx)?;
-
-    let dump_contracts = evm_ir_dump_contracts(gcx)?;
-
-    if let Some(dump_contracts) = &dump_contracts {
-        bytecode_contracts.union_with(dump_contracts);
-    }
-
+    let dump_contracts = codegen_dump_contracts(gcx)?;
     let no_contracts = ContractSelection::empty(gcx);
-    let capture_evm_ir = dump_contracts.as_ref().unwrap_or(&no_contracts);
-    let generate_bytecode = !bytecode_contracts.is_empty() || dump_contracts.is_some();
-    let artifacts = if generate_bytecode {
-        Some(generate_contract_bytecodes(gcx, &bytecode_contracts, capture_evm_ir)?)
+    let capture_mir =
+        dump_contracts.as_ref().filter(|_| has_mir_dump(gcx)).unwrap_or(&no_contracts);
+    let capture_evm_ir =
+        dump_contracts.as_ref().filter(|_| has_evm_ir_dump(gcx)).unwrap_or(&no_contracts);
+    let generate_artifacts = !bytecode_contracts.is_empty() || dump_contracts.is_some();
+    let artifacts = if generate_artifacts {
+        Some(generate_contract_bytecodes(gcx, &bytecode_contracts, capture_mir, capture_evm_ir)?)
     } else {
         None
     };
 
+    if let Some(contracts) = &dump_contracts
+        && has_mir_dump(gcx)
+    {
+        dump_mir(gcx, contracts, artifacts.as_ref().expect("artifacts should be generated"))?;
+    }
     emit_combined_json(gcx, artifacts.as_ref())?;
-    if let Some(contracts) = &dump_contracts {
+    if let Some(contracts) = &dump_contracts
+        && has_evm_ir_dump(gcx)
+    {
         dump_evm_ir(gcx, contracts, artifacts.as_ref().expect("artifacts should be generated"))?;
     }
     Ok(artifacts)
@@ -142,32 +145,58 @@ fn contract_output_name(gcx: Gcx<'_>, id: ContractId) -> String {
     format!("{}:{}", source.file.name.display().to_string().replace('\\', "/"), contract.name)
 }
 
-fn dump_mir(gcx: Gcx<'_>) -> Result {
-    let sess = gcx.sess;
-    let Some(dump) = &sess.opts.unstable.dump else { return Ok(()) };
-    if !dump.kinds.contains(&DumpKind::Mir) && !dump.kinds.contains(&DumpKind::MirCfg) {
-        return Ok(());
-    }
+fn has_mir_dump(gcx: Gcx<'_>) -> bool {
+    gcx.sess.opts.unstable.dump.as_ref().is_some_and(|dump| {
+        dump.kinds.iter().any(|kind| matches!(kind, DumpKind::Mir | DumpKind::MirCfg))
+    })
+}
 
+fn has_evm_ir_dump(gcx: Gcx<'_>) -> bool {
+    gcx.sess.opts.unstable.dump.as_ref().is_some_and(|dump| {
+        dump.kinds.iter().any(|kind| matches!(kind, DumpKind::EvmIr | DumpKind::EvmIrRuntime))
+    })
+}
+
+fn codegen_dump_contracts(gcx: Gcx<'_>) -> Result<Option<ContractSelection>> {
+    let Some(dump) = &gcx.sess.opts.unstable.dump else { return Ok(None) };
+    if !dump.needs_codegen() {
+        return Ok(None);
+    }
+    matching_dump_contracts(gcx, dump).map(Some)
+}
+
+fn dump_mir(
+    gcx: Gcx<'_>,
+    contracts: &ContractSelection,
+    artifacts: &FxHashMap<ContractId, ContractArtifact>,
+) -> Result {
+    let sess = gcx.sess;
+    let dump = sess.opts.unstable.dump.as_ref().expect("dump options should be present");
     let mut writer = out_writer(None)
         .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
-    let contracts = matching_dump_contracts(gcx, dump)?;
     for id in contracts.into_iter(gcx) {
-        dump_mir_contract(&mut writer, gcx, dump, id)?;
+        dump_mir_contract(&mut writer, gcx, dump, id, artifacts)?;
     }
     writer.flush().map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
 
     Ok(())
 }
 
-fn dump_mir_contract(writer: &mut impl Write, gcx: Gcx<'_>, dump: &Dump, id: ContractId) -> Result {
-    let module = lower::lower_contract(gcx, id);
-    gcx.dcx().has_errors()?;
+fn dump_mir_contract(
+    writer: &mut impl Write,
+    gcx: Gcx<'_>,
+    dump: &Dump,
+    id: ContractId,
+    artifacts: &FxHashMap<ContractId, ContractArtifact>,
+) -> Result {
+    let Some(module) = artifacts.get(&id).and_then(|artifact| artifact.mir.as_ref()) else {
+        return Ok(());
+    };
     if dump.kinds.contains(&DumpKind::Mir) {
-        write_mir_dump_contract(writer, gcx, id, &module, DumpKind::Mir)?;
+        write_mir_dump_contract(writer, gcx, id, module, DumpKind::Mir)?;
     }
     if dump.kinds.contains(&DumpKind::MirCfg) {
-        write_mir_dump_contract(writer, gcx, id, &module, DumpKind::MirCfg)?;
+        write_mir_dump_contract(writer, gcx, id, module, DumpKind::MirCfg)?;
     }
     Ok(())
 }
@@ -239,14 +268,6 @@ fn available_dump_contracts(gcx: Gcx<'_>) -> String {
         .map(|id| gcx.contract_fully_qualified_name(id).to_string().replace('\\', "/"))
         .collect::<Vec<_>>()
         .join(", ")
-}
-
-fn evm_ir_dump_contracts(gcx: Gcx<'_>) -> Result<Option<ContractSelection>> {
-    let Some(dump) = &gcx.sess.opts.unstable.dump else { return Ok(None) };
-    if !dump.kinds.contains(&DumpKind::EvmIr) && !dump.kinds.contains(&DumpKind::EvmIrRuntime) {
-        return Ok(None);
-    }
-    matching_dump_contracts(gcx, dump).map(Some)
 }
 
 fn dump_evm_ir(
