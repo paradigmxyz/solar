@@ -9,14 +9,6 @@
 //!
 //! ## Architecture
 //!
-//! The final pass in the default MIR lowering pipeline is `evm-inst-schedule`. It orders movable,
-//! single-use expression trees in backend consumption order immediately before this subsystem.
-//! Effectful instructions, `gas`, `msize`, phis, and shared results constrain that order; so does
-//! producer order for operations whose lowering already costs both equivalent operand
-//! orientations. This usually shortens producer-to-consumer distances without putting physical
-//! stack layouts into MIR; liveness is then recomputed over the selected order and remains the
-//! scheduler's source of preservation requirements.
-//!
 //! The stack subsystem is split by responsibility:
 //!
 //! - [`model`] is the source of truth for the emitted physical stack. Slots are either a known MIR
@@ -43,9 +35,9 @@
 //! functions may instead carry two or three repeatedly used decoded arguments through compatible
 //! joins; switch components and joins owned by the phi policy are excluded. Every incoming edge
 //! must agree on the same layout, and values outside a selected layout keep their stable spill
-//! homes. These are not independent schedulers applied in sequence: MIR ordering changes producer
-//! order, one local planner tier prepares each instruction, and an edge policy invokes the
-//! shuffler only when its complete-layout preconditions hold.
+//! homes. These are not independent schedulers applied in sequence: one local planner tier prepares
+//! each instruction, and an edge policy invokes the shuffler only when its complete-layout
+//! preconditions hold.
 //!
 //! ## Design lineage
 //!
@@ -58,12 +50,6 @@
 //! values and anonymous words, uses one-action and lower-bound-certified fast paths before bounded
 //! A*, and fits the existing direct MIR-to-EVM lowering and memory conventions. This is an original
 //! implementation rather than vendored Plank code.
-//!
-//! The preceding MIR ordering pass is adapted from [Venom's dependency-first traversal]. Venom
-//! first applies [single-use expansion], then orders both data and effect dependencies with
-//! inter-block stack-order feedback. Our pass is deliberately smaller: it operates within
-//! barrier-delimited basic-block segments, does not introduce assignments, and leaves any segment
-//! with a shared result unchanged.
 //!
 //! [solc's SSA stack layout generator] and [Sonatina's stackify allocator] were evaluated for
 //! control-flow layouts and spill handling. They use whole-function layout machinery, fixed-point
@@ -78,8 +64,6 @@
 //! [scheduler pipeline]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/lib.rs
 //! [Plank's intra-operation scheduler]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/greedy_intra_op_scheduler/mod.rs
 //! [greedy edge shuffler]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/greedy_shuffler/mod.rs
-//! [Venom's dependency-first traversal]: https://github.com/vyperlang/vyper/blob/730a2d36f1fca90be059c75681de5c942560ce0b/vyper/venom/passes/dft.py
-//! [single-use expansion]: https://github.com/vyperlang/vyper/blob/730a2d36f1fca90be059c75681de5c942560ce0b/vyper/venom/passes/single_use_expansion.py
 //! [solc's SSA stack layout generator]: https://github.com/ethereum/solidity/blob/d3ac579fe752189a9f2c365707b0f1cfc66b1437/libyul/backends/evm/ssa/StackLayoutGenerator.cpp
 //! [Sonatina's stackify allocator]: https://github.com/fe-lang/sonatina/blob/55ca888f1fc83077e5eee803c0619231e9b50998/crates/codegen/src/stackalloc/stackify/mod.rs
 //! [Sonatina's operand preparer]: https://github.com/fe-lang/sonatina/blob/55ca888f1fc83077e5eee803c0619231e9b50998/crates/codegen/src/stackalloc/stackify/planner/operand_prep.rs
