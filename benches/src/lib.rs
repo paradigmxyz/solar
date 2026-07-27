@@ -259,35 +259,17 @@ pub fn get_projects() -> &'static [ProjectSource] {
         // (`test/benchmarks/external-setup.sh` upstream): pinned Foundry
         // projects compiled with their full test suites.
         //
-        // All nine projects typecheck clean; the caps below are codegen
-        // gaps: struct ABI decoding (seaport's try bindings, the
-        // forge-std StdCheats decodes in prb-math and solarray),
-        // `abi.encodeCall` as low-level call data (morpho-blue), Yul
-        // `.length` (solady), memory-array slicing (openzeppelin), and
-        // user-defined operators (v4-core). Re-probe with `--test` when
-        // those close.
+        // All nine projects compile clean through codegen.
         vec![
-            include_project("../testdata/projects/seaport-1.6.json", Capabilities::no_codegen()),
-            include_project(
-                "../testdata/projects/openzeppelin-5.6.1.json",
-                Capabilities::no_codegen(),
-            ),
-            include_project("../testdata/projects/solady-0.1.26.json", Capabilities::no_codegen()),
-            include_project("../testdata/projects/v4-core-4.0.0.json", Capabilities::no_codegen()),
-            include_project(
-                "../testdata/projects/morpho-blue-1.0.0.json",
-                Capabilities::no_codegen(),
-            ),
-            include_project(
-                "../testdata/projects/forge-std-1.16.1.json",
-                Capabilities::no_codegen(),
-            ),
-            include_project("../testdata/projects/prb-math-4.1.1.json", Capabilities::no_codegen()),
+            include_project("../testdata/projects/seaport-1.6.json", Capabilities::all()),
+            include_project("../testdata/projects/openzeppelin-5.6.1.json", Capabilities::all()),
+            include_project("../testdata/projects/solady-0.1.26.json", Capabilities::all()),
+            include_project("../testdata/projects/v4-core-4.0.0.json", Capabilities::all()),
+            include_project("../testdata/projects/morpho-blue-1.0.0.json", Capabilities::all()),
+            include_project("../testdata/projects/forge-std-1.16.1.json", Capabilities::all()),
+            include_project("../testdata/projects/prb-math-4.1.1.json", Capabilities::all()),
             include_project("../testdata/projects/solmate-6.json", Capabilities::all()),
-            include_project(
-                "../testdata/projects/solarray-a547630.json",
-                Capabilities::no_codegen(),
-            ),
+            include_project("../testdata/projects/solarray-a547630.json", Capabilities::all()),
         ]
     })
 }
