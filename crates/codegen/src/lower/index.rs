@@ -60,6 +60,24 @@ impl<'gcx> Lowerer<'gcx> {
             return builder.sload(mapping.slot);
         }
 
+        // Indexing a dynamic array member of a calldata struct reads the wrong
+        // words: the prologue rebuilds the struct in memory, and neither the
+        // calldata path (the member is not a calldata slice) nor the memory
+        // path (which addresses the object, not its data) lands on the element.
+        // A memory copy stands in for a whole-member read — length, hashing,
+        // encoding — but not for element addressing, so reject rather than
+        // silently answer wrongly.
+        if self.expr_is_calldata_struct_member(base)
+            && let Some(ty) = self.get_expr_type(base)
+            && matches!(ty.peel_refs().kind, TyKind::DynArray(_))
+        {
+            return self.err_value(
+                builder,
+                expr.span,
+                "codegen does not support indexing a dynamic array member of a calldata \
+                 struct yet",
+            );
+        }
         if let Some((slice, is_bytes)) = self.calldata_bytes_source(builder, base) {
             let index_val = self.lower_index_value(builder, base.span, index);
             let len = builder.slice_len(slice);
