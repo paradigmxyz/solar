@@ -565,6 +565,8 @@ def main() -> int:
         default=("synthetic", "ui-gas", "ui-size", "ci-size-gas", "ci-size", "ci-gas"),
     )
     args = parser.parse_args()
+    if "auto" not in args.methods:
+        parser.error("--methods must include auto")
 
     solar = args.solar.resolve()
     benchmark_repo = args.benchmark_repo.resolve()
