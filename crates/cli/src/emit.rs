@@ -253,7 +253,7 @@ fn write_mir_dump_contract(
     writeln!(writer, "// === {name} ===")
         .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     match kind {
-        DumpKind::Mir | DumpKind::MirEvmShaped => writeln!(writer, "{module}"),
+        DumpKind::Mir => writeln!(writer, "{module}"),
         DumpKind::MirCfg => writeln!(writer, "{}", module.to_dot()),
         _ => unreachable!("checked by caller"),
     }

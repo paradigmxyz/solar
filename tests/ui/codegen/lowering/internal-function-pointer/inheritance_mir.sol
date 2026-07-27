@@ -1,8 +1,5 @@
-//@ revisions: built opt
-//@[built] compile-flags: -Zcodegen -Zdump=mir
-//@[built] filecheck: --check-prefix=BUILT
-//@[opt] compile-flags: -Zcodegen -Ogas -Zdump=mir-evm-shaped
-//@[opt] filecheck: --check-prefix=OPT
+//@ compile-flags: -Zcodegen -O none -Zdump=mir
+//@ filecheck: --check-prefix=BUILT
 
 // ported-from: test/libsolidity/semanticTests/inheritance/inherited_function_through_dispatch.sol
 // ported-from: test/libsolidity/semanticTests/virtualFunctions/internal_virtual_function_calls_through_dispatch.sol
@@ -32,13 +29,6 @@ contract PointerBase {
 // BUILT: internal_call @__internal_dispatch_0, 1, [[DERIVED_TARGET]]
 // BUILT-LABEL: fn @callThroughVirtualPointer(
 // BUILT: internal_call @__internal_dispatch_0, 1, [[DERIVED_TARGET]]
-// OPT-LABEL: @module PointerDerived
-// OPT: @phase evm-shaped
-// OPT-LABEL: fn @callQualified(
-// OPT: mstore 128, 1
-// OPT-LABEL: fn @callVirtual(
-// OPT: mstore 128, 2
-// OPT-NOT: fn @__internal_dispatch
 contract PointerDerived is PointerBase {
     function target() internal pure override returns (uint256) {
         return 2;
