@@ -33,6 +33,9 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> Option<ValueId> {
+        if let Err(guar) = self.expr_references_error(expr) {
+            return self.expr_error_result(builder, expr, guar);
+        }
         if let ExprKind::Assign(lhs, None, rhs) = &expr.kind
             && let ExprKind::Tuple(elements) = &lhs.kind
         {
@@ -43,12 +46,23 @@ impl<'gcx> Lowerer<'gcx> {
             self.lower_unit_expr(builder, expr);
             None
         } else {
-            Some(self.lower_value_expr(builder, expr))
+            Some(self.lower_value_expr_unchecked(builder, expr))
         }
     }
 
     /// Lowers an expression which is required to produce a MIR value.
     pub(super) fn lower_value_expr(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> ValueId {
+        if let Err(guar) = self.expr_references_error(expr) {
+            return builder.error_value(guar);
+        }
+        self.lower_value_expr_unchecked(builder, expr)
+    }
+
+    fn lower_value_expr_unchecked(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
@@ -571,6 +585,16 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    fn expr_error_result(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+        guar: ErrorGuaranteed,
+    ) -> Option<ValueId> {
+        (!self.get_expr_type(expr).is_some_and(|ty| ty.is_unit()))
+            .then(|| builder.error_value(guar))
+    }
+
     fn lower_unit_expr(&mut self, builder: &mut FunctionBuilder<'_>, expr: &hir::Expr<'_>) {
         match &expr.kind {
             ExprKind::Call(callee, args, call_opts) => {
@@ -621,13 +645,14 @@ impl<'gcx> Lowerer<'gcx> {
             && !self.storage_slots.contains_key(&var_id)
         {
             let var = self.gcx.hir.variable(var_id);
-            if self.is_fixed_memory_array_type(&var.ty, var.data_location)
-                && let Some(len) = self.fixed_memory_array_len(&var.ty)
-                && let hir::TypeKind::Array(array) = &var.ty.kind
+            let ty = self.gcx.type_of_item(var_id.into()).peel_refs();
+            if matches!(var.data_location, None | Some(solar_ast::DataLocation::Memory))
+                && let TyKind::Array(element_ty, len) = ty.kind
+                && let Ok(len) = u64::try_from(len)
             {
                 let ptr = self.lower_value_expr(builder, target);
                 for i in 0..len {
-                    let value = self.zero_memory_field_value(builder, &array.element);
+                    let value = self.zero_memory_field_value_ty(builder, element_ty, var.ty.span);
                     if i == 0 {
                         builder.mstore(ptr, value);
                     } else {
@@ -758,8 +783,9 @@ impl<'gcx> Lowerer<'gcx> {
                         if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind
                         {
                             // Calculate total flattened size (handles nested structs)
-                            let total_words = self
-                                .calculate_memory_words_for_ty(self.gcx.type_of_hir_ty(&var.ty));
+                            let total_words = self.calculate_memory_words_for_ty(
+                                self.gcx.type_of_item((*var_id).into()),
+                            );
                             let struct_size = total_words * 32;
                             let struct_ptr = self.allocate_memory_object(
                                 builder,
@@ -821,9 +847,12 @@ impl<'gcx> Lowerer<'gcx> {
             return Some(builder.make_slice(zero, zero, crate::mir::SliceLocation::Calldata));
         }
 
-        let ty = self.gcx.type_of_hir_ty(&var.ty);
+        let ty = self.gcx.type_of_item(var_id.into());
+        if let TyKind::Err(guar) = ty.peel_refs().kind {
+            return Some(builder.error_value(guar));
+        }
         if var.data_location == Some(solar_ast::DataLocation::Memory) && !ty.is_value_type() {
-            return Some(self.zero_memory_field_value(builder, &var.ty));
+            return Some(self.zero_memory_field_value_ty(builder, ty, var.ty.span));
         }
         ty.is_value_type().then(|| builder.imm_u64(0))
     }
@@ -2013,7 +2042,7 @@ impl<'gcx> Lowerer<'gcx> {
             if let hir::TypeKind::Array(arr) = &var.ty.kind {
                 arr.size.as_ref()?;
                 if let solar_sema::ty::TyKind::Array(_, len) =
-                    self.gcx.type_of_hir_ty(&var.ty).peel_refs().kind
+                    self.gcx.type_of_item((*var_id).into()).peel_refs().kind
                 {
                     return u64::try_from(len).ok();
                 }

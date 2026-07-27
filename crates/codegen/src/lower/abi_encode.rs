@@ -1,6 +1,6 @@
 //! ABI encoding of external function return values.
 //!
-//! Driven by the sema [`Ty`] of each return (obtained via `gcx.type_of_hir_ty`),
+//! Driven by the cached sema [`Ty`] of each return,
 //! this lays out the Solidity ABI tuple encoding (head slots + dynamic tail) for
 //! a function's return values into a memory buffer and terminates the function
 //! with [`crate::mir::Terminator::ReturnData`]. Internal-frame functions do NOT
@@ -312,7 +312,6 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> Result<LoweredAbiItems<'gcx>, ErrorGuaranteed> {
         let mut tys = Vec::with_capacity(arg_exprs.len());
         for arg in arg_exprs {
-            self.expr_references_error(arg)?;
             let Some(ty) = self.get_expr_type(arg) else {
                 return Err(self
                     .gcx

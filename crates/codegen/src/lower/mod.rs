@@ -588,7 +588,7 @@ impl<'gcx> Lowerer<'gcx> {
 
                     self.module.add_immutable();
                 } else if var.is_state_variable() && !var.is_constant() {
-                    let var_ty = self.gcx.type_of_hir_ty(&var.ty);
+                    let var_ty = self.gcx.type_of_item(var_id.into());
                     let location = self.allocate_storage_location(var_ty, var.ty.span);
                     let base_slot = location.slot;
 
@@ -606,20 +606,23 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Returns the constant length of a fixed-size array parameter whose elements are single
     /// ABI words, for prologue decoding. Other parameter shapes return `None`.
-    fn fixed_word_array_param_len(&self, param: &hir::Variable<'_>) -> Option<u64> {
-        let TyKind::Array(elem, len) = self.gcx.type_of_hir_ty(&param.ty).peel_refs().kind else {
+    fn fixed_word_array_param(&self, param_id: VariableId) -> Option<(Ty<'gcx>, u64)> {
+        let TyKind::Array(elem, len) = self.gcx.type_of_item(param_id.into()).peel_refs().kind
+        else {
             return None;
         };
-        (self.abi_is_word_element(elem) && len <= U256::from(u16::MAX)).then(|| len.to::<u64>())
+        (self.abi_is_word_element(elem) && len <= U256::from(u16::MAX))
+            .then(|| (elem, len.to::<u64>()))
     }
 
     /// Whether a parameter is a memory-located dynamic array of single-word elements, which
     /// the prologue decodes from calldata into Solidity's `[length][data...]` memory layout.
-    fn is_dyn_word_array_memory_param(&self, param: &hir::Variable<'_>) -> bool {
+    fn is_dyn_word_array_memory_param(&self, param_id: VariableId) -> bool {
+        let param = self.gcx.hir.variable(param_id);
         if param.data_location != Some(solar_ast::DataLocation::Memory) {
             return false;
         }
-        match self.gcx.type_of_hir_ty(&param.ty).peel_refs().kind {
+        match self.gcx.type_of_item(param_id.into()).peel_refs().kind {
             TyKind::DynArray(elem) => self.abi_is_word_element(elem),
             _ => false,
         }
@@ -878,11 +881,8 @@ impl<'gcx> Lowerer<'gcx> {
         self.lowering_constructor = hir_func.kind == hir::FunctionKind::Constructor;
         self.lowering_internal_function = uses_internal_frame;
         self.in_unchecked_block = false;
-        self.current_return_tys = hir_func
-            .returns
-            .iter()
-            .map(|&id| self.gcx.type_of_hir_ty(&self.gcx.hir.variable(id).ty))
-            .collect();
+        self.current_return_tys =
+            hir_func.returns.iter().map(|&id| self.gcx.type_of_item(id.into())).collect();
 
         // Pre-analyze function body to find variables that are assigned after declaration.
         // Variables that are only initialized (never reassigned) can stay as SSA values.
@@ -895,8 +895,7 @@ impl<'gcx> Lowerer<'gcx> {
                 .parameters
                 .iter()
                 .map(|&id| {
-                    let param = self.gcx.hir.variable(id);
-                    let ty = self.gcx.type_of_hir_ty(&param.ty);
+                    let ty = self.gcx.type_of_item(id.into());
                     self.abi_head_size(ty)
                 })
                 .sum()
@@ -913,11 +912,11 @@ impl<'gcx> Lowerer<'gcx> {
 
             for &param_id in hir_func.parameters {
                 let param = self.gcx.hir.variable(param_id);
-                let param_ty = self.gcx.type_of_hir_ty(&param.ty);
+                let param_ty = self.gcx.type_of_item(param_id.into());
                 let ty = if Self::calldata_dynamic_var_kind(param).is_some() {
                     MirType::Slice(SliceLocation::Calldata)
                 } else {
-                    self.lower_type_from_var(param)
+                    self.lower_type_from_var(param_id)
                 };
 
                 // Check if this is a struct parameter that needs special handling
@@ -983,7 +982,7 @@ impl<'gcx> Lowerer<'gcx> {
                     };
 
                     // Add MIR params for each struct field (they come from calldata)
-                    for (field_idx, &field_id) in field_ids.iter().enumerate() {
+                    for field_idx in 0..field_ids.len() {
                         let sema_field_ty = field_tys.get(field_idx).copied();
 
                         // A nested static aggregate (struct or fixed array)
@@ -1027,11 +1026,10 @@ impl<'gcx> Lowerer<'gcx> {
                         let arg_index = builder.func().params.len() as u64;
                         let field_ty = MirType::uint256();
                         let field_val = builder.add_param(field_ty);
-                        let field_var = self.gcx.hir.variable(field_id);
                         self.emit_abi_param_validation(
                             &mut builder,
                             arg_index,
-                            &field_var.ty,
+                            field_tys[field_idx],
                             abi_param_source,
                         );
 
@@ -1094,7 +1092,7 @@ impl<'gcx> Lowerer<'gcx> {
                     self.locals.insert(param_id, struct_ptr);
                 } else if decodes_abi_params
                     && !self.param_is_storage_ref(param_id)
-                    && let Some(len) = self.fixed_word_array_param_len(param)
+                    && let Some((elem_ty, len)) = self.fixed_word_array_param(param_id)
                 {
                     // Fixed-size array of word elements (memory or calldata):
                     // the ABI head is `len` inline words. Add one MIR param per
@@ -1104,17 +1102,13 @@ impl<'gcx> Lowerer<'gcx> {
                         len * 32,
                         MemoryObjectKind::FixedArray,
                     );
-                    let elem_hir_ty = match &param.ty.kind {
-                        hir::TypeKind::Array(array) => &array.element,
-                        _ => &param.ty,
-                    };
                     for elem_idx in 0..len {
                         let arg_index = builder.func().params.len() as u64;
                         let elem_val = builder.add_param(MirType::uint256());
                         self.emit_abi_param_validation(
                             &mut builder,
                             arg_index,
-                            elem_hir_ty,
+                            elem_ty,
                             abi_param_source,
                         );
                         let elem_index = builder.imm_u64(elem_idx);
@@ -1126,7 +1120,7 @@ impl<'gcx> Lowerer<'gcx> {
                         builder.mstore(elem_addr, elem_val);
                     }
                     self.locals.insert(param_id, array_ptr);
-                } else if decodes_abi_params && self.is_dyn_word_array_memory_param(param) {
+                } else if decodes_abi_params && self.is_dyn_word_array_memory_param(param_id) {
                     // Dynamic array of word elements in memory: the ABI head is
                     // an offset to `[length][elements...]` in the ABI argument
                     // blob. Runtime calls read it from calldata after the
@@ -1213,7 +1207,7 @@ impl<'gcx> Lowerer<'gcx> {
                         self.emit_abi_param_validation(
                             &mut builder,
                             arg_index,
-                            &param.ty,
+                            param_ty,
                             abi_param_source,
                         );
                     }
@@ -1243,8 +1237,7 @@ impl<'gcx> Lowerer<'gcx> {
             // area; adding and initializing one return at a time placed the
             // first initializer too early in multi-return functions.
             for &ret_id in hir_func.returns {
-                let ret_var = self.gcx.hir.variable(ret_id);
-                let ty = self.lower_type_from_var(ret_var);
+                let ty = self.lower_type_from_var(ret_id);
                 builder.add_return(ty);
             }
             for &ret_id in hir_func.returns {
@@ -1314,7 +1307,7 @@ impl<'gcx> Lowerer<'gcx> {
                                 "codegen is missing a return variable slot",
                             )
                         };
-                        items.push((ret_val, self.gcx.type_of_hir_ty(&ret_var.ty)));
+                        items.push((ret_val, self.gcx.type_of_item(ret_id.into())));
                     }
                     self.finish_external_or_internal_return(&mut builder, items, uses_external_abi);
                 }
@@ -1462,10 +1455,9 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         arg_index: u64,
-        hir_ty: &hir::Type<'_>,
+        ty: Ty<'gcx>,
         source: AbiParamSource,
     ) {
-        let ty = self.gcx.type_of_hir_ty(hir_ty);
         let Some(validator) = self.abi_word_validator(ty) else { return };
 
         let word = match source {
@@ -1587,8 +1579,8 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Lowers a type from a variable declaration.
-    fn lower_type_from_var(&self, var: &hir::Variable<'_>) -> MirType {
-        self.lower_type_from_ty(self.gcx.type_of_hir_ty(&var.ty))
+    fn lower_type_from_var(&self, var_id: VariableId) -> MirType {
+        self.lower_type_from_ty(self.gcx.type_of_item(var_id.into()))
     }
 
     /// Lowers a type-checked Solidity type to MIR's coarse value type.

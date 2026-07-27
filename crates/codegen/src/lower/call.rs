@@ -138,10 +138,7 @@ impl<'gcx> Lowerer<'gcx> {
         span: Span,
         msg: impl Into<DiagMsg>,
     ) -> Option<ValueId> {
-        let guar = match self.expr_references_error(callee) {
-            Err(guar) => guar,
-            Ok(()) => self.gcx.dcx().err(msg).span(span).emit(),
-        };
+        let guar = self.gcx.dcx().err(msg).span(span).emit();
         self.call_error_result(builder, callee, guar)
     }
 
@@ -187,9 +184,6 @@ impl<'gcx> Lowerer<'gcx> {
         args: &'a CallArgs<'hir>,
     ) -> Result<Vec<&'a hir::Expr<'hir>>, ErrorGuaranteed> {
         let exprs = args.exprs().collect::<Vec<_>>();
-        for expr in &exprs {
-            self.expr_references_error(expr)?;
-        }
 
         let Some(expected) = self.builtin_arg_count(builtin) else {
             return Err(self
@@ -1559,8 +1553,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let ExprKind::Ident(res_slice) = &base.kind
             && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
         {
-            let var = self.gcx.hir.variable(*var_id);
-            let ty = self.gcx.type_of_hir_ty(&var.ty);
+            let ty = self.gcx.type_of_item((*var_id).into());
             if let solar_sema::ty::TyKind::Contract(contract_id) = ty.kind
                 && let Some(sel) = lookup_in_contract(contract_id)
             {
@@ -1648,8 +1641,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let ExprKind::Ident(res_slice) = &base.kind
             && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
         {
-            let var = self.gcx.hir.variable(*var_id);
-            let ty = self.gcx.type_of_hir_ty(&var.ty);
+            let ty = self.gcx.type_of_item((*var_id).into());
             if let solar_sema::ty::TyKind::Contract(contract_id) = ty.kind
                 && let Some(count) = lookup_in_contract(contract_id)
             {
@@ -2052,10 +2044,7 @@ impl<'gcx> Lowerer<'gcx> {
         arg_vals: Vec<ValueId>,
     ) -> ValueId {
         let func = self.gcx.hir.function(func_id);
-        let result_ty = func
-            .returns
-            .first()
-            .map(|&ret_id| self.lower_type_from_var(self.gcx.hir.variable(ret_id)));
+        let result_ty = func.returns.first().map(|&ret_id| self.lower_type_from_var(ret_id));
         let is_internal =
             matches!(func.visibility, hir::Visibility::Internal | hir::Visibility::Private);
         let mir_id = if is_internal {
@@ -2226,7 +2215,7 @@ impl<'gcx> Lowerer<'gcx> {
             if self.param_is_storage_ref(param_id) {
                 return true;
             }
-            let ty = self.gcx.type_of_hir_ty(&self.gcx.hir.variable(param_id).ty);
+            let ty = self.gcx.type_of_item(param_id.into());
             match ty.peel_refs().kind {
                 TyKind::Struct(id) => self
                     .gcx

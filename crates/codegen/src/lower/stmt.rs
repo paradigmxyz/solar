@@ -46,7 +46,11 @@ impl<'gcx> Lowerer<'gcx> {
             return None;
         };
         let var = self.gcx.hir.variable(var_id);
-        let packed_args = self.abi_encode_packed_call_args(var.initializer?)?;
+        let initializer = var.initializer?;
+        if self.expr_references_error(initializer).is_err() {
+            return None;
+        }
+        let packed_args = self.abi_encode_packed_call_args(initializer)?;
 
         let StmtKind::Return(Some(ret)) = &next?.kind else {
             return None;
@@ -185,7 +189,7 @@ impl<'gcx> Lowerer<'gcx> {
         var_id: hir::VariableId,
     ) {
         let var = self.gcx.hir.variable(var_id);
-        let var_ty = self.gcx.type_of_hir_ty(&var.ty);
+        let var_ty = self.gcx.type_of_item(var_id.into());
 
         // Storage reference: `T storage r = <lvalue>`. Bind the storage *slot*
         // (not the dereferenced value) so `r.field` reads/writes `sload`/`sstore`
@@ -220,10 +224,9 @@ impl<'gcx> Lowerer<'gcx> {
         // allocated in proper memory, so they don't need extra local memory storage
         let is_struct_type = matches!(var_ty.peel_refs().kind, TyKind::Struct(_));
 
-        // Variables need memory storage if:
-        // 1. They are assigned after declaration, OR
-        // 2. They are initialized from external calls (which write to shared memory at offset 0)
-        //    EXCEPT for struct types, which already have properly allocated memory
+        // Variables need memory storage if they are assigned after declaration
+        // or initialized from external calls, which write to shared memory at
+        // offset zero. Struct results already have properly allocated memory.
         let needs_local_memory =
             self.is_var_assigned(&var_id) || (has_external_call && !is_struct_type);
         let is_calldata_dynamic = Lowerer::calldata_dynamic_var_kind(var).is_some();
@@ -271,37 +274,14 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    pub(super) fn zero_memory_field_value(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        ty: &hir::Type<'_>,
-    ) -> ValueId {
-        self.zero_memory_field_value_ty(builder, self.gcx.type_of_hir_ty(ty), ty.span)
-    }
-
-    pub(super) fn is_fixed_memory_array_type(
-        &self,
-        ty: &hir::Type<'_>,
-        loc: Option<solar_ast::DataLocation>,
-    ) -> bool {
-        matches!(loc, None | Some(solar_ast::DataLocation::Memory))
-            && matches!(self.gcx.type_of_hir_ty(ty).peel_refs().kind, TyKind::Array(_, _))
-    }
-
-    pub(super) fn fixed_memory_array_len(&self, ty: &hir::Type<'_>) -> Option<u64> {
-        let TyKind::Array(_, len) = self.gcx.type_of_hir_ty(ty).peel_refs().kind else {
-            return None;
-        };
-        u64::try_from(len).ok()
-    }
-
-    fn zero_memory_field_value_ty(
+    pub(super) fn zero_memory_field_value_ty(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         ty: Ty<'gcx>,
         span: Span,
     ) -> ValueId {
-        match ty.peel_refs().kind {
+        let ty = ty.peel_refs();
+        match ty.kind {
             TyKind::Array(elem_ty, len) => {
                 let Some(len) = u64::try_from(len).ok() else {
                     return self.err_value(
@@ -355,32 +335,28 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.set_memory_object_len(ptr, zero, crate::mir::MemoryObjectKind::Bytes);
                 ptr
             }
-            TyKind::Struct(_) => {
+            TyKind::Struct(struct_id) => {
                 let ptr = self.allocate_memory_object(
                     builder,
                     self.calculate_memory_words_for_ty(ty) * 32,
                     crate::mir::MemoryObjectKind::Struct,
                 );
-                self.zero_initialize_memory_ty(builder, ty, ptr, span);
+                self.zero_initialize_memory_struct(builder, struct_id, ptr, span);
                 ptr
             }
-            _ => builder.imm_u256(U256::ZERO),
+            TyKind::Err(guar) => builder.error_value(guar),
+            _ if ty.is_value_type() => builder.imm_u256(U256::ZERO),
+            _ => self.err_value(builder, span, "codegen cannot materialize this memory default"),
         }
     }
 
-    fn zero_initialize_memory_ty(
+    fn zero_initialize_memory_struct(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        ty: Ty<'gcx>,
+        struct_id: hir::StructId,
         ptr: ValueId,
         span: Span,
     ) {
-        let TyKind::Struct(struct_id) = ty.peel_refs().kind else {
-            let zero = builder.imm_u256(U256::ZERO);
-            builder.mstore(ptr, zero);
-            return;
-        };
-
         let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
         let layout = crate::mir::MemoryObjectLayout::structure(field_tys.len() as u64);
         for (i, field_ty) in field_tys.into_iter().enumerate() {
@@ -1004,7 +980,7 @@ impl<'gcx> Lowerer<'gcx> {
             let param = self.gcx.hir.variable(*param_id);
             let Some(arg) = arg_exprs.next() else { continue };
 
-            let ty = self.gcx.type_of_hir_ty(&param.ty);
+            let ty = self.gcx.type_of_item((*param_id).into());
 
             if param.indexed {
                 // An indexed dynamic `bytes`/`string` is topic'd by the

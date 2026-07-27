@@ -99,7 +99,6 @@ impl<'gcx> Lowerer<'gcx> {
         let mut packed_args = Vec::with_capacity(args.len());
 
         for arg in args.exprs() {
-            self.expr_references_error(arg)?;
             let Some(ty) = self.get_expr_type(arg) else {
                 return Err(self
                     .gcx
