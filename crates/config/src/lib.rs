@@ -211,7 +211,11 @@ impl Dump {
         self.kinds.iter().any(|kind| {
             matches!(
                 kind,
-                DumpKind::Mir | DumpKind::MirCfg | DumpKind::EvmIr | DumpKind::EvmIrRuntime
+                DumpKind::Mir
+                    | DumpKind::MirCfg
+                    | DumpKind::MirEvmShaped
+                    | DumpKind::EvmIr
+                    | DumpKind::EvmIrRuntime
             )
         })
     }
@@ -248,6 +252,8 @@ str_enum! {
         Mir,
         /// Print MIR CFGs in DOT format.
         MirCfg,
+        /// Print MIR immediately before EVM IR lowering.
+        MirEvmShaped,
         /// Print creation EVM IR.
         EvmIr,
         /// Print runtime EVM IR.

@@ -145,7 +145,10 @@ fn contract_output_name(gcx: Gcx<'_>, id: ContractId) -> String {
 fn dump_mir(gcx: Gcx<'_>) -> Result {
     let sess = gcx.sess;
     let Some(dump) = &sess.opts.unstable.dump else { return Ok(()) };
-    if !dump.kinds.contains(&DumpKind::Mir) && !dump.kinds.contains(&DumpKind::MirCfg) {
+    if !dump.kinds.contains(&DumpKind::Mir)
+        && !dump.kinds.contains(&DumpKind::MirCfg)
+        && !dump.kinds.contains(&DumpKind::MirEvmShaped)
+    {
         return Ok(());
     }
 
@@ -161,13 +164,17 @@ fn dump_mir(gcx: Gcx<'_>) -> Result {
 }
 
 fn dump_mir_contract(writer: &mut impl Write, gcx: Gcx<'_>, dump: &Dump, id: ContractId) -> Result {
-    let module = lower::lower_contract(gcx, id);
+    let mut module = lower::lower_contract(gcx, id);
     gcx.dcx().has_errors()?;
     if dump.kinds.contains(&DumpKind::Mir) {
         write_mir_dump_contract(writer, gcx, id, &module, DumpKind::Mir)?;
     }
     if dump.kinds.contains(&DumpKind::MirCfg) {
         write_mir_dump_contract(writer, gcx, id, &module, DumpKind::MirCfg)?;
+    }
+    if dump.kinds.contains(&DumpKind::MirEvmShaped) {
+        let _changed = solar_codegen::pass::run_default_pipeline(gcx, &mut module);
+        write_mir_dump_contract(writer, gcx, id, &module, DumpKind::MirEvmShaped)?;
     }
     Ok(())
 }
@@ -224,7 +231,7 @@ fn write_mir_dump_contract(
     writeln!(writer, "// === {name} ===")
         .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     match kind {
-        DumpKind::Mir => writeln!(writer, "{module}"),
+        DumpKind::Mir | DumpKind::MirEvmShaped => writeln!(writer, "{module}"),
         DumpKind::MirCfg => writeln!(writer, "{}", module.to_dot()),
         _ => unreachable!("checked by caller"),
     }
