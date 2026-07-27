@@ -724,6 +724,7 @@ mod tests {
             Duration::from_secs(1),
         );
         let ticket = coordinator.start(1);
+        tokio::task::yield_now().await;
 
         tokio::time::advance(delay - Duration::from_millis(1)).await;
         ticket.finish("done");
@@ -744,10 +745,12 @@ mod tests {
             Duration::from_secs(1),
         );
         let first = coordinator.start(1);
+        tokio::task::yield_now().await;
 
         tokio::time::advance(delay / 2).await;
         let latest = coordinator.start(2);
         assert!(!Arc::ptr_eq(first.guard.as_ref().unwrap(), latest.guard.as_ref().unwrap()));
+        tokio::task::yield_now().await;
 
         tokio::time::advance(delay / 2).await;
         tokio::task::yield_now().await;
