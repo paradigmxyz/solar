@@ -24,7 +24,7 @@ DEFAULT_PIN = "01209d2b8ac81645b92e3ef801b5bcdfd61bfd69"
 DEFAULT_SOLC_VERSION = "0.8.36"
 DEFAULT_METHODS = ("auto", "linear", "binary", "buckets", "dense")
 SYNTHETIC_FIXTURE_VERSION = 3
-ANVIL_HARDFORK = "prague"
+ANVIL_HARDFORK = "osaka"
 EXPECTED_UI_FAILURE_RE = re.compile(r"//~[\^v|?]*\s*(?:ERROR|ICE)(?::|\b)")
 
 
@@ -70,6 +70,15 @@ def compiler_revision(solar: Path) -> str:
     raise RuntimeError("solar --version did not report a commit SHA")
 
 
+def bytecode_sha256(value: str) -> str:
+    return hashlib.sha256(value.encode()).hexdigest()
+
+
+def json_sha256(value: Any) -> str:
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def load_benchmark_module(root: Path) -> Any:
     sys.modules.pop("gas_bench", None)
     sys.modules.pop("switch_solar_bench", None)
@@ -81,6 +90,23 @@ def load_benchmark_module(root: Path) -> Any:
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def install_bytecode_hashes(bench: Any) -> None:
+    def wrap(compile_case: Any) -> Any:
+        def compile_with_hashes(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            result = compile_case(*args, **kwargs)
+            if result.get("status") == "ok":
+                result["bytecode_sha256"] = bytecode_sha256(str(result["bytecode"]))
+                result["runtime_sha256"] = bytecode_sha256(
+                    str(result.get("runtime_bytecode") or "")
+                )
+            return result
+
+        return compile_with_hashes
+
+    bench.compile_standard_json = wrap(bench.compile_standard_json)
+    bench.compile_repo_case = wrap(bench.compile_repo_case)
 
 
 def gitlinks(root: Path, revision: str) -> dict[str, str]:
@@ -370,13 +396,15 @@ def load_ui_cases(root: Path) -> list[UiCase]:
         if "auxiliary" in relative.parts:
             continue
         source = relative.as_posix()
+        contents = path.read_text()
         cases.append(
             UiCase(
                 source,
                 f"UI codegen file {source}",
                 root,
                 source,
-                bool(EXPECTED_UI_FAILURE_RE.search(path.read_text())),
+                bool(EXPECTED_UI_FAILURE_RE.search(contents))
+                and "--evm-version" not in contents,
             )
         )
     return cases
@@ -458,6 +486,8 @@ def run_ui_case(bench: Any, case: UiCase, specs: Sequence[Any]) -> dict[str, Any
                         "status": "ok",
                         "bytecode_size": len(bytecode) // 2,
                         "runtime_size": len(runtime or "") // 2,
+                        "bytecode_sha256": bytecode_sha256(bytecode),
+                        "runtime_sha256": bytecode_sha256(runtime or ""),
                         "contracts": contracts,
                     }
                 )
@@ -571,6 +601,21 @@ def run_cases(
                             bench.DEFAULT_PRIVATE_KEY,
                             True,
                         )
+                        reference = partial["compilers"][reference_spec.compiler_id]
+                        reference_checks_sha256 = json_sha256(
+                            reference.get("runtime_results") or []
+                        )
+                        for execution_spec in (spec, reference_spec):
+                            compiler = partial["compilers"][execution_spec.compiler_id]
+                            compiler["runtime_checks_sha256"] = json_sha256(
+                                compiler.get("runtime_results") or []
+                            )
+                            compiler["reference_checks_sha256"] = (
+                                reference_checks_sha256
+                            )
+                            compiler["reference_runtime_status"] = partial.get(
+                                "runtime_status"
+                            )
                     finally:
                         stop_anvil(anvil)
                     if result_is_complete(
@@ -589,7 +634,8 @@ def run_cases(
                     )
                 if result is None:
                     result = {**partial, "compilers": {}}
-                result["compilers"][spec.compiler_id] = partial["compilers"][spec.compiler_id]
+                compiler = partial["compilers"][spec.compiler_id]
+                result["compilers"][spec.compiler_id] = compiler
                 if partial.get("runtime_status") != "ok" and expected_status == "ok":
                     raise RuntimeError(
                         f"{case.test_id}/{spec.compiler_id} did not match the reference compiler"
@@ -664,8 +710,19 @@ def result_is_complete(
             compiler.get("runtime_size"), int
         ):
             return False
+        if any(
+            not isinstance(compiler.get(key), str) or len(compiler[key]) != 64
+            for key in ("bytecode_sha256", "runtime_sha256")
+        ):
+            return False
         if not include_gas:
             continue
+        if (
+            compiler.get("reference_runtime_status") != "ok"
+            or compiler.get("runtime_checks_sha256")
+            != compiler.get("reference_checks_sha256")
+        ):
+            return False
         if compiler.get("deploy_status") != "ok" or compiler.get("gas_status") != "ok":
             return False
         gas_results = compiler.get("gas_results") or []
@@ -819,6 +876,8 @@ def render_markdown(
                 if all(
                     compiler["bytecode_size"] == auto["bytecode_size"]
                     and compiler["runtime_size"] == auto["runtime_size"]
+                    and compiler["bytecode_sha256"] == auto["bytecode_sha256"]
+                    and compiler["runtime_sha256"] == auto["runtime_sha256"]
                     for compiler in compilers.values()
                 ):
                     continue
@@ -831,9 +890,18 @@ def render_markdown(
                     if method == "auto":
                         continue
                     compiler = compilers[method]
+                    differs = (
+                        compiler["bytecode_sha256"] != auto["bytecode_sha256"]
+                        or compiler["runtime_sha256"] != auto["runtime_sha256"]
+                    )
+                    same_sizes = (
+                        compiler["bytecode_size"] == auto["bytecode_size"]
+                        and compiler["runtime_size"] == auto["runtime_size"]
+                    )
                     row.append(
                         f'{compiler["bytecode_size"]}/{compiler["runtime_size"]} '
                         f'({percent_delta(compiler["runtime_size"], auto["runtime_size"])})'
+                        f'{"; code differs" if differs and same_sizes else ""}'
                     )
                 ui_rows.append(row)
         if metadata["scope"] != "synthetic":
@@ -904,7 +972,12 @@ def render_markdown(
         ),
         coverage_rows,
     )
-    text += "\n\nEvery gas workload's execution results were checked against CI's pinned solc."
+    text += (
+        "\n\nEvery synthetic entry and miss has a matching read check against CI's pinned "
+        "solc. The CI workloads also run the pinned runtime and cold-path checks. Every "
+        "gas row records the method and reference check digests, and every successful "
+        "artifact records creation and runtime bytecode hashes."
+    )
     text += "\n\n## Aggregate results\n\n"
     text += markdown_table(
         (
@@ -923,10 +996,11 @@ def render_markdown(
         aggregate_rows,
     )
     if ui_rows:
+        ui_methods = ("auto", *(method for method in methods if method != "auto"))
         text += "\n\n## Changed UI corpus files\n\n"
         text += "Sizes are deploy/runtime bytes; parenthesized deltas are runtime bytes versus auto.\n\n"
         text += markdown_table(
-            ("Scope", "Fixture", "Auto", "Linear", "Binary", "Buckets", "Dense"),
+            ("Scope", "Fixture", *(method.title() for method in ui_methods)),
             ui_rows,
         )
     if synthetic_rows:
@@ -991,6 +1065,8 @@ def main() -> int:
     args = parser.parse_args()
     if "auto" not in args.methods:
         parser.error("--methods must include auto")
+    if len(set(args.methods)) != len(args.methods):
+        parser.error("--methods must not contain duplicates")
 
     solar = args.solar.resolve()
     benchmark_repo = args.benchmark_repo.resolve()
@@ -1030,6 +1106,7 @@ def main() -> int:
         benchmark_fixtures_sha256 = use_pinned_benchmark_inputs(
             bench, benchmark_repo, pinned_root
         )
+        install_bytecode_hashes(bench)
         solc_version, solc_error = bench.binary_version(solc)
         if solc_error:
             raise RuntimeError(f"could not identify solc: {solc_error}")
