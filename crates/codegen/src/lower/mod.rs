@@ -1842,8 +1842,11 @@ impl<'gcx> Lowerer<'gcx> {
             && let Some(var_id) = self.gcx.resolved_variable(base)
         {
             let var = self.gcx.hir.variable(var_id);
-            // Contract type variables are external call targets
-            if matches!(var.ty.kind, hir::TypeKind::Custom(hir::ItemId::Contract(_))) {
+            // This scan tracks declaration-level contract values; struct fields are lowered as
+            // member expressions.
+            if !var.is_struct_member()
+                && matches!(var.ty.kind, hir::TypeKind::Custom(hir::ItemId::Contract(_)))
+            {
                 return true;
             }
         }
