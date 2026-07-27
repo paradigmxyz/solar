@@ -144,8 +144,8 @@ impl<'gcx> Lowerer<'gcx> {
         callee: &hir::Expr<'_>,
         args: &CallArgs<'_>,
         function: &'gcx TyFn<'gcx>,
-    ) -> ValueId {
-        let function_value = self.lower_expr(builder, callee);
+    ) -> Option<ValueId> {
+        let function_value = self.lower_value_expr(builder, callee);
         let mut arg_values = args
             .exprs()
             .enumerate()
@@ -157,7 +157,7 @@ impl<'gcx> Lowerer<'gcx> {
                 {
                     slot
                 } else {
-                    let value = self.lower_expr(builder, arg);
+                    let value = self.lower_value_expr(builder, arg);
                     self.coerce_memory_slice_value(builder, value)
                 }
             })
@@ -168,9 +168,14 @@ impl<'gcx> Lowerer<'gcx> {
         let returns = function.returns.len();
         let Some(&return_ty) = function.returns.first() else {
             builder.internal_call_void(dispatcher, arg_values, returns);
-            return builder.imm_u64(0);
+            return None;
         };
-        builder.internal_call(dispatcher, arg_values, self.lower_type_from_ty(return_ty), returns)
+        Some(builder.internal_call(
+            dispatcher,
+            arg_values,
+            self.lower_type_from_ty(return_ty),
+            returns,
+        ))
     }
 
     fn ensure_internal_function_pointer_dispatcher(
@@ -261,14 +266,19 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.branch(is_match, case_block, next_block);
 
                 builder.switch_to_block(case_block);
-                let result = self.lower_internal_call_fallback(
-                    &mut builder,
-                    function_id,
-                    arg_values.clone(),
-                );
                 if shape.1.is_empty() {
+                    self.lower_internal_void_call_fallback(
+                        &mut builder,
+                        function_id,
+                        arg_values.clone(),
+                    );
                     builder.ret([]);
                 } else {
+                    let result = self.lower_internal_call_fallback(
+                        &mut builder,
+                        function_id,
+                        arg_values.clone(),
+                    );
                     let mut return_values = Vec::with_capacity(shape.1.len());
                     return_values.push(result);
                     if shape.1.len() > 1 {
