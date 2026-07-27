@@ -503,6 +503,81 @@ uint256 public number
 }
 
 #[test]
+fn shows_contracts_at_declarations_imports_creation_and_inheritance() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /lib/forge-std/src/Script.sol
+        abstract contract Script {}
+        //- /src/Counter.sol
+        contract Counter {}
+        //- /script/Counter.s.sol open
+        import {$1Script} from "../lib/forge-std/src/Script.sol";
+        import {$2Counter} from "../src/Counter.sol";
+
+        contract $3CounterScript is $4Script {
+            Counter public counter;
+
+            function run() public {
+                counter = new $5Counter();
+            }
+        }
+        "#,
+        "/script/Counter.s.sol",
+    );
+
+    fixture.check_hover(
+        "$1",
+        str![[r#"
+0:8-0:14
+```solidity
+abstract contract Script
+```
+
+"#]],
+    );
+    fixture.check_hover(
+        "$2",
+        str![[r#"
+1:8-1:15
+```solidity
+contract Counter
+```
+
+"#]],
+    );
+    fixture.check_hover(
+        "$3",
+        str![[r#"
+2:9-2:22
+```solidity
+contract CounterScript is Script
+```
+
+"#]],
+    );
+    fixture.check_hover(
+        "$4",
+        str![[r#"
+2:26-2:32
+```solidity
+abstract contract Script
+```
+
+"#]],
+    );
+    fixture.check_hover(
+        "$5",
+        str![[r#"
+5:22-5:29
+```solidity
+contract Counter
+```
+
+"#]],
+    );
+}
+
+#[test]
 fn uses_the_type_checked_overload() {
     let fixture = RequestFixture::new(
         r#"
@@ -1021,7 +1096,17 @@ fn returns_no_hover_for_unsupported_or_non_symbol_positions() {
         "/Unsupported.sol",
     );
 
-    for marker in ["$1", "$2", "$3", "$4", "$5", "$7", "$8"] {
+    fixture.check_hover(
+        "$1",
+        str![[r#"
+0:9-0:10
+```solidity
+contract C
+```
+
+"#]],
+    );
+    for marker in ["$2", "$3", "$4", "$5", "$7", "$8"] {
         fixture.check_hover(marker, "<none>\n");
     }
 }

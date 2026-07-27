@@ -98,11 +98,18 @@ struct ImportBindingKey {
 pub(crate) struct ImportBindings {
     aliases: FxHashMap<ImportBindingKey, ImportAliasId>,
     symbol_sources: FxHashMap<SymbolId, hir::SourceId>,
+    references: Vec<(Span, Vec<SymbolId>)>,
 }
 
 #[derive(Default)]
 pub(crate) struct MappingBindings {
     params: FxHashMap<VariableId, MappingNameId>,
+}
+
+impl ImportBindings {
+    pub(crate) fn references(&self) -> impl Iterator<Item = (Span, &[SymbolId])> {
+        self.references.iter().map(|(span, symbols)| (*span, symbols.as_slice()))
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -178,9 +185,11 @@ impl RenameIndex {
                             }
 
                             self.push_symbol_occurrence(gcx, imported.span, &symbols);
+                            bindings.references.push((imported.span, symbols.clone()));
                             if let Some(alias) = alias
                                 && let Some(alias_id) = self.add_alias(gcx, alias)
                             {
+                                bindings.references.push((alias.span, symbols.clone()));
                                 for &symbol_id in &symbols {
                                     bindings.aliases.insert(
                                         ImportBindingKey {

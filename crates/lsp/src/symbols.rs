@@ -867,6 +867,22 @@ impl SymbolTables {
         id
     }
 
+    fn push_reference_entry(
+        &mut self,
+        gcx: Gcx<'_>,
+        span: Span,
+        targets: ReferenceTargets,
+        kind: DocumentHighlightKind,
+    ) {
+        if targets.is_empty() {
+            return;
+        }
+        let Some(location) = proto::span_to_location(gcx.sess.source_map(), span) else {
+            return;
+        };
+        self.references.push(SymbolReference { location, targets, kind });
+    }
+
     #[cfg(test)]
     fn push_test_declaration(&mut self, declaration: DeclarationSymbol) -> SymbolId {
         let id = declaration.id;
@@ -942,6 +958,14 @@ impl SymbolTables {
 
     fn build_references(&mut self, gcx: Gcx<'_>, item_symbols: &FxHashMap<ItemId, SymbolId>) {
         let bindings = self.rename.build_imports(gcx, item_symbols);
+        for (span, targets) in bindings.references() {
+            self.push_reference_entry(
+                gcx,
+                span,
+                targets.iter().copied().collect(),
+                DocumentHighlightKind::READ,
+            );
+        }
         let mapping_bindings = self.rename.build_mapping_names(gcx);
         self.rename.build_natspec(gcx, &bindings, item_symbols, &self.declarations);
         self.rename.build_overrides(
@@ -1711,13 +1735,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
                 &targets,
             );
         }
-        if targets.is_empty() {
-            return;
-        }
-        let Some(location) = proto::span_to_location(self.gcx.sess.source_map(), span) else {
-            return;
-        };
-        self.tables.references.push(SymbolReference { location, targets, kind });
+        self.tables.push_reference_entry(self.gcx, span, targets, kind);
     }
 
     fn visit_ident_reference(
