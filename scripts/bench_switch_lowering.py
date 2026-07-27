@@ -28,6 +28,21 @@ DEFAULT_METHODS = ("auto", "linear", "binary", "buckets", "dense")
 SYNTHETIC_FIXTURE_VERSION = 3
 ANVIL_HARDFORK = "osaka"
 EXPECTED_UI_FAILURE_RE = re.compile(r"//~[\^v|?]*\s*(?:ERROR|ICE)(?::|\b)")
+GROWTH_SWEEP_CASE_COUNTS = {"synthetic": 28, "ui-gas": 146, "ci-gas": 12}
+GROWTH_SWEEP_PROVENANCE_KEYS = (
+    "benchmark_pin",
+    "benchmark_tree",
+    "benchmark_script_sha256",
+    "gas_script_sha256",
+    "benchmark_fixtures_sha256",
+    "corpus_revisions",
+    "ui_corpus_sha256",
+    "solc_sha256",
+    "solc_version",
+    "anvil_version",
+    "cast_version",
+    "hardfork",
+)
 
 
 @dataclass(frozen=True)
@@ -1181,6 +1196,78 @@ def load_scope(output_dir: Path, scope: str) -> dict[str, Any]:
     return json.loads(path.read_text())
 
 
+def results_by_test_id(payload: dict[str, Any], scope: str) -> dict[str, dict[str, Any]]:
+    results = payload.get("results")
+    if not isinstance(results, list):
+        raise RuntimeError(f"{scope} results are missing")
+    by_id = {str(result["test_id"]): result for result in results}
+    if len(by_id) != len(results):
+        raise RuntimeError(f"{scope} contains duplicate test IDs")
+    expected = GROWTH_SWEEP_CASE_COUNTS[scope]
+    if len(by_id) != expected:
+        raise RuntimeError(f"{scope} contains {len(by_id)} tests, expected {expected}")
+    return by_id
+
+
+def validate_growth_sweep_inputs(
+    compile_payloads: dict[str, dict[str, Any]],
+    gas_payloads: dict[str, dict[str, Any]],
+) -> None:
+    canonical = compile_payloads["synthetic"]["metadata"]
+    compile_results = {}
+    for scope, payload in compile_payloads.items():
+        metadata = payload.get("metadata") or {}
+        if metadata.get("scope") != scope or metadata.get("optimization") != "gas":
+            raise RuntimeError(f"{scope} has incompatible compile metadata")
+        if metadata.get("compile_only") is not True:
+            raise RuntimeError(f"{scope} is not a compile-only sweep")
+        for key in GROWTH_SWEEP_PROVENANCE_KEYS:
+            if metadata.get(key) != canonical.get(key):
+                raise RuntimeError(f"{scope} compile provenance differs for {key}")
+        compile_results[scope] = results_by_test_id(payload, scope)
+
+    for scope, payload in gas_payloads.items():
+        metadata = payload.get("metadata") or {}
+        compile_metadata = compile_payloads[scope]["metadata"]
+        if metadata.get("scope") != scope or metadata.get("optimization") != "gas":
+            raise RuntimeError(f"{scope} has incompatible gas metadata")
+        if metadata.get("compile_only") is not False:
+            raise RuntimeError(f"{scope} does not contain gas execution")
+        for key in GROWTH_SWEEP_PROVENANCE_KEYS:
+            if metadata.get(key) != compile_metadata.get(key):
+                raise RuntimeError(f"{scope} gas provenance differs for {key}")
+        for key in ("expected_failures", "excluded_cases", "fixture_version"):
+            if metadata.get(key) != compile_metadata.get(key):
+                raise RuntimeError(f"{scope} coverage metadata differs for {key}")
+
+        gas_results = results_by_test_id(payload, scope)
+        if gas_results.keys() != compile_results[scope].keys():
+            raise RuntimeError(f"{scope} compile and gas test IDs differ")
+        for test_id, result in gas_results.items():
+            compiled = compile_results[scope][test_id]
+            descriptor = ("description", "contract_name", "suite", "gas_profile")
+            if any(result.get(key) != compiled.get(key) for key in descriptor):
+                raise RuntimeError(f"{scope}/{test_id} fixture metadata differs")
+            if result.get("runtime_status") != "ok" or result.get("runtime_mismatches"):
+                raise RuntimeError(f"{scope}/{test_id} runtime checks failed")
+            for compiler_id, compiler in result["compilers"].items():
+                if compiler.get("status") != "ok":
+                    raise RuntimeError(f"{scope}/{test_id}/{compiler_id} failed")
+                if (
+                    compiler.get("deploy_status") != "ok"
+                    or compiler.get("gas_status") != "ok"
+                    or compiler.get("runtime_status") != "ok"
+                    or compiler.get("reference_runtime_status") != "ok"
+                ):
+                    raise RuntimeError(f"{scope}/{test_id}/{compiler_id} checks failed")
+                checks = compiler.get("runtime_checks_sha256")
+                if not checks or checks != compiler.get("reference_checks_sha256"):
+                    raise RuntimeError(f"{scope}/{test_id}/{compiler_id} check digests differ")
+                call_gas_results = compiler.get("gas_results") or ()
+                if compiler.get("total_gas") != sum(item["gas"] for item in call_gas_results):
+                    raise RuntimeError(f"{scope}/{test_id}/{compiler_id} gas total differs")
+
+
 def render_growth_sweep(
     compile_dir: Path,
     gas_dir: Path,
@@ -1193,6 +1280,7 @@ def render_growth_sweep(
         scope: load_scope(gas_dir, scope)
         for scope in ("synthetic", "ci-gas")
     }
+    validate_growth_sweep_inputs(compile_payloads, gas_payloads)
     budgets = sorted(
         budget
         for variant in compile_payloads["synthetic"]["metadata"]["variants"]
@@ -1218,10 +1306,12 @@ def render_growth_sweep(
 
     rows = []
     fingerprints = {}
+    ci_gas_by_budget = {}
     for budget in budgets:
         compiler_id = f"auto-g{budget}"
         totals = {}
         fingerprint = []
+        ci_gas_by_test = {}
         for scope, payload in compile_payloads.items():
             deploy = 0
             runtime = 0
@@ -1241,6 +1331,8 @@ def render_growth_sweep(
                         raise RuntimeError(
                             f"unmeasured bytecode: {scope}/{result['test_id']}/{compiler_id}"
                         )
+                    if scope == "ci-gas":
+                        ci_gas_by_test[result["test_id"]] = dict(measured_gas)
                     gas += sum(value for _, value in measured_gas)
                     calls += len(measured_gas)
             totals[scope] = {
@@ -1251,9 +1343,37 @@ def render_growth_sweep(
             }
         rows.append({"budget": budget, "totals": totals})
         fingerprints[budget] = json_sha256(fingerprint)
+        ci_gas_by_budget[budget] = ci_gas_by_test
 
+    baseline = rows[-1]
+    baseline_ci_gas = ci_gas_by_budget[baseline["budget"]]
+    for row in rows:
+        max_contract_regression = 0
+        max_call_regression = 0
+        regressing_contracts = []
+        for test_id, calls in ci_gas_by_budget[row["budget"]].items():
+            baseline_calls = baseline_ci_gas[test_id]
+            if calls.keys() != baseline_calls.keys():
+                raise RuntimeError(f"CI call labels differ for {test_id}")
+            contract_regression = sum(calls.values()) - sum(baseline_calls.values())
+            if contract_regression > 0:
+                regressing_contracts.append([test_id, contract_regression])
+                max_contract_regression = max(max_contract_regression, contract_regression)
+            for label, gas in calls.items():
+                max_call_regression = max(
+                    max_call_regression, gas - baseline_calls[label]
+                )
+        row["max_ci_contract_regression"] = max_contract_regression
+        row["max_ci_call_regression"] = max_call_regression
+        row["ci_regressing_contracts"] = regressing_contracts
+
+    non_regressing = [
+        row
+        for row in rows
+        if row["max_ci_contract_regression"] == 0 and row["max_ci_call_regression"] == 0
+    ]
     best = min(
-        rows,
+        non_regressing,
         key=lambda row: (
             row["totals"]["ci-gas"]["gas"],
             row["totals"]["ci-gas"]["runtime"],
@@ -1263,7 +1383,6 @@ def render_growth_sweep(
             row["budget"],
         ),
     )
-    baseline = rows[-1]
 
     plateaus = []
     for row in rows:
@@ -1287,7 +1406,8 @@ def render_growth_sweep(
         f"{len(compile_payloads['ci-gas']['results'])} pinned CI contracts. "
         f"The sweep produced {len(set(fingerprints.values()))} distinct whole-corpus "
         "artifact fingerprints. Gas was executed once per distinct creation/runtime "
-        "artifact and mapped back to every budget."
+        "artifact and mapped back to every budget. Candidates that regress any CI "
+        "contract or call against the maximum-budget baseline are excluded before ranking."
     )
     text += "\n\n"
     text += markdown_table(
@@ -1298,6 +1418,8 @@ def render_growth_sweep(
             "UI Ogas runtime B",
             "CI hot gas",
             "CI Ogas runtime B",
+            "Max CI contract regression",
+            "Max CI call regression",
         ),
         [
             [
@@ -1307,6 +1429,8 @@ def render_growth_sweep(
                 str(row["totals"]["ui-gas"]["runtime"]),
                 str(row["totals"]["ci-gas"]["gas"]),
                 str(row["totals"]["ci-gas"]["runtime"]),
+                str(row["max_ci_contract_regression"]),
+                str(row["max_ci_call_regression"]),
             ]
             for row in (best, baseline)
         ],
@@ -1320,6 +1444,8 @@ def render_growth_sweep(
             "UI Ogas runtime B",
             "CI hot gas",
             "CI Ogas runtime B",
+            "Max CI contract regression",
+            "Max CI call regression",
         ),
         [
             [
@@ -1329,6 +1455,8 @@ def render_growth_sweep(
                 str(row["totals"]["ui-gas"]["runtime"]),
                 str(row["totals"]["ci-gas"]["gas"]),
                 str(row["totals"]["ci-gas"]["runtime"]),
+                str(row["max_ci_contract_regression"]),
+                str(row["max_ci_call_regression"]),
             ]
             for row in rows
         ],

@@ -27,7 +27,7 @@ const MAX_BUCKET_CASES: usize = 64;
 const MAX_DENSE_RANGE: usize = 4096;
 const MAX_BUCKET_CANDIDATES: usize = 33;
 /// Bounds cumulative bytecode growth per artifact under the runtime-gas objective.
-pub(super) const MAX_GAS_CODE_GROWTH: usize = 61;
+pub(super) const MAX_GAS_CODE_GROWTH: usize = 184;
 
 /// Selected control-flow shape for a switch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
