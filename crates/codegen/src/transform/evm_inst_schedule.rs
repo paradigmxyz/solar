@@ -28,7 +28,12 @@
 //! movable with a preceding single-use expansion pass; this implementation instead pins shared
 //! producers so the late transform does not clone shared expressions or inflate MIR.
 //!
+//! [solx's EVM single-use-expression pass] likewise moves one-use definitions next to their uses,
+//! using machine live intervals and stackification metadata. This pass works before machine
+//! lowering, keeps MIR identities unchanged, and leaves physical stack decisions to the backend.
+//!
 //! [Vyper Venom's DFT pass]: https://github.com/vyperlang/vyper/blob/730a2d36f1fca90be059c75681de5c942560ce0b/vyper/venom/passes/dft.py
+//! [solx's EVM single-use-expression pass]: https://github.com/NomicFoundation/solx-llvm/blob/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/Target/EVM/EVMSingleUseExpression.cpp
 
 use crate::{
     mir::{Function, InstId, InstKind, Instruction, Module, Terminator, Value, ValueId},
