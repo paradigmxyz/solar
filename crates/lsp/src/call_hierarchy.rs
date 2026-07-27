@@ -28,7 +28,7 @@ const DATA_VERSION: u8 = 1;
 #[derive(Debug, Default)]
 pub(crate) struct CallHierarchyIndex {
     facts: CallHierarchyFacts,
-    query: OnceLock<QueryIndex>,
+    query: OnceLock<Box<QueryIndex>>,
 }
 
 impl Clone for CallHierarchyIndex {
@@ -201,8 +201,9 @@ impl CallHierarchyIndex {
         declarations: &IndexVec<SymbolId, DeclarationSymbol>,
         conflicting_contents: &FxHashSet<Url>,
     ) -> &QueryIndex {
-        self.query
-            .get_or_init(|| QueryIndex::build(&self.facts, declarations, conflicting_contents))
+        self.query.get_or_init(|| {
+            Box::new(QueryIndex::build(&self.facts, declarations, conflicting_contents))
+        })
     }
 
     fn invalidate_query(&mut self) {
