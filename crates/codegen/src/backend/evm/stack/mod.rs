@@ -33,9 +33,10 @@
 //!   reservations, while block-local slots are released and reused after the block is emitted. In
 //!   gas mode, non-overlapping cross-block live ranges share reservations to reduce frame size and
 //!   memory expansion. Values reserved only for backend rematerialization dependencies stay
-//!   separate because MIR liveness does not include those synthetic uses. Size mode also retains
-//!   separate reservations: changing frame addresses can disturb whole-program block sharing even
-//!   when the local frame becomes smaller.
+//!   separate because MIR liveness does not include those synthetic uses. Gas mode accepts that
+//!   changing frame addresses can make an isolated artifact larger when the smaller frame saves
+//!   runtime gas. Size mode retains separate reservations because the same address changes can
+//!   disturb whole-program block sharing even when the local frame becomes smaller.
 //!
 //! Local instruction scheduling and CFG-edge shuffling are intentionally
 //! separate. The former optimizes a small operand head without imposing one
