@@ -79,12 +79,20 @@ impl ProgressCoordinator {
     /// A newer version reuses a visible wave and reports at most one restart. If the previous
     /// wave has already ended or failed, a fresh token is allocated. Tickets for older versions
     /// remain valid handles but cannot report or finish the newer wave.
+    #[cfg(test)]
     pub(crate) fn start(&self, version: usize) -> ProgressTicket {
+        let ticket = self.reserve(version);
+        ticket.begin();
+        ticket
+    }
+
+    /// Reserves a progress wave that starts when its ticket is begun.
+    pub(crate) fn reserve(&self, version: usize) -> ProgressTicket {
         if !self.inner.enabled.load(Ordering::Acquire) {
             return ProgressTicket::disabled(version);
         }
 
-        let (guard, schedule) = {
+        let guard = {
             let mut active = self.inner.active.lock();
             if !self.inner.enabled.load(Ordering::Acquire) {
                 return ProgressTicket::disabled(version);
@@ -96,7 +104,7 @@ impl ProgressCoordinator {
                 if !self.inner.enabled.load(Ordering::Acquire) {
                     return ProgressTicket::disabled(version);
                 }
-                (Arc::clone(guard), false)
+                Arc::clone(guard)
             } else {
                 // `restart` may have waited for a failing guard that disabled the connection.
                 if !self.inner.enabled.load(Ordering::Acquire) {
@@ -110,13 +118,9 @@ impl ProgressCoordinator {
                     self.inner.timing,
                 ));
                 *active = Some(Arc::clone(&guard));
-                (guard, true)
+                guard
             }
         };
-
-        if schedule {
-            guard.schedule();
-        }
 
         ProgressTicket { guard: Some(guard), version }
     }
@@ -161,6 +165,12 @@ impl ProgressTicket {
         self.guard.is_none()
     }
 
+    pub(crate) fn begin(&self) {
+        if let Some(guard) = &self.guard {
+            guard.schedule(self.version);
+        }
+    }
+
     pub(crate) fn report(&self, message: &'static str) {
         if let Some(guard) = &self.guard {
             guard.report(self.version, message);
@@ -176,6 +186,7 @@ impl ProgressTicket {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Phase {
+    Pending,
     Delayed,
     Creating,
     Begun,
@@ -213,7 +224,7 @@ impl WorkDoneProgressGuard {
             timing,
             state: Mutex::new(ProgressState {
                 version,
-                phase: Phase::Delayed,
+                phase: Phase::Pending,
                 message: None,
                 terminal: None,
                 restart_reported: false,
@@ -222,7 +233,18 @@ impl WorkDoneProgressGuard {
         }
     }
 
-    fn schedule(self: &Arc<Self>) {
+    fn schedule(self: &Arc<Self>, version: usize) {
+        {
+            let mut state = self.state.lock();
+            if !self.enabled.load(Ordering::Acquire)
+                || state.version != version
+                || state.phase != Phase::Pending
+            {
+                return;
+            }
+            state.phase = Phase::Delayed;
+        }
+
         let weak = Arc::downgrade(self);
         let delay = self.timing.delay;
         let Ok(handle) = tokio::runtime::Handle::try_current() else {
@@ -332,7 +354,7 @@ impl WorkDoneProgressGuard {
             } else {
                 state.restart_reported = true;
             }
-        } else if state.message != Some(RESTART_MESSAGE) {
+        } else if state.phase != Phase::Pending && state.message != Some(RESTART_MESSAGE) {
             state.message = Some(RESTART_MESSAGE);
         }
         true
@@ -356,7 +378,7 @@ impl WorkDoneProgressGuard {
             ) {
                 self.disable_locked(&mut state, "failed to enqueue progress report");
             }
-        } else if matches!(state.phase, Phase::Delayed | Phase::Creating) {
+        } else if matches!(state.phase, Phase::Pending | Phase::Delayed | Phase::Creating) {
             state.message = Some(message);
         }
     }
@@ -368,7 +390,7 @@ impl WorkDoneProgressGuard {
         }
 
         match state.phase {
-            Phase::Delayed => {
+            Phase::Pending | Phase::Delayed => {
                 state.phase = Phase::Closed;
                 state.message = None;
             }
@@ -401,7 +423,7 @@ impl WorkDoneProgressGuard {
 
         let result = publish();
         match state.phase {
-            Phase::Delayed => {
+            Phase::Pending | Phase::Delayed => {
                 state.phase = Phase::Closed;
                 state.message = None;
             }
@@ -427,6 +449,11 @@ impl WorkDoneProgressGuard {
     fn created(&self) {
         let mut state = self.state.lock();
         if state.phase != Phase::Creating {
+            return;
+        }
+        if state.terminal.take().is_some() {
+            state.phase = Phase::Closed;
+            state.message = None;
             return;
         }
 
@@ -461,7 +488,7 @@ impl WorkDoneProgressGuard {
 
     fn disable(&self, reason: &str) {
         let mut state = self.state.lock();
-        if !matches!(state.phase, Phase::Delayed | Phase::Creating) {
+        if !matches!(state.phase, Phase::Pending | Phase::Delayed | Phase::Creating) {
             return;
         }
         self.disable_locked(&mut state, reason);
@@ -619,6 +646,7 @@ mod tests {
             1,
             Timing { delay: Duration::ZERO, create_timeout: Duration::from_secs(1) },
         );
+        guard.state.lock().phase = Phase::Delayed;
         assert!(guard.mark_creating());
         guard.finish(1, "first");
         guard.report(1, "ignored");
@@ -628,7 +656,7 @@ mod tests {
     }
 
     #[test]
-    fn finishing_delayed_ticket_discards_pending_message() {
+    fn finishing_pending_ticket_discards_pending_message() {
         let guard = WorkDoneProgressGuard::new(
             ClientSocket::new_closed(),
             Arc::new(AtomicBool::new(true)),
@@ -675,6 +703,46 @@ mod tests {
         tokio::task::yield_now().await;
 
         assert!(!coordinator.is_active_for_test(1));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn reserved_ticket_does_not_start_progress_until_begun() {
+        let mut harness = progress_harness();
+        let coordinator = ProgressCoordinator::with_timing(
+            harness.client.clone(),
+            true,
+            Duration::ZERO,
+            Duration::from_secs(1),
+        );
+        let ticket = coordinator.reserve(1);
+
+        harness.probe().await;
+        assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
+
+        ticket.begin();
+        let ClientEvent::Create(create) = next_event(&mut harness.events).await else {
+            panic!("expected create request")
+        };
+        let token = create.token;
+        harness.acknowledge_create();
+        assert!(matches!(
+            next_event(&mut harness.events).await,
+            ClientEvent::Progress(ProgressParams {
+                token: actual,
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(_)),
+            }) if actual == token
+        ));
+
+        ticket.finish("done");
+        assert!(matches!(
+            next_event(&mut harness.events).await,
+            ClientEvent::Progress(ProgressParams {
+                token: actual,
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(_)),
+            }) if actual == token
+        ));
+
+        harness.shutdown().await;
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -999,7 +1067,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn create_timeout_keeps_the_request_alive_for_a_late_success() {
+    async fn late_create_response_after_finish_suppresses_progress() {
         let mut harness = progress_harness();
         let coordinator = ProgressCoordinator::with_timing(
             harness.client.clone(),
@@ -1009,10 +1077,9 @@ mod tests {
         );
         let first = coordinator.start(1);
 
-        let ClientEvent::Create(create) = next_event(&mut harness.events).await else {
+        let ClientEvent::Create(_) = next_event(&mut harness.events).await else {
             panic!("expected create request")
         };
-        let token = create.token;
         tokio::time::timeout(Duration::from_secs(1), async {
             while !first.guard.as_ref().unwrap().create_timed_out_for_test() {
                 tokio::task::yield_now().await;
@@ -1027,26 +1094,9 @@ mod tests {
         latest.finish("done");
 
         harness.acknowledge_create();
-        match next_event(&mut harness.events).await {
-            ClientEvent::Progress(ProgressParams {
-                token: actual,
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
-            }) => {
-                assert_eq!(actual, token);
-                assert_eq!(begin.message.as_deref(), Some("done"));
-            }
-            event => panic!("expected late progress begin, got {event:?}"),
-        }
-        match next_event(&mut harness.events).await {
-            ClientEvent::Progress(ProgressParams {
-                token: actual,
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)),
-            }) => {
-                assert_eq!(actual, token);
-                assert_eq!(end.message.as_deref(), Some("done"));
-            }
-            event => panic!("expected late progress end, got {event:?}"),
-        }
+        harness.probe().await;
+        assert!(!coordinator.is_active_for_test(2));
+        assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
 
         harness.shutdown().await;
     }
@@ -1059,6 +1109,7 @@ mod tests {
             1,
             Timing { delay: Duration::ZERO, create_timeout: Duration::from_secs(1) },
         ));
+        guard.state.lock().phase = Phase::Delayed;
         assert!(guard.mark_creating());
         guard.finish(1, "obsolete completion");
 

@@ -78,6 +78,10 @@ impl WorkDoneHarness {
         self.create_ack.take().expect("one create acknowledgement").send(()).unwrap();
     }
 
+    async fn probe(&self) {
+        self.client.request::<request::Shutdown>(()).await.unwrap();
+    }
+
     async fn shutdown(self) {
         self.server.notify::<notification::Exit>(()).unwrap();
         assert!(self.server_task.await.unwrap().is_ok());
@@ -106,6 +110,7 @@ fn work_done_harness() -> WorkDoneHarness {
                 Ok(())
             }
         });
+        router.request::<request::Shutdown, _>(|_, ()| async { Ok(()) });
         router.notification::<notification::Progress>(|state, params| {
             state.events.send(WorkDoneEvent::Progress(params)).unwrap();
             ControlFlow::Continue(())
@@ -625,6 +630,7 @@ async fn clearing_analysis_cache_publishes_before_ending_progress() {
 
     let (_, progress) =
         state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    progress.begin();
     progress.report("Analyzing workspace");
     let WorkDoneEvent::Create(create) = harness.next_event().await else {
         panic!("expected progress creation")
@@ -666,7 +672,7 @@ async fn clearing_analysis_cache_publishes_before_ending_progress() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn clearing_analysis_cache_supersedes_a_pending_progress_end() {
+async fn clearing_analysis_cache_suppresses_progress_pending_creation() {
     let project = TestProject::from_fixture(
         r#"
         //- /Cleared.sol
@@ -687,10 +693,10 @@ async fn clearing_analysis_cache_supersedes_a_pending_progress_end() {
 
     let (_, progress) =
         state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
-    let WorkDoneEvent::Create(create) = harness.next_event().await else {
+    progress.begin();
+    let WorkDoneEvent::Create(_) = harness.next_event().await else {
         panic!("expected progress creation")
     };
-    let token = create.token;
     progress.report("obsolete analysis");
     progress.finish("obsolete completion");
 
@@ -704,26 +710,8 @@ async fn clearing_analysis_cache_supersedes_a_pending_progress_end() {
         event => panic!("expected cleared diagnostics, got {event:?}"),
     }
     harness.acknowledge_create();
-    match harness.next_event().await {
-        WorkDoneEvent::Progress(ProgressParams {
-            token: actual,
-            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
-        }) => {
-            assert_eq!(actual, token);
-            assert_eq!(begin.message.as_deref(), Some("Workspace index cleared"));
-        }
-        event => panic!("expected progress begin, got {event:?}"),
-    }
-    match harness.next_event().await {
-        WorkDoneEvent::Progress(ProgressParams {
-            token: actual,
-            value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)),
-        }) => {
-            assert_eq!(actual, token);
-            assert_eq!(end.message.as_deref(), Some("Workspace index cleared"));
-        }
-        event => panic!("expected progress end, got {event:?}"),
-    }
+    harness.probe().await;
+    assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
 
     harness.shutdown().await;
 }
@@ -746,6 +734,7 @@ async fn superseded_analysis_cannot_publish_or_end_latest_progress() {
     let (stale_version, stale_progress) =
         state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
     let mut stale_snapshot = state.snapshot();
+    stale_progress.begin();
     let WorkDoneEvent::Create(create) = harness.next_event().await else {
         panic!("expected progress creation")
     };
@@ -875,31 +864,29 @@ async fn failed_current_analysis_ends_visible_progress() {
         ProgressCoordinator::with_timing(client, true, Duration::ZERO, Duration::from_secs(1));
     let (version, progress) =
         state.begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new()).unwrap();
+    progress.begin();
 
     let WorkDoneEvent::Create(create) = harness.next_event().await else {
         panic!("expected progress creation")
     };
     let token = create.token;
+    harness.acknowledge_create();
+    assert!(matches!(
+        harness.next_event().await,
+        WorkDoneEvent::Progress(ProgressParams {
+            token: actual,
+            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(_)),
+        }) if actual == token
+    ));
+
     let task = tokio::spawn(async { panic!("test analysis failure") });
     state.monitor_analysis_task(version, task, progress);
-
     tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
         .await
         .expect("failed analysis should publish its terminal version")
         .unwrap();
     assert!(state.analysis_cache_invalidated());
-    harness.acknowledge_create();
 
-    match harness.next_event().await {
-        WorkDoneEvent::Progress(ProgressParams {
-            token: actual,
-            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
-        }) => {
-            assert_eq!(actual, token);
-            assert_eq!(begin.message.as_deref(), Some("Workspace indexing failed"));
-        }
-        event => panic!("expected progress begin, got {event:?}"),
-    }
     match harness.next_event().await {
         WorkDoneEvent::Progress(ProgressParams {
             token: actual,
@@ -1365,6 +1352,44 @@ fn configuration_change_invalidates_natspec_context_until_analysis_publishes() {
             .unwrap();
         assert!(state.natspec_semantics_are_usable(&request_uri));
     });
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn source_change_debounce_does_not_count_toward_progress_delay() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Request.sol open
+        contract Before {}
+        "#,
+    );
+    let uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
+    let mut harness = work_done_harness();
+    let client = harness.client.clone();
+    let mut state = GlobalState::new(client.clone());
+    state.config = Arc::new(project.config());
+    state.vfs = Arc::new(RwLock::new(project.vfs()));
+    state.analysis_progress =
+        ProgressCoordinator::with_timing(client, true, Duration::ZERO, Duration::from_secs(1));
+
+    let result = crate::handlers::did_change_text_document(
+        &mut state,
+        DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier::new(uri, 1),
+            content_changes: vec![TextDocumentContentChangeEvent {
+                range: None,
+                range_length: None,
+                text: "contract After {}".into(),
+            }],
+        },
+    );
+    assert!(matches!(result, ControlFlow::Continue(())));
+
+    tokio::time::sleep(state.config.source_change_debounce() / 2).await;
+    harness.probe().await;
+    assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
+
+    state.clear_analysis_cache();
+    harness.shutdown().await;
 }
 
 #[tokio::test(flavor = "current_thread")]

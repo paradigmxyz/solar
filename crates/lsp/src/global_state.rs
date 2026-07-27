@@ -328,13 +328,14 @@ impl GlobalState {
             let Ok(permit) = task_scheduler.gate.clone().acquire_owned().await else {
                 return;
             };
-            let worker_progress = progress.clone();
             let worker = {
                 let mut tasks = task_scheduler.tasks.lock();
                 if !snapshot.is_current(version) {
                     return;
                 }
 
+                progress.begin();
+                let worker_progress = progress.clone();
                 let worker = tokio::task::spawn_blocking(move || {
                     let _permit = permit;
                     run_analysis(&mut snapshot, version, disk_paths, &worker_progress)
@@ -381,9 +382,10 @@ impl GlobalState {
             let invalidated = mem::take(&mut commit.cache_invalidated);
             let rediscover = matches!(mode, AnalysisMode::Rediscover) || invalidated;
             let version = self.next_analysis_version();
-            // Retarget progress before publishing the epoch so a delayed create response cannot
-            // end the previous wave after the new analysis becomes current.
-            let progress = self.analysis_progress.start(version);
+            // Reserve progress before publishing the epoch so a delayed create response cannot end
+            // the previous wave after the new analysis becomes current. The progress delay is armed
+            // after debounce and scheduler wait complete.
+            let progress = self.analysis_progress.reserve(version);
             self.commit_analysis_epoch(&mut commit, version, changed_paths, rediscover);
             let batches = self.diagnostics.write().clear_uris_and_publish_batches(removed_uris);
             publish_diagnostic_batches(&mut self.client, batches);
