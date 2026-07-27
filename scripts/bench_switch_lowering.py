@@ -1157,6 +1157,195 @@ def render_markdown(
     return text + "\n"
 
 
+def growth_budget(compiler_id: str) -> int | None:
+    prefix = "auto-g"
+    if not compiler_id.startswith(prefix):
+        return None
+    try:
+        return int(compiler_id.removeprefix(prefix))
+    except ValueError:
+        return None
+
+
+def artifact_key(compiler: dict[str, Any]) -> tuple[str, str]:
+    return (
+        str(compiler["bytecode_sha256"]),
+        str(compiler["runtime_sha256"]),
+    )
+
+
+def load_scope(output_dir: Path, scope: str) -> dict[str, Any]:
+    path = output_dir / f"{scope}.json"
+    if not path.is_file():
+        raise RuntimeError(f"missing benchmark result: {path}")
+    return json.loads(path.read_text())
+
+
+def render_growth_sweep(
+    compile_dir: Path,
+    gas_dir: Path,
+) -> tuple[str, dict[str, Any]]:
+    compile_payloads = {
+        scope: load_scope(compile_dir, scope)
+        for scope in ("synthetic", "ui-gas", "ci-gas")
+    }
+    gas_payloads = {
+        scope: load_scope(gas_dir, scope)
+        for scope in ("synthetic", "ci-gas")
+    }
+    budgets = sorted(
+        budget
+        for variant in compile_payloads["synthetic"]["metadata"]["variants"]
+        if (budget := growth_budget(variant["compiler_id"])) is not None
+    )
+    if budgets != list(range(budgets[0], budgets[-1] + 1)):
+        raise RuntimeError("growth sweep budgets must form one contiguous integer range")
+
+    measured = {}
+    for scope, payload in gas_payloads.items():
+        for result in payload["results"]:
+            for compiler in result["compilers"].values():
+                if compiler.get("status") != "ok" or compiler.get("gas_status") != "ok":
+                    continue
+                key = (scope, result["test_id"], artifact_key(compiler))
+                gas = tuple(
+                    (item["label"], item["gas"])
+                    for item in compiler.get("gas_results") or ()
+                )
+                previous = measured.setdefault(key, gas)
+                if previous != gas:
+                    raise RuntimeError(f"inconsistent gas for identical bytecode: {key}")
+
+    rows = []
+    fingerprints = {}
+    for budget in budgets:
+        compiler_id = f"auto-g{budget}"
+        totals = {}
+        fingerprint = []
+        for scope, payload in compile_payloads.items():
+            deploy = 0
+            runtime = 0
+            gas = 0
+            calls = 0
+            for result in payload["results"]:
+                compiler = result["compilers"][compiler_id]
+                if compiler.get("status") != "ok":
+                    raise RuntimeError(f"{scope}/{result['test_id']}/{compiler_id} failed")
+                key = artifact_key(compiler)
+                fingerprint.append((scope, result["test_id"], *key))
+                deploy += compiler["bytecode_size"]
+                runtime += compiler["runtime_size"]
+                if scope in gas_payloads:
+                    measured_gas = measured.get((scope, result["test_id"], key))
+                    if measured_gas is None:
+                        raise RuntimeError(
+                            f"unmeasured bytecode: {scope}/{result['test_id']}/{compiler_id}"
+                        )
+                    gas += sum(value for _, value in measured_gas)
+                    calls += len(measured_gas)
+            totals[scope] = {
+                "deploy": deploy,
+                "runtime": runtime,
+                "gas": gas if calls else None,
+                "calls": calls,
+            }
+        rows.append({"budget": budget, "totals": totals})
+        fingerprints[budget] = json_sha256(fingerprint)
+
+    best = min(
+        rows,
+        key=lambda row: (
+            row["totals"]["ci-gas"]["gas"],
+            row["totals"]["ci-gas"]["runtime"],
+            row["totals"]["ui-gas"]["runtime"],
+            row["totals"]["synthetic"]["gas"],
+            row["totals"]["synthetic"]["runtime"],
+            row["budget"],
+        ),
+    )
+    baseline = rows[-1]
+
+    plateaus = []
+    for row in rows:
+        fingerprint = fingerprints[row["budget"]]
+        if not plateaus or plateaus[-1]["fingerprint"] != fingerprint:
+            plateaus.append(
+                {
+                    "first": row["budget"],
+                    "last": row["budget"],
+                    "fingerprint": fingerprint,
+                }
+            )
+        else:
+            plateaus[-1]["last"] = row["budget"]
+
+    text = "## Growth-budget sweep\n\n"
+    text += (
+        f"Every integer budget from {budgets[0]} through {budgets[-1]} was compiled "
+        f"across {len(compile_payloads['synthetic']['results'])} synthetic fixtures, "
+        f"{len(compile_payloads['ui-gas']['results'])} UI files, and "
+        f"{len(compile_payloads['ci-gas']['results'])} pinned CI contracts. "
+        f"The sweep produced {len(set(fingerprints.values()))} distinct whole-corpus "
+        "artifact fingerprints. Gas was executed once per distinct creation/runtime "
+        "artifact and mapped back to every budget."
+    )
+    text += "\n\n"
+    text += markdown_table(
+        (
+            "Budget",
+            "Synthetic gas",
+            "Synthetic runtime B",
+            "UI Ogas runtime B",
+            "CI hot gas",
+            "CI Ogas runtime B",
+        ),
+        [
+            [
+                str(row["budget"]),
+                str(row["totals"]["synthetic"]["gas"]),
+                str(row["totals"]["synthetic"]["runtime"]),
+                str(row["totals"]["ui-gas"]["runtime"]),
+                str(row["totals"]["ci-gas"]["gas"]),
+                str(row["totals"]["ci-gas"]["runtime"]),
+            ]
+            for row in (best, baseline)
+        ],
+    )
+    text += "\n\n<details>\n<summary>Every growth budget</summary>\n\n"
+    text += markdown_table(
+        (
+            "Budget",
+            "Synthetic gas",
+            "Synthetic runtime B",
+            "UI Ogas runtime B",
+            "CI hot gas",
+            "CI Ogas runtime B",
+        ),
+        [
+            [
+                str(row["budget"]),
+                str(row["totals"]["synthetic"]["gas"]),
+                str(row["totals"]["synthetic"]["runtime"]),
+                str(row["totals"]["ui-gas"]["runtime"]),
+                str(row["totals"]["ci-gas"]["gas"]),
+                str(row["totals"]["ci-gas"]["runtime"]),
+            ]
+            for row in rows
+        ],
+    )
+    text += "\n\n</details>\n"
+    summary = {
+        "budgets": budgets,
+        "best_budget": best["budget"],
+        "best": best,
+        "baseline_budget": baseline["budget"],
+        "baseline": baseline,
+        "fingerprint_plateaus": plateaus,
+        "rows": rows,
+    }
+    return text, summary
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--solar", type=Path, default=Path("target/debug/solar"))
@@ -1186,12 +1375,25 @@ def main() -> int:
     parser.add_argument("--aggregate-only", action="store_true")
     parser.add_argument("--compile-only", action="store_true")
     parser.add_argument(
+        "--analyze-growth-sweep",
+        nargs=2,
+        type=Path,
+        metavar=("COMPILE_DIR", "GAS_DIR"),
+    )
+    parser.add_argument(
         "--scope",
         nargs="+",
         choices=("synthetic", "ui-gas", "ui-size", "ci-size-gas", "ci-size", "ci-gas"),
         default=("synthetic", "ui-gas", "ui-size", "ci-size-gas", "ci-size", "ci-gas"),
     )
     args = parser.parse_args()
+    if args.analyze_growth_sweep is not None:
+        compile_dir, gas_dir = map(Path.resolve, args.analyze_growth_sweep)
+        report, summary = render_growth_sweep(compile_dir, gas_dir)
+        (compile_dir / "growth-report.md").write_text(report)
+        (compile_dir / "growth-summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+        print(report)
+        return 0
     if "auto" not in args.methods:
         parser.error("--methods must include auto")
     if len(set(args.methods)) != len(args.methods):
