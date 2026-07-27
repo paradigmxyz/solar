@@ -49,6 +49,17 @@ pub(super) struct SwitchSelection {
     pub(super) gas_code_growth: usize,
 }
 
+/// Inputs that are shared by every switch lowering candidate.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct SwitchPlanOptions {
+    pub(super) optimization: OptimizationMode,
+    pub(super) evm_version: EvmVersion,
+    pub(super) default: SwitchDefault,
+    pub(super) table_target_width: usize,
+    pub(super) max_gas_code_growth: usize,
+    pub(super) forced: SwitchLowering,
+}
+
 /// Emitted switch miss sequence.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum SwitchDefault {
@@ -151,12 +162,14 @@ pub(super) fn select_switch_plan_with_budget(
     select_switch_plan_with_linear_values_and_budget(
         values,
         values,
-        optimization,
-        evm_version,
-        default,
-        table_target_width,
-        max_gas_code_growth,
-        SwitchLowering::Auto,
+        SwitchPlanOptions {
+            optimization,
+            evm_version,
+            default,
+            table_target_width,
+            max_gas_code_growth,
+            forced: SwitchLowering::Auto,
+        },
     )
 }
 
@@ -164,13 +177,16 @@ pub(super) fn select_switch_plan_with_budget(
 pub(super) fn select_switch_plan_with_linear_values_and_budget(
     values: &[U256],
     linear_values: &[U256],
-    optimization: OptimizationMode,
-    evm_version: EvmVersion,
-    default: SwitchDefault,
-    table_target_width: usize,
-    max_gas_code_growth: usize,
-    forced: SwitchLowering,
+    options: SwitchPlanOptions,
 ) -> SwitchSelection {
+    let SwitchPlanOptions {
+        optimization,
+        evm_version,
+        default,
+        table_target_width,
+        max_gas_code_growth,
+        forced,
+    } = options;
     debug_assert!(values.windows(2).all(|values| values[0] < values[1]));
     debug_assert_eq!(values.len(), linear_values.len());
     if values.len() <= 1
@@ -603,12 +619,14 @@ mod tests {
             select_switch_plan_with_linear_values_and_budget(
                 values,
                 values,
-                OptimizationMode::Gas,
-                EvmVersion::Cancun,
-                SwitchDefault::CleanupJump,
-                2,
-                MAX_GAS_CODE_GROWTH,
-                forced,
+                SwitchPlanOptions {
+                    optimization: OptimizationMode::Gas,
+                    evm_version: EvmVersion::Cancun,
+                    default: SwitchDefault::CleanupJump,
+                    table_target_width: 2,
+                    max_gas_code_growth: MAX_GAS_CODE_GROWTH,
+                    forced,
+                },
             )
             .plan
         };
@@ -640,12 +658,14 @@ mod tests {
         let binary = select_switch_plan_with_linear_values_and_budget(
             &values,
             &values,
-            OptimizationMode::Gas,
-            EvmVersion::Cancun,
-            SwitchDefault::CleanupJump,
-            2,
-            MAX_GAS_CODE_GROWTH,
-            SwitchLowering::Binary,
+            SwitchPlanOptions {
+                optimization: OptimizationMode::Gas,
+                evm_version: EvmVersion::Cancun,
+                default: SwitchDefault::CleanupJump,
+                table_target_width: 2,
+                max_gas_code_growth: MAX_GAS_CODE_GROWTH,
+                forced: SwitchLowering::Binary,
+            },
         );
         assert_eq!(binary.plan, SwitchPlan::Binary { leaf_size: 4 });
         assert!(matches!(

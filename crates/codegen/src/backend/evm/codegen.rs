@@ -15,8 +15,8 @@ use super::{
         MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
     },
     switch::{
-        MAX_GAS_CODE_GROWTH, SwitchDefault, SwitchPlan, SwitchSelection, bucket_index,
-        select_switch_plan_with_linear_values_and_budget,
+        MAX_GAS_CODE_GROWTH, SwitchDefault, SwitchPlan, SwitchPlanOptions, SwitchSelection,
+        bucket_index, select_switch_plan_with_linear_values_and_budget,
     },
 };
 use crate::{
@@ -5388,12 +5388,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                         select_switch_plan_with_linear_values_and_budget(
                             &values,
                             linear_values,
-                            self.gcx.sess.opts.optimization,
-                            self.gcx.sess.opts.evm_version,
-                            default,
-                            self.switch_table_target_width(),
-                            self.switch_gas_code_growth_remaining,
-                            self.gcx.sess.opts.unstable.switch_lowering,
+                            SwitchPlanOptions {
+                                optimization: self.gcx.sess.opts.optimization,
+                                evm_version: self.gcx.sess.opts.evm_version,
+                                default,
+                                table_target_width: self.switch_table_target_width(),
+                                max_gas_code_growth: self.switch_gas_code_growth_remaining,
+                                forced: self.gcx.sess.opts.unstable.switch_lowering,
+                            },
                         )
                     },
                 );
