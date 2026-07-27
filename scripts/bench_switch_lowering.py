@@ -437,7 +437,8 @@ def render_markdown(output_dir: Path, methods: Sequence[str]) -> str:
                         str(len(entries)),
                         str(sum(entries)),
                         f"{min(entries)}–{max(entries)}" if entries else "n/a",
-                        str(sum(misses)) if misses else "n/a",
+                        ", ".join(map(str, entries)) if entries else "n/a",
+                        ", ".join(map(str, misses)) if misses else "n/a",
                     ]
                 )
 
@@ -469,7 +470,8 @@ def render_markdown(output_dir: Path, methods: Sequence[str]) -> str:
                 "Entries",
                 "Entry gas",
                 "Entry range",
-                "Miss gas",
+                "Entry gas (ordered)",
+                "Miss gas (ordered)",
             ),
             synthetic_rows,
         )
