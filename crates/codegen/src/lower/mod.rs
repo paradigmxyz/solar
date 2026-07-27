@@ -161,6 +161,9 @@ pub(crate) struct Lowerer<'gcx> {
     hir_to_internal_mir_functions: FxHashMap<HirFunctionId, FunctionId>,
     /// Cache of whether a function is (directly) self-recursive.
     recursive_functions: FxHashMap<HirFunctionId, bool>,
+    /// Cache of each function's HIR body size, used to budget lowering-time
+    /// inlining.
+    body_sizes: FxHashMap<HirFunctionId, usize>,
     /// Functions currently being lowered on demand.
     lowering_functions: GrowableBitSet<HirFunctionId>,
     /// Functions whose declarations are used as internal function values.
@@ -248,6 +251,7 @@ impl<'gcx> Lowerer<'gcx> {
             hir_to_mir_functions: FxHashMap::default(),
             hir_to_internal_mir_functions: FxHashMap::default(),
             recursive_functions: FxHashMap::default(),
+            body_sizes: FxHashMap::default(),
             lowering_functions: GrowableBitSet::new_empty(),
             internal_function_pointer_targets: GrowableBitSet::new_empty(),
             internal_function_pointer_dispatchers: FxHashMap::default(),
