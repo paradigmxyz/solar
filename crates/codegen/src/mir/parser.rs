@@ -1188,6 +1188,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             kw::Or => inst!(Or(a, b) => MirType::uint256()),
             kw::Xor => inst!(Xor(a, b) => MirType::uint256()),
             kw::Not => inst!(Not(a) => MirType::uint256()),
+            kw::Clz => inst!(Clz(a) => MirType::uint256()),
             kw::Shl => inst!(Shl(a, b) => MirType::uint256()),
             kw::Shr => inst!(Shr(a, b) => MirType::uint256()),
             kw::Sar => inst!(Sar(a, b) => MirType::int256()),
@@ -1433,6 +1434,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
             // Calls and creation.
             kw::Call => struct_inst!(Call {
+                gas, addr, value, args_offset, args_size, ret_offset, ret_size
+            } => MirType::uint256()),
+            kw::Callcode => struct_inst!(CallCode {
                 gas, addr, value, args_offset, args_size, ret_offset, ret_size
             } => MirType::uint256()),
             kw::Staticcall => struct_inst!(StaticCall {

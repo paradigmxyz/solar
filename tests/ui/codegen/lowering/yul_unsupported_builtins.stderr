@@ -1,8 +1,20 @@
-error: unsupported Yul builtin `clz`
+error: unsupported Yul builtin `extcall`
    ╭▸ ROOT/tests/ui/codegen/lowering/yul_unsupported_builtins.sol:LL:CC
    │
-LL │             result := clz(1)
-   ╰╴                      ━━━━━━
+LL │             result := extcall(0, 0, 0, 0)
+   ╰╴                      ━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 1 previous error
+error: unsupported Yul builtin `extdelegatecall`
+   ╭▸ ROOT/tests/ui/codegen/lowering/yul_unsupported_builtins.sol:LL:CC
+   │
+LL │             result := extdelegatecall(0, 0, 0)
+   ╰╴                      ━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: unsupported Yul builtin `extstaticcall`
+   ╭▸ ROOT/tests/ui/codegen/lowering/yul_unsupported_builtins.sol:LL:CC
+   │
+LL │             result := extstaticcall(0, 0, 0)
+   ╰╴                      ━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 3 previous errors
 
