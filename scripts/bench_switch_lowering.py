@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import copy
 import hashlib
 import importlib.util
 import json
@@ -694,8 +695,20 @@ def run_cases(
 
         print(f"[{index}/{len(cases)}] {case.test_id}", flush=True)
         if include_gas:
-            result = None
+            compiled = compile_specs(bench, case, specs, gas_profile, jobs)
+            grouped_specs = {}
             for spec in specs:
+                compiler = compiled["compilers"][spec.compiler_id]
+                key = (
+                    compiler.get("status"),
+                    compiler.get("bytecode_sha256"),
+                    compiler.get("runtime_sha256"),
+                )
+                grouped_specs.setdefault(key, []).append(spec)
+
+            result = None
+            for equivalent_specs in grouped_specs.values():
+                spec = equivalent_specs[0]
                 for attempt in range(1, 4):
                     anvil = start_anvil()
                     try:
@@ -742,7 +755,10 @@ def run_cases(
                 if result is None:
                     result = {**partial, "compilers": {}}
                 compiler = partial["compilers"][spec.compiler_id]
-                result["compilers"][spec.compiler_id] = compiler
+                for equivalent_spec in equivalent_specs:
+                    equivalent = copy.deepcopy(compiler)
+                    equivalent.update(compiled["compilers"][equivalent_spec.compiler_id])
+                    result["compilers"][equivalent_spec.compiler_id] = equivalent
                 if partial.get("runtime_status") != "ok" and expected_status == "ok":
                     raise RuntimeError(
                         f"{case.test_id}/{spec.compiler_id} did not match the reference compiler"
@@ -1068,12 +1084,19 @@ def render_markdown(
         ),
         coverage_rows,
     )
-    text += (
-        "\n\nEvery synthetic entry and miss has a matching read check against CI's pinned "
-        "solc. The CI workloads also run the pinned runtime and cold-path checks. Every "
-        "gas row records the method and reference check digests, and every successful "
-        "artifact records creation and runtime bytecode hashes."
-    )
+    if metadata_base.get("compile_only"):
+        text += (
+            "\n\nThis compile-only sweep records creation and runtime bytecode hashes for "
+            "deduplication before execution. Runtime correctness is checked when each "
+            "distinct artifact is benchmarked."
+        )
+    else:
+        text += (
+            "\n\nEvery synthetic entry and miss has a matching read check against CI's pinned "
+            "solc. The CI workloads also run the pinned runtime and cold-path checks. Every "
+            "gas row records the method and reference check digests, and every successful "
+            "artifact records creation and runtime bytecode hashes."
+        )
     text += "\n\n## Aggregate results\n\n"
     text += markdown_table(
         (
