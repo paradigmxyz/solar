@@ -1342,6 +1342,33 @@ fn watched_solidity_change_tracks_the_source_until_analysis_publishes() {
 }
 
 #[test]
+fn watched_solidity_change_ignores_open_document() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Request.sol open
+        contract Request {}
+        "#,
+    );
+    let path = project.path("/Request.sol");
+    let uri = Url::from_file_path(path).unwrap();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(project.config());
+    state.vfs = Arc::new(RwLock::new(project.vfs()));
+    let version = state.analysis_version.load(Ordering::Acquire);
+
+    let result = crate::handlers::did_change_watched_files(
+        &mut state,
+        DidChangeWatchedFilesParams {
+            changes: vec![FileEvent { uri, typ: FileChangeType::CHANGED }],
+        },
+    );
+
+    assert!(matches!(result, ControlFlow::Continue(())));
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), version);
+    assert!(state.analysis_scheduler.tasks.lock().coordinator.is_none());
+}
+
+#[test]
 fn did_change_tracks_the_request_source_until_analysis_publishes() {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

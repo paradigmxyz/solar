@@ -63,7 +63,7 @@ impl Default for Config {
             completion: CompletionClientOptions::default(),
             signature_help: SignatureHelpClientOptions::default(),
             source_change_debounce: Duration::from_millis(250),
-            progress_delay: Duration::from_millis(100),
+            progress_delay: Duration::from_millis(250),
             progress_create_timeout: Duration::from_secs(1),
             formatter_timeout: Duration::from_secs(30),
             flycheck_timeout: Duration::from_secs(30),
