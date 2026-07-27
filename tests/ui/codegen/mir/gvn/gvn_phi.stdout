@@ -3,7 +3,7 @@
   @module GvnPhi
   fn @congruent_phis_collapse(arg0: u256, arg1: u256, arg2: bool) -> u256 {
     bb0:
-      br arg2, bb1, bb2
+      jumpi arg2, bb1, bb2
     bb1:
       jump bb3
     bb2:
@@ -19,7 +19,7 @@
   fn @phi_of_same_folds_to_dominating_operand(arg0: u256, arg1: bool) -> u256 {
     bb0:
       v0 = add arg0, 1
-      br arg1, bb1, bb2
+      jumpi arg1, bb1, bb2
     bb1:
       jump bb3
     bb2:
@@ -34,7 +34,7 @@
   fn @phi_of_congruent_incoming(arg0: u256, arg1: bool) -> u256 {
     bb0:
       v0 = add arg0, 1
-      br arg1, bb1, bb2
+      jumpi arg1, bb1, bb2
     bb1:
 -     v1 = add arg0, 1
       jump bb3
@@ -48,7 +48,7 @@
   
   fn @phi_of_equal_immediates(arg0: bool) -> u256 {
     bb0:
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
       jump bb3
     bb2:
@@ -66,7 +66,7 @@
       v0 = phi [bb0: 0], [bb2: v3]
       v1 = phi [bb0: 0], [bb2: v4]
       v2 = lt v0, arg0
-      br v2, bb2, bb3
+      jumpi v2, bb2, bb3
     bb2:
       v3 = add v0, 1
       v4 = add v1, 1

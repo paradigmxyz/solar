@@ -1,0 +1,8 @@
+//@compile-flags: --pass none
+
+@module UnknownType
+
+fn @f() -> notatype { //~ ERROR: unknown type `notatype`
+  bb0:
+    stop
+}

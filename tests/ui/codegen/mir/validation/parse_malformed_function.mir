@@ -1,0 +1,5 @@
+//@compile-flags: --pass none
+
+@module MalformedFunction
+
+fn @ { //~ ERROR: expected identifier

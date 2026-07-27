@@ -1696,9 +1696,8 @@ mod tests {
         let mut func = make_test_func();
         let v0 = ValueId::from_usize(0);
         let v1 = ValueId::from_usize(1);
-        let inst =
-            func.alloc_inst(Instruction::new(InstKind::Add(v0, v1), Some(MirType::uint256())));
-        let deep = func.alloc_value(Value::Inst(inst));
+        let (_, deep) = func
+            .alloc_value_inst(Instruction::new(InstKind::Add(v0, v1), Some(MirType::uint256())));
         let mut scheduler = StackScheduler::new();
 
         scheduler.stack.push(deep);
@@ -2159,8 +2158,8 @@ mod tests {
         let mut func = make_test_func();
         let a = ValueId::from_usize(0);
         let b = ValueId::from_usize(1);
-        let inst = func.alloc_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::uint256())));
-        let value = func.alloc_value(Value::Inst(inst));
+        let (_, value) =
+            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::uint256())));
 
         for (cost_model, expected_gas, expected_bytes) in
             [(OperandCostModel::DIRECT, 6, 4), (OperandCostModel::DYNAMIC_FRAME, 15, 7)]
@@ -2191,8 +2190,8 @@ mod tests {
         let mut func = make_test_func();
         let a = ValueId::from_usize(0);
         let b = ValueId::from_usize(1);
-        let inst = func.alloc_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::uint256())));
-        let value = func.alloc_value(Value::Inst(inst));
+        let (_, value) =
+            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::uint256())));
         let mut scheduler = StackScheduler::new();
         scheduler.spills.allocate(value);
         scheduler.spills.mark_reloadable(value);

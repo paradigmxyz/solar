@@ -3,7 +3,7 @@
   @module CfgSimplifyTrivialPhi
   fn @fold_same_value_phi(arg0: u256, arg1: bool) -> u256 {
     bb0:
-      br arg1, bb1, bb2
+      jumpi arg1, bb1, bb2
     bb1:
       log0 0, 0
       jump bb3
@@ -21,7 +21,7 @@
       jump bb1
     bb1:
 -     v0 = phi [bb0: arg0], [bb2: v0]
-      br arg1, bb2, bb3
+      jumpi arg1, bb2, bb3
     bb2:
       log0 0, 0
       jump bb1
@@ -35,7 +35,7 @@
   @module CfgSimplifyTrivialPhi
   fn @fold_same_value_phi(arg0: u256, arg1: bool) -> u256 {
     bb0:
-      br arg1, bb1, bb2
+      jumpi arg1, bb1, bb2
     bb1:
       log0 0, 0
       jump bb3
@@ -50,7 +50,7 @@
     bb0:
       jump bb1
     bb1:
-      br arg1, bb2, bb3
+      jumpi arg1, bb2, bb3
     bb2:
       log0 0, 0
       jump bb1

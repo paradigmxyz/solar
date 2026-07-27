@@ -1,6 +1,6 @@
-//! Solar test runner.
+//! Compiler integration test support.
 //!
-//! This crate is invoked in `crates/solar/tests.rs` with the path to the `solar` binary.
+//! `crates/solar/tests.rs` uses [`run_tests`] for the compiler test suites.
 
 #![allow(unreachable_pub)]
 
@@ -22,6 +22,8 @@ use ui_test::{
 };
 
 mod errors;
+mod foundry;
+mod run_call;
 mod solc;
 mod standard_json;
 mod utils;
@@ -32,6 +34,14 @@ mod utils;
 /// invokes it as `solar mir-opt …`; `Mode::EvmIr` invokes it as
 /// `solar evm-opt …`.
 pub fn run_tests(cmd: &'static Path) -> Result<()> {
+    if runs_foundry_mode() {
+        if std::env::args_os().any(|arg| arg == "--list") {
+            return Ok(());
+        }
+        foundry::run_default_suite(cmd);
+        return Ok(());
+    }
+
     ui_test::color_eyre::install()?;
 
     let mut args = ui_test::Args::test()?;
@@ -97,6 +107,10 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
     )?;
 
     Ok(())
+}
+
+fn runs_foundry_mode() -> bool {
+    std::env::var("TESTER_MODE").is_ok_and(|mode| mode.trim() == "foundry")
 }
 
 fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Config {
@@ -169,7 +183,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
             )*
         };
     }
-    register_custom_flags![FileCheck];
+    register_custom_flags![FileCheck, run_call::RunCall, run_call::RunCallFail];
 
     config.comment_defaults.base().exit_status = None.into();
     config.infer_exit_status_from_annotations = !mode.is_solc();
@@ -328,6 +342,10 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     }
 
     assert_eq!(config.comment_start, "//");
+    if matches!(cfg.mode, Mode::Ui) && src.lines().any(run_call::is_directive) {
+        config.program.args.extend(["-Zcodegen".into(), "--emit=abi,bin".into()]);
+        config.stdout_filter(r"(?s).+", "");
+    }
     if src.lines().any(|line| {
         let line = line.trim_start();
         line.starts_with("//@")

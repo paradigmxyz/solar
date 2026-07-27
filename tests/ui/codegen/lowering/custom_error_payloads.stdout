@@ -31,7 +31,7 @@ fn @revert_args() {
     v11 = and v10, v9
     v12 = add v5, 32
     v13 = iszero v11
-    br v13, bb2, bb1
+    jumpi v13, bb2, bb1
   bb1:
     v14 = sub v11, 32
     v15 = add v12, v14
@@ -51,7 +51,7 @@ fn @require_empty(arg0: bool) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -59,12 +59,12 @@ fn @require_empty(arg0: bool) {
     v4 = iszero v3
     v5 = iszero v4
     v6 = eq v3, v5
-    br v6, bb4, bb3
+    jumpi v6, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
     v7 = iszero arg0
-    br v7, bb5, bb6
+    jumpi v7, bb5, bb6
   bb5:
     v8 = alloc raw, exact, uninitialized, infallible, 4
     mstore v8, 0x4f3d7def00000000000000000000000000000000000000000000000000000000
@@ -80,7 +80,7 @@ fn @require_named(arg0: bool) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -88,12 +88,12 @@ fn @require_named(arg0: bool) {
     v4 = iszero v3
     v5 = iszero v4
     v6 = eq v3, v5
-    br v6, bb4, bb3
+    jumpi v6, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
     v7 = iszero arg0
-    br v7, bb5, bb6
+    jumpi v7, bb5, bb6
   bb5:
     v8 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v8, 6
@@ -115,7 +115,7 @@ fn @require_named(arg0: bool) {
     v19 = and v18, v17
     v20 = add v13, 32
     v21 = iszero v19
-    br v21, bb8, bb7
+    jumpi v21, bb8, bb7
   bb6:
     stop
   bb7:

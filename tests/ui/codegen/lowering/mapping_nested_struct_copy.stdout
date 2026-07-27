@@ -5,7 +5,7 @@ fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 160
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -31,7 +31,7 @@ fn @get(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -69,7 +69,7 @@ fn @clear(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:

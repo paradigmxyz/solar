@@ -1,41 +1,81 @@
 //@compile-flags: --pass peephole
+//@filecheck:
 @module module
 
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: - push 2
+// CHECK: {{^[ +].*}}push 0
+// CHECK: - mul
 bb0:
   push 2
   push 0
   mul
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: - push 2
+// CHECK: {{^[ +].*}}push 0
+// CHECK: - div
 bb1:
   push 2
   push 0
   div
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: - push 2
+// CHECK: {{^[ +].*}}push 0
+// CHECK: - sdiv
 bb2:
   push 2
   push 0
   sdiv
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: - push 2
+// CHECK: {{^[ +].*}}push 0
+// CHECK: - mod
 bb3:
   push 2
   push 0
   mod
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK: - push 2
+// CHECK: {{^[ +].*}}push 0
+// CHECK: - smod
 bb4:
   push 2
   push 0
   smod
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb5:
+// CHECK: - push 2
+// CHECK: {{^[ +].*}}push 0
+// CHECK: - and
 bb5:
   push 2
   push 0
   and
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb6:
+// CHECK: - push 2
+// CHECK: {{^[ +].*}}push 0
+// CHECK: - gt
 bb6:
   push 2
   push 0
   gt
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb7:
+// CHECK: - push 2
+// CHECK: {{^[ +].*}}push 1
+// CHECK: - exp
 bb7:
   push 2
   push 1

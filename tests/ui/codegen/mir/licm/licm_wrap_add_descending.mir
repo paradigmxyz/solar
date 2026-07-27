@@ -1,15 +1,19 @@
 //@compile-flags: --pass licm
+//@filecheck:
 // A wrapping decrement written as an addition of the all-ones constant is a
 // descending induction variable: the `lt v1, 100` guard yields a wraparound
 // trip count, so range reasoning must not prove the mload disjoint.
 @module LicmWrapAddDescending
+// CHECK-LABEL: {{^[ +].*}}fn @wrap_add_descending{{[( ]}}
+// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}mload 0
 fn @wrap_add_descending() -> u256 {
   bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: 64], [bb2: v9]
     v2 = lt v1, 100
-    br v2, bb2, bb3
+    jumpi v2, bb2, bb3
   bb2:
     v4 = mul v1, 32
     mstore v4, 1

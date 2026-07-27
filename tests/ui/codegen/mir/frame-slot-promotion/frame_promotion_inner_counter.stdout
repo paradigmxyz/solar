@@ -15,7 +15,7 @@
 -     v3 = mload v2
 -     v4 = lt v3, arg0
 +     v4 = lt v25, arg0
-      br v4, bb2, bb6
+      jumpi v4, bb2, bb6
     bb2:
       v5 = internal_frame_addr 192
 -     mstore v5, 0
@@ -27,7 +27,7 @@
 -     v7 = mload v6
 -     v8 = lt v7, arg1
 +     v8 = lt v26, arg1
-      br v8, bb4, bb5
+      jumpi v8, bb4, bb5
     bb4:
       v9 = internal_frame_addr 128
 -     v10 = mload v9
@@ -70,7 +70,7 @@
       v25 = phi [bb0: 0], [bb5: v19]
       v2 = internal_frame_addr 160
       v4 = lt v25, arg0
-      br v4, bb2, bb6
+      jumpi v4, bb2, bb6
     bb2:
       v5 = internal_frame_addr 192
       jump bb3
@@ -79,7 +79,7 @@
       v26 = phi [bb2: 0], [bb4: v15]
       v6 = internal_frame_addr 192
       v8 = lt v26, arg1
-      br v8, bb4, bb5
+      jumpi v8, bb4, bb5
     bb4:
       v9 = internal_frame_addr 128
       v11 = add v24, 1
@@ -111,7 +111,7 @@
       v25 = phi [bb0: 0], [bb5: v19]
 -     v2 = internal_frame_addr 160
       v4 = lt v25, arg0
-      br v4, bb2, bb6
+      jumpi v4, bb2, bb6
     bb2:
 -     v5 = internal_frame_addr 192
       jump bb3
@@ -120,7 +120,7 @@
       v26 = phi [bb2: 0], [bb4: v15]
 -     v6 = internal_frame_addr 192
       v8 = lt v26, arg1
-      br v8, bb4, bb5
+      jumpi v8, bb4, bb5
     bb4:
 -     v9 = internal_frame_addr 128
       v11 = add v24, 1

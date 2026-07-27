@@ -79,7 +79,7 @@ impl JumpThreader {
     }
 
     /// Runs jump threading on a function.
-    /// Returns the number of threading operations performed.
+    /// Returns the number of MIR mutations performed.
     fn run(&mut self, func: &mut Function) -> usize {
         self.stats = JumpThreadingStats::default();
         let mut changed = 0;
@@ -104,7 +104,7 @@ impl JumpThreader {
 
         // Update predecessor/successor information
         self.update_cfg_edges(func);
-        repair_reachability_phis(func);
+        changed += usize::from(repair_reachability_phis(func));
 
         changed
     }
@@ -283,7 +283,8 @@ impl JumpThreader {
         for (other_block, block) in func.blocks.iter_enumerated() {
             if other_block != block_id {
                 for &inst_id in &block.instructions {
-                    if func.instructions[inst_id]
+                    if func
+                        .inst(inst_id)
                         .kind
                         .operands()
                         .iter()
@@ -396,7 +397,7 @@ impl JumpThreader {
         if !func.blocks[block_id].instructions.contains(inst_id) {
             return None;
         }
-        let InstKind::Phi(incoming) = &func.instructions[*inst_id].kind else {
+        let InstKind::Phi(incoming) = &func.inst(*inst_id).kind else {
             return None;
         };
         incoming.iter().find_map(|(incoming_block, incoming_value)| {

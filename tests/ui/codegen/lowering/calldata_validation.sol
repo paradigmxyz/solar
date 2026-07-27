@@ -1,4 +1,5 @@
 //@compile-flags: -Zcodegen -Zdump=mir
+//@filecheck:
 
 // Pins the calldata lower-bound check and validators emitted for value-type
 // external parameters.
@@ -21,35 +22,68 @@ contract CalldataValidation {
         Left
     }
 
+    // CHECK-LABEL: fn @vUint8{{[( ]}}
+    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: [[CANON:v[0-9]+]] = and [[RAW]], 255
+    // CHECK: eq [[RAW]], [[CANON]]
     function vUint8(uint8 x) external pure returns (uint8) {
         return x;
     }
 
+    // CHECK-LABEL: fn @vInt16{{[( ]}}
+    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: [[CANON:v[0-9]+]] = signextend 1, [[RAW]]
+    // CHECK: eq [[RAW]], [[CANON]]
     function vInt16(int16 x) external pure returns (int16) {
         return x;
     }
 
+    // CHECK-LABEL: fn @vBool{{[( ]}}
+    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: [[ZERO:v[0-9]+]] = iszero [[RAW]]
+    // CHECK: [[CANON:v[0-9]+]] = iszero [[ZERO]]
+    // CHECK: eq [[RAW]], [[CANON]]
     function vBool(bool x) external pure returns (bool) {
         return x;
     }
 
+    // CHECK-LABEL: fn @vAddress{{[( ]}}
+    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: [[CANON:v[0-9]+]] = and [[RAW]], 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: eq [[RAW]], [[CANON]]
     function vAddress(address x) external pure returns (address) {
         return x;
     }
 
+    // CHECK-LABEL: fn @vBytes4{{[( ]}}
+    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: [[CANON:v[0-9]+]] = and [[RAW]], 0xffffffff00000000000000000000000000000000000000000000000000000000
+    // CHECK: eq [[RAW]], [[CANON]]
     function vBytes4(bytes4 x) external pure returns (bytes4) {
         return x;
     }
 
+    // CHECK-LABEL: fn @vEnum{{[( ]}}
+    // CHECK: [[RAW:v[0-9]+]] = calldataload 4
+    // CHECK: lt [[RAW]], 3
     function vEnum(Dir x) external pure returns (Dir) {
         return x;
     }
 
+    // CHECK-LABEL: fn @vMulti{{[( ]}}
+    // CHECK: [[A:v[0-9]+]] = calldataload 4
+    // CHECK: and [[A]], 0xffffffff
+    // CHECK: [[B:v[0-9]+]] = calldataload 36
+    // CHECK: signextend 0, [[B]]
     function vMulti(uint32 a, int8 b) external pure returns (uint256) {
         return uint256(uint32(a)) + uint256(uint8(int8(b)));
     }
 
     // Full-word value types are canonical by construction: no validator.
+    // CHECK-LABEL: fn @vFull{{[( ]}}
+    // CHECK: {{v[0-9]+}} = slt {{v[0-9]+}}, 96
+    // CHECK-NOT: calldataload
+    // CHECK: add arg0, arg1
     function vFull(uint256 a, bytes32 b, int256 c) external pure returns (uint256) {
         return a + uint256(b) + uint256(c);
     }

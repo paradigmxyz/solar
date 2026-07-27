@@ -1,0 +1,120 @@
+//@compile-flags: --pass frame-slot-promotion
+//@filecheck: --enable-var-scope
+@module FramePromotionBuilderCases
+
+// CHECK-LABEL: @loop_carried
+// CHECK:       [[ENTRY:bb[0-9]+]]:
+// CHECK:       [[ENTRY_FRAME:v[0-9]+]] = internal_frame_addr
+// CHECK: -     mstore [[ENTRY_FRAME]], 0
+// CHECK:       jump [[HEADER:bb[0-9]+]]
+// CHECK:       [[HEADER]]:
+// CHECK:       [[INDEX:v[0-9]+]] = phi [[[ENTRY]]: 0], [[[BODY:bb[0-9]+]]: [[NEXT:v[0-9]+]]]
+// CHECK:       [[HEADER_FRAME:v[0-9]+]] = internal_frame_addr
+// CHECK: -     [[OLD_INDEX:v[0-9]+]] = mload [[HEADER_FRAME]]
+// CHECK: -     {{v[0-9]+}} = lt [[OLD_INDEX]], 4
+// CHECK:       [[COND:v[0-9]+]] = lt [[INDEX]], 4
+// CHECK:       jumpi [[COND]], [[BODY]], [[EXIT:bb[0-9]+]]
+// CHECK:       [[BODY]]:
+// CHECK:       [[BODY_LOAD_FRAME:v[0-9]+]] = internal_frame_addr
+// CHECK: -     [[OLD_BODY_INDEX:v[0-9]+]] = mload [[BODY_LOAD_FRAME]]
+// CHECK: -     [[OLD_NEXT:v[0-9]+]] = add [[OLD_BODY_INDEX]], 1
+// CHECK:       [[NEXT]] = add [[INDEX]], 1
+// CHECK:       [[BODY_STORE_FRAME:v[0-9]+]] = internal_frame_addr
+// CHECK: -     mstore [[BODY_STORE_FRAME]], [[OLD_NEXT]]
+// CHECK:       jump [[HEADER]]
+// CHECK:       [[EXIT]]:
+// CHECK:       [[EXIT_FRAME:v[0-9]+]] = internal_frame_addr
+// CHECK: -     [[OLD_RESULT:v[0-9]+]] = mload [[EXIT_FRAME]]
+// CHECK: -     ret [[OLD_RESULT]]
+// CHECK:       ret [[INDEX]]
+fn @loop_carried() -> u256 {
+  bb0:
+    v0 = internal_frame_addr 128
+    mstore v0, 0
+    jump bb1
+  bb1:
+    v1 = internal_frame_addr 128
+    v2 = mload v1
+    v3 = lt v2, 4
+    jumpi v3, bb2, bb3
+  bb2:
+    v4 = internal_frame_addr 128
+    v5 = mload v4
+    v6 = add v5, 1
+    v7 = internal_frame_addr 128
+    mstore v7, v6
+    jump bb1
+  bb3:
+    v8 = internal_frame_addr 128
+    v9 = mload v8
+    ret v9
+}
+
+// CHECK-LABEL: @escaped_address
+// CHECK: {{^ +}}mstore [[FRAME:v[0-9]+]], 42
+// CHECK: {{^ +}}[[HASH:v[0-9]+]] = keccak256 [[FRAME]], 32
+// CHECK: {{^ +}}[[LOAD:v[0-9]+]] = mload [[FRAME]]
+// CHECK: {{^ +}}ret [[HASH]], [[LOAD]]
+fn @escaped_address() -> (bytes32, u256) {
+  bb0:
+    v0 = internal_frame_addr 128
+    mstore v0, 42
+    v1 = keccak256 v0, 32
+    v2 = mload v0
+    ret v1, v2
+}
+
+// CHECK-LABEL: @gas_observed
+// CHECK: {{^ +}}mstore [[FRAME:v[0-9]+]], 42
+// CHECK: {{^ +}}{{v[0-9]+}} = gas
+// CHECK: {{^ +}}[[LOAD:v[0-9]+]] = mload [[FRAME]]
+// CHECK: {{^ +}}ret [[LOAD]]
+fn @gas_observed() -> u256 {
+  bb0:
+    v0 = internal_frame_addr 128
+    mstore v0, 42
+    v1 = gas
+    v2 = mload v0
+    ret v2
+}
+
+// CHECK-LABEL: @internal_call
+// CHECK:       [[FRAME:v[0-9]+]] = internal_frame_addr
+// CHECK: -     mstore [[FRAME]], 42
+// CHECK:       internal_call @callee, 0
+// CHECK: -     [[OLD:v[0-9]+]] = mload [[FRAME]]
+// CHECK: -     ret [[OLD]]
+// CHECK:       ret 42
+fn @internal_call() -> u256 {
+  bb0:
+    v0 = internal_frame_addr 128
+    mstore v0, 42
+    internal_call @callee, 0
+    v1 = mload v0
+    ret v1
+}
+
+fn @callee() {
+  bb0:
+    ret
+}
+
+// CHECK-LABEL: @constant_offset
+// CHECK:       [[BASE1:v[0-9]+]] = internal_frame_addr
+// CHECK:       [[ADDR1:v[0-9]+]] = add [[BASE1]], [[OFFSET:[0-9]+]]
+// CHECK: -     mstore [[ADDR1]], 99
+// CHECK:       [[BASE2:v[0-9]+]] = internal_frame_addr
+// CHECK:       [[ADDR2:v[0-9]+]] = add [[BASE2]], [[OFFSET]]
+// CHECK: -     [[OLD:v[0-9]+]] = mload [[ADDR2]]
+// CHECK: -     ret [[OLD]]
+// CHECK:       ret 99
+fn @constant_offset() -> u256 {
+  bb0:
+    v0 = internal_frame_addr 128
+    v1 = add v0, 32
+    mstore v1, 99
+    v2 = internal_frame_addr 128
+    v3 = add v2, 32
+    v4 = mload v3
+    ret v4
+}

@@ -13,7 +13,7 @@
 +     v6 = gt v4, 0xffffffffffffffff
 +     v7 = or v5, v6
 +     v8 = or v7, v2
-+     br v8, bb2, bb1
++     jumpi v8, bb2, bb1
 +   bb1:
 +     mstore 64, v4 !metadata(memory=scratch)
 +     v9 = calldatasize

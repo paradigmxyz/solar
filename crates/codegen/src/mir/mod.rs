@@ -230,6 +230,9 @@ mod round_trip {
         for path in fixture_paths(&dir, "mir") {
             count += 1;
             if let Err(e) = round_trip_mir(&path) {
+                if e.starts_with("first parse failed:") && path.with_extension("stderr").is_file() {
+                    continue;
+                }
                 let name = path.file_name().unwrap().to_string_lossy().into_owned();
                 failures.push(format!("{name}: {e}"));
             }

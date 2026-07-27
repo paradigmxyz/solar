@@ -16,7 +16,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
-use solar_interface::diagnostics::DiagCtxt;
+use solar_interface::{diagnostics::DiagCtxt, sym};
 use solar_sema::Gcx;
 
 const EVM_WORD_BYTES: usize = 32;
@@ -241,7 +241,7 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     fn new_ir_module() -> ir::Module {
-        ir::Module::new("asm")
+        ir::Module::new(sym::asm)
     }
 
     fn current_block(&mut self) -> ir::BlockId {
@@ -388,7 +388,7 @@ impl<'gcx> Assembler<'gcx> {
         Self::resolve_known_deferred_constants(&mut ir_program, &self.deferred_values);
 
         let input_is_valid = cfg!(debug_assertions) && is_valid_evm_ir(&ir_program);
-        ir::run_passes(self.gcx, &mut ir_program, ir::DEFAULT_PIPELINE);
+        let _changed = ir::run_passes(self.gcx, &mut ir_program, ir::DEFAULT_PIPELINE);
         debug_assert!(!input_is_valid || is_valid_evm_ir(&ir_program));
 
         let evm_ir = capture_evm_ir.then(|| ir_program.clone());

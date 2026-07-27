@@ -1,5 +1,9 @@
 //@compile-flags: --passes frame-slot-promotion,dce
+//@filecheck:
 @module FramePromotionSameBlock
+// CHECK-LABEL: {{^[ +].*}}fn @same_block{{[( ]}}
+// CHECK: + [[RESULT:v[0-9]+]] = add 7, 1
+// CHECK: + ret [[RESULT]]
 fn @same_block() -> u256 {
   bb0:
     v1 = internal_frame_addr 128

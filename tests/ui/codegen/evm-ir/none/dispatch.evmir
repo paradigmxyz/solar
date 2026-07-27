@@ -1,19 +1,33 @@
+//@filecheck:
 @module module
 
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}calldataload
+// CHECK: {{^[ +].*}}jumpi bb1, bb2
 bb0:
   push 0
   calldataload !meta(source=dispatch)
   push 0x371303c0
   eq
   jumpi bb1, bb2
+
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}sload
+// CHECK: {{^[ +].*}}jump bb3
 bb1:
   push 0
   sload !meta(alias=storage0)
   jump bb3
+
+// CHECK-LABEL: {{^[ +].*}}bb2 [cold]:
+// CHECK: {{^[ +].*}}revert
 bb2 [cold]:
   push 0
   push 0
   revert !meta(source=fallback)
+
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: {{^[ +].*}}return
 bb3:
   push 32
   push 0

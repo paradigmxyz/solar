@@ -1,4 +1,5 @@
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
+//@ filecheck:
 
 // A `library` function may take a `mapping`/`storage` reference parameter and
 // bind a storage-reference local from it:
@@ -35,6 +36,18 @@ library L {
 contract C {
     mapping(address => Reserve) reserves;
 
+    // CHECK: push 0xd2514e84
+    // CHECK: calldataload
+    // CHECK: mstore
+    // CHECK: mstore
+    // CHECK: keccak256
+    // CHECK-NEXT: dup1
+    // CHECK: sload
+    // CHECK: push 1
+    // CHECK: add
+    // CHECK-NEXT: sload
+    // CHECK: add
+    // CHECK: return
     function total(address k) external view returns (uint256) {
         return L.sum(reserves, k);
     }

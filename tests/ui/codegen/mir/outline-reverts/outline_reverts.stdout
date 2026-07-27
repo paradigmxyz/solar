@@ -5,7 +5,7 @@
     bb0:
       v0 = add arg0, 1
       v1 = lt v0, arg0
-      br v1, bb1, bb2
+      jumpi v1, bb1, bb2
     bb1:
 -     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
 -     mstore 4, 17
@@ -20,7 +20,7 @@
     bb0:
       v0 = mul arg0, 2
       v1 = lt v0, arg0
-      br v1, bb1, bb2
+      jumpi v1, bb1, bb2
     bb1:
 -     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
 -     mstore 4, 17
@@ -35,7 +35,7 @@
     bb0:
       v0 = sub arg0, 1
       v1 = gt v0, arg0
-      br v1, bb1, bb2
+      jumpi v1, bb1, bb2
     bb1:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 18

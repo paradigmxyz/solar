@@ -1,16 +1,27 @@
 //@compile-flags: --pass peephole
+//@filecheck:
 @module module
 
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK-COUNT-2: - not
 bb0:
   push 1
   not
   not
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: - dup1
+// CHECK: - pop
 bb1:
   push 1
   dup1
   pop
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: - dup3
+// CHECK: - pop
 bb2:
   push 1
   push 2
@@ -18,12 +29,18 @@ bb2:
   dup3
   pop
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK-COUNT-2: - swap1
 bb3:
   push 1
   push 2
   swap1
   swap1
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK-COUNT-2: - swap2
 bb4:
   push 1
   push 2
@@ -31,12 +48,20 @@ bb4:
   swap2
   swap2
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb5:
+// CHECK: {{^[ +].*}}iszero
+// CHECK-COUNT-2: - iszero
 bb5:
   push 1
   iszero
   iszero
   iszero
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb6:
+// CHECK: - dup16
+// CHECK: - pop
 bb6:
   push 1
   push 2
@@ -57,6 +82,9 @@ bb6:
   dup16
   pop
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb7:
+// CHECK-COUNT-2: - swap16
 bb7:
   push 1
   push 2

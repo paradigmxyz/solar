@@ -28,7 +28,7 @@
 +     v7 = and v6, v5
 +     v8 = add v2, 32
 +     v9 = iszero v7
-+     br v9, bb2, bb1
++     jumpi v9, bb2, bb1
 +   bb1:
 +     v10 = sub v7, 32
 +     v11 = add v8, v10

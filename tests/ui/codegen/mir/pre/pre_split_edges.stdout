@@ -24,13 +24,13 @@
   
   fn @branch_both_arms_to_join(arg0: u256, arg1: bool) -> u256 {
     bb0:
-      br arg1, bb1, bb2
+      jumpi arg1, bb1, bb2
     bb1:
       v0 = add arg0, 7
       jump bb3
     bb2:
--     br arg1, bb3, bb3
-+     br arg1, bb4, bb4
+-     jumpi arg1, bb3, bb3
++     jumpi arg1, bb4, bb4
     bb3:
 -     v1 = add arg0, 7
 -     ret v1
@@ -54,8 +54,8 @@
       v2 = add v1, 1
 -     v3 = add v1, 7
       v4 = lt v2, arg1
--     br v4, bb2, bb3
-+     br v4, bb4, bb3
+-     jumpi v4, bb2, bb3
++     jumpi v4, bb4, bb3
     bb3:
 -     ret v3
 +     ret v6
@@ -67,8 +67,8 @@
   fn @hoist_through_branch_preheader(arg0: u256, arg1: u256) -> u256 {
     bb0:
       v0 = lt arg0, arg1
--     br v0, bb1, bb4
-+     br v0, bb5, bb4
+-     jumpi v0, bb1, bb4
++     jumpi v0, bb5, bb4
     bb1:
 -     v1 = phi [bb0: arg0], [bb2: v4]
 -     v2 = add v1, 7
@@ -76,7 +76,7 @@
 +     v1 = phi [bb5: arg0], [bb2: v4]
 +     v7 = phi [bb2: v5], [bb5: v6]
 +     v3 = lt v7, arg1
-      br v3, bb2, bb3
+      jumpi v3, bb2, bb3
     bb2:
       v4 = add v1, 1
       v5 = add v4, 7

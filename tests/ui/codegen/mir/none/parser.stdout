@@ -1,0 +1,44 @@
+- // === ROOT/tests/ui/codegen/mir/none/parser.mir (before none) ===
++ // === ROOT/tests/ui/codegen/mir/none/parser.mir (after none) ===
+  @module Parser
+  fn @call(arg0: address, arg1: u256) -> u256 {
+    bb0:
+      v0 = call 100, arg0, arg1, 0, 0, 0, 0
+      ret v0
+  }
+  
+  fn @hash() -> u256 {
+    bb0:
+      mstore 0, 1
+      mstore 32, 2
+      v0 = keccak256 0, 64
+      ret v0
+  }
+  
+  fn @environment() -> u256 {
+    bb0:
+      v0 = caller
+      v1 = callvalue
+      v2 = gas
+      v3 = chainid
+      ret v3
+  }
+  
+  fn @select_and_log(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+      v0 = select arg0, arg1, arg2
+      log1 0, 32, v0
+      ret v0
+  }
+  
+  fn @revert() {
+    bb0:
+      revert 0, 0
+  }
+  
+  fn @spaced_span() {
+    bb0:
+      v0 = sload 0 !metadata(span=1..5)
+      stop
+  }
+  

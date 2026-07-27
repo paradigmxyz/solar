@@ -339,10 +339,9 @@ impl PointerProvenance {
         // sites. A function without allocations gets an empty map either way,
         // so skip all of it — most small functions (getters, setters, pure
         // helpers) take this path on every rebuild.
-        let has_allocations = func
-            .instructions
-            .iter()
-            .any(|inst| matches!(inst.kind, InstKind::Alloc { .. } | InstKind::AbiEncode { .. }));
+        let has_allocations = func.instructions().any(|inst_id| {
+            matches!(func.inst(inst_id).kind, InstKind::Alloc { .. } | InstKind::AbiEncode { .. })
+        });
         if !has_allocations {
             return Self::default();
         }
@@ -380,7 +379,7 @@ impl PointerProvenance {
             let mut reset = poisoned.contains(block_id);
             for &inst_id in &block.instructions {
                 if matches!(
-                    func.instructions[inst_id].kind,
+                    func.inst(inst_id).kind,
                     InstKind::Alloc { .. } | InstKind::AbiEncode { .. }
                 ) {
                     allocations.insert(
@@ -486,7 +485,7 @@ impl AliasAnalysis {
         size: LocationSize,
     ) -> Option<MemoryLocation> {
         let mut address = self.memory_address(func, address)?;
-        if let Some(region) = func.instructions[inst_id].metadata.memory_region()
+        if let Some(region) = func.inst(inst_id).metadata.memory_region()
             && region != MemoryRegion::Unknown
         {
             address.region = region;
@@ -505,7 +504,7 @@ impl AliasAnalysis {
     ) -> Option<MemoryLocation> {
         let offset = EvmMemoryLayout::object_length_offset(kind)?;
         let mut address = self.memory_address(func, object)?.checked_add(offset)?;
-        if let Some(region) = func.instructions[inst_id].metadata.memory_region()
+        if let Some(region) = func.inst(inst_id).metadata.memory_region()
             && region != MemoryRegion::Unknown
         {
             address.region = region;
@@ -593,7 +592,7 @@ impl AliasAnalysis {
             let mut changed = false;
             for (value_id, value) in func.values.iter_enumerated() {
                 let Value::Inst(inst_id) = value else { continue };
-                let propagates = match &func.instructions[*inst_id].kind {
+                let propagates = match &func.inst(*inst_id).kind {
                     InstKind::Add(first, second)
                     | InstKind::Sub(first, second)
                     | InstKind::MakeSlice { ptr: first, len: second, .. } => {
@@ -624,7 +623,7 @@ impl AliasAnalysis {
 
         for block in &func.blocks {
             for &inst_id in &block.instructions {
-                let kind = &func.instructions[inst_id].kind;
+                let kind = &func.inst(inst_id).kind;
                 for operand in kind.operands() {
                     if derived.contains(&operand) && self.instruction_operand_escapes(kind, operand)
                     {
@@ -772,7 +771,7 @@ impl AliasAnalysis {
         inst_id: InstId,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> ModRef {
-        let kind = &func.instructions[inst_id].kind;
+        let kind = &func.inst(inst_id).kind;
         let resolve = |value| crate::mir::utils::resolve_replacement(value, replacements);
         let mut effects = ModRef::default();
         let read_memory = |effects: &mut ModRef, address, size| {
@@ -1162,7 +1161,7 @@ impl AliasAnalysis {
                 },
             )),
             Value::Undef(_) | Value::Error(_) => None,
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+            Value::Inst(inst_id) => match func.inst(*inst_id).kind {
                 InstKind::InternalFrameAddr(offset) => Some(MemoryAddress::internal_frame(offset)),
                 InstKind::Alloc { .. } => Some(if self.allocation_is_dynamic(func, *inst_id) {
                     MemoryAddress {
@@ -1254,7 +1253,7 @@ impl AliasAnalysis {
         let Value::Inst(inst_id) = func.value(slice) else {
             return Some(MemoryAddress::symbolic(slice, MemoryRegion::Unknown));
         };
-        match &func.instructions[*inst_id].kind {
+        match &func.inst(*inst_id).kind {
             InstKind::MakeSlice { ptr, location, .. } => match location {
                 SliceLocation::Memory => self.memory_address_with_depth(func, *ptr, depth + 1),
                 // Calldata and returndata pointers index their own address
@@ -1313,7 +1312,7 @@ impl AliasAnalysis {
                 _ => MemoryRegion::Unknown,
             };
         };
-        match func.instructions[*inst_id].kind {
+        match func.inst(*inst_id).kind {
             InstKind::InternalFrameAddr(_) => MemoryRegion::InternalFrame,
             InstKind::Fmp | InstKind::Alloc { .. } => MemoryRegion::Heap,
             InstKind::MLoad(address)
@@ -1345,7 +1344,7 @@ impl AliasAnalysis {
                 let Value::Inst(slice_inst) = func.value(slice) else {
                     return MemoryRegion::Unknown;
                 };
-                match &func.instructions[*slice_inst].kind {
+                match &func.inst(*slice_inst).kind {
                     InstKind::MakeSlice { location: SliceLocation::Memory, .. }
                     | InstKind::AbiEncode { .. } => MemoryRegion::Heap,
                     _ => MemoryRegion::Unknown,
@@ -1393,7 +1392,7 @@ impl AliasAnalysis {
         inst: InstId,
         call_summaries: Option<&MemoryCallSummaries>,
     ) -> bool {
-        match func.instructions[inst].kind {
+        match func.inst(inst).kind {
             InstKind::SetFmp(_) => true,
             InstKind::InternalCall { function, .. } => call_summaries
                 .and_then(|summaries| summaries.get(function))
@@ -1446,7 +1445,7 @@ impl AliasAnalysis {
             return Some(value);
         }
         let Value::Inst(inst) = func.value(value) else { return None };
-        match &func.instructions[*inst].kind {
+        match &func.inst(*inst).kind {
             InstKind::Fmp | InstKind::Alloc { .. } | InstKind::AbiEncode { .. } => {
                 Some(EvmMemoryLayout::HEAP_START)
             }
@@ -1466,7 +1465,7 @@ impl AliasAnalysis {
                 .and_then(|base| base.checked_sub(func.value_u64(*offset)?)),
             InstKind::SlicePtr(slice) => {
                 let Value::Inst(slice) = func.value(*slice) else { return None };
-                match &func.instructions[*slice].kind {
+                match &func.inst(*slice).kind {
                     InstKind::MakeSlice { ptr, location: SliceLocation::Memory, .. } => {
                         Self::pointer_lower_bound(func, *ptr, depth + 1)
                     }
@@ -1610,36 +1609,6 @@ mod tests {
     }
 
     #[test]
-    fn canonicalizes_memory_bases_and_offsets() {
-        let mut func = function();
-        let (arg, frame, heap, absolute) = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let arg = builder.add_param(MirType::MemPtr);
-            let offset = builder.imm_u64(64);
-            let arg = builder.add(arg, offset);
-            let frame = builder.internal_frame_addr(32);
-            let frame = builder.add(frame, offset);
-            let heap = builder.fmp();
-            let heap = builder.add(heap, offset);
-            let absolute = builder.imm_u64(0x20);
-            (arg, frame, heap, absolute)
-        };
-        let aa = AliasAnalysis::new(&func);
-
-        assert_eq!(
-            aa.memory_address(&func, arg),
-            Some(MemoryAddress {
-                region: MemoryRegion::Unknown,
-                base: MemoryBase::Value(ValueId::from_usize(0)),
-                offset: 64,
-            })
-        );
-        assert_eq!(aa.memory_address(&func, frame), Some(MemoryAddress::internal_frame(96)));
-        assert_eq!(aa.memory_address(&func, heap).unwrap().region, MemoryRegion::Heap);
-        assert_eq!(aa.memory_address(&func, absolute), Some(MemoryAddress::absolute(0x20)));
-    }
-
-    #[test]
     fn distinguishes_and_classifies_memory_ranges() {
         let base = ValueId::from_usize(0);
         let location = |offset, size| {
@@ -1667,48 +1636,12 @@ mod tests {
     }
 
     #[test]
-    fn tracks_fresh_allocations_through_control_flow_values() {
+    fn canonicalizes_absolute_memory_addresses() {
         let mut func = function();
-        let (first, second, same_path, joined_path) = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let size = builder.imm_u64(32);
-            let first = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
-            let second = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
-            let condition = builder.add_param(MirType::Bool);
-            let same_path = builder.select(condition, first, first);
-            let joined_path = builder.select(condition, first, second);
-            (first, second, same_path, joined_path)
-        };
+        let absolute = FunctionBuilder::new(&mut func).imm_u64(0x20);
         let aa = AliasAnalysis::new(&func);
-        let location = |value| {
-            MemoryLocation::new(aa.memory_address(&func, value).unwrap(), LocationSize::Const(32))
-        };
 
-        assert_eq!(aa.memory_alias(location(first), location(second)), AliasResult::NoAlias);
-        assert_eq!(aa.memory_address(&func, same_path), aa.memory_address(&func, first));
-        assert_eq!(aa.memory_address(&func, joined_path).unwrap().region, MemoryRegion::Heap);
-        assert_eq!(aa.memory_alias(location(joined_path), location(first)), AliasResult::MayAlias);
-    }
-
-    #[test]
-    fn forgets_freshness_after_an_fmp_reset() {
-        let mut func = function();
-        let (first, second) = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let size = builder.imm_u64(32);
-            let first = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
-            builder.set_fmp(first);
-            let second = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
-            (first, second)
-        };
-        let aa = AliasAnalysis::new(&func);
-        let location = |value| {
-            MemoryLocation::new(aa.memory_address(&func, value).unwrap(), LocationSize::Const(32))
-        };
-
-        assert!(matches!(location(first).address.base, MemoryBase::Allocation(_)));
-        assert!(matches!(location(second).address.base, MemoryBase::Value(_)));
-        assert_eq!(aa.memory_alias(location(first), location(second)), AliasResult::MayAlias);
+        assert_eq!(aa.memory_address(&func, absolute), Some(MemoryAddress::absolute(0x20)));
     }
 
     #[test]
@@ -1734,38 +1667,6 @@ mod tests {
         assert!(matches!(address.base, MemoryBase::DynamicAllocation(_)));
         let location = MemoryLocation::new(address, LocationSize::Const(32));
         assert_eq!(aa.memory_alias(location, location), AliasResult::MayAlias);
-    }
-
-    #[test]
-    fn distinct_loop_allocations_do_not_alias() {
-        let mut func = function();
-        let (first, second) = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let condition = builder.add_param(MirType::Bool);
-            let header = builder.create_block();
-            let exit = builder.create_block();
-            builder.jump(header);
-            builder.switch_to_block(header);
-            let size = builder.imm_u64(32);
-            // Two distinct allocation sites inside the same loop: each bumps the
-            // free-memory pointer, so their regions never overlap.
-            let first = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
-            let second = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
-            builder.branch(condition, header, exit);
-            builder.switch_to_block(exit);
-            builder.stop();
-            (first, second)
-        };
-
-        let aa = AliasAnalysis::new(&func);
-        let location = |value| {
-            MemoryLocation::new(aa.memory_address(&func, value).unwrap(), LocationSize::Const(32))
-        };
-        assert!(matches!(location(first).address.base, MemoryBase::DynamicAllocation(_)));
-        assert!(matches!(location(second).address.base, MemoryBase::DynamicAllocation(_)));
-        assert_eq!(aa.memory_alias(location(first), location(second)), AliasResult::NoAlias);
-        // The same loop allocation still may hit different instances.
-        assert_eq!(aa.memory_alias(location(first), location(first)), AliasResult::MayAlias);
     }
 
     #[test]

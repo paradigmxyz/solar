@@ -1,7 +1,10 @@
 //@compile-flags: --pass lower-dispatch
+//@filecheck: --implicit-check-not=@phase
 // Dispatch lowering requires argument-free ABI wrappers. A built module still
 // has typed external arguments, so the pass must leave it untouched.
 @module LowerDispatchRequiresAbi
+// CHECK-LABEL: {{^[ +].*}}fn @takesArg{{[( ]}}
+// CHECK: {{^[ +].*}}ret arg0
 fn @takesArg(arg0: u256) -> u256 [selector=0x9a2dbe3f] {
   bb0:
     ret arg0

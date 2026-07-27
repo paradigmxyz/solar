@@ -1,0 +1,259 @@
+// === ROOT/tests/ui/codegen/lowering/library_call.sol:Lib (runtime) ===
+@module runtime
+bb0:
+  push 352
+  push 64
+  mstore
+  callvalue
+  push bb4
+  jumpi
+  calldatasize
+  iszero
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0xed2f0bb8
+  eq
+  push bb5
+  jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  dup1
+  revert
+bb11 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+bb5:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 96
+  sgt
+  push bb4
+  jumpi
+  push 36
+  calldataload
+  push 0
+  not
+  push 96
+  shr
+  dup2
+  and
+  sub
+  push bb4
+  jumpi
+  push 36
+  calldataload
+  push 0
+  mstore
+  push 4
+  calldataload
+  push 32
+  mstore
+  push 64
+  push 0
+  keccak256
+  dup1
+  push 224
+  mstore
+  dup1
+  sload
+  push 68
+  calldataload
+  dup2
+  add
+  dup1
+  push 160
+  mstore
+  lt
+  swap1
+  pop
+  push bb11
+  jumpi
+  push 160
+  mload
+  dup1
+  push 160
+  mstore
+  push 224
+  mload
+  sstore
+  push 224
+  mload
+  sload
+  caller
+  push 255
+  and
+  dup2
+  add
+  dup1
+  push 192
+  mstore
+  lt
+  push bb11
+  jumpi
+  push 192
+  mload
+  dup1
+  push 192
+  mstore
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+// === ROOT/tests/ui/codegen/lowering/library_call.sol:C (runtime) ===
+@module runtime
+bb0:
+  push 672
+  push 64
+  mstore
+  callvalue
+  push bb4
+  jumpi
+  calldatasize
+  iszero
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x3dd41ca6
+  eq
+  push bb5
+  jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  dup1
+  revert
+bb13 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+bb5:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 64
+  sgt
+  push bb4
+  jumpi
+  push 4
+  calldataload
+  push 0
+  not
+  push 96
+  shr
+  dup2
+  and
+  sub
+  push bb4
+  jumpi
+  push 0
+  push 128
+  mstore
+  push 0
+  push 320
+  mstore
+  push 4
+  calldataload
+  push 352
+  mstore
+  push 36
+  calldataload
+  push 384
+  mstore
+  push bb8
+  push 352
+  mload
+  push 0
+  mstore
+  push 320
+  mload
+  push 32
+  mstore
+  push 64
+  push 0
+  keccak256
+  dup1
+  push 640
+  mstore
+  dup1
+  sload
+  push 384
+  mload
+  dup2
+  add
+  dup1
+  push 512
+  mstore
+  lt
+  swap1
+  pop
+  push bb13
+  jumpi
+  push 512
+  mload
+  dup1
+  push 512
+  mstore
+  push 640
+  mload
+  sstore
+  push 640
+  mload
+  sload
+  caller
+  push 255
+  and
+  dup2
+  add
+  dup1
+  push 608
+  mstore
+  lt
+  push bb13
+  jumpi
+  push 608
+  mload
+  push 416
+  mstore
+  jump
+bb8:
+  push 416
+  mload
+  dup1
+  push 224
+  mstore
+  push 128
+  mstore
+  push 32
+  push 128
+  return

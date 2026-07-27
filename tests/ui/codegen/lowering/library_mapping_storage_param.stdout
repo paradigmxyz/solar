@@ -2,7 +2,7 @@
 // === ROOT/tests/ui/codegen/lowering/library_mapping_storage_param.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 640
+  push 288
   push 64
   mstore
   callvalue
@@ -59,15 +59,15 @@ bb0:
   dup2
   add
   dup1
-  push 256
+  push 192
   mstore
   swap1
   dup2
   lt
-  push bb14
+  push bb10
   jumpi
   dup1
-  push 256
+  push 192
   mstore
   push 128
   mstore
@@ -78,12 +78,13 @@ bb4 [cold]:
   push 0
   dup1
   revert
-bb14 [cold]:
+bb10 [cold]:
   push 0x4e487b71
   push 224
   shl
   push 0
   mstore
+  pop
   push 17
   push 4
   mstore

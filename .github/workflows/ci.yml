@@ -33,7 +33,7 @@ jobs:
           - os: "windows-latest"
             rust: "stable"
           - os: "ubuntu-latest"
-            rust: "1.95" # MSRV
+            rust: "1.96" # MSRV
           - os: "ubuntu-latest"
             rust: "nightly"
     steps:
@@ -80,10 +80,10 @@ jobs:
       - name: build
         run: cargo build
       - name: test
-        run: cargo nextest run --workspace
+        run: cargo nextest run --profile ci --workspace
       - name: test --features nightly
         if: matrix.rust == 'nightly'
-        run: cargo nextest run --workspace --features nightly
+        run: cargo nextest run --profile ci --workspace --features nightly
       - name: doctest
         run: cargo test --doc --workspace
 

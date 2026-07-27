@@ -1,0 +1,8 @@
+//@compile-flags: --pass none
+
+@module UnknownBlock
+
+fn @f() {
+  bb0:
+    jump bb9 //~ ERROR: unknown block `bb9`
+}

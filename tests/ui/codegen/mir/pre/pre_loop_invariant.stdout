@@ -11,7 +11,7 @@
 -     v2 = lt v1, arg1
 +     v6 = phi [bb0: v5], [bb2: v4]
 +     v2 = lt v6, arg1
-      br v2, bb2, bb3
+      jumpi v2, bb2, bb3
     bb2:
       v3 = add v0, 1
       v4 = add v3, 7
@@ -31,7 +31,7 @@
 -     v2 = lt v1, arg1
 +     v8 = phi [bb0: v7], [bb3: v4], [bb4: v6]
 +     v2 = lt v8, arg1
-      br v2, bb2, bb5
+      jumpi v2, bb2, bb5
     bb2:
       switch arg1, default bb3, [1 => bb4]
     bb3:

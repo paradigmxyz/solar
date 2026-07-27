@@ -29,7 +29,10 @@ use crate::{
     pass::{MirPass, ModuleAnalyses, run_function_pass},
 };
 use smallvec::SmallVec;
-use solar_data_structures::bit_set::DenseBitSet;
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+};
 use solar_sema::Gcx;
 
 /// Orders movable MIR instructions for the EVM stack scheduler.
@@ -50,7 +53,7 @@ impl EvmInstSchedule {
         let mut changed = false;
         let block_ids = func.blocks.indices().collect::<Vec<_>>();
         let shared_results = Self::shared_results(func);
-        let mut scratch = ScheduleScratch::new(func.instructions.len());
+        let mut scratch = ScheduleScratch::new(func.num_insts());
 
         for block_id in block_ids {
             let original = std::mem::take(&mut func.blocks[block_id].instructions);
@@ -62,7 +65,7 @@ impl EvmInstSchedule {
             let mut ordered = Vec::with_capacity(original.len());
             let mut segment_start = 0;
             for (index, &inst_id) in original.iter().enumerate() {
-                let inst = &func.instructions[inst_id];
+                let inst = func.inst(inst_id);
                 if Self::is_movable(inst) {
                     continue;
                 }
@@ -167,7 +170,7 @@ impl EvmInstSchedule {
             scratch.active_members.push(inst_id);
         }
         for &inst_id in segment {
-            for operand in func.instructions[inst_id].kind.operands() {
+            for operand in func.inst(inst_id).kind.operands() {
                 if let Value::Inst(dependency) = func.value(operand)
                     && scratch.members.contains(*dependency)
                 {
@@ -229,15 +232,14 @@ impl EvmInstSchedule {
         scratch: &mut ScheduleScratch,
     ) -> bool {
         for (position, &inst_id) in original.iter().enumerate() {
-            scratch.original_positions[inst_id.index()] = position;
+            scratch.original_positions[inst_id] = position;
         }
         for (position, &inst_id) in candidate.iter().enumerate() {
-            scratch.candidate_positions[inst_id.index()] = position;
+            scratch.candidate_positions[inst_id] = position;
         }
 
         for &inst_id in original {
-            let Some((a, b)) = Self::reorderable_binary_operands(&func.instructions[inst_id].kind)
-            else {
+            let Some((a, b)) = Self::reorderable_binary_operands(&func.inst(inst_id).kind) else {
                 continue;
             };
             let (Value::Inst(a), Value::Inst(b)) = (func.value(a), func.value(b)) else {
@@ -246,10 +248,10 @@ impl EvmInstSchedule {
             if !scratch.members.contains(*a) || !scratch.members.contains(*b) {
                 continue;
             }
-            let original_a = scratch.original_positions[a.index()];
-            let original_b = scratch.original_positions[b.index()];
-            let candidate_a = scratch.candidate_positions[a.index()];
-            let candidate_b = scratch.candidate_positions[b.index()];
+            let original_a = scratch.original_positions[*a];
+            let original_b = scratch.original_positions[*b];
+            let candidate_a = scratch.candidate_positions[*a];
+            let candidate_b = scratch.candidate_positions[*b];
             if original_a.cmp(&original_b) != candidate_a.cmp(&candidate_b) {
                 return false;
             }
@@ -274,34 +276,31 @@ impl EvmInstSchedule {
     }
 
     fn shared_results(func: &Function) -> DenseBitSet<InstId> {
-        let mut counts = vec![0u32; func.values.len()];
+        let mut counts = index_vec![0u32; func.values.len()];
         // Instruction arenas retain replaced and eliminated instructions, but only instructions
         // still present in a block reach codegen. Retired uses must not make a live single-use tree
         // look shared and disable scheduling for its whole segment.
         for block in &func.blocks {
             for &inst_id in &block.instructions {
-                for operand in func.instructions[inst_id].kind.operands() {
-                    counts[operand.index()] += 1;
+                for operand in func.inst(inst_id).kind.operands() {
+                    counts[operand] += 1;
                 }
             }
             if let Some(terminator) = &block.terminator {
                 for operand in terminator.operands() {
-                    counts[operand.index()] += 1;
+                    counts[operand] += 1;
                 }
             }
         }
 
-        // Rewrites can leave multiple value aliases for one instruction in the arena. Match
-        // `Function::inst_result_value` and codegen by classifying the first, canonical result;
-        // later aliases are retired bookkeeping rather than extra physical stack results.
-        let mut seen_results = DenseBitSet::new_empty(func.instructions.len());
-        let mut shared = DenseBitSet::new_empty(func.instructions.len());
-        for (value_id, value) in func.values.iter_enumerated() {
-            if let Value::Inst(inst_id) = value
-                && seen_results.insert(*inst_id)
-                && counts[value_id.index()] > 1
-            {
-                shared.insert(*inst_id);
+        let mut shared = DenseBitSet::new_empty(func.num_insts());
+        for block in &func.blocks {
+            for &inst_id in &block.instructions {
+                if let Some(result) = func.inst_result_value(inst_id)
+                    && counts[result] > 1
+                {
+                    shared.insert(inst_id);
+                }
             }
         }
         shared
@@ -325,7 +324,7 @@ impl EvmInstSchedule {
             }
 
             scratch.work.push((inst_id, true));
-            let inputs = Self::stack_input_order(&func.instructions[inst_id].kind);
+            let inputs = Self::stack_input_order(&func.inst(inst_id).kind);
             for value in inputs.iter().rev() {
                 if let Value::Inst(dependency) = func.value(*value)
                     && scratch.members.contains(*dependency)
@@ -343,8 +342,8 @@ struct ScheduleScratch {
     dependencies: DenseBitSet<InstId>,
     consumer_roots: DenseBitSet<InstId>,
     visited: DenseBitSet<InstId>,
-    original_positions: Vec<usize>,
-    candidate_positions: Vec<usize>,
+    original_positions: IndexVec<InstId, usize>,
+    candidate_positions: IndexVec<InstId, usize>,
     active_members: Vec<InstId>,
     work: Vec<(InstId, bool)>,
 }
@@ -356,8 +355,8 @@ impl ScheduleScratch {
             dependencies: DenseBitSet::new_empty(instruction_count),
             consumer_roots: DenseBitSet::new_empty(instruction_count),
             visited: DenseBitSet::new_empty(instruction_count),
-            original_positions: vec![0; instruction_count],
-            candidate_positions: vec![0; instruction_count],
+            original_positions: index_vec![0; instruction_count],
+            candidate_positions: index_vec![0; instruction_count],
             active_members: Vec::new(),
             work: Vec::new(),
         }

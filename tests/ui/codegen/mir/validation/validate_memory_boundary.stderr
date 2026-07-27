@@ -8,5 +8,11 @@ error: [fn2] memory-object signature type `memorystruct` survives the `evm-shape
 
 error: [fn2] [bb0, inst0] aggregate instruction `storage_to_memory` survives the `evm-shaped` phase boundary
 
-error: aborting due to 5 previous errors
+error: [fn3] [bb0, inst0] abstract allocation instruction `fmp` survives the `evm-shaped` phase boundary
+
+error: [fn3] [bb0, inst1] abstract allocation instruction `set_fmp` survives the `evm-shaped` phase boundary
+
+error: [fn3] [bb0, inst2] abstract allocation instruction `alloc` survives the `evm-shaped` phase boundary
+
+error: aborting due to 8 previous errors
 

@@ -3,7 +3,7 @@
   @module Sroa
   fn @local_struct(arg0: u256, arg1: u256) -> u256 {
     bb0:
--     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+      v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
 -     v1 = memory_object_field_addr memorystruct<2>, v0, 0
 -     mstore v1, arg0
 -     v2 = memory_object_field_addr memorystruct<2>, v0, 1
@@ -14,7 +14,9 @@
 -     v6 = mload v5
 -     v7 = add v4, v6
 +     v7 = add arg0, arg1
-      ret v7
+      v8 = fmp
+      v9 = add v7, v8
+      ret v9
   }
   
 - // === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (before dce) ===
@@ -22,7 +24,10 @@
   @module Sroa
   fn @local_struct(arg0: u256, arg1: u256) -> u256 {
     bb0:
+      v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
       v7 = add arg0, arg1
-      ret v7
+      v8 = fmp
+      v9 = add v7, v8
+      ret v9
   }
   

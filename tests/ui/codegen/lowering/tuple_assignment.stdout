@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/tuple_assignment.sol:C (runtime) ===
 @module runtime
 bb0:
-  push 608
+  push 416
   push 64
   mstore
   callvalue
@@ -214,7 +214,7 @@ bb17:
   push 64
   mload
   dup1
-  push 320
+  push 256
   mstore
   push 32
   add

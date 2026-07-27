@@ -4,7 +4,7 @@
   fn @const_branch() -> u256 {
     bb0:
 -     v0 = lt 5, 10
--     br v0, bb1, bb2
+-     jumpi v0, bb1, bb2
 +     jump bb1
     bb1:
       ret 1

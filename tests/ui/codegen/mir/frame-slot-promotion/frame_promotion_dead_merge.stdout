@@ -3,7 +3,7 @@
   @module FramePromotionDeadMerge
   fn @dead_merge(arg0: u256, arg1: bool) -> u256 {
     bb0:
-      br arg1, bb1, bb2
+      jumpi arg1, bb1, bb2
     bb1:
       jump bb3
     bb2:
@@ -18,7 +18,7 @@
 -     v2 = mload v1
 -     v3 = lt v2, arg0
 +     v3 = lt v8, arg0
-      br v3, bb5, bb6
+      jumpi v3, bb5, bb6
     bb5:
 -     v4 = add v2, 1
 +     v4 = add v8, 1

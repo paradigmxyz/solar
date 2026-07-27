@@ -977,7 +977,6 @@ symbols! {
         assert,
         at,
         block,
-        br,
         built,
         calldata_array,
         calldata_bytes,

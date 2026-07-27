@@ -5,7 +5,7 @@ fn @sum_to(arg0: u256) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -16,7 +16,7 @@ fn @sum_to(arg0: u256) {
   bb3:
     v3 = mload 192
     v4 = lt v3, arg0
-    br v4, bb6, bb7
+    jumpi v4, bb6, bb7
   bb4:
     v12 = mload 160
     mstore 128, v12
@@ -25,13 +25,13 @@ fn @sum_to(arg0: u256) {
     v9 = mload 192
     v10 = add v9, 1
     v11 = lt v10, v9
-    br v11, bb10, bb11
+    jumpi v11, bb10, bb11
   bb6:
     v5 = mload 160
     v6 = mload 192
     v7 = add v5, v6
     v8 = lt v7, v5
-    br v8, bb8, bb9
+    jumpi v8, bb8, bb9
   bb7:
     jump bb4
   bb8:

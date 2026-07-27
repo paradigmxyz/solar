@@ -5,7 +5,7 @@ fn @text(arg0: memorybytes) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -31,7 +31,7 @@ fn @text(arg0: memorybytes) {
     v18 = and v17, v16
     v19 = add v13, 32
     v20 = iszero v18
-    br v20, bb4, bb3
+    jumpi v20, bb4, bb3
   bb3:
     v21 = sub v18, 32
     v22 = add v19, v21
@@ -71,7 +71,7 @@ fn @literal() {
     v9 = and v8, v7
     v10 = add v4, 32
     v11 = iszero v9
-    br v11, bb2, bb1
+    jumpi v11, bb2, bb1
   bb1:
     v12 = sub v9, 32
     v13 = add v10, v12
@@ -98,7 +98,7 @@ fn @blob(arg0: memorybytes) {
     v0 = calldatasize
     v1 = sub v0, 4
     v2 = slt v1, 32
-    br v2, bb1, bb2
+    jumpi v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -124,7 +124,7 @@ fn @blob(arg0: memorybytes) {
     v18 = and v17, v16
     v19 = add v13, 32
     v20 = iszero v18
-    br v20, bb4, bb3
+    jumpi v20, bb4, bb3
   bb3:
     v21 = sub v18, 32
     v22 = add v19, v21

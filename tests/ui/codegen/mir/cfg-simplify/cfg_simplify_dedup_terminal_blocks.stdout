@@ -3,14 +3,14 @@
   @module CfgDedupTerminalBlocks
   fn @dedup_identical_panics(arg0: u256, arg1: u256) {
     bb0:
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 17
       revert 0, 36
     bb2:
--     br arg1, bb3, bb4
-+     br arg1, bb1, bb3
+-     jumpi arg1, bb3, bb4
++     jumpi arg1, bb1, bb3
     bb3:
 -     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
 -     mstore 4, 17
@@ -21,13 +21,13 @@
   
   fn @keep_distinct_panic_codes(arg0: u256, arg1: u256) {
     bb0:
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 17
       revert 0, 36
     bb2:
-      br arg1, bb3, bb4
+      jumpi arg1, bb3, bb4
     bb3:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 18
@@ -38,13 +38,13 @@
   
   fn @keep_distinct_revert_sizes(arg0: u256, arg1: u256) {
     bb0:
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 17
       revert 0, 36
     bb2:
-      br arg1, bb3, bb4
+      jumpi arg1, bb3, bb4
     bb3:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
       mstore 4, 17
@@ -55,14 +55,14 @@
   
   fn @dedup_local_computations(arg0: u256, arg1: u256) {
     bb0:
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
       v0 = add arg0, 1
       mstore 0, v0
       revert 0, 32
     bb2:
--     br arg1, bb3, bb4
-+     br arg1, bb1, bb3
+-     jumpi arg1, bb3, bb4
++     jumpi arg1, bb1, bb3
     bb3:
 -     v1 = add arg0, 1
 -     mstore 0, v1
@@ -73,12 +73,12 @@
   
   fn @keep_distinct_outside_operands(arg0: u256, arg1: u256) {
     bb0:
-      br arg0, bb1, bb2
+      jumpi arg0, bb1, bb2
     bb1:
       mstore 0, arg0
       revert 0, 32
     bb2:
-      br arg1, bb3, bb4
+      jumpi arg1, bb3, bb4
     bb3:
       mstore 0, arg1
       revert 0, 32
