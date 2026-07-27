@@ -2,11 +2,16 @@
 
 use lsp_types::{MarkupContent, MarkupKind};
 use solar_interface::Symbol;
-use solar_sema::{Gcx, hir, ty::NatSpecView};
+use solar_sema::{
+    Gcx,
+    hir::{self, HirPrinter},
+    ty::NatSpecView,
+};
 use std::fmt::Write;
 
 pub(crate) fn render(gcx: Gcx<'_>, item_id: hir::ItemId) -> Option<MarkupContent> {
-    let mut value = format!("```solidity\n{}\n```", item_id.display(gcx));
+    let printer = HirPrinter::new(gcx);
+    let mut value = format!("```solidity\n{}\n```", printer.display(item_id));
     append_documentation(&mut value, &documentation(gcx, item_id));
     Some(MarkupContent { kind: MarkupKind::Markdown, value })
 }

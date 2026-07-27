@@ -18,6 +18,11 @@ impl<'gcx> HirPrinter<'gcx> {
         Self { gcx, out: String::new(), indent: 0 }
     }
 
+    /// Displays an item's declaration header in Solidity syntax.
+    pub fn display(&self, item_id: ItemId) -> impl fmt::Display + '_ {
+        fmt::from_fn(move |f| self.fmt_item(item_id, f))
+    }
+
     /// Prints all HIR sources and returns the accumulated output.
     pub fn print_all(mut self) -> String {
         for (id, source) in self.gcx.hir.sources_enumerated() {
@@ -742,13 +747,6 @@ enum VarMode {
 
 fn builtin_name(builtin: Builtin) -> impl fmt::Display {
     solar_data_structures::fmt::from_fn(move |f| f.write_str(builtin.name().as_str()))
-}
-
-impl ItemId {
-    /// Displays this item's declaration header in Solidity syntax.
-    pub fn display<'gcx>(self, gcx: Gcx<'gcx>) -> impl fmt::Display + use<'gcx> {
-        fmt::from_fn(move |f| HirPrinter::new(gcx).fmt_item(self, f))
-    }
 }
 
 impl HirPrinter<'_> {
