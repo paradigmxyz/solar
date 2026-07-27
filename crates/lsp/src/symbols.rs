@@ -429,8 +429,9 @@ impl SymbolTables {
         for entry in self.code_lens.entries(uri) {
             let position = entry.range.start;
 
-            if options.references {
-                let count = self.reference_count(&entry.symbol_ids);
+            if options.references
+                && let Some(count) = self.reference_count(&entry.symbol_ids)
+            {
                 let title = format_reference_title(count);
                 let (command, arguments) = if count > 0 && options.client_commands {
                     (
@@ -473,8 +474,8 @@ impl SymbolTables {
                     lenses.push(CodeLens {
                         range: entry.range,
                         command: Some(inheritance_command(
-                            format_inheritance_title("base", bases),
-                            "supertypes",
+                            InheritanceLensKind::Base,
+                            bases,
                             uri,
                             position,
                             options.client_commands,
@@ -486,8 +487,8 @@ impl SymbolTables {
                     lenses.push(CodeLens {
                         range: entry.range,
                         command: Some(inheritance_command(
-                            format_inheritance_title("derived", derived),
-                            "subtypes",
+                            InheritanceLensKind::Derived,
+                            derived,
                             uri,
                             position,
                             options.client_commands,
@@ -500,15 +501,13 @@ impl SymbolTables {
         lenses
     }
 
-    fn reference_count(&self, targets: &[SymbolId]) -> usize {
+    fn reference_count(&self, targets: &[SymbolId]) -> Option<usize> {
         let mut locations = FxHashSet::default();
-        for &index in
-            targets.iter().filter_map(|target| self.symbol_references.get(target)).flatten()
-        {
+        for index in self.complete_reference_indices_for_targets(targets)? {
             let location = &self.references[index].location;
             locations.insert((&location.uri, location.range));
         }
-        locations.len()
+        Some(locations.len())
     }
 
     pub(crate) fn document_links(&self, path: &Path) -> Vec<lsp_types::DocumentLink> {
@@ -765,7 +764,7 @@ impl SymbolTables {
         }
 
         locations.extend(
-            self.reference_indices_for_targets(&target)
+            self.complete_reference_indices_for_targets(&target)?
                 .into_iter()
                 .map(|index| self.references[index].location.clone()),
         );
@@ -1223,7 +1222,7 @@ impl SymbolTables {
         Some(symbol_ids)
     }
 
-    fn reference_indices_for_targets(&self, targets: &[SymbolId]) -> Vec<usize> {
+    fn complete_reference_indices_for_targets(&self, targets: &[SymbolId]) -> Option<Vec<usize>> {
         let mut indices = targets
             .iter()
             .filter_map(|target| self.symbol_references.get(target))
@@ -1232,7 +1231,12 @@ impl SymbolTables {
             .collect::<Vec<_>>();
         indices.sort_unstable();
         indices.dedup();
-        indices
+        if indices.iter().any(|&index| {
+            self.rename.conflicting_contents().contains(&self.references[index].location.uri)
+        }) {
+            return None;
+        }
+        Some(indices)
     }
 
     fn reference_at_position(&self, uri: &Url, position: Position) -> Option<&SymbolReference> {
@@ -2201,31 +2205,46 @@ fn format_selector_title(selector: [u8; 4]) -> String {
     title
 }
 
-fn format_inheritance_title(kind: &str, count: usize) -> String {
-    let noun = match (kind, count) {
-        ("base", 1) => "base contract",
-        ("base", _) => "base contracts",
-        ("derived", 1) => "derived contract",
-        ("derived", _) => "derived contracts",
-        _ => unreachable!("unknown inheritance lens kind"),
-    };
-    format!("{count} {noun}")
+#[derive(Clone, Copy, Debug)]
+enum InheritanceLensKind {
+    Base,
+    Derived,
+}
+
+impl InheritanceLensKind {
+    fn title(self, count: usize) -> String {
+        let noun = match (self, count) {
+            (Self::Base, 1) => "base contract",
+            (Self::Base, _) => "base contracts",
+            (Self::Derived, 1) => "derived contract",
+            (Self::Derived, _) => "derived contracts",
+        };
+        format!("{count} {noun}")
+    }
+
+    fn direction(self) -> &'static str {
+        match self {
+            Self::Base => "supertypes",
+            Self::Derived => "subtypes",
+        }
+    }
 }
 
 fn inheritance_command(
-    title: String,
-    direction: &str,
+    kind: InheritanceLensKind,
+    count: usize,
     uri: &Url,
     position: Position,
     enabled: bool,
 ) -> Command {
+    let title = kind.title(count);
     let (command, arguments) = if enabled {
         (
             "solar.showTypeHierarchy".into(),
             Some(vec![serde_json::json!({
                 "uri": uri,
                 "position": position,
-                "direction": direction,
+                "direction": kind.direction(),
             })]),
         )
     } else {

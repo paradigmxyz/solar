@@ -72,6 +72,201 @@ fn shows_direct_inheritance_counts() {
 }
 
 #[test]
+fn snapshots_complete_command_protocol() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Protocol.sol
+        contract Base {}
+        contract Plain is Base {
+            function target() public {}
+            function callTarget() external { target(); }
+        }
+        "#,
+        "/Protocol.sol",
+    );
+
+    fixture.check_code_lenses_json(
+        "/Protocol.sol",
+        str![[r#"
+[
+  {
+    "range": {
+      "start": {
+        "line": 0,
+        "character": 9
+      },
+      "end": {
+        "line": 0,
+        "character": 13
+      }
+    },
+    "command": {
+      "title": "1 reference",
+      "command": "solar.showReferences",
+      "arguments": [
+        {
+          "position": {
+            "character": 9,
+            "line": 0
+          },
+          "uri": "file:///Protocol.sol"
+        }
+      ]
+    }
+  },
+  {
+    "range": {
+      "start": {
+        "line": 0,
+        "character": 9
+      },
+      "end": {
+        "line": 0,
+        "character": 13
+      }
+    },
+    "command": {
+      "title": "1 derived contract",
+      "command": "solar.showTypeHierarchy",
+      "arguments": [
+        {
+          "direction": "subtypes",
+          "position": {
+            "character": 9,
+            "line": 0
+          },
+          "uri": "file:///Protocol.sol"
+        }
+      ]
+    }
+  },
+  {
+    "range": {
+      "start": {
+        "line": 1,
+        "character": 9
+      },
+      "end": {
+        "line": 1,
+        "character": 14
+      }
+    },
+    "command": {
+      "title": "0 references",
+      "command": ""
+    }
+  },
+  {
+    "range": {
+      "start": {
+        "line": 1,
+        "character": 9
+      },
+      "end": {
+        "line": 1,
+        "character": 14
+      }
+    },
+    "command": {
+      "title": "1 base contract",
+      "command": "solar.showTypeHierarchy",
+      "arguments": [
+        {
+          "direction": "supertypes",
+          "position": {
+            "character": 9,
+            "line": 1
+          },
+          "uri": "file:///Protocol.sol"
+        }
+      ]
+    }
+  },
+  {
+    "range": {
+      "start": {
+        "line": 2,
+        "character": 13
+      },
+      "end": {
+        "line": 2,
+        "character": 19
+      }
+    },
+    "command": {
+      "title": "1 reference",
+      "command": "solar.showReferences",
+      "arguments": [
+        {
+          "position": {
+            "character": 13,
+            "line": 2
+          },
+          "uri": "file:///Protocol.sol"
+        }
+      ]
+    }
+  },
+  {
+    "range": {
+      "start": {
+        "line": 2,
+        "character": 13
+      },
+      "end": {
+        "line": 2,
+        "character": 19
+      }
+    },
+    "command": {
+      "title": "0xd4b83992",
+      "command": "solar.copySelector",
+      "arguments": [
+        "0xd4b83992"
+      ]
+    }
+  },
+  {
+    "range": {
+      "start": {
+        "line": 3,
+        "character": 13
+      },
+      "end": {
+        "line": 3,
+        "character": 23
+      }
+    },
+    "command": {
+      "title": "0 references",
+      "command": ""
+    }
+  },
+  {
+    "range": {
+      "start": {
+        "line": 3,
+        "character": 13
+      },
+      "end": {
+        "line": 3,
+        "character": 23
+      }
+    },
+    "command": {
+      "title": "0x2872b1ff",
+      "command": "solar.copySelector",
+      "arguments": [
+        "0x2872b1ff"
+      ]
+    }
+  }
+]
+"#]],
+    );
+}
+
+#[test]
 fn merges_reference_counts_for_imported_declarations() {
     let fixture = RequestFixture::new_in_batches(
         r#"
@@ -128,6 +323,55 @@ fn merges_reference_counts_for_imported_declarations() {
 
 "#]],
     );
+}
+
+#[test]
+fn rejects_references_from_conflicting_source_snapshots() {
+    let source = r#"
+        //- /Target.sol
+        library Target {
+            function $1target() external pure {}
+        }
+
+        //- /Caller.sol open
+        import {Target} from "./Target.sol";
+
+        contract C {
+            function caller() external pure {
+                Target.target();
+            }
+        }
+
+        //- /Root.sol
+        import "./Caller.sol";
+        "#;
+    let disk_contents = r#"import {Target} from "./Target.sol";
+
+contract C {
+    function caller() external pure {
+
+        Target.target();
+    }
+}
+"#;
+
+    for paths in [["/Root.sol", "/Caller.sol"], ["/Caller.sol", "/Root.sol"]] {
+        let fixture = RequestFixture::new_in_batches_with_stale_disk(
+            source,
+            "/Caller.sol",
+            disk_contents,
+            &paths,
+        );
+
+        fixture.check_code_lenses(
+            "/Target.sol",
+            str![[r#"
+1:13 selector=0xd4b83992 command=solar.copySelector
+
+"#]],
+        );
+        fixture.check_references("$1", false, "<none>\n");
+    }
 }
 
 #[test]

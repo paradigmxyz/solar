@@ -181,7 +181,8 @@ impl GlobalState {
     }
 
     pub(crate) fn clear_analysis_cache(&mut self) {
-        let refresh_code_lenses = self.config.supports_code_lens_refresh();
+        let refresh_code_lenses =
+            self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
         let old_symbol_tables = {
             let Self {
                 client,
@@ -754,7 +755,8 @@ impl GlobalStateSnapshot {
     }
 
     fn publish_analysis(&mut self, version: usize, result: AnalysisResult) -> bool {
-        let refresh_code_lenses = self.config.supports_code_lens_refresh();
+        let refresh_code_lenses =
+            self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
         let old_symbol_tables = {
             let analysis_commit = self.analysis_commit.clone();
             let mut commit = analysis_commit.lock();

@@ -232,17 +232,17 @@ fn analysis_result_accumulator_merges_multiple_batches() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn published_analysis_requests_code_lens_refresh_when_supported() {
+async fn analysis_updates_refresh_code_lenses_only_when_active() {
     let (server_main, client) = async_lsp::MainLoop::new_server(|_| {
         let mut router = Router::new(());
         router.notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())));
         router
     });
-    let (refresh_tx, refresh_rx) = oneshot::channel();
+    let (refresh_tx, mut refresh_rx) = mpsc::unbounded_channel();
     let (client_main, server) = async_lsp::MainLoop::new_client(move |_| {
-        let mut router = Router::new(Some(refresh_tx));
+        let mut router = Router::new(refresh_tx);
         router.request::<request::CodeLensRefresh, _>(|state, ()| {
-            state.take().unwrap().send(()).unwrap();
+            state.send(()).unwrap();
             async { Ok(()) }
         });
         router
@@ -261,20 +261,50 @@ async fn published_analysis_requests_code_lens_refresh_when_supported() {
         ..Default::default()
     });
     let (_, config) = negotiate_capabilities(params);
-    let mut snapshot = snapshot_with_config(config, Vfs::default());
-    snapshot.client = client;
+    let mut state = GlobalState::new(client);
+    state.config = Arc::new(config);
 
-    assert!(snapshot.publish_analysis(
+    assert!(state.snapshot().publish_analysis(
+        0,
+        AnalysisResult {
+            diagnostics: DiagnosticMap::default(),
+            symbol_tables: SymbolTables::default(),
+        },
+    ));
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, refresh_rx.recv())
+        .await
+        .expect("CodeLens refresh should arrive")
+        .expect("CodeLens refresh channel should stay open");
+
+    state.clear_analysis_cache();
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, refresh_rx.recv())
+        .await
+        .expect("CodeLens refresh should arrive after clearing analysis")
+        .expect("CodeLens refresh channel should stay open");
+
+    let mut params = InitializeParams::default();
+    params.capabilities.workspace = Some(lsp_types::WorkspaceClientCapabilities {
+        code_lens: Some(CodeLensWorkspaceClientCapabilities { refresh_support: Some(true) }),
+        ..Default::default()
+    });
+    params.initialization_options = Some(serde_json::json!({
+        "codeLens": { "enable": false }
+    }));
+    let (_, config) = negotiate_capabilities(params);
+    state.config = Arc::new(config);
+
+    assert!(state.snapshot().publish_analysis(
         1,
         AnalysisResult {
             diagnostics: DiagnosticMap::default(),
             symbol_tables: SymbolTables::default(),
         },
     ));
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, refresh_rx)
-        .await
-        .expect("CodeLens refresh should arrive")
-        .expect("CodeLens refresh sender should stay open");
+    state.clear_analysis_cache();
+    assert!(
+        tokio::time::timeout(Duration::from_millis(100), refresh_rx.recv()).await.is_err(),
+        "inactive CodeLens should not request refresh"
+    );
 
     server.notify::<notification::Exit>(()).unwrap();
     assert!(server_task.await.unwrap().is_ok());

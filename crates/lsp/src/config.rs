@@ -77,6 +77,10 @@ impl Default for CodeLensConfig {
 }
 
 impl CodeLensConfig {
+    pub(crate) fn is_active(self) -> bool {
+        self.enable && (self.selectors || self.references || self.inheritance)
+    }
+
     fn from_json(value: Option<serde_json::Value>) -> Self {
         value
             .and_then(|value| {
@@ -517,6 +521,28 @@ mod tests {
                 client_commands: true,
             }
         );
+    }
+
+    #[test]
+    fn code_lens_activity_requires_an_enabled_lens_kind() {
+        let inactive = CodeLensConfig {
+            enable: true,
+            selectors: false,
+            references: false,
+            inheritance: false,
+            client_commands: false,
+        };
+        assert!(!inactive.is_active());
+        assert!(!CodeLensConfig { enable: false, selectors: true, ..inactive }.is_active());
+        assert!(!CodeLensConfig { client_commands: true, ..inactive }.is_active());
+
+        for active in [
+            CodeLensConfig { selectors: true, ..inactive },
+            CodeLensConfig { references: true, ..inactive },
+            CodeLensConfig { inheritance: true, ..inactive },
+        ] {
+            assert!(active.is_active());
+        }
     }
 
     #[test]

@@ -151,6 +151,35 @@ fn semantic_requests_wait_for_latest_analysis() {
 }
 
 #[test]
+fn inactive_code_lens_does_not_wait_for_latest_analysis() {
+    let uri = file_uri("Test.sol");
+    let inactive_options = [
+        json!({ "enable": false }),
+        json!({
+            "enable": true,
+            "selectors": false,
+            "references": false,
+            "inheritance": false,
+            "clientCommands": true,
+        }),
+    ];
+
+    for code_lens_options in inactive_options {
+        let params = InitializeParams {
+            initialization_options: Some(json!({ "codeLens": code_lens_options })),
+            ..Default::default()
+        };
+        let (_, config) = negotiate_capabilities(params);
+        let mut state = pending_analysis_state();
+        state.config = Arc::new(config);
+
+        let response = expect_ready(code_lens(&mut state, code_lens_params(uri.clone()))).unwrap();
+
+        assert!(response.is_some_and(|lenses| lenses.is_empty()));
+    }
+}
+
+#[test]
 fn semantic_requests_skip_analysis_for_non_file_uris() {
     let uri = parse_uri("untitled:Test.sol");
     let mut state = pending_analysis_state();

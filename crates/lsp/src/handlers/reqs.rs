@@ -485,7 +485,8 @@ pub(crate) fn code_lens(
 ) -> impl Future<Output = Result<Option<Vec<CodeLens>>, ResponseError>> + use<> {
     let uri = params.text_document.uri;
     let options = state.config.code_lens_options();
-    let latest_analysis = latest_analysis_for_uri(state, &uri);
+    let latest_analysis =
+        if options.is_active() { latest_analysis_for_uri(state, &uri) } else { None };
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(Some(Vec::new())) };
         let symbol_tables = latest_analysis.await?;

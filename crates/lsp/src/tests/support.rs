@@ -353,6 +353,20 @@ impl RequestFixture {
         self.check_code_lenses_with_commands(path, false, expected);
     }
 
+    pub(super) fn check_code_lenses_json(&self, path: &str, expected: impl IntoData) {
+        let mut state = self.state();
+        Arc::make_mut(&mut state.config).enable_code_lens_client_commands();
+        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
+        let response =
+            expect_ready(crate::handlers::code_lens(&mut state, code_lens_params(uri.clone())))
+                .unwrap()
+                .unwrap_or_default();
+        let output = serde_json::to_string_pretty(&response)
+            .unwrap()
+            .replace(uri.as_str(), &format!("file://{path}"));
+        assert_data_eq!(output, expected);
+    }
+
     fn check_code_lenses_with_commands(
         &self,
         path: &str,
