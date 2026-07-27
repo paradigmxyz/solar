@@ -176,7 +176,7 @@ and `//~ diagnostic_code`. Use `^` or `v` to point to lines above/below, `|`
 to add another annotation for the same line, and `?` for a diagnostic without a
 location in the test file.
 
-The UI runner infers the expected exit status from annotations. `ERROR`, `ICE`
+The UI runner infers the expected exit status from annotations. `ERROR`, `ICE` 
 annotations expect status 1; tests without them expect status 0.
 Do not add `check-pass` or `check-fail` to ordinary tests.
 Use an explicit status directive only when the inferred status is wrong
