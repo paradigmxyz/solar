@@ -175,7 +175,7 @@ impl SessionBuilder {
             thread_pool: OnceLock::new(),
         };
         sess.reconfigure();
-        debug!(version = %solar_config::version::SHORT_VERSION, "created new session");
+        debug!(version = %solar_config::version::SEMVER_VERSION, "created new session");
         sess
     }
 }
