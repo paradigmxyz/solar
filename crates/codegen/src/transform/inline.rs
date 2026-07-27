@@ -793,7 +793,7 @@ impl<'a> InlineCloner<'a> {
         }
 
         let cloned = match self.callee.value(value).clone() {
-            Value::Arg { index } => *self.args.get(index.index())?,
+            Value::Arg(index) => *self.args.get(index.index())?,
             Value::Immediate(imm) => self.caller.alloc_value(Value::Immediate(imm)),
             Value::Undef(ty) => self.caller.alloc_value(Value::Undef(ty)),
             Value::Error(guar) => self.caller.alloc_value(Value::Error(guar)),

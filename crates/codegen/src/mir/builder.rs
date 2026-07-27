@@ -164,7 +164,7 @@ impl<'a> FunctionBuilder<'a> {
                 }
                 _ => MemoryRegion::Unknown,
             },
-            Value::Arg { .. } | Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => {
+            Value::Arg(_) | Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => {
                 MemoryRegion::Unknown
             }
         }

@@ -11,10 +11,7 @@ pub(crate) enum Value {
     /// Result of an instruction.
     Inst(InstId),
     /// Function argument.
-    Arg {
-        /// Argument index.
-        index: ArgIdx,
-    },
+    Arg(ArgIdx),
     /// Immediate constant.
     Immediate(Immediate),
     /// Undefined value (used for uninitialized variables).

@@ -156,7 +156,7 @@ impl SccpCx {
         // Initialize non-instruction operands referenced by active MIR.
         let mut initialize = |value| {
             match func.value(value) {
-                Value::Arg { .. } => lattice[value] = LatticeValue::Bottom,
+                Value::Arg(_) => lattice[value] = LatticeValue::Bottom,
                 Value::Immediate(imm) => {
                     if let Some(v) = imm.as_u256() {
                         lattice[value] = LatticeValue::Constant(v);

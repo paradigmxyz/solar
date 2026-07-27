@@ -100,7 +100,7 @@ impl Function {
     pub(crate) fn value_ty(&self, id: ValueId) -> Option<MirType> {
         match self.value(id) {
             Value::Inst(inst) => self.inst(*inst).result_ty,
-            Value::Arg { index } => Some(self.arg_ty(*index)),
+            Value::Arg(index) => Some(self.arg_ty(*index)),
             Value::Immediate(imm) => Some(imm.ty()),
             Value::Undef(ty) => Some(*ty),
             Value::Error(_) => None,
@@ -134,7 +134,7 @@ impl Function {
             uses.push(Vec::new());
         }
         for value in self.live_values() {
-            if let Value::Arg { index } = self.value(value) {
+            if let Value::Arg(index) = self.value(value) {
                 uses[*index].push(value);
             }
         }
@@ -323,7 +323,7 @@ impl Function {
     /// Allocates a value referring to an existing argument.
     pub(crate) fn alloc_arg(&mut self, index: ArgIdx) -> ValueId {
         let _ = self.arg_ty(index);
-        self.alloc_value(Value::Arg { index })
+        self.alloc_value(Value::Arg(index))
     }
 
     /// Replaces both the callable parameters and their retained type table.

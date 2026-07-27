@@ -223,7 +223,7 @@ impl GlobalValueNumberer {
                 available_values.insert(value_id);
                 vn[value_id] = *immediate_reps.entry(imm.clone()).or_insert(value_id);
             }
-            Value::Arg { index, .. } => {
+            Value::Arg(index) => {
                 available_values.insert(value_id);
                 vn[value_id] = *arg_reps.entry(*index).or_insert(value_id);
             }

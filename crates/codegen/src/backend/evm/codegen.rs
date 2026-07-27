@@ -171,7 +171,7 @@ impl GlobalStackPlan {
                 .live_in(block_id)
                 .iter()
                 .filter(|&value| {
-                    matches!(func.value(value), crate::mir::Value::Arg { .. })
+                    matches!(func.value(value), crate::mir::Value::Arg(_))
                         && decode_blocks.get(&value).is_none_or(|&decode| {
                             decode != block_id && cfg.dominators().dominates(decode, block_id)
                         })
@@ -2115,7 +2115,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn spill_value_if_needed(&mut self, func: &Function, val: ValueId) {
         // Skip immediates and args - they can be re-emitted without spilling
         match func.value(val) {
-            crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. } => return,
+            crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_) => return,
             _ => {}
         }
 
@@ -2270,7 +2270,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// +72 B, fractional +127 B) and to break 4 of 8 bench harnesses at
     /// runtime. Do not re-attempt without redesigning argument spilling.
     fn is_rematerializable_value(func: &Function, value: ValueId) -> bool {
-        matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. })
+        matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_))
     }
 
     fn is_cheap_recomputable_value(func: &Function, value: ValueId) -> bool {
@@ -2352,7 +2352,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // later blocks can inherit it without an eager prologue load.
         for &operand in &operands {
             if self.global_stack_active
-                && matches!(func.value(operand), crate::mir::Value::Arg { .. })
+                && matches!(func.value(operand), crate::mir::Value::Arg(_))
                 && !self.scheduler.stack.contains(operand)
                 && !liveness.is_dead_after(operand, block, inst_idx)
             {
@@ -3395,7 +3395,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn raw_arg_emittable(func: &Function, raw_leaves_ok: bool, val: ValueId) -> bool {
         match func.value(val) {
             crate::mir::Value::Immediate(imm) => imm.as_u256().is_some(),
-            crate::mir::Value::Arg { .. } => raw_leaves_ok,
+            crate::mir::Value::Arg(_) => raw_leaves_ok,
             _ => false,
         }
     }
@@ -3408,7 +3408,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             crate::mir::Value::Immediate(imm) => {
                 self.asm.emit_push(imm.as_u256().expect("mask requires a word immediate"));
             }
-            crate::mir::Value::Arg { index, .. } => {
+            crate::mir::Value::Arg(index) => {
                 if self.in_internal_function {
                     let func_id = self
                         .current_internal_function
@@ -4235,7 +4235,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             && !self.scheduler.spills.is_reloadable(val)
             && !matches!(
                 func.value(val),
-                crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. }
+                crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_)
             )
         {
             let slot = self.scheduler.spills.allocate(val);
@@ -4304,7 +4304,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.scheduler.stack.push(val);
                 }
             }
-            crate::mir::Value::Arg { index, .. } => {
+            crate::mir::Value::Arg(index) => {
                 if self.in_internal_function {
                     self.emit_internal_arg_load(*index);
                 } else if self.in_constructor {

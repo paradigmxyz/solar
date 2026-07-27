@@ -301,24 +301,22 @@ impl LowerSlicesCx {
 
         let argument_values: FxHashSet<_> = func
             .live_values()
-            .filter(|&value| matches!(func.value(value), Value::Arg { .. }))
+            .filter(|&value| matches!(func.value(value), Value::Arg(_)))
             .collect();
         let slice_args: Vec<_> = argument_values
             .iter()
             .filter_map(|&value| match func.value(value) {
-                Value::Arg { index } if matches!(func.arg_ty(*index), MirType::Slice(_)) => {
+                Value::Arg(index) if matches!(func.arg_ty(*index), MirType::Slice(_)) => {
                     Some((value, *index))
                 }
                 _ => None,
             })
             .collect();
         for &value in &argument_values {
-            let Value::Arg { index } = func.value(value) else { unreachable!() };
+            let Value::Arg(index) = func.value(value) else { unreachable!() };
             let index = *index;
             if !matches!(func.arg_ty(index), MirType::Slice(_)) {
-                let Value::Arg { index: value_index } = func.value_mut(value) else {
-                    unreachable!()
-                };
+                let Value::Arg(value_index) = func.value_mut(value) else { unreachable!() };
                 *value_index = physical_indices[index];
             }
         }
@@ -477,7 +475,7 @@ impl LowerSlicesCx {
                             continue;
                         };
                         let is_compact = match caller.value(arg) {
-                            Value::Arg { index: source }
+                            Value::Arg(source)
                                 if caller.arg_ty(*source)
                                     == MirType::Slice(SliceLocation::Calldata) =>
                             {

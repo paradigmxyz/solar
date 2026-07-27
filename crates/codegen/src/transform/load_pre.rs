@@ -1203,7 +1203,7 @@ impl LoadRedundancyEliminator {
         analysis: &Analysis,
     ) -> bool {
         kind.operands().into_iter().all(|value| match func.value(value) {
-            Value::Immediate(_) | Value::Arg { .. } | Value::Undef(_) | Value::Error(_) => true,
+            Value::Immediate(_) | Value::Arg(_) | Value::Undef(_) | Value::Error(_) => true,
             Value::Inst(inst_id) => analysis
                 .inst_blocks
                 .get(inst_id)

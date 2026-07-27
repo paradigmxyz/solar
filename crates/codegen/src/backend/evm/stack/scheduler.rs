@@ -114,7 +114,7 @@ impl StackScheduler {
                     self.stack.push(value);
                 }
             }
-            crate::mir::Value::Arg { index, .. } => {
+            crate::mir::Value::Arg(index) => {
                 // It's a function argument, load from calldata
                 self.ops.push(ScheduledOp::LoadArg(*index));
                 self.stack.push(value);
@@ -145,7 +145,7 @@ impl StackScheduler {
             return true;
         }
         // Check value type
-        matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. })
+        matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_))
     }
 
     /// Records that an instruction consumed its operands and produced a result.

@@ -248,7 +248,7 @@ impl StorageAlias {
                 }
                 _ => Self::Symbolic(value),
             },
-            Value::Arg { .. } | Value::Undef(_) | Value::Error(_) => Self::Symbolic(value),
+            Value::Arg(_) | Value::Undef(_) | Value::Error(_) => Self::Symbolic(value),
         }
     }
 

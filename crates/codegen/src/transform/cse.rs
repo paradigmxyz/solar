@@ -911,7 +911,7 @@ impl CommonSubexprEliminator {
         dominators: &DominatorTree,
     ) -> bool {
         match func.value(value) {
-            Value::Immediate(_) | Value::Arg { .. } | Value::Undef(_) | Value::Error(_) => true,
+            Value::Immediate(_) | Value::Arg(_) | Value::Undef(_) | Value::Error(_) => true,
             Value::Inst(inst_id) => inst_blocks
                 .get(inst_id)
                 .is_some_and(|&def_block| dominators.dominates(def_block, block_id)),
@@ -973,7 +973,7 @@ impl CommonSubexprEliminator {
         let value = mir_utils::resolve_replacement(value, replacements);
         match func.value(value) {
             Value::Immediate(_) => None,
-            Value::Arg { .. } | Value::Undef(_) | Value::Error(_) => {
+            Value::Arg(_) | Value::Undef(_) | Value::Error(_) => {
                 Some((OperandKey::Value(value), U256::ZERO))
             }
             Value::Inst(inst_id) => match func.inst(*inst_id).kind {

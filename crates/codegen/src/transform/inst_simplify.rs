@@ -849,7 +849,7 @@ impl InstSimplifier {
     fn is_bool_value(func: &Function, value: ValueId) -> bool {
         match func.value(value) {
             Value::Immediate(Immediate::Bool(_)) => true,
-            Value::Arg { .. } | Value::Inst(_) => func.value_ty(value) == Some(MirType::Bool),
+            Value::Arg(_) | Value::Inst(_) => func.value_ty(value) == Some(MirType::Bool),
             Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => false,
         }
     }

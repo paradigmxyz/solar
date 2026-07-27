@@ -61,7 +61,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
     stats: &mut LowerMemoryObjectsStats,
 ) -> bool {
     let is_object_value = |value| match func.value(value) {
-        Value::Arg { .. } | Value::Undef(_) => {
+        Value::Arg(_) | Value::Undef(_) => {
             func.value_ty(value).as_ref().is_some_and(is_object_type)
         }
         Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => false,
@@ -221,7 +221,7 @@ fn erase_object_types(func: &mut Function, stats: &mut LowerMemoryObjectsStats) 
     for value in values.iter() {
         match func.value_mut(value) {
             Value::Undef(ty) => erase_object_type(ty, stats),
-            Value::Arg { .. } | Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => {}
+            Value::Arg(_) | Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => {}
         }
     }
     func.for_each_instruction_mut(|_, inst| {

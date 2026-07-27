@@ -300,7 +300,7 @@ impl LoopAnalyzer {
         for block in &loop_info.blocks {
             for &inst_id in &func.blocks[block].instructions {
                 for operand in func.inst(inst_id).kind.operands() {
-                    if matches!(func.value(operand), Value::Immediate(_) | Value::Arg { .. })
+                    if matches!(func.value(operand), Value::Immediate(_) | Value::Arg(_))
                         || matches!(
                             func.value(operand),
                             Value::Inst(def) if !loop_insts.contains(*def)

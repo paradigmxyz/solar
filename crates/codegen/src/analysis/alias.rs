@@ -1152,7 +1152,7 @@ impl AliasAnalysis {
             Value::Immediate(immediate) => {
                 Some(MemoryAddress::absolute(immediate.as_u256()?.try_into().ok()?))
             }
-            Value::Arg { index } => Some(MemoryAddress::symbolic(
+            Value::Arg(index) => Some(MemoryAddress::symbolic(
                 value,
                 if matches!(func.arg_ty(*index), crate::mir::MirType::MemoryObject(_)) {
                     MemoryRegion::Heap
@@ -1308,7 +1308,7 @@ impl AliasAnalysis {
         }
         let Value::Inst(inst_id) = func.value(value) else {
             return match func.value(value) {
-                Value::Arg { index }
+                Value::Arg(index)
                     if matches!(func.arg_ty(*index), crate::mir::MirType::MemoryObject(_)) =>
                 {
                     MemoryRegion::Heap

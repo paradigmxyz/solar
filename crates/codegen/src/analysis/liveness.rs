@@ -196,7 +196,7 @@ impl Liveness {
 
         let is_local = |value, block_id| match func.value(value) {
             Value::Inst(inst_id) => defining_blocks[*inst_id] == Some(block_id),
-            Value::Arg { .. } => false,
+            Value::Arg(_) => false,
             Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => true,
         };
         let mut operands = SmallVec::<[ValueId; 8]>::new();
