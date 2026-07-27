@@ -1067,6 +1067,8 @@ def main() -> int:
         parser.error("--methods must include auto")
     if len(set(args.methods)) != len(args.methods):
         parser.error("--methods must not contain duplicates")
+    if len(set(args.scope)) != len(args.scope):
+        parser.error("--scope must not contain duplicates")
 
     solar = args.solar.resolve()
     benchmark_repo = args.benchmark_repo.resolve()
