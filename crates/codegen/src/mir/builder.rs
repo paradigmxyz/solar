@@ -83,30 +83,41 @@ impl<'a> FunctionBuilder<'a> {
         self.func.alloc_value(value)
     }
 
-    /// Replaces an allocated value.
-    pub(crate) fn set_value(&mut self, id: ValueId, value: Value) {
-        self.func.values[id] = value;
-    }
-
-    fn emit_inst_raw(&mut self, kind: InstKind, result_ty: Option<MirType>) -> InstId {
+    fn make_inst(&self, kind: InstKind, result_ty: Option<MirType>) -> Instruction {
         let mut inst = Instruction::new(kind, result_ty);
         inst.metadata.set_effect(Some(inst.kind.effect_kind()));
         inst.metadata.set_memory_region(self.memory_region_for_inst(&inst.kind));
         inst.metadata.set_storage_alias(self.storage_alias_for_inst(&inst.kind));
-        self.append_instruction(inst)
+        inst
     }
 
     /// Appends a fully constructed instruction to the current block.
-    pub(crate) fn append_instruction(&mut self, inst: Instruction) -> InstId {
-        let inst_id = self.func.alloc_inst(inst);
+    pub(crate) fn append_instruction(&mut self, inst: Instruction) -> (InstId, Option<ValueId>) {
+        let (inst_id, result) = if inst.result_ty.is_some() {
+            let (inst_id, result) = self.func.alloc_value_inst(inst);
+            (inst_id, Some(result))
+        } else {
+            (self.func.alloc_inst(inst), None)
+        };
+        self.func.blocks[self.current_block].instructions.push(inst_id);
+        (inst_id, result)
+    }
+
+    /// Appends a fully constructed instruction for a preallocated undefined result value.
+    pub(crate) fn append_instruction_with_result(
+        &mut self,
+        inst: Instruction,
+        result: ValueId,
+    ) -> InstId {
+        let inst_id = self.func.alloc_inst_with_result(inst, result);
         self.func.blocks[self.current_block].instructions.push(inst_id);
         inst_id
     }
 
     fn emit_inst(&mut self, kind: InstKind, result_ty: Option<MirType>) -> ValueId {
         debug_assert!(result_ty.is_some(), "value-producing instructions must have a result type");
-        let inst_id = self.emit_inst_raw(kind, result_ty);
-        self.alloc_value(Value::Inst(inst_id))
+        let inst = self.make_inst(kind, result_ty);
+        self.append_instruction(inst).1.expect("value-producing instruction must have a result")
     }
 
     /// Emits an instruction that produces no value, such as a store or a log.
@@ -114,7 +125,8 @@ impl<'a> FunctionBuilder<'a> {
     /// No result [`Value`] is allocated: only value-producing instructions get
     /// an entry in the function's value table.
     fn emit_void_inst(&mut self, kind: InstKind) {
-        self.emit_inst_raw(kind, None);
+        let inst = self.make_inst(kind, None);
+        self.append_instruction(inst);
     }
 
     fn memory_region_for_inst(&self, kind: &InstKind) -> Option<MemoryRegion> {

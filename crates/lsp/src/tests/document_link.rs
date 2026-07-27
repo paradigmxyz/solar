@@ -1,6 +1,6 @@
 use super::{
-    AnalysisBatch, GlobalState, SymbolTables, analyze, snapshot_with_config,
-    support::RequestFixture,
+    AnalysisBatch, AnalysisResultAccumulator, GlobalState, SymbolTables, analyze,
+    snapshot_with_config, support::RequestFixture,
 };
 use crate::test_support::TestProject;
 use async_lsp::ClientSocket;
@@ -142,13 +142,14 @@ fn overlapping_workspaces_prefer_vfs_document_links() {
 
     let config = project.config_with_roots(&["/", "/nested"]);
     let snapshot = snapshot_with_config(config, project.vfs());
-    let mut tables = SymbolTables::default();
+    let mut results = AnalysisResultAccumulator::default();
 
     for batch in snapshot.analysis_batches(Vec::new()) {
         if !batch.files.is_empty() {
-            tables.extend(analyze(batch).symbol_tables);
+            results.push(analyze(batch));
         }
     }
+    let tables = results.finish().symbol_tables;
 
     let path = project.path("/nested/A.sol");
     let links = tables

@@ -107,12 +107,17 @@ impl<'a> Validator<'a> {
         // Count how many Value entries claim to be the result of each InstId.
         let mut inst_def_count: IndexVec<InstId, usize> = index_vec![0; num_insts];
         let mut invalid_inst_def_count: FxHashMap<InstId, usize> = FxHashMap::default();
-        let mut inst_results: IndexVec<InstId, Option<ValueId>> = index_vec![None; num_insts];
         for (value_id, v) in func.values.iter_enumerated() {
             if let Value::Inst(inst_id) = v {
                 if inst_id.index() < num_insts {
                     inst_def_count[*inst_id] += 1;
-                    inst_results[*inst_id] = Some(value_id);
+                    if func.inst_result_value(*inst_id) != Some(value_id) {
+                        self.emit(format_args!(
+                            "value v{} is not the recorded result of instruction inst{}",
+                            value_id.index(),
+                            inst_id.index()
+                        ));
+                    }
                 } else {
                     *invalid_inst_def_count.entry(*inst_id).or_default() += 1;
                 }
@@ -334,7 +339,7 @@ impl<'a> Validator<'a> {
             index_vec![None; num_values];
         for (block_id, block) in func.blocks.iter_enumerated() {
             for (index, &inst_id) in block.instructions.iter().enumerate() {
-                if let Some(result) = inst_results[inst_id] {
+                if let Some(result) = func.inst_result_value(inst_id) {
                     def_location_of[result] = Some((block_id, index));
                 }
             }

@@ -1,7 +1,7 @@
 use lsp_types::{
     CompletionItem, CompletionItemKind, DocumentHighlight, DocumentHighlightKind, DocumentSymbol,
     GotoDefinitionResponse, Hover, HoverContents, InlayHint, Location, MarkupContent, OneOf,
-    Position, Range, SymbolInformation, SymbolKind, Url, WorkspaceSymbol,
+    Position, Range, SymbolInformation, SymbolKind, TypeHierarchyItem, Url, WorkspaceSymbol,
     request::GotoTypeDefinitionResponse,
 };
 use solar_interface::{
@@ -38,6 +38,7 @@ use crate::{
         ImportBindings, MappingBindings, RenameCandidate, RenameIndex, RenameReferenceContext,
     },
     signature_help::SignatureHelpIndex,
+    type_hierarchy::TypeHierarchyIndex,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -64,6 +65,33 @@ pub(crate) struct SymbolTables {
     inlay_hints: InlayHintIndex,
     natspec_completion: NatSpecCompletionIndex,
     signature_help: SignatureHelpIndex,
+    type_hierarchy: TypeHierarchyIndex,
+}
+
+#[derive(Default)]
+pub(crate) struct SymbolTablesAggregator {
+    tables: Option<SymbolTables>,
+    needs_rebuild: bool,
+}
+
+impl SymbolTablesAggregator {
+    pub(crate) fn push(&mut self, tables: SymbolTables) {
+        if let Some(merged) = &mut self.tables {
+            merged.extend_unindexed(tables);
+            self.needs_rebuild = true;
+        } else {
+            self.tables = Some(tables);
+        }
+    }
+
+    pub(crate) fn finish(self) -> SymbolTables {
+        let Self { tables, needs_rebuild } = self;
+        let Some(mut tables) = tables else { return SymbolTables::default() };
+        if needs_rebuild {
+            tables.rebuild_indexes();
+        }
+        tables
+    }
 }
 
 newtype_index! {
@@ -72,6 +100,12 @@ newtype_index! {
 
     /// A lexical scope ID in the LSP symbol table.
     pub(crate) struct ScopeId;
+}
+
+impl SymbolId {
+    pub(crate) fn offset_by(self, offset: usize) -> Self {
+        Self::from_usize(self.index() + offset)
+    }
 }
 
 type TypeDefinitionTargets = SmallVec<[SymbolId; 1]>;
@@ -284,10 +318,13 @@ impl SymbolTables {
                 item_symbols.insert(ItemId::Function(function_id), symbol_id);
             }
         }
+        tables.type_hierarchy = TypeHierarchyIndex::build(gcx, &item_symbols, &tables.declarations);
         tables.build_scopes(gcx);
         tables.build_receiver_member_completions(gcx);
         tables.build_member_completions(gcx);
         tables.build_references(gcx, &item_symbols);
+        // HIR IDs are scoped to this compiler run and cannot back published LSP queries.
+        tables.symbols_by_key = FxHashMap::default();
         tables.document_links = DocumentLinkIndex::build(gcx, document_link_sources);
         tables.inlay_hints = InlayHintIndex::build(gcx);
         tables.natspec_completion = NatSpecCompletionIndex::build(gcx);
@@ -312,7 +349,7 @@ impl SymbolTables {
             .flat_map(|symbols| symbols.iter().map(|&symbol_id| &self.declarations[symbol_id]))
     }
 
-    pub(crate) fn extend(&mut self, mut other: Self) {
+    fn extend_unindexed(&mut self, mut other: Self) {
         if self.global_completions.is_empty() {
             self.global_completions = std::mem::take(&mut other.global_completions);
         }
@@ -325,35 +362,36 @@ impl SymbolTables {
         self.signature_help.extend(other.signature_help);
 
         let symbol_offset = self.declarations.len();
+        self.type_hierarchy.extend(other.type_hierarchy, symbol_offset);
         self.override_families.extend(other.override_families, symbol_offset);
         let scope_offset = self.scopes.len();
         for declaration in &mut other.declarations {
-            declaration.id = remap_symbol_id(declaration.id, symbol_offset);
-            declaration.parent =
-                declaration.parent.map(|parent| remap_symbol_id(parent, symbol_offset));
+            declaration.id = declaration.id.offset_by(symbol_offset);
+            declaration.parent = declaration.parent.map(|parent| parent.offset_by(symbol_offset));
         }
         for (symbol_id, mut targets) in other.type_definitions.drain() {
             for target in &mut targets {
-                *target = remap_symbol_id(*target, symbol_offset);
+                *target = target.offset_by(symbol_offset);
             }
-            self.type_definitions.insert(remap_symbol_id(symbol_id, symbol_offset), targets);
+            self.type_definitions.insert(symbol_id.offset_by(symbol_offset), targets);
         }
         for scope in &mut other.scopes {
             scope.parent = scope.parent.map(|parent| remap_scope_id(parent, scope_offset));
             for declaration in &mut scope.declarations {
-                declaration.symbol_id = remap_symbol_id(declaration.symbol_id, symbol_offset);
+                declaration.symbol_id = declaration.symbol_id.offset_by(symbol_offset);
             }
         }
         for reference in &mut other.references {
             for target in &mut reference.targets {
-                *target = remap_symbol_id(*target, symbol_offset);
+                *target = target.offset_by(symbol_offset);
             }
         }
 
         for (uri, symbols) in other.files {
-            self.files.entry(uri).or_default().extend(
-                symbols.into_iter().map(|symbol_id| remap_symbol_id(symbol_id, symbol_offset)),
-            );
+            self.files
+                .entry(uri)
+                .or_default()
+                .extend(symbols.into_iter().map(|symbol_id| symbol_id.offset_by(symbol_offset)));
         }
         self.declarations.extend(other.declarations);
         self.scopes.extend(other.scopes);
@@ -361,15 +399,11 @@ impl SymbolTables {
             other
                 .receiver_member_completions
                 .into_iter()
-                .map(|(symbol_id, items)| (remap_symbol_id(symbol_id, symbol_offset), items)),
+                .map(|(symbol_id, items)| (symbol_id.offset_by(symbol_offset), items)),
         );
         self.member_completions.extend(other.member_completions);
         self.references.extend(other.references);
         self.rename.extend(other.rename, symbol_offset);
-        // HIR IDs are scoped to one compiler run, so this build-time map is not meaningful after
-        // merging symbol tables from separate analysis batches.
-        self.symbols_by_key.clear();
-        self.rebuild_indexes();
     }
 
     pub(crate) fn inlay_hints(&self, uri: &Url, range: Range) -> Vec<InlayHint> {
@@ -553,6 +587,46 @@ impl SymbolTables {
         locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
         Some(GotoDefinitionResponse::Array(locations))
     }
+
+    pub(crate) fn prepare_type_hierarchy(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<Vec<TypeHierarchyItem>> {
+        if self.rename.conflicting_contents().contains(uri) {
+            return None;
+        }
+        if let Some(reference) = self.reference_at_position(uri, position) {
+            let range = reference.location.range;
+            let prepared = self.type_hierarchy.prepare(&reference.targets);
+            let references = self.file_references.get(uri)?;
+            let agree = references
+                .candidates_at(position, |index| self.references[index].location.range)
+                .filter(|&index| self.references[index].location.range == range)
+                .all(|index| {
+                    self.type_hierarchy.prepare(&self.references[index].targets) == prepared
+                });
+            return if agree { prepared } else { None };
+        }
+
+        let symbol_id = self.declaration_at_position(uri, position)?;
+        self.type_hierarchy.prepare(std::slice::from_ref(&symbol_id))
+    }
+
+    pub(crate) fn type_hierarchy_supertypes(
+        &self,
+        item: &TypeHierarchyItem,
+    ) -> Option<Vec<TypeHierarchyItem>> {
+        self.type_hierarchy.supertypes(item)
+    }
+
+    pub(crate) fn type_hierarchy_subtypes(
+        &self,
+        item: &TypeHierarchyItem,
+    ) -> Option<Vec<TypeHierarchyItem>> {
+        self.type_hierarchy.subtypes(item)
+    }
+
     pub(crate) fn goto_type_definition(
         &self,
         uri: &Url,
@@ -1214,12 +1288,9 @@ impl SymbolTables {
             references.rebuild(|index| self.references[index].location.range);
         }
         self.override_families.rebuild(&self.declarations, self.rename.conflicting_contents());
+        self.type_hierarchy.rebuild(self.rename.conflicting_contents());
         self.rename.rebuild(&self.override_families);
     }
-}
-
-fn remap_symbol_id(symbol_id: SymbolId, offset: usize) -> SymbolId {
-    SymbolId::from_usize(symbol_id.index() + offset)
 }
 
 fn remap_scope_id(scope_id: ScopeId, offset: usize) -> ScopeId {
@@ -2320,15 +2391,17 @@ mod tests {
     }
 
     #[test]
-    fn extend_preserves_document_links_without_declarations() {
+    fn aggregator_preserves_document_links_without_declarations() {
         let source_path = PathBuf::from("/workspace/src/Imports.sol");
         let target = parse_uri("file:///workspace/src/Dependency.sol");
         let link_range = range(0, 8, 0, 24);
-        let mut tables = SymbolTables::default();
         let mut other = SymbolTables::default();
         other.document_links.insert_for_test(source_path.clone(), link_range, target.clone());
+        let mut aggregator = SymbolTablesAggregator::default();
 
-        tables.extend(other);
+        aggregator.push(SymbolTables::default());
+        aggregator.push(other);
+        let tables = aggregator.finish();
 
         let links = tables.document_links(&source_path);
         assert_eq!(links.len(), 1);

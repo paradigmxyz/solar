@@ -49,7 +49,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.parser.expect_keyword(sym::module)?;
         let name = self.parser.parse_ident()?;
 
-        let mut module = Module::new(name.as_str());
+        let mut module = Module::new(name);
         self.parse_program_body(&mut module)?;
         Ok(module)
     }

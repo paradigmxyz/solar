@@ -20,7 +20,7 @@ use crate::{
         MemoryObjectKind, MirType, Module, SliceLocation, StorageLayoutRef, ValueId,
     },
 };
-use alloy_primitives::U256;
+use alloy_primitives::{Bytes, U256};
 use solar_data_structures::{
     Never,
     bit_set::GrowableBitSet,
@@ -75,6 +75,8 @@ struct InlineReturnCtx {
     return_vars: Vec<VariableId>,
 }
 
+type InternalFunctionPointerShape = (Vec<MirType>, Vec<MirType>);
+
 /// Lowering context for converting HIR to MIR.
 pub(crate) struct Lowerer<'gcx> {
     /// The global context.
@@ -118,8 +120,7 @@ pub(crate) struct Lowerer<'gcx> {
     /// Next available memory offset for locals.
     next_local_memory_offset: u64,
     /// Bytecodes of other contracts (for `new` expressions).
-    /// Maps contract ID to (deployment_bytecode, data_segment_index).
-    contract_bytecodes: FxHashMap<ContractId, Vec<u8>>,
+    contract_bytecodes: FxHashMap<ContractId, Bytes>,
     /// Stack of loop contexts for nested loops.
     loop_stack: Vec<LoopContext>,
     /// Variables that are assigned after declaration (need memory storage).
@@ -141,6 +142,10 @@ pub(crate) struct Lowerer<'gcx> {
     recursive_functions: FxHashMap<HirFunctionId, bool>,
     /// Functions currently being lowered on demand.
     lowering_functions: GrowableBitSet<HirFunctionId>,
+    /// Functions whose declarations are used as internal function values.
+    internal_function_pointer_targets: GrowableBitSet<HirFunctionId>,
+    /// Shared internal function-pointer dispatchers keyed by MIR parameter and return types.
+    internal_function_pointer_dispatchers: FxHashMap<InternalFunctionPointerShape, FunctionId>,
     /// Whether the current function body is constructor code.
     lowering_constructor: bool,
     /// Whether local memory slots should be addressed through the internal-call frame.
@@ -217,6 +222,8 @@ impl<'gcx> Lowerer<'gcx> {
             hir_to_internal_mir_functions: FxHashMap::default(),
             recursive_functions: FxHashMap::default(),
             lowering_functions: GrowableBitSet::new_empty(),
+            internal_function_pointer_targets: GrowableBitSet::new_empty(),
+            internal_function_pointer_dispatchers: FxHashMap::default(),
             lowering_constructor: false,
             lowering_internal_function: false,
             revert_error_helper: None,
@@ -380,11 +387,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Registers a contract's bytecode for use in `new` expressions.
-    pub(crate) fn register_contract_bytecode(
-        &mut self,
-        contract_id: ContractId,
-        bytecode: Vec<u8>,
-    ) {
+    pub(crate) fn register_contract_bytecode(&mut self, contract_id: ContractId, bytecode: Bytes) {
         self.contract_bytecodes.insert(contract_id, bytecode);
     }
 
@@ -1545,6 +1548,11 @@ impl<'gcx> Lowerer<'gcx> {
         self.gcx.function_selector(func_id).0
     }
 
+    /// Returns the nonzero runtime discriminator for an internal function.
+    fn internal_function_pointer_id(func_id: HirFunctionId) -> u64 {
+        u64::try_from(func_id.index()).expect("function index does not fit in u64") + 1
+    }
+
     pub(super) fn mcopy(
         &self,
         builder: &mut FunctionBuilder<'_>,
@@ -1603,7 +1611,8 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Returns the completed module.
     #[must_use]
-    pub(crate) fn finish(self) -> Module {
+    pub(crate) fn finish(mut self) -> Module {
+        self.generate_internal_function_pointer_dispatchers();
         self.module
     }
 
@@ -1850,7 +1859,6 @@ pub fn contract_bytecode_dependencies(
 ) -> GrowableBitSet<ContractId> {
     let mut deps = GrowableBitSet::new_empty();
     BytecodeDependencyCollector { gcx, deps: &mut deps }.collect_contract(contract_id);
-    deps.remove(contract_id);
     deps
 }
 
@@ -1926,7 +1934,7 @@ impl<'gcx> Visit<'gcx> for BytecodeDependencyCollector<'_, 'gcx> {
 pub fn lower_contract_with_bytecodes(
     gcx: Gcx<'_>,
     contract_id: ContractId,
-    child_bytecodes: &FxHashMap<ContractId, Vec<u8>>,
+    child_bytecodes: &FxHashMap<ContractId, Bytes>,
 ) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut lowerer = Lowerer::new(gcx, contract.name);
