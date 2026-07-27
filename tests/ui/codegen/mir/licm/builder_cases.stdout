@@ -14,6 +14,19 @@
       stop
   }
   
+  fn @hoist_clz(arg0: u256) {
+    bb0:
++     v0 = clz arg0
+      jump bb1
+    bb1:
+      jumpi 1, bb2, bb3
+    bb2:
+-     v0 = clz arg0
+      jump bb1
+    bb3:
+      stop
+  }
+  
   fn @hoist_non_aliasing_sload() -> u256 {
     bb0:
 +     v0 = sload 0 !metadata(storage=slot(0))
