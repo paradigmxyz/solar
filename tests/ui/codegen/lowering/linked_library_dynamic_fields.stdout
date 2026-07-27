@@ -519,9 +519,6 @@ bb24 [cold]:
   shl
   push 0
   mstore
-  pop
-  pop
-  pop
   push 50
   jump bb26
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:C (runtime) ===

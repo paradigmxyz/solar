@@ -48,9 +48,13 @@
 //! functions may instead carry two or three repeatedly used decoded arguments through compatible
 //! joins; switch components and joins owned by the phi policy are excluded. Every incoming edge
 //! must agree on the same layout, and values outside a selected layout keep their stable spill
-//! homes. These are not independent schedulers applied in sequence: MIR ordering changes producer
-//! order, one local planner tier prepares each instruction, and an edge policy invokes the
-//! shuffler only when its complete-layout preconditions hold.
+//! homes. A conditional edge can carry one union layout into two private successors. On a cold
+//! successor, words used only by its hot sibling become anonymous: the physical stack depth stays
+//! unchanged, but later planning no longer preserves or cleans up a dead identity. Hot successors
+//! keep exact identities because anonymizing a loop-carried word can replace a stack hit with a
+//! reload on every iteration. These are not independent schedulers applied in sequence: MIR
+//! ordering changes producer order, one local planner tier prepares each instruction, and an edge
+//! policy invokes the shuffler only when its complete-layout preconditions hold.
 //!
 //! ## Design lineage
 //!
@@ -87,6 +91,11 @@
 //! conservative dependency-only reservations described above. It does not import LLVM's machine
 //! frame objects, register allocation, or target pass pipeline.
 //!
+//! solx also gives each conditional successor the union exit layout and replaces slots absent from
+//! that successor with [unused stack slots]. Our private-successor path uses the same distinction
+//! between a physical word and a live value identity, restricted to cold successors by the hot-loop
+//! tradeoff above.
+//!
 //! [scheduler pipeline]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/lib.rs
 //! [Plank's intra-operation scheduler]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/greedy_intra_op_scheduler/mod.rs
 //! [greedy edge shuffler]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/greedy_shuffler/mod.rs
@@ -100,6 +109,7 @@
 //! [Sonatina integration]: https://github.com/fe-lang/fe/blob/636607d1a859bb68d88460c5ee63dd9532791aa8/crates/codegen/src/sonatina/mod.rs
 //! [stack-slot coloring]: https://github.com/NomicFoundation/solx-llvm/blob/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/CodeGen/StackSlotColoring.cpp
 //! [solx LLVM EVM target]: https://github.com/NomicFoundation/solx-llvm/tree/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/Target/EVM
+//! [unused stack slots]: https://github.com/NomicFoundation/solx-llvm/blob/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/Target/EVM/EVMStackSolver.cpp
 //!
 //! ## Operand planning
 //!

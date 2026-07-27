@@ -1296,9 +1296,6 @@ bb23 [cold]:
   shl
   push 0
   mstore
-  pop
-  pop
-  pop
   push 65
   jump bb71
 bb35 [cold]:
@@ -1307,6 +1304,5 @@ bb35 [cold]:
   shl
   push 0
   mstore
-  pop
   push 49
   jump bb71

@@ -1520,7 +1520,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 block_entry_stacks.insert(target, self.scheduler.stack.clone());
             }
             for target in preserve_branch_targets {
-                block_entry_stacks.insert(target, self.scheduler.stack.clone());
+                let mut entry_stack = self.scheduler.stack.clone();
+                // The branch has one physical exit stack, but a cold successor need not retain
+                // identities used only by its hot sibling. Keep hot layouts exact: anonymizing
+                // their dead slots can turn a loop-carried stack hit into a reload every iteration.
+                if self.block_is_cold(target) {
+                    let live_in = liveness.live_in(target);
+                    entry_stack.forget_values_not_matching(|value| live_in.contains(value));
+                }
+                block_entry_stacks.insert(target, entry_stack);
             }
         }
 

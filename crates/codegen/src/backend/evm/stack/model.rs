@@ -23,7 +23,7 @@ pub(crate) const MAX_STACK_DEPTH: usize = 1024;
 #[derive(Clone, Debug)]
 pub(crate) struct StackModel {
     /// The stack, with index 0 being the top.
-    /// Each entry is either a known ValueId or None (for unknown/spilled values).
+    /// Each entry is either a known ValueId or None (for anonymous or successor-unused words).
     stack: SmallVec<[Option<ValueId>; 16]>,
 }
 
@@ -127,6 +127,15 @@ impl StackModel {
             true
         } else {
             false
+        }
+    }
+
+    /// Forgets the identity of stack words that do not satisfy `keep`.
+    pub(crate) fn forget_values_not_matching(&mut self, mut keep: impl FnMut(ValueId) -> bool) {
+        for slot in &mut self.stack {
+            if slot.is_some_and(|value| !keep(value)) {
+                *slot = None;
+            }
         }
     }
 
@@ -265,5 +274,18 @@ mod tests {
         assert!(model.rename(v0, v2));
         assert_eq!(model.as_slice(), &[Some(v1), Some(v2)]);
         assert!(!model.rename(v0, v1));
+    }
+
+    #[test]
+    fn test_forget_values_not_matching() {
+        let mut model = StackModel::new();
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+
+        model.push(v0);
+        model.push(v1);
+        model.forget_values_not_matching(|value| value == v1);
+
+        assert_eq!(model.as_slice(), &[Some(v1), None]);
     }
 }

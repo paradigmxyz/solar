@@ -610,6 +610,5 @@ bb20 [cold]:
   shl
   push 0
   mstore
-  pop
   push 50
   jump bb41
