@@ -1,5 +1,5 @@
 //@ revisions: built evm_shaped
-//@[built] compile-flags: -Zcodegen -Zdump=mir
+//@[built] compile-flags: -Zcodegen -O none -Zdump=mir
 //@[built] filecheck: --check-prefix=BUILT
 //@[evm_shaped] compile-flags: -Zcodegen -Ogas -Zdump=mir-evm-shaped
 //@[evm_shaped] filecheck: --check-prefix=SHAPED
@@ -86,11 +86,11 @@ contract InternalFunctionPointerMir {
     // BUILT: internal_call @__internal_dispatch_1, 0, [[SET_FLAG]]
     // BUILT-LABEL: fn @__internal_dispatch_1(
     // BUILT: eq arg0, [[SET_FLAG]]
-    // BUILT: internal_call fn{{[0-9]+}}, 0
+    // BUILT: internal_call setFlag{{[0-9]+}}, 0
     // BUILT: mstore 4, 81
     // SHAPED-LABEL: fn @callVoid(
     // SHAPED-NOT: internal_call @__internal_dispatch
-    // SHAPED: internal_call fn{{[0-9]+}}, 0
+    // SHAPED: internal_call setFlag{{[0-9]+}}, 0
     // SHAPED: returndata 128, 32
     // SHAPED-LABEL: fn @__internal_dispatch_1(
     // SHAPED: eq arg0, 9

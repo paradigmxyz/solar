@@ -26,6 +26,7 @@ use std::{
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
+mod call_hierarchy;
 mod completion;
 mod document_highlight;
 mod document_link;

@@ -442,6 +442,7 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
                 InstKind::InternalCall { .. } => summary.has_internal_call = true,
                 InstKind::Phi(_) => summary.has_phi = true,
                 InstKind::Call { .. }
+                | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
                 | InstKind::DelegateCall { .. }
                 | InstKind::Create(..)
@@ -590,7 +591,8 @@ fn estimate_inst_cost(kind: &InstKind) -> MirCost {
         | InstKind::Gas
         | InstKind::BaseFee
         | InstKind::BlobBaseFee => (3, 1),
-        InstKind::Mul(..)
+        InstKind::Clz(..)
+        | InstKind::Mul(..)
         | InstKind::Div(..)
         | InstKind::SDiv(..)
         | InstKind::Mod(..)
@@ -619,9 +621,10 @@ fn estimate_inst_cost(kind: &InstKind) -> MirCost {
         InstKind::MappingSlot(..) => (36, 3),
         InstKind::MappingSlotMemory(..) => (60, 8),
         InstKind::MappingSlotCalldata(..) => (63, 9),
-        InstKind::Call { .. } | InstKind::StaticCall { .. } | InstKind::DelegateCall { .. } => {
-            (700, 1)
-        }
+        InstKind::Call { .. }
+        | InstKind::CallCode { .. }
+        | InstKind::StaticCall { .. }
+        | InstKind::DelegateCall { .. } => (700, 1),
         InstKind::InternalCall { args, returns, .. } => {
             let returns = *returns as usize;
             (80 + ((args.len() + returns) as u64) * 20, 16 + (args.len() + returns) * 4)
@@ -1103,6 +1106,7 @@ impl<'a> InlineCloner<'a> {
             InstKind::Or(a, b) => InstKind::Or(self.clone_value(a)?, self.clone_value(b)?),
             InstKind::Xor(a, b) => InstKind::Xor(self.clone_value(a)?, self.clone_value(b)?),
             InstKind::Not(a) => InstKind::Not(self.clone_value(a)?),
+            InstKind::Clz(a) => InstKind::Clz(self.clone_value(a)?),
             InstKind::Shl(a, b) => InstKind::Shl(self.clone_value(a)?, self.clone_value(b)?),
             InstKind::Shr(a, b) => InstKind::Shr(self.clone_value(a)?, self.clone_value(b)?),
             InstKind::Sar(a, b) => InstKind::Sar(self.clone_value(a)?, self.clone_value(b)?),
@@ -1215,6 +1219,23 @@ impl<'a> InlineCloner<'a> {
                     ret_size: self.clone_value(ret_size)?,
                 }
             }
+            InstKind::CallCode {
+                gas,
+                addr,
+                value,
+                args_offset,
+                args_size,
+                ret_offset,
+                ret_size,
+            } => InstKind::CallCode {
+                gas: self.clone_value(gas)?,
+                addr: self.clone_value(addr)?,
+                value: self.clone_value(value)?,
+                args_offset: self.clone_value(args_offset)?,
+                args_size: self.clone_value(args_size)?,
+                ret_offset: self.clone_value(ret_offset)?,
+                ret_size: self.clone_value(ret_size)?,
+            },
             InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
                 InstKind::StaticCall {
                     gas: self.clone_value(gas)?,

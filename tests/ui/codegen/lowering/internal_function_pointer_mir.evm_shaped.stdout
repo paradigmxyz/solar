@@ -122,7 +122,7 @@ fn @callCast() {
 fn @callVoid() {
   bb0:
     mstore 128, 0
-    internal_call fn11, 0
+    internal_call setFlag11, 0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
     mstore 128, v1
@@ -134,7 +134,7 @@ fn @__internal_dispatch_1(arg0: function) {
     v0 = eq arg0, 9
     jumpi v0, bb1, bb2
   bb1:
-    internal_call fn11, 0
+    internal_call setFlag11, 0
     ret
   bb2:
     tail_call @__revert_stub0
@@ -227,7 +227,7 @@ fn @entry() {
   bb4:
     tail_call @callZero
   bb5:
-    tail_call fn7
+    tail_call setFlag7
   bb6:
     tail_call @callPair
   bb7:

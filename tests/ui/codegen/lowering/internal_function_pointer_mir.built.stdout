@@ -171,7 +171,7 @@ fn @__internal_dispatch_1(arg0: function) {
     v0 = eq arg0, 9
     jumpi v0, bb1, bb2
   bb1:
-    internal_call fn17, 0
+    internal_call setFlag17, 0
     ret
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

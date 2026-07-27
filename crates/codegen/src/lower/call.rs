@@ -310,6 +310,39 @@ impl<'gcx> Lowerer<'gcx> {
         )
     }
 
+    pub(super) fn resolve_internal_function_pointer_target(
+        &self,
+        function_id: hir::FunctionId,
+    ) -> hir::FunctionId {
+        let function = self.gcx.hir.function(function_id);
+        let Some(contract_id) = self.contract_id else { return function_id };
+        if !function.virtual_ || function.contract == Some(contract_id) {
+            return function_id;
+        }
+
+        for &base_id in self.gcx.hir.contract(contract_id).linearized_bases {
+            for candidate in self.gcx.hir.contract(base_id).functions() {
+                if candidate == function_id
+                    || self.internal_function_overrides(candidate, function_id)
+                {
+                    return candidate;
+                }
+            }
+        }
+        function_id
+    }
+
+    fn internal_function_overrides(
+        &self,
+        function_id: hir::FunctionId,
+        base_id: hir::FunctionId,
+    ) -> bool {
+        self.gcx.base_override_items(function_id.into()).iter().any(|item| {
+            let hir::ItemId::Function(overridden_id) = item else { return false };
+            *overridden_id == base_id || self.internal_function_overrides(*overridden_id, base_id)
+        })
+    }
+
     fn builtin_uses_direct_call_lowering(builtin: Builtin) -> bool {
         !matches!(
             builtin,
@@ -957,6 +990,20 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::YulSgt => builder.sgt(args[0], args[1]),
             Builtin::YulEq => builder.eq(args[0], args[1]),
             Builtin::YulIszero => builder.iszero(args[0]),
+            Builtin::YulClz => {
+                if self.gcx.sess.opts.evm_version.has_clz() {
+                    builder.clz(args[0])
+                } else {
+                    let guar = self
+                        .gcx
+                        .dcx()
+                        .err("codegen requires Osaka-compatible EVM for `clz`")
+                        .span(call_args.span)
+                        .help("compile with `--evm-version osaka` or newer")
+                        .emit();
+                    builder.error_value(guar)
+                }
+            }
             Builtin::YulMload => builder.mload(args[0]),
             Builtin::YulMsize => builder.msize(),
             Builtin::YulSload => builder.sload(args[0]),
@@ -989,6 +1036,9 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::YulCall => {
                 builder.call(args[0], args[1], args[2], args[3], args[4], args[5], args[6])
             }
+            Builtin::YulCallcode => {
+                builder.callcode(args[0], args[1], args[2], args[3], args[4], args[5], args[6])
+            }
             Builtin::YulStaticcall => {
                 builder.staticcall(args[0], args[1], args[2], args[3], args[4], args[5])
             }
@@ -997,11 +1047,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
             Builtin::YulCreate => builder.create(args[0], args[1], args[2]),
             Builtin::YulCreate2 => builder.create2(args[0], args[1], args[2], args[3]),
-            Builtin::YulClz
-            | Builtin::YulCallcode
-            | Builtin::YulExtcall
-            | Builtin::YulExtdelegatecall
-            | Builtin::YulExtstaticcall => {
+            Builtin::YulExtcall | Builtin::YulExtdelegatecall | Builtin::YulExtstaticcall => {
                 self.unsupported_yul_builtin(builder, builtin, call_args.span)
             }
             _ => unreachable!("unit Yul builtin passed to value lowering"),
