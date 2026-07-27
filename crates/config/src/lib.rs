@@ -143,6 +143,9 @@ impl EvmVersion {
     pub fn has_mcopy(self) -> bool {
         self >= Self::Cancun
     }
+    pub fn has_clz(self) -> bool {
+        self >= Self::Osaka
+    }
 }
 
 str_enum! {

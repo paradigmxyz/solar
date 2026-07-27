@@ -455,6 +455,7 @@ impl FrameSlotPromoter {
                 slot_offset,
             ),
             InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
+            | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::DelegateCall { args_offset, args_size, ret_offset, ret_size, .. } => {
                 Self::internal_frame_range_may_overlap(
@@ -546,6 +547,7 @@ impl FrameSlotPromoter {
                 Self::memory_range_may_overlap(func, aa, addr, func.value_u64(size), slot_addr)
             }
             InstKind::Call { .. }
+            | InstKind::CallCode { .. }
             | InstKind::StaticCall { .. }
             | InstKind::DelegateCall { .. }
             | InstKind::InternalCall { .. }

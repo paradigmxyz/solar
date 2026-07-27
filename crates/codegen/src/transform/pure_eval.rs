@@ -204,6 +204,7 @@ impl PureEvaluator {
             InstKind::Or(a, b) => get(a)? | get(b)?,
             InstKind::Xor(a, b) => get(a)? ^ get(b)?,
             InstKind::Not(a) => !get(a)?,
+            InstKind::Clz(a) => U256::from(get(a)?.leading_zeros() as u64),
             InstKind::Shl(shift, value) => {
                 let shift = get(shift)?;
                 if shift >= U256::from(256) {
