@@ -1777,15 +1777,14 @@ impl<'gcx> Lowerer<'gcx> {
         // as a memory value and would miscompile subsequent field/element reads.
         let has_storage_ref_param = params.iter().any(|&p| self.param_is_storage_ref(p));
 
-        // `-O size`: lowering-time inlining duplicates the body at every call
-        // site with no call-count awareness. Emit a shared call instead — with
-        // static frames and stack return addresses a call site costs a few
-        // bytes, so sharing multi-use helpers now shrinks the output (the
-        // opposite held under the old memory-frame protocol).
-        let size_mode = self.gcx.sess.opts.optimization.is_size();
+        // Lowering-time inlining duplicates the body at every call site, so it
+        // is budgeted by body size; a call site costs a few bytes under the
+        // static-frame protocol, and anything bigger is better shared and left
+        // to the MIR `inline` pass, which budgets against call counts too.
+        let shares_body = !self.should_inline_body(func_id);
 
         if func.returns.is_empty() {
-            if size_mode || has_storage_ref_param || self.function_is_recursive(func_id) {
+            if shares_body || has_storage_ref_param || self.function_is_recursive(func_id) {
                 self.lower_internal_void_call_fallback(builder, func_id, arg_vals);
             } else {
                 self.lower_inline_void_call(builder, func_id, &arg_vals);
@@ -1820,7 +1819,7 @@ impl<'gcx> Lowerer<'gcx> {
         // use the internal-frame convention directly; a public callee is compiled
         // for the external ABI, so it needs an internal-frame copy
         // (`ensure_internal_mir_function`) for `internal_call` to target.
-        let needs_call = size_mode
+        let needs_call = shares_body
             || has_storage_ref_param
             || !Self::is_simple_return_function(func)
             || self.function_is_recursive(func_id);
@@ -1853,6 +1852,72 @@ impl<'gcx> Lowerer<'gcx> {
         self.exit_inline();
 
         Some(result)
+    }
+
+    /// Largest HIR body, in statements, that lowering will duplicate at a call
+    /// site.
+    ///
+    /// Lowering-time inlining copies the whole body, transitively, at every
+    /// call site, and it runs before MIR exists, so the MIR inliner's cost model
+    /// never gets a say. Without a bound a large helper called from many places
+    /// multiplies the module before a single pass has run — the shape behind
+    /// contracts several times solc's size. Small bodies still inline, where the
+    /// call sequence really does cost more than the body.
+    const MAX_INLINE_BODY_STMTS: usize = 24;
+
+    /// Whether lowering should duplicate `func_id`'s body at this call site
+    /// rather than emitting a shared `internal_call`.
+    ///
+    /// `-O size` never duplicates; `-O gas` duplicates only bodies under
+    /// [`Self::MAX_INLINE_BODY_STMTS`]. Everything else goes through the
+    /// fallback, leaving the decision to the MIR `inline` pass, which budgets
+    /// against call counts and module size.
+    fn should_inline_body(&mut self, func_id: hir::FunctionId) -> bool {
+        if self.gcx.sess.opts.optimization.is_size() {
+            return false;
+        }
+        self.hir_body_size(func_id) <= Self::MAX_INLINE_BODY_STMTS
+    }
+
+    /// The number of statements in `func_id`'s body, counted recursively and
+    /// cached. Nested blocks, loops, branches, and `try` arms all contribute, so
+    /// the count reflects what inlining would actually copy.
+    fn hir_body_size(&mut self, func_id: hir::FunctionId) -> usize {
+        if let Some(&cached) = self.body_sizes.get(&func_id) {
+            return cached;
+        }
+        let size = self
+            .gcx
+            .hir
+            .function(func_id)
+            .body
+            .map(|body| Self::hir_block_size(&body))
+            .unwrap_or(0);
+        self.body_sizes.insert(func_id, size);
+        size
+    }
+
+    fn hir_block_size(block: &hir::Block<'_>) -> usize {
+        block.stmts.iter().map(Self::hir_stmt_size).sum()
+    }
+
+    fn hir_stmt_size(stmt: &hir::Stmt<'_>) -> usize {
+        1 + match &stmt.kind {
+            hir::StmtKind::Block(block)
+            | hir::StmtKind::UncheckedBlock(block)
+            | hir::StmtKind::AssemblyBlock(block)
+            | hir::StmtKind::Loop(block, _) => Self::hir_block_size(block),
+            hir::StmtKind::If(_, then, otherwise) => {
+                Self::hir_stmt_size(then) + otherwise.map(Self::hir_stmt_size).unwrap_or(0)
+            }
+            hir::StmtKind::Switch(switch) => {
+                switch.cases.iter().map(|case| Self::hir_block_size(&case.body)).sum()
+            }
+            hir::StmtKind::Try(try_stmt) => {
+                try_stmt.clauses.iter().map(|clause| Self::hir_block_size(&clause.block)).sum()
+            }
+            _ => 0,
+        }
     }
 
     /// Whether any return of `func` is a `bytes`/`string`/array calldata
@@ -2493,12 +2558,12 @@ impl<'gcx> Lowerer<'gcx> {
             let has_storage_ref_param =
                 func.parameters.iter().any(|&p| self.param_is_storage_ref(p));
 
-            // `-O size`: share multi-use helpers through (cheap static-frame)
-            // calls instead of duplicating their body at every call site.
-            let size_mode = self.gcx.sess.opts.optimization.is_size();
+            // Share bodies too large to be worth duplicating at every call
+            // site through a (cheap static-frame) call instead.
+            let shares_body = !self.should_inline_body(func_id);
 
             if func.returns.is_empty() {
-                if size_mode || has_storage_ref_param || self.function_is_recursive(func_id) {
+                if shares_body || has_storage_ref_param || self.function_is_recursive(func_id) {
                     self.lower_internal_void_call_fallback(builder, func_id, arg_vals);
                 } else {
                     self.lower_inline_void_call(builder, func_id, &arg_vals);
@@ -2519,7 +2584,7 @@ impl<'gcx> Lowerer<'gcx> {
                 return Some(value);
             }
 
-            if size_mode
+            if shares_body
                 || has_storage_ref_param
                 || !Self::is_simple_return_function(func)
                 || self.function_is_recursive(func_id)
