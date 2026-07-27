@@ -99,8 +99,8 @@ def verify_submodule(root: Path, revision: str, display: str) -> dict[str, str]:
     actual = run(["git", "rev-parse", "HEAD"], root)
     if actual != revision:
         raise RuntimeError(f"benchmark submodule {display} is at {actual}, expected {revision}")
-    if run(["git", "status", "--porcelain", "--untracked-files=no"], root):
-        raise RuntimeError(f"benchmark submodule has tracked changes: {display}")
+    if run(["git", "status", "--porcelain", "--untracked-files=normal"], root):
+        raise RuntimeError(f"benchmark submodule has local changes: {display}")
 
     revisions = {display: actual}
     for path, nested_revision in gitlinks(root, revision).items():
