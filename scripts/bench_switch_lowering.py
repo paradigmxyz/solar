@@ -432,6 +432,7 @@ def render_markdown(output_dir: Path, methods: Sequence[str]) -> str:
                     [
                         str(result["test_id"]),
                         method,
+                        str(compiler["bytecode_size"]),
                         str(compiler["runtime_size"]),
                         str(len(entries)),
                         str(sum(entries)),
@@ -463,6 +464,7 @@ def render_markdown(output_dir: Path, methods: Sequence[str]) -> str:
             (
                 "Fixture",
                 "Method",
+                "Deploy B",
                 "Runtime B",
                 "Entries",
                 "Entry gas",
