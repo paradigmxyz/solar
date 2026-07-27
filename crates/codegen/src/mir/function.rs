@@ -5,6 +5,7 @@ use super::{
     ValueId,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     fmt::{self, FmtIteratorExt},
@@ -193,15 +194,15 @@ impl Function {
     /// Each instruction yields its operands followed by its result, if any. Terminator operands
     /// follow the instructions in their block. A value is yielded once for every occurrence.
     pub(crate) fn live_values(&self) -> impl Iterator<Item = ValueId> + '_ {
-        let mut values = Vec::with_capacity(self.num_values());
+        let mut values = SmallVec::<[ValueId; 8]>::with_capacity(self.num_values());
         for block in &self.blocks {
             for &inst_id in &block.instructions {
                 let inst = self.inst(inst_id);
-                inst.kind.visit_operands(|operand| values.push(operand));
+                inst.kind.collect_operands(&mut values);
                 values.extend(inst.result());
             }
             if let Some(terminator) = &block.terminator {
-                terminator.visit_operands(|operand| values.push(operand));
+                values.extend(terminator.operands());
             }
         }
         values.into_iter()

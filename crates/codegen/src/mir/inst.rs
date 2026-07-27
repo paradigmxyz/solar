@@ -5,7 +5,7 @@ use super::{
     SliceLocation, StorageLayoutRef, Value, ValueId,
 };
 use alloy_primitives::U256;
-use smallvec::SmallVec;
+use smallvec::{Array, SmallVec};
 use solar_interface::Span;
 use solar_sema::hir;
 use std::fmt;
@@ -829,8 +829,9 @@ pub(crate) enum InstKind {
 }
 
 impl InstKind {
-    /// Visits every operand of this instruction.
-    pub(crate) fn visit_operands(&self, mut visit: impl FnMut(ValueId)) {
+    /// Collects all operands of this instruction into the provided vector.
+    /// This is the canonical way to get all operands for liveness analysis.
+    pub(crate) fn collect_operands<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
         match self {
             // Binary operations
             Self::Add(a, b)
@@ -863,29 +864,29 @@ impl InstKind {
             | Self::MappingSlotCalldata(a, b)
             | Self::Log0(a, b)
             | Self::SignExtend(a, b) => {
-                visit(*a);
-                visit(*b);
+                out.push(*a);
+                out.push(*b);
             }
 
             Self::MakeSlice { ptr, len, .. } => {
-                visit(*ptr);
-                visit(*len);
+                out.push(*ptr);
+                out.push(*len);
             }
 
             Self::SetMemoryObjectLen(object, len, _)
             | Self::MemoryObjectElementAddr { object, index: len, .. } => {
-                visit(*object);
-                visit(*len);
+                out.push(*object);
+                out.push(*len);
             }
 
             Self::StorageToMemory { storage, memory, .. }
             | Self::MemoryToStorage { memory, storage, .. } => {
-                visit(*storage);
-                visit(*memory);
+                out.push(*storage);
+                out.push(*memory);
             }
 
             Self::AbiEncode { selector, args, .. } => {
-                selector.iter().chain(args).copied().for_each(&mut visit);
+                out.extend(selector.iter().chain(args).copied());
             }
 
             // Unary operations
@@ -905,14 +906,14 @@ impl InstKind {
             | Self::MemoryObjectLen(a, _)
             | Self::MemoryObjectData(a, _)
             | Self::MemoryObjectFieldAddr { object: a, .. } => {
-                visit(*a);
+                out.push(*a);
             }
 
-            Self::Alloc { size, .. } => visit(*size),
+            Self::Alloc { size, .. } => out.push(*size),
 
-            Self::ClearStorage { storage, .. } => visit(*storage),
+            Self::ClearStorage { storage, .. } => out.push(*storage),
 
-            Self::SlicePtr(slice) | Self::SliceLen(slice) => visit(*slice),
+            Self::SlicePtr(slice) | Self::SliceLen(slice) => out.push(*slice),
 
             // Ternary operations
             Self::MCopy(a, b, c)
@@ -924,72 +925,72 @@ impl InstKind {
             | Self::Create(a, b, c)
             | Self::Log1(a, b, c)
             | Self::Select(a, b, c) => {
-                visit(*a);
-                visit(*b);
-                visit(*c);
+                out.push(*a);
+                out.push(*b);
+                out.push(*c);
             }
 
             // 4-operand operations
             Self::ExtCodeCopy(a, b, c, d) | Self::Create2(a, b, c, d) | Self::Log2(a, b, c, d) => {
-                visit(*a);
-                visit(*b);
-                visit(*c);
-                visit(*d);
+                out.push(*a);
+                out.push(*b);
+                out.push(*c);
+                out.push(*d);
             }
 
             // 5-operand operations
             Self::Log3(a, b, c, d, e) => {
-                visit(*a);
-                visit(*b);
-                visit(*c);
-                visit(*d);
-                visit(*e);
+                out.push(*a);
+                out.push(*b);
+                out.push(*c);
+                out.push(*d);
+                out.push(*e);
             }
 
             // 6-operand operations
             Self::Log4(a, b, c, d, e, f) => {
-                visit(*a);
-                visit(*b);
-                visit(*c);
-                visit(*d);
-                visit(*e);
-                visit(*f);
+                out.push(*a);
+                out.push(*b);
+                out.push(*c);
+                out.push(*d);
+                out.push(*e);
+                out.push(*f);
             }
 
             // Call operations
             Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
-                visit(*gas);
-                visit(*addr);
-                visit(*value);
-                visit(*args_offset);
-                visit(*args_size);
-                visit(*ret_offset);
-                visit(*ret_size);
+                out.push(*gas);
+                out.push(*addr);
+                out.push(*value);
+                out.push(*args_offset);
+                out.push(*args_size);
+                out.push(*ret_offset);
+                out.push(*ret_size);
             }
             Self::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                visit(*gas);
-                visit(*addr);
-                visit(*args_offset);
-                visit(*args_size);
-                visit(*ret_offset);
-                visit(*ret_size);
+                out.push(*gas);
+                out.push(*addr);
+                out.push(*args_offset);
+                out.push(*args_size);
+                out.push(*ret_offset);
+                out.push(*ret_size);
             }
             Self::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                visit(*gas);
-                visit(*addr);
-                visit(*args_offset);
-                visit(*args_size);
-                visit(*ret_offset);
-                visit(*ret_size);
+                out.push(*gas);
+                out.push(*addr);
+                out.push(*args_offset);
+                out.push(*args_size);
+                out.push(*ret_offset);
+                out.push(*ret_size);
             }
             Self::InternalCall { args, .. } => {
-                args.iter().copied().for_each(&mut visit);
+                out.extend(args.iter().copied());
             }
 
             // Phi node - operands are the incoming values
             Self::Phi(incoming) => {
                 for (_, val) in incoming {
-                    visit(*val);
+                    out.push(*val);
                 }
             }
 
@@ -1017,12 +1018,6 @@ impl InstKind {
             | Self::BaseFee
             | Self::BlobBaseFee => {}
         }
-    }
-
-    /// Collects all operands of this instruction into the provided vector.
-    /// This is the canonical way to get all operands for liveness analysis.
-    pub(crate) fn collect_operands(&self, out: &mut SmallVec<[ValueId; 8]>) {
-        self.visit_operands(|operand| out.push(operand));
     }
 
     /// Returns the operands of this instruction.

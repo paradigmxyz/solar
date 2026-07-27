@@ -145,35 +145,29 @@ impl Terminator {
         }
     }
 
-    /// Visits the [`ValueId`] operands of this terminator (the values it reads).
-    /// Block targets are NOT included; use [`Self::successors`] for those.
-    pub(crate) fn visit_operands(&self, mut visit: impl FnMut(ValueId)) {
-        match self {
-            Self::Jump(_) => {}
-            Self::Branch { condition, .. } => visit(*condition),
-            Self::Switch { value, cases, .. } => {
-                visit(*value);
-                for (case_val, _) in cases {
-                    visit(*case_val);
-                }
-            }
-            Self::Return { values } => values.iter().copied().for_each(&mut visit),
-            Self::Revert { offset, size } | Self::ReturnData { offset, size } => {
-                visit(*offset);
-                visit(*size);
-            }
-            Self::Stop | Self::Invalid => {}
-            Self::SelfDestruct { recipient } => visit(*recipient),
-            Self::TailCall { args, .. } => args.iter().copied().for_each(&mut visit),
-        }
-    }
-
     /// Returns the [`ValueId`] operands of this terminator (the values it reads).
     /// Block targets are NOT included; use [`Self::successors`] for those.
     #[must_use]
     pub(crate) fn operands(&self) -> SmallVec<[ValueId; 4]> {
         let mut out = SmallVec::new();
-        self.visit_operands(|operand| out.push(operand));
+        match self {
+            Self::Jump(_) => {}
+            Self::Branch { condition, .. } => out.push(*condition),
+            Self::Switch { value, cases, .. } => {
+                out.push(*value);
+                for (case_val, _) in cases {
+                    out.push(*case_val);
+                }
+            }
+            Self::Return { values } => out.extend(values.iter().copied()),
+            Self::Revert { offset, size } | Self::ReturnData { offset, size } => {
+                out.push(*offset);
+                out.push(*size);
+            }
+            Self::Stop | Self::Invalid => {}
+            Self::SelfDestruct { recipient } => out.push(*recipient),
+            Self::TailCall { args, .. } => out.extend(args.iter().copied()),
+        }
         out
     }
 }
