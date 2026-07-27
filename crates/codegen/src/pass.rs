@@ -43,6 +43,7 @@ use std::{
 /// All known MIR passes exposed to `solar mir-opt`.
 pub static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::Inline,
+    &inline::SpecializeFunctionPointers,
     &outline_reverts::OutlineReverts,
     &cfg_simplify::FunctionDce,
     &sccp::Sccp,
@@ -176,6 +177,8 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // simplified graph in one pass through the pipeline.
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
+    &inline::SpecializeFunctionPointers,
+    &cfg_simplify::FunctionDce,
     &sccp::Sccp,
     &inst_simplify::InstSimplify,
     &cse::Cse,

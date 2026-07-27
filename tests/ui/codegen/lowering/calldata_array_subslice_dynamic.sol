@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zcodegen -O none -Zdump=mir
 
 contract CalldataArraySubsliceDynamic {
     // A sub-slice of a dynamic-element array keeps element offsets relative to

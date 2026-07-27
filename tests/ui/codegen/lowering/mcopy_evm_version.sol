@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --evm-version shanghai -Zdump=mir
+//@compile-flags: -Zcodegen -O none --evm-version shanghai -Zdump=mir
 
 contract McopyEvmVersion {
     function copy() external pure {

@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 // Fixed storage arrays of multi-slot elements stride by the element's slot
 // count: arr[i].a lives at base + i*2 and arr[i].b one slot above, so

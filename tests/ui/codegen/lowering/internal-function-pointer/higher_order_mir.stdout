@@ -1,0 +1,86 @@
+// === ROOT/tests/ui/codegen/lowering/internal-function-pointer/higher_order_mir.sol:HigherOrderFunctionPointer ===
+@module HigherOrderFunctionPointer
+fn @higher0() {
+  bb0:
+    mstore 128, 0
+    mstore 128, 2
+    returndata 128, 32
+}
+
+fn @higher1() -> function {
+  bb0:
+    v0 = internal_frame_addr 96
+    mstore v0, 0 !metadata(memory=internal_frame)
+    ret 1
+}
+
+fn @higher2() -> function {
+  bb0:
+    v0 = internal_frame_addr 96
+    mstore v0, 0 !metadata(memory=internal_frame)
+    ret 2
+}
+
+fn @higher3() -> function {
+  bb0:
+    v0 = internal_frame_addr 96
+    mstore v0, 0 !metadata(memory=internal_frame)
+    ret 3
+}
+
+fn @callReturned() {
+  bb0:
+    mstore 128, 0
+    v0 = internal_call @__internal_dispatch_0, 1, 4
+    v1 = internal_call @__internal_dispatch_0, 1, v0
+    v2 = internal_call @__internal_dispatch_0, 1, v1
+    v3 = internal_call @__internal_dispatch_1, 1, v2
+    mstore 128, v3
+    returndata 128, 32
+}
+
+fn @__internal_dispatch_0(arg0: function) -> function {
+  bb0:
+    v0 = eq arg0, 2
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = internal_call @higher1, 1
+    ret v1
+  bb2:
+    v2 = eq arg0, 3
+    jumpi v2, bb3, bb4
+  bb3:
+    v3 = internal_call @higher2, 1
+    ret v3
+  bb4:
+    v4 = eq arg0, 4
+    jumpi v4, bb5, bb6
+  bb5:
+    v5 = internal_call @higher3, 1
+    ret v5
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @__internal_dispatch_1(arg0: function) -> u256 {
+  bb0:
+    v0 = eq arg0, 1
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = internal_call higher07, 1
+    ret v1
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @higher0() -> u256 {
+  bb0:
+    v0 = internal_frame_addr 96
+    mstore v0, 0 !metadata(memory=internal_frame)
+    ret 2
+}
+

@@ -1,5 +1,5 @@
-//@compile-flags: -Zcodegen -Zdump=mir
-//@filecheck: --check-prefix=CDSLICE
+//@compile-flags: -Zcodegen -O none -Zdump=mir
+//@filecheck:
 
 contract CalldataSliceYulBounds {
     // Assigning `.offset`/`.length` in assembly rewrites one component of a
@@ -16,26 +16,26 @@ contract CalldataSliceYulBounds {
 
     // The helpers inline, so the empty slice is a `make_calldata_slice` at the
     // call site (later folded away) with no `internal_call` left behind.
-    // CDSLICE-LABEL: fn @emptyLen{{[( ]}}
-    // CDSLICE: make_calldata_slice 0, 0
-    // CDSLICE-NOT: internal_call
+    // CHECK-LABEL: fn @emptyLen{{[( ]}}
+    // CHECK: make_calldata_slice 0, 0
+    // CHECK-NOT: internal_call
     function emptyLen() external pure returns (uint256) {
         return _sink(_empty());
     }
 
-    // CDSLICE-LABEL: fn @_sink{{[( ]}}
+    // CHECK-LABEL: fn @_sink{{[( ]}}
     function _sink(bytes calldata data) internal pure returns (uint256) {
         return data.length;
     }
 
     // Trimming a slice in place: read back the new length after adjusting both
     // components.
-    // CDSLICE-LABEL: fn @trimLen{{[( ]}}
-    // CDSLICE: slice_ptr
-    // CDSLICE: add {{.*}}, 4
-    // CDSLICE: slice_len
-    // CDSLICE: sub {{.*}}, 4
-    // CDSLICE: make_calldata_slice
+    // CHECK-LABEL: fn @trimLen{{[( ]}}
+    // CHECK: slice_ptr
+    // CHECK: add {{.*}}, 4
+    // CHECK: slice_len
+    // CHECK: sub {{.*}}, 4
+    // CHECK: make_calldata_slice
     function trimLen(bytes calldata x) external pure returns (uint256) {
         bytes calldata y = x;
         assembly {
@@ -48,9 +48,9 @@ contract CalldataSliceYulBounds {
     // A slice reassigned only inside a branch must merge through its two-word
     // slot, so the untaken path keeps the original length. A bare SSA update
     // would leak the branch value; the slot store/load is the branch merge.
-    // CDSLICE-LABEL: fn @conditional{{[( ]}}
-    // CDSLICE: mstore
-    // CDSLICE: mload
+    // CHECK-LABEL: fn @conditional{{[( ]}}
+    // CHECK: mstore
+    // CHECK: mload
     function conditional(bytes calldata x) external pure returns (uint256) {
         bytes calldata y = x;
         if (x.length > 32) {

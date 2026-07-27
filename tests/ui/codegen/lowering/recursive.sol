@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
 // Recursive functions. A recursive call can't be inlined (the inline path's
@@ -11,7 +11,7 @@
 contract Recursive {
     // CHECK-LABEL: fn @fact{{[( ]}}
     // CHECK: [[NEXT:v[0-9]+]] = sub arg0, 1
-    // CHECK: [[RECURSED:v[0-9]+]] = internal_call [[FACT:fn[0-9]+]], 1, [[NEXT]]
+    // CHECK: [[RECURSED:v[0-9]+]] = internal_call [[FACT:fact[0-9]+]], 1, [[NEXT]]
     // CHECK: mul arg0, [[RECURSED]]
     // CHECK-LABEL: fn @fact{{[( ]}}
     // CHECK: internal_call [[FACT]], 1,
@@ -21,7 +21,7 @@ contract Recursive {
     }
 
     // CHECK-LABEL: fn @fib{{[( ]}}
-    // CHECK: internal_call [[FIB:fn[0-9]+]], 1,
+    // CHECK: internal_call [[FIB:fib[0-9]+]], 1,
     // CHECK: internal_call [[FIB]], 1,
     // CHECK: add
     // CHECK-LABEL: fn @fib{{[( ]}}
@@ -35,9 +35,9 @@ contract Recursive {
     // Mutual recursion also resolves: each non-simple callee is lowered as an
     // internal-frame copy, so neither partner is inlined. `isEven(10) == true`.
     // CHECK-LABEL: fn @isEven{{[( ]}}
-    // CHECK: internal_call [[ODD:fn[0-9]+]], 1,
+    // CHECK: internal_call [[ODD:isOdd[0-9]+]], 1,
     // CHECK-LABEL: fn @isOdd{{[( ]}}
-    // CHECK: internal_call [[EVEN:fn[0-9]+]], 1,
+    // CHECK: internal_call [[EVEN:isEven[0-9]+]], 1,
     // CHECK-LABEL: fn @isEven{{[( ]}}
     // CHECK: internal_call [[ODD]], 1,
     function isEven(uint256 n) public pure returns (bool) {

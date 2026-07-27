@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
 // Functions returning a memory reference can now recurse: the return is a
@@ -19,7 +19,7 @@ contract C {
 
     // recursive function returning a memory struct
     // CHECK-LABEL: fn @build{{[( ]}}
-    // CHECK: internal_call [[BUILD:fn[0-9]+]], 1,
+    // CHECK: internal_call [[BUILD:build[0-9]+]], 1,
     // CHECK: [[RESULT:v[0-9]+]] = alloc memorystruct<2>
     // CHECK: memory_object_field_addr memorystruct<2>, [[RESULT]], 0
     // CHECK: returndata 128, 64

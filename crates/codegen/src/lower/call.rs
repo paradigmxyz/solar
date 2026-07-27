@@ -1,19 +1,19 @@
 //! Call and member-call lowering.
 
-use super::{Lowerer, checked_arith::PanicCode};
+use super::{InternalFunctionPointerShape, Lowerer, checked_arith::PanicCode};
 use crate::{
     memory::EvmMemoryLayout,
-    mir::{FunctionBuilder, ValueId},
+    mir::{Function, FunctionBuilder, FunctionId, MirType, ValueId},
 };
 use alloy_primitives::{U256, keccak256};
-use solar_ast::{LitKind, Span};
+use solar_ast::{DataLocation, LitKind, Span};
 use solar_data_structures::bit_set::GrowableBitSet;
 use solar_interface::{Ident, Symbol, kw, sym};
 use solar_sema::{
     builtins::Builtin,
     eval::erc7201_slot,
     hir::{self, CallArgs, ElementaryType, ExprKind},
-    ty::{Ty, TyKind},
+    ty::{Ty, TyFn, TyKind},
 };
 
 /// How a value travels across a linked-library delegatecall boundary.
@@ -56,6 +56,16 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(error_id) = self.custom_error_id_from_callee(callee) {
             self.emit_custom_error_revert(builder, error_id, args);
             return builder.imm_u64(0);
+        }
+
+        if let Some(TyKind::Fn(function)) = self.get_expr_type(callee).map(|ty| ty.kind)
+            && function.is_internal()
+            && function.function_id.is_none()
+            && !self.gcx.resolved_callee(callee.id).is_some_and(|resolved| {
+                matches!(resolved.res, hir::Res::Item(hir::ItemId::Function(_)))
+            })
+        {
+            return self.lower_internal_function_pointer_call(builder, callee, args, function);
         }
 
         if let ExprKind::Member(base, member) = &callee.kind {
@@ -102,6 +112,201 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         builder.imm_u64(0)
+    }
+
+    fn lower_internal_function_pointer_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        callee: &hir::Expr<'_>,
+        args: &CallArgs<'_>,
+        function: &'gcx TyFn<'gcx>,
+    ) -> ValueId {
+        let function_value = self.lower_expr(builder, callee);
+        let mut arg_values = args
+            .exprs()
+            .enumerate()
+            .map(|(index, arg)| {
+                let parameter = function.parameters.get(index).copied();
+                if parameter.is_some_and(|ty| {
+                    matches!(ty.kind, TyKind::Mapping(..) | TyKind::Ref(_, DataLocation::Storage))
+                }) && let Some(slot) = self.lower_lvalue_slot(builder, arg)
+                {
+                    slot
+                } else {
+                    let value = self.lower_expr(builder, arg);
+                    self.coerce_memory_slice_value(builder, value)
+                }
+            })
+            .collect::<Vec<_>>();
+        arg_values.insert(0, function_value);
+
+        let dispatcher = self.ensure_internal_function_pointer_dispatcher(function);
+        let returns = function.returns.len();
+        let Some(&return_ty) = function.returns.first() else {
+            builder.internal_call_void(dispatcher, arg_values, returns);
+            return builder.imm_u64(0);
+        };
+        builder.internal_call(dispatcher, arg_values, self.lower_type_from_ty(return_ty), returns)
+    }
+
+    fn ensure_internal_function_pointer_dispatcher(
+        &mut self,
+        function: &'gcx TyFn<'gcx>,
+    ) -> FunctionId {
+        let shape = self.internal_function_pointer_shape(function);
+        if let Some(&dispatcher) = self.internal_function_pointer_dispatchers.get(&shape) {
+            return dispatcher;
+        }
+
+        let name = Ident::from_str(&format!(
+            "__internal_dispatch_{}",
+            self.internal_function_pointer_dispatchers.len()
+        ));
+        let dispatcher = self.module.add_function(Function::new(name));
+        self.internal_function_pointer_dispatchers.insert(shape, dispatcher);
+        dispatcher
+    }
+
+    /// Lowers address-taken targets to a fixed point, then fills the reserved dispatchers.
+    pub(super) fn generate_internal_function_pointer_dispatchers(&mut self) {
+        if self.internal_function_pointer_dispatchers.is_empty() {
+            return;
+        }
+        let mut lowered_targets = GrowableBitSet::new_empty();
+        while let Some(function_id) = self
+            .internal_function_pointer_targets
+            .iter()
+            .find(|&function_id| !lowered_targets.contains(function_id))
+        {
+            lowered_targets.insert(function_id);
+            let function = self.gcx.hir.function(function_id);
+            if function.kind != hir::FunctionKind::Function || function.body.is_none() {
+                self.internal_function_pointer_targets.remove(function_id);
+                continue;
+            }
+            if matches!(function.visibility, hir::Visibility::Internal | hir::Visibility::Private) {
+                self.ensure_function_lowered(function_id);
+            } else {
+                self.ensure_internal_mir_function(function_id);
+            }
+        }
+
+        let dispatchers = self
+            .internal_function_pointer_dispatchers
+            .iter()
+            .map(|(shape, &function_id)| (shape.clone(), function_id))
+            .collect::<Vec<_>>();
+        for (shape, dispatcher) in dispatchers {
+            self.generate_internal_function_pointer_dispatcher(shape, dispatcher);
+        }
+    }
+
+    fn generate_internal_function_pointer_dispatcher(
+        &mut self,
+        shape: InternalFunctionPointerShape,
+        dispatcher: FunctionId,
+    ) {
+        let candidates = self
+            .internal_function_pointer_targets
+            .iter()
+            .filter(|&function_id| {
+                let TyKind::Fn(candidate_ty) = self.gcx.type_of_item(function_id.into()).kind
+                else {
+                    return false;
+                };
+                self.internal_function_pointer_shape(candidate_ty) == shape
+            })
+            .collect::<Vec<_>>();
+
+        let name = self.module.function(dispatcher).name;
+        let mut dispatcher_function = Function::new(name);
+        dispatcher_function.attributes.no_inline = true;
+        {
+            let mut builder = FunctionBuilder::new(&mut dispatcher_function);
+            let function_value = builder.add_param(MirType::Function);
+            let arg_values = shape.0.iter().map(|&ty| builder.add_param(ty)).collect::<Vec<_>>();
+            for &ty in &shape.1 {
+                builder.add_return(ty);
+            }
+
+            for function_id in candidates {
+                let case_block = builder.create_block();
+                let next_block = builder.create_block();
+                let id = builder.imm_u64(Self::internal_function_pointer_id(function_id));
+                let is_match = builder.eq(function_value, id);
+                builder.branch(is_match, case_block, next_block);
+
+                builder.switch_to_block(case_block);
+                let result = self.lower_internal_call_fallback(
+                    &mut builder,
+                    function_id,
+                    arg_values.clone(),
+                );
+                if shape.1.is_empty() {
+                    builder.ret([]);
+                } else {
+                    let mut return_values = Vec::with_capacity(shape.1.len());
+                    return_values.push(result);
+                    if shape.1.len() > 1 {
+                        let base = self.multi_return_buffer_base(&mut builder);
+                        for index in 1..shape.1.len() {
+                            return_values.push(self.load_multi_return_value(
+                                &mut builder,
+                                base,
+                                index,
+                            ));
+                        }
+                    }
+                    builder.ret(return_values);
+                }
+                builder.switch_to_block(next_block);
+            }
+            self.emit_panic_revert(&mut builder, PanicCode::InvalidInternalFunction);
+        }
+        *self.module.function_mut(dispatcher) = dispatcher_function;
+    }
+
+    fn internal_function_pointer_shape(
+        &self,
+        function: &TyFn<'gcx>,
+    ) -> InternalFunctionPointerShape {
+        (
+            function.parameters.iter().map(|&ty| self.lower_type_from_ty(ty)).collect(),
+            function.returns.iter().map(|&ty| self.lower_type_from_ty(ty)).collect(),
+        )
+    }
+
+    pub(super) fn resolve_internal_function_pointer_target(
+        &self,
+        function_id: hir::FunctionId,
+    ) -> hir::FunctionId {
+        let function = self.gcx.hir.function(function_id);
+        let Some(contract_id) = self.contract_id else { return function_id };
+        if !function.virtual_ || function.contract == Some(contract_id) {
+            return function_id;
+        }
+
+        for &base_id in self.gcx.hir.contract(contract_id).linearized_bases {
+            for candidate in self.gcx.hir.contract(base_id).functions() {
+                if candidate == function_id
+                    || self.internal_function_overrides(candidate, function_id)
+                {
+                    return candidate;
+                }
+            }
+        }
+        function_id
+    }
+
+    fn internal_function_overrides(
+        &self,
+        function_id: hir::FunctionId,
+        base_id: hir::FunctionId,
+    ) -> bool {
+        self.gcx.base_override_items(function_id.into()).iter().any(|item| {
+            let hir::ItemId::Function(overridden_id) = item else { return false };
+            *overridden_id == base_id || self.internal_function_overrides(*overridden_id, base_id)
+        })
     }
 
     fn builtin_uses_direct_call_lowering(builtin: Builtin) -> bool {

@@ -636,6 +636,7 @@ pub struct EvmCodegen<'gcx> {
     /// runs once and every arm terminates externally, so the leftover word can
     /// neither accumulate nor disturb an internal return.
     emitting_entry: bool,
+    capture_mir: bool,
     capture_evm_ir: bool,
 }
 
@@ -675,6 +676,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             constructor_param_count: 0,
             in_internal_function: false,
             emitting_entry: false,
+            capture_mir: false,
             capture_evm_ir: false,
         }
     }
@@ -734,6 +736,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Controls whether generated artifacts include final EVM IR.
     pub fn set_capture_evm_ir(&mut self, capture: bool) {
         self.capture_evm_ir = capture;
+    }
+
+    /// Controls whether modules without an external entry still run the MIR pipeline.
+    pub(crate) fn set_capture_mir(&mut self, capture: bool) {
+        self.capture_mir = capture;
     }
 
     // ==================== Stack-Aware Emitter API ====================
@@ -821,7 +828,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         // An internal-only library (no external interface) has no reachable
         // runtime code — like `solc`, it produces no bytecode rather than
         // standalone bodies for functions only ever inlined elsewhere.
-        if module.is_interface || !module.functions.iter().any(Self::is_module_entry) {
+        if module.is_interface {
+            return EvmArtifact::default();
+        }
+        if !module.functions.iter().any(Self::is_module_entry) {
+            if self.capture_mir {
+                self.run_optimization_passes(module);
+            }
             return EvmArtifact::default();
         }
         if let Some(func) = module.functions.iter().find(|func| func.blocks.is_empty()) {
