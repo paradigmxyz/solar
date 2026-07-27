@@ -1246,6 +1246,14 @@ def validate_growth_sweep_inputs(
     canonical = compile_payloads["synthetic"]["metadata"]
     expected_variants = expected_growth_sweep_variants()
     expected_methods = [variant["compiler_id"] for variant in expected_variants]
+    expected_method_set = set(expected_methods)
+    missing = [
+        key
+        for key in GROWTH_SWEEP_PROVENANCE_KEYS
+        if key not in canonical or canonical[key] is None
+    ]
+    if missing:
+        raise RuntimeError(f"synthetic compile provenance is missing {', '.join(missing)}")
     compile_results = {}
     for scope, payload in compile_payloads.items():
         metadata = payload.get("metadata") or {}
@@ -1254,7 +1262,9 @@ def validate_growth_sweep_inputs(
         if metadata.get("compile_only") is not True:
             raise RuntimeError(f"{scope} is not a compile-only sweep")
         for key in GROWTH_SWEEP_PROVENANCE_KEYS:
-            if metadata.get(key) != canonical.get(key):
+            if key not in metadata or metadata[key] is None:
+                raise RuntimeError(f"{scope} compile provenance is missing {key}")
+            if metadata[key] != canonical[key]:
                 raise RuntimeError(f"{scope} compile provenance differs for {key}")
         if metadata.get("methods") != expected_methods:
             raise RuntimeError(f"{scope} methods differ from the growth sweep manifest")
@@ -1275,13 +1285,20 @@ def validate_growth_sweep_inputs(
         if metadata.get("compile_only") is not False:
             raise RuntimeError(f"{scope} does not contain gas execution")
         for key in GROWTH_SWEEP_PROVENANCE_KEYS:
-            if metadata.get(key) != compile_metadata.get(key):
+            if key not in metadata or metadata[key] is None:
+                raise RuntimeError(f"{scope} gas provenance is missing {key}")
+            if metadata[key] != compile_metadata[key]:
                 raise RuntimeError(f"{scope} gas provenance differs for {key}")
         for key in ("expected_failures", "excluded_cases", "fixture_version"):
             if metadata.get(key) != compile_metadata.get(key):
                 raise RuntimeError(f"{scope} coverage metadata differs for {key}")
 
         gas_results = results_by_test_id(payload, scope)
+        for test_id, result in gas_results.items():
+            if set(result.get("compilers") or ()) != expected_method_set:
+                raise RuntimeError(
+                    f"{scope}/{test_id} gas compilers differ from the growth sweep manifest"
+                )
         if gas_results.keys() != compile_results[scope].keys():
             raise RuntimeError(f"{scope} compile and gas test IDs differ")
         for test_id, result in gas_results.items():
