@@ -1763,7 +1763,7 @@ impl<'gcx> Lowerer<'gcx> {
             self.mark_assigned_var(base);
             return;
         }
-        if let Some(var_id) = self.ident_variable(expr) {
+        if let Some(var_id) = self.gcx.resolved_variable(expr) {
             self.assigned_vars.insert(var_id);
         }
     }
@@ -1839,7 +1839,7 @@ impl<'gcx> Lowerer<'gcx> {
     fn is_external_call(&self, callee: &hir::Expr<'_>) -> bool {
         // External calls are Member expressions where the base is a contract
         if let hir::ExprKind::Member(base, _) = &callee.kind
-            && let Some(var_id) = self.ident_variable(base)
+            && let Some(var_id) = self.gcx.resolved_variable(base)
         {
             let var = self.gcx.hir.variable(var_id);
             // Contract type variables are external call targets

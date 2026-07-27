@@ -451,6 +451,58 @@ address immutable owner
 }
 
 #[test]
+fn shows_public_state_variable_at_internal_references() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Counter.sol open
+        contract Counter {
+            uint256 public $1number;
+
+            function setNumber(uint256 newNumber) public {
+                $2number = newNumber;
+            }
+
+            function increment() public {
+                $3number++;
+            }
+        }
+        "#,
+        "/Counter.sol",
+    );
+
+    fixture.check_hover(
+        "$1",
+        str![[r#"
+1:19-1:25
+```solidity
+uint256 public number
+```
+
+"#]],
+    );
+    fixture.check_hover(
+        "$2",
+        str![[r#"
+3:8-3:14
+```solidity
+uint256 public number
+```
+
+"#]],
+    );
+    fixture.check_hover(
+        "$3",
+        str![[r#"
+6:8-6:14
+```solidity
+uint256 public number
+```
+
+"#]],
+    );
+}
+
+#[test]
 fn uses_the_type_checked_overload() {
     let fixture = RequestFixture::new(
         r#"

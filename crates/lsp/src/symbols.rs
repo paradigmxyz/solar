@@ -1726,10 +1726,11 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         resolutions: &[Res],
         kind: DocumentHighlightKind,
     ) {
-        let callee = self.gcx.resolved_callee(expr.id).filter(|callee| !callee.res.is_err());
-        let resolutions =
-            callee.as_ref().map_or(resolutions, |callee| std::slice::from_ref(&callee.res));
-        let targets = self.symbol_ids_for_res(resolutions.iter().copied());
+        let resolved = self.gcx.resolved_expr(expr).filter(|res| !res.is_err());
+        let targets = resolved.map_or_else(
+            || self.symbol_ids_for_res(resolutions.iter().copied()),
+            |res| self.symbol_id_for_res(res).into_iter().collect(),
+        );
         self.push_reference_with_kind(expr.span, targets, kind);
         self.push_namespace_references(expr.span, resolutions);
     }
@@ -1742,7 +1743,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         kind: DocumentHighlightKind,
     ) -> ControlFlow<Never> {
         self.visit_expr(receiver)?;
-        let targets = self.symbol_ids_for_member_expr(expr);
+        let targets = self.symbol_ids_for_expr(expr);
         self.push_reference_with_kind(ident.span, targets, kind);
         ControlFlow::Continue(())
     }
@@ -1790,15 +1791,9 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         }
     }
 
-    fn symbol_ids_for_member_expr(&self, expr: &hir::Expr<'gcx>) -> ReferenceTargets {
-        if let Some(res) = self.gcx.resolved_member(expr.id)
-            && let Some(symbol_id) = self.symbol_id_for_res(res)
-        {
-            return ReferenceTargets::from_buf([symbol_id]);
-        }
-
-        if let Some(callee) = self.gcx.resolved_callee(expr.id)
-            && let Some(symbol_id) = self.symbol_id_for_res(callee.res)
+    fn symbol_ids_for_expr(&self, expr: &hir::Expr<'gcx>) -> ReferenceTargets {
+        if let Some(symbol_id) =
+            self.gcx.resolved_expr(expr).and_then(|res| self.symbol_id_for_res(res))
         {
             return ReferenceTargets::from_buf([symbol_id]);
         }
