@@ -2,7 +2,7 @@
 
 use crate::{
     ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, HumanEmitterKind,
-    ImportRemapping, Language, LibraryAddress, OptimizationMode, Threads,
+    ImportRemapping, Language, LibraryAddress, OptimizationMode, SwitchLowering, Threads,
 };
 use std::{num::NonZeroUsize, path::PathBuf};
 
@@ -382,6 +382,10 @@ pub struct UnstableOpts {
     /// compiler's stable, solc-compatible behavior.
     #[cfg_attr(feature = "clap", arg(long))]
     pub codegen: bool,
+
+    /// Force a switch lowering strategy for benchmarking.
+    #[cfg_attr(feature = "clap", arg(long, value_enum, default_value_t))]
+    pub switch_lowering: SwitchLowering,
 
     // ----------------------------------------
     // Please add new options above this point!

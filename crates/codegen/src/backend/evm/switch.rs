@@ -2,7 +2,7 @@
 
 use super::ir::immediate_materialization_cost;
 use alloy_primitives::U256;
-use solar_config::{EvmVersion, OptimizationMode};
+use solar_config::{EvmVersion, OptimizationMode, SwitchLowering};
 
 // Ordinary label pushes relax after layout. Use their minimum possible size so
 // fixed-width tables are selected for size only when they beat the best case.
@@ -156,6 +156,7 @@ pub(super) fn select_switch_plan_with_budget(
         default,
         table_target_width,
         max_gas_code_growth,
+        SwitchLowering::Auto,
     )
 }
 
@@ -168,19 +169,80 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
     default: SwitchDefault,
     table_target_width: usize,
     max_gas_code_growth: usize,
+    forced: SwitchLowering,
 ) -> SwitchSelection {
     debug_assert!(values.windows(2).all(|values| values[0] < values[1]));
     debug_assert_eq!(values.len(), linear_values.len());
-    if values.len() <= 1 || optimization == OptimizationMode::None {
+    if values.len() <= 1
+        || (optimization == OptimizationMode::None && forced == SwitchLowering::Auto)
+    {
         return SwitchSelection { plan: SwitchPlan::Linear, gas_code_growth: 0 };
     }
 
     let linear_cost =
         lowering_cost(linear_values, values.len(), evm_version, default, table_target_width);
+    if forced == SwitchLowering::Linear {
+        return SwitchSelection { plan: SwitchPlan::Linear, gas_code_growth: 0 };
+    }
+
+    if forced != SwitchLowering::Auto {
+        let explicit_default = default.without_fallthrough();
+        let candidate = match forced {
+            SwitchLowering::Binary => binary_leaf_sizes(values.len())
+                .into_iter()
+                .map(|leaf_size| {
+                    (
+                        lowering_cost(
+                            values,
+                            leaf_size,
+                            evm_version,
+                            explicit_default,
+                            table_target_width,
+                        ),
+                        SwitchPlan::Binary { leaf_size },
+                    )
+                })
+                .min_by_key(|&(cost, _)| forced_cost_key(cost, optimization)),
+            SwitchLowering::Buckets
+                if (MIN_BUCKET_CASES..=MAX_BUCKET_CASES).contains(&values.len()) =>
+            {
+                bucket_count_candidates(values.len())
+                    .into_iter()
+                    .map(|bucket_count| {
+                        (
+                            bucket_lowering_cost(
+                                values,
+                                bucket_count,
+                                evm_version,
+                                explicit_default,
+                                table_target_width,
+                            ),
+                            SwitchPlan::Buckets { bucket_count },
+                        )
+                    })
+                    .min_by_key(|&(cost, _)| forced_cost_key(cost, optimization))
+            }
+            SwitchLowering::Dense => {
+                dense_lowering_cost(values, evm_version, default, table_target_width)
+                    .map(|(low, range, cost)| (cost, SwitchPlan::Dense { low, range }))
+            }
+            _ => None,
+        };
+        let Some((cost, plan)) = candidate else {
+            return SwitchSelection { plan: SwitchPlan::Linear, gas_code_growth: 0 };
+        };
+        let gas_code_growth = if optimization == OptimizationMode::Gas {
+            cost.max_code_size.saturating_sub(linear_cost.code_size)
+        } else {
+            0
+        };
+        return SwitchSelection { plan, gas_code_growth };
+    }
+
     let max_gas_code_size = linear_cost.code_size.saturating_add(max_gas_code_growth);
     let mut best = (linear_cost, SwitchPlan::Linear);
+    let explicit_default = default.without_fallthrough();
     if optimization == OptimizationMode::Gas {
-        let explicit_default = default.without_fallthrough();
         for leaf_size in binary_leaf_sizes(values.len()) {
             let cost =
                 lowering_cost(values, leaf_size, evm_version, explicit_default, table_target_width);
@@ -221,6 +283,10 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         0
     };
     SwitchSelection { plan: best.1, gas_code_growth }
+}
+
+fn forced_cost_key(cost: LoweringCost, optimization: OptimizationMode) -> (usize, usize, usize) {
+    if optimization == OptimizationMode::Size { cost.size_key() } else { cost.gas_key() }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -531,6 +597,28 @@ mod tests {
             ),
             SwitchPlan::Linear
         );
+    }
+
+    #[test]
+    fn forces_benchmark_switch_lowerings() {
+        let select = |values: &[U256], forced| {
+            select_switch_plan_with_linear_values_and_budget(
+                values,
+                values,
+                OptimizationMode::Gas,
+                EvmVersion::Cancun,
+                SwitchDefault::CleanupJump,
+                2,
+                MAX_GAS_CODE_GROWTH,
+                forced,
+            )
+            .plan
+        };
+
+        assert!(matches!(select(&values(4), SwitchLowering::Binary), SwitchPlan::Binary { .. }));
+        assert!(matches!(select(&values(8), SwitchLowering::Buckets), SwitchPlan::Buckets { .. }));
+        assert!(matches!(select(&values(24), SwitchLowering::Dense), SwitchPlan::Dense { .. }));
+        assert_eq!(select(&values(32), SwitchLowering::Linear), SwitchPlan::Linear);
     }
 
     #[test]

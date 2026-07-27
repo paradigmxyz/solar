@@ -5359,6 +5359,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                             default,
                             self.switch_table_target_width(),
                             self.switch_gas_code_growth_remaining,
+                            self.gcx.sess.opts.unstable.switch_lowering,
                         )
                     },
                 );
