@@ -655,6 +655,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Creates a new EVM code generator.
     #[must_use]
     pub fn new(gcx: Gcx<'gcx>) -> Self {
+        let switch_gas_code_growth_remaining =
+            gcx.sess.opts.unstable.switch_max_gas_code_growth.unwrap_or(MAX_GAS_CODE_GROWTH);
         Self {
             gcx,
             asm: Assembler::new(gcx),
@@ -687,10 +689,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             constructor_param_count: 0,
             in_internal_function: false,
             emitting_entry: false,
-            switch_gas_code_growth_remaining: MAX_GAS_CODE_GROWTH,
+            switch_gas_code_growth_remaining,
             capture_mir: false,
             capture_evm_ir: false,
         }
+    }
+
+    fn reset_switch_gas_code_growth(&mut self) {
+        self.switch_gas_code_growth_remaining =
+            self.gcx.sess.opts.unstable.switch_max_gas_code_growth.unwrap_or(MAX_GAS_CODE_GROWTH);
     }
 
     /// Whether a function is an external interface of its module: an ABI entry,
@@ -986,7 +993,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         immutable_refs: &[ImmutableRef],
     ) -> PreparedDeploymentPrefix {
         self.asm.clear();
-        self.switch_gas_code_growth_remaining = MAX_GAS_CODE_GROWTH;
+        self.reset_switch_gas_code_growth();
         let runtime_offset = self.asm.new_deferred_const();
 
         // Find constructor function if it exists
@@ -1166,7 +1173,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.stack_arg_masks.clear();
         self.runtime_stack_args = true;
         self.emitting_entry = false;
-        self.switch_gas_code_growth_remaining = MAX_GAS_CODE_GROWTH;
+        self.reset_switch_gas_code_growth();
 
         if !module.functions.is_empty() {
             self.emit_runtime(module);

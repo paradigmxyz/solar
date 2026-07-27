@@ -62,6 +62,9 @@ Options:
           [default: auto]
           [possible values: auto, linear, binary, buckets, dense]
 
+      -Zswitch-max-gas-code-growth <SWITCH_MAX_GAS_CODE_GROWTH>
+          Override the artifact-wide bytecode growth budget for gas-optimized switches
+
       -Zhelp
           Print help
 

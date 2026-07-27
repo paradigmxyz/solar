@@ -387,6 +387,10 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long, value_enum, default_value_t))]
     pub switch_lowering: SwitchLowering,
 
+    /// Override the artifact-wide bytecode growth budget for gas-optimized switches.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub switch_max_gas_code_growth: Option<usize>,
+
     // ----------------------------------------
     // Please add new options above this point!
     // ----------------------------------------
