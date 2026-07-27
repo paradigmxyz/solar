@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import hashlib
 import importlib.util
 import json
@@ -35,6 +36,13 @@ class UiCase:
     corpus_root: Path
     source: str
     expected_failure: bool
+
+
+@dataclass(frozen=True)
+class SwitchVariant:
+    compiler_id: str
+    label: str
+    flags: tuple[str, ...]
 
 
 def run(command: Sequence[str], cwd: Path | None = None) -> str:
@@ -365,7 +373,7 @@ def install_runtime_checks(bench: Any, checks: dict[str, list[Any]]) -> None:
 def compiler_specs(
     bench: Any,
     solar: Path,
-    methods: Sequence[str],
+    variants: Sequence[SwitchVariant],
     optimization: str,
     wrapper_dir: Path,
 ) -> list[Any]:
@@ -373,20 +381,78 @@ def compiler_specs(
     solar = solar.resolve()
     wrapper_dir = wrapper_dir.resolve()
     wrapper_dir.mkdir(parents=True, exist_ok=True)
-    for method in methods:
-        wrapper = wrapper_dir / f"solar-{optimization}-{method}"
+    for variant in variants:
+        wrapper = wrapper_dir / f"solar-{optimization}-{variant.compiler_id}"
         command = " ".join(
             shlex.quote(value)
             for value in (
                 str(solar),
                 f"-O{optimization}",
-                f"-Zswitch-lowering={method}",
+                *variant.flags,
             )
         )
         wrapper.write_text(f"#!/bin/sh\nexec {command} \"$@\"\n")
         wrapper.chmod(0o755)
-        specs.append(bench.CompilerSpec(method, f"solar {method}", wrapper, "solar"))
+        specs.append(
+            bench.CompilerSpec(
+                variant.compiler_id,
+                variant.label,
+                wrapper,
+                "solar",
+            )
+        )
     return specs
+
+
+def parse_integer_ranges(value: str) -> list[int]:
+    values = []
+    for item in value.split(","):
+        item = item.strip()
+        if not item:
+            raise argparse.ArgumentTypeError("integer range contains an empty item")
+        if ".." in item:
+            start_text, end_text = item.split("..", maxsplit=1)
+            try:
+                start = int(start_text)
+                end = int(end_text.removeprefix("="))
+            except ValueError as error:
+                raise argparse.ArgumentTypeError(f"invalid integer range: {item}") from error
+            if start < 0 or end < start:
+                raise argparse.ArgumentTypeError(f"invalid integer range: {item}")
+            values.extend(range(start, end + 1))
+        else:
+            try:
+                parsed = int(item)
+            except ValueError as error:
+                raise argparse.ArgumentTypeError(f"invalid integer: {item}") from error
+            if parsed < 0:
+                raise argparse.ArgumentTypeError(f"invalid negative integer: {item}")
+            values.append(parsed)
+    if len(set(values)) != len(values):
+        raise argparse.ArgumentTypeError("integer ranges must not contain duplicates")
+    return values
+
+
+def switch_variants(
+    methods: Sequence[str],
+    growth_budgets: Sequence[int],
+) -> list[SwitchVariant]:
+    variants = [
+        SwitchVariant(method, f"solar {method}", (f"-Zswitch-lowering={method}",))
+        for method in methods
+    ]
+    variants.extend(
+        SwitchVariant(
+            f"auto-g{budget}",
+            f"solar auto growth={budget}",
+            (
+                "-Zswitch-lowering=auto",
+                f"-Zswitch-max-gas-code-growth={budget}",
+            ),
+        )
+        for budget in growth_budgets
+    )
+    return variants
 
 
 def load_ui_cases(root: Path) -> list[UiCase]:
@@ -539,6 +605,46 @@ def write_results(path: Path, metadata: dict[str, Any], results: Sequence[dict[s
     path.write_text(json.dumps({"metadata": metadata, "results": results}, indent=2) + "\n")
 
 
+def compile_specs(
+    bench: Any,
+    case: Any,
+    specs: Sequence[Any],
+    gas_profile: str,
+    jobs: int,
+) -> dict[str, Any]:
+    def compile_one(spec: Any) -> dict[str, Any]:
+        if isinstance(case, UiCase):
+            return run_ui_case(bench, case, (spec,))
+        return bench.run_test_case(
+            case,
+            (spec,),
+            False,
+            gas_profile,
+            bench.DEFAULT_RPC_URL,
+            bench.DEFAULT_PRIVATE_KEY,
+            False,
+        )
+
+    if jobs == 1:
+        partials = map(compile_one, specs)
+    else:
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=jobs)
+        partials = executor.map(compile_one, specs)
+
+    result = None
+    try:
+        for partial in partials:
+            if result is None:
+                result = {**partial, "compilers": {}}
+            result["compilers"].update(partial["compilers"])
+    finally:
+        if jobs != 1:
+            executor.shutdown()
+    if result is None:
+        raise RuntimeError("cannot compile a case without compiler variants")
+    return result
+
+
 def run_cases(
     bench: Any,
     cases: Iterable[Any],
@@ -550,6 +656,7 @@ def run_cases(
     labels: dict[str, list[str]] | None = None,
     expected_failures: set[str] | None = None,
     reference_spec: Any | None = None,
+    jobs: int = 1,
 ) -> list[dict[str, Any]]:
     expected_failures = expected_failures or set()
     if include_gas and reference_spec is None:
@@ -651,19 +758,7 @@ def run_cases(
             ):
                 raise RuntimeError(f"{case.test_id} has incomplete gas results after retries")
         else:
-            result = (
-                run_ui_case(bench, case, specs)
-                if isinstance(case, UiCase)
-                else bench.run_test_case(
-                    case,
-                    specs,
-                    False,
-                    gas_profile,
-                    bench.DEFAULT_RPC_URL,
-                    bench.DEFAULT_PRIVATE_KEY,
-                    True,
-                )
-            )
+            result = compile_specs(bench, case, specs, gas_profile, jobs)
             if not result_is_complete(
                 result, specs, False, None, expected_status, False
             ):
@@ -807,6 +902,7 @@ def render_markdown(
     methods: Sequence[str],
     metadata_base: dict[str, Any],
     scopes: Sequence[str],
+    include_details: bool = True,
 ) -> str:
     aggregate_rows = []
     synthetic_rows = []
@@ -847,7 +943,7 @@ def render_markdown(
                 ", ".join(f"{key}: {value}" for key, value in sorted(runtime_statuses.items())),
             ]
         )
-        if metadata["scope"].startswith("ci-"):
+        if include_details and metadata["scope"].startswith("ci-"):
             for result in successful_intersection(results, methods):
                 for method in methods:
                     compiler = result["compilers"][method]
@@ -869,7 +965,7 @@ def render_markdown(
                             ", ".join(gas) if gas else "n/a",
                         ]
                     )
-        if metadata["scope"].startswith("ui-"):
+        if include_details and metadata["scope"].startswith("ui-"):
             for result in successful_intersection(results, methods):
                 compilers = result["compilers"]
                 auto = compilers["auto"]
@@ -904,7 +1000,7 @@ def render_markdown(
                         f'{"; code differs" if differs and same_sizes else ""}'
                     )
                 ui_rows.append(row)
-        if metadata["scope"] != "synthetic":
+        if not include_details or metadata["scope"] != "synthetic":
             continue
         for result in successful_intersection(results, methods):
             for method in methods:
@@ -1057,6 +1153,16 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, default=Path("target/codegen-bench/switch"))
     parser.add_argument("--methods", nargs="+", choices=DEFAULT_METHODS, default=DEFAULT_METHODS)
     parser.add_argument(
+        "--auto-growth-budgets",
+        type=parse_integer_ranges,
+        default=[],
+        metavar="RANGES",
+        help="add auto variants for comma-separated integers or inclusive START..END ranges",
+    )
+    parser.add_argument("--jobs", type=int, default=1)
+    parser.add_argument("--aggregate-only", action="store_true")
+    parser.add_argument("--compile-only", action="store_true")
+    parser.add_argument(
         "--scope",
         nargs="+",
         choices=("synthetic", "ui-gas", "ui-size", "ci-size-gas", "ci-size", "ci-gas"),
@@ -1069,6 +1175,12 @@ def main() -> int:
         parser.error("--methods must not contain duplicates")
     if len(set(args.scope)) != len(args.scope):
         parser.error("--scope must not contain duplicates")
+    if args.jobs < 1:
+        parser.error("--jobs must be positive")
+    variants = switch_variants(args.methods, args.auto_growth_budgets)
+    methods = [variant.compiler_id for variant in variants]
+    if len(set(methods)) != len(methods):
+        parser.error("switch variant IDs must not contain duplicates")
 
     solar = args.solar.resolve()
     benchmark_repo = args.benchmark_repo.resolve()
@@ -1133,13 +1245,22 @@ def main() -> int:
             "driver_sha256": sha256(Path(__file__).resolve()),
             "corpus_revisions": corpus_revisions,
             "ui_corpus_sha256": tree_sha256(ui_corpus, ui_sources),
-            "methods": list(args.methods),
+            "methods": methods,
+            "variants": [
+                {
+                    "compiler_id": variant.compiler_id,
+                    "label": variant.label,
+                    "flags": list(variant.flags),
+                }
+                for variant in variants
+            ],
             "solc": str(solc),
             "solc_sha256": sha256(solc),
             "solc_version": tool_version(str(solc)),
             "anvil_version": tool_version("anvil"),
             "cast_version": tool_version("cast"),
             "hardfork": ANVIL_HARDFORK,
+            "compile_only": args.compile_only,
         }
 
         if "synthetic" in args.scope:
@@ -1156,14 +1277,15 @@ def main() -> int:
                 bench,
                 cases,
                 compiler_specs(
-                    bench, solar, args.methods, "gas", output_dir / "wrappers"
+                    bench, solar, variants, "gas", output_dir / "wrappers"
                 ),
                 output_dir / "synthetic.json",
                 metadata,
-                True,
+                not args.compile_only,
                 "smoke",
                 labels,
-                reference_spec=reference_spec,
+                reference_spec=None if args.compile_only else reference_spec,
+                jobs=args.jobs,
             )
 
         all_ui_cases = load_ui_cases(ui_corpus)
@@ -1184,12 +1306,13 @@ def main() -> int:
                     bench,
                     ui_cases,
                     compiler_specs(
-                        bench, solar, args.methods, optimization, output_dir / "wrappers"
+                        bench, solar, variants, optimization, output_dir / "wrappers"
                     ),
                     output_dir / f"{scope}.json",
                     metadata,
                     False,
                     "smoke",
+                    jobs=args.jobs,
                 )
 
         all_ci_cases = [*bench.TEST_CASES, *bench.REPO_TEST_CASES]
@@ -1218,12 +1341,13 @@ def main() -> int:
                     bench,
                     ci_cases,
                     compiler_specs(
-                        bench, solar, args.methods, optimization, output_dir / "wrappers"
+                        bench, solar, variants, optimization, output_dir / "wrappers"
                     ),
                     output_dir / f"{scope}.json",
                     metadata,
                     False,
                     "hot",
+                    jobs=args.jobs,
                 )
 
         if "ci-gas" in args.scope:
@@ -1237,16 +1361,23 @@ def main() -> int:
                 bench,
                 ci_cases,
                 compiler_specs(
-                    bench, solar, args.methods, "gas", output_dir / "wrappers"
+                    bench, solar, variants, "gas", output_dir / "wrappers"
                 ),
                 output_dir / "ci-gas.json",
                 metadata,
-                True,
+                not args.compile_only,
                 "hot",
-                reference_spec=reference_spec,
+                reference_spec=None if args.compile_only else reference_spec,
+                jobs=args.jobs,
             )
 
-        report = render_markdown(output_dir, args.methods, metadata_base, args.scope)
+        report = render_markdown(
+            output_dir,
+            methods,
+            metadata_base,
+            args.scope,
+            include_details=not args.aggregate_only,
+        )
         (output_dir / "report.md").write_text(report)
         print(report)
     return 0
