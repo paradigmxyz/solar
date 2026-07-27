@@ -82,15 +82,10 @@ impl<'gcx> Lowerer<'gcx> {
                 self.lower_literal(builder, lit)
             }
 
-            ExprKind::Ident(res_slice) => {
-                if res_slice.is_empty() {
-                    self.err_value(builder, expr.span, "codegen cannot resolve this identifier")
-                } else if let Some(res) = self.ident_res(expr) {
+            ExprKind::Ident(_) => {
+                if let Some(res) = self.gcx.resolved_expr(expr) {
                     self.lower_ident(builder, &res, expr.span)
                 } else {
-                    // The raw resolution set is ambiguous (an overloaded
-                    // function or event referenced as a value); the type
-                    // checker records disambiguation only for callees.
                     self.err_value(
                         builder,
                         expr.span,
@@ -225,7 +220,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Member(base, member) => {
-                if let Some(builtin) = self.resolved_builtin_member(expr) {
+                if let Some(builtin) = self.gcx.resolved_builtin(expr) {
                     match builtin {
                         // Handle address member access: addr.balance
                         Builtin::AddressBalance => {
@@ -309,7 +304,7 @@ impl<'gcx> Lowerer<'gcx> {
                 if let Some(TyKind::Fn(function)) = self.get_expr_type(expr).map(|ty| ty.kind)
                     && function.is_internal()
                     && let Some(hir::Res::Item(hir::ItemId::Function(function_id))) =
-                        self.resolved_member(expr)
+                        self.gcx.resolved_expr(expr)
                 {
                     self.internal_function_pointer_targets.insert(function_id);
                     return builder.imm_u64(Self::internal_function_pointer_id(function_id));
@@ -317,7 +312,7 @@ impl<'gcx> Lowerer<'gcx> {
 
                 // Handle contract/library constants (e.g. MachineLib.NO_RECOVERY_PC).
                 if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) =
-                    self.resolved_member(expr)
+                    self.gcx.resolved_expr(expr)
                 {
                     let var = self.gcx.hir.variable(var_id);
                     if var.is_constant()
@@ -640,7 +635,8 @@ impl<'gcx> Lowerer<'gcx> {
         // Deleting a memory fixed-size array zeroes its elements in place;
         // nulling the pointer would alias scratch memory on the next access.
         // Storage targets keep the assignment path.
-        if let Some(var_id) = self.ident_variable(target)
+        if let Some(var_id) = self.gcx.resolved_variable(target)
+            && self.gcx.hir.variable(var_id).is_local_variable()
             && !self.storage_ref_locals.contains(var_id)
             && !self.storage_slots.contains_key(&var_id)
         {
@@ -908,7 +904,7 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         member: Ident,
     ) -> ValueId {
-        let Some(var_id) = self.ident_variable(base) else {
+        let Some(var_id) = self.gcx.resolved_variable(base) else {
             return self.err_value(
                 builder,
                 member.span,
@@ -1018,8 +1014,8 @@ impl<'gcx> Lowerer<'gcx> {
                     let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
                     return Some(bytes.as_byte_str().to_vec());
                 }
-                ExprKind::Ident([hir::Res::Item(hir::ItemId::Variable(var_id))]) => {
-                    let var = self.gcx.hir.variable(*var_id);
+                ExprKind::Ident(_) => {
+                    let var = self.gcx.hir.variable(self.gcx.resolved_variable(expr)?);
                     if !var.is_constant() {
                         return None;
                     }
@@ -1027,7 +1023,7 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 ExprKind::Member(..) => {
                     let hir::Res::Item(hir::ItemId::Variable(var_id)) =
-                        self.resolved_member(expr)?
+                        self.gcx.resolved_expr(expr)?
                     else {
                         return None;
                     };
@@ -1165,7 +1161,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     fn lower_resolved_function_selector(&self, expr: &hir::Expr<'_>) -> Option<u32> {
-        let hir::Res::Item(item_id) = self.resolved_member(expr)? else {
+        let hir::Res::Item(item_id) = self.gcx.resolved_expr(expr)? else {
             return None;
         };
         match item_id {
@@ -1176,7 +1172,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     fn lower_resolved_event_selector(&self, expr: &hir::Expr<'_>) -> Option<U256> {
-        let hir::Res::Item(hir::ItemId::Event(event_id)) = self.resolved_member(expr)? else {
+        let hir::Res::Item(hir::ItemId::Event(event_id)) = self.gcx.resolved_expr(expr)? else {
             return None;
         };
         Some(U256::from_be_bytes(self.gcx.event_selector(event_id).0))
@@ -1509,24 +1505,24 @@ impl<'gcx> Lowerer<'gcx> {
         rhs: ValueId,
     ) {
         match &lhs.kind {
-            ExprKind::Ident(res_slice) => {
-                if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() {
-                    let var = self.gcx.hir.variable(*var_id);
+            ExprKind::Ident(_) => {
+                if let Some(var_id) = self.gcx.resolved_variable(lhs) {
+                    let var = self.gcx.hir.variable(var_id);
 
                     // Check if it's a local variable stored in memory
-                    if let Some(offset) = self.get_local_memory_offset(var_id) {
-                        if self.is_slice_slot_local(var_id) {
+                    if let Some(offset) = self.get_local_memory_offset(&var_id) {
+                        if self.is_slice_slot_local(&var_id) {
                             self.store_slice_slot(builder, offset, rhs);
                             return;
                         }
                         let offset_val = self.local_memory_addr(builder, offset);
                         builder.mstore(offset_val, rhs);
-                    } else if self.locals.contains_key(var_id) {
+                    } else if let Some(local) = self.locals.get_mut(&var_id) {
                         // Function parameter - update SSA mapping (shouldn't happen normally)
-                        self.locals.insert(*var_id, rhs);
-                    } else if let Some(&offset) = self.immutable_slots.get(var_id) {
+                        *local = rhs;
+                    } else if let Some(&offset) = self.immutable_slots.get(&var_id) {
                         self.store_immutable_value(builder, offset, rhs);
-                    } else if let Some(&location) = self.storage_locations.get(var_id) {
+                    } else if let Some(&location) = self.storage_locations.get(&var_id) {
                         let base_slot = location.slot;
                         // Check if this is a struct assignment (memory struct -> storage struct)
                         if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind
@@ -1641,11 +1637,10 @@ impl<'gcx> Lowerer<'gcx> {
                 // is modeled as an SSA slot in `locals`, marked as a storage ref so
                 // later `r.field` access resolves to `sload`/`sstore(slot + off)`.
                 if member.name == sym::slot
-                    && let ExprKind::Ident(res_slice) = &base.kind
-                    && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+                    && let Some(var_id) = self.gcx.resolved_variable(base)
                 {
-                    self.locals.insert(*var_id, rhs);
-                    self.storage_ref_locals.insert(*var_id);
+                    self.locals.insert(var_id, rhs);
+                    self.storage_ref_locals.insert(var_id);
                     return;
                 }
                 // `d.offset := x` / `d.length := x` on a `bytes`/`string` calldata
@@ -1654,7 +1649,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // the update; this is the `bytes calldata` empty/sub-slice idiom
                 // (`data.length := 0`) used to build calldata slices in assembly.
                 if matches!(member.name, sym::offset | sym::length)
-                    && let Some(var_id) = self.ident_variable(base)
+                    && let Some(var_id) = self.gcx.resolved_variable(base)
                     && Self::calldata_dynamic_var_kind(self.gcx.hir.variable(var_id)).is_some()
                 {
                     // A reassignable slice lives in a two-word slot; a
@@ -1850,15 +1845,13 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Checks if an expression is a mapping state variable and returns its var_id and storage slot.
     fn get_mapping_base_slot(&self, expr: &hir::Expr<'_>) -> Option<(hir::VariableId, u64)> {
-        if let ExprKind::Ident(res_slice) = &expr.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-        {
-            let var = self.gcx.hir.variable(*var_id);
+        if let Some(var_id) = self.gcx.resolved_variable(expr) {
+            let var = self.gcx.hir.variable(var_id);
             // Check if this variable has mapping type
             if matches!(var.ty.kind, hir::TypeKind::Mapping(_)) {
                 // Look up the storage slot
-                if let Some(&slot) = self.storage_slots.get(var_id) {
-                    return Some((*var_id, slot));
+                if let Some(&slot) = self.storage_slots.get(&var_id) {
+                    return Some((var_id, slot));
                 }
             }
         }
@@ -1956,7 +1949,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Whether an expression is `msg.data`.
     pub(super) fn expr_is_msg_data(&self, expr: &hir::Expr<'_>) -> bool {
-        matches!(self.resolved_builtin_member(expr), Some(Builtin::MsgData))
+        matches!(self.gcx.resolved_builtin(expr), Some(Builtin::MsgData))
     }
 
     /// Resolves a calldata bytes/array base to its logical slice: an
@@ -2000,21 +1993,18 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> Option<(ValueId, bool)> {
-        let ExprKind::Ident(res_slice) = &expr.kind else { return None };
-        let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
-            return None;
-        };
-        let var = self.gcx.hir.variable(*var_id);
+        let var_id = self.gcx.resolved_variable(expr)?;
+        let var = self.gcx.hir.variable(var_id);
         if var.data_location != Some(solar_ast::DataLocation::Calldata) {
             return None;
         }
         let is_bytes = Self::calldata_dynamic_var_kind(var)?;
-        if self.is_slice_slot_local(var_id) {
-            let offset = self.get_local_memory_offset(var_id)?;
+        if self.is_slice_slot_local(&var_id) {
+            let offset = self.get_local_memory_offset(&var_id)?;
             let slice = self.load_slice_slot(builder, offset, crate::mir::SliceLocation::Calldata);
             return Some((slice, is_bytes));
         }
-        let slice = self.locals.get(var_id).copied()?;
+        let slice = self.locals.get(&var_id).copied()?;
         Some((slice, is_bytes))
     }
 
@@ -2033,16 +2023,13 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Returns the constant length of a fixed-size array expression, if its type is known.
     pub(super) fn fixed_array_len_of_expr(&self, expr: &hir::Expr<'_>) -> Option<u64> {
-        // Identifier: use the variable's declared type directly; `get_expr_type` may not
-        // resolve every local.
-        if let ExprKind::Ident(res_slice) = &expr.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-        {
-            let var = self.gcx.hir.variable(*var_id);
+        // Use the variable's declared type directly; `get_expr_type` may not resolve every local.
+        if let Some(var_id) = self.gcx.resolved_variable(expr) {
+            let var = self.gcx.hir.variable(var_id);
             if let hir::TypeKind::Array(arr) = &var.ty.kind {
                 arr.size.as_ref()?;
                 if let solar_sema::ty::TyKind::Array(_, len) =
-                    self.gcx.type_of_item((*var_id).into()).peel_refs().kind
+                    self.gcx.type_of_item(var_id.into()).peel_refs().kind
                 {
                     return u64::try_from(len).ok();
                 }
@@ -2344,14 +2331,11 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         member: Ident,
     ) -> Option<(u64, hir::StructId, usize)> {
-        // The base must be an identifier resolving to a variable with struct type
-        if let ExprKind::Ident(res_slice) = &base.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-        {
-            let var = self.gcx.hir.variable(*var_id);
+        if let Some(var_id) = self.gcx.resolved_variable(base) {
+            let var = self.gcx.hir.variable(var_id);
             // Check if the variable has a struct type and is stored in storage
             if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind
-                && let Some(&base_slot) = self.struct_storage_base_slots.get(var_id)
+                && let Some(&base_slot) = self.struct_storage_base_slots.get(&var_id)
             {
                 // Find the field index by name
                 let strukt = self.gcx.hir.strukt(*struct_id);
@@ -2375,11 +2359,10 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         member: Ident,
     ) -> Option<(hir::VariableId, hir::StructId, usize)> {
-        if let ExprKind::Ident(res_slice) = &base.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-            && self.storage_ref_locals.contains(*var_id)
+        if let Some(var_id) = self.gcx.resolved_variable(base)
+            && self.storage_ref_locals.contains(var_id)
             && let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) =
-                &self.gcx.hir.variable(*var_id).ty.kind
+                &self.gcx.hir.variable(var_id).ty.kind
         {
             let strukt = self.gcx.hir.strukt(*struct_id);
             for (i, &field_id) in strukt.fields.iter().enumerate() {
@@ -2387,7 +2370,7 @@ impl<'gcx> Lowerer<'gcx> {
                 if let Some(field_name) = field.name
                     && field_name.name == member.name
                 {
-                    return Some((*var_id, *struct_id, i));
+                    return Some((var_id, *struct_id, i));
                 }
             }
         }
@@ -2395,24 +2378,21 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Resolves the struct type of an expression, for storage struct field
-    /// access. Uses the variable's declared type directly for an identifier and
-    /// the inferred expression type otherwise (e.g. a mapping/array element).
+    /// access. Uses the variable's declared type when available and the inferred
+    /// expression type otherwise (e.g. a mapping/array element).
     pub(super) fn struct_id_of_expr(&self, expr: &hir::Expr<'_>) -> Option<hir::StructId> {
-        // Identifier: use the variable's declared type.
-        if let ExprKind::Ident(res) = &expr.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(vid))) = res.first()
+        if let Some(vid) = self.gcx.resolved_variable(expr)
             && let hir::TypeKind::Custom(hir::ItemId::Struct(sid)) =
-                &self.gcx.hir.variable(*vid).ty.kind
+                &self.gcx.hir.variable(vid).ty.kind
         {
             return Some(*sid);
         }
         // Indexed element (`items[k]`, `arr[i]`): the mapping value / array
         // element type, resolved from the indexed variable's declared type.
         if let ExprKind::Index(arr, _) = &expr.kind
-            && let ExprKind::Ident(res) = &arr.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(vid))) = res.first()
+            && let Some(vid) = self.gcx.resolved_variable(arr)
         {
-            let elem_kind = match &self.gcx.hir.variable(*vid).ty.kind {
+            let elem_kind = match &self.gcx.hir.variable(vid).ty.kind {
                 hir::TypeKind::Mapping(m) => &m.value.kind,
                 hir::TypeKind::Array(a) => &a.element.kind,
                 _ => return None,
@@ -2425,17 +2405,12 @@ impl<'gcx> Lowerer<'gcx> {
         // Call returning a (storage) struct, e.g. an ERC-7201 `_layout()` getter:
         // use the callee's declared return type.
         if let ExprKind::Call(callee, ..) = &expr.kind
-            && let ExprKind::Ident(res) = &callee.kind
+            && let Some(fid) = self.gcx.resolved_function(callee)
+            && let Some(&rid) = self.gcx.hir.function(fid).returns.first()
+            && let hir::TypeKind::Custom(hir::ItemId::Struct(sid)) =
+                &self.gcx.hir.variable(rid).ty.kind
         {
-            for r in res.iter() {
-                if let hir::Res::Item(hir::ItemId::Function(fid)) = r
-                    && let Some(&rid) = self.gcx.hir.function(*fid).returns.first()
-                    && let hir::TypeKind::Custom(hir::ItemId::Struct(sid)) =
-                        &self.gcx.hir.variable(rid).ty.kind
-                {
-                    return Some(*sid);
-                }
-            }
+            return Some(*sid);
         }
         // Fall back to the inferred expression type.
         if let Some(ty) = self.get_expr_type(expr)
@@ -2512,17 +2487,17 @@ impl<'gcx> Lowerer<'gcx> {
         expr: &hir::Expr<'_>,
     ) -> Option<ValueId> {
         match &expr.kind {
-            ExprKind::Ident(res_slice) => {
-                if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() {
+            ExprKind::Ident(_) => {
+                if let Some(var_id) = self.gcx.resolved_variable(expr) {
                     // Another storage reference: its value is already the slot.
-                    if self.storage_ref_locals.contains(*var_id) {
-                        return self.locals.get(var_id).copied();
+                    if self.storage_ref_locals.contains(var_id) {
+                        return self.locals.get(&var_id).copied();
                     }
                     // A state variable: its base slot is known at compile time.
-                    if let Some(&slot) = self.storage_slots.get(var_id) {
+                    if let Some(&slot) = self.storage_slots.get(&var_id) {
                         return Some(builder.imm_u64(slot));
                     }
-                    if let Some(&slot) = self.struct_storage_base_slots.get(var_id) {
+                    if let Some(&slot) = self.struct_storage_base_slots.get(&var_id) {
                         return Some(builder.imm_u64(slot));
                     }
                 }
@@ -2570,7 +2545,7 @@ impl<'gcx> Lowerer<'gcx> {
                 None
             }
             ExprKind::Call(callee, args, _)
-                if self.gcx.builtin_callee(callee.id) == Some(Builtin::ArrayPush0) =>
+                if self.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0) =>
             {
                 if let Err(guar) = self.collect_builtin_args(Builtin::ArrayPush0, args) {
                     return Some(builder.error_value(guar));
@@ -2592,19 +2567,11 @@ impl<'gcx> Lowerer<'gcx> {
     /// Whether `callee` resolves to a function whose first return is a storage
     /// reference, so a call to it yields a storage slot value.
     fn call_returns_storage_ref(&self, callee: &hir::Expr<'_>) -> bool {
-        let ExprKind::Ident(res) = &callee.kind else {
+        let Some(fid) = self.gcx.resolved_function(callee) else {
             return false;
         };
-        res.iter().any(|r| {
-            if let hir::Res::Item(hir::ItemId::Function(fid)) = r {
-                let f = self.gcx.hir.function(*fid);
-                f.returns.first().is_some_and(|&rid| {
-                    self.gcx.hir.variable(rid).data_location
-                        == Some(solar_ast::DataLocation::Storage)
-                })
-            } else {
-                false
-            }
+        self.gcx.hir.function(fid).returns.first().is_some_and(|&rid| {
+            self.gcx.hir.variable(rid).data_location == Some(solar_ast::DataLocation::Storage)
         })
     }
 
@@ -2615,14 +2582,13 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         member: Ident,
     ) -> Option<(hir::StructId, usize)> {
-        // The base is a local variable (memory struct) - check if it's in local_memory_slots
-        if let ExprKind::Ident(res_slice) = &base.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-        {
-            let var = self.gcx.hir.variable(*var_id);
-            if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
+        if let Some(var_id) = self.gcx.resolved_variable(base) {
+            let var = self.gcx.hir.variable(var_id);
+            if var.is_local_variable()
+                && let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind
+            {
                 // For memory structs, we need to verify this is NOT a storage struct
-                if !self.struct_storage_base_slots.contains_key(var_id) {
+                if !self.struct_storage_base_slots.contains_key(&var_id) {
                     let strukt = self.gcx.hir.strukt(*struct_id);
                     for (i, &field_id) in strukt.fields.iter().enumerate() {
                         let field = self.gcx.hir.variable(field_id);
@@ -2979,15 +2945,12 @@ impl<'gcx> Lowerer<'gcx> {
         &self,
         base: &hir::Expr<'_>,
     ) -> Option<(hir::VariableId, ValueId)> {
-        let ExprKind::Ident(res_slice) = &base.kind else { return None };
-        let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
-            return None;
-        };
-        if !matches!(self.gcx.hir.variable(*var_id).ty.kind, hir::TypeKind::Mapping(_)) {
+        let var_id = self.gcx.resolved_variable(base)?;
+        if !matches!(self.gcx.hir.variable(var_id).ty.kind, hir::TypeKind::Mapping(_)) {
             return None;
         }
-        let slot_val = self.locals.get(var_id).copied()?;
-        Some((*var_id, slot_val))
+        let slot_val = self.locals.get(&var_id).copied()?;
+        Some((var_id, slot_val))
     }
 
     /// Computes the storage slot for a nested mapping access.
@@ -3110,12 +3073,7 @@ impl<'gcx> Lowerer<'gcx> {
         while let ExprKind::Index(inner_base, _) = &current.kind {
             current = inner_base;
         }
-        if let ExprKind::Ident(res_slice) = &current.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-        {
-            return Some(*var_id);
-        }
-        None
+        self.gcx.resolved_variable(current)
     }
 
     /// Computes the storage slot for a mapping access: keccak256(abi.encode(key, slot))
@@ -3178,11 +3136,10 @@ impl<'gcx> Lowerer<'gcx> {
     /// Whether `expr` is a storage-reference local of `string`/`bytes` type,
     /// which lowers to its storage slot rather than a memory pointer.
     fn is_storage_ref_bytes_local(&self, expr: &hir::Expr<'_>) -> bool {
-        if let ExprKind::Ident(res_slice) = &expr.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-            && self.storage_ref_locals.contains(*var_id)
+        if let Some(var_id) = self.gcx.resolved_variable(expr)
+            && self.storage_ref_locals.contains(var_id)
         {
-            let var = self.gcx.hir.variable(*var_id);
+            let var = self.gcx.hir.variable(var_id);
             return Self::is_dynamic_mapping_key(&var.ty.kind);
         }
         false
@@ -3256,16 +3213,13 @@ impl<'gcx> Lowerer<'gcx> {
         let Some(expr) = expr else {
             return false;
         };
-        let ExprKind::Ident(res_slice) = &expr.kind else {
+        let Some(var_id) = self.gcx.resolved_variable(expr) else {
             return false;
         };
-        let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
-            return false;
-        };
-        if !self.locals.contains_key(var_id) || self.get_local_memory_offset(var_id).is_some() {
+        if !self.locals.contains_key(&var_id) || self.get_local_memory_offset(&var_id).is_some() {
             return false;
         }
-        let var = self.gcx.hir.variable(*var_id);
+        let var = self.gcx.hir.variable(var_id);
         if var.data_location != Some(solar_ast::DataLocation::Calldata) {
             return false;
         }

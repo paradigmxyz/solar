@@ -49,7 +49,7 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
         call_opts: Option<&[hir::NamedArg<'_>]>,
     ) -> Option<ValueId> {
-        if let Some(builtin) = self.gcx.builtin_callee(callee.id) {
+        if let Some(builtin) = self.gcx.resolved_builtin(callee) {
             // `T.wrap(x)` / `T.unwrap(v)` for a user-defined value type are identity
             // operations at the EVM level: a UDVT value is represented exactly as its
             // underlying type, so no wrapper is added or removed.
@@ -73,9 +73,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(TyKind::Fn(function)) = self.get_expr_type(callee).map(|ty| ty.kind)
             && function.is_internal()
             && function.function_id.is_none()
-            && !self.gcx.resolved_callee(callee.id).is_some_and(|resolved| {
-                matches!(resolved.res, hir::Res::Item(hir::ItemId::Function(_)))
-            })
+            && self.gcx.resolved_function(callee).is_none()
         {
             return self.lower_internal_function_pointer_call(builder, callee, args, function);
         }
@@ -94,10 +92,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         // Handle internal function calls: func(args) where func is a function in the same contract
-        if let ExprKind::Ident(_) = &callee.kind
-            && let Some(resolved) = self.gcx.resolved_callee(callee.id)
-            && let hir::Res::Item(item_id) = resolved.res
-        {
+        if let Some(hir::Res::Item(item_id)) = self.gcx.resolved_expr(callee) {
             match item_id {
                 hir::ItemId::Function(func_id) => {
                     return self.lower_internal_call(builder, func_id, args);
@@ -453,9 +448,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     fn custom_error_id_from_callee(&self, callee: &hir::Expr<'_>) -> Option<hir::ErrorId> {
-        if let Some(resolved) = self.gcx.resolved_callee(callee.id)
-            && let hir::Res::Item(hir::ItemId::Error(error_id)) = resolved.res
-        {
+        if let Some(hir::Res::Item(hir::ItemId::Error(error_id))) = self.gcx.resolved_expr(callee) {
             return Some(error_id);
         }
 
@@ -1134,7 +1127,7 @@ impl<'gcx> Lowerer<'gcx> {
         call_opts: Option<&[hir::NamedArg<'_>]>,
     ) -> Option<ValueId> {
         let resolved = self.gcx.resolved_callee(callee.id);
-        let builtin = self.gcx.builtin_callee(callee.id);
+        let builtin = self.gcx.resolved_builtin(callee);
 
         if let Some(builtin) = builtin
             && Self::builtin_uses_direct_call_lowering(builtin)
@@ -1459,9 +1452,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     fn resolved_function_callee(&self, callee: &hir::Expr<'_>) -> Option<hir::FunctionId> {
-        let resolved = self.gcx.resolved_callee(callee.id)?;
-        let hir::Res::Item(hir::ItemId::Function(func_id)) = resolved.res else { return None };
-        Some(func_id)
+        self.gcx.resolved_function(callee)
     }
 
     fn is_library_type_expr(&self, expr: &hir::Expr<'_>) -> bool {
@@ -1549,11 +1540,9 @@ impl<'gcx> Lowerer<'gcx> {
             None
         };
 
-        // Case 1: base is an identifier (variable with contract type)
-        if let ExprKind::Ident(res_slice) = &base.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-        {
-            let ty = self.gcx.type_of_item((*var_id).into());
+        // Case 1: base resolves to a variable with contract type.
+        if let Some(var_id) = self.gcx.resolved_variable(base) {
+            let ty = self.gcx.type_of_item(var_id.into());
             if let solar_sema::ty::TyKind::Contract(contract_id) = ty.kind
                 && let Some(sel) = lookup_in_contract(contract_id)
             {
@@ -1564,25 +1553,24 @@ impl<'gcx> Lowerer<'gcx> {
         // Case 2: base is a type conversion call like ICallee(addr)
         // The call's callee is an Ident resolving to a Contract/Interface
         if let ExprKind::Call(callee, _args, _named) = &base.kind
-            && let ExprKind::Ident(res_slice) = &callee.kind
-            && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) = res_slice.first()
-            && let Some(sel) = lookup_in_contract(*contract_id)
+            && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) =
+                self.gcx.resolved_expr(callee)
+            && let Some(sel) = lookup_in_contract(contract_id)
         {
             return sel;
         }
 
         // Case 2b: base is the contract/interface name itself, e.g.
         // `IERC20Minimal.transfer.selector`.
-        if let ExprKind::Ident(res_slice) = &base.kind
-            && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) = res_slice.first()
-            && let Some(sel) = lookup_in_contract(*contract_id)
+        if let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) =
+            self.gcx.resolved_expr(base)
+            && let Some(sel) = lookup_in_contract(contract_id)
         {
             return sel;
         }
 
         // Case 3: base is `this` (Builtin::This)
-        if let ExprKind::Ident(res_slice) = &base.kind
-            && let Some(hir::Res::Builtin(Builtin::This)) = res_slice.first()
+        if self.gcx.resolved_builtin(base) == Some(Builtin::This)
             && let Some(contract_id) = self.current_contract_id
             && let Some(sel) = lookup_in_contract(contract_id)
         {
@@ -1637,11 +1625,9 @@ impl<'gcx> Lowerer<'gcx> {
             None
         };
 
-        // Case 1: base is an identifier (variable with contract type)
-        if let ExprKind::Ident(res_slice) = &base.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-        {
-            let ty = self.gcx.type_of_item((*var_id).into());
+        // Case 1: base resolves to a variable with contract type.
+        if let Some(var_id) = self.gcx.resolved_variable(base) {
+            let ty = self.gcx.type_of_item(var_id.into());
             if let solar_sema::ty::TyKind::Contract(contract_id) = ty.kind
                 && let Some(count) = lookup_in_contract(contract_id)
             {
@@ -1651,17 +1637,15 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Case 2: base is a type conversion call like ICallee(addr)
         if let ExprKind::Call(callee, _args, _named) = &base.kind
-            && let ExprKind::Ident(res_slice) = &callee.kind
-            && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) = res_slice.first()
-            && let Some(count) = lookup_in_contract(*contract_id)
+            && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) =
+                self.gcx.resolved_expr(callee)
+            && let Some(count) = lookup_in_contract(contract_id)
         {
             return count;
         }
 
         // Case 3: base is `this` (Builtin::This)
-        if let ExprKind::Ident(res_slice) = &base.kind
-            && let Some(hir::Res::Builtin(Builtin::This)) = res_slice.first()
-        {
+        if self.gcx.resolved_builtin(base) == Some(Builtin::This) {
             // Look up the function in the current contract
             // We need to find it through the module's functions
             // Search all known contracts because `this` carries the current

@@ -281,11 +281,11 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Whether an assignment target wants a MEMORY dynamic-array value.
     pub(super) fn lhs_expects_memory_dyn_array_value(&self, lhs: &hir::Expr<'_>) -> bool {
-        let ExprKind::Ident(res_slice) = &lhs.kind else { return false };
-        let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
+        let Some(var_id) = self.gcx.resolved_variable(lhs) else {
             return false;
         };
-        self.var_expects_memory_dyn_array_value(self.gcx.hir.variable(*var_id))
+        let var = self.gcx.hir.variable(var_id);
+        !var.is_struct_member() && self.var_expects_memory_dyn_array_value(var)
     }
 
     /// Lowers an expression whose consumer needs a MEMORY dynamic array: a
@@ -587,9 +587,8 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     pub(super) fn lhs_expects_memory_bytes_value(&self, lhs: &hir::Expr<'_>) -> bool {
-        if let ExprKind::Ident(res_slice) = &lhs.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-            && self.gcx.hir.variable(*var_id).data_location
+        if let Some(var_id) = self.gcx.resolved_variable(lhs)
+            && self.gcx.hir.variable(var_id).data_location
                 == Some(solar_ast::DataLocation::Calldata)
         {
             return false;
@@ -598,11 +597,10 @@ impl<'gcx> Lowerer<'gcx> {
             return true;
         }
 
-        let ExprKind::Ident(res_slice) = &lhs.kind else { return false };
-        let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
+        let Some(var_id) = self.gcx.resolved_variable(lhs) else {
             return false;
         };
-        let var = self.gcx.hir.variable(*var_id);
+        let var = self.gcx.hir.variable(var_id);
         self.var_expects_memory_bytes_value(var)
     }
 
@@ -790,12 +788,10 @@ impl<'gcx> Lowerer<'gcx> {
         if !self.is_dynamic_bytes_expr(expr) {
             return false;
         }
-        if let ExprKind::Ident(res_slice) = &expr.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-        {
+        if let Some(var_id) = self.gcx.resolved_variable(expr) {
             // Storage bytes and calldata bytes have dedicated paths.
-            return !self.storage_slots.contains_key(var_id)
-                && self.gcx.hir.variable(*var_id).data_location
+            return !self.storage_slots.contains_key(&var_id)
+                && self.gcx.hir.variable(var_id).data_location
                     != Some(solar_ast::DataLocation::Calldata);
         }
         true
@@ -804,11 +800,9 @@ impl<'gcx> Lowerer<'gcx> {
     /// Whether an expression is a storage `bytes`/`string` state variable, whose value
     /// lowers to a packed `[length][data...]` memory copy.
     pub(super) fn is_storage_bytes_expr(&self, expr: &hir::Expr<'_>) -> bool {
-        if let ExprKind::Ident(res_slice) = &expr.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-        {
-            let var = self.gcx.hir.variable(*var_id);
-            return self.storage_slots.contains_key(var_id)
+        if let Some(var_id) = self.gcx.resolved_variable(expr) {
+            let var = self.gcx.hir.variable(var_id);
+            return self.storage_slots.contains_key(&var_id)
                 && matches!(
                     var.ty.kind,
                     hir::TypeKind::Elementary(
@@ -934,8 +928,7 @@ impl<'gcx> Lowerer<'gcx> {
         // Handle the abi.encode* family.
         if let ExprKind::Call(callee, args, _) = &expr.kind
             && let ExprKind::Member(base, member) = &callee.kind
-            && let ExprKind::Ident(res_slice) = &base.kind
-            && let Some(hir::Res::Builtin(Builtin::Abi)) = res_slice.first()
+            && self.gcx.resolved_builtin(base) == Some(Builtin::Abi)
         {
             match member.name {
                 sym::encodePacked => {
@@ -1070,13 +1063,17 @@ impl<'gcx> Lowerer<'gcx> {
     /// Whether lowering `expr` yields a memory `bytes`/`string` pointer
     /// (`[length][data...]`).
     pub(super) fn expr_yields_memory_bytes(&self, expr: &hir::Expr<'_>) -> bool {
-        // Calldata- and storage-located values lower to their ABI head or
-        // storage slot, not to a memory pointer.
-        if let ExprKind::Ident(res_slice) = &expr.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-        {
-            let var = self.gcx.hir.variable(*var_id);
-            if var.data_location != Some(solar_ast::DataLocation::Memory) {
+        // Calldata- and storage-located declarations lower to their ABI head
+        // or storage slot, not to a memory pointer. Struct fields inherit their
+        // location from the surrounding expression type.
+        if let Some(var_id) = self.gcx.resolved_variable(expr) {
+            let var = self.gcx.hir.variable(var_id);
+            if var.is_state_variable()
+                || matches!(
+                    var.data_location,
+                    Some(solar_ast::DataLocation::Calldata | solar_ast::DataLocation::Storage)
+                )
+            {
                 return false;
             }
         }
