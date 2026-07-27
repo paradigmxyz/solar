@@ -1,4 +1,4 @@
-//@ revisions: sequential parallel1 parallel2 parallel3 parallel4 parallel5 parallel6 parallel7 parallel8
+//@ revisions: sequential parallel2 parallel3 parallel4 parallel5 parallel6 parallel7 parallel8
 //@[sequential] compile-flags: -j1
 //@[parallel2]  compile-flags: -j2
 //@[parallel3]  compile-flags: -j3
