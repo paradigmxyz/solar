@@ -85,6 +85,20 @@
       ret v2
   }
   
+  fn @callcode_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (bool, u256) {
+    bb0:
+-     v0 = add arg0, arg1
+      v1 = mul arg2, arg3
++     v0 = add arg0, arg1
+      v2 = sub v0, v1
+      v3 = callcode v2, 0xbeef, 1, 0, 0, 0, 0
+-     v4 = add arg0, arg2
+      v5 = mul arg1, arg3
++     v4 = add arg0, arg2
+      v6 = div v4, v5
+      ret v3, v6
+  }
+  
   fn @msize_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256) {
     bb0:
 -     v0 = add arg0, arg1
