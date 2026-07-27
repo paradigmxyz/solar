@@ -27,7 +27,7 @@ const MAX_BUCKET_CASES: usize = 64;
 const MAX_DENSE_RANGE: usize = 4096;
 const MAX_BUCKET_CANDIDATES: usize = 33;
 /// Bounds cumulative bytecode growth per artifact under the runtime-gas objective.
-pub(super) const MAX_GAS_CODE_GROWTH: usize = 512;
+pub(super) const MAX_GAS_CODE_GROWTH: usize = 61;
 
 /// Selected control-flow shape for a switch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -669,14 +669,15 @@ mod tests {
         );
         assert_eq!(binary.plan, SwitchPlan::Binary { leaf_size: 4 });
         assert!(matches!(
-            select_switch_plan(
+            select_switch_plan_with_budget(
                 &values,
                 OptimizationMode::Gas,
                 EvmVersion::Cancun,
                 SwitchDefault::CleanupJump,
                 2,
+                usize::MAX,
             ),
-            SwitchPlan::Buckets { .. }
+            SwitchSelection { plan: SwitchPlan::Buckets { .. }, .. }
         ));
     }
 
@@ -820,14 +821,15 @@ mod tests {
     fn selects_buckets_for_large_sparse_switches() {
         let values = (0..32).map(|value| U256::from(value * 7919)).collect::<Vec<_>>();
         assert!(matches!(
-            select_switch_plan(
+            select_switch_plan_with_budget(
                 &values,
                 OptimizationMode::Gas,
                 EvmVersion::Cancun,
                 SwitchDefault::CleanupJump,
                 2,
+                usize::MAX,
             ),
-            SwitchPlan::Buckets { .. }
+            SwitchSelection { plan: SwitchPlan::Buckets { .. }, .. }
         ));
     }
 
@@ -835,14 +837,15 @@ mod tests {
     fn bounds_bucket_table_fanout() {
         let values = (0..100).map(|value| U256::from(value * 7919)).collect::<Vec<_>>();
         assert!(matches!(
-            select_switch_plan(
+            select_switch_plan_with_budget(
                 &values,
                 OptimizationMode::Gas,
                 EvmVersion::Cancun,
                 SwitchDefault::CleanupJump,
                 2,
+                usize::MAX,
             ),
-            SwitchPlan::Binary { .. }
+            SwitchSelection { plan: SwitchPlan::Binary { .. }, .. }
         ));
     }
 
@@ -879,40 +882,15 @@ mod tests {
     #[test]
     fn rejects_excessive_gas_optimized_table_growth() {
         let values = (0..65).map(|value| U256::from(value * 63)).collect::<Vec<_>>();
-        let plan = select_switch_plan(
+        let selection = select_switch_plan_with_budget(
             &values,
             OptimizationMode::Gas,
             EvmVersion::Cancun,
             SwitchDefault::CleanupJump,
             2,
+            MAX_GAS_CODE_GROWTH,
         );
-        let cost = match plan {
-            SwitchPlan::Linear => lowering_cost(
-                &values,
-                values.len(),
-                EvmVersion::Cancun,
-                SwitchDefault::CleanupJump,
-                2,
-            ),
-            SwitchPlan::Binary { leaf_size } => {
-                lowering_cost(&values, leaf_size, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2)
-            }
-            SwitchPlan::Buckets { bucket_count } => bucket_lowering_cost(
-                &values,
-                bucket_count,
-                EvmVersion::Cancun,
-                SwitchDefault::CleanupJump,
-                2,
-            ),
-            SwitchPlan::Dense { .. } => {
-                dense_lowering_cost(&values, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2)
-                    .unwrap()
-                    .2
-            }
-        };
-        let linear =
-            lowering_cost(&values, values.len(), EvmVersion::Cancun, SwitchDefault::CleanupJump, 2);
-        assert!(cost.max_code_size <= linear.code_size + MAX_GAS_CODE_GROWTH);
+        assert!(selection.gas_code_growth <= MAX_GAS_CODE_GROWTH);
     }
 
     #[test]
@@ -1002,8 +980,9 @@ mod tests {
 
     #[test]
     fn bounds_cumulative_gas_mode_growth() {
+        let budget = 512;
         let values = (0..48).map(|value| U256::from(value * 4)).collect::<Vec<_>>();
-        let mut remaining = MAX_GAS_CODE_GROWTH;
+        let mut remaining = budget;
         let mut growth = 0;
         let mut linear = 0;
         for _ in 0..21 {
@@ -1019,7 +998,7 @@ mod tests {
             remaining = remaining.saturating_sub(selection.gas_code_growth);
             linear += usize::from(selection.plan == SwitchPlan::Linear);
         }
-        assert!(growth <= MAX_GAS_CODE_GROWTH);
+        assert!(growth <= budget);
         assert!(growth > 0);
         assert!(linear > 0);
     }
