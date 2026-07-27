@@ -598,8 +598,9 @@ impl<'gcx> Lowerer<'gcx> {
         match res {
             hir::Res::Item(item_id) => {
                 if let hir::ItemId::Function(function_id) = item_id {
-                    self.internal_function_pointer_targets.insert(*function_id);
-                    return builder.imm_u64(Self::internal_function_pointer_id(*function_id));
+                    let function_id = self.resolve_internal_function_pointer_target(*function_id);
+                    self.internal_function_pointer_targets.insert(function_id);
+                    return builder.imm_u64(Self::internal_function_pointer_id(function_id));
                 }
                 if let hir::ItemId::Variable(var_id) = item_id {
                     let var = self.gcx.hir.variable(*var_id);

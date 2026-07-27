@@ -83,6 +83,8 @@ pub(crate) struct Lowerer<'gcx> {
     gcx: Gcx<'gcx>,
     /// The current module being built.
     module: Module,
+    /// The most-derived contract this module is being built for.
+    contract_id: Option<ContractId>,
     /// The current contract being lowered.
     current_contract_id: Option<ContractId>,
     /// Mapping from HIR variable IDs to storage slots.
@@ -200,6 +202,7 @@ impl<'gcx> Lowerer<'gcx> {
         Self {
             gcx,
             module: Module::new(name),
+            contract_id: None,
             current_contract_id: None,
             storage_slots: FxHashMap::default(),
             storage_locations: FxHashMap::default(),
@@ -394,6 +397,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// Lowers a contract to MIR.
     pub(crate) fn lower_contract(&mut self, contract_id: ContractId) {
         let contract = self.gcx.hir.contract(contract_id);
+        self.contract_id = Some(contract_id);
 
         // Track the current contract for using directive resolution.
         self.current_contract_id = Some(contract_id);

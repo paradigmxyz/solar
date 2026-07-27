@@ -1,0 +1,588 @@
+// === ROOT/tests/ui/codegen/lowering/internal_function_pointer_mir.sol:InternalFunctionPointerMir ===
+@module InternalFunctionPointerMir
+@phase evm-shaped
+fn @_anonymous() {
+  bb0:
+    sstore 1, 10 !metadata(storage=slot(1))
+    sstore 2, 28 !metadata(storage=slot(2))
+    stop
+}
+
+fn @dynamic() {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = iszero v3
+    v5 = iszero v4
+    v6 = eq v3, v5
+    jumpi v6, bb3, bb1
+  bb3:
+    mstore 128, 0
+    jumpi arg0, bb4, bb5
+  bb4:
+    mstore 0, 3 !metadata(memory=scratch)
+    jump bb6
+  bb5:
+    mstore 0, 4 !metadata(memory=scratch)
+    jump bb6
+  bb6:
+    v7 = mload 0 !metadata(memory=scratch)
+    v8 = internal_call @__internal_dispatch_0, 1, v7, arg1
+    mstore 128, v8
+    returndata 128, 32
+}
+
+fn @__internal_dispatch_0(arg0: function, arg1: u256) -> u256 {
+  bb0:
+    v0 = eq arg0, 3
+    jumpi v0, bb15, bb1
+  bb1:
+    v2 = eq arg0, 4
+    jumpi v2, bb18, bb2
+  bb2:
+    v4 = eq arg0, 8
+    jumpi v4, bb20, bb3
+  bb3:
+    v6 = eq arg0, 22
+    jumpi v6, bb4, bb5
+  bb4:
+    v7 = internal_call fn25, 1, arg1
+    ret v7
+  bb5:
+    v8 = eq arg0, 23
+    jumpi v8, bb6, bb7
+  bb6:
+    v9 = internal_call fn26, 1, arg1
+    ret v9
+  bb7:
+    v10 = eq arg0, 24
+    jumpi v10, bb8, bb9
+  bb8:
+    v11 = internal_call fn27, 1, arg1
+    ret v11
+  bb9:
+    v12 = eq arg0, 25
+    jumpi v12, bb10, bb11
+  bb10:
+    v13 = internal_call fn28, 1, arg1
+    ret v13
+  bb11:
+    v14 = eq arg0, 26
+    jumpi v14, bb12, bb13
+  bb12:
+    v15 = internal_call fn29, 1, arg1
+    ret v15
+  bb13:
+    tail_call @__revert_stub0
+  bb14:
+    ret v17
+  bb15:
+    v16 = internal_frame_addr 160
+    mstore v16, 0
+    v17 = add arg1, 1
+    v18 = lt v17, arg1
+    jumpi v18, bb16, bb14
+  bb16:
+    tail_call @__revert_stub1
+  bb17:
+    ret v21
+  bb18:
+    v20 = internal_frame_addr 192
+    mstore v20, 0
+    v21 = sub arg1, 1
+    jumpi arg1, bb17, bb16
+  bb19:
+    v29 = phi [bb20: arg1], [bb21: v27]
+    ret v29
+  bb20:
+    v24 = internal_frame_addr 224
+    mstore v24, 0
+    v25 = number
+    v26 = eq v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v26, bb19, bb21
+  bb21:
+    v27 = add arg1, 1
+    v28 = lt v27, arg1
+    jumpi v28, bb16, bb19
+}
+
+fn @callConstant() {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v22 = add arg0, 1
+    v23 = lt v22, arg0
+    jumpi v23, bb4, bb3
+  bb3:
+    mstore 128, v22
+    returndata 128, 32
+  bb4:
+    tail_call @__revert_stub1
+}
+
+fn @callCast() {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v29 = internal_frame_addr 128
+    mstore v29, 0
+    v30 = number
+    v31 = eq v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v31, bb4, bb5
+  bb3:
+    tail_call @__revert_stub1
+  bb4:
+    v28 = phi [bb2: arg0], [bb5: v32]
+    mstore 128, v28
+    returndata 128, 32
+  bb5:
+    v32 = add arg0, 1
+    v33 = lt v32, arg0
+    jumpi v33, bb3, bb4
+}
+
+fn @callVoid() {
+  bb0:
+    mstore 128, 0
+    internal_call fn23, 0
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 255
+    mstore 128, v1
+    returndata 128, 32
+}
+
+fn @__internal_dispatch_1(arg0: function) {
+  bb0:
+    v0 = eq arg0, 10
+    jumpi v0, bb1, bb2
+  bb1:
+    internal_call fn23, 0
+    ret
+  bb2:
+    tail_call @__revert_stub0
+}
+
+fn @setFlag() {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v3 = or v1, 1
+    sstore 0, v3 !metadata(storage=slot(0))
+    stop
+}
+
+fn @callState() {
+  bb0:
+    mstore 128, 0
+    v0 = sload 1 !metadata(storage=slot(1))
+    internal_call @__internal_dispatch_1, 0, v0
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = and v1, 255
+    mstore 128, v2
+    returndata 128, 32
+}
+
+fn @callPair() {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v19 = add arg0, 1
+    v20 = lt v19, arg0
+    jumpi v20, bb4, bb3
+  bb3:
+    v23 = mload 64 !metadata(memory=scratch)
+    v24 = add v23, 32
+    mstore v24, v19
+    mstore 128, arg0
+    mstore 160, v19
+    returndata 128, 64
+  bb4:
+    tail_call @__revert_stub1
+}
+
+fn @callZero() {
+  bb0:
+    tail_call @__revert_stub0
+}
+
+fn @higher0() {
+  bb0:
+    mstore 128, 2
+    returndata 128, 32
+}
+
+fn @callReturned() {
+  bb0:
+    mstore 128, 0
+    v15 = internal_frame_addr 96
+    mstore v15, 0
+    v2 = internal_call @__internal_dispatch_3, 1, 16
+    v3 = internal_call @__internal_dispatch_4, 1, v2
+    mstore 128, v3
+    returndata 128, 32
+}
+
+fn @__internal_dispatch_3(arg0: function) -> function {
+  bb0:
+    v0 = eq arg0, 16
+    jumpi v0, bb4, bb1
+  bb1:
+    v2 = eq arg0, 17
+    jumpi v2, bb5, bb2
+  bb2:
+    v4 = eq arg0, 18
+    jumpi v4, bb6, bb3
+  bb3:
+    tail_call @__revert_stub0
+  bb4:
+    ret 15
+  bb5:
+    ret 16
+  bb6:
+    ret 17
+}
+
+fn @__internal_dispatch_4(arg0: function) -> u256 {
+  bb0:
+    v0 = eq arg0, 15
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = internal_call fn24, 1
+    ret v1
+  bb2:
+    v2 = eq arg0, 28
+    jumpi v2, bb4, bb3
+  bb3:
+    tail_call @__revert_stub0
+  bb4:
+    v4 = internal_frame_addr 128
+    mstore v4, 0
+    ret 7
+}
+
+fn @callTwoArgs() {
+  bb0:
+    mstore 128, 6
+    returndata 128, 32
+}
+
+fn @arrayA() {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = add arg0, 1
+    v4 = lt v3, arg0
+    jumpi v4, bb3, bb4
+  bb3:
+    tail_call @__revert_stub1
+  bb4:
+    mstore 128, v3
+    returndata 128, 32
+}
+
+fn @arrayB() {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = add arg0, 2
+    v4 = lt v3, arg0
+    jumpi v4, bb3, bb4
+  bb3:
+    tail_call @__revert_stub1
+  bb4:
+    mstore 128, v3
+    returndata 128, 32
+}
+
+fn @arrayC() {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = add arg0, 3
+    v4 = lt v3, arg0
+    jumpi v4, bb3, bb4
+  bb3:
+    tail_call @__revert_stub1
+  bb4:
+    mstore 128, v3
+    returndata 128, 32
+}
+
+fn @arrayD() {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = add arg0, 5
+    v4 = lt v3, arg0
+    jumpi v4, bb3, bb4
+  bb3:
+    tail_call @__revert_stub1
+  bb4:
+    mstore 128, v3
+    returndata 128, 32
+}
+
+fn @arrayE() {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = add arg0, 8
+    v4 = lt v3, arg0
+    jumpi v4, bb3, bb4
+  bb3:
+    tail_call @__revert_stub1
+  bb4:
+    mstore 128, v3
+    returndata 128, 32
+}
+
+fn @callArray() {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v8 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v41 = add v8, 352
+    v42 = lt v41, v8
+    v43 = gt v41, 0xffffffffffffffff
+    v44 = or v42, v43
+    jumpi v44, bb6, bb5
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v39 = add v8, 32
+    v40 = mul arg1, 32
+    v26 = add v39, v40
+    v27 = mload v26
+    v28 = internal_call @__internal_dispatch_0, 1, v27, arg0
+    mstore 128, v28
+    returndata 128, 32
+  bb5:
+    mstore 64, v41 !metadata(memory=scratch)
+    v45 = calldatasize
+    calldatacopy v8, v45, 352
+    mstore v8, 10
+    v29 = add v8, 32
+    v30 = mul 0, 32
+    v11 = add v29, v30
+    mstore v11, 22
+    v31 = add v8, 32
+    v32 = mul 1, 32
+    v14 = add v31, v32
+    mstore v14, 23
+    v33 = add v8, 32
+    v34 = mul 2, 32
+    v17 = add v33, v34
+    mstore v17, 24
+    v35 = add v8, 32
+    v36 = mul 3, 32
+    v20 = add v35, v36
+    mstore v20, 25
+    v37 = add v8, 32
+    v38 = mul 4, 32
+    v23 = add v37, v38
+    mstore v23, 26
+    v25 = lt arg1, 10
+    jumpi v25, bb4, bb3
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @callStoredOnly() {
+  bb0:
+    mstore 128, 0
+    v0 = sload 2 !metadata(storage=slot(2))
+    v1 = internal_call @__internal_dispatch_4, 1, v0
+    mstore 128, v1
+    returndata 128, 32
+}
+
+fn @setFlag() {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v3 = or v1, 1
+    sstore 0, v3 !metadata(storage=slot(0))
+    stop
+}
+
+fn @higher0() -> u256 {
+  bb0:
+    ret 2
+}
+
+fn @arrayA(arg0: u256) -> u256 {
+  bb0:
+    v1 = add arg0, 1
+    v2 = lt v1, arg0
+    jumpi v2, bb1, bb2
+  bb1:
+    tail_call @__revert_stub1
+  bb2:
+    ret v1
+}
+
+fn @arrayB(arg0: u256) -> u256 {
+  bb0:
+    v1 = add arg0, 2
+    v2 = lt v1, arg0
+    jumpi v2, bb1, bb2
+  bb1:
+    tail_call @__revert_stub1
+  bb2:
+    ret v1
+}
+
+fn @arrayC(arg0: u256) -> u256 {
+  bb0:
+    v1 = add arg0, 3
+    v2 = lt v1, arg0
+    jumpi v2, bb1, bb2
+  bb1:
+    tail_call @__revert_stub1
+  bb2:
+    ret v1
+}
+
+fn @arrayD(arg0: u256) -> u256 {
+  bb0:
+    v1 = add arg0, 5
+    v2 = lt v1, arg0
+    jumpi v2, bb1, bb2
+  bb1:
+    tail_call @__revert_stub1
+  bb2:
+    ret v1
+}
+
+fn @arrayE(arg0: u256) -> u256 {
+  bb0:
+    v1 = add arg0, 8
+    v2 = lt v1, arg0
+    jumpi v2, bb1, bb2
+  bb1:
+    tail_call @__revert_stub1
+  bb2:
+    ret v1
+}
+
+fn @__revert_stub0() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @__revert_stub1() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @entry() {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb21, bb1
+  bb1:
+    v1 = calldatasize
+    jumpi v1, bb2, bb21
+  bb2:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb21, [0x560cf94 => bb3, 0xae2f92f => bb4, 0x11cfff8f => bb5, 0x2762f104 => bb6, 0x46e2b562 => bb7, 0x62548c7b => bb8, 0x794b7d08 => bb9, 0x85ead1f5 => bb10, 0x866ce1e6 => bb11, 0x9b889676 => bb12, 0xad3149a4 => bb13, 0xb67d6f95 => bb14, 0xc1419383 => bb15, 0xc406c3a3 => bb16, 0xd04622c6 => bb17, 0xd82c9b10 => bb18, 0xe09cd08b => bb19, 0xefc06ab0 => bb20]
+  bb3:
+    tail_call @callConstant
+  bb4:
+    tail_call @callReturned
+  bb5:
+    tail_call @callStoredOnly
+  bb6:
+    tail_call fn11
+  bb7:
+    tail_call @callZero
+  bb8:
+    tail_call fn7
+  bb9:
+    tail_call fn18
+  bb10:
+    tail_call @callPair
+  bb11:
+    tail_call fn20
+  bb12:
+    tail_call fn17
+  bb13:
+    tail_call fn16
+  bb14:
+    tail_call @callState
+  bb15:
+    tail_call @dynamic
+  bb16:
+    tail_call @callTwoArgs
+  bb17:
+    tail_call @callVoid
+  bb18:
+    tail_call fn19
+  bb19:
+    tail_call @callCast
+  bb20:
+    tail_call @callArray
+  bb21:
+    revert 0, 0
+}
