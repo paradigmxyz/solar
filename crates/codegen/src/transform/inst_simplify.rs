@@ -226,19 +226,72 @@ impl InstSimplifier {
                     Some(InstKind::IsZero(b))
                 } else if a != b && Self::is_zero(func, b) {
                     Some(InstKind::IsZero(a))
+                } else if let Some((_, input, constant)) = Self::clz_const_operand(func, a, b) {
+                    if constant == U256::from(255) {
+                        let one = Self::imm_u256(func, U256::from(1));
+                        Some(InstKind::Eq(input, one))
+                    } else if constant == U256::from(256) {
+                        Some(InstKind::IsZero(input))
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
             }
+            InstKind::IsZero(a) => {
+                let a = resolve(*a);
+                let input = Self::clz_operand(func, a)?;
+                let zero = Self::imm_u256(func, U256::ZERO);
+                Some(InstKind::SLt(input, zero))
+            }
             // `a < 1` is `a == 0` for unsigned comparisons.
             InstKind::Lt(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
-                Self::is_one(func, b).then_some(InstKind::IsZero(a))
+                if let Some(input) = Self::clz_operand(func, a)
+                    && Self::is_const(func, b, U256::from(256))
+                {
+                    let zero = Self::imm_u256(func, U256::ZERO);
+                    Some(InstKind::Gt(input, zero))
+                } else if let Some(input) = Self::clz_operand(func, b)
+                    && Self::is_const(func, a, U256::from(255))
+                {
+                    Some(InstKind::IsZero(input))
+                } else {
+                    Self::is_one(func, b).then_some(InstKind::IsZero(a))
+                }
             }
             // `1 > b` is `b == 0` for unsigned comparisons.
             InstKind::Gt(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
-                Self::is_one(func, a).then_some(InstKind::IsZero(b))
+                if let Some(input) = Self::clz_operand(func, a)
+                    && Self::is_const(func, b, U256::from(255))
+                {
+                    Some(InstKind::IsZero(input))
+                } else if let Some(input) = Self::clz_operand(func, b)
+                    && Self::is_const(func, a, U256::from(256))
+                {
+                    let zero = Self::imm_u256(func, U256::ZERO);
+                    Some(InstKind::Gt(input, zero))
+                } else {
+                    Self::is_one(func, a).then_some(InstKind::IsZero(b))
+                }
+            }
+            InstKind::Shr(shift, value) => {
+                let (shift, value) = (resolve(*shift), resolve(*value));
+                if Self::is_const(func, shift, U256::from(8)) {
+                    Self::clz_operand(func, value).map(InstKind::IsZero)
+                } else {
+                    None
+                }
+            }
+            InstKind::Byte(index, value) => {
+                let (index, value) = (resolve(*index), resolve(*value));
+                if Self::is_const(func, index, U256::from(30)) {
+                    Self::clz_operand(func, value).map(InstKind::IsZero)
+                } else {
+                    None
+                }
             }
             InstKind::Select(condition, then_value, else_value) => {
                 let (condition, then_value, else_value) =
@@ -307,7 +360,11 @@ impl InstSimplifier {
                 let (a, b) = (resolve(*a), resolve(*b));
                 if Self::is_zero(func, a) || Self::is_one(func, b) {
                     Some(a)
-                } else if Self::is_zero(func, b) {
+                } else if Self::is_zero(func, b)
+                    || (matches!(kind, InstKind::Div(_, _))
+                        && Self::clz_operand(func, a).is_some()
+                        && func.value_u256(b).is_some_and(|b| b > U256::from(256)))
+                {
                     Some(Self::imm_u256(func, U256::ZERO))
                 } else {
                     None
@@ -319,6 +376,11 @@ impl InstSimplifier {
                     Some(a)
                 } else if Self::is_zero(func, b) || Self::is_one(func, b) || a == b {
                     Some(Self::imm_u256(func, U256::ZERO))
+                } else if matches!(kind, InstKind::Mod(_, _))
+                    && Self::clz_operand(func, a).is_some()
+                    && func.value_u256(b).is_some_and(|b| b > U256::from(256))
+                {
+                    Some(a)
                 } else {
                     None
                 }
@@ -335,7 +397,11 @@ impl InstSimplifier {
             }
             InstKind::And(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
-                if a == b
+                if let Some((clz, _, mask)) = Self::clz_const_operand(func, a, b)
+                    && mask & U256::from(0x1ff) == U256::from(0x1ff)
+                {
+                    Some(clz)
+                } else if a == b
                     || Self::is_zero(func, a)
                     || Self::is_all_ones(func, b)
                     || (Self::is_uint160_mask(func, b) && Self::is_clean_address(func, a))
@@ -385,8 +451,7 @@ impl InstSimplifier {
             }
             InstKind::Clz(a) => {
                 let a = resolve(*a);
-                func.value_u256(a)
-                    .map(|v| Self::imm_u256(func, U256::from(v.leading_zeros() as u64)))
+                Self::has_known_sign_bit(func, a).then(|| Self::imm_u256(func, U256::ZERO))
             }
             InstKind::IsZero(a) => {
                 let a = resolve(*a);
@@ -399,8 +464,11 @@ impl InstSimplifier {
                 let (shift, value) = (resolve(*a), resolve(*b));
                 if Self::is_zero(func, shift) || Self::is_zero(func, value) {
                     Some(value)
-                } else if !matches!(kind, InstKind::Sar(_, _))
-                    && func.value_u256(shift).is_some_and(|shift| shift >= U256::from(256))
+                } else if (matches!(kind, InstKind::Shr(_, _))
+                    && Self::clz_operand(func, value).is_some()
+                    && func.value_u256(shift).is_some_and(|shift| shift >= U256::from(9)))
+                    || (!matches!(kind, InstKind::Sar(_, _))
+                        && func.value_u256(shift).is_some_and(|shift| shift >= U256::from(256)))
                 {
                     Some(Self::imm_u256(func, U256::ZERO))
                 } else {
@@ -408,15 +476,22 @@ impl InstSimplifier {
                 }
             }
             InstKind::Byte(a, b) => {
-                let (a, value) = (resolve(*a), resolve(*b));
+                let (index, value) = (resolve(*a), resolve(*b));
                 (Self::is_zero(func, value)
-                    || func.value_u256(a).is_some_and(|index| index >= U256::from(32)))
+                    || func.value_u256(index).is_some_and(|index| {
+                        index >= U256::from(32)
+                            || (index < U256::from(30) && Self::clz_operand(func, value).is_some())
+                    }))
                 .then(|| Self::imm_u256(func, U256::ZERO))
             }
             InstKind::Eq(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
                 if a == b {
                     Some(Self::imm_bool(func, true))
+                } else if Self::clz_const_operand(func, a, b)
+                    .is_some_and(|(_, _, constant)| constant > U256::from(256))
+                {
+                    Some(Self::imm_bool(func, false))
                 } else if Self::is_bool_value(func, a) && Self::is_one(func, b) {
                     Some(a)
                 } else if Self::is_bool_value(func, b) && Self::is_one(func, a) {
@@ -427,7 +502,9 @@ impl InstSimplifier {
             }
             InstKind::Lt(a, b) | InstKind::Gt(a, b) | InstKind::SLt(a, b) | InstKind::SGt(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
-                if a == b {
+                if let Some(value) = Self::fold_clz_range_comparison(func, kind, a, b) {
+                    Some(Self::imm_bool(func, value))
+                } else if a == b {
                     Some(Self::imm_bool(func, false))
                 } else {
                     match kind {
@@ -510,6 +587,8 @@ impl InstSimplifier {
                 let (byte, value) = (resolve(*a), resolve(*b));
                 if Self::is_zero(func, value)
                     || func.value_u256(byte).is_some_and(|byte| byte >= U256::from(31))
+                    || (Self::clz_operand(func, value).is_some()
+                        && func.value_u256(byte).is_some_and(|byte| byte >= U256::from(1)))
                 {
                     Some(value)
                 } else {
@@ -804,6 +883,61 @@ impl InstSimplifier {
             Some((a, constant))
         } else {
             func.value_u256(a).map(|constant| (b, constant))
+        }
+    }
+
+    fn clz_const_operand(
+        func: &Function,
+        a: ValueId,
+        b: ValueId,
+    ) -> Option<(ValueId, ValueId, U256)> {
+        let (clz, constant) = Self::const_operand(func, a, b)?;
+        let input = Self::clz_operand(func, clz)?;
+        Some((clz, input, constant))
+    }
+
+    fn clz_operand(func: &Function, value: ValueId) -> Option<ValueId> {
+        let Value::Inst(inst_id) = func.value(value) else { return None };
+        match func.inst(*inst_id).kind {
+            InstKind::Clz(input) => Some(input),
+            _ => None,
+        }
+    }
+
+    fn has_known_sign_bit(func: &Function, value: ValueId) -> bool {
+        if let Some(value) = func.value_u256(value) {
+            return value.bit(255);
+        }
+        let Value::Inst(inst_id) = func.value(value) else { return false };
+        match func.inst(*inst_id).kind {
+            InstKind::Or(a, b) => {
+                Self::has_known_sign_bit(func, a) || Self::has_known_sign_bit(func, b)
+            }
+            InstKind::Sar(_, value) => Self::has_known_sign_bit(func, value),
+            _ => false,
+        }
+    }
+
+    fn fold_clz_range_comparison(
+        func: &Function,
+        kind: &InstKind,
+        a: ValueId,
+        b: ValueId,
+    ) -> Option<bool> {
+        match kind {
+            InstKind::Lt(_, _) if Self::clz_operand(func, a).is_some() => {
+                func.value_u256(b).and_then(|b| (b > U256::from(256)).then_some(true))
+            }
+            InstKind::Lt(_, _) if Self::clz_operand(func, b).is_some() => {
+                func.value_u256(a).and_then(|a| (a >= U256::from(256)).then_some(false))
+            }
+            InstKind::Gt(_, _) if Self::clz_operand(func, a).is_some() => {
+                func.value_u256(b).and_then(|b| (b >= U256::from(256)).then_some(false))
+            }
+            InstKind::Gt(_, _) if Self::clz_operand(func, b).is_some() => {
+                func.value_u256(a).and_then(|a| (a > U256::from(256)).then_some(true))
+            }
+            _ => None,
         }
     }
 
