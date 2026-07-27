@@ -36,6 +36,7 @@ GROWTH_SWEEP_TEST_IDS_SHA256 = {
 }
 GROWTH_SWEEP_MIN_BUDGET = 0
 GROWTH_SWEEP_MAX_BUDGET = 512
+GROWTH_SWEEP_POLICY_BUDGET = 192
 GROWTH_SWEEP_PROVENANCE_KEYS = (
     "solar_revision",
     "source_tree",
@@ -1428,22 +1429,13 @@ def render_growth_sweep(
         row["max_ci_call_regression"] = max_call_regression
         row["ci_regressing_contracts"] = regressing_contracts
 
-    non_regressing = [
-        row
-        for row in rows
-        if row["max_ci_contract_regression"] == 0 and row["max_ci_call_regression"] == 0
-    ]
-    best = min(
-        non_regressing,
-        key=lambda row: (
-            row["totals"]["ci-gas"]["gas"],
-            row["totals"]["ci-gas"]["runtime"],
-            row["totals"]["ui-gas"]["runtime"],
-            row["totals"]["synthetic"]["gas"],
-            row["totals"]["synthetic"]["runtime"],
-            row["budget"],
-        ),
-    )
+    policy = rows[GROWTH_SWEEP_POLICY_BUDGET - GROWTH_SWEEP_MIN_BUDGET]
+    if (
+        policy["budget"] != GROWTH_SWEEP_POLICY_BUDGET
+        or policy["max_ci_contract_regression"] != 0
+        or policy["max_ci_call_regression"] != 0
+    ):
+        raise RuntimeError("growth budget policy regresses a CI contract or call")
 
     plateaus = []
     for row in rows:
@@ -1467,8 +1459,8 @@ def render_growth_sweep(
         f"{len(compile_payloads['ci-gas']['results'])} pinned CI contracts. "
         f"The sweep produced {len(set(fingerprints.values()))} distinct whole-corpus "
         "artifact fingerprints. Gas was executed once per distinct creation/runtime "
-        "artifact and mapped back to every budget. Candidates that regress any CI "
-        "contract or call against the maximum-budget baseline are excluded before ranking."
+        "artifact and mapped back to every budget. The sweep checks the fixed, round policy "
+        "limit against the saturated baseline; it does not select the compiler default."
     )
     text += "\n\n"
     text += markdown_table(
@@ -1493,7 +1485,7 @@ def render_growth_sweep(
                 str(row["max_ci_contract_regression"]),
                 str(row["max_ci_call_regression"]),
             ]
-            for row in (best, baseline)
+            for row in (policy, baseline)
         ],
     )
     text += "\n\n<details>\n<summary>Every growth budget</summary>\n\n"
@@ -1525,8 +1517,8 @@ def render_growth_sweep(
     text += "\n\n</details>\n"
     summary = {
         "budgets": budgets,
-        "best_budget": best["budget"],
-        "best": best,
+        "policy_budget": policy["budget"],
+        "policy": policy,
         "baseline_budget": baseline["budget"],
         "baseline": baseline,
         "fingerprint_plateaus": plateaus,
