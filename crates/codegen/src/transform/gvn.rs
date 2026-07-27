@@ -120,6 +120,7 @@ enum ExprKind {
     Or(ClassId, ClassId),
     Xor(ClassId, ClassId),
     Not(ClassId),
+    Clz(ClassId),
     Shl(ClassId, ClassId),
     Shr(ClassId, ClassId),
     Sar(ClassId, ClassId),
@@ -357,6 +358,7 @@ impl GlobalValueNumberer {
             InstKind::SGt(a, b) => ExprKind::SLt(class(b), class(a)),
             InstKind::IsZero(a) => ExprKind::IsZero(class(a)),
             InstKind::Not(a) => ExprKind::Not(class(a)),
+            InstKind::Clz(a) => ExprKind::Clz(class(a)),
             InstKind::Select(condition, then_value, else_value) => {
                 ExprKind::Select(class(condition), class(then_value), class(else_value))
             }

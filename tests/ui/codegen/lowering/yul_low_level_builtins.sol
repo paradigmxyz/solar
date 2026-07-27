@@ -3,6 +3,22 @@
 //@filecheck:
 
 contract YulLowLevelBuiltins {
+    // CHECK-LABEL: fn @leadingZeros{{[( ]}}
+    // CHECK: {{v[0-9]+}} = clz arg0
+    function leadingZeros(uint256 value) public pure returns (uint256 result) {
+        assembly {
+            result := clz(value)
+        }
+    }
+
+    // CHECK-LABEL: fn @callCode{{[( ]}}
+    // CHECK: {{v[0-9]+}} = callcode {{v[0-9]+}}, arg0, 0, 0, 0, 0, 0
+    function callCode(address target) public returns (uint256 success) {
+        assembly {
+            success := callcode(gas(), target, 0, 0, 0, 0, 0)
+        }
+    }
+
     // CHECK-LABEL: fn @safeCall{{[( ]}}
     // CHECK: [[FMP:v[0-9]+]] = mload 64
     // CHECK: {{v[0-9]+}} = call {{v[0-9]+}}, arg0, 0, 0, 4, 0, 32

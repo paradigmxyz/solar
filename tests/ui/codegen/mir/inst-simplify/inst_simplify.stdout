@@ -152,3 +152,14 @@
 +     ret 12, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 42, 8, 0, 2, 256, 2, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 1, 1, 15, 17, 12, 256, 16, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc, 255, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 5
   }
   
+  fn @fold_clz_constants() -> (u256, u256, u256, u256, u256) {
+    bb0:
+-     v0 = clz 0
+-     v1 = clz 1
+-     v2 = clz 255
+-     v3 = clz 0x4000000000000000000000000000000000000000000000000000000000000000
+-     v4 = clz 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     ret v0, v1, v2, v3, v4
++     ret 256, 255, 248, 1, 0
+  }
+  

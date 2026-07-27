@@ -729,6 +729,20 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::YulSgt => builder.sgt(arg_vals[0], arg_vals[1]),
             Builtin::YulEq => builder.eq(arg_vals[0], arg_vals[1]),
             Builtin::YulIszero => builder.iszero(arg_vals[0]),
+            Builtin::YulClz => {
+                if self.gcx.sess.opts.evm_version.has_clz() {
+                    builder.clz(arg_vals[0])
+                } else {
+                    let guar = self
+                        .gcx
+                        .dcx()
+                        .err("codegen requires Osaka-compatible EVM for `clz`")
+                        .span(args.span)
+                        .help("compile with `--evm-version osaka` or newer")
+                        .emit();
+                    builder.error_value(guar)
+                }
+            }
             Builtin::YulMload => builder.mload(arg_vals[0]),
             Builtin::YulMstore => {
                 builder.mstore(arg_vals[0], arg_vals[1]);
@@ -795,6 +809,15 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::YulBlobhash => builder.blobhash(arg_vals[0]),
             Builtin::YulKeccak256 => builder.keccak256(arg_vals[0], arg_vals[1]),
             Builtin::YulCall => builder.call(
+                arg_vals[0],
+                arg_vals[1],
+                arg_vals[2],
+                arg_vals[3],
+                arg_vals[4],
+                arg_vals[5],
+                arg_vals[6],
+            ),
+            Builtin::YulCallcode => builder.callcode(
                 arg_vals[0],
                 arg_vals[1],
                 arg_vals[2],
@@ -872,11 +895,7 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.imm_u64(0)
             }
             Builtin::YulPop => builder.imm_u64(0),
-            Builtin::YulClz
-            | Builtin::YulCallcode
-            | Builtin::YulExtcall
-            | Builtin::YulExtdelegatecall
-            | Builtin::YulExtstaticcall => {
+            Builtin::YulExtcall | Builtin::YulExtdelegatecall | Builtin::YulExtstaticcall => {
                 self.unsupported_yul_builtin(builder, builtin, args.span)
             }
             _ => unreachable!("non-Yul builtin passed to Yul lowering"),

@@ -695,6 +695,7 @@ impl AliasAnalysis {
             | InstKind::Log3(address, _, _, _, _)
             | InstKind::Log4(address, _, _, _, _, _) => operand != *address,
             InstKind::Call { args_offset, ret_offset, .. }
+            | InstKind::CallCode { args_offset, ret_offset, .. }
             | InstKind::StaticCall { args_offset, ret_offset, .. }
             | InstKind::DelegateCall { args_offset, ret_offset, .. } => {
                 operand != *args_offset && operand != *ret_offset
@@ -939,6 +940,7 @@ impl AliasAnalysis {
                 self.storage_alias_after_replacements(func, inst_id, slot, replacements),
             ))),
             InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
+            | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::DelegateCall { args_offset, args_size, ret_offset, ret_size, .. } => {
                 read_memory(&mut effects, args_offset, SizeOperand::Value(args_size));
@@ -1409,6 +1411,7 @@ impl AliasAnalysis {
                 Self::range_may_overlap_fmp(func, dest, func.value_u64(size))
             }
             InstKind::Call { ret_offset, ret_size, .. }
+            | InstKind::CallCode { ret_offset, ret_size, .. }
             | InstKind::StaticCall { ret_offset, ret_size, .. }
             | InstKind::DelegateCall { ret_offset, ret_size, .. } => {
                 Self::range_may_overlap_fmp(func, ret_offset, func.value_u64(ret_size))

@@ -116,6 +116,9 @@ impl EvmVersion {
     pub fn has_bitwise_shifting(self) -> bool {
         self >= Self::Constantinople
     }
+    pub fn has_clz(self) -> bool {
+        self >= Self::Osaka
+    }
     pub fn has_create2(self) -> bool {
         self >= Self::Constantinople
     }
