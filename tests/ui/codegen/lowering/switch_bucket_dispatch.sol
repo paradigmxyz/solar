@@ -1,4 +1,4 @@
-//@ compile-flags: -Zcodegen -Zdump=evm-ir-runtime
+//@ compile-flags: -Zcodegen -Zdump=evm-ir-runtime -Zswitch-lowering=buckets
 //@ filecheck: --check-prefix=TABLE
 
 // TABLE: indexed_jump
