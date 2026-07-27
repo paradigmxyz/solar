@@ -77,6 +77,79 @@ contract SF {
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mstore
     // CHECK-NEXT: jump
+
+    // The mutually recursive calls also return through the shared epilogue.
+    // Their caller-owned result slots distinguish the two directions.
+    // CHECK-NEXT: [[TOP_M1_RET:bb[0-9]+]]:
+    // CHECK: push [[TOP_AFTER_M1:bb[0-9]+]]
+    // CHECK-NEXT: jump [[DYN_EPILOGUE]]
+
+    // CHECK: push 97
+    // CHECK: push [[M1_AFTER_LEAF:bb[0-9]+]]
+    // CHECK-NEXT: jump [[STATIC_EPILOGUE:bb[0-9]+]]
+    // CHECK-NEXT: [[M1_M2_RET:bb[0-9]+]]:
+    // CHECK: push 416
+    // CHECK-NEXT: add
+    // CHECK-NEXT: mstore
+    // CHECK: push [[M1_AFTER_M2:bb[0-9]+]]
+    // CHECK-NEXT: jump [[DYN_EPILOGUE]]
+    // CHECK-NEXT: [[M2_M1_RET:bb[0-9]+]]:
+    // CHECK: push 256
+    // CHECK-NEXT: add
+    // CHECK-NEXT: mstore
+    // CHECK: push [[M2_AFTER_M1:bb[0-9]+]]
+    // CHECK-NEXT: jump [[DYN_EPILOGUE]]
+
+    // CHECK: push 0x3e8
+    // CHECK: jump [[RECURSIVE_JOIN:bb[0-9]+]]
+    // CHECK-NEXT: [[RECURSIVE_JOIN]]:
+
+    // The initial m1 call installs a dynamic frame.
+    // CHECK: push 5
+    // CHECK-NEXT: push 4
+    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: mod
+    // CHECK: push 64
+    // CHECK-NEXT: mload
+    // CHECK: push 160
+    // CHECK-NEXT: mload
+    // CHECK: dup1
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mstore
+    // CHECK: push 64
+    // CHECK-NEXT: mstore
+    // CHECK: push [[TOP_M1_RET]]
+    // CHECK-NEXT: jump [[M1_ENTRY:bb[0-9]+]]
+
+    // m2 calls back into m1 through another dynamically allocated frame.
+    // CHECK: jump [[RECURSIVE_JOIN]]
+    // CHECK-NEXT: [[M2_ENTRY:bb[0-9]+]]:
+    // CHECK-NEXT: iszero
+    // CHECK-NEXT: push {{bb[0-9]+}}
+    // CHECK-NEXT: jumpi
+    // CHECK-NEXT: push 1
+    // CHECK: push 5
+    // CHECK: push 64
+    // CHECK-NEXT: mload
+    // CHECK: push 160
+    // CHECK-NEXT: mload
+    // CHECK: dup1
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mstore
+    // CHECK: push 64
+    // CHECK-NEXT: mstore
+    // CHECK: push [[M2_M1_RET]]
+    // CHECK-NEXT: jump [[M1_ENTRY]]
+
+    // m1 reaches m2 through the shared allocator trampoline.
+    // CHECK-NEXT: [[M1_M2_ALLOC:bb[0-9]+]]:
+    // CHECK: push [[M1_M2_RET]]
+    // CHECK-NEXT: push [[M2_ENTRY]]
+    // CHECK-NEXT: jump
+    // CHECK-NEXT: [[M1_AFTER_LEAF]]:
+    // CHECK-NEXT: push 3
+    // CHECK: push [[M1_M2_ALLOC]]
+    // CHECK-NEXT: jump
     function top(uint256 x) external returns (uint256) {
         uint256 keep = x * 3; // live across all the calls below
         uint256 a = chainA(x);
