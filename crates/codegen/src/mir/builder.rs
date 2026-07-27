@@ -270,6 +270,11 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::Not(a), Some(MirType::uint256()))
     }
 
+    /// Emits a clz instruction.
+    pub(crate) fn clz(&mut self, a: ValueId) -> ValueId {
+        self.emit_inst(InstKind::Clz(a), Some(MirType::uint256()))
+    }
+
     /// Emits a shl instruction.
     pub(crate) fn shl(&mut self, shift: ValueId, value: ValueId) -> ValueId {
         self.emit_inst(InstKind::Shl(shift, value), Some(MirType::uint256()))
@@ -739,6 +744,24 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         self.emit_inst(
             InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size },
+            Some(MirType::uint256()),
+        )
+    }
+
+    /// Emits a callcode instruction.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn callcode(
+        &mut self,
+        gas: ValueId,
+        addr: ValueId,
+        value: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+        ret_offset: ValueId,
+        ret_size: ValueId,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::CallCode { gas, addr, value, args_offset, args_size, ret_offset, ret_size },
             Some(MirType::uint256()),
         )
     }

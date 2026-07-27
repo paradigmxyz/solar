@@ -33,3 +33,12 @@ fn @calldata_reads(arg0: u256) -> u256 {
     v2 = calldataload arg0
     ret v2
 }
+
+// CHECK-LABEL: {{^[ +].*}}fn @clz{{[( ]}}
+// CHECK: - {{v[0-9]+}} = clz arg0
+fn @clz(arg0: u256) -> u256 {
+  bb0:
+    v1 = clz arg0
+    v2 = clz arg0
+    ret v2
+}

@@ -539,6 +539,8 @@ pub(crate) enum InstKind {
     Xor(ValueId, ValueId),
     /// Bitwise NOT: `~a`
     Not(ValueId),
+    /// Count leading zero bits.
+    Clz(ValueId),
     /// Left shift: `a << b`
     Shl(ValueId, ValueId),
     /// Logical right shift: `a >> b`
@@ -777,6 +779,16 @@ pub(crate) enum InstKind {
         ret_offset: ValueId,
         ret_size: ValueId,
     },
+    /// Call code: `callcode(gas, addr, value, argsOffset, argsSize, retOffset, retSize)`
+    CallCode {
+        gas: ValueId,
+        addr: ValueId,
+        value: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+        ret_offset: ValueId,
+        ret_size: ValueId,
+    },
     /// Static call: `staticcall(gas, addr, argsOffset, argsSize, retOffset, retSize)`
     StaticCall {
         gas: ValueId,
@@ -892,6 +904,7 @@ impl InstKind {
 
             // Unary operations
             Self::Not(a)
+            | Self::Clz(a)
             | Self::IsZero(a)
             | Self::MLoad(a)
             | Self::SetFmp(a)
@@ -959,7 +972,8 @@ impl InstKind {
             }
 
             // Call operations
-            Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
+            Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size }
+            | Self::CallCode { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
                 out.push(*gas);
                 out.push(*addr);
                 out.push(*value);
@@ -1093,6 +1107,7 @@ impl InstKind {
             }
 
             Self::Not(a)
+            | Self::Clz(a)
             | Self::IsZero(a)
             | Self::MLoad(a)
             | Self::SetFmp(a)
@@ -1153,7 +1168,8 @@ impl InstKind {
                 f(g);
             }
 
-            Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
+            Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size }
+            | Self::CallCode { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
                 f(gas);
                 f(addr);
                 f(value);
@@ -1226,6 +1242,7 @@ impl InstKind {
             Self::Or(_, _) => "or",
             Self::Xor(_, _) => "xor",
             Self::Not(_) => "not",
+            Self::Clz(_) => "clz",
             Self::Shl(_, _) => "shl",
             Self::Shr(_, _) => "shr",
             Self::Sar(_, _) => "sar",
@@ -1298,6 +1315,7 @@ impl InstKind {
             Self::MappingSlotMemory(_, _) => "mapping_slot_memory",
             Self::MappingSlotCalldata(_, _) => "mapping_slot_calldata",
             Self::Call { .. } => "call",
+            Self::CallCode { .. } => "callcode",
             Self::StaticCall { .. } => "staticcall",
             Self::DelegateCall { .. } => "delegatecall",
             Self::InternalCall { .. } => "internal_call",
@@ -1336,6 +1354,7 @@ impl InstKind {
             | Self::MCopy(_, _, _)
             // External calls
             | Self::Call { .. }
+            | Self::CallCode { .. }
             | Self::StaticCall { .. }
             | Self::DelegateCall { .. }
             | Self::InternalCall { .. }
@@ -1385,9 +1404,10 @@ impl InstKind {
             }
             Self::TLoad(_) => EffectKind::TransientRead,
             Self::TStore(_, _) => EffectKind::TransientWrite,
-            Self::Call { .. } | Self::StaticCall { .. } | Self::DelegateCall { .. } => {
-                EffectKind::ExternalCall
-            }
+            Self::Call { .. }
+            | Self::CallCode { .. }
+            | Self::StaticCall { .. }
+            | Self::DelegateCall { .. } => EffectKind::ExternalCall,
             Self::InternalCall { .. } => EffectKind::InternalCall,
             Self::Create(_, _, _) | Self::Create2(_, _, _, _) => EffectKind::Create,
             Self::Log0(_, _)
@@ -1436,6 +1456,7 @@ impl InstKind {
             | Self::Or(_, _)
             | Self::Xor(_, _)
             | Self::Not(_)
+            | Self::Clz(_)
             | Self::Shl(_, _)
             | Self::Shr(_, _)
             | Self::Sar(_, _)

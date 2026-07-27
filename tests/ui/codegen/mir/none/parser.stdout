@@ -7,6 +7,18 @@
       ret v0
   }
   
+  fn @clz(arg0: u256) -> u256 {
+    bb0:
+      v0 = clz arg0
+      ret v0
+  }
+  
+  fn @callcode(arg0: address, arg1: u256) -> u256 {
+    bb0:
+      v0 = callcode 100, arg0, arg1, 0, 0, 0, 0
+      ret v0
+  }
+  
   fn @hash() -> u256 {
     bb0:
       mstore 0, 1
