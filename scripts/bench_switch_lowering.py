@@ -17,6 +17,7 @@ from typing import Any, Iterable, Sequence
 
 DEFAULT_PIN = "01209d2b8ac81645b92e3ef801b5bcdfd61bfd69"
 DEFAULT_METHODS = ("auto", "linear", "binary", "buckets", "dense")
+SYNTHETIC_FIXTURE_VERSION = 2
 
 
 def run(command: Sequence[str], cwd: Path | None = None) -> str:
@@ -79,13 +80,15 @@ def switch_values(count: int) -> list[int]:
 
 def selector_case(bench: Any, count: int) -> Any:
     functions = "\n".join(
-        f"    function f{index:02}() external pure returns (uint256) {{ return {index}; }}"
+        f"    function f{index:02}() external view returns (uint256) {{ return burnSlot + {index}; }}"
         for index in range(count)
     )
     source = f"""// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 contract Selector{count} {{
+    uint256 private burnSlot;
+
 {functions}
 
     fallback() external {{}}
@@ -116,12 +119,15 @@ def value_switch_case(
 pragma solidity ^0.8.0;
 
 contract {name} {{
-    function select(uint256 value) external pure returns (uint256 result) {{
+    uint256 private burnSlot;
+
+    function select(uint256 value) external view returns (uint256 result) {{
         assembly {{
             switch value
 {cases}
             default {{ result := 0 }}
         }}
+        result += burnSlot;
     }}
 }}
 """
@@ -235,7 +241,14 @@ def run_cases(
     if output.is_file():
         payload = json.loads(output.read_text())
         previous_metadata = payload.get("metadata") or {}
-        cache_keys = ("solar_sha256", "benchmark_pin", "methods", "scope", "optimization")
+        cache_keys = (
+            "solar_sha256",
+            "benchmark_pin",
+            "methods",
+            "scope",
+            "optimization",
+            "fixture_version",
+        )
         if all(previous_metadata.get(key) == metadata.get(key) for key in cache_keys):
             previous = {result["test_id"]: result for result in payload["results"]}
 
@@ -573,7 +586,12 @@ def main() -> int:
 
     if "synthetic" in args.scope:
         cases, labels = synthetic_cases(bench)
-        metadata = {**metadata_base, "scope": "synthetic", "optimization": "gas"}
+        metadata = {
+            **metadata_base,
+            "scope": "synthetic",
+            "optimization": "gas",
+            "fixture_version": SYNTHETIC_FIXTURE_VERSION,
+        }
         run_cases(
             bench,
             cases,
