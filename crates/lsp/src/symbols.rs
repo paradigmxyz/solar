@@ -1,8 +1,8 @@
 use lsp_types::{
-    CompletionItem, CompletionItemKind, DocumentHighlight, DocumentHighlightKind, DocumentSymbol,
-    GotoDefinitionResponse, Hover, HoverContents, InlayHint, Location, MarkupContent, OneOf,
-    Position, Range, SymbolInformation, SymbolKind, TypeHierarchyItem, Url, WorkspaceSymbol,
-    request::GotoTypeDefinitionResponse,
+    CodeLens, Command, CompletionItem, CompletionItemKind, DocumentHighlight,
+    DocumentHighlightKind, DocumentSymbol, GotoDefinitionResponse, Hover, HoverContents, InlayHint,
+    Location, MarkupContent, OneOf, Position, Range, SymbolInformation, SymbolKind,
+    TypeHierarchyItem, Url, WorkspaceSymbol, request::GotoTypeDefinitionResponse,
 };
 use solar_interface::{
     Span,
@@ -24,12 +24,15 @@ use solar_sema::{
     ty::{CallableParamSource, Ty, TyKind},
 };
 use std::{
+    fmt::Write as _,
     ops::ControlFlow,
     path::{Path, PathBuf},
 };
 
 use crate::{
     call_hierarchy::CallHierarchyIndex,
+    code_lens::CodeLensIndex,
+    config::CodeLensConfig,
     document_links::DocumentLinkIndex,
     inlay_hints::InlayHintIndex,
     natspec_completion::{DeclarationKey, NatSpecCompletionIndex, NatSpecTargetSemantics},
@@ -68,6 +71,7 @@ pub(crate) struct SymbolTables {
     signature_help: SignatureHelpIndex,
     call_hierarchy: CallHierarchyIndex,
     type_hierarchy: TypeHierarchyIndex,
+    code_lens: CodeLensIndex,
 }
 
 #[derive(Default)]
@@ -311,6 +315,7 @@ impl SymbolTables {
 
         tables.build_type_definitions(gcx, &item_symbols);
         tables.call_hierarchy = CallHierarchyIndex::build(gcx, &item_symbols, &tables.declarations);
+        tables.code_lens = CodeLensIndex::build(gcx, &item_symbols, &tables.declarations);
 
         // Public state-variable getters are compiler-generated functions, but source member calls
         // such as `this.value()` still name the state variable. Point getter resolutions back to
@@ -365,6 +370,7 @@ impl SymbolTables {
         self.signature_help.extend(other.signature_help);
 
         let symbol_offset = self.declarations.len();
+        self.code_lens.extend(other.code_lens, symbol_offset);
         self.call_hierarchy.extend(other.call_hierarchy, symbol_offset);
         self.type_hierarchy.extend(other.type_hierarchy, symbol_offset);
         self.override_families.extend(other.override_families, symbol_offset);
@@ -412,6 +418,100 @@ impl SymbolTables {
 
     pub(crate) fn inlay_hints(&self, uri: &Url, range: Range) -> Vec<InlayHint> {
         self.inlay_hints.hints(uri, range)
+    }
+
+    pub(crate) fn code_lenses(&self, uri: &Url, options: CodeLensConfig) -> Vec<CodeLens> {
+        if !options.enable {
+            return Vec::new();
+        }
+
+        let mut lenses = Vec::new();
+        for entry in self.code_lens.entries(uri) {
+            let position = entry.range.start;
+            let location = serde_json::json!({ "uri": uri, "position": position });
+
+            if options.references {
+                let count = self.reference_count(&entry.symbol_ids);
+                let command = (count > 0 && options.client_commands).then_some(Command {
+                    title: format_reference_title(count),
+                    command: "solar.showReferences".into(),
+                    arguments: Some(vec![location.clone()]),
+                });
+                lenses.push(CodeLens {
+                    range: entry.range,
+                    command: command.or_else(|| {
+                        Some(Command {
+                            title: format_reference_title(count),
+                            command: String::new(),
+                            arguments: None,
+                        })
+                    }),
+                    data: None,
+                });
+            }
+
+            if options.selectors
+                && let Some(selector) = entry.selector
+            {
+                let title = format_selector_title(selector);
+                lenses.push(CodeLens {
+                    range: entry.range,
+                    command: Some(Command {
+                        title,
+                        command: if options.client_commands { "solar.copySelector" } else { "" }
+                            .into(),
+                        arguments: options
+                            .client_commands
+                            .then_some(vec![serde_json::json!(format_selector_title(selector))]),
+                    }),
+                    data: None,
+                });
+            }
+
+            if options.inheritance
+                && entry.inheritance
+                && let Some((bases, derived)) = self.type_hierarchy.direct_counts(&entry.symbol_ids)
+            {
+                if bases > 0 {
+                    lenses.push(CodeLens {
+                        range: entry.range,
+                        command: Some(inheritance_command(
+                            format_inheritance_title("base", bases),
+                            "supertypes",
+                            uri,
+                            position,
+                            options.client_commands,
+                        )),
+                        data: None,
+                    });
+                }
+                if derived > 0 {
+                    lenses.push(CodeLens {
+                        range: entry.range,
+                        command: Some(inheritance_command(
+                            format_inheritance_title("derived", derived),
+                            "subtypes",
+                            uri,
+                            position,
+                            options.client_commands,
+                        )),
+                        data: None,
+                    });
+                }
+            }
+        }
+        lenses
+    }
+
+    fn reference_count(&self, targets: &[SymbolId]) -> usize {
+        let mut locations = self
+            .reference_indices_for_targets(targets)
+            .into_iter()
+            .map(|index| self.references[index].location.clone())
+            .collect::<Vec<_>>();
+        sort_locations(&mut locations);
+        locations.dedup_by(|lhs, rhs| lhs.uri == rhs.uri && lhs.range == rhs.range);
+        locations.len()
     }
 
     pub(crate) fn document_links(&self, path: &Path) -> Vec<lsp_types::DocumentLink> {
@@ -660,7 +760,7 @@ impl SymbolTables {
         position: Position,
         include_declaration: bool,
     ) -> Option<Vec<Location>> {
-        let target = self.symbol_ids_at_position(uri, position)?;
+        let target = self.reference_targets_at_position(uri, position)?;
         let mut locations = Vec::new();
 
         if include_declaration {
@@ -1096,6 +1196,34 @@ impl SymbolTables {
         Some(ReferenceTargets::from_buf([symbol_id]))
     }
 
+    fn reference_targets_at_position(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<ReferenceTargets> {
+        if let Some(reference) = self.reference_at_position(uri, position) {
+            return Some(reference.targets.clone());
+        }
+
+        let symbol_id = self.declaration_at_position(uri, position)?;
+        let declaration = &self.declarations[symbol_id];
+        let mut symbol_ids = self
+            .file_declaration_positions
+            .get(uri)?
+            .iter()
+            .copied()
+            .filter(|&candidate| {
+                let candidate = &self.declarations[candidate];
+                candidate.name_range == declaration.name_range
+                    && candidate.location.range == declaration.location.range
+                    && candidate.name == declaration.name
+                    && candidate.kind == declaration.kind
+            })
+            .collect::<Vec<_>>();
+        symbol_ids.sort_unstable_by_key(|symbol_id| symbol_id.index());
+        Some(ReferenceTargets::from_vec(symbol_ids))
+    }
+
     fn reference_indices_for_targets(&self, targets: &[SymbolId]) -> Vec<usize> {
         let mut indices = targets
             .iter()
@@ -1327,6 +1455,7 @@ impl SymbolTables {
         self.override_families.rebuild(&self.declarations, self.rename.conflicting_contents());
         self.type_hierarchy.rebuild(self.rename.conflicting_contents());
         self.rename.rebuild(&self.override_families);
+        self.code_lens.rebuild(self.rename.conflicting_contents());
         self.call_hierarchy.rebuild();
     }
 }
@@ -2059,6 +2188,47 @@ fn sort_locations(locations: &mut [Location]) {
                 ))
         })
     });
+}
+
+fn format_reference_title(count: usize) -> String {
+    format!("{count} reference{}", if count == 1 { "" } else { "s" })
+}
+
+fn format_selector_title(selector: [u8; 4]) -> String {
+    let mut title = String::from("0x");
+    for byte in selector {
+        write!(title, "{byte:02x}").expect("writing a selector title cannot fail");
+    }
+    title
+}
+
+fn format_inheritance_title(kind: &str, count: usize) -> String {
+    let noun = match (kind, count) {
+        ("base", 1) => "base contract",
+        ("base", _) => "base contracts",
+        ("derived", 1) => "derived contract",
+        ("derived", _) => "derived contracts",
+        _ => unreachable!("unknown inheritance lens kind"),
+    };
+    format!("{count} {noun}")
+}
+
+fn inheritance_command(
+    title: String,
+    direction: &str,
+    uri: &Url,
+    position: Position,
+    enabled: bool,
+) -> Command {
+    Command {
+        title,
+        command: if enabled { "solar.showTypeHierarchy" } else { "" }.into(),
+        arguments: enabled.then_some(vec![serde_json::json!({
+            "uri": uri,
+            "position": position,
+            "direction": direction,
+        })]),
+    }
 }
 
 fn sort_completion_items(items: &mut [CompletionItem]) {

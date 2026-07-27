@@ -9,11 +9,11 @@ use crate::{
 };
 use async_lsp::ClientSocket;
 use lsp_types::{
-    DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
-    DocumentSymbolClientCapabilities, DocumentSymbolResponse, InitializeParams,
-    PartialResultParams, ReferenceContext, SymbolKind, TextDocumentClientCapabilities,
-    TextDocumentIdentifier, TypeHierarchyItem, Url, WorkDoneProgressParams,
-    WorkspaceSymbolResponse,
+    CodeLensParams, DocumentDiagnosticParams, DocumentDiagnosticReport,
+    DocumentDiagnosticReportResult, DocumentSymbolClientCapabilities, DocumentSymbolResponse,
+    InitializeParams, PartialResultParams, ReferenceContext, SymbolKind,
+    TextDocumentClientCapabilities, TextDocumentIdentifier, TypeHierarchyItem, Url,
+    WorkDoneProgressParams, WorkspaceSymbolResponse,
 };
 use serde_json::json;
 use std::{
@@ -134,7 +134,8 @@ fn semantic_requests_wait_for_latest_analysis() {
     assert_pending(references(&mut state, reference_params(uri.clone())));
     assert_pending(prepare_rename(&mut state, position_params(uri.clone())));
     assert_pending(rename(&mut state, rename_params(uri.clone(), "renamed")));
-    assert_pending(inlay_hints(&mut state, inlay_hint_params(uri)));
+    assert_pending(inlay_hints(&mut state, inlay_hint_params(uri.clone())));
+    assert_pending(code_lens(&mut state, code_lens_params(uri)));
     assert_pending(prepare_type_hierarchy(
         &mut state,
         type_hierarchy_prepare_params(file_uri("Test.sol"), Position::new(0, 0)),
@@ -163,7 +164,8 @@ fn semantic_requests_skip_analysis_for_non_file_uris() {
     assert_ready(references(&mut state, reference_params(uri.clone())));
     assert_ready(prepare_rename(&mut state, position_params(uri.clone())));
     assert_ready(rename(&mut state, rename_params(uri.clone(), "renamed")));
-    assert_ready(inlay_hints(&mut state, inlay_hint_params(uri)));
+    assert_ready(inlay_hints(&mut state, inlay_hint_params(uri.clone())));
+    assert_ready(code_lens(&mut state, code_lens_params(uri)));
     assert_ready(prepare_type_hierarchy(
         &mut state,
         type_hierarchy_prepare_params(parse_uri("untitled:Test.sol"), Position::new(0, 0)),
@@ -286,6 +288,14 @@ fn inlay_hint_params(uri: Url) -> InlayHintParams {
         text_document: TextDocumentIdentifier::new(uri),
         range: lsp_types::Range::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
         work_done_progress_params: WorkDoneProgressParams::default(),
+    }
+}
+
+fn code_lens_params(uri: Url) -> CodeLensParams {
+    CodeLensParams {
+        text_document: TextDocumentIdentifier::new(uri),
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
     }
 }
 

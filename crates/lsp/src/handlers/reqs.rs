@@ -11,13 +11,13 @@ use crop::Rope;
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
     CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
-    CompletionParams, CompletionResponse, DocumentChanges, DocumentDiagnosticParams,
-    DocumentDiagnosticReport, DocumentDiagnosticReportResult, DocumentFormattingParams,
-    DocumentHighlight, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
-    DocumentSymbolParams, DocumentSymbolResponse, FoldingRange, FoldingRangeParams,
-    FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
-    InlayHint, InlayHintParams, OneOf, OptionalVersionedTextDocumentIdentifier, Position,
-    PrepareRenameResponse, ReferenceParams, RelatedFullDocumentDiagnosticReport,
+    CodeLens, CodeLensParams, CompletionParams, CompletionResponse, DocumentChanges,
+    DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
+    DocumentFormattingParams, DocumentHighlight, DocumentHighlightParams, DocumentLink,
+    DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange,
+    FoldingRangeParams, FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse,
+    Hover, HoverParams, InlayHint, InlayHintParams, OneOf, OptionalVersionedTextDocumentIdentifier,
+    Position, PrepareRenameResponse, ReferenceParams, RelatedFullDocumentDiagnosticReport,
     RelatedUnchangedDocumentDiagnosticReport, RenameParams, SelectionRange, SelectionRangeParams,
     SignatureHelp, SignatureHelpParams, TextDocumentEdit, TextDocumentPositionParams, TextEdit,
     TypeHierarchyItem, TypeHierarchyPrepareParams, TypeHierarchySubtypesParams,
@@ -476,6 +476,21 @@ pub(crate) fn references(
             include_declaration,
         );
         Ok(response)
+    }
+}
+
+pub(crate) fn code_lens(
+    state: &mut GlobalState,
+    params: CodeLensParams,
+) -> impl Future<Output = Result<Option<Vec<CodeLens>>, ResponseError>> + use<> {
+    let uri = params.text_document.uri;
+    let options = state.config.code_lens_options();
+    let latest_analysis = latest_analysis_for_uri(state, &uri);
+    async move {
+        let Some(latest_analysis) = latest_analysis else { return Ok(Some(Vec::new())) };
+        let symbol_tables = latest_analysis.await?;
+        let response = symbol_tables.read().code_lenses(&uri, options);
+        Ok(Some(response))
     }
 }
 

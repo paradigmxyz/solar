@@ -7,14 +7,15 @@ use crate::{
 };
 use async_lsp::{ClientSocket, ErrorCode, ResponseError, ServerSocket, router::Router};
 use lsp_types::{
-    Diagnostic, DidChangeConfigurationParams, DidChangeTextDocumentParams,
-    DidChangeWatchedFilesParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DidSaveTextDocumentParams, DocumentDiagnosticParams, DocumentDiagnosticReport,
-    DocumentDiagnosticReportResult, DocumentSymbol, FileChangeType, FileEvent, PartialResultParams,
-    Position, ProgressParams, ProgressParamsValue, PublishDiagnosticsParams, Range, SymbolKind,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
-    VersionedTextDocumentIdentifier, WatchKind, WorkDoneProgress, WorkDoneProgressCreateParams,
-    WorkDoneProgressParams, WorkspaceSymbol, notification, notification::Notification, request,
+    CodeLensWorkspaceClientCapabilities, Diagnostic, DidChangeConfigurationParams,
+    DidChangeTextDocumentParams, DidChangeWatchedFilesParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentDiagnosticParams,
+    DocumentDiagnosticReport, DocumentDiagnosticReportResult, DocumentSymbol, FileChangeType,
+    FileEvent, PartialResultParams, Position, ProgressParams, ProgressParamsValue,
+    PublishDiagnosticsParams, Range, SymbolKind, TextDocumentContentChangeEvent,
+    TextDocumentIdentifier, TextDocumentItem, VersionedTextDocumentIdentifier, WatchKind,
+    WorkDoneProgress, WorkDoneProgressCreateParams, WorkDoneProgressParams, WorkspaceSymbol,
+    notification, notification::Notification, request,
 };
 use std::{
     future::Future,
@@ -27,6 +28,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 mod call_hierarchy;
+mod code_lens;
 mod completion;
 mod document_highlight;
 mod document_link;
@@ -227,6 +229,56 @@ fn analysis_result_accumulator_merges_multiple_batches() {
         .collect::<Vec<_>>();
     names.sort_unstable();
     assert_eq!(names, vec!["One".to_owned(), "Two".to_owned()]);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn published_analysis_requests_code_lens_refresh_when_supported() {
+    let (server_main, client) = async_lsp::MainLoop::new_server(|_| {
+        let mut router = Router::new(());
+        router.notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())));
+        router
+    });
+    let (refresh_tx, refresh_rx) = oneshot::channel();
+    let (client_main, server) = async_lsp::MainLoop::new_client(move |_| {
+        let mut router = Router::new(Some(refresh_tx));
+        router.request::<request::CodeLensRefresh, _>(|state, ()| {
+            state.take().unwrap().send(()).unwrap();
+            async { Ok(()) }
+        });
+        router
+    });
+    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
+    let (server_rx, server_tx) = tokio::io::split(server_stream);
+    let server_task =
+        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
+    let (client_rx, client_tx) = tokio::io::split(client_stream);
+    let client_task =
+        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+
+    let mut params = InitializeParams::default();
+    params.capabilities.workspace = Some(lsp_types::WorkspaceClientCapabilities {
+        code_lens: Some(CodeLensWorkspaceClientCapabilities { refresh_support: Some(true) }),
+        ..Default::default()
+    });
+    let (_, config) = negotiate_capabilities(params);
+    let mut snapshot = snapshot_with_config(config, Vfs::default());
+    snapshot.client = client;
+
+    assert!(snapshot.publish_analysis(
+        1,
+        AnalysisResult {
+            diagnostics: DiagnosticMap::default(),
+            symbol_tables: SymbolTables::default(),
+        },
+    ));
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, refresh_rx)
+        .await
+        .expect("CodeLens refresh should arrive")
+        .expect("CodeLens refresh sender should stay open");
+
+    server.notify::<notification::Exit>(()).unwrap();
+    assert!(server_task.await.unwrap().is_ok());
+    assert!(matches!(client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
 }
 
 #[test]
