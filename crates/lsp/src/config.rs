@@ -5,18 +5,20 @@ use crate::{
     workspace::{Workspace, WorkspacePathIndex, manifest::ProjectManifest},
 };
 use lsp_types::{
-    CallHierarchyServerCapability, CompletionOptions, DeclarationCapability, DiagnosticOptions,
-    DiagnosticServerCapabilities, DocumentLinkOptions, ExecuteCommandOptions,
-    FoldingRangeProviderCapability, HoverProviderCapability, ImplementationProviderCapability,
-    InitializeParams, OneOf, RenameOptions, SaveOptions, SelectionRangeProviderCapability,
-    ServerCapabilities, SignatureHelpOptions, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TextDocumentSyncOptions, TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability,
-    WorkDoneProgressOptions,
+    CallHierarchyServerCapability, CodeLensOptions as CodeLensServerOptions, CompletionOptions,
+    DeclarationCapability, DiagnosticOptions, DiagnosticServerCapabilities, DocumentLinkOptions,
+    ExecuteCommandOptions, FoldingRangeProviderCapability, HoverProviderCapability,
+    ImplementationProviderCapability, InitializeParams, OneOf, RenameOptions, SaveOptions,
+    SelectionRangeProviderCapability, ServerCapabilities, SignatureHelpOptions,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+    TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WorkDoneProgressOptions,
 };
+use serde::Deserialize;
 use solar_interface::data_structures::map::FxHashSet;
 use std::{
     env,
     path::{Path, PathBuf},
+    time::Duration,
 };
 use tracing::{info, warn};
 
@@ -25,7 +27,7 @@ use tracing::{info, warn};
 /// This struct is internal only and should not be serialized or deserialized. Instead, values in
 /// this struct are the full view of all merged config sources, such as `initialization_opts`,
 /// on-disk config files (e.g. `foundry.toml`).
-#[derive(Default, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Config {
     workspace_roots: Vec<PathBuf>,
     workspaces: Vec<Workspace>,
@@ -33,10 +35,41 @@ pub(crate) struct Config {
     flychecks: Vec<FlycheckConfig>,
     watched_file_dynamic_registration: bool,
     workspace_edit_document_changes: bool,
+    code_lens_refresh_support: bool,
     work_done_progress: bool,
     hierarchical_document_symbol_support: bool,
     completion: CompletionClientOptions,
     signature_help: SignatureHelpClientOptions,
+    source_change_debounce: Duration,
+    progress_delay: Duration,
+    progress_create_timeout: Duration,
+    formatter_timeout: Duration,
+    flycheck_timeout: Duration,
+    code_lens: CodeLensConfig,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            workspace_roots: Vec::new(),
+            workspaces: Vec::new(),
+            flycheck_options: FlycheckInitializationOptions::default(),
+            flychecks: Vec::new(),
+            watched_file_dynamic_registration: false,
+            workspace_edit_document_changes: false,
+            code_lens_refresh_support: false,
+            work_done_progress: false,
+            hierarchical_document_symbol_support: false,
+            completion: CompletionClientOptions::default(),
+            signature_help: SignatureHelpClientOptions::default(),
+            source_change_debounce: Duration::from_millis(250),
+            progress_delay: Duration::from_millis(250),
+            progress_create_timeout: Duration::from_secs(1),
+            formatter_timeout: Duration::from_secs(30),
+            flycheck_timeout: Duration::from_secs(30),
+            code_lens: CodeLensConfig::default(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -51,6 +84,42 @@ pub(crate) struct SignatureHelpClientOptions {
     pub(crate) signature_active_parameter: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub(crate) struct CodeLensConfig {
+    pub(crate) enable: bool,
+    pub(crate) selectors: bool,
+    pub(crate) references: bool,
+    pub(crate) inheritance: bool,
+    pub(crate) client_commands: bool,
+}
+
+impl Default for CodeLensConfig {
+    fn default() -> Self {
+        Self {
+            enable: true,
+            selectors: true,
+            references: true,
+            inheritance: true,
+            client_commands: false,
+        }
+    }
+}
+
+impl CodeLensConfig {
+    pub(crate) fn is_active(self) -> bool {
+        self.enable && (self.selectors || self.references || self.inheritance)
+    }
+
+    fn from_json(value: Option<serde_json::Value>) -> Self {
+        value
+            .and_then(|value| {
+                value.get("codeLens").cloned().and_then(|value| serde_json::from_value(value).ok())
+            })
+            .unwrap_or_default()
+    }
+}
+
 impl Config {
     pub(crate) fn supports_watched_file_dynamic_registration(&self) -> bool {
         self.watched_file_dynamic_registration
@@ -60,12 +129,36 @@ impl Config {
         self.workspace_edit_document_changes
     }
 
+    pub(crate) fn supports_code_lens_refresh(&self) -> bool {
+        self.code_lens_refresh_support
+    }
+
     pub(crate) fn supports_work_done_progress(&self) -> bool {
         self.work_done_progress
     }
 
     pub(crate) fn supports_hierarchical_document_symbols(&self) -> bool {
         self.hierarchical_document_symbol_support
+    }
+
+    pub(crate) fn source_change_debounce(&self) -> Duration {
+        self.source_change_debounce
+    }
+
+    pub(crate) fn progress_delay(&self) -> Duration {
+        self.progress_delay
+    }
+
+    pub(crate) fn progress_create_timeout(&self) -> Duration {
+        self.progress_create_timeout
+    }
+
+    pub(crate) fn formatter_timeout(&self) -> Duration {
+        self.formatter_timeout
+    }
+
+    pub(crate) fn flycheck_timeout(&self) -> Duration {
+        self.flycheck_timeout
     }
 
     pub(crate) fn completion_options(&self) -> CompletionClientOptions {
@@ -81,9 +174,18 @@ impl Config {
         self.signature_help
     }
 
+    pub(crate) fn code_lens_options(&self) -> CodeLensConfig {
+        self.code_lens
+    }
+
     #[cfg(test)]
     pub(crate) fn enable_signature_help_label_offsets(&mut self) {
         self.signature_help.label_offsets = true;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn enable_code_lens_client_commands(&mut self) {
+        self.code_lens.client_commands = true;
     }
 
     pub(crate) fn workspaces(&self) -> &[Workspace] {
@@ -201,7 +303,8 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
     #[allow(deprecated)]
     let root_uri = params.root_uri;
     let workspace_folders = params.workspace_folders;
-    let flycheck_options = FlycheckInitializationOptions::from_json(initialization_options);
+    let flycheck_options = FlycheckInitializationOptions::from_json(initialization_options.clone());
+    let code_lens = CodeLensConfig::from_json(initialization_options);
 
     // todo: make this absolute guaranteed
     let root_path = match root_uri.and_then(|it| it.to_file_path().ok()) {
@@ -226,6 +329,12 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
         .as_ref()
         .and_then(|workspace| workspace.workspace_edit.as_ref())
         .and_then(|capabilities| capabilities.document_changes)
+        .unwrap_or(false);
+    let code_lens_refresh_support = capabilities
+        .workspace
+        .as_ref()
+        .and_then(|workspace| workspace.code_lens.as_ref())
+        .and_then(|capabilities| capabilities.refresh_support)
         .unwrap_or(false);
     let work_done_progress =
         capabilities.window.as_ref().and_then(|window| window.work_done_progress).unwrap_or(false);
@@ -303,6 +412,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
                 work_done_progress_options: WorkDoneProgressOptions::default(),
             }),
             document_symbol_provider: Some(OneOf::Left(true)),
+            code_lens_provider: Some(CodeLensServerOptions { resolve_provider: Some(false) }),
             document_highlight_provider: Some(OneOf::Left(true)),
             hover_provider: Some(HoverProviderCapability::Simple(true)),
             inlay_hint_provider: Some(OneOf::Left(true)),
@@ -337,10 +447,12 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             flycheck_options,
             watched_file_dynamic_registration,
             workspace_edit_document_changes,
+            code_lens_refresh_support,
             work_done_progress,
             hierarchical_document_symbol_support,
             completion,
             signature_help,
+            code_lens,
             ..Default::default()
         },
     )
@@ -351,7 +463,8 @@ mod tests {
     use super::*;
     use crate::{test_support::TestProject, workspace::WorkspaceKind};
     use lsp_types::{
-        CallHierarchyServerCapability, CompletionClientCapabilities, CompletionItemCapability,
+        CallHierarchyServerCapability, CodeLensWorkspaceClientCapabilities,
+        CompletionClientCapabilities, CompletionItemCapability,
         DidChangeWatchedFilesClientCapabilities, DocumentSymbolClientCapabilities, MarkupKind,
         OneOf, ParameterInformationSettings, RenameOptions, SignatureHelpClientCapabilities,
         SignatureInformationSettings, TextDocumentClientCapabilities, TextDocumentSyncCapability,
@@ -416,6 +529,73 @@ mod tests {
     }
 
     #[test]
+    fn negotiate_capabilities_records_code_lens_refresh_support() {
+        let (_, config) = negotiate_capabilities(InitializeParams::default());
+        assert!(!config.supports_code_lens_refresh());
+
+        let mut params = InitializeParams::default();
+        params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+            code_lens: Some(CodeLensWorkspaceClientCapabilities { refresh_support: Some(true) }),
+            ..Default::default()
+        });
+
+        let (_, config) = negotiate_capabilities(params);
+
+        assert!(config.supports_code_lens_refresh());
+    }
+
+    #[test]
+    fn negotiate_capabilities_reads_code_lens_initialization_options() {
+        let params = InitializeParams {
+            initialization_options: Some(serde_json::json!({
+                "codeLens": {
+                    "enable": false,
+                    "selectors": false,
+                    "references": true,
+                    "inheritance": false,
+                    "clientCommands": true,
+                }
+            })),
+            ..Default::default()
+        };
+
+        let (_, config) = negotiate_capabilities(params);
+
+        assert_eq!(
+            config.code_lens_options(),
+            CodeLensConfig {
+                enable: false,
+                selectors: false,
+                references: true,
+                inheritance: false,
+                client_commands: true,
+            }
+        );
+    }
+
+    #[test]
+    fn code_lens_activity_requires_an_enabled_lens_kind() {
+        let inactive = CodeLensConfig {
+            enable: true,
+            selectors: false,
+            references: false,
+            inheritance: false,
+            client_commands: false,
+        };
+        assert!(!inactive.is_active());
+        assert!(!CodeLensConfig { enable: false, selectors: true, ..inactive }.is_active());
+        assert!(!CodeLensConfig { client_commands: true, ..inactive }.is_active());
+
+        for active in [
+            CodeLensConfig { selectors: true, ..inactive },
+            CodeLensConfig { references: true, ..inactive },
+            CodeLensConfig { inheritance: true, ..inactive },
+        ] {
+            assert!(active.is_active());
+        }
+    }
+
+    #[test]
     fn negotiate_capabilities_advertises_symbol_providers() {
         let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
 
@@ -440,6 +620,10 @@ mod tests {
             Some(FoldingRangeProviderCapability::Simple(true))
         );
         assert_eq!(capabilities.document_symbol_provider, Some(OneOf::Left(true)));
+        assert_eq!(
+            capabilities.code_lens_provider,
+            Some(CodeLensServerOptions { resolve_provider: Some(false) })
+        );
         assert_eq!(capabilities.hover_provider, Some(HoverProviderCapability::Simple(true)));
         let document_link_provider = capabilities.document_link_provider.unwrap();
         assert_eq!(document_link_provider.resolve_provider, Some(false));

@@ -7,15 +7,16 @@ use crate::test_support::{
 };
 use async_lsp::{ClientSocket, ErrorCode};
 use lsp_types::{
-    CompletionContext, CompletionItem, CompletionParams, CompletionResponse, CompletionTextEdit,
-    CompletionTriggerKind, DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams,
-    DocumentLink, DocumentLinkParams, Documentation, FoldingRange, FoldingRangeKind,
-    FoldingRangeParams, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents,
-    HoverParams, InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams, Location, MarkupKind,
-    ParameterLabel, PartialResultParams, Position, PrepareRenameResponse, Range, ReferenceContext,
-    ReferenceParams, RenameParams, SelectionRange, SelectionRangeParams, SignatureHelp,
-    SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams, TypeHierarchyItem,
-    Url, WorkDoneProgressParams, WorkspaceEdit,
+    CodeLens, CodeLensParams, CompletionContext, CompletionItem, CompletionParams,
+    CompletionResponse, CompletionTextEdit, CompletionTriggerKind, DocumentHighlight,
+    DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
+    Documentation, FoldingRange, FoldingRangeKind, FoldingRangeParams, GotoDefinitionParams,
+    GotoDefinitionResponse, Hover, HoverContents, HoverParams, InlayHint, InlayHintKind,
+    InlayHintLabel, InlayHintParams, Location, MarkupKind, ParameterLabel, PartialResultParams,
+    Position, PrepareRenameResponse, Range, ReferenceContext, ReferenceParams, RenameParams,
+    SelectionRange, SelectionRangeParams, SignatureHelp, SignatureHelpParams,
+    TextDocumentIdentifier, TextDocumentPositionParams, TypeHierarchyItem, Url,
+    WorkDoneProgressParams, WorkspaceEdit,
 };
 use snapbox::{IntoData, assert_data_eq};
 use solar_config::CompileOpts;
@@ -342,6 +343,45 @@ impl RequestFixture {
         ))
         .unwrap();
         assert_data_eq!(self.locations_output(response), expected);
+    }
+
+    pub(super) fn check_code_lenses(&self, path: &str, expected: impl IntoData) {
+        self.check_code_lenses_with_commands(path, true, expected);
+    }
+
+    pub(super) fn check_code_lenses_without_commands(&self, path: &str, expected: impl IntoData) {
+        self.check_code_lenses_with_commands(path, false, expected);
+    }
+
+    pub(super) fn check_code_lenses_json(&self, path: &str, expected: impl IntoData) {
+        let mut state = self.state();
+        Arc::make_mut(&mut state.config).enable_code_lens_client_commands();
+        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
+        let response =
+            expect_ready(crate::handlers::code_lens(&mut state, code_lens_params(uri.clone())))
+                .unwrap()
+                .unwrap_or_default();
+        let output = serde_json::to_string_pretty(&response)
+            .unwrap()
+            .replace(uri.as_str(), &format!("file://{path}"));
+        assert_data_eq!(output, expected);
+    }
+
+    fn check_code_lenses_with_commands(
+        &self,
+        path: &str,
+        client_commands: bool,
+        expected: impl IntoData,
+    ) {
+        let mut state = self.state();
+        if client_commands {
+            Arc::make_mut(&mut state.config).enable_code_lens_client_commands();
+        }
+        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
+        let response = expect_ready(crate::handlers::code_lens(&mut state, code_lens_params(uri)))
+            .unwrap()
+            .unwrap_or_default();
+        assert_data_eq!(code_lens_output(&response), expected);
     }
 
     pub(super) fn check_document_highlights(&self, marker: &str, expected: impl IntoData) {
@@ -839,6 +879,29 @@ fn completion_output(items: &[CompletionItem]) -> String {
     output
 }
 
+fn code_lens_output(lenses: &[CodeLens]) -> String {
+    let mut output = String::new();
+    for lens in lenses {
+        let command = lens.command.as_ref().expect("eager CodeLens should have a title");
+        let label = if command.title.starts_with("0x") {
+            format!("selector={}", command.title)
+        } else if command.title.ends_with(" reference") || command.title.ends_with(" references") {
+            let count = command.title.split_once(' ').unwrap().0;
+            format!("references={count}")
+        } else {
+            format!("inheritance={}", command.title)
+        };
+        let command = if command.command.is_empty() { "<none>" } else { &command.command };
+        writeln!(
+            output,
+            "{}:{} {label} command={command}",
+            lens.range.start.line, lens.range.start.character
+        )
+        .unwrap();
+    }
+    output
+}
+
 fn completion_details_output(items: &[CompletionItem]) -> String {
     let mut output = String::new();
     for (index, item) in items.iter().enumerate() {
@@ -1123,6 +1186,14 @@ fn reference_params(uri: Url, position: Position, include_declaration: bool) -> 
         work_done_progress_params: WorkDoneProgressParams::default(),
         partial_result_params: PartialResultParams::default(),
         context: ReferenceContext { include_declaration },
+    }
+}
+
+fn code_lens_params(uri: Url) -> CodeLensParams {
+    CodeLensParams {
+        text_document: TextDocumentIdentifier { uri },
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
     }
 }
 
