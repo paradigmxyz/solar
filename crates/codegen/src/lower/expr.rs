@@ -665,8 +665,17 @@ impl<'gcx> Lowerer<'gcx> {
                             return self.materialize_storage_bytes(builder, slot_val);
                         }
 
-                        // For scalar storage variables, just load the value
-                        return self.load_storage_location_at_slot(builder, location, slot_val);
+                        // For scalar storage variables, load the value and
+                        // sign-extend packed signed integers (the RMW path only
+                        // masks the stored byte window).
+                        let value =
+                            self.load_storage_location_at_slot(builder, location, slot_val);
+                        return self.cleanup_packed_storage_load(
+                            builder,
+                            self.gcx.type_of_hir_ty(&var.ty),
+                            location,
+                            value,
+                        );
                     }
                 }
                 builder.imm_u64(0)
@@ -1638,6 +1647,31 @@ impl<'gcx> Lowerer<'gcx> {
         let mask = U256::MAX << low_bits;
         let mask = builder.imm_u256(mask);
         builder.and(value, mask)
+    }
+
+    /// Restores a packed storage load into a full typed word.
+    ///
+    /// Packed loads only mask the stored byte window. Signed integers need
+    /// sign-extension so later arithmetic and ABI encoding see a proper `intN`.
+    fn cleanup_packed_storage_load(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: Ty<'_>,
+        location: super::storage::StorageLocation,
+        value: ValueId,
+    ) -> ValueId {
+        if !location.is_packed() {
+            return value;
+        }
+        match ty.peel_refs().kind {
+            TyKind::Elementary(ElementaryType::Int(size)) => {
+                self.sign_extend_to_bits(builder, value, size.bits() as u32)
+            }
+            TyKind::Udvt(inner, _) => {
+                self.cleanup_packed_storage_load(builder, inner, location, value)
+            }
+            _ => value,
+        }
     }
 
     pub(super) fn mask_to_bits(
