@@ -29,7 +29,17 @@ SYNTHETIC_FIXTURE_VERSION = 3
 ANVIL_HARDFORK = "osaka"
 EXPECTED_UI_FAILURE_RE = re.compile(r"//~[\^v|?]*\s*(?:ERROR|ICE)(?::|\b)")
 GROWTH_SWEEP_CASE_COUNTS = {"synthetic": 28, "ui-gas": 147, "ci-gas": 12}
+GROWTH_SWEEP_TEST_IDS_SHA256 = {
+    "synthetic": "cae3428ef59b7882685096e3615d5692b71199d970519227d6e8f62ead12e06b",
+    "ui-gas": "fdcd4acf090d23542816011e7997d5d1b87c120ba6f345b9cf9650ed88e3ee26",
+    "ci-gas": "f370cc6074dd09c2d968355a51fc218fce3fa5f4d349d840bf5e36be3bc9ad6d",
+}
+GROWTH_SWEEP_MIN_BUDGET = 0
+GROWTH_SWEEP_MAX_BUDGET = 512
 GROWTH_SWEEP_PROVENANCE_KEYS = (
+    "solar_revision",
+    "source_tree",
+    "solar_sha256",
     "benchmark_pin",
     "benchmark_tree",
     "benchmark_script_sha256",
@@ -42,6 +52,9 @@ GROWTH_SWEEP_PROVENANCE_KEYS = (
     "anvil_version",
     "cast_version",
     "hardfork",
+    "driver_sha256",
+    "methods",
+    "variants",
 )
 
 
@@ -1206,7 +1219,24 @@ def results_by_test_id(payload: dict[str, Any], scope: str) -> dict[str, dict[st
     expected = GROWTH_SWEEP_CASE_COUNTS[scope]
     if len(by_id) != expected:
         raise RuntimeError(f"{scope} contains {len(by_id)} tests, expected {expected}")
+    test_ids_sha256 = json_sha256(sorted(by_id))
+    if test_ids_sha256 != GROWTH_SWEEP_TEST_IDS_SHA256[scope]:
+        raise RuntimeError(f"{scope} test IDs differ from the growth sweep manifest")
     return by_id
+
+
+def expected_growth_sweep_variants() -> list[dict[str, Any]]:
+    return [
+        {
+            "compiler_id": variant.compiler_id,
+            "label": variant.label,
+            "flags": list(variant.flags),
+        }
+        for variant in switch_variants(
+            ("auto",),
+            range(GROWTH_SWEEP_MIN_BUDGET, GROWTH_SWEEP_MAX_BUDGET + 1),
+        )
+    ]
 
 
 def validate_growth_sweep_inputs(
@@ -1214,6 +1244,8 @@ def validate_growth_sweep_inputs(
     gas_payloads: dict[str, dict[str, Any]],
 ) -> None:
     canonical = compile_payloads["synthetic"]["metadata"]
+    expected_variants = expected_growth_sweep_variants()
+    expected_methods = [variant["compiler_id"] for variant in expected_variants]
     compile_results = {}
     for scope, payload in compile_payloads.items():
         metadata = payload.get("metadata") or {}
@@ -1224,7 +1256,16 @@ def validate_growth_sweep_inputs(
         for key in GROWTH_SWEEP_PROVENANCE_KEYS:
             if metadata.get(key) != canonical.get(key):
                 raise RuntimeError(f"{scope} compile provenance differs for {key}")
+        if metadata.get("methods") != expected_methods:
+            raise RuntimeError(f"{scope} methods differ from the growth sweep manifest")
+        if metadata.get("variants") != expected_variants:
+            raise RuntimeError(f"{scope} variants differ from the growth sweep manifest")
         compile_results[scope] = results_by_test_id(payload, scope)
+        for test_id, result in compile_results[scope].items():
+            if list(result.get("compilers") or ()) != expected_methods:
+                raise RuntimeError(
+                    f"{scope}/{test_id} compilers differ from the growth sweep manifest"
+                )
 
     for scope, payload in gas_payloads.items():
         metadata = payload.get("metadata") or {}
@@ -1286,8 +1327,11 @@ def render_growth_sweep(
         for variant in compile_payloads["synthetic"]["metadata"]["variants"]
         if (budget := growth_budget(variant["compiler_id"])) is not None
     )
-    if budgets != list(range(budgets[0], budgets[-1] + 1)):
-        raise RuntimeError("growth sweep budgets must form one contiguous integer range")
+    expected_budgets = list(
+        range(GROWTH_SWEEP_MIN_BUDGET, GROWTH_SWEEP_MAX_BUDGET + 1)
+    )
+    if budgets != expected_budgets:
+        raise RuntimeError("growth sweep must contain every budget from 0 through 512")
 
     measured = {}
     for scope, payload in gas_payloads.items():
