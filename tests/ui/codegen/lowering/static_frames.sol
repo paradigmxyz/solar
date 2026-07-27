@@ -55,9 +55,16 @@ contract SF {
     // CHECK-NEXT: mstore
     // CHECK: push 64
     // CHECK-NEXT: mstore
+    // CHECK-NEXT: pop
+    // CHECK-NEXT: push [[TOP_REC_RET:bb[0-9]+]]
+    // CHECK-NEXT: jump [[REC_ENTRY:bb[0-9]+]]
+    // CHECK: [[REC_ENTRY]]:
 
     // Dynamic returns restore both pointers through a shared epilogue.
-    // CHECK: bb67:
+    // CHECK: [[TOP_REC_RET]]:
+    // CHECK: push [[TOP_AFTER_REC:bb[0-9]+]]
+    // CHECK-NEXT: jump [[DYN_EPILOGUE:bb[0-9]+]]
+    // CHECK: [[DYN_EPILOGUE]]:
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mload
     // CHECK-NEXT: push 64
