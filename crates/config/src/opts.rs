@@ -332,7 +332,8 @@ pub struct UnstableOpts {
 
     /// Print additional information about the compiler's internal state.
     ///
-    /// Valid kinds are `ast`, `hir`, `mir`, `mir-cfg`, `evm-ir`, and `evm-ir-runtime`.
+    /// Valid kinds are `ast`, `hir`, `mir`, `mir-cfg`, `mir-evm-shaped`, `evm-ir`, and
+    /// `evm-ir-runtime`.
     #[cfg_attr(
         feature = "clap",
         arg(long, require_equals = true, value_name = "KIND[,KIND...][=PATHS...]")
