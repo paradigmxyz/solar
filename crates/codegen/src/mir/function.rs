@@ -1,7 +1,8 @@
 //! MIR functions.
 
 use super::{
-    BasicBlock, BlockId, InstId, InstKind, Instruction, MirType, StorageAlias, Value, ValueId,
+    ArgIdx, BasicBlock, BlockId, InstId, InstKind, Instruction, MirType, StorageAlias, Value,
+    ValueId,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -23,7 +24,7 @@ pub(crate) struct Function {
     /// Function attributes.
     pub(crate) attributes: FunctionAttributes,
     /// Parameter types.
-    pub(crate) params: Vec<MirType>,
+    pub(crate) params: IndexVec<ArgIdx, MirType>,
     /// Return types.
     pub(crate) returns: Vec<MirType>,
     /// Bytes reserved for lowered local memory slots.
@@ -39,6 +40,10 @@ pub(crate) struct Function {
     /// not an active value list. Use [`Self::value`] or [`Self::value_mut`] for ID-based access
     /// and [`Self::num_values`] for the allocated ID-domain size.
     values: IndexVec<ValueId, Value>,
+    /// Types of all argument slots.
+    ///
+    /// This remains populated when progressive lowering clears the callable parameter list.
+    arg_types: IndexVec<ArgIdx, MirType>,
     /// All instructions allocated in this function.
     ///
     /// Instructions remain allocated after removal from their block, so this is not the active
@@ -61,11 +66,12 @@ impl Function {
             name,
             selector: None,
             attributes: FunctionAttributes::default(),
-            params: Vec::new(),
+            params: IndexVec::new(),
             returns: Vec::new(),
             internal_frame_size: 0,
             external_static_return_size: 0,
             values: IndexVec::new(),
+            arg_types: IndexVec::new(),
             instructions: IndexVec::new(),
             blocks,
         }
@@ -87,6 +93,63 @@ impl Function {
     #[must_use]
     pub(crate) fn num_values(&self) -> usize {
         self.values.len()
+    }
+
+    /// Returns the type of a value, if it has one.
+    #[must_use]
+    pub(crate) fn value_ty(&self, id: ValueId) -> Option<MirType> {
+        match self.value(id) {
+            Value::Inst(inst) => self.inst(*inst).result_ty,
+            Value::Arg { index } => Some(self.arg_ty(*index)),
+            Value::Immediate(imm) => Some(imm.ty()),
+            Value::Undef(ty) => Some(*ty),
+            Value::Error(_) => None,
+        }
+    }
+
+    /// Returns the type of an argument.
+    #[must_use]
+    pub(crate) fn arg_ty(&self, index: ArgIdx) -> MirType {
+        self.arg_types[index]
+    }
+
+    /// Updates an argument's retained type and its callable parameter type, if present.
+    pub(crate) fn set_arg_ty(&mut self, index: ArgIdx, ty: MirType) {
+        self.arg_types[index] = ty;
+        if let Some(param) = self.params.get_mut(index) {
+            *param = ty;
+        }
+    }
+
+    /// Returns all argument indexes.
+    pub(crate) fn arg_indices(&self) -> impl Iterator<Item = ArgIdx> + '_ {
+        self.arg_types.indices()
+    }
+
+    /// Returns active argument uses grouped by argument index.
+    #[must_use]
+    pub(crate) fn arg_uses(&self) -> IndexVec<ArgIdx, Vec<ValueId>> {
+        let mut uses = IndexVec::with_capacity(self.arg_types.len());
+        for _ in self.arg_types.indices() {
+            uses.push(Vec::new());
+        }
+        for inst_id in self.instructions() {
+            for value in self.inst(inst_id).kind.operands() {
+                if let Value::Arg { index } = self.value(value) {
+                    uses[*index].push(value);
+                }
+            }
+        }
+        for block in &self.blocks {
+            if let Some(terminator) = &block.terminator {
+                for value in terminator.operands() {
+                    if let Value::Arg { index } = self.value(value) {
+                        uses[*index].push(value);
+                    }
+                }
+            }
+        }
+        uses
     }
 
     /// Returns an immediate value as U256.
@@ -235,6 +298,32 @@ impl Function {
             "instruction results must be allocated with their instruction"
         );
         self.values.push(value)
+    }
+
+    /// Adds a parameter and allocates its argument value.
+    pub(crate) fn alloc_param(&mut self, ty: MirType) -> ValueId {
+        let index = self.params.push(ty);
+        let arg_index = self.arg_types.push(ty);
+        assert_eq!(arg_index, index, "parameter and argument type indexes must match");
+        self.alloc_arg(index)
+    }
+
+    /// Adds a retained argument type and allocates its value without changing the signature.
+    pub(crate) fn alloc_implicit_arg(&mut self, ty: MirType) -> ValueId {
+        let index = self.arg_types.push(ty);
+        self.alloc_arg(index)
+    }
+
+    /// Allocates a value referring to an existing argument.
+    pub(crate) fn alloc_arg(&mut self, index: ArgIdx) -> ValueId {
+        let _ = self.arg_ty(index);
+        self.alloc_value(Value::Arg { index })
+    }
+
+    /// Replaces both the callable parameters and their retained type table.
+    pub(crate) fn set_params(&mut self, params: IndexVec<ArgIdx, MirType>) {
+        self.arg_types = params.clone();
+        self.params = params;
     }
 
     /// Allocates a value-producing instruction and its result value.

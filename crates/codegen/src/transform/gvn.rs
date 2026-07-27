@@ -217,7 +217,7 @@ impl GlobalValueNumberer {
         }
         let mut available_values = DenseBitSet::new_empty(func.num_values());
         let mut immediate_reps: FxHashMap<Immediate, ValueId> = FxHashMap::default();
-        let mut arg_reps: FxHashMap<u32, ValueId> = FxHashMap::default();
+        let mut arg_reps = FxHashMap::default();
         let mut initialize = |value_id| match func.value(value_id) {
             Value::Immediate(imm) => {
                 available_values.insert(value_id);

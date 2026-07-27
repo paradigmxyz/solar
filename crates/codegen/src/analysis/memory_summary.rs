@@ -5,7 +5,7 @@
 //! fact only moves from false to true.
 
 use super::{AddressSpace, AliasAnalysis};
-use crate::mir::{Function, FunctionId, InstKind, Module, Terminator, Value, ValueId};
+use crate::mir::{Function, FunctionId, InstKind, Module, Terminator, ValueId};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 
 /// Conservative memory effects and pointer captures for one MIR function.
@@ -199,24 +199,12 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<usize>> {
     for _ in 0..func.num_values() {
         sources.push(DenseBitSet::new_empty(params));
     }
-    for inst_id in func.instructions() {
-        for value in func.inst(inst_id).kind.operands() {
-            if let Value::Arg { index, .. } = func.value(value)
-                && (*index as usize) < params
-            {
-                sources[value].insert(*index as usize);
-            }
+    for (index, uses) in func.arg_uses().iter_enumerated() {
+        if index.index() >= params {
+            break;
         }
-    }
-    for block in &func.blocks {
-        if let Some(term) = &block.terminator {
-            for value in term.operands() {
-                if let Value::Arg { index, .. } = func.value(value)
-                    && (*index as usize) < params
-                {
-                    sources[value].insert(*index as usize);
-                }
-            }
+        for &value in uses {
+            sources[value].insert(index.index());
         }
     }
 

@@ -21,7 +21,10 @@ use crate::{
         PhiEliminator,
     },
     memory::EvmMemoryLayout,
-    mir::{BlockId, Function, FunctionId, InstId, InstKind, MirPhase, Module, Terminator, ValueId},
+    mir::{
+        ArgIdx, BlockId, Function, FunctionId, InstId, InstKind, MirPhase, Module, Terminator,
+        ValueId,
+    },
     pass::run_default_pipeline,
 };
 use alloy_primitives::U256;
@@ -121,24 +124,9 @@ impl GlobalStackPlan {
         }
 
         let mut entries = FxHashMap::default();
-        let mut args_by_index = FxHashMap::default();
-        for inst_id in func.instructions() {
-            for value in func.inst(inst_id).kind.operands() {
-                if let crate::mir::Value::Arg { index, .. } = func.value(value) {
-                    args_by_index.insert(*index, value);
-                }
-            }
-        }
-        for block in &func.blocks {
-            if let Some(terminator) = &block.terminator {
-                for value in terminator.operands() {
-                    if let crate::mir::Value::Arg { index, .. } = func.value(value) {
-                        args_by_index.insert(*index, value);
-                    }
-                }
-            }
-        }
-        if !(2..=GLOBAL_STACK_MAX_ARGS).contains(&args_by_index.len()) {
+        let arg_uses = func.arg_uses();
+        let used_args = arg_uses.iter().filter(|uses| !uses.is_empty()).count();
+        if !(2..=GLOBAL_STACK_MAX_ARGS).contains(&used_args) {
             return Self::default();
         }
 
@@ -159,7 +147,8 @@ impl GlobalStackPlan {
                 if offset >= 4
                     && (offset - 4) % 32 == 0
                     && let Ok(index) = u32::try_from((offset - 4) / 32)
-                    && let Some(&arg) = args_by_index.get(&index)
+                    && let Some(&arg) =
+                        arg_uses.get(ArgIdx::new(index as usize)).and_then(|uses| uses.first())
                 {
                     decode_blocks.entry(arg).or_insert(block_id);
                     if let Some(result) = func.inst_result_value(inst_id) {
@@ -271,26 +260,8 @@ impl GlobalStackPlan {
         // Canonicalization pays DUP/SWAP/POP traffic on every planned edge.
         // Require enough real argument reuse to recover that fixed cost, and
         // reject dense layout plans unless a long CFG can amortize them.
-        let mut arg_uses = 0usize;
-        for block in func.blocks.iter() {
-            for &inst_id in &block.instructions {
-                arg_uses += func
-                    .inst(inst_id)
-                    .kind
-                    .operands()
-                    .iter()
-                    .filter(|&&value| matches!(func.value(value), crate::mir::Value::Arg { .. }))
-                    .count();
-            }
-            if let Some(term) = &block.terminator {
-                arg_uses += term
-                    .operands()
-                    .iter()
-                    .filter(|&&value| matches!(func.value(value), crate::mir::Value::Arg { .. }))
-                    .count();
-            }
-        }
-        if arg_uses < GLOBAL_STACK_MIN_ARG_USES
+        let arg_use_count = arg_uses.iter().map(Vec::len).sum::<usize>();
+        if arg_use_count < GLOBAL_STACK_MIN_ARG_USES
             || (entries.len() * 2 > cfg.reachable().count()
                 && cfg.reachable().count() < GLOBAL_STACK_DENSE_AMORTIZATION_BLOCKS)
         {
@@ -3445,12 +3416,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let addr = self.static_frame_addr(
                         func_id,
                         EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                            + u64::from(*index) * EvmMemoryLayout::WORD_SIZE,
+                            + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE,
                     );
                     self.asm.emit_push_deferred(addr);
                     self.asm.emit_op(op::MLOAD);
                 } else {
-                    self.asm.emit_push(U256::from(4 + u64::from(*index) * 32));
+                    self.asm.emit_push(U256::from(4 + (index.index() as u64) * 32));
                     self.asm.emit_op(op::CALLDATALOAD);
                 }
             }
@@ -3930,10 +3901,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             .insert(func_id, slots.into_iter().map(|(_, deferred)| deferred).collect());
     }
 
-    fn emit_internal_arg_load(&mut self, index: u32) {
+    fn emit_internal_arg_load(&mut self, index: ArgIdx) {
         self.emit_own_frame_addr(
             EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                + u64::from(index) * EvmMemoryLayout::WORD_SIZE,
+                + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE,
         );
         self.asm.emit_op(op::MLOAD);
     }
@@ -4306,14 +4277,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                         // Constructor args were copied to memory at 0x80
                         // Load from memory: 0x80 + index * 32
                         let offset = EvmMemoryLayout::HEAP_START
-                            + (index as u64) * EvmMemoryLayout::WORD_SIZE;
+                            + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE;
                         self.asm.emit_push(U256::from(offset));
                         self.asm.emit_op(op::MLOAD);
                     } else {
                         // Runtime function: load from calldata
                         // ABI encoding: selector (4 bytes) + args (32 bytes each)
                         // Offset = 4 + index * 32
-                        let offset = 4 + (index as u64) * 32;
+                        let offset = 4 + (index.index() as u64) * 32;
                         self.asm.emit_push(U256::from(offset));
                         self.asm.emit_op(op::CALLDATALOAD);
                     }
@@ -4337,12 +4308,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if self.in_internal_function {
                     self.emit_internal_arg_load(*index);
                 } else if self.in_constructor {
-                    let offset =
-                        EvmMemoryLayout::HEAP_START + (*index as u64) * EvmMemoryLayout::WORD_SIZE;
+                    let offset = EvmMemoryLayout::HEAP_START
+                        + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE;
                     self.asm.emit_push(U256::from(offset));
                     self.asm.emit_op(op::MLOAD);
                 } else {
-                    let offset = 4 + (*index as u64) * 32;
+                    let offset = 4 + (index.index() as u64) * 32;
                     self.asm.emit_push(U256::from(offset));
                     self.asm.emit_op(op::CALLDATALOAD);
                 }

@@ -61,10 +61,13 @@ fn lower_function<P: MemoryLayoutPolicy>(
     stats: &mut LowerMemoryObjectsStats,
 ) -> bool {
     let is_object_value = |value| match func.value(value) {
-        Value::Arg { ty, .. } | Value::Undef(ty) => is_object_type(ty),
+        Value::Arg { .. } | Value::Undef(_) => {
+            func.value_ty(value).as_ref().is_some_and(is_object_type)
+        }
         Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => false,
     };
-    let has_objects = func.params.iter().chain(&func.returns).any(is_object_type)
+    let has_objects = func.arg_indices().any(|index| is_object_type(&func.arg_ty(index)))
+        || func.returns.iter().any(is_object_type)
         || func
             .instructions()
             .any(|inst_id| func.inst(inst_id).kind.operands().into_iter().any(&is_object_value))
@@ -210,7 +213,13 @@ fn offset_address(
 }
 
 fn erase_object_types(func: &mut Function, stats: &mut LowerMemoryObjectsStats) {
-    for ty in func.params.iter_mut().chain(&mut func.returns) {
+    let arg_indices: Vec<_> = func.arg_indices().collect();
+    for index in arg_indices {
+        let mut ty = func.arg_ty(index);
+        erase_object_type(&mut ty, stats);
+        func.set_arg_ty(index, ty);
+    }
+    for ty in &mut func.returns {
         erase_object_type(ty, stats);
     }
     let mut operands = DenseBitSet::new_empty(func.num_values());
@@ -228,8 +237,8 @@ fn erase_object_types(func: &mut Function, stats: &mut LowerMemoryObjectsStats) 
     }
     for value in operands.iter() {
         match func.value_mut(value) {
-            Value::Arg { ty, .. } | Value::Undef(ty) => erase_object_type(ty, stats),
-            Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => {}
+            Value::Undef(ty) => erase_object_type(ty, stats),
+            Value::Arg { .. } | Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => {}
         }
     }
     func.for_each_instruction_mut(|_, inst| {

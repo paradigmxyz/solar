@@ -528,7 +528,11 @@ impl<'a> Validator<'a> {
         // The memory-lowered phase is a strict representation boundary: no
         // nominal object types, layouts, or semantic accesses may survive.
         if module.phase >= crate::mir::MirPhase::MemoryLowered {
-            for ty in func.params.iter().chain(&func.returns) {
+            let signature_types = func
+                .arg_indices()
+                .map(|index| func.arg_ty(index))
+                .chain(func.returns.iter().copied());
+            for ty in signature_types {
                 if matches!(ty, crate::mir::MirType::MemoryObject(_)) {
                     self.emit(format_args!(
                         "memory-object signature type `{ty}` survives the `{}` phase boundary",

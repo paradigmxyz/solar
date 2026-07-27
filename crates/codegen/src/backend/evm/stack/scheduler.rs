@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     analysis::Liveness,
-    mir::{BlockId, Function, ValueId},
+    mir::{ArgIdx, BlockId, Function, ValueId},
 };
 
 /// Stack scheduler that generates stack manipulation operations.
@@ -34,7 +34,7 @@ pub(crate) enum ScheduledOp {
     LoadSpill(SpillSlot),
     /// Load a function argument from calldata.
     /// Contains the argument index (0-based).
-    LoadArg(u32),
+    LoadArg(ArgIdx),
 }
 
 impl StackScheduler {
