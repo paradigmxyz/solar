@@ -17,7 +17,7 @@ from typing import Any, Iterable, Sequence
 
 DEFAULT_PIN = "01209d2b8ac81645b92e3ef801b5bcdfd61bfd69"
 DEFAULT_METHODS = ("auto", "linear", "binary", "buckets", "dense")
-SYNTHETIC_FIXTURE_VERSION = 2
+SYNTHETIC_FIXTURE_VERSION = 3
 
 
 def run(command: Sequence[str], cwd: Path | None = None) -> str:
@@ -150,12 +150,12 @@ contract {name} {{
 def synthetic_cases(bench: Any) -> tuple[list[Any], dict[str, list[str]]]:
     cases = []
     labels = {}
-    for count in (4, 8, 16, 32, 64):
+    for count in (4, 5, 6, 7, 8, 16, 32, 64):
         case = selector_case(bench, count)
         cases.append(case)
         labels[case.test_id] = [f"entry-{index:02}" for index in range(count)] + ["miss-00"]
 
-    for count in (4, 7, 8, 16, 32, 64):
+    for count in (4, 5, 6, 7, 8, 16, 32, 64):
         values = switch_values(count)
         case, case_labels = value_switch_case(
             bench,
@@ -166,7 +166,7 @@ def synthetic_cases(bench: Any) -> tuple[list[Any], dict[str, list[str]]]:
         cases.append(case)
         labels[case.test_id] = case_labels
 
-    for count in (4, 8, 16, 24, 32, 64):
+    for count in (4, 5, 6, 7, 8, 16, 24, 32, 64):
         low = 10
         values = list(range(low, low + count))
         case, case_labels = value_switch_case(
