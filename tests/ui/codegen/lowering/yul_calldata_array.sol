@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
 // `.length`/`.offset` on a calldata array in inline assembly. The array

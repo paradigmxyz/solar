@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zcodegen -O none -Zdump=mir
 
 contract YulUnsupportedBuiltins {
     function unsupportedBuiltins() public returns (uint256 result) {

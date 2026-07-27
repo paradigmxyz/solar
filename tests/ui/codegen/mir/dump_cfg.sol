@@ -1,4 +1,4 @@
-//@ compile-flags: -Zcodegen -Zdump=mir-cfg
+//@ compile-flags: -Zcodegen -O none -Zdump=mir-cfg
 //@ filecheck: --enable-var-scope
 
 contract DumpCfg {

@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
 // `abi.encode(...)` allocates a fresh `bytes memory` `[length][data...]` from

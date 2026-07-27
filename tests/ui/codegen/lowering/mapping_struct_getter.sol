@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zcodegen -O none -Zdump=mir
 //@filecheck:
 
 // The auto-generated getter for a `mapping(K => Struct) public` must read the
