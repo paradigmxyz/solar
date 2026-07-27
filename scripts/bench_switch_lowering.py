@@ -242,7 +242,13 @@ def run_cases(
     results = []
     cases = list(cases)
     for index, case in enumerate(cases, 1):
-        expected_calls = len(labels[case.test_id]) if labels is not None else None
+        expected_calls = None
+        if include_gas:
+            expected_calls = (
+                len(labels[case.test_id])
+                if labels is not None
+                else sum(call.repeat for call in bench.gas_calls(case, gas_profile))
+            )
         if case.test_id in previous and result_is_complete(
             previous[case.test_id], specs, include_gas, expected_calls
         ):
