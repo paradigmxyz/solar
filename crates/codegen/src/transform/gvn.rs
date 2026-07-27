@@ -232,17 +232,8 @@ impl GlobalValueNumberer {
             }
             Value::Inst(_) => {}
         };
-        for inst_id in func.instructions() {
-            for operand in func.inst(inst_id).kind.operands() {
-                initialize(operand);
-            }
-        }
-        for block in &func.blocks {
-            if let Some(terminator) = &block.terminator {
-                for operand in terminator.operands() {
-                    initialize(operand);
-                }
-            }
+        for value in func.live_values() {
+            initialize(value);
         }
 
         for _ in 0..MAX_VN_SWEEPS {

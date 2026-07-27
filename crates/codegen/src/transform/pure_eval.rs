@@ -120,17 +120,8 @@ impl PureEvaluator {
                 env.insert(value_id, value);
             }
         };
-        for inst_id in func.instructions() {
-            for operand in func.inst(inst_id).kind.operands() {
-                insert_immediate(operand);
-            }
-        }
-        for block in &func.blocks {
-            if let Some(terminator) = &block.terminator {
-                for operand in terminator.operands() {
-                    insert_immediate(operand);
-                }
-            }
+        for value in func.live_values() {
+            insert_immediate(value);
         }
 
         let mut current = BlockId::ENTRY;

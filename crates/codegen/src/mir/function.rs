@@ -133,20 +133,9 @@ impl Function {
         for _ in self.arg_types.indices() {
             uses.push(Vec::new());
         }
-        for inst_id in self.instructions() {
-            for value in self.inst(inst_id).kind.operands() {
-                if let Value::Arg { index } = self.value(value) {
-                    uses[*index].push(value);
-                }
-            }
-        }
-        for block in &self.blocks {
-            if let Some(terminator) = &block.terminator {
-                for value in terminator.operands() {
-                    if let Value::Arg { index } = self.value(value) {
-                        uses[*index].push(value);
-                    }
-                }
+        for value in self.live_values() {
+            if let Value::Arg { index } = self.value(value) {
+                uses[*index].push(value);
             }
         }
         uses
@@ -195,6 +184,23 @@ impl Function {
     /// Returns the IDs of all active instructions in block order.
     pub(crate) fn instructions(&self) -> impl Iterator<Item = InstId> + '_ {
         self.blocks.iter().flat_map(|block| block.instructions.iter().copied())
+    }
+
+    /// Returns all values in active MIR block order.
+    ///
+    /// Each instruction yields its operands followed by its result, if any. Terminator operands
+    /// follow the instructions in their block. A value is yielded once for every occurrence.
+    pub(crate) fn live_values(&self) -> impl Iterator<Item = ValueId> + '_ {
+        self.blocks.iter().flat_map(|block| {
+            block
+                .instructions
+                .iter()
+                .flat_map(|&inst_id| {
+                    let inst = self.inst(inst_id);
+                    inst.operands().into_iter().chain(inst.result())
+                })
+                .chain(block.terminator.iter().flat_map(|terminator| terminator.operands()))
+        })
     }
 
     /// Calls `f` for every active instruction in block order.

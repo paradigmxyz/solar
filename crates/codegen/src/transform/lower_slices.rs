@@ -299,7 +299,10 @@ impl LowerSlicesCx {
             }
         }
 
-        let argument_values: FxHashSet<_> = func.arg_uses().iter().flatten().copied().collect();
+        let argument_values: FxHashSet<_> = func
+            .live_values()
+            .filter(|&value| matches!(func.value(value), Value::Arg { .. }))
+            .collect();
         let slice_args: Vec<_> = argument_values
             .iter()
             .filter_map(|&value| match func.value(value) {

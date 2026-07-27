@@ -68,15 +68,7 @@ fn lower_function<P: MemoryLayoutPolicy>(
     };
     let has_objects = func.arg_indices().any(|index| is_object_type(&func.arg_ty(index)))
         || func.returns.iter().any(is_object_type)
-        || func
-            .instructions()
-            .any(|inst_id| func.inst(inst_id).kind.operands().into_iter().any(&is_object_value))
-        || func.blocks.iter().any(|block| {
-            block
-                .terminator
-                .as_ref()
-                .is_some_and(|terminator| terminator.operands().into_iter().any(&is_object_value))
-        })
+        || func.live_values().any(is_object_value)
         || func.instructions().any(|inst_id| {
             let inst = func.inst(inst_id);
             inst.result_ty.as_ref().is_some_and(is_object_type)
@@ -222,20 +214,11 @@ fn erase_object_types(func: &mut Function, stats: &mut LowerMemoryObjectsStats) 
     for ty in &mut func.returns {
         erase_object_type(ty, stats);
     }
-    let mut operands = DenseBitSet::new_empty(func.num_values());
-    for inst_id in func.instructions() {
-        for operand in func.inst(inst_id).kind.operands() {
-            operands.insert(operand);
-        }
+    let mut values = DenseBitSet::new_empty(func.num_values());
+    for value in func.live_values() {
+        values.insert(value);
     }
-    for block in &func.blocks {
-        if let Some(terminator) = &block.terminator {
-            for operand in terminator.operands() {
-                operands.insert(operand);
-            }
-        }
-    }
-    for value in operands.iter() {
+    for value in values.iter() {
         match func.value_mut(value) {
             Value::Undef(ty) => erase_object_type(ty, stats),
             Value::Arg { .. } | Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => {}

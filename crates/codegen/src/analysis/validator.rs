@@ -540,24 +540,13 @@ impl<'a> Validator<'a> {
                     ));
                 }
             }
-            let mut operands = DenseBitSet::new_empty(func.num_values());
-            for inst_id in func.instructions() {
-                for operand in func.inst(inst_id).kind.operands() {
-                    if operand.index() < func.num_values() {
-                        operands.insert(operand);
-                    }
+            let mut values = DenseBitSet::new_empty(func.num_values());
+            for value in func.live_values() {
+                if value.index() < func.num_values() {
+                    values.insert(value);
                 }
             }
-            for block in &func.blocks {
-                if let Some(terminator) = &block.terminator {
-                    for operand in terminator.operands() {
-                        if operand.index() < func.num_values() {
-                            operands.insert(operand);
-                        }
-                    }
-                }
-            }
-            for value in operands.iter() {
+            for value in values.iter() {
                 if let Value::Undef(ty) = func.value(value)
                     && matches!(ty, crate::mir::MirType::MemoryObject(_))
                 {
