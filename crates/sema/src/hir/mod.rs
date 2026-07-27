@@ -966,6 +966,8 @@ pub fn can_receive_ether(contract: &Contract<'_>, gcx: Gcx<'_>) -> bool {
 pub struct Modifier<'hir> {
     /// The span of the modifier or base class call.
     pub span: Span,
+    /// The span of the final name segment.
+    pub name_span: Span,
     /// The modifier or base class ID.
     pub id: ItemId,
     /// The arguments to the modifier or base class call.

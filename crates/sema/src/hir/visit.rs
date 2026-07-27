@@ -78,7 +78,7 @@ pub trait Visit<'hir> {
     }
 
     fn visit_modifier(&mut self, modifier: &'hir Modifier<'hir>) -> ControlFlow<Self::BreakValue> {
-        let Modifier { span: _, id: _, args } = modifier;
+        let Modifier { span: _, name_span: _, id: _, args } = modifier;
         self.visit_call_args(args)
     }
 
