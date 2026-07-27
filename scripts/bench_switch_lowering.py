@@ -299,6 +299,12 @@ def run_cases(
                 else:
                     result["compilers"].update(partial["compilers"])
             bench.compare_runtime_results(result, specs)
+            if not result_is_complete(result, specs, True, expected_calls):
+                raise RuntimeError(f"{case.test_id} has incomplete gas results after retries")
+            if result.get("runtime_status") not in ("ok", "skipped"):
+                raise RuntimeError(
+                    f"{case.test_id} runtime comparison is {result.get('runtime_status')}"
+                )
         else:
             result = bench.run_test_case(
                 case,
@@ -340,6 +346,8 @@ def result_is_complete(
 ) -> bool:
     compilers = result.get("compilers") or {}
     if any(spec.compiler_id not in compilers for spec in specs):
+        return False
+    if result.get("runtime_status") in ("failed", "mismatch"):
         return False
     if not include_gas:
         return True
