@@ -85,6 +85,15 @@ fn @read_effects_are_movable(arg0: u256, arg1: u256) -> u256 {
     ret v6
 }
 
+// `clz` is a pure unary operation and follows its consumer's stack-input order.
+fn @clz_is_movable(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v3 = clz arg0
+    v4 = mul arg1, arg2
+    v5 = sub v3, v4
+    ret v5
+}
+
 // `msize` splits two independently scheduled segments.
 fn @msize_is_a_barrier(
   arg0: u256,

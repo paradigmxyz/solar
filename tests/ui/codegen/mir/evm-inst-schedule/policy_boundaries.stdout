@@ -76,6 +76,15 @@
       ret v4
   }
   
+  fn @clz_is_movable(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+-     v0 = clz arg0
+      v1 = mul arg1, arg2
++     v0 = clz arg0
+      v2 = sub v0, v1
+      ret v2
+  }
+  
   fn @msize_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256) {
     bb0:
 -     v0 = add arg0, arg1
