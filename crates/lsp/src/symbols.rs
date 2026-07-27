@@ -1208,7 +1208,17 @@ impl SymbolTables {
             return None;
         }
         if let Some(reference) = self.reference_at_position(uri, position) {
-            return Some(reference.targets.clone());
+            let range = reference.location.range;
+            let mut targets = self
+                .file_references
+                .get(uri)?
+                .candidates_at(position, |index| self.references[index].location.range)
+                .filter(|&index| self.references[index].location.range == range)
+                .flat_map(|index| self.references[index].targets.iter().copied())
+                .collect::<ReferenceTargets>();
+            targets.sort_unstable_by_key(|symbol_id| symbol_id.index());
+            targets.dedup();
+            return Some(targets);
         }
 
         let symbol_id = self.declaration_at_position(uri, position)?;
