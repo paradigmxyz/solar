@@ -33,6 +33,14 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def compiler_revision(solar: Path) -> str:
+    prefix = "Commit SHA:"
+    for line in run([str(solar), "--version"]).splitlines():
+        if line.startswith(prefix):
+            return line.removeprefix(prefix).strip()
+    raise RuntimeError("solar --version did not report a commit SHA")
+
+
 def load_benchmark_module(root: Path) -> Any:
     sys.path.insert(0, str(root))
     spec = importlib.util.spec_from_file_location("switch_solar_bench", root / "solar_bench.py")
@@ -213,6 +221,8 @@ def start_anvil() -> subprocess.Popen[bytes]:
         stderr=subprocess.DEVNULL,
     )
     time.sleep(2)
+    if process.poll() is not None:
+        raise RuntimeError("anvil exited before becoming ready")
     return process
 
 
@@ -349,19 +359,29 @@ def result_is_complete(
     compilers = result.get("compilers") or {}
     if any(spec.compiler_id not in compilers for spec in specs):
         return False
-    if result.get("runtime_status") in ("failed", "mismatch"):
+    selected = [compilers[spec.compiler_id] for spec in specs]
+    statuses = {compiler.get("status") for compiler in selected}
+    if not statuses <= {"ok", "failed"} or len(statuses) != 1:
         return False
-    if not include_gas:
-        return True
-    for compiler in compilers.values():
+    if result.get("runtime_status") in ("failed", "mismatch") or result.get(
+        "runtime_mismatches"
+    ):
+        return False
+    for compiler in selected:
         if compiler.get("status") != "ok":
+            continue
+        if not isinstance(compiler.get("bytecode_size"), int) or not isinstance(
+            compiler.get("runtime_size"), int
+        ):
+            return False
+        if not include_gas:
             continue
         if compiler.get("deploy_status") != "ok" or compiler.get("gas_status") != "ok":
             return False
         gas_results = compiler.get("gas_results") or []
         if expected_calls is not None and (
             len(gas_results) != expected_calls
-            or any(item.get("gas") is None for item in gas_results)
+            or any(not isinstance(item.get("gas"), int) for item in gas_results)
         ):
             return False
     return True
@@ -585,10 +605,16 @@ def main() -> int:
 
     corpus_revisions = verify_corpus_pin(benchmark_repo, args.pin)
     bench = load_benchmark_module(benchmark_repo)
+    source_revision = run(["git", "rev-parse", "HEAD"])
+    built_revision = compiler_revision(solar)
+    if built_revision != source_revision:
+        raise RuntimeError(
+            f"solar was built at {built_revision}, but the source checkout is {source_revision}"
+        )
     metadata_base = {
         "solar": str(solar),
         "solar_sha256": sha256(solar),
-        "solar_revision": run(["git", "rev-parse", "HEAD"]),
+        "solar_revision": built_revision,
         "benchmark_pin": args.pin,
         "benchmark_revision": run(["git", "rev-parse", "HEAD"], benchmark_repo),
         "benchmark_script_sha256": sha256(benchmark_repo / "solar_bench.py"),
