@@ -1689,6 +1689,101 @@ impl Expr<'_> {
         let ExprKind::Ident([res]) = self.peel_parens().kind else { return None };
         res.as_variable()
     }
+
+    /// Returns an error referenced by this expression.
+    pub fn references_error(&self, hir: &Hir<'_>) -> Result<(), ErrorGuaranteed> {
+        match self.visit(&mut |expr| {
+            let guar = match &expr.kind {
+                ExprKind::Err(guar) => Some(*guar),
+                ExprKind::Lit(lit) => match lit.kind {
+                    ast::LitKind::Err(guar) => Some(guar),
+                    _ => None,
+                },
+                ExprKind::Ident(resolutions) => resolutions.iter().find_map(|res| match res {
+                    Res::Err(guar) => Some(*guar),
+                    _ => None,
+                }),
+                ExprKind::New(ty) | ExprKind::TypeCall(ty) | ExprKind::Type(ty) => {
+                    return match ty.references_error(hir) {
+                        Ok(()) => ControlFlow::Continue(()),
+                        Err(guar) => ControlFlow::Break(guar),
+                    };
+                }
+                _ => None,
+            };
+            match guar {
+                Some(guar) => ControlFlow::Break(guar),
+                None => ControlFlow::Continue(()),
+            }
+        }) {
+            ControlFlow::Continue(()) => Ok(()),
+            ControlFlow::Break(guar) => Err(guar),
+        }
+    }
+
+    /// Visits the expression and its subexpressions.
+    pub fn visit<T>(&self, f: &mut impl FnMut(&Self) -> ControlFlow<T>) -> ControlFlow<T> {
+        f(self)?;
+        match &self.kind {
+            ExprKind::Call(callee, args, options) => {
+                callee.visit(f)?;
+                if let Some(options) = options {
+                    for arg in options.args {
+                        arg.value.visit(f)?;
+                    }
+                }
+                for arg in args.exprs() {
+                    arg.visit(f)?;
+                }
+            }
+            ExprKind::Delete(expr)
+            | ExprKind::Member(expr, _)
+            | ExprKind::Payable(expr)
+            | ExprKind::Unary(_, expr)
+            | ExprKind::YulMember(expr, _) => expr.visit(f)?,
+            ExprKind::Assign(lhs, _, rhs) | ExprKind::Binary(lhs, _, rhs) => {
+                lhs.visit(f)?;
+                rhs.visit(f)?;
+            }
+            ExprKind::Index(expr, index) => {
+                expr.visit(f)?;
+                if let Some(index) = index {
+                    index.visit(f)?;
+                }
+            }
+            ExprKind::Slice(expr, start, end) => {
+                expr.visit(f)?;
+                if let Some(start) = start {
+                    start.visit(f)?;
+                }
+                if let Some(end) = end {
+                    end.visit(f)?;
+                }
+            }
+            ExprKind::Ternary(cond, true_, false_) => {
+                cond.visit(f)?;
+                true_.visit(f)?;
+                false_.visit(f)?;
+            }
+            ExprKind::Array(exprs) => {
+                for expr in *exprs {
+                    expr.visit(f)?;
+                }
+            }
+            ExprKind::Tuple(exprs) => {
+                for expr in exprs.iter().flatten() {
+                    expr.visit(f)?;
+                }
+            }
+            ExprKind::Err(_)
+            | ExprKind::Ident(_)
+            | ExprKind::Lit(_)
+            | ExprKind::New(_)
+            | ExprKind::TypeCall(_)
+            | ExprKind::Type(_) => {}
+        }
+        ControlFlow::Continue(())
+    }
 }
 
 /// A kind of expression.
@@ -1906,7 +2001,7 @@ pub struct Type<'hir> {
     pub kind: TypeKind<'hir>,
 }
 
-impl<'hir> Type<'hir> {
+impl Type<'_> {
     /// Dummy placeholder type.
     pub const DUMMY: Self =
         Self { span: Span::DUMMY, kind: TypeKind::Err(ErrorGuaranteed::new_unchecked()) };
@@ -1916,10 +2011,21 @@ impl<'hir> Type<'hir> {
         self.span == Span::DUMMY && matches!(self.kind, TypeKind::Err(_))
     }
 
+    /// Returns an error referenced by this type.
+    pub fn references_error(&self, hir: &Hir<'_>) -> Result<(), ErrorGuaranteed> {
+        match self.visit(hir, &mut |ty| match ty.kind {
+            TypeKind::Err(guar) => ControlFlow::Break(guar),
+            _ => ControlFlow::Continue(()),
+        }) {
+            ControlFlow::Continue(()) => Ok(()),
+            ControlFlow::Break(guar) => Err(guar),
+        }
+    }
+
     pub fn visit<T>(
         &self,
-        hir: &Hir<'hir>,
-        f: &mut impl FnMut(&Self) -> ControlFlow<T>,
+        hir: &Hir<'_>,
+        f: &mut impl FnMut(&Type<'_>) -> ControlFlow<T>,
     ) -> ControlFlow<T> {
         f(self)?;
         match self.kind {

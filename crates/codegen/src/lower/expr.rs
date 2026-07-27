@@ -4,10 +4,10 @@ use super::{
     Lowerer,
     checked_arith::{ArithmeticInfo, PanicCode},
 };
-use crate::mir::{FunctionBuilder, MemoryObjectKind, MirType, ValueId};
+use crate::mir::{FunctionBuilder, MemoryObjectKind, ValueId};
 use alloy_primitives::U256;
 use solar_ast::{LitKind, StrKind};
-use solar_interface::{Ident, Span, sym};
+use solar_interface::{Ident, Span, diagnostics::ErrorGuaranteed, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ElementaryType, ExprKind},
@@ -27,12 +27,18 @@ enum MappingBaseSlot {
 }
 
 impl<'gcx> Lowerer<'gcx> {
-    /// Lowers an expression, preserving whether it has semantic unit type.
+    /// Lowers an expression, preserving whether it produces one MIR value.
     pub(super) fn lower_expr(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> Option<ValueId> {
+        if let ExprKind::Assign(lhs, None, rhs) = &expr.kind
+            && let ExprKind::Tuple(elements) = &lhs.kind
+        {
+            self.lower_tuple_assign(builder, elements, rhs);
+            return None;
+        }
         if self.get_expr_type(expr).is_some_and(|ty| ty.is_unit()) {
             self.lower_unit_expr(builder, expr);
             None
@@ -64,9 +70,9 @@ impl<'gcx> Lowerer<'gcx> {
 
             ExprKind::Ident(res_slice) => {
                 if res_slice.is_empty() {
-                    builder.imm_u64(0)
+                    self.err_value(builder, expr.span, "codegen cannot resolve this identifier")
                 } else if let Some(res) = self.ident_res(expr) {
-                    self.lower_ident(builder, &res)
+                    self.lower_ident(builder, &res, expr.span)
                 } else {
                     // The raw resolution set is ambiguous (an overloaded
                     // function or event referenced as a value); the type
@@ -141,8 +147,8 @@ impl<'gcx> Lowerer<'gcx> {
                         let one = builder.imm_u64(1);
                         let int_info = self.integer_info_for_expr(operand);
                         if self.gcx.unsupported_udvt_operator(expr.id) {
-                            self.emit_unsupported_udvt_operator(operand.span);
-                            return operand_val;
+                            let guar = self.emit_unsupported_udvt_operator(operand.span);
+                            return builder.error_value(guar);
                         }
                         let new_val = match op.kind {
                             UnOpKind::PreInc | UnOpKind::PostInc => self
@@ -178,8 +184,8 @@ impl<'gcx> Lowerer<'gcx> {
                             .integer_info_for_expr(expr)
                             .or_else(|| self.integer_info_for_expr(operand));
                         if self.gcx.unsupported_udvt_operator(expr.id) {
-                            self.emit_unsupported_udvt_operator(expr.span);
-                            return operand_val;
+                            let guar = self.emit_unsupported_udvt_operator(expr.span);
+                            return builder.error_value(guar);
                         }
                         self.lower_unary_op(builder, *op, operand_val, int_info, expr.span)
                     }
@@ -274,7 +280,9 @@ impl<'gcx> Lowerer<'gcx> {
                         | Builtin::AbiEncodeWithSelector
                         | Builtin::AbiEncodeCall
                         | Builtin::AbiEncodeWithSignature
-                        | Builtin::AbiDecode => return self.lower_builtin(builder, builtin),
+                        | Builtin::AbiDecode => {
+                            return self.lower_builtin(builder, builtin, expr.span);
+                        }
                         _ => {}
                     }
                 }
@@ -406,7 +414,11 @@ impl<'gcx> Lowerer<'gcx> {
                     && let ExprKind::Tuple(elements) = &lhs.kind
                 {
                     self.lower_tuple_assign(builder, elements, rhs);
-                    return builder.imm_u64(0);
+                    return self.err_value(
+                        builder,
+                        expr.span,
+                        "tuple assignment does not produce a single value",
+                    );
                 }
                 let rhs_val = if op.is_none() && self.lhs_expects_memory_bytes_value(lhs) {
                     self.lower_expr_as_memory_bytes(builder, rhs)
@@ -443,24 +455,27 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Tuple(elements) => {
-                if let Some(Some(expr)) = elements.first() {
-                    return self.lower_value_expr(builder, expr);
+                if let [Some(expr)] = elements {
+                    self.lower_value_expr(builder, expr)
+                } else {
+                    self.err_value(
+                        builder,
+                        expr.span,
+                        "tuple expression does not produce a single value",
+                    )
                 }
-                builder.imm_u64(0)
             }
 
             ExprKind::Array(elements) => {
-                let alloc_size = u64::try_from(elements.len())
-                    .ok()
-                    .and_then(|len| len.checked_mul(32))
-                    .unwrap_or_else(|| {
-                        self.gcx
-                            .dcx()
-                            .err("array literal is too large for codegen")
-                            .span(expr.span)
-                            .emit();
-                        0
-                    });
+                let Some(alloc_size) =
+                    u64::try_from(elements.len()).ok().and_then(|len| len.checked_mul(32))
+                else {
+                    return self.err_value(
+                        builder,
+                        expr.span,
+                        "array literal is too large for codegen",
+                    );
+                };
                 let ptr = self.allocate_memory_object(
                     builder,
                     alloc_size,
@@ -475,11 +490,15 @@ impl<'gcx> Lowerer<'gcx> {
                 ptr
             }
 
-            ExprKind::TypeCall(_ty) => builder.imm_u64(0),
+            ExprKind::TypeCall(_) => {
+                self.err_value(builder, expr.span, "`type(...)` does not produce a value")
+            }
 
             ExprKind::Payable(inner) => self.lower_value_expr(builder, inner),
 
-            ExprKind::New(_ty) => builder.imm_u64(0),
+            ExprKind::New(_) => {
+                self.err_value(builder, expr.span, "`new` must be used as a call expression")
+            }
 
             ExprKind::Delete(_) => self
                 .gcx
@@ -544,9 +563,11 @@ impl<'gcx> Lowerer<'gcx> {
                 self.err_value(builder, expr.span, "codegen only supports slicing calldata arrays")
             }
 
-            ExprKind::Type(_ty) => builder.imm_u64(0),
+            ExprKind::Type(_) => {
+                self.err_value(builder, expr.span, "a type name does not produce a value")
+            }
 
-            ExprKind::Err(_) => builder.imm_u64(0),
+            ExprKind::Err(guar) => builder.error_value(*guar),
         }
     }
 
@@ -656,7 +677,11 @@ impl<'gcx> Lowerer<'gcx> {
         match &lit.kind {
             LitKind::Bool(b) => builder.imm_bool(*b),
             LitKind::Number(n) => builder.imm_u256(*n),
-            LitKind::Rational(_r) => builder.imm_u64(0),
+            LitKind::Rational(_) => self.err_value(
+                builder,
+                lit.span,
+                "fractional rational literal cannot be lowered to an EVM value",
+            ),
             LitKind::Str(kind, bytes, _extra) => {
                 let bytes = bytes.as_byte_str();
                 match kind {
@@ -675,12 +700,17 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
             LitKind::Address(addr) => builder.imm_u256(U256::from_be_slice(addr.as_slice())),
-            LitKind::Err(_) => builder.imm_u64(0),
+            LitKind::Err(guar) => builder.error_value(*guar),
         }
     }
 
     /// Lowers an identifier reference.
-    fn lower_ident(&mut self, builder: &mut FunctionBuilder<'_>, res: &hir::Res) -> ValueId {
+    fn lower_ident(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        res: &hir::Res,
+        span: Span,
+    ) -> ValueId {
         match res {
             hir::Res::Item(item_id) => {
                 if let hir::ItemId::Function(function_id) = item_id {
@@ -759,17 +789,52 @@ impl<'gcx> Lowerer<'gcx> {
                         // For scalar storage variables, just load the value
                         return self.load_storage_location_at_slot(builder, location, slot_val);
                     }
+
+                    if let Some(value) = self.lower_default_variable_value(builder, *var_id) {
+                        return value;
+                    }
                 }
-                builder.imm_u64(0)
+                self.err_value(builder, span, "codegen cannot lower this item as a value")
             }
-            hir::Res::Builtin(builtin) => self.lower_builtin(builder, *builtin),
-            hir::Res::Namespace(_) => builder.imm_u64(0),
-            hir::Res::Err(_) => builder.imm_u64(0),
+            hir::Res::Builtin(builtin) => self.lower_builtin(builder, *builtin, span),
+            hir::Res::Namespace(_) => {
+                self.err_value(builder, span, "a namespace does not produce a value")
+            }
+            hir::Res::Err(guar) => builder.error_value(*guar),
         }
     }
 
+    /// Materializes a language-defined default for an uninitialized local or
+    /// named return. Reference values get a real empty object rather than a
+    /// zero pointer.
+    pub(super) fn lower_default_variable_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        var_id: hir::VariableId,
+    ) -> Option<ValueId> {
+        let var = self.gcx.hir.variable(var_id);
+        if var.initializer.is_some() || !var.is_local_or_return() {
+            return None;
+        }
+        if Self::calldata_dynamic_var_kind(var).is_some() {
+            let zero = builder.imm_u64(0);
+            return Some(builder.make_slice(zero, zero, crate::mir::SliceLocation::Calldata));
+        }
+
+        let ty = self.gcx.type_of_hir_ty(&var.ty);
+        if var.data_location == Some(solar_ast::DataLocation::Memory) && !ty.is_value_type() {
+            return Some(self.zero_memory_field_value(builder, &var.ty));
+        }
+        ty.is_value_type().then(|| builder.imm_u64(0))
+    }
+
     /// Lowers a builtin reference.
-    fn lower_builtin(&mut self, builder: &mut FunctionBuilder<'_>, builtin: Builtin) -> ValueId {
+    fn lower_builtin(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        builtin: Builtin,
+        span: Span,
+    ) -> ValueId {
         match builtin {
             Builtin::MsgSender => builder.caller(),
             Builtin::MsgValue => builder.callvalue(),
@@ -781,49 +846,30 @@ impl<'gcx> Lowerer<'gcx> {
                 let size = builder.calldatasize();
                 builder.make_slice(zero, size, crate::mir::SliceLocation::Calldata)
             }
-            Builtin::BlockTimestamp => {
-                let (inst, result) =
-                    builder.func_mut().alloc_value_inst(crate::mir::Instruction::new(
-                        crate::mir::InstKind::Timestamp,
-                        Some(MirType::uint256()),
-                    ));
-                let block = builder.current_block();
-                builder.func_mut().block_mut(block).instructions.push(inst);
-                result
+            Builtin::MsgSig => {
+                let zero = builder.imm_u64(0);
+                let word = builder.calldataload(zero);
+                let shift = builder.imm_u64(224);
+                let selector = builder.shr(shift, word);
+                builder.shl(shift, selector)
             }
-            Builtin::BlockNumber => {
-                let (inst, result) =
-                    builder.func_mut().alloc_value_inst(crate::mir::Instruction::new(
-                        crate::mir::InstKind::BlockNumber,
-                        Some(MirType::uint256()),
-                    ));
-                let block = builder.current_block();
-                builder.func_mut().block_mut(block).instructions.push(inst);
-                result
-            }
-            Builtin::TxOrigin => {
-                let (inst, result) =
-                    builder.func_mut().alloc_value_inst(crate::mir::Instruction::new(
-                        crate::mir::InstKind::Origin,
-                        Some(MirType::Address),
-                    ));
-                let block = builder.current_block();
-                builder.func_mut().block_mut(block).instructions.push(inst);
-                result
-            }
-            Builtin::TxGasPrice => {
-                let (inst, result) =
-                    builder.func_mut().alloc_value_inst(crate::mir::Instruction::new(
-                        crate::mir::InstKind::GasPrice,
-                        Some(MirType::uint256()),
-                    ));
-                let block = builder.current_block();
-                builder.func_mut().block_mut(block).instructions.push(inst);
-                result
-            }
-            Builtin::Gasleft => builder.gas(),
+            Builtin::BlockCoinbase => builder.coinbase(),
+            Builtin::BlockTimestamp => builder.timestamp(),
+            Builtin::BlockDifficulty | Builtin::BlockPrevrandao => builder.prevrandao(),
+            Builtin::BlockNumber => builder.number(),
+            Builtin::BlockGaslimit => builder.gaslimit(),
+            Builtin::BlockChainid => builder.chainid(),
+            Builtin::BlockBasefee => builder.basefee(),
+            Builtin::BlockBlobbasefee => builder.blobbasefee(),
+            Builtin::TxOrigin => builder.origin(),
+            Builtin::TxGasPrice => builder.gasprice(),
+            Builtin::Gasleft | Builtin::MsgGas => builder.gas(),
             Builtin::This => builder.address(),
-            _ => builder.imm_u64(0),
+            _ => self.err_value(
+                builder,
+                span,
+                format!("builtin `{}` does not produce a value", builtin.name()),
+            ),
         }
     }
 
@@ -874,11 +920,16 @@ impl<'gcx> Lowerer<'gcx> {
                 if let Some(slice) = calldata_slice {
                     return builder.slice_ptr(slice);
                 }
-                return builder.imm_u64(0);
+                if Self::calldata_dynamic_var_kind(self.gcx.hir.variable(var_id)).is_some() {
+                    return builder.imm_u64(0);
+                }
             }
             sym::length => {
                 if let Some(slice) = calldata_slice {
                     return builder.slice_len(slice);
+                }
+                if Self::calldata_dynamic_var_kind(self.gcx.hir.variable(var_id)).is_some() {
+                    return builder.imm_u64(0);
                 }
             }
             _ => {}
@@ -1148,9 +1199,17 @@ impl<'gcx> Lowerer<'gcx> {
                         }
                     }
                 }
-                _ => builder.imm_u64(0),
+                _ => self.err_value(
+                    builder,
+                    ty.span,
+                    "`type(T).min` and `type(T).max` require an integer type",
+                ),
             },
-            _ => builder.imm_u64(0),
+            _ => self.err_value(
+                builder,
+                ty.span,
+                "`type(T).min` and `type(T).max` require an integer type",
+            ),
         }
     }
 
@@ -1580,11 +1639,9 @@ impl<'gcx> Lowerer<'gcx> {
                         .is_slice_slot_local(&var_id)
                         .then(|| self.get_local_memory_offset(&var_id))
                         .flatten();
-                    // Only an existing calldata slice contributes the untouched
-                    // component. A freshly declared slice is seeded with a
-                    // placeholder zero word, not a slice, so projecting it would
-                    // build a `slice_ptr`/`slice_len` of a non-slice value that
-                    // never folds; treat that as an unset `0` instead.
+                    // An uninitialized calldata slice has the empty `(0, 0)`
+                    // default, so the untouched component is zero when there is
+                    // no current slice to project.
                     let current = if let Some(offset) = slot {
                         Some(self.load_slice_slot(
                             builder,
@@ -1599,15 +1656,15 @@ impl<'gcx> Lowerer<'gcx> {
                     };
                     let ptr = if member.name == sym::offset {
                         rhs
-                    } else if let Some(slice) = current {
-                        builder.slice_ptr(slice)
+                    } else if let Some(current) = current {
+                        builder.slice_ptr(current)
                     } else {
                         builder.imm_u64(0)
                     };
                     let len = if member.name == sym::length {
                         rhs
-                    } else if let Some(slice) = current {
-                        builder.slice_len(slice)
+                    } else if let Some(current) = current {
+                        builder.slice_len(current)
                     } else {
                         builder.imm_u64(0)
                     };
@@ -2053,16 +2110,11 @@ impl<'gcx> Lowerer<'gcx> {
     pub(super) fn lower_abi_decode(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        args: &CallArgs<'_>,
-    ) -> ValueId {
-        let mut exprs = args.exprs();
-        let (Some(data), Some(types)) = (exprs.next(), exprs.next()) else {
-            return builder.imm_u64(0);
-        };
-
-        let Some(elems) = self.abi_decode_elementary_types(types, args.span) else {
-            return builder.imm_u64(0);
-        };
+        data: &hir::Expr<'_>,
+        types: &hir::Expr<'_>,
+        span: Span,
+    ) -> Result<ValueId, ErrorGuaranteed> {
+        let elems = self.abi_decode_elementary_types(types, span)?;
 
         // The decode logic below expects a memory `[length][data...]` pointer.
         // Calldata values and subslices carry `(ptr, len)` explicitly and are
@@ -2092,52 +2144,58 @@ impl<'gcx> Lowerer<'gcx> {
             decoded_values.push(decoded);
         }
         self.stage_multi_return_tail(builder, &decoded_values);
-        decoded_values.first().copied().unwrap_or_else(|| builder.imm_u64(0))
+        decoded_values.first().copied().ok_or_else(|| {
+            self.gcx.dcx().err("`abi.decode` must decode at least one value").span(span).emit()
+        })
     }
 
     fn abi_decode_elementary_types(
         &self,
         types: &hir::Expr<'_>,
         span: Span,
-    ) -> Option<Vec<ElementaryType>> {
+    ) -> Result<Vec<ElementaryType>, ErrorGuaranteed> {
         let ExprKind::Tuple(elems) = &types.kind else {
-            self.gcx
+            let guar = self
+                .gcx
                 .dcx()
                 .err("codegen only supports `abi.decode` into static values")
                 .span(span)
                 .emit();
-            return None;
+            return Err(guar);
         };
 
         let mut out = Vec::with_capacity(elems.len());
         for elem in elems.iter().copied() {
             let Some(elem_expr) = elem else {
-                self.gcx
+                let guar = self
+                    .gcx
                     .dcx()
                     .err("codegen only supports `abi.decode` into static values")
                     .span(span)
                     .emit();
-                return None;
+                return Err(guar);
             };
             let ExprKind::Type(ty) = &elem_expr.kind else {
-                self.gcx
+                let guar = self
+                    .gcx
                     .dcx()
                     .err("codegen only supports `abi.decode` into static values")
                     .span(elem_expr.span)
                     .emit();
-                return None;
+                return Err(guar);
             };
             let hir::TypeKind::Elementary(elem) = &ty.kind else {
-                self.gcx
+                let guar = self
+                    .gcx
                     .dcx()
                     .err("codegen only supports `abi.decode` into static values")
                     .span(ty.span)
                     .emit();
-                return None;
+                return Err(guar);
             };
             out.push(*elem);
         }
-        Some(out)
+        Ok(out)
     }
 
     fn lower_abi_decode_dynamic_bytes(
@@ -2485,16 +2543,13 @@ impl<'gcx> Lowerer<'gcx> {
             ExprKind::Call(callee, args, _)
                 if self.gcx.builtin_callee(callee.id) == Some(Builtin::ArrayPush0) =>
             {
+                if let Err(guar) = self.collect_builtin_args(Builtin::ArrayPush0, args) {
+                    return Some(builder.error_value(guar));
+                }
                 let ExprKind::Member(base, _) = &callee.kind else { return None };
                 let (slot, element_ty, element_slots) =
                     self.storage_dynamic_array_info(builder, base)?;
-                Some(self.lower_storage_array_push_slot(
-                    builder,
-                    slot,
-                    element_ty,
-                    element_slots,
-                    args,
-                ))
+                Some(self.lower_storage_array_push_slot(builder, slot, element_ty, element_slots))
             }
             // A call to a function returning a storage reference (e.g. the
             // ERC-7201 `_layout()` getter) yields the slot value directly.
@@ -2700,10 +2755,7 @@ impl<'gcx> Lowerer<'gcx> {
         slot: ValueId,
         element_ty: Ty<'gcx>,
         element_slots: u64,
-        args: &CallArgs<'_>,
     ) -> ValueId {
-        debug_assert!(args.is_empty());
-
         let length = builder.sload(slot);
         let one = builder.imm_u64(1);
         let new_length = builder.add(length, one);
@@ -2730,34 +2782,34 @@ impl<'gcx> Lowerer<'gcx> {
         builtin: Builtin,
         args: &CallArgs<'_>,
     ) -> Option<ValueId> {
+        let exprs = match self.collect_builtin_args(builtin, args) {
+            Ok(exprs) => exprs,
+            Err(guar) => {
+                return (builtin == Builtin::ArrayPush0).then(|| builder.error_value(guar));
+            }
+        };
         let (slot, element_ty, element_slots) = array;
         match builtin {
             Builtin::ArrayPush0 => {
-                let element_slot = self.lower_storage_array_push_slot(
-                    builder,
-                    slot,
-                    element_ty,
-                    element_slots,
-                    args,
-                );
+                let element_slot =
+                    self.lower_storage_array_push_slot(builder, slot, element_ty, element_slots);
                 if element_ty.is_reference_type() {
                     Some(element_slot)
                 } else {
+                    // The storage reference returned by `push()` reads as the
+                    // newly zero-initialized scalar when used as an rvalue.
                     Some(builder.imm_u64(0))
                 }
             }
             Builtin::ArrayPush => {
-                let value = args
-                    .exprs()
-                    .next()
-                    .map(|arg| match element_ty.peel_refs().kind {
-                        TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                            self.lower_expr_as_memory_bytes(builder, arg)
-                        }
-                        TyKind::DynArray(_) => self.lower_expr_as_memory_dyn_array(builder, arg),
-                        _ => self.lower_value_expr(builder, arg),
-                    })
-                    .unwrap_or_else(|| builder.imm_u64(0));
+                let arg = exprs[0];
+                let value = match element_ty.peel_refs().kind {
+                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                        self.lower_expr_as_memory_bytes(builder, arg)
+                    }
+                    TyKind::DynArray(_) => self.lower_expr_as_memory_dyn_array(builder, arg),
+                    _ => self.lower_value_expr(builder, arg),
+                };
 
                 let length = builder.sload(slot);
                 let one = builder.imm_u64(1);
@@ -2836,7 +2888,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         if self.is_nested_mapping_index(base) {
             let inner_slot = self.lower_nested_mapping_slot(builder, base);
-            let index_val = self.lower_index_or_zero(builder, index);
+            let index_val = self.lower_index_value(builder, base.span, index);
             let key_is_dynamic = self.mapping_level_key_is_dynamic(base);
             let slot = self.compute_mapping_slot_for_index(
                 builder,
@@ -2864,14 +2916,14 @@ impl<'gcx> Lowerer<'gcx> {
         base_slot: MappingBaseSlot,
         index: Option<&hir::Expr<'_>>,
     ) -> MappingElementSlot {
-        let index_val = self.lower_index_or_zero(builder, index);
+        let var = self.gcx.hir.variable(var_id);
+        let index_val = self.lower_index_value(builder, var.span, index);
         // Materialize the base slot after the index so a constant state-variable
         // slot keeps its original emission order (the index is lowered first).
         let slot_val = match base_slot {
             MappingBaseSlot::Const(slot) => builder.imm_u64(slot),
             MappingBaseSlot::Value(val) => val,
         };
-        let var = self.gcx.hir.variable(var_id);
         let (key_is_dynamic, value_is_mapping) = if let hir::TypeKind::Mapping(map) = &var.ty.kind {
             (
                 Self::is_dynamic_mapping_key(&map.key.kind),
@@ -2922,14 +2974,18 @@ impl<'gcx> Lowerer<'gcx> {
             // Check if inner_base is the root mapping variable
             if let Some((_var_id, slot)) = self.get_mapping_base_slot(inner_base) {
                 // Compute the slot for the inner access
-                let inner_index_val = match inner_index {
-                    Some(idx) => self.lower_value_expr(builder, idx),
-                    None => builder.imm_u64(0),
+                let Some(inner_index) = inner_index else {
+                    return self.err_value(
+                        builder,
+                        expr.span,
+                        "codegen expected an index for mapping access",
+                    );
                 };
+                let inner_index_val = self.lower_value_expr(builder, inner_index);
                 let slot_val = builder.imm_u64(slot);
                 return self.compute_mapping_slot_for_index(
                     builder,
-                    inner_index.as_deref(),
+                    Some(inner_index),
                     inner_index_val,
                     slot_val,
                     key_is_dynamic,
@@ -2938,20 +2994,23 @@ impl<'gcx> Lowerer<'gcx> {
 
             // Recursively compute deeper nesting slot
             let deeper_slot = self.lower_nested_mapping_slot(builder, inner_base);
-            let inner_index_val = match inner_index {
-                Some(idx) => self.lower_value_expr(builder, idx),
-                None => builder.imm_u64(0),
+            let Some(inner_index) = inner_index else {
+                return self.err_value(
+                    builder,
+                    expr.span,
+                    "codegen expected an index for mapping access",
+                );
             };
+            let inner_index_val = self.lower_value_expr(builder, inner_index);
             return self.compute_mapping_slot_for_index(
                 builder,
-                inner_index.as_deref(),
+                Some(inner_index),
                 inner_index_val,
                 deeper_slot,
                 key_is_dynamic,
             );
         }
-        // Should not reach here if is_nested_mapping_index returned true
-        builder.imm_u64(0)
+        self.err_value(builder, expr.span, "codegen expected a nested mapping access")
     }
 
     /// Whether the mapping denoted by `base` (the expression being indexed,

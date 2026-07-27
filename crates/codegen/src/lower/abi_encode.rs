@@ -18,6 +18,7 @@ use crate::{
 use alloy_primitives::U256;
 use solar_ast::ElementaryType;
 use solar_data_structures::map::FxHashSet;
+use solar_interface::diagnostics::ErrorGuaranteed;
 use solar_sema::ty::{Ty, TyKind};
 
 struct LoweredAbiItems<'gcx> {
@@ -302,17 +303,24 @@ impl<'gcx> Lowerer<'gcx> {
     /// Resolves each argument's ABI type and lowers it to a `(value, type)`
     /// item for the tuple encoder. Calldata bytes and word arrays stay as
     /// slices so the encoder can copy them directly into the destination.
-    /// Returns `None` when an argument's type cannot be determined. Arguments
-    /// are evaluated before any output buffer is reserved: lowering an
-    /// argument can allocate memory of its own.
+    /// Arguments are evaluated before any output buffer is reserved: lowering
+    /// an argument can allocate memory of its own.
     fn lower_abi_encode_items(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         arg_exprs: &[&solar_sema::hir::Expr<'_>],
-    ) -> Option<LoweredAbiItems<'gcx>> {
+    ) -> Result<LoweredAbiItems<'gcx>, ErrorGuaranteed> {
         let mut tys = Vec::with_capacity(arg_exprs.len());
         for arg in arg_exprs {
-            let ty = self.get_expr_type(arg)?;
+            self.expr_references_error(arg)?;
+            let Some(ty) = self.get_expr_type(arg) else {
+                return Err(self
+                    .gcx
+                    .dcx()
+                    .err("codegen cannot determine this ABI argument's type")
+                    .span(arg.span)
+                    .emit());
+            };
             // String literals encode as `string memory` values.
             let ty = match ty.peel_refs().kind {
                 TyKind::StringLiteral(..) => self.gcx.types.string_ref.memory,
@@ -343,18 +351,17 @@ impl<'gcx> Lowerer<'gcx> {
             };
             items.push((value, ty));
         }
-        Some(LoweredAbiItems { items, calldata_slices })
+        Ok(LoweredAbiItems { items, calldata_slices })
     }
 
     /// Lowers `abi.encode(...)` to a fresh `bytes memory` allocation
     /// (`[length][ABI tuple encoding]`) from the free memory pointer and
-    /// returns the pointer. Returns `None` when an argument's type cannot be
-    /// determined.
+    /// returns the pointer.
     pub(super) fn lower_abi_encode_to_bytes(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         arg_exprs: &[&solar_sema::hir::Expr<'_>],
-    ) -> Option<ValueId> {
+    ) -> Result<ValueId, ErrorGuaranteed> {
         let LoweredAbiItems { items, calldata_slices } =
             self.lower_abi_encode_items(builder, arg_exprs)?;
         let scratch_words = self.abi_scratch_words(&items);
@@ -385,18 +392,17 @@ impl<'gcx> Lowerer<'gcx> {
         let total = builder.add(size, word);
         let new_free_ptr = builder.add(ptr, total);
         builder.set_fmp(new_free_ptr);
-        Some(ptr)
+        Ok(ptr)
     }
 
     /// Lowers `keccak256(abi.encode(...))` without materializing a `bytes`
     /// object: the tuple encoding is staged at the unbumped free memory
-    /// pointer and hashed in place, like solc. Returns `None` when an
-    /// argument's type cannot be determined.
+    /// pointer and hashed in place, like solc.
     pub(super) fn lower_keccak_abi_encode(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         arg_exprs: &[&solar_sema::hir::Expr<'_>],
-    ) -> Option<ValueId> {
+    ) -> Result<ValueId, ErrorGuaranteed> {
         let LoweredAbiItems { items, calldata_slices } =
             self.lower_abi_encode_items(builder, arg_exprs)?;
         // Loop scratch must be a real allocation so it sits below the staging
@@ -417,7 +423,7 @@ impl<'gcx> Lowerer<'gcx> {
                 lower_abi_encode::AbiScratch { base: scratch_base, depth: 0 },
             )
         };
-        Some(builder.keccak256(data, size))
+        Ok(builder.keccak256(data, size))
     }
 
     /// ABI-encodes already-lowered tuple items into a fresh allocation from
@@ -458,26 +464,34 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// ABI-encodes call arguments (optionally prefixed by a left-aligned
     /// 4-byte selector word) into a fresh allocation from the free memory
-    /// pointer. Returns `(offset, size)` of the encoded payload, or `None`
-    /// when an argument's type cannot be determined.
+    /// pointer. Returns `(offset, size)` of the encoded payload.
     pub(super) fn abi_encode_call_payload(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         selector: Option<ValueId>,
         arg_exprs: &[&solar_sema::hir::Expr<'_>],
-    ) -> Option<(ValueId, ValueId)> {
+    ) -> Result<(ValueId, ValueId), ErrorGuaranteed> {
         let LoweredAbiItems { items, calldata_slices } =
             self.lower_abi_encode_items(builder, arg_exprs)?;
         let types = items
             .iter()
-            .map(|&(value, ty)| self.abi_type(ty, calldata_slices.contains(&value)))
-            .collect::<Option<Vec<_>>>()?;
+            .zip(arg_exprs)
+            .map(|(&(value, ty), arg)| {
+                self.abi_type(ty, calldata_slices.contains(&value)).ok_or_else(|| {
+                    self.gcx
+                        .dcx()
+                        .err("codegen cannot encode this ABI argument's type")
+                        .span(arg.span)
+                        .emit()
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let layout = self.module.intern_abi_layout(AbiLayout::new(types));
         let args: Vec<_> = items.into_iter().map(|(value, _)| value).collect();
         let payload = builder.abi_encode(layout, selector, args);
         let ptr = builder.slice_ptr(payload);
         let len = builder.slice_len(payload);
-        Some((ptr, len))
+        Ok((ptr, len))
     }
 
     pub(super) fn lower_return_value_for_ty(

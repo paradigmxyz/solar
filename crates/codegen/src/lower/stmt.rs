@@ -9,7 +9,7 @@ use alloy_primitives::U256;
 use solar_interface::{Span, kw};
 use solar_sema::{
     builtins::Builtin,
-    hir::{self, ExprKind, StmtKind},
+    hir::{self, ElementaryType, ExprKind, StmtKind},
     ty::{Ty, TyKind},
 };
 
@@ -82,7 +82,13 @@ impl<'gcx> Lowerer<'gcx> {
             return false;
         }
         let ty = self.current_return_tys[0];
-        let hash = self.lower_keccak_abi_encode_packed(builder, args);
+        let hash = match self
+            .collect_builtin_args(Builtin::AbiEncodePacked, args)
+            .and_then(|_| self.lower_keccak_abi_encode_packed(builder, args))
+        {
+            Ok(hash) => hash,
+            Err(guar) => builder.error_value(guar),
+        };
         let external = builder.func().is_public() && !self.lowering_internal_function;
         self.finish_external_or_internal_return(builder, vec![(hash, ty)], external);
         true
@@ -201,8 +207,8 @@ impl<'gcx> Lowerer<'gcx> {
                 return;
             }
             // No initializer (e.g. the slot is set later via `r.slot := ...`).
-            let zero = builder.imm_u256(U256::ZERO);
-            self.locals.insert(var_id, zero);
+            // Keep the value absent until that assignment; reading it first is
+            // an error, not an implicit reference to storage slot zero.
             self.storage_ref_locals.insert(var_id);
             return;
         }
@@ -227,6 +233,9 @@ impl<'gcx> Lowerer<'gcx> {
         if var.initializer.is_none() && !needs_local_memory && var_ty.is_value_type() {
             return;
         }
+        if var.initializer.is_none() && !needs_local_memory && is_calldata_dynamic {
+            return;
+        }
 
         let initial_value = if let Some(init) = var.initializer {
             if self.var_expects_memory_bytes_value(var) {
@@ -236,24 +245,10 @@ impl<'gcx> Lowerer<'gcx> {
             } else {
                 self.lower_value_expr(builder, init)
             }
-        } else if is_calldata_dynamic && needs_local_memory {
-            let zero = builder.imm_u64(0);
-            builder.make_slice(zero, zero, crate::mir::SliceLocation::Calldata)
-        } else if is_struct_type {
-            // Struct without initializer: allocate memory and zero-initialize
-            let struct_size = self.memory_struct_size(&var.ty);
-            let struct_ptr = self.allocate_memory_object(
-                builder,
-                struct_size,
-                crate::mir::MemoryObjectKind::Struct,
-            );
-            self.zero_initialize_memory_value(builder, &var.ty, struct_ptr);
-            struct_ptr
-        } else if self.is_fixed_memory_array_type(&var.ty, var.data_location) {
-            self.allocate_zeroed_fixed_memory_array(builder, &var.ty)
-                .unwrap_or_else(|| builder.imm_u256(U256::ZERO))
         } else {
-            builder.imm_u256(U256::ZERO)
+            self.lower_default_variable_value(builder, var_id).unwrap_or_else(|| {
+                self.err_value(builder, var.span, "codegen cannot initialize this local variable")
+            })
         };
 
         if needs_local_memory {
@@ -274,24 +269,6 @@ impl<'gcx> Lowerer<'gcx> {
             // Variable is never reassigned and not from external call - keep as SSA value
             self.locals.insert(var_id, initial_value);
         }
-    }
-
-    fn memory_struct_size(&self, ty: &hir::Type<'_>) -> u64 {
-        let ty = self.gcx.type_of_hir_ty(ty);
-        if matches!(ty.peel_refs().kind, TyKind::Struct(_)) {
-            self.calculate_memory_words_for_ty(ty) * 32
-        } else {
-            32
-        }
-    }
-
-    fn zero_initialize_memory_value(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        ty: &hir::Type<'_>,
-        ptr: ValueId,
-    ) {
-        self.zero_initialize_memory_ty(builder, self.gcx.type_of_hir_ty(ty), ptr, ty.span);
     }
 
     pub(super) fn zero_memory_field_value(
@@ -318,42 +295,6 @@ impl<'gcx> Lowerer<'gcx> {
         u64::try_from(len).ok()
     }
 
-    pub(super) fn allocate_zeroed_fixed_memory_array(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        ty: &hir::Type<'_>,
-    ) -> Option<ValueId> {
-        let array_ty = self.gcx.type_of_hir_ty(ty);
-        let TyKind::Array(elem_ty, _) = array_ty.peel_refs().kind else {
-            return None;
-        };
-        let len = self.fixed_memory_array_len(ty)?;
-        let alloc_size = len.checked_mul(32).unwrap_or_else(|| {
-            self.gcx
-                .dcx()
-                .err("fixed-size memory array is too large for codegen")
-                .span(ty.span)
-                .emit();
-            0
-        });
-        let ptr = self.allocate_memory_object(
-            builder,
-            alloc_size,
-            crate::mir::MemoryObjectKind::FixedArray,
-        );
-        for i in 0..len {
-            let value = self.zero_memory_field_value_ty(builder, elem_ty, ty.span);
-            let index = builder.imm_u64(i);
-            let addr = builder.memory_object_element_addr(
-                ptr,
-                crate::mir::MemoryObjectLayout::word_fixed_array(len),
-                index,
-            );
-            builder.mstore(addr, value);
-        }
-        Some(ptr)
-    }
-
     fn zero_memory_field_value_ty(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -369,14 +310,13 @@ impl<'gcx> Lowerer<'gcx> {
                         "fixed-size memory array is too large for codegen",
                     );
                 };
-                let alloc_size = len.checked_mul(32).unwrap_or_else(|| {
-                    self.gcx
-                        .dcx()
-                        .err("fixed-size memory array is too large for codegen")
-                        .span(span)
-                        .emit();
-                    0
-                });
+                let Some(alloc_size) = len.checked_mul(32) else {
+                    return self.err_value(
+                        builder,
+                        span,
+                        "fixed-size memory array is too large for codegen",
+                    );
+                };
                 let ptr = self.allocate_memory_object(
                     builder,
                     alloc_size,
@@ -406,6 +346,13 @@ impl<'gcx> Lowerer<'gcx> {
                     zero,
                     crate::mir::MemoryObjectKind::DynamicArray,
                 );
+                ptr
+            }
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                let ptr =
+                    self.allocate_memory_object(builder, 32, crate::mir::MemoryObjectKind::Bytes);
+                let zero = builder.imm_u256(U256::ZERO);
+                builder.set_memory_object_len(ptr, zero, crate::mir::MemoryObjectKind::Bytes);
                 ptr
             }
             TyKind::Struct(_) => {

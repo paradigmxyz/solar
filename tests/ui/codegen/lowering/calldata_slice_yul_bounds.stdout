@@ -2,17 +2,36 @@
 @module CalldataSliceYulBounds
 fn @_empty() -> memorybytes {
   bb0:
-    v0 = internal_frame_addr 96
-    mstore v0, 0 !metadata(memory=internal_frame)
-    v1 = make_calldata_slice 0, 0
-    v2 = internal_frame_addr 96
-    v3 = mload v2 !metadata(memory=internal_frame)
-    ret v3
+    v0 = make_calldata_slice 0, 0
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = internal_frame_addr 96
+    mstore v3, v1 !metadata(memory=internal_frame)
+    v4 = internal_frame_addr 128
+    mstore v4, v2 !metadata(memory=internal_frame)
+    v5 = internal_frame_addr 96
+    v6 = mload v5 !metadata(memory=internal_frame)
+    v7 = internal_frame_addr 128
+    v8 = mload v7 !metadata(memory=internal_frame)
+    v9 = make_calldata_slice v6, v8
+    v10 = slice_ptr v9
+    v11 = make_calldata_slice v10, 0
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    v14 = internal_frame_addr 96
+    mstore v14, v12 !metadata(memory=internal_frame)
+    v15 = internal_frame_addr 128
+    mstore v15, v13 !metadata(memory=internal_frame)
+    v16 = internal_frame_addr 96
+    v17 = mload v16 !metadata(memory=internal_frame)
+    v18 = internal_frame_addr 128
+    v19 = mload v18 !metadata(memory=internal_frame)
+    v20 = make_calldata_slice v17, v19
+    ret v20
 }
 
 fn @emptyLen() {
   bb0:
-    mstore 128, 0
     v0 = make_calldata_slice 0, 0
     v1 = slice_len v0
     mstore 128, v1
@@ -21,10 +40,8 @@ fn @emptyLen() {
 
 fn @_sink(arg0: calldataslice) -> u256 {
   bb0:
-    v0 = internal_frame_addr 128
-    mstore v0, 0 !metadata(memory=internal_frame)
-    v1 = slice_len arg0
-    ret v1
+    v0 = slice_len arg0
+    ret v0
 }
 
 fn @trimLen(arg0: calldataslice) {
@@ -36,35 +53,34 @@ fn @trimLen(arg0: calldataslice) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = slice_ptr arg0
     v4 = slice_len arg0
-    mstore 160, v3
-    mstore 192, v4
+    mstore 128, v3
+    mstore 160, v4
     v5 = slice_ptr arg0
     v6 = add v5, 4
-    v7 = mload 160
-    v8 = mload 192
+    v7 = mload 128
+    v8 = mload 160
     v9 = make_calldata_slice v7, v8
     v10 = slice_len v9
     v11 = make_calldata_slice v6, v10
     v12 = slice_ptr v11
     v13 = slice_len v11
-    mstore 160, v12
-    mstore 192, v13
+    mstore 128, v12
+    mstore 160, v13
     v14 = slice_len arg0
     v15 = sub v14, 4
-    v16 = mload 160
-    v17 = mload 192
+    v16 = mload 128
+    v17 = mload 160
     v18 = make_calldata_slice v16, v17
     v19 = slice_ptr v18
     v20 = make_calldata_slice v19, v15
     v21 = slice_ptr v20
     v22 = slice_len v20
-    mstore 160, v21
-    mstore 192, v22
-    v23 = mload 160
-    v24 = mload 192
+    mstore 128, v21
+    mstore 160, v22
+    v23 = mload 128
+    v24 = mload 160
     v25 = make_calldata_slice v23, v24
     v26 = slice_len v25
     mstore 128, v26
@@ -80,28 +96,27 @@ fn @conditional(arg0: calldataslice) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = slice_ptr arg0
     v4 = slice_len arg0
-    mstore 160, v3
-    mstore 192, v4
+    mstore 128, v3
+    mstore 160, v4
     v5 = slice_len arg0
     v6 = gt v5, 32
     jumpi v6, bb3, bb4
   bb3:
-    v7 = mload 160
-    v8 = mload 192
+    v7 = mload 128
+    v8 = mload 160
     v9 = make_calldata_slice v7, v8
     v10 = slice_ptr v9
     v11 = make_calldata_slice v10, 32
     v12 = slice_ptr v11
     v13 = slice_len v11
-    mstore 160, v12
-    mstore 192, v13
+    mstore 128, v12
+    mstore 160, v13
     jump bb4
   bb4:
-    v14 = mload 160
-    v15 = mload 192
+    v14 = mload 128
+    v15 = mload 160
     v16 = make_calldata_slice v14, v15
     v17 = slice_len v16
     mstore 128, v17

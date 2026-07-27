@@ -9,7 +9,6 @@ fn @hash3(arg0: u256, arg1: u256, arg2: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = fmp
     mstore v3, arg0
     v4 = add v3, 32
@@ -30,7 +29,6 @@ fn @encode3(arg0: u256, arg1: u256, arg2: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = fmp
     v4 = memory_object_data memorybytes, v3
     mstore v4, arg0
@@ -86,7 +84,6 @@ fn @encodeDynamic(arg0: u256, arg1: memorybytes) {
     v10 = memory_object_data memorybytes, v9
     v11 = add v3, 32
     calldatacopy v10, v11, v4
-    mstore 128, 0
     v12 = fmp
     v13 = memory_object_data memorybytes, v12
     v14 = add v13, 64
@@ -140,7 +137,6 @@ fn @hashDynamic(arg0: u256, arg1: memorybytes) {
     v10 = memory_object_data memorybytes, v9
     v11 = add v3, 32
     calldatacopy v10, v11, v4
-    mstore 128, 0
     v12 = fmp
     v13 = add v12, 64
     mstore v12, arg0
@@ -179,7 +175,6 @@ fn @roundtrip(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = fmp
     v4 = memory_object_data memorybytes, v3
     mstore v4, arg0

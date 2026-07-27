@@ -2,7 +2,6 @@
 @module InternalVoidCall
 fn @value() {
   bb0:
-    mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     mstore 128, v0
     returndata 128, 32

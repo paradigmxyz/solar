@@ -1249,31 +1249,27 @@ impl<'gcx> Lowerer<'gcx> {
             }
             for &ret_id in hir_func.returns {
                 let ret_var = self.gcx.hir.variable(ret_id);
-                let ret_ty = self.gcx.type_of_hir_ty(&ret_var.ty);
+                // An unnamed return cannot be assigned or read by the body.
+                // Keep it absent and materialize its default only if control
+                // actually reaches the implicit-return epilogue.
+                if ret_var.name.is_none() {
+                    continue;
+                }
                 // Allocate memory for return variables so they can be assigned to
                 // within the function body (e.g., `liquidity = 1` in if/else branches)
+                if Self::calldata_dynamic_var_kind(ret_var).is_some() {
+                    let offset = self.alloc_local_slice_memory(ret_id);
+                    let value = self
+                        .lower_default_variable_value(&mut builder, ret_id)
+                        .expect("calldata return has an empty default");
+                    self.store_slice_slot(&mut builder, offset, value);
+                    continue;
+                }
+
                 let offset = self.alloc_local_memory(ret_id);
                 let offset_val = self.local_memory_addr(&mut builder, offset);
-                if matches!(ret_ty.peel_refs().kind, TyKind::Struct(_)) {
-                    let struct_size =
-                        self.calculate_memory_words_for_ty(ret_ty) * EvmMemoryLayout::WORD_SIZE;
-                    let struct_ptr = self.allocate_memory_object(
-                        &mut builder,
-                        struct_size,
-                        MemoryObjectKind::Struct,
-                    );
-                    builder.mstore(offset_val, struct_ptr);
-                } else if self.is_fixed_memory_array_type(&ret_var.ty, ret_var.data_location)
-                    && let Some(array_ptr) =
-                        self.allocate_zeroed_fixed_memory_array(&mut builder, &ret_var.ty)
-                {
-                    // A named fixed-array return must point at real zeroed
-                    // memory like a local declaration; a zero pointer aliases
-                    // the scratch space.
-                    builder.mstore(offset_val, array_ptr);
-                } else {
-                    let zero = builder.imm_u256(U256::ZERO);
-                    builder.mstore(offset_val, zero);
+                if let Some(value) = self.lower_default_variable_value(&mut builder, ret_id) {
+                    builder.mstore(offset_val, value);
                 }
             }
 
@@ -1297,10 +1293,26 @@ impl<'gcx> Lowerer<'gcx> {
                     for &ret_id in hir_func.returns {
                         let ret_var = self.gcx.hir.variable(ret_id);
                         let ret_val = if let Some(offset) = self.get_local_memory_offset(&ret_id) {
-                            let offset_val = self.local_memory_addr(&mut builder, offset);
-                            builder.mload(offset_val)
+                            if self.is_slice_slot_local(&ret_id) {
+                                self.load_slice_slot(
+                                    &mut builder,
+                                    offset,
+                                    crate::mir::SliceLocation::Calldata,
+                                )
+                            } else {
+                                let offset_val = self.local_memory_addr(&mut builder, offset);
+                                builder.mload(offset_val)
+                            }
+                        } else if let Some(value) =
+                            self.lower_default_variable_value(&mut builder, ret_id)
+                        {
+                            value
                         } else {
-                            builder.imm_u256(U256::ZERO)
+                            self.err_value(
+                                &mut builder,
+                                ret_var.span,
+                                "codegen is missing a return variable slot",
+                            )
                         };
                         items.push((ret_val, self.gcx.type_of_hir_ty(&ret_var.ty)));
                     }
