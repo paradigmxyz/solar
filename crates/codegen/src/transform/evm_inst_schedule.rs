@@ -11,11 +11,11 @@
 //! across an observable mutation, gas observation, call-gas boundary, or phi definition. Within
 //! each barrier-delimited segment, a deterministic dependency-first traversal emits operand
 //! producers in EVM push order and places values consumed by the following barrier or terminator
-//! last. The pass commits a changed segment only when its active instruction results are
-//! single-use; references left in the arena by eliminated instructions do not count. Shared
-//! results make the entire segment retain its existing order because moving one use changes which
-//! physical copy should survive for later consumers. The pass also preserves the producer order of
-//! binary operations whose lowering already costs both equivalent operand orientations.
+//! last. Shared-result producers stay at their original positions because moving one use changes
+//! which physical copy should survive for later consumers. Single-use islands between those pinned
+//! producers are still scheduled independently; references left in the arena by eliminated
+//! instructions do not count as sharing. The pass also preserves the producer order of binary
+//! operations whose lowering already costs both equivalent operand orientations.
 //! Instruction and value identities do not change; codegen recomputes liveness from the resulting
 //! order before stack scheduling.
 //!
@@ -25,8 +25,8 @@
 //! tradeoff measurable and leaves room for a later cost-aware selector.
 //!
 //! The dependency-first shape is adapted from [Vyper Venom's DFT pass]. Venom makes shared values
-//! movable with a preceding single-use expansion pass; this implementation instead rejects those
-//! segments so the late transform does not clone shared expressions or inflate MIR.
+//! movable with a preceding single-use expansion pass; this implementation instead pins shared
+//! producers so the late transform does not clone shared expressions or inflate MIR.
 //!
 //! [Vyper Venom's DFT pass]: https://github.com/vyperlang/vyper/blob/730a2d36f1fca90be059c75681de5c942560ce0b/vyper/venom/passes/dft.py
 
@@ -159,16 +159,42 @@ impl EvmInstSchedule {
             return;
         }
 
-        // Depth-first ordering is predictable for single-use expression trees. Shared instruction
-        // results need a cost model for deciding which physical copy should survive after moving
-        // one use. Venom handles that by expanding shared values before DFT; keep our established
-        // order instead and reject those segments before building their dependency order. Most
-        // optimized MIR has some sharing, so this is also the common compile-time fast path.
-        if segment.iter().any(|&inst_id| shared_results.contains(inst_id)) {
+        let mut island_start = 0;
+        for (index, &inst_id) in segment.iter().enumerate() {
+            if !shared_results.contains(inst_id) {
+                continue;
+            }
+            let inputs = Self::stack_input_order(&func.inst(inst_id).kind);
+            Self::schedule_single_use_segment(
+                func,
+                &segment[island_start..index],
+                &inputs,
+                scratch,
+                ordered,
+            );
+            ordered.push(inst_id);
+            island_start = index + 1;
+        }
+        Self::schedule_single_use_segment(
+            func,
+            &segment[island_start..],
+            consumer_inputs,
+            scratch,
+            ordered,
+        );
+    }
+
+    fn schedule_single_use_segment(
+        func: &Function,
+        segment: &[InstId],
+        consumer_inputs: &[ValueId],
+        scratch: &mut ScheduleScratch,
+        ordered: &mut Vec<InstId>,
+    ) {
+        if segment.len() < 2 {
             ordered.extend_from_slice(segment);
             return;
         }
-
         let output_start = ordered.len();
         scratch.clear_segment();
         for &inst_id in segment {

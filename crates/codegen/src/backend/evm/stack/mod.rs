@@ -66,9 +66,10 @@
 //!
 //! The preceding MIR ordering pass is adapted from [Venom's dependency-first traversal]. Venom
 //! first applies [single-use expansion], then orders both data and effect dependencies with
-//! inter-block stack-order feedback. Our pass is deliberately smaller: it operates within
-//! barrier-delimited basic-block segments, does not introduce assignments, and leaves any segment
-//! with a shared result unchanged.
+//! inter-block stack-order feedback. [solx's single-use-expression pass] similarly uses live
+//! intervals to move one-use definitions nearer their users. Our pass is deliberately smaller: it
+//! operates within barrier-delimited basic-block segments, does not introduce assignments, pins
+//! shared-result producers, and schedules the single-use islands between them.
 //!
 //! [solc's SSA stack layout generator] and [Sonatina's stackify allocator] were evaluated for
 //! control-flow layouts and spill handling. They use whole-function layout machinery, fixed-point
@@ -91,6 +92,7 @@
 //! [greedy edge shuffler]: https://github.com/plankevm/plank-monorepo/blob/386cc0d725ee34df11565ededc81414ef495e05f/plankc/sir/crates/stack-scheduling/src/greedy_shuffler/mod.rs
 //! [Venom's dependency-first traversal]: https://github.com/vyperlang/vyper/blob/730a2d36f1fca90be059c75681de5c942560ce0b/vyper/venom/passes/dft.py
 //! [single-use expansion]: https://github.com/vyperlang/vyper/blob/730a2d36f1fca90be059c75681de5c942560ce0b/vyper/venom/passes/single_use_expansion.py
+//! [solx's single-use-expression pass]: https://github.com/NomicFoundation/solx-llvm/blob/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/Target/EVM/EVMSingleUseExpression.cpp
 //! [solc's SSA stack layout generator]: https://github.com/ethereum/solidity/blob/d3ac579fe752189a9f2c365707b0f1cfc66b1437/libyul/backends/evm/ssa/StackLayoutGenerator.cpp
 //! [Sonatina's stackify allocator]: https://github.com/fe-lang/sonatina/blob/55ca888f1fc83077e5eee803c0619231e9b50998/crates/codegen/src/stackalloc/stackify/mod.rs
 //! [Sonatina's operand preparer]: https://github.com/fe-lang/sonatina/blob/55ca888f1fc83077e5eee803c0619231e9b50998/crates/codegen/src/stackalloc/stackify/planner/operand_prep.rs

@@ -32,14 +32,16 @@ fn @independent_barrier_segments(arg0: u256, arg1: u256, arg2: u256, arg3: u256)
     ret v9
 }
 
-// A shared result keeps its whole segment in the established order.
-fn @shared_result_rejects_segment(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+// A shared producer stays pinned while the single-use islands around it are scheduled.
+fn @shared_result_schedules_islands(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
   bb0:
     v4 = add arg0, arg1
-    v5 = mul v4, arg2
-    v6 = sub v4, arg3
-    v7 = div v5, v6
-    ret v7
+    v5 = mul arg2, arg3
+    v6 = sub v4, v5
+    v7 = add v6, arg2
+    v8 = mul v6, arg3
+    v9 = div v7, v8
+    ret v9
 }
 
 // Keep producer order when the backend can lower either comparison orientation.
