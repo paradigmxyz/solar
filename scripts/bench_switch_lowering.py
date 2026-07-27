@@ -405,6 +405,7 @@ def markdown_table(headers: Sequence[str], rows: Sequence[Sequence[str]]) -> str
 def render_markdown(output_dir: Path, methods: Sequence[str]) -> str:
     aggregate_rows = []
     synthetic_rows = []
+    corpus_rows = []
     for path in sorted(output_dir.glob("*.json")):
         payload = json.loads(path.read_text())
         metadata = payload["metadata"]
@@ -412,6 +413,28 @@ def render_markdown(output_dir: Path, methods: Sequence[str]) -> str:
         aggregate_rows.extend(
             scope_rows(metadata["scope"], metadata["optimization"], results, methods)
         )
+        if metadata["scope"].startswith("ci-"):
+            for result in successful_intersection(results, methods):
+                for method in methods:
+                    compiler = result["compilers"][method]
+                    gas = [
+                        str(item["gas"])
+                        for item in compiler.get("gas_results") or []
+                        if item.get("gas") is not None
+                    ]
+                    corpus_rows.append(
+                        [
+                            metadata["scope"],
+                            metadata["optimization"],
+                            str(result["test_id"]),
+                            method,
+                            str(compiler["bytecode_size"]),
+                            str(compiler["runtime_size"]),
+                            str(len(gas)),
+                            str(sum(map(int, gas))) if gas else "n/a",
+                            ", ".join(gas) if gas else "n/a",
+                        ]
+                    )
         if metadata["scope"] != "synthetic":
             continue
         for result in successful_intersection(results, methods):
@@ -474,6 +497,22 @@ def render_markdown(output_dir: Path, methods: Sequence[str]) -> str:
                 "Miss gas (ordered)",
             ),
             synthetic_rows,
+        )
+    if corpus_rows:
+        text += "\n\n## CI corpus results\n\n"
+        text += markdown_table(
+            (
+                "Scope",
+                "Opt",
+                "Fixture",
+                "Method",
+                "Deploy B",
+                "Runtime B",
+                "Calls",
+                "Gas",
+                "Call gas (ordered)",
+            ),
+            corpus_rows,
         )
     return text + "\n"
 
