@@ -46,7 +46,7 @@ fn command_failed(output: &Output) -> FlycheckError {
 }
 
 fn diagnostic_output<'a>(stdout: &'a [u8], stderr: &'a [u8], format: FlycheckOutput) -> &'a [u8] {
-    if format == FlycheckOutput::ForgeLintJson && !stderr.is_empty() { stderr } else { stdout }
+    if format == FlycheckOutput::ForgeLintJson && stdout.is_empty() { stderr } else { stdout }
 }
 
 async fn command_output(
@@ -112,10 +112,22 @@ mod tests {
     use crate::{config::negotiate_capabilities, test_support::TestProject};
 
     #[test]
-    fn forge_lint_json_diagnostics_are_read_from_stderr() {
+    fn forge_lint_json_diagnostics_prefer_stdout() {
         assert_eq!(
-            diagnostic_output(b"", br#"{"message":"stdout"}"#, FlycheckOutput::ForgeLintJson),
+            diagnostic_output(
+                br#"{"message":"stdout"}"#,
+                br#"{"message":"stderr"}"#,
+                FlycheckOutput::ForgeLintJson
+            ),
             br#"{"message":"stdout"}"#
+        );
+    }
+
+    #[test]
+    fn forge_lint_json_diagnostics_fall_back_to_stderr() {
+        assert_eq!(
+            diagnostic_output(b"", br#"{"message":"stderr"}"#, FlycheckOutput::ForgeLintJson),
+            br#"{"message":"stderr"}"#
         );
     }
 

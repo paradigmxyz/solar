@@ -31,10 +31,26 @@ pub(super) fn parse(
             }
         }
         FlycheckOutput::ForgeLintJson => {
-            let stream =
-                serde_json::Deserializer::from_slice(output).into_iter::<JsonEmitterRecord<'_>>();
-            for record in stream {
-                collect_json_emitter(record?, cwd, source, &mut diagnostics, &mut range_cache);
+            let mut stream =
+                serde_json::Deserializer::from_slice(output).into_iter::<serde_json::Value>();
+            let mut record_start = 0;
+            while let Some(value) = stream.next() {
+                let value = value?;
+                let record_end = stream.byte_offset();
+                let record = serde_json::from_slice(&output[record_start..record_end]);
+                record_start = record_end;
+
+                match record {
+                    Ok(record) => collect_json_emitter(
+                        record,
+                        cwd,
+                        source,
+                        &mut diagnostics,
+                        &mut range_cache,
+                    ),
+                    Err(_) if !is_json_emitter_diagnostic(&value) => {}
+                    Err(error) => return Err(error.into()),
+                }
             }
         }
     }
@@ -67,6 +83,11 @@ struct SolcJsonErrors<'a> {
 enum JsonEmitterRecord<'a> {
     Rustc(#[serde(borrow)] JsonDiagnosticMessage<'a>),
     Solc(#[serde(borrow)] SolcDiagnostic<'a>),
+}
+
+fn is_json_emitter_diagnostic(value: &serde_json::Value) -> bool {
+    value.get("$message_type").and_then(serde_json::Value::as_str) == Some("diagnostic")
+        || value.get("severity").is_some() && value.get("message").is_some()
 }
 
 fn collect_solc_json(
@@ -351,6 +372,37 @@ mod tests {
         assert_eq!(diagnostics[0].code, Some(NumberOrString::String("mixed-case-variable".into())));
         assert_eq!(diagnostics[1].message, "function names should use mixedCase");
         assert_eq!(diagnostics[1].code, Some(NumberOrString::String("mixed-case-function".into())));
+    }
+
+    #[test]
+    fn ignores_non_diagnostic_forge_json_records() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /src/Test.sol
+            contract Test {
+                uint256 bad_name;
+            }
+            "#,
+        );
+        let contents = project.read_file("/src/Test.sol");
+        let start = contents.find("bad_name").unwrap();
+        let end = start + "bad_name".len();
+        let diagnostic = serde_json::to_string(&json_diagnostic_fixture(
+            start,
+            end,
+            "mixed-case-variable",
+            "mutable variables should use mixedCase",
+        ))
+        .unwrap();
+        let output =
+            format!("{{\"$message_type\":\"build_finished\",\"success\":true}}\n{diagnostic}\n");
+
+        let diagnostics =
+            parse(output.as_bytes(), project.root(), FlycheckOutput::ForgeLintJson).unwrap();
+
+        let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
+        assert_eq!(diagnostics[&uri].len(), 1);
+        assert_eq!(diagnostics[&uri][0].message, "mutable variables should use mixedCase");
     }
 
     #[test]
