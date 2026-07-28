@@ -483,6 +483,8 @@ fn scratch_slot(
 fn offset_ptr(builder: &mut FunctionBuilder<'_>, base: ValueId, offset: u64) -> ValueId {
     if offset == 0 {
         base
+    } else if builder.func().value_u256(base).is_some_and(|base| base.is_zero()) {
+        builder.imm_u64(offset)
     } else {
         let offset = builder.imm_u64(offset);
         builder.add(base, offset)

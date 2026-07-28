@@ -133,6 +133,8 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> ValueId {
         if off == 0 {
             base
+        } else if builder.func().value_u256(base).is_some_and(|base| base.is_zero()) {
+            builder.imm_u64(off)
         } else {
             let off = builder.imm_u64(off);
             builder.add(base, off)

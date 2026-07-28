@@ -887,6 +887,16 @@ impl<'gcx> Lowerer<'gcx> {
         index: ValueId,
         len: ValueId,
     ) {
+        if let (Some(index), Some(len)) =
+            (builder.func().value_u256(index), builder.func().value_u256(len))
+        {
+            if index < len {
+                return;
+            }
+            let always = builder.imm_bool(true);
+            self.emit_panic_if(builder, always, PanicCode::ArrayOutOfBounds);
+            return;
+        }
         let in_range = builder.lt(index, len);
         self.emit_panic_if_zero(builder, in_range, PanicCode::ArrayOutOfBounds);
     }

@@ -14,10 +14,8 @@ architecture.
 | --- | --- |
 | Profitability-based inlining of ordinary internal and unlinked-library calls | MIR `inline` |
 | A second statement interpreter for straight-line calldata-slice helpers | Normal statement lowering, pending removal after slice returns enter MIR |
-| Constant index-bounds folding | MIR SCCP, instruction simplification, and CFG simplification |
 | Re-reading the literal length in `new T[](literal)` | `MemoryObjectLen`, forwarded by memory DSE |
 | Scanning a named-return body to skip memory-struct initialization | Emit the semantic default; memory DSE removes overwritten initialization stores |
-| Folding `0 + offset` by inspecting MIR immediates in both ABI encoders | MIR instruction simplification |
 | A duplicate literal-string `keccak256` branch | The shared dynamic-bytes hash lowering |
 | Separate tuple declaration and tuple assignment result extraction | One multi-value snapshot path |
 | Name-based event signature construction and scalar-only event data stores | Sema event selectors and the shared ABI encoder |
@@ -27,6 +25,20 @@ The HIR inliner previously erased the callee return target for void calls.
 `return;` in an exact-base call could therefore terminate the enclosing public
 function. Ordinary calls now remain calls until the MIR inliner, where returns
 are explicit CFG edges.
+
+## Retained local folding
+
+Lowering keeps two small folds that are confined to the helpers which emit the
+operation and inspect only MIR immediates:
+
+| Helper | Fold |
+| --- | --- |
+| Array index bounds checking | Skip a proven in-range check or emit the known panic without first building a comparison |
+| ABI offset pointer construction | Emit the offset directly when the base is the immediate value zero |
+
+These folds avoid constructing short-lived instructions and control flow. They
+do not inspect HIR syntax, duplicate an evaluator, or make profitability
+decisions.
 
 ## Representation work that still lives in lowering
 
