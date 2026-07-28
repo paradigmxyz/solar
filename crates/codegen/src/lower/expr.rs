@@ -1670,19 +1670,10 @@ impl<'gcx> Lowerer<'gcx> {
         builder.sar(shift, shifted)
     }
 
-    /// Checks if an expression is a mapping state variable and returns its var_id and storage slot.
-    fn get_mapping_base_slot(&self, expr: &hir::Expr<'_>) -> Option<(hir::VariableId, u64)> {
-        if let Some(var_id) = self.gcx.resolved_variable(expr) {
-            let var = self.gcx.hir.variable(var_id);
-            // Check if this variable has mapping type
-            if matches!(var.ty.kind, hir::TypeKind::Mapping(_)) {
-                // Look up the storage slot
-                if let Some(&slot) = self.storage_slots.get(&var_id) {
-                    return Some((var_id, slot));
-                }
-            }
-        }
-        None
+    /// Returns the compile-time slot of a mapping state variable.
+    fn get_mapping_base_slot(&self, expr: &hir::Expr<'_>) -> Option<u64> {
+        let var_id = self.gcx.resolved_variable(expr)?;
+        self.storage_slots.get(&var_id).copied()
     }
 
     /// Resolves an array living in storage and returns its element type and
@@ -2682,64 +2673,39 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         index: Option<&hir::Expr<'_>>,
     ) -> Option<MappingElementSlot> {
+        let (key_is_dynamic, value_is_mapping) = self.mapping_type_info(base)?;
+
         // Mapping state variable: base slot is a compile-time constant.
-        if let Some((var_id, slot)) = self.get_mapping_base_slot(base) {
-            let base_slot = MappingBaseSlot::Const(slot);
-            return Some(self.finish_mapping_element_slot(builder, var_id, base_slot, index));
-        }
-
-        // Mapping held as a storage-reference parameter or local (e.g. a `library`
-        // function taking `mapping(...) storage`): its base slot is a runtime
-        // value in `locals`, not a compile-time constant.
-        if let Some((var_id, slot_val)) = self.mapping_ref_base_slot_value(base) {
-            let base_slot = MappingBaseSlot::Value(slot_val);
-            return Some(self.finish_mapping_element_slot(builder, var_id, base_slot, index));
-        }
-
-        // Mapping field of a storage struct: `lower_lvalue_slot` computes the
-        // field's runtime storage slot.
-        if let Some(var_id) = self.gcx.resolved_variable(base)
-            && matches!(self.gcx.hir.variable(var_id).ty.kind, hir::TypeKind::Mapping(_))
-            && let Some(slot) = self.lower_lvalue_slot(builder, base)
-        {
-            let base_slot = MappingBaseSlot::Value(slot);
-            return Some(self.finish_mapping_element_slot(builder, var_id, base_slot, index));
-        }
-
-        // Nested mapping: recursively compute the preceding mapping element,
-        // then use that hash as the next mapping's base slot.
-        if let ExprKind::Index(inner_base, inner_index) = &base.kind
-            && let Some(inner) =
-                self.lower_mapping_element_slot(builder, inner_base, inner_index.as_deref())
-            && inner.value_is_mapping
-        {
-            let index_val = self.lower_index_or_zero(builder, index);
-            let key_is_dynamic = self.mapping_level_key_is_dynamic(base);
-            let slot = self.compute_mapping_slot_for_index(
-                builder,
-                index,
-                index_val,
-                inner.slot,
-                key_is_dynamic,
-            );
-            return Some(MappingElementSlot {
-                slot,
-                value_is_mapping: self.nested_mapping_value_is_mapping(base),
-            });
-        }
-
-        None
+        let base_slot = if let Some(slot) = self.get_mapping_base_slot(base) {
+            MappingBaseSlot::Const(slot)
+        } else if let Some(slot) = self.mapping_ref_base_slot_value(base) {
+            // A mapping storage-reference parameter/local already holds its
+            // runtime base slot.
+            MappingBaseSlot::Value(slot)
+        } else {
+            // Mapping-valued struct fields, calls, and preceding mapping
+            // indexes expose their runtime slot through the generic lvalue
+            // path.
+            MappingBaseSlot::Value(self.lower_lvalue_slot(builder, base)?)
+        };
+        Some(self.finish_mapping_element_slot(
+            builder,
+            base_slot,
+            index,
+            key_is_dynamic,
+            value_is_mapping,
+        ))
     }
 
     /// Given the (already resolved) base slot of a mapping and an index, computes
-    /// the element's storage slot, reading the key/value kinds off the mapping's
-    /// declared type. Shared by the state-variable and storage-reference paths.
+    /// the element's storage slot.
     fn finish_mapping_element_slot(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        var_id: hir::VariableId,
         base_slot: MappingBaseSlot,
         index: Option<&hir::Expr<'_>>,
+        key_is_dynamic: bool,
+        value_is_mapping: bool,
     ) -> MappingElementSlot {
         let index_val = self.lower_index_or_zero(builder, index);
         // Materialize the base slot after the index so a constant state-variable
@@ -2747,15 +2713,6 @@ impl<'gcx> Lowerer<'gcx> {
         let slot_val = match base_slot {
             MappingBaseSlot::Const(slot) => builder.imm_u64(slot),
             MappingBaseSlot::Value(val) => val,
-        };
-        let var = self.gcx.hir.variable(var_id);
-        let (key_is_dynamic, value_is_mapping) = if let hir::TypeKind::Mapping(map) = &var.ty.kind {
-            (
-                Self::is_dynamic_mapping_key(&map.key.kind),
-                matches!(map.value.kind, hir::TypeKind::Mapping(_)),
-            )
-        } else {
-            (false, false)
         };
         let slot = self.compute_mapping_slot_for_index(
             builder,
@@ -2767,91 +2724,21 @@ impl<'gcx> Lowerer<'gcx> {
         MappingElementSlot { slot, value_is_mapping }
     }
 
-    /// If `base` denotes a mapping held as a storage-reference parameter or local
-    /// (not a state variable), returns its variable id and the runtime value that
-    /// is its base slot. Such a mapping is passed by slot number — its value in
-    /// `locals` is the slot itself.
-    fn mapping_ref_base_slot_value(
-        &self,
-        base: &hir::Expr<'_>,
-    ) -> Option<(hir::VariableId, ValueId)> {
+    /// Returns the runtime slot held by a mapping storage-reference parameter
+    /// or local.
+    fn mapping_ref_base_slot_value(&self, base: &hir::Expr<'_>) -> Option<ValueId> {
         let var_id = self.gcx.resolved_variable(base)?;
-        if !matches!(self.gcx.hir.variable(var_id).ty.kind, hir::TypeKind::Mapping(_)) {
-            return None;
-        }
-        let slot_val = self.locals.get(&var_id).copied()?;
-        Some((var_id, slot_val))
+        self.locals.get(&var_id).copied()
     }
 
-    /// Whether the mapping denoted by `base` (the expression being indexed,
-    /// `count_index_depth(base)` levels below the root mapping variable) has a
-    /// dynamic (`string`/`bytes`) key type.
-    fn mapping_level_key_is_dynamic(&self, base: &hir::Expr<'_>) -> bool {
-        let Some(var_id) = self.find_mapping_root(base) else {
-            return false;
-        };
-        let depth = self.count_index_depth(base);
-        let var = self.gcx.hir.variable(var_id);
-        let mut current_ty = &var.ty.kind;
-        for _ in 0..depth {
-            if let hir::TypeKind::Mapping(map) = current_ty {
-                current_ty = &map.value.kind;
-            } else {
-                return false;
-            }
-        }
-        if let hir::TypeKind::Mapping(map) = current_ty {
-            Self::is_dynamic_mapping_key(&map.key.kind)
-        } else {
-            false
-        }
-    }
-
-    /// Checks if the value type at this nesting level is itself a mapping.
-    /// For `m[a][b]` where `m: mapping(A => mapping(B => C))`, this returns false
-    /// because the value at `m[a][b]` is C, not a mapping.
-    fn nested_mapping_value_is_mapping(&self, expr: &hir::Expr<'_>) -> bool {
-        // Count how many Index levels we have
-        let depth = self.count_index_depth(expr);
-
-        // Find the root mapping variable
-        let Some(var_id) = self.find_mapping_root(expr) else {
-            return false;
-        };
-        let var = self.gcx.hir.variable(var_id);
-
-        // Navigate `depth + 1` levels into the mapping type to find the value type
-        // after indexing one more time from the current expression
-        let mut current_ty = &var.ty.kind;
-        for _ in 0..=depth {
-            if let hir::TypeKind::Mapping(map) = current_ty {
-                current_ty = &map.value.kind;
-            } else {
-                return false;
-            }
-        }
-
-        matches!(current_ty, hir::TypeKind::Mapping(_))
-    }
-
-    /// Counts how many Index levels deep an expression is.
-    fn count_index_depth(&self, expr: &hir::Expr<'_>) -> usize {
-        let mut depth = 0;
-        let mut current = expr;
-        while let ExprKind::Index(inner_base, _) = &current.kind {
-            depth += 1;
-            current = inner_base;
-        }
-        depth
-    }
-
-    /// Finds the root mapping variable of a nested Index expression.
-    fn find_mapping_root(&self, expr: &hir::Expr<'_>) -> Option<hir::VariableId> {
-        let mut current = expr;
-        while let ExprKind::Index(inner_base, _) = &current.kind {
-            current = inner_base;
-        }
-        self.gcx.resolved_variable(current)
+    /// Returns the key and value shape of the mapping represented by `expr`.
+    fn mapping_type_info(&self, expr: &hir::Expr<'_>) -> Option<(bool, bool)> {
+        let ty = self.get_expr_type(expr)?.peel_refs();
+        let TyKind::Mapping(key, value) = ty.kind else { return None };
+        Some((
+            Self::is_dynamic_mapping_key_ty(key),
+            matches!(value.peel_refs().kind, TyKind::Mapping(..)),
+        ))
     }
 
     /// Computes the storage slot for a mapping access: keccak256(abi.encode(key, slot))
@@ -2984,6 +2871,13 @@ impl<'gcx> Lowerer<'gcx> {
         matches!(
             kind,
             hir::TypeKind::Elementary(hir::ElementaryType::String | hir::ElementaryType::Bytes)
+        )
+    }
+
+    fn is_dynamic_mapping_key_ty(ty: Ty<'_>) -> bool {
+        matches!(
+            ty.peel_refs().kind,
+            TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes)
         )
     }
 
