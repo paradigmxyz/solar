@@ -1860,6 +1860,49 @@ def render_growth_sweep(
         ),
     )
 
+    def compare_ci_budgets(
+        candidate: dict[str, Any], reference: dict[str, Any]
+    ) -> dict[str, Any]:
+        max_contract_regression = 0
+        max_call_regression = 0
+        regressing_contracts = []
+        candidate_calls_by_test = ci_gas_by_budget[candidate["budget"]]
+        reference_calls_by_test = ci_gas_by_budget[reference["budget"]]
+        for test_id, calls in candidate_calls_by_test.items():
+            reference_calls = reference_calls_by_test[test_id]
+            if calls.keys() != reference_calls.keys():
+                raise RuntimeError(f"CI call labels differ for {test_id}")
+            contract_regression = sum(calls.values()) - sum(reference_calls.values())
+            if contract_regression > 0:
+                regressing_contracts.append([test_id, contract_regression])
+                max_contract_regression = max(max_contract_regression, contract_regression)
+            for label, gas in calls.items():
+                max_call_regression = max(
+                    max_call_regression, gas - reference_calls[label]
+                )
+        return {
+            "candidate_budget": candidate["budget"],
+            "reference_budget": reference["budget"],
+            "ci_gas_delta": (
+                candidate["totals"]["ci-gas"]["gas"]
+                - reference["totals"]["ci-gas"]["gas"]
+            ),
+            "ci_runtime_delta": (
+                candidate["totals"]["ci-gas"]["runtime"]
+                - reference["totals"]["ci-gas"]["runtime"]
+            ),
+            "max_ci_contract_regression": max_contract_regression,
+            "max_ci_call_regression": max_call_regression,
+            "ci_regressing_contracts": regressing_contracts,
+        }
+
+    zero = rows[0]
+    policy_comparisons = [
+        compare_ci_budgets(policy, zero),
+        compare_ci_budgets(minimum_ci_gas, policy),
+        compare_ci_budgets(baseline, policy),
+    ]
+
     plateaus = []
     for row in rows:
         fingerprint = fingerprints[row["budget"]]
@@ -1904,8 +1947,8 @@ def render_growth_sweep(
             "UI Ogas runtime B",
             "CI hot gas",
             "CI Ogas runtime B",
-            "Max CI contract regression",
-            "Max CI call regression",
+            f"Max CI contract + vs {baseline['budget']}",
+            f"Max CI call + vs {baseline['budget']}",
         ),
         [
             [
@@ -1926,6 +1969,26 @@ def render_growth_sweep(
             )
         ],
     )
+    text += "\n\n"
+    text += markdown_table(
+        (
+            "Candidate vs reference",
+            "CI hot gas Δ",
+            "CI Ogas runtime B Δ",
+            "Max CI contract +",
+            "Max CI call +",
+        ),
+        [
+            [
+                f"{comparison['candidate_budget']} vs {comparison['reference_budget']}",
+                f"{comparison['ci_gas_delta']:+d}",
+                f"{comparison['ci_runtime_delta']:+d}",
+                str(comparison["max_ci_contract_regression"]),
+                str(comparison["max_ci_call_regression"]),
+            ]
+            for comparison in policy_comparisons
+        ],
+    )
     text += "\n\n<details>\n<summary>Every growth budget</summary>\n\n"
     text += markdown_table(
         (
@@ -1935,8 +1998,8 @@ def render_growth_sweep(
             "UI Ogas runtime B",
             "CI hot gas",
             "CI Ogas runtime B",
-            "Max CI contract regression",
-            "Max CI call regression",
+            f"Max CI contract + vs {baseline['budget']}",
+            f"Max CI call + vs {baseline['budget']}",
         ),
         [
             [
@@ -1963,6 +2026,7 @@ def render_growth_sweep(
         "minimum_ci_gas": minimum_ci_gas,
         "baseline_budget": baseline["budget"],
         "baseline": baseline,
+        "policy_comparisons": policy_comparisons,
         "fingerprint_plateaus": plateaus,
         "rows": rows,
     }
