@@ -234,13 +234,21 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
 
     let coalesce_case_targets =
         layout.coalesce_case_targets && optimization != OptimizationMode::None;
-    let linear_cost = lowering_cost(
+    let (linear_equality_costs, linear_ordered_costs) = case_test_costs(
         linear_values,
+        evm_version,
+        table_target_width,
+        default.needs_value_cleanup(),
+        coalesce_case_targets,
+    );
+    let linear_cost = lowering_cost_with_tests(
+        linear_values,
+        &linear_equality_costs,
+        &linear_ordered_costs,
         values.len(),
         evm_version,
         default,
         table_target_width,
-        coalesce_case_targets,
     );
     if forced == SwitchLowering::Linear {
         return SwitchSelection { plan: SwitchPlan::Linear, gas_code_growth: 0 };
@@ -248,18 +256,26 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
 
     if forced != SwitchLowering::Auto {
         let explicit_default = default.without_fallthrough();
+        let (equality_costs, ordered_costs) = case_test_costs(
+            values,
+            evm_version,
+            table_target_width,
+            explicit_default.needs_value_cleanup(),
+            coalesce_case_targets,
+        );
         let candidate = match forced {
             SwitchLowering::Binary => binary_leaf_sizes(values.len())
                 .into_iter()
                 .map(|leaf_size| {
                     (
-                        lowering_cost(
+                        lowering_cost_with_tests(
                             values,
+                            &equality_costs,
+                            &ordered_costs,
                             leaf_size,
                             evm_version,
                             explicit_default,
                             table_target_width,
-                            coalesce_case_targets,
                         ),
                         SwitchPlan::Binary { leaf_size },
                     )
@@ -279,13 +295,13 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                     .into_iter()
                     .map(|bucket_count| {
                         (
-                            bucket_lowering_cost(
+                            bucket_lowering_cost_with_tests(
                                 values,
+                                &equality_costs,
                                 bucket_count,
                                 evm_version,
                                 explicit_default,
                                 table_target_width,
-                                coalesce_case_targets,
                             ),
                             SwitchPlan::Buckets { bucket_count },
                         )
@@ -309,12 +325,12 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 layout.shared_case_continuation,
             )
             .map(|(low, range, cost)| (cost, SwitchPlan::Dense { low, range })),
-            SwitchLowering::Perfect => perfect_hash_candidates(
+            SwitchLowering::Perfect => perfect_hash_candidates_with_tests(
                 values,
+                &equality_costs,
                 evm_version,
                 default,
                 table_target_width,
-                coalesce_case_targets,
             )
             .into_iter()
             .min_by_key(|&(cost, plan)| {
@@ -336,15 +352,23 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
     let max_gas_code_size = linear_cost.code_size.saturating_add(max_gas_code_growth);
     let mut best = (linear_cost, SwitchPlan::Linear);
     let explicit_default = default.without_fallthrough();
+    let (equality_costs, ordered_costs) = case_test_costs(
+        values,
+        evm_version,
+        table_target_width,
+        explicit_default.needs_value_cleanup(),
+        coalesce_case_targets,
+    );
     if matches!(optimization, OptimizationMode::Gas | OptimizationMode::Size) {
         for leaf_size in binary_leaf_sizes(values.len()) {
-            let cost = lowering_cost(
+            let cost = lowering_cost_with_tests(
                 values,
+                &equality_costs,
+                &ordered_costs,
                 leaf_size,
                 evm_version,
                 explicit_default,
                 table_target_width,
-                coalesce_case_targets,
             );
             let better = match optimization {
                 OptimizationMode::Gas => cost.is_better_for_gas_than(best.0, max_gas_code_size),
@@ -368,13 +392,13 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         && (MIN_BUCKET_CASES..=MAX_BUCKET_CASES).contains(&values.len())
     {
         for bucket_count in bucket_count_candidates(values.len()) {
-            let cost = bucket_lowering_cost(
+            let cost = bucket_lowering_cost_with_tests(
                 values,
+                &equality_costs,
                 bucket_count,
                 evm_version,
                 explicit_default,
                 table_target_width,
-                coalesce_case_targets,
             );
             if cost.is_better_for_gas_than(best.0, max_gas_code_size) {
                 best = (cost, SwitchPlan::Buckets { bucket_count });
@@ -405,12 +429,12 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
             best = (cost, SwitchPlan::Dense { low, range });
         }
     }
-    for (cost, plan) in perfect_hash_candidates(
+    for (cost, plan) in perfect_hash_candidates_with_tests(
         values,
+        &equality_costs,
         evm_version,
         default,
         table_target_width,
-        coalesce_case_targets,
     ) {
         let better = match optimization {
             OptimizationMode::Gas => {
@@ -492,6 +516,7 @@ impl LoweringCost {
     }
 }
 
+#[cfg(test)]
 fn lowering_cost(
     values: &[U256],
     leaf_size: usize,
@@ -500,6 +525,35 @@ fn lowering_cost(
     table_target_width: usize,
     coalesce_case_targets: bool,
 ) -> LoweringCost {
+    let (equality_costs, ordered_costs) = case_test_costs(
+        values,
+        evm_version,
+        table_target_width,
+        default.needs_value_cleanup(),
+        coalesce_case_targets,
+    );
+    lowering_cost_with_tests(
+        values,
+        &equality_costs,
+        &ordered_costs,
+        leaf_size,
+        evm_version,
+        default,
+        table_target_width,
+    )
+}
+
+fn lowering_cost_with_tests(
+    values: &[U256],
+    equality_costs: &[TestCost],
+    ordered_costs: &[TestCost],
+    leaf_size: usize,
+    evm_version: EvmVersion,
+    default: SwitchDefault,
+    table_target_width: usize,
+) -> LoweringCost {
+    debug_assert_eq!(values.len(), equality_costs.len());
+    debug_assert_eq!(values.len(), ordered_costs.len());
     if values.len() <= leaf_size {
         let mut cost = LoweringCost {
             code_size: default.code_size(evm_version),
@@ -507,16 +561,7 @@ fn lowering_cost(
             ..Default::default()
         };
         let mut path_gas = 0;
-        for &value in values {
-            let mut test = equality_test_cost(
-                value,
-                evm_version,
-                table_target_width,
-                default.needs_value_cleanup(),
-            );
-            if coalesce_case_targets && default.needs_value_cleanup() {
-                refine_coalesced_equality_test(&mut test, value, table_target_width);
-            }
+        for &test in equality_costs {
             cost.code_size += test.code_size;
             cost.max_code_size += test.max_code_size;
             cost.hit_gas_sum += path_gas + test.hit_gas;
@@ -528,22 +573,24 @@ fn lowering_cost(
 
     debug_assert!(!default.can_fallthrough());
     let mid = values.len() / 2;
-    let split = ordered_test_cost(values[mid], evm_version, table_target_width);
-    let left = lowering_cost(
+    let split = ordered_costs[mid];
+    let left = lowering_cost_with_tests(
         &values[..mid],
+        &equality_costs[..mid],
+        &ordered_costs[..mid],
         leaf_size,
         evm_version,
         default,
         table_target_width,
-        coalesce_case_targets,
     );
-    let right = lowering_cost(
+    let right = lowering_cost_with_tests(
         &values[mid..],
+        &equality_costs[mid..],
+        &ordered_costs[mid..],
         leaf_size,
         evm_version,
         default,
         table_target_width,
-        coalesce_case_targets,
     );
     LoweringCost {
         code_size: split.code_size + JUMPDEST_LEN + left.code_size + right.code_size,
@@ -597,6 +644,7 @@ fn bucket_count_candidates(len: usize) -> Vec<usize> {
     candidates
 }
 
+#[cfg(test)]
 fn bucket_lowering_cost(
     values: &[U256],
     bucket_count: usize,
@@ -605,7 +653,33 @@ fn bucket_lowering_cost(
     table_target_width: usize,
     coalesce_case_targets: bool,
 ) -> LoweringCost {
+    let (equality_costs, _) = case_test_costs(
+        values,
+        evm_version,
+        table_target_width,
+        default.needs_value_cleanup(),
+        coalesce_case_targets,
+    );
+    bucket_lowering_cost_with_tests(
+        values,
+        &equality_costs,
+        bucket_count,
+        evm_version,
+        default,
+        table_target_width,
+    )
+}
+
+fn bucket_lowering_cost_with_tests(
+    values: &[U256],
+    equality_costs: &[TestCost],
+    bucket_count: usize,
+    evm_version: EvmVersion,
+    default: SwitchDefault,
+    table_target_width: usize,
+) -> LoweringCost {
     debug_assert!(!default.can_fallthrough());
+    debug_assert_eq!(values.len(), equality_costs.len());
     let hash_len = 1 + push_len(U256::from(bucket_count), evm_version) + 1 + 1;
     let hash_gas = VERY_LOW_GAS * 3 + MOD_GAS;
     let indexed_jump_gas = VERY_LOW_GAS
@@ -630,17 +704,8 @@ fn bucket_lowering_cost(
     };
 
     let mut bucket_path_gas = vec![0; bucket_count];
-    for &value in values {
+    for (&value, &test) in values.iter().zip(equality_costs) {
         let index = bucket_index(value, bucket_count);
-        let mut test = equality_test_cost(
-            value,
-            evm_version,
-            table_target_width,
-            default.needs_value_cleanup(),
-        );
-        if coalesce_case_targets && default.needs_value_cleanup() {
-            refine_coalesced_equality_test(&mut test, value, table_target_width);
-        }
         if bucket_path_gas[index] == 0 {
             cost.code_size += JUMPDEST_LEN + default.code_size(evm_version);
             cost.max_code_size +=
@@ -727,6 +792,7 @@ fn dense_lowering_cost(
     ))
 }
 
+#[cfg(test)]
 fn perfect_hash_candidates(
     values: &[U256],
     evm_version: EvmVersion,
@@ -734,6 +800,30 @@ fn perfect_hash_candidates(
     table_target_width: usize,
     coalesce_case_targets: bool,
 ) -> Vec<(LoweringCost, SwitchPlan)> {
+    let (equality_costs, _) = case_test_costs(
+        values,
+        evm_version,
+        table_target_width,
+        default.needs_value_cleanup(),
+        coalesce_case_targets,
+    );
+    perfect_hash_candidates_with_tests(
+        values,
+        &equality_costs,
+        evm_version,
+        default,
+        table_target_width,
+    )
+}
+
+fn perfect_hash_candidates_with_tests(
+    values: &[U256],
+    equality_costs: &[TestCost],
+    evm_version: EvmVersion,
+    default: SwitchDefault,
+    table_target_width: usize,
+) -> Vec<(LoweringCost, SwitchPlan)> {
+    debug_assert_eq!(values.len(), equality_costs.len());
     let mut candidates = Vec::new();
     if let Some(hash @ PerfectHash::Affine { .. }) = affine_hash(values, evm_version) {
         candidates.push((
@@ -764,13 +854,12 @@ fn perfect_hash_candidates(
                 if !collision {
                     let hash = PerfectHash::BitSlice { shift, mask };
                     candidates.push((
-                        bit_slice_lowering_cost(
-                            values,
+                        bit_slice_lowering_cost_with_tests(
+                            equality_costs,
                             hash,
                             evm_version,
                             default.without_fallthrough(),
                             table_target_width,
-                            coalesce_case_targets,
                         ),
                         SwitchPlan::Perfect { hash },
                     ));
@@ -781,6 +870,7 @@ fn perfect_hash_candidates(
     candidates
 }
 
+#[cfg(test)]
 fn bit_slice_lowering_cost(
     values: &[U256],
     hash: PerfectHash,
@@ -788,6 +878,29 @@ fn bit_slice_lowering_cost(
     default: SwitchDefault,
     table_target_width: usize,
     coalesce_case_targets: bool,
+) -> LoweringCost {
+    let (equality_costs, _) = case_test_costs(
+        values,
+        evm_version,
+        table_target_width,
+        default.needs_value_cleanup(),
+        coalesce_case_targets,
+    );
+    bit_slice_lowering_cost_with_tests(
+        &equality_costs,
+        hash,
+        evm_version,
+        default,
+        table_target_width,
+    )
+}
+
+fn bit_slice_lowering_cost_with_tests(
+    equality_costs: &[TestCost],
+    hash: PerfectHash,
+    evm_version: EvmVersion,
+    default: SwitchDefault,
+    table_target_width: usize,
 ) -> LoweringCost {
     let PerfectHash::BitSlice { shift, mask } = hash else { unreachable!() };
     debug_assert!(!default.can_fallthrough());
@@ -816,21 +929,12 @@ fn bit_slice_lowering_cost(
         max_code_size: hash_len
             + max_indexed_jump_base_len(table_target_width)
             + table_size * indexed_jump_stub_len(table_target_width),
-        hit_gas_sum: dispatch_gas * values.len(),
+        hit_gas_sum: dispatch_gas * equality_costs.len(),
         miss_gas: dispatch_gas,
     };
 
     let shared_miss = default.needs_value_cleanup();
-    for &value in values {
-        let mut test = equality_test_cost(
-            value,
-            evm_version,
-            table_target_width,
-            default.needs_value_cleanup(),
-        );
-        if coalesce_case_targets && shared_miss {
-            refine_coalesced_equality_test(&mut test, value, table_target_width);
-        }
+    for &test in equality_costs {
         cost.code_size += JUMPDEST_LEN + test.code_size - usize::from(shared_miss) * JUMPDEST_LEN;
         cost.max_code_size +=
             JUMPDEST_LEN + test.max_code_size - usize::from(shared_miss) * JUMPDEST_LEN;
@@ -964,8 +1068,16 @@ fn wrapping_inverse_odd(value: U256) -> U256 {
 }
 
 pub(super) fn bit_slice_index(value: U256, shift: usize, mask: usize) -> usize {
-    usize::try_from((value >> shift) & U256::from(mask))
-        .expect("perfect switch hash must fit usize")
+    debug_assert!(shift < 256);
+    debug_assert!(mask < MAX_PERFECT_BIT_TABLE_SIZE);
+    let limbs = value.as_limbs();
+    let limb = shift / 64;
+    let offset = shift % 64;
+    let mut bits = limbs[limb] >> offset;
+    if offset != 0 && limb + 1 < limbs.len() {
+        bits |= limbs[limb + 1] << (64 - offset);
+    }
+    bits as usize & mask
 }
 
 pub(super) fn affine_index(value: U256, low: U256, multiplier: U256, rotate: usize) -> usize {
@@ -1015,9 +1127,35 @@ struct TestCost {
     miss_gas: usize,
 }
 
-fn equality_test_cost(
-    value: U256,
+fn case_test_costs(
+    values: &[U256],
     evm_version: EvmVersion,
+    table_target_width: usize,
+    cleanup_on_hit: bool,
+    coalesce_case_targets: bool,
+) -> (Vec<TestCost>, Vec<TestCost>) {
+    let ordered = values
+        .iter()
+        .map(|&value| ordered_test_cost(value, evm_version, table_target_width))
+        .collect::<Vec<_>>();
+    let equality = values
+        .iter()
+        .zip(&ordered)
+        .map(|(&value, &ordered)| {
+            let mut cost =
+                equality_test_cost_with_ordered(value, ordered, table_target_width, cleanup_on_hit);
+            if coalesce_case_targets && cleanup_on_hit {
+                refine_coalesced_equality_test(&mut cost, value, table_target_width);
+            }
+            cost
+        })
+        .collect();
+    (equality, ordered)
+}
+
+fn equality_test_cost_with_ordered(
+    value: U256,
+    ordered: TestCost,
     table_target_width: usize,
     cleanup_on_hit: bool,
 ) -> TestCost {
@@ -1030,7 +1168,7 @@ fn equality_test_cost(
             miss_gas: VERY_LOW_GAS + VERY_LOW_GAS + VERY_LOW_GAS + JUMPI_GAS,
         }
     } else {
-        ordered_test_cost(value, evm_version, table_target_width)
+        ordered
     };
     if cleanup_on_hit {
         // Invert the comparison and branch over POP, PUSH<label>, JUMP, JUMPDEST.
