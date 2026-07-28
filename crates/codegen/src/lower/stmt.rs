@@ -449,7 +449,7 @@ impl<'gcx> Lowerer<'gcx> {
         var_ids: &[Option<hir::VariableId>],
         init: &hir::Expr<'_>,
     ) {
-        if let hir::ExprKind::Tuple(elements) = &init.kind {
+        if let hir::ExprKind::Tuple(elements) = &init.peel_parens().kind {
             let Ok(values) = self.lower_tuple_values(builder, elements, init.span) else { return };
             if values.len() != var_ids.len() {
                 self.gcx
@@ -571,7 +571,7 @@ impl<'gcx> Lowerer<'gcx> {
         // Tuple RHS, `(a, b) = (x, y)` (including swaps `(a, b) = (b, a)`):
         // evaluate every RHS element before assigning any, so a swap reads the
         // old values.
-        if let hir::ExprKind::Tuple(rhs_elems) = &rhs.kind {
+        if let hir::ExprKind::Tuple(rhs_elems) = &rhs.peel_parens().kind {
             let Ok(values) = self.lower_tuple_values(builder, rhs_elems, rhs.span) else { return };
             if values.len() != elements.len() {
                 self.gcx

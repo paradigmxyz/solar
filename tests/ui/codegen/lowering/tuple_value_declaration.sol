@@ -2,6 +2,7 @@
 //@ run-call: triple(uint256) 11 => 11, 12, 13
 //@ run-call: arrays(uint256,uint256) 17, 29 => 17, 29
 //@ run-call: discarded() => 13, 3
+//@ run-call: parenthesizedCall() => 7
 
 contract TupleValueDeclaration {
     uint256 private count;
@@ -34,5 +35,15 @@ contract TupleValueDeclaration {
     function bump(uint256 value) internal returns (uint256) {
         count++;
         return value;
+    }
+
+    function parenthesizedCall() external pure returns (uint256) {
+        uint256 first;
+        (first,) = (pairValues());
+        return first;
+    }
+
+    function pairValues() internal pure returns (uint256, uint256) {
+        return (7, 9);
     }
 }
