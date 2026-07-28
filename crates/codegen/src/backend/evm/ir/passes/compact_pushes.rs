@@ -101,7 +101,7 @@ fn select(gcx: Gcx<'_>, value: U256) -> CompactPush {
         consider(zero_push_len(gcx) + 1, CompactPush::FullWord);
     }
 
-    if width >= MIN_COMPACT_MASK_WIDTH {
+    if gcx.sess.opts.evm_version.has_bitwise_shifting() && width >= MIN_COMPACT_MASK_WIDTH {
         let bytes = value.to_be_bytes::<EVM_WORD_BYTES>();
         let start = EVM_WORD_BYTES - width as usize;
         if bytes[start..].iter().all(|&byte| byte == 0xff) {
@@ -116,7 +116,10 @@ fn select(gcx: Gcx<'_>, value: U256) -> CompactPush {
     }
 
     let trailing_zero_bytes = value.trailing_zeros() / 8;
-    if trailing_zero_bytes > 0 && trailing_zero_bytes < EVM_WORD_BYTES {
+    if gcx.sess.opts.evm_version.has_bitwise_shifting()
+        && trailing_zero_bytes > 0
+        && trailing_zero_bytes < EVM_WORD_BYTES
+    {
         let shift = trailing_zero_bytes * 8;
         let shifted = value >> shift;
         consider(

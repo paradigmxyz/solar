@@ -20,6 +20,9 @@ use solar_sema::{
     ty::{Ty, TyFn, TyKind},
 };
 
+/// Covers Homestead's call and new-account costs plus setup emitted after `GAS`.
+const PRE_TANGERINE_PRECOMPILE_CALL_GAS_RESERVE: u64 = 25_100;
+
 /// How a value travels across a linked-library delegatecall boundary.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum LinkedFieldKind {
@@ -396,7 +399,7 @@ impl<'gcx> Lowerer<'gcx> {
         )
     }
 
-    pub(super) fn resolve_internal_function_pointer_target(
+    pub(super) fn resolve_virtual_function_target(
         &self,
         function_id: hir::FunctionId,
     ) -> hir::FunctionId {
@@ -871,6 +874,14 @@ impl<'gcx> Lowerer<'gcx> {
                 };
                 Ok(value)
             }
+            Builtin::StringConcat | Builtin::BytesConcat => {
+                self.collect_builtin_args(builtin, args)?;
+                self.lower_abi_encode_packed(builder, args)
+            }
+            Builtin::Sha256 | Builtin::Ripemd160 => {
+                self.lower_hash_precompile_call(builder, builtin, args)
+            }
+            Builtin::EcRecover => self.lower_ecrecover_call(builder, args),
             Builtin::AbiEncode => {
                 // abi.encode: a fresh `bytes memory` allocation holding the
                 // padded ABI tuple encoding of the arguments.
@@ -1156,6 +1167,11 @@ impl<'gcx> Lowerer<'gcx> {
             && let Some(func_id) = self.resolved_function_callee(callee)
         {
             return self.lower_library_call(builder, func_id, args, None);
+        }
+
+        // `Base.f(...)` and `super.f(...)` are exact internal calls.
+        if let Some(func_id) = self.resolved_exact_function_callee(base, callee) {
+            return self.lower_resolved_internal_call(builder, func_id, args);
         }
 
         // Handle address payable transfer/send builtins
@@ -1677,6 +1693,16 @@ impl<'gcx> Lowerer<'gcx> {
         func_id: hir::FunctionId,
         args: &CallArgs<'_>,
     ) -> Option<ValueId> {
+        let func_id = self.resolve_virtual_function_target(func_id);
+        self.lower_resolved_internal_call(builder, func_id, args)
+    }
+
+    fn lower_resolved_internal_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func_id: hir::FunctionId,
+        args: &CallArgs<'_>,
+    ) -> Option<ValueId> {
         let func = self.gcx.hir.function(func_id);
         let Some(body) = func.body else {
             let guar = self
@@ -1732,7 +1758,7 @@ impl<'gcx> Lowerer<'gcx> {
             if size_mode || has_storage_ref_param || self.function_is_recursive(func_id) {
                 self.lower_internal_void_call_fallback(builder, func_id, arg_vals);
             } else {
-                self.lower_inline_void_call(builder, func_id, arg_vals);
+                self.lower_inline_void_call(builder, func_id, &arg_vals);
             }
             return None;
         }
@@ -2046,28 +2072,8 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         ctor_id: hir::FunctionId,
-        modifier: Option<&hir::Modifier<'_>>,
+        arg_vals: &[ValueId],
     ) {
-        let ctor = self.gcx.hir.function(ctor_id);
-        let arg_exprs: Vec<_> = modifier.map(|m| m.args.exprs().collect()).unwrap_or_default();
-        let arg_vals: Vec<ValueId> = ctor
-            .parameters
-            .iter()
-            .enumerate()
-            .map(|(i, &param_id)| {
-                let param = self.gcx.hir.variable(param_id);
-                if let Some(arg) = arg_exprs.get(i) {
-                    self.lower_constructor_arg(builder, arg, &param.ty)
-                } else {
-                    self.err_value(
-                        builder,
-                        param.span,
-                        "codegen is missing a base constructor argument",
-                    )
-                }
-            })
-            .collect();
-
         self.lower_inline_void_call(builder, ctor_id, arg_vals)
     }
 
@@ -2076,10 +2082,10 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         func_id: hir::FunctionId,
-        arg_vals: Vec<ValueId>,
+        arg_vals: &[ValueId],
     ) {
         let func = self.gcx.hir.function(func_id);
-        let parameters: Vec<_> = func.parameters.to_vec();
+        let parameters = func.parameters;
         let body = func.body;
 
         if !self.try_enter_inline(func_id) {
@@ -2104,7 +2110,7 @@ impl<'gcx> Lowerer<'gcx> {
             self.collect_assigned_vars_block(&body);
         }
 
-        for (i, param_id) in parameters.into_iter().enumerate() {
+        for (i, &param_id) in parameters.iter().enumerate() {
             if let Some(&arg_val) = arg_vals.get(i) {
                 self.locals.insert(param_id, arg_val);
             }
@@ -2134,7 +2140,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// callee body. Memory `bytes`/`string` parameters receive Solidity's
     /// `[length][data...]` memory pointer, including literal base-constructor
     /// arguments such as `ERC20("Name", "SYM")`.
-    fn lower_constructor_arg(
+    pub(super) fn lower_constructor_arg(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         arg: &hir::Expr<'_>,
@@ -2458,7 +2464,7 @@ impl<'gcx> Lowerer<'gcx> {
                 if size_mode || has_storage_ref_param || self.function_is_recursive(func_id) {
                     self.lower_internal_void_call_fallback(builder, func_id, arg_vals);
                 } else {
-                    self.lower_inline_void_call(builder, func_id, arg_vals);
+                    self.lower_inline_void_call(builder, func_id, &arg_vals);
                 }
                 return None;
             }
@@ -2761,6 +2767,221 @@ impl<'gcx> Lowerer<'gcx> {
                     })
             })
             .collect()
+    }
+
+    fn lower_hash_precompile_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        builtin: Builtin,
+        args: &CallArgs<'_>,
+    ) -> Result<ValueId, ErrorGuaranteed> {
+        let exprs = self.collect_builtin_args(builtin, args)?;
+        let input = self.peel_bytes_conversion(exprs[0]);
+        let (input_ptr, input_len) = self.lower_precompile_bytes_input(builder, input)?;
+
+        let address = builder.imm_u64(if builtin == Builtin::Sha256 { 2 } else { 3 });
+        let output_ptr = builder.imm_u64(0);
+        let output_size = builder.imm_u64(32);
+        let gas = self.precompile_gas(builder);
+        let success = self.emit_precompile_call(
+            builder,
+            gas,
+            address,
+            input_ptr,
+            input_len,
+            output_ptr,
+            output_size,
+        );
+        self.emit_forwarding_revert_unless(builder, success);
+
+        let output = builder.mload(output_ptr);
+        Ok(if builtin == Builtin::Ripemd160 {
+            if self.gcx.sess.opts.evm_version.has_bitwise_shifting() {
+                let shift = builder.imm_u64(96);
+                builder.shl(shift, output)
+            } else {
+                let factor = builder.imm_u256(U256::from(1) << 96);
+                builder.mul(output, factor)
+            }
+        } else {
+            output
+        })
+    }
+
+    fn lower_ecrecover_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        args: &CallArgs<'_>,
+    ) -> Result<ValueId, ErrorGuaranteed> {
+        let exprs = self.collect_builtin_args(Builtin::EcRecover, args)?;
+        let hash = self.lower_value_expr(builder, exprs[0]);
+        let v = self.lower_value_expr(builder, exprs[1]);
+        let r = self.lower_value_expr(builder, exprs[2]);
+        let s = self.lower_value_expr(builder, exprs[3]);
+
+        let input_ptr = builder.fmp();
+        builder.mstore(input_ptr, hash);
+        for (offset, value) in [(32, v), (64, r), (96, s)] {
+            let offset = builder.imm_u64(offset);
+            let ptr = builder.add(input_ptr, offset);
+            builder.mstore(ptr, value);
+        }
+
+        let output_offset = builder.imm_u64(128);
+        let output_ptr = builder.add(input_ptr, output_offset);
+        let zero = builder.imm_u64(0);
+        builder.mstore(output_ptr, zero);
+
+        let gas = self.precompile_gas(builder);
+        let address = builder.imm_u64(1);
+        let input_size = builder.imm_u64(128);
+        let output_size = builder.imm_u64(32);
+        let success = self.emit_precompile_call(
+            builder,
+            gas,
+            address,
+            input_ptr,
+            input_size,
+            output_ptr,
+            output_size,
+        );
+        self.emit_forwarding_revert_unless(builder, success);
+        Ok(builder.mload(output_ptr))
+    }
+
+    fn lower_precompile_bytes_input(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        input: &hir::Expr<'_>,
+    ) -> Result<(ValueId, ValueId), ErrorGuaranteed> {
+        if let ExprKind::Lit(lit) = &input.kind
+            && let LitKind::Str(_, bytes, _) = &lit.kind
+        {
+            let bytes = bytes.as_byte_str();
+            if bytes.is_empty() {
+                return Ok((builder.imm_u64(0), builder.imm_u64(0)));
+            }
+
+            let ptr = builder.fmp();
+            for (i, chunk) in bytes.chunks(32).enumerate() {
+                let mut padded = [0u8; 32];
+                padded[..chunk.len()].copy_from_slice(chunk);
+                let value = builder.imm_u256(U256::from_be_bytes(padded));
+                let dest = if i == 0 {
+                    ptr
+                } else {
+                    let offset = builder.imm_u64((i * 32) as u64);
+                    builder.add(ptr, offset)
+                };
+                builder.mstore(dest, value);
+            }
+            return Ok((ptr, builder.imm_u64(bytes.len() as u64)));
+        }
+
+        self.lower_bytes_arg_to_memory(builder, input)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn emit_precompile_call(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        gas: ValueId,
+        address: ValueId,
+        input_ptr: ValueId,
+        input_size: ValueId,
+        output_ptr: ValueId,
+        output_size: ValueId,
+    ) -> ValueId {
+        if self.gcx.sess.opts.evm_version.has_static_call() {
+            builder.staticcall(gas, address, input_ptr, input_size, output_ptr, output_size)
+        } else {
+            let value = builder.imm_u64(0);
+            builder.call(gas, address, value, input_ptr, input_size, output_ptr, output_size)
+        }
+    }
+
+    fn precompile_gas(&self, builder: &mut FunctionBuilder<'_>) -> ValueId {
+        let gas = builder.gas();
+        if self.gcx.sess.opts.evm_version.can_overcharge_gas_for_call() {
+            gas
+        } else {
+            let reserved = builder.imm_u64(PRE_TANGERINE_PRECOMPILE_CALL_GAS_RESERVE);
+            builder.sub(gas, reserved)
+        }
+    }
+
+    fn emit_forwarding_revert_unless(&self, builder: &mut FunctionBuilder<'_>, success: ValueId) {
+        let revert_block = builder.create_block();
+        let continue_block = builder.create_block();
+        builder.branch(success, continue_block, revert_block);
+
+        builder.switch_to_block(revert_block);
+        let zero = builder.imm_u64(0);
+        if self.gcx.sess.opts.evm_version.supports_returndata() {
+            let size = builder.returndatasize();
+            builder.returndatacopy(zero, zero, size);
+            builder.revert(zero, size);
+        } else {
+            builder.revert(zero, zero);
+        }
+
+        builder.switch_to_block(continue_block);
+    }
+
+    pub(super) fn resolved_exact_function_callee(
+        &self,
+        base: &hir::Expr<'_>,
+        callee: &hir::Expr<'_>,
+    ) -> Option<hir::FunctionId> {
+        let function_id = self.resolved_function_callee(callee)?;
+        let TyKind::Type(ty) = self.get_expr_type(base)?.kind else { return None };
+        match ty.kind {
+            TyKind::Contract(_) => Some(function_id),
+            TyKind::Super(contract_id) => {
+                Some(self.resolve_super_function_target(contract_id, function_id))
+            }
+            _ => None,
+        }
+    }
+
+    fn resolve_super_function_target(
+        &self,
+        defining_contract_id: hir::ContractId,
+        function_id: hir::FunctionId,
+    ) -> hir::FunctionId {
+        let Some(contract_id) = self.contract_id else { return function_id };
+        let item = hir::ItemId::from(function_id);
+        let name = self.gcx.item_name(item).name;
+        let parameters = self.gcx.item_parameter_types(item);
+
+        let bases = self
+            .gcx
+            .hir
+            .contract(contract_id)
+            .linearized_bases
+            .iter()
+            .skip_while(|&&base_id| base_id != defining_contract_id)
+            .skip(1);
+        for &base_id in bases {
+            for candidate_id in self.gcx.hir.contract(base_id).functions() {
+                let candidate = self.gcx.hir.function(candidate_id);
+                if !candidate.is_ordinary()
+                    || candidate.visibility <= hir::Visibility::Private
+                    || candidate.visibility == hir::Visibility::External
+                    || candidate.body.is_none()
+                {
+                    continue;
+                }
+
+                let candidate_item = hir::ItemId::from(candidate_id);
+                if self.gcx.item_name(candidate_item).name == name
+                    && self.gcx.item_parameter_types(candidate_item) == parameters
+                {
+                    return candidate_id;
+                }
+            }
+        }
+        function_id
     }
 
     /// Extract return value from a statement after lowering prior side effects in that statement.

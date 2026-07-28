@@ -1456,7 +1456,17 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                 continue;
             }
             if !ty.can_be_exported(gcx) {
-                // TODO: implement `interfaceType`
+                // Libraries may expose mapping parameters (solc `interfaceType(true)`).
+                // Signature printing already handles them; keep the function in the
+                // interface instead of silently dropping it.
+                if c.kind.is_library()
+                    && ty.has_mapping(gcx)
+                    && !ty.is_recursive(gcx)
+                    && !ty.has_internal_function()
+                {
+                    continue;
+                }
+                // TODO: implement remaining `interfaceType` cases for libraries.
                 if c.kind.is_library() {
                     result = Err(ErrorGuaranteed::new_unchecked());
                     continue;

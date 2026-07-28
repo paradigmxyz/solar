@@ -54,6 +54,10 @@ impl<'sess> AstValidator<'sess, '_> {
                 .help("wrap the statement in a block (`{ ... }`)")
                 .emit();
         }
+        if matches!(stmt.kind, ast::StmtKind::UncheckedBlock(..)) {
+            self.dcx()
+                .emit_err(stmt.span, "`unchecked` blocks can only be used inside regular blocks");
+        }
     }
 
     fn check_underscores_in_number_literals(&self, lit: &ast::Lit<'_>) {
