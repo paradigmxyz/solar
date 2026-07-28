@@ -242,10 +242,11 @@ pub(crate) fn display_function_text<'a>(
         write!(
             f,
             "{}",
-            func.params
-                .iter()
-                .enumerate()
-                .format_with(", ", |f, (i, ty)| write!(f, "arg{i}: {ty}"))
+            func.params.iter_enumerated().format_with(", ", |f, (i, ty)| write!(
+                f,
+                "arg{}: {ty}",
+                i.index()
+            ))
         )?;
         write!(f, ")")?;
         if function_prints_return_values(func) && !func.returns.is_empty() {
@@ -421,11 +422,11 @@ fn display_function_ref(
 }
 
 fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
-    fmt::from_fn(move |f| match &func.values[vid] {
+    fmt::from_fn(move |f| match func.value(vid) {
         Value::Immediate(imm) if let Some(u256) = imm.as_u256() => {
             write!(f, "{}", display_u256(u256))
         }
-        Value::Arg { index, .. } => write!(f, "arg{index}"),
+        Value::Arg(index) => write!(f, "arg{}", index.index()),
         Value::Inst(inst_id) => write!(f, "v{}", inst_result_index(func, *inst_id)),
         Value::Error(_) => write!(f, "err"),
         _ => write!(f, "v{}", vid.index()),

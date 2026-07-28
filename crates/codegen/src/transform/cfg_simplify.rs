@@ -240,7 +240,7 @@ impl CfgSimplifier {
             if let Some(&position) = local_defs.get(&value) {
                 return CanonOperand::Local(position);
             }
-            match &func.values[value] {
+            match func.value(value) {
                 Value::Immediate(imm) => CanonOperand::Imm(imm.clone()),
                 _ => CanonOperand::Outside(value),
             }
@@ -309,7 +309,7 @@ impl CfgSimplifier {
         // Mutually-trivial cycles have no outside source; keep those phis.
         let mut replacements = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.num_insts());
-        let mut seen = DenseBitSet::new_empty(func.values.len());
+        let mut seen = DenseBitSet::new_empty(func.num_values());
         for &(inst_id, phi_value) in &candidates {
             seen.clear();
             seen.insert(phi_value);

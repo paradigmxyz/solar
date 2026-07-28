@@ -124,7 +124,7 @@ impl DeadCodeEliminator {
     /// Collects all values that are used (appear in instructions or terminators).
     fn collect_used_values(&mut self, func: &Function) {
         self.used_values.clear();
-        self.used_values.ensure(func.values.len());
+        self.used_values.ensure(func.num_values());
 
         // Add values used in terminators
         for (_, block) in func.blocks.iter_enumerated() {
