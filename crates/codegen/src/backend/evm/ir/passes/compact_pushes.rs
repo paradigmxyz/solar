@@ -106,7 +106,7 @@ fn select(evm_version: EvmVersion, value: U256) -> CompactPush {
         consider(zero_push_len(evm_version) + 1, CompactPush::FullWord);
     }
 
-    if gcx.sess.opts.evm_version.has_bitwise_shifting() && width >= MIN_COMPACT_MASK_WIDTH {
+    if evm_version.has_bitwise_shifting() && width >= MIN_COMPACT_MASK_WIDTH {
         let bytes = value.to_be_bytes::<EVM_WORD_BYTES>();
         let start = EVM_WORD_BYTES - width as usize;
         if bytes[start..].iter().all(|&byte| byte == 0xff) {
@@ -127,7 +127,7 @@ fn select(evm_version: EvmVersion, value: U256) -> CompactPush {
     }
 
     let trailing_zero_bytes = value.trailing_zeros() / 8;
-    if gcx.sess.opts.evm_version.has_bitwise_shifting()
+    if evm_version.has_bitwise_shifting()
         && trailing_zero_bytes > 0
         && trailing_zero_bytes < EVM_WORD_BYTES
     {
