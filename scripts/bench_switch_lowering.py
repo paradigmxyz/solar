@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import copy
+import fcntl
 import hashlib
 import importlib.util
 import json
@@ -20,7 +21,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any, Callable, Iterable, Sequence, TextIO
 
 
 DEFAULT_PIN = "01209d2b8ac81645b92e3ef801b5bcdfd61bfd69"
@@ -39,6 +40,9 @@ GROWTH_SWEEP_TEST_IDS_SHA256 = {
 GROWTH_SWEEP_MIN_BUDGET = 0
 GROWTH_SWEEP_MAX_BUDGET = 512
 GROWTH_SWEEP_POLICY_BUDGET = 192
+BIT_SLICE_SWEEP_MIN_BUDGET = 0
+BIT_SLICE_SWEEP_MAX_BUDGET = GROWTH_SWEEP_POLICY_BUDGET
+BIT_SLICE_SWEEP_POLICY_BUDGET = 64
 GROWTH_SWEEP_PROVENANCE_KEYS = (
     "solar_revision",
     "source_tree",
@@ -77,6 +81,37 @@ class SwitchVariant:
     compiler_id: str
     label: str
     flags: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class GrowthSweep:
+    name: str
+    compiler_id_prefix: str
+    flag: str
+    minimum: int
+    maximum: int
+    policy: int
+    report_slug: str
+
+
+TOTAL_GROWTH_SWEEP = GrowthSweep(
+    "growth",
+    "auto-g",
+    "-Zswitch-max-gas-code-growth",
+    GROWTH_SWEEP_MIN_BUDGET,
+    GROWTH_SWEEP_MAX_BUDGET,
+    GROWTH_SWEEP_POLICY_BUDGET,
+    "growth",
+)
+BIT_SLICE_GROWTH_SWEEP = GrowthSweep(
+    "bit-slice growth",
+    "auto-b",
+    "-Zswitch-max-bit-slice-gas-code-growth",
+    BIT_SLICE_SWEEP_MIN_BUDGET,
+    BIT_SLICE_SWEEP_MAX_BUDGET,
+    BIT_SLICE_SWEEP_POLICY_BUDGET,
+    "bit-slice-growth",
+)
 
 
 def run(command: Sequence[str], cwd: Path | None = None) -> str:
@@ -126,12 +161,15 @@ def valid_sha256(value: Any) -> bool:
 
 
 def valid_artifact(compiler: dict[str, Any]) -> bool:
-    return all(
-        type(compiler.get(key)) is int and compiler[key] >= 0
-        for key in ("bytecode_size", "runtime_size")
-    ) and all(
-        valid_sha256(compiler.get(key))
-        for key in ("bytecode_sha256", "runtime_sha256")
+    return (
+        type(compiler.get("bytecode_size")) is int
+        and compiler["bytecode_size"] > 0
+        and type(compiler.get("runtime_size")) is int
+        and compiler["runtime_size"] >= 0
+        and all(
+            valid_sha256(compiler.get(key))
+            for key in ("bytecode_sha256", "runtime_sha256")
+        )
     )
 
 
@@ -503,6 +541,17 @@ def compiler_specs(
     return specs
 
 
+def lock_output_dir(output_dir: Path) -> TextIO:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    lock = (output_dir / ".lock").open("w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        lock.close()
+        raise RuntimeError(f"another benchmark is using {output_dir}") from None
+    return lock
+
+
 def parse_integer_ranges(value: str) -> list[int]:
     values = []
     for item in value.split(","):
@@ -535,23 +584,32 @@ def parse_integer_ranges(value: str) -> list[int]:
 def switch_variants(
     methods: Sequence[str],
     growth_budgets: Sequence[int],
+    bit_slice_growth_budgets: Sequence[int],
 ) -> list[SwitchVariant]:
     variants = [
         SwitchVariant(method, f"solar {method}", (f"-Zswitch-lowering={method}",))
         for method in methods
     ]
-    variants.extend(
-        SwitchVariant(
-            f"auto-g{budget}",
-            f"solar auto growth={budget}",
-            (
-                "-Zswitch-lowering=auto",
-                f"-Zswitch-max-gas-code-growth={budget}",
-            ),
-        )
-        for budget in growth_budgets
-    )
+    variants.extend(growth_variants(TOTAL_GROWTH_SWEEP, growth_budgets))
+    variants.extend(growth_variants(BIT_SLICE_GROWTH_SWEEP, bit_slice_growth_budgets))
     return variants
+
+
+def growth_variants(
+    sweep: GrowthSweep,
+    budgets: Sequence[int],
+) -> list[SwitchVariant]:
+    flags = ["-Zswitch-lowering=auto"]
+    if sweep == BIT_SLICE_GROWTH_SWEEP:
+        flags.append(f"-Zswitch-max-gas-code-growth={GROWTH_SWEEP_POLICY_BUDGET}")
+    return [
+        SwitchVariant(
+            f"{sweep.compiler_id_prefix}{budget}",
+            f"solar auto {sweep.name}={budget}",
+            (*flags, f"{sweep.flag}={budget}"),
+        )
+        for budget in budgets
+    ]
 
 
 def load_ui_cases(root: Path) -> list[UiCase]:
@@ -673,25 +731,31 @@ def run_ui_case(bench: Any, case: UiCase, specs: Sequence[Any]) -> dict[str, Any
 
 
 def start_anvil() -> tuple[subprocess.Popen[bytes], str]:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
-        listener.bind(("127.0.0.1", 0))
-        port = listener.getsockname()[1]
-    process = subprocess.Popen(
-        [
-            "anvil",
-            "--port",
-            str(port),
-            "--hardfork",
-            ANVIL_HARDFORK,
-            "--steps-tracing",
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    time.sleep(2)
-    if process.poll() is not None:
-        raise RuntimeError("anvil exited before becoming ready")
-    return process, f"http://127.0.0.1:{port}"
+    for _ in range(5):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+            listener.bind(("127.0.0.1", 0))
+            port = listener.getsockname()[1]
+        process = subprocess.Popen(
+            [
+                "anvil",
+                "--port",
+                str(port),
+                "--hardfork",
+                ANVIL_HARDFORK,
+                "--steps-tracing",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and process.poll() is None:
+            try:
+                with socket.create_connection(("127.0.0.1", port), timeout=0.1):
+                    return process, f"http://127.0.0.1:{port}"
+            except OSError:
+                time.sleep(0.05)
+        stop_anvil(process)
+    raise RuntimeError("anvil did not bind an ephemeral port after five attempts")
 
 
 def stop_anvil(process: subprocess.Popen[bytes]) -> None:
@@ -727,12 +791,12 @@ def write_results(path: Path, metadata: dict[str, Any], results: Sequence[dict[s
     )
 
 
-def expected_gas_schema(
+def expected_gas_schemas(
     bench: Any,
     case: Any,
     gas_profile: str,
     labels: Sequence[str] | None,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     schema = []
     for call in bench.gas_calls(case, gas_profile):
         if type(call.repeat) is not int or call.repeat <= 0:
@@ -746,6 +810,7 @@ def expected_gas_schema(
                     "args": list(call.args),
                 }
             )
+    runner_schema = copy.deepcopy(schema)
     if labels is not None:
         if len(labels) != len(schema):
             raise RuntimeError(f"{case.test_id} gas labels do not match its calls")
@@ -753,7 +818,7 @@ def expected_gas_schema(
             item["label"] = label
     if not valid_gas_schema(schema):
         raise RuntimeError(f"{case.test_id} has an invalid gas call schema")
-    return schema
+    return runner_schema, schema
 
 
 def valid_gas_schema(schema: Any) -> bool:
@@ -779,15 +844,26 @@ def valid_gas_schema(schema: Any) -> bool:
     return len(labels) == len(set(labels))
 
 
-def apply_gas_schema(result: dict[str, Any], schema: list[dict[str, Any]]) -> None:
+def apply_gas_schema(
+    result: dict[str, Any],
+    runner_schema: list[dict[str, Any]],
+    schema: list[dict[str, Any]],
+) -> None:
     result["expected_gas_calls"] = len(schema)
     result["expected_gas_schema"] = copy.deepcopy(schema)
-    for compiler in (result.get("compilers") or {}).values():
+    for compiler_id, compiler in (result.get("compilers") or {}).items():
         gas_results = compiler.get("gas_results")
-        if not isinstance(gas_results, list) or len(gas_results) != len(schema):
+        if gas_results is None:
             continue
-        for gas_result, expected in zip(gas_results, schema):
-            gas_result.update(expected)
+        if not isinstance(gas_results, list) or len(gas_results) != len(runner_schema):
+            raise RuntimeError(f"{compiler_id} returned the wrong number of gas calls")
+        for gas_result, actual, expected in zip(gas_results, runner_schema, schema):
+            if (
+                not isinstance(gas_result, dict)
+                or any(gas_result.get(key) != value for key, value in actual.items())
+            ):
+                raise RuntimeError(f"{compiler_id} returned gas for an unexpected call")
+            gas_result["label"] = expected["label"]
 
 
 def complete_gas_results(compiler: dict[str, Any], schema: Any) -> bool:
@@ -885,9 +961,10 @@ def run_cases(
         if validate_inputs is not None:
             validate_inputs()
         expected_status = "failed" if case.test_id in expected_failures else "ok"
+        runner_schema = None
         schema = None
         if include_gas:
-            schema = expected_gas_schema(
+            runner_schema, schema = expected_gas_schemas(
                 bench,
                 case,
                 gas_profile,
@@ -934,7 +1011,7 @@ def run_cases(
                     )
                 finally:
                     stop_anvil(anvil)
-                apply_gas_schema(partial, schema)
+                apply_gas_schema(partial, runner_schema, schema)
                 reference = partial["compilers"][reference_spec.compiler_id]
                 reference_checks_sha256 = json_sha256(
                     reference.get("runtime_results") or []
@@ -1354,12 +1431,11 @@ def render_markdown(
     return text + "\n"
 
 
-def growth_budget(compiler_id: str) -> int | None:
-    prefix = "auto-g"
-    if not compiler_id.startswith(prefix):
+def growth_budget(compiler_id: str, sweep: GrowthSweep) -> int | None:
+    if not compiler_id.startswith(sweep.compiler_id_prefix):
         return None
     try:
-        return int(compiler_id.removeprefix(prefix))
+        return int(compiler_id.removeprefix(sweep.compiler_id_prefix))
     except ValueError:
         return None
 
@@ -1396,26 +1472,28 @@ def results_by_test_id(payload: dict[str, Any], scope: str) -> dict[str, dict[st
     return by_id
 
 
-def expected_growth_sweep_variants() -> list[dict[str, Any]]:
+def expected_growth_sweep_variants(sweep: GrowthSweep) -> list[dict[str, Any]]:
+    variants = [
+        SwitchVariant("auto", "solar auto", ("-Zswitch-lowering=auto",)),
+        *growth_variants(sweep, range(sweep.minimum, sweep.maximum + 1)),
+    ]
     return [
         {
             "compiler_id": variant.compiler_id,
             "label": variant.label,
             "flags": list(variant.flags),
         }
-        for variant in switch_variants(
-            ("auto",),
-            range(GROWTH_SWEEP_MIN_BUDGET, GROWTH_SWEEP_MAX_BUDGET + 1),
-        )
+        for variant in variants
     ]
 
 
 def validate_growth_sweep_inputs(
     compile_payloads: dict[str, dict[str, Any]],
     gas_payloads: dict[str, dict[str, Any]],
+    sweep: GrowthSweep,
 ) -> None:
     canonical = compile_payloads["synthetic"]["metadata"]
-    expected_variants = expected_growth_sweep_variants()
+    expected_variants = expected_growth_sweep_variants(sweep)
     expected_methods = [variant["compiler_id"] for variant in expected_variants]
     expected_method_set = set(expected_methods)
     missing = [
@@ -1518,6 +1596,7 @@ def validate_growth_sweep_inputs(
 def render_growth_sweep(
     compile_dir: Path,
     gas_dir: Path,
+    sweep: GrowthSweep,
 ) -> tuple[str, dict[str, Any]]:
     compile_payloads = {
         scope: load_scope(compile_dir, scope)
@@ -1527,17 +1606,18 @@ def render_growth_sweep(
         scope: load_scope(gas_dir, scope)
         for scope in ("synthetic", "ci-gas")
     }
-    validate_growth_sweep_inputs(compile_payloads, gas_payloads)
+    validate_growth_sweep_inputs(compile_payloads, gas_payloads, sweep)
     budgets = sorted(
         budget
         for variant in compile_payloads["synthetic"]["metadata"]["variants"]
-        if (budget := growth_budget(variant["compiler_id"])) is not None
+        if (budget := growth_budget(variant["compiler_id"], sweep)) is not None
     )
-    expected_budgets = list(
-        range(GROWTH_SWEEP_MIN_BUDGET, GROWTH_SWEEP_MAX_BUDGET + 1)
-    )
+    expected_budgets = list(range(sweep.minimum, sweep.maximum + 1))
     if budgets != expected_budgets:
-        raise RuntimeError("growth sweep must contain every budget from 0 through 512")
+        raise RuntimeError(
+            f"{sweep.name} sweep must contain every budget from "
+            f"{sweep.minimum} through {sweep.maximum}"
+        )
 
     measured = {}
     for scope, payload in gas_payloads.items():
@@ -1558,7 +1638,7 @@ def render_growth_sweep(
     fingerprints = {}
     ci_gas_by_budget = {}
     for budget in budgets:
-        compiler_id = f"auto-g{budget}"
+        compiler_id = f"{sweep.compiler_id_prefix}{budget}"
         totals = {}
         fingerprint = []
         ci_gas_by_test = {}
@@ -1617,9 +1697,9 @@ def render_growth_sweep(
         row["max_ci_call_regression"] = max_call_regression
         row["ci_regressing_contracts"] = regressing_contracts
 
-    policy = rows[GROWTH_SWEEP_POLICY_BUDGET - GROWTH_SWEEP_MIN_BUDGET]
-    if policy["budget"] != GROWTH_SWEEP_POLICY_BUDGET:
-        raise RuntimeError("growth budget policy is absent from the sweep")
+    policy = rows[sweep.policy - sweep.minimum]
+    if policy["budget"] != sweep.policy:
+        raise RuntimeError(f"{sweep.name} budget policy is absent from the sweep")
     minimum_ci_gas = min(
         rows,
         key=lambda row: (
@@ -1644,7 +1724,7 @@ def render_growth_sweep(
         else:
             plateaus[-1]["last"] = row["budget"]
 
-    text = "## Growth-budget sweep\n\n"
+    text = f"## {sweep.name.capitalize()} budget sweep\n\n"
     text += (
         f"Every integer budget from {budgets[0]} through {budgets[-1]} was compiled "
         f"across {len(compile_payloads['synthetic']['results'])} synthetic fixtures, "
@@ -1715,6 +1795,7 @@ def render_growth_sweep(
     )
     text += "\n\n</details>\n"
     summary = {
+        "sweep": sweep.report_slug,
         "budgets": budgets,
         "policy_budget": policy["budget"],
         "policy": policy,
@@ -1725,6 +1806,86 @@ def render_growth_sweep(
         "rows": rows,
     }
     return text, summary
+
+
+def validate_local_growth_sweep_provenance(
+    compile_dir: Path,
+    solar: Path,
+    benchmark_repo: Path,
+    pin: str,
+    solc: Path,
+    ui_corpus: Path,
+) -> None:
+    metadata = load_scope(compile_dir, "synthetic").get("metadata") or {}
+    if Path(str(metadata.get("solar") or "")).resolve() != solar:
+        raise RuntimeError("growth sweep used a different compiler path")
+    if Path(str(metadata.get("solc") or "")).resolve() != solc:
+        raise RuntimeError("growth sweep used a different solc path")
+    for path, display in (
+        (solar, "solar"),
+        (benchmark_repo, "benchmark repository"),
+        (solc, "solc"),
+        (ui_corpus, "UI corpus"),
+    ):
+        if not path.exists():
+            raise RuntimeError(f"local {display} is missing: {path}")
+
+    source_root = Path(
+        run(
+            ["git", "rev-parse", "--show-toplevel"],
+            Path(__file__).resolve().parent,
+        )
+    ).resolve()
+    require_clean_source(source_root)
+    source_revision = run(["git", "rev-parse", "HEAD"], source_root)
+    if metadata.get("solar_revision") != source_revision:
+        raise RuntimeError("growth sweep was produced from a different source revision")
+
+    tool_paths = {}
+    for tool in ("anvil", "cast"):
+        path = shutil.which(tool)
+        if path is None:
+            raise RuntimeError(f"{tool} is required to validate growth sweep provenance")
+        tool_paths[tool] = Path(path).resolve()
+
+    corpus_revisions = verify_corpus_pin(benchmark_repo, pin)
+    ui_sources = list(ui_corpus.rglob("*.sol"))
+    if not ui_sources:
+        raise RuntimeError(f"UI corpus contains no Solidity files: {ui_corpus}")
+    with tempfile.TemporaryDirectory(prefix="switch-benchmark-pin-") as temporary:
+        pinned_root = materialize_benchmark_pin(
+            benchmark_repo,
+            pin,
+            Path(temporary),
+            corpus_revisions,
+        )
+        local = {
+            "solar_revision": compiler_revision(solar),
+            "source_tree": run(["git", "rev-parse", "HEAD^{tree}"], source_root),
+            "solar_sha256": sha256(solar),
+            "benchmark_pin": pin,
+            "benchmark_tree": run(
+                ["git", "rev-parse", f"{pin}^{{tree}}"], benchmark_repo
+            ),
+            "benchmark_script_sha256": sha256(pinned_root / "solar_bench.py"),
+            "gas_script_sha256": sha256(pinned_root / "gas_bench.py"),
+            "benchmark_fixtures_sha256": benchmark_fixture_tree_sha256(pinned_root),
+            "corpus_revisions": corpus_revisions,
+            "ui_corpus_sha256": tree_sha256(ui_corpus, ui_sources),
+            "solc_sha256": sha256(solc),
+            "solc_version": tool_version(str(solc)),
+            "anvil_version": tool_version("anvil"),
+            "anvil_sha256": sha256(tool_paths["anvil"]),
+            "cast_version": tool_version("cast"),
+            "cast_sha256": sha256(tool_paths["cast"]),
+            "hardfork": ANVIL_HARDFORK,
+            "driver_sha256": sha256(Path(__file__).resolve()),
+        }
+    changed = [key for key, value in local.items() if metadata.get(key) != value]
+    if changed:
+        raise RuntimeError(
+            f"local benchmark inputs differ from the growth sweep: {', '.join(changed)}"
+        )
 
 
 def main() -> int:
@@ -1752,11 +1913,28 @@ def main() -> int:
         metavar="RANGES",
         help="add auto variants for comma-separated integers or inclusive START..END ranges",
     )
+    parser.add_argument(
+        "--auto-bit-slice-growth-budgets",
+        type=parse_integer_ranges,
+        default=[],
+        metavar="RANGES",
+        help=(
+            "add auto variants for bit-slice growth budgets while holding total growth at "
+            f"{GROWTH_SWEEP_POLICY_BUDGET}"
+        ),
+    )
     parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--aggregate-only", action="store_true")
     parser.add_argument("--compile-only", action="store_true")
-    parser.add_argument(
+    analysis = parser.add_mutually_exclusive_group()
+    analysis.add_argument(
         "--analyze-growth-sweep",
+        nargs=2,
+        type=Path,
+        metavar=("COMPILE_DIR", "GAS_DIR"),
+    )
+    analysis.add_argument(
+        "--analyze-bit-slice-growth-sweep",
         nargs=2,
         type=Path,
         metavar=("COMPILE_DIR", "GAS_DIR"),
@@ -1768,12 +1946,30 @@ def main() -> int:
         default=("synthetic", "ui-gas", "ui-size", "ci-size-gas", "ci-size", "ci-gas"),
     )
     args = parser.parse_args()
-    if args.analyze_growth_sweep is not None:
-        compile_dir, gas_dir = map(Path.resolve, args.analyze_growth_sweep)
-        report, summary = render_growth_sweep(compile_dir, gas_dir)
-        write_text_atomic(compile_dir / "growth-report.md", report)
+    analysis_args = (
+        (args.analyze_growth_sweep, TOTAL_GROWTH_SWEEP)
+        if args.analyze_growth_sweep is not None
+        else (args.analyze_bit_slice_growth_sweep, BIT_SLICE_GROWTH_SWEEP)
+    )
+    if analysis_args[0] is not None:
+        paths, sweep = analysis_args
+        compile_dir, gas_dir = map(Path.resolve, paths)
+        _analysis_locks = [
+            lock_output_dir(path)
+            for path in sorted({compile_dir, gas_dir}, key=lambda path: str(path))
+        ]
+        validate_local_growth_sweep_provenance(
+            compile_dir,
+            args.solar.resolve(),
+            args.benchmark_repo.resolve(),
+            args.pin,
+            args.solc.resolve(),
+            args.ui_corpus.resolve(),
+        )
+        report, summary = render_growth_sweep(compile_dir, gas_dir, sweep)
+        write_text_atomic(compile_dir / f"{sweep.report_slug}-report.md", report)
         write_text_atomic(
-            compile_dir / "growth-summary.json",
+            compile_dir / f"{sweep.report_slug}-summary.json",
             json.dumps(summary, indent=2) + "\n",
         )
         print(report)
@@ -1786,7 +1982,11 @@ def main() -> int:
         parser.error("--scope must not contain duplicates")
     if args.jobs < 1:
         parser.error("--jobs must be positive")
-    variants = switch_variants(args.methods, args.auto_growth_budgets)
+    variants = switch_variants(
+        args.methods,
+        args.auto_growth_budgets,
+        args.auto_bit_slice_growth_budgets,
+    )
     methods = [variant.compiler_id for variant in variants]
     if len(set(methods)) != len(methods):
         parser.error("switch variant IDs must not contain duplicates")
@@ -1795,6 +1995,12 @@ def main() -> int:
     benchmark_repo = args.benchmark_repo.resolve()
     output_dir = args.output_dir.resolve()
     ui_corpus = args.ui_corpus.resolve()
+    _output_lock = lock_output_dir(output_dir)
+    wrapper_directory = tempfile.TemporaryDirectory(
+        prefix=".wrappers-",
+        dir=output_dir,
+    )
+    wrapper_dir = Path(wrapper_directory.name)
     if not solar.is_file():
         parser.error(f"solar binary not found: {solar}")
     if not benchmark_repo.is_dir():
@@ -1939,7 +2145,7 @@ def main() -> int:
                 bench,
                 cases,
                 compiler_specs(
-                    bench, solar, variants, "gas", output_dir / "wrappers"
+                    bench, solar, variants, "gas", wrapper_dir
                 ),
                 output_dir / "synthetic.json",
                 metadata,
@@ -1969,7 +2175,7 @@ def main() -> int:
                     bench,
                     ui_cases,
                     compiler_specs(
-                        bench, solar, variants, optimization, output_dir / "wrappers"
+                        bench, solar, variants, optimization, wrapper_dir
                     ),
                     output_dir / f"{scope}.json",
                     metadata,
@@ -2005,7 +2211,7 @@ def main() -> int:
                     bench,
                     ci_cases,
                     compiler_specs(
-                        bench, solar, variants, optimization, output_dir / "wrappers"
+                        bench, solar, variants, optimization, wrapper_dir
                     ),
                     output_dir / f"{scope}.json",
                     metadata,
@@ -2026,7 +2232,7 @@ def main() -> int:
                 bench,
                 ci_cases,
                 compiler_specs(
-                    bench, solar, variants, "gas", output_dir / "wrappers"
+                    bench, solar, variants, "gas", wrapper_dir
                 ),
                 output_dir / "ci-gas.json",
                 metadata,
