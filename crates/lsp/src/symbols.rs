@@ -76,7 +76,7 @@ pub(crate) struct SymbolTables {
     call_hierarchy: CallHierarchyIndex,
     type_hierarchy: TypeHierarchyIndex,
     code_lens: CodeLensIndex,
-    document_index_state: DocumentIndexState,
+    document_index_state: Box<DocumentIndexState>,
     has_merged_batches: bool,
 }
 
@@ -270,13 +270,13 @@ impl SymbolTables {
         tables.build_builtin_completions();
         let item_ids = gcx.hir.item_ids();
         let yul_variables = YulVariableCollector::collect(gcx);
-        tables.document_index_state = DocumentIndexState::build(
+        tables.document_index_state = Box::new(DocumentIndexState::build(
             gcx,
             indexed_source_paths,
             previous_document_indexes,
             changed_paths,
             rebuild_all_document_indexes,
-        );
+        ));
         let rebuilt_sources = tables.document_index_state.rebuilt_sources(gcx);
         let mut item_symbols =
             FxHashMap::with_capacity_and_hasher(item_ids.size_hint().0, Default::default());
@@ -503,7 +503,7 @@ impl SymbolTables {
         self.inlay_hints.extend(other.inlay_hints);
         self.natspec_completion.extend(other.natspec_completion);
         self.signature_help.extend(other.signature_help);
-        self.document_index_state.extend(other.document_index_state);
+        self.document_index_state.extend(*other.document_index_state);
 
         let symbol_offset = self.declarations.len();
         self.code_lens.extend(other.code_lens, symbol_offset);
