@@ -1,4 +1,4 @@
-//@compile-flags: --pass dce
+//@compile-flags: -Zmir-pipeline=dce
 //@filecheck:
 @module Dce
 // CHECK-LABEL: {{^[ +].*}}fn @with_dead_code{{[( ]}}

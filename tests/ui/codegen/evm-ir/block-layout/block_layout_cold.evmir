@@ -1,4 +1,4 @@
-//@compile-flags: --pass block-layout
+//@compile-flags: -Zevm-ir-pipeline=block-layout
 //@filecheck:
 @module module
 

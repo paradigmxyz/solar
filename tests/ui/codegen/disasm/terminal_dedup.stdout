@@ -1,0 +1,7 @@
+// === terminal_dedup (runtime) ===
+PUSH2 0x1234
+PUSH0
+MSTORE
+PUSH0
+PUSH0
+REVERT

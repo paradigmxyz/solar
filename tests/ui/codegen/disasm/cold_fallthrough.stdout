@@ -1,0 +1,5 @@
+// === cold_fallthrough (runtime) ===
+PUSH1 0x01
+PUSH0
+PUSH0
+REVERT

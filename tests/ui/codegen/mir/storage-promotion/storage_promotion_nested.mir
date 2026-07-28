@@ -1,4 +1,4 @@
-//@compile-flags: --pass storage-promotion
+//@compile-flags: -Zmir-pipeline=storage-promotion
 //@filecheck:
 @module StoragePromotionNested
 // Blocks are laid out so the inner loop header (bb1) is processed before the

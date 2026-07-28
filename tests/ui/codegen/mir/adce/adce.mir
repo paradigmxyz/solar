@@ -1,4 +1,4 @@
-//@compile-flags: --pass adce
+//@compile-flags: -Zmir-pipeline=adce
 //@filecheck:
 @module Adce
 // CHECK-LABEL: {{^[ +].*}}fn @removes_dead_branch_region{{[( ]}}

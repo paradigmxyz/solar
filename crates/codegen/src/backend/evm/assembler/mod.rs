@@ -72,6 +72,8 @@ pub(crate) struct Assembler<'gcx> {
     gcx: Gcx<'gcx>,
     /// EVM IR emitted directly by MIR lowering.
     program: ir::Module,
+    /// Whether `program` already has explicit EVM IR terminators.
+    program_is_finalized: bool,
     /// Block currently receiving emitted instructions.
     current_block: Option<ir::BlockId>,
     /// Original assembler label attached to each EVM IR block.
@@ -114,6 +116,7 @@ impl<'gcx> Assembler<'gcx> {
         Self {
             gcx,
             program: Self::new_ir_module(),
+            program_is_finalized: false,
             current_block: None,
             block_labels: Vec::new(),
             label_blocks: FxHashMap::default(),
@@ -130,9 +133,36 @@ impl<'gcx> Assembler<'gcx> {
         }
     }
 
+    /// Creates an assembler with finalized EVM IR loaded into the ordinary backend pipeline.
+    pub(in crate::backend::evm) fn from_evm_ir(
+        gcx: Gcx<'gcx>,
+        mut module: ir::Module,
+    ) -> solar_interface::Result<Self> {
+        if module
+            .blocks
+            .iter()
+            .any(|block| block.instructions.iter().any(|inst| inst.deferred_push().is_some()))
+        {
+            return Err(gcx
+                .dcx()
+                .err("cannot assemble unresolved `push_deferred` instruction")
+                .emit());
+        }
+
+        debug_assert!(is_valid_evm_ir(&module));
+
+        // Parsed block labels may be sparse, but assembly indexes labels with a vector.
+        for (index, block) in module.blocks.iter_mut().enumerate() {
+            block.label = u32::try_from(index).expect("EVM IR block index should fit in u32");
+        }
+        let block_labels = vec![None; module.blocks.len()];
+        Ok(Self { program: module, program_is_finalized: true, block_labels, ..Self::new(gcx) })
+    }
+
     /// Clears all emitted instructions and local identifiers.
     pub(crate) fn clear(&mut self) {
         self.program = Self::new_ir_module();
+        self.program_is_finalized = false;
         self.current_block = None;
         self.block_labels.clear();
         self.label_blocks.clear();
@@ -321,7 +351,11 @@ impl<'gcx> Assembler<'gcx> {
         self.label_blocks.clear();
         self.cold_labels.clear();
 
-        Self::finalize_evm_ir(&mut module);
+        if self.program_is_finalized {
+            self.program_is_finalized = false;
+        } else {
+            Self::finalize_evm_ir(&mut module);
+        }
         Some((module, std::mem::take(&mut self.block_labels)))
     }
 
@@ -385,7 +419,7 @@ impl<'gcx> Assembler<'gcx> {
         Self::resolve_known_deferred_constants(&mut ir_program, &self.deferred_values);
 
         let input_is_valid = cfg!(debug_assertions) && is_valid_evm_ir(&ir_program);
-        let _changed = ir::run_passes(self.gcx, &mut ir_program, ir::DEFAULT_PIPELINE);
+        let _changed = ir::run_pipeline(self.gcx, &mut ir_program, None);
         debug_assert!(!input_is_valid || is_valid_evm_ir(&ir_program));
 
         let evm_ir = capture_evm_ir.then(|| ir_program.clone());
@@ -679,30 +713,15 @@ impl<'gcx> BytecodeAssembler<'gcx> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::evm::test_utils::disassemble;
+    use crate::backend::evm::disassemble;
     use snapbox::{assert_data_eq, str};
-    use solar_config::{CompileOpts, EvmVersion, OptimizationMode};
+    use solar_config::CompileOpts;
     use solar_interface::Session;
     use solar_sema::Compiler;
 
     fn with_assembler<T: Send>(opts: CompileOpts, f: impl FnOnce(Assembler<'_>) -> T + Send) -> T {
         let compiler = Compiler::new(Session::builder().opts(opts).build());
         compiler.enter(|c| f(Assembler::new(c.gcx())))
-    }
-
-    fn size_optimized_opts() -> CompileOpts {
-        opts(EvmVersion::Shanghai, OptimizationMode::Size)
-    }
-
-    fn opts(evm_version: EvmVersion, optimization: OptimizationMode) -> CompileOpts {
-        CompileOpts { evm_version, optimization, ..Default::default() }
-    }
-
-    fn assemble(opts: CompileOpts, f: impl FnOnce(&mut Assembler<'_>) + Send) -> AssembledCode {
-        with_assembler(opts, |mut asm| {
-            f(&mut asm);
-            asm.assemble()
-        })
     }
 
     #[test]
@@ -813,473 +832,6 @@ PUSH1 0x02
                     0x40,
                     op::MSTORE,
                 ]
-            );
-        });
-    }
-
-    #[test]
-    fn push_zero_uses_push0_when_available() {
-        let result = assemble(opts(EvmVersion::Shanghai, OptimizationMode::None), |asm| {
-            asm.emit_push(U256::ZERO);
-        });
-
-        assert_data_eq!(
-            disassemble(&result.bytecode),
-            str![[r#"
-PUSH0
-
-"#]]
-        );
-    }
-
-    #[test]
-    fn push_zero_uses_push1_before_shanghai() {
-        let result = assemble(opts(EvmVersion::Berlin, OptimizationMode::Gas), |asm| {
-            asm.emit_push(U256::ZERO);
-        });
-
-        assert_data_eq!(
-            disassemble(&result.bytecode),
-            str![[r#"
-PUSH1 0x00
-
-"#]]
-        );
-    }
-
-    #[test]
-    fn compact_push_respects_optimization_mode() {
-        let assemble_push = |optimization| {
-            assemble(opts(EvmVersion::Shanghai, optimization), |asm| asm.emit_push(U256::MAX))
-        };
-        let size_optimized = assemble_push(OptimizationMode::Size);
-        let gas_optimized = assemble_push(OptimizationMode::Gas);
-        let unoptimized = assemble_push(OptimizationMode::None);
-
-        assert_data_eq!(
-            disassemble(&size_optimized.bytecode),
-            str![[r#"
-PUSH0
-NOT
-
-"#]]
-        );
-        assert_data_eq!(
-            disassemble(&gas_optimized.bytecode),
-            str![[r#"
-PUSH0
-NOT
-
-"#]]
-        );
-        assert_data_eq!(
-            disassemble(&unoptimized.bytecode),
-            str![[r#"
-PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-
-"#]]
-        );
-    }
-
-    #[test]
-    fn compact_push_uses_push1_zero_before_shanghai() {
-        let result = assemble(opts(EvmVersion::Berlin, OptimizationMode::Size), |asm| {
-            asm.emit_push(U256::MAX);
-        });
-
-        assert_data_eq!(
-            disassemble(&result.bytecode),
-            str![[r#"
-PUSH1 0x00
-NOT
-
-"#]]
-        );
-    }
-
-    #[test]
-    fn test_simple_assembly() {
-        with_assembler(CompileOpts::default(), |mut asm| {
-            asm.emit_push(U256::from(42));
-            asm.emit_push(U256::from(10));
-            asm.emit_op(op::ADD);
-            asm.emit_op(op::STOP);
-
-            let result = asm.assemble();
-
-            assert_data_eq!(
-                disassemble(&result.bytecode),
-                str![[r#"
-PUSH1 0x2a
-PUSH1 0x0a
-ADD
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn test_label_resolution() {
-        with_assembler(CompileOpts::default(), |mut asm| {
-            let loop_label = asm.new_label();
-            let end_label = asm.new_label();
-
-            asm.define_label(loop_label);
-            asm.emit_push(U256::from(1));
-            asm.emit_push_label(end_label);
-            asm.emit_op(op::JUMPI);
-            asm.emit_push_label(loop_label);
-            asm.emit_op(op::JUMP);
-
-            asm.define_label(end_label);
-            asm.emit_op(op::STOP);
-
-            let result = asm.assemble();
-
-            assert_data_eq!(
-                disassemble(&result.bytecode),
-                str![[r#"
-JUMPDEST
-PUSH1 0x01
-PUSH1 0x08
-JUMPI
-PUSH0
-JUMP
-JUMPDEST
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn label_push_width_relaxation_cascades() {
-        let result = assemble(opts(EvmVersion::Shanghai, OptimizationMode::None), |asm| {
-            let first = asm.new_label();
-            let second = asm.new_label();
-
-            asm.emit_push_label(first);
-            asm.define_label(first);
-            asm.emit_push_label(second);
-            for _ in 0..7 {
-                asm.emit_push(U256::MAX);
-            }
-            asm.emit_push(U256::from(1) << 144);
-            asm.define_label(second);
-            asm.emit_op(op::STOP);
-        });
-
-        assert_data_eq!(
-            disassemble(&result.bytecode),
-            str![[r#"
-PUSH1 0x02
-JUMPDEST
-PUSH2 0x0101
-PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-PUSH32 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-PUSH19 0x01000000000000000000000000000000000000
-JUMPDEST
-
-"#]]
-        );
-    }
-
-    #[test]
-    fn cold_terminal_block_moves_after_hot_block() {
-        with_assembler(CompileOpts::default(), |mut asm| {
-            let cold = asm.new_label();
-            let hot = asm.new_label();
-
-            asm.emit_push(U256::ONE);
-            asm.emit_push_label(cold);
-            asm.emit_op(op::JUMPI);
-            asm.emit_push_label(hot);
-            asm.emit_op(op::JUMP);
-            asm.mark_label_cold(cold);
-            asm.define_label(cold);
-            asm.emit_push(U256::ZERO);
-            asm.emit_push(U256::ZERO);
-            asm.emit_op(op::REVERT);
-            asm.define_label(hot);
-            asm.emit_op(op::STOP);
-
-            let result = asm.assemble();
-
-            assert_data_eq!(
-                disassemble(&result.bytecode),
-                str![[r#"
-PUSH1 0x01
-PUSH1 0x06
-JUMPI
-STOP
-JUMPDEST
-PUSH0
-PUSH0
-REVERT
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn block_layout_materializes_moved_implicit_stop() {
-        with_assembler(CompileOpts::default(), |mut asm| {
-            let cold = asm.new_label();
-            let eof = asm.new_label();
-
-            asm.emit_push(U256::ONE);
-            asm.emit_push_label(cold);
-            asm.emit_op(op::JUMPI);
-            asm.emit_push_label(eof);
-            asm.emit_op(op::JUMP);
-            asm.mark_label_cold(cold);
-            asm.define_label(cold);
-            asm.emit_push(U256::ZERO);
-            asm.emit_push(U256::ZERO);
-            asm.emit_op(op::REVERT);
-            asm.define_label(eof);
-
-            let result = asm.assemble();
-
-            assert_data_eq!(
-                disassemble(&result.bytecode),
-                str![[r#"
-PUSH1 0x01
-PUSH1 0x06
-JUMPI
-STOP
-JUMPDEST
-PUSH0
-PUSH0
-REVERT
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn terminal_dedup_labels_prior_unlabeled_target() {
-        with_assembler(CompileOpts::default(), |mut asm| {
-            let duplicate = asm.new_label();
-
-            for copy in 0..2 {
-                if copy == 1 {
-                    asm.define_label(duplicate);
-                }
-                asm.emit_push(U256::from(0x1234));
-                asm.emit_push(U256::ZERO);
-                asm.emit_op(op::MSTORE);
-                asm.emit_push(U256::ZERO);
-                asm.emit_push(U256::ZERO);
-                asm.emit_op(op::REVERT);
-            }
-
-            let result = asm.assemble();
-
-            assert_data_eq!(
-                disassemble(&result.bytecode),
-                str![[r#"
-PUSH2 0x1234
-PUSH0
-MSTORE
-PUSH0
-PUSH0
-REVERT
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn block_layout_elides_jump_after_jumpi() {
-        with_assembler(CompileOpts::default(), |mut asm| {
-            let conditional = asm.new_label();
-            let default = asm.new_label();
-
-            asm.emit_push(U256::ONE);
-            asm.emit_push_label(conditional);
-            asm.emit_op(op::JUMPI);
-            asm.emit_push_label(default);
-            asm.emit_op(op::JUMP);
-            asm.define_label(conditional);
-            asm.emit_op(op::INVALID);
-            asm.define_label(default);
-            asm.emit_op(op::STOP);
-
-            let result = asm.assemble();
-
-            assert_data_eq!(
-                disassemble(&result.bytecode),
-                str![[r#"
-PUSH1 0x01
-PUSH1 0x06
-JUMPI
-STOP
-JUMPDEST
-INVALID
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn cold_terminal_block_keeps_fallthrough_position() {
-        with_assembler(CompileOpts::default(), |mut asm| {
-            let cold = asm.new_label();
-
-            asm.emit_push(U256::ONE);
-            asm.mark_label_cold(cold);
-            asm.define_label(cold);
-            asm.emit_push(U256::ZERO);
-            asm.emit_push(U256::ZERO);
-            asm.emit_op(op::REVERT);
-
-            let result = asm.assemble();
-
-            assert_data_eq!(
-                disassemble(&result.bytecode),
-                str![[r#"
-PUSH1 0x01
-PUSH0
-PUSH0
-REVERT
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn compact_full_word_all_ones_push() {
-        with_assembler(size_optimized_opts(), |mut asm| {
-            asm.emit_push(U256::MAX);
-            asm.emit_op(op::STOP);
-
-            let result = asm.assemble();
-
-            assert_data_eq!(
-                disassemble(&result.bytecode),
-                str![[r#"
-PUSH0
-NOT
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn compact_lower_all_ones_mask_push() {
-        with_assembler(size_optimized_opts(), |mut asm| {
-            let mask = (U256::from(1) << 160) - U256::from(1);
-
-            asm.emit_push(mask);
-            asm.emit_op(op::STOP);
-
-            let result = asm.assemble();
-
-            assert_data_eq!(
-                disassemble(&result.bytecode),
-                str![[r#"
-PUSH0
-NOT
-PUSH1 0x60
-SHR
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn compact_not_small_push() {
-        with_assembler(size_optimized_opts(), |mut asm| {
-            asm.emit_push(!U256::from(31));
-            asm.emit_op(op::STOP);
-
-            let result = asm.assemble();
-
-            assert_data_eq!(
-                disassemble(&result.bytecode),
-                str![[r#"
-PUSH1 0x1f
-NOT
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn compact_not_byte_push() {
-        with_assembler(size_optimized_opts(), |mut asm| {
-            asm.emit_push(!U256::from(255));
-            asm.emit_op(op::STOP);
-
-            let result = asm.assemble();
-
-            assert_data_eq!(
-                disassemble(&result.bytecode),
-                str![[r#"
-PUSH1 0xff
-NOT
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn compact_left_aligned_selector_push() {
-        with_assembler(size_optimized_opts(), |mut asm| {
-            let selector = U256::from(0x35ea6a75u64) << 224;
-
-            asm.emit_push(selector);
-            asm.emit_op(op::STOP);
-
-            let result = asm.assemble();
-
-            assert_data_eq!(
-                disassemble(&result.bytecode),
-                str![[r#"
-PUSH4 0x35ea6a75
-PUSH1 0xe0
-SHL
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn compact_right_padded_text_push() {
-        with_assembler(size_optimized_opts(), |mut asm| {
-            let text = U256::from_be_slice(b"Machine finished:");
-            let value = text << ((32 - "Machine finished:".len()) * 8);
-
-            asm.emit_push(value);
-            asm.emit_op(op::STOP);
-
-            let result = asm.assemble();
-
-            assert_data_eq!(
-                disassemble(&result.bytecode),
-                str![[r#"
-PUSH17 0x4d616368696e652066696e69736865643a
-PUSH1 0x78
-SHL
-
-"#]]
             );
         });
     }

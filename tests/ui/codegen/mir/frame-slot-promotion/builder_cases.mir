@@ -1,4 +1,4 @@
-//@compile-flags: --pass frame-slot-promotion
+//@compile-flags: -Zmir-pipeline=frame-slot-promotion
 //@filecheck: --enable-var-scope
 @module FramePromotionBuilderCases
 

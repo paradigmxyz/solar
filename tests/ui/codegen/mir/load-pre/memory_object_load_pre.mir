@@ -1,4 +1,4 @@
-//@compile-flags: --pass load-pre
+//@compile-flags: -Zmir-pipeline=load-pre
 //@filecheck:
 @module MemoryObjectLoadPre
 
