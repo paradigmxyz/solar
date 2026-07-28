@@ -31,6 +31,7 @@ SYNTHETIC_FIXTURE_VERSION = 6
 ANVIL_HARDFORK = "osaka"
 EXPECTED_UI_FAILURE_RE = re.compile(r"//~[\^v|?]*\s*(?:ERROR|ICE)(?::|\b)")
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
+BYTECODE_RE = re.compile(r"(?:[0-9a-f]{2})*")
 GROWTH_SWEEP_CASE_COUNTS = {"synthetic": 54, "ui-gas": 147, "ci-gas": 12}
 GROWTH_SWEEP_TEST_IDS_SHA256 = {
     "synthetic": "2a8114a7f300165d8d2e5a3518549aabdc820a2d5432274dc23eb210d3102138",
@@ -64,6 +65,9 @@ GROWTH_SWEEP_PROVENANCE_KEYS = (
     "driver_sha256",
     "methods",
     "variants",
+)
+REPORT_PROVENANCE_KEYS = tuple(
+    key for key in GROWTH_SWEEP_PROVENANCE_KEYS if key not in ("methods", "variants")
 )
 
 
@@ -151,6 +155,25 @@ def bytecode_sha256(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
+def canonical_bytecode(value: str) -> str:
+    value = value.strip().removeprefix("0x").lower()
+    if BYTECODE_RE.fullmatch(value) is None:
+        raise RuntimeError("compiler returned invalid bytecode")
+    return value
+
+
+def persist_bytecode(artifact_dir: Path, kind: str, value: str) -> tuple[int, str]:
+    value = canonical_bytecode(value)
+    digest = bytecode_sha256(value)
+    path = artifact_dir / kind / f"{digest}.hex"
+    if path.is_file():
+        if path.read_text() != value:
+            raise RuntimeError(f"artifact digest collision: {digest}")
+    else:
+        write_text_atomic(path, value)
+    return len(value) // 2, digest
+
+
 def json_sha256(value: Any) -> str:
     encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(encoded).hexdigest()
@@ -173,6 +196,30 @@ def valid_artifact(compiler: dict[str, Any]) -> bool:
     )
 
 
+def artifact_files_valid(output_dir: Path, compiler: dict[str, Any]) -> bool:
+    if not valid_artifact(compiler):
+        return False
+    for kind, size_key, hash_key in (
+        ("creation", "bytecode_size", "bytecode_sha256"),
+        ("runtime", "runtime_size", "runtime_sha256"),
+    ):
+        path = output_dir / "artifacts" / kind / f"{compiler[hash_key]}.hex"
+        if not path.is_file():
+            return False
+        try:
+            contents = path.read_text()
+            value = canonical_bytecode(contents)
+        except RuntimeError:
+            return False
+        if (
+            contents != value
+            or len(value) // 2 != compiler[size_key]
+            or bytecode_sha256(value) != compiler[hash_key]
+        ):
+            return False
+    return True
+
+
 def load_benchmark_module(root: Path) -> Any:
     sys.modules.pop("gas_bench", None)
     sys.modules.pop("switch_solar_bench", None)
@@ -186,14 +233,24 @@ def load_benchmark_module(root: Path) -> Any:
     return module
 
 
-def install_bytecode_hashes(bench: Any) -> None:
+def install_bytecode_hashes(bench: Any, artifact_dir: Path) -> None:
     def wrap(compile_case: Any) -> Any:
         def compile_with_hashes(*args: Any, **kwargs: Any) -> dict[str, Any]:
             result = compile_case(*args, **kwargs)
             if result.get("status") == "ok":
-                result["bytecode_sha256"] = bytecode_sha256(str(result["bytecode"]))
-                result["runtime_sha256"] = bytecode_sha256(
-                    str(result.get("runtime_bytecode") or "")
+                bytecode = canonical_bytecode(str(result["bytecode"]))
+                runtime = canonical_bytecode(str(result.get("runtime_bytecode") or ""))
+                result["bytecode"] = bytecode
+                result["runtime_bytecode"] = runtime
+                result["bytecode_size"], result["bytecode_sha256"] = persist_bytecode(
+                    artifact_dir,
+                    "creation",
+                    bytecode,
+                )
+                result["runtime_size"], result["runtime_sha256"] = persist_bytecode(
+                    artifact_dir,
+                    "runtime",
+                    runtime,
                 )
             return result
 
@@ -201,6 +258,13 @@ def install_bytecode_hashes(bench: Any) -> None:
 
     bench.compile_standard_json = wrap(bench.compile_standard_json)
     bench.compile_repo_case = wrap(bench.compile_repo_case)
+
+
+def strip_embedded_bytecode(result: dict[str, Any]) -> dict[str, Any]:
+    for compiler in (result.get("compilers") or {}).values():
+        compiler.pop("bytecode", None)
+        compiler.pop("runtime_bytecode", None)
+    return result
 
 
 def gitlinks(root: Path, revision: str) -> dict[str, str]:
@@ -676,7 +740,12 @@ def parse_solar_corpus_output(stdout: str) -> tuple[str | None, str | None, int,
     return "".join(bytecodes), "".join(runtimes), len(bytecodes), ""
 
 
-def run_ui_case(bench: Any, case: UiCase, specs: Sequence[Any]) -> dict[str, Any]:
+def run_ui_case(
+    bench: Any,
+    case: UiCase,
+    specs: Sequence[Any],
+    artifact_dir: Path,
+) -> dict[str, Any]:
     compilers = {}
     for spec in specs:
         command = [
@@ -704,13 +773,23 @@ def run_ui_case(bench: Any, case: UiCase, specs: Sequence[Any]) -> dict[str, Any
         if process.returncode == 0:
             bytecode, runtime, contracts, error = parse_solar_corpus_output(process.stdout)
             if bytecode:
+                bytecode_size, bytecode_hash = persist_bytecode(
+                    artifact_dir,
+                    "creation",
+                    bytecode,
+                )
+                runtime_size, runtime_hash = persist_bytecode(
+                    artifact_dir,
+                    "runtime",
+                    runtime or "",
+                )
                 compiler.update(
                     {
                         "status": "ok",
-                        "bytecode_size": len(bytecode) // 2,
-                        "runtime_size": len(runtime or "") // 2,
-                        "bytecode_sha256": bytecode_sha256(bytecode),
-                        "runtime_sha256": bytecode_sha256(runtime or ""),
+                        "bytecode_size": bytecode_size,
+                        "runtime_size": runtime_size,
+                        "bytecode_sha256": bytecode_hash,
+                        "runtime_sha256": runtime_hash,
                         "contracts": contracts,
                     }
                 )
@@ -785,6 +864,8 @@ def write_text_atomic(path: Path, contents: str) -> None:
 
 
 def write_results(path: Path, metadata: dict[str, Any], results: Sequence[dict[str, Any]]) -> None:
+    for result in results:
+        strip_embedded_bytecode(result)
     write_text_atomic(
         path,
         json.dumps({"metadata": metadata, "results": results}, indent=2) + "\n",
@@ -894,18 +975,21 @@ def compile_specs(
     specs: Sequence[Any],
     gas_profile: str,
     jobs: int,
+    artifact_dir: Path,
 ) -> dict[str, Any]:
     def compile_one(spec: Any) -> dict[str, Any]:
         if isinstance(case, UiCase):
-            return run_ui_case(bench, case, (spec,))
-        return bench.run_test_case(
-            case,
-            (spec,),
-            False,
-            gas_profile,
-            bench.DEFAULT_RPC_URL,
-            bench.DEFAULT_PRIVATE_KEY,
-            False,
+            return run_ui_case(bench, case, (spec,), artifact_dir)
+        return strip_embedded_bytecode(
+            bench.run_test_case(
+                case,
+                (spec,),
+                False,
+                gas_profile,
+                bench.DEFAULT_RPC_URL,
+                bench.DEFAULT_PRIVATE_KEY,
+                False,
+            )
         )
 
     if jobs == 1:
@@ -977,22 +1061,27 @@ def run_cases(
             schema,
             expected_status,
             include_gas and expected_status == "ok",
-        ):
+        ) and result_artifact_files_valid(previous[case.test_id], specs, output.parent):
             print(f"[{index}/{len(cases)}] {case.test_id} (cached)", flush=True)
-            results.append(previous[case.test_id])
+            results.append(strip_embedded_bytecode(previous[case.test_id]))
             continue
 
         print(f"[{index}/{len(cases)}] {case.test_id}", flush=True)
         if include_gas:
-            compiled = compile_specs(bench, case, specs, gas_profile, jobs)
+            compiled = compile_specs(
+                bench,
+                case,
+                specs,
+                gas_profile,
+                jobs,
+                output.parent / "artifacts",
+            )
             grouped_specs = {}
             for spec in specs:
                 compiler = compiled["compilers"][spec.compiler_id]
-                key = (
-                    compiler.get("status"),
-                    compiler.get("bytecode_sha256"),
-                    compiler.get("runtime_sha256"),
-                )
+                key = (compiler.get("status"),)
+                if compiler.get("status") == "ok":
+                    key = (*key, *artifact_key(compiler))
                 grouped_specs.setdefault(key, []).append(spec)
 
             execution_specs = tuple(group[0] for group in grouped_specs.values())
@@ -1011,6 +1100,7 @@ def run_cases(
                     )
                 finally:
                     stop_anvil(anvil)
+                strip_embedded_bytecode(partial)
                 apply_gas_schema(partial, runner_schema, schema)
                 reference = partial["compilers"][reference_spec.compiler_id]
                 reference_checks_sha256 = json_sha256(
@@ -1057,7 +1147,14 @@ def run_cases(
             ):
                 raise RuntimeError(f"{case.test_id} has incomplete gas results after retries")
         else:
-            result = compile_specs(bench, case, specs, gas_profile, jobs)
+            result = compile_specs(
+                bench,
+                case,
+                specs,
+                gas_profile,
+                jobs,
+                output.parent / "artifacts",
+            )
             if not result_is_complete(
                 result, specs, False, None, expected_status, False
             ):
@@ -1065,11 +1162,29 @@ def run_cases(
                     f"{case.test_id} has unexpected or incomplete compilation results"
                 )
 
-        results.append(result)
+        results.append(strip_embedded_bytecode(result))
         if validate_inputs is not None:
             validate_inputs()
         write_results(output, metadata, results)
+    if validate_inputs is not None:
+        validate_inputs()
+    write_results(output, metadata, results)
     return results
+
+
+def result_artifact_files_valid(
+    result: dict[str, Any],
+    specs: Sequence[Any],
+    output_dir: Path,
+) -> bool:
+    compilers = result.get("compilers") or {}
+    if any(spec.compiler_id not in compilers for spec in specs):
+        return False
+    return all(
+        compilers[spec.compiler_id].get("status") != "ok"
+        or artifact_files_valid(output_dir, compilers[spec.compiler_id])
+        for spec in specs
+    )
 
 
 def result_is_complete(
@@ -1440,12 +1555,14 @@ def growth_budget(compiler_id: str, sweep: GrowthSweep) -> int | None:
         return None
 
 
-def artifact_key(compiler: dict[str, Any]) -> tuple[str, str]:
+def artifact_key(compiler: dict[str, Any]) -> tuple[str, int, str, int]:
     if not valid_artifact(compiler):
         raise RuntimeError("compiler artifact metadata is invalid")
     return (
         compiler["bytecode_sha256"],
+        compiler["bytecode_size"],
         compiler["runtime_sha256"],
+        compiler["runtime_size"],
     )
 
 
@@ -1488,6 +1605,8 @@ def expected_growth_sweep_variants(sweep: GrowthSweep) -> list[dict[str, Any]]:
 
 
 def validate_growth_sweep_inputs(
+    compile_dir: Path,
+    gas_dir: Path,
     compile_payloads: dict[str, dict[str, Any]],
     gas_payloads: dict[str, dict[str, Any]],
     sweep: GrowthSweep,
@@ -1496,6 +1615,7 @@ def validate_growth_sweep_inputs(
     expected_variants = expected_growth_sweep_variants(sweep)
     expected_methods = [variant["compiler_id"] for variant in expected_variants]
     expected_method_set = set(expected_methods)
+    policy_compiler_id = f"{sweep.compiler_id_prefix}{sweep.policy}"
     missing = [
         key
         for key in GROWTH_SWEEP_PROVENANCE_KEYS
@@ -1532,10 +1652,20 @@ def validate_growth_sweep_inputs(
                     f"{scope}/{test_id} compilers differ from the growth sweep manifest"
                 )
             for compiler_id, compiler in result["compilers"].items():
-                if compiler.get("status") != "ok" or not valid_artifact(compiler):
+                if (
+                    compiler.get("status") != "ok"
+                    or not artifact_files_valid(compile_dir, compiler)
+                ):
                     raise RuntimeError(
-                        f"{scope}/{test_id}/{compiler_id} artifact metadata is invalid"
+                        f"{scope}/{test_id}/{compiler_id} artifact is invalid"
                     )
+            if artifact_key(result["compilers"]["auto"]) != artifact_key(
+                result["compilers"][policy_compiler_id]
+            ):
+                raise RuntimeError(
+                    f"{scope}/{test_id} compiler default differs from "
+                    f"{policy_compiler_id}"
+                )
 
     for scope, payload in gas_payloads.items():
         metadata = payload.get("metadata") or {}
@@ -1575,9 +1705,12 @@ def validate_growth_sweep_inputs(
             if not valid_gas_schema(schema) or len(schema) != expected_calls:
                 raise RuntimeError(f"{scope}/{test_id} expected gas schema is invalid")
             for compiler_id, compiler in result["compilers"].items():
-                if compiler.get("status") != "ok" or not valid_artifact(compiler):
+                if (
+                    compiler.get("status") != "ok"
+                    or not artifact_files_valid(gas_dir, compiler)
+                ):
                     raise RuntimeError(
-                        f"{scope}/{test_id}/{compiler_id} artifact metadata is invalid"
+                        f"{scope}/{test_id}/{compiler_id} artifact is invalid"
                     )
                 if (
                     compiler.get("deploy_status") != "ok"
@@ -1591,6 +1724,17 @@ def validate_growth_sweep_inputs(
                     raise RuntimeError(f"{scope}/{test_id}/{compiler_id} check digests differ")
                 if not complete_gas_results(compiler, schema):
                     raise RuntimeError(f"{scope}/{test_id}/{compiler_id} gas calls are incomplete")
+            default = result["compilers"]["auto"]
+            policy = result["compilers"][policy_compiler_id]
+            if (
+                artifact_key(default) != artifact_key(policy)
+                or default.get("gas_results") != policy.get("gas_results")
+                or default.get("total_gas") != policy.get("total_gas")
+            ):
+                raise RuntimeError(
+                    f"{scope}/{test_id} compiler default measurements differ from "
+                    f"{policy_compiler_id}"
+                )
 
 
 def render_growth_sweep(
@@ -1606,7 +1750,13 @@ def render_growth_sweep(
         scope: load_scope(gas_dir, scope)
         for scope in ("synthetic", "ci-gas")
     }
-    validate_growth_sweep_inputs(compile_payloads, gas_payloads, sweep)
+    validate_growth_sweep_inputs(
+        compile_dir,
+        gas_dir,
+        compile_payloads,
+        gas_payloads,
+        sweep,
+    )
     budgets = sorted(
         budget
         for variant in compile_payloads["synthetic"]["metadata"]["variants"]
@@ -1724,6 +1874,9 @@ def render_growth_sweep(
         else:
             plateaus[-1]["last"] = row["budget"]
 
+    canonical = compile_payloads["synthetic"]["metadata"]
+    provenance = {key: canonical[key] for key in REPORT_PROVENANCE_KEYS}
+    provenance_sha256 = json_sha256(provenance)
     text = f"## {sweep.name.capitalize()} budget sweep\n\n"
     text += (
         f"Every integer budget from {budgets[0]} through {budgets[-1]} was compiled "
@@ -1735,6 +1888,12 @@ def render_growth_sweep(
         "artifact and mapped back to every budget. The fixed policy is compared with zero "
         "growth, the lowest measured aggregate CI gas, and the maximum budget; the maximum "
         "budget is not assumed to be optimal."
+    )
+    text += (
+        f"\n\nProvenance `{provenance_sha256}` binds compiler "
+        f"`{provenance['solar_revision']}`, source tree `{provenance['source_tree']}`, "
+        f"benchmark pin `{provenance['benchmark_pin']}`, and driver "
+        f"`{provenance['driver_sha256']}`."
     )
     text += "\n\n"
     text += markdown_table(
@@ -1796,6 +1955,8 @@ def render_growth_sweep(
     text += "\n\n</details>\n"
     summary = {
         "sweep": sweep.report_slug,
+        "provenance": provenance,
+        "provenance_sha256": provenance_sha256,
         "budgets": budgets,
         "policy_budget": policy["budget"],
         "policy": policy,
@@ -2038,7 +2199,7 @@ def main() -> int:
         benchmark_fixtures_sha256 = use_pinned_benchmark_inputs(
             bench, benchmark_repo, pinned_root
         )
-        install_bytecode_hashes(bench)
+        install_bytecode_hashes(bench, output_dir / "artifacts")
         solc_version, solc_error = bench.binary_version(solc)
         if solc_error:
             raise RuntimeError(f"could not identify solc: {solc_error}")
