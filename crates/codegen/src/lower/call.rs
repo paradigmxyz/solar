@@ -101,9 +101,17 @@ impl<'gcx> Lowerer<'gcx> {
                 hir::ItemId::Function(func_id) => {
                     return self.lower_internal_call(builder, func_id, args);
                 }
-                hir::ItemId::Contract(_) | hir::ItemId::Enum(_) => {
+                hir::ItemId::Contract(_) => {
                     if let Some(first_arg) = args.exprs().next() {
                         return Some(self.lower_value_expr(builder, first_arg));
+                    }
+                }
+                hir::ItemId::Enum(enum_id) => {
+                    if let Some(first_arg) = args.exprs().next() {
+                        let value = self.lower_value_expr(builder, first_arg);
+                        let variant_count = self.gcx.hir.enumm(enum_id).variants.len();
+                        self.emit_enum_range_check(builder, value, variant_count);
+                        return Some(value);
                     }
                 }
                 hir::ItemId::Struct(struct_id) => {
@@ -1166,14 +1174,15 @@ impl<'gcx> Lowerer<'gcx> {
             return Some(self.lower_struct_constructor(builder, struct_id, args));
         }
 
-        // Handle enum conversion written as `Container.Enum(x)`. An enum value is
-        // represented by its integer, so — like the `Ident` enum-callee path in
-        // `lower_call` — the conversion is the identity on the argument.
+        // Handle enum conversion written as `Container.Enum(x)`.
         if let Some(resolved) = resolved
-            && let hir::Res::Item(hir::ItemId::Enum(_)) = resolved.res
+            && let hir::Res::Item(hir::ItemId::Enum(enum_id)) = resolved.res
             && let Some(arg) = args.exprs().next()
         {
-            return Some(self.lower_value_expr(builder, arg));
+            let value = self.lower_value_expr(builder, arg);
+            let variant_count = self.gcx.hir.enumm(enum_id).variants.len();
+            self.emit_enum_range_check(builder, value, variant_count);
+            return Some(value);
         }
 
         // Handle library function calls: Library.func(args).
