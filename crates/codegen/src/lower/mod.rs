@@ -642,6 +642,56 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    /// The calldata slice for a `calldata` struct member, read from the copy's
+    /// trailing position word.
+    ///
+    /// Reads of a member go through the rebuilt copy; this exists only for the
+    /// one use the copy cannot serve — handing the member to a `calldata`
+    /// parameter, whose callee expects a slice rather than an object. A
+    /// dynamically encoded struct puts each member's head word at its own base,
+    /// and a dynamic member's head word is the offset of its tail relative to
+    /// that base.
+    pub(super) fn calldata_member_slice(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> Option<ValueId> {
+        let hir::ExprKind::Member(base, member) = &expr.kind else { return None };
+        let ty = self.get_expr_type(base)?;
+        if !matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Calldata)) {
+            return None;
+        }
+        let TyKind::Struct(struct_id) = ty.peel_refs().kind else { return None };
+        let (_, index) = self.get_memory_struct_field_info(base, *member)?;
+        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        let field_ty = field_tys.get(index)?.peel_refs();
+        // Only a member that *is* a slice: an array, or `bytes`/`string`. A
+        // nested struct member is dynamic too, but it is its own copy, which
+        // carries its own base and answers its own members.
+        if !matches!(
+            field_ty.kind,
+            TyKind::DynArray(_)
+                | TyKind::Slice(_)
+                | TyKind::Elementary(
+                    solar_ast::ElementaryType::Bytes | solar_ast::ElementaryType::String
+                )
+        ) {
+            return None;
+        }
+
+        let ptr = self.lower_value_expr(builder, base);
+        let struct_base = self.calldata_base_of_copy(builder, ptr, field_tys.len() as u64);
+        let head_offset: u64 =
+            field_tys[..index].iter().map(|&f| self.abi_head_size(f.peel_refs())).sum();
+        let head_pos = self.offset_ptr(builder, struct_base, head_offset);
+        let tail_offset = builder.calldataload(head_pos);
+        let len_pos = builder.add(struct_base, tail_offset);
+        let len = builder.calldataload(len_pos);
+        let word = builder.imm_u64(EvmMemoryLayout::WORD_SIZE);
+        let data = builder.add(len_pos, word);
+        Some(builder.make_slice(data, len, SliceLocation::Calldata))
+    }
+
     /// Returns the type and constant length of a fixed-size array parameter
     /// whose elements are single ABI words. Other parameter shapes return
     /// `None`.

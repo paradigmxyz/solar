@@ -590,8 +590,17 @@ impl<'gcx> Lowerer<'gcx> {
                 .emit(),
 
             ExprKind::Slice(base, start, end) => {
+                // Slicing a `calldata` struct member has to stay in calldata:
+                // the result keeps a calldata-located type, so it may be sliced
+                // again or have its `.offset` read in assembly, neither of which
+                // the rebuilt copy can answer. Other reads of a member go
+                // through the copy.
                 let is_bytes = self.expr_is_calldata_dynamic_bytes(base);
-                let value = self.lower_expr(builder, base);
+                let member_slice = self.calldata_member_slice(builder, base);
+                let value = match member_slice {
+                    Some(slice) => slice,
+                    None => self.lower_value_expr(builder, base),
+                };
                 let source = if Self::value_is_calldata_slice(builder, value) {
                     Some((value, crate::mir::SliceLocation::Calldata))
                 } else if is_bytes || self.is_dynamic_array_expr(base) {

@@ -68,7 +68,7 @@ fn @member(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
   bb4:
     v4 = add 4, arg0
-    v5 = alloc raw, exact, uninitialized, infallible, 128
+    v5 = alloc raw, exact, uninitialized, infallible, 160
     v6 = calldataload v4
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
     v8 = eq v6, v7
@@ -210,24 +210,26 @@ fn @member(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
     calldatacopy v73, v76, v63
     v77 = add v5, 96
     mstore v77, v72
+    v78 = add v5, 128
+    mstore v78, v4
     mstore 128, 0
-    v78 = memory_object_field_addr memorystruct<4>, v5, 1
-    v79 = mload v78
-    v80 = memory_object_field_addr memorystruct<4>, v5, 1
-    v81 = mload v80
-    v82 = memory_object_len memoryarray, v81
-    v83 = lt arg1, v82
-    br v83, bb25, bb24
+    v79 = memory_object_field_addr memorystruct<4>, v5, 1
+    v80 = mload v79
+    v81 = memory_object_field_addr memorystruct<4>, v5, 1
+    v82 = mload v81
+    v83 = memory_object_len memoryarray, v82
+    v84 = lt arg1, v83
+    br v84, bb25, bb24
   bb24:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb25:
-    v84 = memory_object_element_addr memoryarray<1>, v81, arg1
-    v85 = mload v84
-    v86 = memory_object_field_addr memorystruct<4>, v85, 3
-    v87 = mload v86
-    ret v87
+    v85 = memory_object_element_addr memoryarray<1>, v82, arg1
+    v86 = mload v85
+    v87 = memory_object_field_addr memorystruct<4>, v86, 3
+    v88 = mload v87
+    ret v88
 }
 
 fn @word(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
@@ -245,7 +247,7 @@ fn @word(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
     revert 0, 0
   bb4:
     v4 = add 4, arg0
-    v5 = alloc raw, exact, uninitialized, infallible, 128
+    v5 = alloc raw, exact, uninitialized, infallible, 160
     v6 = calldataload v4
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
     v8 = eq v6, v7
@@ -387,22 +389,24 @@ fn @word(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
     calldatacopy v73, v76, v63
     v77 = add v5, 96
     mstore v77, v72
+    v78 = add v5, 128
+    mstore v78, v4
     mstore 128, 0
-    v78 = memory_object_field_addr memorystruct<4>, v5, 2
-    v79 = mload v78
-    v80 = memory_object_field_addr memorystruct<4>, v5, 2
-    v81 = mload v80
-    v82 = memory_object_len memoryarray, v81
-    v83 = lt arg1, v82
-    br v83, bb25, bb24
+    v79 = memory_object_field_addr memorystruct<4>, v5, 2
+    v80 = mload v79
+    v81 = memory_object_field_addr memorystruct<4>, v5, 2
+    v82 = mload v81
+    v83 = memory_object_len memoryarray, v82
+    v84 = lt arg1, v83
+    br v84, bb25, bb24
   bb24:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb25:
-    v84 = memory_object_element_addr memoryarray<1>, v81, arg1
-    v85 = mload v84
-    ret v85
+    v85 = memory_object_element_addr memoryarray<1>, v82, arg1
+    v86 = mload v85
+    ret v86
 }
 
 fn @lengths(arg0: u256) -> (u256, u256, u256) [abi_returns=[word, word, word]] {
@@ -420,7 +424,7 @@ fn @lengths(arg0: u256) -> (u256, u256, u256) [abi_returns=[word, word, word]] {
     revert 0, 0
   bb4:
     v4 = add 4, arg0
-    v5 = alloc raw, exact, uninitialized, infallible, 128
+    v5 = alloc raw, exact, uninitialized, infallible, 160
     v6 = calldataload v4
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
     v8 = eq v6, v7
@@ -562,30 +566,32 @@ fn @lengths(arg0: u256) -> (u256, u256, u256) [abi_returns=[word, word, word]] {
     calldatacopy v73, v76, v63
     v77 = add v5, 96
     mstore v77, v72
+    v78 = add v5, 128
+    mstore v78, v4
     mstore 128, 0
     mstore 160, 0
     mstore 192, 0
-    v78 = memory_object_field_addr memorystruct<4>, v5, 1
-    v79 = mload v78
-    v80 = memory_object_field_addr memorystruct<4>, v5, 1
-    v81 = mload v80
-    v82 = memory_object_field_addr memorystruct<4>, v5, 1
-    v83 = mload v82
+    v79 = memory_object_field_addr memorystruct<4>, v5, 1
+    v80 = mload v79
+    v81 = memory_object_field_addr memorystruct<4>, v5, 1
+    v82 = mload v81
+    v83 = memory_object_field_addr memorystruct<4>, v5, 1
     v84 = mload v83
-    v85 = memory_object_field_addr memorystruct<4>, v5, 2
-    v86 = mload v85
-    v87 = memory_object_field_addr memorystruct<4>, v5, 2
-    v88 = mload v87
-    v89 = memory_object_field_addr memorystruct<4>, v5, 2
-    v90 = mload v89
+    v85 = mload v84
+    v86 = memory_object_field_addr memorystruct<4>, v5, 2
+    v87 = mload v86
+    v88 = memory_object_field_addr memorystruct<4>, v5, 2
+    v89 = mload v88
+    v90 = memory_object_field_addr memorystruct<4>, v5, 2
     v91 = mload v90
-    v92 = memory_object_field_addr memorystruct<4>, v5, 3
-    v93 = mload v92
-    v94 = memory_object_field_addr memorystruct<4>, v5, 3
-    v95 = mload v94
-    v96 = memory_object_field_addr memorystruct<4>, v5, 3
-    v97 = mload v96
+    v92 = mload v91
+    v93 = memory_object_field_addr memorystruct<4>, v5, 3
+    v94 = mload v93
+    v95 = memory_object_field_addr memorystruct<4>, v5, 3
+    v96 = mload v95
+    v97 = memory_object_field_addr memorystruct<4>, v5, 3
     v98 = mload v97
-    ret v84, v91, v98
+    v99 = mload v98
+    ret v85, v92, v99
 }
 

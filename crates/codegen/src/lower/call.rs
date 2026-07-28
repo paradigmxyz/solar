@@ -1759,7 +1759,7 @@ impl<'gcx> Lowerer<'gcx> {
                     // materializes into the memory object the parameter expects.
                     let value = self.lower_value_expr(builder, arg);
                     match params.get(i) {
-                        Some(&param_id) => self.coerce_arg_for_param(builder, param_id, value),
+                        Some(&param_id) => self.coerce_arg_for_param(builder, param_id, arg, value),
                         None => self.coerce_memory_slice_value(builder, value),
                     }
                 }
@@ -2569,7 +2569,7 @@ impl<'gcx> Lowerer<'gcx> {
                 } else {
                     let value = self.lower_value_expr(builder, arg);
                     arg_vals.push(match func.parameters.get(param_idx) {
-                        Some(&param_id) => self.coerce_arg_for_param(builder, param_id, value),
+                        Some(&param_id) => self.coerce_arg_for_param(builder, param_id, arg, value),
                         None => value,
                     });
                 }
