@@ -150,7 +150,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         let base_val = self.lower_value_expr(builder, base);
         let index_val = self.lower_index_value(builder, base.span, index);
-        let layout = if self.is_dynamic_memory_array_expr(base)
+        let layout = if self.is_dynamic_array_expr(base)
             || Self::value_is_dynamic_array_object(builder, base_val)
         {
             let len = self
@@ -231,7 +231,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         let base_val = self.lower_value_expr(builder, base);
         let index_val = self.lower_index_value(builder, base.span, index);
-        let layout = if self.is_dynamic_memory_array_expr(base)
+        let layout = if self.is_dynamic_array_expr(base)
             || Self::value_is_dynamic_array_object(builder, base_val)
         {
             let len = builder.memory_object_len(base_val, MemoryObjectKind::DynamicArray);
