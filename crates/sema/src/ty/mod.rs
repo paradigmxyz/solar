@@ -339,8 +339,7 @@ pub struct GlobalCtxt<'gcx> {
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
-    pub(crate) inherited_override_functions:
-        FxOnceMap<hir::ContractId, &'gcx crate::typeck::override_checker::InheritedFunctions<'gcx>>,
+    pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
 }
 
 impl fmt::Debug for GlobalCtxt<'_> {
@@ -375,7 +374,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
             hir_arenas,
             interner,
             cache: Cache::default(),
-            inherited_override_functions: FxOnceMap::default(),
+            override_index: OnceLock::new(),
         }
     }
 }
