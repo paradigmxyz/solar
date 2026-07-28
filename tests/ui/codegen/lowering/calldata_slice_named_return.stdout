@@ -64,7 +64,7 @@ fn @unwrap(arg0: calldataslice) -> memorybytes {
     ret v48
 }
 
-fn @use(arg0: calldataslice) {
+fn @use(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -102,8 +102,7 @@ fn @use(arg0: calldataslice) {
     v34 = mload 192
     v35 = make_calldata_slice v33, v34
     v36 = slice_len v35
-    mstore 128, v36
-    returndata 128, 32
+    ret v36
   bb4:
     v21 = mload 160
     v22 = mload 192

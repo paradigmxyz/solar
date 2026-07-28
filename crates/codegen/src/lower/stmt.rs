@@ -94,8 +94,7 @@ impl<'gcx> Lowerer<'gcx> {
             Ok(hash) => hash,
             Err(guar) => builder.error_value(guar),
         };
-        let external = builder.func().is_public() && !self.lowering_internal_function;
-        self.finish_external_or_internal_return(builder, vec![(hash, ty)], external);
+        self.finish_return(builder, vec![(hash, ty)]);
         true
     }
 
@@ -901,7 +900,11 @@ impl<'gcx> Lowerer<'gcx> {
         let external = builder.func().is_public() && !self.lowering_internal_function;
         if external {
             let items = self.gather_return_items(builder, value);
-            self.emit_abi_return(builder, &items);
+            if items.is_empty() {
+                builder.stop();
+            } else {
+                self.finish_return(builder, items);
+            }
             return;
         }
         if let Some(expr) = value {

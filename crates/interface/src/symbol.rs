@@ -971,6 +971,7 @@ symbols! {
         abi,
         abi_encode,
         abi_return,
+        abi_returns,
         abicoder,
         alloc,
         args,

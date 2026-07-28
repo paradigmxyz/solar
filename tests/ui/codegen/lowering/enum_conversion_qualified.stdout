@@ -34,6 +34,9 @@ bb0:
   sgt
   push bb5
   jumpi
+  push 0
+  push 128
+  mstore
   push 3
   jump bb17
 bb17:
@@ -64,6 +67,9 @@ bb11:
   sgt
   push bb5
   jumpi
+  push 0
+  push 128
+  mstore
   push 2
   jump bb17
 bb16 [cold]:

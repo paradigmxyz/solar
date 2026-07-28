@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_bounds_revert.sol:CalldataSliceBoundsRevert ===
 @module CalldataSliceBoundsRevert
-fn @endPastLength(arg0: calldataslice, arg1: u256) {
+fn @endPastLength(arg0: calldataslice, arg1: u256) -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -54,31 +54,10 @@ fn @endPastLength(arg0: calldataslice, arg1: u256) {
     mstore v22, 0
     v23 = slice_ptr v9
     calldatacopy v20, v23, v10
-    internal_call @__ret_bytes, 0, v19
-    invalid
+    ret v19
 }
 
-fn @__ret_bytes(arg0: memorybytes) {
-  bb0:
-    v0 = fmp
-    mstore v0, 32
-    v1 = memory_object_len memorybytes, arg0
-    v2 = add v0, 32
-    mstore v2, v1
-    v3 = add v1, 31
-    v4 = not 31
-    v5 = and v3, v4
-    v6 = add v2, 32
-    v7 = sub v5, 32
-    v8 = add v6, v7
-    mstore v8, 0
-    v9 = memory_object_data memorybytes, arg0
-    mcopy v6, v9, v1
-    v10 = add 64, v5
-    returndata v0, v10
-}
-
-fn @startAfterEnd(arg0: calldataslice, arg1: u256, arg2: u256) {
+fn @startAfterEnd(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [abi_returns=[memory_bytes]] {
   bb0:
     v0 = calldatasize
     v1 = sub v0, 4
@@ -132,7 +111,6 @@ fn @startAfterEnd(arg0: calldataslice, arg1: u256, arg2: u256) {
     mstore v22, 0
     v23 = slice_ptr v9
     calldatacopy v20, v23, v10
-    internal_call @__ret_bytes, 0, v19
-    invalid
+    ret v19
 }
 

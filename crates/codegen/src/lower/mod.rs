@@ -16,8 +16,9 @@ mod type_query;
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, IMMUTABLE_WORD_SIZE,
-        MemoryObjectKind, MirType, Module, SliceLocation, StorageLayoutRef, ValueId,
+        AbiLayout, BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId,
+        IMMUTABLE_WORD_SIZE, MemoryObjectKind, MirType, Module, SliceLocation, StorageLayoutRef,
+        ValueId,
     },
 };
 use alloy_primitives::{Bytes, U256};
@@ -178,10 +179,6 @@ pub(crate) struct Lowerer<'gcx> {
     /// use: constant short revert messages call it instead of materializing
     /// and ABI-encoding the string at every site.
     revert_error_helper: Option<FunctionId>,
-    /// The module's shared single-`bytes`/`string` external-return helper:
-    /// every `returns (string memory)`-shaped wrapper calls it instead of
-    /// ABI-encoding the value in place.
-    ret_bytes_helper: Option<FunctionId>,
     /// The module's shared storage-`bytes`/`string` load helper: decodes the
     /// packed short/long form into a fresh `[length][data...]` memory copy.
     storage_bytes_helper: Option<FunctionId>,
@@ -258,7 +255,6 @@ impl<'gcx> Lowerer<'gcx> {
             lowering_constructor: false,
             lowering_internal_function: false,
             revert_error_helper: None,
-            ret_bytes_helper: None,
             storage_bytes_helper: None,
             synthesizing_helper: false,
             in_unchecked_block: false,
@@ -807,61 +803,6 @@ impl<'gcx> Lowerer<'gcx> {
         })
     }
 
-    /// Returns the module's shared single-`bytes`/`string` external-return
-    /// helper, synthesizing it on first use: it ABI-encodes its memory-bytes
-    /// argument (offset word, length, padded data) and terminates with
-    /// `ReturnData`, so wrappers pay one cheap call instead of an inline
-    /// encode each. Never inlined back: it has no MIR return values.
-    pub(super) fn ensure_ret_bytes_helper(&mut self) -> FunctionId {
-        // Not `get_or_insert_with`: synthesis re-enters `self` lowering
-        // methods, which the closure borrow would forbid.
-        if let Some(id) = self.ret_bytes_helper {
-            return id;
-        }
-        let name = Ident::new(sym::__ret_bytes, Span::DUMMY);
-        let mut func = Function::new(name);
-        func.attributes.no_inline = true;
-        {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let ptr = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
-
-            // This helper terminates externally, so its return buffer need not
-            // advance the free-memory pointer. Encode `(offset, length, data)`
-            // directly at the current pointer and return it.
-            let buf = builder.fmp();
-            let word = builder.imm_u64(32);
-            builder.mstore(buf, word);
-
-            let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
-            let len_dst = builder.add(buf, word);
-            builder.mstore(len_dst, len);
-
-            let thirty_one = builder.imm_u64(31);
-            let rounded = builder.add(len, thirty_one);
-            let mask = builder.not(thirty_one);
-            let padded = builder.and(rounded, mask);
-            let data_dst = builder.add(len_dst, word);
-
-            // For an empty value `padded - 32` wraps, and adding it to
-            // `data_dst == buf + 64` lands on the already-zero length word.
-            // Thus one unconditional store handles both empty and non-empty
-            // padding without a control-flow split.
-            let last_word_offset = builder.sub(padded, word);
-            let last_word = builder.add(data_dst, last_word_offset);
-            let zero = builder.imm_u64(0);
-            builder.mstore(last_word, zero);
-
-            let data_src = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-            self.mcopy(&mut builder, data_dst, data_src, len, None);
-            let prefix_size = builder.imm_u64(64);
-            let size = builder.add(prefix_size, padded);
-            builder.ret_data(buf, size);
-        }
-        let id = self.module.add_function(func);
-        self.ret_bytes_helper = Some(id);
-        id
-    }
-
     /// Returns the module's shared storage-`bytes`/`string` load helper,
     /// synthesizing it on first use: takes the slot, decodes the packed
     /// short/long form, and returns a fresh `[length][data...]` memory copy.
@@ -980,6 +921,17 @@ impl<'gcx> Lowerer<'gcx> {
         self.in_unchecked_block = false;
         self.current_return_tys =
             hir_func.returns.iter().map(|&id| self.gcx.type_of_item(id.into())).collect();
+        if uses_external_abi && !self.current_return_tys.is_empty() {
+            let types = self
+                .current_return_tys
+                .iter()
+                .map(|&ty| {
+                    self.abi_type(ty, false)
+                        .expect("recursive ABI return values cannot be materialized")
+                })
+                .collect::<Vec<_>>();
+            mir_func.abi_returns = Some(self.module.intern_abi_layout(AbiLayout::new(types)));
+        }
 
         // Pre-analyze function body to find variables that are assigned after declaration.
         // Variables that are only initialized (never reassigned) can stay as SSA values.
@@ -1454,7 +1406,7 @@ impl<'gcx> Lowerer<'gcx> {
                         };
                         items.push((ret_val, self.gcx.type_of_item(ret_id.into())));
                     }
-                    self.finish_external_or_internal_return(&mut builder, items, uses_external_abi);
+                    self.finish_return(&mut builder, items);
                 }
             }
         }
