@@ -232,10 +232,19 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         param_id: hir::VariableId,
+        arg: &hir::Expr<'_>,
         value: ValueId,
     ) -> ValueId {
         let param = self.gcx.hir.variable(param_id);
         if Self::calldata_dynamic_var_kind(param).is_some() {
+            // The callee's signature says slice. A `calldata` struct member
+            // lowered to the rebuilt copy instead, which cannot serve one, so
+            // read the member at its own calldata position.
+            if !Self::value_is_calldata_slice(builder, value)
+                && let Some(slice) = self.calldata_member_slice(builder, arg)
+            {
+                return slice;
+            }
             return value;
         }
         if Self::value_is_calldata_slice(builder, value) {
@@ -593,7 +602,21 @@ impl<'gcx> Lowerer<'gcx> {
         pos: ValueId,
     ) -> ValueId {
         let word_count = fields.len() as u64;
-        let size = word_count.checked_mul(32).expect("aggregate memory size overflow");
+        // A copy built from calldata keeps its source position in a trailing
+        // word. Reads go through the copy, which is why it is rebuilt at all;
+        // the position is only needed where the copy cannot stand in — a
+        // `calldata`-located member reaching a `calldata` parameter, which
+        // expects a slice and not an object. Keeping it in the copy means it
+        // survives assignment, indexing and internal calls without any of them
+        // knowing, where tracking it beside the value only ever covered the
+        // expression forms someone remembered to enumerate.
+        // See `calldata_base_of_copy`.
+        let carries_base = source == AbiSource::Calldata
+            && fields.iter().any(|&f| self.abi_is_dynamic(f.peel_refs()));
+        let size = word_count
+            .checked_add(u64::from(carries_base))
+            .and_then(|words| words.checked_mul(32))
+            .expect("aggregate memory size overflow");
         let ptr = self.allocate_memory(builder, size);
         let mut head_offset = 0;
         for (i, &field) in fields.iter().enumerate() {
@@ -608,7 +631,27 @@ impl<'gcx> Lowerer<'gcx> {
             builder.mstore(dest, value);
             head_offset += self.abi_head_size(field);
         }
+        if carries_base {
+            let base_slot = self.offset_ptr(builder, ptr, word_count * 32);
+            builder.mstore(base_slot, pos);
+        }
         ptr
+    }
+
+    /// Loads the calldata position a struct copy was built from.
+    ///
+    /// Valid only for a copy of a `calldata` aggregate with a dynamic member,
+    /// which [`Self::materialize_calldata_fields_at`] gives a trailing word
+    /// holding the position. A `calldata`-located type is the proof: no other
+    /// way of producing one exists in the language.
+    pub(super) fn calldata_base_of_copy(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ptr: ValueId,
+        field_count: u64,
+    ) -> ValueId {
+        let base_slot = self.offset_ptr(builder, ptr, field_count * 32);
+        builder.mload(base_slot)
     }
 
     /// Resolves an ABI head position to the corresponding value body. Dynamic
