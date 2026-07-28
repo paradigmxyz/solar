@@ -270,7 +270,6 @@ contract BinarySwitch {
             case 20180 { result := 430 }
             case 20186 { result := 431 }
             case 20192 { result := 432 }
-            case 20198 { result := 433 }
             case 20204 { result := 434 }
             case 20210 { result := 435 }
             case 20216 { result := 436 }
@@ -302,6 +301,7 @@ contract BinarySwitch {
             case 20372 { result := 462 }
             case 20378 { result := 463 }
             case 20384 { result := 464 }
+            case 20390 { result := 465 }
             default { result := 999 }
         }
     }
@@ -425,7 +425,9 @@ contract SwitchTablesTest {
         assert(binarySwitch.selectAffine(20000) == 400);
         assert(binarySwitch.selectAffine(20001) == 999);
         assert(binarySwitch.selectAffine(20192) == 432);
+        assert(binarySwitch.selectAffine(20198) == 999);
         assert(binarySwitch.selectAffine(20384) == 464);
-        assert(binarySwitch.selectAffine(20385) == 999);
+        assert(binarySwitch.selectAffine(20390) == 465);
+        assert(binarySwitch.selectAffine(20391) == 999);
     }
 }

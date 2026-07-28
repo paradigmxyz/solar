@@ -16,7 +16,7 @@ use super::{
     },
     switch::{
         MAX_GAS_CODE_GROWTH, PerfectHash, SwitchDefault, SwitchPlan, SwitchPlanOptions,
-        SwitchSelection, bit_slice_index, bucket_index,
+        SwitchSelection, affine_index, bit_slice_index, bucket_index,
         select_switch_plan_with_linear_values_and_budget,
     },
 };
@@ -5230,8 +5230,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             PerfectHash::BitSlice { shift, mask } => {
                 self.emit_bit_slice_mir_switch(func, entries, default, can_fallthrough, shift, mask)
             }
-            PerfectHash::Affine { low, multiplier, rotate } => {
-                self.emit_affine_mir_switch(entries, default, low, multiplier, rotate)
+            PerfectHash::Affine { low, multiplier, rotate, range } => {
+                self.emit_affine_mir_switch(entries, default, low, multiplier, rotate, range)
             }
         }
     }
@@ -5302,8 +5302,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         low: U256,
         multiplier: U256,
         rotate: usize,
+        range: usize,
     ) {
-        let targets = entries.iter().map(|entry| self.block_labels[&entry.target]).collect();
+        let mut targets = vec![self.block_labels[&default]; range];
+        for entry in entries {
+            targets[affine_index(entry.value, low, multiplier, rotate)] =
+                self.block_labels[&entry.target];
+        }
         let in_range = self.asm.new_label();
 
         if !low.is_zero() {
@@ -5338,7 +5343,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         self.asm.emit_op(op::DUP1);
         self.scheduler.stack.dup(1);
-        self.asm.emit_push(U256::from(entries.len()));
+        self.asm.emit_push(U256::from(range));
         self.scheduler.stack.push_unknown();
         self.asm.emit_op(op::GT);
         self.scheduler.instruction_executed_untracked(2);

@@ -52,8 +52,8 @@ pub(super) enum SwitchPlan {
 pub(super) enum PerfectHash {
     /// Extract a collision-free bit slice and verify the key in its table slot.
     BitSlice { shift: usize, mask: usize },
-    /// Map an arithmetic progression bijectively to consecutive table indices.
-    Affine { low: U256, multiplier: U256, rotate: usize },
+    /// Normalize a strided set bijectively into a compact table range.
+    Affine { low: U256, multiplier: U256, rotate: usize, range: usize },
 }
 
 /// Selected switch shape and its conservative growth over a linear scan.
@@ -289,19 +289,19 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
             }
         }
     }
-    if optimization == OptimizationMode::Gas {
-        if (MIN_BUCKET_CASES..=MAX_BUCKET_CASES).contains(&values.len()) {
-            for bucket_count in bucket_count_candidates(values.len()) {
-                let cost = bucket_lowering_cost(
-                    values,
-                    bucket_count,
-                    evm_version,
-                    explicit_default,
-                    table_target_width,
-                );
-                if cost.is_better_for_gas_than(best.0, max_gas_code_size) {
-                    best = (cost, SwitchPlan::Buckets { bucket_count });
-                }
+    if optimization == OptimizationMode::Gas
+        && (MIN_BUCKET_CASES..=MAX_BUCKET_CASES).contains(&values.len())
+    {
+        for bucket_count in bucket_count_candidates(values.len()) {
+            let cost = bucket_lowering_cost(
+                values,
+                bucket_count,
+                evm_version,
+                explicit_default,
+                table_target_width,
+            );
+            if cost.is_better_for_gas_than(best.0, max_gas_code_size) {
+                best = (cost, SwitchPlan::Buckets { bucket_count });
             }
         }
     }
@@ -582,7 +582,7 @@ fn perfect_hash_candidates(
     let mut candidates = Vec::new();
     if let Some(hash @ PerfectHash::Affine { .. }) = affine_hash(values, evm_version) {
         candidates.push((
-            affine_lowering_cost(values.len(), hash, evm_version, default, table_target_width),
+            affine_lowering_cost(values, hash, evm_version, default, table_target_width),
             SwitchPlan::Perfect { hash },
         ));
     }
@@ -691,11 +691,21 @@ fn affine_hash(values: &[U256], evm_version: EvmVersion) -> Option<PerfectHash> 
         return None;
     }
     let low = values[0];
-    let stride = values[1] - low;
-    if stride == U256::ONE || values.windows(2).any(|window| window[1] - window[0] != stride) {
+    let mut stride = values[1] - low;
+    for &value in &values[2..] {
+        stride = gcd(stride, value - low);
+        if stride == U256::ONE {
+            return None;
+        }
+    }
+    if stride == U256::ONE {
         return None;
     }
 
+    let range = usize::try_from((values[values.len() - 1] - low) / stride).ok()?.checked_add(1)?;
+    if range > MAX_DENSE_RANGE {
+        return None;
+    }
     let rotate = stride.trailing_zeros();
     if rotate != 0 && !evm_version.has_bitwise_shifting() {
         return None;
@@ -703,17 +713,17 @@ fn affine_hash(values: &[U256], evm_version: EvmVersion) -> Option<PerfectHash> 
     let odd_stride = stride >> rotate;
     let multiplier = wrapping_inverse_odd(odd_stride);
     debug_assert_eq!(odd_stride.wrapping_mul(multiplier), U256::ONE);
-    Some(PerfectHash::Affine { low, multiplier, rotate })
+    Some(PerfectHash::Affine { low, multiplier, rotate, range })
 }
 
 fn affine_lowering_cost(
-    len: usize,
+    values: &[U256],
     hash: PerfectHash,
     evm_version: EvmVersion,
     default: SwitchDefault,
     table_target_width: usize,
 ) -> LoweringCost {
-    let PerfectHash::Affine { low, multiplier, rotate } = hash else { unreachable!() };
+    let PerfectHash::Affine { low, multiplier, rotate, range } = hash else { unreachable!() };
     let (low_len, low_gas) = immediate_materialization_cost(evm_version, low);
     let normalize_len = usize::from(!low.is_zero()) * (low_len + 2);
     let normalize_gas = usize::from(!low.is_zero()) * (low_gas + VERY_LOW_GAS * 2);
@@ -723,7 +733,7 @@ fn affine_lowering_cost(
     let (rotate_len, rotate_gas) = rotate_cost(rotate, evm_version);
     let hash_len = normalize_len + multiply_len + rotate_len;
     let hash_gas = normalize_gas + multiply_gas + rotate_gas;
-    let bounds_prefix_len = 1 + push_len(U256::from(len), evm_version) + 1;
+    let bounds_prefix_len = 1 + push_len(U256::from(range), evm_version) + 1;
     let bounds_len = bounds_prefix_len + MIN_LABEL_PUSH_LEN + 1;
     let max_bounds_len = bounds_prefix_len + max_label_push_len(table_target_width) + 1;
     let bounds_gas = VERY_LOW_GAS * 4 + JUMPI_GAS;
@@ -738,7 +748,12 @@ fn affine_lowering_cost(
     let hit_gas = hash_gas + bounds_gas + JUMPDEST_GAS + indexed_jump_gas;
     let default_body_gas =
         if default == SwitchDefault::Revert { JUMPDEST_GAS + default.gas(evm_version) } else { 0 };
-    let miss_gas = hash_gas + bounds_gas + POP_GAS + DEFAULT_JUMP_GAS + default_body_gas;
+    let out_of_range_miss_gas =
+        hash_gas + bounds_gas + POP_GAS + DEFAULT_JUMP_GAS + default_body_gas;
+    let hole_miss_gas = (range > values.len())
+        .then_some(hash_gas + bounds_gas + JUMPDEST_GAS + indexed_jump_gas + default_body_gas);
+    let miss_gas =
+        hole_miss_gas.map_or(out_of_range_miss_gas, |gas| out_of_range_miss_gas.max(gas));
     LoweringCost {
         code_size: hash_len
             + bounds_len
@@ -746,17 +761,24 @@ fn affine_lowering_cost(
             + MIN_DEFAULT_JUMP_LEN
             + JUMPDEST_LEN
             + INDEXED_JUMP_BASE_LEN
-            + len * indexed_jump_stub_len(table_target_width),
+            + range * indexed_jump_stub_len(table_target_width),
         max_code_size: hash_len
             + max_bounds_len
             + 1
             + max_default_jump_len(table_target_width)
             + JUMPDEST_LEN
             + max_indexed_jump_base_len(table_target_width)
-            + len * indexed_jump_stub_len(table_target_width),
-        hit_gas_sum: hit_gas * len,
+            + range * indexed_jump_stub_len(table_target_width),
+        hit_gas_sum: hit_gas * values.len(),
         miss_gas,
     }
+}
+
+fn gcd(mut left: U256, mut right: U256) -> U256 {
+    while !right.is_zero() {
+        (left, right) = (right, left % right);
+    }
+    left
 }
 
 fn rotate_cost(rotate: usize, evm_version: EvmVersion) -> (usize, usize) {
@@ -781,6 +803,16 @@ fn wrapping_inverse_odd(value: U256) -> U256 {
 pub(super) fn bit_slice_index(value: U256, shift: usize, mask: usize) -> usize {
     usize::try_from((value >> shift) & U256::from(mask))
         .expect("perfect switch hash must fit usize")
+}
+
+pub(super) fn affine_index(value: U256, low: U256, multiplier: U256, rotate: usize) -> usize {
+    let normalized = (value - low).wrapping_mul(multiplier);
+    let hashed = if rotate == 0 {
+        normalized
+    } else {
+        (normalized >> rotate) | (normalized << (256 - rotate))
+    };
+    usize::try_from(hashed).expect("affine switch hash must fit usize")
 }
 
 const fn indexed_jump_stub_len(target_width: usize) -> usize {
@@ -927,20 +959,32 @@ mod tests {
         for stride in [3, 6, 257, 1024] {
             let low = U256::from(1000);
             let values = (0..32).map(|index| low + U256::from(index * stride)).collect::<Vec<_>>();
-            let Some(PerfectHash::Affine { low, multiplier, rotate }) =
+            let Some(PerfectHash::Affine { low, multiplier, rotate, range }) =
                 affine_hash(&values, EvmVersion::Cancun)
             else {
                 panic!("expected affine hash")
             };
+            assert_eq!(range, values.len());
             for (index, &value) in values.iter().enumerate() {
-                let normalized = (value - low).wrapping_mul(multiplier);
-                let hashed = if rotate == 0 {
-                    normalized
-                } else {
-                    (normalized >> rotate) | (normalized << (256 - rotate))
-                };
-                assert_eq!(hashed, U256::from(index));
+                assert_eq!(affine_index(value, low, multiplier, rotate), index);
             }
+        }
+    }
+
+    #[test]
+    fn maps_strided_holes_bijectively() {
+        let low = U256::from(1000);
+        let indices = [0, 1, 3, 8, 13, 31];
+        let values =
+            indices.map(|index| low + U256::from(index * 6)).into_iter().collect::<Vec<_>>();
+        let Some(PerfectHash::Affine { low, multiplier, rotate, range }) =
+            affine_hash(&values, EvmVersion::Cancun)
+        else {
+            panic!("expected affine hash")
+        };
+        assert_eq!(range, 32);
+        for (&index, &value) in indices.iter().zip(&values) {
+            assert_eq!(affine_index(value, low, multiplier, rotate), index);
         }
     }
 

@@ -25,7 +25,7 @@ from typing import Any, Iterable, Sequence
 DEFAULT_PIN = "01209d2b8ac81645b92e3ef801b5bcdfd61bfd69"
 DEFAULT_SOLC_VERSION = "0.8.36"
 DEFAULT_METHODS = ("auto", "linear", "binary", "buckets", "dense", "perfect")
-SYNTHETIC_FIXTURE_VERSION = 5
+SYNTHETIC_FIXTURE_VERSION = 6
 ANVIL_HARDFORK = "osaka"
 EXPECTED_UI_FAILURE_RE = re.compile(r"//~[\^v|?]*\s*(?:ERROR|ICE)(?::|\b)")
 GROWTH_SWEEP_CASE_COUNTS = {"synthetic": 54, "ui-gas": 147, "ci-gas": 12}
@@ -407,11 +407,17 @@ def synthetic_cases(
         low = 20_000
         stride = 6
         values = [low + index * stride for index in range(count)]
+        if count == 65:
+            values[-1] += stride
         case, case_labels, checks = value_switch_case(
             bench,
             f"AffineEven{count}",
             values,
-            (low - 1, low + 1, low + count * stride),
+            (
+                low - 1,
+                low + 1,
+                low + (count - 1) * stride if count == 65 else low + count * stride,
+            ),
         )
         cases.append(case)
         labels[case.test_id] = case_labels
