@@ -9,7 +9,6 @@ fn @fixedArray(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v4 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 0
     mstore v4, 0
@@ -32,7 +31,6 @@ fn @dynamic(arg0: calldataslice) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = slice_len arg0
     v4 = add v3, 31
     v5 = lt v4, v3
@@ -88,10 +86,6 @@ fn @__ret_bytes(arg0: memorybytes) {
 
 fn @frameShadow() {
   bb0:
-    mstore 128, 0
-    mstore 160, 0
-    mstore 192, 0
-    mstore 224, 0
     mstore 128, 1
     v0 = add 128, 32
     mstore v0, 2

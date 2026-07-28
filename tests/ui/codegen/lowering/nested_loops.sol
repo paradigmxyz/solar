@@ -4,12 +4,12 @@
 
 contract NestedLoops {
     // CHECK-LABEL: fn @sum_grid{{[( ]}}
-    // CHECK: [[I:v[0-9]+]] = mload 192
+    // CHECK: [[I:v[0-9]+]] = mload 160
     // CHECK: lt [[I]], arg0
-    // CHECK: [[J:v[0-9]+]] = mload 224
+    // CHECK: [[J:v[0-9]+]] = mload 192
     // CHECK: lt [[J]], arg1
-    // CHECK: [[BODY_I:v[0-9]+]] = mload 192
-    // CHECK: [[BODY_J:v[0-9]+]] = mload 224
+    // CHECK: [[BODY_I:v[0-9]+]] = mload 160
+    // CHECK: [[BODY_J:v[0-9]+]] = mload 192
     // CHECK: {{v[0-9]+}} = mul [[BODY_I]], [[BODY_J]]
     function sum_grid(uint256 n, uint256 m) public pure returns (uint256) {
         uint256 total = 0;
@@ -22,9 +22,9 @@ contract NestedLoops {
     }
 
     // CHECK-LABEL: fn @find_first{{[( ]}}
-    // CHECK: [[I:v[0-9]+]] = mload 160
+    // CHECK: [[I:v[0-9]+]] = mload 128
     // CHECK: lt [[I]], arg0
-    // CHECK: [[J:v[0-9]+]] = mload 192
+    // CHECK: [[J:v[0-9]+]] = mload 160
     // CHECK: lt [[J]], arg0
     // CHECK: add {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK: eq {{v[0-9]+}}, arg1

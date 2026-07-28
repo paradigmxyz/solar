@@ -2,7 +2,6 @@
 @module AbiDynamicReturn
 fn @bytesLiteral() {
   bb0:
-    mstore 128, 0
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 3
     v1 = memory_object_data memorybytes, v0
@@ -34,7 +33,6 @@ fn @__ret_bytes(arg0: memorybytes) {
 
 fn @stringLiteral() {
   bb0:
-    mstore 128, 0
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 5
     v1 = memory_object_data memorybytes, v0

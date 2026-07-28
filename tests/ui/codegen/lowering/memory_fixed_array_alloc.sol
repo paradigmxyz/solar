@@ -64,6 +64,11 @@ contract MemoryFixedArrayAlloc {
 }
 
 contract NamedReturnAndDelete {
+    struct DynamicHolder {
+        uint256[] values;
+        bytes data;
+    }
+
     // A named fixed-array return points at real zeroed memory, not scratch.
     // CHECK-LABEL: fn @namedReturn{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<3, 1>
@@ -78,6 +83,51 @@ contract NamedReturnAndDelete {
         bytes memory b = new bytes(32);
         b[0] = 0xEE;
         m = uint8(b[0]);
+    }
+
+    // Uninitialized memory references point at real empty objects, not scratch.
+    // CHECK-LABEL: fn @emptyMemoryReferences{{[( ]}}
+    // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>
+    // CHECK: set_memory_object_len memoryarray, [[ARRAY]], 0
+    // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes
+    // CHECK: set_memory_object_len memorybytes, [[BYTES]], 0
+    // CHECK: [[STRUCT:v[0-9]+]] = alloc memorystruct<2>
+    // CHECK: alloc memoryarray<1>
+    // CHECK: alloc memorybytes
+    function emptyMemoryReferences() public pure returns (uint256) {
+        uint256[] memory values;
+        bytes memory data;
+        DynamicHolder memory holder;
+        return values.length + data.length + holder.values.length + holder.data.length;
+    }
+
+    // Named dynamic returns also start as real empty memory objects.
+    // CHECK-LABEL: fn @emptyNamedReturns{{[( ]}}
+    // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>
+    // CHECK: set_memory_object_len memoryarray, [[ARRAY]], 0
+    // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes
+    // CHECK: set_memory_object_len memorybytes, [[BYTES]], 0
+    function emptyNamedReturns()
+        public
+        pure
+        returns (uint256[] memory values, bytes memory data)
+    {}
+
+    // A named struct return whose fields are initialized before use does not
+    // construct default objects that those assignments immediately replace.
+    // CHECK-LABEL: fn @fullyInitializedNamedStruct{{[( ]}}
+    // CHECK: alloc memorystruct<2>
+    // CHECK-NOT: set_memory_object_len memoryarray, {{v[0-9]+}}, 0
+    // CHECK: set_memory_object_len memoryarray, {{v[0-9]+}}, 1
+    // CHECK-NOT: set_memory_object_len memorybytes, {{v[0-9]+}}, 0
+    // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 1
+    function fullyInitializedNamedStruct()
+        public
+        pure
+        returns (DynamicHolder memory holder)
+    {
+        holder.values = new uint256[](1);
+        holder.data = new bytes(1);
     }
 
     // `delete` zeroes the elements in place; the pointer stays valid.

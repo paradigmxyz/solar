@@ -18,6 +18,35 @@ contract MsgData {
         return msg.data;
     }
 
+    // These builtins used to hit `lower_builtin`'s catch-all zero.
+    // CHECK-LABEL: fn @environment{{[( ]}}
+    // CHECK: coinbase
+    // CHECK: timestamp
+    // CHECK: prevrandao
+    // CHECK: number
+    // CHECK: gaslimit
+    // CHECK: chainid
+    // CHECK: basefee
+    // CHECK: blobbasefee
+    // CHECK: calldataload 0
+    // CHECK: origin
+    // CHECK: gasprice
+    // CHECK: gas
+    function environment() external view returns (uint256 value) {
+        value ^= uint160(address(block.coinbase));
+        value ^= block.timestamp;
+        value ^= block.prevrandao;
+        value ^= block.number;
+        value ^= block.gaslimit;
+        value ^= block.chainid;
+        value ^= block.basefee;
+        value ^= block.blobbasefee;
+        value ^= uint32(msg.sig);
+        value ^= uint160(tx.origin);
+        value ^= tx.gasprice;
+        value ^= gasleft();
+    }
+
     // CHECK-LABEL: fn @tail{{[( ]}}
     // CHECK: calldatasize
     // CHECK: make_calldata_slice

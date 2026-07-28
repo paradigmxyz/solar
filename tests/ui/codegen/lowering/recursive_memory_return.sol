@@ -35,7 +35,7 @@ contract C {
 
     // public function returning a dynamic word-array (external ABI encoding)
     // CHECK-LABEL: fn @mkArr{{[( ]}}
-    // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>
+    // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
     // CHECK: set_memory_object_len memoryarray, [[ARRAY]], arg0
     // CHECK: {{v[0-9]+}} = memory_object_len memoryarray, [[ARRAY]]
     // CHECK: mcopy {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}
@@ -60,7 +60,7 @@ contract C {
     }
 
     // CHECK-LABEL: fn @squares{{[( ]}}
-    // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>
+    // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
     // CHECK: [[FILLED:v[0-9]+]] = internal_call @fillImpl, 1, [[ARRAY]], 0
     // CHECK: memory_object_len memoryarray, [[FILLED]]
     // CHECK: mcopy
