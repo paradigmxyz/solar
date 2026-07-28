@@ -40,6 +40,11 @@ These folds avoid constructing short-lived instructions and control flow. They
 do not inspect HIR syntax, duplicate an evaluator, or make profitability
 decisions.
 
+Static event data also uses the shared ABI encoder at the current free memory
+pointer without advancing it. `LOG` consumes the data immediately, so reserving
+that memory would only add work for later passes. Dynamic event data keeps the
+normal allocation path.
+
 ## Representation work that still lives in lowering
 
 These paths are not profitability optimizations. Removing them now would leave

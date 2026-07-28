@@ -1014,7 +1014,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
 
-        let (mem_offset, size) = self.abi_encode_items_to_memory(builder, &data_items);
+        let (mem_offset, size) = self.abi_encode_event_data(builder, &data_items);
 
         // Emit the appropriate LOG instruction based on number of topics
         match topics.len() {

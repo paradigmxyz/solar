@@ -23,11 +23,6 @@ fn @emitArray(arg0: u256, arg1: u256) {
     v11 = mload v10
     mstore v9, v11
     v12 = add v9, 32
-    v13 = add 64, 31
-    v14 = not 31
-    v15 = and v13, v14
-    v16 = add v6, v15
-    set_fmp v16
     log1 v6, 64, 0x625921711aa49386aa5b640487cbc3efdcbda2656254ae2c5ad71b2ede1efcf4
     stop
 }
@@ -50,11 +45,6 @@ fn @emitAnonymous(arg0: address, arg1: u256) {
   bb4:
     v6 = fmp
     mstore v6, arg1
-    v7 = add 32, 31
-    v8 = not 31
-    v9 = and v7, v8
-    v10 = add v6, v9
-    set_fmp v10
     log1 v6, 32, arg0
     stop
 }
@@ -83,4 +73,3 @@ fn @emitIndexedBytes(arg0: memorybytes) {
     log2 0, 0, 0x302971c456dab97076d583d969187faf914418423e0641b0c0f01537060f04e7, v12
     stop
 }
-

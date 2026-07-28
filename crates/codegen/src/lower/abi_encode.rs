@@ -455,6 +455,33 @@ impl<'gcx> Lowerer<'gcx> {
         (data, size)
     }
 
+    /// ABI-encodes event data at the free memory pointer. Static data does not
+    /// advance the pointer because `LOG` consumes it before another allocation.
+    pub(super) fn abi_encode_event_data(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        items: &[(ValueId, Ty<'gcx>)],
+    ) -> (ValueId, ValueId) {
+        if items.is_empty() {
+            let zero = builder.imm_u64(0);
+            return (zero, zero);
+        }
+        if items.iter().any(|&(_, ty)| self.abi_is_dynamic(ty)) {
+            return self.abi_encode_items_to_memory(builder, items);
+        }
+
+        let data = builder.fmp();
+        let calldata_slices = FxHashSet::default();
+        let size = self.abi_encode_tuple(
+            builder,
+            items,
+            data,
+            &calldata_slices,
+            lower_abi_encode::AbiScratch { base: None, depth: 0 },
+        );
+        (data, size)
+    }
+
     /// ABI-encodes call arguments (optionally prefixed by a left-aligned
     /// 4-byte selector word) into a fresh allocation from the free memory
     /// pointer. Returns `(offset, size)` of the encoded payload.
