@@ -151,3 +151,4 @@ fn @setFlag() {
     sstore 0, v3 !metadata(storage=slot(0))
     stop
 }
+

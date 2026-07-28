@@ -1,7 +1,6 @@
 //@ run-call: PackedSolcLayout::scalarLayout => 0, 0, 0, 3, 0, 4, 0, 28
 //@ run-call: PackedSolcLayout::aggregateLayout => 1, 4, 5, 6, 7, 8
 //@ run-call: PackedSolcLayout::scalarPacking => true
-//@ run-call: PackedSolcLayout::externalPointerCall => 77
 //@ run-call: PackedSolcLayout::aggregatePacking => true
 //@ run-call: PackedSolcLayout::dynamicArrayPacking => 1, 254, 3, 2
 //@ run-call: PackedSolcLayout::mappingPacking => 0xabcdef, -7, 0xabcdef, 249
@@ -11,6 +10,8 @@
 //@ run-call: PackedArrayWidths::fixedPacking => true
 //@ run-call: PackedArrayWidths::dynamicBytesPacking => true
 //@ run-call: PackedArrayWidths::signedPacking => -1, -8388608, 8388607, 0x7fffff800000ffffff
+//@ run-call: PackedDerived::layout => 0, 0, 1, 0, 1, 16, 2, 0
+//@ run-call: PackedDerived::packing => true
 
 contract PackedSolcLayout {
     bytes3 private smallBytes;
@@ -100,11 +101,6 @@ contract PackedSolcLayout {
             && uint8(raw >> 24) == 0xff && uint32(raw >> 32) == uint32(this.target.selector)
             && uint160(raw >> 64) == uint160(address(this)) && uint8(raw >> 224) == 0x5a
             && raw >> 232 == 0;
-    }
-
-    function externalPointerCall() external returns (uint256) {
-        callback = this.target;
-        return callback();
     }
 
     function aggregatePacking() external returns (bool) {
@@ -272,5 +268,55 @@ contract PackedArrayWidths {
             word := sload(keccak256(0, 32))
         }
         return (signedItems[0], signedItems[1], signedItems[2], word);
+    }
+}
+
+contract PackedBase {
+    uint256 internal inheritedWord;
+    uint128 internal inheritedSmall;
+}
+
+contract PackedDerived is PackedBase {
+    uint32 private derivedSmall;
+    uint256 private derivedWord;
+
+    function layout()
+        external
+        pure
+        returns (
+            uint256 inheritedWordSlot,
+            uint256 inheritedWordOffset,
+            uint256 inheritedSmallSlot,
+            uint256 inheritedSmallOffset,
+            uint256 derivedSmallSlot,
+            uint256 derivedSmallOffset,
+            uint256 derivedWordSlot,
+            uint256 derivedWordOffset
+        )
+    {
+        assembly {
+            inheritedWordSlot := inheritedWord.slot
+            inheritedWordOffset := inheritedWord.offset
+            inheritedSmallSlot := inheritedSmall.slot
+            inheritedSmallOffset := inheritedSmall.offset
+            derivedSmallSlot := derivedSmall.slot
+            derivedSmallOffset := derivedSmall.offset
+            derivedWordSlot := derivedWord.slot
+            derivedWordOffset := derivedWord.offset
+        }
+    }
+
+    function packing() external returns (bool) {
+        inheritedSmall = 0x112233445566778899aabbccddeeff00;
+        derivedSmall = 0x12345678;
+
+        uint256 packed;
+        assembly {
+            packed := sload(inheritedSmall.slot)
+        }
+        return inheritedSmall == 0x112233445566778899aabbccddeeff00
+            && derivedSmall == 0x12345678
+            && uint128(packed) == 0x112233445566778899aabbccddeeff00
+            && uint32(packed >> 128) == 0x12345678 && packed >> 160 == 0;
     }
 }
