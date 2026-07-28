@@ -1374,6 +1374,10 @@ fn build_return_values(
     return_tys: &[MirType],
     return_edges: &[(BlockId, SmallVec<[ValueId; 2]>)],
 ) -> Option<Vec<ValueId>> {
+    if let [(_, values)] = return_edges {
+        return (values.len() == return_tys.len()).then(|| values.to_vec());
+    }
+
     let mut values = Vec::with_capacity(return_tys.len());
     for (index, &ty) in return_tys.iter().enumerate() {
         let incoming = return_edges

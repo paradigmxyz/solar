@@ -35,6 +35,7 @@ operation and inspect only MIR immediates:
 | --- | --- |
 | Array index bounds checking | Skip a proven in-range check or emit the known panic without first building a comparison |
 | ABI offset pointer construction | Emit the offset directly when the base is the immediate value zero |
+| MIR inliner return merge | Forward a sole return edge directly instead of creating one-input phis |
 
 These folds avoid constructing short-lived instructions and control flow. They
 do not inspect HIR syntax, duplicate an evaluator, or make profitability

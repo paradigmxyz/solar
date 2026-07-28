@@ -7,8 +7,7 @@
 -     ret v0
 +     jump bb2
 +   bb1:
-+     v2 = phi [bb2: v1]
-+     ret v2
++     ret v1
 +   bb2:
 +     v1 = add arg0, 1
 +     jump bb1
