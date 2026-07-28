@@ -5084,10 +5084,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         Some((linear_values, entries))
     }
 
-    fn switch_layout(&self, func: &Function, entries: &[MirSwitchEntry]) -> SwitchLayout {
+    fn switch_layout(
+        &self,
+        func: &Function,
+        entries: &[MirSwitchEntry],
+        default: BlockId,
+    ) -> SwitchLayout {
         let mut targets = FxHashSet::default();
         let coalesce_case_targets = entries.iter().all(|entry| {
-            targets.insert(entry.target) && func.unique_predecessors(entry.target).len() == 1
+            entry.target != default
+                && targets.insert(entry.target)
+                && func.blocks[entry.target].predecessors.len() == 1
         });
         let continuation = coalesce_case_targets.then(|| {
             entries.first().and_then(|entry| {
@@ -5607,7 +5614,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     SwitchSelection { plan: SwitchPlan::Linear, gas_code_growth: 0 },
                     |(linear_values, entries)| {
                         let values: Vec<_> = entries.iter().map(|entry| entry.value).collect();
-                        let layout = self.switch_layout(func, entries);
+                        let layout = self.switch_layout(func, entries, *default);
                         let default = match (self.emitting_entry, fallthrough == Some(*default)) {
                             (true, true) => SwitchDefault::Fallthrough,
                             (true, false) => SwitchDefault::Jump,
