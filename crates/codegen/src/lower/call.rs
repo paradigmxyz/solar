@@ -271,7 +271,7 @@ impl<'gcx> Lowerer<'gcx> {
         )
     }
 
-    pub(super) fn resolve_internal_function_pointer_target(
+    pub(super) fn resolve_virtual_function_target(
         &self,
         function_id: hir::FunctionId,
     ) -> hir::FunctionId {
@@ -1240,6 +1240,14 @@ impl<'gcx> Lowerer<'gcx> {
             return self.lower_library_call(builder, func_id, args, None);
         }
 
+        // `Base.f(...)` is an internal call to that exact base implementation,
+        // not an external call to a value represented by the contract type.
+        if self.is_contract_type_name_expr(base)
+            && let Some(func_id) = self.resolved_function_callee(callee)
+        {
+            return self.lower_resolved_internal_call(builder, func_id, args);
+        }
+
         // Handle address payable transfer/send builtins
         if matches!(builtin, Some(Builtin::AddressPayableTransfer | Builtin::AddressPayableSend)) {
             // payable(addr).transfer(amount) or payable(addr).send(amount)
@@ -1545,6 +1553,12 @@ impl<'gcx> Lowerer<'gcx> {
         self.gcx.hir.contract(contract_id).kind.is_library()
     }
 
+    fn is_contract_type_name_expr(&self, expr: &hir::Expr<'_>) -> bool {
+        let Some(ty) = self.get_expr_type(expr) else { return false };
+        let TyKind::Type(ty) = ty.kind else { return false };
+        matches!(ty.kind, TyKind::Contract(_))
+    }
+
     fn array_builtin_method_name(builtin: Builtin) -> Option<Symbol> {
         match builtin {
             Builtin::ArrayPush0 | Builtin::ArrayPush => Some(sym::push),
@@ -1758,6 +1772,16 @@ impl<'gcx> Lowerer<'gcx> {
     /// Lowers an internal function call by inlining it.
     /// This handles calls like `add(a, b)` where `add` is a function in the same contract.
     fn lower_internal_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func_id: hir::FunctionId,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        let func_id = self.resolve_virtual_function_target(func_id);
+        self.lower_resolved_internal_call(builder, func_id, args)
+    }
+
+    fn lower_resolved_internal_call(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         func_id: hir::FunctionId,
