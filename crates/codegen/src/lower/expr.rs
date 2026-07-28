@@ -1826,7 +1826,11 @@ impl<'gcx> Lowerer<'gcx> {
             hir::TypeKind::Elementary(elem) => {
                 self.lower_elementary_type_conversion(builder, elem, source, value)
             }
-            hir::TypeKind::Custom(hir::ItemId::Enum(_)) => self.mask_to_bits(builder, value, 8),
+            hir::TypeKind::Custom(hir::ItemId::Enum(enum_id)) => {
+                let variant_count = self.gcx.hir.enumm(*enum_id).variants.len();
+                self.emit_enum_range_check(builder, value, variant_count);
+                value
+            }
             _ => value,
         }
     }

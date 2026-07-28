@@ -1,12 +1,9 @@
 //@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
 //@ filecheck:
 
-// An explicit enum conversion written through its container, `Container.Enum(x)`
-// (the callee is a member access resolving to an enum), is the identity on the
-// underlying integer — matching the plain `Enum(x)` (`Ident` callee) path.
-// Used by aave-v3-core FlashLoanLogic:
-//   `DataTypes.InterestRateMode(params.interestRateModes[i]) == ...NONE`.
-// Runtime behavior is verified against solc 0.8.30 separately.
+// Integer-to-enum conversions must check the actual variant count rather than
+// merely truncating to the enum's uint8 representation. Both qualified and
+// unqualified enum callees panic with code 0x21 when `x >= 3`.
 
 library DataTypes {
     enum Mode {
@@ -23,5 +20,14 @@ contract E {
     // CHECK: return
     function isNone(uint256 x) external pure returns (bool) {
         return DataTypes.Mode(x) == DataTypes.Mode.NONE;
+    }
+
+    enum LocalMode {
+        NONE,
+        STABLE
+    }
+
+    function isLocalNone(uint256 x) external pure returns (bool) {
+        return LocalMode(x) == LocalMode.NONE;
     }
 }
