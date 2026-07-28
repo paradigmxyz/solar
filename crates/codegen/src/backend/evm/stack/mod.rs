@@ -15,9 +15,9 @@
 //!   value or an anonymous word produced by low-level code.
 //! - [`scheduler`] prepares the ordered operands for one instruction. It can consume dead values in
 //!   place, preserve live values, duplicate or swap accessible values, and rematerialize
-//!   immediates, arguments, or stored spills. Equal immediate operands share one backend value
-//!   identity, and profitable repeated wide immediates may stay resident within a block. Plans are
-//!   replayable and are applied to the model only when chosen.
+//!   immediates, arguments, or stored spills. Under size optimization, equal immediate operands
+//!   share one backend value identity and profitable repeated wide immediates may stay resident
+//!   within a block. Plans are replayable and are applied to the model only when chosen.
 //! - [`shuffler`] canonicalizes complete layouts on selected CFG edges. Layouts of up to four words
 //!   compare nontrivial greedy sequences with bounded shortest-action search and accept only Pareto
 //!   improvements in action count and static gas; larger layouts use the verified greedy result and
