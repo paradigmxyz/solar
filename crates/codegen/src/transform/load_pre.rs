@@ -586,7 +586,7 @@ impl LoadRedundancyEliminator {
         // Candidates whose analysis would be invalidated by an earlier
         // candidate in this batch are deferred to the next round.
         let mut modified_blocks = DenseBitSet::new_empty(func.blocks.len());
-        let mut eliminated_values = DenseBitSet::new_empty(func.values.len());
+        let mut eliminated_values = DenseBitSet::new_empty(func.num_values());
 
         'targets: for target in func.blocks.indices() {
             if !cx.analysis.cfg.is_reachable(target) {
@@ -1203,7 +1203,7 @@ impl LoadRedundancyEliminator {
         analysis: &Analysis,
     ) -> bool {
         kind.operands().into_iter().all(|value| match func.value(value) {
-            Value::Immediate(_) | Value::Arg { .. } | Value::Undef(_) | Value::Error(_) => true,
+            Value::Immediate(_) | Value::Arg(_) | Value::Undef(_) | Value::Error(_) => true,
             Value::Inst(inst_id) => analysis
                 .inst_blocks
                 .get(inst_id)

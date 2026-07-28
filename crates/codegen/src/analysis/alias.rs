@@ -11,7 +11,7 @@ use super::MemoryCallSummaries;
 use crate::{
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
-        AbiType, BlockId, Function, InstId, InstKind, MemoryObjectKind, MemoryRegion,
+        AbiType, ArgIdx, BlockId, Function, InstId, InstKind, MemoryObjectKind, MemoryRegion,
         SliceLocation, StorageAlias, Terminator, Value, ValueId,
     },
 };
@@ -590,9 +590,9 @@ impl AliasAnalysis {
         derived.insert(root);
         loop {
             let mut changed = false;
-            for (value_id, value) in func.values.iter_enumerated() {
-                let Value::Inst(inst_id) = value else { continue };
-                let propagates = match &func.inst(*inst_id).kind {
+            for inst_id in func.instructions() {
+                let Some(value_id) = func.inst_result_value(inst_id) else { continue };
+                let propagates = match &func.inst(inst_id).kind {
                     InstKind::Add(first, second)
                     | InstKind::Sub(first, second)
                     | InstKind::MakeSlice { ptr: first, len: second, .. } => {
@@ -647,7 +647,7 @@ impl AliasAnalysis {
                                 .and_then(|summaries| summaries.get(*function));
                             if summary.is_none_or(|summary| {
                                 args.iter().enumerate().any(|(index, &arg)| {
-                                    arg == operand && summary.captures_param(index)
+                                    arg == operand && summary.captures_param(ArgIdx::new(index))
                                 })
                             }) {
                                 return true;
@@ -713,9 +713,9 @@ impl AliasAnalysis {
                 .as_deref()
                 .and_then(|summaries| summaries.get(*function))
                 .is_none_or(|summary| {
-                    args.iter()
-                        .enumerate()
-                        .any(|(index, &arg)| arg == operand && summary.captures_param(index))
+                    args.iter().enumerate().any(|(index, &arg)| {
+                        arg == operand && summary.captures_param(ArgIdx::new(index))
+                    })
                 }),
             _ => true,
         }
@@ -1154,9 +1154,9 @@ impl AliasAnalysis {
             Value::Immediate(immediate) => {
                 Some(MemoryAddress::absolute(immediate.as_u256()?.try_into().ok()?))
             }
-            Value::Arg { ty, .. } => Some(MemoryAddress::symbolic(
+            Value::Arg(index) => Some(MemoryAddress::symbolic(
                 value,
-                if matches!(ty, crate::mir::MirType::MemoryObject(_)) {
+                if matches!(func.arg_ty(*index), crate::mir::MirType::MemoryObject(_)) {
                     MemoryRegion::Heap
                 } else {
                     MemoryRegion::Unknown
@@ -1310,7 +1310,11 @@ impl AliasAnalysis {
         }
         let Value::Inst(inst_id) = func.value(value) else {
             return match func.value(value) {
-                Value::Arg { ty: crate::mir::MirType::MemoryObject(_), .. } => MemoryRegion::Heap,
+                Value::Arg(index)
+                    if matches!(func.arg_ty(*index), crate::mir::MirType::MemoryObject(_)) =>
+                {
+                    MemoryRegion::Heap
+                }
                 _ => MemoryRegion::Unknown,
             };
         };

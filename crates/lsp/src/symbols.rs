@@ -977,6 +977,22 @@ impl SymbolTables {
         id
     }
 
+    fn push_reference_entry(
+        &mut self,
+        gcx: Gcx<'_>,
+        span: Span,
+        targets: ReferenceTargets,
+        kind: DocumentHighlightKind,
+    ) {
+        if targets.is_empty() {
+            return;
+        }
+        let Some(location) = proto::span_to_location(gcx.sess.source_map(), span) else {
+            return;
+        };
+        self.references.push(SymbolReference { location, targets, kind });
+    }
+
     #[cfg(test)]
     fn push_test_declaration(&mut self, declaration: DeclarationSymbol) -> SymbolId {
         let id = declaration.id;
@@ -1056,6 +1072,14 @@ impl SymbolTables {
 
     fn build_references(&mut self, gcx: Gcx<'_>, item_symbols: &FxHashMap<ItemId, SymbolId>) {
         let bindings = self.rename.build_imports(gcx, item_symbols);
+        for (span, targets) in bindings.references() {
+            self.push_reference_entry(
+                gcx,
+                span,
+                targets.iter().copied().collect(),
+                DocumentHighlightKind::READ,
+            );
+        }
         let mapping_bindings = self.rename.build_mapping_names(gcx);
         self.rename.build_natspec(gcx, &bindings, item_symbols, &self.declarations);
         self.rename.build_overrides(
@@ -1876,13 +1900,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
                 &targets,
             );
         }
-        if targets.is_empty() {
-            return;
-        }
-        let Some(location) = proto::span_to_location(self.gcx.sess.source_map(), span) else {
-            return;
-        };
-        self.tables.references.push(SymbolReference { location, targets, kind });
+        self.tables.push_reference_entry(self.gcx, span, targets, kind);
     }
 
     fn visit_ident_reference(
@@ -1891,10 +1909,11 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         resolutions: &[Res],
         kind: DocumentHighlightKind,
     ) {
-        let callee = self.gcx.resolved_callee(expr.id).filter(|callee| !callee.res.is_err());
-        let resolutions =
-            callee.as_ref().map_or(resolutions, |callee| std::slice::from_ref(&callee.res));
-        let targets = self.symbol_ids_for_res(resolutions.iter().copied());
+        let resolved = self.gcx.resolved_expr(expr).filter(|res| !res.is_err());
+        let targets = resolved.map_or_else(
+            || self.symbol_ids_for_res(resolutions.iter().copied()),
+            |res| self.symbol_id_for_res(res).into_iter().collect(),
+        );
         self.push_reference_with_kind(expr.span, targets, kind);
         self.push_namespace_references(expr.span, resolutions);
     }
@@ -1907,7 +1926,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         kind: DocumentHighlightKind,
     ) -> ControlFlow<Never> {
         self.visit_expr(receiver)?;
-        let targets = self.symbol_ids_for_member_expr(expr);
+        let targets = self.symbol_ids_for_expr(expr);
         self.push_reference_with_kind(ident.span, targets, kind);
         ControlFlow::Continue(())
     }
@@ -1955,15 +1974,9 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         }
     }
 
-    fn symbol_ids_for_member_expr(&self, expr: &hir::Expr<'gcx>) -> ReferenceTargets {
-        if let Some(res) = self.gcx.resolved_member(expr.id)
-            && let Some(symbol_id) = self.symbol_id_for_res(res)
-        {
-            return ReferenceTargets::from_buf([symbol_id]);
-        }
-
-        if let Some(callee) = self.gcx.resolved_callee(expr.id)
-            && let Some(symbol_id) = self.symbol_id_for_res(callee.res)
+    fn symbol_ids_for_expr(&self, expr: &hir::Expr<'gcx>) -> ReferenceTargets {
+        if let Some(symbol_id) =
+            self.gcx.resolved_expr(expr).and_then(|res| self.symbol_id_for_res(res))
         {
             return ReferenceTargets::from_buf([symbol_id]);
         }

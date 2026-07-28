@@ -1,22 +1,16 @@
-//! Renders Solidity declarations and resolved NatSpec for LSP hover responses.
+//! Renders resolved NatSpec for LSP hover responses.
 
 use lsp_types::{MarkupContent, MarkupKind};
 use solar_interface::Symbol;
-use solar_sema::{Gcx, hir, ty::NatSpecView};
+use solar_sema::{
+    Gcx,
+    hir::{self, HirPrinter},
+    ty::NatSpecView,
+};
 use std::fmt::Write;
 
 pub(crate) fn render(gcx: Gcx<'_>, item_id: hir::ItemId) -> Option<MarkupContent> {
-    let signature = match item_id {
-        hir::ItemId::Function(id) => render_function(gcx, id),
-        hir::ItemId::Variable(id) => render_variable(gcx, id),
-        hir::ItemId::Event(id) => render_event(gcx, id),
-        hir::ItemId::Error(id) => render_error(gcx, id),
-        hir::ItemId::Contract(_)
-        | hir::ItemId::Struct(_)
-        | hir::ItemId::Enum(_)
-        | hir::ItemId::Udvt(_) => None,
-    }?;
-    let mut value = format!("```solidity\n{signature}\n```");
+    let mut value = format!("```solidity\n{}\n```", HirPrinter::display(gcx, item_id));
     append_documentation(&mut value, &documentation(gcx, item_id));
     Some(MarkupContent { kind: MarkupKind::Markdown, value })
 }
@@ -31,6 +25,14 @@ struct Documentation {
 
 fn documentation(gcx: Gcx<'_>, item_id: hir::ItemId) -> Documentation {
     match item_id {
+        hir::ItemId::Contract(id) => {
+            let contract = gcx.hir.contract(id);
+            if contract.doc.is_empty() {
+                Documentation::default()
+            } else {
+                item_documentation(gcx.natspec_view(item_id).items())
+            }
+        }
         hir::ItemId::Function(id) => {
             let function = gcx.hir.function(id);
             callable_documentation(
@@ -50,10 +52,14 @@ fn documentation(gcx: Gcx<'_>, item_id: hir::ItemId) -> Documentation {
             let error = gcx.hir.error(id);
             callable_documentation(gcx, hir::ItemId::Error(id), error.doc, error.parameters, &[])
         }
-        hir::ItemId::Contract(_)
-        | hir::ItemId::Struct(_)
-        | hir::ItemId::Enum(_)
-        | hir::ItemId::Udvt(_) => Documentation::default(),
+        hir::ItemId::Struct(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_) => {
+            let doc = gcx.hir.item(item_id).doc();
+            if doc.is_empty() {
+                Documentation::default()
+            } else {
+                item_documentation(gcx.natspec_view(item_id).items())
+            }
+        }
     }
 }
 
@@ -283,201 +289,4 @@ fn append_list<'a>(
             output.push_str(line);
         }
     }
-}
-
-fn render_function(gcx: Gcx<'_>, id: hir::FunctionId) -> Option<String> {
-    let function = gcx.hir.function(id);
-    if function.is_yul {
-        return None;
-    }
-
-    let mut signature = function.kind.to_string();
-    if let Some(name) = function.name {
-        write!(signature, " {name}").ok()?;
-    }
-    signature.push('(');
-    render_variables(gcx, function.parameters, &mut signature)?;
-    signature.push(')');
-
-    match function.kind {
-        hir::FunctionKind::Function => {
-            write!(signature, " {}", function.visibility).ok()?;
-            render_state_mutability(function.state_mutability, &mut signature)?;
-        }
-        hir::FunctionKind::Constructor => {
-            if function.state_mutability == hir::StateMutability::Payable {
-                signature.push_str(" payable");
-            }
-        }
-        hir::FunctionKind::Fallback | hir::FunctionKind::Receive => {
-            write!(signature, " {}", function.visibility).ok()?;
-            render_state_mutability(function.state_mutability, &mut signature)?;
-        }
-        hir::FunctionKind::Modifier => {}
-    }
-
-    if function.marked_virtual {
-        signature.push_str(" virtual");
-    }
-    if function.override_ {
-        signature.push_str(" override");
-        render_override_list(gcx, function.overrides, &mut signature)?;
-    }
-    for modifier in function.modifiers {
-        let name = gcx.item_name_opt(modifier.id)?;
-        write!(signature, " {name}").ok()?;
-        if !modifier.args.is_dummy() {
-            let args = gcx.sess.source_map().span_to_snippet(modifier.args.span).ok()?;
-            signature.push_str(args.trim());
-        }
-    }
-    if !function.returns.is_empty() {
-        signature.push_str(" returns (");
-        render_variables(gcx, function.returns, &mut signature)?;
-        signature.push(')');
-    }
-    Some(signature)
-}
-
-fn render_variable(gcx: Gcx<'_>, id: hir::VariableId) -> Option<String> {
-    let variable = gcx.hir.variable(id);
-    let mut signature = String::new();
-    render_type(gcx, &variable.ty, &mut signature)?;
-    if let Some(visibility) = variable.visibility {
-        write!(signature, " {visibility}").ok()?;
-    }
-    if let Some(mutability) = variable.mutability {
-        write!(signature, " {mutability}").ok()?;
-    }
-    if variable.override_ {
-        signature.push_str(" override");
-        render_override_list(gcx, variable.overrides, &mut signature)?;
-    }
-    if let Some(data_location) = variable.data_location {
-        write!(signature, " {data_location}").ok()?;
-    }
-    if variable.indexed {
-        signature.push_str(" indexed");
-    }
-    let name = variable.name?;
-    write!(signature, " {name}").ok()?;
-    Some(signature)
-}
-
-fn render_event(gcx: Gcx<'_>, id: hir::EventId) -> Option<String> {
-    let event = gcx.hir.event(id);
-    let mut signature = format!("event {}(", event.name);
-    render_variables(gcx, event.parameters, &mut signature)?;
-    signature.push(')');
-    if event.anonymous {
-        signature.push_str(" anonymous");
-    }
-    Some(signature)
-}
-
-fn render_error(gcx: Gcx<'_>, id: hir::ErrorId) -> Option<String> {
-    let error = gcx.hir.error(id);
-    let mut signature = format!("error {}(", error.name);
-    render_variables(gcx, error.parameters, &mut signature)?;
-    signature.push(')');
-    Some(signature)
-}
-
-fn render_variables(
-    gcx: Gcx<'_>,
-    variables: &[hir::VariableId],
-    output: &mut String,
-) -> Option<()> {
-    for (index, &id) in variables.iter().enumerate() {
-        if index != 0 {
-            output.push_str(", ");
-        }
-        let variable = gcx.hir.variable(id);
-        render_type(gcx, &variable.ty, output)?;
-        if let Some(data_location) = variable.data_location {
-            write!(output, " {data_location}").ok()?;
-        }
-        if variable.indexed {
-            output.push_str(" indexed");
-        }
-        if let Some(name) = variable.name {
-            write!(output, " {name}").ok()?;
-        }
-    }
-    Some(())
-}
-
-fn render_type(gcx: Gcx<'_>, ty: &hir::Type<'_>, output: &mut String) -> Option<()> {
-    match &ty.kind {
-        hir::TypeKind::Elementary(elementary) => write!(output, "{elementary}").ok()?,
-        hir::TypeKind::Array(array) => {
-            render_type(gcx, &array.element, output)?;
-            output.push('[');
-            if let Some(size) = array.size {
-                let size = gcx.sess.source_map().span_to_snippet(size.span).ok()?;
-                output.push_str(size.trim());
-            }
-            output.push(']');
-        }
-        hir::TypeKind::Function(function) => {
-            output.push_str("function(");
-            render_variables(gcx, function.parameters, output)?;
-            write!(output, ") {}", function.visibility).ok()?;
-            render_state_mutability(function.state_mutability, output)?;
-            if !function.returns.is_empty() {
-                output.push_str(" returns (");
-                render_variables(gcx, function.returns, output)?;
-                output.push(')');
-            }
-        }
-        hir::TypeKind::Mapping(mapping) => {
-            output.push_str("mapping(");
-            render_type(gcx, &mapping.key, output)?;
-            if let Some(name) = mapping.key_name {
-                write!(output, " {name}").ok()?;
-            }
-            output.push_str(" => ");
-            render_type(gcx, &mapping.value, output)?;
-            if let Some(name) = mapping.value_name {
-                write!(output, " {name}").ok()?;
-            }
-            output.push(')');
-        }
-        hir::TypeKind::Custom(item_id) => {
-            let name = gcx.item_name_opt(*item_id)?;
-            write!(output, "{name}").ok()?;
-        }
-        hir::TypeKind::Err(_) => return None,
-    }
-    Some(())
-}
-
-fn render_state_mutability(
-    state_mutability: hir::StateMutability,
-    output: &mut String,
-) -> Option<()> {
-    if state_mutability != hir::StateMutability::NonPayable {
-        write!(output, " {state_mutability}").ok()?;
-    }
-    Some(())
-}
-
-fn render_override_list(
-    gcx: Gcx<'_>,
-    overrides: &[hir::ContractId],
-    output: &mut String,
-) -> Option<()> {
-    if overrides.is_empty() {
-        return Some(());
-    }
-    output.push('(');
-    for (index, &contract) in overrides.iter().enumerate() {
-        if index != 0 {
-            output.push_str(", ");
-        }
-        let name = gcx.item_name_opt(contract)?;
-        write!(output, "{name}").ok()?;
-    }
-    output.push(')');
-    Some(())
 }
