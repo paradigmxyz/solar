@@ -11,7 +11,7 @@ use lsp_types::{
     DidChangeTextDocumentParams, DidChangeWatchedFilesParams, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DidSaveTextDocumentParams, DocumentDiagnosticParams,
     DocumentDiagnosticReport, DocumentDiagnosticReportResult, DocumentSymbol, FileChangeType,
-    FileEvent, PartialResultParams, Position, ProgressParams, ProgressParamsValue,
+    FileEvent, InlayHintLabel, PartialResultParams, Position, ProgressParams, ProgressParamsValue,
     PublishDiagnosticsParams, Range, SymbolKind, TextDocumentContentChangeEvent,
     TextDocumentIdentifier, TextDocumentItem, VersionedTextDocumentIdentifier, WatchKind,
     WorkDoneProgress, WorkDoneProgressCreateParams, WorkDoneProgressParams, WorkspaceSymbol,
@@ -359,6 +359,115 @@ fn analysis_indexes_document_local_data_only_for_batch_sources() {
             )
             .is_some()
     );
+}
+
+#[test]
+fn document_indexes_reuse_unchanged_files_and_rebuild_reverse_dependencies() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /A.sol
+        import {B} from "./B.sol";
+
+        contract A {
+            function call(B target) external {
+                target.run(1);
+            }
+        }
+
+        //- /B.sol
+        contract B {
+            function run(uint256 amount) external {}
+        }
+
+        //- /C.sol
+        contract C {
+            function local(uint256 retained) internal {}
+
+            function call() external {
+                local(2);
+            }
+        }
+        "#,
+    );
+    let a_path = project.path("/A.sol");
+    let b_path = project.path("/B.sol");
+    let c_path = project.path("/C.sol");
+    let a_uri = Url::from_file_path(&a_path).unwrap();
+    let c_uri = Url::from_file_path(&c_path).unwrap();
+    let full_range = Range::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX));
+    let mut batches = snapshot(&project).analysis_batches(Vec::new());
+    let initial = analyze(batches.pop().unwrap());
+    assert!(batches.is_empty());
+    assert!(initial.diagnostics.is_empty(), "{:#?}", initial.diagnostics);
+    assert_eq!(
+        initial.symbol_tables.rebuilt_document_paths(),
+        &FxHashSet::from_iter([a_path.clone(), b_path.clone(), c_path.clone()])
+    );
+    let retained_hints =
+        serde_json::to_value(initial.symbol_tables.inlay_hints(&c_uri, full_range)).unwrap();
+    assert_ne!(retained_hints, serde_json::json!([]));
+
+    let previous = initial.symbol_tables.document_index_snapshot();
+    let mut batches = snapshot(&project).analysis_batches(Vec::new());
+    let mut unchanged = analyze_incremental(
+        batches.pop().unwrap(),
+        &previous,
+        &AnalysisChanges {
+            paths: FxHashSet::from_iter([a_path.clone()]),
+            rebuild_all_document_indexes: false,
+        },
+    );
+    assert!(unchanged.symbol_tables.rebuilt_document_paths().is_empty());
+    unchanged.symbol_tables.reuse_unchanged_document_indexes(&initial.symbol_tables);
+    assert_eq!(
+        serde_json::to_value(unchanged.symbol_tables.inlay_hints(&c_uri, full_range)).unwrap(),
+        retained_hints
+    );
+
+    project.write_file(
+        "/B.sol",
+        r#"
+        contract B {
+            function run(uint256 renamed) external {}
+        }
+        "#,
+    );
+    let previous = unchanged.symbol_tables.document_index_snapshot();
+    let mut batches = snapshot(&project).analysis_batches(Vec::new());
+    let mut changed = analyze_incremental(
+        batches.pop().unwrap(),
+        &previous,
+        &AnalysisChanges {
+            paths: FxHashSet::from_iter([b_path.clone()]),
+            rebuild_all_document_indexes: false,
+        },
+    );
+    assert_eq!(
+        changed.symbol_tables.rebuilt_document_paths(),
+        &FxHashSet::from_iter([a_path, b_path])
+    );
+    changed.symbol_tables.reuse_unchanged_document_indexes(&unchanged.symbol_tables);
+    assert_eq!(
+        serde_json::to_value(changed.symbol_tables.inlay_hints(&c_uri, full_range)).unwrap(),
+        retained_hints
+    );
+    assert!(changed.symbol_tables.inlay_hints(&a_uri, full_range).iter().any(|hint| {
+        matches!(&hint.label, InlayHintLabel::String(label) if label == "renamed:")
+    }));
+
+    project.remove_file("/C.sol");
+    let previous = changed.symbol_tables.document_index_snapshot();
+    let mut batches = snapshot(&project).analysis_batches(Vec::new());
+    let mut deleted = analyze_incremental(
+        batches.pop().unwrap(),
+        &previous,
+        &AnalysisChanges {
+            paths: FxHashSet::from_iter([c_path]),
+            rebuild_all_document_indexes: false,
+        },
+    );
+    deleted.symbol_tables.reuse_unchanged_document_indexes(&changed.symbol_tables);
+    assert!(deleted.symbol_tables.inlay_hints(&c_uri, full_range).is_empty());
 }
 
 #[tokio::test(flavor = "current_thread")]

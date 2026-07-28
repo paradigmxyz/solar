@@ -60,6 +60,12 @@ impl DocumentLinkIndex {
         self.by_file.extend(other.by_file);
     }
 
+    pub(crate) fn copy_file_from(&mut self, path: &Path, other: &Self) {
+        if let Some(links) = other.by_file.get(path) {
+            self.by_file.insert(path.to_path_buf(), links.clone());
+        }
+    }
+
     pub(crate) fn links(&self, path: &Path) -> Vec<DocumentLink> {
         let Some(links) = self.by_file.get(path) else { return Vec::new() };
         links.iter().map(StoredDocumentLink::to_lsp).collect()

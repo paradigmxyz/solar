@@ -5,7 +5,7 @@ use crate::{
     flycheck,
     progress::{ProgressCoordinator, ProgressTicket},
     proto,
-    symbols::{SymbolTables, SymbolTablesAggregator},
+    symbols::{DocumentIndexSnapshot, SymbolTables, SymbolTablesAggregator},
     vfs::Vfs,
     workspace::WorkspacePathIndex,
 };
@@ -63,6 +63,12 @@ struct AnalysisCommitState {
     natspec_symbol_tables_version: usize,
     natspec_pending_source_changes: FxHashSet<PathBuf>,
     natspec_context_change_version: usize,
+}
+
+#[derive(Clone, Debug, Default)]
+struct AnalysisChanges {
+    paths: FxHashSet<PathBuf>,
+    rebuild_all_document_indexes: bool,
 }
 
 /// Serializes compiler analysis while allowing the newest request to replace a pending one.
@@ -298,21 +304,24 @@ impl GlobalState {
         mode: AnalysisMode,
         disk_paths: Vec<PathBuf>,
         removed_paths: Vec<PathBuf>,
-        changed_paths: Vec<PathBuf>,
+        mut changed_paths: Vec<PathBuf>,
         delay: Duration,
     ) {
+        changed_paths.extend(removed_paths.iter().cloned());
         let removed_uris = self.prepare_removed_file_diagnostics(removed_paths);
         let Some((version, progress)) = self.begin_analysis(mode, removed_uris, changed_paths)
         else {
             return;
         };
-        self.schedule_analysis(version, disk_paths, progress, delay);
+        let changes = self.pending_analysis_changes();
+        self.schedule_analysis(version, disk_paths, changes, progress, delay);
     }
 
     fn schedule_analysis(
         &self,
         version: usize,
         disk_paths: Vec<PathBuf>,
+        changes: AnalysisChanges,
         progress: ProgressTicket,
         delay: Duration,
     ) {
@@ -343,7 +352,7 @@ impl GlobalState {
                 let worker_progress = progress.clone();
                 let worker = tokio::task::spawn_blocking(move || {
                     let _permit = permit;
-                    run_analysis(&mut snapshot, version, disk_paths, &worker_progress)
+                    run_analysis(&mut snapshot, version, disk_paths, changes, &worker_progress)
                 });
                 tasks.worker = Some((version, worker.abort_handle()));
                 worker
@@ -436,6 +445,15 @@ impl GlobalState {
         }
         commit.natspec_pending_source_changes.extend(changed_paths);
         self.analysis_version.store(version, Ordering::Release);
+    }
+
+    fn pending_analysis_changes(&self) -> AnalysisChanges {
+        let commit = self.analysis_commit.lock();
+        AnalysisChanges {
+            paths: commit.natspec_pending_source_changes.clone(),
+            rebuild_all_document_indexes: commit.natspec_context_change_version
+                > commit.natspec_symbol_tables_version,
+        }
     }
 
     /// Waits for analysis results at least as new as the latest version requested before this call.
@@ -661,6 +679,7 @@ fn run_analysis(
     snapshot: &mut GlobalStateSnapshot,
     version: usize,
     disk_paths: Vec<PathBuf>,
+    changes: AnalysisChanges,
     progress: &ProgressTicket,
 ) -> AnalysisTaskOutcome {
     progress.report("Reading workspace sources");
@@ -675,6 +694,7 @@ fn run_analysis(
     }
 
     let mut results = AnalysisResultAccumulator::default();
+    let previous_document_indexes = snapshot.symbol_tables.read().document_index_snapshot();
 
     for batch in batches {
         if batch.files.is_empty() {
@@ -685,7 +705,7 @@ fn run_analysis(
             return AnalysisTaskOutcome::Superseded;
         }
 
-        results.push(analyze(batch));
+        results.push(analyze_incremental(batch, &previous_document_indexes, &changes));
 
         if !snapshot.is_current(version) {
             return AnalysisTaskOutcome::Superseded;
@@ -903,7 +923,7 @@ impl GlobalStateSnapshot {
         batches
     }
 
-    fn publish_analysis(&mut self, version: usize, result: AnalysisResult) -> bool {
+    fn publish_analysis(&mut self, version: usize, mut result: AnalysisResult) -> bool {
         let refresh_code_lenses =
             self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
         let old_symbol_tables = {
@@ -913,8 +933,11 @@ impl GlobalStateSnapshot {
                 return false;
             }
 
-            let old_symbol_tables =
-                mem::replace(&mut *self.symbol_tables.write(), result.symbol_tables);
+            let old_symbol_tables = {
+                let mut symbol_tables = self.symbol_tables.write();
+                result.symbol_tables.reuse_unchanged_document_indexes(&symbol_tables);
+                mem::replace(&mut *symbol_tables, result.symbol_tables)
+            };
             commit.natspec_symbol_tables_version = version;
             commit.natspec_pending_source_changes.clear();
             let batches = self
@@ -1046,11 +1069,40 @@ mod analysis_batch_tests {
     }
 }
 
+#[cfg(any(test, feature = "bench"))]
 fn analyze(batch: AnalysisBatch) -> AnalysisResult {
     analyze_with_source_map(batch, Arc::new(SourceMap::empty()))
 }
 
+#[cfg(any(test, feature = "bench"))]
 fn analyze_with_source_map(batch: AnalysisBatch, source_map: Arc<SourceMap>) -> AnalysisResult {
+    analyze_with_document_indexes(
+        batch,
+        source_map,
+        &DocumentIndexSnapshot::default(),
+        &AnalysisChanges::default(),
+    )
+}
+
+fn analyze_incremental(
+    batch: AnalysisBatch,
+    previous_document_indexes: &DocumentIndexSnapshot,
+    changes: &AnalysisChanges,
+) -> AnalysisResult {
+    analyze_with_document_indexes(
+        batch,
+        Arc::new(SourceMap::empty()),
+        previous_document_indexes,
+        changes,
+    )
+}
+
+fn analyze_with_document_indexes(
+    batch: AnalysisBatch,
+    source_map: Arc<SourceMap>,
+    previous_document_indexes: &DocumentIndexSnapshot,
+    changes: &AnalysisChanges,
+) -> AnalysisResult {
     let (emitter, diag_buffer) = InMemoryEmitter::new();
     let AnalysisBatch { mut opts, files, seen_paths: indexed_source_paths } = batch;
     debug_assert_eq!(files.len(), indexed_source_paths.len());
@@ -1092,7 +1144,13 @@ fn analyze_with_source_map(batch: AnalysisBatch, source_map: Arc<SourceMap>) -> 
             }
         }
 
-        let symbol_tables = SymbolTables::build(compiler.gcx(), &indexed_source_paths);
+        let symbol_tables = SymbolTables::build(
+            compiler.gcx(),
+            &indexed_source_paths,
+            previous_document_indexes,
+            &changes.paths,
+            changes.rebuild_all_document_indexes,
+        );
         let diagnostics = diag_buffer
             .read()
             .iter()

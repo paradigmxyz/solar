@@ -45,6 +45,10 @@ use crate::{
     type_hierarchy::TypeHierarchyIndex,
 };
 
+mod incremental;
+pub(crate) use incremental::DocumentIndexSnapshot;
+use incremental::DocumentIndexState;
+
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SymbolTables {
     declarations: IndexVec<SymbolId, DeclarationSymbol>,
@@ -72,6 +76,7 @@ pub(crate) struct SymbolTables {
     call_hierarchy: CallHierarchyIndex,
     type_hierarchy: TypeHierarchyIndex,
     code_lens: CodeLensIndex,
+    document_index_state: DocumentIndexState,
     has_merged_batches: bool,
 }
 
@@ -253,7 +258,13 @@ impl SymbolTables {
     /// source-level declarations that LSP requests can query after that run has finished.
     /// `indexed_source_paths` restricts document-local indexes to files owned by this analysis
     /// batch; global tables still include transitive dependencies.
-    pub(crate) fn build(gcx: Gcx<'_>, indexed_source_paths: &FxHashSet<PathBuf>) -> Self {
+    pub(crate) fn build(
+        gcx: Gcx<'_>,
+        indexed_source_paths: &FxHashSet<PathBuf>,
+        previous_document_indexes: &DocumentIndexSnapshot,
+        changed_paths: &FxHashSet<PathBuf>,
+        rebuild_all_document_indexes: bool,
+    ) -> Self {
         let mut tables = Self::default();
         tables.rename.record_source_contents(gcx);
         tables.build_builtin_completions();
@@ -271,6 +282,14 @@ impl SymbolTables {
                     .is_some_and(|path| indexed_source_paths.contains(path))
             })
             .collect::<FxHashSet<_>>();
+        tables.document_index_state = DocumentIndexState::build(
+            gcx,
+            indexed_source_paths,
+            previous_document_indexes,
+            changed_paths,
+            rebuild_all_document_indexes,
+        );
+        let rebuilt_sources = tables.document_index_state.rebuilt_sources(gcx);
         let mut item_symbols =
             FxHashMap::with_capacity_and_hasher(item_ids.size_hint().0, Default::default());
 
@@ -342,16 +361,54 @@ impl SymbolTables {
         tables.type_hierarchy = TypeHierarchyIndex::build(gcx, &item_symbols, &tables.declarations);
         tables.build_scopes(gcx, &indexed_sources);
         tables.build_receiver_member_completions(gcx);
-        tables.build_member_completions(gcx, &indexed_sources);
+        tables.build_member_completions(gcx, &rebuilt_sources);
         tables.build_references(gcx, &item_symbols);
         // HIR IDs are scoped to this compiler run and cannot back published LSP queries.
         tables.symbols_by_key = FxHashMap::default();
-        tables.document_links = DocumentLinkIndex::build(gcx, indexed_source_paths);
-        tables.inlay_hints = InlayHintIndex::build(gcx, &indexed_sources);
+        tables.document_links =
+            DocumentLinkIndex::build(gcx, &tables.document_index_state.rebuilt_paths);
+        tables.inlay_hints = InlayHintIndex::build(gcx, &rebuilt_sources);
         tables.natspec_completion = NatSpecCompletionIndex::build(gcx);
-        tables.signature_help = SignatureHelpIndex::build(gcx, &indexed_sources);
+        tables.signature_help = SignatureHelpIndex::build(gcx, &rebuilt_sources);
         tables.rebuild_indexes();
         tables
+    }
+
+    pub(crate) fn document_index_snapshot(&self) -> DocumentIndexSnapshot {
+        self.document_index_state.snapshot()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn rebuilt_document_paths(&self) -> &FxHashSet<PathBuf> {
+        &self.document_index_state.rebuilt_paths
+    }
+
+    pub(crate) fn reuse_unchanged_document_indexes(&mut self, previous: &Self) {
+        let reusable_paths = self
+            .document_index_state
+            .indexed_paths
+            .iter()
+            .filter(|path| {
+                !self.document_index_state.rebuilt_paths.contains(*path)
+                    && previous.document_index_state.indexed_paths.contains(*path)
+            })
+            .filter_map(|path| {
+                let uri = Url::from_file_path(path).ok()?;
+                Some((path.clone(), uri))
+            })
+            .collect::<Vec<_>>();
+
+        for (path, uri) in reusable_paths {
+            self.document_links.copy_file_from(&path, &previous.document_links);
+            self.inlay_hints.copy_file_from(&uri, &previous.inlay_hints);
+            self.signature_help.copy_calls_from(&uri, &previous.signature_help);
+            if let Some(indices) = previous.file_member_completions.get(&uri) {
+                self.member_completions.extend(
+                    indices.iter().map(|&index| previous.member_completions[index].clone()),
+                );
+            }
+        }
+        self.rebuild_member_completion_index();
     }
 
     #[cfg(test)]
@@ -382,6 +439,7 @@ impl SymbolTables {
         self.inlay_hints.extend(other.inlay_hints);
         self.natspec_completion.extend(other.natspec_completion);
         self.signature_help.extend(other.signature_help);
+        self.document_index_state.extend(other.document_index_state);
 
         let symbol_offset = self.declarations.len();
         self.code_lens.extend(other.code_lens, symbol_offset);
@@ -1490,16 +1548,7 @@ impl SymbolTables {
             });
         }
 
-        self.file_member_completions.clear();
-        for (index, completion) in self.member_completions.iter().enumerate() {
-            self.file_member_completions.entry(completion.uri.clone()).or_default().push(index);
-        }
-        for completions in self.file_member_completions.values_mut() {
-            completions.sort_by_key(|&index| {
-                let range = self.member_completions[index].range;
-                (range.start.line, range.start.character, range.end.line, range.end.character)
-            });
-        }
+        self.rebuild_member_completion_index();
 
         self.file_references.clear();
         self.symbol_references.clear();
@@ -1517,6 +1566,19 @@ impl SymbolTables {
         self.rename.rebuild(&self.override_families);
         self.code_lens.rebuild(&self.declarations, self.rename.conflicting_contents());
         self.call_hierarchy.rebuild();
+    }
+
+    fn rebuild_member_completion_index(&mut self) {
+        self.file_member_completions.clear();
+        for (index, completion) in self.member_completions.iter().enumerate() {
+            self.file_member_completions.entry(completion.uri.clone()).or_default().push(index);
+        }
+        for completions in self.file_member_completions.values_mut() {
+            completions.sort_by_key(|&index| {
+                let range = self.member_completions[index].range;
+                (range.start.line, range.start.character, range.end.line, range.end.character)
+            });
+        }
     }
 }
 

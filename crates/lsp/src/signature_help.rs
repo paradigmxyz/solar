@@ -105,6 +105,19 @@ impl SignatureHelpIndex {
         }
     }
 
+    pub(crate) fn copy_calls_from(&mut self, uri: &Url, other: &Self) {
+        let Some(calls) = other.calls.get(uri) else {
+            return;
+        };
+        let mut calls = calls.clone();
+        for call in &mut calls {
+            for signature in &mut call.signatures {
+                *signature = self.intern_shared_signature(signature.clone());
+            }
+        }
+        self.calls.insert(uri.clone(), calls);
+    }
+
     pub(crate) fn signature_help<'a>(
         &self,
         uri: &Url,

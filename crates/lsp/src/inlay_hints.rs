@@ -56,6 +56,12 @@ impl InlayHintIndex {
         self.sort();
     }
 
+    pub(crate) fn copy_file_from(&mut self, uri: &Url, other: &Self) {
+        if let Some(hints) = other.by_file.get(uri) {
+            self.by_file.insert(uri.clone(), hints.clone());
+        }
+    }
+
     /// Returns the inlay hints requested by the LSP client for a file range.
     ///
     /// The LSP inlay hint request includes a range so clients can ask only for the part of a file
