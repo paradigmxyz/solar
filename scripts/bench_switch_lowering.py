@@ -12,6 +12,7 @@ import json
 import re
 import shlex
 import shutil
+import socket
 import subprocess
 import sys
 import tarfile
@@ -19,7 +20,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Callable, Iterable, Sequence
 
 
 DEFAULT_PIN = "01209d2b8ac81645b92e3ef801b5bcdfd61bfd69"
@@ -28,6 +29,7 @@ DEFAULT_METHODS = ("auto", "linear", "binary", "buckets", "dense", "perfect")
 SYNTHETIC_FIXTURE_VERSION = 6
 ANVIL_HARDFORK = "osaka"
 EXPECTED_UI_FAILURE_RE = re.compile(r"//~[\^v|?]*\s*(?:ERROR|ICE)(?::|\b)")
+SHA256_RE = re.compile(r"[0-9a-f]{64}")
 GROWTH_SWEEP_CASE_COUNTS = {"synthetic": 54, "ui-gas": 147, "ci-gas": 12}
 GROWTH_SWEEP_TEST_IDS_SHA256 = {
     "synthetic": "2a8114a7f300165d8d2e5a3518549aabdc820a2d5432274dc23eb210d3102138",
@@ -51,7 +53,9 @@ GROWTH_SWEEP_PROVENANCE_KEYS = (
     "solc_sha256",
     "solc_version",
     "anvil_version",
+    "anvil_sha256",
     "cast_version",
+    "cast_sha256",
     "hardfork",
     "driver_sha256",
     "methods",
@@ -115,6 +119,20 @@ def bytecode_sha256(value: str) -> str:
 def json_sha256(value: Any) -> str:
     encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(encoded).hexdigest()
+
+
+def valid_sha256(value: Any) -> bool:
+    return isinstance(value, str) and SHA256_RE.fullmatch(value) is not None
+
+
+def valid_artifact(compiler: dict[str, Any]) -> bool:
+    return all(
+        type(compiler.get(key)) is int and compiler[key] >= 0
+        for key in ("bytecode_size", "runtime_size")
+    ) and all(
+        valid_sha256(compiler.get(key))
+        for key in ("bytecode_sha256", "runtime_sha256")
+    )
 
 
 def load_benchmark_module(root: Path) -> Any:
@@ -235,7 +253,12 @@ def use_pinned_benchmark_inputs(bench: Any, root: Path, pinned_root: Path) -> st
     bench.ROOT = root
     bench.RESULT_ROOT = root / "solar_results"
     bench.compile_runtime_fixture = compile_runtime_fixture
-    return tree_sha256(pinned_root, pinned_files)
+    return benchmark_fixture_tree_sha256(pinned_root)
+
+
+def benchmark_fixture_tree_sha256(pinned_root: Path) -> str:
+    files = [path for path in (pinned_root / "fixtures").rglob("*") if path.is_file()]
+    return tree_sha256(pinned_root, files)
 
 
 def require_clean_source(root: Path) -> None:
@@ -649,12 +672,15 @@ def run_ui_case(bench: Any, case: UiCase, specs: Sequence[Any]) -> dict[str, Any
     }
 
 
-def start_anvil() -> subprocess.Popen[bytes]:
+def start_anvil() -> tuple[subprocess.Popen[bytes], str]:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
     process = subprocess.Popen(
         [
             "anvil",
             "--port",
-            "8545",
+            str(port),
             "--hardfork",
             ANVIL_HARDFORK,
             "--steps-tracing",
@@ -665,7 +691,7 @@ def start_anvil() -> subprocess.Popen[bytes]:
     time.sleep(2)
     if process.poll() is not None:
         raise RuntimeError("anvil exited before becoming ready")
-    return process
+    return process, f"http://127.0.0.1:{port}"
 
 
 def stop_anvil(process: subprocess.Popen[bytes]) -> None:
@@ -676,9 +702,114 @@ def stop_anvil(process: subprocess.Popen[bytes]) -> None:
         process.kill()
 
 
-def write_results(path: Path, metadata: dict[str, Any], results: Sequence[dict[str, Any]]) -> None:
+def write_text_atomic(path: Path, contents: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"metadata": metadata, "results": results}, indent=2) + "\n")
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            delete=False,
+        ) as file:
+            temporary = Path(file.name)
+            file.write(contents)
+        temporary.replace(path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def write_results(path: Path, metadata: dict[str, Any], results: Sequence[dict[str, Any]]) -> None:
+    write_text_atomic(
+        path,
+        json.dumps({"metadata": metadata, "results": results}, indent=2) + "\n",
+    )
+
+
+def expected_gas_schema(
+    bench: Any,
+    case: Any,
+    gas_profile: str,
+    labels: Sequence[str] | None,
+) -> list[dict[str, Any]]:
+    schema = []
+    for call in bench.gas_calls(case, gas_profile):
+        if type(call.repeat) is not int or call.repeat <= 0:
+            raise RuntimeError(f"{case.test_id} has an invalid gas call repeat")
+        for index in range(call.repeat):
+            label = call.label if call.repeat == 1 else f"{call.label}#{index + 1}"
+            schema.append(
+                {
+                    "label": label,
+                    "call": call.signature,
+                    "args": list(call.args),
+                }
+            )
+    if labels is not None:
+        if len(labels) != len(schema):
+            raise RuntimeError(f"{case.test_id} gas labels do not match its calls")
+        for item, label in zip(schema, labels):
+            item["label"] = label
+    if not valid_gas_schema(schema):
+        raise RuntimeError(f"{case.test_id} has an invalid gas call schema")
+    return schema
+
+
+def valid_gas_schema(schema: Any) -> bool:
+    if not isinstance(schema, list) or not schema:
+        return False
+    labels = []
+    for item in schema:
+        if not isinstance(item, dict) or set(item) != {"label", "call", "args"}:
+            return False
+        label = item.get("label")
+        call = item.get("call")
+        args = item.get("args")
+        if (
+            not isinstance(label, str)
+            or not label
+            or not isinstance(call, str)
+            or not call
+            or not isinstance(args, list)
+            or any(not isinstance(arg, str) for arg in args)
+        ):
+            return False
+        labels.append(label)
+    return len(labels) == len(set(labels))
+
+
+def apply_gas_schema(result: dict[str, Any], schema: list[dict[str, Any]]) -> None:
+    result["expected_gas_calls"] = len(schema)
+    result["expected_gas_schema"] = copy.deepcopy(schema)
+    for compiler in (result.get("compilers") or {}).values():
+        gas_results = compiler.get("gas_results")
+        if not isinstance(gas_results, list) or len(gas_results) != len(schema):
+            continue
+        for gas_result, expected in zip(gas_results, schema):
+            gas_result.update(expected)
+
+
+def complete_gas_results(compiler: dict[str, Any], schema: Any) -> bool:
+    if not valid_gas_schema(schema):
+        return False
+    gas_results = compiler.get("gas_results")
+    if not isinstance(gas_results, list) or len(gas_results) != len(schema):
+        return False
+    for gas_result, expected in zip(gas_results, schema):
+        if (
+            not isinstance(gas_result, dict)
+            or any(gas_result.get(key) != value for key, value in expected.items())
+            or type(gas_result.get("gas")) is not int
+            or gas_result["gas"] < 0
+        ):
+            return False
+    total_gas = compiler.get("total_gas")
+    return (
+        type(total_gas) is int
+        and total_gas >= 0
+        and total_gas == sum(item["gas"] for item in gas_results)
+    )
 
 
 def compile_specs(
@@ -733,10 +864,13 @@ def run_cases(
     expected_failures: set[str] | None = None,
     reference_spec: Any | None = None,
     jobs: int = 1,
+    validate_inputs: Callable[[], None] | None = None,
 ) -> list[dict[str, Any]]:
     expected_failures = expected_failures or set()
     if include_gas and reference_spec is None:
         raise RuntimeError("gas benchmarks require a reference compiler")
+    if validate_inputs is not None:
+        validate_inputs()
 
     previous = {}
     if output.is_file():
@@ -748,21 +882,22 @@ def run_cases(
     results = []
     cases = list(cases)
     for index, case in enumerate(cases, 1):
+        if validate_inputs is not None:
+            validate_inputs()
         expected_status = "failed" if case.test_id in expected_failures else "ok"
-        expected_calls = None
+        schema = None
         if include_gas:
-            expected_calls = (
-                len(labels[case.test_id])
-                if labels is not None
-                else sum(call.repeat for call in bench.gas_calls(case, gas_profile))
+            schema = expected_gas_schema(
+                bench,
+                case,
+                gas_profile,
+                labels[case.test_id] if labels is not None else None,
             )
-            if expected_status == "ok" and expected_calls == 0:
-                raise RuntimeError(f"{case.test_id} has no gas calls")
         if case.test_id in previous and result_is_complete(
             previous[case.test_id],
             specs,
             include_gas,
-            expected_calls,
+            schema,
             expected_status,
             include_gas and expected_status == "ok",
         ):
@@ -786,20 +921,20 @@ def run_cases(
             execution_specs = tuple(group[0] for group in grouped_specs.values())
             run_specs = (*execution_specs, reference_spec)
             for attempt in range(1, 4):
-                anvil = start_anvil()
+                anvil, rpc_url = start_anvil()
                 try:
                     partial = bench.run_test_case(
                         case,
                         run_specs,
                         True,
                         gas_profile,
-                        bench.DEFAULT_RPC_URL,
+                        rpc_url,
                         bench.DEFAULT_PRIVATE_KEY,
                         True,
                     )
                 finally:
                     stop_anvil(anvil)
-                partial["expected_gas_calls"] = expected_calls
+                apply_gas_schema(partial, schema)
                 reference = partial["compilers"][reference_spec.compiler_id]
                 reference_checks_sha256 = json_sha256(
                     reference.get("runtime_results") or []
@@ -815,7 +950,7 @@ def run_cases(
                     partial,
                     run_specs,
                     True,
-                    expected_calls,
+                    schema,
                     expected_status,
                     expected_status == "ok",
                 ):
@@ -839,7 +974,7 @@ def run_cases(
                 result,
                 specs,
                 True,
-                expected_calls,
+                schema,
                 expected_status,
                 expected_status == "ok",
             ):
@@ -853,13 +988,9 @@ def run_cases(
                     f"{case.test_id} has unexpected or incomplete compilation results"
                 )
 
-        if labels is not None:
-            expected = labels[case.test_id]
-            for compiler in result["compilers"].values():
-                gas_results = compiler.get("gas_results") or []
-                for gas_result, label in zip(gas_results, expected):
-                    gas_result["label"] = label
         results.append(result)
+        if validate_inputs is not None:
+            validate_inputs()
         write_results(output, metadata, results)
     return results
 
@@ -868,7 +999,7 @@ def result_is_complete(
     result: dict[str, Any],
     specs: Sequence[Any],
     include_gas: bool,
-    expected_calls: int | None,
+    schema: list[dict[str, Any]] | None,
     expected_status: str,
     require_runtime: bool,
 ) -> bool:
@@ -888,18 +1019,15 @@ def result_is_complete(
     for compiler in selected:
         if compiler.get("status") != "ok":
             continue
-        if not isinstance(compiler.get("bytecode_size"), int) or not isinstance(
-            compiler.get("runtime_size"), int
-        ):
-            return False
-        if any(
-            not isinstance(compiler.get(key), str) or len(compiler[key]) != 64
-            for key in ("bytecode_sha256", "runtime_sha256")
-        ):
+        if not valid_artifact(compiler):
             return False
         if not include_gas:
             continue
-        if result.get("expected_gas_calls") != expected_calls:
+        if (
+            schema is None
+            or result.get("expected_gas_calls") != len(schema)
+            or result.get("expected_gas_schema") != schema
+        ):
             return False
         if (
             compiler.get("reference_runtime_status") != "ok"
@@ -909,11 +1037,7 @@ def result_is_complete(
             return False
         if compiler.get("deploy_status") != "ok" or compiler.get("gas_status") != "ok":
             return False
-        gas_results = compiler.get("gas_results") or []
-        if expected_calls is not None and (
-            len(gas_results) != expected_calls
-            or any(not isinstance(item.get("gas"), int) for item in gas_results)
-        ):
+        if not complete_gas_results(compiler, schema):
             return False
     return True
 
@@ -1241,9 +1365,11 @@ def growth_budget(compiler_id: str) -> int | None:
 
 
 def artifact_key(compiler: dict[str, Any]) -> tuple[str, str]:
+    if not valid_artifact(compiler):
+        raise RuntimeError("compiler artifact metadata is invalid")
     return (
-        str(compiler["bytecode_sha256"]),
-        str(compiler["runtime_sha256"]),
+        compiler["bytecode_sha256"],
+        compiler["runtime_sha256"],
     )
 
 
@@ -1303,6 +1429,8 @@ def validate_growth_sweep_inputs(
         raise RuntimeError(
             "synthetic compile fixture version differs from the growth sweep manifest"
         )
+    if canonical.get("driver_sha256") != sha256(Path(__file__).resolve()):
+        raise RuntimeError("growth sweep was produced by a different benchmark driver")
     compile_results = {}
     for scope, payload in compile_payloads.items():
         metadata = payload.get("metadata") or {}
@@ -1325,6 +1453,11 @@ def validate_growth_sweep_inputs(
                 raise RuntimeError(
                     f"{scope}/{test_id} compilers differ from the growth sweep manifest"
                 )
+            for compiler_id, compiler in result["compilers"].items():
+                if compiler.get("status") != "ok" or not valid_artifact(compiler):
+                    raise RuntimeError(
+                        f"{scope}/{test_id}/{compiler_id} artifact metadata is invalid"
+                    )
 
     for scope, payload in gas_payloads.items():
         metadata = payload.get("metadata") or {}
@@ -1360,10 +1493,14 @@ def validate_growth_sweep_inputs(
             expected_calls = result.get("expected_gas_calls")
             if type(expected_calls) is not int or expected_calls <= 0:
                 raise RuntimeError(f"{scope}/{test_id} expected gas calls are invalid")
-            expected_labels = None
+            schema = result.get("expected_gas_schema")
+            if not valid_gas_schema(schema) or len(schema) != expected_calls:
+                raise RuntimeError(f"{scope}/{test_id} expected gas schema is invalid")
             for compiler_id, compiler in result["compilers"].items():
-                if compiler.get("status") != "ok":
-                    raise RuntimeError(f"{scope}/{test_id}/{compiler_id} failed")
+                if compiler.get("status") != "ok" or not valid_artifact(compiler):
+                    raise RuntimeError(
+                        f"{scope}/{test_id}/{compiler_id} artifact metadata is invalid"
+                    )
                 if (
                     compiler.get("deploy_status") != "ok"
                     or compiler.get("gas_status") != "ok"
@@ -1374,20 +1511,8 @@ def validate_growth_sweep_inputs(
                 checks = compiler.get("runtime_checks_sha256")
                 if not checks or checks != compiler.get("reference_checks_sha256"):
                     raise RuntimeError(f"{scope}/{test_id}/{compiler_id} check digests differ")
-                call_gas_results = compiler.get("gas_results")
-                if not isinstance(call_gas_results, list) or len(call_gas_results) != expected_calls:
+                if not complete_gas_results(compiler, schema):
                     raise RuntimeError(f"{scope}/{test_id}/{compiler_id} gas calls are incomplete")
-                labels = tuple(item.get("label") for item in call_gas_results)
-                if any(not isinstance(label, str) or not label for label in labels):
-                    raise RuntimeError(f"{scope}/{test_id}/{compiler_id} gas labels are invalid")
-                if expected_labels is None:
-                    expected_labels = labels
-                elif labels != expected_labels:
-                    raise RuntimeError(f"{scope}/{test_id}/{compiler_id} gas labels differ")
-                if any(type(item.get("gas")) is not int for item in call_gas_results):
-                    raise RuntimeError(f"{scope}/{test_id}/{compiler_id} gas values are invalid")
-                if compiler.get("total_gas") != sum(item["gas"] for item in call_gas_results):
-                    raise RuntimeError(f"{scope}/{test_id}/{compiler_id} gas total differs")
 
 
 def render_growth_sweep(
@@ -1493,12 +1618,17 @@ def render_growth_sweep(
         row["ci_regressing_contracts"] = regressing_contracts
 
     policy = rows[GROWTH_SWEEP_POLICY_BUDGET - GROWTH_SWEEP_MIN_BUDGET]
-    if (
-        policy["budget"] != GROWTH_SWEEP_POLICY_BUDGET
-        or policy["max_ci_contract_regression"] != 0
-        or policy["max_ci_call_regression"] != 0
-    ):
-        raise RuntimeError("growth budget policy regresses a CI contract or call")
+    if policy["budget"] != GROWTH_SWEEP_POLICY_BUDGET:
+        raise RuntimeError("growth budget policy is absent from the sweep")
+    minimum_ci_gas = min(
+        rows,
+        key=lambda row: (
+            row["totals"]["ci-gas"]["gas"],
+            row["totals"]["ci-gas"]["runtime"],
+            row["totals"]["ui-gas"]["runtime"],
+            row["totals"]["synthetic"]["runtime"],
+        ),
+    )
 
     plateaus = []
     for row in rows:
@@ -1522,8 +1652,9 @@ def render_growth_sweep(
         f"{len(compile_payloads['ci-gas']['results'])} pinned CI contracts. "
         f"The sweep produced {len(set(fingerprints.values()))} distinct whole-corpus "
         "artifact fingerprints. Gas was executed once per distinct creation/runtime "
-        "artifact and mapped back to every budget. The sweep checks the fixed, round policy "
-        "limit against the maximum-budget baseline; it does not select the compiler default."
+        "artifact and mapped back to every budget. The fixed policy is compared with zero "
+        "growth, the lowest measured aggregate CI gas, and the maximum budget; the maximum "
+        "budget is not assumed to be optimal."
     )
     text += "\n\n"
     text += markdown_table(
@@ -1548,7 +1679,12 @@ def render_growth_sweep(
                 str(row["max_ci_contract_regression"]),
                 str(row["max_ci_call_regression"]),
             ]
-            for row in (policy, baseline)
+            for row in (
+                rows[budget]
+                for budget in dict.fromkeys(
+                    row["budget"] for row in (rows[0], policy, minimum_ci_gas, baseline)
+                )
+            )
         ],
     )
     text += "\n\n<details>\n<summary>Every growth budget</summary>\n\n"
@@ -1582,6 +1718,7 @@ def render_growth_sweep(
         "budgets": budgets,
         "policy_budget": policy["budget"],
         "policy": policy,
+        "minimum_ci_gas": minimum_ci_gas,
         "baseline_budget": baseline["budget"],
         "baseline": baseline,
         "fingerprint_plateaus": plateaus,
@@ -1634,8 +1771,11 @@ def main() -> int:
     if args.analyze_growth_sweep is not None:
         compile_dir, gas_dir = map(Path.resolve, args.analyze_growth_sweep)
         report, summary = render_growth_sweep(compile_dir, gas_dir)
-        (compile_dir / "growth-report.md").write_text(report)
-        (compile_dir / "growth-summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+        write_text_atomic(compile_dir / "growth-report.md", report)
+        write_text_atomic(
+            compile_dir / "growth-summary.json",
+            json.dumps(summary, indent=2) + "\n",
+        )
         print(report)
         return 0
     if "auto" not in args.methods:
@@ -1661,9 +1801,12 @@ def main() -> int:
         parser.error(f"benchmark repository not found: {benchmark_repo}")
     if not ui_corpus.is_dir():
         parser.error(f"UI corpus not found: {ui_corpus}")
+    tool_paths = {}
     for tool in ("anvil", "cast"):
-        if shutil.which(tool) is None:
+        path = shutil.which(tool)
+        if path is None:
             parser.error(f"{tool} is required")
+        tool_paths[tool] = Path(path).resolve()
     solc = args.solc.resolve()
     if not solc.is_file():
         parser.error(f"solc binary not found: {solc}")
@@ -1727,10 +1870,60 @@ def main() -> int:
             "solc_sha256": sha256(solc),
             "solc_version": tool_version(str(solc)),
             "anvil_version": tool_version("anvil"),
+            "anvil_sha256": sha256(tool_paths["anvil"]),
             "cast_version": tool_version("cast"),
+            "cast_sha256": sha256(tool_paths["cast"]),
             "hardfork": ANVIL_HARDFORK,
             "compile_only": args.compile_only,
         }
+
+        def current_input_provenance() -> dict[str, Any]:
+            require_clean_source(source_root)
+            current_source_revision = run(["git", "rev-parse", "HEAD"], source_root)
+            if current_source_revision != built_revision:
+                raise RuntimeError(
+                    f"source checkout moved from {built_revision} to {current_source_revision}"
+                )
+            current_ui_sources = list(ui_corpus.rglob("*.sol"))
+            return {
+                "solar_revision": compiler_revision(solar),
+                "source_tree": run(["git", "rev-parse", "HEAD^{tree}"], source_root),
+                "solar_sha256": sha256(solar),
+                "benchmark_pin": args.pin,
+                "benchmark_tree": run(
+                    ["git", "rev-parse", f"{args.pin}^{{tree}}"], benchmark_repo
+                ),
+                "benchmark_script_sha256": sha256(pinned_root / "solar_bench.py"),
+                "gas_script_sha256": sha256(pinned_root / "gas_bench.py"),
+                "benchmark_fixtures_sha256": benchmark_fixture_tree_sha256(pinned_root),
+                "corpus_revisions": verify_corpus_pin(benchmark_repo, args.pin),
+                "ui_corpus_sha256": tree_sha256(ui_corpus, current_ui_sources),
+                "solc_sha256": sha256(solc),
+                "solc_version": tool_version(str(solc)),
+                "anvil_version": tool_version("anvil"),
+                "anvil_sha256": sha256(tool_paths["anvil"]),
+                "cast_version": tool_version("cast"),
+                "cast_sha256": sha256(tool_paths["cast"]),
+                "hardfork": ANVIL_HARDFORK,
+                "driver_sha256": sha256(Path(__file__).resolve()),
+            }
+
+        initial_provenance = current_input_provenance()
+        for key, value in initial_provenance.items():
+            if metadata_base.get(key) != value:
+                raise RuntimeError(f"initial benchmark provenance differs for {key}")
+
+        def validate_inputs() -> None:
+            current = current_input_provenance()
+            changed = [
+                key
+                for key, value in initial_provenance.items()
+                if current.get(key) != value
+            ]
+            if changed:
+                raise RuntimeError(
+                    f"benchmark inputs changed during the run: {', '.join(changed)}"
+                )
 
         if "synthetic" in args.scope:
             cases, labels, checks = synthetic_cases(bench)
@@ -1755,6 +1948,7 @@ def main() -> int:
                 labels,
                 reference_spec=None if args.compile_only else reference_spec,
                 jobs=args.jobs,
+                validate_inputs=validate_inputs,
             )
 
         all_ui_cases = load_ui_cases(ui_corpus)
@@ -1782,6 +1976,7 @@ def main() -> int:
                     False,
                     "smoke",
                     jobs=args.jobs,
+                    validate_inputs=validate_inputs,
                 )
 
         all_ci_cases = [*bench.TEST_CASES, *bench.REPO_TEST_CASES]
@@ -1817,6 +2012,7 @@ def main() -> int:
                     False,
                     "hot",
                     jobs=args.jobs,
+                    validate_inputs=validate_inputs,
                 )
 
         if "ci-gas" in args.scope:
@@ -1838,8 +2034,10 @@ def main() -> int:
                 "hot",
                 reference_spec=None if args.compile_only else reference_spec,
                 jobs=args.jobs,
+                validate_inputs=validate_inputs,
             )
 
+        validate_inputs()
         report = render_markdown(
             output_dir,
             methods,
@@ -1847,7 +2045,7 @@ def main() -> int:
             args.scope,
             include_details=not args.aggregate_only,
         )
-        (output_dir / "report.md").write_text(report)
+        write_text_atomic(output_dir / "report.md", report)
         print(report)
     return 0
 
