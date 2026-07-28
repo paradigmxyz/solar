@@ -264,6 +264,8 @@ impl<'gcx> Lowerer<'gcx> {
                     && let Some(hir::Res::Item(hir::ItemId::Function(function_id))) =
                         self.gcx.resolved_expr(expr)
                 {
+                    let function_id =
+                        self.resolved_exact_function_callee(base, expr).unwrap_or(function_id);
                     self.internal_function_pointer_targets.insert(function_id);
                     return builder.imm_u64(Self::internal_function_pointer_id(function_id));
                 }
