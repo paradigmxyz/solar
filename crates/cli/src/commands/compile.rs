@@ -115,11 +115,7 @@ pub(crate) fn run_compiler_with(
     opts: CompileOpts,
     f: impl FnOnce(&mut CompilerRef<'_>) -> Result + Send,
 ) -> Result {
-    run_compiler_session_with(new_session(opts), f, true)
-}
-
-fn new_session(opts: CompileOpts) -> Session {
-    Session::new(opts)
+    run_compiler_session_with(Session::new(opts), f, true)
 }
 
 pub(crate) fn run_compiler_session_with(
