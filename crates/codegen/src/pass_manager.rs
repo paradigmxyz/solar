@@ -32,19 +32,14 @@ const fn simplify_pass_type_name(name: &'static str) -> &'static str {
     }
 }
 
-pub(crate) enum PassPipeline<P> {
-    Default,
-    Passes(Vec<Option<P>>),
-}
-
 pub(crate) fn parse_pass_pipeline<P: Copy>(
     gcx: Gcx<'_>,
     value: &str,
     ir: &str,
     lookup: impl Fn(&str) -> Option<P>,
-) -> Result<PassPipeline<P>> {
+) -> Result<Option<Vec<Option<P>>>> {
     if value == "default" {
-        return Ok(PassPipeline::Default);
+        return Ok(None);
     }
     let passes = value
         .split(',')
@@ -55,7 +50,7 @@ pub(crate) fn parse_pass_pipeline<P: Copy>(
                 .ok_or_else(|| gcx.dcx().err(format!("unknown {ir} pass: {name}")).emit()),
         })
         .collect::<Result<_>>()?;
-    Ok(PassPipeline::Passes(passes))
+    Ok(Some(passes))
 }
 
 /// Returns the display label for a configured IR pipeline.
