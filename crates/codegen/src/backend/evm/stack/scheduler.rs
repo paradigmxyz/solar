@@ -85,9 +85,11 @@ use crate::{
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::map::{FxHashMap, StdEntry};
-use std::{cmp::Ordering, collections::BinaryHeap, mem::size_of};
+use std::{cell::Cell, cmp::Ordering, collections::BinaryHeap, mem::size_of};
 
 const MAX_OPERAND_SEARCH_EXPANSIONS: usize = 1024;
+const MAX_OPERAND_SEARCH_FUNCTION_EXPANSIONS: usize = 8 * MAX_OPERAND_SEARCH_EXPANSIONS;
+const MAX_OPERAND_SEARCH_FUNCTION_LIMITS: usize = 4;
 const MAX_OPERAND_SEARCH_CREATED_STATES: usize = 4096;
 const MAX_OPERAND_SEARCH_VISITED_STATES: usize = 4096;
 const MAX_OPERAND_SEARCH_OPEN_STATES: usize = 2048;
@@ -104,8 +106,10 @@ pub(crate) struct StackScheduler {
     pub spills: SpillManager,
     /// Operations to emit.
     ops: Vec<ScheduledOp>,
+    /// Remaining bounded-search work for this function.
+    operand_search_budget: Cell<OperandSearchBudget>,
     #[cfg(test)]
-    operand_search_stats: std::cell::Cell<OperandSearchStats>,
+    operand_search_stats: Cell<OperandSearchStats>,
 }
 
 /// A scheduled operation to emit.
@@ -290,6 +294,20 @@ struct OperandSearchStats {
     max_open: usize,
     retained_bytes: usize,
     unreachable_preflights: usize,
+    limit_hit: bool,
+    skipped_by_function_budget: bool,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct OperandSearchBudget {
+    remaining_expansions: usize,
+    limited_searches: usize,
+}
+
+impl Default for OperandSearchBudget {
+    fn default() -> Self {
+        Self { remaining_expansions: MAX_OPERAND_SEARCH_FUNCTION_EXPANSIONS, limited_searches: 0 }
+    }
 }
 
 #[cfg(test)]
@@ -340,8 +358,9 @@ impl StackScheduler {
             stack: StackModel::new(),
             spills: SpillManager::new(),
             ops: Vec::new(),
+            operand_search_budget: Cell::new(OperandSearchBudget::default()),
             #[cfg(test)]
-            operand_search_stats: std::cell::Cell::new(OperandSearchStats::default()),
+            operand_search_stats: Cell::new(OperandSearchStats::default()),
         }
     }
 
@@ -435,15 +454,28 @@ impl StackScheduler {
         for &value in &goal {
             *required_counts.entry(value).or_default() += 1;
         }
-        if required_counts.keys().any(|&value| {
+        let stack = self.stack.as_slice();
+        let inaccessible_required = required_counts.keys().any(|&value| {
             self.materialize_operand(value, func).is_none()
-                && !self
-                    .stack
-                    .as_slice()
-                    .iter()
-                    .take(MAX_STACK_ACCESS + 1)
-                    .any(|&slot| slot == Some(value))
-        }) {
+                && !stack.iter().take(MAX_STACK_ACCESS + 1).any(|&slot| slot == Some(value))
+        });
+        let inaccessible_dead_copy = goal.iter().any(|&value| {
+            !preserve_counts.contains_key(&value)
+                && stack.iter().skip(MAX_STACK_ACCESS + 1).any(|&slot| slot == Some(value))
+        });
+        let removable_accessible_surplus =
+            stack.iter().take(MAX_STACK_ACCESS + 1).filter_map(|&slot| slot).any(|value| {
+                let required = required_counts.get(&value).copied().unwrap_or_default();
+                let current = stack.iter().filter(|&&slot| slot == Some(value)).count();
+                current > required
+                    && stack
+                        .iter()
+                        .take(MAX_STACK_ACCESS + 1)
+                        .filter(|&&slot| slot == Some(value))
+                        .count()
+                        > 1
+            });
+        if inaccessible_required || (inaccessible_dead_copy && !removable_accessible_surplus) {
             #[cfg(test)]
             {
                 let mut stats = self.operand_search_stats.get();
@@ -471,6 +503,19 @@ impl StackScheduler {
             return self.validate_operand_plan(plan, &goal, preserved);
         }
 
+        let budget = self.operand_search_budget.get();
+        if budget.remaining_expansions == 0
+            || budget.limited_searches >= MAX_OPERAND_SEARCH_FUNCTION_LIMITS
+        {
+            #[cfg(test)]
+            {
+                let mut stats = self.operand_search_stats.get();
+                stats.skipped_by_function_budget = true;
+                self.operand_search_stats.set(stats);
+            }
+            return None;
+        }
+        let expansion_limit = MAX_OPERAND_SEARCH_EXPANSIONS.min(budget.remaining_expansions);
         let start_state = OperandSearchState { stack: start.stack, cost: start.cost, parent: None };
         let mut states = vec![start_state];
         let mut queue = BinaryHeap::new();
@@ -497,6 +542,7 @@ impl StackScheduler {
         let mut max_open = queue.len();
 
         let mut expansions = 0usize;
+        let mut limit_hit = false;
         while let Some(OperandSearchQueueEntry { key: queued_key, state: state_idx, .. }) =
             queue.pop()
         {
@@ -514,10 +560,14 @@ impl StackScheduler {
                     max_open,
                     retained_bytes,
                     unreachable_preflights: 0,
+                    limit_hit,
+                    skipped_by_function_budget: false,
                 });
+                self.finish_operand_search(expansions, false);
                 return self.validate_operand_plan(plan, &goal, preserved);
             }
-            if expansions >= MAX_OPERAND_SEARCH_EXPANSIONS {
+            if expansions >= expansion_limit {
+                limit_hit = true;
                 continue;
             }
             expansions += 1;
@@ -529,6 +579,7 @@ impl StackScheduler {
                     || visited.len() >= MAX_OPERAND_SEARCH_VISITED_STATES
                     || queue.len() >= MAX_OPERAND_SEARCH_OPEN_STATES
                 {
+                    limit_hit = true;
                     break;
                 }
                 let mut next_stack = stack.clone();
@@ -544,6 +595,7 @@ impl StackScheduler {
                         if retained_bytes.saturating_add(state_bytes)
                             > MAX_OPERAND_SEARCH_RETAINED_BYTES
                         {
+                            limit_hit = true;
                             break;
                         }
                         let next_stack = entry.key().clone();
@@ -554,6 +606,7 @@ impl StackScheduler {
                         if retained_bytes.saturating_add(state_bytes)
                             > MAX_OPERAND_SEARCH_RETAINED_BYTES
                         {
+                            limit_hit = true;
                             break;
                         }
                         let next_stack = entry.key().clone();
@@ -597,9 +650,21 @@ impl StackScheduler {
             max_open,
             retained_bytes,
             unreachable_preflights: 0,
+            limit_hit,
+            skipped_by_function_budget: false,
         });
+        self.finish_operand_search(expansions, limit_hit);
 
         None
+    }
+
+    fn finish_operand_search(&self, expansions: usize, failed_due_to_limit: bool) {
+        let mut budget = self.operand_search_budget.get();
+        budget.remaining_expansions = budget.remaining_expansions.saturating_sub(expansions);
+        if failed_due_to_limit {
+            budget.limited_searches += 1;
+        }
+        self.operand_search_budget.set(budget);
     }
 
     /// Replays every accepted planner tier and rejects a malformed plan.
@@ -2320,6 +2385,75 @@ mod tests {
     }
 
     #[test]
+    fn operand_search_exhausts_function_budget_and_keeps_fast_paths() {
+        let mut func = Function::new(Ident::DUMMY);
+        let a = func.alloc_param(MirType::uint256());
+        let c = func
+            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(17))));
+        let mut scheduler = StackScheduler::new();
+        scheduler.stack.push(a);
+        scheduler.stack.push(a);
+        scheduler.stack.push_unknown();
+        scheduler.stack.push(c);
+        scheduler
+            .operand_search_budget
+            .set(OperandSearchBudget { remaining_expansions: 1, limited_searches: 0 });
+
+        assert!(
+            scheduler
+                .plan_operands(
+                    &[a, c, a],
+                    &[a],
+                    &func,
+                    OptimizationMode::Gas,
+                    EvmVersion::Shanghai,
+                    OperandCostModel::DIRECT,
+                )
+                .is_none()
+        );
+        let stats = scheduler.operand_search_stats.get();
+        assert_eq!(stats.expansions, 1);
+        assert!(stats.limit_hit);
+        assert!(!stats.skipped_by_function_budget);
+        assert_eq!(scheduler.operand_search_budget.get().remaining_expansions, 0);
+
+        assert!(
+            scheduler
+                .plan_operands(
+                    &[a, c, a],
+                    &[a],
+                    &func,
+                    OptimizationMode::Gas,
+                    EvmVersion::Shanghai,
+                    OperandCostModel::DIRECT,
+                )
+                .is_none()
+        );
+        let stats = scheduler.operand_search_stats.get();
+        assert_eq!(stats.expansions, 0);
+        assert!(!stats.limit_hit);
+        assert!(stats.skipped_by_function_budget);
+
+        let mut scheduler = StackScheduler::new();
+        scheduler.stack.push(a);
+        scheduler.operand_search_budget.set(OperandSearchBudget {
+            remaining_expansions: 0,
+            limited_searches: MAX_OPERAND_SEARCH_FUNCTION_LIMITS,
+        });
+        let plan = scheduler
+            .plan_operands(
+                &[a],
+                &[],
+                &func,
+                OptimizationMode::Gas,
+                EvmVersion::Shanghai,
+                OperandCostModel::DIRECT,
+            )
+            .unwrap();
+        assert!(plan.is_free());
+    }
+
+    #[test]
     fn operand_search_lower_bound_is_admissible_with_anonymous_slots() {
         let mut func = Function::new(Ident::DUMMY);
         let a = func.alloc_param(MirType::uint256());
@@ -2454,6 +2588,45 @@ mod tests {
         assert_eq!(stats.max_visited, 0);
         assert_eq!(stats.max_open, 0);
         assert_eq!(stats.retained_bytes, 0);
+    }
+
+    #[test]
+    fn operand_search_preflights_dead_reloadable_copy_below_swap16() {
+        let mut func = make_test_func();
+        let a = ValueId::from_usize(0);
+        let b = ValueId::from_usize(1);
+        let (_, target) =
+            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::uint256())));
+        let (_, top) =
+            func.alloc_value_inst(Instruction::new(InstKind::Sub(a, b), Some(MirType::uint256())));
+        let mut scheduler = StackScheduler::new();
+        scheduler.spills.allocate(target);
+        scheduler.spills.mark_reloadable(target);
+        scheduler.stack.push(target);
+        for value in 0..MAX_STACK_ACCESS {
+            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+                alloy_primitives::U256::from(value),
+            )));
+            scheduler.stack.push(filler);
+        }
+        scheduler.stack.push(top);
+        assert_eq!(scheduler.stack.find(target), Some(MAX_STACK_ACCESS + 1));
+
+        assert!(
+            scheduler
+                .plan_operands(
+                    &[top, target],
+                    &[],
+                    &func,
+                    OptimizationMode::Gas,
+                    EvmVersion::Shanghai,
+                    OperandCostModel::DIRECT,
+                )
+                .is_none()
+        );
+        let stats = scheduler.operand_search_stats.get();
+        assert_eq!(stats.unreachable_preflights, 1);
+        assert_eq!(stats.expansions, 0);
     }
 
     #[test]
