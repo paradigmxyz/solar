@@ -350,3 +350,36 @@ fn will_rename_rejects_conflicting_moves_to_one_destination() {
 
     assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
 }
+
+#[test]
+fn will_rename_rejects_expanded_vfs_destination_collision() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /A/x.sol open
+        contract A {}
+
+        //- /B/x.sol open
+        contract B {}
+        "#,
+    );
+    let mut state = state(&project);
+
+    let error = block_on(crate::handlers::will_rename_files(
+        &mut state,
+        RenameFilesParams {
+            files: vec![
+                FileRename {
+                    old_uri: Url::from_file_path(project.path("/A")).unwrap().to_string(),
+                    new_uri: Url::from_file_path(project.path("/out")).unwrap().to_string(),
+                },
+                FileRename {
+                    old_uri: Url::from_file_path(project.path("/B/x.sol")).unwrap().to_string(),
+                    new_uri: Url::from_file_path(project.path("/out/x.sol")).unwrap().to_string(),
+                },
+            ],
+        },
+    ))
+    .unwrap_err();
+
+    assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
+}

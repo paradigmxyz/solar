@@ -23,6 +23,8 @@ pub(crate) struct FileMoveBatch {
 #[derive(Debug, Default)]
 pub(crate) struct FileOperationCoordinator {
     renames: Vec<RenameTransaction>,
+    direct_events: Vec<DirectFileEventTransaction>,
+    watched_events: Vec<DirectFileEventTransaction>,
 }
 
 #[derive(Debug)]
@@ -48,7 +50,7 @@ pub(crate) struct RenamePreparation {
 #[derive(Debug)]
 struct RenameWatcherEvidence {
     paths: Vec<RenameWatcherPath>,
-    moves_len: usize,
+    moves: FileMoveBatch,
 }
 
 #[derive(Debug)]
@@ -60,9 +62,15 @@ struct RenameWatcherPath {
     created: bool,
 }
 
+#[derive(Debug)]
+struct DirectFileEventTransaction {
+    typ: FileChangeType,
+    paths: Vec<PathBuf>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum WatchedRenameAction {
-    Apply(Vec<FileMoveBatch>),
+pub(crate) enum WatchedFileAction {
+    ApplyRenames(Vec<FileMoveBatch>),
     Ignore,
     Process,
 }
@@ -165,58 +173,68 @@ impl FileMoveBatch {
         self.moves.iter().map(|file_move| file_move.new_path.as_path())
     }
 
-    fn watcher_evidence(&self, paths: impl IntoIterator<Item = PathBuf>) -> RenameWatcherEvidence {
-        let mut watcher_paths = paths
+    pub(crate) fn validate_mapped_destinations(
+        &self,
+        paths: impl IntoIterator<Item = PathBuf>,
+    ) -> Result<(), FileMoveError> {
+        let mut mapped = paths
             .into_iter()
             .filter_map(|old_path| {
-                let (move_id, new_path) = self.map_path(&old_path)?;
-                Some(RenameWatcherPath {
-                    move_id,
-                    old_path: old_path.normalize(),
-                    new_path,
-                    deleted: false,
-                    created: false,
-                })
+                let (_, new_path) = self.map_path(&old_path)?;
+                Some((new_path, old_path.normalize()))
             })
             .collect::<Vec<_>>();
-        for (index, file_move) in self.moves.iter().enumerate() {
-            let move_id = FileMoveId(index);
-            if !watcher_paths.iter().any(|path| path.move_id == move_id) {
-                watcher_paths.push(RenameWatcherPath {
-                    move_id,
-                    old_path: file_move.old_path.clone(),
-                    new_path: file_move.new_path.clone(),
-                    deleted: false,
-                    created: false,
+        mapped.sort_unstable();
+        mapped.dedup();
+
+        for pair in mapped.windows(2) {
+            if pair[0].0 == pair[1].0 {
+                return Err(FileMoveError::ConflictingDestination {
+                    new_path: pair[0].0.clone(),
+                    first_old_path: pair[0].1.clone(),
+                    second_old_path: pair[1].1.clone(),
                 });
             }
         }
-        watcher_paths.sort_unstable_by(|lhs, rhs| {
-            (lhs.move_id.0, &lhs.old_path, &lhs.new_path).cmp(&(
-                rhs.move_id.0,
-                &rhs.old_path,
-                &rhs.new_path,
-            ))
-        });
-        watcher_paths.dedup_by(|lhs, rhs| {
-            lhs.move_id == rhs.move_id
-                && lhs.old_path == rhs.old_path
-                && lhs.new_path == rhs.new_path
-        });
-        RenameWatcherEvidence { paths: watcher_paths, moves_len: self.moves.len() }
+        Ok(())
+    }
+
+    fn invalidates_replay_of(&self, previous: &Self) -> bool {
+        self.moves.iter().any(|current| {
+            previous.moves.iter().any(|previous| {
+                paths_overlap(&current.old_path, &previous.new_path)
+                    || paths_overlap(&current.new_path, &previous.old_path)
+            })
+        })
+    }
+
+    fn watcher_evidence(&self) -> RenameWatcherEvidence {
+        let paths = self
+            .moves
+            .iter()
+            .enumerate()
+            .map(|(index, file_move)| RenameWatcherPath {
+                move_id: FileMoveId(index),
+                old_path: file_move.old_path.clone(),
+                new_path: file_move.new_path.clone(),
+                deleted: false,
+                created: false,
+            })
+            .collect();
+        RenameWatcherEvidence { paths, moves: self.clone() }
     }
 }
 
+fn paths_overlap(lhs: &Path, rhs: &Path) -> bool {
+    lhs.starts_with(rhs) || rhs.starts_with(lhs)
+}
+
 impl FileOperationCoordinator {
-    pub(crate) fn prepare_rename(
-        &mut self,
-        moves: FileMoveBatch,
-        watched_paths: Vec<PathBuf>,
-    ) -> RenamePreparation {
+    pub(crate) fn prepare_rename(&mut self, moves: FileMoveBatch) -> RenamePreparation {
         self.clear_cancelled_renames();
         let activation = Arc::new(AtomicU8::new(RENAME_PREPARING));
         self.renames.push(RenameTransaction {
-            watcher: moves.watcher_evidence(watched_paths),
+            watcher: moves.watcher_evidence(),
             moves,
             activation: Some(activation.clone()),
             state: RenameTransactionState::Prepared,
@@ -225,16 +243,13 @@ impl FileOperationCoordinator {
     }
 
     /// Returns whether this batch still needs to be applied.
-    pub(crate) fn apply_rename(
-        &mut self,
-        moves: &FileMoveBatch,
-        watched_paths: Vec<PathBuf>,
-    ) -> bool {
+    pub(crate) fn apply_rename(&mut self, moves: &FileMoveBatch) -> bool {
         self.clear_cancelled_renames();
         if let Some(index) = self.renames.iter().rposition(|transaction| {
             transaction.moves == *moves && transaction.state == RenameTransactionState::Prepared
         }) {
             self.claim_prepared_rename(index);
+            self.invalidate_related_replay_guards(moves);
             return true;
         }
         if self.renames.iter().any(|transaction| {
@@ -243,8 +258,9 @@ impl FileOperationCoordinator {
             return false;
         }
 
+        self.invalidate_related_replay_guards(moves);
         self.push_rename(RenameTransaction {
-            watcher: moves.watcher_evidence(watched_paths),
+            watcher: moves.watcher_evidence(),
             moves: moves.clone(),
             activation: None,
             state: RenameTransactionState::Applied,
@@ -256,8 +272,11 @@ impl FileOperationCoordinator {
         &mut self,
         path: &Path,
         typ: FileChangeType,
-    ) -> WatchedRenameAction {
+    ) -> WatchedFileAction {
         self.clear_cancelled_renames();
+        if self.observe_direct_event(path, typ) {
+            return WatchedFileAction::Ignore;
+        }
         let mut apply = Vec::new();
         let mut matched = false;
         self.renames.retain_mut(|transaction| {
@@ -280,24 +299,152 @@ impl FileOperationCoordinator {
             transaction.state != RenameTransactionState::Applied
                 || !transaction.watcher.is_opposite(path, typ)
         });
-        for moves in &apply {
-            if let Some(index) = self.renames.iter().rposition(|transaction| {
-                transaction.moves == *moves
-                    && transaction.state == RenameTransactionState::Prepared
-                    && transaction.preparation_is_active()
-                    && transaction.watcher.is_complete()
-            }) {
-                self.claim_prepared_rename(index);
-            }
+        if !apply.is_empty() {
+            WatchedFileAction::ApplyRenames(apply)
+        } else if matched {
+            WatchedFileAction::Ignore
+        } else {
+            WatchedFileAction::Process
+        }
+    }
+
+    pub(crate) fn claim_watched_rename(&mut self, moves: &FileMoveBatch) -> bool {
+        self.clear_cancelled_renames();
+        let Some(index) = self.renames.iter().rposition(|transaction| {
+            transaction.moves == *moves
+                && transaction.state == RenameTransactionState::Prepared
+                && transaction.preparation_is_active()
+                && transaction.watcher.is_complete()
+        }) else {
+            return false;
+        };
+        self.claim_prepared_rename(index);
+        self.invalidate_related_replay_guards(moves);
+        true
+    }
+
+    pub(crate) fn record_direct_events(
+        &mut self,
+        typ: FileChangeType,
+        paths: impl IntoIterator<Item = PathBuf>,
+    ) {
+        debug_assert!(matches!(typ, FileChangeType::CREATED | FileChangeType::DELETED));
+        let mut paths = paths.into_iter().map(|path| path.normalize()).collect::<Vec<_>>();
+        paths.sort_unstable();
+        paths.dedup();
+        if paths.is_empty() {
+            return;
         }
 
-        if !apply.is_empty() {
-            WatchedRenameAction::Apply(apply)
-        } else if matched {
-            WatchedRenameAction::Ignore
-        } else {
-            WatchedRenameAction::Process
+        self.renames.retain(|transaction| {
+            transaction.state != RenameTransactionState::Applied
+                || !paths.iter().any(|path| transaction.watcher.is_opposite(path, typ))
+        });
+        for transaction in &mut self.direct_events {
+            if transaction.typ != typ {
+                transaction.paths.retain(|path| paths.binary_search(path).is_err());
+            }
         }
+        for transaction in &mut self.watched_events {
+            if transaction.typ != typ {
+                transaction.paths.retain(|path| paths.binary_search(path).is_err());
+            }
+        }
+        self.direct_events.retain(|transaction| !transaction.paths.is_empty());
+        self.watched_events.retain(|transaction| !transaction.paths.is_empty());
+        self.direct_events.push(DirectFileEventTransaction { typ, paths });
+        if self.direct_events.len() > DIRECT_EVENT_HISTORY_LIMIT {
+            self.direct_events.remove(0);
+        }
+    }
+
+    pub(crate) fn record_watched_events(
+        &mut self,
+        typ: FileChangeType,
+        paths: impl IntoIterator<Item = PathBuf>,
+    ) {
+        debug_assert!(matches!(typ, FileChangeType::CREATED | FileChangeType::DELETED));
+        let mut paths = paths.into_iter().map(|path| path.normalize()).collect::<Vec<_>>();
+        paths.sort_unstable();
+        paths.dedup();
+        if paths.is_empty() {
+            return;
+        }
+
+        for transaction in &mut self.watched_events {
+            if transaction.typ != typ {
+                transaction.paths.retain(|path| paths.binary_search(path).is_err());
+            }
+        }
+        self.watched_events.retain(|transaction| !transaction.paths.is_empty());
+        if let Some(transaction) = self.watched_events.last_mut()
+            && transaction.typ == typ
+        {
+            transaction.paths.extend(paths);
+            transaction.paths.sort_unstable();
+            transaction.paths.dedup();
+            return;
+        }
+        self.watched_events.push(DirectFileEventTransaction { typ, paths });
+        if self.watched_events.len() > DIRECT_EVENT_HISTORY_LIMIT {
+            self.watched_events.remove(0);
+        }
+    }
+
+    pub(crate) fn consume_watched_events(
+        &mut self,
+        typ: FileChangeType,
+        paths: &[PathBuf],
+    ) -> bool {
+        let mut paths = paths.iter().map(|path| path.normalize()).collect::<Vec<_>>();
+        paths.sort_unstable();
+        paths.dedup();
+        let all_observed = !paths.is_empty()
+            && paths.iter().all(|path| {
+                self.watched_events.iter().any(|transaction| {
+                    transaction.typ == typ && transaction.paths.binary_search(path).is_ok()
+                })
+            });
+        for transaction in &mut self.watched_events {
+            if transaction.typ == typ {
+                transaction.paths.retain(|path| paths.binary_search(path).is_err());
+            }
+        }
+        self.watched_events.retain(|transaction| !transaction.paths.is_empty());
+        all_observed
+    }
+
+    pub(crate) fn watched_event_paths_under(
+        &self,
+        typ: FileChangeType,
+        roots: &[PathBuf],
+    ) -> Vec<PathBuf> {
+        let mut paths = self
+            .watched_events
+            .iter()
+            .filter(|transaction| transaction.typ == typ)
+            .flat_map(|transaction| &transaction.paths)
+            .filter(|path| roots.iter().any(|root| path.starts_with(root)))
+            .cloned()
+            .collect::<Vec<_>>();
+        paths.sort_unstable();
+        paths.dedup();
+        paths
+    }
+
+    fn observe_direct_event(&mut self, path: &Path, typ: FileChangeType) -> bool {
+        let path = path.normalize();
+        let mut matched = false;
+        for transaction in &mut self.direct_events {
+            let Ok(index) = transaction.paths.binary_search(&path) else { continue };
+            if transaction.typ == typ {
+                matched = true;
+            } else {
+                transaction.paths.remove(index);
+            }
+        }
+        self.direct_events.retain(|transaction| !transaction.paths.is_empty());
+        matched
     }
 
     fn clear_cancelled_renames(&mut self) {
@@ -329,6 +476,14 @@ impl FileOperationCoordinator {
         transaction.state = RenameTransactionState::Applied;
         self.renames.push(transaction);
         self.trim_rename_history();
+    }
+
+    fn invalidate_related_replay_guards(&mut self, moves: &FileMoveBatch) {
+        self.renames.retain(|transaction| {
+            transaction.state != RenameTransactionState::Applied
+                || transaction.moves == *moves
+                || !moves.invalidates_replay_of(&transaction.moves)
+        });
     }
 
     fn push_rename(&mut self, transaction: RenameTransaction) {
@@ -390,11 +545,30 @@ impl RenameWatcherEvidence {
                 matched = true;
             }
         }
-        matched
+        if matched {
+            return true;
+        }
+
+        let mapped = if typ == FileChangeType::DELETED {
+            self.moves.map_path(&path).map(|(move_id, new_path)| (move_id, path, new_path))
+        } else if typ == FileChangeType::CREATED {
+            self.moves.reverse_map_path(&path).map(|(move_id, old_path)| (move_id, old_path, path))
+        } else {
+            None
+        };
+        let Some((move_id, old_path, new_path)) = mapped else { return false };
+        self.paths.push(RenameWatcherPath {
+            move_id,
+            old_path,
+            new_path,
+            deleted: typ == FileChangeType::DELETED,
+            created: typ == FileChangeType::CREATED,
+        });
+        true
     }
 
     fn is_complete(&self) -> bool {
-        (0..self.moves_len).all(|index| {
+        (0..self.moves.moves.len()).all(|index| {
             self.paths
                 .iter()
                 .any(|path| path.move_id == FileMoveId(index) && path.deleted && path.created)
@@ -408,11 +582,16 @@ impl RenameWatcherEvidence {
                 || (path == watcher_path.new_path && typ == FileChangeType::DELETED)
                 || (typ == FileChangeType::CHANGED
                     && (path == watcher_path.old_path || path == watcher_path.new_path))
-        })
+        }) || (typ == FileChangeType::CREATED && self.moves.map_path(&path).is_some())
+            || (typ == FileChangeType::DELETED && self.moves.reverse_map_path(&path).is_some())
+            || (typ == FileChangeType::CHANGED
+                && (self.moves.map_path(&path).is_some()
+                    || self.moves.reverse_map_path(&path).is_some()))
     }
 }
 
 const RENAME_HISTORY_LIMIT: usize = 16;
+const DIRECT_EVENT_HISTORY_LIMIT: usize = 16;
 const RENAME_PREPARING: u8 = 0;
 const RENAME_ACTIVE: u8 = 1;
 const RENAME_CANCELLED: u8 = 2;
@@ -562,12 +741,12 @@ mod tests {
         let batch = FileMoveBatch::new([(path("/workspace/A"), path("/workspace/B"))]).unwrap();
         let mut coordinator = FileOperationCoordinator::default();
 
-        coordinator.prepare_rename(batch.clone(), Vec::new()).activate();
-        assert!(coordinator.apply_rename(&batch, Vec::new()));
-        assert!(!coordinator.apply_rename(&batch, Vec::new()));
+        coordinator.prepare_rename(batch.clone()).activate();
+        assert!(coordinator.apply_rename(&batch));
+        assert!(!coordinator.apply_rename(&batch));
 
-        coordinator.prepare_rename(batch.clone(), Vec::new()).activate();
-        assert!(coordinator.apply_rename(&batch, Vec::new()));
+        coordinator.prepare_rename(batch.clone()).activate();
+        assert!(coordinator.apply_rename(&batch));
     }
 
     #[test]
@@ -575,12 +754,12 @@ mod tests {
         let batch = FileMoveBatch::new([(path("/workspace/A"), path("/workspace/B"))]).unwrap();
         let mut coordinator = FileOperationCoordinator::default();
 
-        assert!(coordinator.apply_rename(&batch, Vec::new()));
-        assert!(!coordinator.apply_rename(&batch, Vec::new()));
+        assert!(coordinator.apply_rename(&batch));
+        assert!(!coordinator.apply_rename(&batch));
 
-        drop(coordinator.prepare_rename(batch.clone(), Vec::new()));
+        drop(coordinator.prepare_rename(batch.clone()));
 
-        assert!(!coordinator.apply_rename(&batch, Vec::new()));
+        assert!(!coordinator.apply_rename(&batch));
     }
 
     #[test]
@@ -588,20 +767,20 @@ mod tests {
         let guarded = FileMoveBatch::new([(path("/workspace/A"), path("/workspace/B"))]).unwrap();
         let mut coordinator = FileOperationCoordinator::default();
 
-        assert!(coordinator.apply_rename(&guarded, Vec::new()));
+        assert!(coordinator.apply_rename(&guarded));
         for index in 0..RENAME_HISTORY_LIMIT - 1 {
             let batch = FileMoveBatch::new([(
                 path(&format!("/workspace/Old{index}")),
                 path(&format!("/workspace/New{index}")),
             )])
             .unwrap();
-            assert!(coordinator.apply_rename(&batch, Vec::new()));
+            assert!(coordinator.apply_rename(&batch));
         }
-        assert!(!coordinator.apply_rename(&guarded, Vec::new()));
+        assert!(!coordinator.apply_rename(&guarded));
 
-        drop(coordinator.prepare_rename(guarded.clone(), Vec::new()));
+        drop(coordinator.prepare_rename(guarded.clone()));
 
-        assert!(!coordinator.apply_rename(&guarded, Vec::new()));
+        assert!(!coordinator.apply_rename(&guarded));
     }
 
     #[test]
@@ -609,11 +788,11 @@ mod tests {
         let batch = FileMoveBatch::new([(path("/workspace/A"), path("/workspace/B"))]).unwrap();
         let mut coordinator = FileOperationCoordinator::default();
 
-        coordinator.prepare_rename(batch.clone(), Vec::new()).activate();
-        coordinator.prepare_rename(batch.clone(), Vec::new()).activate();
+        coordinator.prepare_rename(batch.clone()).activate();
+        coordinator.prepare_rename(batch.clone()).activate();
 
-        assert!(coordinator.apply_rename(&batch, Vec::new()));
-        assert!(!coordinator.apply_rename(&batch, Vec::new()));
+        assert!(coordinator.apply_rename(&batch));
+        assert!(!coordinator.apply_rename(&batch));
     }
 
     #[test]
@@ -621,11 +800,23 @@ mod tests {
         let batch = FileMoveBatch::new([(path("/workspace/A"), path("/workspace/B"))]).unwrap();
         let mut coordinator = FileOperationCoordinator::default();
 
-        let preparation = coordinator.prepare_rename(batch.clone(), Vec::new());
-        assert!(coordinator.apply_rename(&batch, Vec::new()));
+        let preparation = coordinator.prepare_rename(batch.clone());
+        assert!(coordinator.apply_rename(&batch));
         drop(preparation);
 
-        assert!(!coordinator.apply_rename(&batch, Vec::new()));
+        assert!(!coordinator.apply_rename(&batch));
+    }
+
+    #[test]
+    fn did_reuses_prepared_lifecycle_without_external_evidence() {
+        let prepared = FileMoveBatch::new([(path("/workspace/A"), path("/workspace/B"))]).unwrap();
+        let did_only = FileMoveBatch::new([(path("/workspace/X"), path("/workspace/Y"))]).unwrap();
+        let mut coordinator = FileOperationCoordinator::default();
+
+        coordinator.prepare_rename(prepared.clone()).activate();
+        assert!(coordinator.apply_rename(&prepared));
+        assert!(!coordinator.apply_rename(&prepared));
+        assert!(coordinator.apply_rename(&did_only));
     }
 
     #[test]
@@ -633,13 +824,13 @@ mod tests {
         let batch = FileMoveBatch::new([(path("/workspace/A"), path("/workspace/B"))]).unwrap();
         let mut coordinator = FileOperationCoordinator::default();
 
-        let earlier = coordinator.prepare_rename(batch.clone(), Vec::new());
-        let later = coordinator.prepare_rename(batch.clone(), Vec::new());
-        assert!(coordinator.apply_rename(&batch, Vec::new()));
+        let earlier = coordinator.prepare_rename(batch.clone());
+        let later = coordinator.prepare_rename(batch.clone());
+        assert!(coordinator.apply_rename(&batch));
         earlier.activate();
         drop(later);
 
-        assert!(!coordinator.apply_rename(&batch, Vec::new()));
+        assert!(!coordinator.apply_rename(&batch));
     }
 
     #[test]
@@ -649,19 +840,20 @@ mod tests {
         let batch = FileMoveBatch::new([(old_path.clone(), new_path.clone())]).unwrap();
         let mut coordinator = FileOperationCoordinator::default();
 
-        coordinator.prepare_rename(batch.clone(), vec![old_path.clone()]).activate();
-        let later = coordinator.prepare_rename(batch.clone(), vec![old_path.clone()]);
+        coordinator.prepare_rename(batch.clone()).activate();
+        let later = coordinator.prepare_rename(batch.clone());
         assert_eq!(
             coordinator.observe_watcher_event(&old_path, FileChangeType::DELETED),
-            WatchedRenameAction::Ignore
+            WatchedFileAction::Ignore
         );
         assert_eq!(
             coordinator.observe_watcher_event(&new_path, FileChangeType::CREATED),
-            WatchedRenameAction::Apply(vec![batch.clone()])
+            WatchedFileAction::ApplyRenames(vec![batch.clone()])
         );
+        assert!(coordinator.claim_watched_rename(&batch));
         later.activate();
 
-        assert!(!coordinator.apply_rename(&batch, vec![old_path]));
+        assert!(!coordinator.apply_rename(&batch));
     }
 
     #[test]
@@ -671,13 +863,92 @@ mod tests {
         let batch = FileMoveBatch::new([(old_path.clone(), new_path)]).unwrap();
         let mut coordinator = FileOperationCoordinator::default();
 
-        assert!(coordinator.apply_rename(&batch, vec![old_path.clone()]));
-        assert!(!coordinator.apply_rename(&batch, vec![old_path.clone()]));
+        assert!(coordinator.apply_rename(&batch));
+        assert!(!coordinator.apply_rename(&batch));
         assert_eq!(
             coordinator.observe_watcher_event(&old_path, FileChangeType::CREATED),
-            WatchedRenameAction::Process
+            WatchedFileAction::Process
         );
-        assert!(coordinator.apply_rename(&batch, vec![old_path]));
+        assert!(coordinator.apply_rename(&batch));
+    }
+
+    #[test]
+    fn invalidated_applied_rename_does_not_swallow_destination_create() {
+        let a = path("/workspace/A");
+        let b = path("/workspace/B");
+        let c = path("/workspace/C");
+        let forward = FileMoveBatch::new([(a, b.clone())]).unwrap();
+        let next = FileMoveBatch::new([(b.clone(), c)]).unwrap();
+        let mut coordinator = FileOperationCoordinator::default();
+
+        assert!(coordinator.apply_rename(&forward));
+        assert!(coordinator.apply_rename(&next));
+
+        assert_eq!(
+            coordinator.observe_watcher_event(&b.join("New.sol"), FileChangeType::CREATED),
+            WatchedFileAction::Process
+        );
+    }
+
+    #[test]
+    fn watched_parent_rename_invalidates_nested_applied_guard() {
+        let a = path("/workspace/A");
+        let b = path("/workspace/B");
+        let c = path("/workspace/C");
+        let nested = FileMoveBatch::new([(a.join("Sub"), b.join("Sub"))]).unwrap();
+        let parent = FileMoveBatch::new([(b.clone(), c.clone())]).unwrap();
+        let mut coordinator = FileOperationCoordinator::default();
+
+        assert!(coordinator.apply_rename(&nested));
+        coordinator.prepare_rename(parent.clone()).activate();
+        assert_eq!(
+            coordinator.observe_watcher_event(&b, FileChangeType::DELETED),
+            WatchedFileAction::Ignore
+        );
+        assert_eq!(
+            coordinator.observe_watcher_event(&c, FileChangeType::CREATED),
+            WatchedFileAction::ApplyRenames(vec![parent.clone()])
+        );
+        assert!(coordinator.claim_watched_rename(&parent));
+
+        assert_eq!(
+            coordinator.observe_watcher_event(&b.join("Sub/New.sol"), FileChangeType::CREATED),
+            WatchedFileAction::Process
+        );
+    }
+
+    #[test]
+    fn did_parent_rename_invalidates_nested_applied_guard() {
+        let a = path("/workspace/A");
+        let b = path("/workspace/B");
+        let c = path("/workspace/C");
+        let nested = FileMoveBatch::new([(a.join("Sub"), b.join("Sub"))]).unwrap();
+        let parent = FileMoveBatch::new([(b.clone(), c)]).unwrap();
+        let mut coordinator = FileOperationCoordinator::default();
+
+        assert!(coordinator.apply_rename(&nested));
+        coordinator.prepare_rename(parent.clone()).activate();
+        assert!(coordinator.apply_rename(&parent));
+
+        assert_eq!(
+            coordinator.observe_watcher_event(&b.join("Sub/New.sol"), FileChangeType::CREATED),
+            WatchedFileAction::Process
+        );
+    }
+
+    #[test]
+    fn reverse_did_only_rename_ends_applied_lifecycle() {
+        let a = path("/workspace/A.sol");
+        let b = path("/workspace/B.sol");
+        let forward = FileMoveBatch::new([(a.clone(), b.clone())]).unwrap();
+        let reverse = FileMoveBatch::new([(b, a)]).unwrap();
+        let mut coordinator = FileOperationCoordinator::default();
+
+        assert!(coordinator.apply_rename(&forward));
+        assert!(!coordinator.apply_rename(&forward));
+        assert!(coordinator.apply_rename(&reverse));
+        assert!(coordinator.apply_rename(&forward));
+        assert!(!coordinator.apply_rename(&forward));
     }
 
     #[test]
@@ -687,21 +958,94 @@ mod tests {
         let x = path("/workspace/X.sol");
         let y = path("/workspace/Y.sol");
         let first = FileMoveBatch::new([(a.clone(), b.clone())]).unwrap();
-        let second = FileMoveBatch::new([(x.clone(), y)]).unwrap();
+        let second = FileMoveBatch::new([(x, y)]).unwrap();
         let mut coordinator = FileOperationCoordinator::default();
 
-        assert!(coordinator.apply_rename(&first, vec![a.clone()]));
+        assert!(coordinator.apply_rename(&first));
         assert_eq!(
             coordinator.observe_watcher_event(&a, FileChangeType::DELETED),
-            WatchedRenameAction::Ignore
+            WatchedFileAction::Ignore
         );
-        assert!(coordinator.apply_rename(&second, vec![x]));
+        assert!(coordinator.apply_rename(&second));
         assert_eq!(
             coordinator.observe_watcher_event(&b, FileChangeType::CREATED),
-            WatchedRenameAction::Ignore
+            WatchedFileAction::Ignore
         );
-        assert!(!coordinator.apply_rename(&first, vec![a]));
-        assert!(!coordinator.apply_rename(&second, Vec::new()));
+        assert!(!coordinator.apply_rename(&first));
+        assert!(!coordinator.apply_rename(&second));
+    }
+
+    #[test]
+    fn direct_event_echoes_are_exact_and_expire_on_opposite_activity() {
+        let a = path("/workspace/A.sol");
+        let b = path("/workspace/B.sol");
+        let unrelated = path("/workspace/Unrelated.sol");
+        let mut coordinator = FileOperationCoordinator::default();
+
+        coordinator.record_direct_events(FileChangeType::CREATED, [a.clone(), b.clone()]);
+        assert_eq!(
+            coordinator.observe_watcher_event(&a, FileChangeType::CREATED),
+            WatchedFileAction::Ignore
+        );
+        assert_eq!(
+            coordinator.observe_watcher_event(&a, FileChangeType::CREATED),
+            WatchedFileAction::Ignore
+        );
+        assert_eq!(
+            coordinator.observe_watcher_event(&unrelated, FileChangeType::CREATED),
+            WatchedFileAction::Process
+        );
+        assert_eq!(
+            coordinator.observe_watcher_event(&a, FileChangeType::CHANGED),
+            WatchedFileAction::Process
+        );
+        assert_eq!(
+            coordinator.observe_watcher_event(&a, FileChangeType::CREATED),
+            WatchedFileAction::Process
+        );
+        assert_eq!(
+            coordinator.observe_watcher_event(&b, FileChangeType::DELETED),
+            WatchedFileAction::Process
+        );
+        assert_eq!(
+            coordinator.observe_watcher_event(&b, FileChangeType::CREATED),
+            WatchedFileAction::Process
+        );
+    }
+
+    #[test]
+    fn watched_event_history_requires_complete_batch_and_expires_on_direct_opposite() {
+        let a = path("/workspace/A.sol");
+        let b = path("/workspace/B.sol");
+        let mut coordinator = FileOperationCoordinator::default();
+
+        coordinator.record_watched_events(FileChangeType::CREATED, [a.clone()]);
+        assert!(
+            !coordinator.consume_watched_events(FileChangeType::CREATED, &[a.clone(), b.clone()])
+        );
+
+        coordinator.record_watched_events(FileChangeType::CREATED, [a.clone(), b.clone()]);
+        assert!(
+            coordinator.consume_watched_events(FileChangeType::CREATED, &[a.clone(), b.clone()])
+        );
+        assert!(!coordinator.consume_watched_events(FileChangeType::CREATED, &[a.clone(), b]));
+
+        coordinator.record_watched_events(FileChangeType::CREATED, [a.clone()]);
+        coordinator.record_direct_events(FileChangeType::DELETED, [a.clone()]);
+        assert!(!coordinator.consume_watched_events(FileChangeType::CREATED, &[a]));
+    }
+
+    #[test]
+    fn direct_opposite_event_ends_rename_replay_guard() {
+        let a = path("/workspace/A.sol");
+        let b = path("/workspace/B.sol");
+        let batch = FileMoveBatch::new([(a.clone(), b)]).unwrap();
+        let mut coordinator = FileOperationCoordinator::default();
+
+        assert!(coordinator.apply_rename(&batch));
+        assert!(!coordinator.apply_rename(&batch));
+        coordinator.record_direct_events(FileChangeType::CREATED, [a]);
+        assert!(coordinator.apply_rename(&batch));
     }
 
     #[test]

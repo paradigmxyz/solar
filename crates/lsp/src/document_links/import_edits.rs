@@ -2,10 +2,7 @@ use lsp_types::{TextEdit, Url};
 use normalize_path::NormalizePath;
 use solar_config::ImportRemapping;
 use solar_interface::source_map::apply_import_remappings;
-use std::{
-    collections::HashMap,
-    path::{Component, Path, PathBuf},
-};
+use std::path::{Component, Path, PathBuf};
 
 use super::{
     DocumentLinkIndex, ImportEditPlan, ImportPathStyle, StoredDocumentLink,
@@ -15,10 +12,10 @@ use crate::file_operations::FileMoveBatch;
 
 impl DocumentLinkIndex {
     pub(crate) fn rename_edits(&self, moves: &FileMoveBatch) -> ImportEditPlan {
-        let mut changes = HashMap::new();
-        for (source, imports) in &self.by_file {
+        let mut plan = ImportEditPlan::default();
+        for (source, indexed) in &self.by_file {
             let moved_source = moved_path(source, moves);
-            for import in imports {
+            for import in &indexed.links {
                 let moved_target = moved_path(&import.target, moves);
                 let Some(new_path) =
                     import.rewritten_path(source, &moved_source, &moved_target, moves)
@@ -29,43 +26,37 @@ impl DocumentLinkIndex {
                     continue;
                 }
                 let Ok(uri) = Url::from_file_path(source) else { continue };
-                changes.entry(uri).or_insert_with(Vec::new).push(TextEdit::new(
-                    import.range,
-                    solidity_string_literal(&import_path_bytes(&new_path)),
-                ));
+                plan.push(
+                    uri,
+                    indexed.analyzed_contents.clone(),
+                    TextEdit::new(
+                        import.range,
+                        solidity_string_literal(&import_path_bytes(&new_path)),
+                    ),
+                );
             }
         }
-        self.edit_plan(changes)
+        plan
     }
 
     pub(crate) fn delete_edits(&self, deleted_paths: &[PathBuf]) -> ImportEditPlan {
-        let mut changes = HashMap::new();
-        for (source, imports) in &self.by_file {
+        let mut plan = ImportEditPlan::default();
+        for (source, indexed) in &self.by_file {
             if deleted_paths.iter().any(|deleted| source.starts_with(deleted)) {
                 continue;
             }
             let Ok(uri) = Url::from_file_path(source) else { continue };
-            for import in imports {
+            for import in &indexed.links {
                 if deleted_paths.iter().any(|deleted| import.target.starts_with(deleted)) {
-                    changes
-                        .entry(uri.clone())
-                        .or_insert_with(Vec::new)
-                        .push(TextEdit::new(import.directive_range, String::new()));
+                    plan.push(
+                        uri.clone(),
+                        indexed.analyzed_contents.clone(),
+                        TextEdit::new(import.directive_range, String::new()),
+                    );
                 }
             }
         }
-        self.edit_plan(changes)
-    }
-
-    fn edit_plan(&self, changes: HashMap<Url, Vec<TextEdit>>) -> ImportEditPlan {
-        let analyzed_contents = changes
-            .keys()
-            .filter_map(|uri| {
-                let path = uri.to_file_path().ok()?;
-                Some((uri.clone(), self.source_contents.get(&path)?.clone()))
-            })
-            .collect();
-        ImportEditPlan { changes, analyzed_contents }
+        plan
     }
 }
 

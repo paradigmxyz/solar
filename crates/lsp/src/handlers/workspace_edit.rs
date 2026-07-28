@@ -106,20 +106,19 @@ fn validate_import_edits(
     plan: ImportEditPlan,
     vfs: Arc<RwLock<Vfs>>,
 ) -> Result<ValidatedWorkspaceEdit, ResponseError> {
-    let ImportEditPlan { changes, analyzed_contents } = plan;
     let source_map = SourceMap::empty();
+    let mut changes = HashMap::new();
     let mut versions = HashMap::new();
-    for uri in changes.keys() {
-        let Some(analyzed_contents) = analyzed_contents.get(uri) else {
-            return Err(content_modified());
-        };
-        let Some((file_contents, version)) = current_file_contents(&vfs, &source_map, uri) else {
+    for (uri, planned) in plan.into_entries() {
+        let (analyzed_contents, edits) = planned.into_parts();
+        let Some((file_contents, version)) = current_file_contents(&vfs, &source_map, &uri) else {
             return Err(content_modified());
         };
         if file_contents.byte_slice(..) != analyzed_contents.as_str() {
             return Err(content_modified());
         }
         versions.insert(uri.clone(), version);
+        changes.insert(uri, edits);
     }
     Ok(ValidatedWorkspaceEdit { changes, versions })
 }

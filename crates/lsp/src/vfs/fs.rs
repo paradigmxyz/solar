@@ -23,10 +23,13 @@
 //! [`SourceFile`]: solar_interface::source_map::SourceFile
 
 use super::VfsPath;
-use crate::file_operations::FileMoveBatch;
+use crate::file_operations::{FileMoveBatch, FileMoveError};
 use crop::Rope;
 use solar_interface::data_structures::map::rustc_hash::FxHashMap;
-use std::{mem, path::PathBuf};
+use std::{
+    mem,
+    path::{Path, PathBuf},
+};
 
 #[derive(Default)]
 pub(crate) struct Vfs {
@@ -75,10 +78,14 @@ impl Vfs {
     }
 
     /// Renames exact files and directory descendants from one snapshot of the VFS.
-    pub(crate) fn rename_file_prefixes(&mut self, moves: &FileMoveBatch) {
+    pub(crate) fn rename_file_prefixes(
+        &mut self,
+        moves: &FileMoveBatch,
+    ) -> Result<(), FileMoveError> {
         if moves.is_empty() {
-            return;
+            return Ok(());
         }
+        self.validate_rename_file_prefixes(moves)?;
 
         let mut old_versions = mem::take(&mut self.versions);
         let mut files = mem::take(&mut self.data)
@@ -107,6 +114,16 @@ impl Vfs {
             }
         }
         self.dirty |= changed;
+        Ok(())
+    }
+
+    pub(crate) fn validate_rename_file_prefixes(
+        &self,
+        moves: &FileMoveBatch,
+    ) -> Result<(), FileMoveError> {
+        moves.validate_mapped_destinations(
+            self.data.keys().filter_map(|path| path.as_path().map(Path::to_path_buf)),
+        )
     }
 
     /// Removes exact files and directory descendants from the VFS.
@@ -124,7 +141,13 @@ impl Vfs {
     /// Whether the VFS is dirty or not.
     ///
     /// The VFS is considered dirty if a file was modified, changed, or removed.
-    #[expect(dead_code, reason = "VFS dirty state is scaffolded for future incremental analysis")]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "VFS dirty state is scaffolded for future incremental analysis"
+        )
+    )]
     pub(crate) fn is_dirty(&self) -> bool {
         self.dirty
     }
@@ -176,7 +199,8 @@ mod tests {
         vfs.rename_file_prefixes(&moves([
             (PathBuf::from("/workspace/A.sol"), PathBuf::from("/workspace/B.sol")),
             (PathBuf::from("/workspace/B.sol"), PathBuf::from("/workspace/C.sol")),
-        ]));
+        ]))
+        .unwrap();
 
         assert!(!vfs.exists(&path("/workspace/A.sol")));
         assert_eq!(
@@ -200,7 +224,8 @@ mod tests {
         vfs.rename_file_prefixes(&moves([(
             PathBuf::from("/workspace/Old.sol"),
             PathBuf::from("/workspace/New.sol"),
-        )]));
+        )]))
+        .unwrap();
 
         assert!(!vfs.exists(&path("/workspace/Old.sol")));
         assert_eq!(
@@ -219,7 +244,8 @@ mod tests {
         vfs.rename_file_prefixes(&moves([(
             PathBuf::from("/workspace/pkg"),
             PathBuf::from("/workspace/moved"),
-        )]));
+        )]))
+        .unwrap();
 
         assert!(!vfs.exists(&path("/workspace/pkg/Nested.sol")));
         assert_eq!(
@@ -238,7 +264,8 @@ mod tests {
         vfs.rename_file_prefixes(&moves([
             (PathBuf::from("/workspace/pkg"), PathBuf::from("/workspace/moved")),
             (PathBuf::from("/workspace/pkg/nested"), PathBuf::from("/workspace/special")),
-        ]));
+        ]))
+        .unwrap();
 
         assert!(!vfs.exists(&path("/workspace/moved/nested/Test.sol")));
         assert_eq!(
@@ -246,6 +273,39 @@ mod tests {
             "contract Test {}"
         );
         assert_eq!(vfs.get_file_version(&path("/workspace/special/Test.sol")), Some(5));
+    }
+
+    #[test]
+    fn rename_file_prefixes_rejects_expanded_destination_collision_atomically() {
+        let mut vfs = Vfs::default();
+        insert(&mut vfs, "/workspace/A/x.sol", "contract A {}", 1);
+        insert(&mut vfs, "/workspace/B/x.sol", "contract B {}", 2);
+        vfs.mark_clean();
+
+        let error = vfs
+            .rename_file_prefixes(&moves([
+                (PathBuf::from("/workspace/A"), PathBuf::from("/workspace/out")),
+                (PathBuf::from("/workspace/B/x.sol"), PathBuf::from("/workspace/out/x.sol")),
+            ]))
+            .unwrap_err();
+
+        assert!(matches!(
+            error,
+            FileMoveError::ConflictingDestination { new_path, .. }
+                if new_path == Path::new("/workspace/out/x.sol")
+        ));
+        assert_eq!(
+            vfs.get_file_contents(&path("/workspace/A/x.sol")).unwrap().to_string(),
+            "contract A {}"
+        );
+        assert_eq!(vfs.get_file_version(&path("/workspace/A/x.sol")), Some(1));
+        assert_eq!(
+            vfs.get_file_contents(&path("/workspace/B/x.sol")).unwrap().to_string(),
+            "contract B {}"
+        );
+        assert_eq!(vfs.get_file_version(&path("/workspace/B/x.sol")), Some(2));
+        assert!(!vfs.exists(&path("/workspace/out/x.sol")));
+        assert!(!vfs.is_dirty());
     }
 
     #[test]

@@ -516,6 +516,10 @@ impl SymbolTables {
         self.document_links.links(path)
     }
 
+    pub(crate) fn file_operation_paths_under(&self, roots: &[PathBuf]) -> Vec<PathBuf> {
+        self.rename.source_paths_under(roots)
+    }
+
     pub(crate) fn import_rename_edits(
         &self,
         moves: &crate::file_operations::FileMoveBatch,

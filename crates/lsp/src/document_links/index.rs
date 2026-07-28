@@ -9,8 +9,8 @@ use std::{
 };
 
 use super::{
-    DocumentLinkIndex, ImportPathStyle, StoredDocumentLink, components_to_import_path,
-    import_path_from_bytes,
+    DocumentLinkIndex, ImportPathStyle, IndexedDocumentLinks, StoredDocumentLink,
+    components_to_import_path, import_path_from_bytes,
 };
 use crate::proto;
 
@@ -52,9 +52,9 @@ impl DocumentLinkIndex {
                 let Some(import_path) = import_path_from_bytes(&import_path) else {
                     continue;
                 };
-                index.source_contents.insert(source_path.clone(), source.file.src.clone());
                 index.push(
                     source_path.clone(),
+                    source.file.src.clone(),
                     StoredDocumentLink {
                         range: location.range,
                         directive_range: directive_location.range,
@@ -75,8 +75,13 @@ impl DocumentLinkIndex {
         index
     }
 
-    fn push(&mut self, source: PathBuf, link: StoredDocumentLink) {
-        self.by_file.entry(source).or_default().push(link);
+    fn push(&mut self, source: PathBuf, analyzed_contents: Arc<String>, link: StoredDocumentLink) {
+        let indexed = self.by_file.entry(source).or_insert_with(|| IndexedDocumentLinks {
+            analyzed_contents: analyzed_contents.clone(),
+            links: Vec::new(),
+        });
+        debug_assert_eq!(indexed.analyzed_contents, analyzed_contents);
+        indexed.links.push(link);
     }
 
     #[cfg(test)]
@@ -86,9 +91,9 @@ impl DocumentLinkIndex {
         range: lsp_types::Range,
         target: Url,
     ) {
-        self.source_contents.insert(source.clone(), Arc::new(String::new()));
         self.push(
             source,
+            Arc::new(String::new()),
             StoredDocumentLink {
                 range,
                 directive_range: range,
@@ -112,7 +117,6 @@ impl DocumentLinkIndex {
         resolver_root: Option<PathBuf>,
         remappings: Vec<ImportRemapping>,
     ) {
-        self.source_contents.insert(source.clone(), Arc::new(String::new()));
         let remappings = Arc::from(remappings);
         let import_style = if import_path.starts_with("./") || import_path.starts_with("../") {
             ImportPathStyle::Relative { resolver_root, remappings }
@@ -121,27 +125,24 @@ impl DocumentLinkIndex {
         };
         self.push(
             source,
+            Arc::new(String::new()),
             StoredDocumentLink { range, directive_range: range, import_path, import_style, target },
         );
     }
 
     pub(crate) fn extend(&mut self, other: Self) {
         debug_assert!(other.by_file.keys().all(|path| !self.by_file.contains_key(path)));
-        debug_assert!(
-            other.source_contents.keys().all(|path| !self.source_contents.contains_key(path))
-        );
         self.by_file.extend(other.by_file);
-        self.source_contents.extend(other.source_contents);
     }
 
     pub(crate) fn links(&self, path: &Path) -> Vec<DocumentLink> {
-        let Some(links) = self.by_file.get(path) else { return Vec::new() };
-        links.iter().filter_map(StoredDocumentLink::to_lsp).collect()
+        let Some(indexed) = self.by_file.get(path) else { return Vec::new() };
+        indexed.links.iter().filter_map(StoredDocumentLink::to_lsp).collect()
     }
 
     fn sort(&mut self) {
-        for links in self.by_file.values_mut() {
-            links.sort_unstable_by_key(|link| (link.range.start, link.range.end));
+        for indexed in self.by_file.values_mut() {
+            indexed.links.sort_unstable_by_key(|link| (link.range.start, link.range.end));
         }
     }
 }

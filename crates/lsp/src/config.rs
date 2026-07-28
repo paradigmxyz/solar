@@ -3,7 +3,7 @@ use crate::{
     diagnostics::DiagnosticOwner,
     file_operations::FileMoveBatch,
     flycheck::{FlycheckConfig, FlycheckInitializationOptions},
-    workspace::{Workspace, WorkspacePathIndex, manifest::ProjectManifest},
+    workspace::{Workspace, WorkspaceKind, WorkspacePathIndex, manifest::ProjectManifest},
 };
 use lsp_types::{
     CallHierarchyServerCapability, CodeLensOptions as CodeLensServerOptions, CompletionOptions,
@@ -210,6 +210,20 @@ impl Config {
         files.sort();
         files.dedup();
         files
+    }
+
+    pub(crate) fn file_operation_paths_under(&self, roots: &[PathBuf]) -> Vec<PathBuf> {
+        let mut paths = self.tracked_source_files_under(roots);
+        paths.extend(self.workspaces.iter().filter_map(|workspace| {
+            if workspace.kind() != WorkspaceKind::Foundry {
+                return None;
+            }
+            let manifest = workspace.compile_opts().base_path.as_ref()?.join("foundry.toml");
+            roots.iter().any(|root| manifest.starts_with(root)).then_some(manifest)
+        }));
+        paths.sort();
+        paths.dedup();
+        paths
     }
 
     pub(crate) fn forge_path(&self) -> PathBuf {

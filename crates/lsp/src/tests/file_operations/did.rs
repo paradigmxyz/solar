@@ -108,6 +108,341 @@ async fn did_create_files_rediscovers_files_and_folder_descendants_once() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn did_create_watcher_echo_does_not_start_another_epoch() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Existing.sol
+        contract Existing {}
+        "#,
+    );
+    let created = project.path("/Created.sol");
+    let mut state = state(&project);
+    project.write_file("/Created.sol", "contract Created {}");
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    assert!(matches!(
+        crate::handlers::did_create_files(
+            &mut state,
+            CreateFilesParams {
+                files: vec![FileCreate { uri: Url::from_file_path(&created).unwrap().to_string() }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            lsp_types::DidChangeWatchedFilesParams {
+                changes: vec![FileEvent {
+                    uri: Url::from_file_path(created).unwrap(),
+                    typ: FileChangeType::CREATED,
+                }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watcher_create_followed_by_did_create_starts_one_epoch() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Existing.sol
+        contract Existing {}
+        "#,
+    );
+    let created = project.path("/Created.sol");
+    let mut state = state(&project);
+    project.write_file("/Created.sol", "contract Created {}");
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            lsp_types::DidChangeWatchedFilesParams {
+                changes: vec![FileEvent {
+                    uri: Url::from_file_path(&created).unwrap(),
+                    typ: FileChangeType::CREATED,
+                }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert!(matches!(
+        crate::handlers::did_create_files(
+            &mut state,
+            CreateFilesParams {
+                files: vec![FileCreate { uri: Url::from_file_path(created).unwrap().to_string() }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn did_delete_watcher_echo_does_not_start_another_epoch() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Deleted.sol open
+        contract Deleted {}
+        "#,
+    );
+    let deleted = project.path("/Deleted.sol");
+    let mut state = state(&project);
+    fs::remove_file(&deleted).unwrap();
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    assert!(matches!(
+        crate::handlers::did_delete_files(
+            &mut state,
+            DeleteFilesParams {
+                files: vec![FileDelete { uri: Url::from_file_path(&deleted).unwrap().to_string() }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            lsp_types::DidChangeWatchedFilesParams {
+                changes: vec![FileEvent {
+                    uri: Url::from_file_path(deleted).unwrap(),
+                    typ: FileChangeType::DELETED,
+                }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watcher_delete_followed_by_did_delete_starts_one_epoch() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Deleted.sol open
+        contract Deleted {}
+        "#,
+    );
+    let deleted = project.path("/Deleted.sol");
+    let mut state = state(&project);
+    fs::remove_file(&deleted).unwrap();
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            lsp_types::DidChangeWatchedFilesParams {
+                changes: vec![FileEvent {
+                    uri: Url::from_file_path(&deleted).unwrap(),
+                    typ: FileChangeType::DELETED,
+                }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert!(matches!(
+        crate::handlers::did_delete_files(
+            &mut state,
+            DeleteFilesParams {
+                files: vec![FileDelete { uri: Url::from_file_path(&deleted).unwrap().to_string() }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
+    assert!(!state.vfs.read().exists(&VfsPath::from(deleted)));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn folder_create_split_watcher_echoes_do_not_start_another_epoch() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Existing.sol
+        contract Existing {}
+        "#,
+    );
+    let folder = project.path("/created");
+    let first = project.path("/created/First.sol");
+    let second = project.path("/created/Second.sol");
+    let mut state = state(&project);
+    project.write_file("/created/First.sol", "contract First {}");
+    project.write_file("/created/Second.sol", "contract Second {}");
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    assert!(matches!(
+        crate::handlers::did_create_files(
+            &mut state,
+            CreateFilesParams {
+                files: vec![FileCreate { uri: Url::from_file_path(folder).unwrap().to_string() }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    for path in [first, second] {
+        assert!(matches!(
+            crate::handlers::did_change_watched_files(
+                &mut state,
+                lsp_types::DidChangeWatchedFilesParams {
+                    changes: vec![FileEvent {
+                        uri: Url::from_file_path(path).unwrap(),
+                        typ: FileChangeType::CREATED,
+                    }],
+                },
+            ),
+            ControlFlow::Continue(())
+        ));
+    }
+
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn folder_watcher_create_followed_by_did_create_starts_one_epoch() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Existing.sol
+        contract Existing {}
+        "#,
+    );
+    let folder = project.path("/created");
+    let first = project.path("/created/First.sol");
+    let second = project.path("/created/Second.sol");
+    let mut state = state(&project);
+    project.write_file("/created/First.sol", "contract First {}");
+    project.write_file("/created/Second.sol", "contract Second {}");
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            lsp_types::DidChangeWatchedFilesParams {
+                changes: [first, second]
+                    .into_iter()
+                    .map(|path| FileEvent {
+                        uri: Url::from_file_path(path).unwrap(),
+                        typ: FileChangeType::CREATED,
+                    })
+                    .collect(),
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert!(matches!(
+        crate::handlers::did_create_files(
+            &mut state,
+            CreateFilesParams {
+                files: vec![FileCreate { uri: Url::from_file_path(folder).unwrap().to_string() }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn folder_delete_split_watcher_echoes_do_not_start_another_epoch() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /deleted/First.sol
+        contract First {}
+
+        //- /deleted/Second.sol open
+        contract Second {}
+        "#,
+    );
+    let folder = project.path("/deleted");
+    let first = project.path("/deleted/First.sol");
+    let second = project.path("/deleted/Second.sol");
+    let mut state = state(&project);
+    fs::remove_dir_all(&folder).unwrap();
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    assert!(matches!(
+        crate::handlers::did_delete_files(
+            &mut state,
+            DeleteFilesParams {
+                files: vec![FileDelete { uri: Url::from_file_path(folder).unwrap().to_string() }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    for path in [first, second] {
+        assert!(matches!(
+            crate::handlers::did_change_watched_files(
+                &mut state,
+                lsp_types::DidChangeWatchedFilesParams {
+                    changes: vec![FileEvent {
+                        uri: Url::from_file_path(path).unwrap(),
+                        typ: FileChangeType::DELETED,
+                    }],
+                },
+            ),
+            ControlFlow::Continue(())
+        ));
+    }
+
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn folder_watcher_delete_followed_by_did_delete_starts_one_epoch() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /deleted/First.sol
+        contract First {}
+
+        //- /deleted/Second.sol
+        contract Second {}
+        "#,
+    );
+    let folder = project.path("/deleted");
+    let first = project.path("/deleted/First.sol");
+    let second = project.path("/deleted/Second.sol");
+    let mut state = state(&project);
+    fs::remove_dir_all(&folder).unwrap();
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            lsp_types::DidChangeWatchedFilesParams {
+                changes: [first, second]
+                    .into_iter()
+                    .map(|path| FileEvent {
+                        uri: Url::from_file_path(path).unwrap(),
+                        typ: FileChangeType::DELETED,
+                    })
+                    .collect(),
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("watcher delete analysis should finish")
+        .unwrap();
+    assert!(matches!(
+        crate::handlers::did_delete_files(
+            &mut state,
+            DeleteFilesParams {
+                files: vec![FileDelete { uri: Url::from_file_path(folder).unwrap().to_string() }],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn did_rename_folder_migrates_open_buffers_before_one_reanalysis() {
     let project = TestProject::from_fixture(
         r#"
@@ -956,6 +1291,119 @@ async fn did_rename_ignores_conflicting_moves_to_one_destination() {
     assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version);
 }
 
+#[test]
+fn did_rename_ignores_expanded_vfs_destination_collision() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /A/x.sol open
+        contract A {}
+
+        //- /B/x.sol open
+        contract B {}
+        "#,
+    );
+    let a = project.path("/A/x.sol");
+    let b = project.path("/B/x.sol");
+    let destination = project.path("/out/x.sol");
+    let mut state = state(&project);
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    let result = crate::handlers::did_rename_files(
+        &mut state,
+        RenameFilesParams {
+            files: vec![
+                FileRename {
+                    old_uri: Url::from_file_path(project.path("/A")).unwrap().to_string(),
+                    new_uri: Url::from_file_path(project.path("/out")).unwrap().to_string(),
+                },
+                FileRename {
+                    old_uri: Url::from_file_path(&b).unwrap().to_string(),
+                    new_uri: Url::from_file_path(&destination).unwrap().to_string(),
+                },
+            ],
+        },
+    );
+
+    assert!(matches!(result, ControlFlow::Continue(())));
+    assert!(state.vfs.read().exists(&VfsPath::from(a)));
+    assert!(state.vfs.read().exists(&VfsPath::from(b)));
+    assert!(!state.vfs.read().exists(&VfsPath::from(destination)));
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watcher_collision_does_not_suppress_later_did_rename() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /A/x.sol open
+        contract A {}
+
+        //- /B/x.sol
+        contract B {}
+        "#,
+    );
+    let a = project.path("/A/x.sol");
+    let b = project.path("/B/x.sol");
+    let destination = project.path("/out/x.sol");
+    let params = RenameFilesParams {
+        files: vec![
+            FileRename {
+                old_uri: Url::from_file_path(project.path("/A")).unwrap().to_string(),
+                new_uri: Url::from_file_path(project.path("/out")).unwrap().to_string(),
+            },
+            FileRename {
+                old_uri: Url::from_file_path(&b).unwrap().to_string(),
+                new_uri: Url::from_file_path(&destination).unwrap().to_string(),
+            },
+        ],
+    };
+    let mut state = state(&project);
+    crate::handlers::will_rename_files(&mut state, params.clone()).await.unwrap();
+    state.vfs.write().set_file_contents_with_version(
+        VfsPath::from(b.clone()),
+        Some(Rope::from("contract UnsavedB {}")),
+        Some(22),
+    );
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    assert!(matches!(
+        crate::handlers::did_change_watched_files(
+            &mut state,
+            lsp_types::DidChangeWatchedFilesParams {
+                changes: vec![
+                    FileEvent {
+                        uri: Url::from_file_path(&a).unwrap(),
+                        typ: FileChangeType::DELETED,
+                    },
+                    FileEvent {
+                        uri: Url::from_file_path(&b).unwrap(),
+                        typ: FileChangeType::DELETED,
+                    },
+                    FileEvent {
+                        uri: Url::from_file_path(&destination).unwrap(),
+                        typ: FileChangeType::CREATED,
+                    },
+                ],
+            },
+        ),
+        ControlFlow::Continue(())
+    ));
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version);
+    assert!(state.vfs.read().exists(&VfsPath::from(a.clone())));
+    assert!(state.vfs.read().exists(&VfsPath::from(b.clone())));
+    assert!(!state.vfs.read().exists(&VfsPath::from(destination.clone())));
+
+    state.vfs.write().set_file_contents(VfsPath::from(b), None);
+    assert!(matches!(
+        crate::handlers::did_rename_files(&mut state, params),
+        ControlFlow::Continue(())
+    ));
+
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 1);
+    assert!(!state.vfs.read().exists(&VfsPath::from(a)));
+    assert!(state.vfs.read().exists(&VfsPath::from(destination)));
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn did_rename_workspace_root_preserves_foundry_configuration_and_closed_files() {
     let project = TestProject::from_fixture(
@@ -1145,6 +1593,65 @@ async fn did_rename_replay_does_not_remap_workspace_root_again() {
         Some(moved_root.as_path())
     );
     assert!(tables.read().workspace_symbols("Main").iter().any(|symbol| symbol.name == "Main"));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn did_only_rename_round_trip_reapplies_original_payload() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /A/Main.sol open
+        contract DiskVersion {}
+        "#,
+    );
+    let a = project.path("/A");
+    let b = project.path("/B");
+    let a_main = a.join("Main.sol");
+    let b_main = b.join("Main.sol");
+    let forward = RenameFilesParams {
+        files: vec![FileRename {
+            old_uri: Url::from_file_path(&a).unwrap().to_string(),
+            new_uri: Url::from_file_path(&b).unwrap().to_string(),
+        }],
+    };
+    let reverse = RenameFilesParams {
+        files: vec![FileRename {
+            old_uri: Url::from_file_path(&b).unwrap().to_string(),
+            new_uri: Url::from_file_path(&a).unwrap().to_string(),
+        }],
+    };
+    let mut state = state(&project);
+    state.config = Arc::new(project.config_with_roots(&["/A"]));
+    state.vfs.write().set_file_contents_with_version(
+        VfsPath::from(a_main.clone()),
+        Some(Rope::from("contract Unsaved {}")),
+        Some(12),
+    );
+    let previous_version = state.analysis_version.load(Ordering::Relaxed);
+
+    fs::rename(&a, &b).unwrap();
+    assert!(matches!(
+        crate::handlers::did_rename_files(&mut state, forward.clone()),
+        ControlFlow::Continue(())
+    ));
+    fs::rename(&b, &a).unwrap();
+    assert!(matches!(
+        crate::handlers::did_rename_files(&mut state, reverse),
+        ControlFlow::Continue(())
+    ));
+    fs::rename(&a, &b).unwrap();
+    assert!(matches!(
+        crate::handlers::did_rename_files(&mut state, forward.clone()),
+        ControlFlow::Continue(())
+    ));
+    assert!(matches!(
+        crate::handlers::did_rename_files(&mut state, forward),
+        ControlFlow::Continue(())
+    ));
+
+    assert_eq!(state.analysis_version.load(Ordering::Relaxed), previous_version + 3);
+    assert!(!state.vfs.read().exists(&VfsPath::from(a_main)));
+    assert_eq!(state.vfs.read().get_file_version(&VfsPath::from(b_main)), Some(12));
+    assert_eq!(state.config.workspaces()[0].compile_opts().base_path.as_deref(), Some(b.as_path()));
 }
 
 #[tokio::test(flavor = "current_thread")]

@@ -42,7 +42,7 @@ fn rename_file_rewrites_relative_import_target() {
     let edits = tables.import_rename_edits(&moves);
 
     assert_eq!(
-        edits.changes,
+        edits.changes(),
         [(
             Url::from_file_path(importer).unwrap(),
             vec![TextEdit::new(
@@ -72,7 +72,7 @@ fn rename_file_escapes_unicode_import_bytes() {
     let renamed = project.path("/src/Renamed-中.sol");
     let moves = move_batch([(target.clone(), renamed.clone())]);
     let edits = tables.import_rename_edits(&moves);
-    let edit = edits.changes.values().flatten().next().unwrap();
+    let edit = edits.first_edit().unwrap();
 
     assert_eq!(edit.new_text, r#""./Renamed-\xE4\xB8\xAD.sol""#);
     assert_import_literal_round_trips(&edit.new_text, "./Renamed-中.sol".as_bytes());
@@ -102,7 +102,7 @@ fn rename_file_escapes_non_bmp_import_bytes() {
     let renamed = project.path("/src/Renamed-😀.sol");
     let moves = move_batch([(target.clone(), renamed.clone())]);
     let edits = tables.import_rename_edits(&moves);
-    let edit = edits.changes.values().flatten().next().unwrap();
+    let edit = edits.first_edit().unwrap();
 
     assert_eq!(edit.new_text, r#""./Renamed-\xF0\x9F\x98\x80.sol""#);
     assert_import_literal_round_trips(&edit.new_text, "./Renamed-😀.sol".as_bytes());
@@ -131,7 +131,7 @@ fn rename_file_escapes_quote_and_control_import_bytes() {
     let renamed = project.path("/src").join("Renamed-\"\u{8}\u{c}.sol");
     let moves = move_batch([(target.clone(), renamed.clone())]);
     let edits = tables.import_rename_edits(&moves);
-    let edit = edits.changes.values().flatten().next().unwrap();
+    let edit = edits.first_edit().unwrap();
 
     assert_eq!(edit.new_text, r#""./Renamed-\x22\x08\x0C.sol""#);
     assert_import_literal_round_trips(&edit.new_text, b"./Renamed-\"\x08\x0c.sol");
@@ -166,7 +166,7 @@ fn rename_file_escapes_backslash_import_byte() {
     let renamed = project.path("/src").join("Renamed-\\.sol");
     let moves = move_batch([(target.clone(), renamed.clone())]);
     let edits = tables.import_rename_edits(&moves);
-    let edit = edits.changes.values().flatten().next().unwrap();
+    let edit = edits.first_edit().unwrap();
 
     assert_eq!(edit.new_text, r#""./Renamed-\x5C.sol""#);
     assert_import_literal_round_trips(&edit.new_text, b"./Renamed-\\.sol");
@@ -210,7 +210,7 @@ fn rename_file_preserves_non_utf8_import_bytes() {
     #[cfg(not(target_os = "linux"))]
     let moves = move_batch([(target, renamed)]);
     let edits = index.rename_edits(&moves);
-    let edit = edits.changes.values().flatten().next().unwrap();
+    let edit = edits.first_edit().unwrap();
 
     assert_eq!(edit.new_text, r#""./Renamed-\xFE.sol""#);
     assert_import_literal_round_trips(&edit.new_text, b"./Renamed-\xfe.sol");
@@ -220,7 +220,7 @@ fn rename_file_preserves_non_utf8_import_bytes() {
         fs::write(&target, "contract Target {}").unwrap();
         let tables = analyze_project(&project);
         let edits = tables.import_rename_edits(&moves);
-        let edit = edits.changes.values().flatten().next().unwrap();
+        let edit = edits.first_edit().unwrap();
         assert_eq!(edit.new_text, r#""./Renamed-\xFE.sol""#);
 
         fs::rename(target, &renamed).unwrap();
@@ -249,7 +249,7 @@ fn rename_file_across_windows_drives_uses_absolute_import() {
         Vec::new(),
     );
     let edits = index.rename_edits(&move_batch([(target, renamed)]));
-    let edit = edits.changes.values().flatten().next().unwrap();
+    let edit = edits.first_edit().unwrap();
 
     assert_eq!(edit.new_text, r#""D:/contracts/Renamed.sol""#);
     assert_import_literal_round_trips(&edit.new_text, b"D:/contracts/Renamed.sol");
@@ -271,7 +271,7 @@ fn rename_importer_across_windows_drives_uses_absolute_import() {
         Vec::new(),
     );
     let edits = index.rename_edits(&move_batch([(importer, moved_importer)]));
-    let edit = edits.changes.values().flatten().next().unwrap();
+    let edit = edits.first_edit().unwrap();
 
     assert_eq!(edit.new_text, r#""C:/src/Target.sol""#);
     assert_import_literal_round_trips(&edit.new_text, b"C:/src/Target.sol");
@@ -293,7 +293,7 @@ fn rename_file_across_unc_shares_uses_absolute_import() {
         Vec::new(),
     );
     let edits = index.rename_edits(&move_batch([(target, renamed)]));
-    let edit = edits.changes.values().flatten().next().unwrap();
+    let edit = edits.first_edit().unwrap();
 
     assert_eq!(edit.new_text, r#""//server/destination/contracts/Renamed.sol""#);
     assert_import_literal_round_trips(
@@ -324,7 +324,7 @@ fn rename_file_omits_absolute_import_captured_by_remapping() {
 
     let edits = index.rename_edits(&move_batch([(target, renamed)]));
 
-    assert!(edits.changes.is_empty());
+    assert!(edits.is_empty());
 }
 
 #[cfg(windows)]
@@ -343,7 +343,7 @@ fn rename_file_to_verbatim_drive_preserves_absolute_import() {
         Vec::new(),
     );
     let edits = index.rename_edits(&move_batch([(target, renamed)]));
-    let edit = edits.changes.values().flatten().next().unwrap();
+    let edit = edits.first_edit().unwrap();
 
     assert_eq!(edit.new_text, r#""\x5C\x5C?\x5CD:\x5Ccontracts\x5CRenamed.sol""#);
     assert_import_literal_round_trips(&edit.new_text, br"\\?\D:\contracts\Renamed.sol");
@@ -365,7 +365,7 @@ fn rename_file_to_verbatim_unc_preserves_absolute_import() {
         Vec::new(),
     );
     let edits = index.rename_edits(&move_batch([(target, renamed)]));
-    let edit = edits.changes.values().flatten().next().unwrap();
+    let edit = edits.first_edit().unwrap();
 
     assert_eq!(
         edit.new_text,
@@ -396,7 +396,7 @@ fn unrelated_rename_preserves_noncanonical_relative_import() {
         move_batch([(project.path("/src/Other.sol"), project.path("/src/RenamedOther.sol"))]);
     let edits = tables.import_rename_edits(&moves);
 
-    assert!(edits.changes.is_empty());
+    assert!(edits.is_empty());
 }
 
 #[test]
@@ -421,7 +421,7 @@ fn rename_file_preserves_foundry_remapping() {
     let edits = tables.import_rename_edits(&moves);
 
     assert_eq!(
-        edits.changes,
+        edits.changes(),
         [(
             Url::from_file_path(importer).unwrap(),
             vec![TextEdit::new(
@@ -454,7 +454,7 @@ fn rename_workspace_folder_keeps_foundry_remapping_unchanged() {
     let moves = move_batch([(project.path("/project"), project.path("/renamed"))]);
     let edits = tables.import_rename_edits(&moves);
 
-    assert!(edits.changes.is_empty());
+    assert!(edits.is_empty());
 }
 
 #[test]
@@ -479,7 +479,7 @@ fn rename_workspace_with_absolute_remapping_rewrites_import() {
     let edits = tables.import_rename_edits(&moves);
 
     assert_eq!(
-        edits.changes,
+        edits.changes(),
         [(
             Url::from_file_path(importer).unwrap(),
             vec![TextEdit::new(
@@ -516,7 +516,7 @@ fn rename_workspace_with_absolute_include_path_rewrites_remapping() {
     let edits = tables.import_rename_edits(&moves);
 
     assert_eq!(
-        edits.changes,
+        edits.changes(),
         [(
             Url::from_file_path(importer).unwrap(),
             vec![TextEdit::new(
@@ -555,7 +555,7 @@ fn rename_configuration_root_rewrites_import_when_nested_moves_leave_files_put()
     let edits = tables.import_rename_edits(&moves);
 
     assert_eq!(
-        edits.changes,
+        edits.changes(),
         [(
             Url::from_file_path(importer).unwrap(),
             vec![TextEdit::new(
@@ -595,7 +595,7 @@ fn rename_configuration_root_rewrites_include_path_import_when_files_stay_put() 
     let edits = tables.import_rename_edits(&moves);
 
     assert_eq!(
-        edits.changes,
+        edits.changes(),
         [(
             Url::from_file_path(importer).unwrap(),
             vec![TextEdit::new(
@@ -634,7 +634,7 @@ fn rename_configuration_root_rewrites_opaque_import_when_files_stay_put() {
     let edits = tables.import_rename_edits(&moves);
 
     assert_eq!(
-        edits.changes,
+        edits.changes(),
         [(
             Url::from_file_path(importer).unwrap(),
             vec![TextEdit::new(
@@ -672,7 +672,7 @@ fn rename_target_falls_back_when_a_more_specific_remapping_would_capture_it() {
     let edits = tables.import_rename_edits(&moves);
 
     assert_eq!(
-        edits.changes,
+        edits.changes(),
         [(
             Url::from_file_path(importer).unwrap(),
             vec![TextEdit::new(
@@ -710,7 +710,7 @@ fn rename_target_falls_back_when_common_suffix_loses_the_remapping_prefix() {
     let edits = tables.import_rename_edits(&moves);
 
     assert_eq!(
-        edits.changes,
+        edits.changes(),
         [(
             Url::from_file_path(importer).unwrap(),
             vec![TextEdit::new(
@@ -745,7 +745,7 @@ fn rename_remapped_subtree_rewrites_import_when_manifest_stays_put() {
     let edits = tables.import_rename_edits(&moves);
 
     assert_eq!(
-        edits.changes,
+        edits.changes(),
         [(
             Url::from_file_path(importer).unwrap(),
             vec![TextEdit::new(
@@ -775,7 +775,7 @@ fn rename_importer_folder_recalculates_relative_import() {
     let edits = tables.import_rename_edits(&moves);
 
     assert_eq!(
-        edits.changes,
+        edits.changes(),
         [(
             Url::from_file_path(importer).unwrap(),
             vec![TextEdit::new(
@@ -808,7 +808,7 @@ fn delete_file_removes_complete_import_directive() {
     let edits = tables.import_delete_edits(&[project.path("/src/Target.sol")]);
 
     assert_eq!(
-        edits.changes,
+        edits.changes(),
         [(
             Url::from_file_path(importer).unwrap(),
             vec![TextEdit::new(
@@ -841,7 +841,7 @@ fn delete_folder_removes_descendant_imports_but_not_deleted_importers() {
     let edits = tables.import_delete_edits(&[project.path("/package")]);
 
     assert_eq!(
-        edits.changes,
+        edits.changes(),
         [(
             Url::from_file_path(importer).unwrap(),
             vec![TextEdit::new(
