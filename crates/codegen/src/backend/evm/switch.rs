@@ -824,7 +824,7 @@ fn perfect_hash_candidates_with_tests(
     table_target_width: usize,
 ) -> Vec<(LoweringCost, SwitchPlan)> {
     debug_assert_eq!(values.len(), equality_costs.len());
-    let mut candidates = Vec::new();
+    let mut candidates = Vec::with_capacity(4);
     if let Some(hash @ PerfectHash::Affine { .. }) = affine_hash(values, evm_version) {
         candidates.push((
             affine_lowering_cost(values, hash, evm_version, default, table_target_width),
@@ -833,6 +833,9 @@ fn perfect_hash_candidates_with_tests(
     }
 
     if (MIN_BUCKET_CASES..=MAX_BUCKET_CASES).contains(&values.len()) {
+        let differing_bits =
+            values[1..].iter().fold(U256::ZERO, |bits, &value| bits | (value ^ values[0]));
+        let highest_differing_bit = differing_bits.bit_len().saturating_sub(1);
         let minimum_bits = values.len().next_power_of_two().trailing_zeros() as usize;
         for bits in minimum_bits..=minimum_bits + 2 {
             let table_size = 1usize << bits;
@@ -840,7 +843,11 @@ fn perfect_hash_candidates_with_tests(
                 break;
             }
             let mask = table_size - 1;
-            let last_shift = if evm_version.has_bitwise_shifting() { 256 - bits } else { 0 };
+            let last_shift = if evm_version.has_bitwise_shifting() {
+                (256 - bits).min(highest_differing_bit)
+            } else {
+                0
+            };
             for shift in 0..=last_shift {
                 let mut occupied = [0u64; MAX_PERFECT_BIT_TABLE_SIZE / 64];
                 let collision = values.iter().any(|&value| {
@@ -863,6 +870,9 @@ fn perfect_hash_candidates_with_tests(
                         ),
                         SwitchPlan::Perfect { hash },
                     ));
+                    // Every nonzero shift has the same materialization cost, so
+                    // no later shift at this table width can rank higher.
+                    break;
                 }
             }
         }
@@ -1331,6 +1341,23 @@ mod tests {
             plan,
             SwitchPlan::Perfect { hash: PerfectHash::BitSlice { shift: 0, mask: 15 } }
         )));
+    }
+
+    #[test]
+    fn extracts_bit_slices_across_limbs() {
+        let values = [
+            U256::ZERO,
+            U256::MAX,
+            U256::from_limbs([0x0123_4567_89ab_cdef, 0xfedc_ba98_7654_3210, 1, 1 << 63]),
+        ];
+        for value in values {
+            for shift in 0..256 {
+                for mask in [1, 3, 7, 15, 31, 63, 127, 255] {
+                    let expected = usize::try_from((value >> shift) & U256::from(mask)).unwrap();
+                    assert_eq!(bit_slice_index(value, shift, mask), expected);
+                }
+            }
+        }
     }
 
     #[test]
