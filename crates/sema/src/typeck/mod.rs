@@ -11,6 +11,7 @@ use solar_interface::{Span, diagnostics::ErrorGuaranteed, error_code};
 use std::ops::ControlFlow;
 
 mod checker;
+mod definite_assignment;
 pub(crate) mod override_checker;
 mod udvt;
 mod view_pure_checker;
@@ -32,6 +33,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
             });
     },);
     gcx.set_typeck_results(typeck_results);
+    definite_assignment::check(gcx);
     view_pure_checker::check(gcx);
 }
 

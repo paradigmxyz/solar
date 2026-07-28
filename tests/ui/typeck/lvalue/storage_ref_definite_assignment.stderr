@@ -1,0 +1,44 @@
+error[3464]: storage pointer variable can be accessed before assignment
+   ╭▸ ROOT/tests/ui/typeck/lvalue/storage_ref_definite_assignment.sol:LL:CC
+   │
+LL │         status.remaining = 1;
+   │         ━━━━━━
+   ╰╴
+note: storage pointer declared here
+   ╭▸ ROOT/tests/ui/typeck/lvalue/storage_ref_definite_assignment.sol:LL:CC
+   │
+LL │         Status storage status;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━
+
+error[3464]: storage pointer variable can be accessed before assignment
+   ╭▸ ROOT/tests/ui/typeck/lvalue/storage_ref_definite_assignment.sol:LL:CC
+   │
+LL │         status.remaining = 2;
+   │         ━━━━━━
+   ╰╴
+note: storage pointer declared here
+   ╭▸ ROOT/tests/ui/typeck/lvalue/storage_ref_definite_assignment.sol:LL:CC
+   │
+LL │         Status storage status;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━
+
+error[3464]: storage pointer variable can be accessed before assignment
+   ╭▸ ROOT/tests/ui/typeck/lvalue/storage_ref_definite_assignment.sol:LL:CC
+   │
+LL │         status.remaining = 3;
+   │         ━━━━━━
+   ╰╴
+note: storage pointer declared here
+   ╭▸ ROOT/tests/ui/typeck/lvalue/storage_ref_definite_assignment.sol:LL:CC
+   │
+LL │         Status storage status;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━
+
+error[3464]: storage pointer variable can be returned before assignment
+   ╭▸ ROOT/tests/ui/typeck/lvalue/storage_ref_definite_assignment.sol:LL:CC
+   │
+LL │         returns (Status storage status)
+   ╰╴                 ━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 4 previous errors
+
