@@ -630,6 +630,9 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 builder.imm_u64(0)
             }
+            Builtin::StringConcat | Builtin::BytesConcat => {
+                self.lower_abi_encode_packed(builder, args)
+            }
             Builtin::Sha256 | Builtin::Ripemd160 => {
                 self.lower_hash_precompile_call(builder, builtin, args)
             }
