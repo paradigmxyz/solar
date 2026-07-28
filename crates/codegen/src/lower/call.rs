@@ -861,8 +861,7 @@ impl<'gcx> Lowerer<'gcx> {
         builtin: Builtin,
         args: &CallArgs<'_>,
     ) -> ValueId {
-        let inputs = args.exprs().collect::<Vec<_>>();
-        let [input] = inputs.as_slice() else {
+        if args.len() != 1 {
             let guar = self
                 .gcx
                 .dcx()
@@ -870,7 +869,8 @@ impl<'gcx> Lowerer<'gcx> {
                 .span(args.span)
                 .emit();
             return builder.error_value(guar);
-        };
+        }
+        let input = args.exprs().next().expect("argument count checked");
         let input = self.peel_bytes_conversion(input);
         let (input_ptr, input_len) = self.lower_precompile_bytes_input(builder, input);
 
@@ -908,8 +908,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         args: &CallArgs<'_>,
     ) -> ValueId {
-        let exprs = args.exprs().collect::<Vec<_>>();
-        let [hash, v, r, s] = exprs.as_slice() else {
+        if args.len() != 4 {
             let guar = self
                 .gcx
                 .dcx()
@@ -917,9 +916,12 @@ impl<'gcx> Lowerer<'gcx> {
                 .span(args.span)
                 .emit();
             return builder.error_value(guar);
-        };
-        let values = [hash, v, r, s].map(|arg| self.lower_expr(builder, arg));
-        let [hash, v, r, s] = values;
+        }
+        let mut exprs = args.exprs();
+        let hash = self.lower_expr(builder, exprs.next().expect("argument count checked"));
+        let v = self.lower_expr(builder, exprs.next().expect("argument count checked"));
+        let r = self.lower_expr(builder, exprs.next().expect("argument count checked"));
+        let s = self.lower_expr(builder, exprs.next().expect("argument count checked"));
 
         let input_ptr = builder.fmp();
         builder.mstore(input_ptr, hash);
