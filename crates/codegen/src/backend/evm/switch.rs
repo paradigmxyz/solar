@@ -77,6 +77,20 @@ pub(super) struct SwitchPlanOptions {
     pub(super) max_gas_code_growth: usize,
     pub(super) max_bit_slice_gas_code_growth: usize,
     pub(super) forced: SwitchLowering,
+    pub(super) layout: SwitchLayout,
+}
+
+/// Post-lowering CFG facts used to refine plan ranking.
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct SwitchLayout {
+    /// Every case target is a distinct, single-predecessor block that CFG
+    /// simplification can coalesce into a perfect-hash guard.
+    pub(super) coalesce_case_targets: bool,
+    /// The coalesced case targets all jump to one continuation.
+    pub(super) shared_case_continuation: bool,
+    /// Every entry case tail-calls an empty function that terminal deduplication
+    /// maps to one nearby `STOP`.
+    pub(super) shared_terminal_target: bool,
 }
 
 /// Emitted switch miss sequence.
@@ -189,6 +203,7 @@ pub(super) fn select_switch_plan_with_budget(
             max_gas_code_growth,
             max_bit_slice_gas_code_growth: MAX_BIT_SLICE_GAS_CODE_GROWTH,
             forced: SwitchLowering::Auto,
+            layout: SwitchLayout::default(),
         },
     )
 }
@@ -207,6 +222,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         max_gas_code_growth,
         max_bit_slice_gas_code_growth,
         forced,
+        layout,
     } = options;
     debug_assert!(values.windows(2).all(|values| values[0] < values[1]));
     debug_assert_eq!(values.len(), linear_values.len());
@@ -239,7 +255,16 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                         SwitchPlan::Binary { leaf_size },
                     )
                 })
-                .min_by_key(|&(cost, _)| forced_cost_key(cost, optimization)),
+                .min_by_key(|&(cost, plan)| {
+                    plan_cost_key(
+                        cost,
+                        plan,
+                        optimization,
+                        values.len(),
+                        table_target_width,
+                        layout,
+                    )
+                }),
             SwitchLowering::Buckets if (2..=MAX_BUCKET_CASES).contains(&values.len()) => {
                 bucket_count_candidates(values.len())
                     .into_iter()
@@ -255,17 +280,36 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                             SwitchPlan::Buckets { bucket_count },
                         )
                     })
-                    .min_by_key(|&(cost, _)| forced_cost_key(cost, optimization))
+                    .min_by_key(|&(cost, plan)| {
+                        plan_cost_key(
+                            cost,
+                            plan,
+                            optimization,
+                            values.len(),
+                            table_target_width,
+                            layout,
+                        )
+                    })
             }
-            SwitchLowering::Dense => {
-                dense_lowering_cost(values, evm_version, default, table_target_width)
-                    .map(|(low, range, cost)| (cost, SwitchPlan::Dense { low, range }))
-            }
-            SwitchLowering::Perfect => {
-                perfect_hash_candidates(values, evm_version, default, table_target_width)
-                    .into_iter()
-                    .min_by_key(|&(cost, _)| forced_cost_key(cost, optimization))
-            }
+            SwitchLowering::Dense => dense_lowering_cost(
+                values,
+                evm_version,
+                default,
+                table_target_width,
+                layout.shared_case_continuation,
+            )
+            .map(|(low, range, cost)| (cost, SwitchPlan::Dense { low, range })),
+            SwitchLowering::Perfect => perfect_hash_candidates(
+                values,
+                evm_version,
+                default,
+                table_target_width,
+                layout.coalesce_case_targets,
+            )
+            .into_iter()
+            .min_by_key(|&(cost, plan)| {
+                plan_cost_key(cost, plan, optimization, values.len(), table_target_width, layout)
+            }),
             _ => None,
         };
         let Some((cost, plan)) = candidate else {
@@ -288,7 +332,15 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 lowering_cost(values, leaf_size, evm_version, explicit_default, table_target_width);
             let better = match optimization {
                 OptimizationMode::Gas => cost.is_better_for_gas_than(best.0, max_gas_code_size),
-                OptimizationMode::Size => cost.size_key() < best.0.size_key(),
+                OptimizationMode::Size => {
+                    size_key_for_plan(
+                        cost,
+                        SwitchPlan::Binary { leaf_size },
+                        values.len(),
+                        table_target_width,
+                        layout,
+                    ) < size_key_for_plan(best.0, best.1, values.len(), table_target_width, layout)
+                }
                 _ => false,
             };
             if better {
@@ -312,19 +364,37 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
             }
         }
     }
-    if let Some((low, range, cost)) =
-        dense_lowering_cost(values, evm_version, default, table_target_width)
-    {
+    if let Some((low, range, cost)) = dense_lowering_cost(
+        values,
+        evm_version,
+        default,
+        table_target_width,
+        layout.shared_case_continuation,
+    ) {
         let better = match optimization {
             OptimizationMode::Gas => cost.is_better_for_gas_than(best.0, max_gas_code_size),
-            OptimizationMode::Size => cost.size_key() < best.0.size_key(),
+            OptimizationMode::Size => {
+                size_key_for_plan(
+                    cost,
+                    SwitchPlan::Dense { low, range },
+                    values.len(),
+                    table_target_width,
+                    layout,
+                ) < size_key_for_plan(best.0, best.1, values.len(), table_target_width, layout)
+            }
             _ => false,
         };
         if better {
             best = (cost, SwitchPlan::Dense { low, range });
         }
     }
-    for (cost, plan) in perfect_hash_candidates(values, evm_version, default, table_target_width) {
+    for (cost, plan) in perfect_hash_candidates(
+        values,
+        evm_version,
+        default,
+        table_target_width,
+        layout.coalesce_case_targets,
+    ) {
         let better = match optimization {
             OptimizationMode::Gas => {
                 let max_code_size =
@@ -336,8 +406,15 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                         max_gas_code_size
                     };
                 cost.is_better_for_gas_than(best.0, max_code_size)
+                    || (layout.coalesce_case_targets
+                        && best.1 != SwitchPlan::Linear
+                        && cost.max_code_size <= best.0.max_code_size
+                        && cost.gas_key() < best.0.gas_key())
             }
-            OptimizationMode::Size => cost.size_key() < best.0.size_key(),
+            OptimizationMode::Size => {
+                size_key_for_plan(cost, plan, values.len(), table_target_width, layout)
+                    < size_key_for_plan(best.0, best.1, values.len(), table_target_width, layout)
+            }
             _ => false,
         };
         if better {
@@ -352,8 +429,34 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
     SwitchSelection { plan: best.1, gas_code_growth }
 }
 
-fn forced_cost_key(cost: LoweringCost, optimization: OptimizationMode) -> (usize, usize, usize) {
-    if optimization == OptimizationMode::Size { cost.size_key() } else { cost.gas_key() }
+fn plan_cost_key(
+    cost: LoweringCost,
+    plan: SwitchPlan,
+    optimization: OptimizationMode,
+    len: usize,
+    table_target_width: usize,
+    layout: SwitchLayout,
+) -> (usize, usize, usize) {
+    if optimization == OptimizationMode::Size {
+        size_key_for_plan(cost, plan, len, table_target_width, layout)
+    } else {
+        cost.gas_key()
+    }
+}
+
+fn size_key_for_plan(
+    cost: LoweringCost,
+    plan: SwitchPlan,
+    len: usize,
+    table_target_width: usize,
+    layout: SwitchLayout,
+) -> (usize, usize, usize) {
+    let locality_credit = usize::from(
+        layout.shared_terminal_target
+            && table_target_width > 1
+            && matches!(plan, SwitchPlan::Binary { .. }),
+    ) * len;
+    (cost.code_size.saturating_sub(locality_credit), cost.hit_gas_sum, cost.miss_gas)
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -373,10 +476,6 @@ impl LoweringCost {
 
     fn gas_key(self) -> (usize, usize, usize) {
         (self.hit_gas_sum, self.miss_gas, self.code_size)
-    }
-
-    fn size_key(self) -> (usize, usize, usize) {
-        (self.code_size, self.hit_gas_sum, self.miss_gas)
     }
 }
 
@@ -534,6 +633,7 @@ fn dense_lowering_cost(
     evm_version: EvmVersion,
     default: SwitchDefault,
     table_target_width: usize,
+    shared_case_continuation: bool,
 ) -> Option<(U256, usize, LoweringCost)> {
     let low = *values.first()?;
     let high = *values.last()?;
@@ -557,7 +657,8 @@ fn dense_lowering_cost(
         + JUMPDEST_GAS
         + VERY_LOW_GAS
         + JUMP_GAS;
-    let hit_gas = normalize_gas + bounds_gas + JUMPDEST_GAS + indexed_jump_gas;
+    let continuation_gas = usize::from(shared_case_continuation) * DEFAULT_JUMP_GAS;
+    let hit_gas = normalize_gas + bounds_gas + JUMPDEST_GAS + indexed_jump_gas + continuation_gas;
     let default_body_gas =
         if default == SwitchDefault::Revert { JUMPDEST_GAS + default.gas(evm_version) } else { 0 };
     let out_of_range_miss_gas =
@@ -576,7 +677,8 @@ fn dense_lowering_cost(
                 + MIN_DEFAULT_JUMP_LEN
                 + JUMPDEST_LEN
                 + INDEXED_JUMP_BASE_LEN
-                + range * indexed_jump_stub_len(table_target_width),
+                + range * indexed_jump_stub_len(table_target_width)
+                + usize::from(shared_case_continuation) * MIN_DEFAULT_JUMP_LEN,
             max_code_size: normalize_len
                 + max_bounds_len
                 + 1
@@ -595,6 +697,7 @@ fn perfect_hash_candidates(
     evm_version: EvmVersion,
     default: SwitchDefault,
     table_target_width: usize,
+    coalesce_case_targets: bool,
 ) -> Vec<(LoweringCost, SwitchPlan)> {
     let mut candidates = Vec::new();
     if let Some(hash @ PerfectHash::Affine { .. }) = affine_hash(values, evm_version) {
@@ -632,6 +735,7 @@ fn perfect_hash_candidates(
                             evm_version,
                             default.without_fallthrough(),
                             table_target_width,
+                            coalesce_case_targets,
                         ),
                         SwitchPlan::Perfect { hash },
                     ));
@@ -648,6 +752,7 @@ fn bit_slice_lowering_cost(
     evm_version: EvmVersion,
     default: SwitchDefault,
     table_target_width: usize,
+    coalesce_case_targets: bool,
 ) -> LoweringCost {
     let PerfectHash::BitSlice { shift, mask } = hash else { unreachable!() };
     debug_assert!(!default.can_fallthrough());
@@ -682,12 +787,23 @@ fn bit_slice_lowering_cost(
 
     let shared_miss = default.needs_value_cleanup();
     for &value in values {
-        let test = equality_test_cost(
+        let mut test = equality_test_cost(
             value,
             evm_version,
             table_target_width,
             default.needs_value_cleanup(),
         );
+        if coalesce_case_targets && shared_miss {
+            // Peephole folds `EQ; ISZERO` to `SUB`, then CFG simplification
+            // coalesces each single-predecessor case target into its guard.
+            test.code_size =
+                test.code_size.saturating_sub(MIN_DEFAULT_JUMP_LEN + usize::from(!value.is_zero()));
+            test.hit_gas = test
+                .hit_gas
+                .saturating_sub(DEFAULT_JUMP_GAS + usize::from(!value.is_zero()) * VERY_LOW_GAS);
+            test.miss_gas =
+                test.miss_gas.saturating_sub(usize::from(!value.is_zero()) * VERY_LOW_GAS);
+        }
         cost.code_size += JUMPDEST_LEN + test.code_size - usize::from(shared_miss) * JUMPDEST_LEN;
         cost.max_code_size +=
             JUMPDEST_LEN + test.max_code_size - usize::from(shared_miss) * JUMPDEST_LEN;
@@ -951,6 +1067,7 @@ mod tests {
                     max_gas_code_growth: MAX_GAS_CODE_GROWTH,
                     max_bit_slice_gas_code_growth: MAX_BIT_SLICE_GAS_CODE_GROWTH,
                     forced,
+                    layout: SwitchLayout::default(),
                 },
             )
             .plan
@@ -964,11 +1081,75 @@ mod tests {
     }
 
     #[test]
+    fn accounts_for_shared_terminal_label_locality() {
+        let mut values = [
+            0xc43b1a78u64,
+            0x10c772cc,
+            0xebbd40a9,
+            0xd758c88e,
+            0x3d492ec4,
+            0xcba58af7,
+            0x8a67ee70,
+            0x4e580bc4,
+            0x6d738a50,
+            0x905f7d67,
+            0x8dc714ba,
+            0x40bcff2a,
+            0x6d4975a2,
+            0x920f5c73,
+            0x5fb43592,
+            0x24a75cfd,
+            0x3b88f6c2,
+            0xaa66aa63,
+            0x98e9a73d,
+            0xebd25c8f,
+            0xe6e0ae36,
+            0x1eb6457a,
+            0x965a68f5,
+            0xdca2fb5a,
+            0xcbf99d38,
+            0x67e648b5,
+            0x54eaadab,
+            0x7238232f,
+            0x1f49dbe7,
+            0x87d912cb,
+            0xf02a00c9,
+            0x41052a0d,
+        ]
+        .map(U256::from);
+        values.sort_unstable();
+        let select = |shared_terminal_target| {
+            select_switch_plan_with_linear_values_and_budget(
+                &values,
+                &values,
+                SwitchPlanOptions {
+                    optimization: OptimizationMode::Size,
+                    evm_version: EvmVersion::Cancun,
+                    default: SwitchDefault::Jump,
+                    table_target_width: 2,
+                    max_gas_code_growth: MAX_GAS_CODE_GROWTH,
+                    max_bit_slice_gas_code_growth: MAX_BIT_SLICE_GAS_CODE_GROWTH,
+                    forced: SwitchLowering::Auto,
+                    layout: SwitchLayout { shared_terminal_target, ..SwitchLayout::default() },
+                },
+            )
+            .plan
+        };
+        assert_eq!(select(false), SwitchPlan::Linear);
+        assert!(matches!(select(true), SwitchPlan::Binary { .. }));
+    }
+
+    #[test]
     fn finds_collision_free_bit_slices() {
         let values =
             (0..16).map(|value| U256::from(value * value * 256 + value)).collect::<Vec<_>>();
-        let candidates =
-            perfect_hash_candidates(&values, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2);
+        let candidates = perfect_hash_candidates(
+            &values,
+            EvmVersion::Cancun,
+            SwitchDefault::CleanupJump,
+            2,
+            false,
+        );
         assert!(candidates.iter().any(|&(_, plan)| matches!(
             plan,
             SwitchPlan::Perfect { hash: PerfectHash::BitSlice { shift: 0, mask: 15 } }
@@ -986,9 +1167,16 @@ mod tests {
             EvmVersion::Cancun,
             SwitchDefault::CleanupJump,
             2,
+            false,
         );
-        let entry =
-            bit_slice_lowering_cost(&values, hash, EvmVersion::Cancun, SwitchDefault::Jump, 2);
+        let entry = bit_slice_lowering_cost(
+            &values,
+            hash,
+            EvmVersion::Cancun,
+            SwitchDefault::Jump,
+            2,
+            false,
+        );
         assert_eq!(cleanup.code_size, entry.code_size + values.len() * 2 + 5);
         assert_eq!(cleanup.max_code_size, entry.max_code_size + values.len() * 2 + 6);
         assert_eq!(cleanup.hit_gas_sum, entry.hit_gas_sum + values.len() * 16);
@@ -1000,12 +1188,18 @@ mod tests {
         let values =
             (0..32).map(|value| U256::from(value * value * 256 + value)).collect::<Vec<_>>();
         assert!(
-            perfect_hash_candidates(&values, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2,)
-                .iter()
-                .any(|(_, plan)| matches!(
-                    plan,
-                    SwitchPlan::Perfect { hash: PerfectHash::BitSlice { .. } }
-                ))
+            perfect_hash_candidates(
+                &values,
+                EvmVersion::Cancun,
+                SwitchDefault::CleanupJump,
+                2,
+                false,
+            )
+            .iter()
+            .any(|(_, plan)| matches!(
+                plan,
+                SwitchPlan::Perfect { hash: PerfectHash::BitSlice { .. } }
+            ))
         );
         assert!(!matches!(
             select_switch_plan_with_budget(
@@ -1036,6 +1230,7 @@ mod tests {
                 max_gas_code_growth: usize::MAX,
                 max_bit_slice_gas_code_growth: MAX_BIT_SLICE_GAS_CODE_GROWTH,
                 forced: SwitchLowering::Perfect,
+                layout: SwitchLayout::default(),
             },
         );
         assert_eq!(forced.gas_code_growth, 108);
@@ -1051,11 +1246,77 @@ mod tests {
                     max_gas_code_growth: MAX_GAS_CODE_GROWTH,
                     max_bit_slice_gas_code_growth: forced.gas_code_growth,
                     forced: SwitchLowering::Auto,
+                    layout: SwitchLayout::default(),
                 },
             )
             .plan,
             SwitchPlan::Perfect { hash: PerfectHash::BitSlice { .. } }
         ));
+    }
+
+    #[test]
+    fn replaces_larger_plan_with_coalesced_bit_slice() {
+        let linear_values = (0..16)
+            .map(|index| U256::from((index + 1) * (index + 1) * 65536 + index))
+            .collect::<Vec<_>>();
+        let mut values = linear_values.clone();
+        values.sort_unstable();
+        let select = |layout| {
+            select_switch_plan_with_linear_values_and_budget(
+                &values,
+                &linear_values,
+                SwitchPlanOptions {
+                    optimization: OptimizationMode::Gas,
+                    evm_version: EvmVersion::Cancun,
+                    default: SwitchDefault::CleanupJump,
+                    table_target_width: 2,
+                    max_gas_code_growth: MAX_GAS_CODE_GROWTH,
+                    max_bit_slice_gas_code_growth: MAX_BIT_SLICE_GAS_CODE_GROWTH,
+                    forced: SwitchLowering::Auto,
+                    layout,
+                },
+            )
+        };
+        assert!(matches!(select(SwitchLayout::default()).plan, SwitchPlan::Buckets { .. }));
+        let selection = select(SwitchLayout {
+            coalesce_case_targets: true,
+            shared_case_continuation: true,
+            ..SwitchLayout::default()
+        });
+        assert!(matches!(
+            selection.plan,
+            SwitchPlan::Perfect { hash: PerfectHash::BitSlice { .. } }
+        ));
+        assert!(selection.gas_code_growth > MAX_BIT_SLICE_GAS_CODE_GROWTH);
+        assert!(selection.gas_code_growth <= MAX_GAS_CODE_GROWTH);
+    }
+
+    #[test]
+    fn accounts_for_shared_case_continuation() {
+        let values = (0..6).map(|index| U256::from(20_000 + index * 6)).collect::<Vec<_>>();
+        let select = |shared_case_continuation| {
+            select_switch_plan_with_linear_values_and_budget(
+                &values,
+                &values,
+                SwitchPlanOptions {
+                    optimization: OptimizationMode::Gas,
+                    evm_version: EvmVersion::Cancun,
+                    default: SwitchDefault::CleanupJump,
+                    table_target_width: 2,
+                    max_gas_code_growth: MAX_GAS_CODE_GROWTH,
+                    max_bit_slice_gas_code_growth: MAX_BIT_SLICE_GAS_CODE_GROWTH,
+                    forced: SwitchLowering::Auto,
+                    layout: SwitchLayout {
+                        coalesce_case_targets: true,
+                        shared_case_continuation,
+                        ..SwitchLayout::default()
+                    },
+                },
+            )
+            .plan
+        };
+        assert!(matches!(select(false), SwitchPlan::Dense { .. }));
+        assert!(matches!(select(true), SwitchPlan::Perfect { .. }));
     }
 
     #[test]
@@ -1173,6 +1434,7 @@ mod tests {
                 max_gas_code_growth: MAX_GAS_CODE_GROWTH,
                 max_bit_slice_gas_code_growth: MAX_BIT_SLICE_GAS_CODE_GROWTH,
                 forced: SwitchLowering::Binary,
+                layout: SwitchLayout::default(),
             },
         );
         assert_eq!(binary.plan, SwitchPlan::Binary { leaf_size: 3 });
@@ -1443,22 +1705,27 @@ mod tests {
     fn accounts_for_dense_hole_misses() {
         let dense = [U256::ZERO, U256::from(2)];
         let full = values(3);
-        let dense = dense_lowering_cost(&dense, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2)
-            .unwrap()
-            .2;
-        let full = dense_lowering_cost(&full, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2)
-            .unwrap()
-            .2;
+        let dense =
+            dense_lowering_cost(&dense, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2, false)
+                .unwrap()
+                .2;
+        let full =
+            dense_lowering_cost(&full, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2, false)
+                .unwrap()
+                .2;
         assert!(dense.miss_gas > full.miss_gas);
     }
 
     #[test]
     fn accounts_for_dense_shared_revert_entry() {
         let values = values(24);
-        let jump =
-            dense_lowering_cost(&values, EvmVersion::Cancun, SwitchDefault::Jump, 2).unwrap().2;
+        let jump = dense_lowering_cost(&values, EvmVersion::Cancun, SwitchDefault::Jump, 2, false)
+            .unwrap()
+            .2;
         let revert =
-            dense_lowering_cost(&values, EvmVersion::Cancun, SwitchDefault::Revert, 2).unwrap().2;
+            dense_lowering_cost(&values, EvmVersion::Cancun, SwitchDefault::Revert, 2, false)
+                .unwrap()
+                .2;
         assert_eq!(
             revert.miss_gas,
             jump.miss_gas + JUMPDEST_GAS + SwitchDefault::Revert.gas(EvmVersion::Cancun)

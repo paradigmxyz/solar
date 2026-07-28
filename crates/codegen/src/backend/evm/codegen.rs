@@ -15,9 +15,9 @@ use super::{
         MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
     },
     switch::{
-        MAX_BIT_SLICE_GAS_CODE_GROWTH, MAX_GAS_CODE_GROWTH, PerfectHash, SwitchDefault, SwitchPlan,
-        SwitchPlanOptions, SwitchSelection, affine_index, bit_slice_index, bucket_index,
-        select_switch_plan_with_linear_values_and_budget,
+        MAX_BIT_SLICE_GAS_CODE_GROWTH, MAX_GAS_CODE_GROWTH, PerfectHash, SwitchDefault,
+        SwitchLayout, SwitchPlan, SwitchPlanOptions, SwitchSelection, affine_index,
+        bit_slice_index, bucket_index, select_switch_plan_with_linear_values_and_budget,
     },
 };
 use crate::{
@@ -550,6 +550,8 @@ pub struct EvmCodegen<'gcx> {
     /// Functions whose reachable exits all abort. Calls to these functions
     /// make their containing block cold as well.
     cold_functions: DenseBitSet<FunctionId>,
+    /// Functions consisting only of an empty block terminated by `stop`.
+    empty_stop_functions: DenseBitSet<FunctionId>,
     /// Cold blocks in the function currently being emitted, including blocks
     /// that only forward control to other cold blocks.
     cold_blocks: DenseBitSet<BlockId>,
@@ -645,6 +647,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             block_labels: FxHashMap::default(),
             function_labels: FxHashMap::default(),
             cold_functions: DenseBitSet::new_empty(0),
+            empty_stop_functions: DenseBitSet::new_empty(0),
             cold_blocks: DenseBitSet::new_empty(0),
             function_static_frame_sizes: FxHashMap::default(),
             function_spill_sizes: FxHashMap::default(),
@@ -1137,6 +1140,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else {
             Self::collect_cold_functions(module)
         };
+        self.empty_stop_functions = DenseBitSet::new_empty(module.functions.len());
         self.function_static_frame_sizes.clear();
         self.function_spill_sizes.clear();
         self.pending_frame_size_consts.clear();
@@ -1182,6 +1186,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
 
         let call_graph = CallGraphInfo::new(module);
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if func.blocks.len() == 1
+                && func.blocks[BlockId::ENTRY].instructions.is_empty()
+                && matches!(func.blocks[BlockId::ENTRY].terminator, Some(Terminator::Stop))
+            {
+                self.empty_stop_functions.insert(func_id);
+            }
+        }
         let internal_targets = call_graph.reachable_callees_from(
             module.functions.iter_enumerated().filter_map(|(func_id, func)| {
                 (func_id == entry_id || Self::is_external_entry(func)).then_some(func_id)
@@ -5072,6 +5084,39 @@ impl<'gcx> EvmCodegen<'gcx> {
         Some((linear_values, entries))
     }
 
+    fn switch_layout(&self, func: &Function, entries: &[MirSwitchEntry]) -> SwitchLayout {
+        let mut targets = FxHashSet::default();
+        let coalesce_case_targets = entries.iter().all(|entry| {
+            targets.insert(entry.target) && func.unique_predecessors(entry.target).len() == 1
+        });
+        let continuation = coalesce_case_targets.then(|| {
+            entries.first().and_then(|entry| {
+                let Terminator::Jump(target) = func.blocks[entry.target].terminator.as_ref()?
+                else {
+                    return None;
+                };
+                Some(*target)
+            })
+        });
+        let shared_case_continuation = continuation.flatten().is_some_and(|continuation| {
+            entries.iter().all(|entry| {
+                matches!(
+                    func.blocks[entry.target].terminator,
+                    Some(Terminator::Jump(target)) if target == continuation
+                )
+            })
+        });
+        let shared_terminal_target = self.emitting_entry
+            && entries.iter().all(|entry| {
+                matches!(
+                    func.blocks[entry.target].terminator.as_ref(),
+                    Some(Terminator::TailCall { function, args })
+                        if args.is_empty() && self.empty_stop_functions.contains(*function)
+                )
+            });
+        SwitchLayout { coalesce_case_targets, shared_case_continuation, shared_terminal_target }
+    }
+
     fn emit_linear_mir_switch(&mut self, func: &Function, cases: &[(ValueId, BlockId)]) {
         for &(value_id, target) in cases {
             let value = func.value(value_id).as_immediate().and_then(|value| value.as_u256());
@@ -5562,6 +5607,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     SwitchSelection { plan: SwitchPlan::Linear, gas_code_growth: 0 },
                     |(linear_values, entries)| {
                         let values: Vec<_> = entries.iter().map(|entry| entry.value).collect();
+                        let layout = self.switch_layout(func, entries);
                         let default = match (self.emitting_entry, fallthrough == Some(*default)) {
                             (true, true) => SwitchDefault::Fallthrough,
                             (true, false) => SwitchDefault::Jump,
@@ -5585,6 +5631,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                                     .switch_max_bit_slice_gas_code_growth
                                     .unwrap_or(MAX_BIT_SLICE_GAS_CODE_GROWTH),
                                 forced: self.gcx.sess.opts.unstable.switch_lowering,
+                                layout,
                             },
                         )
                     },
