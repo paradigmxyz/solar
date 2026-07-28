@@ -35,7 +35,7 @@ BYTECODE_RE = re.compile(r"(?:[0-9a-f]{2})*")
 GROWTH_SWEEP_CASE_COUNTS = {"synthetic": 54, "ui-gas": 155, "ci-gas": 12}
 GROWTH_SWEEP_TEST_IDS_SHA256 = {
     "synthetic": "2a8114a7f300165d8d2e5a3518549aabdc820a2d5432274dc23eb210d3102138",
-    "ui-gas": "9df9e31a88e56b0ebe407c31e82ff986e2fb9b2eaaca51d3e7e0d3b61b025914",
+    "ui-gas": "136825dc8911d8db0e9ce11a89778ab4924fdcc25a9c97d1b6344cfc5af4e497",
     "ci-gas": "f370cc6074dd09c2d968355a51fc218fce3fa5f4d349d840bf5e36be3bc9ad6d",
 }
 GROWTH_SWEEP_MIN_BUDGET = 0
