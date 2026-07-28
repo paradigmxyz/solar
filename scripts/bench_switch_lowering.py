@@ -748,6 +748,7 @@ def run_cases(
     results = []
     cases = list(cases)
     for index, case in enumerate(cases, 1):
+        expected_status = "failed" if case.test_id in expected_failures else "ok"
         expected_calls = None
         if include_gas:
             expected_calls = (
@@ -755,7 +756,8 @@ def run_cases(
                 if labels is not None
                 else sum(call.repeat for call in bench.gas_calls(case, gas_profile))
             )
-        expected_status = "failed" if case.test_id in expected_failures else "ok"
+            if expected_status == "ok" and expected_calls == 0:
+                raise RuntimeError(f"{case.test_id} has no gas calls")
         if case.test_id in previous and result_is_complete(
             previous[case.test_id],
             specs,
@@ -797,6 +799,7 @@ def run_cases(
                     )
                 finally:
                     stop_anvil(anvil)
+                partial["expected_gas_calls"] = expected_calls
                 reference = partial["compilers"][reference_spec.compiler_id]
                 reference_checks_sha256 = json_sha256(
                     reference.get("runtime_results") or []
@@ -896,6 +899,8 @@ def result_is_complete(
             return False
         if not include_gas:
             continue
+        if result.get("expected_gas_calls") != expected_calls:
+            return False
         if (
             compiler.get("reference_runtime_status") != "ok"
             or compiler.get("runtime_checks_sha256")
@@ -1352,6 +1357,10 @@ def validate_growth_sweep_inputs(
                 raise RuntimeError(f"{scope}/{test_id} fixture metadata differs")
             if result.get("runtime_status") != "ok" or result.get("runtime_mismatches"):
                 raise RuntimeError(f"{scope}/{test_id} runtime checks failed")
+            expected_calls = result.get("expected_gas_calls")
+            if type(expected_calls) is not int or expected_calls <= 0:
+                raise RuntimeError(f"{scope}/{test_id} expected gas calls are invalid")
+            expected_labels = None
             for compiler_id, compiler in result["compilers"].items():
                 if compiler.get("status") != "ok":
                     raise RuntimeError(f"{scope}/{test_id}/{compiler_id} failed")
@@ -1365,7 +1374,18 @@ def validate_growth_sweep_inputs(
                 checks = compiler.get("runtime_checks_sha256")
                 if not checks or checks != compiler.get("reference_checks_sha256"):
                     raise RuntimeError(f"{scope}/{test_id}/{compiler_id} check digests differ")
-                call_gas_results = compiler.get("gas_results") or ()
+                call_gas_results = compiler.get("gas_results")
+                if not isinstance(call_gas_results, list) or len(call_gas_results) != expected_calls:
+                    raise RuntimeError(f"{scope}/{test_id}/{compiler_id} gas calls are incomplete")
+                labels = tuple(item.get("label") for item in call_gas_results)
+                if any(not isinstance(label, str) or not label for label in labels):
+                    raise RuntimeError(f"{scope}/{test_id}/{compiler_id} gas labels are invalid")
+                if expected_labels is None:
+                    expected_labels = labels
+                elif labels != expected_labels:
+                    raise RuntimeError(f"{scope}/{test_id}/{compiler_id} gas labels differ")
+                if any(type(item.get("gas")) is not int for item in call_gas_results):
+                    raise RuntimeError(f"{scope}/{test_id}/{compiler_id} gas values are invalid")
                 if compiler.get("total_gas") != sum(item["gas"] for item in call_gas_results):
                     raise RuntimeError(f"{scope}/{test_id}/{compiler_id} gas total differs")
 
