@@ -6,7 +6,8 @@ use crate::{
     mir::{FunctionBuilder, ValueId},
 };
 use alloy_primitives::U256;
-use solar_interface::{Span, kw};
+use smallvec::SmallVec;
+use solar_interface::{Span, diagnostics::ErrorGuaranteed, kw};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, ExprKind, StmtKind},
@@ -448,6 +449,25 @@ impl<'gcx> Lowerer<'gcx> {
         var_ids: &[Option<hir::VariableId>],
         init: &hir::Expr<'_>,
     ) {
+        if let hir::ExprKind::Tuple(elements) = &init.peel_parens().kind {
+            let Ok(values) = self.lower_tuple_values(builder, elements, init.span) else { return };
+            if values.len() != var_ids.len() {
+                self.gcx
+                    .dcx()
+                    .err("tuple declaration arity mismatch in codegen")
+                    .span(init.span)
+                    .emit();
+                return;
+            }
+
+            for (&var_id, value) in var_ids.iter().zip(values) {
+                if let Some(var_id) = var_id {
+                    self.bind_local_value(builder, var_id, value);
+                }
+            }
+            return;
+        }
+
         if self.is_low_level_call_expr(init) {
             // `(bool success, bytes memory data) = addr.call(...)`: the call
             // lowering returns the success flag, and the full returndata is
@@ -551,14 +571,19 @@ impl<'gcx> Lowerer<'gcx> {
         // Tuple RHS, `(a, b) = (x, y)` (including swaps `(a, b) = (b, a)`):
         // evaluate every RHS element before assigning any, so a swap reads the
         // old values.
-        if let hir::ExprKind::Tuple(rhs_elems) = &rhs.kind {
-            let vals: Vec<Option<ValueId>> =
-                rhs_elems.iter().map(|e| e.map(|e| self.lower_expr(builder, e))).collect();
-            for (i, &elem) in elements.iter().enumerate() {
-                if let Some(elem) = elem
-                    && let Some(Some(val)) = vals.get(i)
-                {
-                    self.lower_assign(builder, elem, *val);
+        if let hir::ExprKind::Tuple(rhs_elems) = &rhs.peel_parens().kind {
+            let Ok(values) = self.lower_tuple_values(builder, rhs_elems, rhs.span) else { return };
+            if values.len() != elements.len() {
+                self.gcx
+                    .dcx()
+                    .err("tuple assignment arity mismatch in codegen")
+                    .span(rhs.span)
+                    .emit();
+                return;
+            }
+            for (&elem, value) in elements.iter().zip(values) {
+                if let Some(elem) = elem {
+                    self.lower_assign(builder, elem, value);
                 }
             }
             return;
@@ -618,6 +643,29 @@ impl<'gcx> Lowerer<'gcx> {
             let Some(elem) = elem else { continue };
             self.lower_assign(builder, elem, val.expect("tuple element has a value"));
         }
+    }
+
+    /// Lowers every component of a tuple value without materializing an
+    /// aggregate or staging values through the multi-return buffer.
+    pub(super) fn lower_tuple_values(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        elements: &[Option<&hir::Expr<'_>>],
+        span: Span,
+    ) -> Result<SmallVec<[ValueId; 4]>, ErrorGuaranteed> {
+        let mut values = SmallVec::new();
+        for &element in elements {
+            let Some(element) = element else {
+                return Err(self
+                    .gcx
+                    .dcx()
+                    .err("tuple value contains an omitted element")
+                    .span(span)
+                    .emit());
+            };
+            values.push(self.lower_expr(builder, element));
+        }
+        Ok(values)
     }
 
     /// Stages return values 2..N at the unbumped free-memory pointer and

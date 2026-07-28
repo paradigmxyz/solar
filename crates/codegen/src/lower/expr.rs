@@ -418,22 +418,14 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Tuple(elements) => {
-                let mut values = Vec::with_capacity(elements.len());
-                for &element in *elements {
-                    let Some(element) = element else {
-                        return self.err_value(
-                            builder,
-                            expr.span,
-                            "tuple value contains an omitted element",
-                        );
-                    };
-                    values.push(self.lower_expr(builder, element));
-                }
-                let Some(&first) = values.first() else {
-                    return self.err_value(builder, expr.span, "tuple expression has no value");
+                let [Some(element)] = *elements else {
+                    return self.err_value(
+                        builder,
+                        expr.span,
+                        "tuple value is not supported in this expression context",
+                    );
                 };
-                self.stage_multi_return_tail(builder, &values);
-                first
+                self.lower_expr(builder, element)
             }
 
             ExprKind::Array(elements) => {
