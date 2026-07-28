@@ -47,12 +47,11 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
     v24 = slice_len v22
     v25 = gas
     v26 = call v25, arg2, 0, v23, v24, 0, 0
-    v27 = iszero v26
-    jumpi v27, bb7, bb8
+    jumpi v26, bb8, bb7
   bb7:
-    v28 = returndatasize
-    returndatacopy 0, 0, v28 !metadata(memory=scratch)
-    revert 0, v28
+    v27 = returndatasize
+    returndatacopy 0, 0, v27 !metadata(memory=scratch)
+    revert 0, v27
   bb8:
     stop
 }

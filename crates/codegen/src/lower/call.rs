@@ -1374,16 +1374,7 @@ impl<'gcx> Lowerer<'gcx> {
                 (ret_offset, ret_size, None)
             };
 
-        let kind = if resolved_func.is_some_and(|func_id| {
-            matches!(
-                self.gcx.hir.function(func_id).state_mutability,
-                hir::StateMutability::Pure | hir::StateMutability::View
-            )
-        }) {
-            ExternalCallKind::StaticCall
-        } else {
-            ExternalCallKind::Call
-        };
+        let kind = self.external_function_call_kind(resolved_func);
         let (gas, value) =
             self.lower_external_call_options(builder, call_opts, kind == ExternalCallKind::Call);
         let success = self.emit_external_call(
@@ -1398,17 +1389,7 @@ impl<'gcx> Lowerer<'gcx> {
             ret_size,
         );
 
-        // High-level calls bubble the callee's revert data.
-        let failed = builder.iszero(success);
-        let fail_block = builder.create_block();
-        let continue_block = builder.create_block();
-        builder.branch(failed, fail_block, continue_block);
-        builder.switch_to_block(fail_block);
-        let zero = builder.imm_u64(0);
-        let size = builder.returndatasize();
-        builder.returndatacopy(zero, zero, size);
-        builder.revert(zero, size);
-        builder.switch_to_block(continue_block);
+        self.emit_forwarding_revert_unless(builder, success);
 
         if num_returns > 1 {
             let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
@@ -1507,6 +1488,24 @@ impl<'gcx> Lowerer<'gcx> {
         let gas = gas.unwrap_or_else(|| builder.gas());
         let value = accepts_value.then(|| value.unwrap_or_else(|| builder.imm_u64(0)));
         (gas, value)
+    }
+
+    pub(super) fn external_function_call_kind(
+        &self,
+        func_id: Option<hir::FunctionId>,
+    ) -> ExternalCallKind {
+        if self.gcx.sess.opts.evm_version.has_static_call()
+            && func_id.is_some_and(|func_id| {
+                matches!(
+                    self.gcx.hir.function(func_id).state_mutability,
+                    hir::StateMutability::Pure | hir::StateMutability::View
+                )
+            })
+        {
+            ExternalCallKind::StaticCall
+        } else {
+            ExternalCallKind::Call
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2175,16 +2174,7 @@ impl<'gcx> Lowerer<'gcx> {
         let success =
             builder.delegatecall(gas, addr, calldata_start, calldata_size, ret_offset, ret_size);
 
-        // Bubble the callee's revert data on failure, like solc.
-        let fail_block = builder.create_block();
-        let cont_block = builder.create_block();
-        builder.branch(success, cont_block, fail_block);
-        builder.switch_to_block(fail_block);
-        let zero = builder.imm_u64(0);
-        let rds = builder.returndatasize();
-        builder.returndatacopy(zero, zero, rds);
-        builder.revert(zero, rds);
-        builder.switch_to_block(cont_block);
+        self.emit_forwarding_revert_unless(builder, success);
 
         if num_returns > 1 {
             let ptr_slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);

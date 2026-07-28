@@ -1151,16 +1151,7 @@ impl<'gcx> Lowerer<'gcx> {
         let addr = self.lower_value_expr(builder, base);
         let ret_offset = builder.imm_u64(0);
         let ret_size = builder.imm_u64(0);
-        let kind = if resolved_func.is_some_and(|func_id| {
-            matches!(
-                self.gcx.hir.function(func_id).state_mutability,
-                hir::StateMutability::Pure | hir::StateMutability::View
-            )
-        }) {
-            ExternalCallKind::StaticCall
-        } else {
-            ExternalCallKind::Call
-        };
+        let kind = self.external_function_call_kind(resolved_func);
         let (gas, value) =
             self.lower_external_call_options(builder, call_opts, kind == ExternalCallKind::Call);
 

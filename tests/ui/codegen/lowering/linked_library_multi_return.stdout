@@ -7,6 +7,7 @@ fn @pair() {
     mstore v0, 5
     returndata 128, 64
 }
+
 // === ROOT/tests/ui/codegen/lowering/linked_library_multi_return.sol:C ===
 @module C
 fn @pair() {
@@ -32,3 +33,4 @@ fn @pair() {
     mstore v9, v8
     returndata 128, 64
 }
+

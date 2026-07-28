@@ -16,7 +16,7 @@ architecture.
 | A second statement interpreter for straight-line calldata-slice helpers | Normal statement lowering, pending removal after slice returns enter MIR |
 | Constant index-bounds folding | MIR SCCP, instruction simplification, and CFG simplification |
 | Re-reading the literal length in `new T[](literal)` | `MemoryObjectLen`, forwarded by memory DSE |
-| Scanning a named-return body to skip memory-struct initialization | Emit the semantic default; memory DSE removes dead initialization |
+| Scanning a named-return body to skip memory-struct initialization | Emit the semantic default; memory DSE removes overwritten initialization stores |
 | Folding `0 + offset` by inspecting MIR immediates in both ABI encoders | MIR instruction simplification |
 | A duplicate literal-string `keccak256` branch | The shared dynamic-bytes hash lowering |
 | Separate tuple declaration and tuple assignment result extraction | One multi-value snapshot path |
@@ -37,15 +37,17 @@ MIR that a required lowering pass or the backend cannot represent.
 | --- | --- | --- |
 | Base-constructor body composition | Base initialization is still built into one derived-constructor body | Give constructors an explicit MIR composition/call representation |
 | Calldata-slice return inlining | `lower-slices` expands parameters and arguments, but not return signatures | Expand slice return signatures and internal-call results |
+| Internal-function-pointer dispatchers | MIR has a function value but no indirect call; lowering discovers address-taken HIR targets and synthesizes signature-specific switch dispatchers | Add an indirect-call operation, specialize constant targets, then lower remaining indirect calls in a required pass |
 | Multi-return scratch buffer | MIR instructions expose one result, so additional external and internal call results travel through a published memory buffer | Add first-class multi-result values and call instructions |
 | External ABI entry decoding and return encoding | `lower-abi` does not yet cover every dynamic or aggregate shape | Complete `lower-abi` and semantic return encoding |
 | Storage packing, storage `bytes`, and memory-object construction | These define source-language representation | Keep as required named lowering passes |
 | ABI word validation and bounds checks | These are observable Solidity semantics | Keep, but represent them as semantic MIR operations where useful |
 
 The calldata-slice workaround still owns `InlineReturnCtx`, pending multi-return
-values, a recursion walk, and local-context save/restore. Its recursion walk is
-only a safety check for this workaround. Once slice returns cross calls, remove
-that entire subsystem rather than extending it.
+values, a recursion walk, and some local-context save/restore. Once slice returns
+cross calls, remove those slice-specific pieces rather than extending them.
+Constructor composition still needs its separate inline stack and context
+save/restore until constructors gain an explicit MIR representation.
 
 ## Correctness gaps
 
@@ -98,6 +100,9 @@ These are current miscompile or target-legality risks, not cleanup preferences.
   multiple SSA results directly.
 - Extend `lower-slices` across function returns and call results. This deletes
   all remaining slice-return call-body inlining.
+- Add an indirect-call operation and required lowering pass for internal
+  function pointers. Run constant-target specialization first, then replace the
+  remaining indirect calls with signature-specific dispatch.
 - Add semantic contract creation with typed constructor arguments. A required
   pass should ABI-encode the tail, concatenate it with a constant creation-code
   object, emit `CREATE`/`CREATE2`, and forward failure.
@@ -144,6 +149,7 @@ These are current miscompile or target-legality risks, not cleanup preferences.
 | `lower::Lowerer::lower_function` | ABI entry handling, local layout, constructor work, body lowering, and return lowering in one function | Entry convention, local initialization, body, epilogue |
 | `lower::expr::lower_value_expr_unchecked` | Source expression dispatch mixed with storage, memory, and ABI representation | Syntax dispatch calling representation-specific helpers |
 | `lower::call::lower_member_call_with_opts` | Builtins, arrays, libraries, low-level calls, and high-level calls share one dispatcher | Resolve call kind, then use one builder per semantic kind |
+| Internal-function-pointer dispatcher synthesis | Address-taken discovery, fixed-point function lowering, signature grouping, switch construction, and call lowering are coupled | Keep indirect calls semantic through target specialization, then lower them in one required pass |
 | `backend::evm::codegen::generate_inst` | Opcode selection, stack effects, memory operations, and call conventions are interleaved | Instruction families plus shared operand scheduling |
 | MIR inliner | Recomputes call counts, reachability, and recursion and mirrors every instruction in a large clone match | Reuse call-graph analysis and operand visitors |
 | MIR validator | Phase checks and per-instruction validation are combined | Shared phase/readiness predicates plus local instruction checks |
