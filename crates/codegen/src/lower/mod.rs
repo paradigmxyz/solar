@@ -1834,7 +1834,9 @@ impl<'gcx> Lowerer<'gcx> {
 
     fn expr_references_variable(&self, expr: &hir::Expr<'_>, var_id: VariableId) -> bool {
         expr.visit(&mut |expr| {
-            if self.gcx.resolved_variable(expr) == Some(var_id) {
+            if matches!(expr.kind, hir::ExprKind::Ident(_))
+                && self.gcx.resolved_variable(expr) == Some(var_id)
+            {
                 ControlFlow::Break(())
             } else {
                 ControlFlow::Continue(())
