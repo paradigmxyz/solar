@@ -45,18 +45,14 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
     v22 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v21
     v23 = slice_ptr v22
     v24 = slice_len v22
-    mstore 0, arg2 !metadata(memory=scratch)
-    mstore 32, v23 !metadata(memory=scratch)
-    v25 = mload 0 !metadata(memory=scratch)
-    v26 = gas
-    v27 = mload 32 !metadata(memory=scratch)
-    v28 = call v26, v25, 0, v27, v24, 0, 0
-    v29 = iszero v28
-    jumpi v29, bb7, bb8
+    v25 = gas
+    v26 = call v25, arg2, 0, v23, v24, 0, 0
+    v27 = iszero v26
+    jumpi v27, bb7, bb8
   bb7:
-    v30 = returndatasize
-    returndatacopy 0, 0, v30 !metadata(memory=scratch)
-    revert 0, v30
+    v28 = returndatasize
+    returndatacopy 0, 0, v28 !metadata(memory=scratch)
+    revert 0, v28
   bb8:
     stop
 }

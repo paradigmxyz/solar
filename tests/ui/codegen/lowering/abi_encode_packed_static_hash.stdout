@@ -28,9 +28,10 @@ fn @hash(arg0: u64, arg1: u64, arg2: bytes32) {
     v11 = shl 72, arg1
     v12 = or v10, v11
     mstore 0, v12 !metadata(memory=scratch)
-    mstore 23, arg2 !metadata(memory=scratch)
-    v13 = keccak256 0, 55 !metadata(memory=scratch)
-    mstore 128, v13
+    v13 = add 0, 23
+    mstore v13, arg2
+    v14 = keccak256 0, 55 !metadata(memory=scratch)
+    mstore 128, v14
     returndata 128, 32
 }
 

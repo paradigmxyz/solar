@@ -189,34 +189,28 @@ bb0:
   push 64
   mload
   dup1
-  push 160
-  mstore
-  push 32
+  push 192
   mstore
   push 0xed2f0bb8
   push 224
   shl
-  push 160
-  mload
+  dup2
   mstore
   push 4
-  push 160
-  mload
+  dup2
   add
   push 0
   swap1
   mstore
   push 36
-  push 160
-  mload
+  dup2
   add
   push 4
   calldataload
   swap1
   mstore
   push 68
-  push 160
-  mload
+  dup2
   add
   push 36
   calldataload
@@ -229,12 +223,12 @@ bb0:
   push 32
   push 0
   push 100
-  push 160
-  mload
+  dup5
   push 0x1111111111111111111111111111111111111111
   dup6
   delegatecall
-  swap1
+  swap2
+  pop
   pop
   iszero
   push bb10
@@ -253,12 +247,12 @@ bb4 [cold]:
 bb10 [cold]:
   returndatasize
   dup1
-  push 192
+  push 160
   mstore
   push 0
   dup1
   returndatacopy
-  push 192
+  push 160
   mload
   push 0
   revert

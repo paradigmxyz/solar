@@ -14,11 +14,25 @@ fn @fixedArray(arg0: u256) {
     mstore v4, 0
     v5 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 1
     mstore v5, 0
-    v6 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 0
-    mstore v6, arg0
+    v6 = lt 0, 2
+    jumpi v6, bb4, bb3
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
     v7 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 0
-    v8 = mload v7
-    mstore 128, v8
+    mstore v7, arg0
+    v8 = lt 0, 2
+    jumpi v8, bb6, bb5
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v9 = memory_object_element_addr memoryfixedarray<2, 1>, v3, 0
+    v10 = mload v9
+    mstore 128, v10
     returndata 128, 32
 }
 

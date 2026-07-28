@@ -18,9 +18,16 @@ fn @_empty() -> memorybytes {
 
 fn @emptyLen() {
   bb0:
-    v0 = make_calldata_slice 0, 0
-    v1 = slice_len v0
-    mstore 128, v1
+    mstore 128, 0
+    mstore 160, 0
+    mstore 160, 0
+    jump bb1
+  bb1:
+    v0 = mload 128
+    v1 = mload 160
+    v2 = make_calldata_slice v0, v1
+    v3 = internal_call @_sink, 1, v2
+    mstore 128, v3
     returndata 128, 32
 }
 

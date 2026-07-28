@@ -1,0 +1,152 @@
+# Codegen special-case audit
+
+HIR-to-MIR lowering should preserve Solidity semantics and choose a MIR
+representation. Optimization belongs in MIR or EVM IR passes. Backend lowering
+should only handle target representation, stack scheduling, and assembly.
+
+This audit covers `crates/codegen/src/lower`, the MIR pass pipeline, and the EVM
+backend. It records the remaining exceptions so they do not become accidental
+architecture.
+
+## Removed
+
+| Lowering behavior | Owner |
+| --- | --- |
+| Profitability-based inlining of ordinary internal and unlinked-library calls | MIR `inline` |
+| A second statement interpreter for straight-line calldata-slice helpers | Normal statement lowering, pending removal after slice returns enter MIR |
+| Constant index-bounds folding | MIR SCCP, instruction simplification, and CFG simplification |
+| Re-reading the literal length in `new T[](literal)` | `MemoryObjectLen`, forwarded by memory DSE |
+| Scanning a named-return body to skip memory-struct initialization | Emit the semantic default; memory DSE removes dead initialization |
+| Folding `0 + offset` by inspecting MIR immediates in both ABI encoders | MIR instruction simplification |
+| A duplicate literal-string `keccak256` branch | The shared dynamic-bytes hash lowering |
+| Separate tuple declaration and tuple assignment result extraction | One multi-value snapshot path |
+| Name-based event signature construction and scalar-only event data stores | Sema event selectors and the shared ABI encoder |
+| Separate call-option handling in low-level, high-level, and try calls | One external-call option and opcode emitter |
+
+The HIR inliner previously erased the callee return target for void calls.
+`return;` in an exact-base call could therefore terminate the enclosing public
+function. Ordinary calls now remain calls until the MIR inliner, where returns
+are explicit CFG edges.
+
+## Representation work that still lives in lowering
+
+These paths are not profitability optimizations. Removing them now would leave
+MIR that a required lowering pass or the backend cannot represent.
+
+| Path | Why it remains | Exit condition |
+| --- | --- | --- |
+| Base-constructor body composition | Base initialization is still built into one derived-constructor body | Give constructors an explicit MIR composition/call representation |
+| Calldata-slice return inlining | `lower-slices` expands parameters and arguments, but not return signatures | Expand slice return signatures and internal-call results |
+| Multi-return scratch buffer | MIR instructions expose one result, so additional external and internal call results travel through a published memory buffer | Add first-class multi-result values and call instructions |
+| External ABI entry decoding and return encoding | `lower-abi` does not yet cover every dynamic or aggregate shape | Complete `lower-abi` and semantic return encoding |
+| Storage packing, storage `bytes`, and memory-object construction | These define source-language representation | Keep as required named lowering passes |
+| ABI word validation and bounds checks | These are observable Solidity semantics | Keep, but represent them as semantic MIR operations where useful |
+
+The calldata-slice workaround still owns `InlineReturnCtx`, pending multi-return
+values, a recursion walk, and local-context save/restore. Its recursion walk is
+only a safety check for this workaround. Once slice returns cross calls, remove
+that entire subsystem rather than extending it.
+
+## Correctness gaps
+
+These are current miscompile or target-legality risks, not cleanup preferences.
+
+### External boundaries
+
+1. High-level external return data is treated as a fixed list of words.
+   Dynamic arrays, dynamic bytes, nested aggregates, short returndata, and ABI
+   word validation need a typed returndata decoder. Try calls and linked-library
+   delegatecalls must use the same decoder.
+2. Contract creation still appends constructor arguments with one `mstore` per
+   expression. Dynamic and aggregate constructor arguments need the semantic ABI
+   encoder. Creation failure now forwards revert data, but argument encoding
+   remains incomplete.
+3. Try/catch does not bind return values or decode typed catch clauses. Its call
+   construction now shares selector encoding, gas/value evaluation, and
+   `CALL`/`STATICCALL` selection with ordinary calls.
+4. Linked-library calls have a restricted, independent ABI encoder and duplicate
+   return handling. Storage-slot values need to become supported inputs to the
+   semantic ABI encoder.
+5. Indexed event arrays and structs require Solidity's indexed-event in-place
+   encoding before hashing. Dynamic bytes/string and ordinary value topics are
+   handled; aggregate topics still need a dedicated semantic operation.
+
+### Target and storage representation
+
+1. Required MIR lowering emits `MCOPY` directly for memory ABI values and dynamic
+   mapping keys. On pre-Cancun targets that bypasses the HIR version check.
+   Introduce a target-legalization pass that keeps `MCOPY` on Cancun and lowers
+   it to a loop on older targets.
+2. `StorageField` classifies some dynamic fields as a word, then
+   `lower-aggregates` applies raw `sload`/`sstore`. Storage bytes/string and
+   dynamic arrays need distinct storage-field shapes or must be rejected before
+   semantic aggregate lowering.
+3. Fixed-bytes canonicalization is split across literal typing, packed encoding,
+   memory bytes operations, and ABI encoding. Value-magnitude guesses must be
+   replaced by one canonical producer representation.
+
+## Pass candidates
+
+### Required MIR lowering
+
+- Add semantic external-call results and a `lower-abi-returndata` pass. It should
+  check returndata size, validate words, rebuild aggregates, and produce memory
+  objects. Ordinary calls, try calls, and linked libraries should only choose
+  failure policy and consume the typed result.
+- Add first-class multi-result instructions. Remove the shared scratch pointer
+  and ephemeral return buffer once tuple destructuring and calls can consume
+  multiple SSA results directly.
+- Extend `lower-slices` across function returns and call results. This deletes
+  all remaining slice-return call-body inlining.
+- Add semantic contract creation with typed constructor arguments. A required
+  pass should ABI-encode the tail, concatenate it with a constant creation-code
+  object, emit `CREATE`/`CREATE2`, and forward failure.
+- Add target legalization after representation lowering. `MCOPY`, shifts,
+  `STATICCALL`, returndata opcodes, `PUSH0`, and new opcodes should be selected
+  in one place from the configured EVM version.
+- Make event data and indexed-event hashing semantic MIR operations. Reuse
+  `AbiLayout` for ordinary data and add the indexed aggregate rules explicitly.
+- Centralize the backend-readiness check. `lower-evm-shaped`, MIR validation, and
+  the backend currently maintain different unsupported-type lists. One
+  exhaustive predicate should gate the phase transition.
+
+### Optimization
+
+- Represent checked exponentiation as a typed operation, then choose the
+  constant-base and general algorithms after SCCP and range analysis.
+- Represent `abi.encodePacked` as a typed packed-write plan. Allocation elision,
+  adjacent static-run coalescing, and `keccak256` fusion should run on MIR rather
+  than inspect adjacent HIR statements.
+- Keep dynamic mapping keys semantic through optimization, then lower memory and
+  calldata sources in one pass after CSE.
+- Generalize cold helper outlining. Constant `Error(string)` payloads, dynamic
+  bytes returns, and storage-bytes materialization are currently synthesized
+  during HIR lowering and marked `no_inline`.
+- Add constant memory/object evaluation for hashes and literal payloads.
+  Literal spelling should not decide whether a hash folds.
+- Represent storage-bytes push/pop and whole-value copies as semantic mutations,
+  then lower their packed short/long layout in one pass.
+
+### EVM IR
+
+- Emit structured `JumpI` terminators from MIR-to-EVM lowering. Raw
+  push/`JUMPI` sequences force CFG passes to rediscover edges and make revert
+  sharing special-case instruction streams.
+- Separate scheduler traversal from physical block layout. Cold analysis,
+  stack scheduling order, and final EVM block placement currently overlap.
+- Let EVM IR own branch inversion, fallthrough selection, revert-tail sharing,
+  and final layout exactly once.
+
+## Large and repetitive code
+
+| Area | Problem | Split |
+| --- | --- | --- |
+| `lower::Lowerer::lower_function` | ABI entry handling, local layout, constructor work, body lowering, and return lowering in one function | Entry convention, local initialization, body, epilogue |
+| `lower::expr::lower_value_expr_unchecked` | Source expression dispatch mixed with storage, memory, and ABI representation | Syntax dispatch calling representation-specific helpers |
+| `lower::call::lower_member_call_with_opts` | Builtins, arrays, libraries, low-level calls, and high-level calls share one dispatcher | Resolve call kind, then use one builder per semantic kind |
+| `backend::evm::codegen::generate_inst` | Opcode selection, stack effects, memory operations, and call conventions are interleaved | Instruction families plus shared operand scheduling |
+| MIR inliner | Recomputes call counts, reachability, and recursion and mirrors every instruction in a large clone match | Reuse call-graph analysis and operand visitors |
+| MIR validator | Phase checks and per-instruction validation are combined | Shared phase/readiness predicates plus local instruction checks |
+
+The remaining size is not itself a reason to move code. Each split should remove
+an ownership overlap, a duplicated semantic rule, or a source-shape dependency.

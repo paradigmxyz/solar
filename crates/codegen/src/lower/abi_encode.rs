@@ -9,10 +9,7 @@
 use super::Lowerer;
 use crate::{
     memory::EvmMemoryLayout,
-    mir::{
-        AbiLayout, AbiType, FunctionBuilder, MemoryObjectKind, MirType, SliceLocation, Value,
-        ValueId,
-    },
+    mir::{AbiLayout, AbiType, FunctionBuilder, MemoryObjectKind, MirType, SliceLocation, ValueId},
     transform::lower_abi_encode,
 };
 use alloy_primitives::U256;
@@ -127,7 +124,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// `base + off` (or `base` when `off == 0`).
+    /// Returns `base + off`, avoiding a redundant add for the first item.
     pub(super) fn offset_ptr(
         &self,
         builder: &mut FunctionBuilder<'_>,
@@ -136,14 +133,9 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> ValueId {
         if off == 0 {
             base
-        } else if matches!(
-            builder.func().value(base),
-            Value::Immediate(imm) if imm.as_u256().is_some_and(|v| v.is_zero())
-        ) {
-            builder.imm_u64(off)
         } else {
-            let o = builder.imm_u64(off);
-            builder.add(base, o)
+            let off = builder.imm_u64(off);
+            builder.add(base, off)
         }
     }
 

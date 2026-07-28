@@ -37,17 +37,13 @@ fn @sat(arg0: u256, arg1: u256) {
     v4 = mload 32 !metadata(memory=scratch)
     v5 = add v4, 32
     v6 = mload v5
-    mstore 128, v3
-    mstore 160, v6
-    v7 = mload 128
-    v8 = iszero v7
-    jumpi v8, bb3, bb4
+    v7 = iszero v3
+    jumpi v7, bb3, bb4
   bb3:
     mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     returndata 128, 32
   bb4:
-    v9 = mload 160
-    mstore 128, v9
+    mstore 128, v6
     returndata 128, 32
 }
 
