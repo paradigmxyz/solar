@@ -9,7 +9,7 @@
 use super::print_pass_diff;
 use clap::ValueHint;
 use solar_codegen::backend::evm::{self, ir};
-use solar_config::{CompileOpts, DumpKind, EvmVersion, OptimizationMode};
+use solar_config::{CompileOpts, DumpKind};
 use solar_data_structures::fmt::FmtIteratorExt;
 use solar_sema::Gcx;
 use std::{fmt::Display, path::Path, process::ExitCode};
@@ -17,12 +17,6 @@ use std::{fmt::Display, path::Path, process::ExitCode};
 #[derive(clap::Args)]
 #[command(after_help = after_help(), arg_required_else_help = true)]
 pub(crate) struct EvmOptArgs {
-    /// EVM version used for bytecode assembly.
-    #[arg(long, value_enum)]
-    evm_version: Option<EvmVersion>,
-    /// Optimization objective used by the backend pipeline.
-    #[arg(short = 'O', long = "optimize", value_enum)]
-    optimization: Option<OptimizationMode>,
     /// Comma-separated list of passes to run in order.
     #[arg(
         long = "passes",
@@ -161,12 +155,6 @@ fn process_evmir(gcx: Gcx<'_>, args: &EvmOptArgs) -> solar_interface::Result {
 }
 
 pub(crate) fn run(args: EvmOptArgs, mut opts: CompileOpts) -> ExitCode {
-    if let Some(evm_version) = args.evm_version {
-        opts.evm_version = evm_version;
-    }
-    if let Some(optimization) = args.optimization {
-        opts.optimization = optimization;
-    }
     opts.input.push(args.input.clone());
     let ext = Path::new(&args.input).extension().and_then(|s| s.to_str()).unwrap_or("");
     let result = super::compile::run_compiler_with(opts, |compiler| match ext {

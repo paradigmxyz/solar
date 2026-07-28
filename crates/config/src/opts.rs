@@ -90,13 +90,16 @@ pub struct CompileOpts {
     #[cfg_attr(feature = "clap", arg(long, short = 'j', visible_alias = "jobs", default_value_t))]
     pub threads: Threads,
     /// EVM version.
-    #[cfg_attr(feature = "clap", arg(long, value_enum, default_value_t))]
+    #[cfg_attr(feature = "clap", arg(long, value_enum, default_value_t, global = true))]
     pub evm_version: EvmVersion,
     /// Stop execution after the given compiler stage.
     #[cfg_attr(feature = "clap", arg(long, value_enum))]
     pub stop_after: Option<CompilerStage>,
     /// MIR optimization objective.
-    #[cfg_attr(feature = "clap", arg(short = 'O', long = "optimize", value_enum, default_value_t))]
+    #[cfg_attr(
+        feature = "clap",
+        arg(short = 'O', long = "optimize", value_enum, default_value_t, global = true)
+    )]
     pub optimization: OptimizationMode,
 
     /// Library addresses for linking, as `LibraryName=0xADDRESS`.
