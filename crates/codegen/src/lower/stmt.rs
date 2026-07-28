@@ -6,6 +6,7 @@ use crate::{
     mir::{FunctionBuilder, ValueId},
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_interface::{Span, diagnostics::ErrorGuaranteed, kw};
 use solar_sema::{
     builtins::Builtin,
@@ -651,8 +652,8 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         elements: &[Option<&hir::Expr<'_>>],
         span: Span,
-    ) -> Result<Vec<ValueId>, ErrorGuaranteed> {
-        let mut values = Vec::with_capacity(elements.len());
+    ) -> Result<SmallVec<[ValueId; 4]>, ErrorGuaranteed> {
+        let mut values = SmallVec::new();
         for &element in elements {
             let Some(element) = element else {
                 return Err(self
