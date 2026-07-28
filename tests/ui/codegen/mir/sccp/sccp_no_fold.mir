@@ -1,4 +1,4 @@
-//@compile-flags: --pass sccp
+//@compile-flags: -Zmir-pipeline=sccp
 //@filecheck:
 // Can't fold: arg0 is overdefined (runtime value).
 // SCCP should leave these instructions as-is.

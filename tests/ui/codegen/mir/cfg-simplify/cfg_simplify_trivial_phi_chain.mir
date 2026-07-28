@@ -1,4 +1,4 @@
-//@compile-flags: --pass cfg-simplify
+//@compile-flags: -Zmir-pipeline=cfg-simplify
 //@filecheck:
 // Two trivial phis forming a chain across nested loops: v2's unique source is
 // v1, itself a trivial phi deleted in the same batch. Uses of v2 must resolve

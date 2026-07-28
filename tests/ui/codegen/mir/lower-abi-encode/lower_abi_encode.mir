@@ -1,4 +1,4 @@
-//@compile-flags: --passes lower-abi-encode
+//@compile-flags: -Zmir-pipeline=lower-abi-encode
 //@filecheck:
 @module LowerAbiEncode
 

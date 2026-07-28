@@ -1,4 +1,4 @@
-//@compile-flags: --passes inst-simplify,dce
+//@compile-flags: -Zmir-pipeline=inst-simplify,dce
 //@filecheck:
 @module MemoryObjectInstSimplify
 

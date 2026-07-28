@@ -1,4 +1,4 @@
-//@compile-flags: --passes storage-promotion,static-alloc
+//@compile-flags: -Zmir-pipeline=storage-promotion,static-alloc
 //@filecheck: --match-full-lines
 @module StaticAllocDerivedChain
 

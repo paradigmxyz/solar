@@ -25,7 +25,7 @@ use crate::{
         ArgIdx, BlockId, Function, FunctionId, InstId, InstKind, MirPhase, Module, Terminator,
         ValueId,
     },
-    pass::run_default_pipeline,
+    pass::run_pipeline,
 };
 use alloy_primitives::U256;
 use solar_config::OptimizationMode;
@@ -1097,7 +1097,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
-        let _changed = run_default_pipeline(self.gcx, module);
+        let _changed = run_pipeline(self.gcx, module, None);
     }
 
     /// Generates runtime bytecode for a module.

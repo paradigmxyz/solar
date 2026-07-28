@@ -15,9 +15,14 @@ mod terminal_dedup;
 pub(super) mod utils;
 
 use super::Module;
-use crate::timing::PassTimer;
+use crate::{
+    pass_manager::{PassPipeline, parse_pass_pipeline, pipeline_output_name, print_pass_diff},
+    timing::PassTimer,
+};
 use solar_config::OptimizationMode;
 use solar_sema::Gcx;
+
+pub use crate::pass_manager::pipeline_label;
 
 /// A streamlined trait for an EVM IR transformation pass.
 pub trait EvmPass: Sync {
@@ -39,7 +44,7 @@ pub trait EvmPass: Sync {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
 }
 
-/// All EVM IR passes exposed by `solar evm-opt`.
+/// All EVM IR passes exposed by `-Zevm-ir-pipeline`.
 pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &peephole::Peephole,
     &share_reverts::ShareReverts,
@@ -52,7 +57,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
 ];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
-pub(crate) static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
+static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Normalize and establish the first physical layout.
     &peephole::Peephole,
     &compact_pushes::CompactPushes,
@@ -84,21 +89,79 @@ pub fn lookup_pass(name: &str) -> Option<&'static dyn EvmPass> {
 
 /// Runs an EVM IR pass pipeline.
 #[must_use]
-pub fn run_passes(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn EvmPass]) -> bool {
+pub fn run_passes(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    passes: &[&dyn EvmPass],
+    name: Option<&str>,
+) -> bool {
+    run_passes_inner(gcx, module, passes, name)
+}
+
+#[must_use]
+fn run_passes_inner(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    passes: &[&dyn EvmPass],
+    name: Option<&str>,
+) -> bool {
+    let output_name =
+        name.map(ToOwned::to_owned).unwrap_or_else(|| pipeline_output_name(gcx, module.name()));
+    let explicit = name.is_some();
     let mut changed = false;
     for pass in passes {
         let pass_name = pass.name();
-        if !pass.is_enabled(gcx, module) {
+        let before =
+            (explicit && gcx.sess.opts.unstable.pass_diff).then(|| module.to_text().to_string());
+        let enabled = pass.is_enabled(gcx, module);
+        if !enabled && !explicit {
             continue;
         }
 
-        let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-        let pass_changed = pass.run_pass(gcx, module);
-        timer.finish("EVM IR", module.name(), pass_name, pass_changed);
-        changed |= pass_changed;
+        if enabled {
+            let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
+            let pass_changed = pass.run_pass(gcx, module);
+            timer.finish("EVM IR", module.name(), pass_name, pass_changed);
+            changed |= pass_changed;
+        }
 
-        if gcx.sess.opts.unstable.print_after_each && !gcx.sess.opts.unstable.pass_diff {
-            println!("// === {} (after {pass_name}) ===", module.name());
+        if let Some(before) = before {
+            print_pass_diff(&output_name, pass_name, before, module.to_text());
+        } else if gcx.sess.opts.unstable.print_after_each && !gcx.sess.opts.unstable.pass_diff {
+            println!("// === {output_name} (after {pass_name}) ===");
+            print!("{}", module.to_text());
+        }
+    }
+    changed
+}
+
+/// Runs the configured EVM IR pipeline, or the canonical pipeline when none was provided.
+///
+/// `name` overrides the module name in pass output.
+#[must_use]
+pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
+    let Some(value) = gcx.sess.opts.unstable.evm_ir_pipeline.as_deref() else {
+        return run_passes(gcx, module, DEFAULT_PIPELINE, None);
+    };
+    let pipeline = match parse_pass_pipeline(gcx, value, "EVM IR", lookup_pass) {
+        Ok(pipeline) => pipeline,
+        Err(_) => return false,
+    };
+    let PassPipeline::Passes(passes) = pipeline else {
+        return run_passes(gcx, module, DEFAULT_PIPELINE, None);
+    };
+
+    let name =
+        name.map(ToOwned::to_owned).unwrap_or_else(|| pipeline_output_name(gcx, module.name()));
+    let mut changed = false;
+    for pass in passes {
+        if let Some(pass) = pass {
+            changed |= run_passes(gcx, module, &[pass], Some(&name));
+        } else if gcx.sess.opts.unstable.pass_diff {
+            let text = module.to_text();
+            print_pass_diff(&name, "none", &text, &text);
+        } else if gcx.sess.opts.unstable.print_after_each {
+            println!("// === {name} (after none) ===");
             print!("{}", module.to_text());
         }
     }

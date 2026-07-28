@@ -1,4 +1,4 @@
-//@compile-flags: --passes frame-slot-promotion,cfg-simplify,dce
+//@compile-flags: -Zmir-pipeline=frame-slot-promotion,cfg-simplify,dce
 //@filecheck:
 @module NestedCounter
 // CHECK-LABEL: {{^[ +].*}}fn @nested{{[( ]}}
