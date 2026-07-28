@@ -8,8 +8,8 @@
 
 use super::print_pass_diff;
 use clap::ValueHint;
-use solar_codegen::backend::evm::ir;
-use solar_config::CompileOpts;
+use solar_codegen::backend::evm::{self, ir};
+use solar_config::{CompileOpts, DumpKind, EvmVersion, OptimizationMode};
 use solar_data_structures::fmt::FmtIteratorExt;
 use solar_sema::Gcx;
 use std::{fmt::Display, path::Path, process::ExitCode};
@@ -17,6 +17,12 @@ use std::{fmt::Display, path::Path, process::ExitCode};
 #[derive(clap::Args)]
 #[command(after_help = after_help(), arg_required_else_help = true)]
 pub(crate) struct EvmOptArgs {
+    /// EVM version used for bytecode assembly.
+    #[arg(long, value_enum)]
+    evm_version: Option<EvmVersion>,
+    /// Optimization objective used by the backend pipeline.
+    #[arg(short = 'O', long = "optimize", value_enum)]
+    optimization: Option<OptimizationMode>,
     /// Comma-separated list of passes to run in order.
     #[arg(
         long = "passes",
@@ -73,13 +79,20 @@ fn print_module(module: &ir::Module, name: impl Display, after: impl Display) {
     print!("{}", module.to_text());
 }
 
-fn run_pipeline(gcx: Gcx<'_>, module: &mut ir::Module, name: &str, args: &EvmOptArgs) {
+fn run_pipeline(
+    gcx: Gcx<'_>,
+    module: &mut ir::Module,
+    name: &str,
+    args: &EvmOptArgs,
+) -> solar_interface::Result {
     let sess = gcx.sess;
     let dcx = &sess.dcx;
+    let dump_disassembly = has_disassembly_dump(gcx);
     let print_after_each = sess.opts.unstable.print_after_each;
     let mut pipeline_label = None;
     for (index, &pass) in args.passes.iter().enumerate() {
-        let before = sess.opts.unstable.pass_diff.then(|| module.to_text().to_string());
+        let before = (sess.opts.unstable.pass_diff && !dump_disassembly)
+            .then(|| module.to_text().to_string());
         if let Some(pass) = pass {
             let _changed = ir::run_passes(gcx, module, &[pass]);
         }
@@ -87,6 +100,9 @@ fn run_pipeline(gcx: Gcx<'_>, module: &mut ir::Module, name: &str, args: &EvmOpt
             ir::validate(dcx, module);
             if dcx.has_errors().is_err() {
                 break;
+            }
+            if dump_disassembly {
+                continue;
             }
             if let Some(before) = before {
                 let after = module.to_text();
@@ -102,6 +118,32 @@ fn run_pipeline(gcx: Gcx<'_>, module: &mut ir::Module, name: &str, args: &EvmOpt
             }
         }
     }
+    if dump_disassembly && dcx.has_errors().is_ok() {
+        print_disassembly(gcx, module)?;
+    }
+    Ok(())
+}
+
+fn has_disassembly_dump(gcx: Gcx<'_>) -> bool {
+    gcx.sess.opts.unstable.dump.as_ref().is_some_and(|dump| {
+        dump.kinds
+            .iter()
+            .any(|kind| matches!(kind, DumpKind::DisasmDeploy | DumpKind::DisasmRuntime))
+    })
+}
+
+fn print_disassembly(gcx: Gcx<'_>, module: &ir::Module) -> solar_interface::Result {
+    let dump = gcx.sess.opts.unstable.dump.as_ref().expect("dump options should be present");
+    let bytecode = evm::assemble_evm_ir(gcx, module.clone())?;
+    if dump.kinds.contains(&DumpKind::DisasmDeploy) {
+        println!("// === {} (deployment) ===", module.name());
+        print!("{}", evm::disassemble(&bytecode));
+    }
+    if dump.kinds.contains(&DumpKind::DisasmRuntime) {
+        println!("// === {} (runtime) ===", module.name());
+        print!("{}", evm::disassemble(&bytecode));
+    }
+    Ok(())
 }
 
 fn process_evmir(gcx: Gcx<'_>, args: &EvmOptArgs) -> solar_interface::Result {
@@ -113,12 +155,18 @@ fn process_evmir(gcx: Gcx<'_>, args: &EvmOptArgs) -> solar_interface::Result {
     let mut module = ir::Module::parse(sess, &source)?;
     ir::validate(&sess.dcx, &module);
     if sess.dcx.has_errors().is_ok() {
-        run_pipeline(gcx, &mut module, &args.input, args);
+        run_pipeline(gcx, &mut module, &args.input, args)?;
     }
     Ok(())
 }
 
 pub(crate) fn run(args: EvmOptArgs, mut opts: CompileOpts) -> ExitCode {
+    if let Some(evm_version) = args.evm_version {
+        opts.evm_version = evm_version;
+    }
+    if let Some(optimization) = args.optimization {
+        opts.optimization = optimization;
+    }
     opts.input.push(args.input.clone());
     let ext = Path::new(&args.input).extension().and_then(|s| s.to_str()).unwrap_or("");
     let result = super::compile::run_compiler_with(opts, |compiler| match ext {

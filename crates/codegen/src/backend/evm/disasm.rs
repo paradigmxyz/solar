@@ -1,7 +1,10 @@
+//! EVM bytecode disassembly.
+
 use super::op;
 use std::fmt::Write;
 
-pub(crate) fn disassemble(bytecode: &[u8]) -> String {
+/// Disassembles EVM bytecode into one opcode per line.
+pub fn disassemble(bytecode: &[u8]) -> String {
     let mut output = String::with_capacity(bytecode.len().saturating_mul(8));
     let mut offset = 0;
 

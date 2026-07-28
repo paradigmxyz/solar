@@ -1,0 +1,27 @@
+//@ compile-flags: -O none -Zdump=disasm-runtime
+//@ filecheck:
+
+@module label_relaxation
+
+// CHECK-LABEL: // === label_relaxation (runtime) ===
+// CHECK-NEXT: PUSH1 0x02
+// CHECK-NEXT: JUMPDEST
+// CHECK-NEXT: PUSH2 0x0101
+// CHECK: PUSH19 0x01000000000000000000000000000000000000
+// CHECK-NEXT: JUMPDEST
+bb0:
+  push bb1
+  jump bb1
+bb1:
+  push bb2
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0x01000000000000000000000000000000000000
+  jump bb2
+bb2:
+  stop

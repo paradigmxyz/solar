@@ -119,7 +119,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     let path = match mode {
         Mode::Ui | Mode::StandardJson => "tests/ui/",
         Mode::Mir => "tests/ui/codegen/mir/",
-        Mode::EvmIr => "tests/ui/codegen/evm-ir/",
+        Mode::EvmIr => "tests/ui/codegen/",
         Mode::SolcSolidity => "testdata/solidity/test/",
         Mode::SolcYul => "testdata/solidity/test/libyul/",
     };
@@ -277,7 +277,7 @@ fn mode_from_config(config: &ui_test::Config) -> Mode {
         Mode::StandardJson
     } else if config.root_dir.ends_with("tests/ui/codegen/mir") {
         Mode::Mir
-    } else if config.root_dir.ends_with("tests/ui/codegen/evm-ir") {
+    } else if config.root_dir.ends_with("tests/ui/codegen") {
         Mode::EvmIr
     } else if config.root_dir.ends_with("testdata/solidity/test/libyul") {
         Mode::SolcYul
@@ -392,7 +392,7 @@ enum Mode {
     /// `tests/ui/codegen/mir/`.
     Mir,
     /// EVM-IR-level tests: runs `solar evm-opt` on `.evmir` files under
-    /// `tests/ui/codegen/evm-ir/`.
+    /// `tests/ui/codegen/`.
     EvmIr,
     StandardJson,
     SolcSolidity,

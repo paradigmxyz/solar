@@ -1,0 +1,16 @@
+//@ compile-flags: -O none -Zdump=disasm-runtime
+//@ filecheck:
+
+@module label_resolution
+
+// CHECK-LABEL: // === label_resolution (runtime) ===
+// CHECK-NEXT: JUMPDEST
+// CHECK-NEXT: PUSH1 0x01
+// CHECK-NEXT: ISZERO
+// CHECK-NEXT: PUSH0
+// CHECK-NEXT: JUMPI
+bb0:
+  push 1
+  jumpi bb1, bb0
+bb1:
+  stop

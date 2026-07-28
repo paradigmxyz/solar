@@ -1,0 +1,19 @@
+//@ compile-flags: -O gas -Zdump=disasm-runtime
+//@ filecheck:
+
+@module jumpi_layout
+
+// CHECK-LABEL: // === jumpi_layout (runtime) ===
+// CHECK-NEXT: PUSH1 0x01
+// CHECK-NEXT: PUSH1 0x06
+// CHECK-NEXT: JUMPI
+// CHECK-NEXT: STOP
+// CHECK-NEXT: JUMPDEST
+// CHECK-NEXT: INVALID
+bb0:
+  push 1
+  jumpi bb1, bb2
+bb2:
+  stop
+bb1:
+  invalid

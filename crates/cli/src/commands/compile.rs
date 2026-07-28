@@ -110,7 +110,7 @@ pub(crate) fn run_pipeline(
         return Err(sess
             .dcx
             .err("code generation is experimental")
-            .help("pass `-Zcodegen` to emit bytecode or dump MIR or EVM IR")
+            .help("pass `-Zcodegen` to emit bytecode or dump MIR, EVM IR, or disassembly")
             .emit());
     }
 

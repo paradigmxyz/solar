@@ -10,6 +10,9 @@
 mod codegen;
 pub use codegen::{EvmArtifact, EvmCodegen};
 
+mod disasm;
+pub use disasm::disassemble;
+
 mod layout;
 
 pub mod ir;
@@ -20,5 +23,10 @@ pub(crate) mod assembler;
 
 pub(crate) mod stack;
 
-#[cfg(test)]
-pub(crate) mod test_utils;
+/// Runs the backend pipeline and assembles an EVM IR module.
+pub fn assemble_evm_ir(
+    gcx: solar_sema::Gcx<'_>,
+    module: ir::Module,
+) -> solar_interface::Result<Vec<u8>> {
+    Ok(assembler::Assembler::assemble_evm_ir(gcx, module)?.bytecode)
+}
