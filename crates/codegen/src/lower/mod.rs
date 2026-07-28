@@ -36,7 +36,7 @@ use solar_sema::{
     hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, VariableId, Visit},
     ty::{Gcx, Ty, TyKind},
 };
-use std::ops::ControlFlow;
+use std::{collections::hash_map::Entry, ops::ControlFlow};
 
 use self::storage::StorageLocation;
 
@@ -1592,18 +1592,20 @@ impl<'gcx> Lowerer<'gcx> {
         base_id: ContractId,
         values: &mut FxHashMap<ContractId, ConstructorArguments>,
     ) -> Result<(), ErrorGuaranteed> {
-        match values.get(&base_id) {
-            Some(ConstructorArguments::Resolved(_)) => return Ok(()),
-            Some(ConstructorArguments::Resolving) => {
-                return Err(self
-                    .gcx
-                    .dcx()
-                    .err("cyclic base constructor arguments during codegen")
-                    .span(self.gcx.hir.contract(base_id).span)
-                    .emit());
-            }
-            None => {
-                values.insert(base_id, ConstructorArguments::Resolving);
+        match values.entry(base_id) {
+            Entry::Occupied(entry) => match entry.get() {
+                ConstructorArguments::Resolved(_) => return Ok(()),
+                ConstructorArguments::Resolving => {
+                    return Err(self
+                        .gcx
+                        .dcx()
+                        .err("cyclic base constructor arguments during codegen")
+                        .span(self.gcx.hir.contract(base_id).span)
+                        .emit());
+                }
+            },
+            Entry::Vacant(entry) => {
+                entry.insert(ConstructorArguments::Resolving);
             }
         }
 
