@@ -14,7 +14,7 @@ bb0:
   dup1
   push 15
   and
-  indexed_jump bb78, bb79, bb80, bb81, bb82, bb83, bb84, bb85, bb86, bb87, bb88, bb89, bb90, bb91, bb92, bb93
+  indexed_jump bb2, bb19, bb19, bb19, bb19, bb3, bb4, bb5, bb19, bb19, bb6, bb19, bb19, bb7, bb19, bb19
 bb29 [cold]:
   push 0x4e487b71
   push 224
@@ -1581,35 +1581,3 @@ bb40 [cold]:
   mstore
   push 49
   jump bb76
-bb78:
-  jump bb2
-bb79:
-  jump bb19
-bb80:
-  jump bb19
-bb81:
-  jump bb19
-bb82:
-  jump bb19
-bb83:
-  jump bb3
-bb84:
-  jump bb4
-bb85:
-  jump bb5
-bb86:
-  jump bb19
-bb87:
-  jump bb19
-bb88:
-  jump bb6
-bb89:
-  jump bb19
-bb90:
-  jump bb19
-bb91:
-  jump bb7
-bb92:
-  jump bb19
-bb93:
-  jump bb19

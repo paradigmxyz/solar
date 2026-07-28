@@ -21,27 +21,7 @@ contract R {
     string constant LOCAL = "local-const-msg";
 
     // CHECK-LABEL: @module runtime
-    // CHECK: push 0x9927bee4
-    // CHECK-NEXT: gt
-    // CHECK-NEXT: push [[LOW_SELECTORS:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
-    // CHECK: push 0x9927bee4
-    // CHECK-NEXT: eq
-    // CHECK-NEXT: push [[LOCAL_BODY:bb[0-9]+]]
-    // CHECK: push 0x9af992c0
-    // CHECK-NEXT: eq
-    // CHECK-NEXT: push [[LITERAL_BODY:bb[0-9]+]]
-    // CHECK: push 0x9ee36b07
-    // CHECK-NEXT: eq
-    // CHECK-NEXT: push [[LIB_BODY:bb[0-9]+]]
-    // CHECK: [[LOW_SELECTORS]]:
-    // CHECK: push 0xc4186a6
-    // CHECK-NEXT: eq
-    // CHECK-NEXT: push [[LONG_BODY:bb[0-9]+]]
-    // CHECK: push 0x17a0525e
-    // CHECK-NEXT: eq
-    // CHECK-NEXT: push [[REVERT_BODY:bb[0-9]+]]
-    // CHECK: [[LIB_BODY]]:
+    // CHECK: indexed_jump
     // CHECK: push 0x3339
     // CHECK: jump [[SHORT_HELPER:bb[0-9]+]]
     // CHECK: [[SHORT_HELPER]] [cold]:
@@ -52,7 +32,6 @@ contract R {
         return x;
     }
 
-    // CHECK: [[LITERAL_BODY]]:
     // CHECK: push 0x6c69746572616c206d7367
     // CHECK: jump [[SHORT_HELPER]]
     function viaLiteral(uint256 x) external pure returns (uint256) {
@@ -60,7 +39,6 @@ contract R {
         return x;
     }
 
-    // CHECK: [[LOCAL_BODY]]:
     // CHECK: push 0x6c6f63616c2d636f6e73742d6d7367
     // CHECK: jump [[SHORT_HELPER]]
     function viaLocalConst(uint256 x) external pure returns (uint256) {
@@ -68,13 +46,11 @@ contract R {
         return x;
     }
 
-    // CHECK: [[LONG_BODY]]:
     function viaLong(uint256 x) external pure returns (uint256) {
         require(x > 5, Errors.LONG);
         return x;
     }
 
-    // CHECK: [[REVERT_BODY]]:
     // CHECK: push 0x7265766572742d70617468
     // CHECK: jump [[SHORT_HELPER]]
     // CHECK: push 33

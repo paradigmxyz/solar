@@ -682,23 +682,13 @@ fn bucket_lowering_cost_with_tests(
     debug_assert_eq!(values.len(), equality_costs.len());
     let hash_len = 1 + push_len(U256::from(bucket_count), evm_version) + 1 + 1;
     let hash_gas = VERY_LOW_GAS * 3 + MOD_GAS;
-    let indexed_jump_gas = VERY_LOW_GAS
-        + MUL_GAS
-        + VERY_LOW_GAS
-        + VERY_LOW_GAS
-        + JUMP_GAS
-        + JUMPDEST_GAS
-        + VERY_LOW_GAS
-        + JUMP_GAS
-        + JUMPDEST_GAS;
+    let indexed_jump_gas =
+        indexed_jump_gas(bucket_count, table_target_width, evm_version) + JUMPDEST_GAS;
     let dispatch_gas = hash_gas + indexed_jump_gas;
     let mut cost = LoweringCost {
-        code_size: hash_len
-            + INDEXED_JUMP_BASE_LEN
-            + bucket_count * indexed_jump_stub_len(table_target_width),
+        code_size: hash_len + indexed_jump_code_size(bucket_count, table_target_width, evm_version),
         max_code_size: hash_len
-            + max_indexed_jump_base_len(table_target_width)
-            + bucket_count * indexed_jump_stub_len(table_target_width),
+            + max_indexed_jump_code_size(bucket_count, table_target_width, evm_version),
         hit_gas_sum: dispatch_gas * values.len(),
         miss_gas: dispatch_gas,
     };
@@ -749,14 +739,7 @@ fn dense_lowering_cost(
     let bounds_len = bounds_prefix_len + MIN_LABEL_PUSH_LEN + 1;
     let max_bounds_len = bounds_prefix_len + max_label_push_len(table_target_width) + 1;
     let bounds_gas = VERY_LOW_GAS * 4 + JUMPI_GAS;
-    let indexed_jump_gas = VERY_LOW_GAS
-        + MUL_GAS
-        + VERY_LOW_GAS
-        + VERY_LOW_GAS
-        + JUMP_GAS
-        + JUMPDEST_GAS
-        + VERY_LOW_GAS
-        + JUMP_GAS;
+    let indexed_jump_gas = indexed_jump_gas(range, table_target_width, evm_version);
     let continuation_gas = usize::from(shared_case_continuation) * DEFAULT_JUMP_GAS;
     let hit_gas = normalize_gas + bounds_gas + JUMPDEST_GAS + indexed_jump_gas + continuation_gas;
     let default_body_gas =
@@ -776,16 +759,14 @@ fn dense_lowering_cost(
                 + 1
                 + MIN_DEFAULT_JUMP_LEN
                 + JUMPDEST_LEN
-                + INDEXED_JUMP_BASE_LEN
-                + range * indexed_jump_stub_len(table_target_width)
+                + indexed_jump_code_size(range, table_target_width, evm_version)
                 + usize::from(shared_case_continuation) * MIN_DEFAULT_JUMP_LEN,
             max_code_size: normalize_len
                 + max_bounds_len
                 + 1
                 + max_default_jump_len(table_target_width)
                 + JUMPDEST_LEN
-                + max_indexed_jump_base_len(table_target_width)
-                + range * indexed_jump_stub_len(table_target_width),
+                + max_indexed_jump_code_size(range, table_target_width, evm_version),
             hit_gas_sum: hit_gas * values.len(),
             miss_gas,
         },
@@ -921,24 +902,14 @@ fn bit_slice_lowering_cost_with_tests(
         + usize::from(shift != 0) * (shift_gas + VERY_LOW_GAS)
         + mask_gas
         + VERY_LOW_GAS;
-    let indexed_jump_gas = VERY_LOW_GAS
-        + MUL_GAS
-        + VERY_LOW_GAS
-        + VERY_LOW_GAS
-        + JUMP_GAS
-        + JUMPDEST_GAS
-        + VERY_LOW_GAS
-        + JUMP_GAS
-        + JUMPDEST_GAS;
-    let dispatch_gas = hash_gas + indexed_jump_gas;
     let table_size = mask + 1;
+    let indexed_jump_gas =
+        indexed_jump_gas(table_size, table_target_width, evm_version) + JUMPDEST_GAS;
+    let dispatch_gas = hash_gas + indexed_jump_gas;
     let mut cost = LoweringCost {
-        code_size: hash_len
-            + INDEXED_JUMP_BASE_LEN
-            + table_size * indexed_jump_stub_len(table_target_width),
+        code_size: hash_len + indexed_jump_code_size(table_size, table_target_width, evm_version),
         max_code_size: hash_len
-            + max_indexed_jump_base_len(table_target_width)
-            + table_size * indexed_jump_stub_len(table_target_width),
+            + max_indexed_jump_code_size(table_size, table_target_width, evm_version),
         hit_gas_sum: dispatch_gas * equality_costs.len(),
         miss_gas: dispatch_gas,
     };
@@ -1014,14 +985,7 @@ fn affine_lowering_cost(
     let bounds_len = bounds_prefix_len + MIN_LABEL_PUSH_LEN + 1;
     let max_bounds_len = bounds_prefix_len + max_label_push_len(table_target_width) + 1;
     let bounds_gas = VERY_LOW_GAS * 4 + JUMPI_GAS;
-    let indexed_jump_gas = VERY_LOW_GAS
-        + MUL_GAS
-        + VERY_LOW_GAS
-        + VERY_LOW_GAS
-        + JUMP_GAS
-        + JUMPDEST_GAS
-        + VERY_LOW_GAS
-        + JUMP_GAS;
+    let indexed_jump_gas = indexed_jump_gas(range, table_target_width, evm_version);
     let hit_gas = hash_gas + bounds_gas + JUMPDEST_GAS + indexed_jump_gas;
     let default_body_gas =
         if default == SwitchDefault::Revert { JUMPDEST_GAS + default.gas(evm_version) } else { 0 };
@@ -1037,15 +1001,13 @@ fn affine_lowering_cost(
             + 1
             + MIN_DEFAULT_JUMP_LEN
             + JUMPDEST_LEN
-            + INDEXED_JUMP_BASE_LEN
-            + range * indexed_jump_stub_len(table_target_width),
+            + indexed_jump_code_size(range, table_target_width, evm_version),
         max_code_size: hash_len
             + max_bounds_len
             + 1
             + max_default_jump_len(table_target_width)
             + JUMPDEST_LEN
-            + max_indexed_jump_base_len(table_target_width)
-            + range * indexed_jump_stub_len(table_target_width),
+            + max_indexed_jump_code_size(range, table_target_width, evm_version),
         hit_gas_sum: hit_gas * values.len(),
         miss_gas,
     }
@@ -1103,6 +1065,45 @@ pub(super) fn affine_index(value: U256, low: U256, multiplier: U256, rotate: usi
 const fn indexed_jump_stub_len(target_width: usize) -> usize {
     // JUMPDEST, PUSH<n> target, JUMP.
     target_width + 3
+}
+
+fn indexed_jump_code_size(
+    table_size: usize,
+    target_width: usize,
+    evm_version: EvmVersion,
+) -> usize {
+    if packs_indexed_jump(table_size, target_width, evm_version) {
+        9 + table_size * target_width + target_width
+    } else {
+        INDEXED_JUMP_BASE_LEN + table_size * indexed_jump_stub_len(target_width)
+    }
+}
+
+fn max_indexed_jump_code_size(
+    table_size: usize,
+    target_width: usize,
+    evm_version: EvmVersion,
+) -> usize {
+    if packs_indexed_jump(table_size, target_width, evm_version) {
+        indexed_jump_code_size(table_size, target_width, evm_version)
+    } else {
+        max_indexed_jump_base_len(target_width) + table_size * indexed_jump_stub_len(target_width)
+    }
+}
+
+fn indexed_jump_gas(table_size: usize, target_width: usize, evm_version: EvmVersion) -> usize {
+    if packs_indexed_jump(table_size, target_width, evm_version) {
+        let scale = target_width * 8;
+        VERY_LOW_GAS * 6 + if scale.is_power_of_two() { VERY_LOW_GAS } else { MUL_GAS } + JUMP_GAS
+    } else {
+        VERY_LOW_GAS * 4 + MUL_GAS + JUMP_GAS * 2 + JUMPDEST_GAS
+    }
+}
+
+fn packs_indexed_jump(table_size: usize, target_width: usize, evm_version: EvmVersion) -> bool {
+    evm_version.has_bitwise_shifting()
+        && table_size >= 2
+        && table_size.saturating_mul(target_width) <= 32
 }
 
 const fn max_indexed_jump_base_len(table_target_width: usize) -> usize {
@@ -1227,8 +1228,8 @@ mod tests {
     }
 
     #[test]
-    fn leaves_small_entry_switches_linear() {
-        assert_eq!(
+    fn selects_packed_dense_for_small_dense_switches() {
+        assert!(matches!(
             select_switch_plan(
                 &values(4),
                 OptimizationMode::Gas,
@@ -1236,8 +1237,8 @@ mod tests {
                 SwitchDefault::Jump,
                 2,
             ),
-            SwitchPlan::Linear
-        );
+            SwitchPlan::Dense { .. }
+        ));
     }
 
     #[test]
@@ -1476,7 +1477,7 @@ mod tests {
                 layout: SwitchLayout::default(),
             },
         );
-        assert_eq!(forced.gas_code_growth, 108);
+        assert_eq!(forced.gas_code_growth, 63);
         assert!(matches!(
             select_switch_plan_with_linear_values_and_budget(
                 &sorted,
@@ -1498,7 +1499,7 @@ mod tests {
     }
 
     #[test]
-    fn keeps_coalesced_bit_slice_within_independent_cap() {
+    fn selects_coalesced_packed_bit_slice_within_independent_cap() {
         let linear_values = (0..16)
             .map(|index| U256::from((index + 1) * (index + 1) * 65536 + index))
             .collect::<Vec<_>>();
@@ -1520,17 +1521,22 @@ mod tests {
                 },
             )
         };
-        assert!(matches!(select(SwitchLayout::default()).plan, SwitchPlan::Buckets { .. }));
+        let uncoalesced = select(SwitchLayout::default());
+        assert!(matches!(uncoalesced.plan, SwitchPlan::Buckets { .. }), "{uncoalesced:?}");
         let selection = select(SwitchLayout {
             coalesce_case_targets: true,
             shared_case_continuation: true,
             ..SwitchLayout::default()
         });
-        assert!(matches!(selection.plan, SwitchPlan::Buckets { .. }));
+        assert!(
+            matches!(selection.plan, SwitchPlan::Perfect { hash: PerfectHash::BitSlice { .. } }),
+            "{selection:?}",
+        );
+        assert!(selection.gas_code_growth <= MAX_BIT_SLICE_GAS_CODE_GROWTH);
     }
 
     #[test]
-    fn does_not_bypass_bit_slice_cap_for_shared_continuation() {
+    fn keeps_packed_bit_slice_within_cap_for_shared_continuation() {
         let values = (0..6).map(|index| U256::from(20_000 + index * 6)).collect::<Vec<_>>();
         let select = |shared_case_continuation| {
             select_switch_plan_with_linear_values_and_budget(
@@ -1551,13 +1557,16 @@ mod tests {
                     },
                 },
             )
-            .plan
         };
-        assert!(matches!(select(false), SwitchPlan::Dense { .. }));
-        assert!(!matches!(
-            select(true),
+        let unshared = select(false);
+        assert!(matches!(
+            unshared.plan,
             SwitchPlan::Perfect { hash: PerfectHash::BitSlice { .. } }
         ));
+        assert!(unshared.gas_code_growth <= MAX_BIT_SLICE_GAS_CODE_GROWTH);
+        let shared = select(true);
+        assert!(matches!(shared.plan, SwitchPlan::Perfect { hash: PerfectHash::BitSlice { .. } }));
+        assert!(shared.gas_code_growth <= MAX_BIT_SLICE_GAS_CODE_GROWTH);
     }
 
     #[test]
@@ -1647,9 +1656,9 @@ mod tests {
     }
 
     #[test]
-    fn selects_profitable_binary_leaf_size() {
+    fn selects_profitable_packed_affine_table() {
         let values = (0..5).map(|value| U256::from(value * 7919)).collect::<Vec<_>>();
-        assert_eq!(
+        assert!(matches!(
             select_switch_plan(
                 &values,
                 OptimizationMode::Gas,
@@ -1657,8 +1666,8 @@ mod tests {
                 SwitchDefault::Jump,
                 2,
             ),
-            SwitchPlan::Binary { leaf_size: 3 }
-        );
+            SwitchPlan::Perfect { hash: PerfectHash::Affine { .. } }
+        ));
     }
 
     #[test]

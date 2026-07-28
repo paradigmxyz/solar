@@ -492,6 +492,7 @@ impl<'gcx> Assembler<'gcx> {
                 AsmInstKind::Label(_)
                     | AsmInstKind::PushLabel(_)
                     | AsmInstKind::PushLabelFixed(_, _)
+                    | AsmInstKind::PushLabelTable(_)
             )
         }) {
             let mut result =
@@ -557,6 +558,11 @@ impl<'gcx> Assembler<'gcx> {
                 AsmInstKind::PushLabelFixed(_, width) => {
                     offset += out.fixed_push_len(width);
                 }
+                AsmInstKind::PushLabelTable(table) => {
+                    let table = &program.label_tables[table];
+                    let width = usize::from(table.label_width) * table.labels.len();
+                    offset += out.fixed_push_len(width as u8);
+                }
                 AsmInstKind::PushDeferred(_) => {
                     unreachable!("deferred values must be resolved before assembly");
                 }
@@ -617,6 +623,24 @@ impl<'gcx> Assembler<'gcx> {
                         .copied()
                         .unwrap_or_else(|| panic!("label {label:?} was never defined"));
                     out.emit_push_fixed_width(U256::from(target_offset), width);
+                }
+                AsmInstKind::PushLabelTable(table) => {
+                    let table = &program.label_tables[table];
+                    let mut value = U256::ZERO;
+                    for (index, &label) in table.labels.iter().enumerate() {
+                        let target_offset = label_offsets
+                            .get(&label)
+                            .copied()
+                            .unwrap_or_else(|| panic!("label {label:?} was never defined"));
+                        let target = U256::from(target_offset);
+                        assert!(
+                            target.byte_len() <= usize::from(table.label_width),
+                            "label offset does not fit packed table entry"
+                        );
+                        value |= target << (index * usize::from(table.label_width) * 8);
+                    }
+                    let width = table.labels.len() * usize::from(table.label_width);
+                    out.emit_push_fixed_width(value, width as u8);
                 }
                 AsmInstKind::PushDeferred(_) => {
                     unreachable!("deferred values must be resolved before assembly");
@@ -835,7 +859,7 @@ PUSH1 0x02
     }
 
     #[test]
-    fn indexed_jump_uses_reachable_fixed_stride_blocks() {
+    fn indexed_jump_uses_packed_label_table() {
         with_assembler(opts(EvmVersion::Shanghai, OptimizationMode::None), |mut asm| {
             let left = asm.new_label();
             let right = asm.new_label();
@@ -851,21 +875,18 @@ PUSH1 0x02
                 disassemble(&asm.assemble().bytecode),
                 str![[r#"
 PUSH1 0x01
-PUSH1 0x04
-MUL
-PUSH1 0x0d
-ADD
+PUSH1 0x03
+SHL
+PUSH2 0x100e
+SWAP1
+SHR
+PUSH1 0xff
+AND
 JUMP
 JUMPDEST
 STOP
 JUMPDEST
 INVALID
-JUMPDEST
-PUSH1 0x09
-JUMP
-JUMPDEST
-PUSH1 0x0b
-JUMP
 
 "#]]
             );

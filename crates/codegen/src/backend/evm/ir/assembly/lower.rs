@@ -13,9 +13,29 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
 };
 
+#[derive(Clone, Copy)]
+struct IndexedJumpEncoding {
+    width: u8,
+    packed: bool,
+}
+
+#[derive(Clone, Copy, Default)]
+struct IndexedJumpLowering {
+    table: Option<IndexedJumpEncoding>,
+    entry_width: Option<u8>,
+}
+
+#[derive(Clone, Copy)]
+struct PackedTableEstimate {
+    len: usize,
+    width: u8,
+}
+
 struct IndexedJumpTable {
+    source: BlockId,
     entries: Box<[BlockId]>,
     targets: Box<[BlockId]>,
+    packed: bool,
 }
 
 /// Lowers finalized EVM IR into the linear label-bearing assembly stream.
@@ -25,8 +45,7 @@ pub(in crate::backend::evm) fn lower_evm_ir(
     assembler: &mut Assembler<'_>,
     evm_version: EvmVersion,
 ) -> Program {
-    let tables = materialize_indexed_jump_tables(module);
-    let table_entry_widths = indexed_jump_target_widths(module, evm_version, &tables);
+    let indexed_jump_lowerings = materialize_indexed_jump_tables(module, evm_version);
     allocate_referenced_labels(module, labels, assembler);
 
     let mut program = Program::default();
@@ -41,12 +60,6 @@ pub(in crate::backend::evm) fn lower_evm_ir(
         }
 
         if let Some(terminator) = &block.terminator {
-            let table_target_width = match &terminator.kind {
-                ir::TerminatorKind::IndexedJump(targets) => {
-                    table_entry_widths[*targets.first().expect("validated indexed jump table")]
-                }
-                _ => table_entry_widths[block_id],
-            };
             lower_terminator(
                 &mut program,
                 block_id,
@@ -54,14 +67,17 @@ pub(in crate::backend::evm) fn lower_evm_ir(
                 module,
                 labels,
                 assembler,
-                table_target_width,
+                indexed_jump_lowerings[block_id],
             );
         }
     }
     program
 }
 
-fn materialize_indexed_jump_tables(module: &mut ir::Module) -> Vec<IndexedJumpTable> {
+fn materialize_indexed_jump_tables(
+    module: &mut ir::Module,
+    evm_version: EvmVersion,
+) -> IndexVec<BlockId, IndexedJumpLowering> {
     let tables = module
         .blocks
         .iter_enumerated()
@@ -70,18 +86,31 @@ fn materialize_indexed_jump_tables(module: &mut ir::Module) -> Vec<IndexedJumpTa
                 ir::TerminatorKind::IndexedJump(targets) => targets.clone(),
                 _ => return None,
             };
-            Some((block, targets))
+            Some(IndexedJumpTable { source: block, entries: Box::new([]), targets, packed: false })
         })
         .collect::<Vec<_>>();
+    if tables.is_empty() {
+        return index_vec![IndexedJumpLowering::default(); module.blocks.len()];
+    }
+
+    let global_width = indexed_jump_global_width(module, evm_version, &tables);
     let mut next_label = module
         .blocks
         .iter()
         .map(|block| block.label)
         .max()
         .map_or(0, |label| label.checked_add(1).expect("EVM IR block label overflow"));
-    let mut result = Vec::new();
+    let mut tables = tables;
 
-    for (source, targets) in tables {
+    for table in &mut tables {
+        table.packed = evm_version.has_bitwise_shifting()
+            && table.targets.len() >= 2
+            && table.targets.len() * usize::from(global_width) <= 32;
+        if table.packed {
+            continue;
+        }
+
+        let targets = table.targets.clone();
         let mut entries = Vec::with_capacity(targets.len());
         for &target in &targets {
             let mut block = ir::Block::new(next_label);
@@ -90,41 +119,53 @@ fn materialize_indexed_jump_tables(module: &mut ir::Module) -> Vec<IndexedJumpTa
             let entry = module.add_block(block);
             entries.push(entry);
         }
-        module.blocks[source]
+        module.blocks[table.source]
             .terminator
             .as_mut()
             .expect("indexed jump source must have a terminator")
             .kind = ir::TerminatorKind::IndexedJump(entries.clone().into_boxed_slice());
-        result.push(IndexedJumpTable { entries: entries.into_boxed_slice(), targets });
+        table.entries = entries.into_boxed_slice();
     }
 
-    result
-}
-
-fn indexed_jump_target_widths(
-    module: &ir::Module,
-    evm_version: EvmVersion,
-    tables: &[IndexedJumpTable],
-) -> IndexVec<BlockId, Option<u8>> {
-    let mut widths = index_vec![None; module.blocks.len()];
-    if tables.is_empty() {
-        return widths;
+    let mut packed_estimates = index_vec![None; module.blocks.len()];
+    for table in &tables {
+        if table.packed {
+            packed_estimates[table.source] =
+                Some(PackedTableEstimate { len: table.targets.len(), width: global_width });
+        }
     }
-
-    let global_width = (1..=32)
-        .find(|&width| push_width_fits(estimated_module_size(module, evm_version, width), width))
-        .expect("a bytecode offset must fit one EVM word");
-    let offsets = estimated_block_offsets(module, evm_version, global_width);
+    let offsets = estimated_block_offsets(module, evm_version, global_width, &packed_estimates);
+    let mut lowerings = index_vec![IndexedJumpLowering::default(); module.blocks.len()];
     for table in tables {
         let max_offset = table.targets.iter().map(|&target| offsets[target]).max().unwrap_or(0);
         let width = (1..=global_width)
             .find(|&width| push_width_fits(max_offset.saturating_add(1), width))
             .unwrap_or(global_width);
+        lowerings[table.source].table = Some(IndexedJumpEncoding { width, packed: table.packed });
         for &entry in &table.entries {
-            widths[entry] = Some(width);
+            lowerings[entry].entry_width = Some(width);
         }
     }
-    widths
+    lowerings
+}
+
+fn indexed_jump_global_width(
+    module: &ir::Module,
+    evm_version: EvmVersion,
+    tables: &[IndexedJumpTable],
+) -> u8 {
+    let no_packed_tables = IndexVec::new();
+    (1..=32)
+        .find(|&width| {
+            let table_stubs = tables
+                .iter()
+                .map(|table| table.targets.len().saturating_mul(usize::from(width) + 3))
+                .fold(0usize, usize::saturating_add);
+            let size = estimated_module_size(module, evm_version, width, &no_packed_tables)
+                .saturating_add(table_stubs);
+            push_width_fits(size, width)
+        })
+        .expect("a bytecode offset must fit one EVM word")
 }
 
 fn push_width_fits(size: usize, width: u8) -> bool {
@@ -136,6 +177,7 @@ fn estimated_block_offsets(
     module: &ir::Module,
     evm_version: EvmVersion,
     block_target_width: u8,
+    packed_tables: &IndexVec<BlockId, Option<PackedTableEstimate>>,
 ) -> IndexVec<BlockId, usize> {
     let mut offsets = IndexVec::with_capacity(module.blocks.len());
     let mut offset = 0usize;
@@ -147,6 +189,7 @@ fn estimated_block_offsets(
             block,
             evm_version,
             block_target_width,
+            packed_tables.get(block_id).copied().flatten(),
         ));
     }
     offsets
@@ -156,12 +199,20 @@ fn estimated_module_size(
     module: &ir::Module,
     evm_version: EvmVersion,
     block_target_width: u8,
+    packed_tables: &IndexVec<BlockId, Option<PackedTableEstimate>>,
 ) -> usize {
     module
         .blocks
         .iter_enumerated()
         .map(|(block_id, block)| {
-            estimated_block_size(module, block_id, block, evm_version, block_target_width)
+            estimated_block_size(
+                module,
+                block_id,
+                block,
+                evm_version,
+                block_target_width,
+                packed_tables.get(block_id).copied().flatten(),
+            )
         })
         .fold(0, usize::saturating_add)
 }
@@ -172,6 +223,7 @@ fn estimated_block_size(
     block: &ir::Block,
     evm_version: EvmVersion,
     block_target_width: u8,
+    packed_table: Option<PackedTableEstimate>,
 ) -> usize {
     let mut size = 1usize;
     for inst in &block.instructions {
@@ -193,12 +245,18 @@ fn estimated_block_size(
             &term.kind,
             next_block(module, block_id),
             block_target_width,
+            packed_table,
         ));
     }
     size
 }
 
-fn estimated_terminator_size(kind: &ir::TerminatorKind, next: Option<BlockId>, width: u8) -> usize {
+fn estimated_terminator_size(
+    kind: &ir::TerminatorKind,
+    next: Option<BlockId>,
+    width: u8,
+    packed_table: Option<PackedTableEstimate>,
+) -> usize {
     let push = usize::from(width) + 1;
     match kind {
         ir::TerminatorKind::Jump(target) => usize::from(Some(*target) != next) * (push + 1),
@@ -211,10 +269,16 @@ fn estimated_terminator_size(kind: &ir::TerminatorKind, next: Option<BlockId>, w
                 push * 2 + 2
             }
         }
-        ir::TerminatorKind::IndexedJump(_) => push + 5,
+        ir::TerminatorKind::IndexedJump(_) => {
+            packed_table.map_or(push + 5, |table| packed_indexed_jump_len(table.len, table.width))
+        }
         ir::TerminatorKind::Op(op::STOP) => usize::from(next.is_some()),
         ir::TerminatorKind::Op(_) => 1,
     }
+}
+
+fn packed_indexed_jump_len(table_len: usize, target_width: u8) -> usize {
+    9 + table_len * usize::from(target_width) + usize::from(target_width)
 }
 
 fn push_len(value: U256, evm_version: EvmVersion) -> usize {
@@ -283,11 +347,11 @@ fn lower_terminator(
     module: &ir::Module,
     labels: &mut Vec<Option<Label>>,
     assembler: &mut Assembler<'_>,
-    table_target_width: Option<u8>,
+    indexed_jump: IndexedJumpLowering,
 ) {
     match kind {
         ir::TerminatorKind::Jump(target) => {
-            if let Some(table_target_width) = table_target_width {
+            if let Some(table_target_width) = indexed_jump.entry_width {
                 let label = label_for_block(module, *target, labels, assembler);
                 program.push(AsmInst::push_label_fixed(label, table_target_width));
                 program.push_op(op::JUMP);
@@ -321,13 +385,44 @@ fn lower_terminator(
             }
         }
         ir::TerminatorKind::IndexedJump(targets) => {
+            let table_encoding = indexed_jump.table.expect("indexed jump table encoding");
+            if table_encoding.packed {
+                let target_width = table_encoding.width;
+                let scale = u32::from(target_width) * 8;
+                if scale.is_power_of_two() {
+                    program.push(
+                        AsmInst::push_inline(scale.ilog2())
+                            .expect("indexed jump scale must fit inline"),
+                    );
+                    program.push_op(op::SHL);
+                } else {
+                    program.push(
+                        AsmInst::push_inline(scale).expect("indexed jump scale must fit inline"),
+                    );
+                    program.push_op(op::MUL);
+                }
+                let labels = targets
+                    .iter()
+                    .map(|&target| label_for_block(module, target, labels, assembler))
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice();
+                program.push_label_table(labels, target_width);
+                program.push_op(op::SWAP1);
+                program.push_op(op::SHR);
+                let mask = (U256::ONE << scale) - U256::ONE;
+                program.push(assembler.push_inst(mask));
+                program.push_op(op::AND);
+                program.push_op(op::JUMP);
+                return;
+            }
+
             let (&table, rest) = targets.split_first().expect("validated indexed jump table");
             debug_assert!(
                 rest.iter()
                     .enumerate()
                     .all(|(index, target)| { target.index() == table.index() + index + 1 })
             );
-            let table_target_width = table_target_width.expect("indexed jump table width");
+            let table_target_width = table_encoding.width;
             let stub_len = u32::from(table_target_width) + 3;
             program.push(
                 AsmInst::push_inline(stub_len).expect("indexed jump stub length must fit inline"),
@@ -408,7 +503,7 @@ mod tests {
     }
 
     #[test]
-    fn indexed_jump_entries_are_reachable_blocks() {
+    fn indexed_jump_packs_direct_targets() {
         let mut module = ir::Module::new(sym::module);
         let entry = module.add_block(Block::new(0));
         let left = module.add_block(Block::new(1));
@@ -425,6 +520,44 @@ mod tests {
             let mut labels = vec![None; 3];
             let mut assembler = Assembler::new(c.gcx());
             let program = lower_evm_ir(&mut module, &mut labels, &mut assembler, EvmVersion::Osaka);
+
+            assert_eq!(module.blocks.len(), 3);
+            assert!(matches!(
+                &module.blocks[entry].terminator.as_ref().unwrap().kind,
+                TerminatorKind::IndexedJump(targets) if targets.as_ref() == [left, right]
+            ));
+            let table = program
+                .instructions
+                .iter()
+                .find_map(|inst| match inst.kind() {
+                    AsmInstKind::PushLabelTable(table) => Some(&program.label_tables[table]),
+                    _ => None,
+                })
+                .expect("packed label table");
+            assert_eq!(table.labels.len(), 2);
+            assert_eq!(table.label_width, 1);
+        });
+    }
+
+    #[test]
+    fn indexed_jump_entries_are_reachable_blocks() {
+        let mut module = ir::Module::new(sym::module);
+        let entry = module.add_block(Block::new(0));
+        let left = module.add_block(Block::new(1));
+        let right = module.add_block(Block::new(2));
+        module.blocks[entry].instructions.push(Instruction::push_value(U256::ONE));
+        module.blocks[entry].terminator = Some(Terminator::new(TerminatorKind::IndexedJump(
+            vec![left, right].into_boxed_slice(),
+        )));
+        module.blocks[left].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+        module.blocks[right].terminator = Some(Terminator::new(TerminatorKind::Op(op::INVALID)));
+
+        let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
+        compiler.enter(|c| {
+            let mut labels = vec![None; 3];
+            let mut assembler = Assembler::new(c.gcx());
+            let program =
+                lower_evm_ir(&mut module, &mut labels, &mut assembler, EvmVersion::Byzantium);
 
             let TerminatorKind::IndexedJump(entries) =
                 &module.blocks[entry].terminator.as_ref().unwrap().kind
@@ -466,9 +599,13 @@ mod tests {
             Some(Terminator::new(TerminatorKind::IndexedJump(vec![target].into_boxed_slice())));
         module.blocks[target].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
 
-        let tables = materialize_indexed_jump_tables(&mut module);
-        let widths = indexed_jump_target_widths(&module, EvmVersion::Osaka, &tables);
-        assert_eq!(widths[tables[0].entries[0]], Some(2));
+        let lowerings = materialize_indexed_jump_tables(&mut module, EvmVersion::Osaka);
+        let TerminatorKind::IndexedJump(entries) =
+            &module.blocks[entry].terminator.as_ref().unwrap().kind
+        else {
+            panic!("expected indexed jump")
+        };
+        assert_eq!(lowerings[entries[0]].entry_width, Some(2));
     }
 
     #[test]
@@ -485,8 +622,12 @@ mod tests {
         }
         module.blocks[padding].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
 
-        let tables = materialize_indexed_jump_tables(&mut module);
-        let widths = indexed_jump_target_widths(&module, EvmVersion::Osaka, &tables);
-        assert_eq!(widths[tables[0].entries[0]], Some(1));
+        let lowerings = materialize_indexed_jump_tables(&mut module, EvmVersion::Osaka);
+        let TerminatorKind::IndexedJump(entries) =
+            &module.blocks[entry].terminator.as_ref().unwrap().kind
+        else {
+            panic!("expected indexed jump")
+        };
+        assert_eq!(lowerings[entries[0]].entry_width, Some(1));
     }
 }
