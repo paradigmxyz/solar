@@ -1955,9 +1955,7 @@ impl<'gcx> Lowerer<'gcx> {
         for &ret_id in func.returns {
             if Self::calldata_dynamic_var_kind(self.gcx.hir.variable(ret_id)).is_some() {
                 let offset = self.alloc_local_slice_memory(ret_id);
-                let zero = builder.imm_u64(0);
-                let empty = builder.make_slice(zero, zero, crate::mir::SliceLocation::Calldata);
-                self.store_slice_slot(builder, offset, empty);
+                self.init_empty_slice_slot(builder, offset);
             } else {
                 let offset = self.alloc_local_memory(ret_id);
                 let addr = self.local_memory_addr(builder, offset);

@@ -9,48 +9,29 @@ fn @trimLen(arg0: calldataslice) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = make_calldata_slice 0, 0
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    mstore 128, v4
-    mstore 160, v5
-    v6 = slice_ptr arg0
-    v7 = slice_len arg0
-    mstore 128, v6
-    mstore 160, v7
-    v8 = slice_len arg0
-    v9 = gt v8, 8
-    jumpi v9, bb4, bb5
+    mstore 128, 0
+    mstore 160, 0
+    v3 = slice_ptr arg0
+    v4 = slice_len arg0
+    mstore 128, v3
+    mstore 160, v4
+    v5 = slice_len arg0
+    v6 = gt v5, 8
+    jumpi v6, bb4, bb5
   bb3:
-    v28 = mload 128
-    v29 = mload 160
-    v30 = make_calldata_slice v28, v29
-    v31 = slice_len v30
-    mstore 128, v31
+    v11 = mload 128
+    v12 = mload 160
+    v13 = make_calldata_slice v11, v12
+    v14 = slice_len v13
+    mstore 128, v14
     returndata 128, 32
   bb4:
-    v10 = slice_ptr arg0
-    v11 = add v10, 8
-    v12 = mload 128
-    v13 = mload 160
-    v14 = make_calldata_slice v12, v13
-    v15 = slice_len v14
-    v16 = make_calldata_slice v11, v15
-    v17 = slice_ptr v16
-    v18 = slice_len v16
-    mstore 128, v17
-    mstore 160, v18
-    v19 = slice_len arg0
-    v20 = sub v19, 8
-    v21 = mload 128
-    v22 = mload 160
-    v23 = make_calldata_slice v21, v22
-    v24 = slice_ptr v23
-    v25 = make_calldata_slice v24, v20
-    v26 = slice_ptr v25
-    v27 = slice_len v25
-    mstore 128, v26
-    mstore 160, v27
+    v7 = slice_ptr arg0
+    v8 = add v7, 8
+    mstore 128, v8
+    v9 = slice_len arg0
+    v10 = sub v9, 8
+    mstore 160, v10
     jump bb5
   bb5:
     jump bb3
@@ -58,61 +39,36 @@ fn @trimLen(arg0: calldataslice) {
 
 fn @_trim(arg0: calldataslice) -> memorybytes {
   bb0:
-    v0 = make_calldata_slice 0, 0
-    v1 = slice_ptr v0
-    v2 = slice_len v0
-    v3 = internal_frame_addr 128
-    mstore v3, v1 !metadata(memory=internal_frame)
-    v4 = internal_frame_addr 160
+    v0 = internal_frame_addr 128
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = internal_frame_addr 160
+    mstore v1, 0 !metadata(memory=internal_frame)
+    v2 = slice_ptr arg0
+    v3 = slice_len arg0
+    v4 = internal_frame_addr 128
     mstore v4, v2 !metadata(memory=internal_frame)
-    v5 = slice_ptr arg0
+    v5 = internal_frame_addr 160
+    mstore v5, v3 !metadata(memory=internal_frame)
     v6 = slice_len arg0
-    v7 = internal_frame_addr 128
-    mstore v7, v5 !metadata(memory=internal_frame)
-    v8 = internal_frame_addr 160
-    mstore v8, v6 !metadata(memory=internal_frame)
-    v9 = slice_len arg0
-    v10 = gt v9, 8
-    jumpi v10, bb1, bb2
+    v7 = gt v6, 8
+    jumpi v7, bb1, bb2
   bb1:
-    v11 = slice_ptr arg0
-    v12 = add v11, 8
-    v13 = internal_frame_addr 128
-    v14 = mload v13 !metadata(memory=internal_frame)
-    v15 = internal_frame_addr 160
-    v16 = mload v15 !metadata(memory=internal_frame)
-    v17 = make_calldata_slice v14, v16
-    v18 = slice_len v17
-    v19 = make_calldata_slice v12, v18
-    v20 = slice_ptr v19
-    v21 = slice_len v19
-    v22 = internal_frame_addr 128
-    mstore v22, v20 !metadata(memory=internal_frame)
-    v23 = internal_frame_addr 160
-    mstore v23, v21 !metadata(memory=internal_frame)
-    v24 = slice_len arg0
-    v25 = sub v24, 8
-    v26 = internal_frame_addr 128
-    v27 = mload v26 !metadata(memory=internal_frame)
-    v28 = internal_frame_addr 160
-    v29 = mload v28 !metadata(memory=internal_frame)
-    v30 = make_calldata_slice v27, v29
-    v31 = slice_ptr v30
-    v32 = make_calldata_slice v31, v25
-    v33 = slice_ptr v32
-    v34 = slice_len v32
-    v35 = internal_frame_addr 128
-    mstore v35, v33 !metadata(memory=internal_frame)
-    v36 = internal_frame_addr 160
-    mstore v36, v34 !metadata(memory=internal_frame)
+    v8 = slice_ptr arg0
+    v9 = add v8, 8
+    v10 = internal_frame_addr 128
+    mstore v10, v9 !metadata(memory=internal_frame)
+    v11 = slice_len arg0
+    v12 = sub v11, 8
+    v13 = internal_frame_addr 160
+    mstore v13, v12 !metadata(memory=internal_frame)
     jump bb2
   bb2:
-    v37 = internal_frame_addr 128
-    v38 = mload v37 !metadata(memory=internal_frame)
-    v39 = internal_frame_addr 160
-    v40 = mload v39 !metadata(memory=internal_frame)
-    v41 = make_calldata_slice v38, v40
-    ret v41
+    v14 = internal_frame_addr 128
+    v15 = mload v14 !metadata(memory=internal_frame)
+    v16 = internal_frame_addr 160
+    v17 = mload v16 !metadata(memory=internal_frame)
+    v18 = make_calldata_slice v15, v17
+    ret v18
 }
 
 fn @forward(arg0: calldataslice) {
@@ -134,64 +90,40 @@ fn @forward(arg0: calldataslice) {
     v8 = slice_len v6
     mstore 192, v7
     mstore 224, v8
-    v9 = mload 192
-    v10 = mload 224
-    v11 = make_calldata_slice v9, v10
-    v12 = slice_ptr v11
-    v13 = make_calldata_slice v12, 0
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    mstore 192, v14
-    mstore 224, v15
-    v16 = slice_ptr arg0
-    v17 = mload 128
-    v18 = mload 160
-    v19 = make_calldata_slice v17, v18
-    v20 = slice_len v19
-    v21 = make_calldata_slice v16, v20
-    v22 = slice_ptr v21
-    v23 = slice_len v21
-    mstore 128, v22
-    mstore 160, v23
-    v24 = slice_len arg0
-    v25 = mload 128
-    v26 = mload 160
-    v27 = make_calldata_slice v25, v26
-    v28 = slice_ptr v27
-    v29 = make_calldata_slice v28, v24
-    v30 = slice_ptr v29
-    v31 = slice_len v29
-    mstore 128, v30
-    mstore 160, v31
-    v32 = mload 128
-    v33 = mload 160
-    v34 = make_calldata_slice v32, v33
-    v35 = mload 192
-    v36 = mload 224
-    v37 = make_calldata_slice v35, v36
-    v38 = slice_len v34
-    v39 = mul v38, 0x3e8
-    v40 = iszero 0x3e8
-    v41 = div v39, 0x3e8
-    v42 = eq v41, v38
-    v43 = or v40, v42
-    v44 = iszero v43
-    jumpi v44, bb3, bb4
+    mstore 224, 0
+    v9 = slice_ptr arg0
+    mstore 128, v9
+    v10 = slice_len arg0
+    mstore 160, v10
+    v11 = mload 128
+    v12 = mload 160
+    v13 = make_calldata_slice v11, v12
+    v14 = mload 192
+    v15 = mload 224
+    v16 = make_calldata_slice v14, v15
+    v17 = slice_len v13
+    v18 = mul v17, 0x3e8
+    v19 = iszero 0x3e8
+    v20 = div v18, 0x3e8
+    v21 = eq v20, v17
+    v22 = or v19, v21
+    v23 = iszero v22
+    jumpi v23, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v45 = slice_len v37
-    v46 = add v39, v45
-    v47 = lt v46, v39
-    jumpi v47, bb5, bb6
+    v24 = slice_len v16
+    v25 = add v18, v24
+    v26 = lt v25, v18
+    jumpi v26, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    mstore 128, v46
+    mstore 128, v25
     returndata 128, 32
 }
 
@@ -231,44 +163,41 @@ fn @explicitTrim(arg0: calldataslice) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = make_calldata_slice 0, 0
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    mstore 128, v4
-    mstore 160, v5
-    v6 = slice_len arg0
-    v7 = gt v6, 4
-    jumpi v7, bb4, bb5
+    mstore 128, 0
+    mstore 160, 0
+    v3 = slice_len arg0
+    v4 = gt v3, 4
+    jumpi v4, bb4, bb5
   bb3:
-    v18 = mload 128
-    v19 = mload 160
-    v20 = make_calldata_slice v18, v19
-    v21 = slice_len v20
-    mstore 128, v21
+    v15 = mload 128
+    v16 = mload 160
+    v17 = make_calldata_slice v15, v16
+    v18 = slice_len v17
+    mstore 128, v18
     returndata 128, 32
   bb4:
-    v8 = slice_ptr arg0
-    v9 = slice_len arg0
-    v10 = lt v9, 4
-    jumpi v10, bb6, bb7
+    v5 = slice_ptr arg0
+    v6 = slice_len arg0
+    v7 = lt v6, 4
+    jumpi v7, bb6, bb7
   bb5:
-    v16 = slice_ptr arg0
-    v17 = slice_len arg0
-    mstore 128, v16
-    mstore 160, v17
+    v13 = slice_ptr arg0
+    v14 = slice_len arg0
+    mstore 128, v13
+    mstore 160, v14
     jump bb3
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb7:
-    v11 = sub v9, 4
-    v12 = add v8, 4
-    v13 = make_calldata_slice v12, v11
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    mstore 128, v14
-    mstore 160, v15
+    v8 = sub v6, 4
+    v9 = add v5, 4
+    v10 = make_calldata_slice v9, v8
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    mstore 128, v11
+    mstore 160, v12
     jump bb3
 }
 
@@ -306,80 +235,58 @@ fn @headTail(arg0: calldataslice) {
   bb2:
     mstore 128, 0
     mstore 160, 0
-    v3 = make_calldata_slice 0, 0
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    mstore 192, v4
-    mstore 224, v5
-    v6 = make_calldata_slice 0, 0
-    v7 = slice_ptr v6
-    v8 = slice_len v6
-    mstore 256, v7
-    mstore 288, v8
-    v9 = slice_ptr arg0
-    v10 = slice_len arg0
-    mstore 192, v9
-    mstore 224, v10
-    v11 = slice_ptr arg0
-    v12 = slice_len arg0
-    v13 = slice_len arg0
-    v14 = lt v12, v13
-    jumpi v14, bb4, bb5
+    mstore 192, 0
+    mstore 224, 0
+    mstore 256, 0
+    mstore 288, 0
+    v3 = slice_ptr arg0
+    v4 = slice_len arg0
+    mstore 192, v3
+    mstore 224, v4
+    v5 = slice_ptr arg0
+    v6 = slice_len arg0
+    v7 = slice_len arg0
+    v8 = lt v6, v7
+    jumpi v8, bb4, bb5
   bb3:
-    v40 = mload 192
-    v41 = mload 224
-    v42 = make_calldata_slice v40, v41
-    v43 = mload 256
-    v44 = mload 288
-    v45 = make_calldata_slice v43, v44
-    v46 = slice_len v42
-    mstore 128, v46
-    v47 = slice_len v45
-    mstore 160, v47
-    v48 = mload 128
-    v49 = mload 160
-    mstore 128, v48
-    v50 = add 128, 32
-    mstore v50, v49
+    v20 = mload 192
+    v21 = mload 224
+    v22 = make_calldata_slice v20, v21
+    v23 = mload 256
+    v24 = mload 288
+    v25 = make_calldata_slice v23, v24
+    v26 = slice_len v22
+    mstore 128, v26
+    v27 = slice_len v25
+    mstore 160, v27
+    v28 = mload 128
+    v29 = mload 160
+    mstore 128, v28
+    v30 = add 128, 32
+    mstore v30, v29
     returndata 128, 64
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb5:
-    v15 = sub v12, v13
-    v16 = add v11, v13
-    v17 = make_calldata_slice v16, v15
-    v18 = slice_ptr v17
-    v19 = slice_len v17
-    mstore 256, v18
-    mstore 288, v19
-    v20 = slice_len arg0
-    v21 = gt v20, 8
-    jumpi v21, bb6, bb7
+    v9 = sub v6, v7
+    v10 = add v5, v7
+    v11 = make_calldata_slice v10, v9
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    mstore 256, v12
+    mstore 288, v13
+    v14 = slice_len arg0
+    v15 = gt v14, 8
+    jumpi v15, bb6, bb7
   bb6:
-    v22 = slice_ptr arg0
-    v23 = add v22, 8
-    v24 = mload 256
-    v25 = mload 288
-    v26 = make_calldata_slice v24, v25
-    v27 = slice_len v26
-    v28 = make_calldata_slice v23, v27
-    v29 = slice_ptr v28
-    v30 = slice_len v28
-    mstore 256, v29
-    mstore 288, v30
-    v31 = slice_len arg0
-    v32 = sub v31, 8
-    v33 = mload 256
-    v34 = mload 288
-    v35 = make_calldata_slice v33, v34
-    v36 = slice_ptr v35
-    v37 = make_calldata_slice v36, v32
-    v38 = slice_ptr v37
-    v39 = slice_len v37
-    mstore 256, v38
-    mstore 288, v39
+    v16 = slice_ptr arg0
+    v17 = add v16, 8
+    mstore 256, v17
+    v18 = slice_len arg0
+    v19 = sub v18, 8
+    mstore 288, v19
     jump bb7
   bb7:
     jump bb3
@@ -387,91 +294,63 @@ fn @headTail(arg0: calldataslice) {
 
 fn @_split(arg0: calldataslice) -> (memorybytes, memorybytes) {
   bb0:
-    v0 = make_calldata_slice 0, 0
-    v1 = slice_ptr v0
-    v2 = slice_len v0
-    v3 = internal_frame_addr 160
-    mstore v3, v1 !metadata(memory=internal_frame)
-    v4 = internal_frame_addr 192
-    mstore v4, v2 !metadata(memory=internal_frame)
-    v5 = make_calldata_slice 0, 0
-    v6 = slice_ptr v5
-    v7 = slice_len v5
-    v8 = internal_frame_addr 224
-    mstore v8, v6 !metadata(memory=internal_frame)
-    v9 = internal_frame_addr 256
-    mstore v9, v7 !metadata(memory=internal_frame)
-    v10 = slice_ptr arg0
-    v11 = slice_len arg0
-    v12 = internal_frame_addr 160
-    mstore v12, v10 !metadata(memory=internal_frame)
-    v13 = internal_frame_addr 192
-    mstore v13, v11 !metadata(memory=internal_frame)
-    v14 = slice_ptr arg0
-    v15 = slice_len arg0
-    v16 = slice_len arg0
-    v17 = lt v15, v16
-    jumpi v17, bb1, bb2
+    v0 = internal_frame_addr 160
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = internal_frame_addr 192
+    mstore v1, 0 !metadata(memory=internal_frame)
+    v2 = internal_frame_addr 224
+    mstore v2, 0 !metadata(memory=internal_frame)
+    v3 = internal_frame_addr 256
+    mstore v3, 0 !metadata(memory=internal_frame)
+    v4 = slice_ptr arg0
+    v5 = slice_len arg0
+    v6 = internal_frame_addr 160
+    mstore v6, v4 !metadata(memory=internal_frame)
+    v7 = internal_frame_addr 192
+    mstore v7, v5 !metadata(memory=internal_frame)
+    v8 = slice_ptr arg0
+    v9 = slice_len arg0
+    v10 = slice_len arg0
+    v11 = lt v9, v10
+    jumpi v11, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v18 = sub v15, v16
-    v19 = add v14, v16
-    v20 = make_calldata_slice v19, v18
-    v21 = slice_ptr v20
-    v22 = slice_len v20
-    v23 = internal_frame_addr 224
-    mstore v23, v21 !metadata(memory=internal_frame)
-    v24 = internal_frame_addr 256
-    mstore v24, v22 !metadata(memory=internal_frame)
-    v25 = slice_len arg0
-    v26 = gt v25, 8
-    jumpi v26, bb3, bb4
+    v12 = sub v9, v10
+    v13 = add v8, v10
+    v14 = make_calldata_slice v13, v12
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = internal_frame_addr 224
+    mstore v17, v15 !metadata(memory=internal_frame)
+    v18 = internal_frame_addr 256
+    mstore v18, v16 !metadata(memory=internal_frame)
+    v19 = slice_len arg0
+    v20 = gt v19, 8
+    jumpi v20, bb3, bb4
   bb3:
-    v27 = slice_ptr arg0
-    v28 = add v27, 8
-    v29 = internal_frame_addr 224
-    v30 = mload v29 !metadata(memory=internal_frame)
-    v31 = internal_frame_addr 256
-    v32 = mload v31 !metadata(memory=internal_frame)
-    v33 = make_calldata_slice v30, v32
-    v34 = slice_len v33
-    v35 = make_calldata_slice v28, v34
-    v36 = slice_ptr v35
-    v37 = slice_len v35
-    v38 = internal_frame_addr 224
-    mstore v38, v36 !metadata(memory=internal_frame)
-    v39 = internal_frame_addr 256
-    mstore v39, v37 !metadata(memory=internal_frame)
-    v40 = slice_len arg0
-    v41 = sub v40, 8
-    v42 = internal_frame_addr 224
-    v43 = mload v42 !metadata(memory=internal_frame)
-    v44 = internal_frame_addr 256
-    v45 = mload v44 !metadata(memory=internal_frame)
-    v46 = make_calldata_slice v43, v45
-    v47 = slice_ptr v46
-    v48 = make_calldata_slice v47, v41
-    v49 = slice_ptr v48
-    v50 = slice_len v48
-    v51 = internal_frame_addr 224
-    mstore v51, v49 !metadata(memory=internal_frame)
-    v52 = internal_frame_addr 256
-    mstore v52, v50 !metadata(memory=internal_frame)
+    v21 = slice_ptr arg0
+    v22 = add v21, 8
+    v23 = internal_frame_addr 224
+    mstore v23, v22 !metadata(memory=internal_frame)
+    v24 = slice_len arg0
+    v25 = sub v24, 8
+    v26 = internal_frame_addr 256
+    mstore v26, v25 !metadata(memory=internal_frame)
     jump bb4
   bb4:
-    v53 = internal_frame_addr 160
-    v54 = mload v53 !metadata(memory=internal_frame)
-    v55 = internal_frame_addr 192
-    v56 = mload v55 !metadata(memory=internal_frame)
-    v57 = make_calldata_slice v54, v56
-    v58 = internal_frame_addr 224
-    v59 = mload v58 !metadata(memory=internal_frame)
-    v60 = internal_frame_addr 256
-    v61 = mload v60 !metadata(memory=internal_frame)
-    v62 = make_calldata_slice v59, v61
-    ret v57, v62
+    v27 = internal_frame_addr 160
+    v28 = mload v27 !metadata(memory=internal_frame)
+    v29 = internal_frame_addr 192
+    v30 = mload v29 !metadata(memory=internal_frame)
+    v31 = make_calldata_slice v28, v30
+    v32 = internal_frame_addr 224
+    v33 = mload v32 !metadata(memory=internal_frame)
+    v34 = internal_frame_addr 256
+    v35 = mload v34 !metadata(memory=internal_frame)
+    v36 = make_calldata_slice v33, v35
+    ret v31, v36
 }
 

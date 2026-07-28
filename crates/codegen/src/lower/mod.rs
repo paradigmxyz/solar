@@ -341,6 +341,16 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(len_addr, len);
     }
 
+    /// Initializes a two-word local slice slot to the empty slice.
+    pub(crate) fn init_empty_slice_slot(&mut self, builder: &mut FunctionBuilder<'_>, offset: u64) {
+        let ptr_addr = self.local_memory_addr(builder, offset);
+        let ptr = builder.imm_u64(0);
+        builder.mstore(ptr_addr, ptr);
+        let len_addr = self.local_memory_addr(builder, offset + EvmMemoryLayout::WORD_SIZE);
+        let len = builder.imm_u64(0);
+        builder.mstore(len_addr, len);
+    }
+
     /// Reloads a logical slice from its two-word local slot.
     pub(crate) fn load_slice_slot(
         &mut self,
@@ -1280,10 +1290,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // within the function body (e.g., `liquidity = 1` in if/else branches)
                 if Self::calldata_dynamic_var_kind(ret_var).is_some() {
                     let offset = self.alloc_local_slice_memory(ret_id);
-                    let value = self
-                        .lower_default_variable_value(&mut builder, ret_id)
-                        .expect("calldata return has an empty default");
-                    self.store_slice_slot(&mut builder, offset, value);
+                    self.init_empty_slice_slot(&mut builder, offset);
                     continue;
                 }
 
