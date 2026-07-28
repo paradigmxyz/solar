@@ -791,7 +791,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
             Builtin::Require | Builtin::Assert => {
                 let (cond, message) = if builtin == Builtin::Require {
-                    let ([cond], message) = self.builtin_args_with_optional::<1>(builtin, args)?;
+                    let ([cond], message) = self.builtin_args_with_optional(builtin, args)?;
                     (cond, message)
                 } else {
                     let [cond] = self.builtin_args(builtin, args)?;
@@ -915,14 +915,14 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::AbiEncodeWithSelector => {
                 // A selector-prefixed payload adapted to a `bytes memory`
                 // value: `[length][selector + ABI tuple encoding]`.
-                let ([selector], exprs) = self.builtin_args_with_rest::<1>(builtin, args)?;
+                let ([selector], exprs) = self.builtin_args_with_rest(builtin, args)?;
                 let selector = self.lower_selector_word(builder, selector);
                 let (data, len) = self.abi_encode_call_payload(builder, Some(selector), &exprs)?;
                 let slice = builder.make_slice(data, len, crate::mir::SliceLocation::Memory);
                 Ok(self.materialize_memory_slice_bytes(builder, slice))
             }
             Builtin::AbiEncodeWithSignature => {
-                let ([signature], exprs) = self.builtin_args_with_rest::<1>(builtin, args)?;
+                let ([signature], exprs) = self.builtin_args_with_rest(builtin, args)?;
                 if let hir::ExprKind::Lit(lit) = &signature.kind
                     && let solar_ast::LitKind::Str(_, sig, _) = &lit.kind
                 {

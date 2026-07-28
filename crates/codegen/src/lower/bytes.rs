@@ -691,9 +691,9 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
     ) -> Option<ValueId> {
         let arg = match builtin {
-            Builtin::ArrayPush0 => self.builtin_args::<0>(builtin, args).map(|[]| None),
-            Builtin::ArrayPush => self.builtin_args::<1>(builtin, args).map(|[arg]| Some(arg)),
-            Builtin::ArrayPop => self.builtin_args::<0>(builtin, args).map(|[]| None),
+            Builtin::ArrayPush0 => self.builtin_args(builtin, args).map(|[]| None),
+            Builtin::ArrayPush => self.builtin_args(builtin, args).map(|[arg]| Some(arg)),
+            Builtin::ArrayPop => self.builtin_args(builtin, args).map(|[]| None),
             _ => unreachable!(),
         };
         let arg = match arg {
@@ -932,13 +932,13 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 sym::encodeWithSelector => {
                     let ([selector], exprs) =
-                        self.builtin_args_with_rest::<1>(Builtin::AbiEncodeWithSelector, args)?;
+                        self.builtin_args_with_rest(Builtin::AbiEncodeWithSelector, args)?;
                     let selector = self.lower_selector_word(builder, selector);
                     return self.abi_encode_call_payload(builder, Some(selector), &exprs);
                 }
                 sym::encodeWithSignature => {
                     let ([signature], exprs) =
-                        self.builtin_args_with_rest::<1>(Builtin::AbiEncodeWithSignature, args)?;
+                        self.builtin_args_with_rest(Builtin::AbiEncodeWithSignature, args)?;
                     if let ExprKind::Lit(lit) = &signature.kind
                         && let LitKind::Str(_, sig, _) = &lit.kind
                     {

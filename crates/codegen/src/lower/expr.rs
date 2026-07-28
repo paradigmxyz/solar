@@ -2560,8 +2560,9 @@ impl<'gcx> Lowerer<'gcx> {
             ExprKind::Call(callee, args, _)
                 if self.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0) =>
             {
-                if let Err(guar) = self.builtin_args::<0>(Builtin::ArrayPush0, args) {
-                    return Some(builder.error_value(guar));
+                match self.builtin_args(Builtin::ArrayPush0, args) {
+                    Ok([]) => {}
+                    Err(guar) => return Some(builder.error_value(guar)),
                 }
                 let ExprKind::Member(base, _) = &callee.kind else { return None };
                 let (slot, element_ty, element_slots) =
@@ -2804,9 +2805,9 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
     ) -> Option<ValueId> {
         let arg = match builtin {
-            Builtin::ArrayPush0 => self.builtin_args::<0>(builtin, args).map(|[]| None),
-            Builtin::ArrayPush => self.builtin_args::<1>(builtin, args).map(|[arg]| Some(arg)),
-            Builtin::ArrayPop => self.builtin_args::<0>(builtin, args).map(|[]| None),
+            Builtin::ArrayPush0 => self.builtin_args(builtin, args).map(|[]| None),
+            Builtin::ArrayPush => self.builtin_args(builtin, args).map(|[arg]| Some(arg)),
+            Builtin::ArrayPop => self.builtin_args(builtin, args).map(|[]| None),
             _ => unreachable!(),
         };
         let arg = match arg {
