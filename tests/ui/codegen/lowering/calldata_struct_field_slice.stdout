@@ -36,16 +36,12 @@ fn @factory(arg0: memorystruct) -> address {
     v32 = mload 0 !metadata(memory=scratch)
     ret v32
   bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb5:
     v23 = lt 20, 0
     br v23, bb6, bb7
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb7:
     v24 = sub 20, 0
     v25 = add v20, 0
@@ -94,9 +90,7 @@ fn @tailHash(arg0: memorystruct) -> bytes32 {
     v40 = mload 0 !metadata(memory=scratch)
     ret v40
   bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb5:
     v22 = sub v20, 20
     v23 = add v19, 20
@@ -152,16 +146,12 @@ fn @midWord(arg0: memorystruct) -> bytes32 {
     v11 = gt 32, v10
     br v11, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb2:
     v12 = lt 32, 0
     br v12, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb4:
     v13 = sub 32, 0
     v14 = add v9, 0
@@ -351,16 +341,12 @@ fn @factory(arg0: u256) {
     mstore 128, v107
     returndata 128, 32
   bb22:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb23:
     v98 = lt 20, 0
     br v98, bb24, bb25
   bb24:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb25:
     v99 = sub 20, 0
     v100 = add v95, 0
@@ -551,9 +537,7 @@ fn @tailHash(arg0: u256) {
     mstore 128, v115
     returndata 128, 32
   bb22:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb23:
     v97 = sub v95, 20
     v98 = add v94, 20
@@ -750,16 +734,12 @@ fn @midWord(arg0: u256) {
     v86 = gt 32, v85
     br v86, bb19, bb20
   bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb20:
     v87 = lt 32, 0
     br v87, bb21, bb22
   bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb22:
     v88 = sub 32, 0
     v89 = add v84, 0

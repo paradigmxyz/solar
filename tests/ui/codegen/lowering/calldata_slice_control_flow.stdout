@@ -187,9 +187,7 @@ fn @explicitTrim(arg0: calldataslice) {
     mstore 160, v14
     jump bb3
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb7:
     v8 = sub v6, 4
     v9 = add v5, 4
@@ -214,9 +212,7 @@ fn @_explicitTrim(arg0: calldataslice) -> memorybytes {
   bb2:
     ret arg0
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb4:
     v5 = sub v3, 4
     v6 = add v2, 4
@@ -266,9 +262,7 @@ fn @headTail(arg0: calldataslice) {
     mstore v30, v29
     returndata 128, 64
   bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb5:
     v9 = sub v6, v7
     v10 = add v5, v7
@@ -314,9 +308,7 @@ fn @_split(arg0: calldataslice) -> (memorybytes, memorybytes) {
     v11 = lt v9, v10
     jumpi v11, bb1, bb2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb2:
     v12 = sub v9, v10
     v13 = add v8, v10

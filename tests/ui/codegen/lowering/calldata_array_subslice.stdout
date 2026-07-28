@@ -14,9 +14,7 @@ fn @word(arg0: calldataslice) {
     v5 = lt v4, 1
     jumpi v5, bb3, bb4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb4:
     v6 = sub v4, 1
     v7 = mul 1, 32
