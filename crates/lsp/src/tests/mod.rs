@@ -462,6 +462,18 @@ fn document_indexes_reuse_unchanged_files_and_rebuild_reverse_dependencies() {
     assert_eq!(cached_completions(&unchanged.symbol_tables), ["cached", "cachedData"]);
     assert_eq!(receiver_completions(&unchanged.symbol_tables), ["value"]);
 
+    let previous = unchanged.symbol_tables.document_index_snapshot();
+    let mut batches = snapshot(&project).analysis_batches(Vec::new());
+    let forced = analyze_incremental(
+        batches.pop().unwrap(),
+        &previous,
+        &AnalysisChanges { paths: FxHashSet::default(), rebuild_all_document_indexes: true },
+    );
+    assert_eq!(
+        forced.symbol_tables.rebuilt_document_paths(),
+        &FxHashSet::from_iter([a_path.clone(), b_path.clone(), c_path.clone()])
+    );
+
     project.write_file(
         "/B.sol",
         r#"
