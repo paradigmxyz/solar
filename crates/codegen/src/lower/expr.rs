@@ -2672,20 +2672,6 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Checks if an expression is an Index into a nested mapping (e.g., `m[a][b]`).
-    /// Returns true if the expression is a nested mapping access.
-    fn is_nested_mapping_index(&self, expr: &hir::Expr<'_>) -> bool {
-        if let ExprKind::Index(inner_base, _) = &expr.kind {
-            // Check if inner_base is a direct mapping variable access
-            if self.get_mapping_base_slot(inner_base).is_some() {
-                return true;
-            }
-            // Recursively check for deeper nesting
-            return self.is_nested_mapping_index(inner_base);
-        }
-        false
-    }
-
     /// Computes the storage slot for `base[index]` when the base is a mapping
     /// or nested mapping expression. Also reports whether the indexed value is
     /// itself another mapping, in which case callers should forward the slot
@@ -2710,15 +2696,30 @@ impl<'gcx> Lowerer<'gcx> {
             return Some(self.finish_mapping_element_slot(builder, var_id, base_slot, index));
         }
 
-        if self.is_nested_mapping_index(base) {
-            let inner_slot = self.lower_nested_mapping_slot(builder, base);
+        // Mapping field of a storage struct: `lower_lvalue_slot` computes the
+        // field's runtime storage slot.
+        if let Some(var_id) = self.gcx.resolved_variable(base)
+            && matches!(self.gcx.hir.variable(var_id).ty.kind, hir::TypeKind::Mapping(_))
+            && let Some(slot) = self.lower_lvalue_slot(builder, base)
+        {
+            let base_slot = MappingBaseSlot::Value(slot);
+            return Some(self.finish_mapping_element_slot(builder, var_id, base_slot, index));
+        }
+
+        // Nested mapping: recursively compute the preceding mapping element,
+        // then use that hash as the next mapping's base slot.
+        if let ExprKind::Index(inner_base, inner_index) = &base.kind
+            && let Some(inner) =
+                self.lower_mapping_element_slot(builder, inner_base, inner_index.as_deref())
+            && inner.value_is_mapping
+        {
             let index_val = self.lower_index_or_zero(builder, index);
             let key_is_dynamic = self.mapping_level_key_is_dynamic(base);
             let slot = self.compute_mapping_slot_for_index(
                 builder,
                 index,
                 index_val,
-                inner_slot,
+                inner.slot,
                 key_is_dynamic,
             );
             return Some(MappingElementSlot {
@@ -2780,51 +2781,6 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let slot_val = self.locals.get(&var_id).copied()?;
         Some((var_id, slot_val))
-    }
-
-    /// Computes the storage slot for a nested mapping access.
-    /// For `m[a][b]`, this computes: `keccak256(b, keccak256(a, base_slot))`
-    fn lower_nested_mapping_slot(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        expr: &hir::Expr<'_>,
-    ) -> ValueId {
-        if let ExprKind::Index(inner_base, inner_index) = &expr.kind {
-            let key_is_dynamic = self.mapping_level_key_is_dynamic(inner_base);
-
-            // Check if inner_base is the root mapping variable
-            if let Some((_var_id, slot)) = self.get_mapping_base_slot(inner_base) {
-                // Compute the slot for the inner access
-                let inner_index_val = match inner_index {
-                    Some(idx) => self.lower_expr(builder, idx),
-                    None => builder.imm_u64(0),
-                };
-                let slot_val = builder.imm_u64(slot);
-                return self.compute_mapping_slot_for_index(
-                    builder,
-                    inner_index.as_deref(),
-                    inner_index_val,
-                    slot_val,
-                    key_is_dynamic,
-                );
-            }
-
-            // Recursively compute deeper nesting slot
-            let deeper_slot = self.lower_nested_mapping_slot(builder, inner_base);
-            let inner_index_val = match inner_index {
-                Some(idx) => self.lower_expr(builder, idx),
-                None => builder.imm_u64(0),
-            };
-            return self.compute_mapping_slot_for_index(
-                builder,
-                inner_index.as_deref(),
-                inner_index_val,
-                deeper_slot,
-                key_is_dynamic,
-            );
-        }
-        // Should not reach here if is_nested_mapping_index returned true
-        builder.imm_u64(0)
     }
 
     /// Whether the mapping denoted by `base` (the expression being indexed,
