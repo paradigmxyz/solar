@@ -383,8 +383,18 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub codegen: bool,
 
-    /// Force a switch lowering strategy for benchmarking.
-    #[cfg_attr(feature = "clap", arg(long, value_enum, default_value_t))]
+    /// Force a switch lowering strategy for benchmarking (default: `auto`; values: `auto`,
+    /// `linear`, `binary`, `buckets`, `dense`, or `perfect`).
+    #[cfg_attr(
+        feature = "clap",
+        arg(
+            long,
+            value_enum,
+            default_value_t,
+            hide_default_value = true,
+            hide_possible_values = true
+        )
+    )]
     pub switch_lowering: SwitchLowering,
 
     /// Override the artifact-wide bytecode growth budget for gas-optimized switches.

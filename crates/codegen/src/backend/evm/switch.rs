@@ -989,6 +989,50 @@ mod tests {
     }
 
     #[test]
+    fn gates_affine_rotations_by_evm_version() {
+        let even = (0..8).map(|index| U256::from(index * 6)).collect::<Vec<_>>();
+        assert!(affine_hash(&even, EvmVersion::Byzantium).is_none());
+
+        let odd = (0..8).map(|index| U256::from(index * 3)).collect::<Vec<_>>();
+        assert!(matches!(
+            affine_hash(&odd, EvmVersion::Byzantium),
+            Some(PerfectHash::Affine { rotate: 0, .. })
+        ));
+    }
+
+    #[test]
+    fn costs_affine_holes_as_range_sized_tables() {
+        let low = U256::from(1000);
+        let full = (0..32).map(|index| low + U256::from(index * 6)).collect::<Vec<_>>();
+        let holes = [0, 1, 3, 8, 13, 31]
+            .map(|index| low + U256::from(index * 6))
+            .into_iter()
+            .collect::<Vec<_>>();
+        let full_hash = affine_hash(&full, EvmVersion::Cancun).unwrap();
+        let hole_hash = affine_hash(&holes, EvmVersion::Cancun).unwrap();
+        assert_eq!(full_hash, hole_hash);
+
+        let full_cost = affine_lowering_cost(
+            &full,
+            full_hash,
+            EvmVersion::Cancun,
+            SwitchDefault::CleanupJump,
+            2,
+        );
+        let hole_cost = affine_lowering_cost(
+            &holes,
+            hole_hash,
+            EvmVersion::Cancun,
+            SwitchDefault::CleanupJump,
+            2,
+        );
+        assert_eq!(hole_cost.code_size, full_cost.code_size);
+        assert_eq!(hole_cost.max_code_size, full_cost.max_code_size);
+        assert_eq!(hole_cost.hit_gas_sum * full.len(), full_cost.hit_gas_sum * holes.len());
+        assert!(hole_cost.miss_gas > full_cost.miss_gas);
+    }
+
+    #[test]
     fn computes_full_width_odd_inverses() {
         for value in [U256::from(3), U256::from(257), U256::MAX] {
             let inverse = wrapping_inverse_odd(value);

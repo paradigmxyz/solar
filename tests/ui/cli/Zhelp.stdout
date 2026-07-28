@@ -57,10 +57,7 @@ Options:
           Off by default: MIR and EVM IR dumps and bytecode output are only produced when this is set. Codegen is a work in progress and not yet part of the compiler's stable, solc-compatible behavior.
 
       -Zswitch-lowering <SWITCH_LOWERING>
-          Force a switch lowering strategy for benchmarking
-          
-          [default: auto]
-          [possible values: auto, linear, binary, buckets, dense, perfect]
+          Force a switch lowering strategy for benchmarking (default: `auto`; values: `auto`, `linear`, `binary`, `buckets`, `dense`, or `perfect`)
 
       -Zswitch-max-gas-code-growth <SWITCH_MAX_GAS_CODE_GROWTH>
           Override the artifact-wide bytecode growth budget for gas-optimized switches
