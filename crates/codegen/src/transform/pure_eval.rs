@@ -113,12 +113,15 @@ impl PureEvaluator {
 
     fn evaluate(&self, func: &Function) -> Option<Vec<U256>> {
         let mut env = FxHashMap::default();
-        for (value_id, value) in func.values.iter_enumerated() {
-            if let Value::Immediate(imm) = value
+        let mut insert_immediate = |value_id| {
+            if let Value::Immediate(imm) = func.value(value_id)
                 && let Some(value) = imm.as_u256()
             {
                 env.insert(value_id, value);
             }
+        };
+        for value in func.live_values() {
+            insert_immediate(value);
         }
 
         let mut current = BlockId::ENTRY;

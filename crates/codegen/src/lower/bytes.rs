@@ -150,7 +150,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// payload) rather than a `[length][data...]` bytes pointer.
     pub(super) fn value_is_memory_slice(builder: &FunctionBuilder<'_>, value: ValueId) -> bool {
         use crate::mir::{MirType, SliceLocation};
-        matches!(Self::value_mir_type(builder, value), Some(MirType::Slice(SliceLocation::Memory)))
+        matches!(builder.func().value_ty(value), Some(MirType::Slice(SliceLocation::Memory)))
     }
 
     /// Whether a lowered value is a logical calldata slice. A calldata-typed
@@ -159,24 +159,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// pointer.
     pub(super) fn value_is_calldata_slice(builder: &FunctionBuilder<'_>, value: ValueId) -> bool {
         use crate::mir::{MirType, SliceLocation};
-        matches!(
-            Self::value_mir_type(builder, value),
-            Some(MirType::Slice(SliceLocation::Calldata))
-        )
-    }
-
-    /// The MIR type of a lowered value, when it records one.
-    fn value_mir_type(
-        builder: &FunctionBuilder<'_>,
-        value: ValueId,
-    ) -> Option<crate::mir::MirType> {
-        use crate::mir::Value;
-        let func = builder.func();
-        match func.value(value) {
-            Value::Arg { ty, .. } | Value::Undef(ty) => Some(*ty),
-            Value::Inst(inst_id) => func.inst(*inst_id).result_ty,
-            Value::Immediate(_) | Value::Error(_) => None,
-        }
+        matches!(builder.func().value_ty(value), Some(MirType::Slice(SliceLocation::Calldata)))
     }
 
     /// Adapts a logical memory slice to Solidity's `[length][data...]` memory

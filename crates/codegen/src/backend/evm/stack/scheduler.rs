@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     analysis::Liveness,
-    mir::{BlockId, Function, ValueId},
+    mir::{ArgIdx, BlockId, Function, ValueId},
 };
 
 /// Stack scheduler that generates stack manipulation operations.
@@ -34,7 +34,7 @@ pub(crate) enum ScheduledOp {
     LoadSpill(SpillSlot),
     /// Load a function argument from calldata.
     /// Contains the argument index (0-based).
-    LoadArg(u32),
+    LoadArg(ArgIdx),
 }
 
 impl StackScheduler {
@@ -114,7 +114,7 @@ impl StackScheduler {
                     self.stack.push(value);
                 }
             }
-            crate::mir::Value::Arg { index, .. } => {
+            crate::mir::Value::Arg(index) => {
                 // It's a function argument, load from calldata
                 self.ops.push(ScheduledOp::LoadArg(*index));
                 self.stack.push(value);
@@ -145,7 +145,7 @@ impl StackScheduler {
             return true;
         }
         // Check value type
-        matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. })
+        matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_))
     }
 
     /// Records that an instruction consumed its operands and produced a result.

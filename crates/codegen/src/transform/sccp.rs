@@ -101,8 +101,8 @@ struct ValueUsers {
 impl ValueUsers {
     fn new(func: &Function) -> Self {
         let mut inst_blocks = index_vec![BlockId::MAX; func.num_insts()];
-        let mut instructions = index_vec![Vec::new(); func.values.len()];
-        let mut terminators = index_vec![Vec::new(); func.values.len()];
+        let mut instructions = index_vec![Vec::new(); func.num_values()];
+        let mut terminators = index_vec![Vec::new(); func.num_values()];
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 inst_blocks[inst_id] = block_id;
@@ -146,27 +146,30 @@ impl SccpCx {
     fn run(&mut self, func: &mut Function) -> usize {
         self.stats = SccpStats::default();
 
-        let num_values = func.values.len();
+        let num_values = func.num_values();
 
         let users = ValueUsers::new(func);
 
         // Initialize lattice: all values start as Top.
         let mut lattice = index_vec![LatticeValue::Top; num_values];
 
-        // Arguments are overdefined (we don't know their runtime values).
-        for (vid, val) in func.values.iter_enumerated() {
-            match val {
-                Value::Arg { .. } => lattice[vid] = LatticeValue::Bottom,
+        // Initialize non-instruction operands referenced by active MIR.
+        let mut initialize = |value| {
+            match func.value(value) {
+                Value::Arg(_) => lattice[value] = LatticeValue::Bottom,
                 Value::Immediate(imm) => {
                     if let Some(v) = imm.as_u256() {
-                        lattice[vid] = LatticeValue::Constant(v);
+                        lattice[value] = LatticeValue::Constant(v);
                     } else {
-                        lattice[vid] = LatticeValue::Bottom;
+                        lattice[value] = LatticeValue::Bottom;
                     }
                 }
-                Value::Undef(_) | Value::Error(_) => lattice[vid] = LatticeValue::Bottom,
+                Value::Undef(_) | Value::Error(_) => lattice[value] = LatticeValue::Bottom,
                 Value::Inst(_) => {} // stays Top
             }
+        };
+        for value in func.live_values() {
+            initialize(value);
         }
 
         // Track which blocks are executable.
