@@ -1791,9 +1791,10 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Lowering-time inlining duplicates the body at every call site, so it
         // is budgeted by body size; a call site costs a few bytes under the
-        // static-frame protocol, and anything bigger is better shared and left
-        // to the MIR `inline` pass, which budgets against call counts too.
-        let shares_body = !self.should_inline_body(func_id);
+        // static-frame protocol, and anything bigger is better shared. A
+        // dynamic calldata parameter is the exception until logical slices can
+        // cross an internal-frame call.
+        let shares_body = !self.should_inline_body(func_id) && !self.takes_calldata_slice(func);
 
         if func.returns.is_empty() {
             if shares_body || has_storage_ref_param || self.function_is_recursive(func_id) {
@@ -1875,20 +1876,28 @@ impl<'gcx> Lowerer<'gcx> {
     /// multiplies the module before a single pass has run — the shape behind
     /// contracts several times solc's size. Small bodies still inline, where the
     /// call sequence really does cost more than the body.
-    const MAX_INLINE_BODY_STMTS: usize = 24;
+    const MAX_INLINE_BODY_STMTS: usize = 12;
 
     /// Whether lowering should duplicate `func_id`'s body at this call site
     /// rather than emitting a shared `internal_call`.
     ///
-    /// `-O size` never duplicates; `-O gas` duplicates only bodies under
-    /// [`Self::MAX_INLINE_BODY_STMTS`]. Everything else goes through the
-    /// fallback, leaving the decision to the MIR `inline` pass, which budgets
-    /// against call counts and module size.
+    /// `-O size` never duplicates ordinary bodies; `-O gas` duplicates only
+    /// bodies under [`Self::MAX_INLINE_BODY_STMTS`]. Dynamic calldata
+    /// parameters remain inline in either mode because internal frames cannot
+    /// transport their logical slice representation yet.
     fn should_inline_body(&mut self, func_id: hir::FunctionId) -> bool {
         if self.gcx.sess.opts.optimization.is_size() {
             return false;
         }
         self.hir_body_size(func_id) <= Self::MAX_INLINE_BODY_STMTS
+    }
+
+    /// Whether `func` has a dynamic calldata parameter whose logical slice
+    /// representation cannot cross an internal-frame call yet.
+    fn takes_calldata_slice(&self, func: &hir::Function<'_>) -> bool {
+        func.parameters
+            .iter()
+            .any(|&id| Self::calldata_dynamic_var_kind(self.gcx.hir.variable(id)).is_some())
     }
 
     /// The number of statements in `func_id`'s body, counted recursively and
@@ -2574,9 +2583,10 @@ impl<'gcx> Lowerer<'gcx> {
             let has_storage_ref_param =
                 func.parameters.iter().any(|&p| self.param_is_storage_ref(p));
 
-            // Share bodies too large to be worth duplicating at every call
-            // site through a (cheap static-frame) call instead.
-            let shares_body = !self.should_inline_body(func_id);
+            // Share bodies too large to be worth duplicating at every call site
+            // through a cheap static-frame call. Dynamic calldata parameters
+            // remain inline until frames can transport their logical slices.
+            let shares_body = !self.should_inline_body(func_id) && !self.takes_calldata_slice(func);
 
             if func.returns.is_empty() {
                 if shares_body || has_storage_ref_param || self.function_is_recursive(func_id) {
