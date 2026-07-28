@@ -23,8 +23,6 @@ fn @take(arg0: u256, arg1: u256, arg2: u256, arg3: u256) {
     mstore v10, v5
     v11 = memory_object_field_addr memorystruct<3>, v3, 2
     mstore v11, arg3
-    mstore 128, 0
-    mstore 160, 0
     v12 = memory_object_field_addr memorystruct<3>, v3, 1
     v13 = mload v12
     v14 = memory_object_field_addr memorystruct<2>, v13, 1

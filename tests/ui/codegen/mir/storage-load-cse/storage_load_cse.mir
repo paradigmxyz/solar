@@ -1,4 +1,4 @@
-//@compile-flags: --pass storage-load-cse
+//@compile-flags: -Zmir-pipeline=storage-load-cse
 //@filecheck:
 @module StorageLoadCse
 // CHECK-LABEL: {{^[ +].*}}fn @reuse_across_disjoint_constant_store{{[( ]}}

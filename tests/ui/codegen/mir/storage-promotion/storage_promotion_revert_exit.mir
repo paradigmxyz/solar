@@ -1,4 +1,4 @@
-//@compile-flags: --pass storage-promotion
+//@compile-flags: -Zmir-pipeline=storage-promotion
 //@filecheck:
 @module StoragePromotionRevertExit
 // CHECK-LABEL: {{^[ +].*}}fn @promote_checked_sum_loop{{[( ]}}

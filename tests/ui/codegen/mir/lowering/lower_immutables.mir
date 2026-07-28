@@ -1,4 +1,4 @@
-//@ compile-flags: --pass lower-immutables
+//@ compile-flags: -Zmir-pipeline=lower-immutables
 //@ filecheck:
 @module LowerImmutables
 immutables:

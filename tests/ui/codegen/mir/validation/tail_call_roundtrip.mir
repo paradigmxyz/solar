@@ -1,4 +1,4 @@
-//@compile-flags: --pass dce
+//@compile-flags: -Zmir-pipeline=dce
 //@filecheck:
 // `tail_call` round-trips through the text format: control transfers to the
 // callee and does not return, so the case block needs no trailing terminator.

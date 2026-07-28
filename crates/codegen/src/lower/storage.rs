@@ -98,7 +98,8 @@ impl<'gcx> Lowerer<'gcx> {
         ty: Ty<'gcx>,
         slot: ValueId,
     ) {
-        match ty.peel_refs().kind {
+        let ty = ty.peel_refs();
+        match ty.kind {
             TyKind::Struct(struct_id) => {
                 let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
                 let mut storage_offset = 0;
@@ -127,9 +128,13 @@ impl<'gcx> Lowerer<'gcx> {
                 self.copy_memory_bytes_to_storage(builder, slot, empty);
             }
             TyKind::Mapping(..) => {}
-            _ => {
+            TyKind::Err(_) => {}
+            _ if matches!(ty.kind, TyKind::DynArray(_)) || ty.is_value_type() => {
                 let zero = builder.imm_u64(0);
                 builder.sstore(slot, zero);
+            }
+            _ => {
+                self.gcx.dcx().err("codegen cannot clear this storage value").emit();
             }
         }
     }

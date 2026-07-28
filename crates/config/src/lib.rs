@@ -66,7 +66,7 @@ impl CompilerStage {
 }
 
 str_enum! {
-    /// Source code language.
+    /// Compiler input language.
     #[derive(Default)]
     #[derive(strum::EnumIs)]
     #[strum(serialize_all = "lowercase")]
@@ -75,6 +75,15 @@ str_enum! {
         #[default]
         Solidity,
         Yul,
+        Mir,
+        EvmIr,
+    }
+}
+
+impl Language {
+    /// Returns whether this language is parsed as source code.
+    pub const fn is_source(self) -> bool {
+        matches!(self, Self::Solidity | Self::Yul)
     }
 }
 
@@ -107,6 +116,9 @@ str_enum! {
 }
 
 impl EvmVersion {
+    pub fn can_overcharge_gas_for_call(self) -> bool {
+        self >= Self::TangerineWhistle
+    }
     pub fn supports_returndata(self) -> bool {
         self >= Self::Byzantium
     }

@@ -9,7 +9,6 @@ fn @balances(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = mapping_slot arg0, 0
     v4 = sload v3 !metadata(storage=symbolic(v3))
     mstore 128, v4
@@ -39,7 +38,6 @@ fn @allowances(arg0: address, arg1: address) {
   bb5:
     revert 0, 0
   bb6:
-    mstore 128, 0
     v9 = mapping_slot arg0, 1
     v10 = mapping_slot arg1, v9
     v11 = sload v10 !metadata(storage=symbolic(v10))
@@ -137,7 +135,6 @@ fn @get_allowance(arg0: address, arg1: address) {
   bb5:
     revert 0, 0
   bb6:
-    mstore 128, 0
     v9 = mapping_slot arg0, 1
     v10 = mapping_slot arg1, v9
     v11 = sload v10 !metadata(storage=symbolic(v10))

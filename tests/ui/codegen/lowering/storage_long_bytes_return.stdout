@@ -2,7 +2,6 @@
 @module StorageLongBytesReturn
 fn @s() {
   bb0:
-    mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
     internal_call @__ret_bytes, 0, v0
     invalid
@@ -76,7 +75,6 @@ fn @__ret_bytes(arg0: memorybytes) {
 
 fn @b() {
   bb0:
-    mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 1
     internal_call @__ret_bytes, 0, v0
     invalid
@@ -99,7 +97,6 @@ fn @_anonymous() {
 
 fn @getS() {
   bb0:
-    mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 0
     internal_call @__ret_bytes, 0, v0
     invalid
@@ -107,7 +104,6 @@ fn @getS() {
 
 fn @getB() {
   bb0:
-    mstore 128, 0
     v0 = internal_call @__load_storage_bytes, 1, 1
     internal_call @__ret_bytes, 0, v0
     invalid

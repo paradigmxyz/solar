@@ -1,4 +1,4 @@
-//@compile-flags: --pass lower-evm-shaped
+//@compile-flags: -Zmir-pipeline=lower-evm-shaped
 //@filecheck:
 // A resultless internal call to a callee that never returns (no `ret`, no
 // `stop` — it ends in `returndata`) models a returning edge that does not

@@ -23,7 +23,6 @@ fn @hash(arg0: u64, arg1: u64, arg2: bytes32) {
   bb5:
     revert 0, 0
   bb6:
-    mstore 128, 0
     v9 = shl 136, arg0
     v10 = or 0x4d656d6f72793a00000000000000000000000000000000000000000000000000, v9
     v11 = shl 72, arg1

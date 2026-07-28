@@ -1,4 +1,4 @@
-//@compile-flags: --pass load-pre
+//@compile-flags: -Zmir-pipeline=load-pre
 //@filecheck:
 // Kill behavior: a may-aliasing sstore or a call in an arm blocks reuse across
 // that edge; staticcall preserves storage so the join reload reuses the

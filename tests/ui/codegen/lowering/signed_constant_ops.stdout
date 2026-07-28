@@ -2,7 +2,6 @@
 @module SignedConstantOps
 fn @lt() {
   bb0:
-    mstore 128, 0
     v0 = eq 1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jumpi v0, bb1, bb2
   bb1:
@@ -18,7 +17,6 @@ fn @lt() {
 
 fn @div() {
   bb0:
-    mstore 128, 0
     v0 = eq 7, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8
     jumpi v0, bb1, bb2
   bb1:
@@ -49,7 +47,6 @@ fn @div() {
 
 fn @shr() {
   bb0:
-    mstore 128, 0
     v0 = eq 8, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8
     jumpi v0, bb1, bb2
   bb1:

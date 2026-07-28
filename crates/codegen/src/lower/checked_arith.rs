@@ -3,7 +3,7 @@
 use super::Lowerer;
 use crate::mir::{BlockId, FunctionBuilder, TypeSize, ValueId};
 use alloy_primitives::U256;
-use solar_interface::Span;
+use solar_interface::{Span, diagnostics::ErrorGuaranteed};
 use solar_sema::{
     hir::{self, ElementaryType},
     ty::{Ty, TyKind},
@@ -71,13 +71,13 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    pub(super) fn emit_unsupported_udvt_operator(&self, span: Span) {
+    pub(super) fn emit_unsupported_udvt_operator(&self, span: Span) -> ErrorGuaranteed {
         self.gcx
             .dcx()
             .err("user-defined operators are not supported in codegen yet")
             .span(span)
             .help("unwrap the user-defined value type before using this operator")
-            .emit();
+            .emit()
     }
 
     fn require_checked_arithmetic_info(
@@ -109,8 +109,8 @@ impl<'gcx> Lowerer<'gcx> {
         use hir::BinOpKind;
 
         if arithmetic.unsupported_udvt_operator {
-            self.emit_unsupported_udvt_operator(arithmetic.span);
-            return builder.imm_u64(0);
+            let guar = self.emit_unsupported_udvt_operator(arithmetic.span);
+            return builder.error_value(guar);
         }
 
         match op.kind {

@@ -17,13 +17,14 @@
 //!     &mut module,
 //!     &[&dce::Dce],
 //!     None,
+//!     None,
 //! );
 //! ```
 
-pub use crate::pass_manager::{MirPass, run_passes, run_passes_no_validate};
 use crate::{
     analysis::{AliasAnalysis, CfgInfo, MemoryCallSummaries},
     mir::{Function, FunctionId, InstId, MirPhase, Module},
+    pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff},
     transform::{
         adce, cfg_simplify, check_elim, copy_elision, cse, dce, frame_promotion, gvn,
         indvar_simplify, inline, inst_simplify, jump_threading, load_pre, loop_canonicalize,
@@ -40,7 +41,9 @@ use std::{
     sync::Arc,
 };
 
-/// All known MIR passes exposed to `solar mir-opt`.
+pub use crate::pass_manager::{MirPass, pipeline_label, run_passes, run_passes_no_validate};
+
+/// All known MIR passes exposed by `-Zmir-pipeline`.
 pub static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::Inline,
     &inline::SpecializeFunctionPointers,
@@ -212,12 +215,11 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_evm_shaped::LowerEvmShaped,
 ];
 
-/// Runs the canonical MIR pipeline used by EVM codegen.
+/// Runs the configured MIR pipeline, substituting it for the canonical pipeline.
 ///
-/// The optimization prefix advances the module to `MirPhase::Optimized`. The
-/// lowering suffix then advances it as far as the module permits. Modules
-/// already past optimization resume at the lowering suffix. Ad-hoc pass lists
-/// passed to `solar mir-opt` do not advance the phase.
+/// `name` overrides the module name in pass output. The canonical pipeline advances the module
+/// through optimization and lowering. Ad-hoc pass lists passed to `-Zmir-pipeline` do not advance
+/// the optimized phase.
 #[tracing::instrument(
     name = "mir_pipeline",
     level = "debug",
@@ -225,7 +227,30 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     fields(module = %module.name),
 )]
 #[must_use]
-pub fn run_default_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
+    if let Some(value) = gcx.sess.opts.unstable.mir_pipeline.as_deref() {
+        let pipeline = match parse_pass_pipeline(gcx, value, "MIR", lookup_pass) {
+            Ok(pipeline) => pipeline,
+            Err(_) => return false,
+        };
+        if let Some(passes) = pipeline {
+            let name = name.map(ToOwned::to_owned).unwrap_or_else(|| mir_output_name(gcx, module));
+            let mut changed = false;
+            for pass in passes {
+                if let Some(pass) = pass {
+                    changed |= run_passes(gcx, module, &[pass], None, Some(&name));
+                } else if gcx.sess.opts.unstable.pass_diff {
+                    let text = module.to_text();
+                    print_pass_diff(&name, "none", &text, &text);
+                } else if gcx.sess.opts.unstable.print_after_each {
+                    println!("// === {name} (after none) ===");
+                    print!("{}", module.to_text());
+                }
+            }
+            return changed;
+        }
+    }
+
     let lowering_start = DEFAULT_PIPELINE
         .iter()
         .position(|pass| pass.name() == lower_abi::LowerAbi.name())
@@ -233,9 +258,9 @@ pub fn run_default_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bo
     let (optimization_passes, lowering_passes) = DEFAULT_PIPELINE.split_at(lowering_start);
     let mut changed = false;
     if module.phase <= MirPhase::Optimized {
-        changed |= run_passes(gcx, module, optimization_passes, Some(MirPhase::Optimized));
+        changed |= run_passes(gcx, module, optimization_passes, Some(MirPhase::Optimized), None);
     }
-    changed |= run_passes(gcx, module, lowering_passes, None);
+    changed |= run_passes(gcx, module, lowering_passes, None, None);
     changed
 }
 

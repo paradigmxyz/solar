@@ -10,11 +10,11 @@ error: unresolved symbol `Missing`
 LL │     function f(Missing m) external {
    ╰╴               ━━━━━━━
 
-error: codegen does not support this `.push` member call yet
+error: unresolved symbol `missing`
    ╭▸ ROOT/tests/ui/codegen/lowering/member_call_unresolved.sol:LL:CC
    │
-LL │         m.push(1);
-   ╰╴          ━━━━
+LL │         keccak256(missing);
+   ╰╴                  ━━━━━━━
 
 error: aborting due to 3 previous errors
 

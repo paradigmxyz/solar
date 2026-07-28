@@ -1,4 +1,4 @@
-//@compile-flags: --pass pure-eval
+//@compile-flags: -Zmir-pipeline=pure-eval
 //@filecheck:
 @module PureEvalLoop
 // CHECK-LABEL: {{^[ +].*}}fn @bounded_loop{{[( ]}}

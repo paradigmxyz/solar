@@ -1,4 +1,4 @@
-//@compile-flags: --pass dce
+//@compile-flags: -Zmir-pipeline=dce
 @module ValidateImmutables
 immutables:
   invalid: void //~? ERROR: immutable `invalid` cannot use type `void`
