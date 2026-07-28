@@ -60,9 +60,9 @@ enum AnalysisTaskOutcome {
 struct AnalysisCommitState {
     cache_invalidated: bool,
     /// Last version that actually replaced the symbol tables.
-    natspec_symbol_tables_version: usize,
-    natspec_pending_source_changes: FxHashSet<PathBuf>,
-    natspec_context_change_version: usize,
+    symbol_tables_version: usize,
+    pending_source_changes: FxHashSet<PathBuf>,
+    context_change_version: usize,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -280,9 +280,9 @@ impl GlobalState {
                 publish_diagnostic_batches(client, batches);
 
                 commit.cache_invalidated = true;
-                commit.natspec_symbol_tables_version = version;
-                commit.natspec_pending_source_changes.clear();
-                commit.natspec_context_change_version = version;
+                commit.symbol_tables_version = version;
+                commit.pending_source_changes.clear();
+                commit.context_change_version = version;
                 published_analysis_version.send_replace(version);
                 old_symbol_tables
             })
@@ -441,18 +441,18 @@ impl GlobalState {
         context_changed: bool,
     ) {
         if context_changed {
-            commit.natspec_context_change_version = version;
+            commit.context_change_version = version;
         }
-        commit.natspec_pending_source_changes.extend(changed_paths);
+        commit.pending_source_changes.extend(changed_paths);
         self.analysis_version.store(version, Ordering::Release);
     }
 
     fn pending_analysis_changes(&self) -> AnalysisChanges {
         let commit = self.analysis_commit.lock();
         AnalysisChanges {
-            paths: commit.natspec_pending_source_changes.clone(),
-            rebuild_all_document_indexes: commit.natspec_context_change_version
-                > commit.natspec_symbol_tables_version,
+            paths: commit.pending_source_changes.clone(),
+            rebuild_all_document_indexes: commit.context_change_version
+                > commit.symbol_tables_version,
         }
     }
 
@@ -495,9 +495,9 @@ impl GlobalState {
             let commit = self.analysis_commit.lock();
             (
                 self.analysis_version.load(Ordering::Acquire),
-                commit.natspec_symbol_tables_version,
-                commit.natspec_context_change_version,
-                commit.natspec_pending_source_changes.iter().cloned().collect::<Vec<_>>(),
+                commit.symbol_tables_version,
+                commit.context_change_version,
+                commit.pending_source_changes.iter().cloned().collect::<Vec<_>>(),
             )
         };
         if symbol_tables_version >= analysis_version {
@@ -789,7 +789,7 @@ fn handle_analysis_failure(
 
     tracing::warn!(%error, version, "analysis task failed");
     commit.cache_invalidated = true;
-    commit.natspec_context_change_version = commit.natspec_context_change_version.max(version);
+    commit.context_change_version = commit.context_change_version.max(version);
     published_analysis_version.send_replace(version);
     true
 }
@@ -938,8 +938,8 @@ impl GlobalStateSnapshot {
                 result.symbol_tables.reuse_unchanged_document_indexes(&symbol_tables);
                 mem::replace(&mut *symbol_tables, result.symbol_tables)
             };
-            commit.natspec_symbol_tables_version = version;
-            commit.natspec_pending_source_changes.clear();
+            commit.symbol_tables_version = version;
+            commit.pending_source_changes.clear();
             let batches = self
                 .diagnostics
                 .write()

@@ -796,7 +796,7 @@ fn assert_source_notification_tracks_until_publish(
 
         notify(&mut state);
 
-        assert!(state.analysis_commit.lock().natspec_pending_source_changes.contains(path));
+        assert!(state.analysis_commit.lock().pending_source_changes.contains(path));
         let changed_uri = Url::from_file_path(path).unwrap();
         let other_uri = Url::from_file_path(project.path("/OtherRequest.sol")).unwrap();
         assert!(state.natspec_semantics_are_usable(&changed_uri));
@@ -807,7 +807,7 @@ fn assert_source_notification_tracks_until_publish(
             .await
             .expect("source analysis should finish")
             .unwrap();
-        assert!(state.analysis_commit.lock().natspec_pending_source_changes.is_empty());
+        assert!(state.analysis_commit.lock().pending_source_changes.is_empty());
         assert!(state.natspec_semantics_are_usable(&other_uri));
     });
 }
@@ -1700,9 +1700,7 @@ fn did_change_tracks_the_request_source_until_analysis_publishes() {
         );
 
         assert!(matches!(result, ControlFlow::Continue(())));
-        assert!(
-            state.analysis_commit.lock().natspec_pending_source_changes.contains(&request_path)
-        );
+        assert!(state.analysis_commit.lock().pending_source_changes.contains(&request_path));
         assert!(state.natspec_semantics_are_usable(&request_uri));
         assert!(!state.natspec_semantics_are_usable(&other_uri));
 
@@ -1716,7 +1714,7 @@ fn did_change_tracks_the_request_source_until_analysis_publishes() {
         assert!(tables.workspace_symbols("Before").is_empty());
         assert!(tables.workspace_symbols("After").iter().any(|symbol| symbol.name == "After"));
         drop(tables);
-        assert!(state.analysis_commit.lock().natspec_pending_source_changes.is_empty());
+        assert!(state.analysis_commit.lock().pending_source_changes.is_empty());
         assert!(state.natspec_semantics_are_usable(&other_uri));
     });
 }
@@ -1895,17 +1893,13 @@ fn publishing_current_epoch_clears_pending_source_changes() {
     let mut snapshot = snapshot(&project);
     let first_path = project.path("/First.sol");
     let second_path = project.path("/Second.sol");
-    snapshot
-        .analysis_commit
-        .lock()
-        .natspec_pending_source_changes
-        .extend([first_path, second_path]);
+    snapshot.analysis_commit.lock().pending_source_changes.extend([first_path, second_path]);
 
     assert!(snapshot.publish_symbol_tables(1, SymbolTables::default()));
 
     let commit = snapshot.analysis_commit.lock();
-    assert_eq!(commit.natspec_symbol_tables_version, 1);
-    assert!(commit.natspec_pending_source_changes.is_empty());
+    assert_eq!(commit.symbol_tables_version, 1);
+    assert!(commit.pending_source_changes.is_empty());
 }
 
 #[test]
