@@ -5,10 +5,10 @@ bb0:
   push 0x4000
   push 64
   mstore
-  push 480
+  push 459
   codesize
   sub
-  push 480
+  push 459
   push 128
   codecopy
   push 128
@@ -16,88 +16,96 @@ bb0:
   dup1
   push 0x87d912cb
   gt
-  push bb5
+  push bb6
   jumpi
   dup1
-  push 0x87d912cb
+  push 0x920f5c73
+  gt
+  push bb3
+  jumpi
+  dup1
+  push 0x920f5c73
   sub
   push bb1
   jumpi
   pop
-  push 301
-  jump bb18
-bb18:
+  push 302
+  jump bb19
+bb19:
   push 0
   sstore
-  jump bb17
-bb17:
-  push 304
+  jump bb18
+bb18:
+  push 268
   dup1
-  push 176
+  push 191
   push 0
   codecopy
   push 0
   return
 bb1:
   dup1
-  push 0x905f7d67
+  push 0xcbf99d38
   sub
   push bb2
   jumpi
   pop
-  push 305
-  jump bb18
+  push 300
+  jump bb19
 bb2:
-  dup1
-  push 0x920f5c73
-  sub
-  push bb3
-  jumpi
   pop
-  push 302
   jump bb18
 bb3:
   dup1
-  push 0xcbf99d38
+  push 0x87d912cb
   sub
   push bb4
   jumpi
   pop
-  push 300
-  jump bb18
+  push 301
+  jump bb19
 bb4:
-  pop
-  jump bb17
-bb5:
   dup1
-  push 0x3b88f6c2
+  push 0x905f7d67
   sub
-  push bb6
+  push bb5
   jumpi
   pop
-  push 306
+  push 305
+  jump bb19
+bb5:
+  pop
   jump bb18
 bb6:
   dup1
-  push 0x41052a0d
+  push 0x3b88f6c2
   sub
   push bb7
   jumpi
   pop
-  push 303
-  jump bb18
+  push 306
+  jump bb19
 bb7:
   dup1
-  push 0x7238232f
+  push 0x41052a0d
   sub
   push bb8
   jumpi
   pop
-  push 304
-  jump bb18
+  push 303
+  jump bb19
 bb8:
+  dup1
+  push 0x7238232f
+  sub
+  push bb9
+  jumpi
   pop
-  jump bb17
+  push 304
+  jump bb19
+bb9:
+  pop
+  jump bb18
 
 // === runtime ===
 @module runtime
@@ -134,18 +142,21 @@ bb0:
   dup1
   push 15
   and
-  indexed_jump bb33, bb34, bb35, bb36, bb37, bb38, bb39, bb40, bb41, bb42, bb43, bb44, bb45, bb46, bb47, bb48
+  indexed_jump bb18, bb19, bb20, bb21, bb22, bb23, bb24, bb25, bb26, bb27, bb28, bb29, bb30, bb31, bb32, bb33
 bb4 [cold]:
   push 0
   dup1
   revert
 bb7:
+  dup1
+  push 0x3b88f6c2
+  sub
+  push bb14
+  jumpi
   pop
-  jump bb31
-bb31:
-  push 999
-  jump bb32
-bb32:
+  push 306
+  jump bb17
+bb17:
   push 128
   mstore
   push 128
@@ -157,117 +168,91 @@ bb32:
   return
 bb8:
   dup1
-  push 0x3b88f6c2
-  sub
-  push bb9
-  jumpi
-  pop
-  push 306
-  jump bb32
-bb9:
-  pop
-  jump bb31
-bb10:
-  dup1
   push 0x920f5c73
   sub
-  push bb11
+  push bb14
   jumpi
   pop
   push 302
-  jump bb32
-bb11:
-  pop
-  jump bb31
-bb12:
+  jump bb17
+bb9:
   dup1
   push 0x905f7d67
   sub
-  push bb13
+  push bb14
   jumpi
   pop
   push 305
-  jump bb32
-bb13:
-  pop
-  jump bb31
-bb14:
+  jump bb17
+bb10:
   dup1
   push 0xcbf99d38
   sub
-  push bb15
+  push bb14
   jumpi
   pop
   push 300
-  jump bb32
-bb15:
-  pop
-  jump bb31
-bb16:
+  jump bb17
+bb11:
   dup1
   push 0x87d912cb
   sub
-  push bb17
+  push bb14
   jumpi
   pop
   push 301
-  jump bb32
-bb17:
-  pop
-  jump bb31
-bb18:
+  jump bb17
+bb12:
   dup1
   push 0x41052a0d
   sub
-  push bb19
+  push bb14
   jumpi
   pop
   push 303
-  jump bb32
-bb19:
-  pop
-  jump bb31
-bb20:
+  jump bb17
+bb13:
   dup1
   push 0x7238232f
   sub
-  push bb21
+  push bb14
   jumpi
   pop
   push 304
-  jump bb32
-bb21:
+  jump bb17
+bb14:
   pop
-  jump bb31
-bb33:
-  jump bb7
-bb34:
-  jump bb7
-bb35:
-  jump bb8
-bb36:
-  jump bb10
-bb37:
-  jump bb7
-bb38:
-  jump bb7
-bb39:
-  jump bb7
-bb40:
-  jump bb12
-bb41:
+  push 999
+  jump bb17
+bb18:
   jump bb14
-bb42:
+bb19:
+  jump bb14
+bb20:
   jump bb7
-bb43:
-  jump bb7
-bb44:
-  jump bb16
-bb45:
-  jump bb7
-bb46:
-  jump bb18
-bb47:
-  jump bb7
-bb48:
-  jump bb20
+bb21:
+  jump bb8
+bb22:
+  jump bb14
+bb23:
+  jump bb14
+bb24:
+  jump bb14
+bb25:
+  jump bb9
+bb26:
+  jump bb10
+bb27:
+  jump bb14
+bb28:
+  jump bb14
+bb29:
+  jump bb11
+bb30:
+  jump bb14
+bb31:
+  jump bb12
+bb32:
+  jump bb14
+bb33:
+  jump bb13

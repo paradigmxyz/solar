@@ -62,6 +62,9 @@ Options:
       -Zswitch-max-gas-code-growth <SWITCH_MAX_GAS_CODE_GROWTH>
           Override the artifact-wide bytecode growth budget for gas-optimized switches
 
+      -Zswitch-max-bit-slice-gas-code-growth <SWITCH_MAX_BIT_SLICE_GAS_CODE_GROWTH>
+          Override the per-switch bit-slice table growth limit for benchmarking
+
       -Zhelp
           Print help
 

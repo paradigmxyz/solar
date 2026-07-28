@@ -27,6 +27,9 @@ const MAX_BUCKET_CASES: usize = 64;
 const MAX_PERFECT_BIT_TABLE_SIZE: usize = 256;
 const MAX_DENSE_RANGE: usize = 4096;
 const MAX_BUCKET_CANDIDATES: usize = 33;
+// Guarded bit-slice tables trade predictable hit depth for more code. Keep
+// their individual gas-mode growth conservative under unknown case frequencies.
+pub(super) const MAX_BIT_SLICE_GAS_CODE_GROWTH: usize = 64;
 /// Bounds cumulative bytecode growth per artifact under the runtime-gas objective.
 ///
 /// Keep this a round policy limit rather than fitting it to a corpus transition.
@@ -71,6 +74,7 @@ pub(super) struct SwitchPlanOptions {
     pub(super) default: SwitchDefault,
     pub(super) table_target_width: usize,
     pub(super) max_gas_code_growth: usize,
+    pub(super) max_bit_slice_gas_code_growth: usize,
     pub(super) forced: SwitchLowering,
 }
 
@@ -182,6 +186,7 @@ pub(super) fn select_switch_plan_with_budget(
             default,
             table_target_width,
             max_gas_code_growth,
+            max_bit_slice_gas_code_growth: MAX_BIT_SLICE_GAS_CODE_GROWTH,
             forced: SwitchLowering::Auto,
         },
     )
@@ -199,6 +204,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         default,
         table_target_width,
         max_gas_code_growth,
+        max_bit_slice_gas_code_growth,
         forced,
     } = options;
     debug_assert!(values.windows(2).all(|values| values[0] < values[1]));
@@ -319,7 +325,17 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
     }
     for (cost, plan) in perfect_hash_candidates(values, evm_version, default, table_target_width) {
         let better = match optimization {
-            OptimizationMode::Gas => cost.is_better_for_gas_than(best.0, max_gas_code_size),
+            OptimizationMode::Gas => {
+                let max_code_size =
+                    if matches!(plan, SwitchPlan::Perfect { hash: PerfectHash::BitSlice { .. } }) {
+                        linear_cost
+                            .code_size
+                            .saturating_add(max_gas_code_growth.min(max_bit_slice_gas_code_growth))
+                    } else {
+                        max_gas_code_size
+                    };
+                cost.is_better_for_gas_than(best.0, max_code_size)
+            }
             OptimizationMode::Size => cost.size_key() < best.0.size_key(),
             _ => false,
         };
@@ -663,6 +679,7 @@ fn bit_slice_lowering_cost(
         miss_gas: dispatch_gas,
     };
 
+    let shared_miss = default.needs_value_cleanup();
     for &value in values {
         let test = equality_test_cost(
             value,
@@ -670,15 +687,17 @@ fn bit_slice_lowering_cost(
             table_target_width,
             default.needs_value_cleanup(),
         );
-        cost.code_size += JUMPDEST_LEN + test.code_size + default.code_size(evm_version);
-        cost.max_code_size += JUMPDEST_LEN
-            + test.max_code_size
-            + default.max_code_size(evm_version, table_target_width);
+        cost.code_size += JUMPDEST_LEN + test.code_size - usize::from(shared_miss) * JUMPDEST_LEN;
+        cost.max_code_size +=
+            JUMPDEST_LEN + test.max_code_size - usize::from(shared_miss) * JUMPDEST_LEN;
+        if !shared_miss {
+            cost.code_size += default.code_size(evm_version);
+            cost.max_code_size += default.max_code_size(evm_version, table_target_width);
+        }
         cost.hit_gas_sum += test.hit_gas;
         cost.miss_gas = cost.miss_gas.max(dispatch_gas + test.miss_gas + default.gas(evm_version));
     }
-    if default.needs_value_cleanup() && table_size > values.len() {
-        let default = default.without_fallthrough();
+    if shared_miss {
         cost.code_size += JUMPDEST_LEN + default.code_size(evm_version);
         cost.max_code_size += JUMPDEST_LEN + default.max_code_size(evm_version, table_target_width);
         cost.miss_gas = cost.miss_gas.max(dispatch_gas + default.gas(evm_version));
@@ -929,6 +948,7 @@ mod tests {
                     default: SwitchDefault::CleanupJump,
                     table_target_width: 2,
                     max_gas_code_growth: MAX_GAS_CODE_GROWTH,
+                    max_bit_slice_gas_code_growth: MAX_BIT_SLICE_GAS_CODE_GROWTH,
                     forced,
                 },
             )
@@ -952,6 +972,89 @@ mod tests {
             plan,
             SwitchPlan::Perfect { hash: PerfectHash::BitSlice { shift: 0, mask: 15 } }
         )));
+    }
+
+    #[test]
+    fn shares_internal_bit_slice_misses() {
+        let values =
+            (0..16).map(|value| U256::from(value * value * 256 + value)).collect::<Vec<_>>();
+        let hash = PerfectHash::BitSlice { shift: 0, mask: 15 };
+        let cleanup = bit_slice_lowering_cost(
+            &values,
+            hash,
+            EvmVersion::Cancun,
+            SwitchDefault::CleanupJump,
+            2,
+        );
+        let entry =
+            bit_slice_lowering_cost(&values, hash, EvmVersion::Cancun, SwitchDefault::Jump, 2);
+        assert_eq!(cleanup.code_size, entry.code_size + values.len() * 2 + 5);
+        assert_eq!(cleanup.max_code_size, entry.max_code_size + values.len() * 2 + 6);
+        assert_eq!(cleanup.hit_gas_sum, entry.hit_gas_sum + values.len() * 16);
+        assert_eq!(cleanup.miss_gas, entry.miss_gas + 6);
+    }
+
+    #[test]
+    fn caps_bit_slice_growth_independently() {
+        let values =
+            (0..32).map(|value| U256::from(value * value * 256 + value)).collect::<Vec<_>>();
+        assert!(
+            perfect_hash_candidates(&values, EvmVersion::Cancun, SwitchDefault::CleanupJump, 2,)
+                .iter()
+                .any(|(_, plan)| matches!(
+                    plan,
+                    SwitchPlan::Perfect { hash: PerfectHash::BitSlice { .. } }
+                ))
+        );
+        assert!(!matches!(
+            select_switch_plan_with_budget(
+                &values,
+                OptimizationMode::Gas,
+                EvmVersion::Cancun,
+                SwitchDefault::CleanupJump,
+                2,
+                usize::MAX,
+            )
+            .plan,
+            SwitchPlan::Perfect { hash: PerfectHash::BitSlice { .. } }
+        ));
+
+        let fixture =
+            [0xcbf99d38u64, 0x87d912cb, 0x920f5c73, 0x41052a0d, 0x7238232f, 0x905f7d67, 0x3b88f6c2]
+                .map(U256::from);
+        let mut sorted = fixture;
+        sorted.sort_unstable();
+        let forced = select_switch_plan_with_linear_values_and_budget(
+            &sorted,
+            &fixture,
+            SwitchPlanOptions {
+                optimization: OptimizationMode::Gas,
+                evm_version: EvmVersion::Cancun,
+                default: SwitchDefault::CleanupJump,
+                table_target_width: 2,
+                max_gas_code_growth: usize::MAX,
+                max_bit_slice_gas_code_growth: MAX_BIT_SLICE_GAS_CODE_GROWTH,
+                forced: SwitchLowering::Perfect,
+            },
+        );
+        assert_eq!(forced.gas_code_growth, 108);
+        assert!(matches!(
+            select_switch_plan_with_linear_values_and_budget(
+                &sorted,
+                &fixture,
+                SwitchPlanOptions {
+                    optimization: OptimizationMode::Gas,
+                    evm_version: EvmVersion::Cancun,
+                    default: SwitchDefault::CleanupJump,
+                    table_target_width: 2,
+                    max_gas_code_growth: MAX_GAS_CODE_GROWTH,
+                    max_bit_slice_gas_code_growth: forced.gas_code_growth,
+                    forced: SwitchLowering::Auto,
+                },
+            )
+            .plan,
+            SwitchPlan::Perfect { hash: PerfectHash::BitSlice { .. } }
+        ));
     }
 
     #[test]
@@ -1067,6 +1170,7 @@ mod tests {
                 default: SwitchDefault::CleanupJump,
                 table_target_width: 2,
                 max_gas_code_growth: MAX_GAS_CODE_GROWTH,
+                max_bit_slice_gas_code_growth: MAX_BIT_SLICE_GAS_CODE_GROWTH,
                 forced: SwitchLowering::Binary,
             },
         );

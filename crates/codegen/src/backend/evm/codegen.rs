@@ -15,8 +15,8 @@ use super::{
         MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
     },
     switch::{
-        MAX_GAS_CODE_GROWTH, PerfectHash, SwitchDefault, SwitchPlan, SwitchPlanOptions,
-        SwitchSelection, affine_index, bit_slice_index, bucket_index,
+        MAX_BIT_SLICE_GAS_CODE_GROWTH, MAX_GAS_CODE_GROWTH, PerfectHash, SwitchDefault, SwitchPlan,
+        SwitchPlanOptions, SwitchSelection, affine_index, bit_slice_index, bucket_index,
         select_switch_plan_with_linear_values_and_budget,
     },
 };
@@ -5251,15 +5251,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             assert!(slot.replace(entry).is_none(), "perfect switch hash must not collide");
         }
         let default_label = self.block_labels[&default];
-        let empty_label = (!self.emitting_entry && slots.iter().any(Option::is_none))
-            .then(|| self.asm.new_label());
+        let miss_label = (!self.emitting_entry).then(|| self.asm.new_label());
         let slot_labels = slots
             .iter()
             .map(|slot| {
                 if slot.is_some() {
                     self.asm.new_label()
                 } else {
-                    empty_label.unwrap_or(default_label)
+                    miss_label.unwrap_or(default_label)
                 }
             })
             .collect::<Vec<_>>();
@@ -5280,18 +5279,26 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.stack.pop();
 
         let entry_stack = self.scheduler.stack.clone();
-        if let Some(empty_label) = empty_label {
-            self.asm.define_label(empty_label);
-            self.scheduler.stack = entry_stack.clone();
-            self.emit_mir_switch_default(default, false);
-        }
         let last_slot = slots.iter().rposition(Option::is_some).unwrap();
         for (index, (label, entry)) in slot_labels.into_iter().zip(slots).enumerate() {
             let Some(entry) = entry else { continue };
             self.asm.define_label(label);
             self.scheduler.stack = entry_stack.clone();
-            self.emit_mir_switch_eq_jump(func, entry.value_id, Some(entry.value), entry.target);
-            self.emit_mir_switch_default(default, can_fallthrough && index == last_slot);
+            self.emit_mir_switch_eq_jump_with_miss(
+                func,
+                entry.value_id,
+                Some(entry.value),
+                entry.target,
+                miss_label,
+            );
+            if miss_label.is_none() {
+                self.emit_mir_switch_default(default, can_fallthrough && index == last_slot);
+            }
+        }
+        if let Some(miss_label) = miss_label {
+            self.asm.define_label(miss_label);
+            self.scheduler.stack = entry_stack;
+            self.emit_mir_switch_default(default, can_fallthrough);
         }
     }
 
@@ -5370,6 +5377,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         value: Option<U256>,
         target: BlockId,
     ) {
+        self.emit_mir_switch_eq_jump_with_miss(func, value_id, value, target, None);
+    }
+
+    fn emit_mir_switch_eq_jump_with_miss(
+        &mut self,
+        func: &Function,
+        value_id: ValueId,
+        value: Option<U256>,
+        target: BlockId,
+        miss: Option<Label>,
+    ) {
         self.asm.emit_op(op::DUP1);
         self.scheduler.stack.dup(1);
         if value.is_some_and(|value| value.is_zero())
@@ -5389,7 +5407,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else {
             self.asm.emit_op(op::ISZERO);
             self.scheduler.instruction_executed_untracked(1);
-            let next = self.asm.new_label();
+            let next = miss.unwrap_or_else(|| self.asm.new_label());
             self.asm.emit_push_label(next);
             self.asm.emit_op(op::JUMPI);
             self.scheduler.instruction_executed(1, None);
@@ -5400,8 +5418,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_push_label(self.block_labels[&target]);
             self.asm.emit_op(op::JUMP);
 
-            self.asm.define_label(next);
-            self.scheduler.stack = next_stack;
+            if miss.is_none() {
+                self.asm.define_label(next);
+                self.scheduler.stack = next_stack;
+            }
         }
     }
 
@@ -5557,6 +5577,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 default,
                                 table_target_width: self.switch_table_target_width(),
                                 max_gas_code_growth: self.switch_gas_code_growth_remaining,
+                                max_bit_slice_gas_code_growth: self
+                                    .gcx
+                                    .sess
+                                    .opts
+                                    .unstable
+                                    .switch_max_bit_slice_gas_code_growth
+                                    .unwrap_or(MAX_BIT_SLICE_GAS_CODE_GROWTH),
                                 forced: self.gcx.sess.opts.unstable.switch_lowering,
                             },
                         )

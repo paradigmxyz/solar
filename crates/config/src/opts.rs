@@ -401,6 +401,10 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub switch_max_gas_code_growth: Option<usize>,
 
+    /// Override the per-switch bit-slice table growth limit for benchmarking.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub switch_max_bit_slice_gas_code_growth: Option<usize>,
+
     // ----------------------------------------
     // Please add new options above this point!
     // ----------------------------------------

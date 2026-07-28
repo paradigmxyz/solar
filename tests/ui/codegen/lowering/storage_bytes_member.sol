@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zdump=evm-ir-runtime
+//@compile-flags: -Zcodegen -Zdump=evm-ir-runtime -Zswitch-lowering=perfect
 //@ filecheck:
 
 // A `bytes` struct field reached through a storage reference bound from a
