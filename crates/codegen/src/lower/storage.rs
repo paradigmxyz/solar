@@ -585,7 +585,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Copies a memory fixed-size array to consecutive storage slots.
-    fn copy_memory_fixed_array_to_storage(
+    pub(super) fn copy_memory_fixed_array_to_storage(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         slot: ValueId,

@@ -1624,26 +1624,40 @@ impl<'gcx> Lowerer<'gcx> {
                         self.store_immutable_value(builder, offset, rhs);
                     } else if let Some(&location) = self.storage_locations.get(&var_id) {
                         let base_slot = location.slot;
-                        // Check if this is a struct assignment (memory struct -> storage struct)
-                        if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind
-                        {
-                            // Recursively copy all fields (handles nested structs)
-                            self.copy_memory_to_storage(builder, *struct_id, base_slot, rhs, 0);
-                        } else if matches!(
-                            var.ty.kind,
-                            hir::TypeKind::Elementary(
-                                hir::ElementaryType::String | hir::ElementaryType::Bytes
-                            )
-                        ) {
-                            // `string`/`bytes` state variable: `rhs` is a memory
-                            // `[length][data...]` pointer; encode it into the
-                            // short/long storage form instead of storing the
-                            // pointer word.
-                            let slot_val = builder.imm_u256(base_slot);
-                            self.copy_memory_bytes_to_storage(builder, slot_val, rhs);
-                        } else {
-                            // Simple scalar storage assignment
-                            self.store_storage_location(builder, location, rhs);
+                        let ty = self.gcx.type_of_hir_ty(&var.ty).peel_refs();
+                        match ty.kind {
+                            TyKind::Struct(struct_id) => {
+                                // Recursively copy all fields (handles nested structs).
+                                self.copy_memory_to_storage(builder, struct_id, base_slot, rhs, 0);
+                            }
+                            TyKind::Elementary(
+                                hir::ElementaryType::String | hir::ElementaryType::Bytes,
+                            ) => {
+                                // `string`/`bytes` state variable: `rhs` is a memory
+                                // `[length][data...]` pointer; encode it into the
+                                // short/long storage form instead of storing the
+                                // pointer word.
+                                let slot = builder.imm_u256(base_slot);
+                                self.copy_memory_bytes_to_storage(builder, slot, rhs);
+                            }
+                            TyKind::DynArray(elem) => {
+                                let slot = builder.imm_u256(base_slot);
+                                self.copy_memory_dyn_array_to_storage(builder, slot, rhs, elem);
+                            }
+                            TyKind::Array(elem, len) => {
+                                let slot = builder.imm_u256(base_slot);
+                                self.copy_memory_fixed_array_to_storage(
+                                    builder,
+                                    slot,
+                                    rhs,
+                                    elem,
+                                    len.to(),
+                                );
+                            }
+                            _ => {
+                                // Simple scalar storage assignment.
+                                self.store_storage_location(builder, location, rhs);
+                            }
                         }
                     }
                 }
