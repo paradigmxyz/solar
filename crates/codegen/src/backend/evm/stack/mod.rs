@@ -23,8 +23,9 @@
 //!   value or an anonymous word produced by low-level code.
 //! - [`scheduler`] prepares the ordered operands for one instruction. It can consume dead values in
 //!   place, preserve live values, duplicate or swap accessible values, and rematerialize
-//!   immediates, arguments, or stored spills. Plans are replayable and are applied to the model
-//!   only when chosen.
+//!   immediates, arguments, or stored spills. Under size optimization, equal immediate operands
+//!   share one backend value identity. Plans are replayable and are applied to the model only when
+//!   chosen.
 //! - [`shuffler`] canonicalizes complete layouts on selected CFG edges. Layouts of up to four words
 //!   compare nontrivial greedy sequences with bounded shortest-action search and accept only Pareto
 //!   improvements in action count and static gas; larger layouts use the verified greedy result and
@@ -85,6 +86,11 @@
 //! values stack-resident; importing either whole allocator would require a separate machine IR and
 //! a different calling and memory model. Fe delegates EVM code generation to Sonatina through its
 //! [Sonatina integration], so it does not add another stack scheduler to adapt.
+//! The [LLVM EVM stack solver] used by solx always rematerializes zero and small literals, but
+//! retains a sufficiently wide literal when another use remains in the machine block. Its
+//! whole-function backward propagation, iterative spilling, and register allocation are not a fit
+//! for this direct MIR lowering. We benchmarked analogous cross-instruction retention, but it added
+//! no size win beyond equal-immediate canonicalization and regressed gas, so it is not enabled.
 //!
 //! Cross-block spill-slot coloring follows the same live-range reuse principle as LLVM's
 //! [stack-slot coloring], which is part of the pipeline used by the [solx LLVM EVM target]. Our
@@ -111,6 +117,7 @@
 //! [stack-slot coloring]: https://github.com/NomicFoundation/solx-llvm/blob/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/CodeGen/StackSlotColoring.cpp
 //! [solx LLVM EVM target]: https://github.com/NomicFoundation/solx-llvm/tree/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/Target/EVM
 //! [unused stack slots]: https://github.com/NomicFoundation/solx-llvm/blob/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/Target/EVM/EVMStackSolver.cpp
+//! [LLVM EVM stack solver]: https://github.com/NomicFoundation/solx-llvm/blob/c7d7ec5b23366238d6201a6672c25eeee79bdcf1/llvm/lib/Target/EVM/EVMStackSolver.cpp
 //!
 //! ## Operand planning
 //!
@@ -122,7 +129,10 @@
 //! operation must retain its sole resident operand while materializing the
 //! other. Gas mode also uses verified one-action and unary fast paths. Longer
 //! unambiguous plans use a deterministic walk only when its cost reaches the
-//! admissible lower bound; ambiguous layouts use bounded A*. These are tiers of
+//! admissible lower bound; ambiguous layouts use bounded A*. Before A*, a required value with no
+//! reload route below `SWAP16` sends control directly to the spilling fallback. The search stores
+//! parent links instead of cloned action histories and independently caps expansions, created
+//! states, visited states, the open frontier, and estimated retained bytes. These are tiers of
 //! the same planner, not sequential optimizers: every accepted result satisfies
 //! the same exact goal and cost ordering, and a tier that cannot prove its
 //! result falls through without mutating the stack.
@@ -131,9 +141,11 @@
 //! present, every preserved operand still has a copy below it, and no dead
 //! operand copy remains below it. The final condition prevents a locally cheap
 //! rematerialization such as `PUSH0` from deferring a more expensive cleanup
-//! until immediately after the instruction. Debug builds replay every accepted
-//! tier against that complete goal; exhaustive small-layout tests compare the
-//! selected plan with a reference Dijkstra search under the full cost order.
+//! until immediately after the instruction. Every build replays an accepted
+//! tier against that complete goal and falls back if validation fails. Exhaustive
+//! small-layout tests compare the selected plan with a reference Dijkstra search
+//! under the full cost order and separately check that the heuristic never
+//! exceeds exact remaining cost when anonymous slots are present.
 //!
 //! Size mode deliberately keeps the established deterministic/A* path after
 //! the exact-prefix and linear proofs. A local one-action or unary plan can tie
@@ -157,6 +169,11 @@
 //! memory are not duplicated preemptively. `-O none` bypasses the planner and
 //! retains the straightforward emission path.
 //!
+//! Active equal immediates are canonicalized immediately before EVM lowering so `DUP` decisions
+//! see physical word reuse instead of allocation accidents in MIR. This runs only under size
+//! optimization; gas-mode canonicalization regressed runtime gas and is deliberately not enabled.
+//! Immediates remain rematerializable and never own spill slots.
+//!
 //! Binary lowering may also plan an equivalent reversed operand order. This
 //! covers commutative instructions and comparison pairs such as `LT`/`GT`; the
 //! cheaper complete plan wins. A free first orientation is already unbeatable,
@@ -171,6 +188,8 @@
 //! emitter. Complete edge shuffles require an exact final layout; lowering checks
 //! that an edge is preparable before committing it and treats a later shuffle
 //! failure as an internal invariant violation.
+//! The edge shuffler stops adding states at its cap but drains states that were already queued, so
+//! reaching the cap cannot hide an already-discovered target.
 //!
 //! The local planner is currently used only when operand identities remain
 //! stable during preparation. Memory stores and copies, contract creation, and

@@ -186,8 +186,8 @@ impl<'gcx> TypeChecker<'gcx> {
         &mut self,
         expr: &'gcx hir::Expr<'gcx>,
     ) -> (Ty<'gcx>, Option<hir::Res>) {
-        if let hir::ExprKind::Ident(res) = expr.kind {
-            let res = self.resolve_overloads(res, expr.span);
+        if let hir::ExprKind::Ident(resolutions) = expr.kind {
+            let res = self.resolve_value(expr, resolutions);
             if let Some(reason) = self.res_not_lvalue_reason(res) {
                 self.try_set_not_lvalue(reason);
             }

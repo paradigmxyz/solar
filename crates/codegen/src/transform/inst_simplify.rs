@@ -989,17 +989,16 @@ impl InstSimplifier {
     }
 
     fn is_bool_value(func: &Function, value: ValueId) -> bool {
-        match &func.values[value] {
+        match func.value(value) {
             Value::Immediate(Immediate::Bool(_)) => true,
-            Value::Arg { ty: MirType::Bool, .. } => true,
-            Value::Inst(inst_id) => func.inst(*inst_id).result_ty == Some(MirType::Bool),
-            _ => false,
+            Value::Arg(_) | Value::Inst(_) => func.value_ty(value) == Some(MirType::Bool),
+            Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => false,
         }
     }
 
     fn same_value(func: &Function, a: ValueId, b: ValueId) -> bool {
         a == b
-            || match (&func.values[a], &func.values[b]) {
+            || match (func.value(a), func.value(b)) {
                 (Value::Immediate(a), Value::Immediate(b)) => a == b,
                 _ => false,
             }
@@ -1015,7 +1014,7 @@ impl InstSimplifier {
     }
 
     fn is_clean_address(func: &Function, value: ValueId) -> bool {
-        match &func.values[value] {
+        match func.value(value) {
             Value::Inst(inst_id) => matches!(
                 func.inst(*inst_id).kind,
                 InstKind::Address
@@ -1030,7 +1029,7 @@ impl InstSimplifier {
     }
 
     fn is_current_address(func: &Function, value: ValueId) -> bool {
-        match &func.values[value] {
+        match func.value(value) {
             Value::Inst(inst_id) => matches!(func.inst(*inst_id).kind, InstKind::Address),
             _ => false,
         }
@@ -1096,7 +1095,7 @@ impl InstSimplifier {
     /// Returns `x` when `value` computes `gt(x, 0)` or `lt(0, x)`, both of
     /// which are the unsigned nonzero test.
     fn nonzero_test_operand(func: &Function, value: ValueId) -> Option<ValueId> {
-        match &func.values[value] {
+        match func.value(value) {
             Value::Inst(inst_id) => match func.inst(*inst_id).kind {
                 InstKind::Gt(a, b) if Self::is_zero(func, b) => Some(a),
                 InstKind::Lt(a, b) if Self::is_zero(func, a) => Some(b),
@@ -1107,7 +1106,7 @@ impl InstSimplifier {
     }
 
     fn iszero_operand(func: &Function, value: ValueId) -> Option<ValueId> {
-        match &func.values[value] {
+        match func.value(value) {
             Value::Inst(inst_id) => match func.inst(*inst_id).kind {
                 InstKind::IsZero(inner) => Some(inner),
                 _ => None,
@@ -1117,7 +1116,7 @@ impl InstSimplifier {
     }
 
     fn not_operand(func: &Function, value: ValueId) -> Option<ValueId> {
-        match &func.values[value] {
+        match func.value(value) {
             Value::Inst(inst_id) => match func.inst(*inst_id).kind {
                 InstKind::Not(inner) => Some(inner),
                 _ => None,

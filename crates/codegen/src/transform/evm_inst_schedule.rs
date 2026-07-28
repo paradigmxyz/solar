@@ -313,7 +313,7 @@ impl EvmInstSchedule {
     }
 
     fn shared_results(func: &Function) -> DenseBitSet<InstId> {
-        let mut counts = index_vec![0u32; func.values.len()];
+        let mut counts = index_vec![0u32; func.num_values()];
         // Instruction arenas retain replaced and eliminated instructions, but only instructions
         // still present in a block reach codegen. Retired uses must not make a live single-use tree
         // look shared and disable scheduling for its whole segment.

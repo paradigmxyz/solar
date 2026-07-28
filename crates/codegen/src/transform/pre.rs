@@ -206,7 +206,7 @@ impl PartialRedundancyEliminator {
         // Candidates whose analysis would be invalidated by an earlier
         // candidate in this batch are deferred to the next scan.
         let mut modified_blocks = DenseBitSet::new_empty(func.blocks.len());
-        let mut eliminated_values = DenseBitSet::new_empty(func.values.len());
+        let mut eliminated_values = DenseBitSet::new_empty(func.num_values());
 
         'targets: for target in func.blocks.indices() {
             let predecessors = func.unique_predecessors(target);
@@ -469,7 +469,7 @@ impl PartialRedundancyEliminator {
         dominators: &DominatorTree,
     ) -> bool {
         match func.value(value) {
-            Value::Immediate(_) | Value::Arg { .. } | Value::Undef(_) | Value::Error(_) => true,
+            Value::Immediate(_) | Value::Arg(_) | Value::Undef(_) | Value::Error(_) => true,
             Value::Inst(inst) => inst_blocks
                 .get(inst)
                 .is_some_and(|def_block| dominators.dominates(*def_block, block)),

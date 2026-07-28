@@ -3,7 +3,6 @@
 use super::Lowerer;
 use solar_ast::{DataLocation, LitKind};
 use solar_sema::{
-    builtins::Builtin,
     hir::{self, ElementaryType, ExprKind},
     ty::TyKind,
 };
@@ -23,76 +22,11 @@ impl<'gcx> Lowerer<'gcx> {
         self.gcx.type_of_expr(expr.id)
     }
 
-    /// Gets the non-call member target selected by sema's type checker.
-    pub(super) fn resolved_member(&self, expr: &hir::Expr<'_>) -> Option<hir::Res> {
-        self.gcx.resolved_member(expr.id)
-    }
-
-    /// Returns the resolution of an identifier expression used as a value.
-    ///
-    /// `hir::ExprKind::Ident` carries the raw candidate set from name
-    /// resolution, which does not account for overloading. This mirrors the
-    /// type checker's value-position rule: a single candidate wins, and among
-    /// several candidates the unique variable wins (a public state variable is
-    /// accompanied by its getter function). Anything else, such as an
-    /// overloaded function referenced as a value, is ambiguous and yields
-    /// `None`. Overloaded callees must go through [`Self::callee_res`], which
-    /// uses the target selected by sema's type checker.
-    pub(super) fn ident_res(&self, expr: &hir::Expr<'_>) -> Option<hir::Res> {
-        let ExprKind::Ident(res_slice) = &expr.kind else { return None };
-        match res_slice {
-            [] => None,
-            [res] => Some(*res),
-            _ => {
-                let mut vars = res_slice.iter().filter(|res| res.as_variable().is_some());
-                match (vars.next(), vars.next()) {
-                    (Some(&res), None) => Some(res),
-                    _ => None,
-                }
-            }
-        }
-    }
-
-    /// Returns the variable an identifier expression resolves to.
-    ///
-    /// Variables cannot be overloaded, so a single-entry resolution is the
-    /// only valid form here.
-    pub(super) fn ident_variable(&self, expr: &hir::Expr<'_>) -> Option<hir::VariableId> {
-        match self.ident_res(expr)? {
-            hir::Res::Item(hir::ItemId::Variable(var_id)) => Some(var_id),
-            _ => None,
-        }
-    }
-
-    /// Returns the builtin an identifier expression resolves to.
-    pub(super) fn ident_builtin(&self, expr: &hir::Expr<'_>) -> Option<Builtin> {
-        match self.ident_res(expr)? {
-            hir::Res::Builtin(builtin) => Some(builtin),
-            _ => None,
-        }
-    }
-
-    /// Returns the resolution of a call callee expression.
-    ///
-    /// Prefers the overload target selected by sema's type checker; falls back
-    /// to the callee identifier's single resolution when the type checker did
-    /// not need to disambiguate.
-    pub(super) fn callee_res(&self, callee: &hir::Expr<'_>) -> Option<hir::Res> {
-        if let Some(resolved) = self.gcx.resolved_callee(callee.id) {
-            return Some(resolved.res);
-        }
-        self.ident_res(callee)
-    }
-
-    pub(super) fn resolved_builtin_member(&self, expr: &hir::Expr<'_>) -> Option<Builtin> {
-        self.gcx.builtin_member(expr.id)
-    }
-
     pub(super) fn resolved_struct_field(
         &self,
         expr: &hir::Expr<'_>,
     ) -> Option<(hir::StructId, usize)> {
-        let res = self.resolved_member(expr)?;
+        let res = self.gcx.resolved_expr(expr)?;
         let variable = self.gcx.hir.variable(res.as_variable()?);
         Some((variable.parent?.as_struct()?, res.struct_field_index(&self.gcx.hir)?))
     }
@@ -101,7 +35,7 @@ impl<'gcx> Lowerer<'gcx> {
         &self,
         expr: &hir::Expr<'_>,
     ) -> Option<(hir::EnumId, usize)> {
-        let res = self.resolved_member(expr)?;
+        let res = self.gcx.resolved_expr(expr)?;
         let variable = self.gcx.hir.variable(res.as_variable()?);
         Some((variable.parent?.as_enum()?, res.enum_variant_index(&self.gcx.hir)?))
     }
@@ -141,7 +75,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     pub(super) fn expr_struct_id(&self, expr: &hir::Expr<'_>) -> Option<hir::StructId> {
-        if let Some(var_id) = self.ident_variable(expr)
+        if let Some(var_id) = self.gcx.resolved_variable(expr)
             && self.struct_storage_base_slots.contains_key(&var_id)
         {
             return None;

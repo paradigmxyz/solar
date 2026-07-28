@@ -22,7 +22,10 @@ use crate::{
         PhiEliminator,
     },
     memory::EvmMemoryLayout,
-    mir::{BlockId, Function, FunctionId, InstId, InstKind, MirPhase, Module, Terminator, ValueId},
+    mir::{
+        ArgIdx, BlockId, Function, FunctionId, InstId, InstKind, MirPhase, Module, Terminator,
+        ValueId,
+    },
     pass::run_default_pipeline,
 };
 use alloy_primitives::U256;
@@ -43,7 +46,6 @@ const GLOBAL_STACK_MIN_BLOCKS: usize = 8;
 const GLOBAL_STACK_MIN_ARG_USES: usize = 6;
 const GLOBAL_STACK_DENSE_AMORTIZATION_BLOCKS: usize = 16;
 const STACK_ARG_ROTATION_LIMIT: usize = 16;
-
 #[derive(Default)]
 struct GeneratedCode {
     bytecode: Vec<u8>,
@@ -153,15 +155,9 @@ impl GlobalStackPlan {
         }
 
         let mut entries = FxHashMap::default();
-        let args_by_index: FxHashMap<_, _> = func
-            .values
-            .iter_enumerated()
-            .filter_map(|(value, kind)| match kind {
-                crate::mir::Value::Arg { index, .. } => Some((*index, value)),
-                _ => None,
-            })
-            .collect();
-        if !(2..=GLOBAL_STACK_MAX_ARGS).contains(&args_by_index.len()) {
+        let arg_uses = func.arg_uses();
+        let used_args = arg_uses.iter().filter(|uses| !uses.is_empty()).count();
+        if !(2..=GLOBAL_STACK_MAX_ARGS).contains(&used_args) {
             return Self::default();
         }
 
@@ -182,7 +178,8 @@ impl GlobalStackPlan {
                 if offset >= 4
                     && (offset - 4) % 32 == 0
                     && let Ok(index) = u32::try_from((offset - 4) / 32)
-                    && let Some(&arg) = args_by_index.get(&index)
+                    && let Some(&arg) =
+                        arg_uses.get(ArgIdx::new(index as usize)).and_then(|uses| uses.first())
                 {
                     decode_blocks.entry(arg).or_insert(block_id);
                     if let Some(result) = func.inst_result_value(inst_id) {
@@ -205,7 +202,7 @@ impl GlobalStackPlan {
                 .live_in(block_id)
                 .iter()
                 .filter(|&value| {
-                    matches!(func.value(value), crate::mir::Value::Arg { .. })
+                    matches!(func.value(value), crate::mir::Value::Arg(_))
                         && decode_blocks.get(&value).is_none_or(|&decode| {
                             decode != block_id && cfg.dominators().dominates(decode, block_id)
                         })
@@ -294,26 +291,8 @@ impl GlobalStackPlan {
         // Canonicalization pays DUP/SWAP/POP traffic on every planned edge.
         // Require enough real argument reuse to recover that fixed cost, and
         // reject dense layout plans unless a long CFG can amortize them.
-        let mut arg_uses = 0usize;
-        for block in func.blocks.iter() {
-            for &inst_id in &block.instructions {
-                arg_uses += func
-                    .inst(inst_id)
-                    .kind
-                    .operands()
-                    .iter()
-                    .filter(|&&value| matches!(func.value(value), crate::mir::Value::Arg { .. }))
-                    .count();
-            }
-            if let Some(term) = &block.terminator {
-                arg_uses += term
-                    .operands()
-                    .iter()
-                    .filter(|&&value| matches!(func.value(value), crate::mir::Value::Arg { .. }))
-                    .count();
-            }
-        }
-        if arg_uses < GLOBAL_STACK_MIN_ARG_USES
+        let arg_use_count = arg_uses.iter().map(Vec::len).sum::<usize>();
+        if arg_use_count < GLOBAL_STACK_MIN_ARG_USES
             || (entries.len() * 2 > cfg.reachable().count()
                 && cfg.reachable().count() < GLOBAL_STACK_DENSE_AMORTIZATION_BLOCKS)
         {
@@ -884,6 +863,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .span(module.name.span)
                 .emit();
             return EvmArtifact::default();
+        }
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size) {
+            for func in &mut module.functions {
+                func.canonicalize_immediate_uses();
+            }
         }
         // First generate the runtime code
         let mut runtime_code = self.generate_runtime_code(module);
@@ -1615,7 +1599,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let targets = [*then_block, *else_block];
-        let mut live_in_any_target = DenseBitSet::new_empty(func.values.len());
+        let mut live_in_any_target = DenseBitSet::new_empty(func.num_values());
         for target in targets {
             for value in liveness.live_in(target) {
                 live_in_any_target.insert(value);
@@ -2057,7 +2041,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn cross_block_live_values(func: &Function, liveness: &Liveness) -> DenseBitSet<ValueId> {
-        let mut values = DenseBitSet::new_empty(func.values.len());
+        let mut values = DenseBitSet::new_empty(func.num_values());
         for block in func.blocks.indices() {
             for value in liveness.live_in(block).iter().chain(liveness.live_out(block).iter()) {
                 if matches!(func.value(value), crate::mir::Value::Inst(_)) {
@@ -2073,7 +2057,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
         colorable: &DenseBitSet<ValueId>,
     ) -> IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>> {
-        let mut ranges = index_vec![FxHashMap::default(); func.values.len()];
+        let mut ranges = index_vec![FxHashMap::default(); func.num_values()];
         let mut operands = SmallVec::<[ValueId; 8]>::new();
 
         for (block_id, block) in func.blocks.iter_enumerated() {
@@ -2136,7 +2120,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn cross_block_spill_values(func: &Function, liveness: &Liveness) -> DenseBitSet<ValueId> {
-        let mut values = DenseBitSet::new_empty(func.values.len());
+        let mut values = DenseBitSet::new_empty(func.num_values());
         for block_id in func.blocks.indices() {
             for val in liveness.live_in(block_id).iter().chain(liveness.live_out(block_id).iter()) {
                 if matches!(func.value(val), crate::mir::Value::Inst(_)) {
@@ -2196,7 +2180,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         block_id: BlockId,
         exempt: &[ValueId],
     ) {
-        let mut exempt_values = DenseBitSet::new_empty(func.values.len());
+        let mut exempt_values = DenseBitSet::new_empty(func.num_values());
         for &value in exempt {
             exempt_values.insert(value);
         }
@@ -2294,7 +2278,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn spill_value_if_needed(&mut self, func: &Function, val: ValueId) {
         // Skip immediates and args - they can be re-emitted without spilling
         match func.value(val) {
-            crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. } => return,
+            crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_) => return,
             _ => {}
         }
 
@@ -2449,7 +2433,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// +72 B, fractional +127 B) and to break 4 of 8 bench harnesses at
     /// runtime. Do not re-attempt without redesigning argument spilling.
     fn is_rematerializable_value(func: &Function, value: ValueId) -> bool {
-        matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. })
+        matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_))
     }
 
     fn is_cheap_recomputable_value(func: &Function, value: ValueId) -> bool {
@@ -2531,7 +2515,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // later blocks can inherit it without an eager prologue load.
         for &operand in &operands {
             if self.global_stack_active
-                && matches!(func.value(operand), crate::mir::Value::Arg { .. })
+                && matches!(func.value(operand), crate::mir::Value::Arg(_))
                 && !self.scheduler.stack.contains(operand)
                 && !liveness.is_dead_after(operand, block, inst_idx)
             {
@@ -3618,7 +3602,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn raw_arg_emittable(func: &Function, raw_leaves_ok: bool, val: ValueId) -> bool {
         match func.value(val) {
             crate::mir::Value::Immediate(imm) => imm.as_u256().is_some(),
-            crate::mir::Value::Arg { .. } => raw_leaves_ok,
+            crate::mir::Value::Arg(_) => raw_leaves_ok,
             _ => false,
         }
     }
@@ -3631,7 +3615,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             crate::mir::Value::Immediate(imm) => {
                 self.asm.emit_push(imm.as_u256().expect("mask requires a word immediate"));
             }
-            crate::mir::Value::Arg { index, .. } => {
+            crate::mir::Value::Arg(index) => {
                 if self.in_internal_function {
                     let func_id = self
                         .current_internal_function
@@ -3639,12 +3623,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let addr = self.static_frame_addr(
                         func_id,
                         EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                            + u64::from(*index) * EvmMemoryLayout::WORD_SIZE,
+                            + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE,
                     );
                     self.asm.emit_push_deferred(addr);
                     self.asm.emit_op(op::MLOAD);
                 } else {
-                    self.asm.emit_push(U256::from(4 + u64::from(*index) * 32));
+                    self.asm.emit_push(U256::from(4 + (index.index() as u64) * 32));
                     self.asm.emit_op(op::CALLDATALOAD);
                 }
             }
@@ -4052,7 +4036,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // The scheduler may allocate spill slots lazily while exposing deep stack values, not only
         // for values preallocated as cross-block live-ins/live-outs. Use this only when a body's
         // exact post-emission spill size is unavailable.
-        func.values.len() as u64 * 32
+        func.num_values() as u64 * 32
     }
 
     fn external_spill_base(func: &Function) -> u64 {
@@ -4124,10 +4108,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             .insert(func_id, slots.into_iter().map(|(_, deferred)| deferred).collect());
     }
 
-    fn emit_internal_arg_load(&mut self, index: u32) {
+    fn emit_internal_arg_load(&mut self, index: ArgIdx) {
         self.emit_own_frame_addr(
             EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                + u64::from(index) * EvmMemoryLayout::WORD_SIZE,
+                + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE,
         );
         self.asm.emit_op(op::MLOAD);
     }
@@ -4483,7 +4467,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .get(&value)
                 .is_some_and(|&alias| !liveness.is_dead_after(alias, block, inst_idx));
             let carried_arg_is_live = self.global_stack_active
-                && matches!(func.value(value), crate::mir::Value::Arg { .. })
+                && matches!(func.value(value), crate::mir::Value::Arg(_))
                 && !liveness.is_dead_after(value, block, inst_idx);
             if !preserved.contains(&value)
                 && (!liveness.is_dead_after(value, block, inst_idx) || alias_is_live)
@@ -4530,14 +4514,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                         // Constructor args were copied to memory at 0x80
                         // Load from memory: 0x80 + index * 32
                         let offset = EvmMemoryLayout::HEAP_START
-                            + (index as u64) * EvmMemoryLayout::WORD_SIZE;
+                            + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE;
                         self.asm.emit_push(U256::from(offset));
                         self.asm.emit_op(op::MLOAD);
                     } else {
                         // Runtime function: load from calldata
                         // ABI encoding: selector (4 bytes) + args (32 bytes each)
                         // Offset = 4 + index * 32
-                        let offset = 4 + (index as u64) * 32;
+                        let offset = 4 + (index.index() as u64) * 32;
                         self.asm.emit_push(U256::from(offset));
                         self.asm.emit_op(op::CALLDATALOAD);
                     }
@@ -4552,7 +4536,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             && !self.scheduler.spills.is_reloadable(val)
             && !matches!(
                 func.value(val),
-                crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. }
+                crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_)
             )
         {
             let slot = self.scheduler.spills.allocate(val);
@@ -4588,16 +4572,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.scheduler.stack.push(val);
                 }
             }
-            crate::mir::Value::Arg { index, .. } => {
+            crate::mir::Value::Arg(index) => {
                 if self.in_internal_function {
                     self.emit_internal_arg_load(*index);
                 } else if self.in_constructor {
-                    let offset =
-                        EvmMemoryLayout::HEAP_START + (*index as u64) * EvmMemoryLayout::WORD_SIZE;
+                    let offset = EvmMemoryLayout::HEAP_START
+                        + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE;
                     self.asm.emit_push(U256::from(offset));
                     self.asm.emit_op(op::MLOAD);
                 } else {
-                    let offset = 4 + (*index as u64) * 32;
+                    let offset = 4 + (index.index() as u64) * 32;
                     self.asm.emit_push(U256::from(offset));
                     self.asm.emit_op(op::CALLDATALOAD);
                 }

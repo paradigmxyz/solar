@@ -500,9 +500,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             // printed `abi`-phase modules round-trip. A function that does
             // declare parameters keeps strict bounds checking.
             if idx >= self.arg_values.len() && builder.func().params.is_empty() {
-                for index in self.arg_values.len()..=idx {
-                    let val = builder
-                        .alloc_value(Value::Arg { index: index as u32, ty: MirType::uint256() });
+                for _ in self.arg_values.len()..=idx {
+                    let val = builder.func_mut().alloc_implicit_arg(MirType::uint256());
                     self.arg_values.push(val);
                 }
             }
@@ -532,7 +531,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         label: u32,
     ) -> PResult<'sess, Option<ValueId>> {
         if let Some(value) = self.value_labels.get(&label).copied() {
-            if matches!(builder.func().values[value], Value::Undef(_)) {
+            if matches!(builder.func().value(value), Value::Undef(_)) {
                 return Ok(Some(value));
             }
             return Err(self.parser.error(format!("duplicate value `v{label}`")));
@@ -546,7 +545,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             .value_labels
             .iter()
             .filter_map(|(&label, &value)| {
-                matches!(func.values[value], Value::Undef(_)).then_some(label)
+                matches!(func.value(value), Value::Undef(_)).then_some(label)
             })
             .collect();
         unresolved.sort_unstable();

@@ -19,6 +19,7 @@ use std::ops::ControlFlow;
 use tower::ServiceBuilder;
 
 mod call_hierarchy;
+mod code_lens;
 mod commands;
 mod config;
 mod diagnostics;
@@ -96,6 +97,7 @@ fn new_router_with_state(this: GlobalState) -> Router<GlobalState> {
         .request::<req::GotoDeclaration, _>(handlers::goto_declaration)
         .request::<req::GotoImplementation, _>(handlers::goto_implementation)
         .request::<req::References, _>(handlers::references)
+        .request::<req::CodeLensRequest, _>(handlers::code_lens)
         .request::<req::CallHierarchyPrepare, _>(handlers::prepare_call_hierarchy)
         .request::<req::CallHierarchyIncomingCalls, _>(handlers::call_hierarchy_incoming)
         .request::<req::CallHierarchyOutgoingCalls, _>(handlers::call_hierarchy_outgoing)
@@ -378,6 +380,24 @@ mod tests {
         let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
             "id": 1,
             "method": request::DocumentLinkRequest::METHOD,
+            "params": params,
+        }))
+        .unwrap();
+
+        let response = router.call(request).await.unwrap();
+
+        assert_eq!(response, serde_json::json!([]));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_code_lens_requests() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let params = serde_json::json!({
+            "textDocument": { "uri": "file:///workspace/src/Test.sol" },
+        });
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 1,
+            "method": request::CodeLensRequest::METHOD,
             "params": params,
         }))
         .unwrap();
@@ -1003,6 +1023,7 @@ mod tests {
         let response = router.call(request).await.unwrap();
 
         assert_eq!(response["capabilities"]["typeHierarchyProvider"], true);
+        assert_eq!(response["capabilities"]["codeLensProvider"]["resolveProvider"], false);
         assert_eq!(response["capabilities"]["hoverProvider"], true);
         assert_eq!(response["serverInfo"]["name"], "solar");
     }
