@@ -7,7 +7,7 @@ use crate::{
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{DataLocation, LitKind, Span};
-use solar_data_structures::bit_set::GrowableBitSet;
+use solar_data_structures::{bit_set::GrowableBitSet, map::StdEntry};
 use solar_interface::{
     Ident, Symbol,
     diagnostics::{DiagMsg, ErrorGuaranteed},
@@ -270,17 +270,16 @@ impl<'gcx> Lowerer<'gcx> {
         function: &'gcx TyFn<'gcx>,
     ) -> FunctionId {
         let shape = self.internal_function_pointer_shape(function);
-        if let Some(&dispatcher) = self.internal_function_pointer_dispatchers.get(&shape) {
-            return dispatcher;
+        let index = self.internal_function_pointer_dispatchers.len();
+        match self.internal_function_pointer_dispatchers.entry(shape) {
+            StdEntry::Occupied(entry) => *entry.get(),
+            StdEntry::Vacant(entry) => {
+                let name = Ident::from_str(&format!("__internal_dispatch_{index}"));
+                let dispatcher = self.module.add_function(Function::new(name));
+                entry.insert(dispatcher);
+                dispatcher
+            }
         }
-
-        let name = Ident::from_str(&format!(
-            "__internal_dispatch_{}",
-            self.internal_function_pointer_dispatchers.len()
-        ));
-        let dispatcher = self.module.add_function(Function::new(name));
-        self.internal_function_pointer_dispatchers.insert(shape, dispatcher);
-        dispatcher
     }
 
     /// Lowers address-taken targets to a fixed point, then fills the reserved dispatchers.
