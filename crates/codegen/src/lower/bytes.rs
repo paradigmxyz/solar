@@ -220,6 +220,34 @@ impl<'gcx> Lowerer<'gcx> {
         value
     }
 
+    /// Coerces an argument to what the callee's parameter expects.
+    ///
+    /// A parameter declared `calldata` takes the slice as it is. Anything else
+    /// wants a `[length][data...]` memory object, so a calldata slice — a
+    /// `bytes calldata` value reaching a `bytes memory` parameter, which
+    /// Solidity converts implicitly — is copied into memory here. Leaving it a
+    /// slice makes it an aggregate use that slice lowering cannot fold, and the
+    /// backend cannot emit.
+    pub(super) fn coerce_arg_for_param(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        param_id: hir::VariableId,
+        value: ValueId,
+    ) -> ValueId {
+        let param = self.gcx.hir.variable(param_id);
+        if Self::calldata_dynamic_var_kind(param).is_some() {
+            return value;
+        }
+        if Self::value_is_calldata_slice(builder, value) {
+            let ty = self.gcx.type_of_item(param_id.into());
+            if matches!(ty.peel_refs().kind, TyKind::DynArray(_) | TyKind::Slice(_)) {
+                return self.materialize_calldata_dyn_array_for_ty(builder, ty, value);
+            }
+            return self.materialize_calldata_bytes(builder, value);
+        }
+        self.coerce_memory_slice_value(builder, value)
+    }
+
     /// Copies calldata bytes whose absolute length-word position is `len_pos`
     /// into Solidity's memory bytes layout.
     pub(super) fn materialize_calldata_bytes_at(
