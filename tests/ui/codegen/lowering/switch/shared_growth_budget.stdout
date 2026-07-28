@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/switch_shared_growth_budget.sol:SwitchSharedGrowthBudget (creation) ===
+// === ROOT/tests/ui/codegen/lowering/switch/shared_growth_budget.sol:SwitchSharedGrowthBudget (creation) ===
 // === deployment ===
 @module deployment
 bb0:
