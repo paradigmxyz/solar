@@ -5,7 +5,10 @@ use crate::{
     mir::{AllocationKind, Function, FunctionBuilder, InstKind, MirPhase, MirType, Module, Value},
     pass::MirPass,
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_sema::Gcx;
 
 /// Lowers semantic object layouts under the selected physical memory policy.
@@ -57,11 +60,15 @@ fn lower_function<P: MemoryLayoutPolicy>(
     func: &mut Function,
     stats: &mut LowerMemoryObjectsStats,
 ) -> bool {
-    let has_objects = func.params.iter().chain(&func.returns).any(is_object_type)
-        || func.values.iter().any(|value| match value {
-            Value::Arg { ty, .. } | Value::Undef(ty) => is_object_type(ty),
-            Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => false,
-        })
+    let is_object_value = |value| match func.value(value) {
+        Value::Arg(_) | Value::Undef(_) => {
+            func.value_ty(value).as_ref().is_some_and(is_object_type)
+        }
+        Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => false,
+    };
+    let has_objects = func.arg_indices().any(|index| is_object_type(&func.arg_ty(index)))
+        || func.returns.iter().any(is_object_type)
+        || func.live_values().any(is_object_value)
         || func.instructions().any(|inst_id| {
             let inst = func.inst(inst_id);
             inst.result_ty.as_ref().is_some_and(is_object_type)
@@ -198,13 +205,23 @@ fn offset_address(
 }
 
 fn erase_object_types(func: &mut Function, stats: &mut LowerMemoryObjectsStats) {
-    for ty in func.params.iter_mut().chain(&mut func.returns) {
+    let arg_indices: Vec<_> = func.arg_indices().collect();
+    for index in arg_indices {
+        let mut ty = func.arg_ty(index);
+        erase_object_type(&mut ty, stats);
+        func.set_arg_ty(index, ty);
+    }
+    for ty in &mut func.returns {
         erase_object_type(ty, stats);
     }
-    for value in func.values.iter_mut() {
-        match value {
-            Value::Arg { ty, .. } | Value::Undef(ty) => erase_object_type(ty, stats),
-            Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => {}
+    let mut values = DenseBitSet::new_empty(func.num_values());
+    for value in func.live_values() {
+        values.insert(value);
+    }
+    for value in values.iter() {
+        match func.value_mut(value) {
+            Value::Undef(ty) => erase_object_type(ty, stats),
+            Value::Arg(_) | Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => {}
         }
     }
     func.for_each_instruction_mut(|_, inst| {

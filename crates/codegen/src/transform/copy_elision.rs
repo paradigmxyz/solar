@@ -87,9 +87,9 @@ impl CopyElisionCx {
         derived.insert(object);
         loop {
             let mut changed = false;
-            for (value_id, value) in func.values.iter_enumerated() {
-                let crate::mir::Value::Inst(inst_id) = value else { continue };
-                let propagates = match &func.inst(*inst_id).kind {
+            for inst_id in func.instructions() {
+                let Some(value_id) = func.inst_result_value(inst_id) else { continue };
+                let propagates = match &func.inst(inst_id).kind {
                     InstKind::Add(a, b) | InstKind::Sub(a, b) => {
                         derived.contains(a) || derived.contains(b)
                     }

@@ -48,6 +48,9 @@ pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
 pub(crate) mod utils;
 
 newtype_index! {
+    /// A function argument index in the MIR.
+    pub(crate) struct ArgIdx;
+
     /// A unique identifier for a value in the MIR.
     pub(crate) struct ValueId;
 

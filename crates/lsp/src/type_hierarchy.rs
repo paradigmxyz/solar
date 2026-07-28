@@ -241,6 +241,19 @@ impl TypeHierarchyIndex {
         self.neighbors(item, &self.children_by_key)
     }
 
+    pub(crate) fn direct_counts(&self, symbol_ids: &[SymbolId]) -> Option<(usize, usize)> {
+        let key = symbol_ids.iter().find_map(|symbol_id| self.key_by_symbol.get(symbol_id))?;
+        debug_assert!(
+            symbol_ids
+                .iter()
+                .filter_map(|symbol_id| self.key_by_symbol.get(symbol_id))
+                .all(|candidate| candidate == key)
+        );
+        let bases = self.bases_by_key.get(key).map_or(0, Vec::len);
+        let derived = self.children_by_key.get(key).map_or(0, Vec::len);
+        Some((bases, derived))
+    }
+
     fn neighbors(
         &self,
         item: &TypeHierarchyItem,

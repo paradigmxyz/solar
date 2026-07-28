@@ -7,12 +7,15 @@
 
 use crate::{
     mir::{
-        BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction, MirType,
-        Module, SliceLocation, Value, ValueId,
+        ArgIdx, BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
+        MirType, Module, SliceLocation, Value, ValueId,
     },
     pass::MirPass,
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_sema::Gcx;
 
 /// Lowers logical slices to the word-based backend convention.
@@ -69,12 +72,7 @@ struct LowerSlicesCx {
 /// result is always word-typed by construction, so slice aggregate uses are
 /// recognized from their operands rather than the result type.
 fn value_slice_location(func: &Function, value: ValueId) -> Option<SliceLocation> {
-    let ty = match func.value(value) {
-        Value::Arg { ty, .. } | Value::Undef(ty) => Some(*ty),
-        Value::Inst(inst) => func.inst(*inst).result_ty,
-        Value::Immediate(_) | Value::Error(_) => None,
-    };
-    match ty {
+    match func.value_ty(value) {
         Some(MirType::Slice(location)) => Some(location),
         _ => None,
     }
@@ -223,7 +221,7 @@ impl LowerSlicesCx {
     fn expand_call_args(
         &mut self,
         func: &mut Function,
-        signatures: &FxHashMap<FunctionId, Vec<ParamRepr>>,
+        signatures: &FxHashMap<FunctionId, IndexVec<ArgIdx, ParamRepr>>,
     ) -> bool {
         let mut changed = false;
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
@@ -244,7 +242,8 @@ impl LowerSlicesCx {
                 {
                     let mut expanded = Vec::with_capacity(args.len() + 1);
                     for (index, arg) in args.into_iter().enumerate() {
-                        let repr = signature.get(index).copied().unwrap_or(ParamRepr::Word);
+                        let repr =
+                            signature.get(ArgIdx::new(index)).copied().unwrap_or(ParamRepr::Word);
                         match repr {
                             ParamRepr::Word | ParamRepr::CompactCalldata => expanded.push(arg),
                             ParamRepr::Pair => {
@@ -268,7 +267,11 @@ impl LowerSlicesCx {
         changed
     }
 
-    fn lower_params(&mut self, func: &mut Function, signature: &[ParamRepr]) -> bool {
+    fn lower_params(
+        &mut self,
+        func: &mut Function,
+        signature: &IndexVec<ArgIdx, ParamRepr>,
+    ) -> bool {
         if func.selector.is_some()
             || func.blocks.is_empty()
             || !func.params.iter().any(Self::is_slice)
@@ -277,70 +280,67 @@ impl LowerSlicesCx {
         }
 
         let old_params = func.params.clone();
-        let mut physical_indices = Vec::with_capacity(old_params.len());
-        let mut next_index = 0u32;
-        let mut new_params = Vec::with_capacity(old_params.len() + 1);
-        for (index, &ty) in old_params.iter().enumerate() {
-            physical_indices.push(next_index);
+        let mut physical_indices = IndexVec::<ArgIdx, ArgIdx>::with_capacity(old_params.len());
+        let mut new_params = IndexVec::<ArgIdx, MirType>::with_capacity(old_params.len() + 1);
+        for (index, &ty) in old_params.iter_enumerated() {
+            physical_indices.push(new_params.next_idx());
             match signature[index] {
-                ParamRepr::Word => new_params.push(ty),
-                ParamRepr::CompactCalldata => new_params.push(MirType::uint256()),
+                ParamRepr::Word => {
+                    new_params.push(ty);
+                }
+                ParamRepr::CompactCalldata => {
+                    new_params.push(MirType::uint256());
+                }
                 ParamRepr::Pair => {
                     let MirType::Slice(location) = ty else { unreachable!() };
                     new_params.push(slice_param_ptr_type(location));
                     new_params.push(MirType::uint256());
-                    next_index += 1;
                 }
             }
-            next_index += 1;
         }
 
-        for value in func.values.iter_mut() {
-            if let Value::Arg { index, ty } = value
-                && !matches!(ty, MirType::Slice(_))
-            {
-                *index = physical_indices[*index as usize];
-            }
-        }
-
-        let slice_args: Vec<_> = func
-            .values
-            .iter_enumerated()
-            .filter_map(|(value, kind)| match kind {
-                Value::Arg { index, ty: MirType::Slice(location) } => {
-                    Some((value, *index, *location))
+        let argument_values: FxHashSet<_> = func
+            .live_values()
+            .filter(|&value| matches!(func.value(value), Value::Arg(_)))
+            .collect();
+        let slice_args: Vec<_> = argument_values
+            .iter()
+            .filter_map(|&value| match func.value(value) {
+                Value::Arg(index) if matches!(func.arg_ty(*index), MirType::Slice(_)) => {
+                    Some((value, *index))
                 }
                 _ => None,
             })
             .collect();
+        for &value in &argument_values {
+            let Value::Arg(index) = func.value(value) else { unreachable!() };
+            let index = *index;
+            if !matches!(func.arg_ty(index), MirType::Slice(_)) {
+                let Value::Arg(value_index) = func.value_mut(value) else { unreachable!() };
+                *value_index = physical_indices[index];
+            }
+        }
+
+        func.set_params(new_params);
         let mut components = FxHashMap::default();
         let mut compact_heads = FxHashMap::default();
         let mut builder = FunctionBuilder::new(func);
-        for (slice_arg, logical_index, location) in slice_args {
-            let physical_index = physical_indices[logical_index as usize];
-            match signature[logical_index as usize] {
+        for (slice_arg, logical_index) in slice_args {
+            let physical_index = physical_indices[logical_index];
+            match signature[logical_index] {
                 ParamRepr::CompactCalldata => {
-                    let head = builder
-                        .func_mut()
-                        .alloc_value(Value::Arg { index: physical_index, ty: MirType::uint256() });
+                    let head = builder.func_mut().alloc_arg(physical_index);
                     compact_heads.insert(slice_arg, head);
                 }
                 ParamRepr::Pair => {
-                    let ptr_ty = slice_param_ptr_type(location);
-                    let ptr = builder
-                        .func_mut()
-                        .alloc_value(Value::Arg { index: physical_index, ty: ptr_ty });
-                    let len = builder.func_mut().alloc_value(Value::Arg {
-                        index: physical_index + 1,
-                        ty: MirType::uint256(),
-                    });
+                    let ptr = builder.func_mut().alloc_arg(physical_index);
+                    let len = builder.func_mut().alloc_arg(ArgIdx::new(physical_index.index() + 1));
                     components.insert(slice_arg, (ptr, len));
                 }
                 ParamRepr::Word => unreachable!(),
             }
             self.stats.params += 1;
         }
-        builder.func_mut().params = new_params;
 
         let mut replacements = FxHashMap::default();
         let mut removed = FxHashSet::default();
@@ -419,23 +419,22 @@ impl LowerSlicesCx {
             return false;
         }
         let slice_args: FxHashMap<_, _> = func
-            .values
+            .arg_uses()
             .iter_enumerated()
-            .filter_map(|(value, kind)| match kind {
-                Value::Arg { index, ty: MirType::Slice(SliceLocation::Calldata) } => {
-                    Some((value, *index))
-                }
-                _ => None,
-            })
+            .filter(|(index, _)| func.arg_ty(*index) == MirType::Slice(SliceLocation::Calldata))
+            .flat_map(|(index, uses)| uses.iter().map(move |&value| (value, index)))
             .collect();
         if slice_args.is_empty() {
             return false;
         }
 
+        for &index in slice_args.values() {
+            func.set_arg_ty(index, MirType::uint256());
+        }
         let raw_heads: FxHashMap<_, _> = slice_args
             .iter()
             .map(|(&slice, &index)| {
-                let head = func.alloc_value(Value::Arg { index, ty: MirType::uint256() });
+                let head = func.alloc_arg(index);
                 (slice, head)
             })
             .collect();
@@ -444,12 +443,12 @@ impl LowerSlicesCx {
         true
     }
 
-    fn infer_compact_params(module: &Module) -> FxHashSet<(FunctionId, usize)> {
+    fn infer_compact_params(module: &Module) -> FxHashSet<(FunctionId, ArgIdx)> {
         let mut compact: FxHashSet<_> = module
             .functions
             .iter_enumerated()
             .flat_map(|(function, func)| {
-                func.params.iter().enumerate().filter_map(move |(index, ty)| {
+                func.params.iter_enumerated().filter_map(move |(index, ty)| {
                     matches!(ty, MirType::Slice(SliceLocation::Calldata))
                         .then_some((function, index))
                 })
@@ -465,23 +464,22 @@ impl LowerSlicesCx {
                     let InstKind::InternalCall { function: callee, args, .. } = &inst.kind else {
                         continue;
                     };
-                    for index in 0..module.function(*callee).params.len() {
+                    for index in module.function(*callee).params.indices() {
                         let candidate = (*callee, index);
                         if !compact.contains(&candidate) {
                             continue;
                         }
                         seen.insert(candidate);
-                        let Some(&arg) = args.get(index) else {
+                        let Some(&arg) = args.get(index.index()) else {
                             removed.insert(candidate);
                             continue;
                         };
                         let is_compact = match caller.value(arg) {
-                            Value::Arg {
-                                index: source,
-                                ty: MirType::Slice(SliceLocation::Calldata),
-                            } => {
-                                caller.selector.is_some()
-                                    || compact.contains(&(caller_id, *source as usize))
+                            Value::Arg(source)
+                                if caller.arg_ty(*source)
+                                    == MirType::Slice(SliceLocation::Calldata) =>
+                            {
+                                caller.selector.is_some() || compact.contains(&(caller_id, *source))
                             }
                             _ => false,
                         };
@@ -584,8 +582,7 @@ impl LowerSlicesCx {
             .map(|(id, func)| {
                 let signature = func
                     .params
-                    .iter()
-                    .enumerate()
+                    .iter_enumerated()
                     .map(|(index, ty)| match ty {
                         MirType::Slice(SliceLocation::Calldata)
                             if compact.contains(&(id, index)) =>
@@ -595,7 +592,7 @@ impl LowerSlicesCx {
                         MirType::Slice(_) => ParamRepr::Pair,
                         _ => ParamRepr::Word,
                     })
-                    .collect();
+                    .collect::<IndexVec<ArgIdx, _>>();
                 (id, signature)
             })
             .collect();

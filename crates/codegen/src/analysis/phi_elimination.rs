@@ -79,7 +79,7 @@ impl PhiEliminator {
                     let phi_dst = func.inst_result_value(inst_id);
 
                     if let Some(dst) = phi_dst {
-                        let ty = func.value(dst).ty();
+                        let ty = func.value_ty(dst).expect("phi result must have a type");
 
                         // For each predecessor, insert a copy
                         for &(pred_block, src_val) in incoming {

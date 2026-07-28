@@ -25,13 +25,18 @@ use solar_data_structures::{
     Never,
     bit_set::GrowableBitSet,
     map::{FxHashMap, FxHashSet},
+    smallvec::SmallVec,
 };
-use solar_interface::{Ident, Span, diagnostics::DiagMsg, kw, sym};
+use solar_interface::{
+    Ident, Span,
+    diagnostics::{DiagMsg, ErrorGuaranteed},
+    kw, sym,
+};
 use solar_sema::{
     hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, VariableId, Visit},
     ty::{Gcx, Ty, TyKind},
 };
-use std::ops::ControlFlow;
+use std::{collections::hash_map::Entry, ops::ControlFlow};
 
 use self::storage::StorageLocation;
 
@@ -55,6 +60,11 @@ enum AbiWordValidator {
     Bool,
     /// The word must be less than the member count.
     EnumRange(u64),
+}
+
+enum ConstructorArguments {
+    Resolving,
+    Resolved(SmallVec<[ValueId; 4]>),
 }
 
 #[derive(Clone, Copy)]
@@ -1507,23 +1517,13 @@ impl<'gcx> Lowerer<'gcx> {
         contract_id: ContractId,
     ) {
         let contract = self.gcx.hir.contract(contract_id);
+        let mut constructor_args = FxHashMap::default();
 
-        // Solidity runs construction from base to derived. For each contract in that order,
-        // initialize its state variables, then run its constructor body. The current contract's
-        // own constructor body is lowered by the caller after this prelude.
-        let construction_order: Vec<_> = contract
-            .linearized_bases
-            .iter()
-            .enumerate()
-            .map(|(idx, &base_id)| {
-                let args = idx.checked_sub(1).and_then(|arg_idx| {
-                    contract.linearized_bases_args.get(arg_idx).and_then(|m| *m)
-                });
-                (base_id, args)
-            })
-            .collect();
+        let construction_order = contract.linearized_bases;
 
-        for (base_id, args) in construction_order.into_iter().rev() {
+        // State variables are initialized from the most base contract to the
+        // most derived contract before constructor argument expressions run.
+        for &base_id in construction_order.iter().rev() {
             let base_contract = self.gcx.hir.contract(base_id);
             for var_id in base_contract.variables() {
                 let var = self.gcx.hir.variable(var_id);
@@ -1539,13 +1539,141 @@ impl<'gcx> Lowerer<'gcx> {
                     }
                 }
             }
+        }
 
-            if base_id != contract_id
-                && let Some(ctor_id) = base_contract.ctor
+        // Base constructor arguments are evaluated in the derived contract's
+        // linearized order, independently of constructor body execution.
+        for &base_id in construction_order.iter().skip(1) {
+            if self.gcx.hir.contract(base_id).ctor.is_some()
+                && self
+                    .lower_base_constructor_arguments(
+                        builder,
+                        contract_id,
+                        base_id,
+                        &mut constructor_args,
+                    )
+                    .is_err()
             {
-                self.lower_base_constructor_call(builder, ctor_id, args);
+                return;
             }
         }
+
+        // Argument expressions for an indirect base may refer to the
+        // constructor parameters of the contract which supplied them. Those
+        // bindings are only needed while resolving the full argument chain.
+        for &base_id in constructor_args.keys() {
+            if let Some(ctor_id) = self.gcx.hir.contract(base_id).ctor {
+                for &param_id in self.gcx.hir.function(ctor_id).parameters {
+                    self.locals.remove(&param_id);
+                }
+            }
+        }
+
+        // Constructor bodies execute from the most base contract to the most
+        // derived. The current contract's body is lowered by the caller.
+        for &base_id in construction_order.iter().rev() {
+            if base_id != contract_id
+                && let Some(ctor_id) = self.gcx.hir.contract(base_id).ctor
+            {
+                let Some(ConstructorArguments::Resolved(arg_values)) =
+                    constructor_args.get(&base_id)
+                else {
+                    unreachable!("base constructor arguments were not resolved")
+                };
+                self.lower_base_constructor_call(builder, ctor_id, arg_values);
+            }
+        }
+    }
+
+    fn lower_base_constructor_arguments(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        contract_id: ContractId,
+        base_id: ContractId,
+        values: &mut FxHashMap<ContractId, ConstructorArguments>,
+    ) -> Result<(), ErrorGuaranteed> {
+        match values.entry(base_id) {
+            Entry::Occupied(entry) => match entry.get() {
+                ConstructorArguments::Resolved(_) => return Ok(()),
+                ConstructorArguments::Resolving => {
+                    return Err(self
+                        .gcx
+                        .dcx()
+                        .err("cyclic base constructor arguments during codegen")
+                        .span(self.gcx.hir.contract(base_id).span)
+                        .emit());
+                }
+            },
+            Entry::Vacant(entry) => {
+                entry.insert(ConstructorArguments::Resolving);
+            }
+        }
+
+        let linearized_bases = self.gcx.hir.contract(contract_id).linearized_bases;
+        let provider = linearized_bases.iter().copied().find_map(|declaring_id| {
+            let modifier = {
+                let declaring = self.gcx.hir.contract(declaring_id);
+                declaring
+                    .linearized_bases
+                    .iter()
+                    .skip(1)
+                    .copied()
+                    .zip(declaring.linearized_bases_args.iter().copied())
+                    .find_map(|(candidate_id, modifier)| {
+                        (candidate_id == base_id).then_some(modifier).flatten()
+                    })
+            };
+            modifier
+                .filter(|modifier| !modifier.args.is_dummy())
+                .map(|modifier| (declaring_id, modifier))
+        });
+
+        let Some((declaring_id, modifier)) = provider else {
+            let base = self.gcx.hir.contract(base_id);
+            let parameters =
+                base.ctor.map_or(&[][..], |ctor_id| self.gcx.hir.function(ctor_id).parameters);
+            if parameters.is_empty() {
+                values.insert(base_id, ConstructorArguments::Resolved(SmallVec::new()));
+                return Ok(());
+            }
+            return Err(self
+                .gcx
+                .dcx()
+                .err(format!("could not resolve arguments for base constructor `{}`", base.name))
+                .span(self.gcx.hir.contract(contract_id).span)
+                .emit());
+        };
+
+        if declaring_id != contract_id && self.gcx.hir.contract(declaring_id).ctor.is_some() {
+            self.lower_base_constructor_arguments(builder, contract_id, declaring_id, values)?;
+        }
+
+        let ctor_id = self
+            .gcx
+            .hir
+            .contract(base_id)
+            .ctor
+            .expect("base constructor argument provider without constructor");
+        let parameters = self.gcx.hir.function(ctor_id).parameters;
+        if modifier.args.len() != parameters.len() {
+            return Err(self
+                .gcx
+                .dcx()
+                .err("could not resolve base constructor arguments during codegen")
+                .span(modifier.span)
+                .emit());
+        }
+
+        let mut arg_values = SmallVec::new();
+        for (&param_id, argument) in parameters.iter().zip(modifier.args.exprs()) {
+            let param = self.gcx.hir.variable(param_id);
+            let value = self.lower_constructor_arg(builder, argument, &param.ty);
+            self.locals.insert(param_id, value);
+            arg_values.push(value);
+        }
+        values.insert(base_id, ConstructorArguments::Resolved(arg_values));
+
+        Ok(())
     }
 
     fn function_selector(&self, func_id: HirFunctionId) -> [u8; 4] {
@@ -1763,7 +1891,7 @@ impl<'gcx> Lowerer<'gcx> {
             self.mark_assigned_var(base);
             return;
         }
-        if let Some(var_id) = self.ident_variable(expr) {
+        if let Some(var_id) = self.gcx.resolved_variable(expr) {
             self.assigned_vars.insert(var_id);
         }
     }
@@ -1839,11 +1967,14 @@ impl<'gcx> Lowerer<'gcx> {
     fn is_external_call(&self, callee: &hir::Expr<'_>) -> bool {
         // External calls are Member expressions where the base is a contract
         if let hir::ExprKind::Member(base, _) = &callee.kind
-            && let Some(var_id) = self.ident_variable(base)
+            && let Some(var_id) = self.gcx.resolved_variable(base)
         {
             let var = self.gcx.hir.variable(var_id);
-            // Contract type variables are external call targets
-            if matches!(var.ty.kind, hir::TypeKind::Custom(hir::ItemId::Contract(_))) {
+            // This scan tracks declaration-level contract values; struct fields are lowered as
+            // member expressions.
+            if !var.is_struct_member()
+                && matches!(var.ty.kind, hir::TypeKind::Custom(hir::ItemId::Contract(_)))
+            {
                 return true;
             }
         }

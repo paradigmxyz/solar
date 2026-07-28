@@ -22,8 +22,6 @@ use std::{
 use tokio::time::sleep;
 
 const PROGRESS_TITLE: &str = "Indexing workspace";
-const PROGRESS_DELAY: Duration = Duration::from_millis(250);
-const CREATE_TIMEOUT: Duration = Duration::from_secs(1);
 const RESTART_MESSAGE: &str = "Workspace changed, restarting analysis";
 
 #[derive(Clone, Copy)]
@@ -46,11 +44,7 @@ struct CoordinatorInner {
 }
 
 impl ProgressCoordinator {
-    pub(crate) fn new(client: ClientSocket, enabled: bool) -> Self {
-        Self::with_timing(client, enabled, PROGRESS_DELAY, CREATE_TIMEOUT)
-    }
-
-    /// Builds a coordinator with explicit timing values for deterministic tests.
+    /// Builds a coordinator with explicit timing values.
     pub(crate) fn with_timing(
         client: ClientSocket,
         enabled: bool,
@@ -82,15 +76,23 @@ impl ProgressCoordinator {
 
     /// Starts or joins the progress wave for `version`.
     ///
-    /// A newer version reuses a visible wave and reports at most one restart. If the previous
-    /// wave has already ended or failed, a fresh token is allocated. Tickets for older versions
-    /// remain valid handles but cannot report or finish the newer wave.
+    /// A newer version replaces an invisible wave so its progress clock starts over. Once progress
+    /// is visible, the newer version reuses that wave and reports at most one restart. Tickets for
+    /// older versions remain valid handles but cannot report or finish the newer wave.
+    #[cfg(test)]
     pub(crate) fn start(&self, version: usize) -> ProgressTicket {
+        let ticket = self.reserve(version);
+        ticket.begin();
+        ticket
+    }
+
+    /// Reserves a progress wave that starts when its ticket is begun.
+    pub(crate) fn reserve(&self, version: usize) -> ProgressTicket {
         if !self.inner.enabled.load(Ordering::Acquire) {
             return ProgressTicket::disabled(version);
         }
 
-        let (guard, schedule) = {
+        let guard = {
             let mut active = self.inner.active.lock();
             if !self.inner.enabled.load(Ordering::Acquire) {
                 return ProgressTicket::disabled(version);
@@ -102,7 +104,7 @@ impl ProgressCoordinator {
                 if !self.inner.enabled.load(Ordering::Acquire) {
                     return ProgressTicket::disabled(version);
                 }
-                (Arc::clone(guard), false)
+                Arc::clone(guard)
             } else {
                 // `restart` may have waited for a failing guard that disabled the connection.
                 if !self.inner.enabled.load(Ordering::Acquire) {
@@ -116,13 +118,9 @@ impl ProgressCoordinator {
                     self.inner.timing,
                 ));
                 *active = Some(Arc::clone(&guard));
-                (guard, true)
+                guard
             }
         };
-
-        if schedule {
-            guard.schedule();
-        }
 
         ProgressTicket { guard: Some(guard), version }
     }
@@ -167,6 +165,12 @@ impl ProgressTicket {
         self.guard.is_none()
     }
 
+    pub(crate) fn begin(&self) {
+        if let Some(guard) = &self.guard {
+            guard.schedule(self.version);
+        }
+    }
+
     pub(crate) fn report(&self, message: &'static str) {
         if let Some(guard) = &self.guard {
             guard.report(self.version, message);
@@ -182,6 +186,7 @@ impl ProgressTicket {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Phase {
+    Pending,
     Delayed,
     Creating,
     Begun,
@@ -219,7 +224,7 @@ impl WorkDoneProgressGuard {
             timing,
             state: Mutex::new(ProgressState {
                 version,
-                phase: Phase::Delayed,
+                phase: Phase::Pending,
                 message: None,
                 terminal: None,
                 restart_reported: false,
@@ -228,7 +233,18 @@ impl WorkDoneProgressGuard {
         }
     }
 
-    fn schedule(self: &Arc<Self>) {
+    fn schedule(self: &Arc<Self>, version: usize) {
+        {
+            let mut state = self.state.lock();
+            if !self.enabled.load(Ordering::Acquire)
+                || state.version != version
+                || state.phase != Phase::Pending
+            {
+                return;
+            }
+            state.phase = Phase::Delayed;
+        }
+
         let weak = Arc::downgrade(self);
         let delay = self.timing.delay;
         let Ok(handle) = tokio::runtime::Handle::try_current() else {
@@ -319,6 +335,14 @@ impl WorkDoneProgressGuard {
             return true;
         }
 
+        if matches!(state.phase, Phase::Pending | Phase::Delayed | Phase::Creating) {
+            state.phase = Phase::Closed;
+            state.message = None;
+            state.terminal = None;
+            state.restart_reported = false;
+            return false;
+        }
+
         state.version = version;
         state.terminal = None;
         if state.phase == Phase::Begun {
@@ -362,7 +386,7 @@ impl WorkDoneProgressGuard {
             ) {
                 self.disable_locked(&mut state, "failed to enqueue progress report");
             }
-        } else if matches!(state.phase, Phase::Delayed | Phase::Creating) {
+        } else if matches!(state.phase, Phase::Pending | Phase::Delayed | Phase::Creating) {
             state.message = Some(message);
         }
     }
@@ -374,7 +398,7 @@ impl WorkDoneProgressGuard {
         }
 
         match state.phase {
-            Phase::Delayed => {
+            Phase::Pending | Phase::Delayed => {
                 state.phase = Phase::Closed;
                 state.message = None;
             }
@@ -407,7 +431,7 @@ impl WorkDoneProgressGuard {
 
         let result = publish();
         match state.phase {
-            Phase::Delayed => {
+            Phase::Pending | Phase::Delayed => {
                 state.phase = Phase::Closed;
                 state.message = None;
             }
@@ -433,6 +457,11 @@ impl WorkDoneProgressGuard {
     fn created(&self) {
         let mut state = self.state.lock();
         if state.phase != Phase::Creating {
+            return;
+        }
+        if state.terminal.take().is_some() {
+            state.phase = Phase::Closed;
+            state.message = None;
             return;
         }
 
@@ -467,7 +496,7 @@ impl WorkDoneProgressGuard {
 
     fn disable(&self, reason: &str) {
         let mut state = self.state.lock();
-        if !matches!(state.phase, Phase::Delayed | Phase::Creating) {
+        if !matches!(state.phase, Phase::Pending | Phase::Delayed | Phase::Creating) {
             return;
         }
         self.disable_locked(&mut state, reason);
@@ -625,6 +654,7 @@ mod tests {
             1,
             Timing { delay: Duration::ZERO, create_timeout: Duration::from_secs(1) },
         );
+        guard.state.lock().phase = Phase::Delayed;
         assert!(guard.mark_creating());
         guard.finish(1, "first");
         guard.report(1, "ignored");
@@ -634,7 +664,7 @@ mod tests {
     }
 
     #[test]
-    fn finishing_delayed_ticket_discards_pending_message() {
+    fn finishing_pending_ticket_discards_pending_message() {
         let guard = WorkDoneProgressGuard::new(
             ClientSocket::new_closed(),
             Arc::new(AtomicBool::new(true)),
@@ -681,6 +711,96 @@ mod tests {
         tokio::task::yield_now().await;
 
         assert!(!coordinator.is_active_for_test(1));
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn finishing_just_before_delay_never_creates_progress() {
+        let delay = Duration::from_millis(100);
+        let coordinator = ProgressCoordinator::with_timing(
+            ClientSocket::new_closed(),
+            true,
+            delay,
+            Duration::from_secs(1),
+        );
+        let ticket = coordinator.start(1);
+        tokio::task::yield_now().await;
+
+        tokio::time::advance(delay - Duration::from_millis(1)).await;
+        ticket.finish("done");
+        tokio::time::advance(Duration::from_millis(1)).await;
+        tokio::task::yield_now().await;
+
+        assert!(!coordinator.is_active_for_test(1));
+        assert!(coordinator.inner.enabled.load(Ordering::Acquire));
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn replacement_before_delay_restarts_the_progress_clock() {
+        let delay = Duration::from_millis(100);
+        let coordinator = ProgressCoordinator::with_timing(
+            ClientSocket::new_closed(),
+            true,
+            delay,
+            Duration::from_secs(1),
+        );
+        let first = coordinator.start(1);
+        tokio::task::yield_now().await;
+
+        tokio::time::advance(delay / 2).await;
+        let latest = coordinator.start(2);
+        assert!(!Arc::ptr_eq(first.guard.as_ref().unwrap(), latest.guard.as_ref().unwrap()));
+        tokio::task::yield_now().await;
+
+        tokio::time::advance(delay / 2).await;
+        tokio::task::yield_now().await;
+        assert!(coordinator.is_active_for_test(2));
+        assert!(coordinator.inner.enabled.load(Ordering::Acquire));
+
+        latest.finish("done");
+        tokio::time::advance(delay / 2).await;
+        tokio::task::yield_now().await;
+        assert!(!coordinator.is_active_for_test(2));
+        assert!(coordinator.inner.enabled.load(Ordering::Acquire));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn reserved_ticket_does_not_start_progress_until_begun() {
+        let mut harness = progress_harness();
+        let coordinator = ProgressCoordinator::with_timing(
+            harness.client.clone(),
+            true,
+            Duration::ZERO,
+            Duration::from_secs(1),
+        );
+        let ticket = coordinator.reserve(1);
+
+        harness.probe().await;
+        assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
+
+        ticket.begin();
+        let ClientEvent::Create(create) = next_event(&mut harness.events).await else {
+            panic!("expected create request")
+        };
+        let token = create.token;
+        harness.acknowledge_create();
+        assert!(matches!(
+            next_event(&mut harness.events).await,
+            ClientEvent::Progress(ProgressParams {
+                token: actual,
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(_)),
+            }) if actual == token
+        ));
+
+        ticket.finish("done");
+        assert!(matches!(
+            next_event(&mut harness.events).await,
+            ClientEvent::Progress(ProgressParams {
+                token: actual,
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(_)),
+            }) if actual == token
+        ));
+
+        harness.shutdown().await;
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -799,7 +919,12 @@ mod tests {
 
     #[test]
     fn disabled_coordinator_returns_noop_ticket() {
-        let coordinator = ProgressCoordinator::new(ClientSocket::new_closed(), false);
+        let coordinator = ProgressCoordinator::with_timing(
+            ClientSocket::new_closed(),
+            false,
+            Duration::ZERO,
+            Duration::from_secs(1),
+        );
         let ticket = coordinator.start(1);
         assert!(ticket.is_disabled());
         ticket.report("ignored");
@@ -821,7 +946,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn replacement_reuses_a_wave_that_finished_while_create_was_pending() {
+    async fn replacement_while_create_is_pending_can_finish_silently() {
         let mut harness = progress_harness();
         let coordinator = ProgressCoordinator::with_timing(
             harness.client.clone(),
@@ -830,46 +955,25 @@ mod tests {
             Duration::from_secs(1),
         );
         let first = coordinator.start(1);
-        let ClientEvent::Create(create) = next_event(&mut harness.events).await else {
+        let ClientEvent::Create(_) = next_event(&mut harness.events).await else {
             panic!("expected create request")
         };
-        let token = create.token;
         first.finish("first finished");
 
         let second = coordinator.start(2);
-        assert!(Arc::ptr_eq(first.guard.as_ref().unwrap(), second.guard.as_ref().unwrap()));
-        harness.acknowledge_create();
-
-        match next_event(&mut harness.events).await {
-            ClientEvent::Progress(ProgressParams {
-                token: actual,
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
-            }) => {
-                assert_eq!(actual, token);
-                assert_eq!(begin.message.as_deref(), Some(RESTART_MESSAGE));
-            }
-            event => panic!("expected progress begin, got {event:?}"),
-        }
-        harness.probe().await;
-        assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
-
+        assert!(!Arc::ptr_eq(first.guard.as_ref().unwrap(), second.guard.as_ref().unwrap()));
         second.finish("second finished");
-        match next_event(&mut harness.events).await {
-            ClientEvent::Progress(ProgressParams {
-                token: actual,
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)),
-            }) => {
-                assert_eq!(actual, token);
-                assert_eq!(end.message.as_deref(), Some("second finished"));
-            }
-            event => panic!("expected current end, got {event:?}"),
-        }
+        harness.acknowledge_create();
+        harness.probe().await;
+
+        assert!(!coordinator.is_active_for_test(2));
+        assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
 
         harness.shutdown().await;
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn replacement_across_create_ack_emits_one_restart_message() {
+    async fn replacement_after_begin_reuses_the_visible_wave() {
         let mut harness = progress_harness();
         let coordinator = ProgressCoordinator::with_timing(
             harness.client.clone(),
@@ -883,28 +987,29 @@ mod tests {
             panic!("expected create request")
         };
         let token = create.token;
-        let second = coordinator.start(2);
-        assert!(Arc::ptr_eq(first.guard.as_ref().unwrap(), second.guard.as_ref().unwrap()));
-
         harness.acknowledge_create();
+        assert!(matches!(
+            next_event(&mut harness.events).await,
+            ClientEvent::Progress(ProgressParams {
+                token: actual,
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(_)),
+            }) if actual == token
+        ));
+
+        let latest = coordinator.start(2);
+        assert!(Arc::ptr_eq(first.guard.as_ref().unwrap(), latest.guard.as_ref().unwrap()));
         match next_event(&mut harness.events).await {
             ClientEvent::Progress(ProgressParams {
                 token: actual,
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Report(report)),
             }) => {
                 assert_eq!(actual, token);
-                assert_eq!(begin.message.as_deref(), Some(RESTART_MESSAGE));
+                assert_eq!(report.message.as_deref(), Some(RESTART_MESSAGE));
             }
-            event => panic!("expected progress begin, got {event:?}"),
+            event => panic!("expected replacement report, got {event:?}"),
         }
 
-        let latest = coordinator.start(3);
-        assert!(Arc::ptr_eq(first.guard.as_ref().unwrap(), latest.guard.as_ref().unwrap()));
-        harness.probe().await;
-        assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
-
         first.finish("stale");
-        second.finish("stale");
         latest.finish("done");
         match next_event(&mut harness.events).await {
             ClientEvent::Progress(ProgressParams {
@@ -1000,7 +1105,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn create_timeout_keeps_the_request_alive_for_a_late_success() {
+    async fn late_create_response_after_finish_suppresses_progress() {
         let mut harness = progress_harness();
         let coordinator = ProgressCoordinator::with_timing(
             harness.client.clone(),
@@ -1010,10 +1115,9 @@ mod tests {
         );
         let first = coordinator.start(1);
 
-        let ClientEvent::Create(create) = next_event(&mut harness.events).await else {
+        let ClientEvent::Create(_) = next_event(&mut harness.events).await else {
             panic!("expected create request")
         };
-        let token = create.token;
         tokio::time::timeout(Duration::from_secs(1), async {
             while !first.guard.as_ref().unwrap().create_timed_out_for_test() {
                 tokio::task::yield_now().await;
@@ -1024,30 +1128,13 @@ mod tests {
         assert!(coordinator.inner.enabled.load(Ordering::Acquire));
 
         let latest = coordinator.start(2);
-        assert!(Arc::ptr_eq(first.guard.as_ref().unwrap(), latest.guard.as_ref().unwrap()));
+        assert!(!Arc::ptr_eq(first.guard.as_ref().unwrap(), latest.guard.as_ref().unwrap()));
         latest.finish("done");
 
         harness.acknowledge_create();
-        match next_event(&mut harness.events).await {
-            ClientEvent::Progress(ProgressParams {
-                token: actual,
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
-            }) => {
-                assert_eq!(actual, token);
-                assert_eq!(begin.message.as_deref(), Some("done"));
-            }
-            event => panic!("expected late progress begin, got {event:?}"),
-        }
-        match next_event(&mut harness.events).await {
-            ClientEvent::Progress(ProgressParams {
-                token: actual,
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)),
-            }) => {
-                assert_eq!(actual, token);
-                assert_eq!(end.message.as_deref(), Some("done"));
-            }
-            event => panic!("expected late progress end, got {event:?}"),
-        }
+        harness.probe().await;
+        assert!(!coordinator.is_active_for_test(2));
+        assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
 
         harness.shutdown().await;
     }
@@ -1060,6 +1147,7 @@ mod tests {
             1,
             Timing { delay: Duration::ZERO, create_timeout: Duration::from_secs(1) },
         ));
+        guard.state.lock().phase = Phase::Delayed;
         assert!(guard.mark_creating());
         guard.finish(1, "obsolete completion");
 
@@ -1180,14 +1268,27 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn quick_and_disabled_work_are_silent() {
         let mut harness = progress_harness();
-        let quick = ProgressCoordinator::new(harness.client.clone(), true).start(1);
+        let delay = Duration::from_millis(250);
+        let quick = ProgressCoordinator::with_timing(
+            harness.client.clone(),
+            true,
+            delay,
+            Duration::from_secs(1),
+        )
+        .start(1);
         quick.report("quick");
         quick.finish("done");
-        let disabled = ProgressCoordinator::new(harness.client.clone(), false).start(2);
+        let disabled = ProgressCoordinator::with_timing(
+            harness.client.clone(),
+            false,
+            delay,
+            Duration::from_secs(1),
+        )
+        .start(2);
         disabled.report("ignored");
         disabled.finish("ignored");
 
-        sleep(PROGRESS_DELAY + Duration::from_millis(50)).await;
+        sleep(delay + Duration::from_millis(50)).await;
         harness.probe().await;
         assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
 
