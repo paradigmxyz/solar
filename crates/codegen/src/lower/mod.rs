@@ -983,6 +983,10 @@ impl<'gcx> Lowerer<'gcx> {
         self.locals.clear();
         self.local_memory_slots.clear();
         self.slice_slot_locals.clear();
+        // The recorded positions are SSA values of the function being lowered,
+        // so they must not outlive it: the same internal function can be
+        // inlined into one entry and lowered standalone for another.
+        self.calldata_struct_field_slices.clear();
         self.next_local_memory_offset = EvmMemoryLayout::HEAP_START;
         self.assigned_vars.clear();
         self.lowering_constructor = hir_func.kind == hir::FunctionKind::Constructor;

@@ -1746,10 +1746,13 @@ impl<'gcx> Lowerer<'gcx> {
                 {
                     slot
                 } else {
-                    // A `bytes memory` parameter receives one word; an
-                    // ABI-encode payload (a memory slice) materializes first.
+                    // A memory parameter receives one word; a logical slice
+                    // materializes into the memory object the parameter expects.
                     let value = self.lower_value_expr(builder, arg);
-                    self.coerce_memory_slice_value(builder, value)
+                    match params.get(i) {
+                        Some(&param_id) => self.coerce_arg_for_param(builder, param_id, value),
+                        None => self.coerce_memory_slice_value(builder, value),
+                    }
                 }
             })
             .collect();
@@ -2546,7 +2549,11 @@ impl<'gcx> Lowerer<'gcx> {
                 {
                     arg_vals.push(slot);
                 } else {
-                    arg_vals.push(self.lower_value_expr(builder, arg));
+                    let value = self.lower_value_expr(builder, arg);
+                    arg_vals.push(match func.parameters.get(param_idx) {
+                        Some(&param_id) => self.coerce_arg_for_param(builder, param_id, value),
+                        None => value,
+                    });
                 }
             }
 
