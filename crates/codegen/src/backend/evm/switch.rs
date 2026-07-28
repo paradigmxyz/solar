@@ -335,6 +335,9 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
 
     let max_gas_code_size = linear_cost.code_size.saturating_add(max_gas_code_growth);
     let mut best = (linear_cost, SwitchPlan::Linear);
+    // A guarded perfect hash may reuse the size ceiling of any gas-improving
+    // non-bit plan that fits the total budget, without raising the bit policy.
+    let mut portfolio_gas_code_size = 0;
     let explicit_default = default.without_fallthrough();
     if matches!(optimization, OptimizationMode::Gas | OptimizationMode::Size) {
         for leaf_size in binary_leaf_sizes(values.len()) {
@@ -346,6 +349,12 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 table_target_width,
                 coalesce_case_targets,
             );
+            if optimization == OptimizationMode::Gas
+                && cost.max_code_size <= max_gas_code_size
+                && cost.gas_key() < linear_cost.gas_key()
+            {
+                portfolio_gas_code_size = portfolio_gas_code_size.max(cost.max_code_size);
+            }
             let better = match optimization {
                 OptimizationMode::Gas => cost.is_better_for_gas_than(best.0, max_gas_code_size),
                 OptimizationMode::Size => {
@@ -376,6 +385,9 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 table_target_width,
                 coalesce_case_targets,
             );
+            if cost.max_code_size <= max_gas_code_size && cost.gas_key() < linear_cost.gas_key() {
+                portfolio_gas_code_size = portfolio_gas_code_size.max(cost.max_code_size);
+            }
             if cost.is_better_for_gas_than(best.0, max_gas_code_size) {
                 best = (cost, SwitchPlan::Buckets { bucket_count });
             }
@@ -388,6 +400,12 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         table_target_width,
         layout.shared_case_continuation,
     ) {
+        if optimization == OptimizationMode::Gas
+            && cost.max_code_size <= max_gas_code_size
+            && cost.gas_key() < linear_cost.gas_key()
+        {
+            portfolio_gas_code_size = portfolio_gas_code_size.max(cost.max_code_size);
+        }
         let better = match optimization {
             OptimizationMode::Gas => cost.is_better_for_gas_than(best.0, max_gas_code_size),
             OptimizationMode::Size => {
@@ -412,6 +430,13 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         table_target_width,
         coalesce_case_targets,
     ) {
+        if optimization == OptimizationMode::Gas
+            && !matches!(plan, SwitchPlan::Perfect { hash: PerfectHash::BitSlice { .. } })
+            && cost.max_code_size <= max_gas_code_size
+            && cost.gas_key() < linear_cost.gas_key()
+        {
+            portfolio_gas_code_size = portfolio_gas_code_size.max(cost.max_code_size);
+        }
         let better = match optimization {
             OptimizationMode::Gas => {
                 let max_code_size =
@@ -424,8 +449,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                     };
                 cost.is_better_for_gas_than(best.0, max_code_size)
                     || (coalesce_case_targets
-                        && best.1 != SwitchPlan::Linear
-                        && cost.max_code_size <= best.0.max_code_size
+                        && cost.max_code_size <= portfolio_gas_code_size
                         && cost.gas_key() < best.0.gas_key())
             }
             OptimizationMode::Size => {
@@ -1359,7 +1383,7 @@ mod tests {
             .plan
         };
         assert!(matches!(select(false), SwitchPlan::Dense { .. }));
-        assert!(matches!(select(true), SwitchPlan::Binary { .. }));
+        assert!(matches!(select(true), SwitchPlan::Perfect { .. }));
     }
 
     #[test]
