@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import {
   LanguageClient,
   LanguageClientOptions,
+  ReferencesRequest,
   ServerOptions,
   State,
   TransportKind,
@@ -9,21 +10,32 @@ import {
 import { spawn } from "child_process";
 
 let client: LanguageClient | undefined;
+let clientLifecycle: Promise<void> = Promise.resolve();
+
+const restartSettings = [
+  "solarLsp.enable",
+  "solarLsp.codeLens.enable",
+  "solarLsp.codeLens.selectors",
+  "solarLsp.codeLens.references",
+  "solarLsp.codeLens.inheritance",
+];
 
 export function activate(context: vscode.ExtensionContext) {
-  const config = vscode.workspace.getConfiguration("solarLsp");
-
-  if (!config.get("enable")) {
-    return;
-  }
+  const fileWatcher = vscode.workspace.createFileSystemWatcher("**/*.sol");
+  context.subscriptions.push(fileWatcher);
 
   // Start the LSP server
-  startLanguageServer(context);
+  void restartLanguageServer(fileWatcher);
 
   // Register format document command
   const formatCommand = vscode.commands.registerCommand(
     "solarLsp.formatDocument",
     async () => {
+      const currentConfig = vscode.workspace.getConfiguration("solarLsp");
+      if (!currentConfig.get<boolean>("enable", true)) {
+        return;
+      }
+
       const editor = vscode.window.activeTextEditor;
       if (!editor || editor.document.languageId !== "solidity") {
         return;
@@ -50,7 +62,8 @@ export function activate(context: vscode.ExtensionContext) {
       .getConfiguration("editor", event.document.uri)
       .get<boolean>("formatOnSave", false);
     if (
-      currentConfig.get("formatOnSave") &&
+      currentConfig.get<boolean>("enable", true) &&
+      currentConfig.get<boolean>("formatOnSave", true) &&
       (!editorFormatOnSave || !serverSupportsDocumentFormatting()) &&
       event.document.languageId === "solidity"
     ) {
@@ -59,16 +72,67 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const configListener = vscode.workspace.onDidChangeConfiguration((event) => {
-    if (event.affectsConfiguration("solarLsp.enable")) {
-      const currentConfig = vscode.workspace.getConfiguration("solarLsp");
-      if (!currentConfig.get("enable") && client) {
-        client.stop();
-        client = undefined;
-      }
+    if (restartSettings.some((setting) => event.affectsConfiguration(setting))) {
+      void restartLanguageServer(fileWatcher);
     }
   });
 
-  context.subscriptions.push(formatCommand, formatOnSave, configListener);
+  const copySelectorCommand = vscode.commands.registerCommand(
+    "solar.copySelector",
+    copySelector,
+  );
+  const showReferencesCommand = vscode.commands.registerCommand(
+    "solar.showReferences",
+    showReferences,
+  );
+  const showTypeHierarchyCommand = vscode.commands.registerCommand(
+    "solar.showTypeHierarchy",
+    showTypeHierarchy,
+  );
+
+  context.subscriptions.push(
+    formatCommand,
+    formatOnSave,
+    configListener,
+    copySelectorCommand,
+    showReferencesCommand,
+    showTypeHierarchyCommand,
+  );
+}
+
+function restartLanguageServer(
+  fileWatcher: vscode.FileSystemWatcher,
+): Promise<void> {
+  clientLifecycle = clientLifecycle
+    .then(async () => {
+      await stopLanguageServer();
+
+      const config = vscode.workspace.getConfiguration("solarLsp");
+      if (config.get<boolean>("enable", true)) {
+        await startLanguageServer(fileWatcher);
+      }
+    })
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("Failed to restart LSP client:", error);
+      vscode.window.showErrorMessage(`Failed to restart LSP: ${message}`);
+    });
+  return clientLifecycle;
+}
+
+async function stopLanguageServer(): Promise<void> {
+  const currentClient = client;
+  if (!currentClient) {
+    return;
+  }
+
+  if (currentClient.state === State.Running) {
+    await currentClient.stop();
+  }
+
+  if (client === currentClient) {
+    client = undefined;
+  }
 }
 
 async function checkExecutableExists(command: string): Promise<boolean> {
@@ -83,11 +147,18 @@ async function checkExecutableExists(command: string): Promise<boolean> {
   });
 }
 
-async function startLanguageServer(context: vscode.ExtensionContext) {
+async function startLanguageServer(fileWatcher: vscode.FileSystemWatcher) {
   const config = vscode.workspace.getConfiguration("solarLsp");
   const solarPath = config.get<string>("serverPath", "solar");
   const forgePath = config.get<string>("forgePath", "forge");
   const flychecks = config.get("flychecks");
+  const codeLens = {
+    enable: config.get<boolean>("codeLens.enable", true),
+    selectors: config.get<boolean>("codeLens.selectors", true),
+    references: config.get<boolean>("codeLens.references", true),
+    inheritance: config.get<boolean>("codeLens.inheritance", true),
+    clientCommands: true,
+  };
 
   // Check if solar is available first
   let serverCommand: string;
@@ -126,37 +197,148 @@ async function startLanguageServer(context: vscode.ExtensionContext) {
     initializationOptions: {
       forgePath,
       flychecks,
+      codeLens,
     },
     synchronize: {
-      fileEvents: vscode.workspace.createFileSystemWatcher("**/*.sol"),
+      fileEvents: fileWatcher,
     },
   };
 
   // Create the language client and start it
-  client = new LanguageClient(
+  const nextClient = new LanguageClient(
     "solarLsp",
     "Solar LSP",
     serverOptions,
     clientOptions,
   );
+  client = nextClient;
 
   // Start the client. This will also launch the server
-  client
-    .start()
-    .then(() => {
-      const serverName = solarExists ? "Solar" : "Forge";
-      console.log(`${serverName} LSP client started`);
-      vscode.window.showInformationMessage(
-        `${serverName} LSP started successfully`,
-      );
-    })
-    .catch((error) => {
-      console.error("Failed to start LSP client:", error);
-      vscode.window.showErrorMessage(`Failed to start LSP: ${error.message}`);
-    });
+  try {
+    await nextClient.start();
+    const serverName = solarExists ? "Solar" : "Forge";
+    console.log(`${serverName} LSP client started`);
+    vscode.window.showInformationMessage(
+      `${serverName} LSP started successfully`,
+    );
+  } catch (error) {
+    try {
+      await nextClient.dispose();
+    } catch {
+      // Failed starts can also reject shutdown after scheduling process cleanup.
+    }
+    if (client === nextClient) {
+      client = undefined;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Failed to start LSP client:", error);
+    vscode.window.showErrorMessage(`Failed to start LSP: ${message}`);
+  }
+}
 
-  // Add client to subscriptions so it gets disposed when extension is deactivated
-  context.subscriptions.push(client);
+async function copySelector(selector: unknown): Promise<void> {
+  if (typeof selector !== "string" || selector.length === 0) {
+    return;
+  }
+  await vscode.env.clipboard.writeText(selector);
+}
+
+async function showReferences(argument: unknown): Promise<void> {
+  const location = parseCodeLensLocation(argument);
+  const runningClient = client;
+  if (!location || !runningClient || runningClient.state !== State.Running) {
+    return;
+  }
+
+  try {
+    const result = await runningClient.sendRequest(ReferencesRequest.type, {
+      textDocument: { uri: location.uri.toString() },
+      position: {
+        line: location.position.line,
+        character: location.position.character,
+      },
+      context: { includeDeclaration: false },
+    });
+    const references = await runningClient.protocol2CodeConverter.asReferences(
+      result ?? [],
+    );
+    await vscode.commands.executeCommand(
+      "editor.action.showReferences",
+      location.uri,
+      location.position,
+      references,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Failed to show references:", error);
+    vscode.window.showErrorMessage(`Failed to show references: ${message}`);
+  }
+}
+
+async function showTypeHierarchy(argument: unknown): Promise<void> {
+  const location = parseCodeLensLocation(argument);
+  if (!location || !argument || typeof argument !== "object") {
+    return;
+  }
+
+  const direction = (argument as { direction?: unknown }).direction;
+  if (direction !== "supertypes" && direction !== "subtypes") {
+    return;
+  }
+
+  try {
+    const range = new vscode.Range(location.position, location.position);
+    const editor = await vscode.window.showTextDocument(location.uri, {
+      selection: range,
+    });
+    editor.revealRange(
+      range,
+      vscode.TextEditorRevealType.InCenterIfOutsideViewport,
+    );
+    await vscode.commands.executeCommand("editor.showTypeHierarchy");
+    await vscode.commands.executeCommand(
+      direction === "supertypes"
+        ? "editor.showSupertypes"
+        : "editor.showSubtypes",
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Failed to show type hierarchy:", error);
+    vscode.window.showErrorMessage(`Failed to show type hierarchy: ${message}`);
+  }
+}
+
+function parseCodeLensLocation(
+  argument: unknown,
+): { uri: vscode.Uri; position: vscode.Position } | undefined {
+  if (!argument || typeof argument !== "object") {
+    return undefined;
+  }
+
+  const candidate = argument as {
+    uri?: unknown;
+    position?: { line?: unknown; character?: unknown };
+  };
+  if (
+    typeof candidate.uri !== "string" ||
+    !candidate.position ||
+    typeof candidate.position.line !== "number" ||
+    typeof candidate.position.character !== "number" ||
+    !Number.isInteger(candidate.position.line) ||
+    !Number.isInteger(candidate.position.character) ||
+    candidate.position.line < 0 ||
+    candidate.position.character < 0
+  ) {
+    return undefined;
+  }
+
+  return {
+    uri: vscode.Uri.parse(candidate.uri),
+    position: new vscode.Position(
+      candidate.position.line,
+      candidate.position.character,
+    ),
+  };
 }
 
 async function formatDocument(
@@ -242,8 +424,5 @@ async function formatDocumentWithForge(
 }
 
 export function deactivate(): Thenable<void> | undefined {
-  if (!client) {
-    return undefined;
-  }
-  return client.stop();
+  return clientLifecycle.then(stopLanguageServer);
 }

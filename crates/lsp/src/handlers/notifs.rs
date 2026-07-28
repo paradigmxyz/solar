@@ -129,7 +129,10 @@ pub(crate) fn did_change_watched_files(
     let mut removed_paths = Vec::new();
 
     for event in params.changes {
-        let Ok(path) = event.uri.to_file_path() else {
+        let Some(vfs_path) = proto::vfs_path(&event.uri) else {
+            continue;
+        };
+        let Some(path) = vfs_path.as_path().map(ToOwned::to_owned) else {
             continue;
         };
 
@@ -138,6 +141,11 @@ pub(crate) fn did_change_watched_files(
                 should_rediscover = true;
             }
             Some(_) if path.extension().is_some_and(|ext| ext == "sol") => {
+                // Open documents are sourced from the VFS, and `didChange` already schedules their
+                // analysis. The watched change emitted after saving one is redundant.
+                if event.typ == FileChangeType::CHANGED && state.vfs.read().exists(&vfs_path) {
+                    continue;
+                }
                 if event.typ == FileChangeType::CREATED {
                     Arc::make_mut(&mut state.config).add_source_file(path.clone());
                 } else if event.typ == FileChangeType::DELETED {

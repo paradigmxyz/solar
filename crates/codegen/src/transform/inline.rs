@@ -513,7 +513,8 @@ fn is_transparent_function_pointer_cast(func: &Function) -> bool {
         return false;
     };
     values.len() == 1
-        && matches!(func.value(values[0]), Value::Arg { index: 0, ty: MirType::Function })
+        && matches!(func.value(values[0]), Value::Arg(index) if index.index() == 0)
+        && func.value_ty(values[0]) == Some(MirType::Function)
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -783,7 +784,8 @@ fn direct_dispatch_target(dispatcher: &Function, selector: &Immediate) -> Option
             continue;
         };
         let matches_selector = [(lhs, rhs), (rhs, lhs)].into_iter().any(|(arg, value)| {
-            matches!(dispatcher.value(arg), Value::Arg { index: 0, ty: MirType::Function })
+            matches!(dispatcher.value(arg), Value::Arg(index) if index.index() == 0)
+                && dispatcher.value_ty(arg) == Some(MirType::Function)
                 && dispatcher.value(value).as_immediate().and_then(Immediate::as_u256)
                     == Some(selector)
         });
@@ -805,7 +807,7 @@ fn direct_dispatch_case_target(dispatcher: &Function, block: BlockId) -> Option<
     if !args.iter().enumerate().all(|(index, &arg)| {
         matches!(
             dispatcher.value(arg),
-            Value::Arg { index: arg_index, .. } if *arg_index as usize == index + 1
+            Value::Arg(arg_index) if arg_index.index() == index + 1
         )
     }) {
         return None;
@@ -951,6 +953,7 @@ struct InlineCloner<'a> {
     callee: &'a Function,
     frame_base: u64,
     callee_frame_prefix: u64,
+    args: Vec<ValueId>,
     value_map: FxHashMap<ValueId, ValueId>,
     block_map: FxHashMap<BlockId, BlockId>,
     return_edges: Vec<(BlockId, SmallVec<[ValueId; 2]>)>,
@@ -964,20 +967,13 @@ impl<'a> InlineCloner<'a> {
         callee_frame_prefix: u64,
         args: &[ValueId],
     ) -> Self {
-        let mut value_map = FxHashMap::default();
-        for (callee_value, value) in callee.values.iter_enumerated() {
-            if let Value::Arg { index, .. } = value
-                && let Some(&arg) = args.get(*index as usize)
-            {
-                value_map.insert(callee_value, arg);
-            }
-        }
         Self {
             caller,
             callee,
             frame_base,
             callee_frame_prefix,
-            value_map,
+            args: args.to_vec(),
+            value_map: FxHashMap::default(),
             block_map: FxHashMap::default(),
             return_edges: Vec::new(),
         }
@@ -1030,11 +1026,12 @@ impl<'a> InlineCloner<'a> {
             return Some(mapped);
         }
 
-        let cloned = match self.callee.values[value].clone() {
+        let cloned = match self.callee.value(value).clone() {
+            Value::Arg(index) => *self.args.get(index.index())?,
             Value::Immediate(imm) => self.caller.alloc_value(Value::Immediate(imm)),
             Value::Undef(ty) => self.caller.alloc_value(Value::Undef(ty)),
             Value::Error(guar) => self.caller.alloc_value(Value::Error(guar)),
-            Value::Arg { .. } | Value::Inst(_) => return None,
+            Value::Inst(_) => return None,
         };
         self.value_map.insert(value, cloned);
         Some(cloned)

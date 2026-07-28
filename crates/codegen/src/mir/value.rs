@@ -1,6 +1,6 @@
 //! MIR values.
 
-use super::{InstId, MirType};
+use super::{ArgIdx, InstId, MirType};
 use alloy_primitives::U256;
 use solar_interface::diagnostics::ErrorGuaranteed;
 use std::fmt;
@@ -11,12 +11,7 @@ pub(crate) enum Value {
     /// Result of an instruction.
     Inst(InstId),
     /// Function argument.
-    Arg {
-        /// Argument index.
-        index: u32,
-        /// Argument type.
-        ty: MirType,
-    },
+    Arg(ArgIdx),
     /// Immediate constant.
     Immediate(Immediate),
     /// Undefined value (used for uninitialized variables).
@@ -31,16 +26,6 @@ pub(crate) enum Value {
 }
 
 impl Value {
-    /// Returns the type of this value.
-    #[must_use]
-    pub(crate) fn ty(&self) -> MirType {
-        match self {
-            Self::Inst(_) | Self::Error(_) => MirType::uint256(),
-            Self::Arg { ty, .. } | Self::Undef(ty) => *ty,
-            Self::Immediate(imm) => imm.ty(),
-        }
-    }
-
     /// Returns this value as an immediate, if it is one.
     #[must_use]
     pub(crate) const fn as_immediate(&self) -> Option<&Immediate> {

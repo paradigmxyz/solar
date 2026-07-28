@@ -451,6 +451,133 @@ address immutable owner
 }
 
 #[test]
+fn shows_public_state_variable_at_internal_references() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Counter.sol open
+        contract Counter {
+            uint256 public $1number;
+
+            function setNumber(uint256 newNumber) public {
+                $2number = newNumber;
+            }
+
+            function increment() public {
+                $3number++;
+            }
+        }
+        "#,
+        "/Counter.sol",
+    );
+
+    fixture.check_hover(
+        "$1",
+        str![[r#"
+1:19-1:25
+```solidity
+uint256 public number
+```
+
+"#]],
+    );
+    fixture.check_hover(
+        "$2",
+        str![[r#"
+3:8-3:14
+```solidity
+uint256 public number
+```
+
+"#]],
+    );
+    fixture.check_hover(
+        "$3",
+        str![[r#"
+6:8-6:14
+```solidity
+uint256 public number
+```
+
+"#]],
+    );
+}
+
+#[test]
+fn shows_contracts_at_declarations_imports_creation_and_inheritance() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /lib/forge-std/src/Script.sol
+        abstract contract Script {}
+        //- /src/Counter.sol
+        contract Counter {}
+        //- /script/Counter.s.sol open
+        import {$1Script} from "../lib/forge-std/src/Script.sol";
+        import {$2Counter} from "../src/Counter.sol";
+
+        contract $3CounterScript is $4Script {
+            Counter public counter;
+
+            function run() public {
+                counter = new $5Counter();
+            }
+        }
+        "#,
+        "/script/Counter.s.sol",
+    );
+
+    fixture.check_hover(
+        "$1",
+        str![[r#"
+0:8-0:14
+```solidity
+abstract contract Script
+```
+
+"#]],
+    );
+    fixture.check_hover(
+        "$2",
+        str![[r#"
+1:8-1:15
+```solidity
+contract Counter
+```
+
+"#]],
+    );
+    fixture.check_hover(
+        "$3",
+        str![[r#"
+2:9-2:22
+```solidity
+contract CounterScript is Script
+```
+
+"#]],
+    );
+    fixture.check_hover(
+        "$4",
+        str![[r#"
+2:26-2:32
+```solidity
+abstract contract Script
+```
+
+"#]],
+    );
+    fixture.check_hover(
+        "$5",
+        str![[r#"
+5:22-5:29
+```solidity
+contract Counter
+```
+
+"#]],
+    );
+}
+
+#[test]
 fn uses_the_type_checked_overload() {
     let fixture = RequestFixture::new(
         r#"
@@ -949,12 +1076,16 @@ function read(uint256 leafValue) public pure override returns (uint256 leafResul
 }
 
 #[test]
-fn returns_no_hover_for_unsupported_or_non_symbol_positions() {
+fn shows_all_hir_items_and_skips_non_symbol_positions() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Unsupported.sol open
         contract $1C {
+            /// A user ID.
+            type $6UserId is uint256;
+            /// Stored data.
             struct $2Data {}
+            /// An available kind.
             enum $3Kind { A }
 
             function use() public returns (uint256) {
@@ -969,7 +1100,53 @@ fn returns_no_hover_for_unsupported_or_non_symbol_positions() {
         "/Unsupported.sol",
     );
 
-    for marker in ["$1", "$2", "$3", "$4", "$5", "$7", "$8"] {
+    fixture.check_hover(
+        "$1",
+        str![[r#"
+0:9-0:10
+```solidity
+contract C
+```
+
+"#]],
+    );
+    fixture.check_hover(
+        "$2",
+        str![[r#"
+4:11-4:15
+```solidity
+struct Data
+```
+
+Stored data.
+
+"#]],
+    );
+    fixture.check_hover(
+        "$3",
+        str![[r#"
+6:9-6:13
+```solidity
+enum Kind
+```
+
+An available kind.
+
+"#]],
+    );
+    fixture.check_hover(
+        "$6",
+        str![[r#"
+2:9-2:15
+```solidity
+type UserId is uint256
+```
+
+A user ID.
+
+"#]],
+    );
+    for marker in ["$4", "$5", "$7", "$8"] {
         fixture.check_hover(marker, "<none>\n");
     }
 }

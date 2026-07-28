@@ -162,11 +162,8 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
     }
 
     fn report_call_expr(&mut self, expr: &'gcx hir::Expr<'gcx>, callee: &'gcx hir::Expr<'gcx>) {
-        let yul_function = self
-            .gcx
-            .resolved_callee(callee.id)
-            .and_then(|callee| callee.res.as_function())
-            .filter(|&id| self.gcx.hir.function(id).is_yul);
+        let yul_function =
+            self.gcx.resolved_function(callee).filter(|&id| self.gcx.hir.function(id).is_yul);
         if let Some(id) = yul_function {
             if self.current_function.is_some() {
                 if self.mark_yul_function_visited(id) {
@@ -178,7 +175,7 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
             }
             return;
         }
-        if let Some(builtin) = self.gcx.builtin_callee(callee.id) {
+        if let Some(builtin) = self.gcx.resolved_builtin(callee) {
             if builtin.is_yul() {
                 return;
             }
@@ -197,9 +194,7 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
     }
 
     fn report_operator_call(&mut self, expr: &'gcx hir::Expr<'gcx>) {
-        if let Some(callee) = self.gcx.resolved_callee(expr.id)
-            && let Some(id) = callee.res.as_function()
-        {
+        if let Some(id) = self.gcx.resolved_function(expr) {
             self.report_call(self.gcx.hir.function(id).state_mutability, expr.span);
         }
     }
@@ -232,7 +227,7 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
         receiver: &'gcx hir::Expr<'gcx>,
         writing: bool,
     ) {
-        let Some(res) = self.gcx.resolved_member(expr.id) else {
+        let Some(res) = self.gcx.resolved_expr(expr) else {
             if self.in_storage(receiver) {
                 self.report(read_or_write(writing), expr.span, None);
             }
@@ -379,12 +374,12 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
     }
 
     fn is_this_function_selector(&self, expr: &hir::Expr<'_>) -> bool {
-        if self.gcx.builtin_member(expr.id) != Some(Builtin::FunctionSelector) {
+        if self.gcx.resolved_builtin(expr) != Some(Builtin::FunctionSelector) {
             return false;
         }
         let ExprKind::Member(receiver, _) = expr.kind else { return false };
         let ExprKind::Member(base, _) = receiver.peel_parens().kind else { return false };
-        matches!(base.peel_parens().kind, ExprKind::Ident([hir::Res::Builtin(Builtin::This)]))
+        self.gcx.resolved_builtin(base) == Some(Builtin::This)
     }
 }
 
@@ -426,7 +421,7 @@ impl<'gcx, 'a> Visit<'gcx> for ViewPureChecker<'gcx, 'a> {
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
         let writing = std::mem::replace(&mut self.writing, false);
         let yul_builtin = if let ExprKind::Call(callee, _, _) = expr.kind {
-            self.gcx.builtin_callee(callee.id).filter(|builtin| builtin.is_yul())
+            self.gcx.resolved_builtin(callee).filter(|builtin| builtin.is_yul())
         } else {
             None
         };
@@ -467,14 +462,9 @@ impl<'gcx, 'a> Visit<'gcx> for ViewPureChecker<'gcx, 'a> {
         match expr.kind {
             ExprKind::Binary(_, _, _) | ExprKind::Unary(_, _) => self.report_operator_call(expr),
             ExprKind::Call(callee, _, _) => self.report_call_expr(expr, callee),
-            ExprKind::Ident(resolutions) => {
-                let mut variables = resolutions.iter().filter(|res| res.as_variable().is_some());
-                if let Some(variable) = variables.next()
-                    && variables.next().is_none()
-                {
-                    self.report_res(*variable, expr.span, writing);
-                } else if let [res] = resolutions {
-                    self.report_res(*res, expr.span, writing);
+            ExprKind::Ident(_) => {
+                if let Some(res) = self.gcx.resolved_expr(expr) {
+                    self.report_res(res, expr.span, writing);
                 }
             }
             ExprKind::Index(base, _) | ExprKind::Slice(base, _, _) if self.in_storage(base) => {

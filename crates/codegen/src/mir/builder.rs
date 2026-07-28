@@ -40,9 +40,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Adds an argument to the function.
     pub(crate) fn add_param(&mut self, ty: MirType) -> ValueId {
-        let index = self.func.params.len() as u32;
-        self.func.params.push(ty);
-        self.alloc_value(Value::Arg { index, ty })
+        self.func.alloc_param(ty)
     }
 
     /// Adds a return type to the function.
@@ -166,7 +164,7 @@ impl<'a> FunctionBuilder<'a> {
                 }
                 _ => MemoryRegion::Unknown,
             },
-            Value::Arg { .. } | Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => {
+            Value::Arg(_) | Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => {
                 MemoryRegion::Unknown
             }
         }
