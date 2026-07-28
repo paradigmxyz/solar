@@ -16,7 +16,7 @@ pub(super) mod utils;
 
 use super::Module;
 use crate::{
-    pass_manager::{PassPipeline, parse_pass_pipeline, pipeline_output_name, print_pass_diff},
+    pass_manager::{parse_pass_pipeline, pipeline_output_name, print_pass_diff},
     timing::PassTimer,
 };
 use solar_config::OptimizationMode;
@@ -167,7 +167,7 @@ fn run_pipeline_inner(
         Ok(pipeline) => pipeline,
         Err(_) => return false,
     };
-    let PassPipeline::Passes(passes) = pipeline else {
+    let Some(passes) = pipeline else {
         return run_passes_inner(gcx, module, DEFAULT_PIPELINE, None, emit_output);
     };
 

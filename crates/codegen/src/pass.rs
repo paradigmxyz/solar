@@ -24,7 +24,7 @@
 use crate::{
     analysis::{AliasAnalysis, CfgInfo, MemoryCallSummaries},
     mir::{Function, FunctionId, InstId, MirPhase, Module},
-    pass_manager::{PassPipeline, mir_output_name, parse_pass_pipeline, print_pass_diff},
+    pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff},
     transform::{
         adce, cfg_simplify, check_elim, copy_elision, cse, dce, frame_promotion, gvn,
         indvar_simplify, inline, inst_simplify, jump_threading, load_pre, loop_canonicalize,
@@ -226,34 +226,29 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
 )]
 #[must_use]
 pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
-    let Some(value) = gcx.sess.opts.unstable.mir_pipeline.as_deref() else {
-        return run_canonical_pipeline(gcx, module);
-    };
-    let pipeline = match parse_pass_pipeline(gcx, value, "MIR", lookup_pass) {
-        Ok(pipeline) => pipeline,
-        Err(_) => return false,
-    };
-    let PassPipeline::Passes(passes) = pipeline else {
-        return run_canonical_pipeline(gcx, module);
-    };
-
-    let name = name.map(ToOwned::to_owned).unwrap_or_else(|| mir_output_name(gcx, module));
-    let mut changed = false;
-    for pass in passes {
-        if let Some(pass) = pass {
-            changed |= run_passes(gcx, module, &[pass], None, Some(&name));
-        } else if gcx.sess.opts.unstable.pass_diff {
-            let text = module.to_text();
-            print_pass_diff(&name, "none", &text, &text);
-        } else if gcx.sess.opts.unstable.print_after_each {
-            println!("// === {name} (after none) ===");
-            print!("{}", module.to_text());
+    if let Some(value) = gcx.sess.opts.unstable.mir_pipeline.as_deref() {
+        let pipeline = match parse_pass_pipeline(gcx, value, "MIR", lookup_pass) {
+            Ok(pipeline) => pipeline,
+            Err(_) => return false,
+        };
+        if let Some(passes) = pipeline {
+            let name = name.map(ToOwned::to_owned).unwrap_or_else(|| mir_output_name(gcx, module));
+            let mut changed = false;
+            for pass in passes {
+                if let Some(pass) = pass {
+                    changed |= run_passes(gcx, module, &[pass], None, Some(&name));
+                } else if gcx.sess.opts.unstable.pass_diff {
+                    let text = module.to_text();
+                    print_pass_diff(&name, "none", &text, &text);
+                } else if gcx.sess.opts.unstable.print_after_each {
+                    println!("// === {name} (after none) ===");
+                    print!("{}", module.to_text());
+                }
+            }
+            return changed;
         }
     }
-    changed
-}
 
-fn run_canonical_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
     let lowering_start = DEFAULT_PIPELINE
         .iter()
         .position(|pass| pass.name() == lower_abi::LowerAbi.name())
