@@ -3,9 +3,8 @@
 
 // Slicing a dynamic field of a calldata struct, the ERC-4337
 // `PackedUserOperation` accessor shape. The prologue rebuilds a calldata struct
-// in memory for its static members, but a dynamic member is read where it
-// actually is: the copy carries the struct's calldata position in a trailing
-// word, so the member is a calldata slice and slicing it stays in calldata.
+// in memory, including independent memory objects for its dynamic members.
+// Slicing one therefore creates a memory slice over the existing copy.
 // Verified against solc on anvil.
 
 struct PackedUserOperation {
@@ -22,13 +21,11 @@ struct PackedUserOperation {
 library ERC4337Utils {
     // Converting a slice to `bytesN` reads its leading word; the slice itself
     // must not survive into the backend.
-    // CDSFS-NOT: memory_object_len
     function factory(PackedUserOperation calldata self) internal pure returns (address) {
         return self.initCode.length < 20 ? address(0) : address(bytes20(self.initCode[0:20]));
     }
 
-    // Hashing a calldata slice copies it into memory first, as `keccak256`
-    // only reads memory.
+    // Hashing the memory slice reads the existing copy directly.
     function tailHash(PackedUserOperation calldata self) internal pure returns (bytes32) {
         return self.initCode.length < 20 ? bytes32(0) : keccak256(self.initCode[20:]);
     }
@@ -40,6 +37,7 @@ library ERC4337Utils {
 
 contract CalldataStructFieldSlice {
     // CDSFS-LABEL: fn @factory
+    // CDSFS: memory_object_len memorybytes
     function factory(PackedUserOperation calldata op) external pure returns (address) {
         return ERC4337Utils.factory(op);
     }

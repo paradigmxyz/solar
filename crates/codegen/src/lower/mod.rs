@@ -642,59 +642,6 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// The calldata slice for a dynamic member of a `calldata` struct.
-    ///
-    /// The struct reached this function as a memory copy, which answers its
-    /// static members but not a dynamic one: a `bytes` member is a separate
-    /// object rather than a view, and an array-of-structs copy holds pointers
-    /// where calldata holds the elements inline. The copy carries the struct's
-    /// calldata position in a trailing word, so read the member where it
-    /// actually is.
-    ///
-    /// A dynamically encoded struct puts each member's head word at its own
-    /// base, and a dynamic member's head word is the offset of its tail
-    /// relative to that base.
-    pub(super) fn calldata_struct_field_slice(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        base: &hir::Expr<'_>,
-        member: solar_interface::Ident,
-    ) -> Option<ValueId> {
-        let ty = self.get_expr_type(base)?;
-        if !matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Calldata)) {
-            return None;
-        }
-        let TyKind::Struct(struct_id) = ty.peel_refs().kind else { return None };
-        let (_, index) = self.get_memory_struct_field_info(base, member)?;
-        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
-        let field_ty = field_tys.get(index)?.peel_refs();
-        // Only a member that *is* a slice: an array, or `bytes`/`string`. A
-        // nested struct member is dynamic too, but it is its own copy, which
-        // carries its own base and answers its own members.
-        if !matches!(
-            field_ty.kind,
-            TyKind::DynArray(_)
-                | TyKind::Slice(_)
-                | TyKind::Elementary(
-                    solar_ast::ElementaryType::Bytes | solar_ast::ElementaryType::String
-                )
-        ) {
-            return None;
-        }
-
-        let ptr = self.lower_value_expr(builder, base);
-        let struct_base = self.calldata_base_of_copy(builder, ptr, field_tys.len() as u64);
-        let head_offset: u64 =
-            field_tys[..index].iter().map(|&f| self.abi_head_size(f.peel_refs())).sum();
-        let head_pos = self.offset_ptr(builder, struct_base, head_offset);
-        let tail_offset = builder.calldataload(head_pos);
-        let len_pos = builder.add(struct_base, tail_offset);
-        let len = builder.calldataload(len_pos);
-        let word = builder.imm_u64(EvmMemoryLayout::WORD_SIZE);
-        let data = builder.add(len_pos, word);
-        Some(builder.make_slice(data, len, SliceLocation::Calldata))
-    }
-
     /// Returns the type and constant length of a fixed-size array parameter
     /// whose elements are single ABI words. Other parameter shapes return
     /// `None`.
@@ -1033,33 +980,16 @@ impl<'gcx> Lowerer<'gcx> {
                         (bytes::AbiSource::Calldata, 4)
                     };
 
-                    // Allocate memory for the struct, plus the trailing word a
-                    // calldata copy carries its source position in.
-                    let carries_base = agg_source == bytes::AbiSource::Calldata;
-                    let struct_size =
-                        (num_fields as u64 + u64::from(carries_base)) * EvmMemoryLayout::WORD_SIZE;
-                    // The extra word is reserved, not a field: keep the layout
-                    // at the declared field count so field addressing and the
-                    // allocation agree.
+                    // Rebuild every field into its ordinary memory
+                    // representation. Dynamic members are memory objects, so
+                    // later member and element reads can reuse this copy.
+                    let struct_size = num_fields as u64 * EvmMemoryLayout::WORD_SIZE;
                     let struct_size_val = builder.imm_u64(struct_size);
                     let struct_ptr = builder.alloc_object(
                         struct_size_val,
                         crate::mir::MemoryObjectLayout::structure(num_fields as u64),
                         crate::mir::AllocationSemantics::INTERNAL,
                     );
-                    if carries_base {
-                        // A statically encoded struct sits inline from its own
-                        // head position, so that position is its base.
-                        let first_word = builder.func().params.len() as u64;
-                        let base = builder
-                            .imm_u64(agg_args_base + first_word * EvmMemoryLayout::WORD_SIZE);
-                        let slot = self.offset_ptr(
-                            &mut builder,
-                            struct_ptr,
-                            num_fields as u64 * EvmMemoryLayout::WORD_SIZE,
-                        );
-                        builder.mstore(slot, base);
-                    }
 
                     // Add MIR params for each struct field (they come from calldata)
                     for field_idx in 0..field_ids.len() {

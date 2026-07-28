@@ -443,12 +443,6 @@ impl<'gcx> Lowerer<'gcx> {
                     return builder.sload(slot);
                 }
 
-                // An array member of a calldata struct keeps its calldata
-                // position: the memory copy cannot answer element addressing.
-                if let Some(slice) = self.calldata_struct_field_slice(builder, base, *member) {
-                    return slice;
-                }
-
                 // Regular memory struct member access
                 if let Some((struct_id, field_index)) = self.resolved_struct_field(expr)
                     && self.is_memory_struct_base(base, struct_id)
@@ -596,16 +590,33 @@ impl<'gcx> Lowerer<'gcx> {
                 .emit(),
 
             ExprKind::Slice(base, start, end) => {
-                let source = self.calldata_bytes_source(builder, base).map(|(slice, is_bytes)| {
-                    (slice, is_bytes, crate::mir::SliceLocation::Calldata)
-                });
-                if let Some((slice, is_bytes, location)) = source {
+                let is_bytes = self.expr_is_calldata_dynamic_bytes(base);
+                let value = self.lower_expr(builder, base);
+                let source = if Self::value_is_calldata_slice(builder, value) {
+                    Some((value, crate::mir::SliceLocation::Calldata))
+                } else if is_bytes || self.is_dynamic_array_expr(base) {
+                    let kind = if is_bytes {
+                        crate::mir::MemoryObjectKind::Bytes
+                    } else {
+                        crate::mir::MemoryObjectKind::DynamicArray
+                    };
+                    let len = builder.memory_object_len(value, kind);
+                    let data = builder.memory_object_data(value, kind);
+                    Some((
+                        builder.make_slice(data, len, crate::mir::SliceLocation::Memory),
+                        crate::mir::SliceLocation::Memory,
+                    ))
+                } else {
+                    None
+                };
+                if let Some((slice, location)) = source {
                     // A slice of a calldata array whose elements are dynamic
                     // keeps element offset words relative to the original
                     // array base, which the slice value does not carry, so a
                     // rebuild would read from the wrong positions. Reject
                     // rather than miscompile.
-                    if !is_bytes
+                    if location == crate::mir::SliceLocation::Calldata
+                        && !is_bytes
                         && let Some(ty) = self.get_expr_type(base)
                         && let TyKind::DynArray(elem) = ty.peel_refs().kind
                         && !self.abi_is_word_element(elem)
@@ -640,9 +651,6 @@ impl<'gcx> Lowerer<'gcx> {
                     let ptr = builder.add(base_ptr, offset);
                     return builder.make_slice(ptr, len, location);
                 }
-                // Solidity only permits slicing calldata arrays, so a base that
-                // is not a calldata slice is unreachable in valid input.
-                // Reject rather than emit raw pointer arithmetic.
                 self.err_value(builder, expr.span, "codegen only supports slicing calldata arrays")
             }
 
