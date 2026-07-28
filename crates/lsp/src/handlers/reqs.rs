@@ -1,7 +1,6 @@
+use super::workspace_edit::validated_rename_workspace_edit;
 use crate::{
     diagnostics::PullReport,
-    document_links::ImportEditPlan,
-    file_operations::{FileMoveBatch, parse_file_uri},
     formatter::{self, FormatterError},
     global_state::GlobalState,
     natspec_completion::{self, NatSpecCompletionResult},
@@ -13,23 +12,22 @@ use crop::Rope;
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
     CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
-    CodeLens, CodeLensParams, CompletionParams, CompletionResponse, CreateFilesParams,
-    DeleteFilesParams, DocumentChanges, DocumentDiagnosticParams, DocumentDiagnosticReport,
-    DocumentDiagnosticReportResult, DocumentFormattingParams, DocumentHighlight,
-    DocumentHighlightParams, DocumentLink, DocumentLinkParams, DocumentSymbolParams,
-    DocumentSymbolResponse, FoldingRange, FoldingRangeParams, FullDocumentDiagnosticReport,
-    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InlayHint, InlayHintParams,
-    OneOf, OptionalVersionedTextDocumentIdentifier, Position, PrepareRenameResponse,
-    ReferenceParams, RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport,
-    RenameFilesParams, RenameParams, SelectionRange, SelectionRangeParams, SignatureHelp,
-    SignatureHelpParams, TextDocumentEdit, TextDocumentPositionParams, TextEdit, TypeHierarchyItem,
-    TypeHierarchyPrepareParams, TypeHierarchySubtypesParams, TypeHierarchySupertypesParams,
-    UnchangedDocumentDiagnosticReport, Url, WorkspaceEdit, WorkspaceSymbolParams,
-    WorkspaceSymbolResponse, request::GotoImplementationParams,
+    CodeLens, CodeLensParams, CompletionParams, CompletionResponse, DocumentDiagnosticParams,
+    DocumentDiagnosticReport, DocumentDiagnosticReportResult, DocumentFormattingParams,
+    DocumentHighlight, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
+    DocumentSymbolParams, DocumentSymbolResponse, FoldingRange, FoldingRangeParams,
+    FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
+    InlayHint, InlayHintParams, Position, PrepareRenameResponse, ReferenceParams,
+    RelatedFullDocumentDiagnosticReport, RelatedUnchangedDocumentDiagnosticReport, RenameParams,
+    SelectionRange, SelectionRangeParams, SignatureHelp, SignatureHelpParams,
+    TextDocumentPositionParams, TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams,
+    TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, UnchangedDocumentDiagnosticReport,
+    Url, WorkspaceEdit, WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    request::GotoImplementationParams,
 };
-use solar_interface::{data_structures::sync::RwLock, source_map::SourceMap};
+use solar_interface::data_structures::sync::RwLock;
 use solar_parse::lexer::is_ident;
-use std::{collections::HashMap, future::ready, io, path::Path, sync::Arc};
+use std::{future::ready, io, path::Path, sync::Arc};
 use tracing::warn;
 
 pub(crate) fn folding_range(
@@ -287,99 +285,6 @@ pub(crate) fn document_links(
         let links = symbol_tables.read().document_links(&path);
         Ok(Some(links))
     }
-}
-
-pub(crate) fn will_create_files(
-    _: &mut GlobalState,
-    _: CreateFilesParams,
-) -> impl Future<Output = Result<Option<WorkspaceEdit>, ResponseError>> + use<> {
-    ready(Ok(None))
-}
-
-pub(crate) fn will_rename_files(
-    state: &mut GlobalState,
-    params: RenameFilesParams,
-) -> impl Future<Output = Result<Option<WorkspaceEdit>, ResponseError>> + use<> {
-    let moves = FileMoveBatch::try_from(params);
-    let request = moves.as_ref().is_ok_and(|moves| !moves.is_empty()).then(|| {
-        (
-            state.latest_analysis(),
-            state.config.clone(),
-            state.vfs.clone(),
-            state.config.supports_workspace_edit_document_changes(),
-        )
-    });
-    async move {
-        let moves = moves
-            .map_err(|error| ResponseError::new(ErrorCode::INVALID_PARAMS, error.to_string()))?;
-        let Some((latest_analysis, config, vfs, document_changes)) = request else {
-            return Ok(None);
-        };
-        let symbol_tables = latest_analysis.await?;
-        let mut plan = symbol_tables.read().import_rename_edits(&moves);
-        retain_workspace_source_edits(&mut plan, &config);
-        if plan.changes.is_empty() {
-            return Ok(None);
-        }
-        tokio::task::spawn_blocking(move || {
-            validated_import_workspace_edit(plan, vfs, document_changes)
-        })
-        .await
-        .map_err(file_operation_task_failed)?
-        .map(Some)
-    }
-}
-
-pub(crate) fn will_delete_files(
-    state: &mut GlobalState,
-    params: DeleteFilesParams,
-) -> impl Future<Output = Result<Option<WorkspaceEdit>, ResponseError>> + use<> {
-    let deleted_paths =
-        params.files.into_iter().filter_map(|file| parse_file_uri(&file.uri)).collect::<Vec<_>>();
-    let request = (!deleted_paths.is_empty()).then(|| {
-        (
-            state.latest_analysis(),
-            state.config.clone(),
-            state.vfs.clone(),
-            state.config.supports_workspace_edit_document_changes(),
-        )
-    });
-    async move {
-        let Some((latest_analysis, config, vfs, document_changes)) = request else {
-            return Ok(None);
-        };
-        let symbol_tables = latest_analysis.await?;
-        let mut plan = symbol_tables.read().import_delete_edits(&deleted_paths);
-        retain_workspace_source_edits(&mut plan, &config);
-        if plan.changes.is_empty() {
-            return Ok(None);
-        }
-        tokio::task::spawn_blocking(move || {
-            validated_import_workspace_edit(plan, vfs, document_changes)
-        })
-        .await
-        .map_err(file_operation_task_failed)?
-        .map(Some)
-    }
-}
-
-fn retain_workspace_source_edits(plan: &mut ImportEditPlan, config: &crate::config::Config) {
-    let is_workspace_source =
-        |uri: &Url| uri.to_file_path().is_ok_and(|path| config.tracks_source_file(&path));
-    plan.changes.retain(|uri, _| is_workspace_source(uri));
-    plan.analyzed_contents.retain(|uri, _| is_workspace_source(uri));
-}
-
-fn validated_import_workspace_edit(
-    plan: ImportEditPlan,
-    vfs: std::sync::Arc<solar_interface::data_structures::sync::RwLock<crate::vfs::Vfs>>,
-    document_changes: bool,
-) -> Result<WorkspaceEdit, ResponseError> {
-    Ok(validate_import_edits(plan, vfs)?.into_workspace_edit(document_changes))
-}
-
-fn file_operation_task_failed(error: tokio::task::JoinError) -> ResponseError {
-    ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("file-operation task failed: {error}"))
 }
 
 pub(crate) fn document_diagnostic(
@@ -680,7 +585,7 @@ pub(crate) fn rename(
         }
 
         tokio::task::spawn_blocking(move || {
-            validated_workspace_edit(candidate, new_name, vfs, document_changes)
+            validated_rename_workspace_edit(candidate, new_name, vfs, document_changes)
         })
         .await
         .map_err(|error| {
@@ -688,133 +593,6 @@ pub(crate) fn rename(
         })?
         .map(Some)
     }
-}
-
-fn validated_workspace_edit(
-    candidate: crate::rename::RenameCandidate,
-    new_name: String,
-    vfs: std::sync::Arc<solar_interface::data_structures::sync::RwLock<crate::vfs::Vfs>>,
-    document_changes: bool,
-) -> Result<WorkspaceEdit, ResponseError> {
-    Ok(validate_rename(candidate, new_name, vfs)?.into_workspace_edit(document_changes))
-}
-
-struct ValidatedWorkspaceEdit {
-    changes: HashMap<Url, Vec<TextEdit>>,
-    versions: HashMap<Url, Option<i32>>,
-}
-
-impl ValidatedWorkspaceEdit {
-    fn into_workspace_edit(mut self, document_changes: bool) -> WorkspaceEdit {
-        if !document_changes {
-            return WorkspaceEdit {
-                changes: Some(self.changes),
-                document_changes: None,
-                change_annotations: None,
-            };
-        }
-
-        let edits = self
-            .changes
-            .into_iter()
-            .map(|(uri, edits)| TextDocumentEdit {
-                text_document: OptionalVersionedTextDocumentIdentifier {
-                    version: self.versions.remove(&uri).unwrap_or(None),
-                    uri,
-                },
-                edits: edits.into_iter().map(OneOf::Left).collect(),
-            })
-            .collect();
-        WorkspaceEdit {
-            changes: None,
-            document_changes: Some(DocumentChanges::Edits(edits)),
-            change_annotations: None,
-        }
-    }
-}
-
-fn validate_rename(
-    candidate: crate::rename::RenameCandidate,
-    new_name: String,
-    vfs: std::sync::Arc<solar_interface::data_structures::sync::RwLock<crate::vfs::Vfs>>,
-) -> Result<ValidatedWorkspaceEdit, ResponseError> {
-    if candidate.conflicting_contents {
-        return Err(content_modified());
-    }
-    let mut contents = HashMap::<Url, (Rope, Option<i32>)>::new();
-    let source_map = SourceMap::empty();
-    for (uri, analyzed_contents) in &candidate.analyzed_contents {
-        let Some((file_contents, version)) = rename_file_contents(&vfs, &source_map, uri) else {
-            return Err(content_modified());
-        };
-        if file_contents.byte_slice(..) != analyzed_contents.as_str() {
-            return Err(content_modified());
-        }
-        contents.insert(uri.clone(), (file_contents, version));
-    }
-
-    for location in &candidate.locations {
-        let Some((contents, _)) = contents.get(&location.uri) else {
-            return Err(content_modified());
-        };
-        let Some(range) = crate::proto::checked_text_range(contents, location.range) else {
-            return Err(content_modified());
-        };
-        if contents.byte_slice(range) != candidate.old_name.as_str() {
-            return Err(content_modified());
-        }
-    }
-
-    let mut changes = HashMap::<Url, Vec<TextEdit>>::new();
-    for location in candidate.locations {
-        changes
-            .entry(location.uri)
-            .or_default()
-            .push(TextEdit::new(location.range, new_name.clone()));
-    }
-    let versions = contents.into_iter().map(|(uri, (_, version))| (uri, version)).collect();
-    Ok(ValidatedWorkspaceEdit { changes, versions })
-}
-
-fn validate_import_edits(
-    plan: ImportEditPlan,
-    vfs: std::sync::Arc<solar_interface::data_structures::sync::RwLock<crate::vfs::Vfs>>,
-) -> Result<ValidatedWorkspaceEdit, ResponseError> {
-    let ImportEditPlan { changes, analyzed_contents } = plan;
-    let source_map = SourceMap::empty();
-    let mut versions = HashMap::new();
-    for uri in changes.keys() {
-        let Some(analyzed_contents) = analyzed_contents.get(uri) else {
-            return Err(content_modified());
-        };
-        let Some((file_contents, version)) = rename_file_contents(&vfs, &source_map, uri) else {
-            return Err(content_modified());
-        };
-        if file_contents.byte_slice(..) != analyzed_contents.as_str() {
-            return Err(content_modified());
-        }
-        versions.insert(uri.clone(), version);
-    }
-    Ok(ValidatedWorkspaceEdit { changes, versions })
-}
-
-fn rename_file_contents(
-    vfs: &solar_interface::data_structures::sync::RwLock<crate::vfs::Vfs>,
-    source_map: &SourceMap,
-    uri: &Url,
-) -> Option<(Rope, Option<i32>)> {
-    let path = crate::proto::vfs_path(uri)?;
-    let vfs = vfs.read();
-    if let Some(contents) = vfs.get_file_contents(&path) {
-        return Some((contents.clone(), vfs.get_file_version(&path)));
-    }
-    drop(vfs);
-    let contents = source_map.file_loader().load_file(path.as_path()?).ok()?;
-    Some((Rope::from(contents), None))
-}
-
-fn content_modified() -> ResponseError {
-    ResponseError::new(ErrorCode::CONTENT_MODIFIED, "document contents changed since analysis")
 }
 
 pub(crate) fn inlay_hints(
