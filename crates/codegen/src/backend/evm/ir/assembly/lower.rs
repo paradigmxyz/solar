@@ -44,7 +44,6 @@ struct IndexedJumpTable {
     source: BlockId,
     entries: Box<[BlockId]>,
     targets: Box<[BlockId]>,
-    packed_chunks: PackedTableChunks,
 }
 
 /// Lowers finalized EVM IR into the linear label-bearing assembly stream.
@@ -98,12 +97,7 @@ fn materialize_indexed_jump_tables(
                 ir::TerminatorKind::IndexedJump(targets) => targets.clone(),
                 _ => return None,
             };
-            Some(IndexedJumpTable {
-                source: block,
-                entries: Box::new([]),
-                targets,
-                packed_chunks: PackedTableChunks::None,
-            })
+            Some(IndexedJumpTable { source: block, entries: Box::new([]), targets })
         })
         .collect::<Vec<_>>();
     if tables.is_empty() {
@@ -119,67 +113,94 @@ fn materialize_indexed_jump_tables(
         .map_or(0, |label| label.checked_add(1).expect("EVM IR block label overflow"));
     let mut tables = tables;
 
-    for table in &mut tables {
-        table.packed_chunks = indexed_jump_packed_chunks(
-            table.targets.len(),
-            global_width,
-            evm_version,
-            pack_two_word_tables,
-        );
-        if table.packed_chunks != PackedTableChunks::None {
-            continue;
-        }
-
-        let targets = table.targets.clone();
-        let mut entries = Vec::with_capacity(targets.len());
-        for &target in &targets {
-            let mut block = ir::Block::new(next_label);
-            next_label = next_label.checked_add(1).expect("EVM IR block label overflow");
-            block.terminator = Some(ir::Terminator::new(ir::TerminatorKind::Jump(target)));
-            let entry = module.add_block(block);
-            entries.push(entry);
-        }
-        module.blocks[table.source]
-            .terminator
-            .as_mut()
-            .expect("indexed jump source must have a terminator")
-            .kind = ir::TerminatorKind::IndexedJump(entries.clone().into_boxed_slice());
-        table.entries = entries.into_boxed_slice();
-    }
-
-    let mut packed_estimates = index_vec![None; module.blocks.len()];
-    for table in &tables {
-        if table.packed_chunks != PackedTableChunks::None {
-            packed_estimates[table.source] = Some(PackedTableEstimate {
-                len: table.targets.len(),
-                width: global_width,
-                chunks: table.packed_chunks,
-            });
-        }
-    }
-    let offsets = estimated_block_offsets(module, evm_version, global_width, &packed_estimates);
-    let mut lowerings = index_vec![IndexedJumpLowering::default(); module.blocks.len()];
-    for table in tables {
-        let max_offset = table.targets.iter().map(|&target| offsets[target]).max().unwrap_or(0);
-        let width = (1..=global_width)
-            .find(|&width| push_width_fits(max_offset.saturating_add(1), width))
-            .unwrap_or(global_width);
-        let packed_chunks = if table.packed_chunks != PackedTableChunks::None {
-            indexed_jump_packed_chunks(
-                table.targets.len(),
+    let no_packed_tables = index_vec![None; module.blocks.len()];
+    let offsets = estimated_block_offsets(module, evm_version, global_width, &no_packed_tables);
+    let mut encodings = tables
+        .iter()
+        .map(|table| {
+            let width = indexed_jump_target_width(&table.targets, &offsets, global_width);
+            IndexedJumpEncoding {
                 width,
-                evm_version,
-                pack_two_word_tables,
-            )
-        } else {
-            PackedTableChunks::None
-        };
-        lowerings[table.source].table = Some(IndexedJumpEncoding { width, packed_chunks });
+                packed_chunks: indexed_jump_packed_chunks(
+                    table.targets.len(),
+                    width,
+                    evm_version,
+                    pack_two_word_tables,
+                ),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    loop {
+        let mut packed_estimates = index_vec![None; module.blocks.len()];
+        for (table, encoding) in tables.iter().zip(&encodings) {
+            if encoding.packed_chunks != PackedTableChunks::None {
+                packed_estimates[table.source] = Some(PackedTableEstimate {
+                    len: table.targets.len(),
+                    width: encoding.width,
+                    chunks: encoding.packed_chunks,
+                });
+            }
+        }
+        let offsets = estimated_block_offsets(module, evm_version, global_width, &packed_estimates);
+        let mut changed = false;
+        for (table, encoding) in tables.iter().zip(&mut encodings) {
+            let required_width = indexed_jump_target_width(&table.targets, &offsets, global_width);
+            if required_width > encoding.width {
+                encoding.width = required_width;
+                encoding.packed_chunks = indexed_jump_packed_chunks(
+                    table.targets.len(),
+                    required_width,
+                    evm_version,
+                    pack_two_word_tables,
+                );
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+
+    for (table, encoding) in tables.iter_mut().zip(&encodings) {
+        if encoding.packed_chunks == PackedTableChunks::None {
+            let targets = table.targets.clone();
+            let mut entries = Vec::with_capacity(targets.len());
+            for &target in &targets {
+                let mut block = ir::Block::new(next_label);
+                next_label = next_label.checked_add(1).expect("EVM IR block label overflow");
+                block.terminator = Some(ir::Terminator::new(ir::TerminatorKind::Jump(target)));
+                let entry = module.add_block(block);
+                entries.push(entry);
+            }
+            module.blocks[table.source]
+                .terminator
+                .as_mut()
+                .expect("indexed jump source must have a terminator")
+                .kind = ir::TerminatorKind::IndexedJump(entries.clone().into_boxed_slice());
+            table.entries = entries.into_boxed_slice();
+        }
+    }
+
+    let mut lowerings = index_vec![IndexedJumpLowering::default(); module.blocks.len()];
+    for (table, encoding) in tables.into_iter().zip(encodings) {
+        lowerings[table.source].table = Some(encoding);
         for &entry in &table.entries {
-            lowerings[entry].entry_width = Some(width);
+            lowerings[entry].entry_width = Some(encoding.width);
         }
     }
     lowerings
+}
+
+fn indexed_jump_target_width(
+    targets: &[BlockId],
+    offsets: &IndexVec<BlockId, usize>,
+    global_width: u8,
+) -> u8 {
+    let max_offset = targets.iter().map(|&target| offsets[target]).max().unwrap_or(0);
+    (1..=global_width)
+        .find(|&width| push_width_fits(max_offset.saturating_add(1), width))
+        .unwrap_or(global_width)
 }
 
 fn indexed_jump_global_width(
@@ -738,23 +759,62 @@ mod tests {
     fn packs_early_table_targets_in_large_modules() {
         let mut module = ir::Module::new(sym::module);
         let entry = module.add_block(Block::new(0));
-        let target = module.add_block(Block::new(1));
-        let padding = module.add_block(Block::new(2));
+        let targets = (1..=17)
+            .map(|label| {
+                let target = module.add_block(Block::new(label));
+                module.blocks[target].terminator =
+                    Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+                target
+            })
+            .collect::<Vec<_>>();
         module.blocks[entry].terminator =
-            Some(Terminator::new(TerminatorKind::IndexedJump(vec![target].into_boxed_slice())));
-        module.blocks[target].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+            Some(Terminator::new(TerminatorKind::IndexedJump(targets.clone().into_boxed_slice())));
+        let padding = module.add_block(Block::new(18));
         for id in 0..8 {
             module.blocks[padding].instructions.push(Instruction::push_immutable(id));
         }
         module.blocks[padding].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
 
         let lowerings = materialize_indexed_jump_tables(&mut module, EvmVersion::Osaka, false);
-        let TerminatorKind::IndexedJump(entries) =
+        let TerminatorKind::IndexedJump(actual_targets) =
             &module.blocks[entry].terminator.as_ref().unwrap().kind
         else {
             panic!("expected indexed jump")
         };
-        assert_eq!(lowerings[entries[0]].entry_width, Some(1));
+        assert_eq!(actual_targets.as_ref(), targets);
+        assert_eq!(lowerings[entry].table.unwrap().width, 1);
+        assert_eq!(lowerings[entry].table.unwrap().packed_chunks, PackedTableChunks::One);
+    }
+
+    #[test]
+    fn packs_early_two_word_table_targets_in_large_modules() {
+        let mut module = ir::Module::new(sym::module);
+        let entry = module.add_block(Block::new(0));
+        let targets = (1..=33)
+            .map(|label| {
+                let target = module.add_block(Block::new(label));
+                module.blocks[target].terminator =
+                    Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+                target
+            })
+            .collect::<Vec<_>>();
+        module.blocks[entry].terminator =
+            Some(Terminator::new(TerminatorKind::IndexedJump(targets.clone().into_boxed_slice())));
+        let padding = module.add_block(Block::new(34));
+        for id in 0..8 {
+            module.blocks[padding].instructions.push(Instruction::push_immutable(id));
+        }
+        module.blocks[padding].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+
+        let lowerings = materialize_indexed_jump_tables(&mut module, EvmVersion::Osaka, true);
+        let TerminatorKind::IndexedJump(actual_targets) =
+            &module.blocks[entry].terminator.as_ref().unwrap().kind
+        else {
+            panic!("expected indexed jump")
+        };
+        assert_eq!(actual_targets.as_ref(), targets);
+        assert_eq!(lowerings[entry].table.unwrap().width, 1);
+        assert_eq!(lowerings[entry].table.unwrap().packed_chunks, PackedTableChunks::Two);
     }
 
     #[test]
