@@ -630,6 +630,9 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 builder.imm_u64(0)
             }
+            Builtin::StringConcat | Builtin::BytesConcat => {
+                self.lower_bytes_concat_call(builder, args)
+            }
             Builtin::Erc7201 => self.lower_erc7201_call(builder, args),
             Builtin::Require | Builtin::Assert => {
                 let mut exprs = args.exprs();
