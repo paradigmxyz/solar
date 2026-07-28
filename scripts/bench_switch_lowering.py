@@ -32,10 +32,10 @@ ANVIL_HARDFORK = "osaka"
 EXPECTED_UI_FAILURE_RE = re.compile(r"//~[\^v|?]*\s*(?:ERROR|ICE)(?::|\b)")
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
 BYTECODE_RE = re.compile(r"(?:[0-9a-f]{2})*")
-GROWTH_SWEEP_CASE_COUNTS = {"synthetic": 54, "ui-gas": 148, "ci-gas": 12}
+GROWTH_SWEEP_CASE_COUNTS = {"synthetic": 54, "ui-gas": 150, "ci-gas": 12}
 GROWTH_SWEEP_TEST_IDS_SHA256 = {
     "synthetic": "2a8114a7f300165d8d2e5a3518549aabdc820a2d5432274dc23eb210d3102138",
-    "ui-gas": "64bf2eba9d05eeaeeb1ea238ba24192d7a553438c597e36f87efcec228778d74",
+    "ui-gas": "ac624ffec8e9ef7f603d43957901423048df2837d2c467ee9ed62d7d8f106cd6",
     "ci-gas": "f370cc6074dd09c2d968355a51fc218fce3fa5f4d349d840bf5e36be3bc9ad6d",
 }
 GROWTH_SWEEP_MIN_BUDGET = 0
