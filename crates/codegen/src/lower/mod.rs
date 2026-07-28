@@ -141,6 +141,8 @@ pub(crate) struct Lowerer<'gcx> {
     assigned_vars: GrowableBitSet<VariableId>,
     /// Whether the next expression is an error-checking boundary.
     check_expr_errors: bool,
+    /// Whether HIR contained errors before codegen started.
+    hir_has_errors: bool,
     /// Local variables that are storage references (pointers). Their value in
     /// `locals` or a local memory slot is a storage *slot*, so `r.field` reads
     /// `sload(slot + offset)` and `r.field = v` writes `sstore(slot + offset, v)`,
@@ -216,6 +218,7 @@ impl<'gcx> Lowerer<'gcx> {
                 "tried to lower contract without typeck results; likely missing -Zcodegen",
             );
         }
+        let hir_has_errors = gcx.dcx().has_errors().is_err();
         Self {
             gcx,
             module: Module::new(name),
@@ -236,7 +239,8 @@ impl<'gcx> Lowerer<'gcx> {
             contract_bytecodes: FxHashMap::default(),
             loop_stack: Vec::new(),
             assigned_vars: GrowableBitSet::new_empty(),
-            check_expr_errors: true,
+            check_expr_errors: hir_has_errors,
+            hir_has_errors,
             storage_ref_locals: GrowableBitSet::new_empty(),
             inline_stack: Vec::new(),
             inline_expr_error_checks: Vec::new(),
@@ -291,7 +295,8 @@ impl<'gcx> Lowerer<'gcx> {
             return false;
         }
         self.inline_stack.push(func_id);
-        self.inline_expr_error_checks.push(std::mem::replace(&mut self.check_expr_errors, true));
+        self.inline_expr_error_checks
+            .push(std::mem::replace(&mut self.check_expr_errors, self.hir_has_errors));
         true
     }
 
@@ -869,7 +874,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// lowered with the internal-frame convention (no selector) regardless of its
     /// visibility, and registered in `hir_to_internal_mir_functions`.
     fn lower_function(&mut self, func_id: hir::FunctionId, force_internal: bool) -> FunctionId {
-        let check_expr_errors = std::mem::replace(&mut self.check_expr_errors, true);
+        let check_expr_errors = std::mem::replace(&mut self.check_expr_errors, self.hir_has_errors);
         let hir_func = self.gcx.hir.function(func_id);
 
         let func_name = hir_func.name.unwrap_or_else(|| Ident::new(sym::_anonymous, Span::DUMMY));

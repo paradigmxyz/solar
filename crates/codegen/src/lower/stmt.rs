@@ -48,7 +48,7 @@ impl<'gcx> Lowerer<'gcx> {
         };
         let var = self.gcx.hir.variable(var_id);
         let initializer = var.initializer?;
-        if self.expr_references_error(initializer).is_err() {
+        if self.hir_has_errors && self.expr_references_error(initializer).is_err() {
             return None;
         }
         let packed_args = self.abi_encode_packed_call_args(initializer)?;
