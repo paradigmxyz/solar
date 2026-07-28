@@ -6,6 +6,7 @@ use crate::{
     mir::{Function, FunctionBuilder, FunctionId, MirType, ValueId},
 };
 use alloy_primitives::{U256, keccak256};
+use smallvec::SmallVec;
 use solar_ast::{DataLocation, LitKind, Span};
 use solar_data_structures::{bit_set::GrowableBitSet, map::StdEntry};
 use solar_interface::{
@@ -37,7 +38,7 @@ pub(super) enum LinkedFieldKind {
 }
 
 #[derive(Clone, Copy)]
-enum BuiltinArgCount {
+pub(super) enum BuiltinArgCount {
     Exact(usize),
     AtLeast(usize),
     Between(usize, usize),
@@ -153,35 +154,40 @@ impl<'gcx> Lowerer<'gcx> {
         returns_value.then(|| builder.error_value(guar))
     }
 
-    fn builtin_arg_count(&self, builtin: Builtin) -> Option<BuiltinArgCount> {
-        match builtin {
-            Builtin::ArrayPush0 | Builtin::ArrayPop => {
-                return Some(BuiltinArgCount::Exact(0));
-            }
+    fn builtin_arg_count(&mut self, builtin: Builtin) -> Option<BuiltinArgCount> {
+        let index = builtin as usize;
+        if let Some(count) = self.builtin_arg_counts[index] {
+            return Some(count);
+        }
+        let count = match builtin {
+            Builtin::ArrayPush0 | Builtin::ArrayPop => BuiltinArgCount::Exact(0),
             Builtin::ArrayPush
             | Builtin::UdvtWrap
             | Builtin::UdvtUnwrap
-            | Builtin::AddressBalance => return Some(BuiltinArgCount::Exact(1)),
-            Builtin::Require => return Some(BuiltinArgCount::Between(1, 2)),
-            _ => {}
-        }
-
-        let TyKind::Fn(function) = builtin.ty(self.gcx).kind else {
-            return None;
+            | Builtin::AddressBalance => BuiltinArgCount::Exact(1),
+            Builtin::Require => BuiltinArgCount::Between(1, 2),
+            _ => {
+                let TyKind::Fn(function) = builtin.ty(self.gcx).kind else {
+                    return None;
+                };
+                if function.parameters.last().is_some_and(|ty| matches!(ty.kind, TyKind::Variadic))
+                {
+                    BuiltinArgCount::AtLeast(function.parameters.len() - 1)
+                } else {
+                    BuiltinArgCount::Exact(function.parameters.len())
+                }
+            }
         };
-        Some(if function.parameters.last().is_some_and(|ty| matches!(ty.kind, TyKind::Variadic)) {
-            BuiltinArgCount::AtLeast(function.parameters.len() - 1)
-        } else {
-            BuiltinArgCount::Exact(function.parameters.len())
-        })
+        self.builtin_arg_counts[index] = Some(count);
+        Some(count)
     }
 
     pub(super) fn collect_builtin_args<'a, 'hir>(
-        &self,
+        &mut self,
         builtin: Builtin,
         args: &'a CallArgs<'hir>,
-    ) -> Result<Vec<&'a hir::Expr<'hir>>, ErrorGuaranteed> {
-        let exprs = args.exprs().collect::<Vec<_>>();
+    ) -> Result<SmallVec<[&'a hir::Expr<'hir>; 4]>, ErrorGuaranteed> {
+        let exprs = args.exprs().collect::<SmallVec<_>>();
 
         let Some(expected) = self.builtin_arg_count(builtin) else {
             return Err(self
@@ -223,7 +229,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         builtin: Builtin,
         args: &CallArgs<'_>,
-    ) -> Result<Vec<ValueId>, ErrorGuaranteed> {
+    ) -> Result<SmallVec<[ValueId; 4]>, ErrorGuaranteed> {
         let exprs = self.collect_builtin_args(builtin, args)?;
         Ok(exprs.into_iter().map(|arg| self.lower_value_expr(builder, arg)).collect())
     }

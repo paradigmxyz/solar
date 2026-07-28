@@ -33,6 +33,7 @@ use solar_interface::{
     kw, sym,
 };
 use solar_sema::{
+    builtins::Builtin,
     hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, VariableId, Visit},
     ty::{Gcx, Ty, TyKind},
 };
@@ -138,6 +139,8 @@ pub(crate) struct Lowerer<'gcx> {
     /// Variables that are assigned after declaration (need memory storage).
     /// Variables not in this set can be kept as SSA values.
     assigned_vars: GrowableBitSet<VariableId>,
+    /// Whether the next expression is an error-checking boundary.
+    check_expr_errors: bool,
     /// Local variables that are storage references (pointers). Their value in
     /// `locals` or a local memory slot is a storage *slot*, so `r.field` reads
     /// `sload(slot + offset)` and `r.field = v` writes `sstore(slot + offset, v)`,
@@ -145,6 +148,10 @@ pub(crate) struct Lowerer<'gcx> {
     storage_ref_locals: GrowableBitSet<VariableId>,
     /// Stack of function IDs currently being inlined (for cycle detection).
     inline_stack: Vec<HirFunctionId>,
+    /// Expression error-checking states suspended at inline function boundaries.
+    inline_expr_error_checks: Vec<bool>,
+    /// Cached argument counts for builtin calls.
+    builtin_arg_counts: [Option<call::BuiltinArgCount>; Builtin::COUNT],
     /// HIR functions already lowered into this MIR module.
     hir_to_mir_functions: FxHashMap<HirFunctionId, FunctionId>,
     /// Internal-convention copies of public functions, lowered on demand so that
@@ -229,8 +236,11 @@ impl<'gcx> Lowerer<'gcx> {
             contract_bytecodes: FxHashMap::default(),
             loop_stack: Vec::new(),
             assigned_vars: GrowableBitSet::new_empty(),
+            check_expr_errors: true,
             storage_ref_locals: GrowableBitSet::new_empty(),
             inline_stack: Vec::new(),
+            inline_expr_error_checks: Vec::new(),
+            builtin_arg_counts: [None; Builtin::COUNT],
             hir_to_mir_functions: FxHashMap::default(),
             hir_to_internal_mir_functions: FxHashMap::default(),
             recursive_functions: FxHashMap::default(),
@@ -281,12 +291,15 @@ impl<'gcx> Lowerer<'gcx> {
             return false;
         }
         self.inline_stack.push(func_id);
+        self.inline_expr_error_checks.push(std::mem::replace(&mut self.check_expr_errors, true));
         true
     }
 
     /// Exits inlining for a function.
     fn exit_inline(&mut self) {
         self.inline_stack.pop();
+        self.check_expr_errors =
+            self.inline_expr_error_checks.pop().expect("inline expression state stack underflow");
     }
 
     /// Allocates a memory slot for a local variable.
@@ -846,6 +859,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// lowered with the internal-frame convention (no selector) regardless of its
     /// visibility, and registered in `hir_to_internal_mir_functions`.
     fn lower_function(&mut self, func_id: hir::FunctionId, force_internal: bool) -> FunctionId {
+        let check_expr_errors = std::mem::replace(&mut self.check_expr_errors, true);
         let hir_func = self.gcx.hir.function(func_id);
 
         let func_name = hir_func.name.unwrap_or_else(|| Ident::new(sym::_anonymous, Span::DUMMY));
@@ -1338,6 +1352,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         *self.module.function_mut(mir_id) = mir_func;
+        self.check_expr_errors = check_expr_errors;
         mir_id
     }
 

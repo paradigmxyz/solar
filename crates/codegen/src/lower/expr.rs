@@ -33,21 +33,25 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> Option<ValueId> {
-        if let Err(guar) = self.expr_references_error(expr) {
+        if self.check_expr_errors
+            && let Err(guar) = self.expr_references_error(expr)
+        {
             return self.expr_error_result(builder, expr, guar);
         }
-        if let ExprKind::Assign(lhs, None, rhs) = &expr.kind
+        let check_expr_errors = std::mem::replace(&mut self.check_expr_errors, false);
+        let result = if let ExprKind::Assign(lhs, None, rhs) = &expr.kind
             && let ExprKind::Tuple(elements) = &lhs.kind
         {
             self.lower_tuple_assign(builder, elements, rhs);
-            return None;
-        }
-        if self.get_expr_type(expr).is_some_and(|ty| ty.is_unit()) {
+            None
+        } else if self.get_expr_type(expr).is_some_and(|ty| ty.is_unit()) {
             self.lower_unit_expr(builder, expr);
             None
         } else {
             Some(self.lower_value_expr_unchecked(builder, expr))
-        }
+        };
+        self.check_expr_errors = check_expr_errors;
+        result
     }
 
     /// Lowers an expression which is required to produce a MIR value.
@@ -56,10 +60,15 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> ValueId {
-        if let Err(guar) = self.expr_references_error(expr) {
+        if self.check_expr_errors
+            && let Err(guar) = self.expr_references_error(expr)
+        {
             return builder.error_value(guar);
         }
-        self.lower_value_expr_unchecked(builder, expr)
+        let check_expr_errors = std::mem::replace(&mut self.check_expr_errors, false);
+        let value = self.lower_value_expr_unchecked(builder, expr);
+        self.check_expr_errors = check_expr_errors;
+        value
     }
 
     fn lower_value_expr_unchecked(
