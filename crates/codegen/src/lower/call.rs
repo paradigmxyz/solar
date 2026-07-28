@@ -16,6 +16,9 @@ use solar_sema::{
     ty::{Ty, TyFn, TyKind},
 };
 
+/// Covers Homestead's call and new-account costs plus setup emitted after `GAS`.
+const PRE_TANGERINE_PRECOMPILE_CALL_GAS_RESERVE: u64 = 25_100;
+
 /// How a value travels across a linked-library delegatecall boundary.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum LinkedFieldKind {
@@ -864,7 +867,7 @@ impl<'gcx> Lowerer<'gcx> {
         builtin: Builtin,
         args: &CallArgs<'_>,
     ) -> ValueId {
-        let Some(input) = args.exprs().next() else {
+        if args.len() != 1 {
             let guar = self
                 .gcx
                 .dcx()
@@ -872,23 +875,35 @@ impl<'gcx> Lowerer<'gcx> {
                 .span(args.span)
                 .emit();
             return builder.error_value(guar);
-        };
+        }
+        let input = args.exprs().next().expect("argument count checked");
         let input = self.peel_bytes_conversion(input);
-        let (input_ptr, input_len) = self.lower_bytes_arg_to_memory(builder, input);
-
-        let output_ptr = self.allocate_memory(builder, 32);
+        let (input_ptr, input_len) = self.lower_precompile_bytes_input(builder, input);
 
         let address = builder.imm_u64(if builtin == Builtin::Sha256 { 2 } else { 3 });
+        let output_ptr = builder.imm_u64(0);
         let output_size = builder.imm_u64(32);
-        let gas = builder.gas();
-        let success =
-            builder.staticcall(gas, address, input_ptr, input_len, output_ptr, output_size);
-        Self::emit_revert_unless(builder, success);
+        let gas = self.precompile_gas(builder);
+        let success = self.emit_precompile_call(
+            builder,
+            gas,
+            address,
+            input_ptr,
+            input_len,
+            output_ptr,
+            output_size,
+        );
+        self.emit_forwarding_revert_unless(builder, success);
 
         let output = builder.mload(output_ptr);
         if builtin == Builtin::Ripemd160 {
-            let shift = builder.imm_u64(96);
-            builder.shl(shift, output)
+            if self.gcx.sess.opts.evm_version.has_bitwise_shifting() {
+                let shift = builder.imm_u64(96);
+                builder.shl(shift, output)
+            } else {
+                let factor = builder.imm_u256(U256::from(1) << 96);
+                builder.mul(output, factor)
+            }
         } else {
             output
         }
@@ -899,8 +914,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         args: &CallArgs<'_>,
     ) -> ValueId {
-        let values = args.exprs().map(|arg| self.lower_expr(builder, arg)).collect::<Vec<_>>();
-        let [hash, v, r, s] = values.as_slice() else {
+        if args.len() != 4 {
             let guar = self
                 .gcx
                 .dcx()
@@ -908,11 +922,16 @@ impl<'gcx> Lowerer<'gcx> {
                 .span(args.span)
                 .emit();
             return builder.error_value(guar);
-        };
+        }
+        let mut exprs = args.exprs();
+        let hash = self.lower_expr(builder, exprs.next().expect("argument count checked"));
+        let v = self.lower_expr(builder, exprs.next().expect("argument count checked"));
+        let r = self.lower_expr(builder, exprs.next().expect("argument count checked"));
+        let s = self.lower_expr(builder, exprs.next().expect("argument count checked"));
 
-        let input_ptr = self.allocate_memory(builder, 160);
-        builder.mstore(input_ptr, *hash);
-        for (offset, value) in [(32, *v), (64, *r), (96, *s)] {
+        let input_ptr = builder.fmp();
+        builder.mstore(input_ptr, hash);
+        for (offset, value) in [(32, v), (64, r), (96, s)] {
             let offset = builder.imm_u64(offset);
             let ptr = builder.add(input_ptr, offset);
             builder.mstore(ptr, value);
@@ -923,14 +942,100 @@ impl<'gcx> Lowerer<'gcx> {
         let zero = builder.imm_u64(0);
         builder.mstore(output_ptr, zero);
 
-        let gas = builder.gas();
+        let gas = self.precompile_gas(builder);
         let address = builder.imm_u64(1);
         let input_size = builder.imm_u64(128);
         let output_size = builder.imm_u64(32);
-        let success =
-            builder.staticcall(gas, address, input_ptr, input_size, output_ptr, output_size);
-        Self::emit_revert_unless(builder, success);
+        let success = self.emit_precompile_call(
+            builder,
+            gas,
+            address,
+            input_ptr,
+            input_size,
+            output_ptr,
+            output_size,
+        );
+        self.emit_forwarding_revert_unless(builder, success);
         builder.mload(output_ptr)
+    }
+
+    fn lower_precompile_bytes_input(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        input: &hir::Expr<'_>,
+    ) -> (ValueId, ValueId) {
+        if let ExprKind::Lit(lit) = &input.kind
+            && let LitKind::Str(_, bytes, _) = &lit.kind
+        {
+            let bytes = bytes.as_byte_str();
+            if bytes.is_empty() {
+                return (builder.imm_u64(0), builder.imm_u64(0));
+            }
+
+            let ptr = builder.fmp();
+            for (i, chunk) in bytes.chunks(32).enumerate() {
+                let mut padded = [0u8; 32];
+                padded[..chunk.len()].copy_from_slice(chunk);
+                let value = builder.imm_u256(U256::from_be_bytes(padded));
+                let dest = if i == 0 {
+                    ptr
+                } else {
+                    let offset = builder.imm_u64((i * 32) as u64);
+                    builder.add(ptr, offset)
+                };
+                builder.mstore(dest, value);
+            }
+            return (ptr, builder.imm_u64(bytes.len() as u64));
+        }
+
+        self.lower_bytes_arg_to_memory(builder, input)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn emit_precompile_call(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        gas: ValueId,
+        address: ValueId,
+        input_ptr: ValueId,
+        input_size: ValueId,
+        output_ptr: ValueId,
+        output_size: ValueId,
+    ) -> ValueId {
+        if self.gcx.sess.opts.evm_version.has_static_call() {
+            builder.staticcall(gas, address, input_ptr, input_size, output_ptr, output_size)
+        } else {
+            let value = builder.imm_u64(0);
+            builder.call(gas, address, value, input_ptr, input_size, output_ptr, output_size)
+        }
+    }
+
+    fn precompile_gas(&self, builder: &mut FunctionBuilder<'_>) -> ValueId {
+        let gas = builder.gas();
+        if self.gcx.sess.opts.evm_version.can_overcharge_gas_for_call() {
+            gas
+        } else {
+            let reserved = builder.imm_u64(PRE_TANGERINE_PRECOMPILE_CALL_GAS_RESERVE);
+            builder.sub(gas, reserved)
+        }
+    }
+
+    fn emit_forwarding_revert_unless(&self, builder: &mut FunctionBuilder<'_>, success: ValueId) {
+        let revert_block = builder.create_block();
+        let continue_block = builder.create_block();
+        builder.branch(success, continue_block, revert_block);
+
+        builder.switch_to_block(revert_block);
+        let zero = builder.imm_u64(0);
+        if self.gcx.sess.opts.evm_version.supports_returndata() {
+            let size = builder.returndatasize();
+            builder.returndatacopy(zero, zero, size);
+            builder.revert(zero, size);
+        } else {
+            builder.revert(zero, zero);
+        }
+
+        builder.switch_to_block(continue_block);
     }
 
     fn lower_erc7201_call(

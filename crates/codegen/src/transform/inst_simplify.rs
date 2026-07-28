@@ -32,21 +32,24 @@ impl MirPass for InstSimplify {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
-            InstSimplifier::new().run_to_fixpoint(func) != 0
+            InstSimplifier::new(gcx.sess.opts.evm_version.has_bitwise_shifting())
+                .run_to_fixpoint(func)
+                != 0
         })
     }
 }
 
 /// Local MIR instruction simplification pass.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct InstSimplifier {
     /// Number of instructions simplified in the last run.
     simplified_count: usize,
+    has_bitwise_shifting: bool,
 }
 
 struct RunState {
@@ -62,8 +65,8 @@ impl RunState {
 
 impl InstSimplifier {
     /// Creates a new instruction simplifier.
-    fn new() -> Self {
-        Self::default()
+    fn new(has_bitwise_shifting: bool) -> Self {
+        Self { simplified_count: 0, has_bitwise_shifting }
     }
 
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
@@ -825,6 +828,9 @@ impl InstSimplifier {
         if func.value_u256(a).is_some() && func.value_u256(b).is_none() {
             return Some(InstKind::Mul(b, a));
         }
+        if !self.has_bitwise_shifting {
+            return None;
+        }
         let (value, constant) = Self::const_operand(func, a, b)?;
         let shift = Self::power_of_two_shift(constant)?;
         if shift.is_zero() {
@@ -835,6 +841,9 @@ impl InstSimplifier {
     }
 
     fn rewrite_div(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind> {
+        if !self.has_bitwise_shifting {
+            return None;
+        }
         let shift = Self::power_of_two_shift(func.value_u256(b)?)?;
         if shift.is_zero() {
             return None;
