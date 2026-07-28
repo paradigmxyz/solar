@@ -1,0 +1,7 @@
+// === jumpi_layout (runtime) ===
+PUSH1 0x01
+PUSH1 0x06
+JUMPI
+STOP
+JUMPDEST
+INVALID

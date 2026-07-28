@@ -10,6 +10,9 @@
 mod codegen;
 pub use codegen::{EvmArtifact, EvmCodegen};
 
+mod disasm;
+pub use disasm::disassemble;
+
 mod layout;
 
 pub mod ir;
@@ -22,5 +25,14 @@ pub(crate) mod stack;
 
 mod switch;
 
-#[cfg(test)]
-pub(crate) mod test_utils;
+/// Generates bytecode from finalized EVM IR through the backend pipeline.
+pub fn generate_evm_ir_bytecode(
+    gcx: solar_sema::Gcx<'_>,
+    module: ir::Module,
+) -> solar_interface::Result<Vec<u8>> {
+    let mut assembler = assembler::Assembler::from_evm_ir(gcx, module)?;
+    let result = assembler.assemble_with_evm_ir(true);
+    ir::validate(gcx.dcx(), result.evm_ir.as_ref().expect("requested EVM IR should be captured"));
+    gcx.dcx().has_errors()?;
+    Ok(result.bytecode)
+}

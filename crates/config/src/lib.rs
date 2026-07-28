@@ -248,7 +248,12 @@ impl Dump {
         self.kinds.iter().any(|kind| {
             matches!(
                 kind,
-                DumpKind::Mir | DumpKind::MirCfg | DumpKind::EvmIr | DumpKind::EvmIrRuntime
+                DumpKind::Mir
+                    | DumpKind::MirCfg
+                    | DumpKind::EvmIr
+                    | DumpKind::EvmIrRuntime
+                    | DumpKind::DisasmDeploy
+                    | DumpKind::DisasmRuntime
             )
         })
     }
@@ -289,6 +294,10 @@ str_enum! {
         EvmIr,
         /// Print runtime EVM IR.
         EvmIrRuntime,
+        /// Print deployment bytecode disassembly.
+        DisasmDeploy,
+        /// Print runtime bytecode disassembly.
+        DisasmRuntime,
     }
 }
 
