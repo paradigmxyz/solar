@@ -147,13 +147,20 @@ fn materialize_indexed_jump_tables(
         for (table, encoding) in tables.iter().zip(&mut encodings) {
             let required_width = indexed_jump_target_width(&table.targets, &offsets, global_width);
             if required_width > encoding.width {
-                encoding.width = required_width;
-                encoding.packed_chunks = indexed_jump_packed_chunks(
+                let packed_chunks = indexed_jump_packed_chunks(
                     table.targets.len(),
                     required_width,
                     evm_version,
                     pack_two_word_tables,
                 );
+                if encoding.packed_chunks != PackedTableChunks::None
+                    && packed_chunks == PackedTableChunks::None
+                {
+                    encoding.packed_chunks = PackedTableChunks::None;
+                } else {
+                    encoding.width = required_width;
+                    encoding.packed_chunks = packed_chunks;
+                }
                 changed = true;
             }
         }
@@ -815,6 +822,41 @@ mod tests {
         assert_eq!(actual_targets.as_ref(), targets);
         assert_eq!(lowerings[entry].table.unwrap().width, 1);
         assert_eq!(lowerings[entry].table.unwrap().packed_chunks, PackedTableChunks::Two);
+    }
+
+    #[test]
+    fn outlines_when_packing_would_widen_targets() {
+        let mut module = ir::Module::new(sym::module);
+        let entry = module.add_block(Block::new(0));
+        let targets = (1..=24)
+            .map(|label| {
+                let target = module.add_block(Block::new(label));
+                for _ in 0..4 {
+                    module.blocks[target].instructions.push(Instruction::push_value(U256::ONE));
+                }
+                module.blocks[target].terminator =
+                    Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+                target
+            })
+            .collect::<Vec<_>>();
+        module.blocks[entry].terminator =
+            Some(Terminator::new(TerminatorKind::IndexedJump(targets.clone().into_boxed_slice())));
+        let padding = module.add_block(Block::new(25));
+        for id in 0..8 {
+            module.blocks[padding].instructions.push(Instruction::push_immutable(id));
+        }
+        module.blocks[padding].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+
+        let lowerings = materialize_indexed_jump_tables(&mut module, EvmVersion::Osaka, false);
+        let TerminatorKind::IndexedJump(entries) =
+            &module.blocks[entry].terminator.as_ref().unwrap().kind
+        else {
+            panic!("expected indexed jump")
+        };
+        assert_ne!(entries.as_ref(), targets);
+        assert_eq!(lowerings[entry].table.unwrap().width, 1);
+        assert_eq!(lowerings[entry].table.unwrap().packed_chunks, PackedTableChunks::None);
+        assert!(entries.iter().all(|&entry| lowerings[entry].entry_width == Some(1)));
     }
 
     #[test]
