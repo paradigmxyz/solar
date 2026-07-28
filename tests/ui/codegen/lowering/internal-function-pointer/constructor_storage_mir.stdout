@@ -12,14 +12,11 @@ fn @_anonymous() {
 
 fn @onlyStored() -> u256 {
   bb0:
-    v0 = internal_frame_addr 96
-    mstore v0, 0 !metadata(memory=internal_frame)
     ret 7
 }
 
 fn @callStoredOnly() {
   bb0:
-    mstore 128, 0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffff
     v2 = internal_call @__internal_dispatch_0, 1, v1

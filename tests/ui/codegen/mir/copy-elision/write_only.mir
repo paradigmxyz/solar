@@ -1,4 +1,4 @@
-//@compile-flags: --passes copy-elision,dce
+//@compile-flags: -Zmir-pipeline=copy-elision,dce
 //@filecheck:
 @module CopyElision
 

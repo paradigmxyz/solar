@@ -19,7 +19,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some((slot_val, fixed_len, element_ty, elem_slots)) =
             self.storage_array_slot_of_base(builder, base)
         {
-            let index_val = self.lower_index_or_zero(builder, index);
+            let index_val = self.lower_index_value(builder, base.span, index);
             let access = self.lower_storage_array_element_access(
                 builder, slot_val, fixed_len, index_val, element_ty, elem_slots,
             );
@@ -58,7 +58,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         if let Some((slice, is_bytes)) = self.calldata_bytes_source(builder, base) {
-            let index_val = self.lower_index_or_zero(builder, index);
+            let index_val = self.lower_index_value(builder, base.span, index);
             let len = builder.slice_len(slice);
             self.emit_index_bounds_check(builder, index_val, len);
             let offset_32 = builder.imm_u64(32);
@@ -78,8 +78,8 @@ impl<'gcx> Lowerer<'gcx> {
         // storage reference): its value lowers to a `[length][data...]` memory
         // copy; index into that with a bounds check.
         if self.expr_is_storage_bytes_lvalue(base) {
-            let base_val = self.lower_expr(builder, base);
-            let index_val = self.lower_index_or_zero(builder, index);
+            let base_val = self.lower_value_expr(builder, base);
+            let index_val = self.lower_index_value(builder, base.span, index);
             let len = builder.memory_object_len(base_val, MemoryObjectKind::Bytes);
             self.emit_index_bounds_check(builder, index_val, len);
             let data_base = builder.memory_object_data(base_val, MemoryObjectKind::Bytes);
@@ -90,8 +90,8 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         if self.is_memory_bytes_expr(base) {
-            let base_val = self.lower_expr(builder, base);
-            let index_val = self.lower_index_or_zero(builder, index);
+            let base_val = self.lower_value_expr(builder, base);
+            let index_val = self.lower_index_value(builder, base.span, index);
             let len = builder.memory_object_len(base_val, MemoryObjectKind::Bytes);
             self.emit_index_bounds_check(builder, index_val, len);
             let data_base = builder.memory_object_data(base_val, MemoryObjectKind::Bytes);
@@ -104,8 +104,8 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(ty) = self.get_expr_type(base)
             && let TyKind::Elementary(ElementaryType::FixedBytes(n)) = ty.peel_refs().kind
         {
-            let base_val = self.lower_expr(builder, base);
-            let index_val = self.lower_index_or_zero(builder, index);
+            let base_val = self.lower_value_expr(builder, base);
+            let index_val = self.lower_index_value(builder, base.span, index);
             let n_val = builder.imm_u64(u64::from(n.bytes()));
             self.emit_index_bounds_check(builder, index_val, n_val);
             let eight = builder.imm_u64(8);
@@ -114,8 +114,8 @@ impl<'gcx> Lowerer<'gcx> {
             return self.clean_fixed_bytes(builder, shifted, 1);
         }
 
-        let base_val = self.lower_expr(builder, base);
-        let index_val = self.lower_index_or_zero(builder, index);
+        let base_val = self.lower_value_expr(builder, base);
+        let index_val = self.lower_index_value(builder, base.span, index);
         let layout = if self.is_dynamic_memory_array_expr(base) {
             let len = self
                 .new_dynamic_memory_array_const_len(base)
@@ -126,12 +126,16 @@ impl<'gcx> Lowerer<'gcx> {
             self.emit_index_bounds_check(builder, index_val, len);
             MemoryObjectLayout::WORD_ARRAY
         } else {
-            let fixed_len = self.fixed_array_len_of_expr(base);
-            if let Some(len) = fixed_len {
-                let len_val = builder.imm_u64(len);
-                self.emit_index_bounds_check(builder, index_val, len_val);
-            }
-            MemoryObjectLayout::word_fixed_array(fixed_len.unwrap_or(0))
+            let Some(len) = self.fixed_array_len_of_expr(base) else {
+                return self.err_value(
+                    builder,
+                    base.span,
+                    "codegen expected a memory array for index access",
+                );
+            };
+            let len_val = builder.imm_u64(len);
+            self.emit_index_bounds_check(builder, index_val, len_val);
+            MemoryObjectLayout::word_fixed_array(len)
         };
         let addr = builder.memory_object_element_addr(base_val, layout, index_val);
         builder.mload(addr)
@@ -148,7 +152,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some((slot_val, fixed_len, element_ty, elem_slots)) =
             self.storage_array_slot_of_base(builder, base)
         {
-            let index_val = self.lower_index_or_zero(builder, index);
+            let index_val = self.lower_index_value(builder, base.span, index);
             let access = self.lower_storage_array_element_access(
                 builder, slot_val, fixed_len, index_val, element_ty, elem_slots,
             );
@@ -180,14 +184,14 @@ impl<'gcx> Lowerer<'gcx> {
         if self.expr_is_storage_bytes_lvalue(base)
             && let Some(slot) = self.lower_lvalue_slot(builder, base)
         {
-            let index_val = self.lower_index_or_zero(builder, index);
+            let index_val = self.lower_index_value(builder, base.span, index);
             self.store_storage_bytes_element(builder, slot, index_val, rhs);
             return;
         }
 
         if self.is_memory_bytes_expr(base) {
-            let base_val = self.lower_expr(builder, base);
-            let index_val = self.lower_index_or_zero(builder, index);
+            let base_val = self.lower_value_expr(builder, base);
+            let index_val = self.lower_index_value(builder, base.span, index);
             let len = builder.memory_object_len(base_val, MemoryObjectKind::Bytes);
             self.emit_index_bounds_check(builder, index_val, len);
             let data_base = builder.memory_object_data(base_val, MemoryObjectKind::Bytes);
@@ -197,19 +201,24 @@ impl<'gcx> Lowerer<'gcx> {
             return;
         }
 
-        let base_val = self.lower_expr(builder, base);
-        let index_val = self.lower_index_or_zero(builder, index);
+        let base_val = self.lower_value_expr(builder, base);
+        let index_val = self.lower_index_value(builder, base.span, index);
         let layout = if self.is_dynamic_memory_array_expr(base) {
             let len = builder.memory_object_len(base_val, MemoryObjectKind::DynamicArray);
             self.emit_index_bounds_check(builder, index_val, len);
             MemoryObjectLayout::WORD_ARRAY
         } else {
-            let fixed_len = self.fixed_array_len_of_expr(base);
-            if let Some(len) = fixed_len {
-                let len_val = builder.imm_u64(len);
-                self.emit_index_bounds_check(builder, index_val, len_val);
-            }
-            MemoryObjectLayout::word_fixed_array(fixed_len.unwrap_or(0))
+            let Some(len) = self.fixed_array_len_of_expr(base) else {
+                self.err_value(
+                    builder,
+                    base.span,
+                    "codegen expected a memory array for indexed assignment",
+                );
+                return;
+            };
+            let len_val = builder.imm_u64(len);
+            self.emit_index_bounds_check(builder, index_val, len_val);
+            MemoryObjectLayout::word_fixed_array(len)
         };
         let addr = builder.memory_object_element_addr(base_val, layout, index_val);
         builder.mstore(addr, rhs);
@@ -224,7 +233,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some((slot_val, fixed_len, element_ty, elem_slots)) =
             self.storage_array_slot_of_base(builder, base)
         {
-            let index_val = self.lower_index_or_zero(builder, index);
+            let index_val = self.lower_index_value(builder, base.span, index);
             return Some(
                 self.lower_storage_array_element_access(
                     builder, slot_val, fixed_len, index_val, element_ty, elem_slots,
@@ -238,14 +247,15 @@ impl<'gcx> Lowerer<'gcx> {
         None
     }
 
-    pub(super) fn lower_index_or_zero(
+    pub(super) fn lower_index_value(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
+        span: solar_interface::Span,
         index: Option<&hir::Expr<'_>>,
     ) -> ValueId {
         match index {
-            Some(index) => self.lower_expr(builder, index),
-            None => builder.imm_u64(0),
+            Some(index) => self.lower_value_expr(builder, index),
+            None => self.err_value(builder, span, "codegen expected an index expression"),
         }
     }
 }

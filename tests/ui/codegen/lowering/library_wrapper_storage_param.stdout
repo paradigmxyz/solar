@@ -43,7 +43,7 @@ bb5:
   push 4
   swap1
   sub
-  push 128
+  push 64
   sgt
   push bb4
   jumpi

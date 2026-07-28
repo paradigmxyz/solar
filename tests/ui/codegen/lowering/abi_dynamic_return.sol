@@ -4,7 +4,7 @@
 
 contract AbiDynamicReturn {
     // CHECK-LABEL: fn @bytesLiteral{{[( ]}}
-    // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes
+    // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 64
     // CHECK: set_memory_object_len memorybytes, [[BYTES]], 3
     // CHECK: mstore {{v[0-9]+}}, 0x102030000000000000000000000000000000000000000000000000000000000
     // CHECK: internal_call @__ret_bytes, 0, [[BYTES]]
@@ -13,7 +13,7 @@ contract AbiDynamicReturn {
     }
 
     // CHECK-LABEL: fn @stringLiteral{{[( ]}}
-    // CHECK: [[STRING:v[0-9]+]] = alloc memorybytes
+    // CHECK: [[STRING:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 64
     // CHECK: set_memory_object_len memorybytes, [[STRING]], 5
     // CHECK: mstore {{v[0-9]+}}, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     // CHECK: internal_call @__ret_bytes, 0, [[STRING]]

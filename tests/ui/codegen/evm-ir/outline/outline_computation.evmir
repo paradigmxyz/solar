@@ -1,4 +1,4 @@
-//@compile-flags: --pass outline
+//@compile-flags: -Zevm-ir-pipeline=outline
 //@filecheck:
 @module module
 

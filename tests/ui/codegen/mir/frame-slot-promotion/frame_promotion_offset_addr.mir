@@ -1,4 +1,4 @@
-//@compile-flags: --passes frame-slot-promotion,dce
+//@compile-flags: -Zmir-pipeline=frame-slot-promotion,dce
 //@filecheck:
 @module FramePromotionOffsetAddr
 // CHECK-LABEL: {{^[ +].*}}fn @offset_addr{{[( ]}}

@@ -1,4 +1,4 @@
-//@compile-flags: --pass function-dce
+//@compile-flags: -Zmir-pipeline=function-dce
 //@filecheck: --enable-var-scope
 @module FunctionDceCalls
 

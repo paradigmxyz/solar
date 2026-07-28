@@ -1,4 +1,4 @@
-//@compile-flags: --pass cse
+//@compile-flags: -Zmir-pipeline=cse
 //@filecheck:
 @module CseStorageAlias
 // CHECK-LABEL: {{^[ +].*}}fn @reuse_sload_after_disjoint_store{{[( ]}}

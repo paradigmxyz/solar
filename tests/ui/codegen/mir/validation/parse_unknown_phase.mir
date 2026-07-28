@@ -1,4 +1,4 @@
-//@compile-flags: --pass none
+//@compile-flags: -Zmir-pipeline=none
 
 @module UnknownPhase
 @phase shiny //~ ERROR: unknown MIR phase `shiny`

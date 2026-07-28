@@ -5,7 +5,7 @@ use crate::{
     backend::evm::ir,
     lower::{self, contract_bytecode_dependencies},
     mir::Module,
-    pass::run_default_pipeline,
+    pass::run_pipeline,
 };
 use alloy_primitives::Bytes;
 use either::Either;
@@ -30,7 +30,8 @@ pub struct ContractArtifact {
     pub deployment: Bytes,
     /// Runtime bytecode.
     pub runtime: Bytes,
-    /// Captured MIR, built under `-O none` and post-pipeline otherwise.
+    /// Captured MIR, built under `-O none` when no explicit pipeline is configured and
+    /// post-pipeline otherwise.
     pub mir: Option<Module>,
     /// Final deployment-prefix EVM IR immediately before byte emission.
     pub deployment_evm_ir: Option<ir::Module>,
@@ -103,7 +104,8 @@ impl ContractSelection {
 /// Generates requested contract artifacts and their creation-bytecode dependencies.
 ///
 /// Contracts in `contracts` retain bytecode in the returned artifact.
-/// Contracts in `capture_mir` retain built MIR under `-O none` and final MIR otherwise.
+/// Contracts in `capture_mir` retain built MIR under `-O none` when no explicit pipeline is
+/// configured and final MIR otherwise.
 /// Contracts in `capture_evm_ir` retain their final EVM IR in the returned artifact.
 pub fn generate_contract_bytecodes(
     gcx: Gcx<'_>,
@@ -138,6 +140,7 @@ pub fn generate_contract_bytecodes(
     // Pass debugging writes directly to stdout and stderr, so keep its output ordered.
     let parallel = gcx.sess.is_parallel()
         && !gcx.sess.opts.unstable.print_after_each
+        && !gcx.sess.opts.unstable.pass_diff
         && !gcx.sess.opts.unstable.time_passes;
     sync::scope(parallel, |scope| {
         for contract_id in ready.iter() {
@@ -297,7 +300,9 @@ fn generate_contract_bytecode(
     let needs_backend = captures.bytecode.contains(contract_id)
         || captures.evm_ir.contains(contract_id)
         || !graph.dependents[contract_id].is_empty();
-    let capture_built = capture_mir && matches!(gcx.sess.opts.optimization, OptimizationMode::None);
+    let capture_built = capture_mir
+        && matches!(gcx.sess.opts.optimization, OptimizationMode::None)
+        && gcx.sess.opts.unstable.mir_pipeline.is_none();
     let built_mir = (capture_built && needs_backend).then(|| module.clone());
     let artifact = if needs_backend {
         let mut codegen = EvmCodegen::new(gcx);
@@ -308,7 +313,7 @@ fn generate_contract_bytecode(
         artifact
     } else {
         if capture_mir && !capture_built {
-            let _changed = run_default_pipeline(gcx, &mut module);
+            let _changed = run_pipeline(gcx, &mut module, None);
             gcx.dcx().has_errors()?;
         }
         Default::default()

@@ -9,7 +9,6 @@ fn @structArray(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = mul 1, 32
     v4 = div v3, 32
     v5 = eq v4, 1
@@ -117,7 +116,6 @@ fn @nestedArray(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    mstore 128, 0
     v3 = mul 1, 32
     v4 = div v3, 32
     v5 = eq v4, 1

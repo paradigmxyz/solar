@@ -47,7 +47,7 @@ fn main() -> anyhow::Result<()> {
 
 fn tester_mode(test_name: &str) -> Option<&str> {
     match test_name {
-        "ui" | "mir" | "standard-json" | "solc-solidity" | "solc-yul" => Some(test_name),
+        "ui" | "mir" | "evm-ir" | "standard-json" | "solc-solidity" | "solc-yul" => Some(test_name),
         "foundry" | "runtime" => Some("foundry"),
         _ => None,
     }

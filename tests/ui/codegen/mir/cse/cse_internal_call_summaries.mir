@@ -1,4 +1,4 @@
-//@compile-flags: --pass cse
+//@compile-flags: -Zmir-pipeline=cse
 //@filecheck:
 @module CseInternalCallSummaries
 // CHECK-LABEL: {{^[ +].*}}fn @keep_load_across_reader{{[( ]}}
