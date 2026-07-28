@@ -139,9 +139,9 @@ pub(crate) struct Lowerer<'gcx> {
     /// Variables not in this set can be kept as SSA values.
     assigned_vars: GrowableBitSet<VariableId>,
     /// Local variables that are storage references (pointers). Their value in
-    /// `locals` is a storage *slot*, so `r.field` reads `sload(slot + offset)`
-    /// and `r.field = v` writes `sstore(slot + offset, v)`, rather than treating
-    /// the value as a memory pointer.
+    /// `locals` or a local memory slot is a storage *slot*, so `r.field` reads
+    /// `sload(slot + offset)` and `r.field = v` writes `sstore(slot + offset, v)`,
+    /// rather than treating the value as a memory pointer.
     storage_ref_locals: GrowableBitSet<VariableId>,
     /// Stack of function IDs currently being inlined (for cycle detection).
     inline_stack: Vec<HirFunctionId>,
@@ -1221,14 +1221,18 @@ impl<'gcx> Lowerer<'gcx> {
                             abi_param_source,
                         );
                     }
-                    if Self::calldata_dynamic_var_kind(param).is_some()
-                        && self.is_var_assigned(&param_id)
-                    {
+                    let is_reassigned = self.is_var_assigned(&param_id);
+                    let is_storage_ref = self.param_is_storage_ref(param_id);
+                    if Self::calldata_dynamic_var_kind(param).is_some() && is_reassigned {
                         // A rebindable calldata slice needs one representation
                         // on every CFG path: give it a two-word slot instead
                         // of a lexical SSA binding.
                         let offset = self.alloc_local_slice_memory(param_id);
                         self.store_slice_slot(&mut builder, offset, head_or_value);
+                    } else if is_storage_ref && is_reassigned {
+                        let offset = self.alloc_local_memory(param_id);
+                        let addr = self.local_memory_addr(&mut builder, offset);
+                        builder.mstore(addr, head_or_value);
                     } else {
                         self.locals.insert(param_id, head_or_value);
                     }
@@ -1236,7 +1240,7 @@ impl<'gcx> Lowerer<'gcx> {
                     // by slot: its value *is* the base slot, so mark it so mapping
                     // indexing and struct/array reads through it use storage, and
                     // so passing it onward resolves back to the slot.
-                    if self.param_is_storage_ref(param_id) {
+                    if is_storage_ref {
                         self.storage_ref_locals.insert(param_id);
                     }
                 }

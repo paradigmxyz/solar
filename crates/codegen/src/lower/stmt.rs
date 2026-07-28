@@ -196,25 +196,35 @@ impl<'gcx> Lowerer<'gcx> {
         // (not the dereferenced value) so `r.field` reads/writes `sload`/`sstore`
         // at `slot + offset` rather than treating the value as a memory pointer.
         if var.data_location == Some(solar_ast::DataLocation::Storage) {
-            if let Some(init) = var.initializer {
+            self.storage_ref_locals.insert(var_id);
+            let slot = if let Some(init) = var.initializer {
                 if let Some(slot) = self.lower_lvalue_slot(builder, init) {
-                    self.locals.insert(var_id, slot);
-                    self.storage_ref_locals.insert(var_id);
+                    Some(slot)
+                } else {
+                    // Unhandled storage-reference initializer: don't silently
+                    // miscompile it as a memory pointer.
+                    self.gcx
+                        .dcx()
+                        .err("unsupported storage reference initializer")
+                        .span(init.span)
+                        .emit();
                     return;
                 }
-                // Unhandled storage-reference initializer: don't silently
-                // miscompile it as a memory pointer.
-                self.gcx
-                    .dcx()
-                    .err("unsupported storage reference initializer")
-                    .span(init.span)
-                    .emit();
-                return;
+            } else {
+                None
+            };
+
+            if self.is_var_assigned(&var_id) {
+                // Reserve a mergeable slot without inventing an initial storage address.
+                // Storage-reference assignment writes the actual address into it.
+                let offset = self.alloc_local_memory(var_id);
+                if let Some(slot) = slot {
+                    let addr = self.local_memory_addr(builder, offset);
+                    builder.mstore(addr, slot);
+                }
+            } else if let Some(slot) = slot {
+                self.locals.insert(var_id, slot);
             }
-            // No initializer (e.g. the slot is set later via `r.slot := ...`).
-            // Keep the value absent until that assignment; reading it first is
-            // an error, not an implicit reference to storage slot zero.
-            self.storage_ref_locals.insert(var_id);
             return;
         }
 
@@ -455,6 +465,11 @@ impl<'gcx> Lowerer<'gcx> {
                 let offset = self.alloc_local_memory(*var_id);
                 let offset_val = self.local_memory_addr(builder, offset);
                 builder.mstore(offset_val, val.expect("bound variable has a value"));
+                if self.gcx.hir.variable(*var_id).data_location
+                    == Some(solar_ast::DataLocation::Storage)
+                {
+                    self.storage_ref_locals.insert(*var_id);
+                }
             }
         }
     }
@@ -469,6 +484,9 @@ impl<'gcx> Lowerer<'gcx> {
         val: ValueId,
     ) {
         let var = self.gcx.hir.variable(var_id);
+        if var.data_location == Some(solar_ast::DataLocation::Storage) {
+            self.storage_ref_locals.insert(var_id);
+        }
         if Self::calldata_dynamic_var_kind(var).is_some() {
             if self.is_var_assigned(&var_id) {
                 let offset = self.alloc_local_slice_memory(var_id);

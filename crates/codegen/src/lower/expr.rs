@@ -431,7 +431,20 @@ impl<'gcx> Lowerer<'gcx> {
                         "tuple assignment does not produce a single value",
                     );
                 }
-                let rhs_val = if op.is_none() && self.lhs_expects_memory_bytes_value(lhs) {
+                let rhs_val = if op.is_none()
+                    && self
+                        .gcx
+                        .resolved_variable(lhs)
+                        .is_some_and(|var_id| self.storage_ref_locals.contains(var_id))
+                {
+                    self.lower_lvalue_slot(builder, rhs).unwrap_or_else(|| {
+                        self.err_value(
+                            builder,
+                            rhs.span,
+                            "unsupported storage reference assignment",
+                        )
+                    })
+                } else if op.is_none() && self.lhs_expects_memory_bytes_value(lhs) {
                     self.lower_expr_as_memory_bytes(builder, rhs)
                 } else if op.is_none() && self.lhs_expects_memory_dyn_array_value(lhs) {
                     self.lower_expr_as_memory_dyn_array(builder, rhs)
@@ -1636,12 +1649,17 @@ impl<'gcx> Lowerer<'gcx> {
             }
             ExprKind::YulMember(base, member) => {
                 // `r.slot := x` sets the storage pointer's slot value. The pointer
-                // is modeled as an SSA slot in `locals`, marked as a storage ref so
-                // later `r.field` access resolves to `sload`/`sstore(slot + off)`.
+                // is marked as a storage ref so later `r.field` access resolves to
+                // `sload`/`sstore(slot + off)`.
                 if member.name == sym::slot
                     && let Some(var_id) = self.gcx.resolved_variable(base)
                 {
-                    self.locals.insert(var_id, rhs);
+                    if let Some(offset) = self.get_local_memory_offset(&var_id) {
+                        let addr = self.local_memory_addr(builder, offset);
+                        builder.mstore(addr, rhs);
+                    } else {
+                        self.locals.insert(var_id, rhs);
+                    }
                     self.storage_ref_locals.insert(var_id);
                     return;
                 }
@@ -2484,7 +2502,7 @@ impl<'gcx> Lowerer<'gcx> {
                 if let Some(var_id) = self.gcx.resolved_variable(expr) {
                     // Another storage reference: its value is already the slot.
                     if self.storage_ref_locals.contains(var_id) {
-                        return self.locals.get(&var_id).copied();
+                        return self.load_storage_ref_slot(builder, var_id);
                     }
                     // A state variable: its base slot is known at compile time.
                     if let Some(&slot) = self.storage_slots.get(&var_id) {
@@ -2523,7 +2541,7 @@ impl<'gcx> Lowerer<'gcx> {
                     self.get_storage_ref_struct_field_info(base, *member)
                 {
                     let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
-                    let base_slot = self.locals.get(&var_id).copied()?;
+                    let base_slot = self.load_storage_ref_slot(builder, var_id)?;
                     return Some(if field_offset == 0 {
                         base_slot
                     } else {
@@ -2555,6 +2573,19 @@ impl<'gcx> Lowerer<'gcx> {
             }
             _ => None,
         }
+    }
+
+    fn load_storage_ref_slot(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        var_id: hir::VariableId,
+    ) -> Option<ValueId> {
+        if let Some(&slot) = self.locals.get(&var_id) {
+            return Some(slot);
+        }
+        let offset = self.get_local_memory_offset(&var_id)?;
+        let addr = self.local_memory_addr(builder, offset);
+        Some(builder.mload(addr))
     }
 
     /// Whether `callee` resolves to a function whose first return is a storage
